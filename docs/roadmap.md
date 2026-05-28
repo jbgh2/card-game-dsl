@@ -65,8 +65,11 @@ open-question framing.
    [structured-score](open-questions/structured-score.md),
    [mechanic-phase-unification](open-questions/mechanic-phase-unification.md),
    [simultaneous-body-grammar](open-questions/simultaneous-body-grammar.md))
-   each need one more data point. Game candidates ordered by how many
-   Tier 2 questions they'd unblock:
+   each need one more data point. The full candidate pipeline lives in
+   [games/_candidates.md](games/_candidates.md), with a coverage table
+   mapping each open question to the games that would unblock it.
+
+   Headline recommendations from the pipeline:
 
    - **Cribbage** — pegging events would unblock "Triggered Scoring"
      (third data point) and probably "Structured Score" (third
@@ -74,19 +77,15 @@ open-question framing.
    - **Oh Hell / Wizard** — unblocks "Bidding Meaning" (third data
      point after Spades and Pinochle/Bridge). Also a chance to validate
      the `BridgeAuction` → `Auction` shared mechanic story.
-   - **Whist with a dummy** — second data point on actor vs chooser
-     (though "Actor Vs Chooser" is already Tier 1 and could be
-     committed before this game).
+   - **Skat** — covers three Tier 2 questions at once (bidding meaning,
+     structured score, mechanic/phase unification). High leverage but
+     also the highest implementation cost in the pipeline.
    - **Klondike or FreeCell** — first solitaire; tests positional
-     zones and the `expose_top` operation. Doesn't directly unblock
-     a Tier 2 question.
-   - **Diplomacy or any negotiation-heavy game** — would unblock
-     "Simultaneous Body Grammar" if its simultaneous-resolution step
-     naturally requires control flow or intermediate state inside
-     the simultaneous block. Lower priority unless the CCG /
-     non-standard-deck scope is expanded.
+     zones. Doesn't directly unblock a Tier 2 question but forces a
+     deferred design decision.
 
-   Recommended: **Cribbage**. Two-question unblock with one game.
+   Recommended: **Cribbage**. Two-question unblock with one game; the
+   smallest implementation in the candidate set that unblocks anything.
 
 3. **Resolve [triggered-scoring](open-questions/triggered-scoring.md)**
    once Cribbage gives the third data point. Commit to (a) `triggered_by:`

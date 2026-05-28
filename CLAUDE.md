@@ -20,6 +20,7 @@ docs/
   appendix.md            Background research synthesis + corpus state catalogue
   games/                 One file per game in the corpus. Living spec examples.
     hearts.md, getaway.md, spades.md, pinochle.md, bridge.md, seven-card-stud.md
+    _candidates.md       Pipeline of games to consider next — corpus-first dev
   open-questions/        One file per open design question, with a tiered _index.md
   research/              Two background surveys (verbatim, longer reads)
 ```
@@ -32,7 +33,7 @@ docs/
 - **"How does X work?" (knowledge, scoring, mutation, typed outcomes, etc.)** → `docs/decisions.md`
 - **"How is game Y described in the DSL?"** → `docs/games/Y.md`
 - **"What's still being decided?"** → `docs/open-questions/_index.md` then the named file
-- **"What should we build next?"** → `docs/roadmap.md`
+- **"What should we build next?"** → `docs/roadmap.md` (and `docs/games/_candidates.md` for the full pipeline)
 - **"Which game uses which state variable?"** → `docs/appendix.md` (corpus catalogue)
 
 ## Operating rules (load-bearing)
