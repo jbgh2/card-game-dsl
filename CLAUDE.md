@@ -81,6 +81,16 @@ The corpus today: Hearts, Getaway (Bhabhi), Spades, Pinochle, Bridge
 non-player should be able to read the file cold and play a hand. That's the
 acceptance test for clarity.
 
+## Rule references
+
+When you need to look up a game's rules — to check a detail of a game
+already in `docs/games/`, or to size up a candidate game from
+`docs/roadmap.md` — **Pagat.com (https://www.pagat.com/) is the
+authoritative source**. Fetch the page live rather than reconstructing
+rules from memory; trick-taking variants drift in small ways that matter
+to the DSL (lead order, exact scoring, partnership choice). Don't mirror
+or scrape the site — use it on demand, like any other reference.
+
 ## Out of scope (current phase)
 
 CCG-style card effects (Magic, Yu-Gi-Oh!), deck-builders, and solitaire
