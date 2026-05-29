@@ -66,6 +66,39 @@ The criterion: ask whether any rule reads the boolean in its
 `applies_when:` clause. If yes, the boolean is hiding a phase
 transition; refactor to sub-phases. If no, it's just data.
 
+## Sub-phase entry and exit
+
+A sub-phase is entered and exited in one of three ways. All three
+exist in the corpus; choosing among them is a matter of which one
+the rulebook describes.
+
+**Sequencing (default).** The enclosing phase body lists sub-phases
+in order; control enters the next sub-phase when the previous one
+ends. Used for setup → bidding → play → scoring pipelines.
+
+**Predicate guard.** `phase X when <pred>` makes the sub-phase
+active *exactly when* the predicate holds. The phase is entered the
+first time the predicate becomes true and exited as soon as it
+becomes false. Hearts' `passing` sub-phase uses this for the case
+when `pass_direction != none`; Tichu's `wish_active` sub-phase uses
+this for the case when a Mahjong wish stands. No explicit
+`transition_to:` is needed — the predicate is the entry guard *and*
+the exit condition.
+
+**Event-triggered sibling transition.** `transition_to: Y when E`
+inside sibling X switches control to sibling Y when event E fires.
+Used for one-way state changes that name a specific successor:
+Hearts' `hearts_not_broken → hearts_broken`, Spades'
+`spades_not_broken → spades_broken`. The transition is one-shot —
+once Y is entered, X is not re-entered.
+
+There is no separate construct for "this sub-phase ends and control
+returns to the enclosing parent's loop." The predicate-guard form
+covers it: when the predicate becomes false, the sub-phase exits,
+and control resumes in whatever parent body invoked it. Reaching
+for `transition_to: parent` is a sign that what's really needed is a
+predicate guard.
+
 ## Sub-phase rule and legal-move deltas
 
 A sub-phase inherits its parent's `active_rules` and `legal_moves`. To

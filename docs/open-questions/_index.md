@@ -54,9 +54,6 @@ of the language.
   for non-mandatory moves during a window (Tichu calls).
 - [per-player-sub-phases](per-player-sub-phases.md) — `per_player`
   modifier on sub-phases with per-player transition triggers.
-- [transition-to-parent](transition-to-parent.md) — syntax for a
-  sub-phase that ends and returns control to its parent's loop
-  (Tichu wish_active).
 - [game-mid-phase-termination](game-mid-phase-termination.md) —
   propagating `early_termination:` up the phase tree so a game can
   end during a sub-phase (Cribbage pegging).

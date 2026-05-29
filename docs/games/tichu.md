@@ -96,12 +96,12 @@ game Tichu {
       legal_moves: [play_combination, pass]
       out_of_turn_legal: bombs   // see open-questions/out-of-turn-moves.md
 
-      // Sub-phase: the Mahjong wish is active.
+      // Sub-phase: the Mahjong wish is active. Entry and exit are
+      // governed by the predicate; the sub-phase is active for as long
+      // as `active_wish` is set. See decisions.md "Sub-phase entry
+      // and exit".
       phase wish_active when active_wish != none {
         active_rules: [+ MustPlayWishedRankIfAble]
-        transition_to: parent when active_wish becomes none
-        // `transition_to: parent` — see
-        // open-questions/transition-to-parent.md.
       }
 
       // Sub-phase: Tichu calls still allowed for a player who has not yet
