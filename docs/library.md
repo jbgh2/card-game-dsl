@@ -14,6 +14,7 @@ mechanic Trick (
   participants:        List<Player>
   leader:              Player
   source_zone:         per-player Zone
+  chooser_for:         (Player) → Player       // default: identity (actor chooses)
   play_zone:           shared Zone
   play_rules:          RuleSet
   outcome:             (played_cards, state) → Player
@@ -45,6 +46,11 @@ Key design notes:
 - **The mechanic produces shared state** (`next_leader`) which the enclosing
   phase reads to start the next trick. The mechanic does not assume
   "winner-leads-next" — the enclosing phase makes that choice.
+
+- **`chooser_for` defaults to identity.** Almost every game leaves it
+  unset, meaning each actor chooses their own card. Bridge passes a
+  game-defined helper that routes dummy's turn to declarer. See
+  [decisions.md](decisions.md) "Delegated play".
 
 ## Move types
 

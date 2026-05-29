@@ -668,6 +668,70 @@ Spades (BagOverflow), Cribbage (HisHeels, PeggingFifteen,
 PeggingThirtyOne, PeggingPair, PeggingRun, PeggingLastCard). All
 fit the shape above.
 
+## Delegated play
+
+A move is normally chosen by the player it's attributed to: the
+active player picks from their own hand, submits a bid on their own
+behalf. Some games separate these — a move comes from one player's
+zone, attribution stays with that player, but the *choice* is made
+by a different player.
+
+The canonical case is Bridge's dummy. Once revealed, dummy's cards
+play from `dummy_hand[dummy]` (the move belongs to dummy, the
+information-state attributes the play to dummy), but declarer is
+the one who picks which card. Defenders play their own cards
+normally.
+
+The language handles this with per-game helper functions, not new
+zone-level or move-level constructs:
+
+```
+play_source_for(actor) =                // which zone the move comes from
+  if actor == declarer.partner and dummy_revealed:
+    dummy_hand[actor]
+  else:
+    private_hand[actor]
+
+chooser_for(actor) =                    // who decides what move it is
+  if actor == declarer.partner and dummy_revealed:
+    declarer
+  else:
+    actor
+```
+
+The Trick mechanic accepts an optional `chooser_for:` parameter
+that defaults to the identity function (actor chooses for
+themselves). Bridge passes its game-defined helper. Other games
+omit the parameter. Any other choice-prompting mechanic that
+exposes a similar parameter follows the same convention.
+
+A game with delegated play also typically wants a parallel
+`play_source_for` helper to route the actor's move-source zone
+through the conditional. Both helpers live as ordinary per-game
+functions in the game file.
+
+The default — actor is chooser, hand is source — is implicit.
+Games without delegated play declare neither helper and the
+defaults apply.
+
+**Why per-game helpers, not a zone-level construct.** A
+`choices_made_by:` declaration on the zone type was considered.
+The case against: delegated play is a niche pattern (Bridge dummy
+and its near-variants — Honeymoon Bridge, Solo Whist with a
+dummy). Lifting it to the zone type would add language surface
+that every reader has to understand for a feature most games
+never use. Per-game helpers stay local to the game that needs
+them and integrate with the existing convention for routing
+helpers (Bridge already had `play_source_for` before this
+resolution; `chooser_for` is the symmetric counterpart).
+
+Apparent second data points like Sheepshead's partner-by-card and
+Doppelkopf's Re/Kontra announcements turn out *not* to be
+actor-vs-chooser cases on close reading — they are
+hidden-information / team-formation patterns where each player
+still chooses their own moves. The Bridge family is the only
+known case of true delegated play in the standard-deck corpus.
+
 ## Simultaneous moves and atomic effect
 
 Some game steps consist of several moves that observers must see

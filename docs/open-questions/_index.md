@@ -23,8 +23,6 @@ decision, not evidence.
 - [mechanic-internal-legality](mechanic-internal-legality.md) — promote
   mechanic-internal state to a queryable interface, or accept some
   legality as mechanic-internal.
-- [actor-vs-chooser](actor-vs-chooser.md) — Bridge dummy: zone-level
-  `choices_made_by:` declaration.
 
 ## Tier 2 — High impact, blocked on a data point
 

@@ -36,7 +36,6 @@ to a real implementation.
 | [routing-as-constraint](../open-questions/routing-as-constraint.md) | second routing-override game | [president](#president), [war](#war), [egyptian-ratscrew](#egyptian-ratscrew) |
 | [typed-amount-syntax](../open-questions/typed-amount-syntax.md), [transfer-failure](../open-questions/transfer-failure.md), [move-level-visibility](../open-questions/move-level-visibility.md) | second resource-using game | [holdem](#holdem), [omaha-hi-lo](#omaha-hi-lo), [liars-dice](#liars-dice) |
 | [zone-access-syntax](../open-questions/zone-access-syntax.md) | game with complex relational receivers | [doppelkopf](#doppelkopf), [sheepshead](#sheepshead) |
-| [actor-vs-chooser](../open-questions/actor-vs-chooser.md) | second delegated-play example | [sheepshead](#sheepshead) (partner-by-card), [doppelkopf](#doppelkopf) |
 | [memory-event-syntax](../open-questions/memory-event-syntax.md) | three to four examples beyond stdlib ops | [hanabi](#hanabi) (information tokens), [cabo](#cabo) (peek-and-swap), [coup](#coup) (reveal-then-rehide) |
 | [higher-order-knowledge](../open-questions/higher-order-knowledge.md) | a rule that reads second-order knowledge | [hanabi](#hanabi) (canonical), [coup](#coup) (bluff modeling), [eleusis](#eleusis) (rule inference) |
 | [knowledge-events](../open-questions/knowledge-events.md) | phase outcome observed unequally | [coup](#coup) (challenge reveals), [belote](#belote) (in-play declarations) |
@@ -171,9 +170,10 @@ Clubs), and partnerships are revealed through play.
 case. Queries like "partner of (player holding Queen of Clubs other
 than me)" are complex relational chains in subject position.
 Announcements ("Re", "Kontra", "No 90", "No 60") are spoken by
-individual players but bind partnership-level contracts — material
-for [actor-vs-chooser](../open-questions/actor-vs-chooser.md) in a
-shape distinct from Bridge's dummy.
+individual players but bind partnership-level contracts — distinct
+from Bridge's dummy in that the speaker is both actor and chooser
+of their own announcement; the partnership-binding is a scoring
+concern, not a delegated-play one.
 
 **Notes.** Rules vary by region. **Pagat** for tournament rules and
 the special-card hierarchy: <https://www.pagat.com/schafk/doko.html>.

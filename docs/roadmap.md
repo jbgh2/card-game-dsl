@@ -50,13 +50,13 @@ open-question framing.
    - [mechanic-internal-legality](open-questions/mechanic-internal-legality.md) —
      decide between promoting internal state to a queryable interface
      versus accepting some legality as mechanic-internal.
-   - [actor-vs-chooser](open-questions/actor-vs-chooser.md) — commit the
-     zone-level `choices_made_by:` declaration. The provisional fix in
-     Bridge has been load-bearing for several iterations.
 
-   Either can be tackled first; neither depends on the other.
-   Sub-phase-rule-syntax was settled with the Schnapsen addition —
-   see decisions.md "Sub-phase rule and legal-move deltas".
+   This is the last remaining Tier 1 question.
+   Sub-phase-rule-syntax was settled with the Schnapsen addition;
+   actor-vs-chooser was settled with the Bridge `chooser_for`
+   helper; triggered-scoring was settled with Cribbage's pegging
+   stream as the third data point. See the corresponding sections
+   in decisions.md.
 
 2. **Pick the next game to unblock remaining Tier 2.** The remaining
    Tier 2 questions

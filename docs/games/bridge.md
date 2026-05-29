@@ -109,6 +109,7 @@ game Bridge {
           participants = all players,
           leader       = leader,
           source_zone  = play_source_for(actor),   // see dummy machinery below
+          chooser_for  = chooser_for,              // identity-default; only matters after dummy is revealed
           play_zone    = trick_pile,
           play_rules   = active_rules,
           outcome      = TrumpedHighestOfLedSuit(trump = contract.suit),
@@ -140,6 +141,7 @@ game Bridge {
             participants = all players,
             leader       = leader,
             source_zone  = play_source_for(actor),
+            chooser_for  = chooser_for,
             play_zone    = trick_pile,
             play_rules   = active_rules,
             outcome      = TrumpedHighestOfLedSuit(trump = contract.suit),
@@ -285,15 +287,22 @@ scoring_component RubberBonus {
 
 // === Dummy-play machinery ===
 
+// Bridge separates the *actor* (the player on the move) from the
+// *chooser* (the player making the choice) once dummy is revealed.
+// Dummy is the actor of record for their cards; declarer picks them.
+// See decisions.md "Delegated play".
+
 play_source_for(actor) =
   if actor == declarer.partner and dummy_revealed:
     dummy_hand[actor]                     // dummy's cards play from the public zone
   else:
     private_hand[actor]
 
-// Conceptual: during play after dummy reveal, when it is dummy's turn to
-// play, the choice is made by declarer (not by dummy). Flagged as
-// open-questions/actor-vs-chooser.md.
+chooser_for(actor) =
+  if actor == declarer.partner and dummy_revealed:
+    declarer                              // declarer picks for dummy
+  else:
+    actor                                 // every other actor chooses for themselves
 
 // === Helpers ===
 
