@@ -22,7 +22,6 @@ game Spades {
     // Game-level: persist across hands.
     bags[team]   : Integer = 0
     score[team]  : Integer = 0
-    dealer       : Player  = initial_dealer
   }
 
   phase hand_sequence repeats until any team.score >= 500 {

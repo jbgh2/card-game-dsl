@@ -36,7 +36,6 @@ game Bridge {
       games_won[partnership]              : Integer = 0
       above_line[partnership]             : Integer = 0
       below_line_current_game[partnership]: Integer = 0   // resets when a game is won
-      dealer                              : Player  = initial_dealer
     }
 
     phase hand_sequence {

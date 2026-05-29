@@ -273,6 +273,22 @@ is the first game to exercise the full vocabulary in non-trivial ways.
 Resource-using games (Catan and similar, when they enter scope) use
 `transfer` as the primary movement op.
 
+## Stdlib state
+
+Game state variables provided by the language with conventional
+defaults. A game opts in by referencing the name; if no reference,
+the variable is not allocated.
+
+- `dealer : Player = initial_dealer` — the rotating dealer. Present
+  in any game that names a dealer in setup or references `dealer`
+  in its body. Initial value comes from the runtime-supplied
+  `initial_dealer` (typically resolved by a low-cut, coin flip, or
+  similar at game start). Rotation is per-game: `dealer := dealer.left`
+  in multi-player clockwise games (Spades, Pinochle, Bridge, Stud,
+  Cribbage), `dealer := other player` in two-player games
+  (Schnapsen, Cribbage). Hearts and Getaway don't reference
+  `dealer` and pay no cost for the stdlib slot.
+
 ## Stdlib functions
 
 Standard helpers available across games.

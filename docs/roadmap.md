@@ -108,11 +108,10 @@ open-question framing.
    when three or four examples exist beyond stdlib operations. Stud is
    the first; no second example yet.
 
-7. **Adopt Tier 4 cleanups when convenient.**
-   [dealer-promotion](open-questions/dealer-promotion.md) is a pure
-   readability/code-reduction win; doesn't block anything. Counters
-   was resolved as inline expressions or per-game helpers — see
-   decisions.md "Scoring composition".
+7. **Tier 4 cleanups landed.** Counters and dealer-promotion are
+   both resolved — counters as inline expressions or per-game
+   helpers (see decisions.md "Scoring composition"); dealer as a
+   stdlib state variable (see library.md "Stdlib state").
 
 8. **Defer Tier 5 cosmetic questions** until a real preference
    emerges from corpus pressure.

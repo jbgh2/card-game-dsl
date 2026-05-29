@@ -43,7 +43,6 @@ game Cribbage {
   state {
     // Game-level: persists across hands.
     score[player] : Integer = 0
-    dealer        : Player  = initial_dealer
   }
 
   // === Top-level phase sequence ===

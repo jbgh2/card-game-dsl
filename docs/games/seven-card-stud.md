@@ -31,7 +31,6 @@ game SevenCardStud {
 
   state {
     // Game-level: persist across hands.
-    dealer           : Player  = initial_dealer
     ante_amount      : Integer = 1                  // small ante per player
     lower_limit      : Integer = 5
     upper_limit      : Integer = 10

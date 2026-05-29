@@ -34,7 +34,6 @@ game Pinochle {
   state {
     // Game-level: persist across hands.
     score[team] : Integer = 0
-    dealer      : Player  = initial_dealer
   }
 
   // === Phase sequence with typed-outcome routing ===

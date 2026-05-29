@@ -36,7 +36,6 @@ game Schnapsen {
   state {
     // Game-level: persists across hands.
     game_score[player] : Integer = 7               // scored downward; 0 wins
-    dealer             : Player  = initial_dealer
   }
 
   // === Top-level phase sequence ===
