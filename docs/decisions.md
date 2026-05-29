@@ -149,6 +149,49 @@ The criterion for which operator to use: write the slot the way the
 game's rulebook introduces the change. Rulebooks describe what
 *kicks in*, not what *goes away*; the syntax follows.
 
+## Trick mechanic parameters vs rules
+
+Some phase-level configuration is *not* a rule even though it looks
+like one. The Trick mechanic accepts `outcome:`, `routing:`,
+`early_termination:`, and `chooser_for:` as parameters. These
+modify *what happens after a play* (who's the winner, where the
+cards go, when the trick ends early, who picks); rules modify
+*which plays are legal*.
+
+The categories don't unify:
+
+- **Rules** are filters on the candidate-move set. They're attached
+  to phases via `active_rules:` and consulted before each move.
+- **Trick parameters** (`outcome:`, `routing:`, early_termination`)
+  are arguments to the mechanic. They run once per trick (or per
+  play) and produce the trick's effect.
+- **Choice helpers** (`chooser_for:`, `play_source_for:`) are
+  per-game functions consulted by the mechanic when it solicits a
+  move.
+
+Getaway's first-trick-to-waste behaviour is the canonical mistake:
+when written as a rule (`rule FirstTrickAlwaysGoesToWaste`) it has
+nothing to constrain — its mechanical effect is a routing override
+on the Trick instantiation. The correct form is to pass the routing
+function directly:
+
+```
+phase first_trick {
+  active_rules: [MustLeadAceOfSpadesOnFirstPlay]
+  instantiate Trick (
+    ...
+    routing = all cards from trick_pile to waste
+  )
+}
+```
+
+Tichu's Dragon-routing similarly lives in the `TichuTrickRouting`
+function, not in a rule. Hearts' `TrumpedHighestOfLedSuit` is an
+`outcome:` function, not a rule. The clean test: if the
+configuration's effect is "filter legal moves before play," it's a
+rule; if its effect is "shape the trick's resolution after play,"
+it's a mechanic parameter.
+
 ## State scoping (lexical)
 
 A variable is scoped to the phase that lexically encloses its

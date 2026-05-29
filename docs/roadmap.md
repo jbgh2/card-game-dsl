@@ -94,9 +94,8 @@ open-question framing.
    from Omaha Hi-Lo, Skat, or similar.
 
 5. **Address Tier 3 questions when their corner of the language
-   gets exercised.** [routing-as-constraint](open-questions/routing-as-constraint.md)
-   waits for a second routing-override game; the resource/visibility
-   refinements ([typed-amount-syntax](open-questions/typed-amount-syntax.md),
+   gets exercised.** The resource/visibility refinements
+   ([typed-amount-syntax](open-questions/typed-amount-syntax.md),
    [move-level-visibility](open-questions/move-level-visibility.md),
    [transfer-failure](open-questions/transfer-failure.md)) wait for a
    second resource-using game.

@@ -40,8 +40,6 @@ design. The data point is named in each file.
 These don't block other work but resolving them improves specific corners
 of the language.
 
-- [routing-as-constraint](routing-as-constraint.md) — phase-level
-  routing/outcome/event-observer overrides as a category.
 - [typed-amount-syntax](typed-amount-syntax.md) — `{ wood: 2 }` vs `2 wood`
   vs `wood × 2`.
 - [move-level-visibility](move-level-visibility.md) — override-replace vs

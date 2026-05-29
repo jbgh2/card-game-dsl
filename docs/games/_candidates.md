@@ -33,7 +33,6 @@ to a real implementation.
 | [structured-score](../open-questions/structured-score.md) | third structured-score shape | [omaha-hi-lo](#omaha-hi-lo) (split pot), [skat](#skat) (game-value × multipliers) |
 | [mechanic-phase-unification](../open-questions/mechanic-phase-unification.md) | ninth game blurring mechanic/phase | [skat](#skat) (declaration sub-phases), [french-tarot](#french-tarot) (chien handling) |
 | [simultaneous-body-grammar](../open-questions/simultaneous-body-grammar.md) | simultaneous step with substructure | [diplomacy](#diplomacy), [bohnanza](#bohnanza), [coup](#coup) (challenge resolution) |
-| [routing-as-constraint](../open-questions/routing-as-constraint.md) | second routing-override game | [president](#president), [war](#war), [egyptian-ratscrew](#egyptian-ratscrew) |
 | [typed-amount-syntax](../open-questions/typed-amount-syntax.md), [transfer-failure](../open-questions/transfer-failure.md), [move-level-visibility](../open-questions/move-level-visibility.md) | second resource-using game | [holdem](#holdem), [omaha-hi-lo](#omaha-hi-lo), [liars-dice](#liars-dice) |
 | [zone-access-syntax](../open-questions/zone-access-syntax.md) | game with complex relational receivers | [doppelkopf](#doppelkopf), [sheepshead](#sheepshead) |
 | [memory-event-syntax](../open-questions/memory-event-syntax.md) | three to four examples beyond stdlib ops | [hanabi](#hanabi) (information tokens), [cabo](#cabo) (peek-and-swap), [coup](#coup) (reveal-then-rehide) |
@@ -206,11 +205,11 @@ previous play (single card, pair, triple, etc.). Cross-hand routing:
 losers must give their highest cards to winners at the start of the
 next hand.
 
-**Why interesting.** Canonical second data point for
-[routing-as-constraint](../open-questions/routing-as-constraint.md):
-the routing override is a *phase-level rule that fires between
-hands* (President of last hand receives from Asshole, etc.) — a
-different shape from Getaway's first-trick-to-waste. Cross-hand
+**Why interesting.** Routing override that fires *between hands*
+(President of last hand receives from Asshole, etc.) — a different
+shape from Getaway's first-trick-to-waste, and probably the cleanest
+shape for a cross-hand setup helper or per-game function rather than
+a Trick parameter. Cross-hand
 state (the President/Asshole assignment) gates the next hand's
 setup.
 

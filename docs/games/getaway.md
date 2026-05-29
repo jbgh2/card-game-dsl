@@ -34,9 +34,11 @@ game Getaway {
       // forced lead: AS only
       active_rules: [
         MustFollowSuit,
-        MustLeadAceOfSpadesOnFirstPlay,
-        FirstTrickAlwaysGoesToWaste
+        MustLeadAceOfSpadesOnFirstPlay
       ]
+      // First-trick-to-waste isn't a rule — it's a Trick routing
+      // parameter. See the `routing =` line in the Trick instantiation
+      // below, and decisions.md "Trick mechanic parameters vs rules".
       legal_moves: [play_to_trick]
 
       instantiate Trick (
@@ -107,13 +109,6 @@ rule MustLeadAceOfSpadesOnFirstPlay {
   applies_when: trick.led_suit is none       // reads led_suit from the Trick mechanic's state
   demands: hand.where(c ⇒ c == ace of spades)
   if_impossible: error("first lead must be the ace of spades")
-}
-
-rule FirstTrickAlwaysGoesToWaste {
-  // This is really a routing constraint, not a play constraint.
-  // Encoded here as a phase-level routing override.
-  applies_during: first_trick phase
-  override_routing: all cards from trick_pile to waste
 }
 
 rule OptionalStealLeftIfAlone {

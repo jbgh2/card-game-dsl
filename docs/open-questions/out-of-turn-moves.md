@@ -42,6 +42,8 @@ A second game with out-of-turn moves (Egyptian Ratscrew's slapping,
 some real-time variants) would force the framing decision. Until
 then a Tichu-specific encoding is fine.
 
-Related: [routing-as-constraint](routing-as-constraint.md) catalogs
-the categories of phase-attached configuration beyond rules; "permit"
-shapes may fit there.
+Related: decisions.md "Trick mechanic parameters vs rules"
+catalogs the distinction between rules (filter legal moves) and
+mechanic parameters (shape resolution). "Permit"-style out-of-turn
+legality doesn't fit either category cleanly — it's about *who's
+on the move*, not what the on-move actor can do.
