@@ -63,7 +63,6 @@ of the language.
 These have known scope and aren't blocking anything. Adopt when convenient
 or when a game forces the issue.
 
-- [counters](counters.md) — declarable per-card point values.
 - [dealer-promotion](dealer-promotion.md) — `dealer` as a stdlib concept.
 - [memory-event-syntax](memory-event-syntax.md) — declaration syntax for
   custom memory-affecting events.

@@ -13,10 +13,10 @@ When a candidate is implemented, its entry is deleted from here and
 replaced by a real game file. Treat the entries as "why this game is
 interesting" signals, not as rule references.
 
-Five open questions need only a decision, not new evidence — the three
-Tier 1 questions plus [counters](../open-questions/counters.md) and
-[dealer-promotion](../open-questions/dealer-promotion.md). The table
-below only lists questions a new game could unblock.
+The table below lists questions a new game could unblock.
+Decision-ready questions (no new evidence required) live in
+[open-questions/_index.md](../open-questions/_index.md) under the
+relevant tier.
 
 **Source policy.** Summaries are written from memory for games the
 author is confident about. For games with regional variation or fiddly

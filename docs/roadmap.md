@@ -109,9 +109,10 @@ open-question framing.
    the first; no second example yet.
 
 7. **Adopt Tier 4 cleanups when convenient.**
-   [counters](open-questions/counters.md) and
-   [dealer-promotion](open-questions/dealer-promotion.md) are pure
-   readability/code-reduction wins; neither blocks anything.
+   [dealer-promotion](open-questions/dealer-promotion.md) is a pure
+   readability/code-reduction win; doesn't block anything. Counters
+   was resolved as inline expressions or per-game helpers — see
+   decisions.md "Scoring composition".
 
 8. **Defer Tier 5 cosmetic questions** until a real preference
    emerges from corpus pressure.

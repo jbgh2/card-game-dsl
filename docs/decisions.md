@@ -658,6 +658,19 @@ open (see
 [open-questions/structured-score.md](open-questions/structured-score.md));
 for now each game declares the shape it needs.
 
+**Per-card point values are inline expressions or per-game
+helpers.** Hearts scores `if card.suit == hearts then 1 elif
+card == queen_of_spades then 13 else 0` inline; Pinochle scores
+`if card.rank in [A, 10, K] then 10 else 0` inline; Tichu mixes
+specials and ranks. A declarative rank-keyed `counters: { ... }`
+block on the card definition was considered but only cleanly
+handles the Pinochle shape — Hearts' suit-plus-special-card and
+Tichu's special-card-plus-rank scoring both need richer
+expressions. Inline conditionals scale to all three. Lift to a
+per-game helper function when a table is large enough to repay
+the indirection (the cribbage show-scoring components are an
+example).
+
 ## Triggered scoring components
 
 Some scoring fires in response to a specific event rather than as
