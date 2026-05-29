@@ -108,10 +108,10 @@ Key design notes:
 
 ## Scoring components
 
-Introduced in Bridge, now in both Bridge and Spades. Composition by
-summation of `ScoreDelta` outputs; trigger-based components (game-won
-bonuses, bag overflow) remain imperative post-component checks pending
-[open-questions/triggered-scoring.md](open-questions/triggered-scoring.md).
+Introduced in Bridge, now in Bridge, Spades, and Cribbage. Composition
+by summation of `ScoreDelta` outputs; triggered components fire on
+specific events via `triggered_by:` clauses (see decisions.md
+"Triggered scoring components").
 
 **Bridge:**
 
@@ -119,19 +119,32 @@ bonuses, bag overflow) remain imperative post-component checks pending
 - `OvertrickScore` — above-the-line points for tricks beyond the contract.
 - `UndertrickPenalty` — above-the-line points to defenders when contract fails.
 - `SlamBonus` — above-the-line bonus for level-6/7 contracts made.
-- `GameBonus`, `RubberBonus` — triggered by state thresholds rather than
-  the main components list (see
-  [open-questions/triggered-scoring.md](open-questions/triggered-scoring.md)).
+- `GameBonus`, `RubberBonus` — triggered after `apply_components` on
+  the below-line-crosses-100 and games_won-reaches-2 thresholds.
 
 **Spades:**
 
 - `NilScoring` — per-player ±100 for Nil bidders.
 - `ContractScoring` — per-team scoring on contract success/failure;
   also accumulates bags on overtricks.
+- `BagOverflow` — triggered after `apply_components` on the
+  bags-crosses-10 threshold.
+
+**Cribbage:**
+
+- `HisHeels` — triggered on `cut_starter` event when the starter is a Jack.
+- `PeggingFifteen`, `PeggingThirtyOne` — triggered on `play_card` when
+  the running total reaches 15 or 31.
+- `PeggingPair`, `PeggingRun` — triggered on `play_card` from suffix
+  patterns on the play pile.
+- `PeggingLastCard` — triggered on `end_of_round`.
+- `ShowFifteens`, `ShowPairs`, `ShowRuns`, `ShowFlush`, `ShowHisNob`
+  — per-batch components, applied three times (non-dealer hand, dealer
+  hand, crib).
 
 All currently game-specific. Generalization candidates will emerge with
-more scoring-heavy games (Cribbage, Bridge variants, Skat, Pinochle's
-full meld scoring).
+more scoring-heavy games (Bridge variants, Skat, Pinochle's full meld
+scoring).
 
 ## Phase types
 
@@ -275,5 +288,9 @@ Standard helpers available across games.
   declaration; returns the team containing the given player. Used
   in Spades, Pinochle, Bridge, anywhere team-of-trick-winner
   matters.
+- `value(card: Card) → Integer` — the card's pegging-pip value as
+  used in Cribbage and adding games: A=1, 2..10 = face value, J/Q/K = 10.
+  Distinct from a card's *ranking* (which orders cards for
+  trick-taking comparisons).
 
 More will be added as games surface common helpers.

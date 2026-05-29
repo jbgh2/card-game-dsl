@@ -20,8 +20,6 @@ These questions have enough data points in the corpus that a design could
 be committed without waiting for more games. The gating factor is
 decision, not evidence.
 
-- [sub-phase-rule-syntax](sub-phase-rule-syntax.md) — commit the provisional
-  `+ X` / `- X` / `override X` form for sub-phase rule deltas.
 - [mechanic-internal-legality](mechanic-internal-legality.md) — promote
   mechanic-internal state to a queryable interface, or accept some
   legality as mechanic-internal.
@@ -33,8 +31,6 @@ decision, not evidence.
 These questions need one more game in the corpus before committing to a
 design. The data point is named in each file.
 
-- [triggered-scoring](triggered-scoring.md) — `triggered_by:` clause on
-  components, or distinct trigger category. Blocker: Cribbage pegging.
 - [bidding-meaning](bidding-meaning.md) — Auction should declare what the
   bid value targets. Blocker: a third bidding game.
 - [structured-score](structured-score.md) — generalize Bridge's
@@ -62,6 +58,16 @@ of the language.
   or game-level only.
 - [zone-access-syntax](zone-access-syntax.md) — `zone[chain]` vs
   `chain.zone` for complex receivers.
+- [optional-window-moves](optional-window-moves.md) — `may submit X`
+  for non-mandatory moves during a window (Tichu calls).
+- [per-player-sub-phases](per-player-sub-phases.md) — `per_player`
+  modifier on sub-phases with per-player transition triggers.
+- [transition-to-parent](transition-to-parent.md) — syntax for a
+  sub-phase that ends and returns control to its parent's loop
+  (Tichu wish_active).
+- [game-mid-phase-termination](game-mid-phase-termination.md) —
+  propagating `early_termination:` up the phase tree so a game can
+  end during a sub-phase (Cribbage pegging).
 
 ## Tier 4 — Low impact, defer until forced
 
@@ -76,6 +82,12 @@ or when a game forces the issue.
   Q knows X?".
 - [knowledge-events](knowledge-events.md) — observer-dependent phase
   outcomes.
+- [special-cards-declaration](special-cards-declaration.md) — `specials:`
+  block and contextual-rank cards (Tichu's Mahjong, Dog, Phoenix, Dragon).
+- [out-of-turn-moves](out-of-turn-moves.md) — `out_of_turn_legal`
+  vs permitting-rules vs phase-level lists (Tichu bombs).
+- [choice-embedded-routing](choice-embedded-routing.md) — player decisions
+  inside routing functions (Tichu Dragon).
 
 ## Tier 5 — Cosmetic, no design risk
 

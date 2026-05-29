@@ -66,6 +66,56 @@ The criterion: ask whether any rule reads the boolean in its
 `applies_when:` clause. If yes, the boolean is hiding a phase
 transition; refactor to sub-phases. If no, it's just data.
 
+## Sub-phase rule and legal-move deltas
+
+A sub-phase inherits its parent's `active_rules` and `legal_moves`. To
+modify the inherited sets, the sub-phase uses three operators inside
+the slot:
+
+```
+phase parent { active_rules: [A, B, C] }
+
+phase child_extend   { active_rules: [+ D] }            // adds D       → A, B, C, D
+phase child_remove   { active_rules: [- B] }            // removes B    → A, C
+phase child_override { active_rules: [override A2] }    // replaces A   → A2, B, C
+```
+
+`override X` matches by name: the parent rule with the same identifier
+as `X` is replaced by `X`. If no parent rule matches the override
+target, it's a compile error — there's nothing to override.
+
+The same operators apply identically to `legal_moves`:
+
+```
+phase parent { legal_moves: [play_to_trick] }
+phase child  { legal_moves: [+ declare_marriage] }
+```
+
+A slot may mix operators and plain entries — a sub-phase that lists
+a bare rule is shadowing inheritance with its own complete set:
+
+```
+phase parent { active_rules: [A, B, C] }
+phase child  { active_rules: [X, Y] }                   // X, Y only — parent set discarded
+```
+
+**Corpus usage.** Every existing use is `+ X`. Hearts, Spades, and
+Schnapsen add follow-restriction rules; Pinochle and Spades add
+first-trick constraints; Tichu adds the Mahjong-wish rule; Schnapsen
+and Tichu add legal moves (close_talon, exchange_trump_jack,
+call_tichu, call_grand_tichu) during their respective windows. `- X`
+and `override X` are reserved for cases where the rulebook itself
+describes a rule being struck out or replaced. The rulebook-natural
+reading of every game in the current corpus uses `+ X` even when the
+mechanical effect could be expressed as a removal — including
+Schnapsen's close-the-talon transition, which was specifically
+investigated for `- X` and read as `+ X` on the strict-play
+sub-phase.
+
+The criterion for which operator to use: write the slot the way the
+game's rulebook introduces the change. Rulebooks describe what
+*kicks in*, not what *goes away*; the syntax follows.
+
 ## State scoping (lexical)
 
 A variable is scoped to the phase that lexically encloses its
@@ -161,13 +211,25 @@ deltas are summed, and the sum is applied once. This means:
   `is_vulnerable(p)` see the same value, because neither has applied
   yet.)
 - Threshold checks that should fire *after* the batch (Bridge's
-  `check_game_won:` reading `below_line_current_game >= 100`) run as
-  a separate statement after `apply_components:` completes. They see
-  post-batch state.
+  GameBonus reading `below_line_current_game >= 100`) are expressed
+  as triggered components with `triggered_by: after apply_components`
+  (see "Triggered scoring components" below). They see post-batch
+  state.
 
 This is the only batched-write site in the language. It has
 fundamentally different read semantics from in-phase imperative
 writes and is worth documenting as a distinct mutation mode.
+
+A phase may contain *multiple* `apply_components:` batches in
+sequence. Each batch is internally unordered (deltas summed against
+pre-batch state, applied at once), but later batches see the
+accumulated effect of earlier batches and any intervening imperative
+statements. Cribbage's show uses this — non-dealer hand, dealer
+hand, and crib are three sequential batches, with the
+hand_sequence's `score >= 121` termination check observed between
+each. Batching encodes "these scores are independent of each
+other"; sequencing encodes "these scores depend on what came
+before, potentially including game termination."
 
 **Event-driven sub-phase transitions are not a third mutation mode.**
 Hearts' `transition_to: hearts_broken when any heart_played event
@@ -183,10 +245,11 @@ index`. The single-cell write `score := 0` and the indexed form
 
 **Coupled resets and modulus accumulation are explicit.** Bridge's
 "below-line resets for both sides when either side wins a game" is
-written as a two-statement sequence inside `check_game_won:`. Spades'
-`if bags[t] >= 10: score[t] -= 100; bags[t] -= 10` is a normal
-conditional write. There's no language-level "coupled variables" or
-"wrapping accumulator" construct; the imperative forms read correctly.
+written as a multi-write `ScoreDelta` inside the GameBonus triggered
+component (see "Triggered scoring components" below). Spades'
+bags-modulus reset is the same shape inside BagOverflow. There's no
+language-level "coupled variables" or "wrapping accumulator"
+construct; an explicit multi-write delta reads correctly.
 
 **Phase-outcome destructuring** (Bridge's `bidding produces:
 contract_made(c, d): contract := c; declarer := d; ...`) is just
@@ -528,14 +591,6 @@ does not affect the result (per "Mutation semantics" above, batched
 mutation). Each component reads pre-batch state; all components
 contribute to a single applied write.
 
-**Trigger-based bonuses** (Bridge's GameBonus and RubberBonus,
-Spades' bag-overflow) fire when a state threshold is crossed
-rather than as part of the summation. They live as imperative
-checks after `apply_components:` completes. The trigger-based shape
-isn't yet a first-class kind of scoring component — that's an open
-question (see
-[open-questions/triggered-scoring.md](open-questions/triggered-scoring.md)).
-
 **Structured score** (Bridge's `ScoreDelta { above_line, below_line }`)
 has two channels per partnership because the game-win threshold
 cares specifically about below-the-line accumulation. Stud has a
@@ -545,6 +600,73 @@ eligibility, length data-dependent on all-in history. Whether
 open (see
 [open-questions/structured-score.md](open-questions/structured-score.md));
 for now each game declares the shape it needs.
+
+## Triggered scoring components
+
+Some scoring fires in response to a specific event rather than as
+part of an `apply_components:` batch. Bridge's GameBonus fires when
+a partnership's below-the-line score crosses 100; RubberBonus fires
+when `games_won` reaches 2; Spades' bag-overflow fires when
+`bags >= 10`; Cribbage's pegging events (fifteens, pairs, runs,
+thirty-one, last-card) fire on each play during pegging. These
+share one shape, distinct from the batched per-hand composition:
+fire on an event, evaluate a predicate, contribute a `ScoreDelta`.
+
+A scoring component declares the trigger with a `triggered_by:`
+clause analogous to a rule's `applies_when:`:
+
+```
+scoring_component <name> {
+  triggered_by: <event> [where <predicate>]
+  ScoreDelta { ... }
+}
+```
+
+The event is either:
+
+- A **move-type name** (`play_card`, `cut_starter`, `submit_bid`).
+  The component fires when that move type is executed; the
+  predicate is evaluated against post-move state and the move's
+  carried data.
+- A **synthesized phase event** (`end_of_round`,
+  `transition_to: <target>` reached). These are emitted by mechanics
+  or sub-phase transitions and named at their emission site.
+- The synthetic boundary `after apply_components`. The component
+  fires immediately after the enclosing scoring batch settles and
+  reads post-batch state. This is how Bridge's GameBonus, RubberBonus,
+  and Spades' bag overflow fire: a `ScoreDelta` accumulated by the
+  batch may push a counter past a threshold, and the triggered
+  bonus reacts to the resulting state.
+
+The `where` clause is a boolean predicate on game state at the
+moment the event fires. Common idioms:
+
+- Threshold crossing: `below_line_current_game[winner] crosses 100`.
+  Reads as "the value just changed *to* something ≥ 100 from
+  something < 100." A value already above the threshold doesn't
+  re-fire on every event; the predicate is true only on the
+  transition.
+- State equality: `running_total == 31 after the play`.
+- Derived properties: `play_pile.suffix_same_rank_count >= 2`.
+
+Triggered components are independent of `apply_components:`. They
+are declared in the same `scoring_component` namespace and use the
+same `ScoreDelta` machinery. A game's scoring is the union of its
+batched components and its triggered components; both contribute
+to the same accumulated score.
+
+When a triggered component would cause a game-ending threshold
+(Cribbage's 121, or any termination predicate), the termination
+check runs after the triggered component's delta is applied. See
+the early-termination discussion in
+[open-questions/game-mid-phase-termination.md](open-questions/game-mid-phase-termination.md)
+for how termination propagates up the phase tree.
+
+**Corpus usage.** The corpus presently has nine triggered
+components across three games — Bridge (GameBonus, RubberBonus),
+Spades (BagOverflow), Cribbage (HisHeels, PeggingFifteen,
+PeggingThirtyOne, PeggingPair, PeggingRun, PeggingLastCard). All
+fit the shape above.
 
 ## Simultaneous moves and atomic effect
 

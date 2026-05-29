@@ -29,10 +29,9 @@ to a real implementation.
 
 | Open question | Needs | Top candidates |
 |---|---|---|
-| [triggered-scoring](../open-questions/triggered-scoring.md) | third threshold-fires-component data point | [cribbage](#cribbage) (pegging), [tichu](#tichu) (call rewards), [500](#500) (misere bonuses) |
 | [bidding-meaning](../open-questions/bidding-meaning.md) | third distinct bid semantic | [oh-hell](#oh-hell) (exact tricks), [skat](#skat) (multi-dim game value), [french-tarot](#french-tarot) (contract level) |
-| [structured-score](../open-questions/structured-score.md) | third structured-score shape | [cribbage](#cribbage) (pegging stream vs show), [omaha-hi-lo](#omaha-hi-lo) (split pot), [skat](#skat) (game-value × multipliers) |
-| [mechanic-phase-unification](../open-questions/mechanic-phase-unification.md) | seventh game blurring mechanic/phase | [skat](#skat) (declaration sub-phases), [french-tarot](#french-tarot) (chien handling), [tichu](#tichu) (Grand Tichu pre-call) |
+| [structured-score](../open-questions/structured-score.md) | third structured-score shape | [omaha-hi-lo](#omaha-hi-lo) (split pot), [skat](#skat) (game-value × multipliers) |
+| [mechanic-phase-unification](../open-questions/mechanic-phase-unification.md) | ninth game blurring mechanic/phase | [skat](#skat) (declaration sub-phases), [french-tarot](#french-tarot) (chien handling) |
 | [simultaneous-body-grammar](../open-questions/simultaneous-body-grammar.md) | simultaneous step with substructure | [diplomacy](#diplomacy), [bohnanza](#bohnanza), [coup](#coup) (challenge resolution) |
 | [routing-as-constraint](../open-questions/routing-as-constraint.md) | second routing-override game | [president](#president), [war](#war), [egyptian-ratscrew](#egyptian-ratscrew) |
 | [typed-amount-syntax](../open-questions/typed-amount-syntax.md), [transfer-failure](../open-questions/transfer-failure.md), [move-level-visibility](../open-questions/move-level-visibility.md) | second resource-using game | [holdem](#holdem), [omaha-hi-lo](#omaha-hi-lo), [liars-dice](#liars-dice) |
@@ -41,32 +40,6 @@ to a real implementation.
 | [memory-event-syntax](../open-questions/memory-event-syntax.md) | three to four examples beyond stdlib ops | [hanabi](#hanabi) (information tokens), [cabo](#cabo) (peek-and-swap), [coup](#coup) (reveal-then-rehide) |
 | [higher-order-knowledge](../open-questions/higher-order-knowledge.md) | a rule that reads second-order knowledge | [hanabi](#hanabi) (canonical), [coup](#coup) (bluff modeling), [eleusis](#eleusis) (rule inference) |
 | [knowledge-events](../open-questions/knowledge-events.md) | phase outcome observed unequally | [coup](#coup) (challenge reveals), [belote](#belote) (in-play declarations) |
-
-## Specialized scoring
-
-### cribbage
-
-2 players (sometimes 3 or 4), standard 52. Two distinct scoring
-phases per hand: *pegging* during play, then *the show* counting
-combinations in hand + crib + cut card.
-
-**Why interesting.** The most-recommended next addition; see
-[roadmap.md](../roadmap.md).
-- [triggered-scoring](../open-questions/triggered-scoring.md):
-  pegging events (fifteen, pair, run, thirty-one, last card) fire
-  *during play* whenever the running total or played-card sequence
-  crosses a threshold. Clean third data point distinct from Bridge's
-  game-bonus and Spades' bag-overflow.
-- [structured-score](../open-questions/structured-score.md): pegging
-  and show accumulate into the same score, but the pegging *event
-  stream* is qualitatively different from the end-of-hand show
-  calculation. May surface a third structured-score shape.
-- The *crib* — a separate four-card zone owned by the dealer, fed by
-  both players' discards — is a routing destination distinct from
-  hand and shared pile. Exercises zone variety.
-
-**Notes.** Two-player Cribbage is canonical; 3- and 4-player variants
-are minor adjustments. Implement two-player first.
 
 ## Trick-taking with bidding
 
@@ -141,8 +114,9 @@ with miseres and open miseres.
 declarer wants zero tricks. Open Miseres reveal the declarer's hand —
 a knowledge event mid-phase that flips the visibility of a private
 zone. Useful variant input to
-[triggered-scoring](../open-questions/triggered-scoring.md) and
-[knowledge-events](../open-questions/knowledge-events.md).
+[knowledge-events](../open-questions/knowledge-events.md), and a
+second data point for inverse-outcome scoring beyond Hearts'
+shoot-the-moon.
 
 **Notes.** Multiple regional variants (Australian, Canadian, US).
 **Pagat** for the bidding table and contract-by-contract scoring
@@ -176,27 +150,12 @@ sequences, sets, capot, pique, repique.
 **Why interesting.** Among the most heavily structured-scored games
 in existence. Each phase contributes scoring events that can change
 the *order and value* of subsequent ones (pique, repique). A stress
-test for [triggered-scoring](../open-questions/triggered-scoring.md)
-and the scoring-component composition story in
-[decisions.md](../decisions.md).
+test for the scoring-component composition story in
+[decisions.md](../decisions.md) and for the triggered-scoring
+machinery committed there.
 
 **Notes.** **Pagat is mandatory** here — Piquet's scoring is
 notoriously edge-case heavy: <https://www.pagat.com/last/piquet.html>.
-
-### schnapsen
-
-2 players, 20-card deck, point-trick with marriage declarations,
-"closing" the deck, and trump-card exchange.
-
-**Why interesting.** The smallest point-trick game; useful as a
-sanity check that Pinochle-family mechanics work at small scale. The
-*close the deck* action is a player-initiated phase transition that
-locks the deck and changes the rule set — a clean test of
-[mechanic-phase-unification](../open-questions/mechanic-phase-unification.md)
-on the "phase boundary triggered by an in-game move" pattern.
-
-**Notes.** Sixty-Six (66) is a close cousin; Schnapsen is preferred
-because its close-the-deck mechanic is more crisply specified.
 
 ## Trick-taking with partnerships
 
@@ -237,29 +196,6 @@ don't — until the called card is played. Strong material for both
 **Notes.** US Wisconsin variant is the most widely played. **Pagat**
 for variant choice and the leaster / jack-of-diamonds-down rules:
 <https://www.pagat.com/schafk/shphd.html>.
-
-### tichu
-
-4 players (partnerships), 56-card deck (52 + 4 special), combo-based
-climbing with point-card capture, Tichu and Grand Tichu calls.
-
-**Why interesting.**
-- [triggered-scoring](../open-questions/triggered-scoring.md): Tichu
-  calls (declared before play) pay out ±100 conditional on the caller
-  going out first — a pre-declared bonus that fires when a threshold
-  is crossed.
-- [mechanic-phase-unification](../open-questions/mechanic-phase-unification.md):
-  Grand Tichu is called *before seeing the full hand* (after the
-  first 8 cards); normal Tichu can be called later but before
-  playing. A multi-stage commitment with knowledge events between
-  stages.
-- The four special cards (Mahjong, Dog, Phoenix, Dragon) each carry
-  unique rule overrides — Dog passes lead to partner; Dragon must be
-  given to an opponent on trick win. Material for
-  [routing-as-constraint](../open-questions/routing-as-constraint.md).
-
-**Notes.** Modern (Schmid, 1991). Pagat has the canonical rules:
-<https://www.pagat.com/combination/tichu.html>.
 
 ## Climbing & shedding
 

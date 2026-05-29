@@ -82,7 +82,7 @@ heading title rather than position.
 
 **Open-question references use the file slug.** Refer to open questions
 as `open-questions/<slug>.md` (e.g.
-[open-questions/triggered-scoring.md](open-questions/triggered-scoring.md))
+[open-questions/structured-score.md](open-questions/structured-score.md))
 rather than by tier or ordering. Open questions get added, resolved,
 reordered between tiers, and removed; numbering them invites a
 renumbering sweep on every change. The slug is stable until the

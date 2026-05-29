@@ -18,7 +18,7 @@ game Bridge {
 
   cards: standard52
   ranking: 2 3 4 5 6 7 8 9 10 J Q K A
-  suit_order_for_bidding: [♣, ♦, ♥, ♠, NT]   // ♣ lowest, NT highest
+  suit_order_for_bidding: [C, D, H, S, NT]   // C lowest, NT highest
 
   zones {
     deck                    : Deck
@@ -170,22 +170,16 @@ game Bridge {
           SlamBonus
         ]
 
-        // After per-component application, check whether either side
-        // crossed 100 below-the-line — that's a "game."
-        check_game_won:
-          for each partnership p:
-            if below_line_current_game[p] >= 100:
-              games_won[p] += 1
-              // Below-the-line resets for BOTH sides when a game is won.
-              below_line_current_game := 0 for all partnerships
-              // Game bonus is awarded above the line.
-              apply_component: GameBonus(winner = p)
+        // GameBonus and the games_won/below-line reset are triggered
+        // components — see decisions.md "Triggered scoring components".
       }
     }
   }
 
   phase rubber_complete {
-    apply_component: RubberBonus
+    // RubberBonus is triggered on the rubber.games_won >= 2 threshold;
+    // this phase exists as the boundary that the outer `rubber` loop
+    // ends on. See decisions.md "Triggered scoring components".
   }
 
   winner: partnership with highest (above_line + below_line_current_game)
@@ -263,24 +257,30 @@ scoring_component SlamBonus (result) {
     return zero
 }
 
-scoring_component GameBonus (winner) {
-  // Invoked when `winner` has just crossed 100 below the line.
-  // Bonus depends on whether opponents have also won a game.
-  let opp = other partnership
-  if games_won[opp] == 0:
-    ScoreDelta { above_line[winner] += 300 }   // non-vulnerable game
-  else:
-    ScoreDelta { above_line[winner] += 500 }   // vulnerable game
+scoring_component GameBonus {
+  // Fires when either partnership's below-line score crosses 100.
+  // Awards the game bonus, increments games_won, and resets the
+  // below-line counter for BOTH partnerships.
+  triggered_by: after apply_components
+    where any partnership p has below_line_current_game[p] crosses 100
+  let winner = the partnership that crossed
+  let opp    = other partnership
+  let bonus  = if games_won[opp] == 0 then 300 else 500
+  ScoreDelta {
+    above_line[winner]                  += bonus
+    games_won[winner]                   += 1
+    below_line_current_game[partnership] := 0 for each partnership
+  }
 }
 
 scoring_component RubberBonus {
-  // Invoked once at rubber_complete.
+  // Fires when a partnership wins its second game.
+  triggered_by: after apply_components
+    where any partnership p has games_won[p] crosses 2
   let winner = partnership with games_won >= 2
   let loser  = other partnership
-  if games_won[loser] == 0:
-    ScoreDelta { above_line[winner] += 700 }   // unbroken rubber
-  else:
-    ScoreDelta { above_line[winner] += 500 }   // broken rubber
+  let bonus  = if games_won[loser] == 0 then 700 else 500   // unbroken vs broken rubber
+  ScoreDelta { above_line[winner] += bonus }
 }
 
 // === Dummy-play machinery ===
@@ -299,8 +299,8 @@ play_source_for(actor) =
 
 per_trick_value(suit, doubled_state) =
   match suit:
-    ♣, ♦       → 20
-    ♥, ♠       → 30
+    C, D       → 20
+    H, S       → 30
     NT         → 30   // (first NT trick gets +10, handled in component)
 
 double_multiplier(doubled_state) =

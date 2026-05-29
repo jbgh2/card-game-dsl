@@ -96,14 +96,8 @@ game Spades {
 
       apply_components: [NilScoring, ContractScoring]
 
-      // Bag-overflow penalty: a threshold check that runs after the
-      // components have settled. Structurally identical to Bridge's
-      // check_game_won (see games/bridge.md). Stays imperative pending
-      // open-questions/triggered-scoring.md.
-      for each team t:
-        if bags[t] >= 10:
-          score[t] -= 100
-          bags[t]  -= 10
+      // BagOverflow is a triggered component — see decisions.md
+      // "Triggered scoring components".
     }
   }
 
@@ -146,6 +140,20 @@ scoring_component ContractScoring (result) {
   ScoreDelta {
     score[t] += delta_score[t] for each team t
     bags[t]  += delta_bags[t]  for each team t
+  }
+}
+
+scoring_component BagOverflow {
+  // Fires when a team's bag counter crosses 10. Each overflow costs
+  // 100 score and decrements the counter by 10; a team that
+  // accumulates 20+ bags in one hand may trigger this multiple times,
+  // which the per-firing semantics handle naturally.
+  triggered_by: after apply_components
+    where any team t has bags[t] crosses 10
+  let t = the team whose bags crossed
+  ScoreDelta {
+    score[t] -= 100
+    bags[t]  -= 10
   }
 }
 

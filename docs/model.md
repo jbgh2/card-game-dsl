@@ -29,7 +29,7 @@ All domain-neutral. About twenty things; none of them mention "trick" or
 | **Observation event** | An event emitted automatically by a move or memory operation, projected per observer according to the visibility settings of the zones involved (see [decisions.md](decisions.md) "Knowledge, visibility, and the projection model"). Maintained as per-player histories; used to derive information sets. |
 | **Memory operation** | A stdlib-named operation that affects player knowledge (`peek`, `reveal`, `hide`, `shuffle`, `announce`, `expose_top`, `deal`, `transfer`, `muck`, `forget`). See [decisions.md](decisions.md). |
 | **Resolution** | A deterministic computation over current state, used to drive non-choice moves (e.g., "who won the trick"). |
-| **Scoring component** | A named, parameterizable function from a hand result to a ScoreDelta. Composes by summation. Bridge introduced this; see [library.md](library.md) "Scoring components" and [open-questions/triggered-scoring.md](open-questions/triggered-scoring.md). |
+| **Scoring component** | A named, parameterizable function producing a ScoreDelta. Batched components compose by summation inside `apply_components:`; triggered components fire on specific events via `triggered_by:` clauses. Bridge introduced this; see [library.md](library.md) "Scoring components" and [decisions.md](decisions.md) "Scoring composition" / "Triggered scoring components". |
 
 ## The phase / state / move-type / rule relationship
 

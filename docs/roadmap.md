@@ -45,10 +45,8 @@ doesn't carry: which next game would unblock Tier 2, and the meta-level
 work (OpenSpiel compilation, dealer promotion) that lives outside the
 open-question framing.
 
-1. **Resolve Tier 1 open questions — they're unblocked.**
+1. **Resolve remaining Tier 1 open questions — they're unblocked.**
 
-   - [sub-phase-rule-syntax](open-questions/sub-phase-rule-syntax.md) —
-     commit the provisional `+ X` / `- X` / `override X` form.
    - [mechanic-internal-legality](open-questions/mechanic-internal-legality.md) —
      decide between promoting internal state to a queryable interface
      versus accepting some legality as mechanic-internal.
@@ -56,12 +54,13 @@ open-question framing.
      zone-level `choices_made_by:` declaration. The provisional fix in
      Bridge has been load-bearing for several iterations.
 
-   These three can be tackled in any order; none depends on the
-   others.
+   Either can be tackled first; neither depends on the other.
+   Sub-phase-rule-syntax was settled with the Schnapsen addition —
+   see decisions.md "Sub-phase rule and legal-move deltas".
 
-2. **Pick a sixth game to unblock Tier 2.** The Tier 2 questions
-   ([triggered-scoring](open-questions/triggered-scoring.md),
-   [bidding-meaning](open-questions/bidding-meaning.md),
+2. **Pick the next game to unblock remaining Tier 2.** The remaining
+   Tier 2 questions
+   ([bidding-meaning](open-questions/bidding-meaning.md),
    [structured-score](open-questions/structured-score.md),
    [mechanic-phase-unification](open-questions/mechanic-phase-unification.md),
    [simultaneous-body-grammar](open-questions/simultaneous-body-grammar.md))
@@ -69,11 +68,11 @@ open-question framing.
    [games/_candidates.md](games/_candidates.md), with a coverage table
    mapping each open question to the games that would unblock it.
 
+   Triggered-scoring is now unblocked: Cribbage added the third data
+   point (pegging events on play_card and end_of_round). See item 3.
+
    Headline recommendations from the pipeline:
 
-   - **Cribbage** — pegging events would unblock "Triggered Scoring"
-     (third data point) and probably "Structured Score" (third
-     structured-score shape, after Bridge and Stud). Highest leverage.
    - **Oh Hell / Wizard** — unblocks "Bidding Meaning" (third data
      point after Spades and Pinochle/Bridge). Also a chance to validate
      the `BridgeAuction` → `Auction` shared mechanic story.
@@ -84,22 +83,20 @@ open-question framing.
      zones. Doesn't directly unblock a Tier 2 question but forces a
      deferred design decision.
 
-   Recommended: **Cribbage**. Two-question unblock with one game; the
-   smallest implementation in the candidate set that unblocks anything.
+   Recommended: **Oh Hell**. Cheapest single-question unblock; the
+   `Auction` shared-mechanic check is incidental value on top.
 
-3. **Resolve [triggered-scoring](open-questions/triggered-scoring.md)**
-   once Cribbage gives the third data point. Commit to (a) `triggered_by:`
-   clauses on components, or (b) a distinct trigger category.
-
-4. **Resolve [bidding-meaning](open-questions/bidding-meaning.md)**
+3. **Resolve [bidding-meaning](open-questions/bidding-meaning.md)**
    once Oh Hell or Wizard is in the corpus.
 
-5. **Resolve [structured-score](open-questions/structured-score.md)**
-   if Cribbage's pegging board does turn out to be a third
-   structured-score shape; otherwise wait for a clearer third data
-   point.
+4. **Resolve [structured-score](open-questions/structured-score.md)**
+   once a third structured-score shape arrives. Cribbage did not
+   add one — its score is a single integer per player, the simplest
+   shape and unrelated to Bridge's above/below-line or Stud's
+   pots-with-eligibility. The third data point still needs to come
+   from Omaha Hi-Lo, Skat, or similar.
 
-6. **Address Tier 3 questions when their corner of the language
+5. **Address Tier 3 questions when their corner of the language
    gets exercised.** [routing-as-constraint](open-questions/routing-as-constraint.md)
    waits for a second routing-override game; the resource/visibility
    refinements ([typed-amount-syntax](open-questions/typed-amount-syntax.md),
@@ -110,19 +107,19 @@ open-question framing.
    a game whose natural notation puts a complex relational chain in
    subject position.
 
-7. **Pin down [memory-event-syntax](open-questions/memory-event-syntax.md)**
+6. **Pin down [memory-event-syntax](open-questions/memory-event-syntax.md)**
    when three or four examples exist beyond stdlib operations. Stud is
    the first; no second example yet.
 
-8. **Adopt Tier 4 cleanups when convenient.**
+7. **Adopt Tier 4 cleanups when convenient.**
    [counters](open-questions/counters.md) and
    [dealer-promotion](open-questions/dealer-promotion.md) are pure
    readability/code-reduction wins; neither blocks anything.
 
-9. **Defer Tier 5 cosmetic questions** until a real preference
+8. **Defer Tier 5 cosmetic questions** until a real preference
    emerges from corpus pressure.
 
-10. **Begin sketching the OpenSpiel compilation pass.** The
+9. **Begin sketching the OpenSpiel compilation pass.** The
     [decisions.md](decisions.md) "Knowledge, visibility, and the
     projection model" section establishes perfect-recall-by-default;
     [decisions.md](decisions.md) "State scoping" establishes lexical
