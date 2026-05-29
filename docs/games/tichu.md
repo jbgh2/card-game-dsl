@@ -44,6 +44,7 @@ game Tichu {
       // Per-hand: resets each hand.
       tichu_called[player]        : Boolean = false
       grand_tichu_called[player]  : Boolean = false
+      has_played_yet[player]      : Boolean = false   // true after the player's first combination
       first_out                   : Player? = none
       second_out                  : Player? = none
       active_wish                 : Rank?   = none
@@ -93,7 +94,10 @@ game Tichu {
         MustMatchLedCombinationType,
         MustBeatPreviousCombination,
       ]
-      legal_moves: [play_combination, pass]
+      legal_moves: [play_combination, pass, call_tichu]
+      // call_tichu is gated by a per-move precondition (see the
+      // move_type definition below) — `has_played_yet[active_player]`
+      // closes the window for that one player. No sub-phase needed.
       out_of_turn_legal: bombs   // see open-questions/out-of-turn-moves.md
 
       // Sub-phase: the Mahjong wish is active. Entry and exit are
@@ -102,15 +106,6 @@ game Tichu {
       // and exit".
       phase wish_active when active_wish != none {
         active_rules: [+ MustPlayWishedRankIfAble]
-      }
-
-      // Sub-phase: Tichu calls still allowed for a player who has not yet
-      // played. Per-player closing — see
-      // open-questions/per-player-sub-phases.md.
-      phase tichu_window per_player {
-        legal_moves: [+ call_tichu]
-        transition_to: closed when this player plays their first
-                       combination
       }
 
       // Trick loop.
@@ -175,6 +170,7 @@ move_type play_combination {
   destination: trick_pile
   carries: combination : Combination
   out_of_turn_legal: when combination.is_bomb
+  sets: has_played_yet[active_player] := true
 }
 
 move_type pass {
@@ -186,9 +182,18 @@ move_type push_card {
   destination: hand[recipient]   // recipient bound at choice time
 }
 
-// Tichu calls — declared rather than played.
-move_type call_tichu        { sets: tichu_called[active_player] := true }
-move_type call_grand_tichu  { sets: grand_tichu_called[active_player] := true }
+// Tichu calls — declared rather than played. Each player has a
+// personal window that closes when they play their first combination.
+move_type call_tichu {
+  preconditions: not tichu_called[active_player]
+              and not has_played_yet[active_player]
+  sets: tichu_called[active_player] := true
+}
+move_type call_grand_tichu {
+  preconditions: not grand_tichu_called[active_player]
+              and hand[active_player].size <= 8
+  sets: grand_tichu_called[active_player] := true
+}
 
 // =====================================================================
 // Types

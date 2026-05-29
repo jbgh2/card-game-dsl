@@ -38,5 +38,9 @@ marriage declaration is a candidate, though it fires at a specific
 moment; Belote's mid-trick declarations are closer) would clarify
 which surface generalizes.
 
-Related: [per-player-sub-phases](per-player-sub-phases.md) —
-`call_tichu`'s legality window closes per-player, not globally.
+The per-player closing condition is already handled in the Tichu
+draft via a `has_played_yet[player]` boolean and the call_tichu move
+type's preconditions — see decisions.md "The boolean-as-sub-phase
+criterion" (per-player exception). What remains open here is how
+the move is *offered* (off-the-clock, any time during the window),
+which is independent of how its closing condition is encoded.

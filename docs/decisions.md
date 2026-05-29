@@ -66,6 +66,15 @@ The criterion: ask whether any rule reads the boolean in its
 `applies_when:` clause. If yes, the boolean is hiding a phase
 transition; refactor to sub-phases. If no, it's just data.
 
+**Per-player exception.** A boolean indexed by player (e.g.,
+`has_played_yet[player]` in Tichu) that gates only a move's own
+preconditions is left as state rather than reified as a per-player
+sub-phase. Reifying would require parallel sub-phase instances and
+per-instance transition triggers — language surface the corpus has
+chosen not to add. The boolean form keeps the gating in the move
+type's `preconditions:` block, which is co-located with the move
+it's about.
+
 ## Sub-phase entry and exit
 
 A sub-phase is entered and exited in one of three ways. All three
