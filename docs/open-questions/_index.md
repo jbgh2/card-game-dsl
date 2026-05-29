@@ -14,15 +14,9 @@ When a question resolves, move its content to [decisions.md](../decisions.md)
 folder, and remove the entry from this index. See
 [maintaining.md](../maintaining.md) for the full hygiene rules.
 
-## Tier 1 — High impact, ready to commit
-
-These questions have enough data points in the corpus that a design could
-be committed without waiting for more games. The gating factor is
-decision, not evidence.
-
-- [mechanic-internal-legality](mechanic-internal-legality.md) — promote
-  mechanic-internal state to a queryable interface, or accept some
-  legality as mechanic-internal.
+**Tier 1 is currently empty** — all four original Tier 1 questions
+have been resolved into [decisions.md](../decisions.md). Tier 2
+items may be promoted to Tier 1 as further corpus data arrives.
 
 ## Tier 2 — High impact, blocked on a data point
 

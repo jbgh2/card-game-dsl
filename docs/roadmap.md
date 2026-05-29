@@ -45,18 +45,15 @@ doesn't carry: which next game would unblock Tier 2, and the meta-level
 work (OpenSpiel compilation, dealer promotion) that lives outside the
 open-question framing.
 
-1. **Resolve remaining Tier 1 open questions — they're unblocked.**
-
-   - [mechanic-internal-legality](open-questions/mechanic-internal-legality.md) —
-     decide between promoting internal state to a queryable interface
-     versus accepting some legality as mechanic-internal.
-
-   This is the last remaining Tier 1 question.
-   Sub-phase-rule-syntax was settled with the Schnapsen addition;
-   actor-vs-chooser was settled with the Bridge `chooser_for`
-   helper; triggered-scoring was settled with Cribbage's pegging
-   stream as the third data point. See the corresponding sections
-   in decisions.md.
+1. **Tier 1 is empty.** All four original Tier 1 questions have
+   been resolved into decisions.md:
+   - `sub-phase-rule-syntax` → "Sub-phase rule and legal-move deltas"
+   - `triggered-scoring` → "Triggered scoring components"
+   - `actor-vs-chooser` → "Delegated play"
+   - `mechanic-internal-legality` → folded into "State scoping (lexical)"
+     (mechanic state is in scope for rules via standard lexical
+     nesting; Stud's BettingRound legality was lifted to rules in
+     the same commit).
 
 2. **Pick the next game to unblock remaining Tier 2.** The remaining
    Tier 2 questions

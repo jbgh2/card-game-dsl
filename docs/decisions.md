@@ -179,6 +179,30 @@ not in either.
 `bet_to_match` all live inside their mechanics. Mechanic instances
 are short-lived; their state vanishes with the instance.
 
+**Rules consulted from within a mechanic see the mechanic's state.**
+Lexical scoping puts the active mechanic instance's `state { }`
+declarations into the scope chain at consultation time. A rule
+attached to a phase that has instantiated a mechanic reads
+`state.foo` and sees whatever `foo` is in scope — game state,
+hand state, phase state, *or* mechanic-internal state — without any
+explicit export step. This is the same scoping rule that applies
+to imperative code in the phase body. Examples in the corpus:
+
+- Hearts' `MustFollowSuit` reads `state.led_suit`, which lives
+  inside the Trick mechanic.
+- Pinochle's `BidExceedsCurrent` reads `state.current_bid`, which
+  lives inside the Auction mechanic.
+- Stud's BettingRound legality rules read `state.bet_to_match`
+  and `state.raises_so_far`, which live inside BettingRound.
+
+Rules are reusable across games; what binds them to a particular
+mechanic's state is the call site (where the mechanic is
+instantiated and the rule is attached as an `active_rules` entry).
+Refactoring a mechanic's state shape is a potentially breaking
+change for any rule that reads it — same as refactoring any other
+in-scope variable. There's no separate "exposed subset" mechanism;
+visibility is just lexical scoping.
+
 **Tooling-generated state inventory.** Lexical scoping disperses
 declarations across the phase tree. The "what state exists in this
 game" view that helps when reading the file is a render of the

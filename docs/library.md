@@ -105,11 +105,11 @@ Key design notes:
   — parameterized over active players, opening bet, limit increment, max
   raises, and outcome. Owns its own per-betting-round state
   (`bet_to_match`, `last_aggressor`, `has_acted`, `raises_so_far`, `bet_by`).
-  Used by Stud across multiple streets; applicable to any limit-betting
-  game. Note: per
-  [open-questions/mechanic-internal-legality.md](open-questions/mechanic-internal-legality.md),
-  some action-legality logic (check/call/bet/raise/fold conditions)
-  currently lives mechanic-internal rather than as rules.
+  Action-legality is expressed as `active_rules:` on the mechanic
+  (`CheckLegalIfNothingToCall`, `CallLegalIfBetToMatch`,
+  `BetLegalIfNoBetToMatch`, `RaiseLegalIfBetExistsAndRaiseCapNotHit`),
+  reading per-round state via lexical scoping. Used by Stud across
+  multiple streets; applicable to any limit-betting game.
 - `MeldingPhase` — currently a placeholder; real definition deferred.
 
 ## Scoring components

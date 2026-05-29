@@ -243,6 +243,12 @@ mechanic BettingRound (
     bet_by[player]    : Integer = 0     // how much each player has put in THIS round
   }
 
+  active_rules: [CheckLegalIfNothingToCall,
+                 CallLegalIfBetToMatch,
+                 BetLegalIfNoBetToMatch,
+                 RaiseLegalIfBetExistsAndRaiseCapNotHit]
+  legal_moves: [check, call, bet, raise, fold]
+
   // If only one active player remains, the round ends immediately.
   if |active_players| <= 1: return
 
@@ -253,44 +259,41 @@ mechanic BettingRound (
       actor := next_active_player(actor)
       continue
 
-    let to_call = bet_to_match - bet_by[actor]
-
     offer action to actor:
-      legal_moves_for_this_actor:
-        check:                          // legal only when to_call == 0
-          has_acted[actor] := true
-        call:                           // legal when to_call > 0
-          let amount = min(to_call, stack[actor].count)
-          transfer amount chips from stack[actor] to pots[0].contents
-          bet_by[actor]              += amount
-          committed_this_hand[actor] += amount
-          if stack[actor].empty: all_in[actor] := true
-          has_acted[actor] := true
-        bet:                            // legal only when bet_to_match == 0
-          let amount = min(limit, stack[actor].count)
-          transfer amount chips from stack[actor] to pots[0].contents
-          bet_by[actor]              += amount
-          committed_this_hand[actor] += amount
-          bet_to_match               := amount
-          last_aggressor             := actor
-          raises_so_far              := 1          // opening bet counts as first "raise" cap
-          for each p in active_players: has_acted[p] := (p == actor)
-          if stack[actor].empty: all_in[actor] := true
-        raise:                          // legal when bet_to_match > 0 and raises_so_far < max_raises
-          let amount = (bet_to_match - bet_by[actor]) + limit
-          let actual = min(amount, stack[actor].count)
-          transfer actual chips from stack[actor] to pots[0].contents
-          bet_by[actor]              += actual
-          committed_this_hand[actor] += actual
-          bet_to_match               := bet_by[actor]
-          last_aggressor             := actor
-          raises_so_far              += 1
-          for each p in active_players: has_acted[p] := (p == actor)
-          if stack[actor].empty: all_in[actor] := true
-        fold:
-          folded[actor] := true
-          muck all cards in upcards[actor]              // cards leave play; observers' memory persists
-          // hole cards stay in hole[actor]; they'll be mucked in showdown.
+      check:
+        has_acted[actor] := true
+      call:
+        let amount = min(bet_to_match - bet_by[actor], stack[actor].count)
+        transfer amount chips from stack[actor] to pots[0].contents
+        bet_by[actor]              += amount
+        committed_this_hand[actor] += amount
+        if stack[actor].empty: all_in[actor] := true
+        has_acted[actor] := true
+      bet:
+        let amount = min(limit, stack[actor].count)
+        transfer amount chips from stack[actor] to pots[0].contents
+        bet_by[actor]              += amount
+        committed_this_hand[actor] += amount
+        bet_to_match               := amount
+        last_aggressor             := actor
+        raises_so_far              := 1          // opening bet counts as first "raise" cap
+        for each p in active_players: has_acted[p] := (p == actor)
+        if stack[actor].empty: all_in[actor] := true
+      raise:
+        let amount = (bet_to_match - bet_by[actor]) + limit
+        let actual = min(amount, stack[actor].count)
+        transfer actual chips from stack[actor] to pots[0].contents
+        bet_by[actor]              += actual
+        committed_this_hand[actor] += actual
+        bet_to_match               := bet_by[actor]
+        last_aggressor             := actor
+        raises_so_far              += 1
+        for each p in active_players: has_acted[p] := (p == actor)
+        if stack[actor].empty: all_in[actor] := true
+      fold:
+        folded[actor] := true
+        muck all cards in upcards[actor]              // cards leave play; observers' memory persists
+        // hole cards stay in hole[actor]; they'll be mucked in showdown.
 
     actor := next_active_player(actor)
 
@@ -340,12 +343,37 @@ rule BringInMandatory {
   if_impossible: error("bring-in player must post the bring-in")
 }
 
-// (The legality of check / call / bet / raise / fold is enforced
-// inline within BettingRound's offer-action block rather than as
-// separate rules, because the conditions read mechanic-internal
-// state. Could be lifted to rules in a future refactor if the
-// internal state were promoted to a queryable interface. See
-// open-questions/mechanic-internal-legality.md.)
+// BettingRound legality rules. Each reads BettingRound's
+// mechanic-internal state via standard lexical scoping — these rules
+// are only attached as `active_rules` inside BettingRound, so
+// `state.bet_to_match`, `state.bet_by`, and `state.raises_so_far`
+// resolve to the active instance's per-round state. See decisions.md
+// "State scoping (lexical)".
+
+rule CheckLegalIfNothingToCall {
+  constrains: check
+  applies_when: state.bet_to_match - state.bet_by[active_player] == 0
+}
+
+rule CallLegalIfBetToMatch {
+  constrains: call
+  applies_when: state.bet_to_match - state.bet_by[active_player] > 0
+}
+
+rule BetLegalIfNoBetToMatch {
+  constrains: bet
+  applies_when: state.bet_to_match == 0
+}
+
+rule RaiseLegalIfBetExistsAndRaiseCapNotHit {
+  constrains: raise
+  applies_when: state.bet_to_match > 0 and state.raises_so_far < max_raises
+}
+
+// `fold` has no applies_when — always legal for a non-folded,
+// non-all-in active player. The mechanic body's `if folded[actor]
+// or all_in[actor]: continue` keeps it from being offered when
+// inapplicable.
 
 // === Stdlib functions used ===
 
