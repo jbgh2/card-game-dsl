@@ -50,9 +50,6 @@ of the language.
   `chain.zone` for complex receivers.
 - [optional-window-moves](optional-window-moves.md) — `may submit X`
   for non-mandatory moves during a window (Tichu calls).
-- [game-mid-phase-termination](game-mid-phase-termination.md) —
-  propagating `early_termination:` up the phase tree so a game can
-  end during a sub-phase (Cribbage pegging).
 
 ## Tier 4 — Low impact, defer until forced
 

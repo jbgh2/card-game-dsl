@@ -158,11 +158,9 @@ mechanic PeggingRound (leader: Player) {
     last_played    : Player?  = none
   }
 
-  // Mid-round, watch for the game-ending score threshold.
-  early_termination: any score >= 121
-  // `early_termination` here means "abandon the round and signal the
-  // enclosing hand_sequence to abandon too". See
-  // open-questions/game-mid-phase-termination.md.
+  // Game-ending check rides on the enclosing
+  // `hand_sequence repeats until any score >= 121` clause, evaluated
+  // continuously — see decisions.md "Loop termination semantics".
 
   active_rules: [CannotExceedThirtyOne]
   legal_moves: [play_card, declare_go]

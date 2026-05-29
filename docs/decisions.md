@@ -299,6 +299,35 @@ documentation, not declaration.
 the State object, with lifetime tied to phase entry/exit. Standard
 activation-record semantics.
 
+## Loop termination semantics
+
+A `repeats until <pred>` clause on a phase (or `repeat until <pred>`
+on a phase-body block) is **continuously evaluated**: the loop
+terminates as soon as the predicate becomes true, including
+mid-iteration. When the loop terminates mid-iteration, every nested
+phase, mechanic instance, and inner loop that was active is
+abandoned in turn.
+
+This matches standard activation-record semantics — when an outer
+scope exits, every inner scope exits with it — and means most games
+get mid-phase termination for free. Cribbage is the canonical case:
+`phase hand_sequence repeats until any score >= 121` catches a
+peg-out during pegging or during the show without any additional
+machinery, because the predicate is re-checked the moment `score`
+changes. The mechanic instances active when the predicate flips
+(PeggingRound, the show batches) are abandoned.
+
+Games where the termination predicate can change only at iteration
+boundaries (Hearts: scoring is end-of-hand only) get the same
+semantics; the continuous-evaluation rule degenerates to
+"checked at iteration boundary" because that's the only time the
+predicate could flip.
+
+A separate `early_termination:` parameter does appear on the Trick
+mechanic — that's for *trick-level* termination on game-state-free
+conditions (Getaway's first-trick-to-waste). It is not for
+game-ending; game-ending is the `repeats until` clause's job.
+
 ## Mutation semantics
 
 **Sequential mutation within a phase body.** `:=` (assign) and `+=` /
@@ -778,11 +807,10 @@ batched components and its triggered components; both contribute
 to the same accumulated score.
 
 When a triggered component would cause a game-ending threshold
-(Cribbage's 121, or any termination predicate), the termination
-check runs after the triggered component's delta is applied. See
-the early-termination discussion in
-[open-questions/game-mid-phase-termination.md](open-questions/game-mid-phase-termination.md)
-for how termination propagates up the phase tree.
+(Cribbage's 121, or any termination predicate), the `repeats until`
+clause on the enclosing loop fires immediately upon the
+triggered-component delta being applied. See "Loop termination
+semantics" above.
 
 **Corpus usage.** The corpus presently has nine triggered
 components across three games — Bridge (GameBonus, RubberBonus),
