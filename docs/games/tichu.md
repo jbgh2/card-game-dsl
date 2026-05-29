@@ -264,8 +264,9 @@ routing TichuTrickRouting = (played_cards, trick_state, winner) ⇒
   if trick_state.last_play.is_dog:
     all cards from trick_pile to discard
   elif winner played Dragon as the winning single:
+    // winner picks an opposing team to receive the trick (including the
+    // Dragon's 25 points). See decisions.md "`choose` as expression".
     all cards from trick_pile to captured[team of (winner chooses one opponent)]
-    // see open-questions/choice-embedded-routing.md
   else:
     all cards from trick_pile to captured[team_of(winner)]
 

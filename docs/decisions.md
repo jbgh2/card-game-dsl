@@ -738,6 +738,40 @@ Spades (BagOverflow), Cribbage (HisHeels, PeggingFifteen,
 PeggingThirtyOne, PeggingPair, PeggingRun, PeggingLastCard). All
 fit the shape above.
 
+## `choose` as expression
+
+`choose` is a primitive that elicits a player decision. It is used
+in two forms in the corpus:
+
+```
+// Statement form (Pinochle Auction, declare_trump):
+offer action to active_player:
+  submit_bid:
+    choose Integer with bid > current_bid ...
+    current_bid := bid
+```
+
+```
+// Expression form (Tichu Dragon routing):
+all cards from trick_pile to captured[team of (winner chooses one opponent)]
+```
+
+The statement form is a binding: `choose <Type> with <constraint>`
+names the chosen value and introduces it into the surrounding
+scope. The expression form `<actor> chooses <description>` returns
+the chosen value as an inline subexpression.
+
+Both forms emit a public observation event of the choice. The
+chooser is the named `actor` (explicit in the expression form;
+implicit from the enclosing `offer action to` in the statement
+form). The candidate set is determined by the type or description.
+
+`choose` may appear inside routing functions, outcome functions,
+phase bodies, mechanic bodies — anywhere an expression of the
+chosen type is expected. There is no separate "choice-embedded
+routing" mechanism; routing functions are ordinary expressions and
+ordinary expressions may include `choose`.
+
 ## Delegated play
 
 A move is normally chosen by the player it's attributed to: the

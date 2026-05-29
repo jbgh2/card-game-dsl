@@ -73,8 +73,6 @@ or when a game forces the issue.
   block and contextual-rank cards (Tichu's Mahjong, Dog, Phoenix, Dragon).
 - [out-of-turn-moves](out-of-turn-moves.md) — `out_of_turn_legal`
   vs permitting-rules vs phase-level lists (Tichu bombs).
-- [choice-embedded-routing](choice-embedded-routing.md) — player decisions
-  inside routing functions (Tichu Dragon).
 
 ## Tier 5 — Cosmetic, no design risk
 
