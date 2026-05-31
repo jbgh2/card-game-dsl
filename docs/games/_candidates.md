@@ -29,8 +29,8 @@ to a real implementation.
 
 | Open question | Needs | Top candidates |
 |---|---|---|
-| [structured-score](../open-questions/structured-score.md) | third structured-score shape | [omaha-hi-lo](#omaha-hi-lo) (split pot), [skat](#skat) (game-value × multipliers) |
-| [mechanic-phase-unification](../open-questions/mechanic-phase-unification.md) | ninth game blurring mechanic/phase | [skat](#skat) (declaration sub-phases), [french-tarot](#french-tarot) (chien handling) |
+| [structured-score](../open-questions/structured-score.md) | third structured-score shape | [omaha-hi-lo](#omaha-hi-lo) (split pot) |
+| [mechanic-phase-unification](../open-questions/mechanic-phase-unification.md) | further game blurring mechanic/phase | [french-tarot](#french-tarot) (chien handling) |
 | [simultaneous-body-grammar](../open-questions/simultaneous-body-grammar.md) | simultaneous step with substructure | [diplomacy](#diplomacy), [bohnanza](#bohnanza), [coup](#coup) (challenge resolution) |
 | [typed-amount-syntax](../open-questions/typed-amount-syntax.md), [transfer-failure](../open-questions/transfer-failure.md), [move-level-visibility](../open-questions/move-level-visibility.md) | second resource-using game | [holdem](#holdem), [omaha-hi-lo](#omaha-hi-lo), [liars-dice](#liars-dice) |
 | [zone-access-syntax](../open-questions/zone-access-syntax.md) | game with complex relational receivers | [doppelkopf](#doppelkopf), [sheepshead](#sheepshead) |
@@ -39,29 +39,6 @@ to a real implementation.
 | [knowledge-events](../open-questions/knowledge-events.md) | phase outcome observed unequally | [coup](#coup) (challenge reveals), [belote](#belote) (in-play declarations) |
 
 ## Trick-taking with bidding
-
-### skat
-
-3 players, 32-card German deck, multi-stage bidding with a complex
-"game value" calculation; declarer plays against the other two.
-
-**Why interesting.** A Swiss army knife of open-question coverage:
-- Multi-dimensional bidding: bid is a *minimum game value*, with the
-  actual game value determined by chosen game-type (Suit, Grand,
-  Null, Open) × multipliers (Schneider, Schwarz, Hand, Ouvert).
-  Would be a fourth bidding pattern beyond decisions.md "Bidding
-  patterns".
-- [structured-score](../open-questions/structured-score.md): score is
-  multidimensional — base game value plus bonuses plus multipliers
-  form a structured value.
-- [mechanic-phase-unification](../open-questions/mechanic-phase-unification.md):
-  declarer's choice of game-type-and-multipliers is a phase with a
-  richly typed outcome shaping all downstream play.
-
-**Notes.** Skat's rule set is famously detailed. **Use
-[Pagat](https://www.pagat.com/german/skat.html)** for the game-value
-table, multiplier rules, and the bidding sequence (Reizen) — the
-call-and-response shape matters.
 
 ### french-tarot
 

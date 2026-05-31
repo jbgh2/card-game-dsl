@@ -70,22 +70,23 @@ open-question framing.
 
    Headline recommendations from the pipeline:
 
-   - **Skat** — covers two remaining Tier 2 questions at once
-     (structured score, mechanic/phase unification). High leverage
-     but also the highest implementation cost in the pipeline.
    - **Klondike or FreeCell** — first solitaire; tests positional
      zones. Doesn't directly unblock a Tier 2 question but forces a
      deferred design decision.
+   - **French Tarot** — another typed-outcome contract phase
+     (chien handling) that would test mechanic-phase-unification
+     from a different angle than Skat.
+   - **Omaha Hi-Lo** — second structured-score-channels game (split
+     pot), the remaining unblock for that question.
 
-   Recommended: **Skat** if you want maximum question coverage;
-   **Klondike** if you want to start exercising positional zones.
-
-3. **Resolve [structured-score](open-questions/structured-score.md)**
-   once a third structured-score shape arrives. Cribbage did not
-   add one — its score is a single integer per player, the simplest
-   shape and unrelated to Bridge's above/below-line or Stud's
-   pots-with-eligibility. The third data point still needs to come
-   from Omaha Hi-Lo, Skat, or similar.
+3. **Resolve [structured-score](open-questions/structured-score.md).**
+   Skat did *not* add a third channels-with-eligibility shape —
+   Skat's score is a single integer per player computed from
+   structured inputs (base × multiplier), same shape as Cribbage.
+   The expected resolution is now "channels-with-eligibility is a
+   Bridge/Stud-specific pattern, not generalized; each game declares
+   its own scoring shape." Worth closing once we've verified the
+   pattern doesn't reappear.
 
 4. **Address Tier 3 questions when their corner of the language
    gets exercised.** The resource/visibility refinements

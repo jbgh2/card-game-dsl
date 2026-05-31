@@ -150,8 +150,11 @@ specific events via `triggered_by:` clauses (see decisions.md
   hand, crib).
 
 All currently game-specific. Generalization candidates will emerge with
-more scoring-heavy games (Bridge variants, Skat, Pinochle's full meld
-scoring).
+more scoring-heavy games (Bridge variants, Pinochle's full meld
+scoring). Skat added another scoring shape (game_value computed from
+base × multiplier with matadors, hand, schneider, schwarz inputs)
+but kept the per-game-helper pattern — the calculation lives in
+SkatScoring rather than a generalized abstraction.
 
 ## Phase types
 
