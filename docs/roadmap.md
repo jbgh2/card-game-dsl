@@ -57,16 +57,16 @@ open-question framing.
 
 2. **Pick the next game to unblock remaining Tier 2.** The remaining
    Tier 2 questions
-   ([structured-score](open-questions/structured-score.md),
-   [mechanic-phase-unification](open-questions/mechanic-phase-unification.md),
+   ([mechanic-phase-unification](open-questions/mechanic-phase-unification.md),
    [simultaneous-body-grammar](open-questions/simultaneous-body-grammar.md))
    each need one more data point. The full candidate pipeline lives in
    [games/_candidates.md](games/_candidates.md), with a coverage table
    mapping each open question to the games that would unblock it.
 
-   Triggered-scoring was unblocked by Cribbage and bidding-meaning by
-   Oh Hell; both are now in decisions.md ("Triggered scoring
-   components" and "Bidding patterns" respectively).
+   Triggered-scoring was unblocked by Cribbage, bidding-meaning by
+   Oh Hell, and structured-score landed in decisions.md after Skat
+   confirmed the per-game pattern (see decisions.md "Scoring
+   composition").
 
    Headline recommendations from the pipeline:
 
@@ -76,19 +76,8 @@ open-question framing.
    - **French Tarot** — another typed-outcome contract phase
      (chien handling) that would test mechanic-phase-unification
      from a different angle than Skat.
-   - **Omaha Hi-Lo** — second structured-score-channels game (split
-     pot), the remaining unblock for that question.
 
-3. **Resolve [structured-score](open-questions/structured-score.md).**
-   Skat did *not* add a third channels-with-eligibility shape —
-   Skat's score is a single integer per player computed from
-   structured inputs (base × multiplier), same shape as Cribbage.
-   The expected resolution is now "channels-with-eligibility is a
-   Bridge/Stud-specific pattern, not generalized; each game declares
-   its own scoring shape." Worth closing once we've verified the
-   pattern doesn't reappear.
-
-4. **Address Tier 3 questions when their corner of the language
+3. **Address Tier 3 questions when their corner of the language
    gets exercised.** The resource/visibility refinements
    ([typed-amount-syntax](open-questions/typed-amount-syntax.md),
    [move-level-visibility](open-questions/move-level-visibility.md),
@@ -98,19 +87,19 @@ open-question framing.
    a game whose natural notation puts a complex relational chain in
    subject position.
 
-5. **Pin down [memory-event-syntax](open-questions/memory-event-syntax.md)**
+4. **Pin down [memory-event-syntax](open-questions/memory-event-syntax.md)**
    when three or four examples exist beyond stdlib operations. Stud is
    the first; no second example yet.
 
-6. **Tier 4 cleanups landed.** Counters and dealer-promotion are
+5. **Tier 4 cleanups landed.** Counters and dealer-promotion are
    both resolved — counters as inline expressions or per-game
    helpers (see decisions.md "Scoring composition"); dealer as a
    stdlib state variable (see library.md "Stdlib state").
 
-7. **Defer Tier 5 cosmetic questions** until a real preference
+6. **Defer Tier 5 cosmetic questions** until a real preference
    emerges from corpus pressure.
 
-8. **Begin sketching the OpenSpiel compilation pass.** The
+7. **Begin sketching the OpenSpiel compilation pass.** The
     [decisions.md](decisions.md) "Knowledge, visibility, and the
     projection model" section establishes perfect-recall-by-default;
     [decisions.md](decisions.md) "State scoping" establishes lexical

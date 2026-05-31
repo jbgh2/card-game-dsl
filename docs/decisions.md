@@ -740,15 +740,27 @@ does not affect the result (per "Mutation semantics" above, batched
 mutation). Each component reads pre-batch state; all components
 contribute to a single applied write.
 
-**Structured score** (Bridge's `ScoreDelta { above_line, below_line }`)
-has two channels per partnership because the game-win threshold
-cares specifically about below-the-line accumulation. Stud has a
-different structured-score shape: a list of pots with per-pot
-eligibility, length data-dependent on all-in history. Whether
-"structured score" should be a single language-level concept is
-open (see
-[open-questions/structured-score.md](open-questions/structured-score.md));
-for now each game declares the shape it needs.
+**Structured-score shapes are per-game, not generalized.** Bridge's
+`ScoreDelta { above_line, below_line }` has two channels per
+partnership because the game-win threshold cares specifically about
+below-the-line accumulation. Stud has a different shape: a list of
+pots with per-pot eligibility, length data-dependent on all-in
+history. The four games whose score is a single integer per player
+— Cribbage, Skat, Oh Hell, Pinochle (final team score) — don't have
+a "structure" at all; the structure lives in the *computation*
+(Skat's `base × multiplier`, Cribbage's pegging stream + show), not
+the *output*.
+
+Bridge's channels and Stud's pots-with-eligibility don't share a
+structural form. The minimal generalization that fits both ("list
+of scoring channels with per-channel eligibility") would constrain
+the corpus to express simpler games through a heavier abstraction,
+and the third structured-score game (Skat) declined to produce a
+third shape — it kept a scalar score. The honest read: structured
+score is a per-game declaration, not a language-level concept. Each
+game's `ScoreDelta` carries whatever fields the game's scoring
+mechanics need (one integer, two channels, a list of pots, etc.);
+no shared `ScoreStructure` type.
 
 **Per-card point values are inline expressions or per-game
 helpers.** Hearts scores `if card.suit == hearts then 1 elif

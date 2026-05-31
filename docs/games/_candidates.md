@@ -29,7 +29,6 @@ to a real implementation.
 
 | Open question | Needs | Top candidates |
 |---|---|---|
-| [structured-score](../open-questions/structured-score.md) | third structured-score shape | [omaha-hi-lo](#omaha-hi-lo) (split pot) |
 | [mechanic-phase-unification](../open-questions/mechanic-phase-unification.md) | further game blurring mechanic/phase | [french-tarot](#french-tarot) (chien handling) |
 | [simultaneous-body-grammar](../open-questions/simultaneous-body-grammar.md) | simultaneous step with substructure | [diplomacy](#diplomacy), [bohnanza](#bohnanza), [coup](#coup) (challenge resolution) |
 | [typed-amount-syntax](../open-questions/typed-amount-syntax.md), [transfer-failure](../open-questions/transfer-failure.md), [move-level-visibility](../open-questions/move-level-visibility.md) | second resource-using game | [holdem](#holdem), [omaha-hi-lo](#omaha-hi-lo), [liars-dice](#liars-dice) |
@@ -54,9 +53,10 @@ plus the Excuse, multi-level bidding with chien (dog) handling.
   chien handling is a multi-step sub-phase with a typed outcome
   (visible chien + declarer adjustment vs. blind chien). Distinct in
   shape from Pinochle's `declare_trump`.
-- [structured-score](../open-questions/structured-score.md): score
-  depends on oudlers held (Excuse, 1 of Trumps, 21 of Trumps), the
-  point threshold reached, and the contract multiplier.
+- Scoring is per-game: depends on oudlers held (Excuse, 1 of Trumps,
+  21 of Trumps), the point threshold reached, and the contract
+  multiplier. Another structured-in-the-calculation, scalar-in-the-output
+  shape — same pattern as Skat per decisions.md "Scoring composition".
 
 **Notes.** **Pagat** for the chien rules and the point-threshold
 table (51 with 3 oudlers, 41 with 2, 36 with 1, 56 with 0):
@@ -391,13 +391,13 @@ structural change. Stud's `BettingRound` mechanic should port over.
 with four hole cards (use exactly two) and split pots: best high
 hand and best qualifying low hand each take half.
 
-**Why interesting.** Canonical second data point for
-[structured-score](../open-questions/structured-score.md): each pot
-splits into *two channels* (high half, low half), with the low half
-requiring a qualifying hand (five unpaired cards each ≤ 8).
-Resolves to "two winners by different criteria within one pot" — a
-structured outcome distinct from both Bridge's above/below-line and
-Stud's main/side pots.
+**Why interesting.** Split-pot scoring: each pot resolves to *two
+winners by different criteria* (high hand and best qualifying low
+hand take half each), with the low half requiring five unpaired
+cards each ≤ 8. The shape extends Stud's pot-with-eligibility
+pattern with a per-pot split — a per-game shape that fits the
+"each game declares its own scoring structure" decision in
+decisions.md "Scoring composition".
 
 **Notes.** "Eight or better" is the standard low-half qualifier;
 "Omaha 8" is a common shorthand.

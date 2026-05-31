@@ -24,9 +24,6 @@ to Tier 1 as further corpus data arrives.
 These questions need one more game in the corpus before committing to a
 design. The data point is named in each file.
 
-- [structured-score](structured-score.md) — generalize Bridge's
-  above/below-line and Stud's pots-with-eligibility into one shape, or
-  let each game declare. Blocker: a third structured-score game.
 - [mechanic-phase-unification](mechanic-phase-unification.md) — unify
   mechanics-with-outcomes and phases-with-outcomes into one construct.
   Blocker: a seventh game.
