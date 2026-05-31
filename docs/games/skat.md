@@ -43,10 +43,10 @@ game Skat {
     suits: [S, H, D, C]
     ranks: [7, 8, 9, J, Q, K, 10, A]      // ace-ten order (10 above K)
   }
-  // Suit and Grand games re-rank: all four Jacks become trumps,
-  // ordered C > S > H > D, ranking above all other trumps.
-  // Null games re-rank: A > K > Q > J > 10 > 9 > 8 > 7, no trumps.
-  // See `effective_rank_for` helper below.
+  // Trick rules differ per contract: Suit and Grand games have all
+  // four Jacks as trumps (C > S > H > D), ranking above other trumps.
+  // Null games have no trumps and rerank A > K > Q > J > 10 > 9 > 8 > 7.
+  // See SuitTrickWinner / GrandTrickWinner / NullTrickWinner below.
 
   zones {
     deck             : Deck
@@ -154,13 +154,15 @@ game Skat {
         leader : Player = forehand        // forehand always leads trick 1
       }
 
-      active_rules:
-        if game_type == Null:
-          [MustFollowSuitNull]
-        else:
-          [MustFollowSuitSkat]            // jacks-as-trump shape
+      // The trick-resolution function depends on the contract. All three
+      // share the trick loop; only `outcome` varies.
+      let trick_outcome = match game_type:
+        Suit  → SuitTrickWinner(trump_suit)
+        Grand → GrandTrickWinner
+        Null  → NullTrickWinner
 
-      legal_moves: [play_to_trick]
+      active_rules: [MustFollowSuit]
+      legal_moves:  [play_to_trick]
 
       repeat 10 times {
         instantiate Trick (
@@ -169,7 +171,7 @@ game Skat {
           source_zone  = hand,
           play_zone    = trick_pile,
           play_rules   = active_rules,
-          outcome      = SkatTrickWinner(game_type, trump_suit),
+          outcome      = trick_outcome,
           routing      = all cards from trick_pile to captured[outcome]
         )
         leader := outcome
@@ -304,76 +306,68 @@ type SkatHandResult = {
 // Rules
 // =====================================================================
 
-rule MustFollowSuitSkat {
-  // Suit and Grand games: jacks are trumps regardless of printed suit.
-  // The "suit" of a card for follow-suit purposes is the printed suit
-  // unless the card is a jack, in which case the "suit" is trump.
+rule MustFollowSuit {
+  // Skat reuses the standard MustFollowSuit shape but consults the
+  // per-game `same_suit_class` predicate rather than comparing printed
+  // suits directly. In Suit/Grand games, the four jacks form a
+  // "trump class" along with the trump-suit cards (Suit) or by
+  // themselves (Grand). In Null games, the predicate collapses to
+  // printed-suit equality.
   constrains: play_to_trick
-  applies_when: state.trick.led_suit is not none
-  demands: hand.where(c ⇒ effective_suit_for(c, game_type, trump_suit)
-                          == state.trick.led_suit)
-}
-
-rule MustFollowSuitNull {
-  // Null games: jacks are normal members of their printed suit. No trumps.
-  constrains: play_to_trick
-  applies_when: state.trick.led_suit is not none
-  demands: hand.where(c ⇒ c.suit == state.trick.led_suit)
+  applies_when: state.trick.led_card is not none
+  demands: hand.where(c ⇒ same_suit_class(c, state.trick.led_card))
 }
 
 // =====================================================================
-// Helpers
+// Per-game helpers
 // =====================================================================
 
-// The effective suit of a card depends on game type. In Suit/Grand,
-// jacks count as the trump suit. In Null, all cards keep printed suits.
-effective_suit_for(card, game_type, trump_suit) =
-  if game_type == Null:
-    card.suit
-  elif card.rank == J:
-    if game_type == Suit then trump_suit else clubs   // Grand has Jacks as their own trump
+// What follow-suit class does this card belong to? The return value is
+// an opaque tag used only for equality comparison — `"trump"` is not a
+// real Suit value, just a sentinel that all trump cards share.
+same_suit_class(c1, c2) = follow_class(c1) == follow_class(c2)
+
+follow_class(c) =
+  if game_type == Null:               c.suit
+  elif c.rank == J:                   "trump"
+  elif game_type == Suit and c.suit == trump_suit:  "trump"
+  else:                               c.suit
+
+// =====================================================================
+// Trick-winner outcomes (one per game type, dispatched at phase entry)
+// =====================================================================
+
+// Suit game: trumps are the four jacks (C > S > H > D) plus the seven
+// other cards of the trump suit (A > 10 > K > Q > 9 > 8 > 7 within the
+// non-jack trumps; jacks rank above all non-jack trumps).
+outcome SuitTrickWinner (trump_suit) = (played_cards, trick_state) ⇒
+  let trumps = played_cards.filter(c ⇒ c.rank == J or c.suit == trump_suit)
+  if trumps.non_empty:
+    player_of(argmax trumps by suit_game_trump_order(trump_suit))
   else:
-    card.suit
-  // Note Grand: Jacks form a trump suit of their own; the rule above
-  // returns `clubs` as a stand-in for "the jacks-trump" — in practice
-  // we want a synthetic trump indicator. See Grand handling in
-  // SkatTrickWinner.
+    player_of(argmax played_cards.filter(c ⇒ c.suit == trick_state.led_suit)
+                                  by skat_rank)
 
-// =====================================================================
-// SkatTrickWinner outcome function
-// =====================================================================
+// Grand game: only the four jacks are trumps. Otherwise highest of led suit.
+outcome GrandTrickWinner = (played_cards, trick_state) ⇒
+  let jacks = played_cards.filter(c ⇒ c.rank == J)
+  if jacks.non_empty:
+    player_of(argmax jacks by jack_suit_order)                  // C > S > H > D
+  else:
+    player_of(argmax played_cards.filter(c ⇒ c.suit == trick_state.led_suit)
+                                  by skat_rank)
 
-outcome SkatTrickWinner (game_type, trump_suit) =
-  (played_cards, trick_state) ⇒ {
-    let led_suit = trick_state.led_suit
+// Null game: no trumps. Ranking is A > K > Q > J > 10 > 9 > 8 > 7.
+outcome NullTrickWinner = (played_cards, trick_state) ⇒
+  player_of(argmax played_cards.filter(c ⇒ c.suit == trick_state.led_suit)
+                                by null_rank)
 
-    if game_type == Null:
-      // No trumps; highest card of led suit wins (rank order A>K>Q>J>10>9>8>7).
-      player_of(argmax played_cards.filter(c ⇒ c.suit == led_suit) by null_rank)
-
-    elif game_type == Grand:
-      // Trumps = the four jacks (C>S>H>D). Otherwise highest of led suit.
-      let jacks_played = played_cards.filter(c ⇒ c.rank == J)
-      if jacks_played.non_empty:
-        player_of(argmax jacks_played by jack_suit_order)   // C > S > H > D
-      else:
-        player_of(argmax played_cards.filter(c ⇒ c.suit == led_suit) by skat_rank)
-
-    else:  // Suit game
-      // Trumps = the four jacks + the seven other trump-suit cards.
-      // Jack order: C > S > H > D; remaining trumps ranked A>10>K>Q>9>8>7.
-      let trumps_played = played_cards.filter(c ⇒
-        c.rank == J or c.suit == trump_suit
-      )
-      if trumps_played.non_empty:
-        player_of(argmax trumps_played by suit_game_trump_order(trump_suit))
-      else:
-        player_of(argmax played_cards.filter(c ⇒ c.suit == led_suit) by skat_rank)
-  }
-
-// Within trumps in a Suit game: jacks (C>S>H>D) above non-jack trumps (A>10>K>Q>9>8>7).
-// Within non-trumps (and Grand non-jack play): skat rank A>10>K>Q>9>8>7.
-// Within Null: A>K>Q>J>10>9>8>7.
+// Ranking orders used above:
+//   skat_rank: A > 10 > K > Q > 9 > 8 > 7 (used for non-jack cards in Suit/Grand)
+//   null_rank: A > K > Q > J > 10 > 9 > 8 > 7 (Null game, all cards)
+//   jack_suit_order: C > S > H > D (jack ordering in Suit/Grand)
+//   suit_game_trump_order(s): jacks (C > S > H > D) above non-jack trumps of suit s
+//                             (A > 10 > K > Q > 9 > 8 > 7)
 
 // =====================================================================
 // Scoring

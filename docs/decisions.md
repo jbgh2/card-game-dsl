@@ -201,6 +201,17 @@ configuration's effect is "filter legal moves before play," it's a
 rule; if its effect is "shape the trick's resolution after play,"
 it's a mechanic parameter.
 
+**Per-game predicates for contextual interpretations.** Some games
+need to interpret card properties contextually rather than from the
+card's intrinsic fields. Skat's jacks are trumps regardless of
+printed suit; in Doppelkopf, both queens and jacks would be trumps.
+The pattern: a per-game `same_suit_class(c1, c2)` predicate that
+the standard `MustFollowSuit` rule consults instead of comparing
+`c1.suit == c2.suit` directly. Most games keep the default
+(printed-suit equality); games with contextual suits override.
+Same shape as the `chooser_for` and `play_source_for` helpers — a
+per-game function in the game file, not a new language construct.
+
 ## State scoping (lexical)
 
 A variable is scoped to the phase that lexically encloses its
