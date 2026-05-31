@@ -16,12 +16,8 @@ game Pinochle {
   direction: clockwise
 
   // Pinochle deck: 48 cards, two copies each of A 10 K Q J 9 in each suit.
-  // Ranking is unusual: 10 sits between K and A.
-  cards: {
-    suits: [S, H, D, C]
-    ranks: [9, J, Q, K, 10, A]              // 10 ranks above K, below A
-    copies_per_card: 2
-  }
+  // Ranking is unusual: 10 sits between K and A. See library.md "Stdlib decks".
+  cards: pinochle48
 
   zones {
     deck             : Deck

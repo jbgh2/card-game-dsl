@@ -277,6 +277,51 @@ is the first game to exercise the full vocabulary in non-trivial ways.
 Resource-using games (Catan and similar, when they enter scope) use
 `transfer` as the primary movement op.
 
+## Stdlib decks
+
+Named deck compositions usable in the `cards:` block. See
+[decisions.md](decisions.md) "Deck declaration" for the underlying
+form. Games either use one of these directly (`cards: standard52`)
+or compose with extras (`cards: standard52 + { specials: [...] }`).
+
+- `standard52` = the 52-card Anglo-American deck.
+  ```
+  { suits: { [S, H, D, C]: [2, 3, 4, 5, 6, 7, 8, 9, 10, J, Q, K, A] } }
+  ```
+  Used by Hearts, Getaway, Spades, Bridge, Seven-Card Stud, Cribbage,
+  Oh Hell. Tichu uses `standard52 + { specials: [Mahjong, Dog,
+  Phoenix, Dragon] }`.
+
+- `pinochle48` = double Pinochle deck, 6 ranks × 4 suits × 2 copies
+  with 10 ranking above K.
+  ```
+  { suits: { [S, H, D, C]: [9, J, Q, K, 10, A] }, copies_per_card: 2 }
+  ```
+  Used by Pinochle.
+
+- `skat32` = 32-card German Skat deck, ace-ten order.
+  ```
+  { suits: { [S, H, D, C]: [7, 8, 9, J, Q, K, 10, A] } }
+  ```
+  Used by Skat.
+
+- `schnapsen20` = 20-card Schnapsen deck.
+  ```
+  { suits: { [S, H, D, C]: [J, Q, K, 10, A] } }
+  ```
+  Used by Schnapsen.
+
+- `tarot78` = 78-card Tarot deck.
+  ```
+  { suits: { [S, H, D, C]: [1..10, J, Cavalier, Q, K], atouts: [1..21] },
+    specials: [Excuse] }
+  ```
+  Used by French Tarot.
+
+Each constant captures a deck's *composition* only. Card-point
+values, ranking for play, follow-suit semantics, and trump status
+are all per-game declarations on top.
+
 ## Stdlib state
 
 Game state variables provided by the language with conventional

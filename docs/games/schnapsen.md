@@ -19,10 +19,9 @@ game Schnapsen {
   players: 2
   direction: clockwise   // irrelevant with 2 players; included for uniformity
 
-  cards: {
-    suits: [S, H, D, C]
-    ranks: [J, Q, K, 10, A]            // J lowest, A highest; 10 above K
-  }
+  // 20-card deck, J lowest, A highest, 10 above K. See library.md
+  // "Stdlib decks".
+  cards: schnapsen20
 
   zones {
     deck                 : Deck

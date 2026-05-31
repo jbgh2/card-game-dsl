@@ -16,13 +16,10 @@ game Tichu {
   partnerships: [[N, S], [E, W]]
   direction: counterclockwise
 
-  // 52 standard cards plus four uniquely-named special cards.
-  cards: {
-    suits: [S, H, D, C]
-    ranks: [2, 3, 4, 5, 6, 7, 8, 9, 10, J, Q, K, A]
-    specials: [Mahjong, Dog, Phoenix, Dragon]
-    // `specials:` is new — see open-questions/special-cards-declaration.md.
-  }
+  // 52 standard cards plus four uniquely-named special cards. The
+  // `specials:` clause is still an open question for cards that aren't
+  // (suit, rank) pairs — see open-questions/special-cards-declaration.md.
+  cards: standard52 + { specials: [Mahjong, Dog, Phoenix, Dragon] }
 
   zones {
     deck             : Deck

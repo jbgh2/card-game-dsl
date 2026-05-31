@@ -414,10 +414,11 @@ rewrites to underlying forms.
 **Stdlib types (built into the language):**
 
 - `Card` — `{ suit, rank, attributes, optional facing }`. Suit and
-  rank are declared at the game level (`cards { suits, ranks }`).
-  Attributes are a per-game extension point. Facing is an optional
-  built-in dimension that composes with zone visibility (see
-  "Knowledge, visibility, and the projection model" below).
+  rank are declared at the game level (`cards { suits: { ... } }`,
+  see "Deck declaration" below). Attributes are a per-game extension
+  point. Facing is an optional built-in dimension that composes with
+  zone visibility (see "Knowledge, visibility, and the projection
+  model" below).
 - `Resource<Type>` — fungible quantity of the named type. Declared
   by the game's `resources { }` block.
 - `Suit`, `Rank` — enumerable value types defined by the game's
@@ -474,15 +475,60 @@ point: games introduce concepts (Contract, HandResult, Meld, Pot) by
 declaring them. The DSL doesn't ship a vocabulary covering every
 possible game.
 
+**Deck declaration.** The `cards { }` block declares which cards
+exist in the deck. The canonical form is a per-suit map: each suit
+names its own rank sequence. A list of suits as a key is shorthand
+for "these suits share this rank list."
+
+```
+cards: {
+  suits: {
+    [S, H, D, C]: [2, 3, 4, 5, 6, 7, 8, 9, 10, J, Q, K, A]
+  }
+}
+```
+
+Tarot decks need this generality — the trump suit has a different
+rank set from the standard suits:
+
+```
+cards: {
+  suits: {
+    [S, H, D, C]: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, J, Cavalier, Q, K]
+    atouts:      [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]
+  }
+  specials: [Excuse]
+}
+```
+
+**Stdlib decks.** Common deck compositions are stdlib constants —
+see [library.md](library.md) "Stdlib decks". A game with a standard
+deck writes one line:
+
+```
+cards: standard52
+```
+
+Games that extend a stdlib deck compose with `+`:
+
+```
+cards: standard52 + { specials: [Mahjong, Dog, Phoenix, Dragon] }
+```
+
+The composition adds the right-side clauses to the stdlib base. Used
+by Tichu, which is standard52 plus four named singletons. (Tichu's
+specials being non-(suit, rank) cards is a separate question from
+how the deck composes; see
+[open-questions/special-cards-declaration.md](open-questions/special-cards-declaration.md).)
+
 **Per-card attributes.** Games can declare additional
 Boolean/enum/integer attributes attached to every card in their
 `cards { ... }` block:
 
 ```
-cards {
-  suits: [...]
-  ranks: [...]
-  attributes {
+cards: {
+  suits: { [S, H, D, C]: [2..10, J, Q, K, A] }
+  attributes: {
     tapped         : Boolean              = false
     counters       : Map<Name, Integer>   = {}
     summoning_sick : Boolean              = true

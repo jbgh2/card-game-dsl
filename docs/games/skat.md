@@ -38,11 +38,8 @@ game Skat {
   players: 3
   direction: clockwise
 
-  // 32-card deck: A K Q J 10 9 8 7 × 4 suits.
-  cards: {
-    suits: [S, H, D, C]
-    ranks: [7, 8, 9, J, Q, K, 10, A]      // ace-ten order (10 above K)
-  }
+  // 32-card deck, ace-ten order (10 above K). See library.md "Stdlib decks".
+  cards: skat32
   // Trick rules differ per contract: Suit and Grand games have all
   // four Jacks as trumps (C > S > H > D), ranking above other trumps.
   // Null games have no trumps and rerank A > K > Q > J > 10 > 9 > 8 > 7.
