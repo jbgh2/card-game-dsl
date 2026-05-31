@@ -79,9 +79,9 @@ update every game that exercises the changed construct in the same edit.
 
 The corpus today: Hearts, Getaway (Bhabhi), Spades, Pinochle, Bridge
 (rubber, simplified), Seven-Card Stud, Tichu, Schnapsen, Cribbage
-(six-card, two-player). Each is a complete description: a non-player
-should be able to read the file cold and play a hand. That's the
-acceptance test for clarity.
+(six-card, two-player), Oh Hell (four-player). Each is a complete
+description: a non-player should be able to read the file cold and
+play a hand. That's the acceptance test for clarity.
 
 ## Rule references
 

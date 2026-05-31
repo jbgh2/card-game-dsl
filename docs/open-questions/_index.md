@@ -14,17 +14,21 @@ When a question resolves, move its content to [decisions.md](../decisions.md)
 folder, and remove the entry from this index. See
 [maintaining.md](../maintaining.md) for the full hygiene rules.
 
-**Tier 1 is currently empty** — all four original Tier 1 questions
-have been resolved into [decisions.md](../decisions.md). Tier 2
-items may be promoted to Tier 1 as further corpus data arrives.
+## Tier 1 — High impact, ready to commit
+
+These questions have enough data points in the corpus that a design could
+be committed without waiting for more games. The gating factor is
+decision, not evidence.
+
+- [bidding-meaning](bidding-meaning.md) — three data points after Oh Hell;
+  resolution is "no shared `bid_meaning:` parameter; each game declares
+  its own interpretation in scoring."
 
 ## Tier 2 — High impact, blocked on a data point
 
 These questions need one more game in the corpus before committing to a
 design. The data point is named in each file.
 
-- [bidding-meaning](bidding-meaning.md) — Auction should declare what the
-  bid value targets. Blocker: a third bidding game.
 - [structured-score](structured-score.md) — generalize Bridge's
   above/below-line and Stud's pots-with-eligibility into one shape, or
   let each game declare. Blocker: a third structured-score game.

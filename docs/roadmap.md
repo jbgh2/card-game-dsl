@@ -57,34 +57,36 @@ open-question framing.
 
 2. **Pick the next game to unblock remaining Tier 2.** The remaining
    Tier 2 questions
-   ([bidding-meaning](open-questions/bidding-meaning.md),
-   [structured-score](open-questions/structured-score.md),
+   ([structured-score](open-questions/structured-score.md),
    [mechanic-phase-unification](open-questions/mechanic-phase-unification.md),
    [simultaneous-body-grammar](open-questions/simultaneous-body-grammar.md))
    each need one more data point. The full candidate pipeline lives in
    [games/_candidates.md](games/_candidates.md), with a coverage table
    mapping each open question to the games that would unblock it.
 
-   Triggered-scoring is now unblocked: Cribbage added the third data
-   point (pegging events on play_card and end_of_round). See item 3.
+   Triggered-scoring was unblocked by Cribbage; bidding-meaning was
+   unblocked by Oh Hell. Both are now ready to resolve (see item 3
+   and item 4).
 
    Headline recommendations from the pipeline:
 
-   - **Oh Hell / Wizard** — unblocks "Bidding Meaning" (third data
-     point after Spades and Pinochle/Bridge). Also a chance to validate
-     the `BridgeAuction` → `Auction` shared mechanic story.
-   - **Skat** — covers three Tier 2 questions at once (bidding meaning,
-     structured score, mechanic/phase unification). High leverage but
-     also the highest implementation cost in the pipeline.
+   - **Skat** — covers two remaining Tier 2 questions at once
+     (structured score, mechanic/phase unification). High leverage
+     but also the highest implementation cost in the pipeline.
    - **Klondike or FreeCell** — first solitaire; tests positional
      zones. Doesn't directly unblock a Tier 2 question but forces a
      deferred design decision.
 
-   Recommended: **Oh Hell**. Cheapest single-question unblock; the
-   `Auction` shared-mechanic check is incidental value on top.
+   Recommended: **Skat** if you want maximum question coverage;
+   **Klondike** if you want to start exercising positional zones.
 
-3. **Resolve [bidding-meaning](open-questions/bidding-meaning.md)**
-   once Oh Hell or Wizard is in the corpus.
+3. **Resolve [bidding-meaning](open-questions/bidding-meaning.md).**
+   Three data points now in the corpus: Spades (threshold-tricks per
+   team), Pinochle (total-points target), Oh Hell (exact-tricks per
+   player). Spades and Oh Hell both use inline per-player bidding;
+   Pinochle uses the ascending `Auction` mechanic. Likely resolution:
+   no shared `bid_meaning:` parameter on Auction — each game's
+   scoring code declares its own interpretation.
 
 4. **Resolve [structured-score](open-questions/structured-score.md)**
    once a third structured-score shape arrives. Cribbage did not

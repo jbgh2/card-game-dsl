@@ -29,7 +29,7 @@ to a real implementation.
 
 | Open question | Needs | Top candidates |
 |---|---|---|
-| [bidding-meaning](../open-questions/bidding-meaning.md) | third distinct bid semantic | [oh-hell](#oh-hell) (exact tricks), [skat](#skat) (multi-dim game value), [french-tarot](#french-tarot) (contract level) |
+| [bidding-meaning](../open-questions/bidding-meaning.md) | third data point committed (Oh Hell); ready to resolve | [skat](#skat) (multi-dim game value), [french-tarot](#french-tarot) (contract level) |
 | [structured-score](../open-questions/structured-score.md) | third structured-score shape | [omaha-hi-lo](#omaha-hi-lo) (split pot), [skat](#skat) (game-value × multipliers) |
 | [mechanic-phase-unification](../open-questions/mechanic-phase-unification.md) | ninth game blurring mechanic/phase | [skat](#skat) (declaration sub-phases), [french-tarot](#french-tarot) (chien handling) |
 | [simultaneous-body-grammar](../open-questions/simultaneous-body-grammar.md) | simultaneous step with substructure | [diplomacy](#diplomacy), [bohnanza](#bohnanza), [coup](#coup) (challenge resolution) |
@@ -40,25 +40,6 @@ to a real implementation.
 | [knowledge-events](../open-questions/knowledge-events.md) | phase outcome observed unequally | [coup](#coup) (challenge reveals), [belote](#belote) (in-play declarations) |
 
 ## Trick-taking with bidding
-
-### oh-hell
-
-3–7 players, standard 52, plain-trick with exact-tricks bidding per
-player.
-
-**Why interesting.** Third data point for
-[bidding-meaning](../open-questions/bidding-meaning.md): bid value is
-*exact* trick count (over-take fails as much as under-take), distinct
-from Spades' threshold-tricks bid and Pinochle's total-points bid.
-Hand size varies round-by-round (1, 2, …, N, …, 2, 1), stressing
-per-round phase repetition. A "hook" rule forbids the dealer from
-bidding such that total bids equal the hand size — a constraint
-that reads the bids of *prior* players in real-time.
-
-**Notes.** Wizard is a near-variant: same bid meaning plus four
-"wizards" (always win) and four "jesters" (always lose, no
-follow-suit requirement). Implement Oh Hell first; Wizard becomes a
-small delta on top.
 
 ### skat
 

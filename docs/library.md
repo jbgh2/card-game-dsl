@@ -95,9 +95,10 @@ Key design notes:
 - `Auction` (see [games/pinochle.md](games/pinochle.md)) — parameterized
   over participants, opening bid, increment, outcome callback. Owns its
   own per-auction state (`current_bid`, `last_bidder`, `passed[player]`).
-  Used by Pinochle; applicable to Spades (when refactored to use Auction
-  rather than its current inline bidding), Oh Hell, and any other
-  ascending-bid game.
+  Used by Pinochle. Spades and Oh Hell use *inline per-player
+  bidding* instead — every player bids exactly once in turn, no
+  ascending constraint, so the mechanic doesn't fit. Auction stays
+  the ascending-bidding pattern.
 - `BridgeAuction` (see [games/bridge.md](games/bridge.md)) — Bridge-specific
   specialization; placeholder. Real definition deferred; needs
   doubling/redoubling and the structured contract outcome.
