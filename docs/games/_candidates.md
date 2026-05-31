@@ -29,7 +29,6 @@ to a real implementation.
 
 | Open question | Needs | Top candidates |
 |---|---|---|
-| [bidding-meaning](../open-questions/bidding-meaning.md) | third data point committed (Oh Hell); ready to resolve | [skat](#skat) (multi-dim game value), [french-tarot](#french-tarot) (contract level) |
 | [structured-score](../open-questions/structured-score.md) | third structured-score shape | [omaha-hi-lo](#omaha-hi-lo) (split pot), [skat](#skat) (game-value × multipliers) |
 | [mechanic-phase-unification](../open-questions/mechanic-phase-unification.md) | ninth game blurring mechanic/phase | [skat](#skat) (declaration sub-phases), [french-tarot](#french-tarot) (chien handling) |
 | [simultaneous-body-grammar](../open-questions/simultaneous-body-grammar.md) | simultaneous step with substructure | [diplomacy](#diplomacy), [bohnanza](#bohnanza), [coup](#coup) (challenge resolution) |
@@ -47,10 +46,11 @@ to a real implementation.
 "game value" calculation; declarer plays against the other two.
 
 **Why interesting.** A Swiss army knife of open-question coverage:
-- [bidding-meaning](../open-questions/bidding-meaning.md): bid is a
-  *minimum game value*, with the actual game value determined by
-  chosen game-type (Suit, Grand, Null, Open) × multipliers
-  (Schneider, Schwarz, Hand, Ouvert).
+- Multi-dimensional bidding: bid is a *minimum game value*, with the
+  actual game value determined by chosen game-type (Suit, Grand,
+  Null, Open) × multipliers (Schneider, Schwarz, Hand, Ouvert).
+  Would be a fourth bidding pattern beyond decisions.md "Bidding
+  patterns".
 - [structured-score](../open-questions/structured-score.md): score is
   multidimensional — base game value plus bonuses plus multipliers
   form a structured value.
@@ -69,9 +69,10 @@ call-and-response shape matters.
 plus the Excuse, multi-level bidding with chien (dog) handling.
 
 **Why interesting.**
-- [bidding-meaning](../open-questions/bidding-meaning.md): bids name
-  contract levels (Petite, Garde, Garde Sans, Garde Contre), each
-  changing how the chien is handled and the point multiplier.
+- Contract-level bidding: bids name contract levels (Petite, Garde,
+  Garde Sans, Garde Contre), each changing how the chien is handled
+  and the point multiplier. A fifth bidding pattern beyond
+  decisions.md "Bidding patterns".
 - [mechanic-phase-unification](../open-questions/mechanic-phase-unification.md):
   chien handling is a multi-step sub-phase with a typed outcome
   (visible chien + declarer adjustment vs. blind chien). Distinct in

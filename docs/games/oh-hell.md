@@ -7,12 +7,11 @@ bid (over OR under) → 1 point per trick won only. Sequence of hands
 varies in size: 10 down to 1, then 1 back up to 10 (19 hands per
 game). Source: [Pagat](https://www.pagat.com/exact/ohhell.html).
 
-Oh Hell is the corpus's third data point for
-[open-questions/bidding-meaning.md](../open-questions/bidding-meaning.md):
-the bid value is an *exact-tricks target per player*, distinct from
-Spades' threshold-tricks bid and Pinochle's total-points bid. Like
-Spades, it uses per-player inline bidding rather than the ascending
-`Auction` mechanic (which fits Pinochle and Bridge).
+Oh Hell is the corpus's third bidding game. The bid value is an
+*exact-tricks target per player*, distinct from Spades'
+threshold-tricks and Pinochle's total-points. Like Spades, it uses
+per-player inline bidding rather than the ascending `Auction`
+mechanic (which fits Pinochle). See decisions.md "Bidding patterns".
 
 The **hook rule** is the interesting wrinkle: the dealer (who bids
 last) cannot bid such that the total of all bids equals the number

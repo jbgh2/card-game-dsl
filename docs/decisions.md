@@ -852,6 +852,57 @@ chosen type is expected. There is no separate "choice-embedded
 routing" mechanism; routing functions are ordinary expressions and
 ordinary expressions may include `choose`.
 
+## Bidding patterns
+
+The corpus has three structurally distinct bidding patterns; bid
+*value* and bid *meaning* are per-game concerns interpreted by each
+game's scoring code rather than shared via a mechanic parameter.
+
+| Game | Bidding shape | Bid value means |
+| --- | --- | --- |
+| Pinochle | ascending `Auction` mechanic (opening_bid 50, increment 10) | per-team total-points target (≥ bid succeeds) |
+| Spades | inline per-player, no constraint between bids | per-team threshold tricks (≥ bid succeeds) |
+| Oh Hell | inline per-player, dealer-hook constraint | per-player exact-tricks target (= bid succeeds) |
+| Bridge | structured contract bidding (level + suit + doubling) | structured Contract value, not an Integer |
+
+The four games don't share a common bid type or interpretation.
+Bridge's contract is a structured value rather than an integer;
+Oh Hell's bid is per-player; Spades and Pinochle differ on
+threshold vs total-points. A `bid_meaning:` parameter on Auction
+would only cover Pinochle's case, since Spades/Oh Hell/Bridge don't
+use the Auction mechanic.
+
+Bid interpretation is therefore a per-game scoring concern. Each
+game's `scoring_component`s declare what counts as making the bid:
+
+```
+// Spades (ContractScoring):
+if result.tricks_won[t] >= non_nil_bid:           // threshold
+  delta_score[t] += 10 * non_nil_bid
+```
+
+```
+// Oh Hell (TricksAndExactBonus):
+if result.tricks_won[p] == result.bid[p]:         // exact
+  delta[p] += 10
+```
+
+```
+// Pinochle (inline):
+if bidder_team_total >= current_bid:              // total-points threshold
+  score[bidder_team] += bidder_team_total
+```
+
+The shared *bidding mechanic* possibilities — Auction for ascending
+bidding, an inline per-player pattern — are extracted only when
+multiple games clearly share them. Auction is the only such
+extracted-and-reused mechanic so far (Pinochle uses it; Bridge will
+have its own `BridgeAuction` for doubling and structured contracts).
+Spades and Oh Hell both use inline per-player bidding; a
+`PerPlayerBidding` mechanic could be extracted, deferred until a
+third per-player-bid game (Wizard, Boerenbridge variant, 7-Truf)
+arrives to confirm the shape.
+
 ## Delegated play
 
 A move is normally chosen by the player it's attributed to: the

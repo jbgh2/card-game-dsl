@@ -68,13 +68,12 @@ game Bridge {
         //
         // PLACEHOLDER: `final_state.*` dot-accesses below are invented
         // syntax against an undeclared type. They await the typed object
-        // model (decisions.md) and open-questions/bidding-meaning.md
-        // resolutions. Treat them as a sketch of intent, not real code.
+        // model (decisions.md). Treat them as a sketch of intent, not
+        // real code.
 
         instantiate BridgeAuction (
           participants  = all players,
           opener        = dealer,
-          bid_meaning   = contract_for_partnership,   // PLACEHOLDER — see open-questions/bidding-meaning.md
           outcome       = (final_state) ⇒ {
             if final_state.any_bid_made:                                      // PLACEHOLDER
               contract_made(final_state.final_contract,                       // PLACEHOLDER

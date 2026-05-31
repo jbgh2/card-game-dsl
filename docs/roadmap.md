@@ -64,9 +64,9 @@ open-question framing.
    [games/_candidates.md](games/_candidates.md), with a coverage table
    mapping each open question to the games that would unblock it.
 
-   Triggered-scoring was unblocked by Cribbage; bidding-meaning was
-   unblocked by Oh Hell. Both are now ready to resolve (see item 3
-   and item 4).
+   Triggered-scoring was unblocked by Cribbage and bidding-meaning by
+   Oh Hell; both are now in decisions.md ("Triggered scoring
+   components" and "Bidding patterns" respectively).
 
    Headline recommendations from the pipeline:
 
@@ -80,22 +80,14 @@ open-question framing.
    Recommended: **Skat** if you want maximum question coverage;
    **Klondike** if you want to start exercising positional zones.
 
-3. **Resolve [bidding-meaning](open-questions/bidding-meaning.md).**
-   Three data points now in the corpus: Spades (threshold-tricks per
-   team), Pinochle (total-points target), Oh Hell (exact-tricks per
-   player). Spades and Oh Hell both use inline per-player bidding;
-   Pinochle uses the ascending `Auction` mechanic. Likely resolution:
-   no shared `bid_meaning:` parameter on Auction — each game's
-   scoring code declares its own interpretation.
-
-4. **Resolve [structured-score](open-questions/structured-score.md)**
+3. **Resolve [structured-score](open-questions/structured-score.md)**
    once a third structured-score shape arrives. Cribbage did not
    add one — its score is a single integer per player, the simplest
    shape and unrelated to Bridge's above/below-line or Stud's
    pots-with-eligibility. The third data point still needs to come
    from Omaha Hi-Lo, Skat, or similar.
 
-5. **Address Tier 3 questions when their corner of the language
+4. **Address Tier 3 questions when their corner of the language
    gets exercised.** The resource/visibility refinements
    ([typed-amount-syntax](open-questions/typed-amount-syntax.md),
    [move-level-visibility](open-questions/move-level-visibility.md),
@@ -105,19 +97,19 @@ open-question framing.
    a game whose natural notation puts a complex relational chain in
    subject position.
 
-6. **Pin down [memory-event-syntax](open-questions/memory-event-syntax.md)**
+5. **Pin down [memory-event-syntax](open-questions/memory-event-syntax.md)**
    when three or four examples exist beyond stdlib operations. Stud is
    the first; no second example yet.
 
-7. **Tier 4 cleanups landed.** Counters and dealer-promotion are
+6. **Tier 4 cleanups landed.** Counters and dealer-promotion are
    both resolved — counters as inline expressions or per-game
    helpers (see decisions.md "Scoring composition"); dealer as a
    stdlib state variable (see library.md "Stdlib state").
 
-8. **Defer Tier 5 cosmetic questions** until a real preference
+7. **Defer Tier 5 cosmetic questions** until a real preference
    emerges from corpus pressure.
 
-9. **Begin sketching the OpenSpiel compilation pass.** The
+8. **Begin sketching the OpenSpiel compilation pass.** The
     [decisions.md](decisions.md) "Knowledge, visibility, and the
     projection model" section establishes perfect-recall-by-default;
     [decisions.md](decisions.md) "State scoping" establishes lexical
