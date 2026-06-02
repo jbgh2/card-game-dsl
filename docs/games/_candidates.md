@@ -29,7 +29,7 @@ to a real implementation.
 
 | Open question | Needs | Top candidates |
 |---|---|---|
-| [mechanic-phase-unification](../open-questions/mechanic-phase-unification.md) | further game blurring mechanic/phase | [french-tarot](#french-tarot) (chien handling) |
+| [mechanic-phase-unification](../open-questions/mechanic-phase-unification.md) | further game blurring mechanic/phase | (Skat and French Tarot now in corpus; ready to resolve) |
 | [simultaneous-body-grammar](../open-questions/simultaneous-body-grammar.md) | simultaneous step with substructure | [diplomacy](#diplomacy), [bohnanza](#bohnanza), [coup](#coup) (challenge resolution) |
 | [typed-amount-syntax](../open-questions/typed-amount-syntax.md), [transfer-failure](../open-questions/transfer-failure.md), [move-level-visibility](../open-questions/move-level-visibility.md) | second resource-using game | [holdem](#holdem), [omaha-hi-lo](#omaha-hi-lo), [liars-dice](#liars-dice) |
 | [zone-access-syntax](../open-questions/zone-access-syntax.md) | game with complex relational receivers | [doppelkopf](#doppelkopf), [sheepshead](#sheepshead) |
@@ -38,29 +38,6 @@ to a real implementation.
 | [knowledge-events](../open-questions/knowledge-events.md) | phase outcome observed unequally | [coup](#coup) (challenge reveals), [belote](#belote) (in-play declarations) |
 
 ## Trick-taking with bidding
-
-### french-tarot
-
-4 (or 3 or 5) players, 78-card Tarot deck with a 21-card trump suit
-plus the Excuse, multi-level bidding with chien (dog) handling.
-
-**Why interesting.**
-- Contract-level bidding: bids name contract levels (Petite, Garde,
-  Garde Sans, Garde Contre), each changing how the chien is handled
-  and the point multiplier. A fifth bidding pattern beyond
-  decisions.md "Bidding patterns".
-- [mechanic-phase-unification](../open-questions/mechanic-phase-unification.md):
-  chien handling is a multi-step sub-phase with a typed outcome
-  (visible chien + declarer adjustment vs. blind chien). Distinct in
-  shape from Pinochle's `declare_trump`.
-- Scoring is per-game: depends on oudlers held (Excuse, 1 of Trumps,
-  21 of Trumps), the point threshold reached, and the contract
-  multiplier. Another structured-in-the-calculation, scalar-in-the-output
-  shape — same pattern as Skat per decisions.md "Scoring composition".
-
-**Notes.** **Pagat** for the chien rules and the point-threshold
-table (51 with 3 oudlers, 41 with 2, 36 with 1, 56 with 0):
-<https://www.pagat.com/tarot/frtarot.html>.
 
 ### 500
 

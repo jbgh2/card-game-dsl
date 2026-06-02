@@ -73,9 +73,10 @@ open-question framing.
    - **Klondike or FreeCell** — first solitaire; tests positional
      zones. Doesn't directly unblock a Tier 2 question but forces a
      deferred design decision.
-   - **French Tarot** — another typed-outcome contract phase
-     (chien handling) that would test mechanic-phase-unification
-     from a different angle than Skat.
+   - **Klondike** / **Hanabi** / **Coup** — would each force a
+     different deferred design corner (positional zones,
+     higher-order knowledge, knowledge events). All are bigger
+     swings than the trick-and-bidding games we've been doing.
 
 3. **Address Tier 3 questions when their corner of the language
    gets exercised.** The resource/visibility refinements
