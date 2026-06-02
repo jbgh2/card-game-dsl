@@ -605,6 +605,66 @@ receivers, and whether the bracket form should be elevated to
 question (see
 [open-questions/zone-access-syntax.md](open-questions/zone-access-syntax.md)).
 
+## Resource amount syntax
+
+A resource quantity in a `transfer` is written `<count> <type>` — the
+count (an integer expression, or `all`) followed by the resource type
+name:
+
+```
+transfer 1 coin       from treasury to coins[player]
+transfer 7 coins      from coins[actor] to treasury
+transfer amount coins from coins[target] to coins[actor]
+transfer all coins    from coins[p] to treasury
+```
+
+Stud (`transfer 5 chips`, `transfer ante_amount chips`) and Coup
+(`transfer 2 coins`, `transfer min(2, …) coins`) — the two
+resource-using games in the corpus — both read this way, and both move
+a single resource type per transfer. The `<count> <type>` form is the
+canonical surface for that case.
+
+For a transfer that moves *several* resource types at once, the
+generalization is a map literal `{ type: count, … }`:
+
+```
+transfer { wood: 2, brick: 1 } from bank to hand[player]
+```
+
+No corpus game moves multiple types in one transfer yet, but the map
+form is the multi-entry generalization of the single-type form (which
+is the one-entry case, written without braces) and is reserved for it.
+The rejected alternative `type × count` overloads multiplication and
+reads worse beside ordinary arithmetic in amount expressions.
+
+## Resource transfer failure
+
+A `transfer` whose source lacks the requested amount is a hard error:
+the move is illegal. The language provides no partial-fulfillment
+primitive. A game that wants partial behaviour writes it explicitly,
+with `min` or a conditional amount:
+
+```
+// Coup steal — take 2, or 1 if that's all the target has:
+let amount = min(2, coins[target].amount_of(coin))
+transfer amount coins from coins[target] to coins[actor]
+```
+
+```
+// Stud all-in call — match the bet, or commit the whole stack:
+let amount = min(bet_to_match - bet_by[actor], stack[actor].count)
+transfer amount chips from stack[actor] to pots[0].contents
+```
+
+The two resource-using games converge on the same shape: compute the
+deliverable amount at the game level, then transfer exactly that. The
+complementary case — a payment that must *not* underflow (Coup's Coup
+fee of 7, its Assassinate fee of 3) — is handled upstream by an
+affordability rule that gates the action's legality, so the fee
+transfer is always satisfiable when it runs. Neither case needs a
+primitive; the explicit form reads correctly and keeps the failure
+policy visible in the game file.
+
 ## Knowledge, visibility, and the projection model
 
 Knowledge over zone contents is the primitive concept for everything
@@ -1222,6 +1282,21 @@ commit lives in the block. Observers of the resource hands see
 one coalesced event at the block's projection level — for
 public-count resources, both transfers as one swap; for private
 hands, identity to the participants and count_only to others.
+
+**Coup's challenge and block windows.** Coup tests this boundary with a
+real published game. "Any player may challenge" and "the target may
+block" sound like simultaneous group decisions, but the step that
+carries weight is a *conditional commit* — challenge or not, block or
+not — with a branching result (the claim stands or is refuted; the
+action is blocked or proceeds). That is the phase/typed-outcome shape,
+not the atomic-effect block. Coup models each window as a mechanic
+resolving to a typed outcome (`claim_stands | claim_refuted`,
+`blocked | not_blocked`), dispatched with `produces:`, with the
+optional decision offered as `challenge`/`pass` (or `block`/`pass`)
+moves. No `simultaneously:` block appears in Coup, and none of the
+unforced body-grammar extensions below (in-block `if`, nested blocks)
+is needed — the forcing function confirmed the split rather than
+reopening it.
 
 **Body grammar.** The body admits:
 

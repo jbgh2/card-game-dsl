@@ -66,6 +66,10 @@ Key design notes:
 - `bet` — open a betting round (Stud)
 - `raise` — increase the current bet (Stud)
 - `fold` — exit the current hand (Stud)
+- `income` / `foreign_aid` / `coup` / `tax` / `assassinate` / `steal` /
+  `exchange` — Coup turn actions (general and character actions)
+- `challenge` — contest a character claim during a challenge window (Coup)
+- `block` — counteract an action by claiming a blocking character (Coup)
 
 ## Rules
 
@@ -111,6 +115,19 @@ Key design notes:
   `BetLegalIfNoBetToMatch`, `RaiseLegalIfBetExistsAndRaiseCapNotHit`),
   reading per-round state via lexical scoping. Used by Stud across
   multiple streets; applicable to any limit-betting game.
+- `ChallengeWindow` (see [games/coup.md](games/coup.md)) — Coup.
+  Parameterized over the claimant and the claimed character; resolves
+  to `claim_stands | claim_refuted`. Offers each other in-game player a
+  `challenge`/`pass` decision in clockwise priority and adjudicates the
+  first challenge: proof → challenger loses influence and the proven
+  card is returned-shuffled-redrawn (a stdlib-op composition, not a
+  custom memory event); bluff → claimant loses influence. The reusable
+  bluff-adjudication unit.
+- `BlockWindow` (see [games/coup.md](games/coup.md)) — Coup.
+  Parameterized over the eligible blockers and the set of blocking
+  characters; resolves to `blocked | not_blocked`. A declared block is
+  itself a character claim, so it opens a nested `ChallengeWindow` on
+  the blocker.
 - `MeldingPhase` — currently a placeholder; real definition deferred.
 
 ## Scoring components
@@ -267,7 +284,7 @@ model".
 - `announce(fact, observers = all)` — purely epistemic event; updates observers' candidate sets
 - `expose_top(zone)` — shorthand for `reveal(zone.top, all)`
 - `deal(from, to, visibility)` — card moves with per-recipient visibility; emits semi-private observation to non-recipients (they see something moved)
-- `transfer(amount, from, to, visibility?)` — resource units move; analogous to `deal` for fungible quantities. Syntax: `transfer { wood: 2 } from bank to hand[player]` or `transfer 5 chips from stack[A] to pot`.
+- `transfer(amount, from, to, visibility?)` — resource units move; analogous to `deal` for fungible quantities. Single-type amounts use the canonical `<count> <type>` form (`transfer 5 chips from stack[A] to pot`, `transfer 2 coins from treasury to coins[p]`); a `{ type: count, … }` map covers multi-type transfers. See decisions.md "Resource amount syntax".
 - `muck(target)` — card leaves play to a trivial-projection zone; prior observations persist
 - `forget(observer, target)` — **breaks perfect recall**; compiler warns; CFR/IS-MCTS guarantees no longer apply
 

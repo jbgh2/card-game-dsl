@@ -30,12 +30,8 @@ design. The data point is named in each file.
 These don't block other work but resolving them improves specific corners
 of the language.
 
-- [typed-amount-syntax](typed-amount-syntax.md) — `{ wood: 2 }` vs `2 wood`
-  vs `wood × 2`.
 - [move-level-visibility](move-level-visibility.md) — override-replace vs
   override-merge.
-- [transfer-failure](transfer-failure.md) — partial-fulfillment primitive
-  or game-level only.
 - [zone-access-syntax](zone-access-syntax.md) — `zone[chain]` vs
   `chain.zone` for complex receivers.
 - [optional-window-moves](optional-window-moves.md) — `may submit X`

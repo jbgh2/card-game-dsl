@@ -29,11 +29,11 @@ to a real implementation.
 
 | Open question | Needs | Top candidates |
 |---|---|---|
-| [typed-amount-syntax](../open-questions/typed-amount-syntax.md), [transfer-failure](../open-questions/transfer-failure.md), [move-level-visibility](../open-questions/move-level-visibility.md) | second resource-using game | [holdem](#holdem), [omaha-hi-lo](#omaha-hi-lo), [liars-dice](#liars-dice) |
+| [move-level-visibility](../open-questions/move-level-visibility.md) | a game needing a move-level projection override | [holdem](#holdem), [omaha-hi-lo](#omaha-hi-lo), [liars-dice](#liars-dice) |
 | [zone-access-syntax](../open-questions/zone-access-syntax.md) | game with complex relational receivers | [doppelkopf](#doppelkopf), [sheepshead](#sheepshead) |
-| [memory-event-syntax](../open-questions/memory-event-syntax.md) | three to four examples beyond stdlib ops | [hanabi](#hanabi) (information tokens), [cabo](#cabo) (peek-and-swap), [coup](#coup) (reveal-then-rehide) |
-| [higher-order-knowledge](../open-questions/higher-order-knowledge.md) | a rule that reads second-order knowledge | [hanabi](#hanabi) (canonical), [coup](#coup) (bluff modeling), [eleusis](#eleusis) (rule inference) |
-| [knowledge-events](../open-questions/knowledge-events.md) | phase outcome observed unequally | [coup](#coup) (challenge reveals), [belote](#belote) (in-play declarations) |
+| [memory-event-syntax](../open-questions/memory-event-syntax.md) | three to four examples beyond stdlib ops | [hanabi](#hanabi) (information tokens), [cabo](#cabo) (peek-and-swap) |
+| [higher-order-knowledge](../open-questions/higher-order-knowledge.md) | a rule that reads second-order knowledge | [hanabi](#hanabi) (canonical), [eleusis](#eleusis) (rule inference) |
+| [knowledge-events](../open-questions/knowledge-events.md) | phase outcome observed unequally | [belote](#belote) (in-play declarations), [500](#500) (open misère) |
 
 ## Trick-taking with bidding
 
@@ -300,31 +300,6 @@ identity knowledge of card C in zone Z."
 **Notes.** Cambio is a near-identical variant. The Cabo call is a
 typed-phase outcome with verification at the round's end.
 
-### coup
-
-3–6 players, 15-card custom deck (5 character types × 3 copies),
-bluff and challenge: players claim character abilities; others may
-challenge; lying = lose influence, wrong challenge = challenger
-loses influence.
-
-**Why interesting.** Challenge-resolution is the canonical
-*knowledge event with branching outcome.*
-- [memory-event-syntax](../open-questions/memory-event-syntax.md):
-  reveals are observed by all, then the revealed card returns to a
-  reshuffled deck — a `reveal` immediately followed by a `hide` plus
-  a `shuffle` to obliterate prior identity knowledge.
-- [knowledge-events](../open-questions/knowledge-events.md): the
-  outcome of a challenge changes what is common knowledge and what
-  remains private.
-- "Any player can challenge" is a simultaneous decision with
-  conditional commit — would test whether the closed-out
-  simultaneous-body-grammar resolution (no in-block branches yet)
-  needs revisiting.
-
-**Notes.** Modern (Tchanturia, 2012). Not on Pagat. Coup's compact
-ruleset makes it a high-leverage test case for the DSL's
-information-set machinery.
-
 ### eleusis
 
 2+ players, two standard 52 decks. Scientific-induction game: one
@@ -353,9 +328,10 @@ critical difference: *shared community cards* are observed by all
 and used by every player in hand evaluation. Tests whether
 [zone-access-syntax](../open-questions/zone-access-syntax.md) and
 the existing visibility model handle a zone owned by no one but
-used in every player's hand evaluation. Also second data point for
-[typed-amount-syntax](../open-questions/typed-amount-syntax.md) and
-[transfer-failure](../open-questions/transfer-failure.md).
+used in every player's hand evaluation. Also a third resource-using
+game (after Stud and Coup), confirming the resource-transfer decisions
+now in decisions.md ("Resource amount syntax", "Resource transfer
+failure").
 
 **Notes.** Texas Hold'em is the canonical variant. No-limit vs
 fixed-limit is a parameterization of `BettingRound`, not a
@@ -392,8 +368,8 @@ as cards (no rank/suit) nor as fungible resources (the *count* of
 each face matters and acts like `count_by_type`). Useful
 provocation for whether the projection lattice in
 [decisions.md](../decisions.md) is uniform across content types,
-and a second resource-style transfer game for
-[typed-amount-syntax](../open-questions/typed-amount-syntax.md).
+and another resource-style transfer game (the amount syntax is
+settled in decisions.md "Resource amount syntax").
 
 **Notes.** Perudo is the South American variant with the "calza"
 (exact-call) action. Included to stress-test the DSL's scope, not

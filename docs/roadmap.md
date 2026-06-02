@@ -64,31 +64,40 @@ open-question framing.
    Triggered-scoring was unblocked by Cribbage, bidding-meaning by
    Oh Hell, and structured-score landed in decisions.md after Skat
    confirmed the per-game pattern (see decisions.md "Scoring
-   composition").
+   composition"). Coup, the second resource-using game, resolved
+   the resource amount and transfer-failure questions (see decisions.md
+   "Resource amount syntax" and "Resource transfer failure").
 
    Headline recommendations from the pipeline:
 
    - **Klondike or FreeCell** — first solitaire; tests positional
      zones. Doesn't directly unblock a Tier 2 question but forces a
      deferred design decision.
-   - **Klondike** / **Hanabi** / **Coup** — would each force a
+   - **Klondike** / **Hanabi** — would each force a
      different deferred design corner (positional zones,
-     higher-order knowledge, knowledge events). All are bigger
+     higher-order knowledge). Both are bigger
      swings than the trick-and-bidding games we've been doing.
+     (Coup, the third candidate here, is now in the corpus; it
+     exercised the knowledge-event and challenge-mechanism corners
+     and confirmed the simultaneous-body-grammar boundary.)
 
 3. **Address Tier 3 questions when their corner of the language
-   gets exercised.** The resource/visibility refinements
-   ([typed-amount-syntax](open-questions/typed-amount-syntax.md),
+   gets exercised.** Coup, the second resource-using game, resolved
+   the resource amount and transfer-failure questions (now in
+   decisions.md). The remaining resource/visibility refinement,
    [move-level-visibility](open-questions/move-level-visibility.md),
-   [transfer-failure](open-questions/transfer-failure.md)) wait for a
-   second resource-using game.
+   is still open: Coup used only zone-default projections and never
+   needed a move-level override, so the override-replace-vs-merge
+   question awaits a game that does.
    [zone-access-syntax](open-questions/zone-access-syntax.md) waits for
    a game whose natural notation puts a complex relational chain in
    subject position.
 
 4. **Pin down [memory-event-syntax](open-questions/memory-event-syntax.md)**
    when three or four examples exist beyond stdlib operations. Stud is
-   the first; no second example yet.
+   the first, Coup the second (its challenge-defense composes stdlib
+   ops rather than declaring a custom event — see the open-question
+   file); one or two more before pinning the syntax.
 
 5. **Tier 4 cleanups landed.** Counters and dealer-promotion are
    both resolved — counters as inline expressions or per-game

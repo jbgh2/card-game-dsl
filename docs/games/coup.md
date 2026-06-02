@@ -219,7 +219,7 @@ mechanic BlockWindow (
 ) → outcome { blocked | not_blocked } {
   legal_moves: [block, pass]
 
-  for each b in blockers, in turn order:
+  for each b in blockers where in_game(b), in turn order:    // a blocker exiled by an earlier window can't act
     offer action to b:
       block:
         let claimed = b chooses one character in blocking_characters
