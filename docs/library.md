@@ -355,6 +355,16 @@ the variable is not allocated.
   (Schnapsen, Cribbage). Hearts and Getaway don't reference
   `dealer` and pay no cost for the stdlib slot.
 
+- **Turn-order start.** The initial position of turn order is
+  runtime-supplied, the same way `initial_dealer` is. Dealing games
+  name the opener via `dealer` (`dealer.left`); games that derive it
+  from a game rule compute it (Hearts/Getaway via the holder of a
+  specific card, Stud via the lowest door card); a game with no
+  in-rules opener (Coup) relies directly on the runtime seed.
+  Pre-game randomization (low-cut, coin-flip, "winner of the last
+  game") is the runtime's concern, not the rules engine's. A dedicated
+  first-player syntax is deferred — see [roadmap.md](roadmap.md).
+
 ## Stdlib functions
 
 Standard helpers available across games.

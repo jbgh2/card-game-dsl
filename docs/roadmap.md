@@ -31,6 +31,13 @@ Things we have noted but consciously not designed yet:
   themselves. The current `submit_bid` move type is enough for Spades/Oh
   Hell/Pinochle-style bidding; Bridge will need more.
 
+- **First-player / opening-seat syntax.** Coup is the first game whose
+  opener is neither dealer-derived nor rule-derived — it's an arbitrary
+  runtime seed. A dedicated way to specify the starting player
+  (including programmatic randomization) is deferred until more such
+  games arrive to show the shape. The turn-order start is
+  runtime-supplied in the meantime (see library.md "Stdlib state").
+
 - **The meta-DSL for "X is Y but with deltas".** We discussed this as the
   natural way the literature describes variants. The current design supports
   it implicitly (a variant adds/removes rules and phases from a base game)

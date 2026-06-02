@@ -57,12 +57,14 @@ game Coup {
     for each player p:
       deal 2 cards from court_deck to influence[p]   // identity to p, count_only to others
       transfer 2 coins from treasury to coins[p]
-    // Starting player is the winner of the previous game; for a single
-    // game the runtime supplies the opener.
+    // The opening seat is the runtime-supplied start of turn order (the
+    // same seed as initial_dealer; Coup has no dealer — see library.md
+    // "Stdlib state"). The real-world "winner of the last game starts"
+    // is a cross-game ritual, out of scope like Stud's between-hand rebuys.
   }
 
   // Turn order advances clockwise, skipping exiled players.
-  phase play repeats until (count of p in players where in_game(p)) == 1 {
+  phase play repeats while at least 2 players have in_game(p) {
     let actor = current player        // the opener on the first turn, then next_in_game_player each iteration
 
     phase turn {
