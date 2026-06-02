@@ -29,7 +29,6 @@ to a real implementation.
 
 | Open question | Needs | Top candidates |
 |---|---|---|
-| [mechanic-phase-unification](../open-questions/mechanic-phase-unification.md) | further game blurring mechanic/phase | (Skat and French Tarot now in corpus; ready to resolve) |
 | [simultaneous-body-grammar](../open-questions/simultaneous-body-grammar.md) | simultaneous step with substructure | [diplomacy](#diplomacy), [bohnanza](#bohnanza), [coup](#coup) (challenge resolution) |
 | [typed-amount-syntax](../open-questions/typed-amount-syntax.md), [transfer-failure](../open-questions/transfer-failure.md), [move-level-visibility](../open-questions/move-level-visibility.md) | second resource-using game | [holdem](#holdem), [omaha-hi-lo](#omaha-hi-lo), [liars-dice](#liars-dice) |
 | [zone-access-syntax](../open-questions/zone-access-syntax.md) | game with complex relational receivers | [doppelkopf](#doppelkopf), [sheepshead](#sheepshead) |

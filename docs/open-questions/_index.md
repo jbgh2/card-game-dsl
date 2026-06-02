@@ -24,9 +24,6 @@ to Tier 1 as further corpus data arrives.
 These questions need one more game in the corpus before committing to a
 design. The data point is named in each file.
 
-- [mechanic-phase-unification](mechanic-phase-unification.md) — unify
-  mechanics-with-outcomes and phases-with-outcomes into one construct.
-  Blocker: a seventh game.
 - [simultaneous-body-grammar](simultaneous-body-grammar.md) — should the
   `simultaneously:` body admit state writes, control flow, `let`?
   Blocker: a game whose natural rulebook reading needs them.

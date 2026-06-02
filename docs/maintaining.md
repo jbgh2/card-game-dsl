@@ -82,7 +82,7 @@ heading title rather than position.
 
 **Open-question references use the file slug.** Refer to open questions
 as `open-questions/<slug>.md` (e.g.
-[open-questions/mechanic-phase-unification.md](open-questions/mechanic-phase-unification.md))
+[open-questions/simultaneous-body-grammar.md](open-questions/simultaneous-body-grammar.md))
 rather than by tier or ordering. Open questions get added, resolved,
 reordered between tiers, and removed; numbering them invites a
 renumbering sweep on every change. The slug is stable until the

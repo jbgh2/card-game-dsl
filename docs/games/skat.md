@@ -12,10 +12,9 @@ Skat is the corpus's tenth game and adds:
 - A fourth bidding pattern beyond decisions.md "Bidding patterns" —
   call-and-response **Reizen** between forehand/middlehand and then
   rearhand/survivor, with bids drawn from a fixed legal sequence.
-- A seventh typed-outcome phase (`declare_contract`) richer than
-  Pinochle's `declare_trump` — outcome carries game type, hand mode,
-  and trump suit. Adds a data point for
-  [open-questions/mechanic-phase-unification.md](../open-questions/mechanic-phase-unification.md).
+- A richer typed-outcome phase (`declare_contract`) than Pinochle's
+  `declare_trump` — outcome carries game type, hand mode, and trump
+  suit. See decisions.md "Typed phase outcomes".
 - A scoring shape where the *final score per player* is a single
   integer but its *computation* is structured: `base × multiplier`
   with multipliers from matadors, game, Hand, Schneider, Schwarz.

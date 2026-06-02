@@ -40,6 +40,44 @@ reports unsatisfiable; the enclosing phase interprets that signal in
 context. The phase decides whether unsatisfiable means error, fallback,
 or a typed outcome other than success.
 
+**Mechanics produce typed outcomes the same way.** A mechanic that
+resolves to a tagged value uses the same `outcome` parameter the
+mechanic accepts as a callback. Pinochle's `Auction` takes
+`outcome: (final_bid, last_active_player) → effect`; Skat's
+`Reizen` takes `outcome: (winner, value: Integer | all_pass) → effect`;
+French Tarot's `TarotBidding` takes
+`outcome: (winner, level: BidLevel) | all_pass → effect`; Trick's
+`outcome` parameter produces a Player. The enclosing structure
+pattern-matches on the produced value the same way it does for
+phase outcomes:
+
+```
+bidding produces:
+  taker_chosen(_, level):
+    if level == Petite or level == Garde:
+      continue to chien_visible
+    else:
+      continue to play
+  all_pass:
+    skip to next hand
+```
+
+Mechanics and phases are *not* further unified at the construct
+level. The distinction stays:
+
+- A **mechanic** is a named, parameterized, reusable unit, instantiated
+  with arguments. It's the right shape when a chunk of logic appears
+  in multiple games (Trick, Auction, BettingRound).
+- A **phase** is a positional unit in the phase tree, not parameterized
+  and not reusable across games. It's the right shape when a chunk
+  appears at a specific position with semantics tied to where it sits.
+
+Both can produce typed outcomes; both can be dispatched on. What
+the typed-outcome system unifies is the *result discipline* — every
+named piece of game logic that resolves to a value uses the same
+tagged-value protocol — not the structural distinction between
+"reusable abstraction" and "positional step."
+
 ## The boolean-as-sub-phase criterion
 
 A boolean state variable that *gates rules* should be a sub-phase

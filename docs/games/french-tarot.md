@@ -16,11 +16,9 @@ French Tarot adds to the corpus:
   named levels (Petite, Garde, Garde sans le chien, Garde contre
   le chien). Each level both ranks the bid AND specifies the
   downstream chien-handling behaviour.
-- **Chien handling dispatched by bid level** — a clean
-  data point for
-  [open-questions/mechanic-phase-unification.md](../open-questions/mechanic-phase-unification.md):
-  the bidding phase resolves to a typed outcome whose value
-  determines whether the chien sub-phase runs at all.
+- **Chien handling dispatched by bid level** — the bidding phase
+  resolves to a typed outcome whose value determines whether the
+  chien sub-phase runs at all. See decisions.md "Typed phase outcomes".
 - A **bouts-conditional win threshold** (36/41/51/56 card points
   depending on how many bouts the taker captured). Per-game
   scoring shape.
