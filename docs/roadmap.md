@@ -55,13 +55,11 @@ open-question framing.
      nesting; Stud's BettingRound legality was lifted to rules in
      the same commit).
 
-2. **Pick the next game to unblock remaining Tier 2.** The remaining
-   Tier 2 question is
-   [simultaneous-body-grammar](open-questions/simultaneous-body-grammar.md),
-   which needs a game whose natural rulebook reading requires
-   substructure inside a `simultaneously:` block. The full candidate pipeline lives in
-   [games/_candidates.md](games/_candidates.md), with a coverage table
-   mapping each open question to the games that would unblock it.
+2. **Tier 2 is empty.** All Tier 2 questions resolved. The remaining
+   open questions are Tier 3 (medium impact, narrow scope) and below;
+   each is a small targeted question that can be tackled when its
+   corner of the language gets exercised. The full candidate pipeline
+   lives in [games/_candidates.md](games/_candidates.md).
 
    Triggered-scoring was unblocked by Cribbage, bidding-meaning by
    Oh Hell, and structured-score landed in decisions.md after Skat

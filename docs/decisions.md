@@ -1223,15 +1223,49 @@ one coalesced event at the block's projection level — for
 public-count resources, both transfers as one swap; for private
 hands, identity to the participants and count_only to others.
 
-**Body grammar.** The body currently exercises moves
-([library.md](library.md), "Move types"), memory operations
-([library.md](library.md), "Memory operations"), and `choose`
-steps inside move expressions. The full grammar of body
-statements — whether the body may admit state writes, control
-flow, or `let` bindings — is open (see
-[open-questions/simultaneous-body-grammar.md](open-questions/simultaneous-body-grammar.md)).
-Nested `simultaneously:` blocks are not currently permitted,
-pending that broader resolution.
+**Body grammar.** The body admits:
+
+- **Moves** ([library.md](library.md), "Move types") and
+  **memory operations** ([library.md](library.md), "Memory
+  operations") — the primary contents.
+- **`choose` expressions** inside move arguments — player
+  decisions feeding move parameters. Standard expression form
+  ([decisions.md](decisions.md), "`choose` as expression").
+- **`for each` iteration over fixed collections** — used by
+  Tichu's pushing phase to express "each player passes one card
+  to each other player." The iteration must be over a value known
+  at block entry (the player set, a fixed list); it cannot
+  iterate over a collection whose membership is determined by
+  in-block choices, since reads see pre-block state.
+- **`transfer` effects** — card and resource movement.
+
+The body does *not* admit:
+
+- **State writes** (`:=`, `+=`) — no game in the corpus has
+  needed a state write inside a `simultaneously:` block beyond
+  what `transfer` already provides. Permitting them would raise
+  semantic questions about whether the write participates in
+  the batch and what other body statements observe (the read
+  semantics says "pre-block state," but a write would seem to
+  imply otherwise). Reserved until a real game forces it.
+- **`if` branches** — same shape: branching effects in a batched
+  context raise "which branch participates" questions. Hearts'
+  passing skips passing entirely when `pass_direction == none`
+  via a phase-level `when:` guard rather than an in-block
+  branch. Reserved until forced.
+- **`let` bindings** — the body's expressions are short enough
+  that in-block intermediate bindings haven't been forced.
+- **Nested `simultaneously:` blocks** — composing batched-write
+  scopes has unresolved semantics for which writes participate
+  in which batch.
+
+The unforced forms are not architectural blockers — adding any
+of them later is a small change to the body parser. They're
+omitted because the corpus hasn't validated what their semantics
+should be, and committing semantics speculatively risks pinning
+a wrong choice. Tichu's push and Hearts' pass cover the patterns
+the corpus actually uses; the open grammar would be earned by a
+game that demonstrably needs it.
 
 **Placement.** A `simultaneously:` block may appear anywhere a
 statement can appear in a phase body — as a phase's sole body,

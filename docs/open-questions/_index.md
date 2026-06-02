@@ -24,9 +24,6 @@ to Tier 1 as further corpus data arrives.
 These questions need one more game in the corpus before committing to a
 design. The data point is named in each file.
 
-- [simultaneous-body-grammar](simultaneous-body-grammar.md) — should the
-  `simultaneously:` body admit state writes, control flow, `let`?
-  Blocker: a game whose natural rulebook reading needs them.
 
 ## Tier 3 — Medium impact, narrow scope
 

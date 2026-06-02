@@ -29,7 +29,6 @@ to a real implementation.
 
 | Open question | Needs | Top candidates |
 |---|---|---|
-| [simultaneous-body-grammar](../open-questions/simultaneous-body-grammar.md) | simultaneous step with substructure | [diplomacy](#diplomacy), [bohnanza](#bohnanza), [coup](#coup) (challenge resolution) |
 | [typed-amount-syntax](../open-questions/typed-amount-syntax.md), [transfer-failure](../open-questions/transfer-failure.md), [move-level-visibility](../open-questions/move-level-visibility.md) | second resource-using game | [holdem](#holdem), [omaha-hi-lo](#omaha-hi-lo), [liars-dice](#liars-dice) |
 | [zone-access-syntax](../open-questions/zone-access-syntax.md) | game with complex relational receivers | [doppelkopf](#doppelkopf), [sheepshead](#sheepshead) |
 | [memory-event-syntax](../open-questions/memory-event-syntax.md) | three to four examples beyond stdlib ops | [hanabi](#hanabi) (information tokens), [cabo](#cabo) (peek-and-swap), [coup](#coup) (reveal-then-rehide) |
@@ -317,9 +316,10 @@ loses influence.
 - [knowledge-events](../open-questions/knowledge-events.md): the
   outcome of a challenge changes what is common knowledge and what
   remains private.
-- [simultaneous-body-grammar](../open-questions/simultaneous-body-grammar.md):
-  the "any player can challenge" step is a simultaneous decision
-  with conditional commit.
+- "Any player can challenge" is a simultaneous decision with
+  conditional commit — would test whether the closed-out
+  simultaneous-body-grammar resolution (no in-block branches yet)
+  needs revisiting.
 
 **Notes.** Modern (Tchanturia, 2012). Not on Pagat. Coup's compact
 ruleset makes it a high-leverage test case for the DSL's
@@ -464,9 +464,8 @@ pile.
 
 **Why interesting.** *Action priority is real-time* rather than
 turn-ordered. Doesn't fit the DSL's current turn-based
-assumptions, but provides a forcing function for thinking about
-[simultaneous-body-grammar](../open-questions/simultaneous-body-grammar.md):
-slaps are simultaneous moves with priority resolution.
+assumptions; slaps are simultaneous moves with priority resolution
+— could reopen the simultaneous body grammar question if implemented.
 
 **Notes.** Provocation, not a realistic candidate. Real-time
 mechanics are out of scope for the current DSL — the entry exists
@@ -478,10 +477,9 @@ to flag the gap.
 counts), must plant cards in hand-order; *trading* between players
 is a core phase.
 
-**Why interesting.** The Trading Phase is the cleanest
-[simultaneous-body-grammar](../open-questions/simultaneous-body-grammar.md)
-candidate from a real published game: any pair of players can
-propose trades, accept/reject is conditional on offers, and
+**Why interesting.** The Trading Phase is the cleanest "in-block
+substructure" candidate from a real published game: any pair of
+players can propose trades, accept/reject is conditional on offers, and
 multiple trades can execute as a coordinated set. Forces grammar
 for "if branch inside simultaneous block" and conditional commit.
 
@@ -496,10 +494,11 @@ orders simultaneously; all orders resolve at once with complex
 inter-order dependencies (A supports B; if B is dislodged, A's
 support fails).
 
-**Why interesting.** The canonical forcing function for
-[simultaneous-body-grammar](../open-questions/simultaneous-body-grammar.md).
-Orders interact: a hypothetical card-game whose play phase had
-Diplomacy-like simultaneous order resolution would absolutely
+**Why interesting.** The canonical forcing function for richer
+simultaneous-body grammar (the now-closed open question; would
+reopen if implemented). Orders interact: a hypothetical card-game
+whose play phase had Diplomacy-like simultaneous order resolution
+would absolutely
 require non-trivial body grammar inside the `simultaneously:`
 block.
 
