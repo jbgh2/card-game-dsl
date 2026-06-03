@@ -56,10 +56,10 @@ def test_lambda_only_appears_as_a_call_argument() -> None:
             )
 
 
-def test_hearts_ambiguity_budget() -> None:
-    # The grammar is not yet LALR-deterministic; the only tolerated residual
-    # ambiguities are keyword/identifier overlaps (`none`, `always`), which
-    # resolve-mode settles correctly. Lock the budget so new ambiguity is seen.
+def test_hearts_parses_with_zero_ambiguity() -> None:
+    # Hearts parses to a single tree with no ambiguity. The grammar is still
+    # Earley (LALR-tightening is later), but it is already deterministic on the
+    # corpus; this guards against a change reintroducing ambiguity.
     grammar = resources.files("cardlang.grammar").joinpath("cardlang.lark").read_text()
     explicit = Lark(
         grammar,
@@ -70,7 +70,5 @@ def test_hearts_ambiguity_budget() -> None:
     )
     tree = explicit.parse(HEARTS.read_text())
     assert isinstance(tree, Tree)
-    ambig = sum(
-        1 for node, _ in _iter_with_parents(tree) if node.data == "_ambig"
-    )
-    assert ambig <= 2, f"ambiguity budget exceeded: {ambig} (expected <= 2)"
+    ambig = sum(1 for node, _ in _iter_with_parents(tree) if node.data == "_ambig")
+    assert ambig == 0, f"grammar ambiguity reintroduced: {ambig} site(s)"

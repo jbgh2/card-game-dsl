@@ -71,8 +71,11 @@ rule_ref: "+" NAME        -> rule_add
 
 legal_moves: "legal_moves" ":" "[" [NAME ("," NAME)*] "]"
 
-transition_to: "transition_to" ":" NAME "when" event_trigger
-event_trigger: "any" NAME "event" "fires"
+transition_to: "transition_to" ":" NAME "when" move_event
+// A move-type event with an optional predicate on the move — the same
+// event-reference form triggered scoring components use (decisions.md,
+// "Triggered scoring components"). There are no ad-hoc event names.
+move_event: NAME ["where" expr]
 
 // ----------------------------------------------------------------------------
 // Statements (phase / mechanic bodies)
@@ -185,10 +188,8 @@ comp_op: "==" | "!=" | ">=" | "<=" | ">" | "<"
 arg_list: expr ("," expr)*
 
 ?primary: card_literal
-        | last_trick
         | all_players
         | call
-        | "none"            -> none_lit
         | INT               -> int_lit
         | STRING            -> str_lit
         | NAME              -> name_ref
@@ -197,7 +198,6 @@ arg_list: expr ("," expr)*
 card_literal: card_rank "of" NAME
 card_rank: CARD_FACE | INT
 
-last_trick: NAME "of" "last" "trick" ["from" NAME]
 all_players: "all" "players"
 call: NAME "(" [arg_list] ")"
 
@@ -209,7 +209,12 @@ zone_expr: NAME [index_expr]
 // ----------------------------------------------------------------------------
 
 CARD_FACE: "A" | "K" | "Q" | "J"
-NAME: /[a-zA-Z_][a-zA-Z0-9_]*/
+// `always` is purely a keyword (the applies_when wildcard), so exclude it from
+// NAME to keep it unambiguous. `none`, by contrast, is a domain value (the
+// no-pass Direction, an optional's null) and stays an ordinary name_ref the
+// resolver interprets. Extend this guard only for keywords that never name a
+// value; statement-leading keywords (game, phase, …) need no guard.
+NAME: /(?!always\b)[a-zA-Z_][a-zA-Z0-9_]*/
 STRING: /"[^"]*"/
 
 LINE_COMMENT: /\/\/[^\n]*/
