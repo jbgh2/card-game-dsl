@@ -32,7 +32,7 @@ game Hearts {
     }
 
     phase setup {
-      shuffle deck
+      shuffle(deck)
       deal 13 cards from deck to each hand
       rotate pass_direction through [left, right, across, none]
     }
@@ -63,7 +63,7 @@ game Hearts {
         play_zone    = trick_pile,
         play_rules   = active_rules,
         outcome      = highest_of_led_suit,
-        routing      = all cards from trick_pile to captured[outcome]
+        routing      = move all cards from trick_pile to captured[outcome]
       )
       leader := outcome
     }
@@ -91,7 +91,7 @@ game Hearts {
           play_zone    = trick_pile,
           play_rules   = active_rules,                    // resolves at runtime
           outcome      = highest_of_led_suit,
-          routing      = all cards from trick_pile to captured[outcome]
+          routing      = move all cards from trick_pile to captured[outcome]
         )
         leader := outcome
       }

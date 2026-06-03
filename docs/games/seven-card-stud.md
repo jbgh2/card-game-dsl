@@ -47,7 +47,7 @@ game SevenCardStud {
     }
 
     phase setup {
-      shuffle deck
+      shuffle(deck)
       dealer := dealer.left                            // rotate per hand
 
       // Antes

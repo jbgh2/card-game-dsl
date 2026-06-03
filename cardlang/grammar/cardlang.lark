@@ -81,10 +81,9 @@ move_event: NAME ["where" expr]
 // Statements (phase / mechanic bodies)
 // ----------------------------------------------------------------------------
 
-?statement: shuffle_stmt
-          | deal_stmt
+?statement: movement
           | rotate_stmt
-          | transfer_stmt
+          | call                    // epistemic/utility stdlib op: shuffle(deck), reveal(...)
           | each_simultaneous
           | for_each
           | repeat_until
@@ -92,14 +91,25 @@ move_event: NAME ["where" expr]
           | let_stmt
           | assign_stmt
 
-shuffle_stmt: "shuffle" NAME
-deal_stmt: "deal" INT "cards" "from" zone_expr "to" "each" NAME
-rotate_stmt: "rotate" NAME "through" "[" name_list "]"
-name_list: NAME ("," NAME)*
+// One movement primitive, used as a statement or (for trick routing) a value.
+// The verb is sugar over a single IR node; the amount is an expression and the
+// item noun covers cards and resources. The "in" form lets muck/burn imply
+// their destination. See decisions.md "The operation vocabulary".
+movement: MOVE_VERB selection "from" zone_expr move_dest [vis_clause]
+        | MOVE_VERB selection "in" zone_expr [vis_clause]
+MOVE_VERB: "deal" | "transfer" | "move" | "burn" | "muck" | "draw"
+selection: [select_mode] amount NAME
+select_mode: "chosen" -> sel_chosen
+           | "random" -> sel_random
+amount: "all"  -> amt_all
+      | "one"  -> amt_one
+      | expr   -> amt_count
+move_dest: "to" "each" zone_expr  -> dest_each
+         | "to" zone_expr         -> dest_one
+vis_clause: "," "visibility" "=" expr
 
-transfer_stmt: "transfer" transfer_amount "from" zone_expr "to" zone_expr
-transfer_amount: ["chosen"] INT "cards"  -> count_amount
-               | "all" "cards"           -> all_amount
+rotate_stmt: "rotate" NAME "through" "[" name_list "]"     // state-cycle (orthogonal)
+name_list: NAME ("," NAME)*
 
 each_simultaneous: "each" NAME "simultaneously" ":" statement
 for_each: "for" "each" NAME NAME ":" statement
@@ -107,9 +117,8 @@ repeat_until: "repeat" "until" expr "{" statement* "}"
 
 instantiate: "instantiate" NAME "(" [named_arg ("," named_arg)*] ")"
 named_arg: NAME "=" arg_value
-?arg_value: route_expr
+?arg_value: movement
           | expr
-route_expr: "all" "cards" "from" zone_expr "to" zone_expr
 
 let_stmt: "let" NAME [index] "=" expr
 assign_stmt: lvalue assign_op expr
@@ -185,7 +194,8 @@ comp_op: "==" | "!=" | ">=" | "<=" | ">" | "<"
         | postfix index_expr                   -> subscript
         | primary
 
-arg_list: expr ("," expr)*
+arg_list: arg ("," arg)*
+?arg: named_arg | expr
 
 ?primary: card_literal
         | all_players
@@ -209,12 +219,14 @@ zone_expr: NAME [index_expr]
 // ----------------------------------------------------------------------------
 
 CARD_FACE: "A" | "K" | "Q" | "J"
-// `always` is purely a keyword (the applies_when wildcard), so exclude it from
-// NAME to keep it unambiguous. `none`, by contrast, is a domain value (the
-// no-pass Direction, an optional's null) and stays an ordinary name_ref the
-// resolver interprets. Extend this guard only for keywords that never name a
-// value; statement-leading keywords (game, phase, …) need no guard.
-NAME: /(?!always\b)[a-zA-Z_][a-zA-Z0-9_]*/
+// Keywords that sit where a NAME is also grammatical, and never name a value,
+// are excluded from NAME to keep them unambiguous: `always` (applies_when
+// wildcard) and the quantity words `all` / `one`. `none`, by contrast, is a
+// domain value (the no-pass Direction, an optional's null) and stays an
+// ordinary name_ref the resolver interprets. Extend this guard only for
+// keywords that never name a value; statement-leading keywords (game, phase, …)
+// need no guard.
+NAME: /(?!(?:always|all|one)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 STRING: /"[^"]*"/
 
 LINE_COMMENT: /\/\/[^\n]*/

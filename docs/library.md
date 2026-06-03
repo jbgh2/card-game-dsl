@@ -271,11 +271,23 @@ type DiscardLayer<Layer: Integer> = Zone<Card> { composition: identity to all }
 Parameterization uses the same angle-bracket convention as stdlib
 generics; the parameter binds into the type body.
 
-## Memory operations
+## Operations
 
-Stdlib operations that affect player knowledge. Full design in
-[decisions.md](decisions.md) "Knowledge, visibility, and the projection
-model".
+The closed operation vocabulary, in the three families set out in
+[decisions.md](decisions.md) "The operation vocabulary". Surface verbs are
+sugar over a small set of primitives; this is the catalogue.
+
+**Movement** — one primitive; the verb supplies defaults. A movement appears
+as a statement and as a value (a `Trick`'s `routing`).
+
+- `deal` — cards from a source (usually a deck) to recipients, per-recipient visibility; emits a semi-private observation to non-recipients (they see something moved)
+- `transfer` — cards or resource units between zones; the amount is an expression and the item names the unit (`transfer 5 chips from stack[A] to pot`, `transfer chosen 3 cards from hand[p] to ...`). See [decisions.md](decisions.md) "Resource amount syntax".
+- `move` — the generic relocation (`move all cards from X to Y`)
+- `burn` / `muck` — relocate to the burn / muck pile (destination implied by the verb); mucked cards land in a trivial-projection zone, prior observations persisting
+- `draw` — take from a pile into a hand
+
+**Epistemic** — stdlib calls; no relocation. Full semantics in
+[decisions.md](decisions.md) "Knowledge, visibility, and the projection model".
 
 - `peek(target, observer)` — private look (target is a card or zone)
 - `reveal(target, observers = all)` — show to observers (default: all)
@@ -283,10 +295,10 @@ model".
 - `shuffle(zone)` — destroys per-card identity knowledge; preserves count-by-type. No-op on pure-resource zones.
 - `announce(fact, observers = all)` — purely epistemic event; updates observers' candidate sets
 - `expose_top(zone)` — shorthand for `reveal(zone.top, all)`
-- `deal(from, to, visibility)` — card moves with per-recipient visibility; emits semi-private observation to non-recipients (they see something moved)
-- `transfer(amount, from, to, visibility?)` — resource units move; analogous to `deal` for fungible quantities. Single-type amounts use the canonical `<count> <type>` form (`transfer 5 chips from stack[A] to pot`, `transfer 2 coins from treasury to coins[p]`); a `{ type: count, … }` map covers multi-type transfers. See decisions.md "Resource amount syntax".
-- `muck(target)` — card leaves play to a trivial-projection zone; prior observations persist
 - `forget(observer, target)` — **breaks perfect recall**; compiler warns; CFR/IS-MCTS guarantees no longer apply
+
+**State-cycle** — `rotate <var> through [<values>]` advances a state variable
+through a list (touches no zone).
 
 Card games use `peek` / `reveal` / `shuffle` / `deal` predominantly.
 Stud Poker (see [games/seven-card-stud.md](games/seven-card-stud.md))

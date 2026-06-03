@@ -47,7 +47,7 @@ game Getaway {
         play_rules       = active_rules,
         early_termination = on_play_of_tochoo,
         outcome          = highest_of_led_suit,
-        routing          = all cards from trick_pile to waste
+        routing          = move all cards from trick_pile to waste
       )
       leader := outcome
     }

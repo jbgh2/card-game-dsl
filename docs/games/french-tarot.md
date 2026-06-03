@@ -78,7 +78,7 @@ game FrenchTarot {
     }
 
     phase setup {
-      shuffle deck
+      shuffle(deck)
       // 78 cards: 4×18 to players + 6 to chien. Packets of three; chien
       // cards interspersed during the deal (first 3 and last 3 may not
       // go to chien). The exact pacing is dealer's choice and doesn't

@@ -59,7 +59,7 @@ game OhHell {
     }
 
     phase setup {
-      shuffle deck
+      shuffle(deck)
       deal hand_size cards from deck to each hand
       reveal top of deck to trump_indicator
       trump := suit of trump_indicator
@@ -92,7 +92,7 @@ game OhHell {
           play_zone    = trick_pile,
           play_rules   = active_rules,
           outcome      = TrumpedHighestOfLedSuit(trump = trump),
-          routing      = all cards from trick_pile to captured[outcome]
+          routing      = move all cards from trick_pile to captured[outcome]
         )
         tricks_won[outcome] += 1
         leader := outcome

@@ -76,7 +76,7 @@ game Skat {
     }
 
     phase setup {
-      shuffle deck
+      shuffle(deck)
       // 3-3-skat-4-3 deal: 3 each, 2 to skat, 4 each, 3 each.
       deal 3 cards from deck to each hand
       deal 2 cards from deck to skat
@@ -168,7 +168,7 @@ game Skat {
           play_zone    = trick_pile,
           play_rules   = active_rules,
           outcome      = trick_outcome,
-          routing      = all cards from trick_pile to captured[outcome]
+          routing      = move all cards from trick_pile to captured[outcome]
         )
         leader := outcome
       }

@@ -700,6 +700,43 @@ transfer is always satisfiable when it runs. Neither case needs a
 primitive; the explicit form reads correctly and keeps the failure
 policy visible in the game file.
 
+## The operation vocabulary
+
+Games relocate cards and resources, reveal and hide them, shuffle and
+rotate. These operations are a small, closed vocabulary in three families,
+not an open-ended set of verbs. The surface reads like a rulebook, but each
+verb lowers to one of a few semantic primitives — the same
+small-core/rich-library split that makes `Trick` a library item rather than
+syntax ([principles.md](principles.md)).
+
+**Movement** — relocating items between two places. One primitive underlies
+every movement verb: `deal`, `transfer`, `move`, `burn`, `muck`, and `draw`
+are sugar that differ only in defaults (which zone, which visibility), not in
+kind. A movement carries a selection (`all`, a count, or a `chosen`/`random`
+amount), an item noun (cards, or a resource such as coins), a source place, a
+destination (a single zone or `to each` recipient), and an optional
+visibility override. The same construct is both a statement and a value — a
+`Trick`'s `routing` argument is a movement. Because the amount is an
+expression and the item names the unit, a resource transfer and a variable
+amount are the *same* construct as a card deal; there is no separate
+resource-movement syntax.
+
+**Epistemic** — changing knowledge or order without relocating anything:
+`reveal`, `peek`, `hide`, `announce`, `expose_top`, `forget`, `shuffle`.
+These are stdlib operation *calls* (`reveal(proof, observers = all)`),
+resolved against a signature table ([library.md](library.md) "Operations"),
+not bespoke syntax. Their effect is defined in the projection vocabulary of
+"Knowledge, visibility, and the projection model" below.
+
+**State-cycle** — advancing a state variable through a list of values, e.g.
+`rotate pass_direction through [left, right, across, none]`. Orthogonal to
+the other two (it touches no zone): a single small construct.
+
+A new rulebook verb is presumed an instance of an existing family — movement
+sugar or an epistemic call — until a game proves it is genuinely none of
+them. Adding a fourth family is a deliberate act, not the default response to
+a new word.
+
 ## Knowledge, visibility, and the projection model
 
 Knowledge over zone contents is the primitive concept for everything

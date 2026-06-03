@@ -54,7 +54,7 @@ game Schnapsen {
     }
 
     phase setup {
-      shuffle deck
+      shuffle(deck)
       deal 3 cards from deck to each hand
       flip top of deck face-up onto trump_indicator
       trump := suit of trump_indicator.top
@@ -92,7 +92,7 @@ game Schnapsen {
             play_zone    = trick_pile,
             play_rules   = active_rules,
             outcome      = TrumpedHighestOfLedSuit(trump = trump),
-            routing      = all cards from trick_pile to captured[outcome]
+            routing      = move all cards from trick_pile to captured[outcome]
           )
 
           card_points[outcome] += sum of card values played to this trick
@@ -132,7 +132,7 @@ game Schnapsen {
             play_zone    = trick_pile,
             play_rules   = active_rules,
             outcome      = TrumpedHighestOfLedSuit(trump = trump),
-            routing      = all cards from trick_pile to captured[outcome]
+            routing      = move all cards from trick_pile to captured[outcome]
           )
 
           card_points[outcome] += sum of card values played to this trick

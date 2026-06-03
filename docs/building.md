@@ -137,6 +137,15 @@ rest are formalized as named, typed stdlib functions defined as data in
 game needs it. Unicode operators (`=>`, `union`, `*` for `⇒`, `∪`, `×`) get ASCII
 spellings fixed by the grammar, and the game files are updated to match.
 
+**Grammar-growth guard.** Before adding a production for a new surface verb,
+classify it into an existing operation family (movement sugar, an epistemic
+call; see [decisions.md](decisions.md) "The operation vocabulary") or an
+existing primitive; add a new family or core production only if it genuinely
+fits none. A rulebook verb is presumed sugar over an existing primitive until
+proven otherwise. This is the standing guard against a per-verb production
+explosion — the failure mode that bakes the library into the core and
+multiplies IR node-kinds.
+
 ### Triage table
 
 Populated as games are brought into the harness. One row per non-`formal`

@@ -33,7 +33,7 @@ game Spades {
     }
 
     phase setup {
-      shuffle deck
+      shuffle(deck)
       deal 13 cards from deck to each hand
       dealer := dealer.left                 // rotate per hand
     }
@@ -81,7 +81,7 @@ game Spades {
           play_zone    = trick_pile,
           play_rules   = active_rules,
           outcome      = TrumpedHighestOfLedSuit(trump = spades),
-          routing      = all cards from trick_pile to captured[team_of(outcome)]
+          routing      = move all cards from trick_pile to captured[team_of(outcome)]
         )
 
         tricks_won[team_of(outcome)] += 1

@@ -51,7 +51,7 @@ game Bridge {
       }
 
       phase setup {
-        shuffle deck
+        shuffle(deck)
         deal 13 cards from deck to each private_hand
         dealer := dealer.left                 // rotate per hand
       }
@@ -109,7 +109,7 @@ game Bridge {
           play_zone    = trick_pile,
           play_rules   = active_rules,
           outcome      = TrumpedHighestOfLedSuit(trump = contract.suit),
-          routing      = all cards from trick_pile to captured[partnership_of(outcome)]
+          routing      = move all cards from trick_pile to captured[partnership_of(outcome)]
         )
 
         tricks_taken[partnership_of(outcome)] += 1
@@ -138,7 +138,7 @@ game Bridge {
             play_zone    = trick_pile,
             play_rules   = active_rules,
             outcome      = TrumpedHighestOfLedSuit(trump = contract.suit),
-            routing      = all cards from trick_pile to captured[partnership_of(outcome)]
+            routing      = move all cards from trick_pile to captured[partnership_of(outcome)]
           )
           tricks_taken[partnership_of(outcome)] += 1
           leader := outcome

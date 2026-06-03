@@ -50,7 +50,7 @@ game Tichu {
     // ----- Staged deal: 8 cards, Grand Tichu window, then 6 more -----
 
     phase deal_first_eight {
-      shuffle deck
+      shuffle(deck)
       deal 8 cards from deck to each hand
     }
 
