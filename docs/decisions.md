@@ -722,20 +722,32 @@ amount are the *same* construct as a card deal; there is no separate
 resource-movement syntax.
 
 **Epistemic** — changing knowledge or order without relocating anything:
-`reveal`, `peek`, `hide`, `announce`, `expose_top`, `forget`, `shuffle`.
-These are stdlib operation *calls* (`reveal(proof, observers = all)`),
-resolved against a signature table ([library.md](library.md) "Operations"),
-not bespoke syntax. Their effect is defined in the projection vocabulary of
-"Knowledge, visibility, and the projection model" below.
+`reveal`, `peek`, `hide`, `announce`, `expose_top`, `forget`, `shuffle`. A
+closed family; each is a prose statement (`shuffle deck`, `reveal proof to
+all`) normalized to one IR node and resolved against a signature table
+([library.md](library.md) "Operations"). Their effect is defined in the
+projection vocabulary of "Knowledge, visibility, and the projection model"
+below.
 
 **State-cycle** — advancing a state variable through a list of values, e.g.
 `rotate pass_direction through [left, right, across, none]`. Orthogonal to
 the other two (it touches no zone): a single small construct.
 
+**Surface: actions are prose, queries are calls.** Every operation above is a
+prose statement — the built-in vocabulary reads as rulebook commands, one
+surface for "what the game does." Call syntax (`player_holding(2 of clubs)`,
+`cards_of_suit(s)`) is reserved for value-returning functions and named
+user-defined operations, which appear in expression position. The dividing
+line is *do* versus *answer*: an operation acts (a statement with effects), a
+function answers (a value in an expression). The families above are a
+*semantic* classification — each lowers to a small set of IR nodes — and are
+independent of this surface choice; the bounded cost of the prose surface is
+one production per operation, added as the corpus needs it.
+
 A new rulebook verb is presumed an instance of an existing family — movement
-sugar or an epistemic call — until a game proves it is genuinely none of
-them. Adding a fourth family is a deliberate act, not the default response to
-a new word.
+sugar or an epistemic op — until a game proves it is genuinely none of them.
+Adding a fourth family is a deliberate act, not the default response to a new
+word.
 
 ## Knowledge, visibility, and the projection model
 

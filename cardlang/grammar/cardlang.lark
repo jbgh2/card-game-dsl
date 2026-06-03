@@ -83,7 +83,7 @@ move_event: NAME ["where" expr]
 
 ?statement: movement
           | rotate_stmt
-          | call                    // epistemic/utility stdlib op: shuffle(deck), reveal(...)
+          | epistemic_op
           | each_simultaneous
           | for_each
           | repeat_until
@@ -91,10 +91,15 @@ move_event: NAME ["where" expr]
           | let_stmt
           | assign_stmt
 
+// The built-in operation vocabulary uses prose statement syntax — game actions
+// read as rulebook commands, not function calls (decisions.md "The operation
+// vocabulary"). Call syntax (`name(args)`) is reserved for value-returning
+// functions and named user operations, which appear in expression position.
+
 // One movement primitive, used as a statement or (for trick routing) a value.
 // The verb is sugar over a single IR node; the amount is an expression and the
 // item noun covers cards and resources. The "in" form lets muck/burn imply
-// their destination. See decisions.md "The operation vocabulary".
+// their destination.
 movement: MOVE_VERB selection "from" zone_expr move_dest [vis_clause]
         | MOVE_VERB selection "in" zone_expr [vis_clause]
 MOVE_VERB: "deal" | "transfer" | "move" | "burn" | "muck" | "draw"
@@ -107,6 +112,12 @@ amount: "all"  -> amt_all
 move_dest: "to" "each" zone_expr  -> dest_each
          | "to" zone_expr         -> dest_one
 vis_clause: "," "visibility" "=" expr
+
+// Epistemic operations are prose statements like the rest of the operation
+// vocabulary. A closed family: one alternative per op, added corpus-first as a
+// game needs it (Hearts needs only `shuffle`). reveal/peek/hide/announce/
+// expose_top/forget join here, in prose, as their games are formalized.
+epistemic_op: "shuffle" zone_expr   -> shuffle_op
 
 rotate_stmt: "rotate" NAME "through" "[" name_list "]"     // state-cycle (orthogonal)
 name_list: NAME ("," NAME)*

@@ -54,7 +54,7 @@ game Schnapsen {
     }
 
     phase setup {
-      shuffle(deck)
+      shuffle deck
       deal 3 cards from deck to each hand
       flip top of deck face-up onto trump_indicator
       trump := suit of trump_indicator.top

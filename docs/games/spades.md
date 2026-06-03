@@ -33,7 +33,7 @@ game Spades {
     }
 
     phase setup {
-      shuffle(deck)
+      shuffle deck
       deal 13 cards from deck to each hand
       dealer := dealer.left                 // rotate per hand
     }

@@ -53,7 +53,7 @@ game Coup {
     // analogous to Stud's next_active_player; skips the exiled.
 
   phase setup {
-    shuffle(court_deck)                          // all 15 character cards begin here
+    shuffle court_deck                          // all 15 character cards begin here
     for each player p:
       deal 2 cards from court_deck to influence[p]   // identity to p, count_only to others
       transfer 2 coins from treasury to coins[p]
@@ -146,7 +146,7 @@ game Coup {
               deal 2 cards from court_deck to influence[actor]   // drawn privately: identity to actor only
               let returned = actor chooses 2 cards in influence[actor]   // keep any, return two to restore the original count
               transfer returned from influence[actor] to court_deck
-              shuffle(court_deck)                                 // returned cards reabsorbed anonymously
+              shuffle court_deck                                 // returned cards reabsorbed anonymously
     }
   }
 
@@ -195,7 +195,7 @@ mechanic ChallengeWindow (
           let proof = the card in influence[claimant] where card.rank == claimed
           reveal(proof, observers = all)
           transfer proof from influence[claimant] to court_deck
-          shuffle(court_deck)
+          shuffle court_deck
           deal 1 card from court_deck to influence[claimant]    // replacement: identity to claimant only
           lose_influence(c)
           produce claim_stands

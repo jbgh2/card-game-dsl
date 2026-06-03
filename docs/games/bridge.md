@@ -51,7 +51,7 @@ game Bridge {
       }
 
       phase setup {
-        shuffle(deck)
+        shuffle deck
         deal 13 cards from deck to each private_hand
         dealer := dealer.left                 // rotate per hand
       }

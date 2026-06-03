@@ -76,7 +76,7 @@ game Skat {
     }
 
     phase setup {
-      shuffle(deck)
+      shuffle deck
       // 3-3-skat-4-3 deal: 3 each, 2 to skat, 4 each, 3 each.
       deal 3 cards from deck to each hand
       deal 2 cards from deck to skat

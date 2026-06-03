@@ -59,7 +59,7 @@ game OhHell {
     }
 
     phase setup {
-      shuffle(deck)
+      shuffle deck
       deal hand_size cards from deck to each hand
       reveal top of deck to trump_indicator
       trump := suit of trump_indicator

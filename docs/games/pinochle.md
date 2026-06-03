@@ -45,7 +45,7 @@ game Pinochle {
     }
 
     phase setup {
-      shuffle(deck)
+      shuffle deck
       deal 12 cards from deck to each hand
       dealer := dealer.left          // rotate per hand
     }

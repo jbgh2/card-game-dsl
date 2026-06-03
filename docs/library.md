@@ -286,8 +286,11 @@ as a statement and as a value (a `Trick`'s `routing`).
 - `burn` / `muck` — relocate to the burn / muck pile (destination implied by the verb); mucked cards land in a trivial-projection zone, prior observations persisting
 - `draw` — take from a pile into a hand
 
-**Epistemic** — stdlib calls; no relocation. Full semantics in
-[decisions.md](decisions.md) "Knowledge, visibility, and the projection model".
+**Epistemic** — prose statements; no relocation. Signatures are shown below,
+but the surface is prose (`shuffle deck`, `reveal proof to all`); call syntax
+is for value-returning functions, not operations (see [decisions.md](decisions.md)
+"The operation vocabulary"). Full semantics in [decisions.md](decisions.md)
+"Knowledge, visibility, and the projection model".
 
 - `peek(target, observer)` — private look (target is a card or zone)
 - `reveal(target, observers = all)` — show to observers (default: all)

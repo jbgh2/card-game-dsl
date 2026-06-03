@@ -59,7 +59,7 @@ game Cribbage {
     }
 
     phase setup {
-      shuffle(deck)
+      shuffle deck
       deal 6 cards from deck to each hand
       dealer := other player    // dealer rotates per hand
     }
