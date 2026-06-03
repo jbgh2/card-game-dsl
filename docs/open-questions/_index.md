@@ -44,8 +44,6 @@ or when a game forces the issue.
 
 - [memory-event-syntax](memory-event-syntax.md) — declaration syntax for
   custom memory-affecting events.
-- [higher-order-knowledge](higher-order-knowledge.md) — "does P know that
-  Q knows X?".
 - [knowledge-events](knowledge-events.md) — observer-dependent phase
   outcomes.
 - [special-cards-declaration](special-cards-declaration.md) — `specials:`

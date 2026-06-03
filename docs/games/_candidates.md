@@ -29,11 +29,23 @@ to a real implementation.
 
 | Open question | Needs | Top candidates |
 |---|---|---|
-| [move-level-visibility](../open-questions/move-level-visibility.md) | a game needing a move-level projection override | [holdem](#holdem), [omaha-hi-lo](#omaha-hi-lo), [liars-dice](#liars-dice) |
-| [zone-access-syntax](../open-questions/zone-access-syntax.md) | game with complex relational receivers | [doppelkopf](#doppelkopf), [sheepshead](#sheepshead) |
-| [memory-event-syntax](../open-questions/memory-event-syntax.md) | three to four examples beyond stdlib ops | [hanabi](#hanabi) (information tokens), [cabo](#cabo) (peek-and-swap) |
-| [higher-order-knowledge](../open-questions/higher-order-knowledge.md) | a rule that reads second-order knowledge | [hanabi](#hanabi) (canonical), [eleusis](#eleusis) (rule inference) |
-| [knowledge-events](../open-questions/knowledge-events.md) | phase outcome observed unequally | [belote](#belote) (in-play declarations), [500](#500) (open misère) |
+| [zone-access-syntax](../open-questions/zone-access-syntax.md) | multi-hop relational chain in rule-subject position | **[doppelkopf](#doppelkopf)** (forces it — Fox/Charlie/Re scoring read "the partner of the ♣Q holder"), [koenigrufen](#koenigrufen) (2nd witness, runtime-chosen call), [sheepshead](#sheepshead) (corroborates, doesn't force the depth) |
+| [optional-window-moves](../open-questions/optional-window-moves.md) | 2nd off-the-clock declaration beyond Tichu | **[doppelkopf](#doppelkopf)** (Re/Kontra/no-90 ladder; "at any time", personal hand-size threshold) |
+| [special-cards-declaration](../open-questions/special-cards-declaration.md) (contextual rank) | 2nd play-time *relative*-rank card beyond Tichu's Phoenix | **[president](#president)** single-joker variant ("one higher than the card below it") |
+| [move-level-visibility](../open-questions/move-level-visibility.md) | per-observer move-level override (forces replace-vs-merge) | **poker "show one, show all"** — a Stud or [holdem](#holdem) variant, exercisable in the *existing* poker corpus |
+| [memory-event-syntax](../open-questions/memory-event-syntax.md) | an event composition can't express | **[hanabi](#hanabi)** (partial-identity hint over an inverted hand — forces it; _dedicated deck, out of scope_), [cabo](#cabo) (composable from existing ops) |
+| [knowledge-events](../open-questions/knowledge-events.md) | phase outcome observed unequally | **[mascarade](#mascarade)**, [love-letter](#love-letter) (both _dedicated deck, out of scope_) |
+
+`higher-order-knowledge` is no longer listed: the verified pass found no
+card game whose *rules* read second-order knowledge (Hanabi and
+Sheepshead were debunked at the rule level), so it was resolved as
+not-forced and moved to [decisions.md](../decisions.md) "Higher-order
+knowledge is out of scope". Two questions —
+[memory-event-syntax](../open-questions/memory-event-syntax.md) and
+[knowledge-events](../open-questions/knowledge-events.md) — are now
+blocked on a *scope decision* rather than on finding a game: their
+cleanest forcing functions (Hanabi; Mascarade / Love Letter) are
+dedicated-deck games outside the current standard-deck corpus.
 
 ## Trick-taking with bidding
 
@@ -93,42 +105,74 @@ notoriously edge-case heavy: <https://www.pagat.com/last/piquet.html>.
 
 ### doppelkopf
 
-4 players, 48-card double-pinochle deck, trick-taking where
-partnerships are *not* fixed: each player holds private knowledge of
-which side they're on (based on which player holds the Queens of
-Clubs), and partnerships are revealed through play.
+4 players, 48 cards (two Skat packs with the 7s and 8s removed — ranks
+A 10 K Q J 9, two of each per suit; *not* a Pinochle deck, which drops
+the 9s). Trick-taking where partnerships are *not* fixed: each player
+holds private knowledge of which side they're on (based on who holds the
+two Queens of Clubs), and partnerships are revealed through play.
 
-**Why interesting.** The canonical
-[zone-access-syntax](../open-questions/zone-access-syntax.md) test
-case. Queries like "partner of (player holding Queen of Clubs other
-than me)" are complex relational chains in subject position.
-Announcements ("Re", "Kontra", "No 90", "No 60") are spoken by
-individual players but bind partnership-level contracts — distinct
-from Bridge's dummy in that the speaker is both actor and chooser
-of their own announcement; the partnership-binding is a scoring
-concern, not a delegated-play one.
+**Why interesting — the highest-value in-scope candidate; forces two
+open questions at once** (both verified against Pagat):
 
-**Notes.** Rules vary by region. **Pagat** for tournament rules and
-the special-card hierarchy: <https://www.pagat.com/schafk/doko.html>.
+- [zone-access-syntax](../open-questions/zone-access-syntax.md): the
+  Re/Kontra partition is *computed* from who holds the ♣Q, and **scoring
+  rules read a multi-hop relational chain** over it. Catching the Fox
+  (capturing the opponents' ♦A) requires "the partner of the ♦A's
+  player, relative to the trick winner's side"; the rulebook even defers
+  the evaluation — the ♦A "is left face up and turned over … when the
+  partnership becomes clear." Charlie Miller and "gegen die Alten"
+  scoring branch the same way. This is the chain in rule-subject
+  position, not just strategy.
+- [optional-window-moves](../open-questions/optional-window-moves.md):
+  Re/Kontra and the no-90 / no-60 / no-30 / Schwarz ladder are
+  off-the-clock — "announcements can be made **at any time** during the
+  play … not just when it is your turn to play" — bounded by a *personal
+  hand-size threshold* (≥11 cards for Re/Kontra, then 10/9/8/7). The
+  direct analogue of Tichu's "before your Nth card", and harder: the
+  threshold can be *computed* (reduced by tricks taken to settle a
+  marriage).
+
+**Notes.** Heavy house-rule variation; rely on the core DDV-aligned base
+(Re/Kontra timing, ♣Q partnership, Fox/Charlie scoring), not the
+Genscher/Schweinchen variants. **Pagat**:
+<https://www.pagat.com/schafkopf/doko.html>.
+
+### koenigrufen
+
+4 players, 54-card *Industrie und Glück* Tarock pack (tarot family, like
+French Tarot — within extended corpus scope). The declarer "calls a
+King"; whoever holds it is the secret partner.
+
+**Why interesting.** A second witness for
+[zone-access-syntax](../open-questions/zone-access-syntax.md), with a
+twist Doppelkopf lacks: the queried card is **chosen at runtime** ("names
+a suit, the holder of that king becomes partner"), and the rules name the
+degenerate resolutions — "it is legal to call your own king" (declarer
+ends up solo) and "you also play alone if the called king happens to be
+in the talon" (the holding query resolves to no player). Scoring bonuses
+("called king captured by declarer's opponents", "king ultimo") read the
+call-derived side. The relational chain is shallower than Doppelkopf's
+Fox rule (partner is symmetric, one hop), so it's a confirmation rather
+than the primary driver. **Pagat**: <https://www.pagat.com/tarot/koenig.html>.
 
 ### sheepshead
 
-5 players (most common), 32-card double-pinochle deck. One player is
-"picker" against the others — or calls a partner via a specific card
-("I call the Jack of Diamonds").
+5 players (most common), 32-card Skat pack (7–A in four suits). One
+player is "picker" against the others — or calls a partner via a specific
+card ("I call the Jack of Diamonds" / a fail-suit ace).
 
 **Why interesting.** *Calling a partner by card identity* creates a
-partnership defined by whoever holds a specific card. The partner
-*knows* they are the partner; the picker and the other defenders
-don't — until the called card is played. Strong material for both
-[zone-access-syntax](../open-questions/zone-access-syntax.md) (the
-"partner" reference resolves through a card-holding query) and
-[higher-order-knowledge](../open-questions/higher-order-knowledge.md)
-(the picker knows the partner knows but doesn't know who knows).
-
-**Notes.** US Wisconsin variant is the most widely played. **Pagat**
-for variant choice and the leaster / jack-of-diamonds-down rules:
-<https://www.pagat.com/schafk/shphd.html>.
+partnership defined by whoever holds a specific card, and the partner
+*knows* they are the partner before anyone else. It **corroborates**
+[zone-access-syntax](../open-questions/zone-access-syntax.md) — the
+"partner" reference resolves through a card-holding query — but the
+verified pass found it does **not force the multi-hop depth**: no scoring
+rule goes the second hop ("partner of the holder of X"); play-legality
+constraints are one hop ("the holder of the called ace must reserve it").
+It is *not* a higher-order-knowledge case either — the partner's identity
+is first-order hidden information, and no rule reads knowledge-of-
+knowledge (that question is now resolved as not-forced). **Pagat**:
+<https://www.pagat.com/schafkopf/shep.html>.
 
 ## Climbing & shedding
 
@@ -139,17 +183,29 @@ previous play (single card, pair, triple, etc.). Cross-hand routing:
 losers must give their highest cards to winners at the start of the
 next hand.
 
-**Why interesting.** Routing override that fires *between hands*
-(President of last hand receives from Asshole, etc.) — a different
-shape from Getaway's first-trick-to-waste, and probably the cleanest
-shape for a cross-hand setup helper or per-game function rather than
-a Trick parameter. Cross-hand
-state (the President/Asshole assignment) gates the next hand's
-setup.
+**Why interesting — two distinct draws:**
 
-**Notes.** Known by many names: Asshole, Daihinmin (Japan),
-Capitalism, Scum. Rules vary widely on combinations, revolutions,
-and wild twos. **Pagat** for a canonical version:
+- *Cross-hand routing* that fires *between hands* (President of last
+  hand receives from Asshole, etc.) — a different shape from Getaway's
+  first-trick-to-waste, and probably the cleanest shape for a cross-hand
+  setup helper rather than a Trick parameter. Cross-hand state (the
+  President/Asshole assignment) gates the next hand's setup.
+- *Contextual rank* — the verified forcing function for the
+  [special-cards-declaration](../open-questions/special-cards-declaration.md)
+  residual (play-time relative rank, the hard Phoenix shape). In the
+  widespread single-joker variant, "a joker played by itself is one
+  higher than the card played before it" (a joker on a 5 is a 6) — the
+  Tichu-Phoenix shape ("half a rank above the last play") in a
+  standard-52 game, documented on Pagat. The related "transparent
+  threes" variant (a three becomes the rank it beats) is also
+  relative-to-play. By contrast Haggis's wild J/Q/K and the Great
+  Dalmuti's Jester are *chosen-constant* wilds (the easy shape) — they
+  do **not** force the relative-rank design, despite looking like they
+  might.
+
+**Notes.** Known by many names: Asshole, Daihinmin (Japan), Capitalism,
+Scum. Contextual rank is *variant-gated* — the basic game has no jokers;
+cite the joker-single variant specifically. **Pagat**:
 <https://www.pagat.com/climbing/president.html>.
 
 ### big-two
@@ -195,14 +251,18 @@ of table cards whose ranks sum to it.
 **Why interesting.** A fishing mechanic — capture rather than
 trick-take. Cards on the table form an evolving public zone; the
 played card's destination depends on which capture combination is
-selected (often multiple legal captures exist, with the player
-choosing). Tests
+selected. Tests
 [zone-access-syntax](../open-questions/zone-access-syntax.md) on
 multi-card target selection and the move type's relation to a
 shared zone.
 
-**Notes.** **Pagat** for the capture rules and the four-way
-end-of-hand scoring (cards, denari, settebello, primiera):
+**Notes.** Correction to flag: in **base** Scopa, when a single-card
+rank match exists you are *forced* to take the single card — the
+sum-capture is only the fallback, and free choice between rank-match and
+sum (and the "sum to 15" rule) belong to variants (Cirulla / Scopa a
+Quindici). So the "player chooses among multiple captures" framing is
+variant-specific. **Pagat** for capture rules and four-way scoring
+(cards, denari, settebello, primiera):
 <https://www.pagat.com/fishing/scopa.html>. Scopone is the 4-player
 partnership variant.
 
@@ -266,39 +326,86 @@ cooperative: players hold their cards facing outward — they see
 each other's cards but not their own — and must play cards in
 ascending-by-suit order using a limited communication budget.
 
-**Why interesting.** The canonical
-[higher-order-knowledge](../open-questions/higher-order-knowledge.md)
-game. Information given by one player constrains what the recipient
-can deduce, and the giver knows what the recipient can deduce; the
-literature on optimal Hanabi (Bouzy, Cox, etc.) explicitly models
-second- and third-order knowledge. Also a clean test of inverse
-zone visibility: `hand[player]` is `identity to all_except(player)`
-— the inverse of the standard `Hand<player>` projection. The hint
-actions (color hint, number hint) are
-[memory-event-syntax](../open-questions/memory-event-syntax.md)
-candidates distinct from card movement.
+**Why interesting — the verified forcing function for
+[memory-event-syntax](../open-questions/memory-event-syntax.md).** Two
+features combine into the first event the pass found that is *neither* a
+stdlib op nor a clean composition of them: (1) the **inverted-visibility
+hand** — `hand[player]` is `identity to all_except(player)`, the owner
+sees *less* than everyone else; (2) the **hint** — a colour or number
+hint must indicate *all* matching cards (and may indicate zero), so it's
+a per-attribute, multi-position, complete-information projection update to
+one observer about cards they can't see, carrying negative information
+("your other cards are not red"). That's not `peek`, `reveal`, or
+`announce`. This is the case the open-question file ("awaits a case
+composition can't express") was waiting for.
 
-**Notes.** Modern (Bauza, 2010). Strong "what does the rules engine
-need to track to support optimal play" forcing function.
+It does **not** force higher-order-knowledge: that question is now
+resolved as not-forced (decisions.md "Higher-order knowledge is out of
+scope") — Hanabi's *rules* read only objective tile facts; the
+second-/third-order reasoning in the optimal-play literature (Bouzy, Cox)
+lives in player conventions, outside the rules.
+
+**Notes.** Modern (Bauza, 2010). Dedicated deck → **out of current corpus
+scope**; bringing it in is a scope decision, not a search problem. The 6th
+(multicolour) suit variant is usually a *short* 5-card suit (55 cards),
+occasionally a full 10 (60); the base game is 50.
 
 ### cabo
 
-2–6 players, standard 52 + 2 jokers. Memory-and-bluff: players are
-dealt four face-down cards, briefly peek at two of their own, and
-then play through swap/reveal/peek actions toward a low total.
-Whoever calls "Cabo" with the lowest total wins; wrong calls pay
-penalties.
+2–6 players, **dedicated point deck** (suits numbered 0–13, commonly four
+each of 1–12 plus two 0s and two 13s; *not* standard 52 + 2 jokers —
+that's the folk Cambio/Pablo variant). Players are dealt four face-down
+cards, briefly peek at two of their own, then play swap/reveal/peek
+actions toward a low total. Whoever calls "Cabo" with the lowest total
+wins; wrong calls pay penalties.
 
-**Why interesting.** Memory mechanics *are* the gameplay:
-peek-and-remember (own card), peek-and-remember (opponent's card),
-forced-swap, look-and-swap. Each is a different memory-affecting
-event. Direct test of
-[memory-event-syntax](../open-questions/memory-event-syntax.md): the
-DSL needs to express not just "card moved" but "observer X gained
-identity knowledge of card C in zone Z."
+**Why interesting — a memory game, but everything is composable.** The
+verified actions are peek-own, peek-opponent (`peek`), reveal-on-failed-
+match (`reveal`), and **blind-swap** (transfer two cards with no
+observation). All map to existing stdlib ops or trivial compositions, so
+Cabo does **not** force custom-event declaration syntax — it confirms the
+"composition suffices" hypothesis. Its one contribution is making
+blind-swap a *first-class, deliberate* action (move cards + destroy
+per-slot identity knowledge, reveal nothing), which argues for stating
+that semantics explicitly. (The "King look-then-swap" power attributed to
+Cabo previously could not be verified in any authoritative ruleset — it
+exists only in a Malaysian standard-deck folk variant, as a blind swap.)
 
-**Notes.** Cambio is a near-identical variant. The Cabo call is a
-typed-phase outcome with verification at the round's end.
+**Notes.** Cambio / Pablo / Cactus are the standard-52 folk versions. The
+Cabo call is a typed-phase outcome with verification at round end.
+Dedicated deck → out of current corpus scope.
+
+### mascarade
+
+3+ players, dedicated character-card deck. Each player has one face-down
+character card; on a turn a player may swap their card with another's
+*under the table without looking*, or claim a character's power.
+
+**Why interesting — the cleanest verified forcing function for
+[knowledge-events](../open-questions/knowledge-events.md).** "Exchange
+your Mask" resolves to *swapped* or *not swapped*, and that outcome is
+observed **unequally by construction**: the acting player knows whether
+the swap happened; the player whose card was taken does *not*; the table
+sees only that an exchange occurred — and even the actor doesn't learn the
+card identities. The unequal observation is structural to the move, not an
+optional peek. The phase outcome itself is partial to different observers
+— exactly the construct. **Notes.** Bruno Faidutti; dedicated deck → out
+of current corpus scope. Asmodee v2 rulebook is authoritative.
+
+### love-letter
+
+2–6 players, 16-card dedicated deck. Each player holds one card; on a turn
+you draw one and play one, resolving its effect.
+
+**Why interesting.** The strongest *standard-shaped* corroborator for
+[knowledge-events](../open-questions/knowledge-events.md): the **Baron**
+("you and that player secretly compare hands; the lower is out") is one
+resolution step that produces three information states — the two comparers
+learn each other's card, the table learns only "who lost", and only the
+loser's card is then revealed. The **Priest** (privately look at one
+player's hand) is a second case. The **Guard** (public hit/miss) is *not*
+— a useful contrast. **Notes.** Kanai / AEG; dedicated deck → out of
+current corpus scope; official 2019 rulebook is authoritative.
 
 ### eleusis
 
@@ -331,7 +438,15 @@ the existing visibility model handle a zone owned by no one but
 used in every player's hand evaluation. Also a third resource-using
 game (after Stud and Coup), confirming the resource-transfer decisions
 now in decisions.md ("Resource amount syntax", "Resource transfer
-failure").
+failure"). And the verified home for
+[move-level-visibility](../open-questions/move-level-visibility.md): the
+"show one, show all" showdown rule (Robert's Rules §6) is a per-observer
+move-level override that names *some* observers and *some* cards while the
+rest stay at the zone default — "if only a portion of the hand has been
+shown, there is no requirement to show the unseen cards" — which forces
+the replace-vs-merge sub-question directly. This is exercisable in the
+existing poker corpus (Stud already in), so move-level-visibility may not
+need a new game at all.
 
 **Notes.** Texas Hold'em is the canonical variant. No-limit vs
 fixed-limit is a parameterization of `BettingRound`, not a

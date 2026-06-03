@@ -824,6 +824,29 @@ literatures:
   happened without learning what. These distinctions map directly
   onto projection assignment per observer.
 
+### Higher-order knowledge is out of scope
+
+The knowledge model is first-order: an observer's candidate set ranges
+over zone contents (what *is* the case), with the de re / de dicto
+refinement above. It does **not** model higher-order knowledge — "P knows
+that Q knows X" — because no card game's *rules* read it. A survey of the
+usual suspects confirms this. Hanabi's rules constrain hints to truthful,
+complete facts about tile colours and values and never reference what a
+player knows about another's knowledge; its famous higher-order reasoning
+(finesses, conventions) is optional play layered on top, explicitly
+outside the rules. Sheepshead's called partner is genuine *first-order*
+private information — the partner's identity is known only to the partner
+— with no rule reading knowledge-of-knowledge. The pattern generalizes:
+rulebooks route every legality, resolution, and scoring condition through
+observable card facts (and at most one layer of hidden state) precisely so
+a referee can adjudicate them. Higher-order reasoning is real in optimal
+*play* — Hanabi conventions, bluff modelling in Coup and bridge — but it
+lives in strategy, not in the rules the DSL describes, and the candidate
+sets the language already tracks are exactly what CFR / IS-MCTS consume.
+Modelling belief-about-belief would add machinery no in-scope game
+exercises. If a game ever surfaces a rule that reads second-order
+knowledge, this is the decision to revisit.
+
 ### Stdlib memory-affecting operations
 
 | Operation | What it does | Effect on projections |

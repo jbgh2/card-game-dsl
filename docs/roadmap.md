@@ -80,13 +80,20 @@ open-question framing.
    - **Klondike or FreeCell** — first solitaire; tests positional
      zones. Doesn't directly unblock a Tier 2 question but forces a
      deferred design decision.
-   - **Klondike** / **Hanabi** — would each force a
-     different deferred design corner (positional zones,
-     higher-order knowledge). Both are bigger
-     swings than the trick-and-bidding games we've been doing.
-     (Coup, the third candidate here, is now in the corpus; it
-     exercised the knowledge-event and challenge-mechanism corners
-     and confirmed the simultaneous-body-grammar boundary.)
+   - **Doppelkopf** — the highest-value in-scope candidate: a verified
+     forcing function for *both* `zone-access-syntax` (Fox/Charlie/Re
+     scoring read a multi-hop relational chain over who holds the ♣Q)
+     and `optional-window-moves` (the Re/Kontra/no-90 ladder is an
+     off-the-clock declaration on a personal hand-size threshold). See
+     [games/_candidates.md](games/_candidates.md).
+   - **Klondike** / **Hanabi** — would each force a different deferred
+     design corner (positional zones; the partial-identity hint that
+     `memory-event-syntax` was waiting for). Hanabi is a dedicated-deck
+     game, so it's gated on a scope decision. Both are bigger swings
+     than the trick-and-bidding games we've been doing. (Coup, a former
+     candidate here, is now in the corpus; it exercised the
+     knowledge-event and challenge-mechanism corners and confirmed the
+     simultaneous-body-grammar boundary.)
 
 3. **Address Tier 3 questions when their corner of the language
    gets exercised.** Coup, the second resource-using game, resolved
