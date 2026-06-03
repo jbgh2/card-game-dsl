@@ -27,6 +27,8 @@ game Hearts {
     state {
       // Per-hand: resets each hand.
       pass_direction : Direction = left
+      // Trick leader, threaded from first_trick into play by lexical scope.
+      leader         : Player    = none
     }
 
     phase setup {
@@ -46,11 +48,6 @@ game Hearts {
     }
 
     phase first_trick {
-      state {
-        // Per-first_trick: a single trick.
-        leader : Player = player_holding(2 of clubs)
-      }
-
       active_rules: [
         MustFollowSuit,
         MustLeadTwoOfClubsOnFirstPlay,
@@ -58,6 +55,7 @@ game Hearts {
       ]
       legal_moves: [play_to_trick]
 
+      leader := player_holding(2 of clubs)
       instantiate Trick (
         participants = all players,
         leader       = leader,
@@ -67,20 +65,17 @@ game Hearts {
         outcome      = highest_of_led_suit,
         routing      = all cards from trick_pile to captured[outcome]
       )
+      leader := outcome
     }
 
     phase play {
-      state {
-        // Per-play: persists across all non-first tricks in this hand.
-        leader : Player = outcome of last trick from first_trick
-      }
-
+      // Continues from the enclosing `leader`, set by first_trick.
       active_rules: [MustFollowSuit]
       legal_moves:  [play_to_trick]
 
       phase hearts_not_broken {
         active_rules: [+ NoLeadingHeartsUntilBroken]
-        transition_to: hearts_broken when any heart_played event fires
+        transition_to: hearts_broken when play_to_trick where card.suit == hearts
       }
 
       phase hearts_broken {
@@ -98,7 +93,7 @@ game Hearts {
           outcome      = highest_of_led_suit,
           routing      = all cards from trick_pile to captured[outcome]
         )
-        leader := outcome of last trick
+        leader := outcome
       }
     }
 

@@ -132,12 +132,16 @@ this for the case when a Mahjong wish stands. No explicit
 `transition_to:` is needed — the predicate is the entry guard *and*
 the exit condition.
 
-**Event-triggered sibling transition.** `transition_to: Y when E`
-inside sibling X switches control to sibling Y when event E fires.
-Used for one-way state changes that name a specific successor:
-Hearts' `hearts_not_broken → hearts_broken`, Spades'
-`spades_not_broken → spades_broken`. The transition is one-shot —
-once Y is entered, X is not re-entered.
+**Event-triggered sibling transition.** `transition_to: Y when <event>`
+inside sibling X switches control to sibling Y when the event fires.
+The `<event>` is the same reference form triggered scoring components
+use — a move-type event with an optional `where <predicate>` (see
+"Triggered scoring components"); there are no ad-hoc event names.
+Hearts breaks hearts with `transition_to: hearts_broken when
+play_to_trick where card.suit == hearts`; Spades breaks spades with
+`transition_to: spades_broken when play_to_trick where card.suit ==
+spades`. The transition is one-shot — once Y is entered, X is not
+re-entered.
 
 There is no separate construct for "this sub-phase ends and control
 returns to the enclosing parent's loop." The predicate-guard form
@@ -195,6 +199,28 @@ sub-phase.
 The criterion for which operator to use: write the slot the way the
 game's rulebook introduces the change. Rulebooks describe what
 *kicks in*, not what *goes away*; the syntax follows.
+
+## Rule demand forms
+
+A rule's `demands:` clause takes one of two forms, distinguished by
+what it constrains:
+
+- **A candidate-card set** — an expression returning the cards a legal
+  move may use, filtering a zone. `MustFollowSuit`'s `demands:
+  hand.cards_of_suit(state.led_suit)` and Hearts' `demands:
+  hand.where(c => c.suit != hearts)` are this form. The legal move set
+  is the intersection of every active rule's candidate set.
+
+- **A predicate on the move** — `demands: moves where <predicate>`,
+  constraining the shape of the move itself rather than which cards it
+  draws from a zone. Hearts' `PassExactlyThreeCards` is `demands: moves
+  where move.card_count == 3`; Stud's `BringInMandatory` is `demands:
+  moves where move.amount == bring_in_amount`. Cribbage's two-card
+  discard and Tichu's one-card-per-opponent push are the same form.
+
+The two are not interchangeable: the first names *which cards*, the
+second *how the move is shaped*. A move is legal when it satisfies
+every active rule's demand, of either form.
 
 ## Trick mechanic parameters vs rules
 
@@ -306,7 +332,15 @@ game Bridge {
 **Variables that need cross-phase visibility live in the smallest
 enclosing scope that covers all their uses.** If a variable is read
 by both `bidding` and `play`, it lives in their parent `hand_sequence`,
-not in either.
+not in either. This is also how a result threads from one sub-phase to
+a sibling: the trick `leader` that Hearts' `first_trick` hands to
+`play` is a `Player` in their enclosing `hand_sequence` state —
+`first_trick` seeds it (the two-of-clubs holder) and updates it to the
+trick winner, and `play` continues from it. A mechanic's result is read
+as bare `outcome` immediately after the mechanic runs (`leader :=
+outcome`); there is no construct for referencing a prior phase's
+outcome across the phase boundary — the shared enclosing variable is
+the channel.
 
 **Mechanic-internal state lives inside the mechanic.** Auction's
 `passed[player]`, Trick's per-trick state, BettingRound's
@@ -419,8 +453,9 @@ other"; sequencing encodes "these scores depend on what came
 before, potentially including game termination."
 
 **Event-driven sub-phase transitions are not a third mutation mode.**
-Hearts' `transition_to: hearts_broken when any heart_played event
-fires` is *phase entry/exit* triggered by the move-emitted event.
+Hearts' `transition_to: hearts_broken when play_to_trick where
+card.suit == hearts` is *phase entry/exit* triggered by the
+move-emitted event.
 The implied state change (the `NoLeadingHeartsUntilBroken` rule
 becomes inactive) happens because the active rule set changes when
 the phase changes, not because a `hearts_broken` boolean was written.

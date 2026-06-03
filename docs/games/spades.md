@@ -59,7 +59,7 @@ game Spades {
 
       phase spades_not_broken {
         active_rules: [+ NoLeadingSpadesUntilBroken]
-        transition_to: spades_broken when any spade_played event fires
+        transition_to: spades_broken when play_to_trick where card.suit == spades
       }
 
       phase spades_broken {

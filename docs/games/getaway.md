@@ -19,6 +19,8 @@ game Getaway {
     state {
       // Game-level: persists for the whole game.
       eliminated[player] : Boolean = false
+      // Trick leader, threaded from first_trick into play by lexical scope.
+      leader             : Player  = none
     }
 
     phase setup {
@@ -26,11 +28,6 @@ game Getaway {
     }
 
     phase first_trick {
-      state {
-        // Per-first_trick: a single trick. Leader is forced.
-        leader : Player = player_holding(ace of spades)
-      }
-
       // forced lead: AS only
       active_rules: [
         MustFollowSuit,
@@ -41,6 +38,7 @@ game Getaway {
       // below, and decisions.md "Trick mechanic parameters vs rules".
       legal_moves: [play_to_trick]
 
+      leader := player_holding(ace of spades)
       instantiate Trick (
         participants     = all players,
         leader           = leader,
@@ -51,14 +49,11 @@ game Getaway {
         outcome          = highest_of_led_suit,
         routing          = all cards from trick_pile to waste
       )
+      leader := outcome
     }
 
     phase play {
-      state {
-        // Per-play: persists across all non-first tricks.
-        leader : Player = outcome of last trick from first_trick
-      }
-
+      // Continues from the enclosing `leader`, set by first_trick.
       active_rules: [MustFollowSuit, OptionalStealLeftIfAlone]
       legal_moves:  [play_to_trick, steal_left]
 
