@@ -1,29 +1,216 @@
 // Card Game DSL — surface grammar.
 //
-// Walking-skeleton subset: game header, players, deck, zone declarations.
-// Grammar development starts on Earley (reports ambiguity) and tightens
-// toward LALR (forces a deterministic grammar). It grows one construct at a
-// time, driven by the corpus (docs/building.md, "Build phases").
+// Grown corpus-first: every production here exists because a game in the
+// corpus needs it. Developed on Earley (reports ambiguity), tightening toward
+// LALR. The expression sublanguage (docs/building.md) is the lower half of
+// this file and is reused everywhere an expression appears.
 
-start: game
+start: top_item+
 
-game: "game" NAME "{" players deck zones "}"
+?top_item: game
+         | rule_def
+
+// ----------------------------------------------------------------------------
+// Game structure
+// ----------------------------------------------------------------------------
+
+game: "game" NAME "{" game_item* "}"
+
+?game_item: players
+          | direction
+          | cards
+          | ranking
+          | zones
+          | state_block
+          | phase
+          | winner
 
 players: "players" ":" players_spec
 players_spec: INT ".." INT   -> players_range
             | INT            -> players_fixed
 
-deck: "cards" ":" NAME
+direction: "direction" ":" NAME
+cards: "cards" ":" NAME
+ranking: "ranking" ":" card_rank+
 
 zones: "zones" "{" zone_decl* "}"
 zone_decl: NAME [index] ":" type_ref
 index: "[" NAME "]"
-
 type_ref: NAME [type_args]
 type_args: "<" type_arg ("," type_arg)* ">"
 type_arg: NAME
 
+state_block: "state" "{" state_decl* "}"
+state_decl: NAME [index] ":" type_name "=" expr
+type_name: NAME "?"   -> optional_type
+         | NAME       -> plain_type
+
+winner: "winner" ":" rank_dir NAME
+rank_dir: "lowest" | "highest"
+
+// ----------------------------------------------------------------------------
+// Phases
+// ----------------------------------------------------------------------------
+
+phase: "phase" NAME [phase_qualifier] "{" phase_item* "}"
+phase_qualifier: "repeats" "until" expr   -> phase_repeats
+               | "when" expr              -> phase_when
+
+?phase_item: state_block
+           | active_rules
+           | legal_moves
+           | transition_to
+           | phase
+           | statement
+
+active_rules: "active_rules" ":" "[" [rule_ref ("," rule_ref)*] "]"
+rule_ref: "+" NAME        -> rule_add
+        | "-" NAME        -> rule_remove
+        | "override" NAME -> rule_override
+        | NAME            -> rule_plain
+
+legal_moves: "legal_moves" ":" "[" [NAME ("," NAME)*] "]"
+
+transition_to: "transition_to" ":" NAME "when" event_trigger
+event_trigger: "any" NAME "event" "fires"
+
+// ----------------------------------------------------------------------------
+// Statements (phase / mechanic bodies)
+// ----------------------------------------------------------------------------
+
+?statement: shuffle_stmt
+          | deal_stmt
+          | rotate_stmt
+          | transfer_stmt
+          | each_simultaneous
+          | for_each
+          | repeat_until
+          | instantiate
+          | let_stmt
+          | assign_stmt
+
+shuffle_stmt: "shuffle" NAME
+deal_stmt: "deal" INT "cards" "from" zone_expr "to" "each" NAME
+rotate_stmt: "rotate" NAME "through" "[" name_list "]"
+name_list: NAME ("," NAME)*
+
+transfer_stmt: "transfer" transfer_amount "from" zone_expr "to" zone_expr
+transfer_amount: ["chosen"] INT "cards"  -> count_amount
+               | "all" "cards"           -> all_amount
+
+each_simultaneous: "each" NAME "simultaneously" ":" statement
+for_each: "for" "each" NAME NAME ":" statement
+repeat_until: "repeat" "until" expr "{" statement* "}"
+
+instantiate: "instantiate" NAME "(" [named_arg ("," named_arg)*] ")"
+named_arg: NAME "=" arg_value
+?arg_value: route_expr
+          | expr
+route_expr: "all" "cards" "from" zone_expr "to" zone_expr
+
+let_stmt: "let" NAME [index] "=" expr
+assign_stmt: lvalue assign_op expr
+assign_op: ":=" | "+=" | "-="
+lvalue: NAME [index_expr]
+
+// ----------------------------------------------------------------------------
+// Rules (top-level)
+// ----------------------------------------------------------------------------
+
+rule_def: "rule" NAME "{" rule_clause* "}"
+?rule_clause: constrains
+            | applies_when
+            | demands
+            | if_impossible
+constrains: "constrains" ":" NAME
+applies_when: "applies_when" ":" applies_pred
+?applies_pred: "always"  -> always
+             | expr
+demands: "demands" ":" demand_value
+?demand_value: moves_where
+             | expr
+moves_where: "moves" "where" expr
+if_impossible: "if_impossible" ":" expr
+
+// ----------------------------------------------------------------------------
+// Expression sublanguage
+// ----------------------------------------------------------------------------
+
+?expr: quantifier
+     | if_expr
+     | comprehension
+     | lambda
+     | or_expr
+
+// A lambda's body extends as far right as possible, so it sits at the top
+// of the expression grammar rather than among the primaries.
+lambda: NAME "=>" expr
+
+quantifier: "any" NAME NAME ":" expr  -> exists
+          | "all" NAME NAME ":" expr  -> forall
+
+comprehension: AGG "over" zone_expr "as" NAME ":" expr
+AGG: "sum" | "count" | "max" | "min"
+
+if_expr: "if" expr "then" expr elif_clause* "else" expr
+elif_clause: "elif" expr "then" expr
+
+?or_expr: or_expr "or" and_expr   -> or_op
+        | and_expr
+?and_expr: and_expr "and" not_expr -> and_op
+         | not_expr
+?not_expr: "not" not_expr  -> logical_not
+         | comparison
+
+?comparison: sum "is" "none"         -> is_none
+           | sum "is" "not" "none"   -> is_not_none
+           | sum "is" "empty"        -> is_empty
+           | sum comp_op sum         -> compare
+           | sum
+comp_op: "==" | "!=" | ">=" | "<=" | ">" | "<"
+
+?sum: sum "+" term   -> add
+    | sum "-" term   -> sub
+    | term
+?term: term "offset_by" factor -> offset_by
+     | factor
+
+?factor: postfix
+
+?postfix: postfix "." NAME "(" [arg_list] ")"  -> method_call
+        | postfix "." NAME                     -> member
+        | postfix index_expr                   -> subscript
+        | primary
+
+arg_list: expr ("," expr)*
+
+?primary: card_literal
+        | last_trick
+        | all_players
+        | call
+        | "none"            -> none_lit
+        | INT               -> int_lit
+        | STRING            -> str_lit
+        | NAME              -> name_ref
+        | "(" expr ")"
+
+card_literal: card_rank "of" NAME
+card_rank: CARD_FACE | INT
+
+last_trick: NAME "of" "last" "trick" ["from" NAME]
+all_players: "all" "players"
+call: NAME "(" [arg_list] ")"
+
+index_expr: "[" expr "]"
+zone_expr: NAME [index_expr]
+
+// ----------------------------------------------------------------------------
+// Terminals
+// ----------------------------------------------------------------------------
+
+CARD_FACE: "A" | "K" | "Q" | "J"
 NAME: /[a-zA-Z_][a-zA-Z0-9_]*/
+STRING: /"[^"]*"/
 
 LINE_COMMENT: /\/\/[^\n]*/
 

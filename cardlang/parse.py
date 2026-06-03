@@ -10,6 +10,7 @@ node. Positions reported by Lark are 1-based within the DSL text; a
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from functools import lru_cache
 from importlib import resources
 
@@ -21,6 +22,14 @@ from lark.visitors import Transformer, v_args
 from cardlang.ast.nodes import Game, PlayersSpec, TypeArg, TypeRef, ZoneDecl
 from cardlang.diagnostics import Diagnostic, DiagnosticError, Severity, Span
 from cardlang.extract import FencedBlock
+
+
+@dataclass(frozen=True, slots=True)
+class _Deck:
+    """Internal marker so the deck name is distinguishable from other strings
+    while scanning a game's items by type."""
+
+    name: str
 
 
 @lru_cache(maxsize=1)
@@ -66,9 +75,9 @@ class _Builder(Transformer[Token, Game]):
         (spec,) = children
         return spec
 
-    def deck(self, meta: Meta, children: list[Token]) -> str:
+    def cards(self, meta: Meta, children: list[Token]) -> _Deck:
         (name,) = children
-        return str(name)
+        return _Deck(str(name))
 
     def index(self, meta: Meta, children: list[Token]) -> str:
         (name,) = children
@@ -110,14 +119,31 @@ class _Builder(Transformer[Token, Game]):
         return tuple(children)
 
     def game(self, meta: Meta, children: list[object]) -> Game:
-        name, players, deck, zones = children
-        assert isinstance(players, PlayersSpec)
-        assert isinstance(deck, str)
-        assert isinstance(zones, tuple)
+        # The grammar admits game items in any order; locate the ones the
+        # typed AST models. Items it does not yet model (direction, ranking,
+        # state, phases, winner) are a deliberate not-implemented error — the
+        # typed pipeline grows to cover them construct by construct, rather
+        # than silently dropping them.
+        name = str(children[0])
+        players: PlayersSpec | None = None
+        deck: _Deck | None = None
+        zones: tuple[ZoneDecl, ...] | None = None
+        for item in children[1:]:
+            if isinstance(item, PlayersSpec):
+                players = item
+            elif isinstance(item, _Deck):
+                deck = item
+            elif isinstance(item, tuple):
+                zones = item
+            else:
+                raise NotImplementedError(
+                    f"game item not yet modeled by the typed AST: {item!r}"
+                )
+        assert players is not None and deck is not None and zones is not None
         return Game(
-            name=str(name),
+            name=name,
             players=players,
-            deck=deck,
+            deck=deck.name,
             zones=zones,
             span=self._span(meta),
         )
@@ -127,12 +153,13 @@ class _Builder(Transformer[Token, Game]):
         return game
 
 
-def parse_text(text: str, source_name: str, line_offset: int = 0) -> Game:
-    """Parse DSL ``text`` into a :class:`Game` AST.
+def parse_to_tree(text: str, source_name: str, line_offset: int = 0) -> Tree[Token]:
+    """Parse DSL ``text`` to a raw Lark tree, raising a span-located diagnostic
+    on a syntax error.
 
-    ``line_offset`` is added to Lark's 1-based line numbers so spans point at
-    the original file (a Markdown block starting at file line N uses
-    ``line_offset = N - 1``).
+    This is the grammar-acceptance entry point: it proves the grammar accepts a
+    source without committing to a typed AST for every construct. The typed
+    pipeline (:func:`parse_text`) grows to cover constructs one at a time.
     """
     try:
         tree = _parser().parse(text)
@@ -143,8 +170,18 @@ def parse_text(text: str, source_name: str, line_offset: int = 0) -> Game:
         raise DiagnosticError(
             Diagnostic(Severity.ERROR, f"syntax error: {exc!s}".splitlines()[0], span)
         ) from exc
-
     assert isinstance(tree, Tree)
+    return tree
+
+
+def parse_text(text: str, source_name: str, line_offset: int = 0) -> Game:
+    """Parse DSL ``text`` into a :class:`Game` AST.
+
+    ``line_offset`` is added to Lark's 1-based line numbers so spans point at
+    the original file (a Markdown block starting at file line N uses
+    ``line_offset = N - 1``).
+    """
+    tree = parse_to_tree(text, source_name, line_offset)
     return _Builder(source_name, line_offset).transform(tree)
 
 

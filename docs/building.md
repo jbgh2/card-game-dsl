@@ -142,9 +142,25 @@ spellings fixed by the grammar, and the game files are updated to match.
 Populated as games are brought into the harness. One row per non-`formal`
 construct.
 
-| Construct | Game(s) | Category | Resolution |
-|-----------|---------|----------|------------|
-| _(populated during Phase A–D)_ | | | |
+**Hearts.** The formalized form is `docs/games/hearts.cardlang`, read alongside
+`docs/games/hearts.md`.
+
+| Construct (prose in hearts.md) | Category | Resolution in hearts.cardlang |
+|--------------------------------|----------|-------------------------------|
+| `repeats until any cumulative_score >= 100` | needs-formalizing | explicit quantifier: `repeats until (any player p: cumulative_score[p] >= 100)` |
+| `repeat until all hands empty` | needs-formalizing | `repeat until (all player p: hand[p] is empty)` |
+| `sum over captured[p]: if … then …` | needs-formalizing | named binder: `sum over captured[p] as card: …` |
+| `queen_of_spades`, `2 of clubs` | needs-formalizing | card literal `RANK of SUIT`: `Q of spades`, `2 of clubs` |
+| shoot-the-moon (`if p shot the moon: 0 else 26`) | needs-formalizing | explicit: shooter (`base[p] == 26`) scores 0, others 26 |
+| `the move must consist of exactly 3 cards` | needs-formalizing | `demands: moves where move.card_count == 3` — but see gap **demand-clause-shape** |
+| `player_holding(2 of clubs)` | runtime-primitive | `player_holding(Card) -> Player` (stdlib query) |
+| `highest_of_led_suit` (Trick outcome) | runtime-primitive | `(played, state) -> Player` named outcome function |
+| `hand.where(c => …)`, `hand.cards_of_suit(s)` | runtime-primitive | `Zone.where(pred)`, `Zone.cards_of_suit(Suit) -> Set<Card>` |
+| `move.card_count` | runtime-primitive | `Move.card_count -> Integer` |
+| `Trick`, `play_to_trick`, `transfer_between_hands` | runtime-primitive | library mechanic / move types (library.md) |
+| `demands:` filter-cards vs constrain-move-shape | language-gap | open question **demand-clause-shape** |
+| `transition_to: … when any heart_played event fires` | language-gap | open question **event-declaration** (event names are undeclared) |
+| `outcome of last trick from first_trick` | language-gap | open question **cross-phase-outcome-reference** |
 
 ## Disciplined workflow
 
