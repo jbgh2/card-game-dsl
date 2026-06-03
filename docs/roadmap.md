@@ -114,7 +114,13 @@ open-question framing.
 6. **Defer Tier 5 cosmetic questions** until a real preference
    emerges from corpus pressure.
 
-7. **Begin sketching the OpenSpiel compilation pass.** The
+7. **Build the parser + static checker first.** Before the
+    OpenSpiel compilation pass, the near-term tooling milestone is a
+    grammar and a static checker that force the spec to be precise,
+    with the corpus as the test suite. See
+    [implementation.md](implementation.md).
+
+8. **Begin sketching the OpenSpiel compilation pass.** The
     [decisions.md](decisions.md) "Knowledge, visibility, and the
     projection model" section establishes perfect-recall-by-default;
     [decisions.md](decisions.md) "State scoping" establishes lexical

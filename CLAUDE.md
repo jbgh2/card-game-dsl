@@ -16,6 +16,7 @@ docs/
   library.md             The Trick mechanic + standard library catalogue
   decisions.md           Settled design decisions (the load-bearing spec)
   roadmap.md             Explicitly deferred work + suggested next steps
+  implementation.md      Plan for building the parser + static checker (tooling)
   maintaining.md         Doc hygiene rules — read before editing docs
   appendix.md            Background research synthesis + corpus state catalogue
   games/                 One file per game in the corpus. Living spec examples.
@@ -34,6 +35,7 @@ docs/
 - **"How is game Y described in the DSL?"** → `docs/games/Y.md`
 - **"What's still being decided?"** → `docs/open-questions/_index.md` then the named file
 - **"What should we build next?"** → `docs/roadmap.md` (and `docs/games/_candidates.md` for the full pipeline)
+- **"How do we build the tooling (parser/checker)?"** → `docs/implementation.md`
 - **"Which game uses which state variable?"** → `docs/appendix.md` (corpus catalogue)
 
 ## Operating rules (load-bearing)
