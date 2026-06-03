@@ -217,7 +217,11 @@ arg_list: arg ("," arg)*
         | "(" expr ")"
 
 card_literal: card_rank "of" NAME
-card_rank: CARD_FACE | INT
+// Ranks and suits are values a game's deck defines, not language keywords: a
+// rank is any name or number (A, Q, 10, 2 — or Duke, Mahjong in custom decks),
+// checked by the resolver against the deck's Rank enum. Do NOT reserve face
+// letters as terminals; that would globally steal A/K/Q/J from every game.
+card_rank: NAME | INT
 
 all_players: "all" "players"
 call: NAME "(" [arg_list] ")"
@@ -229,7 +233,6 @@ zone_expr: NAME [index_expr]
 // Terminals
 // ----------------------------------------------------------------------------
 
-CARD_FACE: "A" | "K" | "Q" | "J"
 // Keywords that sit where a NAME is also grammatical, and never name a value,
 // are excluded from NAME to keep them unambiguous: `always` (applies_when
 // wildcard) and the quantity words `all` / `one`. `none`, by contrast, is a

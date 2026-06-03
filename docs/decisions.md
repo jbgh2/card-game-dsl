@@ -491,7 +491,15 @@ rewrites to underlying forms.
   see "Deck declaration" below). Attributes are a per-game extension
   point. Facing is an optional built-in dimension that composes with
   zone visibility (see "Knowledge, visibility, and the projection
-  model" below).
+  model" below). Suit and rank are deck-defined *values*, not language
+  keywords — a rank is any name or number, checked against the deck's
+  `Rank` enum, so the grammar reserves no rank letters. A card is
+  written either as `<rank> of <suit>` (`2 of clubs`, `Q of spades`)
+  or, for a named card, as the bare constant the deck declares
+  (`Dragon`, `Duke`), which resolves like a `Suit` value. The two axes
+  are flexible: a suitless game degenerates one of them — Coup carries
+  the character as the `rank` under a singleton dummy suit `court`, and
+  makes no suit comparison.
 - `Resource<Type>` — fungible quantity of the named type. Declared
   by the game's `resources { }` block.
 - `Suit`, `Rank` — enumerable value types defined by the game's
