@@ -1,0 +1,35 @@
+{
+  "cardlang_ir": 1,
+  "kind": "game",
+  "name": "Skeleton",
+  "players": {
+    "kind": "players",
+    "low": 2,
+    "high": null
+  },
+  "deck": "standard52",
+  "zones": [
+    {
+      "kind": "zone",
+      "name": "deck",
+      "index": null,
+      "type": {
+        "kind": "type_ref",
+        "name": "Deck",
+        "args": []
+      }
+    },
+    {
+      "kind": "zone",
+      "name": "hand",
+      "index": "player",
+      "type": {
+        "kind": "type_ref",
+        "name": "Hand",
+        "args": [
+          "player"
+        ]
+      }
+    }
+  ]
+}

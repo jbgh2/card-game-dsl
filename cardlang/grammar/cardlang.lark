@@ -1,0 +1,33 @@
+// Card Game DSL — surface grammar.
+//
+// Walking-skeleton subset: game header, players, deck, zone declarations.
+// Grammar development starts on Earley (reports ambiguity) and tightens
+// toward LALR (forces a deterministic grammar). It grows one construct at a
+// time, driven by the corpus (docs/building.md, "Build phases").
+
+start: game
+
+game: "game" NAME "{" players deck zones "}"
+
+players: "players" ":" players_spec
+players_spec: INT ".." INT   -> players_range
+            | INT            -> players_fixed
+
+deck: "cards" ":" NAME
+
+zones: "zones" "{" zone_decl* "}"
+zone_decl: NAME [index] ":" type_ref
+index: "[" NAME "]"
+
+type_ref: NAME [type_args]
+type_args: "<" type_arg ("," type_arg)* ">"
+type_arg: NAME
+
+NAME: /[a-zA-Z_][a-zA-Z0-9_]*/
+
+LINE_COMMENT: /\/\/[^\n]*/
+
+%import common.INT
+%import common.WS
+%ignore WS
+%ignore LINE_COMMENT
