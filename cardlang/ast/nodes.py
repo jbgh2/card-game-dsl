@@ -25,11 +25,14 @@ from cardlang.diagnostics import Span
 
 @dataclass(frozen=True, slots=True)
 class NameRef:
-    """A bare identifier: a variable, a card/suit constant, or the `action`
-    pronoun — the resolver decides which."""
+    """A bare identifier. ``ref_kind`` is filled by the resolver, classifying
+    the name as one of: ``local`` (a binder/let), ``state_var``, ``zone``,
+    ``enum_value``, ``function``, or a ``pronoun`` (`state`/`action`/`outcome`/
+    `active_rules`). ``None`` until resolved."""
 
     name: str
     span: Span | None = None
+    ref_kind: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

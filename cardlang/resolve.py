@@ -21,14 +21,26 @@ every diagnostic collected, not just the first.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, fields, is_dataclass, replace
+from typing import Iterator
+
 from cardlang.ast import nodes as n
-from cardlang.diagnostics import DiagnosticBag, DiagnosticError
+from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
+from cardlang.stdlib.functions import (
+    STDLIB_CALL_FUNCS,
+    STDLIB_VALUE_NAMES,
+    ZONE_METHODS,
+)
 from cardlang.stdlib.mechanics import LIBRARY_MECHANICS
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
+from cardlang.stdlib.values import deck_suits, enum_values
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 
 # Roles a zone may be indexed by or owned by. Grows with the seating model.
 _KNOWN_ROLES = {"player"}
+
+# The magic namespaces a bare name may resolve to.
+_PRONOUNS = frozenset({"state", "action", "outcome", "active_rules"})
 
 
 def resolve(game: n.Game) -> n.Game:
@@ -40,6 +52,12 @@ def resolve(game: n.Game) -> n.Game:
     for rule in game.rules:
         _resolve_rule(rule, bag)
     _resolve_phase_level(game.phases, defined_rules, bag)
+
+    # Deep name resolution: classify every bare name and validate calls,
+    # methods, card literals, and the rotate/winner targets.
+    cats = _categories(game)
+    game = _classify_names(game, cats, bag)
+    _validate_refs(game, cats, bag)
 
     _raise_if_errors(bag)
     return game
@@ -134,6 +152,136 @@ def _resolve_stmt(stmt: n.Stmt, bag: DiagnosticBag) -> None:
         _resolve_stmt(stmt.body, bag)
     elif isinstance(stmt, n.ForEach):
         _resolve_stmt(stmt.body, bag)
+
+
+@dataclass(frozen=True)
+class _Categories:
+    """The namespaces a bare name resolves against, collected once per game."""
+
+    locals: frozenset[str]
+    state_vars: frozenset[str]
+    zones: frozenset[str]
+    enums: frozenset[str]
+    functions: frozenset[str]
+    ranks: frozenset[str]
+    suits: frozenset[str]
+
+
+def _walk(node: object) -> Iterator[object]:
+    """Yield every AST node under (and including) ``node``, skipping spans."""
+    if not is_dataclass(node) or isinstance(node, Span):
+        return
+    yield node
+    for f in fields(node):
+        value = getattr(node, f.name)
+        yield from _child_nodes(value)
+
+
+def _child_nodes(value: object) -> Iterator[object]:
+    if is_dataclass(value) and not isinstance(value, Span):
+        yield from _walk(value)
+    elif isinstance(value, tuple):
+        for item in value:
+            yield from _child_nodes(item)
+
+
+def _categories(game: n.Game) -> _Categories:
+    state_vars: set[str] = set()
+    locals_: set[str] = set()
+    for nd in _walk(game):
+        match nd:
+            case n.StateDecl():
+                state_vars.add(nd.name)
+            case n.Lambda():
+                locals_.add(nd.param)
+            case n.Comprehension() | n.Quantifier() | n.ForEach():
+                locals_.add(nd.binder)
+            case n.EachSimultaneous():
+                locals_.add(nd.role)
+            case n.LetStmt():
+                locals_.add(nd.name)
+                if nd.index is not None:
+                    locals_.add(nd.index)
+    return _Categories(
+        locals=frozenset(locals_),
+        state_vars=frozenset(state_vars),
+        zones=frozenset(z.name for z in game.zones),
+        enums=enum_values(game.deck),
+        functions=STDLIB_VALUE_NAMES,
+        ranks=frozenset(game.ranking),
+        suits=deck_suits(game.deck),
+    )
+
+
+def _classify(name: str, cats: _Categories) -> str | None:
+    if name in cats.locals:
+        return "local"
+    if name in cats.state_vars:
+        return "state_var"
+    if name in cats.zones:
+        return "zone"
+    if name in cats.enums:
+        return "enum_value"
+    if name in _PRONOUNS:
+        return "pronoun"
+    if name in cats.functions:
+        return "function"
+    return None
+
+
+def _classify_names(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> n.Game:
+    """Immutably rewrite every NameRef with its classification, recording an
+    error for any name that resolves to nothing."""
+    result = _rewrite(game, cats, bag)
+    assert isinstance(result, n.Game)
+    return result
+
+
+def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
+    if isinstance(node, n.NameRef):
+        kind = _classify(node.name, cats)
+        if kind is None:
+            bag.error(f"unresolved name '{node.name}'", node.span)
+        return replace(node, ref_kind=kind)
+    if not is_dataclass(node) or isinstance(node, Span):
+        return node
+    changes: dict[str, object] = {}
+    for f in fields(node):
+        value = getattr(node, f.name)
+        rewritten = _rewrite_value(value, cats, bag)
+        if rewritten is not value:
+            changes[f.name] = rewritten
+    return replace(node, **changes) if changes else node  # type: ignore[type-var]
+
+
+def _rewrite_value(value: object, cats: _Categories, bag: DiagnosticBag) -> object:
+    if is_dataclass(value) and not isinstance(value, Span):
+        return _rewrite(value, cats, bag)
+    if isinstance(value, tuple):
+        return tuple(_rewrite_value(item, cats, bag) for item in value)
+    return value
+
+
+def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
+    for nd in _walk(game):
+        match nd:
+            case n.Call() if nd.func not in STDLIB_CALL_FUNCS:
+                bag.error(f"call to unknown function '{nd.func}'", nd.span)
+            case n.MethodCall() if nd.method not in ZONE_METHODS:
+                bag.error(f"unknown zone method '{nd.method}'", nd.span)
+            case n.CardLiteral():
+                if nd.rank not in cats.ranks:
+                    bag.error(f"unknown rank '{nd.rank}' in card literal", nd.span)
+                if nd.suit not in cats.suits:
+                    bag.error(f"unknown suit '{nd.suit}' in card literal", nd.span)
+            case n.RotateStmt():
+                if nd.var not in cats.state_vars and nd.var not in cats.locals:
+                    bag.error(f"rotate of unknown variable '{nd.var}'", nd.span)
+                for value in nd.values:
+                    if value not in cats.enums:
+                        bag.error(f"rotate through unknown value '{value}'", nd.span)
+            case n.Winner() if nd.target not in cats.state_vars:
+                bag.error(f"winner references unknown variable '{nd.target}'", nd.span)
 
 
 def _raise_if_errors(bag: DiagnosticBag) -> None:

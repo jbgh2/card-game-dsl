@@ -244,7 +244,7 @@ def _arg(a: n.Arg) -> IRValue:
 def _expr(e: n.Expr) -> IRDict:
     match e:
         case n.NameRef():
-            return {"kind": "name", "name": e.name}
+            return {"kind": "name", "name": e.name, "ref": e.ref_kind}
         case n.IntLit():
             return {"kind": "int", "value": e.value}
         case n.StrLit():

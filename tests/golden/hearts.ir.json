@@ -105,11 +105,13 @@
               "kind": "subscript",
               "obj": {
                 "kind": "name",
-                "name": "cumulative_score"
+                "name": "cumulative_score",
+                "ref": "state_var"
               },
               "index": {
                 "kind": "name",
-                "name": "p"
+                "name": "p",
+                "ref": "local"
               }
             },
             "right": {
@@ -131,7 +133,8 @@
               "optional": false,
               "default": {
                 "kind": "name",
-                "name": "left"
+                "name": "left",
+                "ref": "enum_value"
               }
             },
             {
@@ -142,7 +145,8 @@
               "optional": false,
               "default": {
                 "kind": "name",
-                "name": "none"
+                "name": "none",
+                "ref": "enum_value"
               }
             }
           ]
@@ -157,7 +161,8 @@
               "op": "shuffle",
               "target": {
                 "kind": "name",
-                "name": "deck"
+                "name": "deck",
+                "ref": "zone"
               }
             },
             {
@@ -171,11 +176,13 @@
               "item": "cards",
               "source": {
                 "kind": "name",
-                "name": "deck"
+                "name": "deck",
+                "ref": "zone"
               },
               "dest": {
                 "kind": "name",
-                "name": "hand"
+                "name": "hand",
+                "ref": "zone"
               },
               "dest_each": true,
               "visibility": null
@@ -203,11 +210,13 @@
               "op": "!=",
               "left": {
                 "kind": "name",
-                "name": "pass_direction"
+                "name": "pass_direction",
+                "ref": "state_var"
               },
               "right": {
                 "kind": "name",
-                "name": "none"
+                "name": "none",
+                "ref": "enum_value"
               }
             }
           },
@@ -244,29 +253,34 @@
                   "kind": "subscript",
                   "obj": {
                     "kind": "name",
-                    "name": "hand"
+                    "name": "hand",
+                    "ref": "zone"
                   },
                   "index": {
                     "kind": "name",
-                    "name": "player"
+                    "name": "player",
+                    "ref": "local"
                   }
                 },
                 "dest": {
                   "kind": "subscript",
                   "obj": {
                     "kind": "name",
-                    "name": "hand"
+                    "name": "hand",
+                    "ref": "zone"
                   },
                   "index": {
                     "kind": "binop",
                     "op": "offset_by",
                     "left": {
                       "kind": "name",
-                      "name": "player"
+                      "name": "player",
+                      "ref": "local"
                     },
                     "right": {
                       "kind": "name",
-                      "name": "pass_direction"
+                      "name": "pass_direction",
+                      "ref": "state_var"
                     }
                   }
                 },
@@ -340,7 +354,8 @@
                   "name": "leader",
                   "value": {
                     "kind": "name",
-                    "name": "leader"
+                    "name": "leader",
+                    "ref": "state_var"
                   }
                 },
                 {
@@ -348,7 +363,8 @@
                   "name": "source_zone",
                   "value": {
                     "kind": "name",
-                    "name": "hand"
+                    "name": "hand",
+                    "ref": "zone"
                   }
                 },
                 {
@@ -356,7 +372,8 @@
                   "name": "play_zone",
                   "value": {
                     "kind": "name",
-                    "name": "trick_pile"
+                    "name": "trick_pile",
+                    "ref": "zone"
                   }
                 },
                 {
@@ -364,7 +381,8 @@
                   "name": "play_rules",
                   "value": {
                     "kind": "name",
-                    "name": "active_rules"
+                    "name": "active_rules",
+                    "ref": "pronoun"
                   }
                 },
                 {
@@ -372,7 +390,8 @@
                   "name": "outcome",
                   "value": {
                     "kind": "name",
-                    "name": "highest_of_led_suit"
+                    "name": "highest_of_led_suit",
+                    "ref": "function"
                   }
                 },
                 {
@@ -386,17 +405,20 @@
                     "item": "cards",
                     "source": {
                       "kind": "name",
-                      "name": "trick_pile"
+                      "name": "trick_pile",
+                      "ref": "zone"
                     },
                     "dest": {
                       "kind": "subscript",
                       "obj": {
                         "kind": "name",
-                        "name": "captured"
+                        "name": "captured",
+                        "ref": "zone"
                       },
                       "index": {
                         "kind": "name",
-                        "name": "outcome"
+                        "name": "outcome",
+                        "ref": "pronoun"
                       }
                     },
                     "dest_each": false,
@@ -412,7 +434,8 @@
               "op": ":=",
               "value": {
                 "kind": "name",
-                "name": "outcome"
+                "name": "outcome",
+                "ref": "pronoun"
               }
             }
           ]
@@ -468,7 +491,8 @@
                           "kind": "member",
                           "obj": {
                             "kind": "name",
-                            "name": "action"
+                            "name": "action",
+                            "ref": "pronoun"
                           },
                           "field": "card"
                         },
@@ -476,7 +500,8 @@
                       },
                       "right": {
                         "kind": "name",
-                        "name": "hearts"
+                        "name": "hearts",
+                        "ref": "enum_value"
                       }
                     }
                   }
@@ -503,11 +528,13 @@
                     "kind": "subscript",
                     "obj": {
                       "kind": "name",
-                      "name": "hand"
+                      "name": "hand",
+                      "ref": "zone"
                     },
                     "index": {
                       "kind": "name",
-                      "name": "p"
+                      "name": "p",
+                      "ref": "local"
                     }
                   }
                 }
@@ -529,7 +556,8 @@
                       "name": "leader",
                       "value": {
                         "kind": "name",
-                        "name": "leader"
+                        "name": "leader",
+                        "ref": "state_var"
                       }
                     },
                     {
@@ -537,7 +565,8 @@
                       "name": "source_zone",
                       "value": {
                         "kind": "name",
-                        "name": "hand"
+                        "name": "hand",
+                        "ref": "zone"
                       }
                     },
                     {
@@ -545,7 +574,8 @@
                       "name": "play_zone",
                       "value": {
                         "kind": "name",
-                        "name": "trick_pile"
+                        "name": "trick_pile",
+                        "ref": "zone"
                       }
                     },
                     {
@@ -553,7 +583,8 @@
                       "name": "play_rules",
                       "value": {
                         "kind": "name",
-                        "name": "active_rules"
+                        "name": "active_rules",
+                        "ref": "pronoun"
                       }
                     },
                     {
@@ -561,7 +592,8 @@
                       "name": "outcome",
                       "value": {
                         "kind": "name",
-                        "name": "highest_of_led_suit"
+                        "name": "highest_of_led_suit",
+                        "ref": "function"
                       }
                     },
                     {
@@ -575,17 +607,20 @@
                         "item": "cards",
                         "source": {
                           "kind": "name",
-                          "name": "trick_pile"
+                          "name": "trick_pile",
+                          "ref": "zone"
                         },
                         "dest": {
                           "kind": "subscript",
                           "obj": {
                             "kind": "name",
-                            "name": "captured"
+                            "name": "captured",
+                            "ref": "zone"
                           },
                           "index": {
                             "kind": "name",
-                            "name": "outcome"
+                            "name": "outcome",
+                            "ref": "pronoun"
                           }
                         },
                         "dest_each": false,
@@ -601,7 +636,8 @@
                   "op": ":=",
                   "value": {
                     "kind": "name",
-                    "name": "outcome"
+                    "name": "outcome",
+                    "ref": "pronoun"
                   }
                 }
               ]
@@ -624,11 +660,13 @@
                   "kind": "subscript",
                   "obj": {
                     "kind": "name",
-                    "name": "captured"
+                    "name": "captured",
+                    "ref": "zone"
                   },
                   "index": {
                     "kind": "name",
-                    "name": "p"
+                    "name": "p",
+                    "ref": "local"
                   }
                 },
                 "binder": "card",
@@ -641,13 +679,15 @@
                       "kind": "member",
                       "obj": {
                         "kind": "name",
-                        "name": "card"
+                        "name": "card",
+                        "ref": "local"
                       },
                       "field": "suit"
                     },
                     "right": {
                       "kind": "name",
-                      "name": "hearts"
+                      "name": "hearts",
+                      "ref": "enum_value"
                     }
                   },
                   "then": {
@@ -661,7 +701,8 @@
                         "op": "==",
                         "left": {
                           "kind": "name",
-                          "name": "card"
+                          "name": "card",
+                          "ref": "local"
                         },
                         "right": {
                           "kind": "card",
@@ -700,11 +741,13 @@
                       "kind": "subscript",
                       "obj": {
                         "kind": "name",
-                        "name": "base"
+                        "name": "base",
+                        "ref": "local"
                       },
                       "index": {
                         "kind": "name",
-                        "name": "q"
+                        "name": "q",
+                        "ref": "local"
                       }
                     },
                     "right": {
@@ -722,11 +765,13 @@
                       "kind": "subscript",
                       "obj": {
                         "kind": "name",
-                        "name": "base"
+                        "name": "base",
+                        "ref": "local"
                       },
                       "index": {
                         "kind": "name",
-                        "name": "p"
+                        "name": "p",
+                        "ref": "local"
                       }
                     },
                     "right": {
@@ -749,11 +794,13 @@
                   "kind": "subscript",
                   "obj": {
                     "kind": "name",
-                    "name": "base"
+                    "name": "base",
+                    "ref": "local"
                   },
                   "index": {
                     "kind": "name",
-                    "name": "p"
+                    "name": "p",
+                    "ref": "local"
                   }
                 }
               }
@@ -767,18 +814,21 @@
                 "name": "cumulative_score",
                 "index": {
                   "kind": "name",
-                  "name": "p"
+                  "name": "p",
+                  "ref": "local"
                 },
                 "op": "+=",
                 "value": {
                   "kind": "subscript",
                   "obj": {
                     "kind": "name",
-                    "name": "hand_score"
+                    "name": "hand_score",
+                    "ref": "local"
                   },
                   "index": {
                     "kind": "name",
-                    "name": "p"
+                    "name": "p",
+                    "ref": "local"
                   }
                 }
               }
@@ -808,7 +858,8 @@
             "kind": "member",
             "obj": {
               "kind": "name",
-              "name": "state"
+              "name": "state",
+              "ref": "pronoun"
             },
             "field": "led_suit"
           }
@@ -821,7 +872,8 @@
           "kind": "method_call",
           "obj": {
             "kind": "name",
-            "name": "hand"
+            "name": "hand",
+            "ref": "zone"
           },
           "method": "where",
           "args": [
@@ -833,7 +885,8 @@
                 "op": "==",
                 "left": {
                   "kind": "name",
-                  "name": "c"
+                  "name": "c",
+                  "ref": "local"
                 },
                 "right": {
                   "kind": "card",
@@ -872,7 +925,8 @@
           "kind": "method_call",
           "obj": {
             "kind": "name",
-            "name": "hand"
+            "name": "hand",
+            "ref": "zone"
           },
           "method": "where",
           "args": [
@@ -889,13 +943,15 @@
                     "kind": "member",
                     "obj": {
                       "kind": "name",
-                      "name": "c"
+                      "name": "c",
+                      "ref": "local"
                     },
                     "field": "suit"
                   },
                   "right": {
                     "kind": "name",
-                    "name": "hearts"
+                    "name": "hearts",
+                    "ref": "enum_value"
                   }
                 },
                 "right": {
@@ -903,7 +959,8 @@
                   "op": "!=",
                   "left": {
                     "kind": "name",
-                    "name": "c"
+                    "name": "c",
+                    "ref": "local"
                   },
                   "right": {
                     "kind": "card",
@@ -932,7 +989,8 @@
             "kind": "member",
             "obj": {
               "kind": "name",
-              "name": "state"
+              "name": "state",
+              "ref": "pronoun"
             },
             "field": "led_suit"
           }
@@ -945,7 +1003,8 @@
           "kind": "method_call",
           "obj": {
             "kind": "name",
-            "name": "hand"
+            "name": "hand",
+            "ref": "zone"
           },
           "method": "where",
           "args": [
@@ -959,13 +1018,15 @@
                   "kind": "member",
                   "obj": {
                     "kind": "name",
-                    "name": "c"
+                    "name": "c",
+                    "ref": "local"
                   },
                   "field": "suit"
                 },
                 "right": {
                   "kind": "name",
-                  "name": "hearts"
+                  "name": "hearts",
+                  "ref": "enum_value"
                 }
               }
             }
@@ -989,7 +1050,8 @@
             "kind": "member",
             "obj": {
               "kind": "name",
-              "name": "action"
+              "name": "action",
+              "ref": "pronoun"
             },
             "field": "card_count"
           },
@@ -1015,7 +1077,8 @@
             "kind": "member",
             "obj": {
               "kind": "name",
-              "name": "state"
+              "name": "state",
+              "ref": "pronoun"
             },
             "field": "led_suit"
           }
@@ -1028,7 +1091,8 @@
           "kind": "method_call",
           "obj": {
             "kind": "name",
-            "name": "hand"
+            "name": "hand",
+            "ref": "zone"
           },
           "method": "cards_of_suit",
           "args": [
@@ -1036,7 +1100,8 @@
               "kind": "member",
               "obj": {
                 "kind": "name",
-                "name": "state"
+                "name": "state",
+                "ref": "pronoun"
               },
               "field": "led_suit"
             }
