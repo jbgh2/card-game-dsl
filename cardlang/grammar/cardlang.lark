@@ -46,7 +46,8 @@ type_name: NAME "?"   -> optional_type
          | NAME       -> plain_type
 
 winner: "winner" ":" rank_dir NAME
-rank_dir: "lowest" | "highest"
+rank_dir: RANK_DIR
+RANK_DIR: "lowest" | "highest"
 
 // ----------------------------------------------------------------------------
 // Phases
@@ -100,8 +101,8 @@ move_event: NAME ["where" expr]
 // The verb is sugar over a single IR node; the amount is an expression and the
 // item noun covers cards and resources. The "in" form lets muck/burn imply
 // their destination.
-movement: MOVE_VERB selection "from" zone_expr move_dest [vis_clause]
-        | MOVE_VERB selection "in" zone_expr [vis_clause]
+movement: MOVE_VERB selection "from" zone_expr move_dest [vis_clause]  -> move_from
+        | MOVE_VERB selection "in" zone_expr [vis_clause]              -> move_in
 MOVE_VERB: "deal" | "transfer" | "move" | "burn" | "muck" | "draw"
 selection: [select_mode] amount NAME
 select_mode: "chosen" -> sel_chosen
@@ -133,7 +134,8 @@ named_arg: NAME "=" arg_value
 
 let_stmt: "let" NAME [index] "=" expr
 assign_stmt: lvalue assign_op expr
-assign_op: ":=" | "+=" | "-="
+assign_op: ASSIGN_OP
+ASSIGN_OP: ":=" | "+=" | "-="
 lvalue: NAME [index_expr]
 
 // ----------------------------------------------------------------------------
@@ -171,7 +173,7 @@ if_impossible: "if_impossible" ":" expr
 
 // A lambda's body extends as far right as possible, so it sits at the top
 // of the expression grammar rather than among the primaries.
-lambda: NAME "=>" expr
+lambda: NAME "=>" expr   -> lambda_expr
 
 quantifier: "any" NAME NAME ":" expr  -> exists
           | "all" NAME NAME ":" expr  -> forall
@@ -194,7 +196,8 @@ elif_clause: "elif" expr "then" expr
            | sum "is" "empty"        -> is_empty
            | sum comp_op sum         -> compare
            | sum
-comp_op: "==" | "!=" | ">=" | "<=" | ">" | "<"
+comp_op: COMP_OP
+COMP_OP: "==" | "!=" | ">=" | "<=" | ">" | "<"
 
 ?sum: sum "+" term   -> add
     | sum "-" term   -> sub
