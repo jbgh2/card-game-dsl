@@ -150,9 +150,13 @@ applies_when: "applies_when" ":" applies_pred
 ?applies_pred: "always"  -> always
              | expr
 demands: "demands" ":" demand_value
-?demand_value: moves_where
+?demand_value: actions_where
              | expr
-moves_where: "moves" "where" expr
+// A predicate over the candidate player move, whose subject is `action`
+// (see decisions.md "Rule demand forms"). `action` is the move instance —
+// `action.card`, `action.card_count`, `action.amount` — never the zone-movement
+// verb `move`.
+actions_where: "actions" "where" expr
 if_impossible: "if_impossible" ":" expr
 
 // ----------------------------------------------------------------------------

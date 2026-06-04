@@ -138,9 +138,10 @@ The `<event>` is the same reference form triggered scoring components
 use — a move-type event with an optional `where <predicate>` (see
 "Triggered scoring components"); there are no ad-hoc event names.
 Hearts breaks hearts with `transition_to: hearts_broken when
-play_to_trick where card.suit == hearts`; Spades breaks spades with
-`transition_to: spades_broken when play_to_trick where card.suit ==
-spades`. The transition is one-shot — once Y is entered, X is not
+play_to_trick where action.card.suit == hearts`; Spades breaks spades with
+`transition_to: spades_broken when play_to_trick where action.card.suit ==
+spades` (the move under inspection is bound as `action` — see "Rule demand
+forms"). The transition is one-shot — once Y is entered, X is not
 re-entered.
 
 There is no separate construct for "this sub-phase ends and control
@@ -211,16 +212,28 @@ what it constrains:
   hand.where(c => c.suit != hearts)` are this form. The legal move set
   is the intersection of every active rule's candidate set.
 
-- **A predicate on the move** — `demands: moves where <predicate>`,
+- **A predicate on the move** — `demands: actions where <predicate>`,
   constraining the shape of the move itself rather than which cards it
-  draws from a zone. Hearts' `PassExactlyThreeCards` is `demands: moves
-  where move.card_count == 3`; Stud's `BringInMandatory` is `demands:
-  moves where move.amount == bring_in_amount`. Cribbage's two-card
+  draws from a zone. Hearts' `PassExactlyThreeCards` is `demands: actions
+  where action.card_count == 3`; Stud's `BringInMandatory` is `demands:
+  actions where action.amount == bring_in_amount`. Cribbage's two-card
   discard and Tichu's one-card-per-opponent push are the same form.
 
 The two are not interchangeable: the first names *which cards*, the
 second *how the move is shaped*. A move is legal when it satisfies
 every active rule's demand, of either form.
+
+**The move under inspection is bound as `action`.** A predicate over a
+player's move — `demands: actions where …` here, and the `when <move-type>
+where …` triggers of sub-phase transitions (see "Sub-phase entry and exit")
+and triggered scoring components — binds that move as `action`, and its
+fields expose the move's data: `action.card` (the card played),
+`action.cards`, `action.card_count`, `action.actor`, `action.amount`. The
+subject is always reached through `action`; there are no bare field names,
+and it is never spelled `move` — `move` is the zone-movement verb (see "The
+operation vocabulary"). `action` is the same player-move object the `offer
+action` syntax names. (The *concept* is still a move type; `action` is an
+instance of one, as taken.)
 
 ## Trick mechanic parameters vs rules
 
@@ -454,7 +467,7 @@ before, potentially including game termination."
 
 **Event-driven sub-phase transitions are not a third mutation mode.**
 Hearts' `transition_to: hearts_broken when play_to_trick where
-card.suit == hearts` is *phase entry/exit* triggered by the
+action.card.suit == hearts` is *phase entry/exit* triggered by the
 move-emitted event.
 The implied state change (the `NoLeadingHeartsUntilBroken` rule
 becomes inactive) happens because the active rule set changes when

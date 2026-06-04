@@ -81,7 +81,7 @@ game Hearts {
 
       phase hearts_not_broken {
         active_rules: [+ NoLeadingHeartsUntilBroken]
-        transition_to: hearts_broken when play_to_trick where card.suit == hearts
+        transition_to: hearts_broken when play_to_trick where action.card.suit == hearts
       }
 
       phase hearts_broken {
@@ -148,7 +148,7 @@ rule NoLeadingHeartsUntilBroken {
 
 rule PassExactlyThreeCards {
   constrains: transfer_between_hands
-  demands: moves where move.card_count == 3
+  demands: actions where action.card_count == 3
 }
 
 // === Standard library rule ===

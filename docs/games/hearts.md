@@ -75,7 +75,7 @@ game Hearts {
 
       phase hearts_not_broken {
         active_rules: [+ NoLeadingHeartsUntilBroken]
-        transition_to: hearts_broken when play_to_trick where card.suit == hearts
+        transition_to: hearts_broken when play_to_trick where action.card.suit == hearts
       }
 
       phase hearts_broken {
