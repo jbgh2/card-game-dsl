@@ -1,0 +1,1049 @@
+{
+  "cardlang_ir": 1,
+  "kind": "game",
+  "name": "Hearts",
+  "players": {
+    "kind": "players",
+    "low": 4,
+    "high": null
+  },
+  "deck": "standard52",
+  "direction": "clockwise",
+  "ranking": [
+    "A",
+    "K",
+    "Q",
+    "J",
+    "10",
+    "9",
+    "8",
+    "7",
+    "6",
+    "5",
+    "4",
+    "3",
+    "2"
+  ],
+  "zones": [
+    {
+      "kind": "zone",
+      "name": "deck",
+      "index": null,
+      "type": {
+        "kind": "type_ref",
+        "name": "Deck",
+        "args": []
+      }
+    },
+    {
+      "kind": "zone",
+      "name": "hand",
+      "index": "player",
+      "type": {
+        "kind": "type_ref",
+        "name": "Hand",
+        "args": [
+          "player"
+        ]
+      }
+    },
+    {
+      "kind": "zone",
+      "name": "trick_pile",
+      "index": null,
+      "type": {
+        "kind": "type_ref",
+        "name": "TrickPile",
+        "args": []
+      }
+    },
+    {
+      "kind": "zone",
+      "name": "captured",
+      "index": "player",
+      "type": {
+        "kind": "type_ref",
+        "name": "PlayerPile",
+        "args": [
+          "player"
+        ]
+      }
+    }
+  ],
+  "state": {
+    "kind": "state",
+    "decls": [
+      {
+        "kind": "state_decl",
+        "name": "cumulative_score",
+        "index": "player",
+        "type": "Integer",
+        "optional": false,
+        "default": {
+          "kind": "int",
+          "value": 0
+        }
+      }
+    ]
+  },
+  "phases": [
+    {
+      "kind": "phase",
+      "name": "hand_sequence",
+      "qualifier": {
+        "kind": "phase_qualifier",
+        "qualifier": "repeats",
+        "expr": {
+          "kind": "quantifier",
+          "quant": "any",
+          "role": "player",
+          "binder": "p",
+          "body": {
+            "kind": "binop",
+            "op": ">=",
+            "left": {
+              "kind": "subscript",
+              "obj": {
+                "kind": "name",
+                "name": "cumulative_score"
+              },
+              "index": {
+                "kind": "name",
+                "name": "p"
+              }
+            },
+            "right": {
+              "kind": "int",
+              "value": 100
+            }
+          }
+        }
+      },
+      "items": [
+        {
+          "kind": "state",
+          "decls": [
+            {
+              "kind": "state_decl",
+              "name": "pass_direction",
+              "index": null,
+              "type": "Direction",
+              "optional": false,
+              "default": {
+                "kind": "name",
+                "name": "left"
+              }
+            },
+            {
+              "kind": "state_decl",
+              "name": "leader",
+              "index": null,
+              "type": "Player",
+              "optional": false,
+              "default": {
+                "kind": "name",
+                "name": "none"
+              }
+            }
+          ]
+        },
+        {
+          "kind": "phase",
+          "name": "setup",
+          "qualifier": null,
+          "items": [
+            {
+              "kind": "epistemic_op",
+              "op": "shuffle",
+              "target": {
+                "kind": "name",
+                "name": "deck"
+              }
+            },
+            {
+              "kind": "movement",
+              "verb": "deal",
+              "mode": null,
+              "amount": {
+                "kind": "int",
+                "value": 13
+              },
+              "item": "cards",
+              "source": {
+                "kind": "name",
+                "name": "deck"
+              },
+              "dest": {
+                "kind": "name",
+                "name": "hand"
+              },
+              "dest_each": true,
+              "visibility": null
+            },
+            {
+              "kind": "rotate",
+              "var": "pass_direction",
+              "values": [
+                "left",
+                "right",
+                "across",
+                "none"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "phase",
+          "name": "passing",
+          "qualifier": {
+            "kind": "phase_qualifier",
+            "qualifier": "when",
+            "expr": {
+              "kind": "binop",
+              "op": "!=",
+              "left": {
+                "kind": "name",
+                "name": "pass_direction"
+              },
+              "right": {
+                "kind": "name",
+                "name": "none"
+              }
+            }
+          },
+          "items": [
+            {
+              "kind": "active_rules",
+              "refs": [
+                {
+                  "kind": "rule_ref",
+                  "name": "PassExactlyThreeCards",
+                  "op": "plain"
+                }
+              ]
+            },
+            {
+              "kind": "legal_moves",
+              "names": [
+                "transfer_between_hands"
+              ]
+            },
+            {
+              "kind": "each_simultaneous",
+              "role": "player",
+              "body": {
+                "kind": "movement",
+                "verb": "transfer",
+                "mode": "chosen",
+                "amount": {
+                  "kind": "int",
+                  "value": 3
+                },
+                "item": "cards",
+                "source": {
+                  "kind": "subscript",
+                  "obj": {
+                    "kind": "name",
+                    "name": "hand"
+                  },
+                  "index": {
+                    "kind": "name",
+                    "name": "player"
+                  }
+                },
+                "dest": {
+                  "kind": "subscript",
+                  "obj": {
+                    "kind": "name",
+                    "name": "hand"
+                  },
+                  "index": {
+                    "kind": "binop",
+                    "op": "offset_by",
+                    "left": {
+                      "kind": "name",
+                      "name": "player"
+                    },
+                    "right": {
+                      "kind": "name",
+                      "name": "pass_direction"
+                    }
+                  }
+                },
+                "dest_each": false,
+                "visibility": null
+              }
+            }
+          ]
+        },
+        {
+          "kind": "phase",
+          "name": "first_trick",
+          "qualifier": null,
+          "items": [
+            {
+              "kind": "active_rules",
+              "refs": [
+                {
+                  "kind": "rule_ref",
+                  "name": "MustFollowSuit",
+                  "op": "plain"
+                },
+                {
+                  "kind": "rule_ref",
+                  "name": "MustLeadTwoOfClubsOnFirstPlay",
+                  "op": "plain"
+                },
+                {
+                  "kind": "rule_ref",
+                  "name": "NoPenaltyCardsOnFirstTrick",
+                  "op": "plain"
+                }
+              ]
+            },
+            {
+              "kind": "legal_moves",
+              "names": [
+                "play_to_trick"
+              ]
+            },
+            {
+              "kind": "assign",
+              "name": "leader",
+              "index": null,
+              "op": ":=",
+              "value": {
+                "kind": "call",
+                "func": "player_holding",
+                "args": [
+                  {
+                    "kind": "card",
+                    "rank": "2",
+                    "suit": "clubs"
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "instantiate",
+              "mechanic": "Trick",
+              "args": [
+                {
+                  "kind": "named_arg",
+                  "name": "participants",
+                  "value": {
+                    "kind": "all_players"
+                  }
+                },
+                {
+                  "kind": "named_arg",
+                  "name": "leader",
+                  "value": {
+                    "kind": "name",
+                    "name": "leader"
+                  }
+                },
+                {
+                  "kind": "named_arg",
+                  "name": "source_zone",
+                  "value": {
+                    "kind": "name",
+                    "name": "hand"
+                  }
+                },
+                {
+                  "kind": "named_arg",
+                  "name": "play_zone",
+                  "value": {
+                    "kind": "name",
+                    "name": "trick_pile"
+                  }
+                },
+                {
+                  "kind": "named_arg",
+                  "name": "play_rules",
+                  "value": {
+                    "kind": "name",
+                    "name": "active_rules"
+                  }
+                },
+                {
+                  "kind": "named_arg",
+                  "name": "outcome",
+                  "value": {
+                    "kind": "name",
+                    "name": "highest_of_led_suit"
+                  }
+                },
+                {
+                  "kind": "named_arg",
+                  "name": "routing",
+                  "value": {
+                    "kind": "movement",
+                    "verb": "move",
+                    "mode": null,
+                    "amount": "all",
+                    "item": "cards",
+                    "source": {
+                      "kind": "name",
+                      "name": "trick_pile"
+                    },
+                    "dest": {
+                      "kind": "subscript",
+                      "obj": {
+                        "kind": "name",
+                        "name": "captured"
+                      },
+                      "index": {
+                        "kind": "name",
+                        "name": "outcome"
+                      }
+                    },
+                    "dest_each": false,
+                    "visibility": null
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "assign",
+              "name": "leader",
+              "index": null,
+              "op": ":=",
+              "value": {
+                "kind": "name",
+                "name": "outcome"
+              }
+            }
+          ]
+        },
+        {
+          "kind": "phase",
+          "name": "play",
+          "qualifier": null,
+          "items": [
+            {
+              "kind": "active_rules",
+              "refs": [
+                {
+                  "kind": "rule_ref",
+                  "name": "MustFollowSuit",
+                  "op": "plain"
+                }
+              ]
+            },
+            {
+              "kind": "legal_moves",
+              "names": [
+                "play_to_trick"
+              ]
+            },
+            {
+              "kind": "phase",
+              "name": "hearts_not_broken",
+              "qualifier": null,
+              "items": [
+                {
+                  "kind": "active_rules",
+                  "refs": [
+                    {
+                      "kind": "rule_ref",
+                      "name": "NoLeadingHeartsUntilBroken",
+                      "op": "add"
+                    }
+                  ]
+                },
+                {
+                  "kind": "transition_to",
+                  "target": "hearts_broken",
+                  "event": {
+                    "kind": "move_event",
+                    "move_type": "play_to_trick",
+                    "where": {
+                      "kind": "binop",
+                      "op": "==",
+                      "left": {
+                        "kind": "member",
+                        "obj": {
+                          "kind": "member",
+                          "obj": {
+                            "kind": "name",
+                            "name": "action"
+                          },
+                          "field": "card"
+                        },
+                        "field": "suit"
+                      },
+                      "right": {
+                        "kind": "name",
+                        "name": "hearts"
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "phase",
+              "name": "hearts_broken",
+              "qualifier": null,
+              "items": []
+            },
+            {
+              "kind": "repeat_until",
+              "cond": {
+                "kind": "quantifier",
+                "quant": "all",
+                "role": "player",
+                "binder": "p",
+                "body": {
+                  "kind": "is_check",
+                  "check": "empty",
+                  "operand": {
+                    "kind": "subscript",
+                    "obj": {
+                      "kind": "name",
+                      "name": "hand"
+                    },
+                    "index": {
+                      "kind": "name",
+                      "name": "p"
+                    }
+                  }
+                }
+              },
+              "body": [
+                {
+                  "kind": "instantiate",
+                  "mechanic": "Trick",
+                  "args": [
+                    {
+                      "kind": "named_arg",
+                      "name": "participants",
+                      "value": {
+                        "kind": "all_players"
+                      }
+                    },
+                    {
+                      "kind": "named_arg",
+                      "name": "leader",
+                      "value": {
+                        "kind": "name",
+                        "name": "leader"
+                      }
+                    },
+                    {
+                      "kind": "named_arg",
+                      "name": "source_zone",
+                      "value": {
+                        "kind": "name",
+                        "name": "hand"
+                      }
+                    },
+                    {
+                      "kind": "named_arg",
+                      "name": "play_zone",
+                      "value": {
+                        "kind": "name",
+                        "name": "trick_pile"
+                      }
+                    },
+                    {
+                      "kind": "named_arg",
+                      "name": "play_rules",
+                      "value": {
+                        "kind": "name",
+                        "name": "active_rules"
+                      }
+                    },
+                    {
+                      "kind": "named_arg",
+                      "name": "outcome",
+                      "value": {
+                        "kind": "name",
+                        "name": "highest_of_led_suit"
+                      }
+                    },
+                    {
+                      "kind": "named_arg",
+                      "name": "routing",
+                      "value": {
+                        "kind": "movement",
+                        "verb": "move",
+                        "mode": null,
+                        "amount": "all",
+                        "item": "cards",
+                        "source": {
+                          "kind": "name",
+                          "name": "trick_pile"
+                        },
+                        "dest": {
+                          "kind": "subscript",
+                          "obj": {
+                            "kind": "name",
+                            "name": "captured"
+                          },
+                          "index": {
+                            "kind": "name",
+                            "name": "outcome"
+                          }
+                        },
+                        "dest_each": false,
+                        "visibility": null
+                      }
+                    }
+                  ]
+                },
+                {
+                  "kind": "assign",
+                  "name": "leader",
+                  "index": null,
+                  "op": ":=",
+                  "value": {
+                    "kind": "name",
+                    "name": "outcome"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "phase",
+          "name": "scoring",
+          "qualifier": null,
+          "items": [
+            {
+              "kind": "let",
+              "name": "base",
+              "index": "p",
+              "value": {
+                "kind": "comprehension",
+                "agg": "sum",
+                "source": {
+                  "kind": "subscript",
+                  "obj": {
+                    "kind": "name",
+                    "name": "captured"
+                  },
+                  "index": {
+                    "kind": "name",
+                    "name": "p"
+                  }
+                },
+                "binder": "card",
+                "body": {
+                  "kind": "if",
+                  "cond": {
+                    "kind": "binop",
+                    "op": "==",
+                    "left": {
+                      "kind": "member",
+                      "obj": {
+                        "kind": "name",
+                        "name": "card"
+                      },
+                      "field": "suit"
+                    },
+                    "right": {
+                      "kind": "name",
+                      "name": "hearts"
+                    }
+                  },
+                  "then": {
+                    "kind": "int",
+                    "value": 1
+                  },
+                  "elifs": [
+                    [
+                      {
+                        "kind": "binop",
+                        "op": "==",
+                        "left": {
+                          "kind": "name",
+                          "name": "card"
+                        },
+                        "right": {
+                          "kind": "card",
+                          "rank": "Q",
+                          "suit": "spades"
+                        }
+                      },
+                      {
+                        "kind": "int",
+                        "value": 13
+                      }
+                    ]
+                  ],
+                  "otherwise": {
+                    "kind": "int",
+                    "value": 0
+                  }
+                }
+              }
+            },
+            {
+              "kind": "let",
+              "name": "hand_score",
+              "index": "p",
+              "value": {
+                "kind": "if",
+                "cond": {
+                  "kind": "quantifier",
+                  "quant": "any",
+                  "role": "player",
+                  "binder": "q",
+                  "body": {
+                    "kind": "binop",
+                    "op": "==",
+                    "left": {
+                      "kind": "subscript",
+                      "obj": {
+                        "kind": "name",
+                        "name": "base"
+                      },
+                      "index": {
+                        "kind": "name",
+                        "name": "q"
+                      }
+                    },
+                    "right": {
+                      "kind": "int",
+                      "value": 26
+                    }
+                  }
+                },
+                "then": {
+                  "kind": "if",
+                  "cond": {
+                    "kind": "binop",
+                    "op": "==",
+                    "left": {
+                      "kind": "subscript",
+                      "obj": {
+                        "kind": "name",
+                        "name": "base"
+                      },
+                      "index": {
+                        "kind": "name",
+                        "name": "p"
+                      }
+                    },
+                    "right": {
+                      "kind": "int",
+                      "value": 26
+                    }
+                  },
+                  "then": {
+                    "kind": "int",
+                    "value": 0
+                  },
+                  "elifs": [],
+                  "otherwise": {
+                    "kind": "int",
+                    "value": 26
+                  }
+                },
+                "elifs": [],
+                "otherwise": {
+                  "kind": "subscript",
+                  "obj": {
+                    "kind": "name",
+                    "name": "base"
+                  },
+                  "index": {
+                    "kind": "name",
+                    "name": "p"
+                  }
+                }
+              }
+            },
+            {
+              "kind": "for_each",
+              "role": "player",
+              "binder": "p",
+              "body": {
+                "kind": "assign",
+                "name": "cumulative_score",
+                "index": {
+                  "kind": "name",
+                  "name": "p"
+                },
+                "op": "+=",
+                "value": {
+                  "kind": "subscript",
+                  "obj": {
+                    "kind": "name",
+                    "name": "hand_score"
+                  },
+                  "index": {
+                    "kind": "name",
+                    "name": "p"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "winner": {
+    "kind": "winner",
+    "rank_dir": "lowest",
+    "target": "cumulative_score"
+  },
+  "rules": [
+    {
+      "kind": "rule",
+      "name": "MustLeadTwoOfClubsOnFirstPlay",
+      "constrains": "play_to_trick",
+      "applies_when": {
+        "kind": "applies_when",
+        "always": false,
+        "pred": {
+          "kind": "is_check",
+          "check": "none",
+          "operand": {
+            "kind": "member",
+            "obj": {
+              "kind": "name",
+              "name": "state"
+            },
+            "field": "led_suit"
+          }
+        }
+      },
+      "demands": {
+        "kind": "demands",
+        "form": "cards",
+        "expr": {
+          "kind": "method_call",
+          "obj": {
+            "kind": "name",
+            "name": "hand"
+          },
+          "method": "where",
+          "args": [
+            {
+              "kind": "lambda",
+              "param": "c",
+              "body": {
+                "kind": "binop",
+                "op": "==",
+                "left": {
+                  "kind": "name",
+                  "name": "c"
+                },
+                "right": {
+                  "kind": "card",
+                  "rank": "2",
+                  "suit": "clubs"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "if_impossible": {
+        "kind": "call",
+        "func": "error",
+        "args": [
+          {
+            "kind": "str",
+            "value": "first lead must be 2 of clubs; only the holder can lead"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "rule",
+      "name": "NoPenaltyCardsOnFirstTrick",
+      "constrains": "play_to_trick",
+      "applies_when": {
+        "kind": "applies_when",
+        "always": true,
+        "pred": null
+      },
+      "demands": {
+        "kind": "demands",
+        "form": "cards",
+        "expr": {
+          "kind": "method_call",
+          "obj": {
+            "kind": "name",
+            "name": "hand"
+          },
+          "method": "where",
+          "args": [
+            {
+              "kind": "lambda",
+              "param": "c",
+              "body": {
+                "kind": "binop",
+                "op": "and",
+                "left": {
+                  "kind": "binop",
+                  "op": "!=",
+                  "left": {
+                    "kind": "member",
+                    "obj": {
+                      "kind": "name",
+                      "name": "c"
+                    },
+                    "field": "suit"
+                  },
+                  "right": {
+                    "kind": "name",
+                    "name": "hearts"
+                  }
+                },
+                "right": {
+                  "kind": "binop",
+                  "op": "!=",
+                  "left": {
+                    "kind": "name",
+                    "name": "c"
+                  },
+                  "right": {
+                    "kind": "card",
+                    "rank": "Q",
+                    "suit": "spades"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "if_impossible": null
+    },
+    {
+      "kind": "rule",
+      "name": "NoLeadingHeartsUntilBroken",
+      "constrains": "play_to_trick",
+      "applies_when": {
+        "kind": "applies_when",
+        "always": false,
+        "pred": {
+          "kind": "is_check",
+          "check": "none",
+          "operand": {
+            "kind": "member",
+            "obj": {
+              "kind": "name",
+              "name": "state"
+            },
+            "field": "led_suit"
+          }
+        }
+      },
+      "demands": {
+        "kind": "demands",
+        "form": "cards",
+        "expr": {
+          "kind": "method_call",
+          "obj": {
+            "kind": "name",
+            "name": "hand"
+          },
+          "method": "where",
+          "args": [
+            {
+              "kind": "lambda",
+              "param": "c",
+              "body": {
+                "kind": "binop",
+                "op": "!=",
+                "left": {
+                  "kind": "member",
+                  "obj": {
+                    "kind": "name",
+                    "name": "c"
+                  },
+                  "field": "suit"
+                },
+                "right": {
+                  "kind": "name",
+                  "name": "hearts"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "if_impossible": null
+    },
+    {
+      "kind": "rule",
+      "name": "PassExactlyThreeCards",
+      "constrains": "transfer_between_hands",
+      "applies_when": null,
+      "demands": {
+        "kind": "demands",
+        "form": "actions",
+        "expr": {
+          "kind": "binop",
+          "op": "==",
+          "left": {
+            "kind": "member",
+            "obj": {
+              "kind": "name",
+              "name": "action"
+            },
+            "field": "card_count"
+          },
+          "right": {
+            "kind": "int",
+            "value": 3
+          }
+        }
+      },
+      "if_impossible": null
+    },
+    {
+      "kind": "rule",
+      "name": "MustFollowSuit",
+      "constrains": "play_to_trick",
+      "applies_when": {
+        "kind": "applies_when",
+        "always": false,
+        "pred": {
+          "kind": "is_check",
+          "check": "not_none",
+          "operand": {
+            "kind": "member",
+            "obj": {
+              "kind": "name",
+              "name": "state"
+            },
+            "field": "led_suit"
+          }
+        }
+      },
+      "demands": {
+        "kind": "demands",
+        "form": "cards",
+        "expr": {
+          "kind": "method_call",
+          "obj": {
+            "kind": "name",
+            "name": "hand"
+          },
+          "method": "cards_of_suit",
+          "args": [
+            {
+              "kind": "member",
+              "obj": {
+                "kind": "name",
+                "name": "state"
+              },
+              "field": "led_suit"
+            }
+          ]
+        }
+      },
+      "if_impossible": null
+    }
+  ]
+}

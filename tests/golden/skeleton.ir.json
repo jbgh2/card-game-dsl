@@ -8,6 +8,8 @@
     "high": null
   },
   "deck": "standard52",
+  "direction": null,
+  "ranking": [],
   "zones": [
     {
       "kind": "zone",
@@ -31,5 +33,9 @@
         ]
       }
     }
-  ]
+  ],
+  "state": null,
+  "phases": [],
+  "winner": null,
+  "rules": []
 }
