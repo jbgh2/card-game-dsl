@@ -12,12 +12,14 @@ import sys
 from pathlib import Path
 
 from cardlang.diagnostics import DiagnosticError
-from cardlang.pipeline import check_markdown, compile_markdown
+from cardlang.pipeline import check_source, compile_path
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="cardlang")
-    parser.add_argument("file", help="game file (Markdown with a fenced DSL block)")
+    parser.add_argument(
+        "file", help="game file (.cardlang raw DSL, or .md with a fenced DSL block)"
+    )
     parser.add_argument(
         "--emit-ir",
         action="store_true",
@@ -26,18 +28,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     path = Path(args.file)
-    try:
-        markdown = path.read_text()
-    except OSError as exc:
-        print(f"cardlang: cannot read {path}: {exc}", file=sys.stderr)
+    if not path.exists():
+        print(f"cardlang: cannot read {path}: no such file", file=sys.stderr)
         return 2
 
     try:
         if args.emit_ir:
-            ir = compile_markdown(markdown, str(path))
-            print(json.dumps(ir, indent=2))
+            print(json.dumps(compile_path(path), indent=2))
         else:
-            check_markdown(markdown, str(path))
+            check_source(path)
     except DiagnosticError as exc:
         print(exc.diagnostic.format(), file=sys.stderr)
         notes = getattr(exc, "__notes__", [])
