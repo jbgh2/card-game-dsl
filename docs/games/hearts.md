@@ -25,19 +25,21 @@ game Hearts {
 
   phase hand_sequence repeats until any cumulative_score >= 100 {
     state {
-      // Per-hand: resets each hand.
-      pass_direction : Direction = left
+      // Loop state: persists across hands; before_each rotates it each hand,
+      // so starting at `hold` makes hand 1 pass left.
+      pass_direction : Direction = hold
       // Trick leader, threaded from first_trick into play by lexical scope.
-      leader         : Player    = none
+      leader         : Player?   = none
     }
 
-    phase setup {
+    before_each {
+      move all cards to deck    // gather the previous hand's cards back home
       shuffle deck
       deal 13 cards from deck to each hand
-      rotate pass_direction through [left, right, across, none]
+      rotate pass_direction through [left, right, across, hold]
     }
 
-    phase passing when pass_direction != none {
+    phase passing when pass_direction != hold {
       active_rules: [PassExactlyThreeCards]
       legal_moves:  [transfer_between_hands]
 

@@ -13,8 +13,10 @@ _SUITS_BY_DECK: dict[str, frozenset[str]] = {
     "standard52": frozenset({"clubs", "diamonds", "hearts", "spades"}),
 }
 
-# The stdlib Direction enum (used for passing/seating offsets).
-DIRECTION_VALUES: frozenset[str] = frozenset({"left", "right", "across", "none"})
+# The stdlib Direction enum (used for passing/seating offsets). `hold` is the
+# no-pass / keep value; `none` is NOT a direction — it is the universal null
+# literal (see resolve._classify).
+DIRECTION_VALUES: frozenset[str] = frozenset({"left", "right", "across", "hold"})
 
 
 def deck_suits(deck: str) -> frozenset[str]:

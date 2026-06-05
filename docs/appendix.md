@@ -61,7 +61,7 @@ variable resets at, derived from how it is used.
 | Variable | Game(s) | Lifetime | Mutability | Source of mutation | Notes |
 |---|---|---|---|---|---|
 | `led_suit` | All 5 | per-trick | replaced | move event (first play sets it) | Derivable from `trick_pile[0].suit`. Lives inside the Trick mechanic. |
-| `pass_direction` | Hearts | per-hand | rotated | setup phase | Cycles through `[left, right, across, none]`. |
+| `pass_direction` | Hearts | per-game (persists; rotated each hand) | rotated | `before_each` | Cycles through `[left, right, across, hold]` (`hold` = no-pass). |
 | `cumulative_score[player]` | Hearts | game-level | accumulating | scoring phase | One of two game-level accumulators in Hearts. |
 | `trick_terminated_early` | Getaway | per-trick | replaced (default false) | move event (tochoo play) | Read post-trick by `GetawayRouting` to choose waste vs hand. |
 | `eliminated[player]` | Getaway | game-level | set-once (per player) | post-trick check | Derivable from `hand[player].is_empty`. Monotonic. |

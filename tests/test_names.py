@@ -27,7 +27,8 @@ def test_hearts_name_classifications() -> None:
     assert kinds["deck"] == "zone"
     assert kinds["captured"] == "zone"
     assert kinds["hearts"] == "enum_value"
-    assert kinds["left"] == "enum_value"
+    assert kinds["hold"] == "enum_value"  # the no-pass Direction value
+    assert kinds["none"] == "null"  # the universal absence literal
     assert kinds["state"] == "pronoun"
     assert kinds["action"] == "pronoun"
     assert kinds["outcome"] == "pronoun"

@@ -259,6 +259,12 @@ class _Builder(Transformer[Token, n.Game]):
         names = tuple(str(x) for x in c if x is not None)
         return n.LegalMoves(names=names, span=self._span(meta))
 
+    def before_each(self, meta: Meta, c: list[object]) -> n.BeforeEach:
+        return n.BeforeEach(body=tuple(_as_stmt(s) for s in c), span=self._span(meta))
+
+    def after_each(self, meta: Meta, c: list[object]) -> n.AfterEach:
+        return n.AfterEach(body=tuple(_as_stmt(s) for s in c), span=self._span(meta))
+
     def transition_to(self, meta: Meta, c: list[object]) -> n.TransitionTo:
         assert isinstance(c[1], n.MoveEvent)
         return n.TransitionTo(target=str(c[0]), event=c[1], span=self._span(meta))
@@ -308,6 +314,21 @@ class _Builder(Transformer[Token, n.Game]):
             source=_as_expr(c[2]),
             dest=c[3].zone,  # type: ignore[arg-type]
             dest_each=c[3].each,
+            visibility=vis,  # type: ignore[arg-type]
+            span=self._span(meta),
+        )
+
+    def move_gather(self, meta: Meta, c: list[object]) -> n.Movement:
+        assert isinstance(c[1], _Selection) and isinstance(c[2], _Dest)
+        vis = c[3].expr if len(c) > 3 and isinstance(c[3], _Vis) else None
+        return n.Movement(
+            verb=str(c[0]),
+            mode=c[1].mode,
+            amount=c[1].amount,  # type: ignore[arg-type]
+            item=c[1].item,
+            source=None,
+            dest=c[2].zone,  # type: ignore[arg-type]
+            dest_each=c[2].each,
             visibility=vis,  # type: ignore[arg-type]
             span=self._span(meta),
         )

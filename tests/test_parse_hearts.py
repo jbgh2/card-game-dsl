@@ -52,7 +52,9 @@ def test_phase_tree_and_qualifier() -> None:
     hand_seq = _phase(g, "hand_sequence")
     assert hand_seq.qualifier is not None and hand_seq.qualifier.kind == "repeats"
     nested = [i.name for i in hand_seq.items if isinstance(i, n.Phase)]
-    assert nested == ["setup", "passing", "first_trick", "play", "scoring"]
+    assert nested == ["passing", "first_trick", "play", "scoring"]
+    # setup is now a before_each lifecycle hook, not a sub-phase.
+    assert any(isinstance(i, n.BeforeEach) for i in hand_seq.items)
 
 
 def test_transition_predicate_binds_action() -> None:
@@ -91,8 +93,13 @@ def test_scoring_comprehension_and_movement() -> None:
     assert isinstance(base.value, n.Comprehension)
     assert base.value.agg == "sum" and base.value.binder == "card"
 
-    setup = _phase(_phase(g, "hand_sequence"), "setup")
-    deal = next(i for i in setup.items if isinstance(i, n.Movement))
-    assert deal.verb == "deal" and deal.item == "cards" and deal.dest_each
-    shuffle = next(i for i in setup.items if isinstance(i, n.EpistemicOp))
+    # setup statements now live in the before_each lifecycle hook.
+    hand_seq = _phase(g, "hand_sequence")
+    before = next(i for i in hand_seq.items if isinstance(i, n.BeforeEach))
+    movements = [s for s in before.body if isinstance(s, n.Movement)]
+    gather = next(m for m in movements if m.source is None)
+    assert gather.verb == "move" and gather.amount == "all"  # `move all cards to deck`
+    deal = next(m for m in movements if m.verb == "deal")
+    assert deal.item == "cards" and deal.dest_each
+    shuffle = next(s for s in before.body if isinstance(s, n.EpistemicOp))
     assert shuffle.op == "shuffle"

@@ -62,6 +62,12 @@ bidding produces:
     skip to next hand
 ```
 
+A mechanic's result is also available as the bare `outcome` pronoun in the
+enclosing body, immediately after the `instantiate`: Hearts follows
+`instantiate Trick(...)` with `leader := outcome`, reading the trick's selected
+player. This is the same value a `produces:` block would match; the bare
+`outcome` is the shorthand for a single-payload result that needs no tag.
+
 Mechanics and phases are *not* further unified at the construct
 level. The distinction stays:
 
@@ -127,7 +133,7 @@ ends. Used for setup → bidding → play → scoring pipelines.
 active *exactly when* the predicate holds. The phase is entered the
 first time the predicate becomes true and exited as soon as it
 becomes false. Hearts' `passing` sub-phase uses this for the case
-when `pass_direction != none`; Tichu's `wish_active` sub-phase uses
+when `pass_direction != hold`; Tichu's `wish_active` sub-phase uses
 this for the case when a Mahjong wish stands. No explicit
 `transition_to:` is needed — the predicate is the entry guard *and*
 the exit condition.
@@ -142,7 +148,10 @@ play_to_trick where action.card.suit == hearts`; Spades breaks spades with
 `transition_to: spades_broken when play_to_trick where action.card.suit ==
 spades` (the move under inspection is bound as `action` — see "Rule demand
 forms"). The transition is one-shot — once Y is entered, X is not
-re-entered.
+re-entered. It is scoped to the enclosing phase instance: when a
+`repeats until` loop begins a new iteration and re-enters the phase, the
+transition resets (Hearts re-breaks hearts each hand), per the
+activation-record semantics in "Loop lifecycle".
 
 There is no separate construct for "this sub-phase ends and control
 returns to the enclosing parent's loop." The predicate-guard form
@@ -424,6 +433,47 @@ mechanic — that's for *trick-level* termination on game-state-free
 conditions (Getaway's first-trick-to-waste). It is not for
 game-ending; game-ending is the `repeats until` clause's job.
 
+## Loop lifecycle: `before_each` and `after_each`
+
+A `repeats until` phase runs per-iteration setup and teardown through two
+optional hooks, siblings of its `state` block and distinct from its
+sub-phases:
+
+- **`before_each { … }`** runs at the start of every iteration (after the
+  termination predicate is checked, before the body sub-phases). It is where a
+  hand is prepared — gather, shuffle, deal.
+- **`after_each { … }`** runs at the end of every iteration that started,
+  *including one the termination predicate abandons mid-body*. This is the
+  guarantee a trailing sub-phase cannot give: under continuous evaluation
+  ("Loop termination semantics" above) a loop can exit mid-iteration, and a
+  "last sub-phase = cleanup" would be skipped — whereas `after_each` always
+  runs (the test-framework `afterEach` semantic). Cribbage, whose hand can end
+  mid-play on a peg-out, needs this.
+
+The loop's `state { }` initializes once and **persists** across iterations;
+the hooks run **each** iteration. That separates per-game state from
+per-iteration work. Phase-specific setup stays inside the phase as its first
+statements (Hearts' `first_trick` sets its own leader); the hooks are only for
+the per-iteration boundary. Finer per-phase hooks (`before <phase>`) are
+deliberately *not* provided until a game requires them.
+
+Hearts uses `before_each` to gather the previous hand's cards, shuffle, and
+deal:
+
+```
+before_each {
+  move all cards to deck
+  shuffle deck
+  deal 13 cards from deck to each hand
+  rotate pass_direction through [left, right, across, hold]
+}
+```
+
+`move all cards to deck` is a destination-only **gather** movement (no `from`):
+it collects every card from all other zones into the named zone. A `Deck`-typed
+zone is initialized at game start holding the deck's cards, so the first
+`before_each` gather is a no-op and the deal is well-defined.
+
 ## Mutation semantics
 
 **Sequential mutation within a phase body.** `:=` (assign) and `+=` /
@@ -568,6 +618,16 @@ convention as stdlib generics. They are the language's extension
 point: games introduce concepts (Contract, HandResult, Meld, Pot) by
 declaring them. The DSL doesn't ship a vocabulary covering every
 possible game.
+
+**Optional types and the `none` literal.** A type written `T?` is optional: it
+holds a `T` or the absence value `none`. `none` is the language's single
+absence literal, used by every optional (`leader : Player? = none`, `contract :
+Contract? = none`, `state.led_suit is none`) — it is not a member of any enum.
+Where a game needs a value that reads like "nothing happens" but is a real
+domain choice — Hearts' no-pass hand — it gets its *own* enum value
+(`Direction = {left, right, across, hold}`), never `none`. This keeps `none`
+unambiguously "no value": a `Player` that is `none` is unset, not the string
+`"none"`.
 
 **Deck declaration.** The `cards { }` block declares which cards
 exist in the deck. The canonical form is a per-suit map: each suit
@@ -751,7 +811,7 @@ projection vocabulary of "Knowledge, visibility, and the projection model"
 below.
 
 **State-cycle** — advancing a state variable through a list of values, e.g.
-`rotate pass_direction through [left, right, across, none]`. Orthogonal to
+`rotate pass_direction through [left, right, across, hold]`. Orthogonal to
 the other two (it touches no zone): a single small construct.
 
 **Surface: actions are prose, queries are calls.** Every operation above is a
@@ -1344,7 +1404,7 @@ the commit step; the choice of whether to commit is elsewhere.
 **Hearts passing.** The passing phase reads as:
 
 ```
-phase passing when pass_direction != none {
+phase passing when pass_direction != hold {
   active_rules: [PassExactlyThreeCards]
   legal_moves:  [transfer_between_hands]
 
@@ -1430,7 +1490,7 @@ The body does *not* admit:
   imply otherwise). Reserved until a real game forces it.
 - **`if` branches** — same shape: branching effects in a batched
   context raise "which branch participates" questions. Hearts'
-  passing skips passing entirely when `pass_direction == none`
+  passing skips passing entirely when `pass_direction == hold`
   via a phase-level `when:` guard rather than an in-block
   branch. Reserved until forced.
 - **`let` bindings** — the body's expressions are short enough

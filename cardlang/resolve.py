@@ -133,6 +133,9 @@ def _resolve_phase_item(
                 f"transition event names unknown move type '{item.event.move_type}'",
                 item.event.span,
             )
+    elif isinstance(item, (n.BeforeEach, n.AfterEach)):
+        for stmt in item.body:
+            _resolve_stmt(stmt, bag)
     elif isinstance(item, (n.Phase, n.StateBlock)):
         pass  # phases recurse via the level walk; state blocks resolve later
     else:
@@ -214,6 +217,8 @@ def _categories(game: n.Game) -> _Categories:
 
 
 def _classify(name: str, cats: _Categories) -> str | None:
+    if name == "none":
+        return "null"  # the universal absence literal (any optional's null)
     if name in cats.locals:
         return "local"
     if name in cats.state_vars:

@@ -1,0 +1,215 @@
+"""Expression evaluator.
+
+`evaluate(expr, ctx)` walks an `n.Expr` and returns a runtime value. The key
+move is `NameRef` dispatch on the `ref_kind` the resolver assigned — that is
+exactly what the deep-resolution pass exists to make possible.
+"""
+
+from __future__ import annotations
+
+from typing import Any, assert_never
+
+from cardlang.ast import nodes as n
+from cardlang.runtime import stdlib
+from cardlang.runtime.state import Ctx, Move, Zone
+from cardlang.runtime.values import Card
+
+
+def evaluate(e: n.Expr, ctx: Ctx) -> Any:
+    match e:
+        case n.NameRef():
+            return _name(e, ctx)
+        case n.IntLit():
+            return e.value
+        case n.StrLit():
+            return e.value
+        case n.CardLiteral():
+            return Card(e.rank, e.suit)
+        case n.AllPlayers():
+            return list(ctx.rs.seating.players)
+        case n.Member():
+            return _member(evaluate(e.obj, ctx), e.field)
+        case n.Subscript():
+            return _subscript(e, ctx)
+        case n.Call():
+            return stdlib.call(e.func, [evaluate(_pos(a), ctx) for a in e.args], ctx)
+        case n.MethodCall():
+            return _method(e, ctx)
+        case n.BinOp():
+            return _binop(e, ctx)
+        case n.Not():
+            return not evaluate(e.operand, ctx)
+        case n.IsCheck():
+            return _is_check(e, ctx)
+        case n.Lambda():
+            return _closure(e, ctx)
+        case n.Quantifier():
+            return _quantifier(e, ctx)
+        case n.IfExpr():
+            return _if_expr(e, ctx)
+        case n.Comprehension():
+            return _comprehension(e, ctx)
+        case _ as unreachable:
+            assert_never(unreachable)
+
+
+def _pos(arg: n.Arg) -> n.Expr:
+    if isinstance(arg, n.NamedArg):
+        raise NotImplementedError("named call arguments not used by Hearts")
+    return arg
+
+
+def _name(e: n.NameRef, ctx: Ctx) -> Any:
+    match e.ref_kind:
+        case "local":
+            return ctx.locals[e.name]
+        case "state_var":
+            return ctx.rs.get(e.name)
+        case "zone":
+            if ctx.rs.zones.is_family(e.name):
+                assert ctx.current_player is not None
+                return ctx.rs.zones.instance(e.name, ctx.current_player)
+            return ctx.rs.zones.single(e.name)
+        case "null":
+            return None  # the absence literal `none`
+        case "enum_value":
+            return e.name  # suits/directions are their own string value
+        case "pronoun":
+            return _pronoun(e.name, ctx)
+        case "function":
+            return stdlib.value_function(e.name)
+        case _:
+            raise AssertionError(f"name '{e.name}' was not resolved (ref_kind=None)")
+
+
+def _pronoun(name: str, ctx: Ctx) -> Any:
+    match name:
+        case "state":
+            return ctx.rs.mech_state[-1]
+        case "outcome":
+            return ctx.outcome
+        case "action":
+            return ctx.action
+        case "active_rules":
+            return ctx.active_rules
+        case _:
+            raise AssertionError(f"unknown pronoun '{name}'")
+
+
+def _member(obj: Any, field: str) -> Any:
+    if isinstance(obj, Card):
+        return getattr(obj, field)
+    if isinstance(obj, Move):
+        return getattr(obj, field)
+    if isinstance(obj, dict):
+        return obj[field]
+    raise AssertionError(f"cannot read field '{field}' of {obj!r}")
+
+
+def _subscript(e: n.Subscript, ctx: Ctx) -> Any:
+    obj = e.obj
+    index = evaluate(e.index, ctx)
+    if isinstance(obj, n.NameRef) and obj.ref_kind == "zone":
+        return ctx.rs.zones.instance(obj.name, index)
+    return evaluate(obj, ctx)[index]
+
+
+def _method(e: n.MethodCall, ctx: Ctx) -> Any:
+    receiver = evaluate(e.obj, ctx)
+    assert isinstance(receiver, Zone), f"method '{e.method}' on non-zone {receiver!r}"
+    cards = receiver.cards
+    match e.method:
+        case "where":
+            pred = evaluate(_pos(e.args[0]), ctx)
+            return [c for c in cards if pred(c)]
+        case "cards_of_suit":
+            suit = evaluate(_pos(e.args[0]), ctx)
+            return [c for c in cards if c.suit == suit]
+        case _:
+            raise AssertionError(f"unknown zone method '{e.method}'")
+
+
+def _binop(e: n.BinOp, ctx: Ctx) -> Any:
+    if e.op == "and":
+        return bool(evaluate(e.left, ctx)) and bool(evaluate(e.right, ctx))
+    if e.op == "or":
+        return bool(evaluate(e.left, ctx)) or bool(evaluate(e.right, ctx))
+    left = evaluate(e.left, ctx)
+    right = evaluate(e.right, ctx)
+    match e.op:
+        case "+":
+            return left + right
+        case "-":
+            return left - right
+        case "==":
+            return left == right
+        case "!=":
+            return left != right
+        case ">=":
+            return left >= right
+        case "<=":
+            return left <= right
+        case ">":
+            return left > right
+        case "<":
+            return left < right
+        case "offset_by":
+            return ctx.rs.seating.offset_by(left, right)
+        case _:
+            raise AssertionError(f"unknown operator '{e.op}'")
+
+
+def _is_check(e: n.IsCheck, ctx: Ctx) -> bool:
+    value = evaluate(e.operand, ctx)
+    match e.kind:
+        case "none":
+            return value is None
+        case "not_none":
+            return value is not None
+        case "empty":
+            assert isinstance(value, Zone)
+            return value.empty
+        case _:
+            raise AssertionError(f"unknown is-check '{e.kind}'")
+
+
+def _closure(e: n.Lambda, ctx: Ctx):  # type: ignore[no-untyped-def]
+    return lambda value: evaluate(e.body, ctx.with_local(e.param, value))
+
+
+def _quantifier(e: n.Quantifier, ctx: Ctx) -> bool:
+    domain = _role_domain(e.role, ctx)
+    results = (evaluate(e.body, ctx.with_local(e.binder, x)) for x in domain)
+    return any(results) if e.kind == "any" else all(results)
+
+
+def _role_domain(role: str, ctx: Ctx) -> list[Any]:
+    if role == "player":
+        return list(ctx.rs.seating.players)
+    raise NotImplementedError(f"quantifier role '{role}' not supported yet")
+
+
+def _if_expr(e: n.IfExpr, ctx: Ctx) -> Any:
+    if evaluate(e.cond, ctx):
+        return evaluate(e.then, ctx)
+    for cond, then in e.elifs:
+        if evaluate(cond, ctx):
+            return evaluate(then, ctx)
+    return evaluate(e.otherwise, ctx)
+
+
+def _comprehension(e: n.Comprehension, ctx: Ctx) -> Any:
+    source = evaluate(e.source, ctx)
+    elements = source.cards if isinstance(source, Zone) else list(source)
+    values = [evaluate(e.body, ctx.with_local(e.binder, x)) for x in elements]
+    match e.agg:
+        case "sum":
+            return sum(values)
+        case "count":
+            return len(values)
+        case "max":
+            return max(values)
+        case "min":
+            return min(values)
+        case _:
+            raise AssertionError(f"unknown aggregator '{e.agg}'")

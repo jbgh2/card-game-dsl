@@ -27,8 +27,9 @@ from cardlang.diagnostics import Span
 class NameRef:
     """A bare identifier. ``ref_kind`` is filled by the resolver, classifying
     the name as one of: ``local`` (a binder/let), ``state_var``, ``zone``,
-    ``enum_value``, ``function``, or a ``pronoun`` (`state`/`action`/`outcome`/
-    `active_rules`). ``None`` until resolved."""
+    ``enum_value``, ``function``, ``null`` (the absence literal `none`), or a
+    ``pronoun`` (`state`/`action`/`outcome`/`active_rules`). ``None`` until
+    resolved."""
 
     name: str
     span: Span | None = None
@@ -218,7 +219,7 @@ class Movement:
     mode: str | None  # "chosen" | "random" | None
     amount: str | Expr  # "all" | "one" | count expression
     item: str  # the item noun: "cards", "coins", …
-    source: Expr  # a zone reference
+    source: Expr | None  # a zone reference; None for a gather (collect-from-all)
     dest: Expr | None
     dest_each: bool
     visibility: Expr | None = None
@@ -399,6 +400,23 @@ class TransitionTo:
 
 
 @dataclass(frozen=True, slots=True)
+class BeforeEach:
+    """`before_each { … }` — runs at the start of every loop iteration."""
+
+    body: tuple[Stmt, ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AfterEach:
+    """`after_each { … }` — runs at the end of every loop iteration, including
+    one terminated mid-body by the loop's predicate."""
+
+    body: tuple[Stmt, ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class PhaseQualifier:
     """`repeats until <expr>` or `when <expr>` on a phase header."""
 
@@ -415,8 +433,11 @@ class Phase:
     span: Span | None = None
 
 
-# A phase body holds blocks, nested phases, and statements.
-PhaseItem: TypeAlias = "StateBlock | ActiveRules | LegalMoves | TransitionTo | Phase | Stmt"
+# A phase body holds blocks, lifecycle hooks, nested phases, and statements.
+PhaseItem: TypeAlias = (
+    "StateBlock | ActiveRules | LegalMoves | TransitionTo | BeforeEach | AfterEach"
+    " | Phase | Stmt"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -507,6 +528,8 @@ Node = (
     | StateDecl
     | Phase
     | PhaseQualifier
+    | BeforeEach
+    | AfterEach
     | ActiveRules
     | RuleRef
     | LegalMoves

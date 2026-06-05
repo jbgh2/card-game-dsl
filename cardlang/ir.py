@@ -129,6 +129,10 @@ def _phase_item(item: n.PhaseItem) -> IRDict:
                     "where": _expr(item.event.where) if item.event.where else None,
                 },
             }
+        case n.BeforeEach():
+            return {"kind": "before_each", "body": [_stmt(s) for s in item.body]}
+        case n.AfterEach():
+            return {"kind": "after_each", "body": [_stmt(s) for s in item.body]}
         case n.Phase():
             return _phase(item)
         case _:
@@ -147,7 +151,7 @@ def _stmt(s: n.Stmt) -> IRDict:
                 "mode": s.mode,
                 "amount": _amount(s.amount),
                 "item": s.item,
-                "source": _expr(s.source),
+                "source": _expr(s.source) if s.source else None,
                 "dest": _expr(s.dest) if s.dest else None,
                 "dest_each": s.dest_each,
                 "visibility": _expr(s.visibility) if s.visibility else None,

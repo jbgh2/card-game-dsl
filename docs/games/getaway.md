@@ -20,7 +20,7 @@ game Getaway {
       // Game-level: persists for the whole game.
       eliminated[player] : Boolean = false
       // Trick leader, threaded from first_trick into play by lexical scope.
-      leader             : Player  = none
+      leader             : Player? = none
     }
 
     phase setup {

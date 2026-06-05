@@ -182,6 +182,12 @@ random-playout invariants (the game always terminates, the legal-move set
 is never empty unless the state is terminal, scores reconcile). OpenSpiel
 integration follows that, through the IR.
 
+The random-playout interpreter ignores visibility: every legality rule
+reads only the acting player's own hand plus public trick/game state, so a
+uniform-random driver needs no per-observer projection. Deriving each
+player's information set from zone visibility — the `information_state_tensor`
+work — is the OpenSpiel milestone, not the runtime net.
+
 ## Risks and things to watch
 
 - The surface syntax may be inconsistent across game files written at

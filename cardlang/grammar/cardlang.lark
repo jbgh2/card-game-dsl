@@ -61,8 +61,16 @@ phase_qualifier: "repeats" "until" expr   -> phase_repeats
            | active_rules
            | legal_moves
            | transition_to
+           | before_each
+           | after_each
            | phase
            | statement
+
+// Loop lifecycle hooks on a `repeats until` phase: before_each runs at the
+// start of every iteration, after_each at the end — guaranteed even when the
+// loop terminates mid-iteration (decisions.md "Loop lifecycle").
+before_each: "before_each" "{" statement* "}"
+after_each: "after_each" "{" statement* "}"
 
 active_rules: "active_rules" ":" "[" [rule_ref ("," rule_ref)*] "]"
 rule_ref: "+" NAME        -> rule_add
@@ -103,6 +111,7 @@ move_event: NAME ["where" expr]
 // their destination.
 movement: MOVE_VERB selection "from" zone_expr move_dest [vis_clause]  -> move_from
         | MOVE_VERB selection "in" zone_expr [vis_clause]              -> move_in
+        | MOVE_VERB selection move_dest [vis_clause]                   -> move_gather
 MOVE_VERB: "deal" | "transfer" | "move" | "burn" | "muck" | "draw"
 selection: [select_mode] amount NAME
 select_mode: "chosen" -> sel_chosen

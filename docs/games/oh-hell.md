@@ -55,7 +55,7 @@ game OhHell {
       // Per-hand: resets each hand.
       bid[player]        : Integer? = none
       tricks_won[player] : Integer  = 0
-      trump              : Suit     = none
+      trump              : Suit?    = none
     }
 
     phase setup {

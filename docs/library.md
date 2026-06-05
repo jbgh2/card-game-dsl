@@ -282,7 +282,10 @@ as a statement and as a value (a `Trick`'s `routing`).
 
 - `deal` — cards from a source (usually a deck) to recipients, per-recipient visibility; emits a semi-private observation to non-recipients (they see something moved)
 - `transfer` — cards or resource units between zones; the amount is an expression and the item names the unit (`transfer 5 chips from stack[A] to pot`, `transfer chosen 3 cards from hand[p] to ...`). See [decisions.md](decisions.md) "Resource amount syntax".
-- `move` — the generic relocation (`move all cards from X to Y`)
+- `move` — the generic relocation (`move all cards from X to Y`). The
+  destination-only form `move all cards to <zone>` is a **gather**: it collects
+  every card from all other zones into that zone (per-hand cleanup; see
+  [decisions.md](decisions.md) "Loop lifecycle")
 - `burn` / `muck` — relocate to the burn / muck pile (destination implied by the verb); mucked cards land in a trivial-projection zone, prior observations persisting
 - `draw` — take from a pile into a hand
 

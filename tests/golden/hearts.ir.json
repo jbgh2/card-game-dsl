@@ -133,7 +133,7 @@
               "optional": false,
               "default": {
                 "kind": "name",
-                "name": "left",
+                "name": "hold",
                 "ref": "enum_value"
               }
             },
@@ -142,20 +142,33 @@
               "name": "leader",
               "index": null,
               "type": "Player",
-              "optional": false,
+              "optional": true,
               "default": {
                 "kind": "name",
                 "name": "none",
-                "ref": "enum_value"
+                "ref": "null"
               }
             }
           ]
         },
         {
-          "kind": "phase",
-          "name": "setup",
-          "qualifier": null,
-          "items": [
+          "kind": "before_each",
+          "body": [
+            {
+              "kind": "movement",
+              "verb": "move",
+              "mode": null,
+              "amount": "all",
+              "item": "cards",
+              "source": null,
+              "dest": {
+                "kind": "name",
+                "name": "deck",
+                "ref": "zone"
+              },
+              "dest_each": false,
+              "visibility": null
+            },
             {
               "kind": "epistemic_op",
               "op": "shuffle",
@@ -194,7 +207,7 @@
                 "left",
                 "right",
                 "across",
-                "none"
+                "hold"
               ]
             }
           ]
@@ -215,7 +228,7 @@
               },
               "right": {
                 "kind": "name",
-                "name": "none",
+                "name": "hold",
                 "ref": "enum_value"
               }
             }
