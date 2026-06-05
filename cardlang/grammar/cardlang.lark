@@ -9,6 +9,7 @@ start: top_item+
 
 ?top_item: game
          | rule_def
+         | routing_def
 
 // ----------------------------------------------------------------------------
 // Game structure
@@ -24,6 +25,7 @@ game: "game" NAME "{" game_item* "}"
           | state_block
           | phase
           | winner
+          | loser
 
 players: "players" ":" players_spec
 players_spec: INT ".." INT   -> players_range
@@ -48,6 +50,11 @@ type_name: NAME "?"   -> optional_type
 winner: "winner" ":" rank_dir NAME
 rank_dir: RANK_DIR
 RANK_DIR: "lowest" | "highest"
+
+// An elimination game ends with one player selected directly (the sole player
+// still holding cards), not by ranking a score — so `loser:` takes a
+// player-valued expression rather than `winner:`'s `rank_dir <var>`.
+loser: "loser" ":" expr
 
 // ----------------------------------------------------------------------------
 // Phases
@@ -96,6 +103,7 @@ move_event: NAME ["where" expr]
           | each_simultaneous
           | for_each
           | repeat_until
+          | if_stmt
           | instantiate
           | let_stmt
           | assign_stmt
@@ -109,10 +117,14 @@ move_event: NAME ["where" expr]
 // The verb is sugar over a single IR node; the amount is an expression and the
 // item noun covers cards and resources. The "in" form lets muck/burn imply
 // their destination.
-movement: MOVE_VERB selection "from" zone_expr move_dest [vis_clause]  -> move_from
+movement: MOVE_VERB selection "from" zone_expr [dist_clause] move_dest [vis_clause]  -> move_from
         | MOVE_VERB selection "in" zone_expr [vis_clause]              -> move_in
         | MOVE_VERB selection move_dest [vis_clause]                   -> move_gather
 MOVE_VERB: "deal" | "transfer" | "move" | "burn" | "muck" | "draw"
+// How a `to each` deal distributes: by default each destination takes the
+// stated amount; `as-equally-as-possible` deals the source round-robin so the
+// remainder is spread (Getaway deals the whole deck across 3–8 hands).
+dist_clause: "as-equally-as-possible"  -> dist_equally
 selection: [select_mode] amount NAME
 select_mode: "chosen" -> sel_chosen
            | "random" -> sel_random
@@ -136,6 +148,12 @@ each_simultaneous: "each" NAME "simultaneously" ":" statement
 for_each: "for" "each" NAME NAME ":" statement
 repeat_until: "repeat" "until" expr "{" statement* "}"
 
+// A conditional *statement* (distinct from the `if … then … else …`
+// expression). Braced blocks like `repeat_until`, so multi-statement bodies
+// need no indentation and the `:` colon-body forms stay unambiguous.
+if_stmt: "if" expr "{" statement* "}" [else_block]
+else_block: "else" "{" statement* "}"
+
 instantiate: "instantiate" NAME "(" [named_arg ("," named_arg)*] ")"
 named_arg: NAME "=" arg_value
 ?arg_value: movement
@@ -150,6 +168,11 @@ lvalue: NAME [index_expr]
 // ----------------------------------------------------------------------------
 // Rules (top-level)
 // ----------------------------------------------------------------------------
+
+// A named, reusable trick-routing body (vs Hearts' inline `routing = move …`).
+// Runs with the trick context bound — the `outcome` and `state` pronouns — so
+// it takes no parameter list; referenced by name as a Trick `routing =` arg.
+routing_def: "routing" NAME "{" statement* "}"
 
 rule_def: "rule" NAME "{" rule_clause* "}"
 ?rule_clause: constrains
@@ -177,8 +200,17 @@ if_impossible: "if_impossible" ":" expr
 ?expr: quantifier
      | if_expr
      | comprehension
+     | player_query
      | lambda
      | or_expr
+
+// Queries over the player ring. Like the quantifier/comprehension forms, these
+// sit at the top of the expression grammar so the `where <pred>` body extends
+// as far right as possible (one canonical parse). The predicate is evaluated
+// per player with `player` bound to the candidate.
+player_query: "players" "where" expr              -> players_where
+            | "the" "player" "where" expr         -> the_player_where
+            | "number" "of" "players" "where" expr -> number_players_where
 
 // A lambda's body extends as far right as possible, so it sits at the top
 // of the expression grammar rather than among the primaries.
@@ -203,6 +235,7 @@ elif_clause: "elif" expr "then" expr
 ?comparison: sum "is" "none"         -> is_none
            | sum "is" "not" "none"   -> is_not_none
            | sum "is" "empty"        -> is_empty
+           | sum "is" "not" "empty"  -> is_not_empty
            | sum comp_op sum         -> compare
            | sum
 comp_op: COMP_OP

@@ -287,6 +287,31 @@ configuration's effect is "filter legal moves before play," it's a
 rule; if its effect is "shape the trick's resolution after play,"
 it's a mechanic parameter.
 
+**The `routing:` argument has two surface forms.** When the routing is a
+single unconditional movement, it is written inline (Hearts, Getaway's
+first trick: `routing = move all cards from trick_pile to waste`). When it
+branches — Getaway routes the pile to the trick winner on a tochoo
+(pickup) but to the waste otherwise — the body is a named top-level
+declaration referenced by name:
+
+```
+phase play {
+  instantiate Trick ( ..., routing = GetawayRouting )
+}
+
+routing GetawayRouting {
+  if state.trick_terminated_early { move all cards from trick_pile to hand[outcome] }
+  else { move all cards from trick_pile to waste }
+}
+```
+
+A named `routing` runs with the same trick context bound as an inline
+one — the `outcome` pronoun (the trick winner) and the `state` pronoun
+(the Trick's own state, e.g. `state.trick_terminated_early`) — so it
+declares no parameters. It is a named, reusable routing *body*, not a
+function with a signature: the two forms reduce to the same thing, a
+statement sequence run once per trick with `outcome` bound.
+
 **Per-game predicates for contextual interpretations.** Some games
 need to interpret card properties contextually rather than from the
 card's intrinsic fields. Skat's jacks are trumps regardless of
@@ -629,6 +654,11 @@ domain choice — Hearts' no-pass hand — it gets its *own* enum value
 unambiguously "no value": a `Player` that is `none` is unset, not the string
 `"none"`.
 
+`true` and `false` are the two boolean literals, the values a `Boolean` field
+takes (`eliminated[player] : Boolean = false`, `eliminated[p] := true`). Like
+`none`, they are language literals rather than enum members, so a game never
+declares them.
+
 **Deck declaration.** The `cards { }` block declares which cards
 exist in the deck. The canonical form is a per-suit map: each suit
 names its own rank sequence. A list of suits as a key is shorthand
@@ -801,6 +831,12 @@ visibility override. The same construct is both a statement and a value — a
 expression and the item names the unit, a resource transfer and a variable
 amount are the *same* construct as a card deal; there is no separate
 resource-movement syntax.
+
+A `to each` deal distributes the stated amount to every recipient. When the
+amount is `all` and the deck does not divide evenly, `as-equally-as-possible`
+deals it round-robin so the remainder is spread across the first recipients —
+Getaway deals the whole deck across 3–8 hands this way (`deal all cards from
+deck as-equally-as-possible to each hand`).
 
 **Epistemic** — changing knowledge or order without relocating anything:
 `reveal`, `peek`, `hide`, `announce`, `expose_top`, `forget`, `shuffle`. A
@@ -1021,6 +1057,66 @@ and CFR / IS-MCTS apply with standard regret bounds. Observation
 events compile to per-player projection emissions; OpenSpiel's
 information-state tensors flow through unchanged, generalized to
 projection-shaped events.
+
+## Game result: `winner:` and `loser:`
+
+A game declares its terminal result with exactly one top-level clause,
+evaluated against the final state when the phase tree finishes:
+
+```
+winner: lowest cumulative_score      // Hearts — rank a score variable
+loser:  the player where hand[player] is not empty   // Getaway — select directly
+```
+
+The two forms reflect two shapes of game. A *scored* game accumulates a
+numeric variable and the result is whoever ranks first by it, so
+`winner: <lowest|highest> <score-var>` names the rank direction and the
+variable. An *elimination* game has no score: players drop out until one
+remains, and that survivor is named directly, so `loser: <selection>`
+takes a player-valued expression (typically the singular player-selection
+`the player where <pred>`) evaluated at game end.
+
+`loser:` reads zone state (`hand[player]` non-empty), not phase-scoped
+variables, so it resolves at the top level after the elimination phase
+has exited. The runtime returns the selected player as the result; a
+`winner:` game additionally carries its final scores, a `loser:` game
+does not (it has none).
+
+A game declares one or the other, never both. `winner:` is not sugar for
+`loser:` of the complement: an elimination game may end with several
+non-losers whom the rules never rank, so there is no single winner to
+name.
+
+## Player-collection queries
+
+Three expression forms query the player ring by a predicate:
+
+```
+players where <pred>              // the set of matching players
+the player where <pred>           // the unique matching player (errors if not exactly one)
+number of players where <pred>    // how many match
+```
+
+The predicate is evaluated once per player with `player` bound to the
+candidate, so it reads like the per-player indexing used everywhere else:
+`players where not eliminated[player]`, `the player where hand[player] is
+not empty`, `number of players where hand[player] is not empty`. The
+binder is the fixed name `player` (the canonical seating role), not a
+user-chosen variable — these are filters over a single known ring, not
+general comprehensions, so there is nothing to name.
+
+Like the quantifier (`any/all player p: …`) and comprehension (`sum over
+… as …`) forms, a player query sits at the top of the expression grammar:
+its `where <pred>` body extends as far right as possible, giving one
+canonical parse. To compare a count, parenthesize it: `(number of players
+where not eliminated[player]) > 1`.
+
+`the player where <pred>` is the singular selection a `loser:` clause
+uses; it is an error at runtime for the predicate to match zero or
+several players, since it names exactly one.
+
+`is not empty` is the negation of `is empty` (a zone predicate), paired
+for elimination games that select the player who *still* holds cards.
 
 ## Scoring composition
 

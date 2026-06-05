@@ -167,6 +167,7 @@
                 "ref": "zone"
               },
               "dest_each": false,
+              "distribution": null,
               "visibility": null
             },
             {
@@ -198,6 +199,7 @@
                 "ref": "zone"
               },
               "dest_each": true,
+              "distribution": null,
               "visibility": null
             },
             {
@@ -298,6 +300,7 @@
                   }
                 },
                 "dest_each": false,
+                "distribution": null,
                 "visibility": null
               }
             }
@@ -435,6 +438,7 @@
                       }
                     },
                     "dest_each": false,
+                    "distribution": null,
                     "visibility": null
                   }
                 }
@@ -637,6 +641,7 @@
                           }
                         },
                         "dest_each": false,
+                        "distribution": null,
                         "visibility": null
                       }
                     }
@@ -856,6 +861,7 @@
     "rank_dir": "lowest",
     "target": "cumulative_score"
   },
+  "loser": null,
   "rules": [
     {
       "kind": "rule",
@@ -1123,5 +1129,6 @@
       },
       "if_impossible": null
     }
-  ]
+  ],
+  "routings": []
 }

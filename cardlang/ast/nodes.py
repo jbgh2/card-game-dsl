@@ -134,10 +134,11 @@ class Not:
 
 @dataclass(frozen=True, slots=True)
 class IsCheck:
-    """A postfix predicate: `x is none`, `x is not none`, `x is empty`."""
+    """A postfix predicate: `x is none`, `x is not none`, `x is empty`,
+    `x is not empty`."""
 
     operand: Expr
-    kind: str  # "none" | "not_none" | "empty"
+    kind: str  # "none" | "not_none" | "empty" | "not_empty"
     span: Span | None = None
 
 
@@ -184,6 +185,21 @@ class Comprehension:
     span: Span | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class PlayerQuery:
+    """A query over the player ring, whose `pred` is evaluated per player with
+    `player` bound to the candidate:
+
+    - `players where <pred>`           -> the set of matching players (`set`)
+    - `the player where <pred>`        -> the unique matching player (`pick`)
+    - `number of players where <pred>` -> how many match (`count`)
+    """
+
+    kind: str  # "set" | "pick" | "count"
+    pred: Expr
+    span: Span | None = None
+
+
 Expr = (
     NameRef
     | IntLit
@@ -201,6 +217,7 @@ Expr = (
     | Quantifier
     | IfExpr
     | Comprehension
+    | PlayerQuery
 )
 
 
@@ -222,6 +239,7 @@ class Movement:
     source: Expr | None  # a zone reference; None for a gather (collect-from-all)
     dest: Expr | None
     dest_each: bool
+    distribution: str | None = None  # "as_equally_as_possible" for a round-robin deal
     visibility: Expr | None = None
     span: Span | None = None
 
@@ -273,6 +291,17 @@ class RepeatUntil:
 
 
 @dataclass(frozen=True, slots=True)
+class IfStmt:
+    """`if <cond> { <stmt>* } [else { <stmt>* }]` — a conditional statement,
+    distinct from the `if … then … else …` expression (`IfExpr`)."""
+
+    cond: Expr
+    then_body: tuple[Stmt, ...]
+    else_body: tuple[Stmt, ...] | None
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Instantiate:
     """`instantiate <mechanic> ( <named_arg>* )`."""
 
@@ -309,6 +338,7 @@ Stmt = (
     | EachSimultaneous
     | ForEach
     | RepeatUntil
+    | IfStmt
     | Instantiate
     | LetStmt
     | AssignStmt
@@ -500,6 +530,27 @@ class Winner:
 
 
 @dataclass(frozen=True, slots=True)
+class Loser:
+    """`loser: <selection>` — a player-valued expression naming the sole loser,
+    evaluated against the final state. Unlike `winner:` (which ranks a score
+    variable), an elimination game ends with one player selected directly."""
+
+    selection: Expr
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RoutingDef:
+    """`routing <name> { <stmt>* }` — a named, reusable trick-routing body,
+    referenced by name as a Trick `routing =` argument. It runs with the trick
+    context bound (the `outcome` and `state` pronouns), so it has no parameters."""
+
+    name: str
+    body: tuple[Stmt, ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Game:
     """A whole game plus the rules defined alongside it."""
 
@@ -512,7 +563,9 @@ class Game:
     state: StateBlock | None = None
     phases: tuple[Phase, ...] = ()
     winner: Winner | None = None
+    loser: Loser | None = None
     rules: tuple[RuleDef, ...] = ()
+    routings: tuple[RoutingDef, ...] = ()
     span: Span | None = None
 
 
@@ -521,6 +574,8 @@ Node = (
     Game
     | PlayersSpec
     | Winner
+    | Loser
+    | RoutingDef
     | ZoneDecl
     | TypeRef
     | TypeArg
@@ -544,6 +599,7 @@ Node = (
     | EachSimultaneous
     | ForEach
     | RepeatUntil
+    | IfStmt
     | Instantiate
     | LetStmt
     | AssignStmt
@@ -564,4 +620,5 @@ Node = (
     | Quantifier
     | IfExpr
     | Comprehension
+    | PlayerQuery
 )

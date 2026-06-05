@@ -32,15 +32,19 @@ def _player_holding(card: Card, ctx: Ctx) -> Player | None:
     return None
 
 
-# --- value-callbacks (outcome functions passed to mechanics by name) ---
+# --- value-callbacks (mechanic functions passed by name) ---
 
 OutcomeFn = Callable[[list[tuple[Player, Card]], str], Player]
+# An early-termination predicate: does this play end the trick? (card, led_suit)
+EarlyTermFn = Callable[[Card, str], bool]
 
 
-def value_function(name: str) -> OutcomeFn:
+def value_function(name: str) -> Callable[..., Any]:
     match name:
         case "highest_of_led_suit":
             return highest_of_led_suit
+        case "on_play_of_tochoo":
+            return on_play_of_tochoo
         case _:
             raise AssertionError(f"unknown stdlib value '{name}'")
 
@@ -49,3 +53,10 @@ def highest_of_led_suit(played: list[tuple[Player, Card]], led_suit: str) -> Pla
     """The player who played the highest-ranked card of the led suit."""
     of_suit = [(p, c) for (p, c) in played if c.suit == led_suit]
     return max(of_suit, key=lambda pc: pc[1].rank_order)[0]
+
+
+def on_play_of_tochoo(card: Card, led_suit: str) -> bool:
+    """A tochoo is a card that fails to follow the led suit; playing one (only
+    possible when void) ends the trick early (Getaway: the highest led-suit
+    card then picks up the pile)."""
+    return card.suit != led_suit

@@ -108,6 +108,16 @@ class _Elif:
 
 
 @dataclass(frozen=True, slots=True)
+class _ElseBlock:
+    body: tuple[object, ...]  # tuple[Stmt, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class _Dist:
+    mode: str
+
+
+@dataclass(frozen=True, slots=True)
 class _SelectMode:
     mode: str
 
@@ -166,6 +176,9 @@ class _Builder(Transformer[Token, n.Game]):
 
     def winner(self, meta: Meta, c: list[Token]) -> n.Winner:
         return n.Winner(rank_dir=str(c[0]), target=str(c[1]), span=self._span(meta))
+
+    def loser(self, meta: Meta, c: list[object]) -> n.Loser:
+        return n.Loser(selection=_as_expr(c[0]), span=self._span(meta))
 
     def rank_dir(self, meta: Meta, c: list[Token]) -> str:
         return str(c[0])
@@ -304,19 +317,25 @@ class _Builder(Transformer[Token, n.Game]):
         return _Vis(_as_expr(c[0]))
 
     def move_from(self, meta: Meta, c: list[object]) -> n.Movement:
-        assert isinstance(c[1], _Selection) and isinstance(c[3], _Dest)
-        vis = c[4].expr if len(c) > 4 and isinstance(c[4], _Vis) else None
+        sel = next(x for x in c if isinstance(x, _Selection))
+        dest = next(x for x in c if isinstance(x, _Dest))
+        vis = next((x.expr for x in c if isinstance(x, _Vis)), None)
+        dist = next((x.mode for x in c if isinstance(x, _Dist)), None)
         return n.Movement(
             verb=str(c[0]),
-            mode=c[1].mode,
-            amount=c[1].amount,  # type: ignore[arg-type]
-            item=c[1].item,
-            source=_as_expr(c[2]),
-            dest=c[3].zone,  # type: ignore[arg-type]
-            dest_each=c[3].each,
+            mode=sel.mode,
+            amount=sel.amount,  # type: ignore[arg-type]
+            item=sel.item,
+            source=_as_expr(c[2]),  # zone_expr is the 3rd positional child
+            dest=dest.zone,  # type: ignore[arg-type]
+            dest_each=dest.each,
+            distribution=dist,
             visibility=vis,  # type: ignore[arg-type]
             span=self._span(meta),
         )
+
+    def dist_equally(self, meta: Meta, c: list[object]) -> _Dist:
+        return _Dist("as_equally_as_possible")
 
     def move_gather(self, meta: Meta, c: list[object]) -> n.Movement:
         assert isinstance(c[1], _Selection) and isinstance(c[2], _Dest)
@@ -372,6 +391,21 @@ class _Builder(Transformer[Token, n.Game]):
         cond = _as_expr(c[0])
         body = tuple(_as_stmt(s) for s in c[1:])
         return n.RepeatUntil(cond=cond, body=body, span=self._span(meta))
+
+    def else_block(self, meta: Meta, c: list[object]) -> _ElseBlock:
+        return _ElseBlock(body=tuple(_as_stmt(s) for s in c))
+
+    def if_stmt(self, meta: Meta, c: list[object]) -> n.IfStmt:
+        cond = _as_expr(c[0])
+        last = c[-1]
+        else_body = last.body if isinstance(last, _ElseBlock) else None
+        then_body = tuple(_as_stmt(s) for s in c[1:-1])
+        return n.IfStmt(
+            cond=cond,
+            then_body=then_body,
+            else_body=else_body,  # type: ignore[arg-type]
+            span=self._span(meta),
+        )
 
     def named_arg(self, meta: Meta, c: list[object]) -> n.NamedArg:
         return n.NamedArg(name=str(c[0]), value=c[1], span=self._span(meta))  # type: ignore[arg-type]
@@ -509,6 +543,18 @@ class _Builder(Transformer[Token, n.Game]):
     def is_empty(self, meta: Meta, c: list[object]) -> n.IsCheck:
         return n.IsCheck(_as_expr(c[0]), "empty", span=self._span(meta))
 
+    def is_not_empty(self, meta: Meta, c: list[object]) -> n.IsCheck:
+        return n.IsCheck(_as_expr(c[0]), "not_empty", span=self._span(meta))
+
+    def players_where(self, meta: Meta, c: list[object]) -> n.PlayerQuery:
+        return n.PlayerQuery(kind="set", pred=_as_expr(c[0]), span=self._span(meta))
+
+    def the_player_where(self, meta: Meta, c: list[object]) -> n.PlayerQuery:
+        return n.PlayerQuery(kind="pick", pred=_as_expr(c[0]), span=self._span(meta))
+
+    def number_players_where(self, meta: Meta, c: list[object]) -> n.PlayerQuery:
+        return n.PlayerQuery(kind="count", pred=_as_expr(c[0]), span=self._span(meta))
+
     def comp_op(self, meta: Meta, c: list[Token]) -> str:
         return str(c[0])
 
@@ -585,6 +631,7 @@ class _Builder(Transformer[Token, n.Game]):
         state: n.StateBlock | None = None
         phases: list[n.Phase] = []
         winner: n.Winner | None = None
+        loser: n.Loser | None = None
         for item in c[1:]:
             if isinstance(item, n.PlayersSpec):
                 players = item
@@ -602,6 +649,8 @@ class _Builder(Transformer[Token, n.Game]):
                 phases.append(item)
             elif isinstance(item, n.Winner):
                 winner = item
+            elif isinstance(item, n.Loser):
+                loser = item
             else:
                 raise AssertionError(f"unexpected game item: {item!r}")
         assert players is not None and deck is not None
@@ -615,14 +664,20 @@ class _Builder(Transformer[Token, n.Game]):
             state=state,
             phases=tuple(phases),
             winner=winner,
+            loser=loser,
             rules=(),
             span=self._span(meta),
         )
 
+    def routing_def(self, meta: Meta, c: list[object]) -> n.RoutingDef:
+        body = tuple(_as_stmt(s) for s in c[1:])
+        return n.RoutingDef(name=str(c[0]), body=body, span=self._span(meta))
+
     def start(self, meta: Meta, c: list[object]) -> n.Game:
         game = next(x for x in c if isinstance(x, n.Game))
         rules = tuple(x for x in c if isinstance(x, n.RuleDef))
-        return replace(game, rules=rules)
+        routings = tuple(x for x in c if isinstance(x, n.RoutingDef))
+        return replace(game, rules=rules, routings=routings)
 
 
 def _as_expr(value: object) -> n.Expr:

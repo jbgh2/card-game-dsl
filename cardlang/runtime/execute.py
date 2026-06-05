@@ -41,6 +41,12 @@ def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
         case n.RepeatUntil():
             _repeat_until(stmt, ctx)
             return ctx
+        case n.IfStmt():
+            if evaluate(stmt.cond, ctx):
+                run_body(stmt.then_body, ctx)
+            elif stmt.else_body is not None:
+                run_body(stmt.else_body, ctx)
+            return ctx
         case n.Instantiate():
             # The mechanic's result binds `outcome` for the rest of the body
             # (e.g. `instantiate Trick(...)` then `leader := outcome`).
@@ -66,15 +72,30 @@ def _movement(stmt: n.Movement, ctx: Ctx) -> None:
     assert isinstance(source, Zone)
     if stmt.dest_each:
         assert isinstance(stmt.dest, n.NameRef)
-        for player in ctx.rs.seating.players:
-            cards = _select(source, stmt, ctx, player)
-            ctx.rs.zones.instance(stmt.dest.name, player).add_all(cards)
+        if stmt.distribution == "as_equally_as_possible":
+            _deal_round_robin(source, stmt.dest.name, ctx)
+        else:
+            for player in ctx.rs.seating.players:
+                cards = _select(source, stmt, ctx, player)
+                ctx.rs.zones.instance(stmt.dest.name, player).add_all(cards)
     else:
         assert stmt.dest is not None
         dest = evaluate(stmt.dest, ctx)
         assert isinstance(dest, Zone)
         player = ctx.current_player if ctx.current_player is not None else 0
         dest.add_all(_select(source, stmt, ctx, player))
+
+
+def _deal_round_robin(source: Zone, dest_family: str, ctx: Ctx) -> None:
+    """Deal the source one card at a time around the players, so an indivisible
+    deck is spread as equally as possible (the first players get the remainder)."""
+    players = list(ctx.rs.seating.players)
+    i = 0
+    while source.cards:
+        ctx.rs.zones.instance(dest_family, players[i % len(players)]).add(
+            source.cards.pop(0)
+        )
+        i += 1
 
 
 def _gather(stmt: n.Movement, ctx: Ctx) -> None:

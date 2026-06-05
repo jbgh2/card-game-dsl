@@ -84,8 +84,9 @@ class RuntimeState:
         self.mech_state: list[dict[str, Any]] = []  # active mechanic state (`state.`)
         self.fired_transitions: set[str] = set()  # transition targets reached this iteration
         self.rule_index: dict[str, n.RuleDef] = {}  # rule name -> definition
+        self.routing_index: dict[str, n.RoutingDef] = {}  # routing name -> definition
         self.deck_zone: str = ""  # the Deck-typed zone (initialized full at start)
-        self.score_var: str = ""  # the winner's score variable, for traces
+        self.score_var: str | None = None  # the winner's score var (None for loser games)
 
     # --- scope frames ---
 

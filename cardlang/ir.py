@@ -42,7 +42,9 @@ def emit(game: n.Game) -> IRDict:
         "state": _state_block(game.state) if game.state else None,
         "phases": [_phase(p) for p in game.phases],
         "winner": _winner(game.winner) if game.winner else None,
+        "loser": _loser(game.loser) if game.loser else None,
         "rules": [_rule(r) for r in game.rules],
+        "routings": [_routing(r) for r in game.routings],
     }
 
 
@@ -60,6 +62,14 @@ def _players(p: n.PlayersSpec) -> IRDict:
 
 def _winner(w: n.Winner) -> IRDict:
     return {"kind": "winner", "rank_dir": w.rank_dir, "target": w.target}
+
+
+def _loser(lo: n.Loser) -> IRDict:
+    return {"kind": "loser", "selection": _expr(lo.selection)}
+
+
+def _routing(r: n.RoutingDef) -> IRDict:
+    return {"kind": "routing", "name": r.name, "body": [_stmt(s) for s in r.body]}
 
 
 def _zone(z: n.ZoneDecl) -> IRDict:
@@ -154,6 +164,7 @@ def _stmt(s: n.Stmt) -> IRDict:
                 "source": _expr(s.source) if s.source else None,
                 "dest": _expr(s.dest) if s.dest else None,
                 "dest_each": s.dest_each,
+                "distribution": s.distribution,
                 "visibility": _expr(s.visibility) if s.visibility else None,
             }
         case n.EpistemicOp():
@@ -174,6 +185,17 @@ def _stmt(s: n.Stmt) -> IRDict:
                 "kind": "repeat_until",
                 "cond": _expr(s.cond),
                 "body": [_stmt(x) for x in s.body],
+            }
+        case n.IfStmt():
+            return {
+                "kind": "if",
+                "cond": _expr(s.cond),
+                "then": [_stmt(x) for x in s.then_body],
+                "else": (
+                    [_stmt(x) for x in s.else_body]
+                    if s.else_body is not None
+                    else None
+                ),
             }
         case n.Instantiate():
             return {
@@ -307,5 +329,7 @@ def _expr(e: n.Expr) -> IRDict:
                 "binder": e.binder,
                 "body": _expr(e.body),
             }
+        case n.PlayerQuery():
+            return {"kind": "player_query", "query": e.kind, "pred": _expr(e.pred)}
         case _ as unreachable:
             assert_never(unreachable)

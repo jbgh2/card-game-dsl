@@ -49,6 +49,8 @@ def evaluate(e: n.Expr, ctx: Ctx) -> Any:
             return _if_expr(e, ctx)
         case n.Comprehension():
             return _comprehension(e, ctx)
+        case n.PlayerQuery():
+            return _player_query(e, ctx)
         case _ as unreachable:
             assert_never(unreachable)
 
@@ -72,6 +74,8 @@ def _name(e: n.NameRef, ctx: Ctx) -> Any:
             return ctx.rs.zones.single(e.name)
         case "null":
             return None  # the absence literal `none`
+        case "bool":
+            return e.name == "true"
         case "enum_value":
             return e.name  # suits/directions are their own string value
         case "pronoun":
@@ -169,6 +173,9 @@ def _is_check(e: n.IsCheck, ctx: Ctx) -> bool:
         case "empty":
             assert isinstance(value, Zone)
             return value.empty
+        case "not_empty":
+            assert isinstance(value, Zone)
+            return not value.empty
         case _:
             raise AssertionError(f"unknown is-check '{e.kind}'")
 
@@ -187,6 +194,26 @@ def _role_domain(role: str, ctx: Ctx) -> list[Any]:
     if role == "player":
         return list(ctx.rs.seating.players)
     raise NotImplementedError(f"quantifier role '{role}' not supported yet")
+
+
+def _player_query(e: n.PlayerQuery, ctx: Ctx) -> Any:
+    matches = [
+        p
+        for p in ctx.rs.seating.players
+        if evaluate(e.pred, ctx.with_local("player", p))
+    ]
+    match e.kind:
+        case "set":
+            return matches
+        case "count":
+            return len(matches)
+        case "pick":
+            assert len(matches) == 1, (
+                f"`the player where …` matched {len(matches)} players, expected 1"
+            )
+            return matches[0]
+        case _:
+            raise AssertionError(f"unknown player-query kind '{e.kind}'")
 
 
 def _if_expr(e: n.IfExpr, ctx: Ctx) -> Any:

@@ -12,6 +12,7 @@ from __future__ import annotations
 STDLIB_VALUE_NAMES: frozenset[str] = frozenset(
     {
         "highest_of_led_suit",
+        "on_play_of_tochoo",  # Getaway early-termination: ends the trick on a tochoo play
     }
 )
 

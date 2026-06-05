@@ -23,8 +23,9 @@ from cardlang.runtime.values import Player, Seating, build_deck
 
 @dataclass(frozen=True, slots=True)
 class GameResult:
-    scores: dict[Player, int]
-    winner: Player
+    scores: dict[Player, int]  # empty for games with no score var (loser games)
+    winner: Player | None
+    loser: Player | None
     hands_played: int
 
 
@@ -33,14 +34,18 @@ def play_game(
     rng: random.Random,
     tracer: Callable[[str, Any], None] | None = None,
 ) -> GameResult:
+    assert game.winner is not None or game.loser is not None, (
+        "a game must declare a winner or a loser"
+    )
     seating = Seating(game.players.low)
     zones = ZoneStore(game.zones, seating.players)
     rs = RuntimeState(seating, zones, rng)
     rs.rule_index = {r.name: r for r in game.rules}
+    rs.routing_index = {r.name: r for r in game.routings}
     rs.deck_zone = next(z.name for z in game.zones if z.type_ref.name == "Deck")
     rs.zones.single(rs.deck_zone).add_all(build_deck(game.deck))
-    assert game.winner is not None
-    rs.score_var = game.winner.target
+    if game.winner is not None:
+        rs.score_var = game.winner.target  # loser games have no score var
     ctx = Ctx(rs=rs, chooser=random_chooser(rng), tracer=tracer)
 
     rs.push_frame()  # game-level state (cumulative_score, …)
@@ -51,12 +56,36 @@ def play_game(
     for phase in game.phases:
         run_phase(phase, ctx, hands)
 
-    assert game.winner is not None
-    scores: dict[Player, int] = dict(rs.get(game.winner.target))
-    pick = min if game.winner.rank_dir == "lowest" else max
-    winner = pick(scores, key=lambda p: scores[p])
+    ctx.trace("game_end", _final_card_census(rs))
+
+    # Compute the result against the final state, before unwinding the frame.
+    scores: dict[Player, int] = {}
+    winner: Player | None = None
+    loser: Player | None = None
+    if game.winner is not None:
+        scores = dict(rs.get(game.winner.target))
+        pick = min if game.winner.rank_dir == "lowest" else max
+        winner = pick(scores, key=lambda p: scores[p])
+    else:
+        assert game.loser is not None
+        selected = evaluate(game.loser.selection, ctx)
+        assert isinstance(selected, int)  # a Player
+        loser = selected
     rs.pop_frame()
-    return GameResult(scores=scores, winner=winner, hands_played=hands.value)
+    return GameResult(
+        scores=scores, winner=winner, loser=loser, hands_played=hands.value
+    )
+
+
+def _final_card_census(rs: RuntimeState) -> dict[str, int]:
+    """Total cards across every zone (conservation check) and how many `hand`
+    zones still hold cards (the survivor count for an elimination game)."""
+    total = sum(len(z.cards) for z in rs.zones.singles.values())
+    for family in rs.zones.families.values():
+        total += sum(len(z.cards) for z in family.values())
+    hands = rs.zones.families.get("hand", {})
+    with_cards = sum(1 for z in hands.values() if z.cards)
+    return {"total": total, "hands_with_cards": with_cards}
 
 
 class _HandCounter:
@@ -87,7 +116,8 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
             finally:
                 if after is not None:  # guaranteed, even on mid-iteration exit
                     run_stmts(after.body, ctx)
-            ctx.trace("hand_end", dict(ctx.rs.get(ctx.rs.score_var)))
+            if ctx.rs.score_var is not None:  # loser games keep no per-hand score
+                ctx.trace("hand_end", dict(ctx.rs.get(ctx.rs.score_var)))
     elif q is not None and q.kind == "when":
         if evaluate(q.expr, ctx):
             run_body(phase, ctx, hands)

@@ -155,6 +155,11 @@ def _resolve_stmt(stmt: n.Stmt, bag: DiagnosticBag) -> None:
         _resolve_stmt(stmt.body, bag)
     elif isinstance(stmt, n.ForEach):
         _resolve_stmt(stmt.body, bag)
+    elif isinstance(stmt, n.IfStmt):
+        for inner in stmt.then_body:
+            _resolve_stmt(inner, bag)
+        for inner in stmt.else_body or ():
+            _resolve_stmt(inner, bag)
 
 
 @dataclass(frozen=True)
@@ -168,6 +173,7 @@ class _Categories:
     functions: frozenset[str]
     ranks: frozenset[str]
     suits: frozenset[str]
+    routings: frozenset[str]
 
 
 def _walk(node: object) -> Iterator[object]:
@@ -201,6 +207,8 @@ def _categories(game: n.Game) -> _Categories:
                 locals_.add(nd.binder)
             case n.EachSimultaneous():
                 locals_.add(nd.role)
+            case n.PlayerQuery():
+                locals_.add("player")  # the implicit per-candidate binder
             case n.LetStmt():
                 locals_.add(nd.name)
                 if nd.index is not None:
@@ -213,12 +221,15 @@ def _categories(game: n.Game) -> _Categories:
         functions=STDLIB_VALUE_NAMES,
         ranks=frozenset(game.ranking),
         suits=deck_suits(game.deck),
+        routings=frozenset(r.name for r in game.routings),
     )
 
 
 def _classify(name: str, cats: _Categories) -> str | None:
     if name == "none":
         return "null"  # the universal absence literal (any optional's null)
+    if name in ("true", "false"):
+        return "bool"  # boolean literals
     if name in cats.locals:
         return "local"
     if name in cats.state_vars:
@@ -231,6 +242,8 @@ def _classify(name: str, cats: _Categories) -> str | None:
         return "pronoun"
     if name in cats.functions:
         return "function"
+    if name in cats.routings:
+        return "routing"  # a named trick-routing body referenced as a Trick arg
     return None
 
 

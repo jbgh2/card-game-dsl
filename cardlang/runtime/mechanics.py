@@ -26,8 +26,12 @@ def instantiate(stmt: n.Instantiate, ctx: Ctx) -> Player:
     source_zone = args["source_zone"]
     assert isinstance(source_zone, n.NameRef)
     outcome_fn = evaluate(_expr(args["outcome"]), ctx)
-    routing = args["routing"]
-    assert isinstance(routing, n.Movement)
+    routing_body = _routing_body(args["routing"], ctx)
+    early_term = (
+        evaluate(_expr(args["early_termination"]), ctx)
+        if "early_termination" in args
+        else None
+    )
     # `play_rules = active_rules` -> the current phase's active rules, recomputed
     # each trick so the hearts-broken transition takes effect.
     play_rules = phases.compute_active_rules(ctx.current_phase, ctx.rs)
@@ -37,9 +41,21 @@ def instantiate(stmt: n.Instantiate, ctx: Ctx) -> Player:
         source_family=source_zone.name,
         play_rules=play_rules,
         outcome_fn=outcome_fn,
-        routing=routing,
+        routing_body=routing_body,
+        early_term=early_term,
         ctx=ctx,
     )
+
+
+def _routing_body(value: n.Expr | n.Movement, ctx: Ctx) -> tuple[n.Stmt, ...]:
+    """The Trick `routing =` arg is either an inline movement or the name of a
+    `routing` definition; both reduce to a statement body run with `outcome`
+    bound."""
+    if isinstance(value, n.Movement):
+        return (value,)
+    if isinstance(value, n.NameRef) and value.ref_kind == "routing":
+        return ctx.rs.routing_index[value.name].body
+    raise AssertionError(f"unsupported routing argument: {value!r}")
 
 
 def _expr(value: n.Expr | n.Movement) -> n.Expr:
@@ -53,12 +69,13 @@ def run_trick(
     source_family: str,
     play_rules: tuple[n.RuleDef, ...],
     outcome_fn: Any,
-    routing: n.Movement,
+    routing_body: tuple[n.Stmt, ...],
+    early_term: Any,
     ctx: Ctx,
 ) -> Player:
-    from cardlang.runtime.execute import execute  # lazy: breaks the import cycle
+    from cardlang.runtime.execute import run_body  # lazy: breaks the import cycle
 
-    state: dict[str, Any] = {"led_suit": None}
+    state: dict[str, Any] = {"led_suit": None, "trick_terminated_early": False}
     ctx.rs.mech_state.append(state)
     trick_ctx = ctx.with_rules(play_rules)
     transitions = phases.phase_transitions(ctx.current_phase)
@@ -76,11 +93,17 @@ def run_trick(
         if state["led_suit"] is None:
             state["led_suit"] = choice.suit
         _fire_transitions(transitions, Move(choice, player), trick_ctx)
+        # A tochoo (off-suit play, only possible when void) ends the trick: the
+        # highest led-suit card so far becomes the outcome and picks up the pile.
+        if early_term is not None and early_term(choice, state["led_suit"]):
+            state["trick_terminated_early"] = True
+            break
 
+    ctx.trace("trick_end", {"early": state["trick_terminated_early"]})
     outcome = outcome_fn(played, state["led_suit"])
     assert isinstance(outcome, int)
     ctx.trace("trick", (outcome, [c for _, c in played]))
-    execute(routing, trick_ctx.with_outcome(outcome))  # cards -> captured[outcome]
+    run_body(routing_body, trick_ctx.with_outcome(outcome))  # route the played cards
     ctx.rs.mech_state.pop()
     return outcome
 
