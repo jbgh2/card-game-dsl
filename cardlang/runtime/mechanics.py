@@ -25,6 +25,8 @@ def instantiate(stmt: n.Instantiate, ctx: Ctx) -> Player:
     leader = evaluate(_expr(args["leader"]), ctx)
     source_zone = args["source_zone"]
     assert isinstance(source_zone, n.NameRef)
+    play_zone = args["play_zone"]
+    assert isinstance(play_zone, n.NameRef)
     outcome_fn = evaluate(_expr(args["outcome"]), ctx)
     routing_body = _routing_body(args["routing"], ctx)
     early_term = (
@@ -39,6 +41,7 @@ def instantiate(stmt: n.Instantiate, ctx: Ctx) -> Player:
         participants=list(participants),
         leader=leader,
         source_family=source_zone.name,
+        play_zone=play_zone.name,
         play_rules=play_rules,
         outcome_fn=outcome_fn,
         routing_body=routing_body,
@@ -67,6 +70,7 @@ def run_trick(
     participants: list[Player],
     leader: Player,
     source_family: str,
+    play_zone: str,
     play_rules: tuple[n.RuleDef, ...],
     outcome_fn: Any,
     routing_body: tuple[n.Stmt, ...],
@@ -87,7 +91,7 @@ def run_trick(
         candidates = rules.legal_cards(player, "play_to_trick", trick_ctx)
         choice = ctx.chooser(player, candidates, 1)[0]
         ctx.rs.zones.instance(source_family, player).remove(choice)
-        ctx.rs.zones.single("trick_pile").add(choice)
+        ctx.rs.zones.single(play_zone).add(choice)
         played.append((player, choice))
         ctx.trace("play", (player, choice))
         if state["led_suit"] is None:
