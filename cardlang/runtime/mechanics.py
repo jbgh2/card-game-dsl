@@ -154,6 +154,28 @@ def run_trick(
     return outcome
 
 
+def run_round(stmt: n.Round, ctx: Ctx) -> Player:
+    from cardlang.runtime import stdlib
+
+    participants = evaluate(stmt.participants, ctx)
+    leader = evaluate(stmt.leader, ctx)
+    outcome_fn = stdlib.value_function(stmt.outcome_fn)
+    trump = evaluate(stmt.trump, ctx) if stmt.trump is not None else ctx.rs.trump
+    play_rules = phases.compute_active_rules(ctx.current_phase, ctx.rs)
+    return run_trick(
+        participants=list(participants),
+        leader=leader,
+        source_family=stmt.source_zone,
+        play_zone=stmt.play_zone,
+        play_rules=play_rules,
+        outcome_fn=outcome_fn,
+        routing_body=(),          # routing is done in the surrounding body
+        early_term=None,
+        trump=trump,
+        ctx=ctx,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Schnapsen hand mechanic
 # ---------------------------------------------------------------------------
