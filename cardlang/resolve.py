@@ -37,7 +37,7 @@ from cardlang.stdlib.values import deck_suits, enum_values
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 
 # Roles a zone may be indexed by or owned by. Grows with the seating model.
-_KNOWN_ROLES = {"player"}
+_KNOWN_ROLES = {"player", "team"}
 
 # The magic namespaces a bare name may resolve to.
 _PRONOUNS = frozenset({"state", "action", "outcome", "active_rules"})

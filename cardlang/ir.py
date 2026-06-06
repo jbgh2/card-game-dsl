@@ -38,6 +38,8 @@ def emit(game: n.Game) -> IRDict:
         "deck": game.deck,
         "direction": game.direction,
         "ranking": list(game.ranking),
+        "trump": game.trump,
+        "partnerships": [list(t) for t in game.partnerships],
         "zones": [_zone(z) for z in game.zones],
         "state": _state_block(game.state) if game.state else None,
         "phases": [_phase(p) for p in game.phases],
@@ -331,5 +333,12 @@ def _expr(e: n.Expr) -> IRDict:
             }
         case n.PlayerQuery():
             return {"kind": "player_query", "query": e.kind, "pred": _expr(e.pred)}
+        case n.Choose():
+            return {
+                "kind": "choose",
+                "domain": e.domain,
+                "lo": _expr(e.lo),
+                "hi": _expr(e.hi),
+            }
         case _ as unreachable:
             assert_never(unreachable)

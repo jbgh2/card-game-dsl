@@ -186,6 +186,18 @@ class Comprehension:
 
 
 @dataclass(frozen=True, slots=True)
+class Choose:
+    """`choose integer in <lo> .. <hi>` — a decision that resolves to a value
+    via the chooser (e.g. a bid). ``domain`` names the candidate space; the only
+    one so far is ``"integer"``, an inclusive range from ``lo`` to ``hi``."""
+
+    domain: str  # "integer"
+    lo: Expr
+    hi: Expr
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class PlayerQuery:
     """A query over the player ring, whose `pred` is evaluated per player with
     `player` bound to the candidate:
@@ -217,6 +229,7 @@ Expr = (
     | Quantifier
     | IfExpr
     | Comprehension
+    | Choose
     | PlayerQuery
 )
 
@@ -560,6 +573,8 @@ class Game:
     zones: tuple[ZoneDecl, ...]
     direction: str | None = None
     ranking: tuple[str, ...] = ()
+    trump: str | None = None
+    partnerships: tuple[tuple[int, ...], ...] = ()
     state: StateBlock | None = None
     phases: tuple[Phase, ...] = ()
     winner: Winner | None = None
@@ -620,5 +635,6 @@ Node = (
     | Quantifier
     | IfExpr
     | Comprehension
+    | Choose
     | PlayerQuery
 )

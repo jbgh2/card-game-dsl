@@ -104,7 +104,7 @@ def run_trick(
             break
 
     ctx.trace("trick_end", {"early": state["trick_terminated_early"]})
-    outcome = outcome_fn(played, state["led_suit"])
+    outcome = outcome_fn(played, state["led_suit"], ctx.rs.trump)
     assert isinstance(outcome, int)
     ctx.trace("trick", (outcome, [c for _, c in played]))
     run_body(routing_body, trick_ctx.with_outcome(outcome))  # route the played cards

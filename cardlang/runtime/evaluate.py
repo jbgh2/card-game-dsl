@@ -51,8 +51,19 @@ def evaluate(e: n.Expr, ctx: Ctx) -> Any:
             return _comprehension(e, ctx)
         case n.PlayerQuery():
             return _player_query(e, ctx)
+        case n.Choose():
+            return _choose(e, ctx)
         case _ as unreachable:
             assert_never(unreachable)
+
+
+def _choose(e: n.Choose, ctx: Ctx) -> Any:
+    assert e.domain == "integer"
+    lo = int(evaluate(e.lo, ctx))
+    hi = int(evaluate(e.hi, ctx))
+    candidates = list(range(lo, hi + 1))
+    player = ctx.current_player if ctx.current_player is not None else 0
+    return ctx.chooser(player, candidates, 1)[0]
 
 
 def _pos(arg: n.Arg) -> n.Expr:
@@ -145,6 +156,8 @@ def _binop(e: n.BinOp, ctx: Ctx) -> Any:
             return left + right
         case "-":
             return left - right
+        case "*":
+            return left * right
         case "==":
             return left == right
         case "!=":
@@ -193,6 +206,8 @@ def _quantifier(e: n.Quantifier, ctx: Ctx) -> bool:
 def _role_domain(role: str, ctx: Ctx) -> list[Any]:
     if role == "player":
         return list(ctx.rs.seating.players)
+    if role == "team":
+        return list(ctx.rs.teams)
     raise NotImplementedError(f"quantifier role '{role}' not supported yet")
 
 

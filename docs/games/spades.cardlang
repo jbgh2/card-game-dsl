@@ -1,28 +1,21 @@
-# Spades
+// Spades — formalized DSL (parser/checker/runtime target).
+//
+// Companion to spades.md. The machine-checkable form: partnership trick-taking
+// with a fixed trump suit (spades), a per-player integer bid (nil = 0), and
+// contract + nil + bag-overflow scoring to 500. Where spades.md sketches
+// constructs the grammar had not yet grown (scoring_component blocks, a
+// first-trick spade ban that is redundant with "no leading spades until
+// broken"), this file uses the constructs that actually execute and folds the
+// scoring into the `scoring` phase the way hearts.cardlang does.
+//
+// Chosen ruleset (one of several Spades variants; kept internally consistent so
+// the per-hand score reconciles):
+//   - team contract = sum of the partners' non-nil bids;
+//   - make it (team tricks >= contract): +10 per bid trick, +1 bag per overtrick;
+//   - miss it: -10 per bid trick, no bags;
+//   - nil bid (0): +100 if that player took zero tricks, -100 otherwise;
+//   - every 10 accumulated bags: -100 and the bag counter drops by 10.
 
-The companion formal file is [spades.cardlang](spades.cardlang); this is the
-readable twin. Spades is a four-player partnership trick-taking game (partners
-sit across) with spades always trump. Each player bids the number of tricks
-they expect to take (a bid of zero is *nil*); the partnership's contract is the
-sum of its non-nil bids. After thirteen tricks the hand is scored and the deal
-rotates. The game runs until a team reaches +500 (a win) or −200 (a loss).
-
-Scoring (the variant formalized here — Spades has several; this one is kept
-internally consistent so each hand's score reconciles):
-
-- **Contract.** Make the contract (team tricks ≥ contract): +10 per bid trick,
-  plus one *bag* per overtrick. Miss it: −10 per bid trick, no bags.
-- **Nil.** A nil bidder who takes no tricks scores +100; one who takes any
-  scores −100. Nil is scored per player, independently of the contract.
-- **Bag overflow.** Every 10 accumulated bags costs 100 points and drops the
-  bag counter by 10.
-
-This file folds scoring into the `scoring` phase (as Hearts does) rather than
-using separate `scoring_component` blocks; the first-trick "no spades" ban from
-some rulebooks is omitted because "no leading spades until broken" already
-forbids leading a spade on the first trick.
-
-```
 game Spades {
 
   players: 4
@@ -46,6 +39,9 @@ game Spades {
     bags[team]  : Integer = 0
   }
 
+  // The game ends when a team reaches +500 (a win) or sinks to -200 (a loss);
+  // both are standard Spades thresholds. The -200 floor matters: it guarantees
+  // termination under uniform-random bidding, which systematically overbids.
   phase hand_sequence repeats until (any team t: score[t] >= 500 or score[t] <= 0 - 200) {
     state {
       // Per-hand, reset each hand by before_each.
@@ -67,7 +63,8 @@ game Spades {
 
     phase bidding {
       legal_moves: [submit_bid]
-      // Each player names a number 0..13; 0 is a nil bid.
+      // Each player names a number 0..13; 0 is a nil bid. The range is carried
+      // by the choose, so no separate demand rule is needed to enforce it.
       for each player p: bid[p] := choose integer in 0 .. 13
     }
 
@@ -101,13 +98,16 @@ game Spades {
 
     phase scoring {
       state {
+        // Per-hand team aggregates, fresh each hand.
         team_bid[team]    : Integer = 0
         team_tricks[team] : Integer = 0
       }
 
+      // Fold per-player bids (excluding nil) and tricks into team totals.
       for each player p: team_bid[team_of(p)] += (if bid[p] == 0 then 0 else bid[p])
       for each player p: team_tricks[team_of(p)] += tricks_won[p]
 
+      // Contract scoring per team.
       for each team t:
         if team_tricks[t] >= team_bid[t] {
           score[t] += 10 * team_bid[t] + (team_tricks[t] - team_bid[t])
@@ -116,12 +116,14 @@ game Spades {
           score[t] -= 10 * team_bid[t]
         }
 
+      // Nil scoring per player.
       for each player p:
         if bid[p] == 0 {
           if tricks_won[p] == 0 { score[team_of(p)] += 100 }
           else { score[team_of(p)] -= 100 }
         }
 
+      // Bag overflow: every 10 bags costs 100 and decrements by 10.
       repeat until (all team t: bags[t] < 10) {
         for each team t:
           if bags[t] >= 10 { score[t] -= 100  bags[t] -= 10 }
@@ -132,15 +134,18 @@ game Spades {
   winner: highest score
 }
 
+// === Spades-specific rules ===
+
 rule NoLeadingSpadesUntilBroken {
   constrains: play_to_trick
-  applies_when: state.led_suit is none
+  applies_when: state.led_suit is none      // i.e., leading
   demands: hand.where(c => c.suit != spades)
 }
+
+// === Standard library rule ===
 
 rule MustFollowSuit {
   constrains: play_to_trick
   applies_when: state.led_suit is not none
   demands: hand.cards_of_suit(state.led_suit)
 }
-```

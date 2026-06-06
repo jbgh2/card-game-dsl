@@ -10,6 +10,8 @@
   "deck": "standard52",
   "direction": null,
   "ranking": [],
+  "trump": null,
+  "partnerships": [],
   "zones": [
     {
       "kind": "zone",

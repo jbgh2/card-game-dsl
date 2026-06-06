@@ -47,6 +47,16 @@ class _Ranking:
 
 
 @dataclass(frozen=True, slots=True)
+class _Trump:
+    suit: str
+
+
+@dataclass(frozen=True, slots=True)
+class _Partnerships:
+    teams: tuple[tuple[int, ...], ...]
+
+
+@dataclass(frozen=True, slots=True)
 class _Zones:
     zones: tuple[n.ZoneDecl, ...]
 
@@ -173,6 +183,16 @@ class _Builder(Transformer[Token, n.Game]):
 
     def card_rank(self, meta: Meta, c: list[Token]) -> str:
         return str(c[0])
+
+    def trump(self, meta: Meta, c: list[Token]) -> _Trump:
+        return _Trump(str(c[0]))
+
+    def team_spec(self, meta: Meta, c: list[Token]) -> tuple[int, ...]:
+        return tuple(int(x) for x in c)
+
+    def partnerships(self, meta: Meta, c: list[object]) -> _Partnerships:
+        teams = tuple(t for t in c if isinstance(t, tuple))
+        return _Partnerships(teams)
 
     def winner(self, meta: Meta, c: list[Token]) -> n.Winner:
         return n.Winner(rank_dir=str(c[0]), target=str(c[1]), span=self._span(meta))
@@ -567,6 +587,9 @@ class _Builder(Transformer[Token, n.Game]):
     def sub(self, meta: Meta, c: list[object]) -> n.BinOp:
         return n.BinOp("-", _as_expr(c[0]), _as_expr(c[1]), span=self._span(meta))
 
+    def mul(self, meta: Meta, c: list[object]) -> n.BinOp:
+        return n.BinOp("*", _as_expr(c[0]), _as_expr(c[1]), span=self._span(meta))
+
     def offset_by(self, meta: Meta, c: list[object]) -> n.BinOp:
         return n.BinOp(
             "offset_by", _as_expr(c[0]), _as_expr(c[1]), span=self._span(meta)
@@ -595,6 +618,14 @@ class _Builder(Transformer[Token, n.Game]):
 
     def all_players(self, meta: Meta, c: list[object]) -> n.AllPlayers:
         return n.AllPlayers(span=self._span(meta))
+
+    def choose_integer(self, meta: Meta, c: list[object]) -> n.Choose:
+        return n.Choose(
+            domain="integer",
+            lo=_as_expr(c[0]),
+            hi=_as_expr(c[1]),
+            span=self._span(meta),
+        )
 
     def call(self, meta: Meta, c: list[object]) -> n.Call:
         args = c[1] if len(c) > 1 and c[1] is not None else ()
@@ -627,6 +658,8 @@ class _Builder(Transformer[Token, n.Game]):
         deck: str | None = None
         direction: str | None = None
         ranking: tuple[str, ...] = ()
+        trump: str | None = None
+        partnerships: tuple[tuple[int, ...], ...] = ()
         zones: tuple[n.ZoneDecl, ...] = ()
         state: n.StateBlock | None = None
         phases: list[n.Phase] = []
@@ -641,6 +674,10 @@ class _Builder(Transformer[Token, n.Game]):
                 direction = item.value
             elif isinstance(item, _Ranking):
                 ranking = item.ranks
+            elif isinstance(item, _Trump):
+                trump = item.suit
+            elif isinstance(item, _Partnerships):
+                partnerships = item.teams
             elif isinstance(item, _Zones):
                 zones = item.zones
             elif isinstance(item, n.StateBlock):
@@ -661,6 +698,8 @@ class _Builder(Transformer[Token, n.Game]):
             zones=zones,
             direction=direction,
             ranking=ranking,
+            trump=trump,
+            partnerships=partnerships,
             state=state,
             phases=tuple(phases),
             winner=winner,

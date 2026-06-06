@@ -38,8 +38,15 @@ def play_game(
         "a game must declare a winner or a loser"
     )
     seating = Seating(game.players.low)
-    zones = ZoneStore(game.zones, seating.players)
+    teams = tuple(range(len(game.partnerships)))
+    team_of = {
+        p: ti for ti, members in enumerate(game.partnerships) for p in members
+    }
+    zones = ZoneStore(game.zones, seating.players, teams)
     rs = RuntimeState(seating, zones, rng)
+    rs.trump = game.trump
+    rs.teams = teams
+    rs.team_of = team_of
     rs.rule_index = {r.name: r for r in game.rules}
     rs.routing_index = {r.name: r for r in game.routings}
     rs.deck_zone = next(z.name for z in game.zones if z.type_ref.name == "Deck")
@@ -153,7 +160,6 @@ def _declare_state(block: n.StateBlock, ctx: Ctx) -> None:
         if decl.index is None:
             ctx.rs.declare(decl.name, False, evaluate(decl.default, ctx))
         else:
-            value: dict[Player, Any] = {
-                p: evaluate(decl.default, ctx) for p in ctx.rs.seating.players
-            }
+            keys = ctx.rs.teams if decl.index == "team" else ctx.rs.seating.players
+            value: dict[int, Any] = {k: evaluate(decl.default, ctx) for k in keys}
             ctx.rs.declare(decl.name, True, value)

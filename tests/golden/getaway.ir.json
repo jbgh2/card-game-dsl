@@ -24,6 +24,8 @@
     "3",
     "2"
   ],
+  "trump": null,
+  "partnerships": [],
   "zones": [
     {
       "kind": "zone",

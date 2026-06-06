@@ -184,9 +184,15 @@ def _apply(op: str, current: Any, rhs: Any) -> Any:
 
 
 def _for_each(stmt: n.ForEach, ctx: Ctx) -> None:
+    if stmt.role == "team":
+        for team in ctx.rs.teams:
+            execute(stmt.body, ctx.with_local(stmt.binder, team))
+        return
     assert stmt.role == "player"
+    # The bound player is also the acting player for the body, so a decision
+    # made inside (e.g. `bid[p] := choose …`) knows who is choosing.
     for player in ctx.rs.seating.players:
-        execute(stmt.body, ctx.with_local(stmt.binder, player))
+        execute(stmt.body, ctx.with_local(stmt.binder, player).acting_as(player))
 
 
 def _each_simultaneous(stmt: n.EachSimultaneous, ctx: Ctx) -> None:

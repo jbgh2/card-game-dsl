@@ -12,5 +12,6 @@ LIBRARY_MOVE_TYPES: frozenset[str] = frozenset(
     {
         "play_to_trick",
         "transfer_between_hands",
+        "submit_bid",  # a player names a number (Spades/Oh Hell bidding)
     }
 )
