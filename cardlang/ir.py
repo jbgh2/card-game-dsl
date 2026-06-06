@@ -237,7 +237,16 @@ def _stmt(s: n.Stmt) -> IRDict:
                 "move_types": list(s.move_types),
             }
         case n.Round():
-            raise NotImplementedError("Round IR lowering — Task C")
+            return {
+                "kind": "round",
+                "move_type": s.move_type,
+                "leader": _expr(s.leader),
+                "participants": _expr(s.participants),
+                "source_zone": s.source_zone,
+                "play_zone": s.play_zone,
+                "outcome_fn": s.outcome_fn,
+                "trump": _expr(s.trump) if s.trump is not None else None,
+            }
         case _ as unreachable:
             assert_never(unreachable)
 
