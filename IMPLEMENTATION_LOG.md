@@ -135,6 +135,35 @@ or rank order), per-trick winner correctness against the schnapsen20 rank order
 *and* trump, and that every hand reduces the total game score (settlement always
 fires).
 
+### Pinochle (done)
+
+Generic seams added:
+- Deck `copies` (the pinochle48 pack is two of each A 10 K Q J 9 → 48 cards);
+  `build_deck` repeats accordingly. Card values A/10/K = 10 (counters), rest 0.
+- Phase-level `repeats until` now has the same 10000-iteration backstop the
+  statement-level loop has (committed separately) — surfaced by the three Spades
+  smoke runs that span at 100% CPU for 14h before the −200 fix.
+
+Pinochle-specific (concrete `PinochleHand` mechanic, like SchnapsenHand):
+- Ascending auction (open 50, +10, pass out; capped to stay bounded under random
+  bidding), trump declaration (high bidder needs a marriage in the suit, else the
+  bid is abandoned and the side is set back), forced **meld** scoring (a pure
+  computation — `pinochle_meld`, standard single-pack combos incl. doubles), and
+  twelve strict tricks (follow/head/trump/over-trump). The cardlang holds the
+  deal, contract settlement, and termination (first team to 150).
+
+Falsifiable invariants (`tests/test_playout_pinochle.py`, 150 games): 48-card /
+240-counter conservation, per-trick winner correctness against the pinochle rank
+order + trump, and **250 trick points distributed every played-out hand**
+(240 counters + 10 last trick) — catches a wrong rank order, value table, or
+last-trick award.
+
+This is the **second/third instance** of two recurring gaps now firmly
+identified (see open questions): heterogeneous action-selection (auctions) and
+strict-trick legality rules. Both still live in concrete mechanics. Bridge is
+next and shares both — the point at which lifting strict-trick legality into the
+rule DSL (rank comparison + trick-pile query methods) likely pays for itself.
+
 ## Open questions
 
 - **Representative playouts vs invariant playouts.** Uniform-random bidding

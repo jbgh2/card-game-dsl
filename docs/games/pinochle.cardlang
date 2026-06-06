@@ -1,34 +1,19 @@
-# Pinochle
+// Pinochle — formalized DSL (parser/checker/runtime target).
+//
+// Companion to pinochle.md. Partnership Bid Pinochle, single (48-card) pack,
+// four players in fixed partnerships sitting across. Each hand: an ascending
+// auction, the high bidder names trump (a suit he holds a marriage in, else he
+// abandons the bid), both sides score their meld, then twelve strict tricks
+// score 10 per A/10/K captured plus 10 for the last trick. The bidding side must
+// reach its bid in meld + tricks or be set back by the bid amount. First team to
+// 150 wins.
+//
+// The hand engine — the auction, trump declaration, meld scoring, and the strict
+// follow/head/trump/over-trump trick play — runs in the built-in `PinochleHand`
+// mechanic (auctions and strict-trick legality are not yet expressible in the
+// rule DSL; see IMPLEMENTATION_LOG.md). The cardlang holds the deal, the
+// contract settlement, and termination.
 
-The companion formal file is [pinochle.cardlang](pinochle.cardlang); this is the
-readable twin. Partnership Bid Pinochle, single 48-card pack (two copies each of
-A 10 K Q J 9 per suit; 10 ranks between K and A), four players in fixed
-partnerships sitting across. First team to **150** wins.
-
-Each hand:
-
-1. Deal 12 cards each.
-2. **Auction** — an ascending bid opening at 50 and rising in 10s; players pass
-   out, the last bidder takes the contract.
-3. **Declare trump** — the high bidder names a suit he holds a *marriage* (K-Q)
-   in. With no marriage anywhere he abandons the bid and his side is set back by
-   the bid amount.
-4. **Meld** — both sides score their meld combinations (runs, marriages, dix,
-   pinochle, and the four-around sets — the standard single-pack values, with
-   doubles scoring the published double values).
-5. **Play** — twelve strict tricks: follow suit and head the led suit if you
-   can; if void, trump and over-trump if you can. A/10/K captured score 10 each,
-   and the last trick is worth 10 (250 trick points in all).
-6. **Score** — the bidding side adds meld + tricks if it reached its bid, else is
-   set back by the bid; the other side always adds its meld + tricks.
-
-The hand engine — the auction, the trump declaration, the meld scoring, and the
-strict trick play — runs in the built-in `PinochleHand` mechanic. Auctions vary
-in shape across the corpus and the strict-trick legality rules recur, so neither
-is lifted into the rule DSL yet (flagged in IMPLEMENTATION_LOG.md); the cardlang
-below holds the deal, the contract settlement, and termination.
-
-```
 game Pinochle {
 
   players: 4
@@ -78,6 +63,7 @@ game Pinochle {
 
     phase scoring {
       if bid_abandoned {
+        // The bidder found no marriage to name trump: set back by the bid.
         score[team_of(high_bidder)] -= current_bid
       } else {
         for each team t:
@@ -96,4 +82,3 @@ game Pinochle {
 
   winner: highest score
 }
-```

@@ -23,12 +23,14 @@ _RANK_INDEX = {r: i for i, r in enumerate(RANKS)}
 @dataclass(frozen=True, slots=True)
 class Deck:
     """A named deck: the ranks each suit carries (high to low is set by the
-    game's `ranking:`), the suits, and an optional card-point value table for
-    point-trick games (Schnapsen, Pinochle, Tarot)."""
+    game's `ranking:`), the suits, an optional card-point value table for
+    point-trick games (Schnapsen, Pinochle, Tarot), and how many copies of each
+    card the deck holds (Pinochle doubles a 24-card pack into 48)."""
 
     suits: tuple[str, ...]
     ranks: tuple[str, ...]
     values: dict[str, int]  # rank -> card points; empty when the game scores otherwise
+    copies: int = 1
 
 
 DECKS: dict[str, Deck] = {
@@ -38,6 +40,14 @@ DECKS: dict[str, Deck] = {
         suits=SUITS,
         ranks=("J", "Q", "K", "10", "A"),
         values={"J": 2, "Q": 3, "K": 4, "10": 10, "A": 11},
+    ),
+    # 48-card Pinochle pack: two copies of A 10 K Q J 9 per suit. Counters
+    # (A, 10, K) are worth 10 trick points each; the rest score 0.
+    "pinochle48": Deck(
+        suits=SUITS,
+        ranks=("A", "10", "K", "Q", "J", "9"),
+        values={"A": 10, "10": 10, "K": 10, "Q": 0, "J": 0, "9": 0},
+        copies=2,
     ),
 }
 
@@ -63,7 +73,12 @@ def build_deck(deck_name: str) -> list[Card]:
     deck = DECKS.get(deck_name)
     if deck is None:
         raise NotImplementedError(f"deck '{deck_name}' not supported by the runtime yet")
-    return [Card(rank, suit) for suit in deck.suits for rank in deck.ranks]
+    return [
+        Card(rank, suit)
+        for _ in range(deck.copies)
+        for suit in deck.suits
+        for rank in deck.ranks
+    ]
 
 
 # A player is just an identity; the runtime uses small ints P0..P(n-1).
