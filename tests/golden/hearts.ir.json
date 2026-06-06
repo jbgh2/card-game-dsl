@@ -1132,5 +1132,6 @@
       "if_impossible": null
     }
   ],
-  "routings": []
+  "routings": [],
+  "move_types": []
 }

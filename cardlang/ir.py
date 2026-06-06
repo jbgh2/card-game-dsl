@@ -47,6 +47,7 @@ def emit(game: n.Game) -> IRDict:
         "loser": _loser(game.loser) if game.loser else None,
         "rules": [_rule(r) for r in game.rules],
         "routings": [_routing(r) for r in game.routings],
+        "move_types": [_move_type(m) for m in game.move_types],
     }
 
 
@@ -72,6 +73,15 @@ def _loser(lo: n.Loser) -> IRDict:
 
 def _routing(r: n.RoutingDef) -> IRDict:
     return {"kind": "routing", "name": r.name, "body": [_stmt(s) for s in r.body]}
+
+
+def _move_type(m: n.MoveTypeDef) -> IRDict:
+    return {
+        "kind": "move_type",
+        "name": m.name,
+        "guard": _expr(m.guard) if m.guard is not None else None,
+        "effect": [_stmt(s) for s in m.effect],
+    }
 
 
 def _zone(z: n.ZoneDecl) -> IRDict:
@@ -221,7 +231,11 @@ def _stmt(s: n.Stmt) -> IRDict:
                 "value": _expr(s.value),
             }
         case n.Offer():
-            raise NotImplementedError("Offer IR lowering not yet implemented")
+            return {
+                "kind": "offer",
+                "player": _expr(s.player),
+                "move_types": list(s.move_types),
+            }
         case _ as unreachable:
             assert_never(unreachable)
 

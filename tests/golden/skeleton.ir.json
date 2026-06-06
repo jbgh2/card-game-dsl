@@ -41,5 +41,6 @@
   "winner": null,
   "loser": null,
   "rules": [],
-  "routings": []
+  "routings": [],
+  "move_types": []
 }
