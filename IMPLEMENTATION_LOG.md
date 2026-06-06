@@ -102,6 +102,24 @@ Falsifiable invariants (`tests/test_playout_oh_hell.py`, 100 games): exactly 19
 hands, exactly 109 tricks total (the hand-size sequence sums to 109), card
 conservation, and per-trick winner correctness against the hand's trump.
 
+## Next up: Schnapsen (runway note)
+
+Schnapsen is the first game that needs an **action-selection** layer, not just a
+card chooser. At each lead the player chooses among heterogeneous moves —
+`play_to_trick`, `declare_marriage`, `exchange_trump_jack`, `close_talon`,
+`claim_66` — each with its own effect on per-hand state. The plain `Trick`
+mechanic (everyone plays one card) can't express this; it needs a new mechanic
+(a trick-and-draw / lead-action loop) alongside `Trick`. Also new: the
+`schnapsen20` deck, Ace-Ten **card point values** (J=2 Q=3 K=4 10=10 A=11), the
+talon draw after each trick, marriages, talon closing with a state snapshot, and
+the five-shape settlement.
+
+Assessment against the stop condition: this is **additive** (a new mechanic +
+new deck + card-value table), not a DSL breakdown — keep going. The likely
+generic seams to widen: a deck-values table (also needed by Pinochle/Tarot), and
+a way to express "choose which move type to make, then run its effect" (also the
+shape of the auction games, so design it to generalize).
+
 ## Open questions
 
 - **Representative playouts vs invariant playouts.** Uniform-random bidding
