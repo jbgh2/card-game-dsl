@@ -159,6 +159,10 @@ def run_round(stmt: n.Round, ctx: Ctx) -> Player:
 
     participants = evaluate(stmt.participants, ctx)
     leader = evaluate(stmt.leader, ctx)
+    # `outcome_fn` is a bare stdlib value-function name on the Round node, so it
+    # resolves directly here. (The `instantiate Trick` path reaches the same
+    # function via evaluate() of a NameRef arg — keep these two in step if the
+    # stdlib value-function lookup ever changes.)
     outcome_fn = stdlib.value_function(stmt.outcome_fn)
     trump = evaluate(stmt.trump, ctx) if stmt.trump is not None else ctx.rs.trump
     play_rules = phases.compute_active_rules(ctx.current_phase, ctx.rs)
