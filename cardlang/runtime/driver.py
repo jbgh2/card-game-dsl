@@ -125,7 +125,18 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
 
     q = phase.qualifier
     if q is not None and q.kind == "repeats":
+        guard = 0
         while not evaluate(q.expr, ctx):
+            # A `repeats until` whose condition never holds (e.g. a win threshold
+            # unreachable under random play) would otherwise hang forever — fail
+            # loudly so non-termination surfaces as a test failure, not a stuck
+            # process. The statement-level `repeat until` has the same backstop.
+            guard += 1
+            if guard > 10_000:
+                raise RuntimeError(
+                    f"phase '{phase.name}' repeated 10000 times without its "
+                    "`repeats until` condition holding (non-termination?)"
+                )
             ctx.rs.fired_transitions.clear()  # transitions reset each iteration
             if before is not None:
                 run_stmts(before.body, ctx)
