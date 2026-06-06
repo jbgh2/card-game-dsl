@@ -79,6 +79,13 @@ DECKS: dict[str, Deck] = {
     "tarot78": Deck(suits=SUITS, ranks=(), values={}, cards=_tarot78()),
     # 56-card Tichu pack: standard 52 plus Mahjong, Dog, Phoenix, Dragon.
     "tichu56": Deck(suits=SUITS, ranks=RANKS, values={}, cards=_tichu56()),
+    # 15-card Coup deck: five characters (the "rank") under one suit, three each.
+    "coup15": Deck(
+        suits=("court",),
+        ranks=("Duke", "Assassin", "Captain", "Ambassador", "Contessa"),
+        values={},
+        copies=3,
+    ),
 }
 
 

@@ -45,6 +45,10 @@ def instantiate(stmt: n.Instantiate, ctx: Ctx) -> Player:
         from cardlang.runtime.tichu import run_tichu_hand
 
         return run_tichu_hand(stmt, ctx)
+    if stmt.mechanic == "CoupGame":
+        from cardlang.runtime.coup import run_coup_game
+
+        return run_coup_game(stmt, ctx)
     if stmt.mechanic != "Trick":
         raise NotImplementedError(f"mechanic '{stmt.mechanic}' not supported yet")
     args = {a.name: a.value for a in stmt.args}

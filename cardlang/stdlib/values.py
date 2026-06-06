@@ -19,6 +19,8 @@ _SUITS_BY_DECK: dict[str, frozenset[str]] = {
     "tarot78": _FRENCH | frozenset({"atouts", "excuse"}),
     # Tichu adds the four special cards under a "special" suit.
     "tichu56": _FRENCH | frozenset({"special"}),
+    # Coup's characters live under a single "court" suit.
+    "coup15": frozenset({"court"}),
 }
 
 # The stdlib Direction enum (used for passing/seating offsets). `hold` is the

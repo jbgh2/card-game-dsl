@@ -324,6 +324,35 @@ Falsifiable: combination-engine + climbing-legality unit tests, and a 30-game
 playout (56-card conservation, 100 card points every non-DV hand, termination
 with the higher team winning).
 
+### Coup (done) — corpus complete (11/11)
+
+The furthest-from-cards game: hidden influence, a coin economy, and actions
+resolved through challenge/block windows with bluffing. Concrete `CoupGame`
+mechanic (`runtime/coup.py`) runs the entire game to a sole survivor: setup, the
+turn loop, the seven actions, nested challenge/block windows, and elimination.
+New deck `coup15` (five characters as the rank under one `court` suit, three
+copies). Coins are integers; `alive[p]` (1/0) is the winner var so
+`winner: highest alive` names the survivor.
+
+Two conservation invariants: total coins = 50 (treasury + players), total
+influence = 15 (deck + hands + revealed). Challenges/blocks fire at a modest
+random rate; forced Coup at 10 coins guarantees termination.
+
+Falsifiable (`tests/test_playout_coup.py`, 40 games): exactly one survivor who is
+the winner, 50-coin conservation, 15-card conservation.
+
+---
+
+## ALL 11 GAMES COMPLETE
+
+Spades, Oh Hell, Schnapsen, Pinochle, Bridge, Skat, French Tarot, Cribbage,
+Seven-Card Stud, Tichu, Coup — every corpus game is executable and passes a
+random-playout invariant test. No critical DSL breakdown was hit: every game was
+expressible as additive, backward-compatible growth (new decks, zone/move/
+mechanic registry entries, a few generic seams) plus, for the structurally
+different games, a concrete per-game mechanic with its distinctive logic and a
+clearly logged expressiveness gap (faithful rules, flagged surface).
+
 ## Open questions
 
 - **Representative playouts vs invariant playouts.** Uniform-random bidding

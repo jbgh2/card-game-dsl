@@ -55,5 +55,15 @@ LIBRARY_MOVE_TYPES: frozenset[str] = frozenset(
         "push_card",
         "call_tichu",
         "call_grand_tichu",
+        # Coup moves (handled by the CoupGame mechanic).
+        "income",
+        "foreign_aid",
+        "coup",
+        "tax",
+        "assassinate",
+        "steal",
+        "exchange",
+        "challenge",
+        "block",
     }
 )
