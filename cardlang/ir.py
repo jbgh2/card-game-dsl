@@ -236,6 +236,8 @@ def _stmt(s: n.Stmt) -> IRDict:
                 "player": _expr(s.player),
                 "move_types": list(s.move_types),
             }
+        case n.Round():
+            raise NotImplementedError("Round IR lowering — Task C")
         case _ as unreachable:
             assert_never(unreachable)
 

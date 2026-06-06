@@ -54,6 +54,8 @@ def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
         case n.Offer():
             _offer(stmt, ctx)
             return ctx
+        case n.Round():
+            raise NotImplementedError("Round execution — Task D")
         case _ as unreachable:
             assert_never(unreachable)
 

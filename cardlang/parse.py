@@ -449,6 +449,22 @@ class _Builder(Transformer[Token, n.Game]):
         names = tuple(str(x) for x in c[1:])
         return n.Offer(player=player, move_types=names, span=self._span(meta))
 
+    def round_stmt(self, meta: Meta, c: list[object]) -> n.Round:
+        # c: [NAME(move_type), expr(leader), expr(participants),
+        #     NAME(source), NAME(into), NAME(outcome), expr(trump)?]
+        # With maybe_placeholders=True, len(c)==7 always; c[6] is None when absent.
+        trump = _as_expr(c[6]) if c[6] is not None else None
+        return n.Round(
+            move_type=str(c[0]),
+            leader=_as_expr(c[1]),
+            participants=_as_expr(c[2]),
+            source_zone=str(c[3]),
+            play_zone=str(c[4]),
+            outcome_fn=str(c[5]),
+            trump=trump,
+            span=self._span(meta),
+        )
+
     def let_stmt(self, meta: Meta, c: list[object]) -> n.LetStmt:
         index = c[1] if isinstance(c[1], str) else None
         return n.LetStmt(

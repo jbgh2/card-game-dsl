@@ -120,6 +120,7 @@ move_event: NAME ["where" expr]
           | let_stmt
           | assign_stmt
           | offer
+          | round_stmt
 
 // The built-in operation vocabulary uses prose statement syntax — game actions
 // read as rulebook commands, not function calls (decisions.md "The operation
@@ -169,6 +170,7 @@ else_block: "else" "{" statement* "}"
 
 instantiate: "instantiate" NAME "(" [named_arg ("," named_arg)*] ")"
 offer: "offer" "to" expr "one" "of" "[" NAME ("," NAME)* "]"
+round_stmt: "round" NAME "from" expr "over" expr "source" NAME "into" NAME "outcome" NAME ["trump" expr]   -> round_stmt
 named_arg: NAME "=" arg_value
 ?arg_value: movement
           | expr

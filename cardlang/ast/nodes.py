@@ -354,6 +354,24 @@ class Offer:
     span: Span | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class Round:
+    """`round <move_type> from <leader> over <participants> source <zone> into
+    <zone> outcome <fn> [trump <expr>]` — a turn-order pass where each
+    participant makes one card play (filtered by the active rules), then the
+    outcome function picks the winner, which is bound as `outcome`. Routing is
+    left to the surrounding body."""
+
+    move_type: str
+    leader: Expr
+    participants: Expr
+    source_zone: str
+    play_zone: str
+    outcome_fn: str
+    trump: Expr | None
+    span: Span | None = None
+
+
 Stmt = (
     Movement
     | EpistemicOp
@@ -366,6 +384,7 @@ Stmt = (
     | LetStmt
     | AssignStmt
     | Offer
+    | Round
 )
 
 
@@ -643,6 +662,7 @@ Node = (
     | LetStmt
     | AssignStmt
     | Offer
+    | Round
     | NamedArg
     | NameRef
     | IntLit
