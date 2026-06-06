@@ -54,6 +54,7 @@ def play_game(
     rs.card_values = dict(DECKS[game.deck].values)
     rs.rule_index = {r.name: r for r in game.rules}
     rs.routing_index = {r.name: r for r in game.routings}
+    rs.move_type_index = {m.name: m for m in game.move_types}
     rs.deck_zone = next(z.name for z in game.zones if z.type_ref.name == "Deck")
     rs.zones.single(rs.deck_zone).add_all(build_deck(game.deck))
     if game.winner is not None:

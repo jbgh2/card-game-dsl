@@ -92,6 +92,7 @@ class RuntimeState:
         self.fired_transitions: set[str] = set()  # transition targets reached this iteration
         self.rule_index: dict[str, n.RuleDef] = {}  # rule name -> definition
         self.routing_index: dict[str, n.RoutingDef] = {}  # routing name -> definition
+        self.move_type_index: dict[str, n.MoveTypeDef] = {}  # name -> definition
         self.deck_zone: str = ""  # the Deck-typed zone (initialized full at start)
         self.score_var: str | None = None  # the winner's score var (None for loser games)
         self.trump: str | None = None  # the trump suit, if the game declares one

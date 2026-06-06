@@ -107,6 +107,8 @@ def _pronoun(name: str, ctx: Ctx) -> Any:
             return ctx.action
         case "active_rules":
             return ctx.active_rules
+        case "actor":
+            return ctx.current_player
         case _:
             raise AssertionError(f"unknown pronoun '{name}'")
 
