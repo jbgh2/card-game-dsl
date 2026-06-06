@@ -10,6 +10,7 @@ start: top_item+
 ?top_item: game
          | rule_def
          | routing_def
+         | move_type_def
 
 // ----------------------------------------------------------------------------
 // Game structure
@@ -118,6 +119,7 @@ move_event: NAME ["where" expr]
           | instantiate
           | let_stmt
           | assign_stmt
+          | offer
 
 // The built-in operation vocabulary uses prose statement syntax — game actions
 // read as rulebook commands, not function calls (decisions.md "The operation
@@ -166,6 +168,7 @@ if_stmt: "if" expr "{" statement* "}" [else_block]
 else_block: "else" "{" statement* "}"
 
 instantiate: "instantiate" NAME "(" [named_arg ("," named_arg)*] ")"
+offer: "offer" "to" expr "one" "of" "[" NAME ("," NAME)* "]"
 named_arg: NAME "=" arg_value
 ?arg_value: movement
           | expr
@@ -184,6 +187,10 @@ lvalue: NAME [index_expr]
 // Runs with the trick context bound — the `outcome` and `state` pronouns — so
 // it takes no parameter list; referenced by name as a Trick `routing =` arg.
 routing_def: "routing" NAME "{" statement* "}"
+
+move_type_def: "move_type" NAME "{" [move_when] move_effect "}"
+move_when: "when" ":" applies_pred
+move_effect: "effect" "{" statement* "}"
 
 rule_def: "rule" NAME "{" rule_clause* "}"
 ?rule_clause: constrains

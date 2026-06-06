@@ -132,6 +132,16 @@ class _SelectMode:
     mode: str
 
 
+@dataclass(frozen=True, slots=True)
+class _MoveWhen:
+    pred: object  # _Always | Expr
+
+
+@dataclass(frozen=True, slots=True)
+class _MoveEffect:
+    body: tuple[object, ...]
+
+
 @lru_cache(maxsize=1)
 def _parser() -> Lark:
     grammar = resources.files("cardlang.grammar").joinpath("cardlang.lark").read_text()
@@ -434,6 +444,11 @@ class _Builder(Transformer[Token, n.Game]):
         args = tuple(a for a in c[1:] if isinstance(a, n.NamedArg))
         return n.Instantiate(mechanic=str(c[0]), args=args, span=self._span(meta))
 
+    def offer(self, meta: Meta, c: list[object]) -> n.Offer:
+        player = _as_expr(c[0])
+        names = tuple(str(x) for x in c[1:])
+        return n.Offer(player=player, move_types=names, span=self._span(meta))
+
     def let_stmt(self, meta: Meta, c: list[object]) -> n.LetStmt:
         index = c[1] if isinstance(c[1], str) else None
         return n.LetStmt(
@@ -712,11 +727,31 @@ class _Builder(Transformer[Token, n.Game]):
         body = tuple(_as_stmt(s) for s in c[1:])
         return n.RoutingDef(name=str(c[0]), body=body, span=self._span(meta))
 
+    def move_when(self, meta: Meta, c: list[object]) -> _MoveWhen:
+        return _MoveWhen(c[0])
+
+    def move_effect(self, meta: Meta, c: list[object]) -> _MoveEffect:
+        return _MoveEffect(tuple(_as_stmt(s) for s in c))
+
+    def move_type_def(self, meta: Meta, c: list[object]) -> n.MoveTypeDef:
+        name = str(c[0])
+        guard: object | None = None
+        effect: tuple[object, ...] = ()
+        for item in c[1:]:
+            if isinstance(item, _MoveWhen):
+                guard = None if isinstance(item.pred, _Always) else _as_expr(item.pred)
+            elif isinstance(item, _MoveEffect):
+                effect = item.body
+        return n.MoveTypeDef(
+            name=name, guard=guard, effect=effect, span=self._span(meta)  # type: ignore[arg-type]
+        )
+
     def start(self, meta: Meta, c: list[object]) -> n.Game:
         game = next(x for x in c if isinstance(x, n.Game))
         rules = tuple(x for x in c if isinstance(x, n.RuleDef))
         routings = tuple(x for x in c if isinstance(x, n.RoutingDef))
-        return replace(game, rules=rules, routings=routings)
+        move_types = tuple(x for x in c if isinstance(x, n.MoveTypeDef))
+        return replace(game, rules=rules, routings=routings, move_types=move_types)
 
 
 def _as_expr(value: object) -> n.Expr:
