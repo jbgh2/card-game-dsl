@@ -20,10 +20,23 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             return _player_holding(args[0], ctx)
         case "team_of":
             return ctx.rs.team_of[args[0]]
+        case "suit_of":
+            return _suit_of(args[0])
         case "error":
             raise IllegalMove(args[0] if args else "illegal move")
         case _:
             raise AssertionError(f"unknown stdlib function '{name}'")
+
+
+def _suit_of(value: Any) -> str:
+    """The suit of a card, or of the single card in a zone (a face-up trump
+    indicator)."""
+    from cardlang.runtime.state import Zone
+
+    if isinstance(value, Zone):
+        return value.cards[0].suit
+    assert isinstance(value, Card)
+    return value.suit
 
 
 def _player_holding(card: Card, ctx: Ctx) -> Player | None:

@@ -34,6 +34,11 @@ def instantiate(stmt: n.Instantiate, ctx: Ctx) -> Player:
         if "early_termination" in args
         else None
     )
+    # The trump suit for this trick: an explicit `trump =` arg when it varies by
+    # hand (Oh Hell turns one up each deal), else the game-level `trump:` decl.
+    trump = (
+        evaluate(_expr(args["trump"]), ctx) if "trump" in args else ctx.rs.trump
+    )
     # `play_rules = active_rules` -> the current phase's active rules, recomputed
     # each trick so the hearts-broken transition takes effect.
     play_rules = phases.compute_active_rules(ctx.current_phase, ctx.rs)
@@ -46,6 +51,7 @@ def instantiate(stmt: n.Instantiate, ctx: Ctx) -> Player:
         outcome_fn=outcome_fn,
         routing_body=routing_body,
         early_term=early_term,
+        trump=trump,
         ctx=ctx,
     )
 
@@ -75,11 +81,16 @@ def run_trick(
     outcome_fn: Any,
     routing_body: tuple[n.Stmt, ...],
     early_term: Any,
+    trump: str | None,
     ctx: Ctx,
 ) -> Player:
     from cardlang.runtime.execute import run_body  # lazy: breaks the import cycle
 
-    state: dict[str, Any] = {"led_suit": None, "trick_terminated_early": False}
+    state: dict[str, Any] = {
+        "led_suit": None,
+        "trick_terminated_early": False,
+        "trump": trump,
+    }
     ctx.rs.mech_state.append(state)
     trick_ctx = ctx.with_rules(play_rules)
     transitions = phases.phase_transitions(ctx.current_phase)
@@ -103,8 +114,8 @@ def run_trick(
             state["trick_terminated_early"] = True
             break
 
-    ctx.trace("trick_end", {"early": state["trick_terminated_early"]})
-    outcome = outcome_fn(played, state["led_suit"], ctx.rs.trump)
+    ctx.trace("trick_end", {"early": state["trick_terminated_early"], "trump": trump})
+    outcome = outcome_fn(played, state["led_suit"], trump)
     assert isinstance(outcome, int)
     ctx.trace("trick", (outcome, [c for _, c in played]))
     run_body(routing_body, trick_ctx.with_outcome(outcome))  # route the played cards

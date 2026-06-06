@@ -22,6 +22,7 @@ STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
     {
         "player_holding",
         "team_of",  # the partnership a player belongs to
+        "suit_of",  # the suit of a card, or of a single-card zone (trump indicator)
         "error",  # the if_impossible fallback that rejects the move
     }
 )

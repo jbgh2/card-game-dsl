@@ -76,6 +76,32 @@ plays/trick, **trick-winner correctness recomputed from the cards played**
 (would go red under a wrong outcome function), termination at a real threshold,
 winner = top-scoring team.
 
+### Oh Hell (done)
+
+Language/runtime additions (generic):
+- A per-trick `trump =` argument to `instantiate Trick(...)`: when trump varies
+  by hand, the cardlang passes the per-hand trump state var; the mechanic falls
+  back to the game-level `trump:` decl when the arg is absent. The trump is also
+  surfaced in the `trick_end` trace (a dict key) so playout tests can verify
+  trick-winner correctness against a per-hand trump.
+- `suit_of(card | zone)` stdlib call — the suit of a card, or of the single card
+  in a zone (the face-up trump indicator).
+
+Design choices:
+- Variable hand size carried by a `hand_size` state var recomputed each hand in
+  `before_each` (a phase-body `let` would not thread into the deal/play
+  sub-phases — lets don't cross phase boundaries; state vars do).
+- 19 fixed hands via a `hand_index` counter incremented in `after_each`;
+  termination `repeats until hand_index >= 19`.
+- Dealer hook enforced as a post-bid correction to the dealer's bid (guarantees
+  total bids ≠ hand size) rather than a choice-time constraint — see the open
+  question on sequential bidding.
+- Exact-bid scoring folded inline into the `scoring` phase.
+
+Falsifiable invariants (`tests/test_playout_oh_hell.py`, 100 games): exactly 19
+hands, exactly 109 tricks total (the hand-size sequence sums to 109), card
+conservation, and per-trick winner correctness against the hand's trump.
+
 ## Open questions
 
 - **Representative playouts vs invariant playouts.** Uniform-random bidding
@@ -86,3 +112,9 @@ winner = top-scoring team.
 - **`scoring_component` subsystem.** Still unbuilt; Spades didn't need it.
   Bridge/Skat (contract bonuses, vulnerability, rubber) may force a real
   decision here.
+- **Sequential bidding / `choose … excluding …`.** Oh Hell's dealer hook and the
+  Bridge/Skat auctions want a player to choose in turn order while reading prior
+  choices, and to exclude specific candidates. Modelled approximately for Oh
+  Hell (post-bid correction). A real `each player in turn from <p>: …` construct
+  plus an exclusion form on `choose` is likely needed for the auction games and
+  should be designed once, generically, when Bridge forces it.
