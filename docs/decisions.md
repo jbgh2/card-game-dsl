@@ -62,6 +62,12 @@ bidding produces:
     skip to next hand
 ```
 
+A mechanic's result is also available as the bare `outcome` pronoun in the
+enclosing body, immediately after the `instantiate`: Hearts follows
+`instantiate Trick(...)` with `leader := outcome`, reading the trick's selected
+player. This is the same value a `produces:` block would match; the bare
+`outcome` is the shorthand for a single-payload result that needs no tag.
+
 Mechanics and phases are *not* further unified at the construct
 level. The distinction stays:
 
@@ -127,17 +133,25 @@ ends. Used for setup → bidding → play → scoring pipelines.
 active *exactly when* the predicate holds. The phase is entered the
 first time the predicate becomes true and exited as soon as it
 becomes false. Hearts' `passing` sub-phase uses this for the case
-when `pass_direction != none`; Tichu's `wish_active` sub-phase uses
+when `pass_direction != hold`; Tichu's `wish_active` sub-phase uses
 this for the case when a Mahjong wish stands. No explicit
 `transition_to:` is needed — the predicate is the entry guard *and*
 the exit condition.
 
-**Event-triggered sibling transition.** `transition_to: Y when E`
-inside sibling X switches control to sibling Y when event E fires.
-Used for one-way state changes that name a specific successor:
-Hearts' `hearts_not_broken → hearts_broken`, Spades'
-`spades_not_broken → spades_broken`. The transition is one-shot —
-once Y is entered, X is not re-entered.
+**Event-triggered sibling transition.** `transition_to: Y when <event>`
+inside sibling X switches control to sibling Y when the event fires.
+The `<event>` is the same reference form triggered scoring components
+use — a move-type event with an optional `where <predicate>` (see
+"Triggered scoring components"); there are no ad-hoc event names.
+Hearts breaks hearts with `transition_to: hearts_broken when
+play_to_trick where action.card.suit == hearts`; Spades breaks spades with
+`transition_to: spades_broken when play_to_trick where action.card.suit ==
+spades` (the move under inspection is bound as `action` — see "Rule demand
+forms"). The transition is one-shot — once Y is entered, X is not
+re-entered. It is scoped to the enclosing phase instance: when a
+`repeats until` loop begins a new iteration and re-enters the phase, the
+transition resets (Hearts re-breaks hearts each hand), per the
+activation-record semantics in "Loop lifecycle".
 
 There is no separate construct for "this sub-phase ends and control
 returns to the enclosing parent's loop." The predicate-guard form
@@ -196,6 +210,40 @@ The criterion for which operator to use: write the slot the way the
 game's rulebook introduces the change. Rulebooks describe what
 *kicks in*, not what *goes away*; the syntax follows.
 
+## Rule demand forms
+
+A rule's `demands:` clause takes one of two forms, distinguished by
+what it constrains:
+
+- **A candidate-card set** — an expression returning the cards a legal
+  move may use, filtering a zone. `MustFollowSuit`'s `demands:
+  hand.cards_of_suit(state.led_suit)` and Hearts' `demands:
+  hand.where(c => c.suit != hearts)` are this form. The legal move set
+  is the intersection of every active rule's candidate set.
+
+- **A predicate on the move** — `demands: actions where <predicate>`,
+  constraining the shape of the move itself rather than which cards it
+  draws from a zone. Hearts' `PassExactlyThreeCards` is `demands: actions
+  where action.card_count == 3`; Stud's `BringInMandatory` is `demands:
+  actions where action.amount == bring_in_amount`. Cribbage's two-card
+  discard and Tichu's one-card-per-opponent push are the same form.
+
+The two are not interchangeable: the first names *which cards*, the
+second *how the move is shaped*. A move is legal when it satisfies
+every active rule's demand, of either form.
+
+**The move under inspection is bound as `action`.** A predicate over a
+player's move — `demands: actions where …` here, and the `when <move-type>
+where …` triggers of sub-phase transitions (see "Sub-phase entry and exit")
+and triggered scoring components — binds that move as `action`, and its
+fields expose the move's data: `action.card` (the card played),
+`action.cards`, `action.card_count`, `action.actor`, `action.amount`. The
+subject is always reached through `action`; there are no bare field names,
+and it is never spelled `move` — `move` is the zone-movement verb (see "The
+operation vocabulary"). `action` is the same player-move object the `offer
+action` syntax names. (The *concept* is still a move type; `action` is an
+instance of one, as taken.)
+
 ## Trick mechanic parameters vs rules
 
 Some phase-level configuration is *not* a rule even though it looks
@@ -238,6 +286,31 @@ function, not in a rule. Hearts' `TrumpedHighestOfLedSuit` is an
 configuration's effect is "filter legal moves before play," it's a
 rule; if its effect is "shape the trick's resolution after play,"
 it's a mechanic parameter.
+
+**The `routing:` argument has two surface forms.** When the routing is a
+single unconditional movement, it is written inline (Hearts, Getaway's
+first trick: `routing = move all cards from trick_pile to waste`). When it
+branches — Getaway routes the pile to the trick winner on a tochoo
+(pickup) but to the waste otherwise — the body is a named top-level
+declaration referenced by name:
+
+```
+phase play {
+  instantiate Trick ( ..., routing = GetawayRouting )
+}
+
+routing GetawayRouting {
+  if state.trick_terminated_early { move all cards from trick_pile to hand[outcome] }
+  else { move all cards from trick_pile to waste }
+}
+```
+
+A named `routing` runs with the same trick context bound as an inline
+one — the `outcome` pronoun (the trick winner) and the `state` pronoun
+(the Trick's own state, e.g. `state.trick_terminated_early`) — so it
+declares no parameters. It is a named, reusable routing *body*, not a
+function with a signature: the two forms reduce to the same thing, a
+statement sequence run once per trick with `outcome` bound.
 
 **Per-game predicates for contextual interpretations.** Some games
 need to interpret card properties contextually rather than from the
@@ -306,7 +379,15 @@ game Bridge {
 **Variables that need cross-phase visibility live in the smallest
 enclosing scope that covers all their uses.** If a variable is read
 by both `bidding` and `play`, it lives in their parent `hand_sequence`,
-not in either.
+not in either. This is also how a result threads from one sub-phase to
+a sibling: the trick `leader` that Hearts' `first_trick` hands to
+`play` is a `Player` in their enclosing `hand_sequence` state —
+`first_trick` seeds it (the two-of-clubs holder) and updates it to the
+trick winner, and `play` continues from it. A mechanic's result is read
+as bare `outcome` immediately after the mechanic runs (`leader :=
+outcome`); there is no construct for referencing a prior phase's
+outcome across the phase boundary — the shared enclosing variable is
+the channel.
 
 **Mechanic-internal state lives inside the mechanic.** Auction's
 `passed[player]`, Trick's per-trick state, BettingRound's
@@ -377,6 +458,47 @@ mechanic — that's for *trick-level* termination on game-state-free
 conditions (Getaway's first-trick-to-waste). It is not for
 game-ending; game-ending is the `repeats until` clause's job.
 
+## Loop lifecycle: `before_each` and `after_each`
+
+A `repeats until` phase runs per-iteration setup and teardown through two
+optional hooks, siblings of its `state` block and distinct from its
+sub-phases:
+
+- **`before_each { … }`** runs at the start of every iteration (after the
+  termination predicate is checked, before the body sub-phases). It is where a
+  hand is prepared — gather, shuffle, deal.
+- **`after_each { … }`** runs at the end of every iteration that started,
+  *including one the termination predicate abandons mid-body*. This is the
+  guarantee a trailing sub-phase cannot give: under continuous evaluation
+  ("Loop termination semantics" above) a loop can exit mid-iteration, and a
+  "last sub-phase = cleanup" would be skipped — whereas `after_each` always
+  runs (the test-framework `afterEach` semantic). Cribbage, whose hand can end
+  mid-play on a peg-out, needs this.
+
+The loop's `state { }` initializes once and **persists** across iterations;
+the hooks run **each** iteration. That separates per-game state from
+per-iteration work. Phase-specific setup stays inside the phase as its first
+statements (Hearts' `first_trick` sets its own leader); the hooks are only for
+the per-iteration boundary. Finer per-phase hooks (`before <phase>`) are
+deliberately *not* provided until a game requires them.
+
+Hearts uses `before_each` to gather the previous hand's cards, shuffle, and
+deal:
+
+```
+before_each {
+  move all cards to deck
+  shuffle deck
+  deal 13 cards from deck to each hand
+  rotate pass_direction through [left, right, across, hold]
+}
+```
+
+`move all cards to deck` is a destination-only **gather** movement (no `from`):
+it collects every card from all other zones into the named zone. A `Deck`-typed
+zone is initialized at game start holding the deck's cards, so the first
+`before_each` gather is a no-op and the deal is well-defined.
+
 ## Mutation semantics
 
 **Sequential mutation within a phase body.** `:=` (assign) and `+=` /
@@ -419,8 +541,9 @@ other"; sequencing encodes "these scores depend on what came
 before, potentially including game termination."
 
 **Event-driven sub-phase transitions are not a third mutation mode.**
-Hearts' `transition_to: hearts_broken when any heart_played event
-fires` is *phase entry/exit* triggered by the move-emitted event.
+Hearts' `transition_to: hearts_broken when play_to_trick where
+action.card.suit == hearts` is *phase entry/exit* triggered by the
+move-emitted event.
 The implied state change (the `NoLeadingHeartsUntilBroken` rule
 becomes inactive) happens because the active rule set changes when
 the phase changes, not because a `hearts_broken` boolean was written.
@@ -456,7 +579,15 @@ rewrites to underlying forms.
   see "Deck declaration" below). Attributes are a per-game extension
   point. Facing is an optional built-in dimension that composes with
   zone visibility (see "Knowledge, visibility, and the projection
-  model" below).
+  model" below). Suit and rank are deck-defined *values*, not language
+  keywords — a rank is any name or number, checked against the deck's
+  `Rank` enum, so the grammar reserves no rank letters. A card is
+  written either as `<rank> of <suit>` (`2 of clubs`, `Q of spades`)
+  or, for a named card, as the bare constant the deck declares
+  (`Dragon`, `Duke`), which resolves like a `Suit` value. The two axes
+  are flexible: a suitless game degenerates one of them — Coup carries
+  the character as the `rank` under a singleton dummy suit `court`, and
+  makes no suit comparison.
 - `Resource<Type>` — fungible quantity of the named type. Declared
   by the game's `resources { }` block.
 - `Suit`, `Rank` — enumerable value types defined by the game's
@@ -512,6 +643,21 @@ convention as stdlib generics. They are the language's extension
 point: games introduce concepts (Contract, HandResult, Meld, Pot) by
 declaring them. The DSL doesn't ship a vocabulary covering every
 possible game.
+
+**Optional types and the `none` literal.** A type written `T?` is optional: it
+holds a `T` or the absence value `none`. `none` is the language's single
+absence literal, used by every optional (`leader : Player? = none`, `contract :
+Contract? = none`, `state.led_suit is none`) — it is not a member of any enum.
+Where a game needs a value that reads like "nothing happens" but is a real
+domain choice — Hearts' no-pass hand — it gets its *own* enum value
+(`Direction = {left, right, across, hold}`), never `none`. This keeps `none`
+unambiguously "no value": a `Player` that is `none` is unset, not the string
+`"none"`.
+
+`true` and `false` are the two boolean literals, the values a `Boolean` field
+takes (`eliminated[player] : Boolean = false`, `eliminated[p] := true`). Like
+`none`, they are language literals rather than enum members, so a game never
+declares them.
 
 **Deck declaration.** The `cards { }` block declares which cards
 exist in the deck. The canonical form is a per-suit map: each suit
@@ -664,6 +810,61 @@ affordability rule that gates the action's legality, so the fee
 transfer is always satisfiable when it runs. Neither case needs a
 primitive; the explicit form reads correctly and keeps the failure
 policy visible in the game file.
+
+## The operation vocabulary
+
+Games relocate cards and resources, reveal and hide them, shuffle and
+rotate. These operations are a small, closed vocabulary in three families,
+not an open-ended set of verbs. The surface reads like a rulebook, but each
+verb lowers to one of a few semantic primitives — the same
+small-core/rich-library split that makes `Trick` a library item rather than
+syntax ([principles.md](principles.md)).
+
+**Movement** — relocating items between two places. One primitive underlies
+every movement verb: `deal`, `transfer`, `move`, `burn`, `muck`, and `draw`
+are sugar that differ only in defaults (which zone, which visibility), not in
+kind. A movement carries a selection (`all`, a count, or a `chosen`/`random`
+amount), an item noun (cards, or a resource such as coins), a source place, a
+destination (a single zone or `to each` recipient), and an optional
+visibility override. The same construct is both a statement and a value — a
+`Trick`'s `routing` argument is a movement. Because the amount is an
+expression and the item names the unit, a resource transfer and a variable
+amount are the *same* construct as a card deal; there is no separate
+resource-movement syntax.
+
+A `to each` deal distributes the stated amount to every recipient. When the
+amount is `all` and the deck does not divide evenly, `as-equally-as-possible`
+deals it round-robin so the remainder is spread across the first recipients —
+Getaway deals the whole deck across 3–8 hands this way (`deal all cards from
+deck as-equally-as-possible to each hand`).
+
+**Epistemic** — changing knowledge or order without relocating anything:
+`reveal`, `peek`, `hide`, `announce`, `expose_top`, `forget`, `shuffle`. A
+closed family; each is a prose statement (`shuffle deck`, `reveal proof to
+all`) normalized to one IR node and resolved against a signature table
+([library.md](library.md) "Operations"). Their effect is defined in the
+projection vocabulary of "Knowledge, visibility, and the projection model"
+below.
+
+**State-cycle** — advancing a state variable through a list of values, e.g.
+`rotate pass_direction through [left, right, across, hold]`. Orthogonal to
+the other two (it touches no zone): a single small construct.
+
+**Surface: actions are prose, queries are calls.** Every operation above is a
+prose statement — the built-in vocabulary reads as rulebook commands, one
+surface for "what the game does." Call syntax (`player_holding(2 of clubs)`,
+`cards_of_suit(s)`) is reserved for value-returning functions and named
+user-defined operations, which appear in expression position. The dividing
+line is *do* versus *answer*: an operation acts (a statement with effects), a
+function answers (a value in an expression). The families above are a
+*semantic* classification — each lowers to a small set of IR nodes — and are
+independent of this surface choice; the bounded cost of the prose surface is
+one production per operation, added as the corpus needs it.
+
+A new rulebook verb is presumed an instance of an existing family — movement
+sugar or an epistemic op — until a game proves it is genuinely none of them.
+Adding a fourth family is a deliberate act, not the default response to a new
+word.
 
 ## Knowledge, visibility, and the projection model
 
@@ -879,6 +1080,66 @@ and CFR / IS-MCTS apply with standard regret bounds. Observation
 events compile to per-player projection emissions; OpenSpiel's
 information-state tensors flow through unchanged, generalized to
 projection-shaped events.
+
+## Game result: `winner:` and `loser:`
+
+A game declares its terminal result with exactly one top-level clause,
+evaluated against the final state when the phase tree finishes:
+
+```
+winner: lowest cumulative_score      // Hearts — rank a score variable
+loser:  the player where hand[player] is not empty   // Getaway — select directly
+```
+
+The two forms reflect two shapes of game. A *scored* game accumulates a
+numeric variable and the result is whoever ranks first by it, so
+`winner: <lowest|highest> <score-var>` names the rank direction and the
+variable. An *elimination* game has no score: players drop out until one
+remains, and that survivor is named directly, so `loser: <selection>`
+takes a player-valued expression (typically the singular player-selection
+`the player where <pred>`) evaluated at game end.
+
+`loser:` reads zone state (`hand[player]` non-empty), not phase-scoped
+variables, so it resolves at the top level after the elimination phase
+has exited. The runtime returns the selected player as the result; a
+`winner:` game additionally carries its final scores, a `loser:` game
+does not (it has none).
+
+A game declares one or the other, never both. `winner:` is not sugar for
+`loser:` of the complement: an elimination game may end with several
+non-losers whom the rules never rank, so there is no single winner to
+name.
+
+## Player-collection queries
+
+Three expression forms query the player ring by a predicate:
+
+```
+players where <pred>              // the set of matching players
+the player where <pred>           // the unique matching player (errors if not exactly one)
+number of players where <pred>    // how many match
+```
+
+The predicate is evaluated once per player with `player` bound to the
+candidate, so it reads like the per-player indexing used everywhere else:
+`players where not eliminated[player]`, `the player where hand[player] is
+not empty`, `number of players where hand[player] is not empty`. The
+binder is the fixed name `player` (the canonical seating role), not a
+user-chosen variable — these are filters over a single known ring, not
+general comprehensions, so there is nothing to name.
+
+Like the quantifier (`any/all player p: …`) and comprehension (`sum over
+… as …`) forms, a player query sits at the top of the expression grammar:
+its `where <pred>` body extends as far right as possible, giving one
+canonical parse. To compare a count, parenthesize it: `(number of players
+where not eliminated[player]) > 1`.
+
+`the player where <pred>` is the singular selection a `loser:` clause
+uses; it is an error at runtime for the predicate to match zero or
+several players, since it names exactly one.
+
+`is not empty` is the negation of `is empty` (a zone predicate), paired
+for elimination games that select the player who *still* holds cards.
 
 ## Scoring composition
 
@@ -1262,7 +1523,7 @@ the commit step; the choice of whether to commit is elsewhere.
 **Hearts passing.** The passing phase reads as:
 
 ```
-phase passing when pass_direction != none {
+phase passing when pass_direction != hold {
   active_rules: [PassExactlyThreeCards]
   legal_moves:  [transfer_between_hands]
 
@@ -1348,7 +1609,7 @@ The body does *not* admit:
   imply otherwise). Reserved until a real game forces it.
 - **`if` branches** — same shape: branching effects in a batched
   context raise "which branch participates" questions. Hearts'
-  passing skips passing entirely when `pass_direction == none`
+  passing skips passing entirely when `pass_direction == hold`
   via a phase-level `when:` guard rather than an in-block
   branch. Reserved until forced.
 - **`let` bindings** — the body's expressions are short enough

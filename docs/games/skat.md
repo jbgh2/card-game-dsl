@@ -168,7 +168,7 @@ game Skat {
           play_zone    = trick_pile,
           play_rules   = active_rules,
           outcome      = trick_outcome,
-          routing      = all cards from trick_pile to captured[outcome]
+          routing      = move all cards from trick_pile to captured[outcome]
         )
         leader := outcome
       }

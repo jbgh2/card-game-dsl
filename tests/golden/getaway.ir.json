@@ -1,0 +1,738 @@
+{
+  "cardlang_ir": 1,
+  "kind": "game",
+  "name": "Getaway",
+  "players": {
+    "kind": "players",
+    "low": 4,
+    "high": null
+  },
+  "deck": "standard52",
+  "direction": "clockwise",
+  "ranking": [
+    "A",
+    "K",
+    "Q",
+    "J",
+    "10",
+    "9",
+    "8",
+    "7",
+    "6",
+    "5",
+    "4",
+    "3",
+    "2"
+  ],
+  "zones": [
+    {
+      "kind": "zone",
+      "name": "deck",
+      "index": null,
+      "type": {
+        "kind": "type_ref",
+        "name": "Deck",
+        "args": []
+      }
+    },
+    {
+      "kind": "zone",
+      "name": "hand",
+      "index": "player",
+      "type": {
+        "kind": "type_ref",
+        "name": "Hand",
+        "args": [
+          "player"
+        ]
+      }
+    },
+    {
+      "kind": "zone",
+      "name": "trick_pile",
+      "index": null,
+      "type": {
+        "kind": "type_ref",
+        "name": "TrickPile",
+        "args": []
+      }
+    },
+    {
+      "kind": "zone",
+      "name": "waste",
+      "index": null,
+      "type": {
+        "kind": "type_ref",
+        "name": "Discard",
+        "args": []
+      }
+    }
+  ],
+  "state": {
+    "kind": "state",
+    "decls": [
+      {
+        "kind": "state_decl",
+        "name": "eliminated",
+        "index": "player",
+        "type": "Boolean",
+        "optional": false,
+        "default": {
+          "kind": "name",
+          "name": "false",
+          "ref": "bool"
+        }
+      },
+      {
+        "kind": "state_decl",
+        "name": "leader",
+        "index": null,
+        "type": "Player",
+        "optional": true,
+        "default": {
+          "kind": "name",
+          "name": "none",
+          "ref": "null"
+        }
+      }
+    ]
+  },
+  "phases": [
+    {
+      "kind": "phase",
+      "name": "setup",
+      "qualifier": null,
+      "items": [
+        {
+          "kind": "epistemic_op",
+          "op": "shuffle",
+          "target": {
+            "kind": "name",
+            "name": "deck",
+            "ref": "zone"
+          }
+        },
+        {
+          "kind": "movement",
+          "verb": "deal",
+          "mode": null,
+          "amount": "all",
+          "item": "cards",
+          "source": {
+            "kind": "name",
+            "name": "deck",
+            "ref": "zone"
+          },
+          "dest": {
+            "kind": "name",
+            "name": "hand",
+            "ref": "zone"
+          },
+          "dest_each": true,
+          "distribution": "as_equally_as_possible",
+          "visibility": null
+        }
+      ]
+    },
+    {
+      "kind": "phase",
+      "name": "first_trick",
+      "qualifier": null,
+      "items": [
+        {
+          "kind": "active_rules",
+          "refs": [
+            {
+              "kind": "rule_ref",
+              "name": "MustFollowSuit",
+              "op": "plain"
+            },
+            {
+              "kind": "rule_ref",
+              "name": "MustLeadAceOfSpadesOnFirstPlay",
+              "op": "plain"
+            }
+          ]
+        },
+        {
+          "kind": "legal_moves",
+          "names": [
+            "play_to_trick"
+          ]
+        },
+        {
+          "kind": "assign",
+          "name": "leader",
+          "index": null,
+          "op": ":=",
+          "value": {
+            "kind": "call",
+            "func": "player_holding",
+            "args": [
+              {
+                "kind": "card",
+                "rank": "A",
+                "suit": "spades"
+              }
+            ]
+          }
+        },
+        {
+          "kind": "instantiate",
+          "mechanic": "Trick",
+          "args": [
+            {
+              "kind": "named_arg",
+              "name": "participants",
+              "value": {
+                "kind": "all_players"
+              }
+            },
+            {
+              "kind": "named_arg",
+              "name": "leader",
+              "value": {
+                "kind": "name",
+                "name": "leader",
+                "ref": "state_var"
+              }
+            },
+            {
+              "kind": "named_arg",
+              "name": "source_zone",
+              "value": {
+                "kind": "name",
+                "name": "hand",
+                "ref": "zone"
+              }
+            },
+            {
+              "kind": "named_arg",
+              "name": "play_zone",
+              "value": {
+                "kind": "name",
+                "name": "trick_pile",
+                "ref": "zone"
+              }
+            },
+            {
+              "kind": "named_arg",
+              "name": "play_rules",
+              "value": {
+                "kind": "name",
+                "name": "active_rules",
+                "ref": "pronoun"
+              }
+            },
+            {
+              "kind": "named_arg",
+              "name": "early_termination",
+              "value": {
+                "kind": "name",
+                "name": "on_play_of_tochoo",
+                "ref": "function"
+              }
+            },
+            {
+              "kind": "named_arg",
+              "name": "outcome",
+              "value": {
+                "kind": "name",
+                "name": "highest_of_led_suit",
+                "ref": "function"
+              }
+            },
+            {
+              "kind": "named_arg",
+              "name": "routing",
+              "value": {
+                "kind": "movement",
+                "verb": "move",
+                "mode": null,
+                "amount": "all",
+                "item": "cards",
+                "source": {
+                  "kind": "name",
+                  "name": "trick_pile",
+                  "ref": "zone"
+                },
+                "dest": {
+                  "kind": "name",
+                  "name": "waste",
+                  "ref": "zone"
+                },
+                "dest_each": false,
+                "distribution": null,
+                "visibility": null
+              }
+            }
+          ]
+        },
+        {
+          "kind": "assign",
+          "name": "leader",
+          "index": null,
+          "op": ":=",
+          "value": {
+            "kind": "name",
+            "name": "outcome",
+            "ref": "pronoun"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "phase",
+      "name": "play",
+      "qualifier": null,
+      "items": [
+        {
+          "kind": "active_rules",
+          "refs": [
+            {
+              "kind": "rule_ref",
+              "name": "MustFollowSuit",
+              "op": "plain"
+            }
+          ]
+        },
+        {
+          "kind": "legal_moves",
+          "names": [
+            "play_to_trick"
+          ]
+        },
+        {
+          "kind": "repeat_until",
+          "cond": {
+            "kind": "binop",
+            "op": "<=",
+            "left": {
+              "kind": "player_query",
+              "query": "count",
+              "pred": {
+                "kind": "is_check",
+                "check": "not_empty",
+                "operand": {
+                  "kind": "subscript",
+                  "obj": {
+                    "kind": "name",
+                    "name": "hand",
+                    "ref": "zone"
+                  },
+                  "index": {
+                    "kind": "name",
+                    "name": "player",
+                    "ref": "local"
+                  }
+                }
+              }
+            },
+            "right": {
+              "kind": "int",
+              "value": 1
+            }
+          },
+          "body": [
+            {
+              "kind": "instantiate",
+              "mechanic": "Trick",
+              "args": [
+                {
+                  "kind": "named_arg",
+                  "name": "participants",
+                  "value": {
+                    "kind": "player_query",
+                    "query": "set",
+                    "pred": {
+                      "kind": "not",
+                      "operand": {
+                        "kind": "subscript",
+                        "obj": {
+                          "kind": "name",
+                          "name": "eliminated",
+                          "ref": "state_var"
+                        },
+                        "index": {
+                          "kind": "name",
+                          "name": "player",
+                          "ref": "local"
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "named_arg",
+                  "name": "leader",
+                  "value": {
+                    "kind": "name",
+                    "name": "leader",
+                    "ref": "state_var"
+                  }
+                },
+                {
+                  "kind": "named_arg",
+                  "name": "source_zone",
+                  "value": {
+                    "kind": "name",
+                    "name": "hand",
+                    "ref": "zone"
+                  }
+                },
+                {
+                  "kind": "named_arg",
+                  "name": "play_zone",
+                  "value": {
+                    "kind": "name",
+                    "name": "trick_pile",
+                    "ref": "zone"
+                  }
+                },
+                {
+                  "kind": "named_arg",
+                  "name": "play_rules",
+                  "value": {
+                    "kind": "name",
+                    "name": "active_rules",
+                    "ref": "pronoun"
+                  }
+                },
+                {
+                  "kind": "named_arg",
+                  "name": "early_termination",
+                  "value": {
+                    "kind": "name",
+                    "name": "on_play_of_tochoo",
+                    "ref": "function"
+                  }
+                },
+                {
+                  "kind": "named_arg",
+                  "name": "outcome",
+                  "value": {
+                    "kind": "name",
+                    "name": "highest_of_led_suit",
+                    "ref": "function"
+                  }
+                },
+                {
+                  "kind": "named_arg",
+                  "name": "routing",
+                  "value": {
+                    "kind": "name",
+                    "name": "GetawayRouting",
+                    "ref": "routing"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "assign",
+              "name": "leader",
+              "index": null,
+              "op": ":=",
+              "value": {
+                "kind": "name",
+                "name": "outcome",
+                "ref": "pronoun"
+              }
+            },
+            {
+              "kind": "for_each",
+              "role": "player",
+              "binder": "p",
+              "body": {
+                "kind": "if",
+                "cond": {
+                  "kind": "is_check",
+                  "check": "empty",
+                  "operand": {
+                    "kind": "subscript",
+                    "obj": {
+                      "kind": "name",
+                      "name": "hand",
+                      "ref": "zone"
+                    },
+                    "index": {
+                      "kind": "name",
+                      "name": "p",
+                      "ref": "local"
+                    }
+                  }
+                },
+                "then": [
+                  {
+                    "kind": "assign",
+                    "name": "eliminated",
+                    "index": {
+                      "kind": "name",
+                      "name": "p",
+                      "ref": "local"
+                    },
+                    "op": ":=",
+                    "value": {
+                      "kind": "name",
+                      "name": "true",
+                      "ref": "bool"
+                    }
+                  }
+                ],
+                "else": null
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "winner": null,
+  "loser": {
+    "kind": "loser",
+    "selection": {
+      "kind": "if",
+      "cond": {
+        "kind": "binop",
+        "op": "==",
+        "left": {
+          "kind": "player_query",
+          "query": "count",
+          "pred": {
+            "kind": "is_check",
+            "check": "not_empty",
+            "operand": {
+              "kind": "subscript",
+              "obj": {
+                "kind": "name",
+                "name": "hand",
+                "ref": "zone"
+              },
+              "index": {
+                "kind": "name",
+                "name": "player",
+                "ref": "local"
+              }
+            }
+          }
+        },
+        "right": {
+          "kind": "int",
+          "value": 1
+        }
+      },
+      "then": {
+        "kind": "player_query",
+        "query": "pick",
+        "pred": {
+          "kind": "is_check",
+          "check": "not_empty",
+          "operand": {
+            "kind": "subscript",
+            "obj": {
+              "kind": "name",
+              "name": "hand",
+              "ref": "zone"
+            },
+            "index": {
+              "kind": "name",
+              "name": "player",
+              "ref": "local"
+            }
+          }
+        }
+      },
+      "elifs": [],
+      "otherwise": {
+        "kind": "name",
+        "name": "leader",
+        "ref": "state_var"
+      }
+    }
+  },
+  "rules": [
+    {
+      "kind": "rule",
+      "name": "MustLeadAceOfSpadesOnFirstPlay",
+      "constrains": "play_to_trick",
+      "applies_when": {
+        "kind": "applies_when",
+        "always": false,
+        "pred": {
+          "kind": "is_check",
+          "check": "none",
+          "operand": {
+            "kind": "member",
+            "obj": {
+              "kind": "name",
+              "name": "state",
+              "ref": "pronoun"
+            },
+            "field": "led_suit"
+          }
+        }
+      },
+      "demands": {
+        "kind": "demands",
+        "form": "cards",
+        "expr": {
+          "kind": "method_call",
+          "obj": {
+            "kind": "name",
+            "name": "hand",
+            "ref": "zone"
+          },
+          "method": "where",
+          "args": [
+            {
+              "kind": "lambda",
+              "param": "c",
+              "body": {
+                "kind": "binop",
+                "op": "==",
+                "left": {
+                  "kind": "name",
+                  "name": "c",
+                  "ref": "local"
+                },
+                "right": {
+                  "kind": "card",
+                  "rank": "A",
+                  "suit": "spades"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "if_impossible": {
+        "kind": "call",
+        "func": "error",
+        "args": [
+          {
+            "kind": "str",
+            "value": "first lead must be the ace of spades"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "rule",
+      "name": "MustFollowSuit",
+      "constrains": "play_to_trick",
+      "applies_when": {
+        "kind": "applies_when",
+        "always": false,
+        "pred": {
+          "kind": "is_check",
+          "check": "not_none",
+          "operand": {
+            "kind": "member",
+            "obj": {
+              "kind": "name",
+              "name": "state",
+              "ref": "pronoun"
+            },
+            "field": "led_suit"
+          }
+        }
+      },
+      "demands": {
+        "kind": "demands",
+        "form": "cards",
+        "expr": {
+          "kind": "method_call",
+          "obj": {
+            "kind": "name",
+            "name": "hand",
+            "ref": "zone"
+          },
+          "method": "cards_of_suit",
+          "args": [
+            {
+              "kind": "member",
+              "obj": {
+                "kind": "name",
+                "name": "state",
+                "ref": "pronoun"
+              },
+              "field": "led_suit"
+            }
+          ]
+        }
+      },
+      "if_impossible": null
+    }
+  ],
+  "routings": [
+    {
+      "kind": "routing",
+      "name": "GetawayRouting",
+      "body": [
+        {
+          "kind": "if",
+          "cond": {
+            "kind": "member",
+            "obj": {
+              "kind": "name",
+              "name": "state",
+              "ref": "pronoun"
+            },
+            "field": "trick_terminated_early"
+          },
+          "then": [
+            {
+              "kind": "movement",
+              "verb": "move",
+              "mode": null,
+              "amount": "all",
+              "item": "cards",
+              "source": {
+                "kind": "name",
+                "name": "trick_pile",
+                "ref": "zone"
+              },
+              "dest": {
+                "kind": "subscript",
+                "obj": {
+                  "kind": "name",
+                  "name": "hand",
+                  "ref": "zone"
+                },
+                "index": {
+                  "kind": "name",
+                  "name": "outcome",
+                  "ref": "pronoun"
+                }
+              },
+              "dest_each": false,
+              "distribution": null,
+              "visibility": null
+            }
+          ],
+          "else": [
+            {
+              "kind": "movement",
+              "verb": "move",
+              "mode": null,
+              "amount": "all",
+              "item": "cards",
+              "source": {
+                "kind": "name",
+                "name": "trick_pile",
+                "ref": "zone"
+              },
+              "dest": {
+                "kind": "name",
+                "name": "waste",
+                "ref": "zone"
+              },
+              "dest_each": false,
+              "distribution": null,
+              "visibility": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

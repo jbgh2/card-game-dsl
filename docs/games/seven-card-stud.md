@@ -338,7 +338,7 @@ operation reconcile_pots {
 
 rule BringInMandatory {
   constrains: bring_in
-  demands: bring_in moves of amount exactly bring_in_amount
+  demands: actions where action.amount == bring_in_amount
   if_impossible: error("bring-in player must post the bring-in")
 }
 

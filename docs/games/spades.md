@@ -59,7 +59,7 @@ game Spades {
 
       phase spades_not_broken {
         active_rules: [+ NoLeadingSpadesUntilBroken]
-        transition_to: spades_broken when any spade_played event fires
+        transition_to: spades_broken when play_to_trick where action.card.suit == spades
       }
 
       phase spades_broken {
@@ -81,7 +81,7 @@ game Spades {
           play_zone    = trick_pile,
           play_rules   = active_rules,
           outcome      = TrumpedHighestOfLedSuit(trump = spades),
-          routing      = all cards from trick_pile to captured[team_of(outcome)]
+          routing      = move all cards from trick_pile to captured[team_of(outcome)]
         )
 
         tricks_won[team_of(outcome)] += 1

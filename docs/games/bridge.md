@@ -46,6 +46,8 @@ game Bridge {
         dummy                     : Player?   = none
         tricks_taken[partnership] : Integer   = 0
         dummy_revealed            : Boolean   = false
+        // Trick leader, threaded from opening_lead into play by lexical scope.
+        leader                    : Player?   = none
       }
 
       phase setup {
@@ -94,15 +96,11 @@ game Bridge {
           continue to opening_lead
 
       phase opening_lead {
-        state {
-          // Per-opening_lead: a single trick. Leader is declarer's LHO.
-          leader : Player = declarer.LHO
-        }
-
-        // One trick, played before dummy is revealed.
+        // One trick, played before dummy is revealed. Leader is declarer's LHO.
         active_rules: [MustFollowSuit]
         legal_moves:  [play_to_trick]
 
+        leader := declarer.LHO
         instantiate Trick (
           participants = all players,
           leader       = leader,
@@ -111,10 +109,11 @@ game Bridge {
           play_zone    = trick_pile,
           play_rules   = active_rules,
           outcome      = TrumpedHighestOfLedSuit(trump = contract.suit),
-          routing      = all cards from trick_pile to captured[partnership_of(outcome)]
+          routing      = move all cards from trick_pile to captured[partnership_of(outcome)]
         )
 
         tricks_taken[partnership_of(outcome)] += 1
+        leader := outcome
       }
 
       phase reveal_dummy {
@@ -126,11 +125,7 @@ game Bridge {
       }
 
       phase play {
-        state {
-          // Per-play: persists across all remaining tricks in this hand.
-          leader : Player = outcome of last trick from opening_lead
-        }
-
+        // Continues from the enclosing `leader`, set by opening_lead.
         active_rules: [MustFollowSuit]
         legal_moves:  [play_to_trick]
 
@@ -143,7 +138,7 @@ game Bridge {
             play_zone    = trick_pile,
             play_rules   = active_rules,
             outcome      = TrumpedHighestOfLedSuit(trump = contract.suit),
-            routing      = all cards from trick_pile to captured[partnership_of(outcome)]
+            routing      = move all cards from trick_pile to captured[partnership_of(outcome)]
           )
           tricks_taken[partnership_of(outcome)] += 1
           leader := outcome

@@ -106,7 +106,7 @@ game Pinochle {
           play_zone    = trick_pile,
           play_rules   = active_rules,
           outcome      = TrumpedHighestOfLedSuit(trump = trump),
-          routing      = all cards from trick_pile to captured[team_of(outcome)]
+          routing      = move all cards from trick_pile to captured[team_of(outcome)]
         )
         leader := outcome
       }

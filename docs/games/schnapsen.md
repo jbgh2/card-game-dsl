@@ -92,7 +92,7 @@ game Schnapsen {
             play_zone    = trick_pile,
             play_rules   = active_rules,
             outcome      = TrumpedHighestOfLedSuit(trump = trump),
-            routing      = all cards from trick_pile to captured[outcome]
+            routing      = move all cards from trick_pile to captured[outcome]
           )
 
           card_points[outcome] += sum of card values played to this trick
@@ -132,7 +132,7 @@ game Schnapsen {
             play_zone    = trick_pile,
             play_rules   = active_rules,
             outcome      = TrumpedHighestOfLedSuit(trump = trump),
-            routing      = all cards from trick_pile to captured[outcome]
+            routing      = move all cards from trick_pile to captured[outcome]
           )
 
           card_points[outcome] += sum of card values played to this trick

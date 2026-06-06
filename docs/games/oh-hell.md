@@ -55,7 +55,7 @@ game OhHell {
       // Per-hand: resets each hand.
       bid[player]        : Integer? = none
       tricks_won[player] : Integer  = 0
-      trump              : Suit     = none
+      trump              : Suit?    = none
     }
 
     phase setup {
@@ -92,7 +92,7 @@ game OhHell {
           play_zone    = trick_pile,
           play_rules   = active_rules,
           outcome      = TrumpedHighestOfLedSuit(trump = trump),
-          routing      = all cards from trick_pile to captured[outcome]
+          routing      = move all cards from trick_pile to captured[outcome]
         )
         tricks_won[outcome] += 1
         leader := outcome
