@@ -305,6 +305,16 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 for name in nd.move_types:
                     if name not in defined_move_types:
                         bag.error(f"offer names unknown move type '{name}'", nd.span)
+            case n.Round():
+                zone_names = {z.name for z in game.zones}
+                if nd.source_zone not in zone_names:
+                    bag.error(f"round source zone '{nd.source_zone}' is unknown", nd.span)
+                if nd.play_zone not in zone_names:
+                    bag.error(f"round play zone '{nd.play_zone}' is unknown", nd.span)
+                if nd.outcome_fn not in STDLIB_VALUE_NAMES:
+                    bag.error(f"round outcome '{nd.outcome_fn}' is unknown", nd.span)
+                if nd.move_type not in LIBRARY_MOVE_TYPES:
+                    bag.error(f"round move type '{nd.move_type}' is unknown", nd.span)
 
 
 def _raise_if_errors(bag: DiagnosticBag) -> None:
