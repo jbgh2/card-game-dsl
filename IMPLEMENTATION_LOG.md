@@ -197,6 +197,33 @@ conservation, every played hand is exactly 13 tricks of 4 plays, per-trick winne
 correctness against the contract trump (incl. none for NT), and termination with
 winner = higher total.
 
+### Skat (done)
+
+The most intricate trump game: three trump structures in one game (Suit = four
+jacks + trump suit; Grand = four jacks only; Null = no trumps, distinct rank
+order), the Reizen call-and-response auction over a fixed bid sequence, the
+skat pickup/discard or hand mode, and base×multiplier scoring with matadors,
+Schneider, Schwarz, and the overbid rule. Built as a concrete `SkatHand`
+mechanic in its own module (`runtime/skat.py`) to keep `mechanics.py` from
+bloating; it updates the `score` var directly. Deck `skat32` (A 10 K Q J 9 8 7,
+Ace-Ten values, 120 points).
+
+Notes:
+- Only the declarer's score moves (the basic DSkV variant). Random declarers
+  rarely make 61+, so scores trend negative; the game still terminates (fixed 36
+  hands) and the winner is the least-negative — invariants hold, no termination
+  risk, so no Spades-style floor needed.
+- `GameResult.hands_played` (the driver's `_HandCounter`) counts phases literally
+  named `scoring`; Skat has none (the mechanic scores), so that field reads 0 for
+  Skat. The actual hand count is the `hands_played` state var / the 36 `hand_end`
+  traces. Minor: the counter is coupled to a magic phase name — a candidate
+  cleanup, logged below.
+
+Falsifiable invariants (`tests/test_playout_skat.py`, 50 games): 32-card /
+120-point integrity, exactly 36 hands, and per-trick winner correctness
+recomputed for all three game types (catches a wrong jack ordering, trump
+structure, or rank order).
+
 ## Open questions
 
 - **Representative playouts vs invariant playouts.** Uniform-random bidding

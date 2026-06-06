@@ -25,6 +25,10 @@ def instantiate(stmt: n.Instantiate, ctx: Ctx) -> Player:
         return run_pinochle_hand(stmt, ctx)
     if stmt.mechanic == "BridgeAuction":
         return run_bridge_auction(stmt, ctx)
+    if stmt.mechanic == "SkatHand":
+        from cardlang.runtime.skat import run_skat_hand
+
+        return run_skat_hand(stmt, ctx)
     if stmt.mechanic != "Trick":
         raise NotImplementedError(f"mechanic '{stmt.mechanic}' not supported yet")
     args = {a.name: a.value for a in stmt.args}

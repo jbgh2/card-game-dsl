@@ -13,5 +13,6 @@ LIBRARY_MECHANICS: frozenset[str] = frozenset(
         "SchnapsenHand",  # Schnapsen's trick-and-draw hand with heterogeneous lead moves
         "PinochleHand",  # Pinochle's auction + meld + strict-trick hand
         "BridgeAuction",  # Bridge's ascending auction with double/redouble
+        "SkatHand",  # Skat's Reizen auction + contract + suit/grand/null tricks
     }
 )

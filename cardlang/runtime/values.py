@@ -49,6 +49,12 @@ DECKS: dict[str, Deck] = {
         values={"A": 10, "10": 10, "K": 10, "Q": 0, "J": 0, "9": 0},
         copies=2,
     ),
+    # 32-card Skat pack: A 10 K Q J 9 8 7 per suit (Ace-Ten values, 120 total).
+    "skat32": Deck(
+        suits=SUITS,
+        ranks=("A", "10", "K", "Q", "J", "9", "8", "7"),
+        values={"A": 11, "10": 10, "K": 4, "Q": 3, "J": 2, "9": 0, "8": 0, "7": 0},
+    ),
 }
 
 

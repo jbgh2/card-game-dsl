@@ -23,5 +23,18 @@ LIBRARY_MOVE_TYPES: frozenset[str] = frozenset(
         "declare_trump_suit",
         "double",
         "redouble",
+        # Skat moves (handled by the SkatHand mechanic).
+        "bid",
+        "yes",
+        "pick_up_skat",
+        "declare_hand",
+        "declare_suit_diamonds",
+        "declare_suit_hearts",
+        "declare_suit_spades",
+        "declare_suit_clubs",
+        "declare_grand",
+        "declare_null",
+        "play_at_eighteen",
+        "throw_in",
     }
 )

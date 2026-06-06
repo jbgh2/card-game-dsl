@@ -1,0 +1,75 @@
+// Skat — formalized DSL (parser/checker/runtime target).
+//
+// Companion to skat.md. Three-player Skat (DSkV / International rules). 32-card
+// deck; players bid (Reizen) for the right to play alone against the other two.
+// The declarer chooses a game type (Suit / Grand / Null), takes or skips the
+// two-card skat, and tries to make the contract for a calculated game value.
+// Thirty-six hands are played and the highest score wins.
+//
+// The hand engine — the Reizen auction, the contract declaration, the ten
+// tricks under the contract's trump structure (the four jacks are permanent
+// trumps in Suit and Grand; Null has no trumps and a distinct rank order), and
+// the base x multiplier scoring (matadors, hand, Schneider, Schwarz, overbid) —
+// runs in the built-in `SkatHand` mechanic, which updates `score` directly.
+// (Auctions and the per-contract trump structures are not yet expressible in
+// the rule DSL; see IMPLEMENTATION_LOG.md.) The cardlang holds the 3-2-4-3 deal,
+// hand counting, and termination.
+
+game Skat {
+
+  players: 3
+  direction: clockwise
+
+  cards: skat32
+  ranking: A 10 K Q J 9 8 7
+
+  zones {
+    deck             : Deck
+    hand[player]     : Hand<player>
+    skat             : FaceDownPile        // the two-card widow
+    trick_pile       : TrickPile
+    captured[player] : PlayerPile<player>
+  }
+
+  state {
+    // Game-level: persists across hands.
+    score[player] : Integer = 0
+    hands_played  : Integer = 0
+  }
+
+  phase hand_sequence repeats until hands_played >= 36 {
+    state {
+      dealer : Player = 0
+    }
+
+    before_each {
+      move all cards to deck
+      shuffle deck
+      // 3 - 2(skat) - 4 - 3 deal.
+      deal 3 cards from deck to each hand
+      deal 2 cards from deck to skat
+      deal 4 cards from deck to each hand
+      deal 3 cards from deck to each hand
+      dealer := dealer offset_by left
+    }
+
+    phase play {
+      legal_moves: [
+        pass, bid, yes, play_at_eighteen, throw_in,
+        pick_up_skat, declare_hand,
+        declare_suit_diamonds, declare_suit_hearts, declare_suit_spades,
+        declare_suit_clubs, declare_grand, declare_null,
+        play_to_trick
+      ]
+      // Forehand (left of dealer) speaks/leads first; the mechanic derives
+      // middlehand and rearhand from it.
+      instantiate SkatHand(forehand = dealer offset_by left)
+    }
+
+    after_each {
+      hands_played += 1
+    }
+  }
+
+  winner: highest score
+}

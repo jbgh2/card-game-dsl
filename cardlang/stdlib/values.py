@@ -14,6 +14,7 @@ _SUITS_BY_DECK: dict[str, frozenset[str]] = {
     "standard52": _FRENCH,
     "schnapsen20": _FRENCH,  # 20-card Ace-Ten deck, same four suits
     "pinochle48": _FRENCH,   # 48-card Pinochle pack, same four suits
+    "skat32": _FRENCH,       # 32-card Skat pack, same four suits
 }
 
 # The stdlib Direction enum (used for passing/seating offsets). `hold` is the
