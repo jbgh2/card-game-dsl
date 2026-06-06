@@ -273,6 +273,32 @@ Falsifiable: unit tests on the scorers (known values) + a 50-game playout
 (termination, exactly one player crosses 121, winner = that player, 52-card
 conservation).
 
+### Seven-Card Stud (done) — first betting game
+
+The corpus's first game with **chips**. Rather than build a resource-zone
+subsystem, chips are modelled as an integer `stack[player]` state var and the
+mechanic does integer betting — total chips are invariant (the falsifiable check
+for all the betting/pot logic). Concrete `StudHand` mechanic (`runtime/stud.py`):
+antes, bring-in, five betting streets (check/call/bet/raise/fold under fixed
+limits, raise-capped), and a showdown with proper **side-pot** distribution by
+amount committed (plus a leftover sweep that guarantees chip conservation in the
+rare uncalled-over-commit edge). The poker evaluator (`hand_rank`, best five of
+seven) is module-level and unit-tested (category order, the wheel, tiebreakers).
+
+The `.md` is a cash game (no winner); the runtime needs a terminal, so the
+executable plays until one player holds all the chips. Random fixed-limit play
+busts everyone onto one stack in ~80-330 hands. The 4th-street open-pair limit
+doubling is simplified out (lower on 3rd/4th, upper on 5th-7th).
+
+Decisions worth noting: `resources {}` / `ChipStack` from the `.md` are **not**
+built — chips-as-integers covers every chip game we have; revisit only if a game
+needs chips as first-class movable objects with visibility. The `.md`'s 2..8
+player range is fixed at 4 for the executable (the driver instantiates
+`players.low`).
+
+Falsifiable: evaluator unit tests + a 15-game playout (chip conservation = 400,
+card conservation = 52, termination with one player holding everything).
+
 ## Open questions
 
 - **Representative playouts vs invariant playouts.** Uniform-random bidding

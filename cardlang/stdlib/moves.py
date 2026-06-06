@@ -43,5 +43,12 @@ LIBRARY_MOVE_TYPES: frozenset[str] = frozenset(
         "discard_to_crib",
         "play_card",
         "declare_go",
+        # Seven-Card Stud moves (handled by the StudHand mechanic).
+        "bring_in",
+        "check",
+        "call",
+        "bet",
+        "raise",
+        "fold",
     }
 )
