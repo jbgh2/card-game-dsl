@@ -10,5 +10,6 @@ from __future__ import annotations
 LIBRARY_MECHANICS: frozenset[str] = frozenset(
     {
         "Trick",
+        "SchnapsenHand",  # Schnapsen's trick-and-draw hand with heterogeneous lead moves
     }
 )

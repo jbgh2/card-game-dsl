@@ -18,7 +18,7 @@ from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.execute import execute, run_body as run_stmts
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
-from cardlang.runtime.values import Player, Seating, build_deck
+from cardlang.runtime.values import DECKS, Player, Seating, build_deck
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +47,11 @@ def play_game(
     rs.trump = game.trump
     rs.teams = teams
     rs.team_of = team_of
+    # Rank strength is read from the game's `ranking:` (high to low), so every
+    # deck ranks correctly without a hardcoded order. Card values come from the
+    # deck table (empty for games that score by other means).
+    rs.rank_index = {r: len(game.ranking) - 1 - i for i, r in enumerate(game.ranking)}
+    rs.card_values = dict(DECKS[game.deck].values)
     rs.rule_index = {r.name: r for r in game.rules}
     rs.routing_index = {r.name: r for r in game.routings}
     rs.deck_zone = next(z.name for z in game.zones if z.type_ref.name == "Deck")
@@ -87,12 +92,18 @@ def play_game(
 def _final_card_census(rs: RuntimeState) -> dict[str, int]:
     """Total cards across every zone (conservation check) and how many `hand`
     zones still hold cards (the survivor count for an elimination game)."""
-    total = sum(len(z.cards) for z in rs.zones.singles.values())
+    all_zones = list(rs.zones.singles.values())
     for family in rs.zones.families.values():
-        total += sum(len(z.cards) for z in family.values())
+        all_zones.extend(family.values())
+    total = sum(len(z.cards) for z in all_zones)
+    # Total card-point value across every zone — a deck-integrity check for
+    # point-trick games (e.g. Schnapsen's 120). Zero when the deck has no values.
+    total_value = sum(
+        rs.card_values.get(c.rank, 0) for z in all_zones for c in z.cards
+    )
     hands = rs.zones.families.get("hand", {})
     with_cards = sum(1 for z in hands.values() if z.cards)
-    return {"total": total, "hands_with_cards": with_cards}
+    return {"total": total, "hands_with_cards": with_cards, "total_value": total_value}
 
 
 class _HandCounter:

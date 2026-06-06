@@ -9,8 +9,10 @@ Seeded for the formalized corpus; extended corpus-first.
 from __future__ import annotations
 
 # deck name -> its suits
+_FRENCH = frozenset({"clubs", "diamonds", "hearts", "spades"})
 _SUITS_BY_DECK: dict[str, frozenset[str]] = {
-    "standard52": frozenset({"clubs", "diamonds", "hearts", "spades"}),
+    "standard52": _FRENCH,
+    "schnapsen20": _FRENCH,  # 20-card Ace-Ten deck, same four suits
 }
 
 # The stdlib Direction enum (used for passing/seating offsets). `hold` is the

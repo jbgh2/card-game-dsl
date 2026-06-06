@@ -1,50 +1,20 @@
-# Schnapsen
+// Schnapsen — formalized DSL (parser/checker/runtime target).
+//
+// Companion to schnapsen.md. Two-player Ace-Ten point-trick game on the 20-card
+// schnapsen20 deck (A 10 K Q J high to low; values A=11 10=10 K=4 Q=3 J=2, so
+// the deck holds 120 card points). A hand is played to 66 card points; the match
+// runs to 7 game points scored downward (first to 0 wins).
+//
+// The hand itself — the trick-and-draw loop, the heterogeneous lead moves
+// (declare a marriage, exchange the trump jack, close the talon), drawing from
+// the talon, the strict-follow endgame, and claiming 66 — is run by the
+// built-in `SchnapsenHand` mechanic. The DSL surface does not yet express
+// heterogeneous lead-action choice or rank-comparison legality rules; per
+// corpus-first that generic surface is deferred until a second instance shows
+// its shape (the auction games). The mechanic implements the rules faithfully
+// and writes its results into the per-hand state vars this file's `scoring`
+// phase reads. See IMPLEMENTATION_LOG.md for the flagged expressiveness gap.
 
-The companion formal file is [schnapsen.cardlang](schnapsen.cardlang); this is
-the readable twin. Schnapsen is a two-player Ace-Ten point-trick game on a
-20-card deck (A 10 K Q J in four suits; card values A=11, 10=10, K=4, Q=3, J=2,
-so the deck holds 120 points). Each hand is a race to **66 card points**; the
-match is played to **7 game points scored downward** — the first player to reach
-0 wins. Source: [Pagat](https://www.pagat.com/marriage/schnaps.html).
-
-How a hand goes:
-
-- Deal 3 cards each, turn one up to fix **trump**, deal 2 more each; the rest is
-  the face-down **talon**, drawn from after every trick.
-- **Phase 1 (talon open).** The leader may lead any card — there is no
-  obligation to follow suit. After each trick the winner draws the top of the
-  talon, then the loser draws (the last draw is the face-up trump card, which
-  goes to the loser). When on lead a player may also:
-  - **declare a marriage** — lead the K or Q of a suit while holding both, for
-    20 points (40 in trump); the points are *pending* until the declarer wins a
-    trick;
-  - **exchange the trump jack** — swap the jack of trump in hand for the turned-up
-    trump card;
-  - **close the talon** — stop the draw and switch immediately to strict play.
-- **Phase 2 (talon closed or exhausted).** Strict play: follow suit and play a
-  higher card of the led suit if you can; if void, you must trump; otherwise play
-  anything. (Schnapsen has no over-trump obligation.)
-- A player who reaches 66 **claims** and ends the hand.
-
-Settlement, in game points deducted from the claimer's (or opponent's) score:
-
-- **Correct claim, talon not closed** — 1 point, 2 if the opponent has fewer than
-  33 card points (Schneider), 3 if the opponent took no trick (Schwarz).
-- **Correct claim after closing** — the same tiers, but measured against the
-  opponent's standing *at the moment of the close* (the Viennese snapshot).
-- **Failed close** (the closer never reached 66) — the opponent scores 2, or 3 if
-  shut out at the close.
-- **No close, no claim, cards run out** — the last trick is worth 1 point.
-
-The hand engine — the lead-action choice, marriages, the talon draw, the strict
-endgame, and the claim — runs in the built-in `SchnapsenHand` mechanic, which
-writes its results into the per-hand state vars the `scoring` phase below reads.
-The DSL surface does not yet express heterogeneous lead-action choice or
-rank-comparison legality rules; that generic surface is deferred (corpus-first)
-until the auction games show its shape. The rules are implemented faithfully —
-only the *expressiveness* is flagged.
-
-```
 game Schnapsen {
 
   players: 2
@@ -105,6 +75,7 @@ game Schnapsen {
     }
 
     phase scoring {
+      // Settle the hand in game points, deducted from the loser-facing score.
       if claimer is not none {
         let opp = the player where player != claimer
         let opp_cp = if talon_closed_by == claimer then closer_opp_card_points else card_points[opp]
@@ -113,10 +84,12 @@ game Schnapsen {
         game_score[claimer] -= game_pts
       } else {
         if talon_closed_by is not none {
+          // Closer never reached 66: the opponent scores 2 (3 if shut out at the close).
           let opp = the player where player != talon_closed_by
           let game_pts = if closer_opp_tricks == 0 then 3 else 2
           game_score[opp] -= game_pts
         } else {
+          // Nobody closed or claimed; the last trick is worth 1.
           game_score[last_trick_winner] -= 1
         }
       }
@@ -125,4 +98,3 @@ game Schnapsen {
 
   winner: lowest game_score
 }
-```

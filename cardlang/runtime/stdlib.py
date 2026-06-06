@@ -49,9 +49,10 @@ def _player_holding(card: Card, ctx: Ctx) -> Player | None:
 
 # --- value-callbacks (mechanic functions passed by name) ---
 
-# An outcome function picks the trick winner from the plays, the led suit, and
-# the trump suit (None when the game declares no trump).
-OutcomeFn = Callable[[list[tuple[Player, Card]], str, "str | None"], Player]
+# An outcome function picks the trick winner from the plays, the led suit, the
+# trump suit (None when no trump), and the game's rank-strength map.
+RankIndex = dict[str, int]
+OutcomeFn = Callable[[list[tuple[Player, Card]], str, "str | None", RankIndex], Player]
 # An early-termination predicate: does this play end the trick? (card, led_suit)
 EarlyTermFn = Callable[[Card, str], bool]
 
@@ -69,22 +70,28 @@ def value_function(name: str) -> Callable[..., Any]:
 
 
 def highest_of_led_suit(
-    played: list[tuple[Player, Card]], led_suit: str, trump: str | None = None
+    played: list[tuple[Player, Card]],
+    led_suit: str,
+    trump: str | None,
+    rank_index: RankIndex,
 ) -> Player:
     """The player who played the highest-ranked card of the led suit."""
     of_suit = [(p, c) for (p, c) in played if c.suit == led_suit]
-    return max(of_suit, key=lambda pc: pc[1].rank_order)[0]
+    return max(of_suit, key=lambda pc: rank_index[pc[1].rank])[0]
 
 
 def highest_trump_or_led_suit(
-    played: list[tuple[Player, Card]], led_suit: str, trump: str | None = None
+    played: list[tuple[Player, Card]],
+    led_suit: str,
+    trump: str | None,
+    rank_index: RankIndex,
 ) -> Player:
     """The highest trump if any trump was played, else the highest card of the
     led suit (the standard trick winner for a trump game)."""
     trumps = [(p, c) for (p, c) in played if c.suit == trump]
     if trumps:
-        return max(trumps, key=lambda pc: pc[1].rank_order)[0]
-    return highest_of_led_suit(played, led_suit)
+        return max(trumps, key=lambda pc: rank_index[pc[1].rank])[0]
+    return highest_of_led_suit(played, led_suit, trump, rank_index)
 
 
 def on_play_of_tochoo(card: Card, led_suit: str) -> bool:

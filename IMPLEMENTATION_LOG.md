@@ -102,23 +102,38 @@ Falsifiable invariants (`tests/test_playout_oh_hell.py`, 100 games): exactly 19
 hands, exactly 109 tricks total (the hand-size sequence sums to 109), card
 conservation, and per-trick winner correctness against the hand's trump.
 
-## Next up: Schnapsen (runway note)
+### Schnapsen (done)
 
-Schnapsen is the first game that needs an **action-selection** layer, not just a
-card chooser. At each lead the player chooses among heterogeneous moves —
-`play_to_trick`, `declare_marriage`, `exchange_trump_jack`, `close_talon`,
-`claim_66` — each with its own effect on per-hand state. The plain `Trick`
-mechanic (everyone plays one card) can't express this; it needs a new mechanic
-(a trick-and-draw / lead-action loop) alongside `Trick`. Also new: the
-`schnapsen20` deck, Ace-Ten **card point values** (J=2 Q=3 K=4 10=10 A=11), the
-talon draw after each trick, marriages, talon closing with a state snapshot, and
-the five-shape settlement.
+Generic seams added (reused by later games):
+- **Deck table** (`runtime.values.DECKS`): each deck names its suits, ranks, and
+  an optional card-point value table. `schnapsen20` = A 10 K Q J × 4 suits,
+  values A=11 10=10 K=4 Q=3 J=2 (120 points total). `build_deck` is table-driven.
+- **Deck-driven rank strength** (`rs.rank_index`, built from the game's
+  `ranking:`): the single source of rank truth. Outcome functions now take a
+  `rank_index` and use it instead of the hardcoded `Card.rank_order`, so a
+  non-standard deck (A > 10 > K) ranks correctly. `Card.rank_order` is retained
+  only for standard-deck *tests*; nothing in the runtime decision path uses it.
+- **Card-value census**: `game_end` trace now carries `total_value`, enabling a
+  deck-integrity invariant (Schnapsen = 120).
+- `FaceDownPile` zone type.
 
-Assessment against the stop condition: this is **additive** (a new mechanic +
-new deck + card-value table), not a DSL breakdown — keep going. The likely
-generic seams to widen: a deck-values table (also needed by Pinochle/Tarot), and
-a way to express "choose which move type to make, then run its effect" (also the
-shape of the auction games, so design it to generalize).
+Schnapsen-specific:
+- The hand is run by the built-in **`SchnapsenHand` mechanic** — built concretely
+  (corpus-first; abstract action-selection at the *second* instance, not the
+  first, per the advisor). It implements all five lead moves, marriages (pending
+  until the declarer wins a trick), the trump-jack exchange, talon closing with
+  the Viennese snapshot, the talon draw (winner first; loser takes the face-up
+  trump as the last draw), the strict-follow endgame, and claiming. The random
+  chooser picks among legal moves uniformly; the only baked-in strategy is
+  claiming 66 on reaching it (so the win-by-claim settlement is exercised).
+- The cardlang holds the deal, the four-tier settlement, and termination (match
+  to 7 game points, scored down; first to 0 wins).
+
+Falsifiable invariants (`tests/test_playout_schnapsen.py`, 200 games):
+card-point integrity (exactly 120 across all zones — catches a wrong value table
+or rank order), per-trick winner correctness against the schnapsen20 rank order
+*and* trump, and that every hand reduces the total game score (settlement always
+fires).
 
 ## Open questions
 
@@ -130,6 +145,14 @@ shape of the auction games, so design it to generalize).
 - **`scoring_component` subsystem.** Still unbuilt; Spades didn't need it.
   Bridge/Skat (contract bonuses, vulnerability, rubber) may force a real
   decision here.
+- **Heterogeneous lead-action choice in DSL.** Schnapsen's lead moves are handled
+  by a built-in mechanic because the DSL can't yet express "choose among move
+  types, run the chosen effect" or rank-comparison legality rules
+  (`MustHeadIfFollowing`, `MustTrumpIfVoid`). This is the **first** instance;
+  the auction games (Bridge/Pinochle/Skat/Tarot) and the back-four engines are
+  the others. Per corpus-first, design the generic surface when the second
+  instance reveals the shared shape — until then, concrete mechanics + a flagged
+  gap, not a premature framework. (Faithful rules, flagged expressiveness.)
 - **Sequential bidding / `choose … excluding …`.** Oh Hell's dealer hook and the
   Bridge/Skat auctions want a player to choose in turn order while reading prior
   choices, and to exclude specific candidates. Modelled approximately for Oh

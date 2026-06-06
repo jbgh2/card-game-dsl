@@ -13,5 +13,10 @@ LIBRARY_MOVE_TYPES: frozenset[str] = frozenset(
         "play_to_trick",
         "transfer_between_hands",
         "submit_bid",  # a player names a number (Spades/Oh Hell bidding)
+        # Schnapsen lead moves (handled by the SchnapsenHand mechanic).
+        "declare_marriage",
+        "exchange_trump_jack",
+        "close_talon",
+        "claim_66",
     }
 )

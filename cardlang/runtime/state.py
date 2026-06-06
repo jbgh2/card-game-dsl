@@ -97,6 +97,8 @@ class RuntimeState:
         self.trump: str | None = None  # the trump suit, if the game declares one
         self.teams: tuple[int, ...] = ()  # team ids (empty for non-partnership games)
         self.team_of: dict[Player, int] = {}  # player -> their team id
+        self.rank_index: dict[str, int] = {}  # rank -> strength (higher = stronger)
+        self.card_values: dict[str, int] = {}  # rank -> card points (point-trick games)
 
     # --- scope frames ---
 
