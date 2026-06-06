@@ -344,6 +344,16 @@ class AssignStmt:
     span: Span | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class Offer:
+    """`offer to <player> one of [<move_type>, ...]` — the acting player chooses
+    one legal move-type; its effect runs with `actor` bound to that player."""
+
+    player: Expr
+    move_types: tuple[str, ...]
+    span: Span | None = None
+
+
 Stmt = (
     Movement
     | EpistemicOp
@@ -355,6 +365,7 @@ Stmt = (
     | Instantiate
     | LetStmt
     | AssignStmt
+    | Offer
 )
 
 
@@ -517,6 +528,17 @@ class RuleDef:
     span: Span | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class MoveTypeDef:
+    """`move_type NAME { when: <pred> effect { <stmt>* } }` — a named, guarded
+    action. ``guard`` is None when the move is always legal."""
+
+    name: str
+    guard: Expr | None
+    effect: tuple[Stmt, ...]
+    span: Span | None = None
+
+
 # ---------------------------------------------------------------------------
 # Game-level
 # ---------------------------------------------------------------------------
@@ -581,6 +603,7 @@ class Game:
     loser: Loser | None = None
     rules: tuple[RuleDef, ...] = ()
     routings: tuple[RoutingDef, ...] = ()
+    move_types: tuple[MoveTypeDef, ...] = ()
     span: Span | None = None
 
 
@@ -591,6 +614,7 @@ Node = (
     | Winner
     | Loser
     | RoutingDef
+    | MoveTypeDef
     | ZoneDecl
     | TypeRef
     | TypeArg
@@ -618,6 +642,7 @@ Node = (
     | Instantiate
     | LetStmt
     | AssignStmt
+    | Offer
     | NamedArg
     | NameRef
     | IntLit

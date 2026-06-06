@@ -220,6 +220,8 @@ def _stmt(s: n.Stmt) -> IRDict:
                 "op": s.op,
                 "value": _expr(s.value),
             }
+        case n.Offer():
+            raise NotImplementedError("Offer IR lowering not yet implemented")
         case _ as unreachable:
             assert_never(unreachable)
 

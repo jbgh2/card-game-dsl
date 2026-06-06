@@ -51,6 +51,8 @@ def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
             # The mechanic's result binds `outcome` for the rest of the body
             # (e.g. `instantiate Trick(...)` then `leader := outcome`).
             return ctx.with_outcome(mechanics.instantiate(stmt, ctx))
+        case n.Offer():
+            raise NotImplementedError("Offer runtime execution not yet implemented")
         case _ as unreachable:
             assert_never(unreachable)
 
