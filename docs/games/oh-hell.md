@@ -9,9 +9,9 @@ the bonus, never goes negative). The hand-size sequence runs 10 down to 1, then
 1 back up to 10: 19 hands, after which the highest score wins. Source:
 [Pagat](https://www.pagat.com/exact/ohhell.html).
 
-The trump suit changes every hand, so it is handed to the `Trick` as a
-`trump =` argument (the per-hand `trump_suit` state var) rather than the fixed
-game-level `trump:` declaration that Spades uses.
+Tricks are played via the kernel `round` construct. The trump suit changes every
+hand, so it is passed as a `trump` argument (the per-hand `trump_suit` state
+var) rather than the fixed game-level `trump:` declaration that Spades uses.
 
 **The hook rule** — the total of all bids may not equal the hand size, so
 somebody must miss. The rulebook constrains the dealer (who bids last) at choice
@@ -86,16 +86,9 @@ game OhHell {
       legal_moves:  [play_to_trick]
 
       repeat until (all player p: hand[p] is empty) {
-        instantiate Trick (
-          participants = all players,
-          leader       = leader,
-          source_zone  = hand,
-          play_zone    = trick_pile,
-          play_rules   = active_rules,
-          outcome      = highest_trump_or_led_suit,
-          trump        = trump_suit,
-          routing      = move all cards from trick_pile to captured[outcome]
-        )
+        round play_to_trick from leader over all players source hand into trick_pile
+              outcome highest_trump_or_led_suit trump trump_suit
+        move all cards from trick_pile to captured[outcome]
         tricks_won[outcome] += 1
         leader := outcome
       }
