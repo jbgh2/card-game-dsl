@@ -1,0 +1,57 @@
+// Cribbage — formalized DSL (parser/checker/runtime target).
+//
+// Companion to cribbage.md. Two-player six-card Cribbage. First to 121 points,
+// scored from pegging (during play) and the show (counting combinations in each
+// hand plus the dealer's crib against a shared starter). This is a counting
+// game, not a trick game.
+//
+// The hand engine — the discard to the crib, the starter cut (his heels), the
+// pegging rounds (fifteens, pairs, runs, 31, go / last card), and the show
+// (fifteens, pairs, runs, flush, his nob over non-dealer / dealer / crib in
+// order, stopping the moment a player crosses 121) — runs in the built-in
+// `CribbageHand` mechanic, which updates `score` directly. The combination
+// scorers are unit-tested against known hands. The cardlang holds the deal and
+// termination. See IMPLEMENTATION_LOG.md.
+
+game Cribbage {
+
+  players: 2
+  direction: clockwise   // irrelevant with two players; kept for uniformity
+
+  cards: standard52
+  ranking: A 2 3 4 5 6 7 8 9 10 J Q K   // A low; J/Q/K worth 10 for pegging
+
+  zones {
+    deck           : Deck
+    hand[player]   : Hand<player>
+    crib           : FaceDownPile          // owned by the dealer, fed by both
+    starter        : Discard               // one face-up card, shared
+    play_pile      : TrickPile             // the current pegging round
+    played[player] : PlayerPile<player>    // pegged cards
+  }
+
+  state {
+    // Game-level: persists across hands.
+    score[player] : Integer = 0
+  }
+
+  phase hand_sequence repeats until (any player p: score[p] >= 121) {
+    state {
+      dealer : Player = 0
+    }
+
+    before_each {
+      move all cards to deck
+      shuffle deck
+      deal 6 cards from deck to each hand
+      dealer := the player where player != dealer   // the deal alternates
+    }
+
+    phase play {
+      legal_moves: [discard_to_crib, play_card, declare_go]
+      instantiate CribbageHand(dealer = dealer)
+    }
+  }
+
+  winner: highest score
+}

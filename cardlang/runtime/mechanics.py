@@ -33,6 +33,10 @@ def instantiate(stmt: n.Instantiate, ctx: Ctx) -> Player:
         from cardlang.runtime.tarot import run_tarot_hand
 
         return run_tarot_hand(stmt, ctx)
+    if stmt.mechanic == "CribbageHand":
+        from cardlang.runtime.cribbage import run_cribbage_hand
+
+        return run_cribbage_hand(stmt, ctx)
     if stmt.mechanic != "Trick":
         raise NotImplementedError(f"mechanic '{stmt.mechanic}' not supported yet")
     args = {a.name: a.value for a in stmt.args}

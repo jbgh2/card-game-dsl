@@ -254,6 +254,25 @@ Tichu (combination climbing), Coup (bluff/influence elimination). Each needs a
 genuinely new mechanic, not a Trick variant — the real test of "faithful or
 flagged".
 
+### Cribbage (done) — first non-trick engine
+
+A pure counting game: discard to the crib, cut the starter, peg to 31, then the
+show. Concrete `CribbageHand` mechanic (`runtime/cribbage.py`) with the
+combination scorers (fifteens, pairs, runs-with-multiplicity, flush, his nob;
+pegging pairs/runs) exposed module-level and **unit-tested against known hands**
+(the 29-hand, run multiplicity, flush rules, his nob) — the right falsifiable
+check for a game with no card-value conservation total. The mechanic stops the
+moment a player reaches 121 (non-dealer shows first), so the winner is exactly
+the first to 121.
+
+Bug caught by the conservation invariant: pegged cards were held in a local list
+between rounds, so an early win-return mid-pegging dropped them from the census
+(48≠52). Fixed by routing played cards through the `play_pile` zone.
+
+Falsifiable: unit tests on the scorers (known values) + a 50-game playout
+(termination, exactly one player crosses 121, winner = that player, 52-card
+conservation).
+
 ## Open questions
 
 - **Representative playouts vs invariant playouts.** Uniform-random bidding
