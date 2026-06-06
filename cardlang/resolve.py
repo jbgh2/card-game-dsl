@@ -40,7 +40,7 @@ from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 _KNOWN_ROLES = {"player", "team"}
 
 # The magic namespaces a bare name may resolve to.
-_PRONOUNS = frozenset({"state", "action", "outcome", "active_rules"})
+_PRONOUNS = frozenset({"state", "action", "outcome", "active_rules", "actor"})
 
 
 def resolve(game: n.Game) -> n.Game:
@@ -300,6 +300,11 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         bag.error(f"rotate through unknown value '{value}'", nd.span)
             case n.Winner() if nd.target not in cats.state_vars:
                 bag.error(f"winner references unknown variable '{nd.target}'", nd.span)
+            case n.Offer():
+                defined = {m.name for m in game.move_types}
+                for name in nd.move_types:
+                    if name not in defined:
+                        bag.error(f"offer names unknown move type '{name}'", nd.span)
 
 
 def _raise_if_errors(bag: DiagnosticBag) -> None:
