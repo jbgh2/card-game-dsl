@@ -21,5 +21,7 @@ LIBRARY_MOVE_TYPES: frozenset[str] = frozenset(
         # Auction moves (handled by the auction mechanics).
         "pass",
         "declare_trump_suit",
+        "double",
+        "redouble",
     }
 )

@@ -23,6 +23,8 @@ def instantiate(stmt: n.Instantiate, ctx: Ctx) -> Player:
         return run_schnapsen_hand(stmt, ctx)
     if stmt.mechanic == "PinochleHand":
         return run_pinochle_hand(stmt, ctx)
+    if stmt.mechanic == "BridgeAuction":
+        return run_bridge_auction(stmt, ctx)
     if stmt.mechanic != "Trick":
         raise NotImplementedError(f"mechanic '{stmt.mechanic}' not supported yet")
     args = {a.name: a.value for a in stmt.args}
@@ -447,6 +449,96 @@ def run_pinochle_hand(stmt: n.Instantiate, ctx: Ctx) -> Player:
         {"meld": dict(meld_score), "trick": dict(trick_score), "abandoned": False},
     )
     return high_bidder
+
+
+# ---------------------------------------------------------------------------
+# Bridge auction mechanic
+# ---------------------------------------------------------------------------
+#
+# Bridge trick play needs only follow-suit (no head/trump obligation), so the
+# DSL drives the thirteen tricks with the ordinary `Trick` mechanic (NT maps to
+# trump = none). Only the auction is special, and it is built concretely here:
+# ascending bids over the strain order C D H S NT, with double and redouble, the
+# auction ending after three passes follow a call. Random bidders raise
+# minimally (pick a strain; take the lowest level that beats the standing bid),
+# which keeps contracts low enough to be made sometimes — so games and the rubber
+# actually complete under random play. Doubling/redoubling and declarer
+# determination (first of the partnership to name the final strain) are faithful;
+# conventions and strategy are out of scope for a random playout.
+
+_STRAINS: tuple[str | None, ...] = ("clubs", "diamonds", "hearts", "spades", None)
+
+
+def run_bridge_auction(stmt: n.Instantiate, ctx: Ctx) -> Player:
+    rs = ctx.rs
+    args = {a.name: a.value for a in stmt.args}
+    opener: Player = evaluate(_expr(args["opener"]), ctx)
+    order = rs.seating.turn_order_from(opener)
+    team_of = rs.team_of
+
+    cur_level = 0
+    cur_strain = -1  # -1 = no bid yet
+    high_team: int | None = None
+    doubled = 1  # 1 undoubled, 2 doubled, 4 redoubled
+    strain_first: dict[tuple[int, int], Player] = {}  # (team, strain) -> first to name it
+    passes = 0
+    made_bid = False
+    i = 0
+    guard = 0
+
+    while True:
+        guard += 1
+        if guard > 500:  # safety net; minimal-ascent bids bound this far lower
+            break
+        p = order[i % len(order)]
+        i += 1
+        actions: list[tuple[Any, ...]] = [("pass",)]
+        for st in range(5):  # minimal level that beats the standing bid in strain st
+            lvl = 1 if cur_level == 0 else (cur_level if st > cur_strain else cur_level + 1)
+            # Cap random bids at level 3: a random declarer almost never makes a
+            # high contract, so without a cap a rubber takes hundreds of failed
+            # hands to crawl to two games. Partscores (1-3) are made often enough
+            # that games accumulate in a realistic ~dozens of hands. Game-level
+            # and slam contracts are thus unreachable under random play (their
+            # scoring is implemented but unexercised, like Spades' +500 branch).
+            if lvl <= 3:
+                actions.append(("bid", lvl, st))
+        if made_bid and team_of[p] != high_team and doubled == 1:
+            actions.append(("double",))
+        if made_bid and doubled == 2 and team_of[p] == high_team:
+            actions.append(("redouble",))
+
+        choice = ctx.chooser(p, actions, 1)[0]
+        kind = choice[0]
+        if kind == "pass":
+            passes += 1
+            if (made_bid and passes >= 3) or (not made_bid and passes >= 4):
+                break
+        elif kind == "bid":
+            cur_level, cur_strain = choice[1], choice[2]
+            high_team = team_of[p]
+            strain_first.setdefault((high_team, cur_strain), p)
+            doubled = 1
+            made_bid = True
+            passes = 0
+        elif kind == "double":
+            doubled = 2
+            passes = 0
+        else:  # redouble
+            doubled = 4
+            passes = 0
+
+    if not made_bid:
+        rs.set("all_pass", True)
+        return opener
+    assert high_team is not None
+    declarer = strain_first[(high_team, cur_strain)]
+    rs.set("all_pass", False)
+    rs.set("declarer", declarer)
+    rs.set("contract_level", cur_level)
+    rs.set("trump_suit", _STRAINS[cur_strain])
+    rs.set("doubled_mult", doubled)
+    return declarer
 
 
 def _fire_transitions(

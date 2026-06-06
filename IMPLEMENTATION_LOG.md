@@ -164,6 +164,39 @@ strict-trick legality rules. Both still live in concrete mechanics. Bridge is
 next and shares both — the point at which lifting strict-trick legality into the
 rule DSL (rank comparison + trick-pile query methods) likely pays for itself.
 
+### Bridge (rubber, simplified) (done)
+
+Key finding: **Bridge trick play needs only follow-suit** (no head/trump
+obligation), so the thirteen tricks run on the ordinary `Trick` mechanic — no
+strict-rule machinery needed. Only the auction is special. So the
+"lift strict-trick rules into the DSL" generalization is *not* forced by Bridge
+after all; it remains a Pinochle/Skat/Tarot concern.
+
+- `BridgeAuction` mechanic (concrete): ascending bids over C D H S NT with
+  double/redouble, ending after three passes follow a call; declarer = first of
+  the side to name the final strain. NT contracts pass `trump = none` to the
+  Trick (which `highest_trump_or_led_suit` already handles).
+- Full rubber scoring in the DSL: below/above the line, game bonus at 100
+  (vulnerable 500 / non-vuln 300), rubber bonus, slam bonus, overtricks,
+  undertrick penalties, vulnerability = `games_won >= 1`. The winner's score var
+  (`total_score`) lives at **game level**, not in the rubber loop, so it is still
+  in scope when the driver reads the winner after the phase ends (a real gotcha:
+  loop-phase state is popped before the winner read).
+
+Non-termination, handled (the Spades lesson again): random declarers almost
+never make high contracts, so an uncapped auction made rubbers take hundreds of
+failed hands to crawl to two games (and ran scores into the six figures). Random
+bids are capped at level 3 — partscores are made often enough that a rubber is a
+realistic ~14 hands. Game-level (3NT/4M/5m) and slam contracts are thus
+unreachable under random play; their scoring is implemented but unexercised
+(like Spades' +500). `1 - dteam` is used for "the other team" (clean for two
+teams; a `the team where` query would generalize it).
+
+Falsifiable invariants (`tests/test_playout_bridge.py`, 40 rubbers): card
+conservation, every played hand is exactly 13 tricks of 4 plays, per-trick winner
+correctness against the contract trump (incl. none for NT), and termination with
+winner = higher total.
+
 ## Open questions
 
 - **Representative playouts vs invariant playouts.** Uniform-random bidding
