@@ -24,13 +24,25 @@ _RANK_INDEX = {r: i for i, r in enumerate(RANKS)}
 class Deck:
     """A named deck: the ranks each suit carries (high to low is set by the
     game's `ranking:`), the suits, an optional card-point value table for
-    point-trick games (Schnapsen, Pinochle, Tarot), and how many copies of each
-    card the deck holds (Pinochle doubles a 24-card pack into 48)."""
+    point-trick games (Schnapsen, Pinochle), and how many copies of each card
+    the deck holds (Pinochle doubles a 24-card pack into 48). A non-uniform deck
+    (Tarot: suits of 14, a 21-card atout suit, the singleton Excuse) supplies an
+    explicit ``cards`` list instead of the suits×ranks cross product."""
 
     suits: tuple[str, ...]
     ranks: tuple[str, ...]
     values: dict[str, int]  # rank -> card points; empty when the game scores otherwise
     copies: int = 1
+    cards: tuple[tuple[str, str], ...] = ()  # explicit (rank, suit) list for non-uniform decks
+
+
+def _tarot78() -> tuple[tuple[str, str], ...]:
+    """The 78-card Tarot pack: four 14-card suits, 21 atouts, and the Excuse."""
+    suit_ranks = ("K", "Q", "C", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2", "1")
+    cards = [(r, s) for s in SUITS for r in suit_ranks]
+    cards += [(str(n), "atouts") for n in range(1, 22)]
+    cards.append(("Excuse", "excuse"))
+    return tuple(cards)
 
 
 DECKS: dict[str, Deck] = {
@@ -55,6 +67,9 @@ DECKS: dict[str, Deck] = {
         ranks=("A", "10", "K", "Q", "J", "9", "8", "7"),
         values={"A": 11, "10": 10, "K": 4, "Q": 3, "J": 2, "9": 0, "8": 0, "7": 0},
     ),
+    # 78-card Tarot pack (non-uniform). Card values vary by rank AND suit, so the
+    # value table is left empty and the Tarot mechanic computes points itself.
+    "tarot78": Deck(suits=SUITS, ranks=(), values={}, cards=_tarot78()),
 }
 
 
@@ -79,6 +94,8 @@ def build_deck(deck_name: str) -> list[Card]:
     deck = DECKS.get(deck_name)
     if deck is None:
         raise NotImplementedError(f"deck '{deck_name}' not supported by the runtime yet")
+    if deck.cards:  # non-uniform deck (Tarot)
+        return [Card(rank, suit) for rank, suit in deck.cards]
     return [
         Card(rank, suit)
         for _ in range(deck.copies)

@@ -36,5 +36,8 @@ LIBRARY_MOVE_TYPES: frozenset[str] = frozenset(
         "declare_null",
         "play_at_eighteen",
         "throw_in",
+        # French Tarot moves (handled by the TarotHand mechanic).
+        "discard_to_chien",
+        "call_poignee",
     }
 )

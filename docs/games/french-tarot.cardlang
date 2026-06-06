@@ -1,0 +1,66 @@
+// French Tarot — formalized DSL (parser/checker/runtime target).
+//
+// Companion to french-tarot.md. Four-player FFT Tarot on the 78-card tarot78
+// deck (four 14-card suits, 21 atouts, the Excuse). One player (the taker) plays
+// alone against the other three: bid one of four levels, handle the six-card
+// chien per the bid, then take enough card points in eighteen tricks to beat a
+// bouts-conditional threshold. Thirty-six hands are played; the highest score
+// wins.
+//
+// The hand engine — the ascending four-level bid, the chien handling, the
+// eighteen atout-trump tricks with the Excuse's special routing and the
+// must-trump / must-over-trump obligations, and the bouts/multiplier/petit
+// scoring — runs in the built-in `TarotHand` mechanic, which updates `score`
+// directly (zero-sum: the taker collects 3× the per-opponent amount). Card
+// points are kept in doubled integer units (the 78 cards sum to 182). poignée
+// declaration and the Excuse half-point IOU deferral are out of scope (see
+// IMPLEMENTATION_LOG.md). The cardlang holds the deal, hand counting, and
+// termination.
+
+game FrenchTarot {
+
+  players: 4
+  direction: counterclockwise        // canonical for French Tarot
+
+  cards: tarot78
+
+  zones {
+    deck             : Deck
+    hand[player]     : Hand<player>
+    chien            : FaceDownPile        // the six-card kitty
+    trick_pile       : TrickPile
+    captured[player] : PlayerPile<player>
+  }
+
+  state {
+    // Game-level: persists across hands.
+    score[player] : Integer = 0
+    hands_played  : Integer = 0
+  }
+
+  phase hand_sequence repeats until hands_played >= 36 {
+    state {
+      dealer : Player = 0
+    }
+
+    before_each {
+      move all cards to deck
+      shuffle deck
+      deal 18 cards from deck to each hand
+      deal 6 cards from deck to chien
+      dealer := dealer offset_by right        // counter-clockwise rotation
+    }
+
+    phase play {
+      legal_moves: [submit_bid, pass, discard_to_chien, call_poignee, play_to_trick]
+      // The player to the dealer's right speaks and leads first.
+      instantiate TarotHand(starting = dealer offset_by right)
+    }
+
+    after_each {
+      hands_played += 1
+    }
+  }
+
+  winner: highest score
+}

@@ -224,6 +224,36 @@ Falsifiable invariants (`tests/test_playout_skat.py`, 50 games): 32-card /
 recomputed for all three game types (catches a wrong jack ordering, trump
 structure, or rank order).
 
+### French Tarot (done) — trump-trick family complete
+
+Generic seam: **non-uniform decks**. `Deck` gained an explicit `cards` list, so
+tarot78 (four 14-card suits + a 21-card atout suit + the singleton Excuse) is
+buildable without a suits×ranks cross product. Card values vary by rank *and*
+suit, so the deck value table is left empty and the mechanic computes points (in
+doubled integer units; 78 cards = 182).
+
+Concrete `TarotHand` mechanic (`runtime/tarot.py`): four-level ascending bid,
+chien handling dispatched by bid level, eighteen atout-trump tricks with
+must-trump/must-over-trump and the Excuse's special routing (stays with its team,
+repays the winner a low card), and bouts-threshold / multiplier / petit-au-bout
+scoring. Zero-sum: the taker collects 3× the per-opponent amount. poignée
+declaration and the Excuse half-point IOU deferral are scoped out (a random
+player can't sensibly declare poignée; the IOU is a rare edge).
+
+Falsifiable invariants (`tests/test_playout_french_tarot.py`, 40 games): 78-card
+conservation, card points total 182 every hand, **zero-sum score**, fixed 36
+hands, per-trick winner correctness (highest atout, else led suit; the Excuse
+never wins).
+
+---
+
+**Trump-trick family complete (7/11):** Spades, Oh Hell, Schnapsen, Pinochle,
+Bridge, Skat, French Tarot. Remaining are the four non-trick engines: Cribbage
+(pegging + the show), Seven-Card Stud (betting rounds + poker hand ranking),
+Tichu (combination climbing), Coup (bluff/influence elimination). Each needs a
+genuinely new mechanic, not a Trick variant — the real test of "faithful or
+flagged".
+
 ## Open questions
 
 - **Representative playouts vs invariant playouts.** Uniform-random bidding

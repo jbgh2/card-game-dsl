@@ -15,6 +15,8 @@ _SUITS_BY_DECK: dict[str, frozenset[str]] = {
     "schnapsen20": _FRENCH,  # 20-card Ace-Ten deck, same four suits
     "pinochle48": _FRENCH,   # 48-card Pinochle pack, same four suits
     "skat32": _FRENCH,       # 32-card Skat pack, same four suits
+    # Tarot adds the 21-card trump suit (atouts) and the singleton Excuse.
+    "tarot78": _FRENCH | frozenset({"atouts", "excuse"}),
 }
 
 # The stdlib Direction enum (used for passing/seating offsets). `hold` is the
