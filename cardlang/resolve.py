@@ -281,6 +281,7 @@ def _rewrite_value(value: object, cats: _Categories, bag: DiagnosticBag) -> obje
 
 
 def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
+    defined_move_types = {m.name for m in game.move_types}
     for nd in _walk(game):
         match nd:
             case n.Call() if nd.func not in STDLIB_CALL_FUNCS:
@@ -301,9 +302,8 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
             case n.Winner() if nd.target not in cats.state_vars:
                 bag.error(f"winner references unknown variable '{nd.target}'", nd.span)
             case n.Offer():
-                defined = {m.name for m in game.move_types}
                 for name in nd.move_types:
-                    if name not in defined:
+                    if name not in defined_move_types:
                         bag.error(f"offer names unknown move type '{name}'", nd.span)
 
 

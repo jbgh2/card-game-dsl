@@ -1,3 +1,4 @@
+from cardlang.ast import nodes as n
 from cardlang.pipeline import check_dsl
 
 SRC = """
@@ -19,6 +20,17 @@ move_type take_two { effect { coins[actor] += 2 } }
 def test_resolves_clean():
     game = check_dsl(SRC, "g.cardlang")  # raises if any name is unresolved
     assert {m.name for m in game.move_types} == {"take_one", "take_two"}
+
+
+def test_actor_classified_as_pronoun():
+    game = check_dsl(SRC, "g.cardlang")
+    # `actor` inside a move-type effect must resolve to the pronoun namespace.
+    take_one = next(m for m in game.move_types if m.name == "take_one")
+    assign = take_one.effect[0]
+    assert isinstance(assign, n.AssignStmt)
+    actor_ref = assign.index
+    assert isinstance(actor_ref, n.NameRef)
+    assert actor_ref.name == "actor" and actor_ref.ref_kind == "pronoun"
 
 
 def test_offer_unknown_move_type_errors():
