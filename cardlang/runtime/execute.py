@@ -52,7 +52,8 @@ def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
             # (e.g. `instantiate Trick(...)` then `leader := outcome`).
             return ctx.with_outcome(mechanics.instantiate(stmt, ctx))
         case n.Offer():
-            raise NotImplementedError("Offer runtime execution not yet implemented")
+            _offer(stmt, ctx)
+            return ctx
         case _ as unreachable:
             assert_never(unreachable)
 
@@ -195,6 +196,24 @@ def _for_each(stmt: n.ForEach, ctx: Ctx) -> None:
     # made inside (e.g. `bid[p] := choose …`) knows who is choosing.
     for player in ctx.rs.seating.players:
         execute(stmt.body, ctx.with_local(stmt.binder, player).acting_as(player))
+
+
+def _offer(stmt: n.Offer, ctx: Ctx) -> None:
+    player = evaluate(stmt.player, ctx)
+    pctx = ctx.acting_as(player)
+    legal = [
+        name
+        for name in stmt.move_types
+        if _move_legal(ctx.rs.move_type_index[name], pctx)
+    ]
+    if not legal:
+        return  # no legal move: the offer is a no-op
+    chosen = ctx.chooser(player, legal, 1)[0]
+    run_body(ctx.rs.move_type_index[chosen].effect, pctx)
+
+
+def _move_legal(mt: n.MoveTypeDef, ctx: Ctx) -> bool:
+    return mt.guard is None or bool(evaluate(mt.guard, ctx))
 
 
 def _each_simultaneous(stmt: n.EachSimultaneous, ctx: Ctx) -> None:
