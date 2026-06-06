@@ -45,6 +45,13 @@ def _tarot78() -> tuple[tuple[str, str], ...]:
     return tuple(cards)
 
 
+def _tichu56() -> tuple[tuple[str, str], ...]:
+    """The 56-card Tichu pack: the standard 52 plus four special cards."""
+    cards = [(r, s) for s in SUITS for r in RANKS]
+    cards += [(name, "special") for name in ("Mahjong", "Dog", "Phoenix", "Dragon")]
+    return tuple(cards)
+
+
 DECKS: dict[str, Deck] = {
     "standard52": Deck(suits=SUITS, ranks=RANKS, values={}),
     # 20-card Ace-Ten deck: J Q K 10 A in four suits, A 10 K Q J high to low.
@@ -70,6 +77,8 @@ DECKS: dict[str, Deck] = {
     # 78-card Tarot pack (non-uniform). Card values vary by rank AND suit, so the
     # value table is left empty and the Tarot mechanic computes points itself.
     "tarot78": Deck(suits=SUITS, ranks=(), values={}, cards=_tarot78()),
+    # 56-card Tichu pack: standard 52 plus Mahjong, Dog, Phoenix, Dragon.
+    "tichu56": Deck(suits=SUITS, ranks=RANKS, values={}, cards=_tichu56()),
 }
 
 

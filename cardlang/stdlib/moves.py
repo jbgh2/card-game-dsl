@@ -50,5 +50,10 @@ LIBRARY_MOVE_TYPES: frozenset[str] = frozenset(
         "bet",
         "raise",
         "fold",
+        # Tichu moves (handled by the TichuHand mechanic).
+        "play_combination",
+        "push_card",
+        "call_tichu",
+        "call_grand_tichu",
     }
 )

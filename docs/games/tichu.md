@@ -1,315 +1,72 @@
 # Tichu
 
-Partnership climbing game (Schmid, 1991). 4 players in fixed
-partnerships, 56-card deck (standard 52 plus four special cards:
-Mahjong, Dog, Phoenix, Dragon). Rules source: Fata Morgana English
-edition.
+The companion formal file is [tichu.cardlang](tichu.cardlang); this is the
+readable twin. A four-player partnership **climbing** game on a 56-card deck (the
+standard 52 plus four special cards: Mahjong, Dog, Phoenix, Dragon). First
+partnership to **1000** wins. Rules: Fata Morgana English edition.
 
-Tichu is the corpus's first climbing-game and its first game with
-non-suit/rank cards. Several constructs below are new — they're flagged
-inline by linking the open-question file that names them.
+Each hand:
+
+1. Deal 14 cards each; every player **pushes** one card to each other player.
+2. The Mahjong holder leads. Players **climb**: each play must be a combination
+   of the led *type and length* and **beat** the previous play in rank, or be a
+   **bomb** (four of a kind, which beats any non-bomb), or **pass**. Three passes
+   end the trick and the last player to play wins it and leads next.
+   Combinations: singles, pairs, triples, full houses, straights (≥5),
+   consecutive pairs (≥2), and bombs.
+3. The special cards: the **Mahjong** is rank 1 (lowest) and leads first; the
+   **Dog** is led alone and hands the lead to your partner (no capture); the
+   **Phoenix** is a wildcard / a single worth half a rank above the last play
+   (and −25 points); the **Dragon** is the highest single, worth +25, and its
+   trick is given to an opponent.
+4. As players empty their hands they go out in order. If both partners of a team
+   go out first and second — a **double victory** — the hand ends for 200 points
+   with no card counting. Otherwise the last player's remaining hand goes to the
+   opponents and their captured tricks to the first player out, and each team
+   scores its captured card points (K and 10 = 10, 5 = 5, Dragon +25, Phoenix
+   −25; 100 in all). Finally, **Tichu** (±100) and **Grand Tichu** (±200) calls
+   pay out by whether the caller went out first.
+
+The hand engine runs in the built-in `TichuHand` mechanic. Scope reductions
+(random play): the Mahjong wish, the Phoenix as a wildcard inside
+straights/consecutive-pairs, straight-flush bombs, and out-of-turn bombs are
+omitted; Tichu/Grand Tichu are called at a low random rate. See
+IMPLEMENTATION_LOG.md.
 
 ```
 game Tichu {
 
   players: 4
-  partnerships: [[N, S], [E, W]]
+  partnerships: [[0, 2], [1, 3]]   // partners sit across
   direction: counterclockwise
 
-  // 52 standard cards plus four uniquely-named special cards. The
-  // `specials:` clause is still an open question for cards that aren't
-  // (suit, rank) pairs — see open-questions/special-cards-declaration.md.
-  cards: standard52 + { specials: [Mahjong, Dog, Phoenix, Dragon] }
+  cards: tichu56
 
   zones {
-    deck             : Deck
-    hand[player]     : Hand<player>
-    trick_pile       : TrickPile
-    captured[team]   : TeamPile<team>
-    discard          : Discard           // Dog goes here when played (no capture)
+    deck           : Deck
+    hand[player]   : Hand<player>
+    trick_pile     : TrickPile
+    captured[team] : TeamPile<team>
+    discard        : Discard          // the Dog goes here (no capture)
   }
 
   state {
-    // Game-level: persists across hands.
     score[team] : Integer = 0
   }
 
-  // === Top-level phase sequence ===
-
-  phase hand_sequence repeats until any team.score >= 1000 {
-    state {
-      // Per-hand: resets each hand.
-      tichu_called[player]        : Boolean = false
-      grand_tichu_called[player]  : Boolean = false
-      has_played_yet[player]      : Boolean = false   // true after the player's first combination
-      first_out                   : Player? = none
-      second_out                  : Player? = none
-      active_wish                 : Rank?   = none
-    }
-
-    // ----- Staged deal: 8 cards, Grand Tichu window, then 6 more -----
-
-    phase deal_first_eight {
+  phase hand_sequence repeats until (any team t: score[t] >= 1000) {
+    before_each {
+      move all cards to deck
       shuffle deck
-      deal 8 cards from deck to each hand
+      deal 14 cards from deck to each hand
     }
-
-    phase grand_tichu_window {
-      legal_moves: [+ call_grand_tichu]
-      // `+ X` operator on legal_moves — see decisions.md
-      // ("Sub-phase rule and legal-move deltas").
-
-      each player simultaneously may submit call_grand_tichu
-      // "may submit" is a new optional-move form — see
-      // open-questions/optional-window-moves.md.
-    }
-
-    phase deal_remaining_six {
-      deal 6 cards from deck to each hand
-    }
-
-    // ----- Pushing: one card to each other player, simultaneously -----
-
-    phase pushing {
-      active_rules: [PushExactlyOneCardToEachOther]
-      legal_moves:  [push_card]
-
-      each player simultaneously:
-        for each other player q:
-          choose 1 card from hand[player]
-          transfer chosen card from hand[player] to hand[q]
-    }
-
-    // ----- Play -----
 
     phase play {
-      state {
-        leader : Player = player_holding(Mahjong)
-      }
-
-      active_rules: [
-        MustMatchLedCombinationType,
-        MustBeatPreviousCombination,
-      ]
-      legal_moves: [play_combination, pass, call_tichu]
-      // call_tichu is gated by a per-move precondition (see the
-      // move_type definition below) — `has_played_yet[active_player]`
-      // closes the window for that one player. No sub-phase needed.
-      out_of_turn_legal: bombs   // see open-questions/out-of-turn-moves.md
-
-      // Sub-phase: the Mahjong wish is active. Entry and exit are
-      // governed by the predicate; the sub-phase is active for as long
-      // as `active_wish` is set. See decisions.md "Sub-phase entry
-      // and exit".
-      phase wish_active when active_wish != none {
-        active_rules: [+ MustPlayWishedRankIfAble]
-      }
-
-      // Trick loop.
-      repeat until exactly one player still holds cards {
-        instantiate ClimbingTrick (
-          participants      = all players still holding cards,
-          leader            = leader,
-          source_zone       = hand,
-          play_zone         = trick_pile,
-          play_rules        = active_rules,
-          outcome           = ClimbingTrickWinner,
-          routing           = TichuTrickRouting,
-          early_termination = (state) ⇒ state.last_play.is_dog
-        )
-
-        // Determine next leader. The Dog gives lead to partner; otherwise
-        // the trick winner leads (skipping past empty hands).
-        if last trick ended by Dog:
-          leader := outcome.partner
-        else:
-          leader := outcome
-        if hand[leader] is empty:
-          leader := next non-empty player counterclockwise from leader
-
-        // Record finishing order.
-        for each player p who emptied their hand on this trick:
-          if first_out == none:        first_out := p
-          else if second_out == none:  second_out := p
-      }
-    }
-
-    // ----- Scoring -----
-
-    phase scoring {
-      let last_player   = the one player still holding cards
-      let winning_team  = team_of(first_out)
-      let losing_team   = other team
-
-      apply_components: [
-        if first_out and second_out and team_of(second_out) == winning_team:
-          DoubleVictoryScoring(winner = winning_team)
-        else:
-          CardPointScoring(last_player = last_player, winner = winning_team),
-        TichuCallScoring()
-      ]
+      legal_moves: [play_combination, pass, call_tichu, call_grand_tichu, push_card]
+      instantiate TichuHand(starting = 0)
     }
   }
 
-  winner: team with highest score
-  // In the tied-at-1000 case, whichever team has more points wins.
-}
-
-// =====================================================================
-// Move types
-// =====================================================================
-
-// play_combination supersedes play_to_trick. Plays a set of cards
-// forming a single Combination value (single cards are length-1
-// combinations).
-move_type play_combination {
-  source: hand[active_player]
-  destination: trick_pile
-  carries: combination : Combination
-  out_of_turn_legal: when combination.is_bomb
-  sets: has_played_yet[active_player] := true
-}
-
-move_type pass {
-  // Three successive passes end the trick.
-}
-
-move_type push_card {
-  source: hand[active_player]
-  destination: hand[recipient]   // recipient bound at choice time
-}
-
-// Tichu calls — declared rather than played. Each player has a
-// personal window that closes when they play their first combination.
-move_type call_tichu {
-  preconditions: not tichu_called[active_player]
-              and not has_played_yet[active_player]
-  sets: tichu_called[active_player] := true
-}
-move_type call_grand_tichu {
-  preconditions: not grand_tichu_called[active_player]
-              and hand[active_player].size <= 8
-  sets: grand_tichu_called[active_player] := true
-}
-
-// =====================================================================
-// Types
-// =====================================================================
-
-type Combination = oneof {
-  Single(rank: ExtendedRank)
-  Pair(rank: Rank)
-  Triple(rank: Rank)
-  ConsecutivePairs(start: Rank, length: Integer)      // length ≥ 2 pairs
-  FullHouse(triple_rank: Rank, pair_rank: Rank)
-  Straight(start: Rank, length: Integer)              // length ≥ 5
-  Bomb4(rank: Rank)                                   // four of a kind
-  BombStraightFlush(suit: Suit, start: Rank, length: Integer)   // length ≥ 5
-  DogLead                                             // Dog played alone
-}
-derived {
-  Combination.is_bomb = self matches Bomb4 | BombStraightFlush
-  Combination.is_dog  = self matches DogLead
-}
-
-// ExtendedRank covers ranks 2..A plus the special positions.
-// Phoenix's single-card rank is contextual (half a rank above the last
-// play); see open-questions/special-cards-declaration.md.
-type ExtendedRank =
-  | Rank
-  | MahjongRank                        // = 1, lowest
-  | DragonRank                         // = highest single
-  | PhoenixRank(base_rank: Rank?)      // = base + 0.5; 1.5 if led
-
-// =====================================================================
-// Rules
-// =====================================================================
-
-rule MustMatchLedCombinationType {
-  constrains: play_combination
-  applies_when: state.trick.lead_combination != none
-                and not move.combination.is_bomb
-  demands: combinations c where c.type == state.trick.lead_combination.type
-                              and c.length == state.trick.lead_combination.length
-}
-
-rule MustBeatPreviousCombination {
-  constrains: play_combination
-  applies_when: state.trick.last_play != none
-                and not move.combination.is_bomb
-  demands: combinations c where c.rank > state.trick.last_play.rank
-}
-
-rule MustPlayWishedRankIfAble {
-  constrains: play_combination
-  applies_when: state.active_wish != none
-                and hand[active_player] contains a card of rank state.active_wish
-                and some legal combination from hand[active_player]
-                       contains a card of rank state.active_wish
-  demands: combinations c that include at least one card of rank state.active_wish
-  if_impossible: no constraint   // wish unfulfillable this turn ⇒ ordinary rules apply
-}
-
-rule PushExactlyOneCardToEachOther {
-  constrains: push_card
-  demands: each player chooses 3 distinct cards, one for each non-self player
-}
-
-// =====================================================================
-// Climbing-game outcome and routing
-// =====================================================================
-
-outcome ClimbingTrickWinner = (played_cards, trick_state) ⇒
-  trick_state.last_non_pass_player
-
-routing TichuTrickRouting = (played_cards, trick_state, winner) ⇒
-  if trick_state.last_play.is_dog:
-    all cards from trick_pile to discard
-  elif winner played Dragon as the winning single:
-    // winner picks an opposing team to receive the trick (including the
-    // Dragon's 25 points). See decisions.md "`choose` as expression".
-    all cards from trick_pile to captured[team of (winner chooses one opponent)]
-  else:
-    all cards from trick_pile to captured[team_of(winner)]
-
-// =====================================================================
-// Scoring components
-// =====================================================================
-
-scoring_component DoubleVictoryScoring (winner) {
-  // Going out 1st and 2nd as the same partnership skips card counting.
-  ScoreDelta { score[winner] += 200 }
-}
-
-scoring_component CardPointScoring (last_player, winner) {
-  let losing_team = team_of(last_player)
-
-  // Last player's remaining hand → opposing team's captured pile.
-  // Last player's already-captured tricks → first_out's captured pile.
-  move all cards from hand[last_player]      to captured[other team than losing_team]
-  move all cards from captured[losing_team]  to captured[winner]
-
-  let delta[team] = 0 for each team
-  for each team t:
-    delta[t] += sum over captured[t]:
-                  if card == Dragon:         25
-                  elif card == Phoenix:     -25
-                  elif card.rank in [K, 10]: 10
-                  elif card.rank == 5:        5
-                  else:                       0
-  ScoreDelta { score[t] += delta[t] for each team t }
-}
-
-scoring_component TichuCallScoring () {
-  // ±100 / ±200 per player based on whether they went out first.
-  let delta[team] = 0 for each team
-  for each player p:
-    let bonus =
-      if grand_tichu_called[p]: 200
-      elif tichu_called[p]:     100
-      else: 0
-    if p == first_out: delta[team_of(p)] += bonus
-    else:              delta[team_of(p)] -= bonus
-  ScoreDelta { score[t] += delta[t] for each team t }
+  winner: highest score
 }
 ```

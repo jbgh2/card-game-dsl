@@ -299,6 +299,31 @@ player range is fixed at 4 for the executable (the driver instantiates
 Falsifiable: evaluator unit tests + a 15-game playout (chip conservation = 400,
 card conservation = 52, termination with one player holding everything).
 
+### Tichu (done) — first climbing game
+
+The corpus's first climbing game and first non-(rank,suit) cards (the four
+specials). Concrete `TichuHand` mechanic (`runtime/tichu.py`) with a combination
+engine (`_combos`: singles/pairs/triples/full houses/straights/consecutive
+pairs/four-of-a-kind bombs, Phoenix as a wildcard in pairs/triples/full houses)
+and `_legal_follows` (same type+length and higher, or a bomb, or the Phoenix/
+Dragon single) — both unit-tested. The climbing trick (three passes end it), the
+four specials (Mahjong leads/lowest, Dog → partner, Phoenix wild/−25, Dragon
+highest/+25 to an opponent), pushing, finishing order with the double-victory
+shortcut, and card-point + Tichu-call scoring are all in the mechanic. New deck
+`tichu56` (52 + Mahjong/Dog/Phoenix/Dragon under a `special` suit).
+
+Card points total **100** every non-double-victory hand (40+40+20 from K/10/5,
+Dragon +25 and Phoenix −25 cancelling) — the conservation invariant.
+
+Scope reductions (random play, faithful-or-flagged): the Mahjong wish, the
+Phoenix as a wildcard inside straights/consecutive-pairs, straight-flush bombs,
+and out-of-turn bombs are omitted; Tichu/Grand Tichu are called at a low random
+rate so card points (always +100/hand) drive the game to 1000.
+
+Falsifiable: combination-engine + climbing-legality unit tests, and a 30-game
+playout (56-card conservation, 100 card points every non-DV hand, termination
+with the higher team winning).
+
 ## Open questions
 
 - **Representative playouts vs invariant playouts.** Uniform-random bidding
