@@ -52,7 +52,8 @@ def count_pairs(cards: list[Card]) -> int:
 
 
 def run_score(cards: list[Card]) -> int:
-    """Length × multiplicity of the longest run (≥3) over the ranks."""
+    """Length × multiplicity of the run (≥3) over the ranks (a 5-card show hand
+    contains at most one run)."""
     counts: dict[int, int] = {}
     for c in cards:
         counts[_ORDER[c.rank]] = counts.get(_ORDER[c.rank], 0) + 1

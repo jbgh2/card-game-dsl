@@ -164,11 +164,12 @@ def _take_turn(  # type: ignore[no-untyped-def]
             gain(actor, 3)
     elif action == "assassinate":
         target = rng.choice(opps)
-        pay(actor, 3)
-        if challenge_window(actor, "Assassin") == "refuted":
-            gain(actor, 3)  # challenged out: the fee is returned
-        elif block_window([target], ["Contessa"]) == "not_blocked":
-            lose_influence(target)
+        pay(actor, 3)  # fee paid up front, and stays spent either way
+        # A refuted (caught) bluff: the actor already lost an influence in the
+        # challenge and the assassination fails. Otherwise the target may block.
+        if challenge_window(actor, "Assassin") == "stands":
+            if block_window([target], ["Contessa"]) == "not_blocked":
+                lose_influence(target)
     elif action == "steal":
         target = rng.choice(opps)
         if challenge_window(actor, "Captain") == "stands":

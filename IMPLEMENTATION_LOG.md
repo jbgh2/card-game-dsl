@@ -318,7 +318,11 @@ Dragon +25 and Phoenix −25 cancelling) — the conservation invariant.
 Scope reductions (random play, faithful-or-flagged): the Mahjong wish, the
 Phoenix as a wildcard inside straights/consecutive-pairs, straight-flush bombs,
 and out-of-turn bombs are omitted; Tichu/Grand Tichu are called at a low random
-rate so card points (always +100/hand) drive the game to 1000.
+rate so card points (always +100/hand) drive the game to 1000. The endgame
+hand-over (last player gives their won tricks to the first-out player) moves the
+*whole team's* captured pile rather than only that player's own tricks — captured
+piles are team-keyed, so the already-out partner's tricks ride along; card-point
+conservation (100/hand) is unaffected, only the within-team attribution.
 
 Falsifiable: combination-engine + climbing-legality unit tests, and a 30-game
 playout (56-card conservation, 100 card points every non-DV hand, termination

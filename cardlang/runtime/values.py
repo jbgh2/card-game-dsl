@@ -35,6 +35,16 @@ class Deck:
     copies: int = 1
     cards: tuple[tuple[str, str], ...] = ()  # explicit (rank, suit) list for non-uniform decks
 
+    def __post_init__(self) -> None:
+        # Exactly one representation: the suits×ranks cross product (`ranks`) or
+        # an explicit non-uniform `cards` list. Setting both silently ignores
+        # `ranks` (build_deck prefers `cards`), so reject it at construction.
+        if bool(self.ranks) == bool(self.cards):
+            raise ValueError(
+                "Deck must set exactly one of `ranks` (suits×ranks cross product) "
+                "or `cards` (explicit non-uniform list)"
+            )
+
 
 def _tarot78() -> tuple[tuple[str, str], ...]:
     """The 78-card Tarot pack: four 14-card suits, 21 atouts, and the Excuse."""
@@ -78,7 +88,7 @@ DECKS: dict[str, Deck] = {
     # value table is left empty and the Tarot mechanic computes points itself.
     "tarot78": Deck(suits=SUITS, ranks=(), values={}, cards=_tarot78()),
     # 56-card Tichu pack: standard 52 plus Mahjong, Dog, Phoenix, Dragon.
-    "tichu56": Deck(suits=SUITS, ranks=RANKS, values={}, cards=_tichu56()),
+    "tichu56": Deck(suits=SUITS, ranks=(), values={}, cards=_tichu56()),
     # 15-card Coup deck: five characters (the "rank") under one suit, three each.
     "coup15": Deck(
         suits=("court",),
