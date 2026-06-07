@@ -116,11 +116,16 @@ def run_stud_hand(stmt: n.Instantiate, ctx: Ctx) -> Player:
         hole[p].add(deck.cards.pop(0))
         upcards[p].add(deck.cards.pop(0))
 
-    # bring-in: lowest door (upcard), ties by suit
+    # bring-in: lowest door (upcard), ties by suit. If fewer than two players
+    # can act (everyone went all-in on the ante — e.g. each entered with exactly
+    # one chip), there is no bring-in or betting: the hand is dealt out and goes
+    # straight to showdown.
     able = [p for p in in_hand if not allin[p]]
-    bringer = min(able, key=lambda p: (_RV[upcards[p].cards[0].rank], _SUIT_ORDER[upcards[p].cards[0].suit]))
     bet_by = {p: 0 for p in in_hand}
-    bet_by[bringer] = put(bringer, BRING_IN)
+    bringer: Player | None = None
+    if len(able) >= 2:
+        bringer = min(able, key=lambda p: (_RV[upcards[p].cards[0].rank], _SUIT_ORDER[upcards[p].cards[0].suit]))
+        bet_by[bringer] = put(bringer, BRING_IN)
 
     def order_from(start: Player) -> list[Player]:
         si = in_hand.index(start) if start in in_hand else 0
@@ -198,7 +203,7 @@ def run_stud_hand(stmt: n.Instantiate, ctx: Ctx) -> Player:
         return [p for p in in_hand if not folded[p]]
 
     # 3rd street (bring-in standing as the opening bet), then 4th–7th
-    if len(contenders()) > 1:
+    if bringer is not None and len(contenders()) > 1:
         betting_round(order_from(bringer)[1], BRING_IN, LOWER, bet_by)
     for street, limit, face_up in [(4, LOWER, True), (5, UPPER, True), (6, UPPER, True), (7, UPPER, False)]:
         if len(contenders()) <= 1:

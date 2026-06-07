@@ -1,0 +1,44 @@
+// Regression fixture for the ante-all-in crash: two players each start with
+// exactly one chip (= the ante), so the opening hand has every entrant all-in
+// after the ante and nobody able to bring in or bet. The hand must be dealt out
+// and settled at showdown, not crash. Same shape as seven-card-stud.cardlang.
+
+game StudAllIn {
+
+  players: 2
+  direction: clockwise
+
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+
+  zones {
+    deck            : Deck
+    hole[player]    : Hand<player>
+    upcards[player] : PublicHand<player>
+    muck            : Muck
+    burn            : Burn
+  }
+
+  state {
+    stack[player] : Integer = 1
+  }
+
+  phase hand_sequence repeats until (number of players where stack[player] > 0) <= 1 {
+    state {
+      dealer : Player = 0
+    }
+
+    before_each {
+      move all cards to deck
+      shuffle deck
+      dealer := dealer offset_by left
+    }
+
+    phase play {
+      legal_moves: [bring_in, check, call, bet, raise, fold]
+      instantiate StudHand(dealer = dealer)
+    }
+  }
+
+  winner: highest stack
+}

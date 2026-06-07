@@ -141,7 +141,8 @@ game Bridge {
       } else {
         let under = required - actual
         let per_under = if doubled_mult == 1 then (if vuln then 100 else 50)
-                        else (if vuln then 200 else 100)
+                        elif doubled_mult == 2 then (if vuln then 200 else 100)
+                        else (if vuln then 400 else 200)            // redoubled
         total_score[oteam] += per_under * under
       }
     }
