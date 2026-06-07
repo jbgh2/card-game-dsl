@@ -20,7 +20,7 @@ rule MustFollowSuit { constrains: play_to_trick  applies_when: state.led_suit is
 """
 
 
-def test_round_parses():
+def test_round_parses() -> None:
     game = parse_text(SRC, "g.cardlang")
     rnd = next(i for i in game.phases[0].items if isinstance(i, n.Round))
     assert rnd.move_type == "play_to_trick"

@@ -7,7 +7,7 @@ from cardlang.runtime.driver import play_game
 FIXTURE = Path(__file__).parent / "fixtures" / "offer_skeleton.cardlang"
 
 
-def test_offer_skeleton_checks_and_plays():
+def test_offer_skeleton_checks_and_plays() -> None:
     game = check_source(FIXTURE)
     assert game.name == "OfferSkeleton"
     seen_one = seen_two = False

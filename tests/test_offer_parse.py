@@ -17,7 +17,7 @@ move_type take_two { when: always  effect { coins[actor] += 2 } }
 """
 
 
-def test_parses_move_types_and_offer():
+def test_parses_move_types_and_offer() -> None:
     game = parse_text(SRC, "g.cardlang")
     assert {m.name for m in game.move_types} == {"take_one", "take_two"}
     one = next(m for m in game.move_types if m.name == "take_one")

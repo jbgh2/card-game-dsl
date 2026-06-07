@@ -17,12 +17,12 @@ move_type take_two { effect { coins[actor] += 2 } }
 """
 
 
-def test_resolves_clean():
+def test_resolves_clean() -> None:
     game = check_dsl(SRC, "g.cardlang")  # raises if any name is unresolved
     assert {m.name for m in game.move_types} == {"take_one", "take_two"}
 
 
-def test_actor_classified_as_pronoun():
+def test_actor_classified_as_pronoun() -> None:
     game = check_dsl(SRC, "g.cardlang")
     # `actor` inside a move-type effect must resolve to the pronoun namespace.
     take_one = next(m for m in game.move_types if m.name == "take_one")
@@ -33,7 +33,7 @@ def test_actor_classified_as_pronoun():
     assert actor_ref.name == "actor" and actor_ref.ref_kind == "pronoun"
 
 
-def test_offer_unknown_move_type_errors():
+def test_offer_unknown_move_type_errors() -> None:
     bad = SRC.replace("[take_one, take_two]", "[take_one, nope]")
     try:
         check_dsl(bad, "g.cardlang")

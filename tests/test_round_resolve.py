@@ -2,12 +2,12 @@ from cardlang.pipeline import check_dsl
 from tests.test_round_parse import SRC
 
 
-def test_round_resolves_clean():
+def test_round_resolves_clean() -> None:
     game = check_dsl(SRC, "g.cardlang")
     assert game.name == "G"
 
 
-def test_round_unknown_zone_errors():
+def test_round_unknown_zone_errors() -> None:
     bad = SRC.replace("source hand", "source nope")
     try:
         check_dsl(bad, "g.cardlang")

@@ -1,4 +1,6 @@
 import random
+from typing import Any
+
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
 
@@ -28,11 +30,14 @@ rule MustFollowSuit { constrains: play_to_trick  applies_when: state.led_suit is
 """
 
 
-def test_round_plays_full_tricks_and_conserves_cards():
+def test_round_plays_full_tricks_and_conserves_cards() -> None:
     game = check_dsl(SRC, "g.cardlang")
     for seed in range(20):
-        plays, tricks, census = [], [], {}
-        def tr(e, d):
+        plays: list[Any] = []
+        tricks: list[Any] = []
+        census: dict[str, Any] = {}
+
+        def tr(e: str, d: Any) -> None:
             if e == "play": plays.append(d)
             elif e == "trick": tricks.append(d)
             elif e == "game_end": census.clear(); census.update(d)

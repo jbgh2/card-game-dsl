@@ -1,3 +1,5 @@
+from typing import Any
+
 from cardlang.ir import emit
 from cardlang.pipeline import check_dsl
 
@@ -15,8 +17,8 @@ move_type take_two { effect { coins[actor] += 2 } }
 """
 
 
-def test_ir_has_move_types_and_offer():
-    ir = emit(check_dsl(SRC, "g.cardlang"))
+def test_ir_has_move_types_and_offer() -> None:
+    ir: Any = emit(check_dsl(SRC, "g.cardlang"))
     assert [m["name"] for m in ir["move_types"]] == ["take_one", "take_two"]
     assert ir["move_types"][0]["kind"] == "move_type"
     phase = ir["phases"][0]

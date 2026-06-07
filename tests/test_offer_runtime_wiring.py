@@ -20,7 +20,7 @@ move_type take_one { effect { coins[actor] += 1 } }
 """
 
 
-def test_driver_builds_move_type_index_and_game_runs():
+def test_driver_builds_move_type_index_and_game_runs() -> None:
     game = check_dsl(SRC, "g.cardlang")
     result = play_game(game, random.Random(0))
     # 2 players, 3 rounds, +1 each round -> 3 coins each; winner is player 0 or 1.
