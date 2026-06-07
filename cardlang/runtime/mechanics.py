@@ -538,8 +538,10 @@ def run_bridge_auction(stmt: n.Instantiate, ctx: Ctx) -> Player:
 
     while True:
         guard += 1
-        if guard > 500:  # safety net; minimal-ascent bids bound this far lower
-            break
+        if guard > 500:  # minimal-ascent bids bound this far below 500
+            raise RuntimeError(
+                "bridge auction exceeded 500 calls without closing (non-termination?)"
+            )
         p = order[i % len(order)]
         i += 1
         actions: list[tuple[Any, ...]] = [("pass",)]
@@ -580,6 +582,7 @@ def run_bridge_auction(stmt: n.Instantiate, ctx: Ctx) -> Player:
 
     if not made_bid:
         rs.set("all_pass", True)
+        ctx.trace("bridge_contract", {"all_pass": True})
         return opener
     assert high_team is not None
     declarer = strain_first[(high_team, cur_strain)]
@@ -588,6 +591,16 @@ def run_bridge_auction(stmt: n.Instantiate, ctx: Ctx) -> Player:
     rs.set("contract_level", cur_level)
     rs.set("trump_suit", _STRAINS[cur_strain])
     rs.set("doubled_mult", doubled)
+    ctx.trace(
+        "bridge_contract",
+        {
+            "all_pass": False,
+            "declarer_team": team_of[declarer],
+            "level": cur_level,
+            "strain": _STRAINS[cur_strain],
+            "doubled_mult": doubled,
+        },
+    )
     return declarer
 
 

@@ -113,7 +113,9 @@ def run_coup_game(stmt: n.Instantiate, ctx: Ctx) -> Player:
     while sum(1 for p in players if in_game(p)) > 1:
         guard += 1
         if guard > 10000:
-            break
+            raise RuntimeError(
+                "coup game exceeded 10000 turns without a sole survivor (non-termination?)"
+            )
         if in_game(turn_p):
             _take_turn(turn_p, coins, opponents, choose, rng, gain, pay,
                        lose_influence, challenge_window, block_window,

@@ -141,7 +141,10 @@ def run_stud_hand(stmt: n.Instantiate, ctx: Ctx) -> Player:
         while True:
             guard += 1
             if guard > 2000:
-                break
+                raise RuntimeError(
+                    "stud betting round exceeded 2000 iterations without "
+                    "settling (non-termination?)"
+                )
             pending = [
                 p for p in order
                 if not folded[p] and not allin[p]

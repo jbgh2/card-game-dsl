@@ -136,6 +136,10 @@ def _select(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> list[Ca
         for card in chosen:
             source.remove(card)
         return chosen
+    if count > len(source.cards):  # fail loudly like the chosen/random branches
+        raise ValueError(
+            f"cannot deal {count} cards from a source holding {len(source.cards)}"
+        )
     taken = source.cards[:count]  # deal off the top
     del source.cards[:count]
     return taken

@@ -208,7 +208,9 @@ def run_tichu_hand(stmt: n.Instantiate, ctx: Ctx) -> Player:
     while len(still_in()) > 1:
         guard += 1
         if guard > 5000:
-            break
+            raise RuntimeError(
+                "tichu hand exceeded 5000 tricks without resolving (non-termination?)"
+            )
         if len(out_order) >= 2 and team_of[out_order[0]] == team_of[out_order[1]]:
             break  # double victory — stop early
         leader = _play_trick(  # type: ignore[no-untyped-call]
@@ -244,7 +246,9 @@ def _play_trick(  # type: ignore[no-untyped-def]
     while True:
         guard += 1
         if guard > 5000:
-            break
+            raise RuntimeError(
+                "tichu trick exceeded 5000 plays without resolving (non-termination?)"
+            )
         if current is not None and not pending:
             break  # everyone else passed — trick over
         if not hands[turn].cards or (current is not None and turn not in pending):
