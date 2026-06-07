@@ -381,3 +381,28 @@ clearly logged expressiveness gap (faithful rules, flagged surface).
   Hell (post-bid correction). A real `each player in turn from <p>: …` construct
   plus an exclusion form on `choose` is likely needed for the auction games and
   should be designed once, generically, when Bridge forces it.
+
+## Deferred PR-review follow-ups (PR #2)
+
+From the comprehensive review of PR #2. The four "Important" items were applied;
+these are the deferred ones, kept here so they aren't lost.
+
+- **`RuntimeState` config-into-constructor.** Six+ config fields (`rank_index`,
+  `card_values`, `trump`, `teams`, `team_of`, `rule_index`, `routing_index`,
+  `move_type_index`, `deck_zone`, `score_var`) are set on the instance by the
+  driver *after* construction, so an under-initialized `RuntimeState` fails deep
+  in evaluation rather than at construction. Deferred deliberately: the only
+  construction sites today are the driver and two focused unit tests, so every
+  clean fix (required kwargs → friction on those tests; a frozen `GameConfig`
+  sub-struct → churns ~30–50 `rs.X` read sites) costs more than it returns until
+  a *second* real caller exists. **Do it when the OpenSpiel adapter is built** —
+  that's the second construction site to design the right shape against.
+- **Test-depth (regression nets for already-correct logic).** Add when those
+  games are next touched: Schnapsen's six-way settlement *amount* (1/2/3 game
+  points — currently only "score falls" is asserted); Spades nil/bag-overflow
+  score branches (exercised by random play but not asserted); Coup challenge
+  resolution picks the correct loser (a swapped winner/loser still conserves and
+  terminates, so it's undetected today). The Bridge analogue was done (the
+  scoring recompute test).
+- **`team_of` `NewType(TeamId, int)`.** Player ids and team ids are both `int`,
+  so the checker can't catch a swapped argument. Marginal; skipped.
