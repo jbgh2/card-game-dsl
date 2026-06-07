@@ -37,10 +37,10 @@ from cardlang.stdlib.values import deck_suits, enum_values
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 
 # Roles a zone may be indexed by or owned by. Grows with the seating model.
-_KNOWN_ROLES = {"player"}
+_KNOWN_ROLES = {"player", "team"}
 
 # The magic namespaces a bare name may resolve to.
-_PRONOUNS = frozenset({"state", "action", "outcome", "active_rules"})
+_PRONOUNS = frozenset({"state", "action", "outcome", "active_rules", "actor"})
 
 
 def resolve(game: n.Game) -> n.Game:
@@ -281,6 +281,7 @@ def _rewrite_value(value: object, cats: _Categories, bag: DiagnosticBag) -> obje
 
 
 def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
+    defined_move_types = {m.name for m in game.move_types}
     for nd in _walk(game):
         match nd:
             case n.Call() if nd.func not in STDLIB_CALL_FUNCS:
@@ -300,6 +301,20 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         bag.error(f"rotate through unknown value '{value}'", nd.span)
             case n.Winner() if nd.target not in cats.state_vars:
                 bag.error(f"winner references unknown variable '{nd.target}'", nd.span)
+            case n.Offer():
+                for name in nd.move_types:
+                    if name not in defined_move_types:
+                        bag.error(f"offer names unknown move type '{name}'", nd.span)
+            case n.Round():
+                zone_names = {z.name for z in game.zones}
+                if nd.source_zone not in zone_names:
+                    bag.error(f"round source zone '{nd.source_zone}' is unknown", nd.span)
+                if nd.play_zone not in zone_names:
+                    bag.error(f"round play zone '{nd.play_zone}' is unknown", nd.span)
+                if nd.outcome_fn not in STDLIB_VALUE_NAMES:
+                    bag.error(f"round outcome '{nd.outcome_fn}' is unknown", nd.span)
+                if nd.move_type not in LIBRARY_MOVE_TYPES:
+                    bag.error(f"round move type '{nd.move_type}' is unknown", nd.span)
 
 
 def _raise_if_errors(bag: DiagnosticBag) -> None:

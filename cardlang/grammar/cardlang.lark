@@ -10,6 +10,7 @@ start: top_item+
 ?top_item: game
          | rule_def
          | routing_def
+         | move_type_def
 
 // ----------------------------------------------------------------------------
 // Game structure
@@ -21,6 +22,8 @@ game: "game" NAME "{" game_item* "}"
           | direction
           | cards
           | ranking
+          | trump
+          | partnerships
           | zones
           | state_block
           | phase
@@ -34,6 +37,15 @@ players_spec: INT ".." INT   -> players_range
 direction: "direction" ":" NAME
 cards: "cards" ":" NAME
 ranking: "ranking" ":" card_rank+
+
+// The suit (or rank-set) that beats all others in a trick. A single game-level
+// declaration the trump-aware outcome functions read; absent for no-trump games.
+trump: "trump" ":" NAME
+
+// Fixed teams, each a bracketed list of seat indices (0-based, clockwise).
+// `partnerships: [[0, 2], [1, 3]]` — partners sit across in a four-hand game.
+partnerships: "partnerships" ":" "[" team_spec ("," team_spec)* "]"
+team_spec: "[" INT ("," INT)* "]"
 
 zones: "zones" "{" zone_decl* "}"
 zone_decl: NAME [index] ":" type_ref
@@ -107,6 +119,8 @@ move_event: NAME ["where" expr]
           | instantiate
           | let_stmt
           | assign_stmt
+          | offer
+          | round_stmt
 
 // The built-in operation vocabulary uses prose statement syntax — game actions
 // read as rulebook commands, not function calls (decisions.md "The operation
@@ -155,6 +169,8 @@ if_stmt: "if" expr "{" statement* "}" [else_block]
 else_block: "else" "{" statement* "}"
 
 instantiate: "instantiate" NAME "(" [named_arg ("," named_arg)*] ")"
+offer: "offer" "to" expr "one" "of" "[" NAME ("," NAME)* "]"
+round_stmt: "round" NAME "from" expr "over" expr "source" NAME "into" NAME "outcome" NAME ["trump" expr]   -> round_stmt
 named_arg: NAME "=" arg_value
 ?arg_value: movement
           | expr
@@ -173,6 +189,10 @@ lvalue: NAME [index_expr]
 // Runs with the trick context bound — the `outcome` and `state` pronouns — so
 // it takes no parameter list; referenced by name as a Trick `routing =` arg.
 routing_def: "routing" NAME "{" statement* "}"
+
+move_type_def: "move_type" NAME "{" [move_when] move_effect "}"
+move_when: "when" ":" applies_pred
+move_effect: "effect" "{" statement* "}"
 
 rule_def: "rule" NAME "{" rule_clause* "}"
 ?rule_clause: constrains
@@ -247,7 +267,8 @@ COMP_OP: "==" | "!=" | ">=" | "<=" | ">" | "<"
 ?term: term "offset_by" factor -> offset_by
      | factor
 
-?factor: postfix
+?factor: factor "*" postfix -> mul
+       | postfix
 
 ?postfix: postfix "." NAME "(" [arg_list] ")"  -> method_call
         | postfix "." NAME                     -> member
@@ -259,6 +280,7 @@ arg_list: arg ("," arg)*
 
 ?primary: card_literal
         | all_players
+        | choose_expr
         | call
         | INT               -> int_lit
         | STRING            -> str_lit
@@ -274,6 +296,11 @@ card_rank: NAME | INT
 
 all_players: "all" "players"
 call: NAME "(" [arg_list] ")"
+
+// A decision that yields a value (not a card play): pick one element of a
+// candidate set via the chooser. The one form the corpus needs so far is an
+// integer in an inclusive range (a bid); other domains join corpus-first.
+choose_expr: "choose" "integer" "in" sum ".." sum  -> choose_integer
 
 index_expr: "[" expr "]"
 zone_expr: NAME [index_expr]

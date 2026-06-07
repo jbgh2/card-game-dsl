@@ -51,16 +51,23 @@ class Zone:
 
 class ZoneStore:
     """All zone instances. Singleton zones map to one Zone; an indexed family
-    (`hand[player]`) maps to one Zone per player."""
+    maps to one Zone per index value — per player for `hand[player]`, per team
+    for `captured[team]`."""
 
-    def __init__(self, decls: Iterable[n.ZoneDecl], players: tuple[Player, ...]) -> None:
+    def __init__(
+        self,
+        decls: Iterable[n.ZoneDecl],
+        players: tuple[Player, ...],
+        teams: tuple[int, ...] = (),
+    ) -> None:
         self.singles: dict[str, Zone] = {}
-        self.families: dict[str, dict[Player, Zone]] = {}
+        self.families: dict[str, dict[int, Zone]] = {}
         for decl in decls:
             if decl.index is None:
                 self.singles[decl.name] = Zone()
             else:
-                self.families[decl.name] = {p: Zone() for p in players}
+                keys = teams if decl.index == "team" else players
+                self.families[decl.name] = {k: Zone() for k in keys}
 
     def is_family(self, name: str) -> bool:
         return name in self.families
@@ -68,8 +75,8 @@ class ZoneStore:
     def single(self, name: str) -> Zone:
         return self.singles[name]
 
-    def instance(self, name: str, player: Player) -> Zone:
-        return self.families[name][player]
+    def instance(self, name: str, key: int) -> Zone:
+        return self.families[name][key]
 
 
 class RuntimeState:
@@ -85,8 +92,14 @@ class RuntimeState:
         self.fired_transitions: set[str] = set()  # transition targets reached this iteration
         self.rule_index: dict[str, n.RuleDef] = {}  # rule name -> definition
         self.routing_index: dict[str, n.RoutingDef] = {}  # routing name -> definition
+        self.move_type_index: dict[str, n.MoveTypeDef] = {}  # name -> definition
         self.deck_zone: str = ""  # the Deck-typed zone (initialized full at start)
         self.score_var: str | None = None  # the winner's score var (None for loser games)
+        self.trump: str | None = None  # the trump suit, if the game declares one
+        self.teams: tuple[int, ...] = ()  # team ids (empty for non-partnership games)
+        self.team_of: dict[Player, int] = {}  # player -> their team id
+        self.rank_index: dict[str, int] = {}  # rank -> strength (higher = stronger)
+        self.card_values: dict[str, int] = {}  # rank -> card points (point-trick games)
 
     # --- scope frames ---
 
@@ -122,8 +135,10 @@ class Move:
     actor: Player
 
 
-# A chooser picks a subset from a candidate list (random playout: uniform).
-Chooser = Callable[[Player, list[Card], int], list[Card]]
+# A chooser picks a subset from a candidate list (random playout: uniform). The
+# candidates are usually cards, but the same interface resolves any value
+# decision — an integer bid, a suit choice — so the element type is open.
+Chooser = Callable[[Player, list[Any], int], list[Any]]
 
 
 @dataclass(frozen=True, slots=True)

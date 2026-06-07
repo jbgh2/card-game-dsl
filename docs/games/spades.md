@@ -1,10 +1,32 @@
 # Spades
 
+The companion formal file is [spades.cardlang](spades.cardlang); this is the
+readable twin. Spades is a four-player partnership trick-taking game (partners
+sit across) with spades always trump. Each player bids the number of tricks
+they expect to take (a bid of zero is *nil*); the partnership's contract is the
+sum of its non-nil bids. After thirteen tricks the hand is scored and the deal
+rotates. The game runs until a team reaches +500 (a win) or −200 (a loss).
+
+Scoring (the variant formalized here — Spades has several; this one is kept
+internally consistent so each hand's score reconciles):
+
+- **Contract.** Make the contract (team tricks ≥ contract): +10 per bid trick,
+  plus one *bag* per overtrick. Miss it: −10 per bid trick, no bags.
+- **Nil.** A nil bidder who takes no tricks scores +100; one who takes any
+  scores −100. Nil is scored per player, independently of the contract.
+- **Bag overflow.** Every 10 accumulated bags costs 100 points and drops the
+  bag counter by 10.
+
+This file folds scoring into the `scoring` phase (as Hearts does) rather than
+using separate `scoring_component` blocks; the first-trick "no spades" ban from
+some rulebooks is omitted because "no leading spades until broken" already
+forbids leading a spade on the first trick.
+
 ```
 game Spades {
 
   players: 4
-  partnerships: [[N, S], [E, W]]
+  partnerships: [[0, 2], [1, 3]]   // partners sit across the four-hand ring
   direction: clockwise
 
   cards: standard52
@@ -12,48 +34,44 @@ game Spades {
   trump: spades
 
   zones {
-    deck             : Deck
-    hand[player]     : Hand<player>
-    trick_pile       : TrickPile
-    captured[team]   : TeamPile<team>
+    deck           : Deck
+    hand[player]   : Hand<player>
+    trick_pile     : TrickPile
+    captured[team] : TeamPile<team>
   }
 
   state {
     // Game-level: persist across hands.
-    bags[team]   : Integer = 0
-    score[team]  : Integer = 0
+    score[team] : Integer = 0
+    bags[team]  : Integer = 0
   }
 
-  phase hand_sequence repeats until any team.score >= 500 {
+  phase hand_sequence repeats until (any team t: score[t] >= 500 or score[t] <= 0 - 200) {
     state {
-      // Per-hand: reset each hand.
-      bid[player]        : Integer = unset
-      tricks_won[team]   : Integer = 0
-      tricks_won[player] : Integer = 0     // needed for Nil scoring
+      // Per-hand, reset each hand by before_each.
+      dealer             : Player  = 0
+      leader             : Player? = none
+      bid[player]        : Integer = 0
+      tricks_won[player] : Integer = 0
     }
 
-    phase setup {
+    before_each {
+      move all cards to deck
       shuffle deck
       deal 13 cards from deck to each hand
-      dealer := dealer.left                 // rotate per hand
+      dealer := dealer offset_by left          // rotate the deal each hand
+      leader := dealer offset_by left          // eldest hand leads the first trick
+      for each player p: bid[p] := 0
+      for each player p: tricks_won[p] := 0
     }
 
     phase bidding {
-      active_rules: [BidIsZeroToThirteen]
-      legal_moves:  [submit_bid]
-
-      each player in turn starting from dealer.left:
-        action submit_bid:
-          choose integer from 0 to 13
-          bid[player] := chosen
+      legal_moves: [submit_bid]
+      // Each player names a number 0..13; 0 is a nil bid.
+      for each player p: bid[p] := choose integer in 0 .. 13
     }
 
     phase play {
-      state {
-        // Per-play: persists across all tricks in this hand.
-        leader : Player = dealer.left
-      }
-
       active_rules: [MustFollowSuit]
       legal_moves:  [play_to_trick]
 
@@ -63,124 +81,66 @@ game Spades {
       }
 
       phase spades_broken {
-        // inherits parent's MustFollowSuit only
+        // inherits the parent's MustFollowSuit only
       }
 
-      phase first_trick {
-        active_rules: [+ NoLeadingSpadesOnFirstTrick]
-        // (some variants also forbid playing spades on first trick at all;
-        //  this variant only forbids leading them)
-        duration: one trick
-      }
-
-      repeat 13 times {
+      repeat until (all player p: hand[p] is empty) {
         instantiate Trick (
           participants = all players,
           leader       = leader,
           source_zone  = hand,
           play_zone    = trick_pile,
           play_rules   = active_rules,
-          outcome      = TrumpedHighestOfLedSuit(trump = spades),
+          outcome      = highest_trump_or_led_suit,
           routing      = move all cards from trick_pile to captured[team_of(outcome)]
         )
-
-        tricks_won[team_of(outcome)] += 1
         tricks_won[outcome] += 1
         leader := outcome
       }
     }
 
     phase scoring {
-      let result = SpadesHandResult(bid, tricks_won)
+      state {
+        team_bid[team]    : Integer = 0
+        team_tricks[team] : Integer = 0
+      }
 
-      apply_components: [NilScoring, ContractScoring]
+      for each player p: team_bid[team_of(p)] += (if bid[p] == 0 then 0 else bid[p])
+      for each player p: team_tricks[team_of(p)] += tricks_won[p]
 
-      // BagOverflow is a triggered component — see decisions.md
-      // "Triggered scoring components".
+      for each team t:
+        if team_tricks[t] >= team_bid[t] {
+          score[t] += 10 * team_bid[t] + (team_tricks[t] - team_bid[t])
+          bags[t]  += team_tricks[t] - team_bid[t]
+        } else {
+          score[t] -= 10 * team_bid[t]
+        }
+
+      for each player p:
+        if bid[p] == 0 {
+          if tricks_won[p] == 0 { score[team_of(p)] += 100 }
+          else { score[team_of(p)] -= 100 }
+        }
+
+      repeat until (all team t: bags[t] < 10) {
+        for each team t:
+          if bags[t] >= 10 { score[t] -= 100  bags[t] -= 10 }
+      }
     }
   }
 
-  winner: team with highest score
-}
-
-// === Types ===
-
-type SpadesHandResult = {
-  bid[player]        : Integer
-  tricks_won[team]   : Integer
-  tricks_won[player] : Integer
-}
-
-// === Scoring components ===
-
-scoring_component NilScoring (result) {
-  // Per-player +100 if a Nil bidder takes zero tricks, -100 otherwise.
-  let delta[team] = 0 for each team
-  for each player p where result.bid[p] == 0:
-    let team = team_of(p)
-    if result.tricks_won[p] == 0:
-      delta[team] += 100
-    else:
-      delta[team] -= 100
-  ScoreDelta { score[t] += delta[t] for each team t }
-}
-
-scoring_component ContractScoring (result) {
-  // Per-team: 10×bid on success (plus bags for overtricks), -10×bid on failure.
-  let delta_score[team] = 0 for each team
-  let delta_bags[team]  = 0 for each team
-  for each team t:
-    let non_nil_bid = sum of result.bid[p] for p in t where result.bid[p] > 0
-    if result.tricks_won[t] >= non_nil_bid:
-      delta_score[t] += 10 * non_nil_bid
-      delta_bags[t]  += result.tricks_won[t] - non_nil_bid
-    else:
-      delta_score[t] -= 10 * non_nil_bid
-  ScoreDelta {
-    score[t] += delta_score[t] for each team t
-    bags[t]  += delta_bags[t]  for each team t
-  }
-}
-
-scoring_component BagOverflow {
-  // Fires when a team's bag counter crosses 10. Each overflow costs
-  // 100 score and decrements the counter by 10; a team that
-  // accumulates 20+ bags in one hand may trigger this multiple times,
-  // which the per-firing semantics handle naturally.
-  triggered_by: after apply_components
-    where any team t has bags[t] crosses 10
-  let t = the team whose bags crossed
-  ScoreDelta {
-    score[t] -= 100
-    bags[t]  -= 10
-  }
-}
-
-// === Spades-specific rules ===
-
-rule BidIsZeroToThirteen {
-  constrains: submit_bid
-  demands: integers in 0..13
+  winner: highest score
 }
 
 rule NoLeadingSpadesUntilBroken {
   constrains: play_to_trick
-  applies_when: trick.led_suit is none
-  demands: hand.where(c ⇒ c.suit != spades)
+  applies_when: state.led_suit is none
+  demands: hand.where(c => c.suit != spades)
 }
 
-rule NoLeadingSpadesOnFirstTrick {
+rule MustFollowSuit {
   constrains: play_to_trick
-  applies_when: trick.led_suit is none
-  demands: hand.where(c ⇒ c.suit != spades)
+  applies_when: state.led_suit is not none
+  demands: hand.cards_of_suit(state.led_suit)
 }
-
-// === Standard library outcome function ===
-
-outcome TrumpedHighestOfLedSuit (trump_suit) = (played_cards, trick_state) ⇒
-  let trumps_played = played_cards.filter(c ⇒ c.suit == trump_suit)
-  if trumps_played.non_empty:
-    player_of(argmax trumps_played by rank)
-  else:
-    player_of(argmax played_cards.filter(c ⇒ c.suit == trick_state.led_suit) by rank)
 ```

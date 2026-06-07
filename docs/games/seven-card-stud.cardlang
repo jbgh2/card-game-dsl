@@ -1,0 +1,55 @@
+// Seven-Card Stud — formalized DSL (parser/checker/runtime target).
+//
+// Companion to seven-card-stud.md. Fixed-limit Seven-Card Stud, the corpus's
+// first betting game. Chips are modelled as an integer `stack` per player (not a
+// resource-zone subsystem). Each player antes, the low door card brings in, and
+// five betting streets (3rd–7th) precede a showdown where the best five-of-seven
+// poker hand takes the pot (with side pots for all-ins). The .md models a cash
+// game with no overall winner; to give the runtime a terminal, this plays until
+// one player holds all the chips and declares that player the winner.
+//
+// The hand engine — antes, bring-in, betting streets, and showdown with side-pot
+// distribution — runs in the built-in `StudHand` mechanic. The poker evaluator
+// is unit-tested. The cardlang holds the deal/reset and termination. See
+// IMPLEMENTATION_LOG.md (chips-as-integers, the open-pair limit simplification).
+
+game SevenCardStud {
+
+  players: 4
+  direction: clockwise
+
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+
+  zones {
+    deck            : Deck
+    hole[player]    : Hand<player>           // face-down cards
+    upcards[player] : PublicHand<player>     // face-up cards
+    muck            : Muck                   // folded / spent cards
+    burn            : Burn                   // one burned card per street
+  }
+
+  state {
+    // Chips as integers; total is invariant. The winner holds them all.
+    stack[player] : Integer = 100
+  }
+
+  phase hand_sequence repeats until (number of players where stack[player] > 0) <= 1 {
+    state {
+      dealer : Player = 0
+    }
+
+    before_each {
+      move all cards to deck
+      shuffle deck
+      dealer := dealer offset_by left
+    }
+
+    phase play {
+      legal_moves: [bring_in, check, call, bet, raise, fold]
+      instantiate StudHand(dealer = dealer)
+    }
+  }
+
+  winner: highest stack
+}

@@ -19,4 +19,7 @@ LIBRARY_ZONE_TYPES: dict[str, bool] = {
     "Muck": False,
     "ChipStack": True,
     "PlayerPile": True,
+    "TeamPile": True,  # a capture pile owned by a partnership (Spades)
+    "FaceDownPile": False,  # a face-down stock (Schnapsen's talon)
+    "Burn": False,  # the per-street burned-card pile (Stud)
 }

@@ -1,0 +1,41 @@
+// Coup — formalized DSL (parser/checker/runtime target).
+//
+// Companion to coup.md. A bluff-and-challenge game (base game, 3-6 players; the
+// executable fixes four). A 15-card deck of five characters (three copies each)
+// supplies face-down *influence*; players hold coins and, on their turn, take an
+// action that others may challenge or block. Influence is lost by flipping a
+// card face-up; the last player with influence wins.
+//
+// The whole game — setup, the turn loop, the seven actions, the challenge and
+// block windows with bluffing, and elimination — runs in the built-in `CoupGame`
+// mechanic, which drives `coins`, `treasury`, and `alive` directly. Coins are
+// integers (total always 50) and influence cards conserve to 15. `alive[p]` is 1
+// while a player holds influence and 0 once exiled, so `winner: highest alive`
+// names the sole survivor. See IMPLEMENTATION_LOG.md.
+
+game Coup {
+
+  players: 4
+  direction: clockwise
+
+  cards: coup15
+
+  zones {
+    court_deck        : Deck                  // the face-down character pile
+    influence[player] : Hand<player>          // face-down influence
+    revealed[player]  : PlayerPile<player>    // lost influence, face-up
+  }
+
+  state {
+    coins[player]  : Integer = 0      // dealt 2 each from the treasury at setup
+    treasury       : Integer = 50     // the bank starts with all 50 coins
+    alive[player]  : Integer = 1      // 1 while in the game, 0 once exiled
+  }
+
+  phase play {
+    legal_moves: [income, foreign_aid, coup, tax, assassinate, steal, exchange, challenge, block]
+    instantiate CoupGame()
+  }
+
+  winner: highest alive
+}

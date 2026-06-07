@@ -24,6 +24,8 @@
     "3",
     "2"
   ],
+  "trump": null,
+  "partnerships": [],
   "zones": [
     {
       "kind": "zone",
@@ -1130,5 +1132,6 @@
       "if_impossible": null
     }
   ],
-  "routings": []
+  "routings": [],
+  "move_types": []
 }

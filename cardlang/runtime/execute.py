@@ -51,6 +51,11 @@ def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
             # The mechanic's result binds `outcome` for the rest of the body
             # (e.g. `instantiate Trick(...)` then `leader := outcome`).
             return ctx.with_outcome(mechanics.instantiate(stmt, ctx))
+        case n.Offer():
+            _offer(stmt, ctx)
+            return ctx
+        case n.Round():
+            return ctx.with_outcome(mechanics.run_round(stmt, ctx))
         case _ as unreachable:
             assert_never(unreachable)
 
@@ -131,6 +136,10 @@ def _select(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> list[Ca
         for card in chosen:
             source.remove(card)
         return chosen
+    if count > len(source.cards):  # fail loudly like the chosen/random branches
+        raise ValueError(
+            f"cannot deal {count} cards from a source holding {len(source.cards)}"
+        )
     taken = source.cards[:count]  # deal off the top
     del source.cards[:count]
     return taken
@@ -184,9 +193,33 @@ def _apply(op: str, current: Any, rhs: Any) -> Any:
 
 
 def _for_each(stmt: n.ForEach, ctx: Ctx) -> None:
+    if stmt.role == "team":
+        for team in ctx.rs.teams:
+            execute(stmt.body, ctx.with_local(stmt.binder, team))
+        return
     assert stmt.role == "player"
+    # The bound player is also the acting player for the body, so a decision
+    # made inside (e.g. `bid[p] := choose …`) knows who is choosing.
     for player in ctx.rs.seating.players:
-        execute(stmt.body, ctx.with_local(stmt.binder, player))
+        execute(stmt.body, ctx.with_local(stmt.binder, player).acting_as(player))
+
+
+def _offer(stmt: n.Offer, ctx: Ctx) -> None:
+    player = evaluate(stmt.player, ctx)
+    pctx = ctx.acting_as(player)
+    legal = [
+        name
+        for name in stmt.move_types
+        if _move_legal(ctx.rs.move_type_index[name], pctx)
+    ]
+    if not legal:
+        return  # no legal move: the offer is a no-op
+    chosen = ctx.chooser(player, legal, 1)[0]
+    run_body(ctx.rs.move_type_index[chosen].effect, pctx)
+
+
+def _move_legal(mt: n.MoveTypeDef, ctx: Ctx) -> bool:
+    return mt.guard is None or bool(evaluate(mt.guard, ctx))
 
 
 def _each_simultaneous(stmt: n.EachSimultaneous, ctx: Ctx) -> None:

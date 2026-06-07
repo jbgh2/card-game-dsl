@@ -1,0 +1,144 @@
+// Bridge (rubber, simplified) — formalized DSL (parser/checker/runtime target).
+//
+// Companion to bridge.md. Rubber Bridge with the standard below-the-line /
+// above-the-line scoring, game and rubber bonuses, slam bonuses, and
+// vulnerability; honors and the finer penalty table are simplified. One rubber
+// is played (first side to two games), and the side with the higher total wins.
+//
+// Bridge trick play needs only follow-suit, so the thirteen tricks run on the
+// ordinary `Trick` mechanic (a no-trump contract passes trump = none). The
+// auction — ascending bids over C D H S NT, with double and redouble — is the
+// one special part and runs in the built-in `BridgeAuction` mechanic, which sets
+// the contract/declarer state vars this file's scoring reads. The dummy and
+// delegated play are omitted: they are pure information/agency structure that a
+// uniform-random playout does not exercise (declarer choosing dummy's card is
+// the same random draw either way). See IMPLEMENTATION_LOG.md.
+
+game Bridge {
+
+  players: 4
+  partnerships: [[0, 2], [1, 3]]   // partners sit across
+  direction: clockwise
+
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+
+  zones {
+    deck           : Deck
+    hand[player]   : Hand<player>
+    trick_pile     : TrickPile
+    captured[team] : TeamPile<team>
+  }
+
+  state {
+    // The rubber accumulators. Game-level so they persist for the winner read
+    // after the rubber phase ends (a single rubber is played).
+    games_won[team]     : Integer = 0
+    total_score[team]   : Integer = 0
+    below_current[team] : Integer = 0    // below-the-line toward the current game
+  }
+
+  // One rubber: play hands until a side has won two games; highest total wins.
+  phase rubber repeats until (any team t: games_won[t] >= 2) {
+    state {
+      // Per-hand, reset by before_each / set by the auction.
+      dealer            : Player  = 0
+      all_pass          : Boolean = false
+      contract_level    : Integer = 0
+      trump_suit        : Suit?   = none   // none = no-trump
+      doubled_mult      : Integer = 1
+      declarer          : Player? = none
+      leader            : Player? = none
+      tricks_taken[team]: Integer = 0
+    }
+
+    before_each {
+      move all cards to deck
+      shuffle deck
+      deal 13 cards from deck to each hand
+      dealer := dealer offset_by left
+      for each team t: tricks_taken[t] := 0
+      all_pass := false
+    }
+
+    phase auction {
+      legal_moves: [submit_bid, pass, double, redouble]
+      instantiate BridgeAuction(opener = dealer)
+    }
+
+    phase play when not all_pass {
+      active_rules: [MustFollowSuit]
+      legal_moves:  [play_to_trick]
+
+      leader := declarer offset_by left          // declarer's left-hand opponent leads
+      repeat until (all player p: hand[p] is empty) {
+        instantiate Trick (
+          participants = all players,
+          leader       = leader,
+          source_zone  = hand,
+          play_zone    = trick_pile,
+          play_rules   = active_rules,
+          outcome      = highest_trump_or_led_suit,
+          trump        = trump_suit,
+          routing      = move all cards from trick_pile to captured[team_of(outcome)]
+        )
+        tricks_taken[team_of(outcome)] += 1
+        leader := outcome
+      }
+    }
+
+    phase scoring when not all_pass {
+      let dteam    = team_of(declarer)
+      let oteam    = 1 - dteam
+      let required = 6 + contract_level
+      let actual   = tricks_taken[dteam]
+      let vuln     = games_won[dteam] >= 1
+      let per_trick = if trump_suit is none then 30
+                      elif trump_suit == clubs then 20
+                      elif trump_suit == diamonds then 20
+                      else 30
+
+      if actual >= required {
+        let nt_bonus = if trump_suit is none then 10 else 0
+        let below = (per_trick * contract_level + nt_bonus) * doubled_mult
+        total_score[dteam]   += below
+        below_current[dteam] += below
+
+        let over = actual - required
+        let ov_each = if doubled_mult == 1 then per_trick
+                      elif doubled_mult == 2 then (if vuln then 200 else 100)
+                      else (if vuln then 400 else 200)
+        total_score[dteam] += ov_each * over
+
+        if contract_level == 6 { total_score[dteam] += if vuln then 750 else 500 }
+        if contract_level == 7 { total_score[dteam] += if vuln then 1500 else 1000 }
+
+        if below_current[dteam] >= 100 {
+          total_score[dteam] += if vuln then 500 else 300   // game bonus
+          games_won[dteam] += 1
+          below_current[dteam] := 0
+          below_current[oteam] := 0
+          if games_won[dteam] >= 2 {
+            total_score[dteam] += if games_won[oteam] == 0 then 700 else 500   // rubber bonus
+          }
+        }
+      } else {
+        let under = required - actual
+        let per_under = if doubled_mult == 1 then (if vuln then 100 else 50)
+                        elif doubled_mult == 2 then (if vuln then 200 else 100)
+                        else (if vuln then 400 else 200)            // redoubled
+        total_score[oteam] += per_under * under
+      }
+    }
+  }
+
+  winner: highest total_score
+}
+
+// === Standard library rule ===
+
+rule MustFollowSuit {
+  constrains: play_to_trick
+  applies_when: state.led_suit is not none
+  demands: hand.cards_of_suit(state.led_suit)
+}

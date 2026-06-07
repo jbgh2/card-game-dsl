@@ -186,6 +186,18 @@ class Comprehension:
 
 
 @dataclass(frozen=True, slots=True)
+class Choose:
+    """`choose integer in <lo> .. <hi>` — a decision that resolves to a value
+    via the chooser (e.g. a bid). ``domain`` names the candidate space; the only
+    one so far is ``"integer"``, an inclusive range from ``lo`` to ``hi``."""
+
+    domain: str  # "integer"
+    lo: Expr
+    hi: Expr
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class PlayerQuery:
     """A query over the player ring, whose `pred` is evaluated per player with
     `player` bound to the candidate:
@@ -217,6 +229,7 @@ Expr = (
     | Quantifier
     | IfExpr
     | Comprehension
+    | Choose
     | PlayerQuery
 )
 
@@ -331,6 +344,34 @@ class AssignStmt:
     span: Span | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class Offer:
+    """`offer to <player> one of [<move_type>, ...]` — the acting player chooses
+    one legal move-type; its effect runs with `actor` bound to that player."""
+
+    player: Expr
+    move_types: tuple[str, ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Round:
+    """`round <move_type> from <leader> over <participants> source <zone> into
+    <zone> outcome <fn> [trump <expr>]` — a turn-order pass where each
+    participant makes one card play (filtered by the active rules), then the
+    outcome function picks the winner, which is bound as `outcome`. Routing is
+    left to the surrounding body."""
+
+    move_type: str
+    leader: Expr
+    participants: Expr
+    source_zone: str
+    play_zone: str
+    outcome_fn: str
+    trump: Expr | None
+    span: Span | None = None
+
+
 Stmt = (
     Movement
     | EpistemicOp
@@ -342,6 +383,8 @@ Stmt = (
     | Instantiate
     | LetStmt
     | AssignStmt
+    | Offer
+    | Round
 )
 
 
@@ -504,6 +547,17 @@ class RuleDef:
     span: Span | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class MoveTypeDef:
+    """`move_type NAME { when: <pred> effect { <stmt>* } }` — a named, guarded
+    action. ``guard`` is None when the move is always legal."""
+
+    name: str
+    guard: Expr | None
+    effect: tuple[Stmt, ...]
+    span: Span | None = None
+
+
 # ---------------------------------------------------------------------------
 # Game-level
 # ---------------------------------------------------------------------------
@@ -560,12 +614,15 @@ class Game:
     zones: tuple[ZoneDecl, ...]
     direction: str | None = None
     ranking: tuple[str, ...] = ()
+    trump: str | None = None
+    partnerships: tuple[tuple[int, ...], ...] = ()
     state: StateBlock | None = None
     phases: tuple[Phase, ...] = ()
     winner: Winner | None = None
     loser: Loser | None = None
     rules: tuple[RuleDef, ...] = ()
     routings: tuple[RoutingDef, ...] = ()
+    move_types: tuple[MoveTypeDef, ...] = ()
     span: Span | None = None
 
 
@@ -576,6 +633,7 @@ Node = (
     | Winner
     | Loser
     | RoutingDef
+    | MoveTypeDef
     | ZoneDecl
     | TypeRef
     | TypeArg
@@ -603,6 +661,8 @@ Node = (
     | Instantiate
     | LetStmt
     | AssignStmt
+    | Offer
+    | Round
     | NamedArg
     | NameRef
     | IntLit
@@ -620,5 +680,6 @@ Node = (
     | Quantifier
     | IfExpr
     | Comprehension
+    | Choose
     | PlayerQuery
 )

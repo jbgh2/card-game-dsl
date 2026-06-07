@@ -18,7 +18,7 @@ from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.execute import execute, run_body as run_stmts
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
-from cardlang.runtime.values import Player, Seating, build_deck
+from cardlang.runtime.values import DECKS, Player, Seating, build_deck
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,10 +38,23 @@ def play_game(
         "a game must declare a winner or a loser"
     )
     seating = Seating(game.players.low)
-    zones = ZoneStore(game.zones, seating.players)
+    teams = tuple(range(len(game.partnerships)))
+    team_of = {
+        p: ti for ti, members in enumerate(game.partnerships) for p in members
+    }
+    zones = ZoneStore(game.zones, seating.players, teams)
     rs = RuntimeState(seating, zones, rng)
+    rs.trump = game.trump
+    rs.teams = teams
+    rs.team_of = team_of
+    # Rank strength is read from the game's `ranking:` (high to low), so every
+    # deck ranks correctly without a hardcoded order. Card values come from the
+    # deck table (empty for games that score by other means).
+    rs.rank_index = {r: len(game.ranking) - 1 - i for i, r in enumerate(game.ranking)}
+    rs.card_values = dict(DECKS[game.deck].values)
     rs.rule_index = {r.name: r for r in game.rules}
     rs.routing_index = {r.name: r for r in game.routings}
+    rs.move_type_index = {m.name: m for m in game.move_types}
     rs.deck_zone = next(z.name for z in game.zones if z.type_ref.name == "Deck")
     rs.zones.single(rs.deck_zone).add_all(build_deck(game.deck))
     if game.winner is not None:
@@ -80,12 +93,18 @@ def play_game(
 def _final_card_census(rs: RuntimeState) -> dict[str, int]:
     """Total cards across every zone (conservation check) and how many `hand`
     zones still hold cards (the survivor count for an elimination game)."""
-    total = sum(len(z.cards) for z in rs.zones.singles.values())
+    all_zones = list(rs.zones.singles.values())
     for family in rs.zones.families.values():
-        total += sum(len(z.cards) for z in family.values())
+        all_zones.extend(family.values())
+    total = sum(len(z.cards) for z in all_zones)
+    # Total card-point value across every zone — a deck-integrity check for
+    # point-trick games (e.g. Schnapsen's 120). Zero when the deck has no values.
+    total_value = sum(
+        rs.card_values.get(c.rank, 0) for z in all_zones for c in z.cards
+    )
     hands = rs.zones.families.get("hand", {})
     with_cards = sum(1 for z in hands.values() if z.cards)
-    return {"total": total, "hands_with_cards": with_cards}
+    return {"total": total, "hands_with_cards": with_cards, "total_value": total_value}
 
 
 class _HandCounter:
@@ -107,7 +126,18 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
 
     q = phase.qualifier
     if q is not None and q.kind == "repeats":
+        guard = 0
         while not evaluate(q.expr, ctx):
+            # A `repeats until` whose condition never holds (e.g. a win threshold
+            # unreachable under random play) would otherwise hang forever — fail
+            # loudly so non-termination surfaces as a test failure, not a stuck
+            # process. The statement-level `repeat until` has the same backstop.
+            guard += 1
+            if guard > 10_000:
+                raise RuntimeError(
+                    f"phase '{phase.name}' repeated 10000 times without its "
+                    "`repeats until` condition holding (non-termination?)"
+                )
             ctx.rs.fired_transitions.clear()  # transitions reset each iteration
             if before is not None:
                 run_stmts(before.body, ctx)
@@ -153,7 +183,6 @@ def _declare_state(block: n.StateBlock, ctx: Ctx) -> None:
         if decl.index is None:
             ctx.rs.declare(decl.name, False, evaluate(decl.default, ctx))
         else:
-            value: dict[Player, Any] = {
-                p: evaluate(decl.default, ctx) for p in ctx.rs.seating.players
-            }
+            keys = ctx.rs.teams if decl.index == "team" else ctx.rs.seating.players
+            value: dict[int, Any] = {k: evaluate(decl.default, ctx) for k in keys}
             ctx.rs.declare(decl.name, True, value)

@@ -12,6 +12,7 @@ from __future__ import annotations
 STDLIB_VALUE_NAMES: frozenset[str] = frozenset(
     {
         "highest_of_led_suit",
+        "highest_trump_or_led_suit",  # trick winner with a trump suit in play
         "on_play_of_tochoo",  # Getaway early-termination: ends the trick on a tochoo play
     }
 )
@@ -20,6 +21,8 @@ STDLIB_VALUE_NAMES: frozenset[str] = frozenset(
 STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
     {
         "player_holding",
+        "team_of",  # the partnership a player belongs to
+        "suit_of",  # the suit of a card, or of a single-card zone (trump indicator)
         "error",  # the if_impossible fallback that rejects the move
     }
 )

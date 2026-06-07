@@ -38,6 +38,8 @@ def emit(game: n.Game) -> IRDict:
         "deck": game.deck,
         "direction": game.direction,
         "ranking": list(game.ranking),
+        "trump": game.trump,
+        "partnerships": [list(t) for t in game.partnerships],
         "zones": [_zone(z) for z in game.zones],
         "state": _state_block(game.state) if game.state else None,
         "phases": [_phase(p) for p in game.phases],
@@ -45,6 +47,7 @@ def emit(game: n.Game) -> IRDict:
         "loser": _loser(game.loser) if game.loser else None,
         "rules": [_rule(r) for r in game.rules],
         "routings": [_routing(r) for r in game.routings],
+        "move_types": [_move_type(m) for m in game.move_types],
     }
 
 
@@ -70,6 +73,15 @@ def _loser(lo: n.Loser) -> IRDict:
 
 def _routing(r: n.RoutingDef) -> IRDict:
     return {"kind": "routing", "name": r.name, "body": [_stmt(s) for s in r.body]}
+
+
+def _move_type(m: n.MoveTypeDef) -> IRDict:
+    return {
+        "kind": "move_type",
+        "name": m.name,
+        "guard": _expr(m.guard) if m.guard is not None else None,
+        "effect": [_stmt(s) for s in m.effect],
+    }
 
 
 def _zone(z: n.ZoneDecl) -> IRDict:
@@ -218,6 +230,23 @@ def _stmt(s: n.Stmt) -> IRDict:
                 "op": s.op,
                 "value": _expr(s.value),
             }
+        case n.Offer():
+            return {
+                "kind": "offer",
+                "player": _expr(s.player),
+                "move_types": list(s.move_types),
+            }
+        case n.Round():
+            return {
+                "kind": "round",
+                "move_type": s.move_type,
+                "leader": _expr(s.leader),
+                "participants": _expr(s.participants),
+                "source_zone": s.source_zone,
+                "play_zone": s.play_zone,
+                "outcome_fn": s.outcome_fn,
+                "trump": _expr(s.trump) if s.trump is not None else None,
+            }
         case _ as unreachable:
             assert_never(unreachable)
 
@@ -331,5 +360,12 @@ def _expr(e: n.Expr) -> IRDict:
             }
         case n.PlayerQuery():
             return {"kind": "player_query", "query": e.kind, "pred": _expr(e.pred)}
+        case n.Choose():
+            return {
+                "kind": "choose",
+                "domain": e.domain,
+                "lo": _expr(e.lo),
+                "hi": _expr(e.hi),
+            }
         case _ as unreachable:
             assert_never(unreachable)

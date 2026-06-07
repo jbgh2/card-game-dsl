@@ -47,6 +47,16 @@ class _Ranking:
 
 
 @dataclass(frozen=True, slots=True)
+class _Trump:
+    suit: str
+
+
+@dataclass(frozen=True, slots=True)
+class _Partnerships:
+    teams: tuple[tuple[int, ...], ...]
+
+
+@dataclass(frozen=True, slots=True)
 class _Zones:
     zones: tuple[n.ZoneDecl, ...]
 
@@ -122,6 +132,16 @@ class _SelectMode:
     mode: str
 
 
+@dataclass(frozen=True, slots=True)
+class _MoveWhen:
+    pred: object  # _Always | Expr
+
+
+@dataclass(frozen=True, slots=True)
+class _MoveEffect:
+    body: tuple[object, ...]
+
+
 @lru_cache(maxsize=1)
 def _parser() -> Lark:
     grammar = resources.files("cardlang.grammar").joinpath("cardlang.lark").read_text()
@@ -173,6 +193,16 @@ class _Builder(Transformer[Token, n.Game]):
 
     def card_rank(self, meta: Meta, c: list[Token]) -> str:
         return str(c[0])
+
+    def trump(self, meta: Meta, c: list[Token]) -> _Trump:
+        return _Trump(str(c[0]))
+
+    def team_spec(self, meta: Meta, c: list[Token]) -> tuple[int, ...]:
+        return tuple(int(x) for x in c)
+
+    def partnerships(self, meta: Meta, c: list[object]) -> _Partnerships:
+        teams = tuple(t for t in c if isinstance(t, tuple))
+        return _Partnerships(teams)
 
     def winner(self, meta: Meta, c: list[Token]) -> n.Winner:
         return n.Winner(rank_dir=str(c[0]), target=str(c[1]), span=self._span(meta))
@@ -414,6 +444,27 @@ class _Builder(Transformer[Token, n.Game]):
         args = tuple(a for a in c[1:] if isinstance(a, n.NamedArg))
         return n.Instantiate(mechanic=str(c[0]), args=args, span=self._span(meta))
 
+    def offer(self, meta: Meta, c: list[object]) -> n.Offer:
+        player = _as_expr(c[0])
+        names = tuple(str(x) for x in c[1:])
+        return n.Offer(player=player, move_types=names, span=self._span(meta))
+
+    def round_stmt(self, meta: Meta, c: list[object]) -> n.Round:
+        # c: [NAME(move_type), expr(leader), expr(participants),
+        #     NAME(source), NAME(into), NAME(outcome), expr(trump)?]
+        # With maybe_placeholders=True, len(c)==7 always; c[6] is None when absent.
+        trump = _as_expr(c[6]) if c[6] is not None else None
+        return n.Round(
+            move_type=str(c[0]),
+            leader=_as_expr(c[1]),
+            participants=_as_expr(c[2]),
+            source_zone=str(c[3]),
+            play_zone=str(c[4]),
+            outcome_fn=str(c[5]),
+            trump=trump,
+            span=self._span(meta),
+        )
+
     def let_stmt(self, meta: Meta, c: list[object]) -> n.LetStmt:
         index = c[1] if isinstance(c[1], str) else None
         return n.LetStmt(
@@ -567,6 +618,9 @@ class _Builder(Transformer[Token, n.Game]):
     def sub(self, meta: Meta, c: list[object]) -> n.BinOp:
         return n.BinOp("-", _as_expr(c[0]), _as_expr(c[1]), span=self._span(meta))
 
+    def mul(self, meta: Meta, c: list[object]) -> n.BinOp:
+        return n.BinOp("*", _as_expr(c[0]), _as_expr(c[1]), span=self._span(meta))
+
     def offset_by(self, meta: Meta, c: list[object]) -> n.BinOp:
         return n.BinOp(
             "offset_by", _as_expr(c[0]), _as_expr(c[1]), span=self._span(meta)
@@ -595,6 +649,14 @@ class _Builder(Transformer[Token, n.Game]):
 
     def all_players(self, meta: Meta, c: list[object]) -> n.AllPlayers:
         return n.AllPlayers(span=self._span(meta))
+
+    def choose_integer(self, meta: Meta, c: list[object]) -> n.Choose:
+        return n.Choose(
+            domain="integer",
+            lo=_as_expr(c[0]),
+            hi=_as_expr(c[1]),
+            span=self._span(meta),
+        )
 
     def call(self, meta: Meta, c: list[object]) -> n.Call:
         args = c[1] if len(c) > 1 and c[1] is not None else ()
@@ -627,6 +689,8 @@ class _Builder(Transformer[Token, n.Game]):
         deck: str | None = None
         direction: str | None = None
         ranking: tuple[str, ...] = ()
+        trump: str | None = None
+        partnerships: tuple[tuple[int, ...], ...] = ()
         zones: tuple[n.ZoneDecl, ...] = ()
         state: n.StateBlock | None = None
         phases: list[n.Phase] = []
@@ -641,6 +705,10 @@ class _Builder(Transformer[Token, n.Game]):
                 direction = item.value
             elif isinstance(item, _Ranking):
                 ranking = item.ranks
+            elif isinstance(item, _Trump):
+                trump = item.suit
+            elif isinstance(item, _Partnerships):
+                partnerships = item.teams
             elif isinstance(item, _Zones):
                 zones = item.zones
             elif isinstance(item, n.StateBlock):
@@ -661,6 +729,8 @@ class _Builder(Transformer[Token, n.Game]):
             zones=zones,
             direction=direction,
             ranking=ranking,
+            trump=trump,
+            partnerships=partnerships,
             state=state,
             phases=tuple(phases),
             winner=winner,
@@ -673,11 +743,31 @@ class _Builder(Transformer[Token, n.Game]):
         body = tuple(_as_stmt(s) for s in c[1:])
         return n.RoutingDef(name=str(c[0]), body=body, span=self._span(meta))
 
+    def move_when(self, meta: Meta, c: list[object]) -> _MoveWhen:
+        return _MoveWhen(c[0])
+
+    def move_effect(self, meta: Meta, c: list[object]) -> _MoveEffect:
+        return _MoveEffect(tuple(_as_stmt(s) for s in c))
+
+    def move_type_def(self, meta: Meta, c: list[object]) -> n.MoveTypeDef:
+        name = str(c[0])
+        guard: object | None = None
+        effect: tuple[object, ...] = ()
+        for item in c[1:]:
+            if isinstance(item, _MoveWhen):
+                guard = None if isinstance(item.pred, _Always) else _as_expr(item.pred)
+            elif isinstance(item, _MoveEffect):
+                effect = item.body
+        return n.MoveTypeDef(
+            name=name, guard=guard, effect=effect, span=self._span(meta)  # type: ignore[arg-type]
+        )
+
     def start(self, meta: Meta, c: list[object]) -> n.Game:
         game = next(x for x in c if isinstance(x, n.Game))
         rules = tuple(x for x in c if isinstance(x, n.RuleDef))
         routings = tuple(x for x in c if isinstance(x, n.RoutingDef))
-        return replace(game, rules=rules, routings=routings)
+        move_types = tuple(x for x in c if isinstance(x, n.MoveTypeDef))
+        return replace(game, rules=rules, routings=routings, move_types=move_types)
 
 
 def _as_expr(value: object) -> n.Expr:

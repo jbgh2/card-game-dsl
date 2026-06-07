@@ -18,10 +18,25 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
     match name:
         case "player_holding":
             return _player_holding(args[0], ctx)
+        case "team_of":
+            return ctx.rs.team_of[args[0]]
+        case "suit_of":
+            return _suit_of(args[0])
         case "error":
             raise IllegalMove(args[0] if args else "illegal move")
         case _:
             raise AssertionError(f"unknown stdlib function '{name}'")
+
+
+def _suit_of(value: Any) -> str:
+    """The suit of a card, or of the single card in a zone (a face-up trump
+    indicator)."""
+    from cardlang.runtime.state import Zone
+
+    if isinstance(value, Zone):
+        return value.cards[0].suit
+    assert isinstance(value, Card)
+    return value.suit
 
 
 def _player_holding(card: Card, ctx: Ctx) -> Player | None:
@@ -34,7 +49,10 @@ def _player_holding(card: Card, ctx: Ctx) -> Player | None:
 
 # --- value-callbacks (mechanic functions passed by name) ---
 
-OutcomeFn = Callable[[list[tuple[Player, Card]], str], Player]
+# An outcome function picks the trick winner from the plays, the led suit, the
+# trump suit (None when no trump), and the game's rank-strength map.
+RankIndex = dict[str, int]
+OutcomeFn = Callable[[list[tuple[Player, Card]], str, "str | None", RankIndex], Player]
 # An early-termination predicate: does this play end the trick? (card, led_suit)
 EarlyTermFn = Callable[[Card, str], bool]
 
@@ -43,16 +61,37 @@ def value_function(name: str) -> Callable[..., Any]:
     match name:
         case "highest_of_led_suit":
             return highest_of_led_suit
+        case "highest_trump_or_led_suit":
+            return highest_trump_or_led_suit
         case "on_play_of_tochoo":
             return on_play_of_tochoo
         case _:
             raise AssertionError(f"unknown stdlib value '{name}'")
 
 
-def highest_of_led_suit(played: list[tuple[Player, Card]], led_suit: str) -> Player:
+def highest_of_led_suit(
+    played: list[tuple[Player, Card]],
+    led_suit: str,
+    trump: str | None,
+    rank_index: RankIndex,
+) -> Player:
     """The player who played the highest-ranked card of the led suit."""
     of_suit = [(p, c) for (p, c) in played if c.suit == led_suit]
-    return max(of_suit, key=lambda pc: pc[1].rank_order)[0]
+    return max(of_suit, key=lambda pc: rank_index[pc[1].rank])[0]
+
+
+def highest_trump_or_led_suit(
+    played: list[tuple[Player, Card]],
+    led_suit: str,
+    trump: str | None,
+    rank_index: RankIndex,
+) -> Player:
+    """The highest trump if any trump was played, else the highest card of the
+    led suit (the standard trick winner for a trump game)."""
+    trumps = [(p, c) for (p, c) in played if c.suit == trump]
+    if trumps:
+        return max(trumps, key=lambda pc: rank_index[pc[1].rank])[0]
+    return highest_of_led_suit(played, led_suit, trump, rank_index)
 
 
 def on_play_of_tochoo(card: Card, led_suit: str) -> bool:
