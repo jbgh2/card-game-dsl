@@ -17,7 +17,7 @@ from cardlang.runtime import phases
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.execute import execute, run_body as run_stmts
-from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
+from cardlang.runtime.state import Chooser, ChooserAbort, Ctx, RuntimeState, ZoneStore
 from cardlang.runtime.values import DECKS, Player, Seating, build_deck
 
 
@@ -33,6 +33,7 @@ def play_game(
     game: n.Game,
     rng: random.Random,
     tracer: Callable[[str, Any], None] | None = None,
+    chooser: Chooser | None = None,
 ) -> GameResult:
     assert game.winner is not None or game.loser is not None, (
         "a game must declare a winner or a loser"
@@ -59,15 +60,21 @@ def play_game(
     rs.zones.single(rs.deck_zone).add_all(build_deck(game.deck))
     if game.winner is not None:
         rs.score_var = game.winner.target  # loser games have no score var
-    ctx = Ctx(rs=rs, chooser=random_chooser(rng), tracer=tracer)
+    ctx = Ctx(rs=rs, chooser=chooser or random_chooser(rng), tracer=tracer)
 
     rs.push_frame()  # game-level state (cumulative_score, …)
     if game.state is not None:
         _declare_state(game.state, ctx)
 
     hands = _HandCounter()
-    for phase in game.phases:
-        run_phase(phase, ctx, hands)
+    try:
+        for phase in game.phases:
+            run_phase(phase, ctx, hands)
+    except ChooserAbort as abort:
+        # A chooser suspended the playout (steppable adapter). Surface the live
+        # world so the caller can inspect the paused decision point.
+        abort.rs = rs
+        raise
 
     ctx.trace("game_end", _final_card_census(rs))
 
