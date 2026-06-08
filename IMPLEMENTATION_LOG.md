@@ -406,3 +406,32 @@ these are the deferred ones, kept here so they aren't lost.
   scoring recompute test).
 - **`team_of` `NewType(TeamId, int)`.** Player ids and team ids are both `int`,
   so the checker can't catch a swapped argument. Marginal; skipped.
+
+## OpenSpiel adapter (Hearts) — decisions to review
+
+Building the Hearts→OpenSpiel adapter (spec:
+`docs/superpowers/specs/2026-06-07-openspiel-hearts-adapter-design.md`). Autonomy
+granted; decisions worth a later look:
+
+- **Dependency.** Installed `open_spiel 1.6.15` into the venv (a macOS-arm64/cp311
+  wheel exists). Added as an optional extra `[openspiel]`, not default `dev`;
+  adapter tests `importorskip("pyspiel")` so core CI is unaffected.
+- **Chance model.** Using `EXPLICIT_STOCHASTIC` with a bounded set of K seed
+  outcomes at a root chance node (rather than `SAMPLED_STOCHASTIC` as the spec
+  first said): it's the well-trodden Python path (matches the shipped
+  `kuhn_poker` example) and keeps `num_distinct_actions = 52` because chance ids
+  live in `max_chance_outcomes`. **Limitation:** only K distinct deals are
+  representable. Fine for the proof; revisit if real solving is wanted.
+- **Runtime additions (generic, not Hearts-specific).** `play_game` gains a
+  `chooser=` parameter (default `random_chooser`), and a `ChooserAbort` exception
+  protocol: a chooser may raise it to suspend the playout, and `play_game`
+  attaches the live `RuntimeState` before it propagates so the adapter can read
+  the paused world. This is the general "steppable adapter" seam.
+- **Info-state is Hearts-specific.** The observation rules (trick plays are
+  public; pass picks are visible only to their actor) live in the adapter's
+  encoder. Encoding = p's current hand + the p-observable action log + scores.
+  A no-leak test guards it. A general per-game observation model is deferred.
+- **`RuntimeState` constructor refactor stays deferred.** The adapter drives
+  games via `play_game` (which constructs `RuntimeState` internally), so it never
+  constructs one directly — the two-phase-init concern isn't triggered here
+  either. Not folded in.
