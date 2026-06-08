@@ -16,6 +16,11 @@ dev = [
     "pytest>=8.0",
     "mypy>=1.8",
 ]
+# The OpenSpiel adapter (cardlang/openspiel). Kept out of `dev` so the core
+# install stays light; the adapter tests skip when pyspiel is absent.
+openspiel = [
+    "open_spiel>=1.6",
+]
 
 [project.scripts]
 cardlang = "cardlang.cli:main"
@@ -37,3 +42,13 @@ files = ["cardlang", "tests"]
 [[tool.mypy.overrides]]
 module = ["lark.*"]
 ignore_missing_imports = true
+# pyspiel (open_spiel) ships no type stubs; the adapter subclasses its untyped
+# Game/State, so relax the subclassing-Any check for that package only.
+[[tool.mypy.overrides]]
+module = ["pyspiel", "pyspiel.*"]
+ignore_missing_imports = true
+[[tool.mypy.overrides]]
+module = ["cardlang.openspiel.game"]
+disallow_subclassing_any = false
+disallow_untyped_defs = false
+warn_return_any = false  # pyspiel.PlayerId sentinels are untyped (Any)

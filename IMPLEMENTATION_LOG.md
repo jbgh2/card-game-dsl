@@ -435,3 +435,16 @@ granted; decisions worth a later look:
   games via `play_game` (which constructs `RuntimeState` internally), so it never
   constructs one directly — the two-phase-init concern isn't triggered here
   either. Not folded in.
+- **Utility = ZERO_SUM (recentred), not CONSTANT_SUM.** Hearts points are
+  constant-sum per hand but the cumulative total varies by game length; returns
+  are recentred (`mean − score`) so they sum to zero. `utility_sum=0.0`,
+  `min/max_utility = ±200` (generous bounds).
+- **Performance: O(n²) re-sim ≈ 3.4 s per random Hearts game** (to 100 points,
+  ~1000 decisions). Conformance test runs `num_sims=2`. Fine for the proof;
+  if heavier OpenSpiel use is wanted, add memoisation across queries or a
+  snapshot/restore path. Review item.
+
+**Outcome:** `pyspiel.random_sim_test` passes and a full rollout via the public
+OpenSpiel `State` API plays Hearts to terminal with zero-sum returns and
+leak-free perfect-recall info-states. **Invariant #0 is validated** — the IR /
+runtime drives real OpenSpiel.
