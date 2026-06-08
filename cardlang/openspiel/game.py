@@ -116,6 +116,8 @@ class CardlangHeartsState(pyspiel.State):
         return r.returns if isinstance(r, replay.Terminal) else [0.0] * _NUM_PLAYERS
 
     def information_state_string(self, player: int | None = None) -> str:
+        if self._seed is None:
+            return ""  # chance root — no information state to report
         if player is None:
             player = self.current_player()
         r = self._run()

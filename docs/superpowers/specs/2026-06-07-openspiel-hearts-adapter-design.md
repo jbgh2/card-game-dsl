@@ -37,10 +37,15 @@ observation (vs information-state) APIs.
   (copy two values) — the property OpenSpiel exercises most — at an O(n²) cost
   acceptable for this proof. Rejected: greenlet/thread suspension (can't clone a
   suspended interpreter, so they need re-sim for `clone()` anyway).
-- **Chance = sampled-stochastic with a recorded seed.** A root chance node fixes
-  a seed; `random.Random(seed)` reproduces every shuffle (including per-hand
-  reshuffles) under replay. `ChanceMode = kSampledStochastic`. Rejected: explicit
-  card-by-card chance nodes (52!-scale, large runtime change).
+- **Chance = a recorded seed at a root chance node.** A root chance node fixes a
+  seed; `random.Random(seed)` reproduces every shuffle (including per-hand
+  reshuffles) under replay. Implemented as `ChanceMode = EXPLICIT_STOCHASTIC`
+  with K=4096 equiprobable seed outcomes (chosen over `SAMPLED_STOCHASTIC`: it's
+  the well-trodden Python-game path — matches the shipped `kuhn_poker` example —
+  and keeps `num_distinct_actions = 52` since chance ids live in
+  `max_chance_outcomes`; the cost is a finite set of K distinct deals, fine for
+  this proof). Rejected: explicit card-by-card chance nodes (52!-scale, large
+  runtime change). See `IMPLEMENTATION_LOG.md` for the decision.
 
 ## 4. Components
 
@@ -88,9 +93,9 @@ The Hearts game (`hearts.cardlang`) is loaded once and cached.
 ### 4.4 `state.py` — `CardlangState`
 Holds `(seed: int | None, history: list[int])`. `seed is None` ⇒ the root chance
 node is unresolved.
-- `current_player()` → `kChancePlayerId` if `seed is None`; else `Pause.player`,
-  or `kTerminalPlayerId` when `run` returns `Terminal`.
-- `chance_outcomes()` → the sampled seed outcome (sampled-stochastic).
+- `current_player()` → `PlayerId.CHANCE` if `seed is None`; else `Pause.player`,
+  or `PlayerId.TERMINAL` when `run` returns `Terminal`.
+- `chance_outcomes()` → K equiprobable seed outcomes `[(i, 1/K) for i in range(K)]`.
 - `legal_actions()` → `Pause.legal_ids` (player node) / the chance outcome at the
   chance node.
 - `apply_action(a)` → sets `seed` at the chance node, else appends `a` to
