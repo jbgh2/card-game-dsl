@@ -6,6 +6,18 @@ What's explicitly deferred, and the suggested order of next steps.
 
 Things we have noted but consciously not designed yet:
 
+- **Packaging the corpus for distribution.** The whole project runs from a
+  checkout: every `.cardlang` is loaded from `docs/games/` by repo-relative path
+  (tests, CLI, and the OpenSpiel adapter's `hearts_game()` loader), and the
+  corpus *is* the living spec (`docs/games/` per CLAUDE.md). A wheel install
+  ships only `cardlang*` + the grammar, so `docs/games/*.cardlang` would be
+  absent and any runtime that parses a corpus file would fail. This only matters
+  once the project is distributed as a wheel (not a current goal); the fix is a
+  project-level decision — ship the corpus as package data and load it via
+  `importlib.resources` — not an adapter-local patch (patching only the adapter
+  while the rest stays checkout-relative would be inconsistent). Flagged by
+  Codex on the OpenSpiel-adapter PR.
+
 - **CCG-style card effects** (Magic, Yu-Gi-Oh!). Out of initial scope. The
   Forge text-DSL pattern (one mini-language per card) is the reference if/when
   we tackle this.
