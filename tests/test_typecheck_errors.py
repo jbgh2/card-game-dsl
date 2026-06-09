@@ -32,3 +32,34 @@ def test_rejects_suit_assigned_to_integer_var() -> None:
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(src, "g.cardlang")
     assert "score" in str(ei.value) or "Suit" in str(ei.value) or "Integer" in str(ei.value)
+
+
+def test_rejects_wrong_stdlib_arg_type() -> None:
+    # `player_holding` expects a Card; `hearts` is a Suit.
+    src = _game(
+        "score[player] : Integer = 0  dealer : Player = 0",
+        "dealer := player_holding(hearts)",
+    )
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "player_holding" in str(ei.value) or "Card" in str(ei.value)
+
+
+def test_rejects_subscript_of_non_collection() -> None:
+    # `total` is a bare Integer, not a collection; `total[p]` is illegal.
+    src = _game(
+        "score[player] : Integer = 0  total : Integer = 0",
+        "for each player p: score[p] := total[p]",
+    )
+    with pytest.raises(DiagnosticError):
+        check_dsl(src, "g.cardlang")
+
+
+def test_rejects_non_boolean_condition() -> None:
+    # `if total { … }` where `total` is an Integer, not a Boolean.
+    src = _game(
+        "score[player] : Integer = 0  total : Integer = 0",
+        "if total { score[0] := 1 }",
+    )
+    with pytest.raises(DiagnosticError):
+        check_dsl(src, "g.cardlang")

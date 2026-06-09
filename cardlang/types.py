@@ -151,6 +151,10 @@ def assignable(src: Type, dst: Type) -> bool:
     if isinstance(dst, TOptional):
         inner = src.inner if isinstance(src, TOptional) else src
         return assignable(inner, dst.inner)
+    if isinstance(src, TOptional):
+        # An optional used where its base is expected: the DSL has no flow
+        # narrowing, so a `Player?` known to be set reads as a `Player`.
+        return assignable(src.inner, dst)
     if isinstance(src, TInteger) and isinstance(dst, (TPlayer, TTeam)):
         return True
     return False

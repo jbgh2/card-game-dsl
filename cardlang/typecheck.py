@@ -18,7 +18,7 @@ from typing import Iterator, Mapping, assert_never
 from cardlang.ast import nodes as n
 from cardlang.ast.nodes import Game
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError
-from cardlang.stdlib.signatures import ZONE_CONTENT
+from cardlang.stdlib.signatures import CALL_SIGS, METHOD_SIGS, ZONE_CONTENT
 from cardlang.stdlib.values import DIRECTION_VALUES, deck_suits
 from cardlang.types import (
     TAny,
@@ -33,6 +33,8 @@ from cardlang.types import (
     TTeam,
     Type,
     assignable,
+    subscriptable,
+    unify,
 )
 
 # Declared scalar type names → their Type. Enum names (`Suit`/`Rank`/`Direction`)
@@ -109,24 +111,54 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
             return TCollection(TPlayer())
         case n.NameRef():
             return _name_type(e, env)
-        case (
-            n.Member()
-            | n.Subscript()
-            | n.Call()
-            | n.MethodCall()
-            | n.BinOp()
-            | n.Not()
-            | n.IsCheck()
-            | n.Lambda()
-            | n.Quantifier()
-            | n.IfExpr()
-            | n.Comprehension()
-            | n.Choose()
-            | n.PlayerQuery()
-        ):
-            return TAny()
+        case n.Subscript():
+            obj = infer(e.obj, env)
+            return obj.element if isinstance(obj, TCollection) else TAny()
+        case n.Call():
+            sig = CALL_SIGS.get(e.func)
+            return sig.ret if sig is not None else TAny()
+        case n.MethodCall():
+            msig = METHOD_SIGS.get(e.method)
+            if msig is None:
+                return TAny()
+            if msig.returns_receiver:
+                return infer(e.obj, env)
+            return msig.ret if msig.ret is not None else TAny()
+        case n.BinOp():
+            if e.op in ("==", "!=", "<", ">", "<=", ">=", "and", "or"):
+                return TBoolean()
+            if e.op in ("+", "-", "*"):
+                return TInteger()
+            return TAny()  # offset_by and any future operators
+        case n.Not() | n.IsCheck() | n.Quantifier():
+            return TBoolean()
+        case n.Choose():
+            return TInteger()
+        case n.Comprehension():
+            return TInteger() if e.agg in ("sum", "count") else TAny()
+        case n.PlayerQuery():
+            match e.kind:
+                case "set":
+                    return TCollection(TPlayer())
+                case "count":
+                    return TInteger()
+                case _:  # "pick"
+                    return TPlayer()
+        case n.IfExpr():
+            return _ifexpr_type(e, env)
+        case n.Member() | n.Lambda():
+            return TAny()  # member access (pronouns/sugar) and lambda values: deferred
         case _ as unreachable:
             assert_never(unreachable)
+
+
+def _ifexpr_type(e: n.IfExpr, env: TypeEnv) -> Type:
+    result = infer(e.then, env)
+    for _cond, branch in e.elifs:
+        merged = unify(result, infer(branch, env))
+        result = merged if merged is not None else TAny()
+    merged = unify(result, infer(e.otherwise, env))
+    return merged if merged is not None else TAny()
 
 
 def _name_type(e: n.NameRef, env: TypeEnv) -> Type:
@@ -180,7 +212,10 @@ def env_from_game(game: Game) -> TypeEnv:
     state_vars: dict[str, Type] = {}
     for block in _state_blocks(game):
         for decl in block.decls:
-            state_vars[decl.name] = type_from_name(decl.type_name, decl.optional)
+            t = type_from_name(decl.type_name, decl.optional)
+            # An indexed state var (`score[player] : Integer`) is a per-key map —
+            # a collection whose subscript yields the declared value type.
+            state_vars[decl.name] = TCollection(t) if decl.index is not None else t
     zones: dict[str, Type] = {
         z.name: ZONE_CONTENT.get(z.type_ref.name, TCollection(TAny()))
         for z in game.zones
@@ -226,10 +261,124 @@ def _all_statements(game: Game) -> Iterator[n.Stmt]:
         yield from _phase_statements(phase)
 
 
+def _arg_exprs(args: tuple[n.Arg, ...]) -> list[n.Expr]:
+    """The positional expression arguments of a call (named args are not used by
+    the stdlib functions/methods being checked)."""
+    return [a for a in args if not isinstance(a, n.NamedArg)]
+
+
+def _child_exprs(e: n.Expr) -> list[n.Expr]:
+    if isinstance(e, n.Member):
+        return [e.obj]
+    if isinstance(e, n.Subscript):
+        return [e.obj, e.index]
+    if isinstance(e, n.Call):
+        return _arg_exprs(e.args)
+    if isinstance(e, n.MethodCall):
+        return [e.obj, *_arg_exprs(e.args)]
+    if isinstance(e, n.BinOp):
+        return [e.left, e.right]
+    if isinstance(e, (n.Not, n.IsCheck)):
+        return [e.operand]
+    if isinstance(e, (n.Lambda, n.Quantifier)):
+        return [e.body]
+    if isinstance(e, n.Comprehension):
+        return [e.source, e.body]
+    if isinstance(e, n.Choose):
+        return [e.lo, e.hi]
+    if isinstance(e, n.PlayerQuery):
+        return [e.pred]
+    if isinstance(e, n.IfExpr):
+        out = [e.cond, e.then]
+        for cond, branch in e.elifs:
+            out += [cond, branch]
+        out.append(e.otherwise)
+        return out
+    return []  # leaves: NameRef, IntLit, StrLit, CardLiteral, AllPlayers
+
+
+def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """Recursively validate a single expression: stdlib argument types and
+    subscript legality. Types of unrefined sub-parts are `TAny` (permissive)."""
+    for child in _child_exprs(e):
+        _check_expr(child, env, bag)
+    if isinstance(e, n.Call):
+        sig = CALL_SIGS.get(e.func)
+        if sig is not None:
+            for arg, param in zip(_arg_exprs(e.args), sig.params):
+                got = infer(arg, env)
+                if not assignable(got, param):
+                    bag.error(
+                        f"{e.func}() expects {_type_name(param)}, got {_type_name(got)}",
+                        e.span,
+                    )
+    elif isinstance(e, n.MethodCall):
+        msig = METHOD_SIGS.get(e.method)
+        if msig is not None and not msig.lambda_arg:
+            for arg, param in zip(_arg_exprs(e.args), msig.params):
+                got = infer(arg, env)
+                if not assignable(got, param):
+                    bag.error(
+                        f".{e.method}() expects {_type_name(param)}, got {_type_name(got)}",
+                        e.span,
+                    )
+    elif isinstance(e, n.Subscript):
+        obj = infer(e.obj, env)
+        if not subscriptable(obj):
+            bag.error(f"cannot index {_type_name(obj)} (not a collection)", e.span)
+
+
+def _check_bool(e: n.Expr, env: TypeEnv, bag: DiagnosticBag, where: str) -> None:
+    t = infer(e, env)
+    if not isinstance(t, (TBoolean, TAny)):
+        bag.error(f"{where} must be Boolean, got {_type_name(t)}", e.span)
+
+
+def _stmt_exprs(s: n.Stmt) -> list[n.Expr]:
+    """The expressions held directly by a statement (its child *statements* are
+    visited separately by the statement walk)."""
+    if isinstance(s, n.AssignStmt):
+        return [s.value] + ([s.index] if s.index is not None else [])
+    if isinstance(s, n.LetStmt):
+        return [s.value]
+    if isinstance(s, n.Movement):
+        out: list[n.Expr] = []
+        if not isinstance(s.amount, str):
+            out.append(s.amount)
+        for opt in (s.source, s.dest, s.visibility):
+            if opt is not None:
+                out.append(opt)
+        return out
+    if isinstance(s, n.EpistemicOp):
+        return [s.target]
+    if isinstance(s, n.Offer):
+        return [s.player]
+    if isinstance(s, n.Round):
+        return [s.leader, s.participants] + ([s.trump] if s.trump is not None else [])
+    if isinstance(s, n.Instantiate):
+        return [a.value for a in s.args if not isinstance(a.value, n.Movement)]
+    if isinstance(s, (n.IfStmt, n.RepeatUntil)):
+        return [s.cond]
+    return []  # ForEach / EachSimultaneous / RotateStmt: no direct value expressions
+
+
+def _all_phases(game: Game) -> Iterator[n.Phase]:
+    def rec(phase: n.Phase) -> Iterator[n.Phase]:
+        yield phase
+        for item in phase.items:
+            if isinstance(item, n.Phase):
+                yield from rec(item)
+
+    for phase in game.phases:
+        yield from rec(phase)
+
+
 def _check_assign(stmt: n.AssignStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
     target = env.state_vars.get(stmt.name)
     if target is None:
         return  # not a typed state var (a let-local, or unknown — left permissive)
+    if stmt.index is not None and isinstance(target, TCollection):
+        target = target.element  # an indexed assignment writes one element
     rhs = infer(stmt.value, env)
     if stmt.op in ("+=", "-="):
         if not assignable(rhs, TInteger()):
@@ -258,8 +407,22 @@ def typecheck(game: Game) -> Game:
 
     env = env_from_game(game)
     for stmt in _all_statements(game):
+        for expr in _stmt_exprs(stmt):
+            _check_expr(expr, env, bag)
         if isinstance(stmt, n.AssignStmt):
             _check_assign(stmt, env, bag)
+        elif isinstance(stmt, n.IfStmt):
+            _check_bool(stmt.cond, env, bag, "if condition")
+        elif isinstance(stmt, n.RepeatUntil):
+            _check_bool(stmt.cond, env, bag, "repeat-until condition")
+    for phase in _all_phases(game):
+        if phase.qualifier is not None:
+            _check_expr(phase.qualifier.expr, env, bag)
+            _check_bool(
+                phase.qualifier.expr, env, bag, f"phase '{phase.name}' condition"
+            )
+    if game.loser is not None:
+        _check_expr(game.loser.selection, env, bag)
 
     if bag.has_errors:
         error = DiagnosticError(bag.items[0])

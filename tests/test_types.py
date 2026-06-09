@@ -22,6 +22,7 @@ def test_assignable() -> None:
     assert assignable(TInteger(), TInteger())
     assert assignable(TInteger(), TPlayer())  # players are 0-based int identities
     assert assignable(TInteger(), TOptional(TPlayer()))  # bare fits its optional
+    assert assignable(TOptional(TPlayer()), TPlayer())  # optional reads as its base
     assert assignable(TAny(), TEnum("Suit"))  # Any is compatible either way
     assert not assignable(TEnum("Suit"), TInteger())
     assert not assignable(TBoolean(), TInteger())

@@ -41,7 +41,8 @@ def test_infer_local_binding() -> None:
     assert infer(n.NameRef("p", ref_kind="local"), env) == TPlayer()
 
 
-def test_infer_unrefined_nodes_are_any() -> None:
-    # These arms gain precision in a later step; the skeleton is permissive.
+def test_infer_refined_and_unrefined_nodes() -> None:
     env = TypeEnv()
-    assert infer(n.Not(n.IntLit(1)), env) == TAny()
+    assert infer(n.Not(n.IntLit(1)), env) == TBoolean()  # refined: a predicate
+    # Member access (pronoun fields / sugar) is deferred — permissive.
+    assert infer(n.Member(n.NameRef("card", ref_kind="local"), "suit"), env) == TAny()
