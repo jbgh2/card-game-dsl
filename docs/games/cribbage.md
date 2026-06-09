@@ -25,7 +25,6 @@ The hand engine — discard, cut, pegging, and the show — runs in the built-in
 `CribbageHand` mechanic, which updates `score` directly and stops at 121. The
 combination scorers are unit-tested against known hands (the 29-hand, runs with
 multiplicity, flushes, his nob). The cardlang holds the deal and termination.
-See IMPLEMENTATION_LOG.md.
 
 ```
 game Cribbage {

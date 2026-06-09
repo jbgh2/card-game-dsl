@@ -344,7 +344,7 @@ def run_schnapsen_hand(stmt: n.Instantiate, ctx: Ctx) -> Player:
 # Auctions differ in shape across the corpus (Bridge double/redouble, Skat's
 # Reizen, Tarot's four levels), so this is not generalized yet; nor are the
 # strict-trick legality rules, which recur (Schnapsen endgame, here, and the
-# coming trump games) and are flagged in IMPLEMENTATION_LOG.md as the surface to
+# coming trump games) and are flagged in docs/roadmap.md as the surface to
 # lift into the rule DSL. The random chooser bids/passes and plays uniformly;
 # melding is forced (a rational player melds everything), so it is a pure
 # computation, not a choice.

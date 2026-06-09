@@ -12,7 +12,7 @@ scoring. First partnership to 1000 wins.
 Card points total 100 every hand (K and 10 score 10, 5 scores 5, Dragon +25,
 Phoenix -25) — the falsifiable conservation invariant.
 
-Scope reductions (random play; logged in IMPLEMENTATION_LOG.md): the Mahjong
+Scope reductions (random play; see docs/roadmap.md): the Mahjong
 wish, the Phoenix as a wildcard inside straights / consecutive-pairs,
 straight-flush bombs, and out-of-turn bombs are omitted. Tichu / Grand Tichu are
 called at a low random rate so card points (always +100/hand) drive the game to

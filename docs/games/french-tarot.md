@@ -30,7 +30,7 @@ Each hand:
 
 The hand engine runs in the built-in `TarotHand` mechanic (card points kept in
 doubled integer units; the 78 cards sum to 182). poignée and the Excuse
-half-point IOU deferral are out of scope. See IMPLEMENTATION_LOG.md.
+half-point IOU deferral are out of scope.
 
 ```
 game FrenchTarot {

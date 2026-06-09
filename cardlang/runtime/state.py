@@ -21,6 +21,22 @@ class IllegalMove(Exception):
     """Raised by the `error(...)` fallback — the attempted move is illegal."""
 
 
+class ChooserAbort(Exception):
+    """Raised by a chooser to suspend a playout at a decision point.
+
+    The steppable-adapter seam (e.g. the OpenSpiel adapter): a chooser may abort
+    the run instead of returning a choice, carrying the deciding ``player`` and
+    the ``legal`` candidates. ``play_game`` attaches the live :class:`RuntimeState`
+    as ``rs`` before re-raising, so the caller can inspect the paused world.
+    """
+
+    def __init__(self, player: "Player", legal: object) -> None:
+        super().__init__("chooser aborted the playout (steppable adapter)")
+        self.player = player
+        self.legal = legal
+        self.rs: "RuntimeState | None" = None
+
+
 class Zone:
     """An ordered, mutable collection of cards."""
 

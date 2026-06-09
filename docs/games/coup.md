@@ -33,7 +33,7 @@ windows, and elimination — runs in the built-in `CoupGame` mechanic, which dri
 total) and influence cards conserve to 15. `alive[p]` is 1 while a player is in
 and 0 once exiled, so `winner: highest alive` names the survivor. Challenges and
 blocks fire at a modest random rate; the forced Coup at 10 coins guarantees
-elimination and termination. See IMPLEMENTATION_LOG.md.
+elimination and termination.
 
 ```
 game Coup {

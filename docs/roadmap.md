@@ -6,6 +6,18 @@ What's explicitly deferred, and the suggested order of next steps.
 
 Things we have noted but consciously not designed yet:
 
+- **Packaging the corpus for distribution.** The whole project runs from a
+  checkout: every `.cardlang` is loaded from `docs/games/` by repo-relative path
+  (tests, CLI, and the OpenSpiel adapter's `hearts_game()` loader), and the
+  corpus *is* the living spec (`docs/games/` per CLAUDE.md). A wheel install
+  ships only `cardlang*` + the grammar, so `docs/games/*.cardlang` would be
+  absent and any runtime that parses a corpus file would fail. This only matters
+  once the project is distributed as a wheel (not a current goal); the fix is a
+  project-level decision — ship the corpus as package data and load it via
+  `importlib.resources` — not an adapter-local patch (patching only the adapter
+  while the rest stays checkout-relative would be inconsistent). Flagged by
+  Codex on the OpenSpiel-adapter PR.
+
 - **CCG-style card effects** (Magic, Yu-Gi-Oh!). Out of initial scope. The
   Forge text-DSL pattern (one mini-language per card) is the reference if/when
   we tackle this.
@@ -18,12 +30,59 @@ Things we have noted but consciously not designed yet:
   layouts. We don't, but we haven't implemented one yet. Klondike or FreeCell
   will be the test case.
 
-- **OpenSpiel compilation.** The DSL design is independent of the target
-  runtime. Compilation will be a downstream pass once the surface stabilizes.
+- **OpenSpiel compilation (general pass).** A per-game *runtime adapter* now
+  validates the target: Hearts is a registered `pyspiel.Game` passing OpenSpiel's
+  consistency tester (see decisions.md "OpenSpiel compilation"). What remains is
+  the general, all-corpus path: a game-agnostic action/information-state encoder
+  (the Hearts adapter's encoder is hand-written), explicit per-deal chance nodes
+  (the adapter fixes a deal from a finite seed set), performance (the adapter
+  re-simulates per query — O(n²); a real pass or a snapshot/restore path removes
+  it), and adapters for the games whose logic still lives in concrete mechanics.
+  Enabling the `openspiel` extra in CI to run the adapter tests is a small
+  follow-up.
 
 - **Auto-derivation of `information_state_tensor`.** This is the prize for
-  OpenSpiel integration but depends on zone visibility being airtight.
-  Deferred.
+  OpenSpiel integration but depends on zone visibility being airtight. The Hearts
+  adapter provides information-state *strings* only; tensors are deferred.
+
+- **Grow the interactive-decision kernel and migrate the corpus to it.** `offer`
+  and a first `round` (the trick) are built; the rest of the decision sublanguage
+  (decisions.md "Interactive decisions: a kernel and an in-DSL standard library")
+  is the major in-flight work: `round` growing rule-delta transitions
+  (Hearts/Spades) and early-termination (Getaway) so the remaining trick games
+  migrate off the built-in `Trick`; typed outcomes and definition-composition;
+  and the `auction` / `challenge` / `block` / `climb` standard-library
+  vocabulary. Nine games (Schnapsen, Pinochle, Bridge, Skat, Tarot, Cribbage,
+  Stud, Tichu, Coup) still hold their decision logic in concrete per-game runtime
+  mechanics; lifting each into the kernel + DSL standard library (promoting a
+  definition at ~3 examples) closes the spec-vs-runtime gap. The bidding
+  sub-language, detailed melding, and strict-trick legality noted on this list
+  are subsumed by this work.
+
+- **`scoring_component` / triggered components (runtime).** The design is settled
+  (decisions.md "Scoring composition" and "Triggered scoring components"), but the
+  runtime folds scoring inline / into per-game mechanics and has not built the
+  component subsystem. Build it when a game needs cross-hand triggered scoring
+  that inline computation can't express.
+
+- **Representative playouts.** The runtime's random chooser exercises invariants
+  but never reaches skill-gated branches (Spades' +500 win, bridge slams,
+  Schnapsen false claims are implemented but unexercised). A light "rational-ish"
+  policy plugged into the `chooser` seam would make playouts representative and
+  surface bugs the conservation invariants structurally cannot.
+
+- **`RuntimeState` config-into-constructor.** The driver sets ~ten config fields
+  on the instance *after* construction, so an under-initialized state fails deep
+  in evaluation rather than at construction. Deferred until a *second*
+  construction site that doesn't go through `play_game` exists to design the shape
+  against (required constructor kwargs vs a frozen `GameConfig`).
+
+- **Test-depth regression nets.** Conservation invariants catch *leaks* but not
+  *mis-allocation or wrong amounts*. Add independent-recompute checks when those
+  games are next touched: Schnapsen's six-way settlement amount (1/2/3 game
+  points), Spades' nil and bag-overflow score branches, and Coup's challenge
+  resolving to the correct loser. (The Bridge analogue — a full scoring recompute
+  — is done.)
 
 - **Determinization as a compiler pass.** For IS-MCTS support. Deferred.
 
