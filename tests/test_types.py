@@ -10,9 +10,21 @@ from cardlang.types import (
     TEnum,
     TInteger,
     TOptional,
+    TPlayer,
+    Type,
+    assignable,
     subscriptable,
     unify,
 )
+
+
+def test_assignable() -> None:
+    assert assignable(TInteger(), TInteger())
+    assert assignable(TInteger(), TPlayer())  # players are 0-based int identities
+    assert assignable(TInteger(), TOptional(TPlayer()))  # bare fits its optional
+    assert assignable(TAny(), TEnum("Suit"))  # Any is compatible either way
+    assert not assignable(TEnum("Suit"), TInteger())
+    assert not assignable(TBoolean(), TInteger())
 
 
 def test_type_equality_is_structural() -> None:
@@ -20,7 +32,9 @@ def test_type_equality_is_structural() -> None:
     assert TEnum("Suit") == TEnum("Suit")
     assert TEnum("Suit") != TEnum("Rank")
     assert TCollection(TCard()) == TCollection(TCard())
-    assert TInteger() != TBoolean()
+    a: Type = TInteger()
+    b: Type = TBoolean()
+    assert a != b  # distinct kinds are unequal
 
 
 def test_unify_equal_returns_that_type() -> None:

@@ -13,11 +13,12 @@ level.
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from typing import Mapping, assert_never
+from typing import Iterator, Mapping, assert_never
 
 from cardlang.ast import nodes as n
 from cardlang.ast.nodes import Game
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError
+from cardlang.stdlib.signatures import ZONE_CONTENT
 from cardlang.stdlib.values import DIRECTION_VALUES, deck_suits
 from cardlang.types import (
     TAny,
@@ -31,6 +32,7 @@ from cardlang.types import (
     TString,
     TTeam,
     Type,
+    assignable,
 )
 
 # Declared scalar type names → their Type. Enum names (`Suit`/`Rank`/`Direction`)
@@ -145,6 +147,103 @@ def _name_type(e: n.NameRef, env: TypeEnv) -> Type:
             return TAny()  # pronoun / function / routing / unresolved
 
 
+def _type_name(t: Type) -> str:
+    if isinstance(t, TOptional):
+        return f"{_type_name(t.inner)}?"
+    if isinstance(t, TCollection):
+        return f"Collection<{_type_name(t.element)}>"
+    if isinstance(t, TEnum):
+        return t.name
+    return type(t).__name__[1:]  # TInteger -> "Integer", TPlayer -> "Player", …
+
+
+def _state_blocks(game: Game) -> list[n.StateBlock]:
+    blocks: list[n.StateBlock] = []
+    if game.state is not None:
+        blocks.append(game.state)
+
+    def rec(phase: n.Phase) -> None:
+        for item in phase.items:
+            if isinstance(item, n.StateBlock):
+                blocks.append(item)
+            elif isinstance(item, n.Phase):
+                rec(item)
+
+    for phase in game.phases:
+        rec(phase)
+    return blocks
+
+
+def env_from_game(game: Game) -> TypeEnv:
+    """Build the top-level type environment: declared state vars (value types),
+    zone contents, and the deck/stdlib enum value map."""
+    state_vars: dict[str, Type] = {}
+    for block in _state_blocks(game):
+        for decl in block.decls:
+            state_vars[decl.name] = type_from_name(decl.type_name, decl.optional)
+    zones: dict[str, Type] = {
+        z.name: ZONE_CONTENT.get(z.type_ref.name, TCollection(TAny()))
+        for z in game.zones
+    }
+    return TypeEnv(state_vars=state_vars, zones=zones, value_enums=value_enum_map(game))
+
+
+def _stmt_tree(s: n.Stmt) -> Iterator[n.Stmt]:
+    yield s
+    if isinstance(s, (n.ForEach, n.EachSimultaneous)):
+        yield from _stmt_tree(s.body)
+    elif isinstance(s, n.RepeatUntil):
+        for x in s.body:
+            yield from _stmt_tree(x)
+    elif isinstance(s, n.IfStmt):
+        for x in s.then_body:
+            yield from _stmt_tree(x)
+        for x in s.else_body or ():
+            yield from _stmt_tree(x)
+
+
+def _phase_statements(phase: n.Phase) -> Iterator[n.Stmt]:
+    for item in phase.items:
+        if isinstance(item, n.Phase):
+            yield from _phase_statements(item)
+        elif isinstance(item, (n.BeforeEach, n.AfterEach)):
+            for s in item.body:
+                yield from _stmt_tree(s)
+        elif isinstance(item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.TransitionTo)):
+            pass
+        else:
+            yield from _stmt_tree(item)
+
+
+def _all_statements(game: Game) -> Iterator[n.Stmt]:
+    for routing in game.routings:
+        for s in routing.body:
+            yield from _stmt_tree(s)
+    for move_type in game.move_types:
+        for s in move_type.effect:
+            yield from _stmt_tree(s)
+    for phase in game.phases:
+        yield from _phase_statements(phase)
+
+
+def _check_assign(stmt: n.AssignStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
+    target = env.state_vars.get(stmt.name)
+    if target is None:
+        return  # not a typed state var (a let-local, or unknown — left permissive)
+    rhs = infer(stmt.value, env)
+    if stmt.op in ("+=", "-="):
+        if not assignable(rhs, TInteger()):
+            bag.error(
+                f"'{stmt.name}' {stmt.op} expects an Integer, got {_type_name(rhs)}",
+                stmt.span,
+            )
+    elif not assignable(rhs, target):
+        bag.error(
+            f"cannot assign {_type_name(rhs)} to '{stmt.name}' ({_type_name(target)})",
+            stmt.span,
+        )
+
+
 def typecheck(game: Game) -> Game:
     bag = DiagnosticBag()
 
@@ -156,6 +255,11 @@ def typecheck(game: Game) -> Game:
             f"player range upper bound {players.high} precedes lower bound {players.low}",
             players.span,
         )
+
+    env = env_from_game(game)
+    for stmt in _all_statements(game):
+        if isinstance(stmt, n.AssignStmt):
+            _check_assign(stmt, env, bag)
 
     if bag.has_errors:
         error = DiagnosticError(bag.items[0])

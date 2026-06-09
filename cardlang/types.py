@@ -135,3 +135,22 @@ def unify(a: Type, b: Type) -> Type | None:
 def subscriptable(t: Type) -> bool:
     """Whether ``t[...]`` is legal: collections (and the permissive top)."""
     return isinstance(t, (TCollection, TAny))
+
+
+def assignable(src: Type, dst: Type) -> bool:
+    """Whether a value of type ``src`` may be assigned where ``dst`` is expected.
+
+    `TAny` is compatible either way. A bare value fits its optional (`T` → `T?`).
+    An `Integer` may stand for a `Player`/`Team` — both are 0-based int identities,
+    so a player/team literal or default (`dealer : Player = 0`) is fine.
+    """
+    if isinstance(src, TAny) or isinstance(dst, TAny):
+        return True
+    if src == dst:
+        return True
+    if isinstance(dst, TOptional):
+        inner = src.inner if isinstance(src, TOptional) else src
+        return assignable(inner, dst.inner)
+    if isinstance(src, TInteger) and isinstance(dst, (TPlayer, TTeam)):
+        return True
+    return False
