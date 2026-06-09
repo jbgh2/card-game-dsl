@@ -74,6 +74,13 @@ class TCollection:
 
 
 @dataclass(frozen=True, slots=True)
+class TNull:
+    """The type of the `none` literal: the absence value, assignable only to an
+    optional (or `TAny`). Distinct from `TOptional`, which is a *set* optional
+    value that reads as its base (`Player?` used where `Player` is expected)."""
+
+
+@dataclass(frozen=True, slots=True)
 class TAny:
     """The permissive top: propagates through every operation without error.
     Used for pronoun member access and the deferred parts of the object model."""
@@ -109,6 +116,7 @@ Type: TypeAlias = (
     | TEnum
     | TOptional
     | TCollection
+    | TNull
     | TAny
     | TStruct
     | TVariant
@@ -123,6 +131,10 @@ def unify(a: Type, b: Type) -> Type | None:
     """
     if isinstance(a, TAny) or isinstance(b, TAny):
         return TAny()
+    if isinstance(a, TNull):
+        return b if isinstance(b, TOptional) else TOptional(b)
+    if isinstance(b, TNull):
+        return a if isinstance(a, TOptional) else TOptional(a)
     if a == b:
         return a
     if isinstance(a, TOptional) and unify(a.inner, b) == a.inner:
@@ -146,6 +158,8 @@ def assignable(src: Type, dst: Type) -> bool:
     """
     if isinstance(src, TAny) or isinstance(dst, TAny):
         return True
+    if isinstance(src, TNull):
+        return isinstance(dst, TOptional)  # `none` only fits an optional
     if src == dst:
         return True
     if isinstance(dst, TOptional):

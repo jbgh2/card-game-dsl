@@ -55,6 +55,27 @@ def test_rejects_subscript_of_non_collection() -> None:
         check_dsl(src, "g.cardlang")
 
 
+def test_rejects_none_assigned_to_non_optional() -> None:
+    # `none` may only be assigned to an optional; `dealer` is a plain Player.
+    src = _game(
+        "score[player] : Integer = 0  dealer : Player = 0",
+        "dealer := none",
+    )
+    with pytest.raises(DiagnosticError):
+        check_dsl(src, "g.cardlang")
+
+
+def test_rejects_wrong_call_arity() -> None:
+    # `player_holding` takes one Card; two are given.
+    src = _game(
+        "score[player] : Integer = 0  dealer : Player = 0",
+        "dealer := player_holding(2 of clubs, 3 of clubs)",
+    )
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "player_holding" in str(ei.value) or "argument" in str(ei.value)
+
+
 def test_rejects_non_boolean_condition() -> None:
     # `if total { … }` where `total` is an Integer, not a Boolean.
     src = _game(

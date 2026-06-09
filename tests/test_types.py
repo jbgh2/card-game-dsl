@@ -9,6 +9,7 @@ from cardlang.types import (
     TCollection,
     TEnum,
     TInteger,
+    TNull,
     TOptional,
     TPlayer,
     Type,
@@ -26,6 +27,8 @@ def test_assignable() -> None:
     assert assignable(TAny(), TEnum("Suit"))  # Any is compatible either way
     assert not assignable(TEnum("Suit"), TInteger())
     assert not assignable(TBoolean(), TInteger())
+    assert assignable(TNull(), TOptional(TPlayer()))  # `none` fits an optional
+    assert not assignable(TNull(), TPlayer())  # …but not a plain Player
 
 
 def test_type_equality_is_structural() -> None:

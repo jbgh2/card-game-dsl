@@ -34,6 +34,7 @@ from cardlang.types import (
     TCollection,
     TEnum,
     TInteger,
+    TNull,
     TOptional,
     TPlayer,
     TString,
@@ -181,12 +182,14 @@ def _name_type(e: n.NameRef, env: TypeEnv) -> Type:
         case "bool":
             return TBoolean()
         case "null":
-            return TOptional(TAny())
+            return TNull()  # the `none` literal — assignable only to optionals
         case _:
             return TAny()  # pronoun / function / routing / unresolved
 
 
 def _type_name(t: Type) -> str:
+    if isinstance(t, TNull):
+        return "none"
     if isinstance(t, TOptional):
         return f"{_type_name(t.inner)}?"
     if isinstance(t, TCollection):
@@ -312,23 +315,37 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
     if isinstance(e, n.Call):
         sig = CALL_SIGS.get(e.func)
         if sig is not None:
-            for arg, param in zip(_arg_exprs(e.args), sig.params):
-                got = infer(arg, env)
-                if not assignable(got, param):
-                    bag.error(
-                        f"{e.func}() expects {_type_name(param)}, got {_type_name(got)}",
-                        e.span,
-                    )
+            args = _arg_exprs(e.args)
+            if len(args) != len(sig.params):
+                bag.error(
+                    f"{e.func}() expects {len(sig.params)} argument(s), got {len(args)}",
+                    e.span,
+                )
+            else:
+                for arg, param in zip(args, sig.params):
+                    got = infer(arg, env)
+                    if not assignable(got, param):
+                        bag.error(
+                            f"{e.func}() expects {_type_name(param)}, got {_type_name(got)}",
+                            e.span,
+                        )
     elif isinstance(e, n.MethodCall):
         msig = METHOD_SIGS.get(e.method)
         if msig is not None and not msig.lambda_arg:
-            for arg, param in zip(_arg_exprs(e.args), msig.params):
-                got = infer(arg, env)
-                if not assignable(got, param):
-                    bag.error(
-                        f".{e.method}() expects {_type_name(param)}, got {_type_name(got)}",
-                        e.span,
-                    )
+            args = _arg_exprs(e.args)
+            if len(args) != len(msig.params):
+                bag.error(
+                    f".{e.method}() expects {len(msig.params)} argument(s), got {len(args)}",
+                    e.span,
+                )
+            else:
+                for arg, param in zip(args, msig.params):
+                    got = infer(arg, env)
+                    if not assignable(got, param):
+                        bag.error(
+                            f".{e.method}() expects {_type_name(param)}, got {_type_name(got)}",
+                            e.span,
+                        )
     elif isinstance(e, n.Subscript):
         obj = infer(e.obj, env)
         if not subscriptable(obj):

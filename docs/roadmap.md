@@ -69,8 +69,12 @@ Things we have noted but consciously not designed yet:
   seams are in place); **Stage 3** — phase `→ outcome { … }` + `produces:` control
   flow (`decisions.md` "Typed phase outcomes"). Deferred checker coverage (from
   Stage 1 review): BinOp operand compatibility (`hearts == 5` currently passes),
-  movement `amount` must be Integer, rule `demands`/`applies_when` conditions, and
-  constraining `loser.selection` to `Player`.
+  movement `amount` must be Integer, rule `demands`/`applies_when` conditions,
+  constraining `loser.selection` to `Player`, and **scoping binder types** —
+  `for each` / lambda / comprehension / quantifier / player-query binders infer
+  `TAny` today (deliberately, to avoid false positives), so binder-typed mistakes
+  are missed; fold this into Stage 2's `match` / payload-binding work, where
+  binders are introduced anyway, and re-validate against the corpus.
 
 - **`scoring_component` / triggered components (runtime).** The design is settled
   (decisions.md "Scoring composition" and "Triggered scoring components"), but the
