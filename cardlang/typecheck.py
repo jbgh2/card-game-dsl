@@ -1,13 +1,20 @@
 """Typecheck stage.
 
-Walking-skeleton subset: the player count must be sensible (at least one
-player; a range's upper bound must not precede its lower bound). The full
-typed object model — zone parameterization, the ``<>`` value-parameter rule,
-rule-clause types, outcome exhaustiveness — lands in Phase C.
+Infers a :class:`~cardlang.types.Type` for every expression (`infer` over a
+`TypeEnv` built from declared state vars, zone contents, and the deck/stdlib
+enum values) and validates: sensible player counts, assignment compatibility,
+stdlib argument types, subscripting only collections, and Boolean conditions
+(`if` / `repeat until` / phase qualifiers). It accepts the whole corpus and
+rejects real type errors.
+
+Pragmatic by design: unrefined positions (pronoun member access, lambda values,
+the `Resource`/`ChipStack` query API) infer the permissive `TAny`, which
+propagates without error. Deferred to later stages: variant outcome types and
+exhaustiveness (`TVariant`), user-defined `type` declarations (`TStruct`), full
+`ZoneContents`/`Resource` typing, and payload-type narrowing.
 
 Like :mod:`cardlang.resolve`, this annotates rather than rewrites: the
-(unchanged) :class:`Game` flows on, and the IR stays at the resolved-AST
-level.
+(unchanged) :class:`Game` flows on, and the IR stays at the resolved-AST level.
 """
 
 from __future__ import annotations
