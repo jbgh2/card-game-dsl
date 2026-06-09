@@ -1081,6 +1081,17 @@ events compile to per-player projection emissions; OpenSpiel's
 information-state tensors flow through unchanged, generalized to
 projection-shaped events.
 
+Ahead of a true compilation pass, a **runtime adapter** already validates that
+the IR/runtime *can* drive OpenSpiel: Hearts is registered as a `pyspiel.Game`
+and passes OpenSpiel's own consistency tester with leak-free, perfect-recall
+information states. It works by re-simulation — the OpenSpiel state is
+`(seed, action history)`, and every query replays the game through the runtime's
+`chooser` seam, which suspends at the next decision via a `ChooserAbort`
+protocol. This makes the state trivially cloneable (the property OpenSpiel
+exercises most) and confirms the finite-action-space anchor end to end. The
+adapter is per-game and proof-scoped; the general, all-corpus path remains the
+eventual compilation pass (see [roadmap.md](roadmap.md)).
+
 ## Game result: `winner:` and `loser:`
 
 A game declares its terminal result with exactly one top-level clause,
@@ -1640,3 +1651,61 @@ of the block's moves at that observer's visibility level —
 exactly the same shape as single-move events, just with multiple
 moves coalesced. Perfect-recall guarantees and CFR / IS-MCTS
 applicability are preserved.
+
+## Interactive decisions: a kernel and an in-DSL standard library
+
+The structure of a game (zones, phases, dealing), trick-taking, and scoring are
+directly expressible. The part that resists expression is **interactive decision
+logic** — heterogeneous action choice, auctions, betting, challenge/block
+windows, combination climbing. These are factored into one semantic primitive
+and a small surface, with the richer vocabulary built *in the language* rather
+than baked into the engine.
+
+**One primitive: the decision node.** A participant chooses one action from a set
+that is *finitely enumerable from current state*, over a move-type vocabulary
+fixed at game-definition time; the action has an effect and may yield a typed
+outcome. Plus chance nodes for shuffles/deals. Everything below lowers to this.
+
+**Two surface constructs.**
+
+- `offer` — a single decision: an acting player chooses one of a set of
+  `move_type`s (each a guard plus an effect), and the chosen move's effect runs
+  with `actor` bound to that player.
+- `round` — a sequence of decisions over participants, varying only along a
+  *closed* set of axes: participants (actor / others / ring / list), order
+  (turn-from a seat / priority / simultaneous), an accumulator threaded across
+  steps, a termination predicate, and a typed outcome. Auctions, betting,
+  climbing, response windows, and the trick are all `round` configurations.
+
+**Richer vocabulary is a standard library written in the DSL, not engine
+presets.** `challenge`, `block`, `auction`, `climb`, and `trick` are *definitions*
+composed from `offer`/`round` and the effect verbs — readable in the game's own
+terms rather than hidden behind keywords. The governing rule: **a definition adds
+words, not semantics.** It may name and compose over the fixed kernel (a typed
+function: parameters in, typed outcome out, a body that lowers to decision/chance
+nodes); it may not introduce new control primitives, reflection, or runtime
+rule-mutation. This is the line between a game that *defines* "challenge" (Coup)
+and one that mutates its own rules at runtime (Mao), the latter being out of
+scope (below).
+
+**Discipline.** Variation lives in *values* along the closed axes (a new bid
+step, a different threshold) — never in new constructs. A new *axis* is a major
+change requiring sign-off. A definition is promoted from game-local to the shared
+DSL standard library only once roughly three corpus games exhibit the same shape
+(corpus-first; abstract at the third instance, not the first).
+
+**Anchored to a finite action space.** The "finitely enumerable from current
+state, fixed vocabulary" requirement is inherited from the target runtime
+(OpenSpiel mandates a finite, enumerable action space), not chosen for
+convenience. It is the load-bearing invariant of the whole approach, and it puts
+games needing a *runtime-extensible* action vocabulary or mutable rules (Mao,
+Nomic, CCG card-text) out of scope by construction rather than by preference.
+
+The full design — the kernel/standard-library split, the closed axes, the
+promotion rule, and the worked Coup example — is in
+[../superpowers/specs/2026-06-06-interaction-decision-sublanguage-design.md](../superpowers/specs/2026-06-06-interaction-decision-sublanguage-design.md).
+The kernel's atom (`offer`, `move_type` definitions, the `actor` pronoun) and a
+first `round` (the trick, validated by replacing the built-in `Trick` mechanic in
+Oh Hell with no behavioural change) are built; the auction / challenge / block /
+climbing vocabulary, typed outcomes, and definition-composition are the in-flight
+build (see [roadmap.md](roadmap.md)).

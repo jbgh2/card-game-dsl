@@ -89,7 +89,7 @@ returns and perfect-recall info-state strings.
 - `python -m pytest -q` (full suite incl. new tests; openspiel tests run since pyspiel installed).
 - Final independent code review (subagent) over the diff; then finish branch.
 
-## Notes / decisions (also in IMPLEMENTATION_LOG)
+## Notes / decisions (promoted to decisions.md / roadmap.md)
 Explicit-stochastic K-seed chance (finite deal set); Hearts-specific info-state;
 generic `ChooserAbort` seam; `open_spiel` optional extra; RuntimeState refactor
 stays deferred (adapter goes through `play_game`). O(n²) re-sim → small num_sims.

@@ -30,7 +30,7 @@ state vars the scoring reads). Random bids are capped at level 3 so rubbers stay
 a realistic dozen-odd hands — game-level and slam contracts are unreachable under
 random play (their scoring is implemented but unexercised). The dummy and
 declarer-plays-dummy delegation are omitted: pure information/agency structure a
-uniform-random playout does not exercise. See IMPLEMENTATION_LOG.md.
+uniform-random playout does not exercise.
 
 ```
 game Bridge {

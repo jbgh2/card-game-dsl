@@ -30,8 +30,7 @@ Each hand:
 
 The hand engine — Reizen, the contract choice, the per-contract trump structure,
 and the scoring — runs in the built-in `SkatHand` mechanic (the auction and the
-three trump structures are not yet expressible in the rule DSL; see
-IMPLEMENTATION_LOG.md). The cardlang holds the deal, hand counting, and
+three trump structures are not yet expressible in the rule DSL). The cardlang holds the deal, hand counting, and
 termination.
 
 ```

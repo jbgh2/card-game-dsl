@@ -45,7 +45,7 @@ observation (vs information-state) APIs.
   and keeps `num_distinct_actions = 52` since chance ids live in
   `max_chance_outcomes`; the cost is a finite set of K distinct deals, fine for
   this proof). Rejected: explicit card-by-card chance nodes (52!-scale, large
-  runtime change). See `IMPLEMENTATION_LOG.md` for the decision.
+  runtime change). See decisions.md "OpenSpiel compilation".
 
 ## 4. Components
 
@@ -169,4 +169,4 @@ locally. (Enabling the extra in CI to actually run these tests is a follow-up.)
 Forward-looking design artifact → lives under `docs/superpowers/specs/`. Settled
 outcomes (the runtime `chooser` seam; the OpenSpiel target reached via the IR)
 get promoted into `docs/decisions.md` in spec voice once landed. A running
-"Decisions to review" list is kept in `IMPLEMENTATION_LOG.md` during the build.
+"Decisions to review" list was promoted into decisions.md and roadmap.md when the build completed.

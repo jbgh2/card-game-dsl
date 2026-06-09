@@ -30,8 +30,7 @@ Each hand:
 The hand engine runs in the built-in `TichuHand` mechanic. Scope reductions
 (random play): the Mahjong wish, the Phoenix as a wildcard inside
 straights/consecutive-pairs, straight-flush bombs, and out-of-turn bombs are
-omitted; Tichu/Grand Tichu are called at a low random rate. See
-IMPLEMENTATION_LOG.md.
+omitted; Tichu/Grand Tichu are called at a low random rate.
 
 ```
 game Tichu {

@@ -10,7 +10,7 @@ Random players bet/call/raise/fold uniformly among the legal actions (a player
 never folds when checking is free). Total chips are invariant — the falsifiable
 invariant for the betting and pot logic.
 
-Simplifications (logged in IMPLEMENTATION_LOG.md): the 4th-street open-pair limit
+Simplifications (see docs/roadmap.md): the 4th-street open-pair limit
 doubling is omitted (lower limit on 3rd/4th, upper on 5th–7th); reveal order at
 showdown is irrelevant to a random playout.
 """

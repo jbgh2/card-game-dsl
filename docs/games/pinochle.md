@@ -25,7 +25,7 @@ Each hand:
 The hand engine — the auction, the trump declaration, the meld scoring, and the
 strict trick play — runs in the built-in `PinochleHand` mechanic. Auctions vary
 in shape across the corpus and the strict-trick legality rules recur, so neither
-is lifted into the rule DSL yet (flagged in IMPLEMENTATION_LOG.md); the cardlang
+is lifted into the rule DSL yet; the cardlang
 below holds the deal, the contract settlement, and termination.
 
 ```

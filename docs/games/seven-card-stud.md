@@ -23,7 +23,7 @@ that player the winner. Chips are modelled as an integer `stack` per player (not
 a resource-zone subsystem); the total is invariant. The hand engine — antes,
 bring-in, betting, and showdown with side-pot distribution — runs in the built-in
 `StudHand` mechanic; the poker evaluator is unit-tested. The 4th-street open-pair
-limit doubling is simplified out. See IMPLEMENTATION_LOG.md.
+limit doubling is simplified out.
 
 ```
 game SevenCardStud {
