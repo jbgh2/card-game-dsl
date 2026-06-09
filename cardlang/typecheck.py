@@ -12,6 +12,10 @@ level.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field, replace
+from typing import Mapping, assert_never
+
+from cardlang.ast import nodes as n
 from cardlang.ast.nodes import Game
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError
 from cardlang.stdlib.values import DIRECTION_VALUES, deck_suits
@@ -19,6 +23,7 @@ from cardlang.types import (
     TAny,
     TBoolean,
     TCard,
+    TCollection,
     TEnum,
     TInteger,
     TOptional,
@@ -72,6 +77,72 @@ def value_enum_map(game: Game) -> dict[str, TEnum]:
     for direction in DIRECTION_VALUES:
         m[direction] = TEnum("Direction")
     return m
+
+
+@dataclass(frozen=True)
+class TypeEnv:
+    """The types a bare name resolves against during inference: declared state
+    vars, zone contents, deck/stdlib enum values, and scoped local binders."""
+
+    state_vars: Mapping[str, Type] = field(default_factory=dict)
+    zones: Mapping[str, Type] = field(default_factory=dict)
+    value_enums: Mapping[str, TEnum] = field(default_factory=dict)
+    locals: Mapping[str, Type] = field(default_factory=dict)
+
+    def with_local(self, name: str, t: Type) -> "TypeEnv":
+        return replace(self, locals={**self.locals, name: t})
+
+
+def infer(e: n.Expr, env: TypeEnv) -> Type:
+    """Infer the type of an expression. Unrefined arms return `TAny` (the
+    permissive top); precision is added construct by construct."""
+    match e:
+        case n.IntLit():
+            return TInteger()
+        case n.StrLit():
+            return TString()
+        case n.CardLiteral():
+            return TCard()
+        case n.AllPlayers():
+            return TCollection(TPlayer())
+        case n.NameRef():
+            return _name_type(e, env)
+        case (
+            n.Member()
+            | n.Subscript()
+            | n.Call()
+            | n.MethodCall()
+            | n.BinOp()
+            | n.Not()
+            | n.IsCheck()
+            | n.Lambda()
+            | n.Quantifier()
+            | n.IfExpr()
+            | n.Comprehension()
+            | n.Choose()
+            | n.PlayerQuery()
+        ):
+            return TAny()
+        case _ as unreachable:
+            assert_never(unreachable)
+
+
+def _name_type(e: n.NameRef, env: TypeEnv) -> Type:
+    match e.ref_kind:
+        case "local":
+            return env.locals.get(e.name, TAny())
+        case "state_var":
+            return env.state_vars.get(e.name, TAny())
+        case "zone":
+            return env.zones.get(e.name, TAny())
+        case "enum_value":
+            return env.value_enums.get(e.name, TAny())
+        case "bool":
+            return TBoolean()
+        case "null":
+            return TOptional(TAny())
+        case _:
+            return TAny()  # pronoun / function / routing / unresolved
 
 
 def typecheck(game: Game) -> Game:
