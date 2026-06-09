@@ -59,6 +59,23 @@ Things we have noted but consciously not designed yet:
   sub-language, detailed melding, and strict-trick legality noted on this list
   are subsumed by this work.
 
+- **Typed outcomes (Stages 2-3) and type-checker coverage.** Stage 1 is built:
+  `cardlang/typecheck.py` is a real type checker (a `Type` model, expression
+  inference, and checks for assignment compatibility, stdlib argument types,
+  subscript legality, and Boolean conditions — the `decisions.md` "Typed object
+  model" subset, with the corpus as its test net). Remaining: **Stage 2** —
+  variant outcome types (`produce` / `match` / exhaustiveness + payload typing on
+  the kernel) and user-defined `type` declarations (the `TStruct`/`TVariant`
+  seams are in place); **Stage 3** — phase `→ outcome { … }` + `produces:` control
+  flow (`decisions.md` "Typed phase outcomes"). Deferred checker coverage (from
+  Stage 1 review): BinOp operand compatibility (`hearts == 5` currently passes),
+  movement `amount` must be Integer, rule `demands`/`applies_when` conditions,
+  constraining `loser.selection` to `Player`, and **scoping binder types** —
+  `for each` / lambda / comprehension / quantifier / player-query binders infer
+  `TAny` today (deliberately, to avoid false positives), so binder-typed mistakes
+  are missed; fold this into Stage 2's `match` / payload-binding work, where
+  binders are introduced anyway, and re-validate against the corpus.
+
 - **`scoring_component` / triggered components (runtime).** The design is settled
   (decisions.md "Scoring composition" and "Triggered scoring components"), but the
   runtime folds scoring inline / into per-game mechanics and has not built the
