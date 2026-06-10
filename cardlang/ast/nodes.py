@@ -84,6 +84,24 @@ class Subscript:
 
 
 @dataclass(frozen=True, slots=True)
+class FieldInit:
+    """One `name: value` pair in a struct literal."""
+
+    name: str
+    value: Expr
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class StructLit:
+    """`TypeName { field: expr, … }` — constructs a user-defined struct value."""
+
+    type_name: str
+    fields: tuple[FieldInit, ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Call:
     """A function call, e.g. `player_holding(2 of clubs)`."""
 
@@ -220,6 +238,7 @@ Expr = (
     | AllPlayers
     | Member
     | Subscript
+    | StructLit
     | Call
     | MethodCall
     | BinOp
@@ -705,6 +724,8 @@ Node = (
     | AllPlayers
     | Member
     | Subscript
+    | FieldInit
+    | StructLit
     | Call
     | MethodCall
     | BinOp

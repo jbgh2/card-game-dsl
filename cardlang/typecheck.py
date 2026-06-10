@@ -185,6 +185,8 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                     return TPlayer()
         case n.IfExpr():
             return _ifexpr_type(e, env)
+        case n.StructLit():
+            return env.structs.get(e.type_name, TAny())
         case n.Member():
             obj = infer(e.obj, env)
             if isinstance(obj, TStruct):
@@ -322,6 +324,8 @@ def _arg_exprs(args: tuple[n.Arg, ...]) -> list[n.Expr]:
 def _child_exprs(e: n.Expr) -> list[n.Expr]:
     if isinstance(e, n.Member):
         return [e.obj]
+    if isinstance(e, n.StructLit):
+        return [fi.value for fi in e.fields]
     if isinstance(e, n.Subscript):
         return [e.obj, e.index]
     if isinstance(e, n.Call):
@@ -392,6 +396,38 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         obj = infer(e.obj, env)
         if not subscriptable(obj):
             bag.error(f"cannot index {_type_name(obj)} (not a collection)", e.span)
+    elif isinstance(e, n.StructLit):
+        _check_struct_lit(e, env, bag)
+    elif isinstance(e, n.Member):
+        obj = infer(e.obj, env)
+        if isinstance(obj, TStruct) and e.field not in obj.fields:
+            bag.error(f"{obj.name} has no field '{e.field}'", e.span)
+
+
+def _check_struct_lit(e: n.StructLit, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """Validate a struct literal against its declared type: every declared
+    (non-derived) field is provided exactly once, no unknown fields, and each
+    field value is assignable to the field's declared type."""
+    struct = env.structs.get(e.type_name)
+    if struct is None:
+        return  # unknown type: flagged by resolve (`_validate_refs`)
+    declared = {k for k in struct.fields if k not in struct.derived}
+    provided = {fi.name for fi in e.fields}
+    for missing in sorted(declared - provided):
+        bag.error(f"{e.type_name} {{}} is missing field '{missing}'", e.span)
+    for extra in sorted(provided - set(struct.fields)):
+        bag.error(f"{e.type_name} {{}} has unknown field '{extra}'", e.span)
+    for fi in e.fields:
+        expected = struct.fields.get(fi.name)
+        if expected is None or fi.name in struct.derived:
+            continue
+        got = infer(fi.value, env)
+        if not assignable(got, expected):
+            bag.error(
+                f"field '{fi.name}' expects {_type_name(expected)}, "
+                f"got {_type_name(got)}",
+                e.span,
+            )
 
 
 def _check_bool(e: n.Expr, env: TypeEnv, bag: DiagnosticBag, where: str) -> None:

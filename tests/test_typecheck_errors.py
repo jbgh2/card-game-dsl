@@ -84,3 +84,37 @@ def test_rejects_non_boolean_condition() -> None:
     )
     with pytest.raises(DiagnosticError):
         check_dsl(src, "g.cardlang")
+
+
+def _typed_game(body_play: str) -> str:
+    """Like `_game`, but prefixed with a `Contract` struct type so the body can
+    construct struct literals. Struct literals are validated in statement
+    position (the checker walks statements, not state defaults)."""
+    return f"""
+type Contract = {{ level : Integer  suit : Suit }}
+game G {{
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones {{ deck : Deck  hand[player] : Hand<player> }}
+  state {{ score[player] : Integer = 0  deal : Contract = none }}
+  phase play {{ {body_play} }}
+  winner: highest score
+}}
+"""
+
+
+def test_rejects_struct_literal_missing_field() -> None:
+    # `Contract { level: 1 }` omits the declared `suit` field.
+    src = _typed_game("deal := Contract { level: 1 }")
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "suit" in str(ei.value) or "field" in str(ei.value)
+
+
+def test_rejects_struct_literal_wrong_field_type() -> None:
+    # `level` is declared Integer; `hearts` is a Suit.
+    src = _typed_game("deal := Contract { level: hearts, suit: hearts }")
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "level" in str(ei.value) or "Integer" in str(ei.value)

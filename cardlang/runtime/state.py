@@ -151,6 +151,15 @@ class Move:
     actor: Player
 
 
+@dataclass(frozen=True, slots=True)
+class StructValue:
+    """A constructed user-defined struct: its type name plus declared field
+    values. Derived fields are computed on access (see evaluate._member_eval)."""
+
+    type_name: str
+    fields: dict[str, Any]
+
+
 # A chooser picks a subset from a candidate list (random playout: uniform). The
 # candidates are usually cards, but the same interface resolves any value
 # decision — an integer bid, a suit choice — so the element type is open.

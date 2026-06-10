@@ -333,6 +333,15 @@ def _expr(e: n.Expr) -> IRDict:
             return {"kind": "member", "obj": _expr(e.obj), "field": e.field}
         case n.Subscript():
             return {"kind": "subscript", "obj": _expr(e.obj), "index": _expr(e.index)}
+        case n.StructLit():
+            return {
+                "kind": "struct_lit",
+                "type": e.type_name,
+                "fields": [
+                    {"kind": "field_init", "name": fi.name, "value": _expr(fi.value)}
+                    for fi in e.fields
+                ],
+            }
         case n.Call():
             return {"kind": "call", "func": e.func, "args": [_arg(a) for a in e.args]}
         case n.MethodCall():

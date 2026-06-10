@@ -673,6 +673,16 @@ class _Builder(Transformer[Token, n.Game]):
             obj=_as_expr(c[0]), index=_as_expr(c[1]), span=self._span(meta)
         )
 
+    def field_init(self, meta: Meta, c: list[object]) -> n.FieldInit:
+        return n.FieldInit(name=str(c[0]), value=_as_expr(c[1]), span=self._span(meta))
+
+    def struct_lit(self, meta: Meta, c: list[object]) -> n.StructLit:
+        return n.StructLit(
+            type_name=str(c[0]),
+            fields=tuple(x for x in c[1:] if isinstance(x, n.FieldInit)),
+            span=self._span(meta),
+        )
+
     def card_literal(self, meta: Meta, c: list[object]) -> n.CardLiteral:
         return n.CardLiteral(rank=str(c[0]), suit=str(c[1]), span=self._span(meta))
 

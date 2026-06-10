@@ -11,7 +11,7 @@ from typing import Any, assert_never
 
 from cardlang.ast import nodes as n
 from cardlang.runtime import stdlib
-from cardlang.runtime.state import Ctx, Move, Zone
+from cardlang.runtime.state import Ctx, Move, StructValue, Zone
 from cardlang.runtime.values import Card
 
 
@@ -29,6 +29,10 @@ def evaluate(e: n.Expr, ctx: Ctx) -> Any:
             return list(ctx.rs.seating.players)
         case n.Member():
             return _member(evaluate(e.obj, ctx), e.field)
+        case n.StructLit():
+            return StructValue(
+                e.type_name, {fi.name: evaluate(fi.value, ctx) for fi in e.fields}
+            )
         case n.Subscript():
             return _subscript(e, ctx)
         case n.Call():
@@ -118,6 +122,8 @@ def _member(obj: Any, field: str) -> Any:
         return getattr(obj, field)
     if isinstance(obj, Move):
         return getattr(obj, field)
+    if isinstance(obj, StructValue):
+        return obj.fields[field]
     if isinstance(obj, dict):
         return obj[field]
     raise AssertionError(f"cannot read field '{field}' of {obj!r}")

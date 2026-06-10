@@ -300,10 +300,13 @@ def _rewrite_value(value: object, cats: _Categories, bag: DiagnosticBag) -> obje
 
 def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     defined_move_types = {m.name for m in game.move_types}
+    defined_types = {t.name for t in game.types}
     for nd in _walk(game):
         match nd:
             case n.Call() if nd.func not in STDLIB_CALL_FUNCS:
                 bag.error(f"call to unknown function '{nd.func}'", nd.span)
+            case n.StructLit() if nd.type_name not in defined_types:
+                bag.error(f"unknown type '{nd.type_name}'", nd.span)
             case n.MethodCall() if nd.method not in ZONE_METHODS:
                 bag.error(f"unknown zone method '{nd.method}'", nd.span)
             case n.CardLiteral():

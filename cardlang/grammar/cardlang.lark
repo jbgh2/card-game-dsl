@@ -289,10 +289,17 @@ arg_list: arg ("," arg)*
         | all_players
         | choose_expr
         | call
+        | struct_lit
         | INT               -> int_lit
         | STRING            -> str_lit
         | NAME              -> name_ref
         | "(" expr ")"
+
+// `TypeName { field: expr, … }` — constructs a user-defined struct value. At
+// least one field is required, keeping it distinct from a statement block in
+// expression-before-`{` positions (if/repeat/phase).
+struct_lit: NAME "{" field_init ("," field_init)* "}"
+field_init: NAME ":" expr
 
 card_literal: card_rank "of" NAME
 // Ranks and suits are values a game's deck defines, not language keywords: a
