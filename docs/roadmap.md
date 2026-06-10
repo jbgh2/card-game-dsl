@@ -59,22 +59,36 @@ Things we have noted but consciously not designed yet:
   sub-language, detailed melding, and strict-trick legality noted on this list
   are subsumed by this work.
 
-- **Typed outcomes (Stages 2-3) and type-checker coverage.** Stage 1 is built:
-  `cardlang/typecheck.py` is a real type checker (a `Type` model, expression
-  inference, and checks for assignment compatibility, stdlib argument types,
-  subscript legality, and Boolean conditions — the `decisions.md` "Typed object
-  model" subset, with the corpus as its test net). Remaining: **Stage 2** —
-  variant outcome types (`produce` / `match` / exhaustiveness + payload typing on
-  the kernel) and user-defined `type` declarations (the `TStruct`/`TVariant`
-  seams are in place); **Stage 3** — phase `→ outcome { … }` + `produces:` control
-  flow (`decisions.md` "Typed phase outcomes"). Deferred checker coverage (from
-  Stage 1 review): BinOp operand compatibility (`hearts == 5` currently passes),
-  movement `amount` must be Integer, rule `demands`/`applies_when` conditions,
-  constraining `loser.selection` to `Player`, and **scoping binder types** —
-  `for each` / lambda / comprehension / quantifier / player-query binders infer
-  `TAny` today (deliberately, to avoid false positives), so binder-typed mistakes
-  are missed; fold this into Stage 2's `match` / payload-binding work, where
-  binders are introduced anyway, and re-validate against the corpus.
+- **Typed outcomes: Stage 2 built; Stage 3 + type-checker coverage remain.**
+  Stage 1 is built: `cardlang/typecheck.py` is a real type checker (a `Type`
+  model, expression inference, and checks for assignment compatibility, stdlib
+  argument types, subscript legality, and Boolean conditions — the
+  `decisions.md` "Typed object model" subset, with the corpus as its test net).
+  **Stage 2 is built:** user-defined `type` structs (`TStruct`: declared fields,
+  `derived` fields, field-access typing, construction via `Name { … }`, and
+  runtime struct values) and param-light `define` variant outcomes (`TVariant`:
+  `produce` / `produces:` with exhaustiveness, payload typing, and scoped
+  payload-binder typing), running end to end through the tree-walking runtime.
+  **Stage 3** remains: phase `→ outcome { … }` + `produces:` on phases
+  (`decisions.md` "Typed phase outcomes") — it reuses the Stage-2 `produces:`
+  consumer and `TVariant`.
+
+  Deferred from Stage 2: union-typed and refinement-typed struct fields
+  (`suit : Suit | NT`, `Integer in 1..7`); param-full `define` (parameters +
+  invocation-as-expression) until the challenge/block/auction stdlib reaches
+  three corpus instances; forward references between struct types resolve to
+  `TAny` (structs are built in source order). Struct literals are validated in
+  statement position only — state-decl defaults are *not* expression-checked, so
+  `deal : Contract = Contract { level: 1 }` (omitting a field) is accepted by the
+  checker and fails only at runtime on field access.
+
+  Deferred checker coverage (from Stage 1 review): BinOp operand compatibility
+  (`hearts == 5` currently passes), movement `amount` must be Integer, rule
+  `demands`/`applies_when` conditions, and constraining `loser.selection` to
+  `Player`. Stage 2 types `produces:` arm binders (its scoped consumer walk), but
+  the other binders — `for each` / lambda / comprehension / quantifier /
+  player-query — still infer `TAny` today (deliberately, to avoid false
+  positives), so binder-typed mistakes there are missed.
 
 - **`scoring_component` / triggered components (runtime).** The design is settled
   (decisions.md "Scoring composition" and "Triggered scoring components"), but the

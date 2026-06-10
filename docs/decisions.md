@@ -22,11 +22,11 @@ The enclosing structure pattern-matches on the outcome:
 
 ```
 declare_trump produces:
-  trump_declared(t):
-    continue to melding
-  bid_abandoned:
+  trump_declared(t) { continue to melding }
+  bid_abandoned {
     score[high_bidder.team] -= current_bid
     skip to next hand
+  }
 ```
 
 This makes failure-by-design a first-class concept without exception
@@ -53,13 +53,11 @@ phase outcomes:
 
 ```
 bidding produces:
-  taker_chosen(_, level):
-    if level == Petite or level == Garde:
-      continue to chien_visible
-    else:
-      continue to play
-  all_pass:
-    skip to next hand
+  taker_chosen(_, level) {
+    if level == Petite or level == Garde { continue to chien_visible }
+    else { continue to play }
+  }
+  all_pass { skip to next hand }
 ```
 
 A mechanic's result is also available as the bare `outcome` pronoun in the
@@ -1563,13 +1561,15 @@ phase trade_negotiation → outcome { agreed(Trade) | declined } {
 }
 
 trade_negotiation produces:
-  agreed(t):
+  agreed(t) {
     simultaneously: {
       transfer t.alice_gives from hand[alice] to hand[bob]
       transfer t.bob_gives   from hand[bob]   to hand[alice]
     }
-  declined:
+  }
+  declined {
     // no transfer; play continues
+  }
 ```
 
 The negotiation lives in a phase with typed outcomes; the
