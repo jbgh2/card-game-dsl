@@ -40,6 +40,7 @@ from cardlang.types import (
     TString,
     TStruct,
     TTeam,
+    TVariant,
     Type,
     assignable,
     subscriptable,
@@ -119,6 +120,21 @@ def struct_registry(game: Game) -> dict[str, TStruct]:
             derived=frozenset(d.name for d in tdef.derived),
         )
     return structs
+
+
+def variant_registry(
+    game: Game, structs: Mapping[str, TStruct]
+) -> dict[str, TVariant]:
+    """Build the variant-outcome type of each `define`: its case tags mapped to
+    their declared payload types."""
+    variants: dict[str, TVariant] = {}
+    for d in game.defines:
+        cases = {
+            c.tag: tuple(type_from_name(t, False, structs) for t in c.payload_types)
+            for c in d.cases
+        }
+        variants[d.name] = TVariant(name=d.name, cases=cases)
+    return variants
 
 
 @dataclass(frozen=True)
@@ -311,6 +327,9 @@ def _all_statements(game: Game) -> Iterator[n.Stmt]:
     for move_type in game.move_types:
         for s in move_type.effect:
             yield from _stmt_tree(s)
+    for define in game.defines:
+        for s in define.body:
+            yield from _stmt_tree(s)
     for phase in game.phases:
         yield from _phase_statements(phase)
 
@@ -461,6 +480,8 @@ def _stmt_exprs(s: n.Stmt) -> list[n.Expr]:
         return [a.value for a in s.args if not isinstance(a.value, n.Movement)]
     if isinstance(s, (n.IfStmt, n.RepeatUntil)):
         return [s.cond]
+    if isinstance(s, n.Produce):
+        return list(s.payloads)
     return []  # ForEach / EachSimultaneous / RotateStmt: no direct value expressions
 
 
@@ -495,6 +516,92 @@ def _check_assign(stmt: n.AssignStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
         )
 
 
+def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """The non-expression checks a statement carries: assignment compatibility
+    and Boolean conditions. Used by the flat walk and the scoped produces walk."""
+    if isinstance(stmt, n.AssignStmt):
+        _check_assign(stmt, env, bag)
+    elif isinstance(stmt, n.IfStmt):
+        _check_bool(stmt.cond, env, bag, "if condition")
+    elif isinstance(stmt, n.RepeatUntil):
+        _check_bool(stmt.cond, env, bag, "repeat-until condition")
+
+
+def _check_define_outcomes(
+    define: n.DefineDef, variant: TVariant, env: TypeEnv, bag: DiagnosticBag
+) -> None:
+    """Every `produce` in a define's body names a declared variant and supplies
+    payloads of the declared arity and types."""
+    for stmt in define.body:
+        for sub in _stmt_tree(stmt):
+            if not isinstance(sub, n.Produce):
+                continue
+            if sub.tag not in variant.cases:
+                bag.error(
+                    f"define '{define.name}' produces unknown variant '{sub.tag}'",
+                    sub.span,
+                )
+                continue
+            payload_types = variant.cases[sub.tag]
+            if len(sub.payloads) != len(payload_types):
+                bag.error(
+                    f"variant '{sub.tag}' takes {len(payload_types)} payload(s), "
+                    f"got {len(sub.payloads)}",
+                    sub.span,
+                )
+                continue
+            for expr, expected in zip(sub.payloads, payload_types):
+                got = infer(expr, env)
+                if not assignable(got, expected):
+                    bag.error(
+                        f"variant '{sub.tag}' expects {_type_name(expected)}, "
+                        f"got {_type_name(got)}",
+                        sub.span,
+                    )
+
+
+def _check_produces(
+    stmt: n.Produces, variant: TVariant, env: TypeEnv, bag: DiagnosticBag
+) -> None:
+    """A `produces:` consumer: arms name declared variants, are exhaustive and
+    non-duplicated, bind the right payload arity, and have their bodies checked
+    with the payload binders typed (a scoped sub-walk, since the flat walk treats
+    `Produces` as a leaf)."""
+    seen: set[str] = set()
+    for arm in stmt.arms:
+        if arm.tag not in variant.cases:
+            bag.error(
+                f"produces names unknown variant '{arm.tag}' of '{stmt.define}'",
+                arm.span,
+            )
+            continue
+        if arm.tag in seen:
+            bag.error(f"duplicate arm '{arm.tag}' in produces", arm.span)
+        seen.add(arm.tag)
+        payload_types = variant.cases[arm.tag]
+        if len(arm.binders) != len(payload_types):
+            bag.error(
+                f"arm '{arm.tag}' binds {len(arm.binders)} value(s), "
+                f"expected {len(payload_types)}",
+                arm.span,
+            )
+        arm_env = env
+        for binder, t in zip(arm.binders, payload_types):
+            arm_env = arm_env.with_local(binder, t)
+        for body_stmt in arm.body:
+            for sub in _stmt_tree(body_stmt):
+                for expr in _stmt_exprs(sub):
+                    _check_expr(expr, arm_env, bag)
+                _check_stmt_semantics(sub, arm_env, bag)
+    missing = sorted(set(variant.cases) - seen)
+    if missing:
+        bag.error(
+            f"produces on '{stmt.define}' is not exhaustive: missing "
+            f"{', '.join(missing)}",
+            stmt.span,
+        )
+
+
 def typecheck(game: Game) -> Game:
     bag = DiagnosticBag()
 
@@ -508,15 +615,20 @@ def typecheck(game: Game) -> Game:
         )
 
     env = env_from_game(game)
+    variants = variant_registry(game, env.structs)
     for stmt in _all_statements(game):
         for expr in _stmt_exprs(stmt):
             _check_expr(expr, env, bag)
-        if isinstance(stmt, n.AssignStmt):
-            _check_assign(stmt, env, bag)
-        elif isinstance(stmt, n.IfStmt):
-            _check_bool(stmt.cond, env, bag, "if condition")
-        elif isinstance(stmt, n.RepeatUntil):
-            _check_bool(stmt.cond, env, bag, "repeat-until condition")
+        if isinstance(stmt, n.Produces):
+            variant = variants.get(stmt.define)
+            if variant is not None:
+                _check_produces(stmt, variant, env, bag)
+        else:
+            _check_stmt_semantics(stmt, env, bag)
+    for define in game.defines:
+        variant = variants.get(define.name)
+        if variant is not None:
+            _check_define_outcomes(define, variant, env, bag)
     for phase in _all_phases(game):
         if phase.qualifier is not None:
             _check_expr(phase.qualifier.expr, env, bag)
