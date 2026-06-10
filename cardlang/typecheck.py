@@ -38,6 +38,7 @@ from cardlang.types import (
     TOptional,
     TPlayer,
     TString,
+    TStruct,
     TTeam,
     Type,
     assignable,
@@ -58,17 +59,22 @@ _SCALAR_TYPES: dict[str, type] = {
 _ENUM_TYPES = frozenset({"Suit", "Rank", "Direction"})
 
 
-def type_from_name(name: str, optional: bool) -> Type:
+def type_from_name(
+    name: str, optional: bool, structs: Mapping[str, TStruct] | None = None
+) -> Type:
     """Map a declared type name (a `StateDecl` `type_name`) to a `Type`.
 
-    Unknown names — user-defined types, deferred to a later stage — resolve to
-    the permissive `TAny`. ``optional`` wraps the result in `TOptional`.
+    User-defined struct names resolve to their `TStruct` (via the ``structs``
+    registry); names unknown to scalars, enums, and the registry resolve to the
+    permissive `TAny`. ``optional`` wraps the result in `TOptional`.
     """
     base: Type
     if name in _SCALAR_TYPES:
         base = _SCALAR_TYPES[name]()
     elif name in _ENUM_TYPES:
         base = TEnum(name)
+    elif structs is not None and name in structs:
+        base = structs[name]
     else:
         base = TAny()
     return TOptional(base) if optional else base
@@ -91,6 +97,30 @@ def value_enum_map(game: Game) -> dict[str, TEnum]:
     return m
 
 
+def struct_registry(game: Game) -> dict[str, TStruct]:
+    """Build the user-defined struct types. Declared fields resolve eagerly;
+    derived fields are typed in an env of the declared fields, so each `TStruct`
+    carries both declared and derived field types under one mapping.
+
+    Structs are built in source order: a field whose type is another user type
+    only resolves if that type was declared earlier (forward references resolve
+    to `TAny` — acceptable for Stage 2)."""
+    structs: dict[str, TStruct] = {}
+    for tdef in game.types:
+        fields: dict[str, Type] = {}
+        for f in tdef.fields:
+            fields[f.name] = type_from_name(f.type_name, f.optional, structs)
+        field_env = TypeEnv(locals=dict(fields), structs=structs)
+        for d in tdef.derived:
+            fields[d.name] = infer(d.value, field_env)
+        structs[tdef.name] = TStruct(
+            name=tdef.name,
+            fields=fields,
+            derived=frozenset(d.name for d in tdef.derived),
+        )
+    return structs
+
+
 @dataclass(frozen=True)
 class TypeEnv:
     """The types a bare name resolves against during inference: declared state
@@ -100,6 +130,7 @@ class TypeEnv:
     zones: Mapping[str, Type] = field(default_factory=dict)
     value_enums: Mapping[str, TEnum] = field(default_factory=dict)
     locals: Mapping[str, Type] = field(default_factory=dict)
+    structs: Mapping[str, TStruct] = field(default_factory=dict)
 
     def with_local(self, name: str, t: Type) -> "TypeEnv":
         return replace(self, locals={**self.locals, name: t})
@@ -154,8 +185,13 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                     return TPlayer()
         case n.IfExpr():
             return _ifexpr_type(e, env)
-        case n.Member() | n.Lambda():
-            return TAny()  # member access (pronouns/sugar) and lambda values: deferred
+        case n.Member():
+            obj = infer(e.obj, env)
+            if isinstance(obj, TStruct):
+                return obj.fields.get(e.field, TAny())
+            return TAny()  # pronoun member access / sugar: deferred
+        case n.Lambda():
+            return TAny()  # lambda values: deferred
         case _ as unreachable:
             assert_never(unreachable)
 
@@ -218,11 +254,12 @@ def _state_blocks(game: Game) -> list[n.StateBlock]:
 
 def env_from_game(game: Game) -> TypeEnv:
     """Build the top-level type environment: declared state vars (value types),
-    zone contents, and the deck/stdlib enum value map."""
+    zone contents, the deck/stdlib enum value map, and the user struct types."""
+    structs = struct_registry(game)
     state_vars: dict[str, Type] = {}
     for block in _state_blocks(game):
         for decl in block.decls:
-            t = type_from_name(decl.type_name, decl.optional)
+            t = type_from_name(decl.type_name, decl.optional, structs)
             # An indexed state var (`score[player] : Integer`) is a per-key map —
             # a collection whose subscript yields the declared value type.
             state_vars[decl.name] = TCollection(t) if decl.index is not None else t
@@ -230,7 +267,12 @@ def env_from_game(game: Game) -> TypeEnv:
         z.name: ZONE_CONTENT.get(z.type_ref.name, TCollection(TAny()))
         for z in game.zones
     }
-    return TypeEnv(state_vars=state_vars, zones=zones, value_enums=value_enum_map(game))
+    return TypeEnv(
+        state_vars=state_vars,
+        zones=zones,
+        value_enums=value_enum_map(game),
+        structs=structs,
+    )
 
 
 def _stmt_tree(s: n.Stmt) -> Iterator[n.Stmt]:
