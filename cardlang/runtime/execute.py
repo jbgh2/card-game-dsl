@@ -58,6 +58,9 @@ def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
             return ctx.with_outcome(mechanics.run_round(stmt, ctx))
         case n.Produce():
             raise _ProduceSignal(stmt.tag, [evaluate(p, ctx) for p in stmt.payloads])
+        case n.Produces():
+            _produces(stmt, ctx)
+            return ctx
         case _ as unreachable:
             assert_never(unreachable)
 
@@ -222,6 +225,24 @@ def _offer(stmt: n.Offer, ctx: Ctx) -> None:
 
 def _move_legal(mt: n.MoveTypeDef, ctx: Ctx) -> bool:
     return mt.guard is None or bool(evaluate(mt.guard, ctx))
+
+
+def _produces(stmt: n.Produces, ctx: Ctx) -> None:
+    # Run the named define's body; it `produce`s a variant via `_ProduceSignal`.
+    # Dispatch to the matching arm and bind the payloads as arm locals. No frame
+    # is pushed (the routing precedent); `let`-locals thread via the immutable
+    # `Ctx`, and the signal unwind leaves no state to clean up.
+    define = ctx.rs.define_index[stmt.define]
+    try:
+        run_body(define.body, ctx)
+    except _ProduceSignal as produced:
+        arm = next(a for a in stmt.arms if a.tag == produced.tag)
+        arm_ctx = ctx
+        for binder, value in zip(arm.binders, produced.payloads):
+            arm_ctx = arm_ctx.with_local(binder, value)
+        run_body(arm.body, arm_ctx)
+        return
+    raise AssertionError(f"define '{stmt.define}' completed without producing")
 
 
 def _each_simultaneous(stmt: n.EachSimultaneous, ctx: Ctx) -> None:

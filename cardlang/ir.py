@@ -291,6 +291,20 @@ def _stmt(s: n.Stmt) -> IRDict:
                 "tag": s.tag,
                 "payloads": [_expr(p) for p in s.payloads],
             }
+        case n.Produces():
+            return {
+                "kind": "produces",
+                "define": s.define,
+                "arms": [
+                    {
+                        "kind": "produce_arm",
+                        "tag": a.tag,
+                        "binders": list(a.binders),
+                        "body": [_stmt(x) for x in a.body],
+                    }
+                    for a in s.arms
+                ],
+            }
         case _ as unreachable:
             assert_never(unreachable)
 

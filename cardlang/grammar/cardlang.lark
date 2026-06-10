@@ -130,9 +130,15 @@ move_event: NAME ["where" expr]
           | offer
           | round_stmt
           | produce_stmt
+          | produces_stmt
 
 // Terminal in a `define` body: sets the variant result and unwinds the body.
 produce_stmt: "produce" NAME ["(" expr ("," expr)* ")"]
+
+// Invoke a param-light `define` by name and dispatch on its variant result.
+// Arm bodies use braces, matching if_stmt/repeat_until.
+produces_stmt: NAME "produces" ":" produce_arm+
+produce_arm: NAME ["(" NAME ("," NAME)* ")"] "{" statement* "}"
 
 // The built-in operation vocabulary uses prose statement syntax — game actions
 // read as rulebook commands, not function calls (decisions.md "The operation

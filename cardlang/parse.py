@@ -814,6 +814,23 @@ class _Builder(Transformer[Token, n.Game]):
         payloads = tuple(_as_expr(x) for x in c[1:] if x is not None)
         return n.Produce(tag=str(c[0]), payloads=payloads, span=self._span(meta))
 
+    def produce_arm(self, meta: Meta, c: list[object]) -> n.ProduceArm:
+        # c: NAME(tag), 0+ NAME binder tokens (or a None placeholder), then 0+
+        # lowered statements. Binders are Tokens; body statements are nodes.
+        tag = str(c[0])
+        binders = tuple(str(x) for x in c[1:] if isinstance(x, Token))
+        body = tuple(
+            _as_stmt(s) for s in c[1:] if s is not None and not isinstance(s, Token)
+        )
+        return n.ProduceArm(tag=tag, binders=binders, body=body, span=self._span(meta))
+
+    def produces_stmt(self, meta: Meta, c: list[object]) -> n.Produces:
+        return n.Produces(
+            define=str(c[0]),
+            arms=tuple(x for x in c[1:] if isinstance(x, n.ProduceArm)),
+            span=self._span(meta),
+        )
+
     def move_type_def(self, meta: Meta, c: list[object]) -> n.MoveTypeDef:
         name = str(c[0])
         guard: object | None = None

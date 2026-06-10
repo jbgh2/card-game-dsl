@@ -374,6 +374,25 @@ class Produce:
 
 
 @dataclass(frozen=True, slots=True)
+class ProduceArm:
+    """One arm of a `produces:` block: a tag, payload binders, and a body."""
+
+    tag: str
+    binders: tuple[str, ...]
+    body: tuple[Stmt, ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Produces:
+    """`NAME produces: <arm>+` — invoke a define and match its variant result."""
+
+    define: str
+    arms: tuple[ProduceArm, ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Offer:
     """`offer to <player> one of [<move_type>, ...]` — the acting player chooses
     one legal move-type; its effect runs with `actor` bound to that player."""
@@ -415,6 +434,7 @@ Stmt = (
     | Offer
     | Round
     | Produce
+    | Produces
 )
 
 
@@ -751,6 +771,8 @@ Node = (
     | Offer
     | Round
     | Produce
+    | ProduceArm
+    | Produces
     | NamedArg
     | NameRef
     | IntLit
