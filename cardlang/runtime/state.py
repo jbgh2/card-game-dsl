@@ -21,6 +21,15 @@ class IllegalMove(Exception):
     """Raised by the `error(...)` fallback — the attempted move is illegal."""
 
 
+class _ProduceSignal(Exception):
+    """Carries a `produce`d variant (tag + payloads) up to the define runner."""
+
+    def __init__(self, tag: str, payloads: list[Any]) -> None:
+        super().__init__(f"produced {tag}")
+        self.tag = tag
+        self.payloads = payloads
+
+
 class ChooserAbort(Exception):
     """Raised by a chooser to suspend a playout at a decision point.
 
@@ -110,6 +119,7 @@ class RuntimeState:
         self.routing_index: dict[str, n.RoutingDef] = {}  # routing name -> definition
         self.move_type_index: dict[str, n.MoveTypeDef] = {}  # name -> definition
         self.type_index: dict[str, n.TypeDef] = {}  # type name -> definition
+        self.define_index: dict[str, n.DefineDef] = {}  # define name -> definition
         self.deck_zone: str = ""  # the Deck-typed zone (initialized full at start)
         self.score_var: str | None = None  # the winner's score var (None for loser games)
         self.trump: str | None = None  # the trump suit, if the game declares one

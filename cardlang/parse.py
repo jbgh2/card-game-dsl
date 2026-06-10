@@ -788,6 +788,32 @@ class _Builder(Transformer[Token, n.Game]):
     def move_effect(self, meta: Meta, c: list[object]) -> _MoveEffect:
         return _MoveEffect(tuple(_as_stmt(s) for s in c))
 
+    def variant_case(self, meta: Meta, c: list[object]) -> n.VariantCase:
+        # c: NAME(tag), then 0+ NAME payload-type tokens (a None placeholder
+        # stands in for the absent optional group — filter to real tokens).
+        payloads = tuple(str(x) for x in c[1:] if isinstance(x, Token))
+        return n.VariantCase(tag=str(c[0]), payload_types=payloads, span=self._span(meta))
+
+    def variant_set(
+        self, meta: Meta, c: list[n.VariantCase]
+    ) -> tuple[n.VariantCase, ...]:
+        return tuple(c)
+
+    def define_def(self, meta: Meta, c: list[object]) -> n.DefineDef:
+        name = str(c[0])
+        cases = next(x for x in c if isinstance(x, tuple))
+        body = tuple(
+            _as_stmt(s)
+            for s in c[1:]
+            if s is not None and not isinstance(s, (str, tuple, Token))
+        )
+        return n.DefineDef(name=name, cases=cases, body=body, span=self._span(meta))
+
+    def produce_stmt(self, meta: Meta, c: list[object]) -> n.Produce:
+        # The optional payload group may leave a None placeholder; drop it.
+        payloads = tuple(_as_expr(x) for x in c[1:] if x is not None)
+        return n.Produce(tag=str(c[0]), payloads=payloads, span=self._span(meta))
+
     def move_type_def(self, meta: Meta, c: list[object]) -> n.MoveTypeDef:
         name = str(c[0])
         guard: object | None = None
@@ -807,8 +833,14 @@ class _Builder(Transformer[Token, n.Game]):
         routings = tuple(x for x in c if isinstance(x, n.RoutingDef))
         move_types = tuple(x for x in c if isinstance(x, n.MoveTypeDef))
         types = tuple(x for x in c if isinstance(x, n.TypeDef))
+        defines = tuple(x for x in c if isinstance(x, n.DefineDef))
         return replace(
-            game, rules=rules, routings=routings, move_types=move_types, types=types
+            game,
+            rules=rules,
+            routings=routings,
+            move_types=move_types,
+            types=types,
+            defines=defines,
         )
 
 

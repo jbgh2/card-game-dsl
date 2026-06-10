@@ -12,7 +12,7 @@ from typing import Any, assert_never
 from cardlang.ast import nodes as n
 from cardlang.runtime import mechanics
 from cardlang.runtime.evaluate import evaluate
-from cardlang.runtime.state import Ctx, Zone
+from cardlang.runtime.state import Ctx, Zone, _ProduceSignal
 from cardlang.runtime.values import Card, Player
 
 
@@ -56,6 +56,8 @@ def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
             return ctx
         case n.Round():
             return ctx.with_outcome(mechanics.run_round(stmt, ctx))
+        case n.Produce():
+            raise _ProduceSignal(stmt.tag, [evaluate(p, ctx) for p in stmt.payloads])
         case _ as unreachable:
             assert_never(unreachable)
 

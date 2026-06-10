@@ -57,6 +57,7 @@ def play_game(
     rs.routing_index = {r.name: r for r in game.routings}
     rs.move_type_index = {m.name: m for m in game.move_types}
     rs.type_index = {t.name: t for t in game.types}
+    rs.define_index = {d.name: d for d in game.defines}
     rs.deck_zone = next(z.name for z in game.zones if z.type_ref.name == "Deck")
     rs.zones.single(rs.deck_zone).add_all(build_deck(game.deck))
     if game.winner is not None:

@@ -49,6 +49,7 @@ def emit(game: n.Game) -> IRDict:
         "routings": [_routing(r) for r in game.routings],
         "move_types": [_move_type(m) for m in game.move_types],
         "types": [_type_def(t) for t in game.types],
+        "defines": [_define(d) for d in game.defines],
     }
 
 
@@ -102,6 +103,22 @@ def _type_def(t: n.TypeDef) -> IRDict:
             {"kind": "derived_field", "name": d.name, "value": _expr(d.value)}
             for d in t.derived
         ],
+    }
+
+
+def _define(d: n.DefineDef) -> IRDict:
+    return {
+        "kind": "define",
+        "name": d.name,
+        "cases": [
+            {
+                "kind": "variant_case",
+                "tag": c.tag,
+                "payload_types": list(c.payload_types),
+            }
+            for c in d.cases
+        ],
+        "body": [_stmt(s) for s in d.body],
     }
 
 
@@ -267,6 +284,12 @@ def _stmt(s: n.Stmt) -> IRDict:
                 "play_zone": s.play_zone,
                 "outcome_fn": s.outcome_fn,
                 "trump": _expr(s.trump) if s.trump is not None else None,
+            }
+        case n.Produce():
+            return {
+                "kind": "produce",
+                "tag": s.tag,
+                "payloads": [_expr(p) for p in s.payloads],
             }
         case _ as unreachable:
             assert_never(unreachable)

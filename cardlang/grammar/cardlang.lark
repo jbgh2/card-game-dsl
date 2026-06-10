@@ -12,6 +12,7 @@ start: top_item+
          | routing_def
          | move_type_def
          | type_def
+         | define_def
 
 // ----------------------------------------------------------------------------
 // Game structure
@@ -128,6 +129,10 @@ move_event: NAME ["where" expr]
           | assign_stmt
           | offer
           | round_stmt
+          | produce_stmt
+
+// Terminal in a `define` body: sets the variant result and unwinds the body.
+produce_stmt: "produce" NAME ["(" expr ("," expr)* ")"]
 
 // The built-in operation vocabulary uses prose statement syntax — game actions
 // read as rulebook commands, not function calls (decisions.md "The operation
@@ -200,6 +205,13 @@ routing_def: "routing" NAME "{" statement* "}"
 move_type_def: "move_type" NAME "{" [move_when] move_effect "}"
 move_when: "when" ":" applies_pred
 move_effect: "effect" "{" statement* "}"
+
+// A named param-light definition with a typed variant outcome. Its body runs
+// with the enclosing context bound (the routing precedent) and `produce`s one
+// variant. Consumed by a `produces:` block (see produces_stmt).
+define_def: "define" NAME "->" variant_set "{" statement* "}"
+variant_set: "{" variant_case ("|" variant_case)* "}"
+variant_case: NAME ["(" NAME ("," NAME)* ")"]
 
 rule_def: "rule" NAME "{" rule_clause* "}"
 ?rule_clause: constrains
