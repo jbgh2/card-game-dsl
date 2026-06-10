@@ -47,3 +47,29 @@ def test_struct_value_field_is_readable_at_runtime() -> None:
     game = check_dsl(src, "g.cardlang")
     result = play_game(game, random.Random(0))
     assert result.scores[0] == 7 and result.scores[1] == 7
+
+
+def test_derived_field_is_computed_at_runtime() -> None:
+    src = """
+    type HandResult = {
+      tricks_required : Integer
+      tricks_actual   : Integer
+    } derived {
+      surplus = tricks_actual - tricks_required
+    }
+    game G {
+      players: 2
+      cards: standard52
+      ranking: A K Q J 10 9 8 7 6 5 4 3 2
+      zones { deck : Deck  hand[player] : Hand<player> }
+      state {
+        result : HandResult = HandResult { tricks_required: 6, tricks_actual: 9 }
+        gained[player] : Integer = 0
+      }
+      phase play { for each player p: gained[p] := result.surplus }
+      winner: highest gained
+    }
+    """
+    game = check_dsl(src, "g.cardlang")
+    result = play_game(game, random.Random(0))
+    assert result.scores[0] == 3 and result.scores[1] == 3
