@@ -268,6 +268,35 @@ class _Builder(Transformer[Token, n.Game]):
     def state_block(self, meta: Meta, c: list[n.StateDecl]) -> n.StateBlock:
         return n.StateBlock(decls=tuple(c), span=self._span(meta))
 
+    # --- user-defined types ---
+
+    def struct_field(self, meta: Meta, c: list[object]) -> n.StructField:
+        assert isinstance(c[1], _TypeName)
+        return n.StructField(
+            name=str(c[0]),
+            type_name=c[1].name,
+            optional=c[1].optional,
+            span=self._span(meta),
+        )
+
+    def derived_field(self, meta: Meta, c: list[object]) -> n.DerivedField:
+        return n.DerivedField(
+            name=str(c[0]), value=_as_expr(c[1]), span=self._span(meta)
+        )
+
+    def derived_block(
+        self, meta: Meta, c: list[n.DerivedField]
+    ) -> tuple[n.DerivedField, ...]:
+        return tuple(c)
+
+    def type_def(self, meta: Meta, c: list[object]) -> n.TypeDef:
+        name = str(c[0])
+        fields = tuple(x for x in c if isinstance(x, n.StructField))
+        derived = next((x for x in c if isinstance(x, tuple)), ())
+        return n.TypeDef(
+            name=name, fields=fields, derived=derived, span=self._span(meta)
+        )
+
     # --- phases ---
 
     def phase_repeats(self, meta: Meta, c: list[object]) -> n.PhaseQualifier:
@@ -767,7 +796,10 @@ class _Builder(Transformer[Token, n.Game]):
         rules = tuple(x for x in c if isinstance(x, n.RuleDef))
         routings = tuple(x for x in c if isinstance(x, n.RoutingDef))
         move_types = tuple(x for x in c if isinstance(x, n.MoveTypeDef))
-        return replace(game, rules=rules, routings=routings, move_types=move_types)
+        types = tuple(x for x in c if isinstance(x, n.TypeDef))
+        return replace(
+            game, rules=rules, routings=routings, move_types=move_types, types=types
+        )
 
 
 def _as_expr(value: object) -> n.Expr:

@@ -558,6 +558,36 @@ class MoveTypeDef:
     span: Span | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class StructField:
+    """A declared struct field: `name : Type['?']`."""
+
+    name: str
+    type_name: str
+    optional: bool
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DerivedField:
+    """A computed struct field: `name = <expr>` over the declared fields."""
+
+    name: str
+    value: Expr
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class TypeDef:
+    """`type Name = { field: T … } [derived { name = expr … }]` — a user-defined
+    struct value type."""
+
+    name: str
+    fields: tuple[StructField, ...]
+    derived: tuple[DerivedField, ...]
+    span: Span | None = None
+
+
 # ---------------------------------------------------------------------------
 # Game-level
 # ---------------------------------------------------------------------------
@@ -623,6 +653,7 @@ class Game:
     rules: tuple[RuleDef, ...] = ()
     routings: tuple[RoutingDef, ...] = ()
     move_types: tuple[MoveTypeDef, ...] = ()
+    types: tuple[TypeDef, ...] = ()
     span: Span | None = None
 
 
@@ -634,6 +665,9 @@ Node = (
     | Loser
     | RoutingDef
     | MoveTypeDef
+    | StructField
+    | DerivedField
+    | TypeDef
     | ZoneDecl
     | TypeRef
     | TypeArg

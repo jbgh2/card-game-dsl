@@ -48,6 +48,7 @@ def emit(game: n.Game) -> IRDict:
         "rules": [_rule(r) for r in game.rules],
         "routings": [_routing(r) for r in game.routings],
         "move_types": [_move_type(m) for m in game.move_types],
+        "types": [_type_def(t) for t in game.types],
     }
 
 
@@ -81,6 +82,26 @@ def _move_type(m: n.MoveTypeDef) -> IRDict:
         "name": m.name,
         "guard": _expr(m.guard) if m.guard is not None else None,
         "effect": [_stmt(s) for s in m.effect],
+    }
+
+
+def _type_def(t: n.TypeDef) -> IRDict:
+    return {
+        "kind": "type_def",
+        "name": t.name,
+        "fields": [
+            {
+                "kind": "struct_field",
+                "name": f.name,
+                "type": f.type_name,
+                "optional": f.optional,
+            }
+            for f in t.fields
+        ],
+        "derived": [
+            {"kind": "derived_field", "name": d.name, "value": _expr(d.value)}
+            for d in t.derived
+        ],
     }
 
 

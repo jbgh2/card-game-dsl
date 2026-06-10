@@ -252,7 +252,23 @@ def _classify_names(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> n.Ga
     error for any name that resolves to nothing."""
     result = _rewrite(game, cats, bag)
     assert isinstance(result, n.Game)
-    return result
+    types = tuple(_classify_type_derived(t, cats, bag) for t in result.types)
+    return replace(result, types=types)
+
+
+def _classify_type_derived(
+    tdef: n.TypeDef, cats: _Categories, bag: DiagnosticBag
+) -> n.TypeDef:
+    """Rewrite a type's derived-field bodies with the type's own fields in local
+    scope — derived expressions reference sibling fields by bare name, which the
+    generic pass (blind to struct fields) would flag as unresolved."""
+    field_names = frozenset(f.name for f in tdef.fields)
+    scoped = replace(cats, locals=cats.locals | field_names)
+    derived = tuple(
+        replace(d, value=_rewrite(d.value, scoped, bag))  # type: ignore[arg-type]
+        for d in tdef.derived
+    )
+    return replace(tdef, derived=derived)
 
 
 def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
@@ -261,6 +277,8 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         if kind is None:
             bag.error(f"unresolved name '{node.name}'", node.span)
         return replace(node, ref_kind=kind)
+    if isinstance(node, n.TypeDef):
+        return node  # derived bodies are rewritten by _classify_type_derived
     if not is_dataclass(node) or isinstance(node, Span):
         return node
     changes: dict[str, object] = {}
