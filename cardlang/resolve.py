@@ -213,8 +213,6 @@ def _categories(game: n.Game) -> _Categories:
                 locals_.add(nd.name)
                 if nd.index is not None:
                     locals_.add(nd.index)
-            case n.ProduceArm():
-                locals_.update(nd.binders)
     return _Categories(
         locals=frozenset(locals_),
         state_vars=frozenset(state_vars),
@@ -273,6 +271,17 @@ def _classify_type_derived(
     return replace(tdef, derived=derived)
 
 
+def _rewrite_produce_arm(
+    arm: n.ProduceArm, cats: _Categories, bag: DiagnosticBag
+) -> n.ProduceArm:
+    """Rewrite one produces-arm body with the arm's payload binders in local
+    scope — so bare binder references resolve, without leaking into other arms or
+    the enclosing game (mirrors `_classify_type_derived` for struct fields)."""
+    scoped = replace(cats, locals=cats.locals | frozenset(arm.binders))
+    body = tuple(_rewrite(s, scoped, bag) for s in arm.body)
+    return replace(arm, body=body)  # type: ignore[arg-type]
+
+
 def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
     if isinstance(node, n.NameRef):
         kind = _classify(node.name, cats)
@@ -281,6 +290,12 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         return replace(node, ref_kind=kind)
     if isinstance(node, n.TypeDef):
         return node  # derived bodies are rewritten by _classify_type_derived
+    if isinstance(node, n.Produces):
+        # Each arm's payload binders scope to that arm's body only — they must not
+        # leak into the global `locals` set (which would shadow same-named state
+        # vars across the whole game).
+        arms = tuple(_rewrite_produce_arm(arm, cats, bag) for arm in node.arms)
+        return replace(node, arms=arms)
     if not is_dataclass(node) or isinstance(node, Span):
         return node
     changes: dict[str, object] = {}

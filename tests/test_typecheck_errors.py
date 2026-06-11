@@ -118,3 +118,39 @@ def test_rejects_struct_literal_wrong_field_type() -> None:
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(src, "g.cardlang")
     assert "level" in str(ei.value) or "Integer" in str(ei.value)
+
+
+def test_rejects_supplying_a_derived_field() -> None:
+    # `surplus` is computed; supplying it would let a caller override the
+    # derivation, so a struct literal may not provide a derived field.
+    src = """
+type HandResult = {
+  tricks_required : Integer
+  tricks_actual   : Integer
+} derived {
+  surplus = tricks_actual - tricks_required
+}
+game G {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0  result : HandResult = none }
+  phase play {
+    result := HandResult { tricks_required: 6, tricks_actual: 9, surplus: 999 }
+  }
+  winner: highest score
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "surplus" in str(ei.value) or "derived" in str(ei.value)
+
+
+def test_rejects_produce_outside_define() -> None:
+    # `produce` is only meaningful in a define body; elsewhere it raises an
+    # uncaught signal at runtime, so it must be a compile error.
+    src = _game("score[player] : Integer = 0", "produce won")
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "produce" in str(ei.value) or "define" in str(ei.value)

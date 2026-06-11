@@ -320,18 +320,23 @@ def _phase_statements(phase: n.Phase) -> Iterator[n.Stmt]:
             yield from _stmt_tree(item)
 
 
-def _all_statements(game: Game) -> Iterator[n.Stmt]:
+def _non_define_statements(game: Game) -> Iterator[n.Stmt]:
+    """Every statement outside a `define` body — where `produce` is illegal."""
     for routing in game.routings:
         for s in routing.body:
             yield from _stmt_tree(s)
     for move_type in game.move_types:
         for s in move_type.effect:
             yield from _stmt_tree(s)
+    for phase in game.phases:
+        yield from _phase_statements(phase)
+
+
+def _all_statements(game: Game) -> Iterator[n.Stmt]:
+    yield from _non_define_statements(game)
     for define in game.defines:
         for s in define.body:
             yield from _stmt_tree(s)
-    for phase in game.phases:
-        yield from _phase_statements(phase)
 
 
 def _arg_exprs(args: tuple[n.Arg, ...]) -> list[n.Expr]:
@@ -434,8 +439,11 @@ def _check_struct_lit(e: n.StructLit, env: TypeEnv, bag: DiagnosticBag) -> None:
     provided = {fi.name for fi in e.fields}
     for missing in sorted(declared - provided):
         bag.error(f"{e.type_name} {{}} is missing field '{missing}'", e.span)
-    for extra in sorted(provided - set(struct.fields)):
-        bag.error(f"{e.type_name} {{}} has unknown field '{extra}'", e.span)
+    for extra in sorted(provided - declared):
+        if extra in struct.derived:
+            bag.error(f"{e.type_name} {{}} cannot supply derived field '{extra}'", e.span)
+        else:
+            bag.error(f"{e.type_name} {{}} has unknown field '{extra}'", e.span)
     for fi in e.fields:
         expected = struct.fields.get(fi.name)
         if expected is None or fi.name in struct.derived:
@@ -629,6 +637,9 @@ def typecheck(game: Game) -> Game:
         variant = variants.get(define.name)
         if variant is not None:
             _check_define_outcomes(define, variant, env, bag)
+    for stmt in _non_define_statements(game):
+        if isinstance(stmt, n.Produce):
+            bag.error("'produce' may only appear in a define body", stmt.span)
     for phase in _all_phases(game):
         if phase.qualifier is not None:
             _check_expr(phase.qualifier.expr, env, bag)
