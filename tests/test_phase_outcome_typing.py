@@ -254,6 +254,33 @@ game G {
     assert "decide" in str(ei.value) or "earlier sibling" in str(ei.value)
 
 
+def test_rejects_two_consumers_of_one_phase_outcome() -> None:
+    # The runtime pops the outcome on the first consumer, so a second `decide
+    # produces:` would find nothing — reject it statically.
+    src = """
+game G {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase round {
+    phase decide -> outcome { a | b } { produce a }
+    decide produces:
+      a { score[0] += 1 }
+      b { score[0] += 0 }
+    decide produces:
+      a { score[0] += 2 }
+      b { score[0] += 0 }
+  }
+  winner: highest score
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "more than one" in str(ei.value) or "decide" in str(ei.value)
+
+
 def test_rejects_outcome_phase_define_name_collision() -> None:
     # An outcome phase named like a define would shadow it in the shared registry
     # and the runtime phase_outcomes dict.

@@ -629,6 +629,26 @@ def _control_flow_nodes(stmt: n.Stmt) -> Iterator[n.Stmt]:
             yield from _control_flow_nodes(s)
 
 
+def _check_single_outcome_consumer(game: Game, bag: DiagnosticBag) -> None:
+    """A phase produces one outcome and the runtime `pop`s it on the first
+    consumer, so an outcome phase may have at most one `produces:` block (a second
+    would deterministically find nothing). Defines, re-invoked per consumer, are
+    unrestricted."""
+    outcome_phases = {p.name for p in _all_phases(game) if p.outcome_cases}
+    seen: set[str] = set()
+    for stmt in _all_statements(game):
+        for sub in _stmt_tree(stmt):
+            if not isinstance(sub, n.Produces) or sub.define not in outcome_phases:
+                continue
+            if sub.define in seen:
+                bag.error(
+                    f"phase outcome '{sub.define}' is consumed by more than one "
+                    "produces: block",
+                    sub.span,
+                )
+            seen.add(sub.define)
+
+
 def _check_outcome_name_collisions(game: Game, bag: DiagnosticBag) -> None:
     """Outcome phases dispatch by name through one shared registry / runtime dict,
     so an outcome-phase name must be unique and must not collide with a `define`
@@ -879,6 +899,7 @@ def typecheck(game: Game) -> Game:
     _check_misplaced_produce(game, variants, env, bag)
     _check_outcome_scope(game, bag)
     _check_outcome_name_collisions(game, bag)
+    _check_single_outcome_consumer(game, bag)
     for phase in _all_phases(game):
         if phase.qualifier is not None:
             _check_expr(phase.qualifier.expr, env, bag)
