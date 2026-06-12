@@ -629,6 +629,28 @@ def _control_flow_nodes(stmt: n.Stmt) -> Iterator[n.Stmt]:
             yield from _control_flow_nodes(s)
 
 
+def _check_outcome_name_collisions(game: Game, bag: DiagnosticBag) -> None:
+    """Outcome phases dispatch by name through one shared registry / runtime dict,
+    so an outcome-phase name must be unique and must not collide with a `define`
+    (either would silently shadow the other in a `produces:` consumer)."""
+    define_names = {d.name for d in game.defines}
+    seen: set[str] = set()
+    for phase in _all_phases(game):
+        if not phase.outcome_cases:
+            continue
+        if phase.name in define_names:
+            bag.error(
+                f"outcome phase '{phase.name}' collides with a define of the same "
+                "name",
+                phase.span,
+            )
+        if phase.name in seen:
+            bag.error(
+                f"duplicate outcome phase name '{phase.name}'", phase.span
+            )
+        seen.add(phase.name)
+
+
 def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
     """The phase-outcome constructs resolve only within sibling scope, matching the
     runtime (which dispatches by name against phases that ran / sit in an enclosing
@@ -842,6 +864,7 @@ def typecheck(game: Game) -> Game:
             _check_define_outcomes(define, variant, env, bag)
     _check_misplaced_produce(game, variants, env, bag)
     _check_outcome_scope(game, bag)
+    _check_outcome_name_collisions(game, bag)
     for phase in _all_phases(game):
         if phase.qualifier is not None:
             _check_expr(phase.qualifier.expr, env, bag)
