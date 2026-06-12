@@ -645,6 +645,22 @@ def _continue_targets_in_item(item: "n.PhaseItem") -> set[str]:
     return targets
 
 
+def _item_can_skip(item: "n.PhaseItem") -> bool:
+    """Whether executing one phase-body item can `skip to next hand` against *this*
+    body's hand loop. A nested `repeats until` catches its own skips, so they don't
+    unwind here."""
+    if isinstance(item, n.Phase):
+        if item.qualifier is not None and item.qualifier.kind == "repeats":
+            return False
+        return any(_item_can_skip(sub) for sub in item.items)
+    if isinstance(
+        item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.TransitionTo,
+               n.BeforeEach, n.AfterEach)
+    ):
+        return False
+    return any(isinstance(node, n.SkipToNextHand) for node in _control_flow_nodes(item))
+
+
 def _control_flow_nodes(stmt: n.Stmt) -> Iterator[n.Stmt]:
     """Yield ContinueTo/SkipToNextHand within a statement, descending through
     if/repeat/for-each and `produces:` arm bodies."""
@@ -797,6 +813,12 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                 for i, nm in child_outcome_at.items():
                     if j < i < k:
                         skippable.add(nm)
+        # A `skip to next hand` aborts the body from its position on, but after_each
+        # still runs — so producers at or after the first possible skip aren't
+        # available to after_each.
+        first_skip = next(
+            (j for j, it in enumerate(items) if _item_can_skip(it)), len(items)
+        )
         for idx, item in enumerate(items):
             earlier = (
                 before_outcomes
@@ -830,7 +852,9 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                 if isinstance(item, n.BeforeEach):
                     avail = set()
                 elif isinstance(item, n.AfterEach):
-                    avail = set(child_outcome_at.values()) - skippable
+                    avail = {
+                        nm for i, nm in child_outcome_at.items() if i < first_skip
+                    } - skippable
                 else:
                     avail = earlier
                 for s in stmts:
