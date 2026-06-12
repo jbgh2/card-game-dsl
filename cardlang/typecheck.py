@@ -707,6 +707,35 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
     define_names = {d.name for d in game.defines}
     outcome_phases = {p.name for p in _all_phases(game) if p.outcome_cases}
 
+    def check_produces_scope(stmt: n.Stmt, avail: set[str]) -> None:
+        """Validate a `produces:` consumer (and any nested in arms/blocks) against
+        the available producers. A statement-level `repeat until` reruns, but phase
+        producers run once, so none are available inside its body."""
+        if isinstance(stmt, n.Produces):
+            if (
+                stmt.define not in define_names
+                and stmt.define in outcome_phases
+                and stmt.define not in avail
+            ):
+                bag.error(
+                    f"produces names phase '{stmt.define}', which is not an earlier "
+                    "sibling that has run",
+                    stmt.span,
+                )
+            for arm in stmt.arms:
+                for s in arm.body:
+                    check_produces_scope(s, avail)  # the arm runs at this position
+        elif isinstance(stmt, n.RepeatUntil):
+            for s in stmt.body:
+                check_produces_scope(s, set())  # the loop reruns; producers do not
+        elif isinstance(stmt, (n.ForEach, n.EachSimultaneous)):
+            check_produces_scope(stmt.body, avail)
+        elif isinstance(stmt, n.IfStmt):
+            for s in stmt.then_body:
+                check_produces_scope(s, avail)
+            for s in stmt.else_body or ():
+                check_produces_scope(s, avail)
+
     def walk(
         phase: n.Phase,
         before_outcomes: set[str],
@@ -777,17 +806,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                                 "hand loop",
                                 node.span,
                             )
-                    for sub in _produces_in(s):
-                        if (
-                            sub.define not in define_names
-                            and sub.define in outcome_phases
-                            and sub.define not in earlier
-                        ):
-                            bag.error(
-                                f"produces names phase '{sub.define}', which is not an "
-                                "earlier sibling that has run",
-                                sub.span,
-                            )
+                    check_produces_scope(s, earlier)
 
     # Top-level phases are siblings of each other (they run in sequence), so a
     # `produces:` consumer in a later top-level phase can name an earlier one
