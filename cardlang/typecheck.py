@@ -636,17 +636,27 @@ def _check_single_outcome_consumer(game: Game, bag: DiagnosticBag) -> None:
     unrestricted."""
     outcome_phases = {p.name for p in _all_phases(game) if p.outcome_cases}
     seen: set[str] = set()
-    for stmt in _all_statements(game):
-        for sub in _stmt_tree(stmt):
-            if not isinstance(sub, n.Produces) or sub.define not in outcome_phases:
-                continue
-            if sub.define in seen:
+
+    def count(p: n.Produces) -> None:
+        if p.define in outcome_phases:
+            if p.define in seen:
                 bag.error(
-                    f"phase outcome '{sub.define}' is consumed by more than one "
+                    f"phase outcome '{p.define}' is consumed by more than one "
                     "produces: block",
-                    sub.span,
+                    p.span,
                 )
-            seen.add(sub.define)
+            seen.add(p.define)
+        # `_stmt_tree` treats Produces as a leaf, so descend its arm bodies here to
+        # catch a second consumer nested inside an arm.
+        for arm in p.arms:
+            for s in arm.body:
+                for sub in _stmt_tree(s):
+                    if isinstance(sub, n.Produces):
+                        count(sub)
+
+    for stmt in _all_statements(game):
+        if isinstance(stmt, n.Produces):
+            count(stmt)
 
 
 def _check_outcome_name_collisions(game: Game, bag: DiagnosticBag) -> None:

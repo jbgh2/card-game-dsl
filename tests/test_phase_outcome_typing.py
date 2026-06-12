@@ -281,6 +281,34 @@ game G {
     assert "more than one" in str(ei.value) or "decide" in str(ei.value)
 
 
+def test_rejects_second_consumer_nested_in_an_arm() -> None:
+    # A second consumer of the same phase outcome hidden inside the first's arm is
+    # still a double-pop — descend into arm bodies to catch it.
+    src = """
+game G {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase round {
+    phase decide -> outcome { a | b } { produce a }
+    decide produces:
+      a {
+        decide produces:
+          a { score[0] += 1 }
+          b { score[0] += 0 }
+      }
+      b { }
+  }
+  winner: highest score
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "more than one" in str(ei.value) or "decide" in str(ei.value)
+
+
 def test_rejects_outcome_phase_define_name_collision() -> None:
     # An outcome phase named like a define would shadow it in the shared registry
     # and the runtime phase_outcomes dict.
