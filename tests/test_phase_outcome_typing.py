@@ -337,6 +337,34 @@ game G {
     assert "exhaustive" in str(ei.value) or "y" in str(ei.value)
 
 
+def test_outer_arm_binder_is_typed_inside_a_nested_consumer() -> None:
+    # The outer `got(s)` binder (a Suit) stays in scope inside the nested
+    # consumer's arm; assigning it to an Integer state var must be rejected (it
+    # was TAny before nested consumers got the arm env).
+    src = """
+game G {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase round {
+    phase outer -> outcome { got(Suit) } { produce got(hearts) }
+    phase inner -> outcome { val(Integer) } { produce val(5) }
+    outer produces:
+      got(s) {
+        inner produces:
+          val(n) { score[0] := s }
+      }
+  }
+  winner: highest score
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "score" in str(ei.value) or "Suit" in str(ei.value)
+
+
 def test_rejects_second_consumer_nested_in_an_arm() -> None:
     # A second consumer of the same phase outcome hidden inside the first's arm is
     # still a double-pop — descend into arm bodies to catch it.

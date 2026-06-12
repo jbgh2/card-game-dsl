@@ -841,12 +841,19 @@ def _check_phase_produces(
 
 
 def _check_produces(
-    stmt: n.Produces, variant: TVariant, env: TypeEnv, bag: DiagnosticBag
+    stmt: n.Produces,
+    variants: Mapping[str, TVariant],
+    env: TypeEnv,
+    bag: DiagnosticBag,
 ) -> None:
     """A `produces:` consumer: arms name declared variants, are exhaustive and
     non-duplicated, bind the right payload arity, and have their bodies checked
     with the payload binders typed (a scoped sub-walk, since the flat walk treats
-    `Produces` as a leaf)."""
+    `Produces` as a leaf). A consumer nested in an arm is checked recursively with
+    the enclosing arm binders in scope."""
+    variant = variants.get(stmt.define)
+    if variant is None:
+        return
     seen: set[str] = set()
     for arm in stmt.arms:
         if arm.tag not in variant.cases:
@@ -874,6 +881,10 @@ def _check_produces(
                     # `_stmt_tree` does not descend into `produces:` arms, so the
                     # outer misplaced-produce walk never sees this — reject it here.
                     bag.error("'produce' may not appear in a produces: arm", sub.span)
+                if isinstance(sub, n.Produces):
+                    # Nested consumer: check it with the enclosing arm binders in
+                    # scope (so outer payload binders are typed, not TAny).
+                    _check_produces(sub, variants, arm_env, bag)
                 for expr in _stmt_exprs(sub):
                     _check_expr(expr, arm_env, bag)
                 _check_stmt_semantics(sub, arm_env, bag)
@@ -904,12 +915,9 @@ def typecheck(game: Game) -> Game:
         for expr in _stmt_exprs(stmt):
             _check_expr(expr, env, bag)
         if isinstance(stmt, n.Produces):
-            # Validate this consumer and any consumer nested in its arms (the flat
-            # walk treats Produces as a leaf and would skip the nested ones).
-            for consumer in _produces_in(stmt):
-                variant = variants.get(consumer.define)
-                if variant is not None:
-                    _check_produces(consumer, variant, env, bag)
+            # `_check_produces` recurses into arm-nested consumers itself, carrying
+            # the arm binders into their environment.
+            _check_produces(stmt, variants, env, bag)
         else:
             _check_stmt_semantics(stmt, env, bag)
     for define in game.defines:
