@@ -393,6 +393,55 @@ game G {
     assert "more than one" in str(ei.value) or "decide" in str(ei.value)
 
 
+def test_rejects_consumer_of_a_when_guarded_producer() -> None:
+    # A `when`-guarded producer may not run, so an unconditional consumer can't
+    # depend on it.
+    src = """
+game G {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0  flag : Boolean = false }
+  phase round {
+    phase decide -> outcome { a } when flag { produce a }
+    decide produces:
+      a { score[0] += 1 }
+  }
+  winner: highest score
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "decide" in str(ei.value) or "earlier sibling" in str(ei.value)
+
+
+def test_rejects_consumer_of_a_repeating_producer() -> None:
+    # A `repeats until` producer may run zero iterations (or not produce on its
+    # last), so a later consumer can't depend on it either.
+    src = """
+game G {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0  k : Integer = 0 }
+  phase round {
+    phase decide -> outcome { a } repeats until (k >= 1) {
+      before_each { k := k + 1 }
+      produce a
+    }
+    decide produces:
+      a { score[0] += 1 }
+  }
+  winner: highest score
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "decide" in str(ei.value) or "earlier sibling" in str(ei.value)
+
+
 def test_rejects_outcome_phase_define_name_collision() -> None:
     # An outcome phase named like a define would shadow it in the shared registry
     # and the runtime phase_outcomes dict.

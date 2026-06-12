@@ -131,39 +131,11 @@ game G {
     assert result.scores[0] == 3 and result.scores[1] == 3
 
 
-def test_repeating_outcome_phase_clears_stale_per_iteration() -> None:
-    # An outcome phase that itself repeats: if an early iteration produces but the
-    # final iteration does not, the consumer after the loop must not pop the early
-    # iteration's stale result.
-    import pytest
-
-    src = """
-game G {
-  players: 2
-  cards: standard52
-  ranking: A K Q J 10 9 8 7 6 5 4 3 2
-  zones { deck : Deck  hand[player] : Hand<player> }
-  state { k : Integer = 0  points[player] : Integer = 0 }
-  phase round {
-    phase decide -> outcome { val(Integer) } repeats until (k >= 2) {
-      before_each { k := k + 1 }
-      if (k == 1) { produce val(9) }
-    }
-    decide produces:
-      val(x) { points[0] += x }
-  }
-  winner: highest points
-}
-"""
-    game = check_dsl(src, "g.cardlang")
-    with pytest.raises(AssertionError, match="did not produce"):
-        play_game(game, random.Random(0))
-
-
-def test_skipped_child_producer_leaves_no_stale_across_iterations() -> None:
-    # Iter 1 produces but its consumer is skipped by a `continue to`; iter 2 must
-    # not let a later consumer pop iter 1's stale child outcome (the loop clears
-    # its whole subtree each iteration, not just its own entry).
+def test_outcome_phase_that_does_not_produce_leaves_no_stale() -> None:
+    # The producer is unconditional but only `produce`s on the first hand; its
+    # consumer is skipped that hand by a `continue to`. On the next hand the loop
+    # clears the producer's stale entry, so the consumer sees nothing and raises
+    # rather than dispatching the first hand's result.
     import pytest
 
     src = """
@@ -175,47 +147,18 @@ game G {
   state { k : Integer = 0  points[player] : Integer = 0 }
   phase loop repeats until (k >= 2) {
     before_each { k := k + 1 }
-    phase prod -> outcome { val(Integer) } when (k == 1) { produce val(1) }
-    phase router -> outcome { go_consume | skip_consume } {
-      if (k == 1) { produce skip_consume } else { produce go_consume }
+    phase prod -> outcome { val(Integer) } { if (k == 1) { produce val(99) } }
+    phase gate -> outcome { skip_consumer | keep } {
+      if (k == 1) { produce skip_consumer } else { produce keep }
     }
-    router produces:
-      skip_consume { continue to tail }
-      go_consume   { }
+    gate produces:
+      skip_consumer { continue to tail }
+      keep          { }
     phase consumer {
       prod produces:
         val(x) { points[0] += x }
     }
     phase tail { }
-  }
-  winner: highest points
-}
-"""
-    game = check_dsl(src, "g.cardlang")
-    with pytest.raises(AssertionError, match="did not produce"):
-        play_game(game, random.Random(0))
-
-
-def test_guarded_off_outcome_phase_leaves_no_stale_outcome() -> None:
-    # An outcome phase guarded off on a later hand must not leave a prior hand's
-    # outcome for a consumer to pop (the phase clears its own entry on entry). The
-    # consumer then sees no outcome and raises, rather than dispatching stale data.
-    import pytest
-
-    src = """
-game G {
-  players: 2
-  cards: standard52
-  ranking: A K Q J 10 9 8 7 6 5 4 3 2
-  zones { deck : Deck  hand[player] : Hand<player> }
-  state { hand_no : Integer = 0  points[player] : Integer = 0 }
-  phase loop repeats until (hand_no >= 2) {
-    before_each { hand_no := hand_no + 1 }
-    phase decide -> outcome { val(Integer) } when (hand_no == 1) { produce val(5) }
-    phase consume when (hand_no == 2) {
-      decide produces:
-        val(x) { points[0] += x }
-    }
   }
   winner: highest points
 }

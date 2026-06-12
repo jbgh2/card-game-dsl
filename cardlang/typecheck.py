@@ -717,15 +717,16 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
             phase.qualifier is not None and phase.qualifier.kind == "repeats"
         )
         items = phase.items
-        # All child phases are valid `continue to` targets; only outcome-declaring
-        # ones can be `produces:` producers (only they write `phase_outcomes`).
+        # All child phases are valid `continue to` targets; only *unqualified*
+        # outcome phases are reliable `produces:` producers — a `when`/`repeats`
+        # phase may not run (or produce), so a consumer can't depend on it.
         child_at = {
             idx: it.name for idx, it in enumerate(items) if isinstance(it, n.Phase)
         }
         child_outcome_at = {
             idx: it.name
             for idx, it in enumerate(items)
-            if isinstance(it, n.Phase) and it.outcome_cases
+            if isinstance(it, n.Phase) and it.outcome_cases and it.qualifier is None
         }
         for idx, item in enumerate(items):
             earlier = before_outcomes | {
@@ -787,7 +788,9 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
     # targeting a *later top-level* phase has nowhere to be caught and must be
     # rejected — only later phases within a `run_body` are valid jump targets.
     top_outcome_at = {
-        idx: p.name for idx, p in enumerate(game.phases) if p.outcome_cases
+        idx: p.name
+        for idx, p in enumerate(game.phases)
+        if p.outcome_cases and p.qualifier is None
     }
     for idx, phase in enumerate(game.phases):
         before = {nm for j, nm in top_outcome_at.items() if j < idx}
