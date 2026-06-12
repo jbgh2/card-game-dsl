@@ -11,6 +11,8 @@ start: top_item+
          | rule_def
          | routing_def
          | move_type_def
+         | type_def
+         | define_def
 
 // ----------------------------------------------------------------------------
 // Game structure
@@ -58,6 +60,12 @@ state_block: "state" "{" state_decl* "}"
 state_decl: NAME [index] ":" type_name "=" expr
 type_name: NAME "?"   -> optional_type
          | NAME       -> plain_type
+
+// User-defined struct type: named fields plus optional computed `derived` fields.
+type_def: "type" NAME "=" "{" struct_field* "}" [derived_block]
+struct_field: NAME ":" type_name
+derived_block: "derived" "{" derived_field* "}"
+derived_field: NAME "=" expr
 
 winner: "winner" ":" rank_dir NAME
 rank_dir: RANK_DIR
@@ -121,6 +129,16 @@ move_event: NAME ["where" expr]
           | assign_stmt
           | offer
           | round_stmt
+          | produce_stmt
+          | produces_stmt
+
+// Terminal in a `define` body: sets the variant result and unwinds the body.
+produce_stmt: "produce" NAME ["(" expr ("," expr)* ")"]
+
+// Invoke a param-light `define` by name and dispatch on its variant result.
+// Arm bodies use braces, matching if_stmt/repeat_until.
+produces_stmt: NAME "produces" ":" produce_arm+
+produce_arm: NAME ["(" NAME ("," NAME)* ")"] "{" statement* "}"
 
 // The built-in operation vocabulary uses prose statement syntax — game actions
 // read as rulebook commands, not function calls (decisions.md "The operation
@@ -193,6 +211,13 @@ routing_def: "routing" NAME "{" statement* "}"
 move_type_def: "move_type" NAME "{" [move_when] move_effect "}"
 move_when: "when" ":" applies_pred
 move_effect: "effect" "{" statement* "}"
+
+// A named param-light definition with a typed variant outcome. Its body runs
+// with the enclosing context bound (the routing precedent) and `produce`s one
+// variant. Consumed by a `produces:` block (see produces_stmt).
+define_def: "define" NAME "->" variant_set "{" statement* "}"
+variant_set: "{" variant_case ("|" variant_case)* "}"
+variant_case: NAME ["(" NAME ("," NAME)* ")"]
 
 rule_def: "rule" NAME "{" rule_clause* "}"
 ?rule_clause: constrains
@@ -282,10 +307,17 @@ arg_list: arg ("," arg)*
         | all_players
         | choose_expr
         | call
+        | struct_lit
         | INT               -> int_lit
         | STRING            -> str_lit
         | NAME              -> name_ref
         | "(" expr ")"
+
+// `TypeName { field: expr, … }` — constructs a user-defined struct value. At
+// least one field is required, keeping it distinct from a statement block in
+// expression-before-`{` positions (if/repeat/phase).
+struct_lit: NAME "{" field_init ("," field_init)* "}"
+field_init: NAME ":" expr
 
 card_literal: card_rank "of" NAME
 // Ranks and suits are values a game's deck defines, not language keywords: a

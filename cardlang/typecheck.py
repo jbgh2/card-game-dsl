@@ -38,7 +38,9 @@ from cardlang.types import (
     TOptional,
     TPlayer,
     TString,
+    TStruct,
     TTeam,
+    TVariant,
     Type,
     assignable,
     subscriptable,
@@ -58,17 +60,22 @@ _SCALAR_TYPES: dict[str, type] = {
 _ENUM_TYPES = frozenset({"Suit", "Rank", "Direction"})
 
 
-def type_from_name(name: str, optional: bool) -> Type:
+def type_from_name(
+    name: str, optional: bool, structs: Mapping[str, TStruct] | None = None
+) -> Type:
     """Map a declared type name (a `StateDecl` `type_name`) to a `Type`.
 
-    Unknown names — user-defined types, deferred to a later stage — resolve to
-    the permissive `TAny`. ``optional`` wraps the result in `TOptional`.
+    User-defined struct names resolve to their `TStruct` (via the ``structs``
+    registry); names unknown to scalars, enums, and the registry resolve to the
+    permissive `TAny`. ``optional`` wraps the result in `TOptional`.
     """
     base: Type
     if name in _SCALAR_TYPES:
         base = _SCALAR_TYPES[name]()
     elif name in _ENUM_TYPES:
         base = TEnum(name)
+    elif structs is not None and name in structs:
+        base = structs[name]
     else:
         base = TAny()
     return TOptional(base) if optional else base
@@ -91,6 +98,45 @@ def value_enum_map(game: Game) -> dict[str, TEnum]:
     return m
 
 
+def struct_registry(game: Game) -> dict[str, TStruct]:
+    """Build the user-defined struct types. Declared fields resolve eagerly;
+    derived fields are typed in an env of the declared fields, so each `TStruct`
+    carries both declared and derived field types under one mapping.
+
+    Structs are built in source order: a field whose type is another user type
+    only resolves if that type was declared earlier (forward references resolve
+    to `TAny` — acceptable for Stage 2)."""
+    structs: dict[str, TStruct] = {}
+    for tdef in game.types:
+        fields: dict[str, Type] = {}
+        for f in tdef.fields:
+            fields[f.name] = type_from_name(f.type_name, f.optional, structs)
+        field_env = TypeEnv(locals=dict(fields), structs=structs)
+        for d in tdef.derived:
+            fields[d.name] = infer(d.value, field_env)
+        structs[tdef.name] = TStruct(
+            name=tdef.name,
+            fields=fields,
+            derived=frozenset(d.name for d in tdef.derived),
+        )
+    return structs
+
+
+def variant_registry(
+    game: Game, structs: Mapping[str, TStruct]
+) -> dict[str, TVariant]:
+    """Build the variant-outcome type of each `define`: its case tags mapped to
+    their declared payload types."""
+    variants: dict[str, TVariant] = {}
+    for d in game.defines:
+        cases = {
+            c.tag: tuple(type_from_name(t, False, structs) for t in c.payload_types)
+            for c in d.cases
+        }
+        variants[d.name] = TVariant(name=d.name, cases=cases)
+    return variants
+
+
 @dataclass(frozen=True)
 class TypeEnv:
     """The types a bare name resolves against during inference: declared state
@@ -100,6 +146,7 @@ class TypeEnv:
     zones: Mapping[str, Type] = field(default_factory=dict)
     value_enums: Mapping[str, TEnum] = field(default_factory=dict)
     locals: Mapping[str, Type] = field(default_factory=dict)
+    structs: Mapping[str, TStruct] = field(default_factory=dict)
 
     def with_local(self, name: str, t: Type) -> "TypeEnv":
         return replace(self, locals={**self.locals, name: t})
@@ -154,8 +201,15 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                     return TPlayer()
         case n.IfExpr():
             return _ifexpr_type(e, env)
-        case n.Member() | n.Lambda():
-            return TAny()  # member access (pronouns/sugar) and lambda values: deferred
+        case n.StructLit():
+            return env.structs.get(e.type_name, TAny())
+        case n.Member():
+            obj = infer(e.obj, env)
+            if isinstance(obj, TStruct):
+                return obj.fields.get(e.field, TAny())
+            return TAny()  # pronoun member access / sugar: deferred
+        case n.Lambda():
+            return TAny()  # lambda values: deferred
         case _ as unreachable:
             assert_never(unreachable)
 
@@ -218,11 +272,12 @@ def _state_blocks(game: Game) -> list[n.StateBlock]:
 
 def env_from_game(game: Game) -> TypeEnv:
     """Build the top-level type environment: declared state vars (value types),
-    zone contents, and the deck/stdlib enum value map."""
+    zone contents, the deck/stdlib enum value map, and the user struct types."""
+    structs = struct_registry(game)
     state_vars: dict[str, Type] = {}
     for block in _state_blocks(game):
         for decl in block.decls:
-            t = type_from_name(decl.type_name, decl.optional)
+            t = type_from_name(decl.type_name, decl.optional, structs)
             # An indexed state var (`score[player] : Integer`) is a per-key map —
             # a collection whose subscript yields the declared value type.
             state_vars[decl.name] = TCollection(t) if decl.index is not None else t
@@ -230,7 +285,12 @@ def env_from_game(game: Game) -> TypeEnv:
         z.name: ZONE_CONTENT.get(z.type_ref.name, TCollection(TAny()))
         for z in game.zones
     }
-    return TypeEnv(state_vars=state_vars, zones=zones, value_enums=value_enum_map(game))
+    return TypeEnv(
+        state_vars=state_vars,
+        zones=zones,
+        value_enums=value_enum_map(game),
+        structs=structs,
+    )
 
 
 def _stmt_tree(s: n.Stmt) -> Iterator[n.Stmt]:
@@ -260,7 +320,8 @@ def _phase_statements(phase: n.Phase) -> Iterator[n.Stmt]:
             yield from _stmt_tree(item)
 
 
-def _all_statements(game: Game) -> Iterator[n.Stmt]:
+def _non_define_statements(game: Game) -> Iterator[n.Stmt]:
+    """Every statement outside a `define` body — where `produce` is illegal."""
     for routing in game.routings:
         for s in routing.body:
             yield from _stmt_tree(s)
@@ -269,6 +330,13 @@ def _all_statements(game: Game) -> Iterator[n.Stmt]:
             yield from _stmt_tree(s)
     for phase in game.phases:
         yield from _phase_statements(phase)
+
+
+def _all_statements(game: Game) -> Iterator[n.Stmt]:
+    yield from _non_define_statements(game)
+    for define in game.defines:
+        for s in define.body:
+            yield from _stmt_tree(s)
 
 
 def _arg_exprs(args: tuple[n.Arg, ...]) -> list[n.Expr]:
@@ -280,6 +348,8 @@ def _arg_exprs(args: tuple[n.Arg, ...]) -> list[n.Expr]:
 def _child_exprs(e: n.Expr) -> list[n.Expr]:
     if isinstance(e, n.Member):
         return [e.obj]
+    if isinstance(e, n.StructLit):
+        return [fi.value for fi in e.fields]
     if isinstance(e, n.Subscript):
         return [e.obj, e.index]
     if isinstance(e, n.Call):
@@ -350,6 +420,41 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         obj = infer(e.obj, env)
         if not subscriptable(obj):
             bag.error(f"cannot index {_type_name(obj)} (not a collection)", e.span)
+    elif isinstance(e, n.StructLit):
+        _check_struct_lit(e, env, bag)
+    elif isinstance(e, n.Member):
+        obj = infer(e.obj, env)
+        if isinstance(obj, TStruct) and e.field not in obj.fields:
+            bag.error(f"{obj.name} has no field '{e.field}'", e.span)
+
+
+def _check_struct_lit(e: n.StructLit, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """Validate a struct literal against its declared type: every declared
+    (non-derived) field is provided exactly once, no unknown fields, and each
+    field value is assignable to the field's declared type."""
+    struct = env.structs.get(e.type_name)
+    if struct is None:
+        return  # unknown type: flagged by resolve (`_validate_refs`)
+    declared = {k for k in struct.fields if k not in struct.derived}
+    provided = {fi.name for fi in e.fields}
+    for missing in sorted(declared - provided):
+        bag.error(f"{e.type_name} {{}} is missing field '{missing}'", e.span)
+    for extra in sorted(provided - declared):
+        if extra in struct.derived:
+            bag.error(f"{e.type_name} {{}} cannot supply derived field '{extra}'", e.span)
+        else:
+            bag.error(f"{e.type_name} {{}} has unknown field '{extra}'", e.span)
+    for fi in e.fields:
+        expected = struct.fields.get(fi.name)
+        if expected is None or fi.name in struct.derived:
+            continue
+        got = infer(fi.value, env)
+        if not assignable(got, expected):
+            bag.error(
+                f"field '{fi.name}' expects {_type_name(expected)}, "
+                f"got {_type_name(got)}",
+                e.span,
+            )
 
 
 def _check_bool(e: n.Expr, env: TypeEnv, bag: DiagnosticBag, where: str) -> None:
@@ -383,6 +488,8 @@ def _stmt_exprs(s: n.Stmt) -> list[n.Expr]:
         return [a.value for a in s.args if not isinstance(a.value, n.Movement)]
     if isinstance(s, (n.IfStmt, n.RepeatUntil)):
         return [s.cond]
+    if isinstance(s, n.Produce):
+        return list(s.payloads)
     return []  # ForEach / EachSimultaneous / RotateStmt: no direct value expressions
 
 
@@ -417,6 +524,92 @@ def _check_assign(stmt: n.AssignStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
         )
 
 
+def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """The non-expression checks a statement carries: assignment compatibility
+    and Boolean conditions. Used by the flat walk and the scoped produces walk."""
+    if isinstance(stmt, n.AssignStmt):
+        _check_assign(stmt, env, bag)
+    elif isinstance(stmt, n.IfStmt):
+        _check_bool(stmt.cond, env, bag, "if condition")
+    elif isinstance(stmt, n.RepeatUntil):
+        _check_bool(stmt.cond, env, bag, "repeat-until condition")
+
+
+def _check_define_outcomes(
+    define: n.DefineDef, variant: TVariant, env: TypeEnv, bag: DiagnosticBag
+) -> None:
+    """Every `produce` in a define's body names a declared variant and supplies
+    payloads of the declared arity and types."""
+    for stmt in define.body:
+        for sub in _stmt_tree(stmt):
+            if not isinstance(sub, n.Produce):
+                continue
+            if sub.tag not in variant.cases:
+                bag.error(
+                    f"define '{define.name}' produces unknown variant '{sub.tag}'",
+                    sub.span,
+                )
+                continue
+            payload_types = variant.cases[sub.tag]
+            if len(sub.payloads) != len(payload_types):
+                bag.error(
+                    f"variant '{sub.tag}' takes {len(payload_types)} payload(s), "
+                    f"got {len(sub.payloads)}",
+                    sub.span,
+                )
+                continue
+            for expr, expected in zip(sub.payloads, payload_types):
+                got = infer(expr, env)
+                if not assignable(got, expected):
+                    bag.error(
+                        f"variant '{sub.tag}' expects {_type_name(expected)}, "
+                        f"got {_type_name(got)}",
+                        sub.span,
+                    )
+
+
+def _check_produces(
+    stmt: n.Produces, variant: TVariant, env: TypeEnv, bag: DiagnosticBag
+) -> None:
+    """A `produces:` consumer: arms name declared variants, are exhaustive and
+    non-duplicated, bind the right payload arity, and have their bodies checked
+    with the payload binders typed (a scoped sub-walk, since the flat walk treats
+    `Produces` as a leaf)."""
+    seen: set[str] = set()
+    for arm in stmt.arms:
+        if arm.tag not in variant.cases:
+            bag.error(
+                f"produces names unknown variant '{arm.tag}' of '{stmt.define}'",
+                arm.span,
+            )
+            continue
+        if arm.tag in seen:
+            bag.error(f"duplicate arm '{arm.tag}' in produces", arm.span)
+        seen.add(arm.tag)
+        payload_types = variant.cases[arm.tag]
+        if len(arm.binders) != len(payload_types):
+            bag.error(
+                f"arm '{arm.tag}' binds {len(arm.binders)} value(s), "
+                f"expected {len(payload_types)}",
+                arm.span,
+            )
+        arm_env = env
+        for binder, t in zip(arm.binders, payload_types):
+            arm_env = arm_env.with_local(binder, t)
+        for body_stmt in arm.body:
+            for sub in _stmt_tree(body_stmt):
+                for expr in _stmt_exprs(sub):
+                    _check_expr(expr, arm_env, bag)
+                _check_stmt_semantics(sub, arm_env, bag)
+    missing = sorted(set(variant.cases) - seen)
+    if missing:
+        bag.error(
+            f"produces on '{stmt.define}' is not exhaustive: missing "
+            f"{', '.join(missing)}",
+            stmt.span,
+        )
+
+
 def typecheck(game: Game) -> Game:
     bag = DiagnosticBag()
 
@@ -430,15 +623,23 @@ def typecheck(game: Game) -> Game:
         )
 
     env = env_from_game(game)
+    variants = variant_registry(game, env.structs)
     for stmt in _all_statements(game):
         for expr in _stmt_exprs(stmt):
             _check_expr(expr, env, bag)
-        if isinstance(stmt, n.AssignStmt):
-            _check_assign(stmt, env, bag)
-        elif isinstance(stmt, n.IfStmt):
-            _check_bool(stmt.cond, env, bag, "if condition")
-        elif isinstance(stmt, n.RepeatUntil):
-            _check_bool(stmt.cond, env, bag, "repeat-until condition")
+        if isinstance(stmt, n.Produces):
+            variant = variants.get(stmt.define)
+            if variant is not None:
+                _check_produces(stmt, variant, env, bag)
+        else:
+            _check_stmt_semantics(stmt, env, bag)
+    for define in game.defines:
+        variant = variants.get(define.name)
+        if variant is not None:
+            _check_define_outcomes(define, variant, env, bag)
+    for stmt in _non_define_statements(game):
+        if isinstance(stmt, n.Produce):
+            bag.error("'produce' may only appear in a define body", stmt.span)
     for phase in _all_phases(game):
         if phase.qualifier is not None:
             _check_expr(phase.qualifier.expr, env, bag)

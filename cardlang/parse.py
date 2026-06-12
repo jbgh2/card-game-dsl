@@ -268,6 +268,35 @@ class _Builder(Transformer[Token, n.Game]):
     def state_block(self, meta: Meta, c: list[n.StateDecl]) -> n.StateBlock:
         return n.StateBlock(decls=tuple(c), span=self._span(meta))
 
+    # --- user-defined types ---
+
+    def struct_field(self, meta: Meta, c: list[object]) -> n.StructField:
+        assert isinstance(c[1], _TypeName)
+        return n.StructField(
+            name=str(c[0]),
+            type_name=c[1].name,
+            optional=c[1].optional,
+            span=self._span(meta),
+        )
+
+    def derived_field(self, meta: Meta, c: list[object]) -> n.DerivedField:
+        return n.DerivedField(
+            name=str(c[0]), value=_as_expr(c[1]), span=self._span(meta)
+        )
+
+    def derived_block(
+        self, meta: Meta, c: list[n.DerivedField]
+    ) -> tuple[n.DerivedField, ...]:
+        return tuple(c)
+
+    def type_def(self, meta: Meta, c: list[object]) -> n.TypeDef:
+        name = str(c[0])
+        fields = tuple(x for x in c if isinstance(x, n.StructField))
+        derived = next((x for x in c if isinstance(x, tuple)), ())
+        return n.TypeDef(
+            name=name, fields=fields, derived=derived, span=self._span(meta)
+        )
+
     # --- phases ---
 
     def phase_repeats(self, meta: Meta, c: list[object]) -> n.PhaseQualifier:
@@ -644,6 +673,16 @@ class _Builder(Transformer[Token, n.Game]):
             obj=_as_expr(c[0]), index=_as_expr(c[1]), span=self._span(meta)
         )
 
+    def field_init(self, meta: Meta, c: list[object]) -> n.FieldInit:
+        return n.FieldInit(name=str(c[0]), value=_as_expr(c[1]), span=self._span(meta))
+
+    def struct_lit(self, meta: Meta, c: list[object]) -> n.StructLit:
+        return n.StructLit(
+            type_name=str(c[0]),
+            fields=tuple(x for x in c[1:] if isinstance(x, n.FieldInit)),
+            span=self._span(meta),
+        )
+
     def card_literal(self, meta: Meta, c: list[object]) -> n.CardLiteral:
         return n.CardLiteral(rank=str(c[0]), suit=str(c[1]), span=self._span(meta))
 
@@ -749,6 +788,49 @@ class _Builder(Transformer[Token, n.Game]):
     def move_effect(self, meta: Meta, c: list[object]) -> _MoveEffect:
         return _MoveEffect(tuple(_as_stmt(s) for s in c))
 
+    def variant_case(self, meta: Meta, c: list[object]) -> n.VariantCase:
+        # c: NAME(tag), then 0+ NAME payload-type tokens (a None placeholder
+        # stands in for the absent optional group — filter to real tokens).
+        payloads = tuple(str(x) for x in c[1:] if isinstance(x, Token))
+        return n.VariantCase(tag=str(c[0]), payload_types=payloads, span=self._span(meta))
+
+    def variant_set(
+        self, meta: Meta, c: list[n.VariantCase]
+    ) -> tuple[n.VariantCase, ...]:
+        return tuple(c)
+
+    def define_def(self, meta: Meta, c: list[object]) -> n.DefineDef:
+        name = str(c[0])
+        cases = next(x for x in c if isinstance(x, tuple))
+        body = tuple(
+            _as_stmt(s)
+            for s in c[1:]
+            if s is not None and not isinstance(s, (str, tuple, Token))
+        )
+        return n.DefineDef(name=name, cases=cases, body=body, span=self._span(meta))
+
+    def produce_stmt(self, meta: Meta, c: list[object]) -> n.Produce:
+        # The optional payload group may leave a None placeholder; drop it.
+        payloads = tuple(_as_expr(x) for x in c[1:] if x is not None)
+        return n.Produce(tag=str(c[0]), payloads=payloads, span=self._span(meta))
+
+    def produce_arm(self, meta: Meta, c: list[object]) -> n.ProduceArm:
+        # c: NAME(tag), 0+ NAME binder tokens (or a None placeholder), then 0+
+        # lowered statements. Binders are Tokens; body statements are nodes.
+        tag = str(c[0])
+        binders = tuple(str(x) for x in c[1:] if isinstance(x, Token))
+        body = tuple(
+            _as_stmt(s) for s in c[1:] if s is not None and not isinstance(s, Token)
+        )
+        return n.ProduceArm(tag=tag, binders=binders, body=body, span=self._span(meta))
+
+    def produces_stmt(self, meta: Meta, c: list[object]) -> n.Produces:
+        return n.Produces(
+            define=str(c[0]),
+            arms=tuple(x for x in c[1:] if isinstance(x, n.ProduceArm)),
+            span=self._span(meta),
+        )
+
     def move_type_def(self, meta: Meta, c: list[object]) -> n.MoveTypeDef:
         name = str(c[0])
         guard: object | None = None
@@ -767,7 +849,16 @@ class _Builder(Transformer[Token, n.Game]):
         rules = tuple(x for x in c if isinstance(x, n.RuleDef))
         routings = tuple(x for x in c if isinstance(x, n.RoutingDef))
         move_types = tuple(x for x in c if isinstance(x, n.MoveTypeDef))
-        return replace(game, rules=rules, routings=routings, move_types=move_types)
+        types = tuple(x for x in c if isinstance(x, n.TypeDef))
+        defines = tuple(x for x in c if isinstance(x, n.DefineDef))
+        return replace(
+            game,
+            rules=rules,
+            routings=routings,
+            move_types=move_types,
+            types=types,
+            defines=defines,
+        )
 
 
 def _as_expr(value: object) -> n.Expr:

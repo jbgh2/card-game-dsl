@@ -48,6 +48,8 @@ def emit(game: n.Game) -> IRDict:
         "rules": [_rule(r) for r in game.rules],
         "routings": [_routing(r) for r in game.routings],
         "move_types": [_move_type(m) for m in game.move_types],
+        "types": [_type_def(t) for t in game.types],
+        "defines": [_define(d) for d in game.defines],
     }
 
 
@@ -81,6 +83,42 @@ def _move_type(m: n.MoveTypeDef) -> IRDict:
         "name": m.name,
         "guard": _expr(m.guard) if m.guard is not None else None,
         "effect": [_stmt(s) for s in m.effect],
+    }
+
+
+def _type_def(t: n.TypeDef) -> IRDict:
+    return {
+        "kind": "type_def",
+        "name": t.name,
+        "fields": [
+            {
+                "kind": "struct_field",
+                "name": f.name,
+                "type": f.type_name,
+                "optional": f.optional,
+            }
+            for f in t.fields
+        ],
+        "derived": [
+            {"kind": "derived_field", "name": d.name, "value": _expr(d.value)}
+            for d in t.derived
+        ],
+    }
+
+
+def _define(d: n.DefineDef) -> IRDict:
+    return {
+        "kind": "define",
+        "name": d.name,
+        "cases": [
+            {
+                "kind": "variant_case",
+                "tag": c.tag,
+                "payload_types": list(c.payload_types),
+            }
+            for c in d.cases
+        ],
+        "body": [_stmt(s) for s in d.body],
     }
 
 
@@ -247,6 +285,26 @@ def _stmt(s: n.Stmt) -> IRDict:
                 "outcome_fn": s.outcome_fn,
                 "trump": _expr(s.trump) if s.trump is not None else None,
             }
+        case n.Produce():
+            return {
+                "kind": "produce",
+                "tag": s.tag,
+                "payloads": [_expr(p) for p in s.payloads],
+            }
+        case n.Produces():
+            return {
+                "kind": "produces",
+                "define": s.define,
+                "arms": [
+                    {
+                        "kind": "produce_arm",
+                        "tag": a.tag,
+                        "binders": list(a.binders),
+                        "body": [_stmt(x) for x in a.body],
+                    }
+                    for a in s.arms
+                ],
+            }
         case _ as unreachable:
             assert_never(unreachable)
 
@@ -312,6 +370,15 @@ def _expr(e: n.Expr) -> IRDict:
             return {"kind": "member", "obj": _expr(e.obj), "field": e.field}
         case n.Subscript():
             return {"kind": "subscript", "obj": _expr(e.obj), "index": _expr(e.index)}
+        case n.StructLit():
+            return {
+                "kind": "struct_lit",
+                "type": e.type_name,
+                "fields": [
+                    {"kind": "field_init", "name": fi.name, "value": _expr(fi.value)}
+                    for fi in e.fields
+                ],
+            }
         case n.Call():
             return {"kind": "call", "func": e.func, "args": [_arg(a) for a in e.args]}
         case n.MethodCall():

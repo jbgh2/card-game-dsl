@@ -737,5 +737,7 @@
       ]
     }
   ],
-  "move_types": []
+  "move_types": [],
+  "types": [],
+  "defines": []
 }

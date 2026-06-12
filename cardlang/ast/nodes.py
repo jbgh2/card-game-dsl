@@ -84,6 +84,24 @@ class Subscript:
 
 
 @dataclass(frozen=True, slots=True)
+class FieldInit:
+    """One `name: value` pair in a struct literal."""
+
+    name: str
+    value: Expr
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class StructLit:
+    """`TypeName { field: expr, … }` — constructs a user-defined struct value."""
+
+    type_name: str
+    fields: tuple[FieldInit, ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Call:
     """A function call, e.g. `player_holding(2 of clubs)`."""
 
@@ -220,6 +238,7 @@ Expr = (
     | AllPlayers
     | Member
     | Subscript
+    | StructLit
     | Call
     | MethodCall
     | BinOp
@@ -345,6 +364,35 @@ class AssignStmt:
 
 
 @dataclass(frozen=True, slots=True)
+class Produce:
+    """`produce TAG[(expr, …)]` — terminal in a define body; sets the variant
+    result and unwinds the body."""
+
+    tag: str
+    payloads: tuple[Expr, ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ProduceArm:
+    """One arm of a `produces:` block: a tag, payload binders, and a body."""
+
+    tag: str
+    binders: tuple[str, ...]
+    body: tuple[Stmt, ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Produces:
+    """`NAME produces: <arm>+` — invoke a define and match its variant result."""
+
+    define: str
+    arms: tuple[ProduceArm, ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Offer:
     """`offer to <player> one of [<move_type>, ...]` — the acting player chooses
     one legal move-type; its effect runs with `actor` bound to that player."""
@@ -385,6 +433,8 @@ Stmt = (
     | AssignStmt
     | Offer
     | Round
+    | Produce
+    | Produces
 )
 
 
@@ -558,6 +608,56 @@ class MoveTypeDef:
     span: Span | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class VariantCase:
+    """One case of a variant outcome: a tag with zero or more typed payloads."""
+
+    tag: str
+    payload_types: tuple[str, ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DefineDef:
+    """`define NAME -> { case(T) | … } { <stmt>* }` — a param-light definition
+    that produces one variant. Runs with the enclosing context bound."""
+
+    name: str
+    cases: tuple[VariantCase, ...]
+    body: tuple[Stmt, ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class StructField:
+    """A declared struct field: `name : Type['?']`."""
+
+    name: str
+    type_name: str
+    optional: bool
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DerivedField:
+    """A computed struct field: `name = <expr>` over the declared fields."""
+
+    name: str
+    value: Expr
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class TypeDef:
+    """`type Name = { field: T … } [derived { name = expr … }]` — a user-defined
+    struct value type."""
+
+    name: str
+    fields: tuple[StructField, ...]
+    derived: tuple[DerivedField, ...]
+    span: Span | None = None
+
+
 # ---------------------------------------------------------------------------
 # Game-level
 # ---------------------------------------------------------------------------
@@ -623,6 +723,8 @@ class Game:
     rules: tuple[RuleDef, ...] = ()
     routings: tuple[RoutingDef, ...] = ()
     move_types: tuple[MoveTypeDef, ...] = ()
+    types: tuple[TypeDef, ...] = ()
+    defines: tuple[DefineDef, ...] = ()
     span: Span | None = None
 
 
@@ -634,6 +736,11 @@ Node = (
     | Loser
     | RoutingDef
     | MoveTypeDef
+    | VariantCase
+    | DefineDef
+    | StructField
+    | DerivedField
+    | TypeDef
     | ZoneDecl
     | TypeRef
     | TypeArg
@@ -663,6 +770,9 @@ Node = (
     | AssignStmt
     | Offer
     | Round
+    | Produce
+    | ProduceArm
+    | Produces
     | NamedArg
     | NameRef
     | IntLit
@@ -671,6 +781,8 @@ Node = (
     | AllPlayers
     | Member
     | Subscript
+    | FieldInit
+    | StructLit
     | Call
     | MethodCall
     | BinOp

@@ -11,7 +11,7 @@ from typing import Any, assert_never
 
 from cardlang.ast import nodes as n
 from cardlang.runtime import stdlib
-from cardlang.runtime.state import Ctx, Move, Zone
+from cardlang.runtime.state import Ctx, Move, StructValue, Zone
 from cardlang.runtime.values import Card
 
 
@@ -28,7 +28,11 @@ def evaluate(e: n.Expr, ctx: Ctx) -> Any:
         case n.AllPlayers():
             return list(ctx.rs.seating.players)
         case n.Member():
-            return _member(evaluate(e.obj, ctx), e.field)
+            return _member_eval(e, ctx)
+        case n.StructLit():
+            return StructValue(
+                e.type_name, {fi.name: evaluate(fi.value, ctx) for fi in e.fields}
+            )
         case n.Subscript():
             return _subscript(e, ctx)
         case n.Call():
@@ -113,11 +117,28 @@ def _pronoun(name: str, ctx: Ctx) -> Any:
             raise AssertionError(f"unknown pronoun '{name}'")
 
 
+def _member_eval(e: n.Member, ctx: Ctx) -> Any:
+    obj = evaluate(e.obj, ctx)
+    if isinstance(obj, StructValue) and e.field not in obj.fields:
+        # A derived field: compute its expression with the struct's declared
+        # fields bound as locals (the scoped resolve pass classified those bare
+        # field references as `"local"`).
+        tdef = ctx.rs.type_index[obj.type_name]
+        derived = next(d for d in tdef.derived if d.name == e.field)
+        dctx = ctx
+        for k, v in obj.fields.items():
+            dctx = dctx.with_local(k, v)
+        return evaluate(derived.value, dctx)
+    return _member(obj, e.field)
+
+
 def _member(obj: Any, field: str) -> Any:
     if isinstance(obj, Card):
         return getattr(obj, field)
     if isinstance(obj, Move):
         return getattr(obj, field)
+    if isinstance(obj, StructValue):
+        return obj.fields[field]
     if isinstance(obj, dict):
         return obj[field]
     raise AssertionError(f"cannot read field '{field}' of {obj!r}")
