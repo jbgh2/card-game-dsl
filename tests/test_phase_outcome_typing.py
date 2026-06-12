@@ -226,6 +226,25 @@ game G {
     assert "second" in str(ei.value) or "later sibling" in str(ei.value)
 
 
+def test_rejects_continue_to_in_a_define_body() -> None:
+    # Control flow outside a phase body (here a define) would escape play_game.
+    src = """
+define D -> { go } { produce go  continue to p }
+game G {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase p { }
+  winner: highest score
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "phase body" in str(ei.value)
+
+
 def test_rejects_skip_to_next_hand_in_a_lifecycle_hook() -> None:
     # `run_phase` only catches `_SkipHand` around the phase body, not the hooks, so
     # a skip from before_each/after_each would abort the run — reject it statically.

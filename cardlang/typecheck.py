@@ -720,6 +720,23 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
         before = {nm for j, nm in top_at.items() if j < idx}
         walk(phase, before, set(), False)
 
+    # `continue to` / `skip to next hand` are phase control flow. Outside a phase
+    # body — in a define, routing, or move-type body — they would unwind out of
+    # `play_game` uncaught, so reject them there.
+    non_phase_bodies = (
+        [d.body for d in game.defines]
+        + [r.body for r in game.routings]
+        + [m.effect for m in game.move_types]
+    )
+    for body in non_phase_bodies:
+        for s in body:
+            for node in _control_flow_nodes(s):
+                bag.error(
+                    "'continue to' / 'skip to next hand' may only appear in a phase "
+                    "body",
+                    node.span,
+                )
+
 
 def _check_phase_produces(
     phase: n.Phase,

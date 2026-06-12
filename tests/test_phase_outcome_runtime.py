@@ -160,6 +160,42 @@ game G {
         play_game(game, random.Random(0))
 
 
+def test_skipped_child_producer_leaves_no_stale_across_iterations() -> None:
+    # Iter 1 produces but its consumer is skipped by a `continue to`; iter 2 must
+    # not let a later consumer pop iter 1's stale child outcome (the loop clears
+    # its whole subtree each iteration, not just its own entry).
+    import pytest
+
+    src = """
+game G {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { k : Integer = 0  points[player] : Integer = 0 }
+  phase loop repeats until (k >= 2) {
+    before_each { k := k + 1 }
+    phase prod -> outcome { val(Integer) } when (k == 1) { produce val(1) }
+    phase router -> outcome { go_consume | skip_consume } {
+      if (k == 1) { produce skip_consume } else { produce go_consume }
+    }
+    router produces:
+      skip_consume { continue to tail }
+      go_consume   { }
+    phase consumer {
+      prod produces:
+        val(x) { points[0] += x }
+    }
+    phase tail { }
+  }
+  winner: highest points
+}
+"""
+    game = check_dsl(src, "g.cardlang")
+    with pytest.raises(AssertionError, match="did not produce"):
+        play_game(game, random.Random(0))
+
+
 def test_guarded_off_outcome_phase_leaves_no_stale_outcome() -> None:
     # An outcome phase guarded off on a later hand must not leave a prior hand's
     # outcome for a consumer to pop (the phase clears its own entry on entry). The

@@ -132,6 +132,21 @@ class _HandCounter:
         self.value = 0
 
 
+def _subtree_outcome_names(phase: n.Phase) -> set[str]:
+    """Names of every outcome-declaring phase in `phase`'s subtree (inclusive)."""
+    names: set[str] = set()
+
+    def rec(p: n.Phase) -> None:
+        if p.outcome_cases:
+            names.add(p.name)
+        for item in p.items:
+            if isinstance(item, n.Phase):
+                rec(item)
+
+    rec(phase)
+    return names
+
+
 def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
     ctx.rs.push_frame()
     try:
@@ -152,6 +167,11 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
 
         q = phase.qualifier
         if q is not None and q.kind == "repeats":
+            # Each new hand discards any outcome produced inside this loop's subtree
+            # in the prior iteration (a producer skipped by `continue to`, or
+            # guarded off). Scoped to descendants, so a sibling/ancestor outcome
+            # pending across this loop is preserved.
+            loop_outcomes = _subtree_outcome_names(phase)
             guard = 0
             while not evaluate(q.expr, ctx):
                 # A `repeats until` whose condition never holds (e.g. a win
@@ -166,11 +186,8 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
                         "`repeats until` condition holding (non-termination?)"
                     )
                 ctx.rs.fired_transitions.clear()  # transitions reset each iteration
-                if phase.outcome_cases:
-                    # An outcome phase that itself repeats: drop the prior
-                    # iteration's own result so a guarded/non-producing iteration
-                    # doesn't leave stale data for the consumer after the loop.
-                    ctx.rs.phase_outcomes.pop(phase.name, None)
+                for nm in loop_outcomes:
+                    ctx.rs.phase_outcomes.pop(nm, None)
                 if before is not None:
                     run_stmts(before.body, ctx)
                 try:
