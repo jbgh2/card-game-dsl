@@ -725,11 +725,16 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
             for arm in stmt.arms:
                 for s in arm.body:
                     check_produces_scope(s, avail)  # the arm runs at this position
-        elif isinstance(stmt, n.RepeatUntil):
-            for s in stmt.body:
-                check_produces_scope(s, set())  # the loop reruns; producers do not
-        elif isinstance(stmt, (n.ForEach, n.EachSimultaneous)):
-            check_produces_scope(stmt.body, avail)
+        elif isinstance(stmt, (n.RepeatUntil, n.ForEach, n.EachSimultaneous)):
+            # Any statement-level loop reruns its body; a run-once phase producer
+            # is gone after the first iteration, so none are available inside.
+            bodies = (
+                stmt.body
+                if isinstance(stmt, n.RepeatUntil)
+                else (stmt.body,)
+            )
+            for s in bodies:
+                check_produces_scope(s, set())
         elif isinstance(stmt, n.IfStmt):
             for s in stmt.then_body:
                 check_produces_scope(s, avail)
@@ -783,6 +788,15 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                     if isinstance(item, (n.BeforeEach, n.AfterEach))
                     else (item,)
                 )
+                # Hooks run by timing, not lexical position: before_each runs
+                # before the whole body (no producer has run), after_each after it
+                # (all body producers have).
+                if isinstance(item, n.BeforeEach):
+                    avail = set()
+                elif isinstance(item, n.AfterEach):
+                    avail = set(child_outcome_at.values())
+                else:
+                    avail = earlier
                 for s in stmts:
                     for node in _control_flow_nodes(s):
                         if in_hook:
@@ -806,7 +820,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                                 "hand loop",
                                 node.span,
                             )
-                    check_produces_scope(s, earlier)
+                    check_produces_scope(s, avail)
 
     # Top-level phases are siblings of each other (they run in sequence), so a
     # `produces:` consumer in a later top-level phase can name an earlier one

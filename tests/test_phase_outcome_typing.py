@@ -492,6 +492,56 @@ game G {
     assert "decide" in str(ei.value) or "earlier sibling" in str(ei.value)
 
 
+def test_rejects_phase_consumer_inside_a_for_each() -> None:
+    # `for each` loops, so a run-once phase producer is gone after the first
+    # player's dispatch.
+    src = """
+game G {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase round {
+    phase decide -> outcome { val(Integer) } { produce val(5) }
+    for each player p:
+      decide produces:
+        val(x) { score[p] += x }
+  }
+  winner: highest score
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "decide" in str(ei.value) or "earlier sibling" in str(ei.value)
+
+
+def test_rejects_phase_consumer_in_before_each_hook() -> None:
+    # `before_each` runs before the phase body, so a sibling producer has not run
+    # yet when the hook's consumer executes.
+    src = """
+game G {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0  k : Integer = 0 }
+  phase loop repeats until (k >= 2) {
+    phase prod -> outcome { val(Integer) } { produce val(5) }
+    before_each {
+      k := k + 1
+      prod produces:
+        val(x) { score[0] += x }
+    }
+  }
+  winner: highest score
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "prod" in str(ei.value) or "earlier sibling" in str(ei.value)
+
+
 def test_rejects_outcome_phase_define_name_collision() -> None:
     # An outcome phase named like a define would shadow it in the shared registry
     # and the runtime phase_outcomes dict.
