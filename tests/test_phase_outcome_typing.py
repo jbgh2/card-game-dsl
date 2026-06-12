@@ -542,6 +542,34 @@ game G {
     assert "prod" in str(ei.value) or "earlier sibling" in str(ei.value)
 
 
+def test_rejects_consumer_of_a_producer_a_jump_can_skip() -> None:
+    # `decide` jumps to `tail`, skipping `prod`; a consumer of `prod` after `tail`
+    # can't rely on it having run.
+    src = """
+game G {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase round {
+    phase decide -> outcome { go | stay } { produce go }
+    decide produces:
+      go   { continue to tail }
+      stay { }
+    phase prod -> outcome { val(Integer) } { produce val(5) }
+    phase tail { }
+    prod produces:
+      val(x) { score[0] += x }
+  }
+  winner: highest score
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "prod" in str(ei.value) or "earlier sibling" in str(ei.value)
+
+
 def test_rejects_outcome_phase_define_name_collision() -> None:
     # An outcome phase named like a define would shadow it in the shared registry
     # and the runtime phase_outcomes dict.

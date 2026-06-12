@@ -622,6 +622,26 @@ def _produces_in(stmt: n.Stmt) -> Iterator[n.Produces]:
                     yield from _produces_in(s)
 
 
+def _continue_targets_in_item(item: "n.PhaseItem") -> set[str]:
+    """Every `continue to` target reachable while executing one phase-body item,
+    recursing into nested phases (a jump there can unwind to this body) and
+    statement bodies. Hooks/config carry none (control flow in hooks is rejected)."""
+    targets: set[str] = set()
+    if isinstance(item, n.Phase):
+        for sub in item.items:
+            targets |= _continue_targets_in_item(sub)
+    elif isinstance(
+        item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.TransitionTo,
+               n.BeforeEach, n.AfterEach)
+    ):
+        pass
+    else:
+        for node in _control_flow_nodes(item):
+            if isinstance(node, n.ContinueTo):
+                targets.add(node.target)
+    return targets
+
+
 def _control_flow_nodes(stmt: n.Stmt) -> Iterator[n.Stmt]:
     """Yield ContinueTo/SkipToNextHand within a statement, descending through
     if/repeat/for-each and `produces:` arm bodies."""
@@ -762,10 +782,23 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
             for idx, it in enumerate(items)
             if isinstance(it, n.Phase) and it.outcome_cases and it.qualifier is None
         }
+        # A `continue to T` at position j jumps over items (j, k) where k is T's
+        # index (or the body's end if T is an outer phase). A producer in that gap
+        # may be skipped, so it is not reliably available to any later consumer.
+        child_idx_by_name = {name: idx for idx, name in child_at.items()}
+        skippable: set[str] = set()
+        for j, it in enumerate(items):
+            for target in _continue_targets_in_item(it):
+                # A target outside this body unwinds past it, skipping the rest.
+                k = child_idx_by_name.get(target, len(items))
+                for i, nm in child_outcome_at.items():
+                    if j < i < k:
+                        skippable.add(nm)
         for idx, item in enumerate(items):
-            earlier = before_outcomes | {
-                nm for j, nm in child_outcome_at.items() if j < idx
-            }
+            earlier = (
+                before_outcomes
+                | {nm for j, nm in child_outcome_at.items() if j < idx}
+            ) - skippable
             later = after_phases | {nm for j, nm in child_at.items() if j > idx}
             if isinstance(item, n.Phase):
                 # A consumer inside a `repeats until` body can only rely on a
@@ -794,7 +827,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                 if isinstance(item, n.BeforeEach):
                     avail = set()
                 elif isinstance(item, n.AfterEach):
-                    avail = set(child_outcome_at.values())
+                    avail = set(child_outcome_at.values()) - skippable
                 else:
                     avail = earlier
                 for s in stmts:
