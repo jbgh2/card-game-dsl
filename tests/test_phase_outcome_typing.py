@@ -226,6 +226,34 @@ game G {
     assert "second" in str(ei.value) or "later sibling" in str(ei.value)
 
 
+def test_produces_consumer_requires_an_earlier_OUTCOME_sibling() -> None:
+    # The earlier sibling `decide` is a normal phase (writes no outcome); a global
+    # outcome phase of the same name in another branch must not satisfy the scope
+    # check — the consumer would fail at runtime with "did not produce".
+    src = """
+game G {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase branch {
+    phase decide { }
+    decide produces:
+      a { score[0] += 1 }
+      b { score[0] += 0 }
+  }
+  phase other {
+    phase decide -> outcome { a | b } { produce a }
+  }
+  winner: highest score
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "decide" in str(ei.value) or "earlier sibling" in str(ei.value)
+
+
 def test_rejects_outcome_phase_define_name_collision() -> None:
     # An outcome phase named like a define would shadow it in the shared registry
     # and the runtime phase_outcomes dict.

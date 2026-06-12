@@ -670,18 +670,30 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
     outcome_phases = {p.name for p in _all_phases(game) if p.outcome_cases}
 
     def walk(
-        phase: n.Phase, before: set[str], after: set[str], in_hand_loop: bool
+        phase: n.Phase,
+        before_outcomes: set[str],
+        after_phases: set[str],
+        in_hand_loop: bool,
     ) -> None:
         here_loop = in_hand_loop or (
             phase.qualifier is not None and phase.qualifier.kind == "repeats"
         )
         items = phase.items
+        # All child phases are valid `continue to` targets; only outcome-declaring
+        # ones can be `produces:` producers (only they write `phase_outcomes`).
         child_at = {
             idx: it.name for idx, it in enumerate(items) if isinstance(it, n.Phase)
         }
+        child_outcome_at = {
+            idx: it.name
+            for idx, it in enumerate(items)
+            if isinstance(it, n.Phase) and it.outcome_cases
+        }
         for idx, item in enumerate(items):
-            earlier = before | {nm for j, nm in child_at.items() if j < idx}
-            later = after | {nm for j, nm in child_at.items() if j > idx}
+            earlier = before_outcomes | {
+                nm for j, nm in child_outcome_at.items() if j < idx
+            }
+            later = after_phases | {nm for j, nm in child_at.items() if j > idx}
             if isinstance(item, n.Phase):
                 walk(item, earlier, later, here_loop)
             elif isinstance(item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.TransitionTo)):
@@ -737,9 +749,11 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
     # phases with a plain loop (no enclosing `run_body`), so a `continue to`
     # targeting a *later top-level* phase has nowhere to be caught and must be
     # rejected — only later phases within a `run_body` are valid jump targets.
-    top_at = {idx: p.name for idx, p in enumerate(game.phases)}
+    top_outcome_at = {
+        idx: p.name for idx, p in enumerate(game.phases) if p.outcome_cases
+    }
     for idx, phase in enumerate(game.phases):
-        before = {nm for j, nm in top_at.items() if j < idx}
+        before = {nm for j, nm in top_outcome_at.items() if j < idx}
         walk(phase, before, set(), False)
 
     # `continue to` / `skip to next hand` are phase control flow. Outside a phase
