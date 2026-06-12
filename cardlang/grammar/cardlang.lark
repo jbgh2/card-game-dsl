@@ -80,7 +80,10 @@ loser: "loser" ":" expr
 // Phases
 // ----------------------------------------------------------------------------
 
-phase: "phase" NAME [phase_qualifier] "{" phase_item* "}"
+phase: "phase" NAME [phase_outcome] [phase_qualifier] "{" phase_item* "}"
+// A phase that can resolve more than one way declares its variant outcome type
+// here; the enclosing structure pattern-matches on it with `produces:`.
+phase_outcome: "->" "outcome" variant_set
 phase_qualifier: "repeats" "until" expr   -> phase_repeats
                | "when" expr              -> phase_when
 
@@ -131,6 +134,14 @@ move_event: NAME ["where" expr]
           | round_stmt
           | produce_stmt
           | produces_stmt
+          | continue_to
+          | skip_stmt
+
+// Imperative phase control flow, used in `produces:` arms (decisions.md "Typed
+// phase outcomes"): jump forward to a named sibling phase, or abort the rest of
+// this hand and continue the enclosing `repeats until` hand loop.
+continue_to: "continue" "to" NAME
+skip_stmt: "skip" "to" "next" "hand"
 
 // Terminal in a `define` body: sets the variant result and unwinds the body.
 produce_stmt: "produce" NAME ["(" expr ("," expr)* ")"]
@@ -217,7 +228,10 @@ move_effect: "effect" "{" statement* "}"
 // variant. Consumed by a `produces:` block (see produces_stmt).
 define_def: "define" NAME "->" variant_set "{" statement* "}"
 variant_set: "{" variant_case ("|" variant_case)* "}"
-variant_case: NAME ["(" NAME ("," NAME)* ")"]
+variant_case: NAME ["(" payload_type ("," payload_type)* ")"]
+// A payload type, optionally nullable (`Suit?` — Bridge's no-trump strain).
+payload_type: NAME      -> payload_plain
+            | NAME "?"   -> payload_optional
 
 rule_def: "rule" NAME "{" rule_clause* "}"
 ?rule_clause: constrains

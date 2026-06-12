@@ -393,6 +393,23 @@ class Produces:
 
 
 @dataclass(frozen=True, slots=True)
+class ContinueTo:
+    """`continue to <phase>` — in a `produces:` arm, resume the phase sequence at
+    a named later sibling phase, skipping any phases between."""
+
+    target: str
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SkipToNextHand:
+    """`skip to next hand` — in a `produces:` arm, abort the rest of this hand and
+    continue the enclosing `repeats until` hand loop's next iteration."""
+
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Offer:
     """`offer to <player> one of [<move_type>, ...]` — the acting player chooses
     one legal move-type; its effect runs with `actor` bound to that player."""
@@ -435,6 +452,8 @@ Stmt = (
     | Round
     | Produce
     | Produces
+    | ContinueTo
+    | SkipToNextHand
 )
 
 
@@ -553,6 +572,9 @@ class Phase:
     name: str
     qualifier: PhaseQualifier | None
     items: tuple[PhaseItem, ...]
+    # A phase that resolves more than one way declares its variant cases here
+    # (`phase NAME -> outcome { ... }`); empty for the usual single-outcome phase.
+    outcome_cases: tuple[VariantCase, ...] = ()
     span: Span | None = None
 
 

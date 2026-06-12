@@ -12,7 +12,7 @@ from typing import Any, assert_never
 from cardlang.ast import nodes as n
 from cardlang.runtime import mechanics
 from cardlang.runtime.evaluate import evaluate
-from cardlang.runtime.state import Ctx, Zone, _ProduceSignal
+from cardlang.runtime.state import Ctx, Zone, _ContinueTo, _ProduceSignal, _SkipHand
 from cardlang.runtime.values import Card, Player
 
 
@@ -61,6 +61,10 @@ def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
         case n.Produces():
             _produces(stmt, ctx)
             return ctx
+        case n.ContinueTo():
+            raise _ContinueTo(stmt.target)
+        case n.SkipToNextHand():
+            raise _SkipHand()
         case _ as unreachable:
             assert_never(unreachable)
 
@@ -228,21 +232,38 @@ def _move_legal(mt: n.MoveTypeDef, ctx: Ctx) -> bool:
 
 
 def _produces(stmt: n.Produces, ctx: Ctx) -> None:
-    # Run the named define's body; it `produce`s a variant via `_ProduceSignal`.
     # Dispatch to the matching arm and bind the payloads as arm locals. No frame
     # is pushed (the routing precedent); `let`-locals thread via the immutable
-    # `Ctx`, and the signal unwind leaves no state to clean up.
-    define = ctx.rs.define_index[stmt.define]
+    # `Ctx`, and the signal unwind leaves no state to clean up. The produced
+    # outcome comes from either an outcome-declaring phase that already ran (and
+    # stashed it by name), or a `define` invoked here.
+    if stmt.define in ctx.rs.phase_outcomes:
+        tag, payloads = ctx.rs.phase_outcomes.pop(stmt.define)
+    elif stmt.define in ctx.rs.define_index:
+        tag, payloads = _run_define(stmt.define, ctx)
+    else:
+        raise AssertionError(
+            f"phase '{stmt.define}' did not produce an outcome before its consumer"
+        )
+    arm = next((a for a in stmt.arms if a.tag == tag), None)
+    if arm is None:
+        raise AssertionError(
+            f"'{stmt.define}' produced '{tag}', which no produces: arm matches"
+        )
+    arm_ctx = ctx
+    for binder, value in zip(arm.binders, payloads):
+        arm_ctx = arm_ctx.with_local(binder, value)
+    run_body(arm.body, arm_ctx)
+
+
+def _run_define(name: str, ctx: Ctx) -> tuple[str, list[Any]]:
+    """Run a param-light define's body and capture the variant it produces."""
+    define = ctx.rs.define_index[name]
     try:
         run_body(define.body, ctx)
     except _ProduceSignal as produced:
-        arm = next(a for a in stmt.arms if a.tag == produced.tag)
-        arm_ctx = ctx
-        for binder, value in zip(arm.binders, produced.payloads):
-            arm_ctx = arm_ctx.with_local(binder, value)
-        run_body(arm.body, arm_ctx)
-        return
-    raise AssertionError(f"define '{stmt.define}' completed without producing")
+        return produced.tag, produced.payloads
+    raise AssertionError(f"define '{name}' completed without producing")
 
 
 def _each_simultaneous(stmt: n.EachSimultaneous, ctx: Ctx) -> None:

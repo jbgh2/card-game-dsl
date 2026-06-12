@@ -22,12 +22,27 @@ class IllegalMove(Exception):
 
 
 class _ProduceSignal(Exception):
-    """Carries a `produce`d variant (tag + payloads) up to the define runner."""
+    """Carries a `produce`d variant (tag + payloads) up to the define runner or
+    the enclosing outcome-declaring phase."""
 
     def __init__(self, tag: str, payloads: list[Any]) -> None:
         super().__init__(f"produced {tag}")
         self.tag = tag
         self.payloads = payloads
+
+
+class _ContinueTo(Exception):
+    """`continue to <phase>` — unwinds to the enclosing phase body, which resumes
+    the phase sequence at the named sibling."""
+
+    def __init__(self, target: str) -> None:
+        super().__init__(f"continue to {target}")
+        self.target = target
+
+
+class _SkipHand(Exception):
+    """`skip to next hand` — unwinds to the enclosing `repeats until` hand loop,
+    which proceeds to its next iteration (after_each still runs)."""
 
 
 class ChooserAbort(Exception):
@@ -120,6 +135,9 @@ class RuntimeState:
         self.move_type_index: dict[str, n.MoveTypeDef] = {}  # name -> definition
         self.type_index: dict[str, n.TypeDef] = {}  # type name -> definition
         self.define_index: dict[str, n.DefineDef] = {}  # define name -> definition
+        # Outcome a phase produced as it ran, keyed by phase name; consumed (and
+        # cleared) by a later-sibling `produces:` block.
+        self.phase_outcomes: dict[str, tuple[str, list[Any]]] = {}
         self.deck_zone: str = ""  # the Deck-typed zone (initialized full at start)
         self.score_var: str | None = None  # the winner's score var (None for loser games)
         self.trump: str | None = None  # the trump suit, if the game declares one

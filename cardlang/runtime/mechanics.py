@@ -14,7 +14,7 @@ from typing import Any
 from cardlang.ast import nodes as n
 from cardlang.runtime import phases, rules
 from cardlang.runtime.evaluate import evaluate
-from cardlang.runtime.state import Ctx, Move
+from cardlang.runtime.state import Ctx, Move, _ProduceSignal
 from cardlang.runtime.values import SUITS, Card, Player
 
 
@@ -326,12 +326,19 @@ def run_schnapsen_hand(stmt: n.Instantiate, ctx: Ctx) -> Player:
                     hands[p].add(indicator.cards.pop(0))
         leader = winner
 
-    rs.set("talon_closed_by", closed_by)
-    rs.set("claimer", claimer)
-    rs.set("closer_opp_card_points", closer_opp_cp)
-    rs.set("closer_opp_tricks", closer_opp_tr)
-    rs.set("last_trick_winner", last_winner)
-    return last_winner
+    # The hand's typed outcome: the enclosing `phase play -> outcome { ... }`
+    # adopts it, and a `produces:` arm settles the hand in game points. The
+    # claimer's effective opponent totals (closed vs open) are resolved here so
+    # the arm needs only the final figures.
+    if claimer is not None:
+        opp = other(claimer)
+        claimer_closed = closed_by == claimer
+        opp_cp = closer_opp_cp if claimer_closed else card_points[opp]
+        opp_tr = closer_opp_tr if claimer_closed else tricks_won[opp]
+        raise _ProduceSignal("claimed", [claimer, opp_cp, opp_tr])
+    if closed_by is not None:
+        raise _ProduceSignal("talon_closed", [closed_by, closer_opp_tr])
+    raise _ProduceSignal("open_play", [last_winner])
 
 
 # ---------------------------------------------------------------------------
@@ -580,17 +587,13 @@ def run_bridge_auction(stmt: n.Instantiate, ctx: Ctx) -> Player:
             doubled = 4
             passes = 0
 
+    # The auction's typed outcome: the enclosing `phase auction -> outcome { ... }`
+    # adopts the produced variant, and a `produces:` arm sets the contract state.
     if not made_bid:
-        rs.set("all_pass", True)
         ctx.trace("bridge_contract", {"all_pass": True})
-        return opener
+        raise _ProduceSignal("all_pass", [])
     assert high_team is not None
     declarer = strain_first[(high_team, cur_strain)]
-    rs.set("all_pass", False)
-    rs.set("declarer", declarer)
-    rs.set("contract_level", cur_level)
-    rs.set("trump_suit", _STRAINS[cur_strain])
-    rs.set("doubled_mult", doubled)
     ctx.trace(
         "bridge_contract",
         {
@@ -601,7 +604,9 @@ def run_bridge_auction(stmt: n.Instantiate, ctx: Ctx) -> Player:
             "doubled_mult": doubled,
         },
     )
-    return declarer
+    raise _ProduceSignal(
+        "contract_finalized", [declarer, cur_level, _STRAINS[cur_strain], doubled]
+    )
 
 
 def _fire_transitions(

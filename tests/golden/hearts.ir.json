@@ -123,6 +123,7 @@
           }
         }
       },
+      "outcome_cases": [],
       "items": [
         {
           "kind": "state",
@@ -237,6 +238,7 @@
               }
             }
           },
+          "outcome_cases": [],
           "items": [
             {
               "kind": "active_rules",
@@ -312,6 +314,7 @@
           "kind": "phase",
           "name": "first_trick",
           "qualifier": null,
+          "outcome_cases": [],
           "items": [
             {
               "kind": "active_rules",
@@ -463,6 +466,7 @@
           "kind": "phase",
           "name": "play",
           "qualifier": null,
+          "outcome_cases": [],
           "items": [
             {
               "kind": "active_rules",
@@ -484,6 +488,7 @@
               "kind": "phase",
               "name": "hearts_not_broken",
               "qualifier": null,
+              "outcome_cases": [],
               "items": [
                 {
                   "kind": "active_rules",
@@ -531,6 +536,7 @@
               "kind": "phase",
               "name": "hearts_broken",
               "qualifier": null,
+              "outcome_cases": [],
               "items": []
             },
             {
@@ -668,6 +674,7 @@
           "kind": "phase",
           "name": "scoring",
           "qualifier": null,
+          "outcome_cases": [],
           "items": [
             {
               "kind": "let",

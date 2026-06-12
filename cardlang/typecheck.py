@@ -122,18 +122,34 @@ def struct_registry(game: Game) -> dict[str, TStruct]:
     return structs
 
 
+def _payload_type(name: str, structs: Mapping[str, TStruct]) -> "Type":
+    """Resolve a variant payload type name; a trailing `?` marks it nullable."""
+    if name.endswith("?"):
+        return type_from_name(name[:-1], True, structs)
+    return type_from_name(name, False, structs)
+
+
+def _variant_cases(
+    cases: tuple[n.VariantCase, ...], structs: Mapping[str, TStruct]
+) -> dict[str, tuple["Type", ...]]:
+    return {
+        c.tag: tuple(_payload_type(t, structs) for t in c.payload_types) for c in cases
+    }
+
+
 def variant_registry(
     game: Game, structs: Mapping[str, TStruct]
 ) -> dict[str, TVariant]:
-    """Build the variant-outcome type of each `define`: its case tags mapped to
-    their declared payload types."""
+    """Build the variant-outcome type of each `define` and each outcome-declaring
+    `phase`: its case tags mapped to their declared payload types."""
     variants: dict[str, TVariant] = {}
     for d in game.defines:
-        cases = {
-            c.tag: tuple(type_from_name(t, False, structs) for t in c.payload_types)
-            for c in d.cases
-        }
-        variants[d.name] = TVariant(name=d.name, cases=cases)
+        variants[d.name] = TVariant(name=d.name, cases=_variant_cases(d.cases, structs))
+    for phase in _all_phases(game):
+        if phase.outcome_cases:
+            variants[phase.name] = TVariant(
+                name=phase.name, cases=_variant_cases(phase.outcome_cases, structs)
+            )
     return variants
 
 
@@ -535,6 +551,32 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
         _check_bool(stmt.cond, env, bag, "repeat-until condition")
 
 
+def _check_produce_stmt(
+    sub: n.Produce, variant: TVariant, owner: str, env: TypeEnv, bag: DiagnosticBag
+) -> None:
+    """One `produce` names a declared variant and supplies payloads of the
+    declared arity and types."""
+    if sub.tag not in variant.cases:
+        bag.error(f"{owner} produces unknown variant '{sub.tag}'", sub.span)
+        return
+    payload_types = variant.cases[sub.tag]
+    if len(sub.payloads) != len(payload_types):
+        bag.error(
+            f"variant '{sub.tag}' takes {len(payload_types)} payload(s), "
+            f"got {len(sub.payloads)}",
+            sub.span,
+        )
+        return
+    for expr, expected in zip(sub.payloads, payload_types):
+        got = infer(expr, env)
+        if not assignable(got, expected):
+            bag.error(
+                f"variant '{sub.tag}' expects {_type_name(expected)}, "
+                f"got {_type_name(got)}",
+                sub.span,
+            )
+
+
 def _check_define_outcomes(
     define: n.DefineDef, variant: TVariant, env: TypeEnv, bag: DiagnosticBag
 ) -> None:
@@ -542,30 +584,116 @@ def _check_define_outcomes(
     payloads of the declared arity and types."""
     for stmt in define.body:
         for sub in _stmt_tree(stmt):
-            if not isinstance(sub, n.Produce):
-                continue
-            if sub.tag not in variant.cases:
-                bag.error(
-                    f"define '{define.name}' produces unknown variant '{sub.tag}'",
-                    sub.span,
+            if isinstance(sub, n.Produce):
+                _check_produce_stmt(sub, variant, f"define '{define.name}'", env, bag)
+
+
+def _check_misplaced_produce(
+    game: Game, variants: Mapping[str, TVariant], env: TypeEnv, bag: DiagnosticBag
+) -> None:
+    """`produce` is legal only inside a `define` body (checked elsewhere) or the
+    body of an outcome-declaring phase. Flag it anywhere else, and type-check the
+    legal phase produces against the enclosing phase's variant."""
+    for routing in game.routings:
+        for s in routing.body:
+            for sub in _stmt_tree(s):
+                if isinstance(sub, n.Produce):
+                    bag.error("'produce' may only appear in a define or outcome-phase body", sub.span)
+    for move_type in game.move_types:
+        for s in move_type.effect:
+            for sub in _stmt_tree(s):
+                if isinstance(sub, n.Produce):
+                    bag.error("'produce' may only appear in a define or outcome-phase body", sub.span)
+    for phase in game.phases:
+        _check_phase_produces(phase, None, variants, env, bag)
+
+
+def _control_flow_nodes(stmt: n.Stmt) -> Iterator[n.Stmt]:
+    """Yield ContinueTo/SkipToNextHand within a statement, descending through
+    if/repeat/for-each and `produces:` arm bodies."""
+    if isinstance(stmt, (n.ContinueTo, n.SkipToNextHand)):
+        yield stmt
+    elif isinstance(stmt, n.Produces):
+        for arm in stmt.arms:
+            for s in arm.body:
+                yield from _control_flow_nodes(s)
+    elif isinstance(stmt, (n.ForEach, n.EachSimultaneous)):
+        yield from _control_flow_nodes(stmt.body)
+    elif isinstance(stmt, n.RepeatUntil):
+        for s in stmt.body:
+            yield from _control_flow_nodes(s)
+    elif isinstance(stmt, n.IfStmt):
+        for s in stmt.then_body:
+            yield from _control_flow_nodes(s)
+        for s in stmt.else_body or ():
+            yield from _control_flow_nodes(s)
+
+
+def _check_control_flow(game: Game, bag: DiagnosticBag) -> None:
+    """`continue to <phase>` names a known phase; `skip to next hand` sits inside a
+    phase-level `repeats until` hand loop (a statement-level trick `repeat until`
+    does not count)."""
+    phase_names = {p.name for p in _all_phases(game)}
+
+    def walk(phase: n.Phase, in_hand_loop: bool) -> None:
+        here_loop = in_hand_loop or (
+            phase.qualifier is not None and phase.qualifier.kind == "repeats"
+        )
+        for item in phase.items:
+            if isinstance(item, n.Phase):
+                walk(item, here_loop)
+            elif isinstance(item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.TransitionTo)):
+                pass
+            else:
+                stmts = (
+                    item.body
+                    if isinstance(item, (n.BeforeEach, n.AfterEach))
+                    else (item,)
                 )
-                continue
-            payload_types = variant.cases[sub.tag]
-            if len(sub.payloads) != len(payload_types):
-                bag.error(
-                    f"variant '{sub.tag}' takes {len(payload_types)} payload(s), "
-                    f"got {len(sub.payloads)}",
-                    sub.span,
-                )
-                continue
-            for expr, expected in zip(sub.payloads, payload_types):
-                got = infer(expr, env)
-                if not assignable(got, expected):
-                    bag.error(
-                        f"variant '{sub.tag}' expects {_type_name(expected)}, "
-                        f"got {_type_name(got)}",
-                        sub.span,
-                    )
+                for s in stmts:
+                    for node in _control_flow_nodes(s):
+                        if isinstance(node, n.ContinueTo) and node.target not in phase_names:
+                            bag.error(
+                                f"continue to unknown phase '{node.target}'", node.span
+                            )
+                        elif isinstance(node, n.SkipToNextHand) and not here_loop:
+                            bag.error(
+                                "'skip to next hand' must be inside a `repeats until` "
+                                "hand loop",
+                                node.span,
+                            )
+
+    for phase in game.phases:
+        walk(phase, False)
+
+
+def _check_phase_produces(
+    phase: n.Phase,
+    enclosing: n.Phase | None,
+    variants: Mapping[str, TVariant],
+    env: TypeEnv,
+    bag: DiagnosticBag,
+) -> None:
+    # The nearest outcome-declaring phase owns the produces in this body.
+    owner = phase if phase.outcome_cases else enclosing
+    for item in phase.items:
+        if isinstance(item, n.Phase):
+            _check_phase_produces(item, owner, variants, env, bag)
+        elif isinstance(item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.TransitionTo)):
+            pass
+        elif isinstance(item, (n.BeforeEach, n.AfterEach)):
+            for s in item.body:
+                for sub in _stmt_tree(s):
+                    if isinstance(sub, n.Produce):
+                        bag.error("'produce' may not appear in a before_each/after_each hook", sub.span)
+        else:
+            for sub in _stmt_tree(item):
+                if not isinstance(sub, n.Produce):
+                    continue
+                if owner is None:
+                    bag.error("'produce' may only appear in a define or outcome-phase body", sub.span)
+                else:
+                    _check_produce_stmt(sub, variants[owner.name], f"phase '{owner.name}'", env, bag)
 
 
 def _check_produces(
@@ -637,9 +765,8 @@ def typecheck(game: Game) -> Game:
         variant = variants.get(define.name)
         if variant is not None:
             _check_define_outcomes(define, variant, env, bag)
-    for stmt in _non_define_statements(game):
-        if isinstance(stmt, n.Produce):
-            bag.error("'produce' may only appear in a define body", stmt.span)
+    _check_misplaced_produce(game, variants, env, bag)
+    _check_control_flow(game, bag)
     for phase in _all_phases(game):
         if phase.qualifier is not None:
             _check_expr(phase.qualifier.expr, env, bag)

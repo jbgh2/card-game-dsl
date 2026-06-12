@@ -59,7 +59,7 @@ Things we have noted but consciously not designed yet:
   sub-language, detailed melding, and strict-trick legality noted on this list
   are subsumed by this work.
 
-- **Typed outcomes: Stage 2 built; Stage 3 + type-checker coverage remain.**
+- **Typed outcomes: Stages 1–3 built; remaining corpus migrations + checker coverage.**
   Stage 1 is built: `cardlang/typecheck.py` is a real type checker (a `Type`
   model, expression inference, and checks for assignment compatibility, stdlib
   argument types, subscript legality, and Boolean conditions — the
@@ -69,9 +69,22 @@ Things we have noted but consciously not designed yet:
   runtime struct values) and param-light `define` variant outcomes (`TVariant`:
   `produce` / `produces:` with exhaustiveness, payload typing, and scoped
   payload-binder typing), running end to end through the tree-walking runtime.
-  **Stage 3** remains: phase `→ outcome { … }` + `produces:` on phases
-  (`decisions.md` "Typed phase outcomes") — it reuses the Stage-2 `produces:`
-  consumer and `TVariant`.
+  **Stage 3 is built:** phase `→ outcome { … }` + `produces:` on phases and on
+  `instantiate`d mechanics (a mechanic raises the same `_ProduceSignal`, adopted
+  by its enclosing outcome-declaring phase), the imperative arm vocabulary
+  `continue to <phase>` / `skip to next hand`, and nullable variant payload types
+  (`Suit?`) — reusing the Stage-2 `produces:` consumer and `TVariant`
+  (`decisions.md` "Typed phase outcomes"). **Bridge** (auction:
+  `contract_finalized | all_pass`) and **Schnapsen** (settlement: `claimed |
+  talon_closed | open_play`) are migrated off their Boolean gates onto it.
+
+  The remaining typed-outcome migrations stay deferred because their decision is
+  not at a clean DSL/mechanic boundary: **Pinochle** (`declare_trump`),
+  **French Tarot**, and **Skat** fuse their auctions into Python monoliths whose
+  extraction is the interactive-decision-kernel work; **Getaway**'s two-way
+  resolution lives inside the *shared* `Trick` mechanic's routing, so a typed
+  outcome there needs a shared-`Trick` contract change or a routing-level outcome
+  construct.
 
   Deferred from Stage 2: union-typed and refinement-typed struct fields
   (`suit : Suit | NT`, `Integer in 1..7`); param-full `define` (parameters +

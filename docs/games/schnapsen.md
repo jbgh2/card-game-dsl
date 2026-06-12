@@ -37,8 +37,11 @@ Settlement, in game points deducted from the claimer's (or opponent's) score:
 - **No close, no claim, cards run out** — the last trick is worth 1 point.
 
 The hand engine — the lead-action choice, marriages, the talon draw, the strict
-endgame, and the claim — runs in the built-in `SchnapsenHand` mechanic, which
-writes its results into the per-hand state vars the `scoring` phase below reads.
+endgame, and the claim — runs in the built-in `SchnapsenHand` mechanic. It
+resolves the hand three ways and produces a typed outcome — `claimed`,
+`talon_closed`, or `open_play` — which the `play` phase declares and the
+`scoring` phase settles with a `produces:` block (see
+[decisions.md](../decisions.md) "Typed phase outcomes").
 The DSL surface does not yet express heterogeneous lead-action choice or
 rank-comparison legality rules; that generic surface is deferred (corpus-first)
 until the auction games show its shape. The rules are implemented faithfully —
@@ -74,11 +77,6 @@ game Schnapsen {
       trump_suit             : Suit?   = none
       card_points[player]    : Integer = 0
       tricks_won[player]     : Integer = 0
-      talon_closed_by        : Player? = none
-      claimer                : Player? = none
-      closer_opp_card_points : Integer = 0
-      closer_opp_tricks      : Integer = 0
-      last_trick_winner      : Player? = none
     }
 
     before_each {
@@ -93,33 +91,31 @@ game Schnapsen {
       leader := the player where player != dealer  // non-dealer leads
       for each player p: card_points[p] := 0
       for each player p: tricks_won[p] := 0
-      talon_closed_by := none
-      claimer := none
-      closer_opp_card_points := 0
-      closer_opp_tricks := 0
     }
 
-    phase play {
+    phase play -> outcome {
+      claimed(Player, Integer, Integer)
+        | talon_closed(Player, Integer)
+        | open_play(Player)
+    } {
       legal_moves: [play_to_trick, declare_marriage, exchange_trump_jack, close_talon, claim_66]
       instantiate SchnapsenHand(leader = leader, trump = trump_suit)
     }
 
     phase scoring {
-      if claimer is not none {
-        let opp = the player where player != claimer
-        let opp_cp = if talon_closed_by == claimer then closer_opp_card_points else card_points[opp]
-        let opp_tr = if talon_closed_by == claimer then closer_opp_tricks else tricks_won[opp]
-        let game_pts = if opp_tr == 0 then 3 elif opp_cp < 33 then 2 else 1
-        game_score[claimer] -= game_pts
-      } else {
-        if talon_closed_by is not none {
-          let opp = the player where player != talon_closed_by
+      play produces:
+        claimed(claimer, opp_card_points, opp_tricks) {
+          let game_pts = if opp_tricks == 0 then 3 elif opp_card_points < 33 then 2 else 1
+          game_score[claimer] -= game_pts
+        }
+        talon_closed(closer, closer_opp_tricks) {
+          let opp = the player where player != closer
           let game_pts = if closer_opp_tricks == 0 then 3 else 2
           game_score[opp] -= game_pts
-        } else {
+        }
+        open_play(last_trick_winner) {
           game_score[last_trick_winner] -= 1
         }
-      }
     }
   }
 
