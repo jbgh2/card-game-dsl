@@ -630,6 +630,9 @@ def _continue_targets_in_item(item: "n.PhaseItem") -> set[str]:
     if isinstance(item, n.Phase):
         for sub in item.items:
             targets |= _continue_targets_in_item(sub)
+        # A jump to one of this phase's own children is caught by its own
+        # `run_body` and never unwinds to the parent, so it doesn't escape.
+        targets -= {it.name for it in item.items if isinstance(it, n.Phase)}
     elif isinstance(
         item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.TransitionTo,
                n.BeforeEach, n.AfterEach)

@@ -570,6 +570,34 @@ game G {
     assert "prod" in str(ei.value) or "earlier sibling" in str(ei.value)
 
 
+def test_accepts_producer_after_a_phase_with_a_locally_handled_jump() -> None:
+    # `inner`'s `continue to b` is handled inside `inner`, so it doesn't skip the
+    # later `prod`; a consumer of `prod` is valid.
+    src = """
+game G {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase round {
+    phase inner {
+      phase a -> outcome { go | stay } { produce go }
+      a produces:
+        go   { continue to b }
+        stay { }
+      phase b { }
+    }
+    phase prod -> outcome { val(Integer) } { produce val(5) }
+    prod produces:
+      val(x) { score[0] += x }
+  }
+  winner: highest score
+}
+"""
+    check_dsl(src, "g.cardlang")  # no raise — prod always runs
+
+
 def test_rejects_outcome_phase_define_name_collision() -> None:
     # An outcome phase named like a define would shadow it in the shared registry
     # and the runtime phase_outcomes dict.
