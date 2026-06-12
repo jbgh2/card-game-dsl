@@ -850,11 +850,16 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                 # before the whole body (no producer has run), after_each after it
                 # (all body producers have).
                 if isinstance(item, n.BeforeEach):
-                    avail = set()
+                    # Runs before the body: only ancestor producers have run (and
+                    # `before_outcomes` is already empty inside a repeats loop).
+                    avail = before_outcomes
                 elif isinstance(item, n.AfterEach):
-                    avail = {
-                        nm for i, nm in child_outcome_at.items() if i < first_skip
-                    } - skippable
+                    # Runs after the body: ancestor producers plus this body's own
+                    # producers that are reached before any skip.
+                    avail = before_outcomes | (
+                        {nm for i, nm in child_outcome_at.items() if i < first_skip}
+                        - skippable
+                    )
                 else:
                     avail = earlier
                 for s in stmts:
