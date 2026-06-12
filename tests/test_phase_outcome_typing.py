@@ -200,6 +200,32 @@ game G {
     assert "decide" in str(ei.value) or "earlier sibling" in str(ei.value)
 
 
+def test_rejects_continue_to_a_top_level_phase() -> None:
+    # `play_game` iterates top-level phases with a plain loop (no run_body), so a
+    # `continue to` a later top-level phase can't be caught — reject it statically
+    # even though top-level phases are siblings for `produces:`.
+    src = """
+game G {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase first {
+    phase decide -> outcome { go | stay } { produce go }
+    decide produces:
+      go   { continue to second }
+      stay { }
+  }
+  phase second { }
+  winner: highest score
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "second" in str(ei.value) or "later sibling" in str(ei.value)
+
+
 def test_rejects_skip_to_next_hand_in_a_lifecycle_hook() -> None:
     # `run_phase` only catches `_SkipHand` around the phase body, not the hooks, so
     # a skip from before_each/after_each would abort the run — reject it statically.
