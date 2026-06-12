@@ -442,6 +442,30 @@ game G {
     assert "decide" in str(ei.value) or "earlier sibling" in str(ei.value)
 
 
+def test_rejects_consumer_in_a_loop_of_an_outer_producer() -> None:
+    # The producer runs once before the loop; a consumer inside the loop would pop
+    # it on the first iteration and find nothing on the next. Reject it.
+    src = """
+game G {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0  k : Integer = 0 }
+  phase outer_prod -> outcome { val(Integer) } { produce val(5) }
+  phase loop repeats until (k >= 2) {
+    before_each { k := k + 1 }
+    outer_prod produces:
+      val(x) { score[0] += x }
+  }
+  winner: highest score
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "outer_prod" in str(ei.value) or "earlier sibling" in str(ei.value)
+
+
 def test_rejects_outcome_phase_define_name_collision() -> None:
     # An outcome phase named like a define would shadow it in the shared registry
     # and the runtime phase_outcomes dict.

@@ -734,7 +734,15 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
             }
             later = after_phases | {nm for j, nm in child_at.items() if j > idx}
             if isinstance(item, n.Phase):
-                walk(item, earlier, later, here_loop)
+                # A consumer inside a `repeats until` body can only rely on a
+                # producer that reruns each pass — i.e. one inside the same loop —
+                # so outer producers don't carry in (continue-to targets still do).
+                child_before = (
+                    set()
+                    if item.qualifier is not None and item.qualifier.kind == "repeats"
+                    else earlier
+                )
+                walk(item, child_before, later, here_loop)
             elif isinstance(item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.TransitionTo)):
                 pass
             else:
@@ -793,7 +801,14 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
         if p.outcome_cases and p.qualifier is None
     }
     for idx, phase in enumerate(game.phases):
-        before = {nm for j, nm in top_outcome_at.items() if j < idx}
+        # Same rule as the recursion: a top-level `repeats until` body can't rely
+        # on an earlier top-level producer (it ran once, the loop reruns).
+        is_repeat = phase.qualifier is not None and phase.qualifier.kind == "repeats"
+        before = (
+            set()
+            if is_repeat
+            else {nm for j, nm in top_outcome_at.items() if j < idx}
+        )
         walk(phase, before, set(), False)
 
     # `continue to` / `skip to next hand` are phase control flow. Outside a phase
