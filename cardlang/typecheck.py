@@ -608,6 +608,20 @@ def _check_misplaced_produce(
         _check_phase_produces(phase, None, variants, env, bag)
 
 
+def _produces_in(stmt: n.Stmt) -> Iterator[n.Produces]:
+    """Every `produces:` consumer reachable from a root statement, descending into
+    if/repeat/for-each bodies and (unlike `_stmt_tree`) into `produces:` arm bodies
+    too — so a consumer nested in an arm is still validated. Call on root
+    statements only (it walks if/repeat itself, so feeding it pre-flattened
+    statements would double-count)."""
+    for sub in _stmt_tree(stmt):
+        if isinstance(sub, n.Produces):
+            yield sub
+            for arm in sub.arms:
+                for s in arm.body:
+                    yield from _produces_in(s)
+
+
 def _control_flow_nodes(stmt: n.Stmt) -> Iterator[n.Stmt]:
     """Yield ContinueTo/SkipToNextHand within a statement, descending through
     if/repeat/for-each and `produces:` arm bodies."""
@@ -636,27 +650,21 @@ def _check_single_outcome_consumer(game: Game, bag: DiagnosticBag) -> None:
     unrestricted."""
     outcome_phases = {p.name for p in _all_phases(game) if p.outcome_cases}
     seen: set[str] = set()
-
-    def count(p: n.Produces) -> None:
-        if p.define in outcome_phases:
-            if p.define in seen:
-                bag.error(
-                    f"phase outcome '{p.define}' is consumed by more than one "
-                    "produces: block",
-                    p.span,
-                )
-            seen.add(p.define)
-        # `_stmt_tree` treats Produces as a leaf, so descend its arm bodies here to
-        # catch a second consumer nested inside an arm.
-        for arm in p.arms:
-            for s in arm.body:
-                for sub in _stmt_tree(s):
-                    if isinstance(sub, n.Produces):
-                        count(sub)
-
     for stmt in _all_statements(game):
-        if isinstance(stmt, n.Produces):
-            count(stmt)
+        # `_all_statements` is pre-flattened, so only expand the Produces roots
+        # (each into itself + any arm-nested consumers) to avoid double-counting.
+        if not isinstance(stmt, n.Produces):
+            continue
+        for sub in _produces_in(stmt):
+            if sub.define not in outcome_phases:
+                continue
+            if sub.define in seen:
+                bag.error(
+                    f"phase outcome '{sub.define}' is consumed by more than one "
+                    "produces: block",
+                    sub.span,
+                )
+            seen.add(sub.define)
 
 
 def _check_outcome_name_collisions(game: Game, bag: DiagnosticBag) -> None:
@@ -760,10 +768,9 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                                 "hand loop",
                                 node.span,
                             )
-                    for sub in _stmt_tree(s):
+                    for sub in _produces_in(s):
                         if (
-                            isinstance(sub, n.Produces)
-                            and sub.define not in define_names
+                            sub.define not in define_names
                             and sub.define in outcome_phases
                             and sub.define not in earlier
                         ):

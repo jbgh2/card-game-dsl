@@ -281,6 +281,34 @@ game G {
     assert "more than one" in str(ei.value) or "decide" in str(ei.value)
 
 
+def test_rejects_non_sibling_consumer_nested_in_an_arm() -> None:
+    # A `produces:` nested in an arm must still obey the earlier-sibling rule: here
+    # the nested consumer names `later`, which runs after the enclosing consumer.
+    src = """
+game G {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase round {
+    phase first -> outcome { a | b } { produce a }
+    first produces:
+      a {
+        later produces:
+          x { score[0] += 1 }
+      }
+      b { }
+    phase later -> outcome { x } { produce x }
+  }
+  winner: highest score
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "later" in str(ei.value) or "earlier sibling" in str(ei.value)
+
+
 def test_rejects_second_consumer_nested_in_an_arm() -> None:
     # A second consumer of the same phase outcome hidden inside the first's arm is
     # still a double-pop — descend into arm bodies to catch it.
