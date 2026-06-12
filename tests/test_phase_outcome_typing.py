@@ -147,3 +147,26 @@ game G {
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(src, "g.cardlang")
     assert "skip to next hand" in str(ei.value) or "hand loop" in str(ei.value)
+
+
+def test_rejects_produce_inside_a_produces_arm() -> None:
+    # A bare `produce` belongs in a define/outcome-phase body, not a consumer arm.
+    src = """
+game G {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase round {
+    phase decide -> outcome { a | b } { produce a }
+    decide produces:
+      a { produce b }
+      b { }
+  }
+  winner: highest score
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "produces: arm" in str(ei.value) or "may not appear" in str(ei.value)

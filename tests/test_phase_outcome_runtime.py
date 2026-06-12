@@ -122,6 +122,33 @@ game G {
     assert counts["push"] == counts["pop"]
 
 
+def test_backward_continue_to_raises_rather_than_hanging() -> None:
+    # `continue to` is forward-only; targeting an earlier sibling would re-run the
+    # producer forever, so the runtime fails loudly instead of hanging.
+    import pytest
+
+    src = """
+game G {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { points[player] : Integer = 0 }
+  phase round {
+    phase early { }
+    phase decide -> outcome { back | stay } { produce back }
+    decide produces:
+      back { continue to early }
+      stay { }
+  }
+  winner: highest points
+}
+"""
+    game = check_dsl(src, "g.cardlang")
+    with pytest.raises(RuntimeError, match="forward phase"):
+        play_game(game, random.Random(0))
+
+
 def test_continue_to_unwinds_through_a_nested_phase() -> None:
     # `continue to finish` fires inside the nested `outer` phase; it must unwind
     # out of outer's run_phase (popping its frame) and resume at `finish`, a

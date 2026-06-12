@@ -726,6 +726,10 @@ def _check_produces(
             arm_env = arm_env.with_local(binder, t)
         for body_stmt in arm.body:
             for sub in _stmt_tree(body_stmt):
+                if isinstance(sub, n.Produce):
+                    # `_stmt_tree` does not descend into `produces:` arms, so the
+                    # outer misplaced-produce walk never sees this — reject it here.
+                    bag.error("'produce' may not appear in a produces: arm", sub.span)
                 for expr in _stmt_exprs(sub):
                     _check_expr(expr, arm_env, bag)
                 _check_stmt_semantics(sub, arm_env, bag)
