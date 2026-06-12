@@ -629,19 +629,39 @@ def _control_flow_nodes(stmt: n.Stmt) -> Iterator[n.Stmt]:
             yield from _control_flow_nodes(s)
 
 
-def _check_control_flow(game: Game, bag: DiagnosticBag) -> None:
-    """`continue to <phase>` names a known phase; `skip to next hand` sits inside a
-    phase-level `repeats until` hand loop (a statement-level trick `repeat until`
-    does not count)."""
-    phase_names = {p.name for p in _all_phases(game)}
+def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
+    """The phase-outcome constructs resolve only within sibling scope, matching the
+    runtime (which dispatches by name against phases that ran / sit in an enclosing
+    body):
 
-    def walk(phase: n.Phase, in_hand_loop: bool) -> None:
+    - a `produces:` consumer naming an outcome phase needs that phase to be an
+      *earlier-executed* sibling (in this body or an enclosing one), so the
+      producer ran first in the same pass;
+    - `continue to <phase>` resolves to a *later* sibling in this or an enclosing
+      body (it is forward-only and unwinds outward to a body that holds the target);
+    - `skip to next hand` sits inside a phase-level `repeats until` hand loop (a
+      statement-level trick `repeat until` does not count).
+
+    `before`/`after` carry the sibling phase names that execute before/after the
+    current point, accumulated down the ancestor chain."""
+    define_names = {d.name for d in game.defines}
+    outcome_phases = {p.name for p in _all_phases(game) if p.outcome_cases}
+
+    def walk(
+        phase: n.Phase, before: set[str], after: set[str], in_hand_loop: bool
+    ) -> None:
         here_loop = in_hand_loop or (
             phase.qualifier is not None and phase.qualifier.kind == "repeats"
         )
-        for item in phase.items:
+        items = phase.items
+        child_at = {
+            idx: it.name for idx, it in enumerate(items) if isinstance(it, n.Phase)
+        }
+        for idx, item in enumerate(items):
+            earlier = before | {nm for j, nm in child_at.items() if j < idx}
+            later = after | {nm for j, nm in child_at.items() if j > idx}
             if isinstance(item, n.Phase):
-                walk(item, here_loop)
+                walk(item, earlier, later, here_loop)
             elif isinstance(item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.TransitionTo)):
                 pass
             else:
@@ -652,9 +672,11 @@ def _check_control_flow(game: Game, bag: DiagnosticBag) -> None:
                 )
                 for s in stmts:
                     for node in _control_flow_nodes(s):
-                        if isinstance(node, n.ContinueTo) and node.target not in phase_names:
+                        if isinstance(node, n.ContinueTo) and node.target not in later:
                             bag.error(
-                                f"continue to unknown phase '{node.target}'", node.span
+                                f"continue to '{node.target}' is not a later sibling "
+                                "phase",
+                                node.span,
                             )
                         elif isinstance(node, n.SkipToNextHand) and not here_loop:
                             bag.error(
@@ -662,9 +684,21 @@ def _check_control_flow(game: Game, bag: DiagnosticBag) -> None:
                                 "hand loop",
                                 node.span,
                             )
+                    for sub in _stmt_tree(s):
+                        if (
+                            isinstance(sub, n.Produces)
+                            and sub.define not in define_names
+                            and sub.define in outcome_phases
+                            and sub.define not in earlier
+                        ):
+                            bag.error(
+                                f"produces names phase '{sub.define}', which is not an "
+                                "earlier sibling that has run",
+                                sub.span,
+                            )
 
     for phase in game.phases:
-        walk(phase, False)
+        walk(phase, set(), set(), False)
 
 
 def _check_phase_produces(
@@ -770,7 +804,7 @@ def typecheck(game: Game) -> Game:
         if variant is not None:
             _check_define_outcomes(define, variant, env, bag)
     _check_misplaced_produce(game, variants, env, bag)
-    _check_control_flow(game, bag)
+    _check_outcome_scope(game, bag)
     for phase in _all_phases(game):
         if phase.qualifier is not None:
             _check_expr(phase.qualifier.expr, env, bag)

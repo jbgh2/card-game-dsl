@@ -149,6 +149,57 @@ game G {
     assert "skip to next hand" in str(ei.value) or "hand loop" in str(ei.value)
 
 
+def test_rejects_backward_continue_to() -> None:
+    # `continue to` is forward-only: targeting an earlier sibling is rejected at
+    # compile time (it would otherwise re-run the producer forever).
+    src = """
+game G {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase round {
+    phase early { }
+    phase decide -> outcome { back | stay } { produce back }
+    decide produces:
+      back { continue to early }
+      stay { }
+  }
+  winner: highest score
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "early" in str(ei.value) or "later sibling" in str(ei.value)
+
+
+def test_rejects_non_sibling_produces_consumer() -> None:
+    # `decide produces:` lives in a different branch from the `decide` outcome
+    # phase, so the producer never ran in the same pass — reject it statically.
+    src = """
+game G {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase branch_a {
+    phase decide -> outcome { a | b } { produce a }
+  }
+  phase branch_b {
+    decide produces:
+      a { score[0] += 1 }
+      b { score[0] += 0 }
+  }
+  winner: highest score
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "decide" in str(ei.value) or "earlier sibling" in str(ei.value)
+
+
 def test_rejects_produce_inside_a_produces_arm() -> None:
     # A bare `produce` belongs in a define/outcome-phase body, not a consumer arm.
     src = """

@@ -161,10 +161,6 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
                         "`repeats until` condition holding (non-termination?)"
                     )
                 ctx.rs.fired_transitions.clear()  # transitions reset each iteration
-                # Drop any outcome a producer stashed but no consumer popped this
-                # hand (e.g. a `continue to` jumped past its `produces:`), so a
-                # later hand's consumer can't pop a stale outcome.
-                ctx.rs.phase_outcomes.clear()
                 if before is not None:
                     run_stmts(before.body, ctx)
                 try:
