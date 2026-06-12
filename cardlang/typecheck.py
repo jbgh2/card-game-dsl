@@ -904,9 +904,12 @@ def typecheck(game: Game) -> Game:
         for expr in _stmt_exprs(stmt):
             _check_expr(expr, env, bag)
         if isinstance(stmt, n.Produces):
-            variant = variants.get(stmt.define)
-            if variant is not None:
-                _check_produces(stmt, variant, env, bag)
+            # Validate this consumer and any consumer nested in its arms (the flat
+            # walk treats Produces as a leaf and would skip the nested ones).
+            for consumer in _produces_in(stmt):
+                variant = variants.get(consumer.define)
+                if variant is not None:
+                    _check_produces(consumer, variant, env, bag)
         else:
             _check_stmt_semantics(stmt, env, bag)
     for define in game.defines:

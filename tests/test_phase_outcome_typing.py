@@ -309,6 +309,34 @@ game G {
     assert "later" in str(ei.value) or "earlier sibling" in str(ei.value)
 
 
+def test_validates_exhaustiveness_of_a_consumer_nested_in_an_arm() -> None:
+    # A `produces:` nested in an arm is still checked for exhaustiveness: the inner
+    # consumer omits `y`.
+    src = """
+game G {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase round {
+    phase first -> outcome { a | b } { produce a }
+    phase inner -> outcome { x | y } { produce x }
+    first produces:
+      a {
+        inner produces:
+          x { score[0] += 1 }
+      }
+      b { }
+  }
+  winner: highest score
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "exhaustive" in str(ei.value) or "y" in str(ei.value)
+
+
 def test_rejects_second_consumer_nested_in_an_arm() -> None:
     # A second consumer of the same phase outcome hidden inside the first's arm is
     # still a double-pop — descend into arm bodies to catch it.
