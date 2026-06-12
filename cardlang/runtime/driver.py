@@ -166,6 +166,11 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
                         "`repeats until` condition holding (non-termination?)"
                     )
                 ctx.rs.fired_transitions.clear()  # transitions reset each iteration
+                if phase.outcome_cases:
+                    # An outcome phase that itself repeats: drop the prior
+                    # iteration's own result so a guarded/non-producing iteration
+                    # doesn't leave stale data for the consumer after the loop.
+                    ctx.rs.phase_outcomes.pop(phase.name, None)
                 if before is not None:
                     run_stmts(before.body, ctx)
                 try:

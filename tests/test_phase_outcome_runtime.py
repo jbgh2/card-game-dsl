@@ -108,6 +108,58 @@ game G {
     assert result.scores[0] == 7 and result.scores[1] == 7
 
 
+def test_top_level_outcome_producer_and_consumer() -> None:
+    # Top-level phases are siblings: a consumer in a later top-level phase may name
+    # an earlier top-level outcome phase that already ran.
+    src = """
+game G {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { points[player] : Integer = 0 }
+  phase produce_it -> outcome { val(Integer) } { produce val(3) }
+  phase consume_it {
+    produce_it produces:
+      val(x) { for each player p: points[p] += x }
+  }
+  winner: highest points
+}
+"""
+    game = check_dsl(src, "g.cardlang")
+    result = play_game(game, random.Random(0))
+    assert result.scores[0] == 3 and result.scores[1] == 3
+
+
+def test_repeating_outcome_phase_clears_stale_per_iteration() -> None:
+    # An outcome phase that itself repeats: if an early iteration produces but the
+    # final iteration does not, the consumer after the loop must not pop the early
+    # iteration's stale result.
+    import pytest
+
+    src = """
+game G {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { k : Integer = 0  points[player] : Integer = 0 }
+  phase round {
+    phase decide -> outcome { val(Integer) } repeats until (k >= 2) {
+      before_each { k := k + 1 }
+      if (k == 1) { produce val(9) }
+    }
+    decide produces:
+      val(x) { points[0] += x }
+  }
+  winner: highest points
+}
+"""
+    game = check_dsl(src, "g.cardlang")
+    with pytest.raises(AssertionError, match="did not produce"):
+        play_game(game, random.Random(0))
+
+
 def test_guarded_off_outcome_phase_leaves_no_stale_outcome() -> None:
     # An outcome phase guarded off on a later hand must not leave a prior hand's
     # outcome for a consumer to pop (the phase clears its own entry on entry). The

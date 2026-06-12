@@ -709,8 +709,13 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                                 sub.span,
                             )
 
-    for phase in game.phases:
-        walk(phase, set(), set(), False)
+    # Top-level phases are siblings of each other (they run in sequence), so a
+    # `produces:` consumer in a later top-level phase can name an earlier one.
+    top_at = {idx: p.name for idx, p in enumerate(game.phases)}
+    for idx, phase in enumerate(game.phases):
+        before = {nm for j, nm in top_at.items() if j < idx}
+        after = {nm for j, nm in top_at.items() if j > idx}
+        walk(phase, before, after, False)
 
 
 def _check_phase_produces(
