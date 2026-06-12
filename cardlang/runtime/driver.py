@@ -136,6 +136,11 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
     ctx.rs.push_frame()
     try:
         ctx = ctx.in_phase(phase)
+        # Drop this phase's own stale outcome on entry, so a guarded-off or
+        # non-producing run leaves no prior-pass result for a consumer to pop.
+        # Scoped to this phase's name — other phases' pending outcomes survive.
+        if phase.outcome_cases:
+            ctx.rs.phase_outcomes.pop(phase.name, None)
         state_block = next(
             (i for i in phase.items if isinstance(i, n.StateBlock)), None
         )

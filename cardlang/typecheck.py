@@ -665,6 +665,9 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
             elif isinstance(item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.TransitionTo)):
                 pass
             else:
+                in_hook = isinstance(item, (n.BeforeEach, n.AfterEach))
+                # Inline isinstance (not the `in_hook` flag) so mypy narrows the
+                # `(item,)` branch to a Stmt.
                 stmts = (
                     item.body
                     if isinstance(item, (n.BeforeEach, n.AfterEach))
@@ -672,7 +675,16 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                 )
                 for s in stmts:
                     for node in _control_flow_nodes(s):
-                        if isinstance(node, n.ContinueTo) and node.target not in later:
+                        if in_hook:
+                            # `run_phase` only catches `_SkipHand`/`_ContinueTo`
+                            # around the phase body, not the hooks — a skip from a
+                            # hook would abort the whole run, not the hand.
+                            bag.error(
+                                "'continue to' / 'skip to next hand' is not allowed "
+                                "in a before_each/after_each hook",
+                                node.span,
+                            )
+                        elif isinstance(node, n.ContinueTo) and node.target not in later:
                             bag.error(
                                 f"continue to '{node.target}' is not a later sibling "
                                 "phase",

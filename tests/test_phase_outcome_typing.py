@@ -200,6 +200,27 @@ game G {
     assert "decide" in str(ei.value) or "earlier sibling" in str(ei.value)
 
 
+def test_rejects_skip_to_next_hand_in_a_lifecycle_hook() -> None:
+    # `run_phase` only catches `_SkipHand` around the phase body, not the hooks, so
+    # a skip from before_each/after_each would abort the run — reject it statically.
+    src = """
+game G {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0  n : Integer = 0 }
+  phase loop repeats until (n >= 1) {
+    before_each { n := n + 1  skip to next hand }
+  }
+  winner: highest score
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "hook" in str(ei.value)
+
+
 def test_rejects_produce_inside_a_produces_arm() -> None:
     # A bare `produce` belongs in a define/outcome-phase body, not a consumer arm.
     src = """

@@ -108,6 +108,35 @@ game G {
     assert result.scores[0] == 7 and result.scores[1] == 7
 
 
+def test_guarded_off_outcome_phase_leaves_no_stale_outcome() -> None:
+    # An outcome phase guarded off on a later hand must not leave a prior hand's
+    # outcome for a consumer to pop (the phase clears its own entry on entry). The
+    # consumer then sees no outcome and raises, rather than dispatching stale data.
+    import pytest
+
+    src = """
+game G {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { hand_no : Integer = 0  points[player] : Integer = 0 }
+  phase loop repeats until (hand_no >= 2) {
+    before_each { hand_no := hand_no + 1 }
+    phase decide -> outcome { val(Integer) } when (hand_no == 1) { produce val(5) }
+    phase consume when (hand_no == 2) {
+      decide produces:
+        val(x) { points[0] += x }
+    }
+  }
+  winner: highest points
+}
+"""
+    game = check_dsl(src, "g.cardlang")
+    with pytest.raises(AssertionError, match="did not produce"):
+        play_game(game, random.Random(0))
+
+
 def test_skip_unwind_does_not_leak_a_frame(monkeypatch) -> None:
     # A leaked frame is behaviourally transparent (empty), so assert frame
     # balance directly: every push_frame on the unwind path is matched by a pop.
