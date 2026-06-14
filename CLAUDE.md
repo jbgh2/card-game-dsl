@@ -38,6 +38,20 @@ docs/
 - **"How do we build the tooling (parser/checker)?"** → `docs/implementation.md`
 - **"Which game uses which state variable?"** → `docs/appendix.md` (corpus catalogue)
 
+## Verifying changes (run this before pushing)
+
+CI (`.github/workflows/ci.yml`) runs exactly two checks. Run the **same** two
+locally before every push — not a narrower subset — or you'll round-trip on CI:
+
+```
+mypy        # strict, over BOTH cardlang/ and tests/ (pyproject `files`). NOT `mypy cardlang`.
+pytest -q
+```
+
+`mypy cardlang` only checks the package and silently misses strict-mode errors in
+test code (missing annotations, untyped helpers); CI's bare `mypy` checks the
+tests too. Test code is held to the same `--strict` bar as the front end.
+
 ## Operating rules (load-bearing)
 
 These come from `docs/maintaining.md`. They are not stylistic preferences;
