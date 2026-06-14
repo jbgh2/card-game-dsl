@@ -305,11 +305,29 @@ class _Builder(Transformer[Token, n.Game]):
     def phase_when(self, meta: Meta, c: list[object]) -> n.PhaseQualifier:
         return n.PhaseQualifier("when", _as_expr(c[0]), span=self._span(meta))
 
+    def phase_outcome(self, meta: Meta, c: list[object]) -> tuple[n.VariantCase, ...]:
+        # `-> outcome { ... }`: unwrap to the variant_set tuple.
+        return next(x for x in c if isinstance(x, tuple))
+
     def phase(self, meta: Meta, c: list[object]) -> n.Phase:
+        # c: NAME, optional outcome (a tuple), optional qualifier, then items —
+        # the two optionals leave None placeholders, so scan by type rather than
+        # by position.
         name = str(c[0])
-        qualifier = c[1] if isinstance(c[1], n.PhaseQualifier) else None
-        items = tuple(c[2:])
-        return n.Phase(name=name, qualifier=qualifier, items=items, span=self._span(meta))  # type: ignore[arg-type]
+        qualifier = next((x for x in c if isinstance(x, n.PhaseQualifier)), None)
+        outcome_cases = next((x for x in c if isinstance(x, tuple)), ())
+        items = tuple(
+            x
+            for x in c[1:]
+            if x is not None and not isinstance(x, (n.PhaseQualifier, tuple))
+        )
+        return n.Phase(
+            name=name,
+            qualifier=qualifier,
+            outcome_cases=outcome_cases,
+            items=items,  # type: ignore[arg-type]
+            span=self._span(meta),
+        )
 
     def active_rules(self, meta: Meta, c: list[object]) -> n.ActiveRules:
         refs = tuple(r for r in c if isinstance(r, n.RuleRef))
@@ -788,10 +806,18 @@ class _Builder(Transformer[Token, n.Game]):
     def move_effect(self, meta: Meta, c: list[object]) -> _MoveEffect:
         return _MoveEffect(tuple(_as_stmt(s) for s in c))
 
+    def payload_plain(self, meta: Meta, c: list[object]) -> str:
+        return str(c[0])
+
+    def payload_optional(self, meta: Meta, c: list[object]) -> str:
+        # A nullable payload type keeps its `?` in the name string; the type
+        # registry strips it and resolves the inner type as optional.
+        return str(c[0]) + "?"
+
     def variant_case(self, meta: Meta, c: list[object]) -> n.VariantCase:
-        # c: NAME(tag), then 0+ NAME payload-type tokens (a None placeholder
-        # stands in for the absent optional group — filter to real tokens).
-        payloads = tuple(str(x) for x in c[1:] if isinstance(x, Token))
+        # c: NAME(tag), then 0+ payload-type strings (a None placeholder stands in
+        # for the absent optional group — filter to the real payload strings).
+        payloads = tuple(x for x in c[1:] if isinstance(x, str) and not isinstance(x, Token))
         return n.VariantCase(tag=str(c[0]), payload_types=payloads, span=self._span(meta))
 
     def variant_set(
@@ -830,6 +856,12 @@ class _Builder(Transformer[Token, n.Game]):
             arms=tuple(x for x in c[1:] if isinstance(x, n.ProduceArm)),
             span=self._span(meta),
         )
+
+    def continue_to(self, meta: Meta, c: list[object]) -> n.ContinueTo:
+        return n.ContinueTo(target=str(c[0]), span=self._span(meta))
+
+    def skip_stmt(self, meta: Meta, c: list[object]) -> n.SkipToNextHand:
+        return n.SkipToNextHand(span=self._span(meta))
 
     def move_type_def(self, meta: Meta, c: list[object]) -> n.MoveTypeDef:
         name = str(c[0])

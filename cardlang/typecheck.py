@@ -122,18 +122,34 @@ def struct_registry(game: Game) -> dict[str, TStruct]:
     return structs
 
 
+def _payload_type(name: str, structs: Mapping[str, TStruct]) -> "Type":
+    """Resolve a variant payload type name; a trailing `?` marks it nullable."""
+    if name.endswith("?"):
+        return type_from_name(name[:-1], True, structs)
+    return type_from_name(name, False, structs)
+
+
+def _variant_cases(
+    cases: tuple[n.VariantCase, ...], structs: Mapping[str, TStruct]
+) -> dict[str, tuple["Type", ...]]:
+    return {
+        c.tag: tuple(_payload_type(t, structs) for t in c.payload_types) for c in cases
+    }
+
+
 def variant_registry(
     game: Game, structs: Mapping[str, TStruct]
 ) -> dict[str, TVariant]:
-    """Build the variant-outcome type of each `define`: its case tags mapped to
-    their declared payload types."""
+    """Build the variant-outcome type of each `define` and each outcome-declaring
+    `phase`: its case tags mapped to their declared payload types."""
     variants: dict[str, TVariant] = {}
     for d in game.defines:
-        cases = {
-            c.tag: tuple(type_from_name(t, False, structs) for t in c.payload_types)
-            for c in d.cases
-        }
-        variants[d.name] = TVariant(name=d.name, cases=cases)
+        variants[d.name] = TVariant(name=d.name, cases=_variant_cases(d.cases, structs))
+    for phase in _all_phases(game):
+        if phase.outcome_cases:
+            variants[phase.name] = TVariant(
+                name=phase.name, cases=_variant_cases(phase.outcome_cases, structs)
+            )
     return variants
 
 
@@ -535,6 +551,32 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
         _check_bool(stmt.cond, env, bag, "repeat-until condition")
 
 
+def _check_produce_stmt(
+    sub: n.Produce, variant: TVariant, owner: str, env: TypeEnv, bag: DiagnosticBag
+) -> None:
+    """One `produce` names a declared variant and supplies payloads of the
+    declared arity and types."""
+    if sub.tag not in variant.cases:
+        bag.error(f"{owner} produces unknown variant '{sub.tag}'", sub.span)
+        return
+    payload_types = variant.cases[sub.tag]
+    if len(sub.payloads) != len(payload_types):
+        bag.error(
+            f"variant '{sub.tag}' takes {len(payload_types)} payload(s), "
+            f"got {len(sub.payloads)}",
+            sub.span,
+        )
+        return
+    for expr, expected in zip(sub.payloads, payload_types):
+        got = infer(expr, env)
+        if not assignable(got, expected):
+            bag.error(
+                f"variant '{sub.tag}' expects {_type_name(expected)}, "
+                f"got {_type_name(got)}",
+                sub.span,
+            )
+
+
 def _check_define_outcomes(
     define: n.DefineDef, variant: TVariant, env: TypeEnv, bag: DiagnosticBag
 ) -> None:
@@ -542,39 +584,392 @@ def _check_define_outcomes(
     payloads of the declared arity and types."""
     for stmt in define.body:
         for sub in _stmt_tree(stmt):
-            if not isinstance(sub, n.Produce):
+            if isinstance(sub, n.Produce):
+                _check_produce_stmt(sub, variant, f"define '{define.name}'", env, bag)
+
+
+def _check_misplaced_produce(
+    game: Game, variants: Mapping[str, TVariant], env: TypeEnv, bag: DiagnosticBag
+) -> None:
+    """`produce` is legal only inside a `define` body (checked elsewhere) or the
+    body of an outcome-declaring phase. Flag it anywhere else, and type-check the
+    legal phase produces against the enclosing phase's variant."""
+    for routing in game.routings:
+        for s in routing.body:
+            for sub in _stmt_tree(s):
+                if isinstance(sub, n.Produce):
+                    bag.error("'produce' may only appear in a define or outcome-phase body", sub.span)
+    for move_type in game.move_types:
+        for s in move_type.effect:
+            for sub in _stmt_tree(s):
+                if isinstance(sub, n.Produce):
+                    bag.error("'produce' may only appear in a define or outcome-phase body", sub.span)
+    for phase in game.phases:
+        _check_phase_produces(phase, None, variants, env, bag)
+
+
+def _produces_in(stmt: n.Stmt) -> Iterator[n.Produces]:
+    """Every `produces:` consumer reachable from a root statement, descending into
+    if/repeat/for-each bodies and (unlike `_stmt_tree`) into `produces:` arm bodies
+    too — so a consumer nested in an arm is still validated. Call on root
+    statements only (it walks if/repeat itself, so feeding it pre-flattened
+    statements would double-count)."""
+    for sub in _stmt_tree(stmt):
+        if isinstance(sub, n.Produces):
+            yield sub
+            for arm in sub.arms:
+                for s in arm.body:
+                    yield from _produces_in(s)
+
+
+def _continue_targets_in_item(item: "n.PhaseItem") -> set[str]:
+    """Every `continue to` target reachable while executing one phase-body item,
+    recursing into nested phases (a jump there can unwind to this body) and
+    statement bodies. Hooks/config carry none (control flow in hooks is rejected)."""
+    targets: set[str] = set()
+    if isinstance(item, n.Phase):
+        for sub in item.items:
+            targets |= _continue_targets_in_item(sub)
+        # A jump to one of this phase's own children is caught by its own
+        # `run_body` and never unwinds to the parent, so it doesn't escape.
+        targets -= {it.name for it in item.items if isinstance(it, n.Phase)}
+    elif isinstance(
+        item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.TransitionTo,
+               n.BeforeEach, n.AfterEach)
+    ):
+        pass
+    else:
+        for node in _control_flow_nodes(item):
+            if isinstance(node, n.ContinueTo):
+                targets.add(node.target)
+    return targets
+
+
+def _item_can_skip(item: "n.PhaseItem") -> bool:
+    """Whether executing one phase-body item can `skip to next hand` against *this*
+    body's hand loop. A nested `repeats until` catches its own skips, so they don't
+    unwind here."""
+    if isinstance(item, n.Phase):
+        if item.qualifier is not None and item.qualifier.kind == "repeats":
+            return False
+        return any(_item_can_skip(sub) for sub in item.items)
+    if isinstance(
+        item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.TransitionTo,
+               n.BeforeEach, n.AfterEach)
+    ):
+        return False
+    return any(isinstance(node, n.SkipToNextHand) for node in _control_flow_nodes(item))
+
+
+def _control_flow_nodes(stmt: n.Stmt) -> Iterator[n.Stmt]:
+    """Yield ContinueTo/SkipToNextHand within a statement, descending through
+    if/repeat/for-each and `produces:` arm bodies."""
+    if isinstance(stmt, (n.ContinueTo, n.SkipToNextHand)):
+        yield stmt
+    elif isinstance(stmt, n.Produces):
+        for arm in stmt.arms:
+            for s in arm.body:
+                yield from _control_flow_nodes(s)
+    elif isinstance(stmt, (n.ForEach, n.EachSimultaneous)):
+        yield from _control_flow_nodes(stmt.body)
+    elif isinstance(stmt, n.RepeatUntil):
+        for s in stmt.body:
+            yield from _control_flow_nodes(s)
+    elif isinstance(stmt, n.IfStmt):
+        for s in stmt.then_body:
+            yield from _control_flow_nodes(s)
+        for s in stmt.else_body or ():
+            yield from _control_flow_nodes(s)
+
+
+def _check_single_outcome_consumer(game: Game, bag: DiagnosticBag) -> None:
+    """A phase produces one outcome and the runtime `pop`s it on the first
+    consumer, so an outcome phase may have at most one `produces:` block (a second
+    would deterministically find nothing). Defines, re-invoked per consumer, are
+    unrestricted."""
+    outcome_phases = {p.name for p in _all_phases(game) if p.outcome_cases}
+    seen: set[str] = set()
+    for stmt in _all_statements(game):
+        # `_all_statements` is pre-flattened, so only expand the Produces roots
+        # (each into itself + any arm-nested consumers) to avoid double-counting.
+        if not isinstance(stmt, n.Produces):
+            continue
+        for sub in _produces_in(stmt):
+            if sub.define not in outcome_phases:
                 continue
-            if sub.tag not in variant.cases:
+            if sub.define in seen:
                 bag.error(
-                    f"define '{define.name}' produces unknown variant '{sub.tag}'",
+                    f"phase outcome '{sub.define}' is consumed by more than one "
+                    "produces: block",
                     sub.span,
                 )
-                continue
-            payload_types = variant.cases[sub.tag]
-            if len(sub.payloads) != len(payload_types):
+            seen.add(sub.define)
+
+
+def _check_outcome_name_collisions(game: Game, bag: DiagnosticBag) -> None:
+    """Outcome phases dispatch by name through one shared registry / runtime dict,
+    so an outcome-phase name must be unique and must not collide with a `define`
+    (either would silently shadow the other in a `produces:` consumer)."""
+    define_names = {d.name for d in game.defines}
+    seen: set[str] = set()
+    for phase in _all_phases(game):
+        if not phase.outcome_cases:
+            continue
+        if phase.name in define_names:
+            bag.error(
+                f"outcome phase '{phase.name}' collides with a define of the same "
+                "name",
+                phase.span,
+            )
+        if phase.name in seen:
+            bag.error(
+                f"duplicate outcome phase name '{phase.name}'", phase.span
+            )
+        seen.add(phase.name)
+
+
+def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
+    """The phase-outcome constructs resolve only within sibling scope, matching the
+    runtime (which dispatches by name against phases that ran / sit in an enclosing
+    body):
+
+    - a `produces:` consumer naming an outcome phase needs that phase to be an
+      *earlier-executed* sibling (in this body or an enclosing one), so the
+      producer ran first in the same pass;
+    - `continue to <phase>` resolves to a *later* sibling in this or an enclosing
+      body (it is forward-only and unwinds outward to a body that holds the target);
+    - `skip to next hand` sits inside a phase-level `repeats until` hand loop (a
+      statement-level trick `repeat until` does not count).
+
+    `before`/`after` carry the sibling phase names that execute before/after the
+    current point, accumulated down the ancestor chain."""
+    define_names = {d.name for d in game.defines}
+    outcome_phases = {p.name for p in _all_phases(game) if p.outcome_cases}
+
+    def check_produces_scope(stmt: n.Stmt, avail: set[str]) -> None:
+        """Validate a `produces:` consumer (and any nested in arms/blocks) against
+        the available producers. A statement-level `repeat until` reruns, but phase
+        producers run once, so none are available inside its body."""
+        if isinstance(stmt, n.Produces):
+            if (
+                stmt.define not in define_names
+                and stmt.define in outcome_phases
+                and stmt.define not in avail
+            ):
                 bag.error(
-                    f"variant '{sub.tag}' takes {len(payload_types)} payload(s), "
-                    f"got {len(sub.payloads)}",
-                    sub.span,
+                    f"produces names phase '{stmt.define}', which is not an earlier "
+                    "sibling that has run",
+                    stmt.span,
                 )
-                continue
-            for expr, expected in zip(sub.payloads, payload_types):
-                got = infer(expr, env)
-                if not assignable(got, expected):
-                    bag.error(
-                        f"variant '{sub.tag}' expects {_type_name(expected)}, "
-                        f"got {_type_name(got)}",
-                        sub.span,
+            for arm in stmt.arms:
+                for s in arm.body:
+                    check_produces_scope(s, avail)  # the arm runs at this position
+        elif isinstance(stmt, (n.RepeatUntil, n.ForEach, n.EachSimultaneous)):
+            # Any statement-level loop reruns its body; a run-once phase producer
+            # is gone after the first iteration, so none are available inside.
+            bodies = (
+                stmt.body
+                if isinstance(stmt, n.RepeatUntil)
+                else (stmt.body,)
+            )
+            for s in bodies:
+                check_produces_scope(s, set())
+        elif isinstance(stmt, n.IfStmt):
+            for s in stmt.then_body:
+                check_produces_scope(s, avail)
+            for s in stmt.else_body or ():
+                check_produces_scope(s, avail)
+
+    def walk(
+        phase: n.Phase,
+        before_outcomes: set[str],
+        after_phases: set[str],
+        in_hand_loop: bool,
+    ) -> None:
+        here_loop = in_hand_loop or (
+            phase.qualifier is not None and phase.qualifier.kind == "repeats"
+        )
+        items = phase.items
+        # All child phases are valid `continue to` targets; only *unqualified*
+        # outcome phases are reliable `produces:` producers — a `when`/`repeats`
+        # phase may not run (or produce), so a consumer can't depend on it.
+        child_at = {
+            idx: it.name for idx, it in enumerate(items) if isinstance(it, n.Phase)
+        }
+        child_outcome_at = {
+            idx: it.name
+            for idx, it in enumerate(items)
+            if isinstance(it, n.Phase) and it.outcome_cases and it.qualifier is None
+        }
+        # A `continue to T` at position j jumps over items (j, k) where k is T's
+        # index (or the body's end if T is an outer phase). A producer in that gap
+        # may be skipped, so it is not reliably available to any later consumer.
+        child_idx_by_name = {name: idx for idx, name in child_at.items()}
+        skippable: set[str] = set()
+        for j, it in enumerate(items):
+            for target in _continue_targets_in_item(it):
+                # A target outside this body unwinds past it, skipping the rest.
+                k = child_idx_by_name.get(target, len(items))
+                for i, nm in child_outcome_at.items():
+                    if j < i < k:
+                        skippable.add(nm)
+        # A `skip to next hand` aborts the body from its position on, but after_each
+        # still runs — so producers at or after the first possible skip aren't
+        # available to after_each.
+        first_skip = next(
+            (j for j, it in enumerate(items) if _item_can_skip(it)), len(items)
+        )
+        for idx, item in enumerate(items):
+            earlier = (
+                before_outcomes
+                | {nm for j, nm in child_outcome_at.items() if j < idx}
+            ) - skippable
+            later = after_phases | {nm for j, nm in child_at.items() if j > idx}
+            if isinstance(item, n.Phase):
+                # A consumer inside a `repeats until` body can only rely on a
+                # producer that reruns each pass — i.e. one inside the same loop —
+                # so outer producers don't carry in (continue-to targets still do).
+                child_before = (
+                    set()
+                    if item.qualifier is not None and item.qualifier.kind == "repeats"
+                    else earlier
+                )
+                walk(item, child_before, later, here_loop)
+            elif isinstance(item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.TransitionTo)):
+                pass
+            else:
+                in_hook = isinstance(item, (n.BeforeEach, n.AfterEach))
+                # Inline isinstance (not the `in_hook` flag) so mypy narrows the
+                # `(item,)` branch to a Stmt.
+                stmts = (
+                    item.body
+                    if isinstance(item, (n.BeforeEach, n.AfterEach))
+                    else (item,)
+                )
+                # Hooks run by timing, not lexical position: before_each runs
+                # before the whole body (no producer has run), after_each after it
+                # (all body producers have).
+                if isinstance(item, n.BeforeEach):
+                    # Runs before the body: only ancestor producers have run (and
+                    # `before_outcomes` is already empty inside a repeats loop).
+                    avail = before_outcomes
+                elif isinstance(item, n.AfterEach):
+                    # Runs after the body: ancestor producers plus this body's own
+                    # producers that are reached before any skip.
+                    avail = before_outcomes | (
+                        {nm for i, nm in child_outcome_at.items() if i < first_skip}
+                        - skippable
                     )
+                else:
+                    avail = earlier
+                for s in stmts:
+                    for node in _control_flow_nodes(s):
+                        if in_hook:
+                            # `run_phase` only catches `_SkipHand`/`_ContinueTo`
+                            # around the phase body, not the hooks — a skip from a
+                            # hook would abort the whole run, not the hand.
+                            bag.error(
+                                "'continue to' / 'skip to next hand' is not allowed "
+                                "in a before_each/after_each hook",
+                                node.span,
+                            )
+                        elif isinstance(node, n.ContinueTo) and node.target not in later:
+                            bag.error(
+                                f"continue to '{node.target}' is not a later sibling "
+                                "phase",
+                                node.span,
+                            )
+                        elif isinstance(node, n.SkipToNextHand) and not here_loop:
+                            bag.error(
+                                "'skip to next hand' must be inside a `repeats until` "
+                                "hand loop",
+                                node.span,
+                            )
+                    check_produces_scope(s, avail)
+
+    # Top-level phases are siblings of each other (they run in sequence), so a
+    # `produces:` consumer in a later top-level phase can name an earlier one
+    # (hence `before`). But `after` stays empty: `play_game` iterates top-level
+    # phases with a plain loop (no enclosing `run_body`), so a `continue to`
+    # targeting a *later top-level* phase has nowhere to be caught and must be
+    # rejected — only later phases within a `run_body` are valid jump targets.
+    top_outcome_at = {
+        idx: p.name
+        for idx, p in enumerate(game.phases)
+        if p.outcome_cases and p.qualifier is None
+    }
+    for idx, phase in enumerate(game.phases):
+        # Same rule as the recursion: a top-level `repeats until` body can't rely
+        # on an earlier top-level producer (it ran once, the loop reruns).
+        is_repeat = phase.qualifier is not None and phase.qualifier.kind == "repeats"
+        before = (
+            set()
+            if is_repeat
+            else {nm for j, nm in top_outcome_at.items() if j < idx}
+        )
+        walk(phase, before, set(), False)
+
+    # `continue to` / `skip to next hand` are phase control flow. Outside a phase
+    # body — in a define, routing, or move-type body — they would unwind out of
+    # `play_game` uncaught, so reject them there.
+    non_phase_bodies = (
+        [d.body for d in game.defines]
+        + [r.body for r in game.routings]
+        + [m.effect for m in game.move_types]
+    )
+    for body in non_phase_bodies:
+        for s in body:
+            for node in _control_flow_nodes(s):
+                bag.error(
+                    "'continue to' / 'skip to next hand' may only appear in a phase "
+                    "body",
+                    node.span,
+                )
+
+
+def _check_phase_produces(
+    phase: n.Phase,
+    enclosing: n.Phase | None,
+    variants: Mapping[str, TVariant],
+    env: TypeEnv,
+    bag: DiagnosticBag,
+) -> None:
+    # The nearest outcome-declaring phase owns the produces in this body.
+    owner = phase if phase.outcome_cases else enclosing
+    for item in phase.items:
+        if isinstance(item, n.Phase):
+            _check_phase_produces(item, owner, variants, env, bag)
+        elif isinstance(item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.TransitionTo)):
+            pass
+        elif isinstance(item, (n.BeforeEach, n.AfterEach)):
+            for s in item.body:
+                for sub in _stmt_tree(s):
+                    if isinstance(sub, n.Produce):
+                        bag.error("'produce' may not appear in a before_each/after_each hook", sub.span)
+        else:
+            for sub in _stmt_tree(item):
+                if not isinstance(sub, n.Produce):
+                    continue
+                if owner is None:
+                    bag.error("'produce' may only appear in a define or outcome-phase body", sub.span)
+                else:
+                    _check_produce_stmt(sub, variants[owner.name], f"phase '{owner.name}'", env, bag)
 
 
 def _check_produces(
-    stmt: n.Produces, variant: TVariant, env: TypeEnv, bag: DiagnosticBag
+    stmt: n.Produces,
+    variants: Mapping[str, TVariant],
+    env: TypeEnv,
+    bag: DiagnosticBag,
 ) -> None:
     """A `produces:` consumer: arms name declared variants, are exhaustive and
     non-duplicated, bind the right payload arity, and have their bodies checked
     with the payload binders typed (a scoped sub-walk, since the flat walk treats
-    `Produces` as a leaf)."""
+    `Produces` as a leaf). A consumer nested in an arm is checked recursively with
+    the enclosing arm binders in scope."""
+    variant = variants.get(stmt.define)
+    if variant is None:
+        return
     seen: set[str] = set()
     for arm in stmt.arms:
         if arm.tag not in variant.cases:
@@ -598,6 +993,14 @@ def _check_produces(
             arm_env = arm_env.with_local(binder, t)
         for body_stmt in arm.body:
             for sub in _stmt_tree(body_stmt):
+                if isinstance(sub, n.Produce):
+                    # `_stmt_tree` does not descend into `produces:` arms, so the
+                    # outer misplaced-produce walk never sees this — reject it here.
+                    bag.error("'produce' may not appear in a produces: arm", sub.span)
+                if isinstance(sub, n.Produces):
+                    # Nested consumer: check it with the enclosing arm binders in
+                    # scope (so outer payload binders are typed, not TAny).
+                    _check_produces(sub, variants, arm_env, bag)
                 for expr in _stmt_exprs(sub):
                     _check_expr(expr, arm_env, bag)
                 _check_stmt_semantics(sub, arm_env, bag)
@@ -628,18 +1031,19 @@ def typecheck(game: Game) -> Game:
         for expr in _stmt_exprs(stmt):
             _check_expr(expr, env, bag)
         if isinstance(stmt, n.Produces):
-            variant = variants.get(stmt.define)
-            if variant is not None:
-                _check_produces(stmt, variant, env, bag)
+            # `_check_produces` recurses into arm-nested consumers itself, carrying
+            # the arm binders into their environment.
+            _check_produces(stmt, variants, env, bag)
         else:
             _check_stmt_semantics(stmt, env, bag)
     for define in game.defines:
         variant = variants.get(define.name)
         if variant is not None:
             _check_define_outcomes(define, variant, env, bag)
-    for stmt in _non_define_statements(game):
-        if isinstance(stmt, n.Produce):
-            bag.error("'produce' may only appear in a define body", stmt.span)
+    _check_misplaced_produce(game, variants, env, bag)
+    _check_outcome_scope(game, bag)
+    _check_outcome_name_collisions(game, bag)
+    _check_single_outcome_consumer(game, bag)
     for phase in _all_phases(game):
         if phase.qualifier is not None:
             _check_expr(phase.qualifier.expr, env, bag)

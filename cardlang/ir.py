@@ -158,6 +158,14 @@ def _phase(p: n.Phase) -> IRDict:
         "kind": "phase",
         "name": p.name,
         "qualifier": _qualifier(p.qualifier) if p.qualifier else None,
+        "outcome_cases": [
+            {
+                "kind": "variant_case",
+                "tag": c.tag,
+                "payload_types": list(c.payload_types),
+            }
+            for c in p.outcome_cases
+        ],
         "items": [_phase_item(i) for i in p.items],
     }
 
@@ -305,6 +313,10 @@ def _stmt(s: n.Stmt) -> IRDict:
                     for a in s.arms
                 ],
             }
+        case n.ContinueTo():
+            return {"kind": "continue_to", "target": s.target}
+        case n.SkipToNextHand():
+            return {"kind": "skip_to_next_hand"}
         case _ as unreachable:
             assert_never(unreachable)
 

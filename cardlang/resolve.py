@@ -319,14 +319,24 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     defined_move_types = {m.name for m in game.move_types}
     defined_types = {t.name for t in game.types}
     defined_defines = {d.name for d in game.defines}
+    # A `produces:` consumer may also name an outcome-declaring phase (its outcome
+    # is produced as the phase runs, then dispatched by a sibling consumer).
+    outcome_phases = {
+        nd.name for nd in _walk(game) if isinstance(nd, n.Phase) and nd.outcome_cases
+    }
     for nd in _walk(game):
         match nd:
             case n.Call() if nd.func not in STDLIB_CALL_FUNCS:
                 bag.error(f"call to unknown function '{nd.func}'", nd.span)
             case n.StructLit() if nd.type_name not in defined_types:
                 bag.error(f"unknown type '{nd.type_name}'", nd.span)
-            case n.Produces() if nd.define not in defined_defines:
-                bag.error(f"produces names unknown define '{nd.define}'", nd.span)
+            case n.Produces() if (
+                nd.define not in defined_defines and nd.define not in outcome_phases
+            ):
+                bag.error(
+                    f"produces names unknown define or outcome phase '{nd.define}'",
+                    nd.span,
+                )
             case n.MethodCall() if nd.method not in ZONE_METHODS:
                 bag.error(f"unknown zone method '{nd.method}'", nd.span)
             case n.CardLiteral():

@@ -104,6 +104,7 @@
       "kind": "phase",
       "name": "setup",
       "qualifier": null,
+      "outcome_cases": [],
       "items": [
         {
           "kind": "epistemic_op",
@@ -140,6 +141,7 @@
       "kind": "phase",
       "name": "first_trick",
       "qualifier": null,
+      "outcome_cases": [],
       "items": [
         {
           "kind": "active_rules",
@@ -287,6 +289,7 @@
       "kind": "phase",
       "name": "play",
       "qualifier": null,
+      "outcome_cases": [],
       "items": [
         {
           "kind": "active_rules",

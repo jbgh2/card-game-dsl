@@ -17,7 +17,16 @@ from cardlang.runtime import phases
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.execute import execute, run_body as run_stmts
-from cardlang.runtime.state import Chooser, ChooserAbort, Ctx, RuntimeState, ZoneStore
+from cardlang.runtime.state import (
+    Chooser,
+    ChooserAbort,
+    Ctx,
+    RuntimeState,
+    ZoneStore,
+    _ContinueTo,
+    _ProduceSignal,
+    _SkipHand,
+)
 from cardlang.runtime.values import DECKS, Player, Seating, build_deck
 
 
@@ -123,68 +132,141 @@ class _HandCounter:
         self.value = 0
 
 
+def _subtree_outcome_names(phase: n.Phase) -> set[str]:
+    """Names of every outcome-declaring phase in `phase`'s subtree (inclusive)."""
+    names: set[str] = set()
+
+    def rec(p: n.Phase) -> None:
+        if p.outcome_cases:
+            names.add(p.name)
+        for item in p.items:
+            if isinstance(item, n.Phase):
+                rec(item)
+
+    rec(phase)
+    return names
+
+
 def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
     ctx.rs.push_frame()
-    ctx = ctx.in_phase(phase)
-    state_block = next((i for i in phase.items if isinstance(i, n.StateBlock)), None)
-    if state_block is not None:
-        _declare_state(state_block, ctx)
+    try:
+        ctx = ctx.in_phase(phase)
+        # Drop this phase's own stale outcome on entry, so a guarded-off or
+        # non-producing run leaves no prior-pass result for a consumer to pop.
+        # Scoped to this phase's name — other phases' pending outcomes survive.
+        if phase.outcome_cases:
+            ctx.rs.phase_outcomes.pop(phase.name, None)
+        state_block = next(
+            (i for i in phase.items if isinstance(i, n.StateBlock)), None
+        )
+        if state_block is not None:
+            _declare_state(state_block, ctx)
 
-    before = next((i for i in phase.items if isinstance(i, n.BeforeEach)), None)
-    after = next((i for i in phase.items if isinstance(i, n.AfterEach)), None)
+        before = next((i for i in phase.items if isinstance(i, n.BeforeEach)), None)
+        after = next((i for i in phase.items if isinstance(i, n.AfterEach)), None)
 
-    q = phase.qualifier
-    if q is not None and q.kind == "repeats":
-        guard = 0
-        while not evaluate(q.expr, ctx):
-            # A `repeats until` whose condition never holds (e.g. a win threshold
-            # unreachable under random play) would otherwise hang forever — fail
-            # loudly so non-termination surfaces as a test failure, not a stuck
-            # process. The statement-level `repeat until` has the same backstop.
-            guard += 1
-            if guard > 10_000:
-                raise RuntimeError(
-                    f"phase '{phase.name}' repeated 10000 times without its "
-                    "`repeats until` condition holding (non-termination?)"
-                )
-            ctx.rs.fired_transitions.clear()  # transitions reset each iteration
-            if before is not None:
-                run_stmts(before.body, ctx)
-            try:
-                run_body(phase, ctx, hands)
-            finally:
-                if after is not None:  # guaranteed, even on mid-iteration exit
-                    run_stmts(after.body, ctx)
-            if ctx.rs.score_var is not None:  # loser games keep no per-hand score
-                ctx.trace("hand_end", dict(ctx.rs.get(ctx.rs.score_var)))
-    elif q is not None and q.kind == "when":
-        if evaluate(q.expr, ctx):
-            run_body(phase, ctx, hands)
-    else:
+        q = phase.qualifier
+        if q is not None and q.kind == "repeats":
+            # Each new hand discards any outcome produced inside this loop's subtree
+            # in the prior iteration (a producer skipped by `continue to`, or
+            # guarded off). Scoped to descendants, so a sibling/ancestor outcome
+            # pending across this loop is preserved.
+            loop_outcomes = _subtree_outcome_names(phase)
+            guard = 0
+            while not evaluate(q.expr, ctx):
+                # A `repeats until` whose condition never holds (e.g. a win
+                # threshold unreachable under random play) would otherwise hang
+                # forever — fail loudly so non-termination surfaces as a test
+                # failure, not a stuck process. The statement-level `repeat
+                # until` has the same backstop.
+                guard += 1
+                if guard > 10_000:
+                    raise RuntimeError(
+                        f"phase '{phase.name}' repeated 10000 times without its "
+                        "`repeats until` condition holding (non-termination?)"
+                    )
+                ctx.rs.fired_transitions.clear()  # transitions reset each iteration
+                for nm in loop_outcomes:
+                    ctx.rs.phase_outcomes.pop(nm, None)
+                if before is not None:
+                    run_stmts(before.body, ctx)
+                try:
+                    _run_phase_body(phase, ctx, hands)
+                except _SkipHand:
+                    pass  # `skip to next hand`: abort the rest, run after_each
+                finally:
+                    if after is not None:  # guaranteed, even on mid-iteration exit
+                        run_stmts(after.body, ctx)
+                if ctx.rs.score_var is not None:  # loser games keep no per-hand score
+                    ctx.trace("hand_end", dict(ctx.rs.get(ctx.rs.score_var)))
+        elif q is not None and q.kind == "when":
+            if evaluate(q.expr, ctx):
+                _run_phase_body(phase, ctx, hands)
+        else:
+            _run_phase_body(phase, ctx, hands)
+    finally:
+        ctx.rs.pop_frame()  # always pop, even on _ContinueTo/_SkipHand unwind
+
+
+def _run_phase_body(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
+    """Run a phase's body. An outcome-declaring phase captures the variant it
+    produces (via DSL `produce` or an instantiated mechanic) into `phase_outcomes`
+    for a later-sibling `produces:` consumer."""
+    if not phase.outcome_cases:
         run_body(phase, ctx, hands)
-
-    ctx.rs.pop_frame()
+        return
+    try:
+        run_body(phase, ctx, hands)
+    except _ProduceSignal as produced:
+        ctx.rs.phase_outcomes[phase.name] = (produced.tag, produced.payloads)
 
 
 def run_body(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
     if phase.name == "scoring":
         hands.value += 1
-    for item in phase.items:
-        match item:
-            case (
-                n.StateBlock()
-                | n.ActiveRules()
-                | n.LegalMoves()
-                | n.TransitionTo()
-                | n.BeforeEach()
-                | n.AfterEach()
-            ):
-                pass  # config / lifecycle hooks, handled by run_phase
-            case n.Phase():
-                if not phases._is_rule_delta(item):
-                    run_phase(item, ctx, hands)
-            case _:
-                ctx = execute(item, ctx)
+    items = phase.items
+    i = 0
+    while i < len(items):
+        item = items[i]
+        try:
+            match item:
+                case (
+                    n.StateBlock()
+                    | n.ActiveRules()
+                    | n.LegalMoves()
+                    | n.TransitionTo()
+                    | n.BeforeEach()
+                    | n.AfterEach()
+                ):
+                    pass  # config / lifecycle hooks, handled by run_phase
+                case n.Phase():
+                    if not phases._is_rule_delta(item):
+                        run_phase(item, ctx, hands)
+                case _:
+                    ctx = execute(item, ctx)
+        except _ContinueTo as jump:
+            # `continue to <phase>`: resume at the named sibling, if it is one of
+            # this body's phases; otherwise let an enclosing body handle it.
+            target = next(
+                (
+                    j
+                    for j, it in enumerate(items)
+                    if isinstance(it, n.Phase) and it.name == jump.target
+                ),
+                None,
+            )
+            if target is None:
+                raise
+            if target <= i:
+                # `continue to` is forward-only — a backward jump would re-run the
+                # producer and loop forever. Fail loudly rather than hang.
+                raise RuntimeError(
+                    f"`continue to {jump.target}` is not a forward phase from "
+                    f"'{phase.name}'"
+                )
+            i = target
+            continue
+        i += 1
 
 
 def _declare_state(block: n.StateBlock, ctx: Ctx) -> None:

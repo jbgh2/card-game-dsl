@@ -41,9 +41,8 @@ game Bridge {
   // One rubber: play hands until a side has won two games; highest total wins.
   phase rubber repeats until (any team t: games_won[t] >= 2) {
     state {
-      // Per-hand, reset by before_each / set by the auction.
+      // Per-hand, reset by before_each / set by the auction's outcome arm.
       dealer            : Player  = 0
-      all_pass          : Boolean = false
       contract_level    : Integer = 0
       trump_suit        : Suit?   = none   // none = no-trump
       doubled_mult      : Integer = 1
@@ -58,15 +57,27 @@ game Bridge {
       deal 13 cards from deck to each hand
       dealer := dealer offset_by left
       for each team t: tricks_taken[t] := 0
-      all_pass := false
     }
 
-    phase auction {
+    // The auction resolves either to a final contract (declarer, level, strain,
+    // doubling) or to a pass-out; the consumer routes to play or skips the hand.
+    phase auction -> outcome {
+      contract_finalized(Player, Integer, Suit?, Integer) | all_pass
+    } {
       legal_moves: [submit_bid, pass, double, redouble]
       instantiate BridgeAuction(opener = dealer)
     }
+    auction produces:
+      contract_finalized(d, level, strain, dbl) {
+        declarer       := d
+        contract_level := level
+        trump_suit     := strain
+        doubled_mult   := dbl
+        continue to play
+      }
+      all_pass { skip to next hand }
 
-    phase play when not all_pass {
+    phase play {
       active_rules: [MustFollowSuit]
       legal_moves:  [play_to_trick]
 
@@ -87,7 +98,7 @@ game Bridge {
       }
     }
 
-    phase scoring when not all_pass {
+    phase scoring {
       let dteam    = team_of(declarer)
       let oteam    = 1 - dteam
       let required = 6 + contract_level

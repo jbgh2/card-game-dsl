@@ -25,8 +25,11 @@ Each hand:
    second game ends the rubber (bonus 500/700).
 
 The thirteen tricks run on the ordinary `Trick` mechanic; only the auction is
-special (the built-in `BridgeAuction` mechanic, which sets the contract/declarer
-state vars the scoring reads). Random bids are capped at level 3 so rubbers stay
+special (the built-in `BridgeAuction` mechanic). The auction phase declares a
+typed outcome — `contract_finalized(declarer, level, strain, doubling)` or
+`all_pass` — and the `produces:` consumer either routes on into play or skips the
+passed-out hand (see [decisions.md](../decisions.md) "Typed phase outcomes").
+Random bids are capped at level 3 so rubbers stay
 a realistic dozen-odd hands — game-level and slam contracts are unreachable under
 random play (their scoring is implemented but unexercised). The dummy and
 declarer-plays-dummy delegation are omitted: pure information/agency structure a
@@ -59,7 +62,6 @@ game Bridge {
   phase rubber repeats until (any team t: games_won[t] >= 2) {
     state {
       dealer            : Player  = 0
-      all_pass          : Boolean = false
       contract_level    : Integer = 0
       trump_suit        : Suit?   = none   // none = no-trump
       doubled_mult      : Integer = 1
@@ -74,15 +76,25 @@ game Bridge {
       deal 13 cards from deck to each hand
       dealer := dealer offset_by left
       for each team t: tricks_taken[t] := 0
-      all_pass := false
     }
 
-    phase auction {
+    phase auction -> outcome {
+      contract_finalized(Player, Integer, Suit?, Integer) | all_pass
+    } {
       legal_moves: [submit_bid, pass, double, redouble]
       instantiate BridgeAuction(opener = dealer)
     }
+    auction produces:
+      contract_finalized(d, level, strain, dbl) {
+        declarer       := d
+        contract_level := level
+        trump_suit     := strain
+        doubled_mult   := dbl
+        continue to play
+      }
+      all_pass { skip to next hand }
 
-    phase play when not all_pass {
+    phase play {
       active_rules: [MustFollowSuit]
       legal_moves:  [play_to_trick]
 
@@ -103,7 +115,7 @@ game Bridge {
       }
     }
 
-    phase scoring when not all_pass {
+    phase scoring {
       let dteam    = team_of(declarer)
       let oteam    = 1 - dteam
       let required = 6 + contract_level
