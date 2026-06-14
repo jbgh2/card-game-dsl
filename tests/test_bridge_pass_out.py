@@ -14,10 +14,12 @@ from __future__ import annotations
 
 import random
 from pathlib import Path
+from typing import Any
 
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.values import Player
 
 BRIDGE = Path(__file__).parent.parent / "docs" / "games" / "bridge.cardlang"
 
@@ -26,15 +28,15 @@ def test_pass_out_routes_through_skip_to_next_hand() -> None:
     rand = random_chooser(random.Random(0))
     forced = {"passes": 4}  # one full opening round of passes -> all_pass, hand 1
 
-    def chooser(player, candidates, n):
+    def chooser(player: Player, candidates: list[Any], n: int) -> list[Any]:
         if n == 1 and ("pass",) in candidates and forced["passes"] > 0:
             forced["passes"] -= 1
             return [("pass",)]
         return rand(player, candidates, n)
 
-    contracts: list[dict] = []
+    contracts: list[dict[str, Any]] = []
 
-    def tracer(event, payload):
+    def tracer(event: str, payload: Any) -> None:
         if event == "bridge_contract":
             contracts.append(payload)
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import cardlang.ast.nodes as n
 from cardlang.parse import parse_text
 
 # A phase declares a variant outcome type in its header, mirroring `define`'s
@@ -24,11 +25,11 @@ game G {
 """
 
 
-def _find_phase(phase, name):
+def _find_phase(phase: n.Phase, name: str) -> n.Phase | None:
     if phase.name == name:
         return phase
     for item in phase.items:
-        if hasattr(item, "items"):
+        if isinstance(item, n.Phase):
             found = _find_phase(item, name)
             if found is not None:
                 return found

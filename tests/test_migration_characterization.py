@@ -20,6 +20,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -46,7 +47,7 @@ print(json.dumps(out))
 """
 
 
-def _capture_pinned(name: str) -> dict:
+def _capture_pinned(name: str) -> dict[str, Any]:
     env = dict(os.environ, PYTHONHASHSEED="0")
     proc = subprocess.run(
         [sys.executable, "-c", _CAPTURE, name],
@@ -56,7 +57,8 @@ def _capture_pinned(name: str) -> dict:
         text=True,
         check=True,
     )
-    return json.loads(proc.stdout)
+    result: dict[str, Any] = json.loads(proc.stdout)
+    return result
 
 
 @pytest.mark.parametrize("name", ["bridge", "schnapsen"])

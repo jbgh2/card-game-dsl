@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import random
 
+import pytest
+
 import cardlang.runtime.state as state
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
@@ -168,23 +170,24 @@ game G {
         play_game(game, random.Random(0))
 
 
-def test_skip_unwind_does_not_leak_a_frame(monkeypatch) -> None:
+def test_skip_unwind_does_not_leak_a_frame(monkeypatch: pytest.MonkeyPatch) -> None:
     # A leaked frame is behaviourally transparent (empty), so assert frame
     # balance directly: every push_frame on the unwind path is matched by a pop.
     # Fails if run_phase pops outside `finally`.
     counts = {"push": 0, "pop": 0}
     orig_push = state.RuntimeState.push_frame
     orig_pop = state.RuntimeState.pop_frame
-    monkeypatch.setattr(
-        state.RuntimeState,
-        "push_frame",
-        lambda self: (counts.__setitem__("push", counts["push"] + 1), orig_push(self))[1],
-    )
-    monkeypatch.setattr(
-        state.RuntimeState,
-        "pop_frame",
-        lambda self: (counts.__setitem__("pop", counts["pop"] + 1), orig_pop(self))[1],
-    )
+
+    def counting_push(self: state.RuntimeState) -> None:
+        counts["push"] += 1
+        orig_push(self)
+
+    def counting_pop(self: state.RuntimeState) -> None:
+        counts["pop"] += 1
+        orig_pop(self)
+
+    monkeypatch.setattr(state.RuntimeState, "push_frame", counting_push)
+    monkeypatch.setattr(state.RuntimeState, "pop_frame", counting_pop)
     src = """
 game G {
   players: 2
