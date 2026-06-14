@@ -38,19 +38,27 @@ docs/
 - **"How do we build the tooling (parser/checker)?"** → `docs/implementation.md`
 - **"Which game uses which state variable?"** → `docs/appendix.md` (corpus catalogue)
 
-## Verifying changes (run this before pushing)
+## Verifying changes — MANDATORY before every `git push`
 
-CI (`.github/workflows/ci.yml`) runs exactly two checks. Run the **same** two
-locally before every push — not a narrower subset — or you'll round-trip on CI:
+CI (`.github/workflows/ci.yml`) runs exactly two checks. **Before any `git push`,
+run both locally from the repo root and confirm both pass. Do not push until they
+do.** This is non-negotiable — pushing on a partial check wastes a CI round-trip
+and a PR review cycle.
 
 ```
-mypy        # strict, over BOTH cardlang/ and tests/ (pyproject `files`). NOT `mypy cardlang`.
+mypy        # strict; covers BOTH cardlang/ AND tests/ (pyproject `files`)
 pytest -q
 ```
 
-`mypy cardlang` only checks the package and silently misses strict-mode errors in
-test code (missing annotations, untyped helpers); CI's bare `mypy` checks the
-tests too. Test code is held to the same `--strict` bar as the front end.
+Run them as written. In particular:
+
+- Run **`mypy`** (bare), **never** `mypy cardlang` — the latter checks only the
+  package and silently skips strict-mode errors in `tests/` (missing annotations,
+  untyped helpers, bare `dict`), which then fail CI. Test code is held to the same
+  `--strict` bar as the front end.
+- Run the **full** `pytest -q`, not a subset — the corpus harness and golden/
+  characterization tests catch regressions a narrow run misses. Some exact-score
+  tests pin `PYTHONHASHSEED=0`; don't assume a passing subset means a green suite.
 
 ## Operating rules (load-bearing)
 
