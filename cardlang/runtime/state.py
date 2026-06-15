@@ -135,7 +135,6 @@ class RuntimeState:
         self.last_round_state: dict[str, Any] = {}
         self.fired_transitions: set[str] = set()  # transition targets reached this iteration
         self.rule_index: dict[str, n.RuleDef] = {}  # rule name -> definition
-        self.routing_index: dict[str, n.RoutingDef] = {}  # routing name -> definition
         self.move_type_index: dict[str, n.MoveTypeDef] = {}  # name -> definition
         self.type_index: dict[str, n.TypeDef] = {}  # type name -> definition
         self.define_index: dict[str, n.DefineDef] = {}  # define name -> definition

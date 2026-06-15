@@ -173,7 +173,6 @@ class _Categories:
     functions: frozenset[str]
     ranks: frozenset[str]
     suits: frozenset[str]
-    routings: frozenset[str]
 
 
 def _walk(node: object) -> Iterator[object]:
@@ -221,7 +220,6 @@ def _categories(game: n.Game) -> _Categories:
         functions=STDLIB_VALUE_NAMES,
         ranks=frozenset(game.ranking),
         suits=deck_suits(game.deck),
-        routings=frozenset(r.name for r in game.routings),
     )
 
 
@@ -242,8 +240,6 @@ def _classify(name: str, cats: _Categories) -> str | None:
         return "pronoun"
     if name in cats.functions:
         return "function"
-    if name in cats.routings:
-        return "routing"  # a named trick-routing body referenced as a Trick arg
     return None
 
 

@@ -233,7 +233,7 @@ def _move_legal(mt: n.MoveTypeDef, ctx: Ctx) -> bool:
 
 def _produces(stmt: n.Produces, ctx: Ctx) -> None:
     # Dispatch to the matching arm and bind the payloads as arm locals. No frame
-    # is pushed (the routing precedent); `let`-locals thread via the immutable
+    # is pushed; `let`-locals thread via the immutable
     # `Ctx`, and the signal unwind leaves no state to clean up. The produced
     # outcome comes from either an outcome-declaring phase that already ran (and
     # stashed it by name), or a `define` invoked here.

@@ -1,9 +1,12 @@
-"""The Trick mechanic runtime (the main deferred runtime-primitive).
+"""Mechanic runtime: the kernel `round` and the per-game hand engines.
 
-`instantiate` dispatches `instantiate Trick(...)`; `run_trick` plays one trick:
+`run_round` drives the kernel `round` construct; `run_trick` plays one trick —
 each participant in turn order from the leader plays a legal card, the lead sets
-`led_suit`, then `outcome` selects a player and `routing` relocates the played
-cards. Returns the next leader.
+`led_suit`, an optional early-termination predicate may end the pass, then
+`outcome` selects the winner (returned, and bound as `outcome` for the
+surrounding body, which does the routing). `instantiate` dispatches the
+remaining per-game hand engines (Schnapsen, Pinochle, Bridge auction, Skat,
+Tarot, Cribbage, Stud, Tichu, Coup) not yet lifted into the DSL.
 """
 
 from __future__ import annotations
@@ -49,53 +52,7 @@ def instantiate(stmt: n.Instantiate, ctx: Ctx) -> Player:
         from cardlang.runtime.coup import run_coup_game
 
         return run_coup_game(stmt, ctx)
-    if stmt.mechanic != "Trick":
-        raise NotImplementedError(f"mechanic '{stmt.mechanic}' not supported yet")
-    args = {a.name: a.value for a in stmt.args}
-    participants = evaluate(_expr(args["participants"]), ctx)
-    leader = evaluate(_expr(args["leader"]), ctx)
-    source_zone = args["source_zone"]
-    assert isinstance(source_zone, n.NameRef)
-    play_zone = args["play_zone"]
-    assert isinstance(play_zone, n.NameRef)
-    outcome_fn = evaluate(_expr(args["outcome"]), ctx)
-    routing_body = _routing_body(args["routing"], ctx)
-    early_term = (
-        evaluate(_expr(args["early_termination"]), ctx)
-        if "early_termination" in args
-        else None
-    )
-    # The trump suit for this trick: an explicit `trump =` arg when it varies by
-    # hand (Oh Hell turns one up each deal), else the game-level `trump:` decl.
-    trump = (
-        evaluate(_expr(args["trump"]), ctx) if "trump" in args else ctx.rs.trump
-    )
-    # `play_rules = active_rules` -> the current phase's active rules, recomputed
-    # each trick so the hearts-broken transition takes effect.
-    play_rules = phases.compute_active_rules(ctx.current_phase, ctx.rs)
-    return run_trick(
-        participants=list(participants),
-        leader=leader,
-        source_family=source_zone.name,
-        play_zone=play_zone.name,
-        play_rules=play_rules,
-        outcome_fn=outcome_fn,
-        routing_body=routing_body,
-        early_term=early_term,
-        trump=trump,
-        ctx=ctx,
-    )
-
-
-def _routing_body(value: n.Expr | n.Movement, ctx: Ctx) -> tuple[n.Stmt, ...]:
-    """The Trick `routing =` arg is either an inline movement or the name of a
-    `routing` definition; both reduce to a statement body run with `outcome`
-    bound."""
-    if isinstance(value, n.Movement):
-        return (value,)
-    if isinstance(value, n.NameRef) and value.ref_kind == "routing":
-        return ctx.rs.routing_index[value.name].body
-    raise AssertionError(f"unsupported routing argument: {value!r}")
+    raise NotImplementedError(f"mechanic '{stmt.mechanic}' not supported yet")
 
 
 def _expr(value: n.Expr | n.Movement) -> n.Expr:
@@ -110,13 +67,10 @@ def run_trick(
     play_zone: str,
     play_rules: tuple[n.RuleDef, ...],
     outcome_fn: Any,
-    routing_body: tuple[n.Stmt, ...],
     early_term: Any,
     trump: str | None,
     ctx: Ctx,
 ) -> Player:
-    from cardlang.runtime.execute import run_body  # lazy: breaks the import cycle
-
     state: dict[str, Any] = {
         "led_suit": None,
         "trick_terminated_early": False,
@@ -149,9 +103,8 @@ def run_trick(
     outcome = outcome_fn(played, state["led_suit"], trump, ctx.rs.rank_index)
     assert isinstance(outcome, int)
     ctx.trace("trick", (outcome, [c for _, c in played]))
-    run_body(routing_body, trick_ctx.with_outcome(outcome))  # route the played cards
-    # Stash the terminal state as we pop, so a surrounding body (kernel `round`
-    # routing lifted out of the trick) can still read `state.trick_terminated_early`.
+    # Stash the terminal state as we pop, so the surrounding body (which does the
+    # routing) can still read `state.trick_terminated_early` after the round.
     ctx.rs.last_round_state = ctx.rs.mech_state.pop()
     return outcome
 
@@ -180,7 +133,6 @@ def run_round(stmt: n.Round, ctx: Ctx) -> Player:
         play_zone=stmt.play_zone,
         play_rules=play_rules,
         outcome_fn=outcome_fn,
-        routing_body=(),          # routing is done in the surrounding body
         early_term=early_term,
         trump=trump,
         ctx=ctx,

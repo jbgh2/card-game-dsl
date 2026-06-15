@@ -46,7 +46,6 @@ def emit(game: n.Game) -> IRDict:
         "winner": _winner(game.winner) if game.winner else None,
         "loser": _loser(game.loser) if game.loser else None,
         "rules": [_rule(r) for r in game.rules],
-        "routings": [_routing(r) for r in game.routings],
         "move_types": [_move_type(m) for m in game.move_types],
         "types": [_type_def(t) for t in game.types],
         "defines": [_define(d) for d in game.defines],
@@ -71,10 +70,6 @@ def _winner(w: n.Winner) -> IRDict:
 
 def _loser(lo: n.Loser) -> IRDict:
     return {"kind": "loser", "selection": _expr(lo.selection)}
-
-
-def _routing(r: n.RoutingDef) -> IRDict:
-    return {"kind": "routing", "name": r.name, "body": [_stmt(s) for s in r.body]}
 
 
 def _move_type(m: n.MoveTypeDef) -> IRDict:

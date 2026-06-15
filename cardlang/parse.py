@@ -798,10 +798,6 @@ class _Builder(Transformer[Token, n.Game]):
             span=self._span(meta),
         )
 
-    def routing_def(self, meta: Meta, c: list[object]) -> n.RoutingDef:
-        body = tuple(_as_stmt(s) for s in c[1:])
-        return n.RoutingDef(name=str(c[0]), body=body, span=self._span(meta))
-
     def move_when(self, meta: Meta, c: list[object]) -> _MoveWhen:
         return _MoveWhen(c[0])
 
@@ -881,14 +877,12 @@ class _Builder(Transformer[Token, n.Game]):
     def start(self, meta: Meta, c: list[object]) -> n.Game:
         game = next(x for x in c if isinstance(x, n.Game))
         rules = tuple(x for x in c if isinstance(x, n.RuleDef))
-        routings = tuple(x for x in c if isinstance(x, n.RoutingDef))
         move_types = tuple(x for x in c if isinstance(x, n.MoveTypeDef))
         types = tuple(x for x in c if isinstance(x, n.TypeDef))
         defines = tuple(x for x in c if isinstance(x, n.DefineDef))
         return replace(
             game,
             rules=rules,
-            routings=routings,
             move_types=move_types,
             types=types,
             defines=defines,

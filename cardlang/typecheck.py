@@ -254,7 +254,7 @@ def _name_type(e: n.NameRef, env: TypeEnv) -> Type:
         case "null":
             return TNull()  # the `none` literal — assignable only to optionals
         case _:
-            return TAny()  # pronoun / function / routing / unresolved
+            return TAny()  # pronoun / function / unresolved
 
 
 def _type_name(t: Type) -> str:
@@ -338,9 +338,6 @@ def _phase_statements(phase: n.Phase) -> Iterator[n.Stmt]:
 
 def _non_define_statements(game: Game) -> Iterator[n.Stmt]:
     """Every statement outside a `define` body — where `produce` is illegal."""
-    for routing in game.routings:
-        for s in routing.body:
-            yield from _stmt_tree(s)
     for move_type in game.move_types:
         for s in move_type.effect:
             yield from _stmt_tree(s)
@@ -594,11 +591,6 @@ def _check_misplaced_produce(
     """`produce` is legal only inside a `define` body (checked elsewhere) or the
     body of an outcome-declaring phase. Flag it anywhere else, and type-check the
     legal phase produces against the enclosing phase's variant."""
-    for routing in game.routings:
-        for s in routing.body:
-            for sub in _stmt_tree(s):
-                if isinstance(sub, n.Produce):
-                    bag.error("'produce' may only appear in a define or outcome-phase body", sub.span)
     for move_type in game.move_types:
         for s in move_type.effect:
             for sub in _stmt_tree(s):
@@ -910,11 +902,10 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
         walk(phase, before, set(), False)
 
     # `continue to` / `skip to next hand` are phase control flow. Outside a phase
-    # body — in a define, routing, or move-type body — they would unwind out of
+    # body — in a define or move-type body — they would unwind out of
     # `play_game` uncaught, so reject them there.
     non_phase_bodies = (
         [d.body for d in game.defines]
-        + [r.body for r in game.routings]
         + [m.effect for m in game.move_types]
     )
     for body in non_phase_bodies:

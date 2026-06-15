@@ -718,17 +718,6 @@ class Loser:
 
 
 @dataclass(frozen=True, slots=True)
-class RoutingDef:
-    """`routing <name> { <stmt>* }` — a named, reusable trick-routing body,
-    referenced by name as a Trick `routing =` argument. It runs with the trick
-    context bound (the `outcome` and `state` pronouns), so it has no parameters."""
-
-    name: str
-    body: tuple[Stmt, ...]
-    span: Span | None = None
-
-
-@dataclass(frozen=True, slots=True)
 class Game:
     """A whole game plus the rules defined alongside it."""
 
@@ -745,7 +734,6 @@ class Game:
     winner: Winner | None = None
     loser: Loser | None = None
     rules: tuple[RuleDef, ...] = ()
-    routings: tuple[RoutingDef, ...] = ()
     move_types: tuple[MoveTypeDef, ...] = ()
     types: tuple[TypeDef, ...] = ()
     defines: tuple[DefineDef, ...] = ()
@@ -758,7 +746,6 @@ Node = (
     | PlayersSpec
     | Winner
     | Loser
-    | RoutingDef
     | MoveTypeDef
     | VariantCase
     | DefineDef

@@ -9,7 +9,6 @@ start: top_item+
 
 ?top_item: game
          | rule_def
-         | routing_def
          | move_type_def
          | type_def
          | define_def
@@ -156,7 +155,7 @@ produce_arm: NAME ["(" NAME ("," NAME)* ")"] "{" statement* "}"
 // vocabulary"). Call syntax (`name(args)`) is reserved for value-returning
 // functions and named user operations, which appear in expression position.
 
-// One movement primitive, used as a statement or (for trick routing) a value.
+// One movement primitive, used as a statement or (in some arg positions) a value.
 // The verb is sugar over a single IR node; the amount is an expression and the
 // item noun covers cards and resources. The "in" form lets muck/burn imply
 // their destination.
@@ -214,18 +213,13 @@ lvalue: NAME [index_expr]
 // Rules (top-level)
 // ----------------------------------------------------------------------------
 
-// A named, reusable trick-routing body (vs Hearts' inline `routing = move …`).
-// Runs with the trick context bound — the `outcome` and `state` pronouns — so
-// it takes no parameter list; referenced by name as a Trick `routing =` arg.
-routing_def: "routing" NAME "{" statement* "}"
-
 move_type_def: "move_type" NAME "{" [move_when] move_effect "}"
 move_when: "when" ":" applies_pred
 move_effect: "effect" "{" statement* "}"
 
 // A named param-light definition with a typed variant outcome. Its body runs
-// with the enclosing context bound (the routing precedent) and `produce`s one
-// variant. Consumed by a `produces:` block (see produces_stmt).
+// with the enclosing context bound and `produce`s one variant. Consumed by a
+// `produces:` block (see produces_stmt).
 define_def: "define" NAME "->" variant_set "{" statement* "}"
 variant_set: "{" variant_case ("|" variant_case)* "}"
 variant_case: NAME ["(" payload_type ("," payload_type)* ")"]
