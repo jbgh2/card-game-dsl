@@ -57,7 +57,9 @@ Things we have noted but consciously not designed yet:
   mechanics; lifting each into the kernel + DSL standard library (promoting a
   definition at ~3 examples) closes the spec-vs-runtime gap. The bidding
   sub-language, detailed melding, and strict-trick legality noted on this list
-  are subsumed by this work.
+  are subsumed by this work. The game-by-game execution order, the per-game
+  scope, and the language-gap checkpoints are in
+  [kernel-migration.md](kernel-migration.md).
 
 - **Typed outcomes: Stages 1–3 built; remaining corpus migrations + checker coverage.**
   Stage 1 is built: `cardlang/typecheck.py` is a real type checker (a `Type`
