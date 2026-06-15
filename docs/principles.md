@@ -38,8 +38,8 @@ a real reference (Pagat is the chosen corpus) and let the primitives emerge.
 
 Resist the temptation to extract a pattern after one or two examples. Wait
 until three games have demonstrated the same pattern in the same place.
-Examples in the current corpus: the Trick mechanic stabilized once
-Hearts, Getaway, and Spades all used the same parameter shape;
+Examples in the current corpus: the trick `round` configuration stabilized once
+Hearts, Getaway, and Spades all played tricks the same way;
 constraint composition was validated against four games including
 Pinochle, whose four-rule play stack is the most demanding case in
 the corpus.

@@ -46,14 +46,16 @@ Things we have noted but consciously not designed yet:
   adapter provides information-state *strings* only; tensors are deferred.
 
 - **Grow the interactive-decision kernel and migrate the corpus to it.** `offer`
-  and a first `round` (the trick) are built; the rest of the decision sublanguage
+  and the `round` construct are built, and every trick game (Hearts, Spades,
+  Getaway, Bridge, Oh Hell) now plays on the kernel `round` — the built-in `Trick`
+  mechanic is retired, with `round` carrying rule-delta transitions (Hearts/Spades)
+  and early-termination (Getaway). The rest of the decision sublanguage
   (decisions.md "Interactive decisions: a kernel and an in-DSL standard library")
-  is the major in-flight work: `round` growing rule-delta transitions
-  (Hearts/Spades) and early-termination (Getaway) so the remaining trick games
-  migrate off the built-in `Trick`; typed outcomes and definition-composition;
-  and the `auction` / `challenge` / `block` / `climb` standard-library
-  vocabulary. Nine games (Schnapsen, Pinochle, Bridge, Skat, Tarot, Cribbage,
-  Stud, Tichu, Coup) still hold their decision logic in concrete per-game runtime
+  is the major in-flight work: the remaining `round` axes (accumulator, order,
+  move vocabulary); typed outcomes and definition-composition; and the `auction` /
+  `challenge` / `block` / `climb` standard-library vocabulary. Nine games
+  (Schnapsen, Pinochle, Bridge, Skat, Tarot, Cribbage, Stud, Tichu, Coup) still
+  hold their decision logic in concrete per-game runtime
   mechanics; lifting each into the kernel + DSL standard library (promoting a
   definition at ~3 examples) closes the spec-vs-runtime gap. The bidding
   sub-language, detailed melding, and strict-trick legality noted on this list

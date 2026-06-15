@@ -46,8 +46,8 @@ mechanic accepts as a callback. Pinochle's `Auction` takes
 `outcome: (final_bid, last_active_player) → effect`; Skat's
 `Reizen` takes `outcome: (winner, value: Integer | all_pass) → effect`;
 French Tarot's `TarotBidding` takes
-`outcome: (winner, level: BidLevel) | all_pass → effect`; Trick's
-`outcome` parameter produces a Player. The enclosing structure
+`outcome: (winner, level: BidLevel) | all_pass → effect`; the trick
+`round`'s `outcome` function produces a Player. The enclosing structure
 pattern-matches on the produced value the same way it does for
 phase outcomes:
 
@@ -60,9 +60,9 @@ bidding produces:
   all_pass { skip to next hand }
 ```
 
-A mechanic's result is also available as the bare `outcome` pronoun in the
-enclosing body, immediately after the `instantiate`: Hearts follows
-`instantiate Trick(...)` with `leader := outcome`, reading the trick's selected
+A mechanic's or round's result is also available as the bare `outcome` pronoun
+in the enclosing body, immediately after the `instantiate` or `round`: Hearts
+follows its trick `round` with `leader := outcome`, reading the trick's selected
 player. This is the same value a `produces:` block would match; the bare
 `outcome` is the shorthand for a single-payload result that needs no tag.
 
@@ -71,7 +71,8 @@ level. The distinction stays:
 
 - A **mechanic** is a named, parameterized, reusable unit, instantiated
   with arguments. It's the right shape when a chunk of logic appears
-  in multiple games (Trick, Auction, BettingRound).
+  in multiple games (Auction, BettingRound). (The trick is no longer a
+  mechanic — it is the kernel `round` construct.)
 - A **phase** is a positional unit in the phase tree, not parameterized
   and not reusable across games. It's the right shape when a chunk
   appears at a specific position with semantics tied to where it sits.
@@ -242,73 +243,58 @@ operation vocabulary"). `action` is the same player-move object the `offer
 action` syntax names. (The *concept* is still a move type; `action` is an
 instance of one, as taken.)
 
-## Trick mechanic parameters vs rules
+## Round configuration vs rules
 
-Some phase-level configuration is *not* a rule even though it looks
-like one. The Trick mechanic accepts `outcome:`, `routing:`,
-`early_termination:`, and `chooser_for:` as parameters. These
-modify *what happens after a play* (who's the winner, where the
-cards go, when the trick ends early, who picks); rules modify
-*which plays are legal*.
+Some phase-level configuration is *not* a rule even though it looks like one. A
+trick `round` carries an `outcome` function and optional `trump` / `early`
+clauses, and the surrounding body does the routing. These shape *what happens
+after a play* (who is selected, when the pass ends early, where the cards go);
+rules shape *which plays are legal*.
 
 The categories don't unify:
 
-- **Rules** are filters on the candidate-move set. They're attached
-  to phases via `active_rules:` and consulted before each move.
-- **Trick parameters** (`outcome:`, `routing:`, early_termination`)
-  are arguments to the mechanic. They run once per trick (or per
-  play) and produce the trick's effect.
-- **Choice helpers** (`chooser_for:`, `play_source_for:`) are
-  per-game functions consulted by the mechanic when it solicits a
-  move.
+- **Rules** are filters on the candidate-move set. They attach to phases via
+  `active_rules:` and are consulted before each move.
+- **Round configuration** (`outcome`, `early`, `trump`) and the post-round body
+  routing run once per trick (or per play) and produce the trick's effect.
 
-Getaway's first-trick-to-waste behaviour is the canonical mistake:
-when written as a rule (`rule FirstTrickAlwaysGoesToWaste`) it has
-nothing to constrain — its mechanical effect is a routing override
-on the Trick instantiation. The correct form is to pass the routing
-function directly:
+Getaway's first-trick-to-waste behaviour is the canonical mistake: written as a
+rule (`rule FirstTrickAlwaysGoesToWaste`) it has nothing to constrain — its
+effect is *where the cards go*, an ordinary body movement after the round:
 
 ```
 phase first_trick {
   active_rules: [MustLeadAceOfSpadesOnFirstPlay]
-  instantiate Trick (
-    ...
-    routing = all cards from trick_pile to waste
-  )
+  round play_to_trick from leader over all players source hand into trick_pile
+        outcome highest_of_led_suit
+  move all cards from trick_pile to waste
 }
 ```
 
-Tichu's Dragon-routing similarly lives in the `TichuTrickRouting`
-function, not in a rule. Hearts' `TrumpedHighestOfLedSuit` is an
-`outcome:` function, not a rule. The clean test: if the
-configuration's effect is "filter legal moves before play," it's a
-rule; if its effect is "shape the trick's resolution after play,"
-it's a mechanic parameter.
+Hearts' `highest_of_led_suit` is the round's `outcome` function, not a rule. The
+clean test: if the configuration's effect is "filter legal moves before play,"
+it is a rule; if its effect is "shape the trick's resolution after play," it is
+round configuration or body routing.
 
-**The `routing:` argument has two surface forms.** When the routing is a
-single unconditional movement, it is written inline (Hearts, Getaway's
-first trick: `routing = move all cards from trick_pile to waste`). When it
-branches — Getaway routes the pile to the trick winner on a tochoo
-(pickup) but to the waste otherwise — the body is a named top-level
-declaration referenced by name:
+**Routing has two surface forms, both ordinary body statements.** When the
+routing is a single unconditional movement, it is one statement after the round
+(Hearts; Getaway's first trick: `move all cards from trick_pile to waste`). When
+it branches — Getaway routes the pile to the trick winner on a tochoo (pickup)
+but to the waste otherwise — it is an `if` over the round's terminal state:
 
 ```
 phase play {
-  instantiate Trick ( ..., routing = GetawayRouting )
-}
-
-routing GetawayRouting {
+  round play_to_trick from leader over players where not eliminated[player]
+        source hand into trick_pile outcome highest_of_led_suit early on_play_of_tochoo
   if state.trick_terminated_early { move all cards from trick_pile to hand[outcome] }
   else { move all cards from trick_pile to waste }
 }
 ```
 
-A named `routing` runs with the same trick context bound as an inline
-one — the `outcome` pronoun (the trick winner) and the `state` pronoun
-(the Trick's own state, e.g. `state.trick_terminated_early`) — so it
-declares no parameters. It is a named, reusable routing *body*, not a
-function with a signature: the two forms reduce to the same thing, a
-statement sequence run once per trick with `outcome` bound.
+The body reads the round's `outcome` (the selected player) and its terminal
+`state` (e.g. `state.trick_terminated_early`): a finished round's state stays
+readable as `state.x` until the next round runs. Routing is just body
+statements — there is no separate routing construct.
 
 **Per-game predicates for contextual interpretations.** Some games
 need to interpret card properties contextually rather than from the
@@ -318,8 +304,8 @@ The pattern: a per-game `same_suit_class(c1, c2)` predicate that
 the standard `MustFollowSuit` rule consults instead of comparing
 `c1.suit == c2.suit` directly. Most games keep the default
 (printed-suit equality); games with contextual suits override.
-Same shape as the `chooser_for` and `play_source_for` helpers — a
-per-game function in the game file, not a new language construct.
+Same shape as a `round`'s `outcome` or `early` function — a per-game or
+stdlib function referenced by name, not a new language construct.
 
 ## State scoping (lexical)
 
@@ -402,7 +388,7 @@ explicit export step. This is the same scoping rule that applies
 to imperative code in the phase body. Examples in the corpus:
 
 - Hearts' `MustFollowSuit` reads `state.led_suit`, which lives
-  inside the Trick mechanic.
+  inside the trick `round`.
 - Pinochle's `BidExceedsCurrent` reads `state.current_bid`, which
   lives inside the Auction mechanic.
 - Stud's BettingRound legality rules read `state.bet_to_match`
@@ -1394,11 +1380,11 @@ chooser_for(actor) =                    // who decides what move it is
     actor
 ```
 
-The Trick mechanic accepts an optional `chooser_for:` parameter
-that defaults to the identity function (actor chooses for
-themselves). Bridge passes its game-defined helper. Other games
-omit the parameter. Any other choice-prompting mechanic that
-exposes a similar parameter follows the same convention.
+A choice-prompting kernel construct (`round` / `offer`) consults an
+optional `chooser_for` helper that defaults to the identity function
+(actor chooses for themselves). Bridge supplies its game-defined helper;
+other games omit it. Any choice-prompting construct that exposes a
+similar hook follows the same convention.
 
 A game with delegated play also typically wants a parallel
 `play_source_for` helper to route the actor's move-source zone
@@ -1704,8 +1690,13 @@ Nomic, CCG card-text) out of scope by construction rather than by preference.
 The full design — the kernel/standard-library split, the closed axes, the
 promotion rule, and the worked Coup example — is in
 [../superpowers/specs/2026-06-06-interaction-decision-sublanguage-design.md](../superpowers/specs/2026-06-06-interaction-decision-sublanguage-design.md).
-The kernel's atom (`offer`, `move_type` definitions, the `actor` pronoun) and a
-first `round` (the trick, validated by replacing the built-in `Trick` mechanic in
-Oh Hell with no behavioural change) are built; the auction / challenge / block /
-climbing vocabulary, typed outcomes, and definition-composition are the in-flight
-build (see [roadmap.md](roadmap.md)).
+The kernel's atom (`offer`, `move_type` definitions, the `actor` pronoun) and the
+`round` construct are built: every trick game (Hearts, Spades, Getaway, Bridge,
+Oh Hell) plays on the kernel `round`, the built-in `Trick` mechanic has been
+retired, and `round` carries the termination axis (an `early` predicate —
+Getaway's tochoo) plus round-state exposure (a finished round's terminal `state`
+readable in the surrounding body). The remaining axes (accumulator, non-trivial
+order, heterogeneous move vocabulary) and the auction / challenge / block /
+climbing vocabulary, with typed outcomes and definition-composition, are the
+in-flight build (see [roadmap.md](roadmap.md) and
+[kernel-migration.md](kernel-migration.md)).

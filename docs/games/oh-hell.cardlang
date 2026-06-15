@@ -5,10 +5,9 @@
 // fix trump, every player bids the exact number of tricks they expect, and the
 // hand scores +1 per trick plus a +10 bonus for hitting the bid exactly.
 //
-// Tricks are played via the kernel `round` construct rather than `instantiate
-// Trick`. The trump suit varies per hand, so it is passed as a `trump` argument
-// (read from the per-hand `trump_suit` state var) rather than a fixed game-level
-// `trump:` declaration.
+// Tricks are played via the kernel `round` construct. The trump suit varies per
+// hand, so it is passed as a `trump` argument (read from the per-hand
+// `trump_suit` state var) rather than a fixed game-level `trump:` declaration.
 //
 // The dealer hook (the total of all bids may not equal the hand size) is
 // enforced here as a correction to the dealer's bid after bids are in, rather

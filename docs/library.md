@@ -4,53 +4,47 @@ The named compositions that have emerged from the five-game corpus. Most users
 write only in this layer; the primitives in [model.md](model.md) are for the
 10% pushing the edges.
 
-## The Trick mechanic
+## The trick: a `round` configuration
 
-After three implementations, the Trick mechanic stabilized with these
-parameters:
+A trick is the kernel `round` construct ([model.md](model.md)), not a built-in
+mechanic. Each participant in turn order from the leader plays one card; the
+lead sets the led suit; an optional early-termination predicate may end the pass
+before everyone has played; then an outcome function selects a player, bound as
+`outcome` for the surrounding body, which does the routing.
 
 ```
-mechanic Trick (
-  participants:        List<Player>
-  leader:              Player
-  source_zone:         per-player Zone
-  chooser_for:         (Player) → Player       // default: identity (actor chooses)
-  play_zone:           shared Zone
-  play_rules:          RuleSet
-  outcome:             (played_cards, state) → Player
-  routing:             (played_cards, state, outcome) → List<Move>
-  early_termination:   (state) → Boolean       // default: false
-)
+round <move_type> from <leader> over <participants>
+      source <zone> into <zone> outcome <fn> [trump <expr>] [early <predicate>]
 ```
 
 Key design notes:
 
-- **`outcome`, not `winner`.** The mechanic computes which player is selected
-  by the play; whether that's a "winner" or a "loser" is a routing concern.
-  In Hearts the outcome is the winner (cards go to their captured pile). In
-  Getaway the outcome may be the loser depending on whether the trick was
-  terminated early.
+- **`outcome`, not `winner`.** The round computes which player the play selects;
+  whether that is a "winner" or a "loser" is a routing concern. In Hearts the
+  outcome is the winner (cards go to their captured pile); in Getaway the outcome
+  picks up the pile only when the trick terminated early.
 
-- **`routing` is a function, not a destination.** Hearts can use a trivial
-  routing function; Getaway needs conditional routing depending on whether
-  the trick was terminated early.
+- **Routing is the surrounding body, not a parameter.** After the round returns,
+  the body relocates the played cards: Hearts routes unconditionally
+  (`move all cards from trick_pile to captured[outcome]`); Getaway branches on
+  the round's terminal state (`if state.trick_terminated_early { … } else { … }`).
+  A finished round's terminal state stays readable as `state.x` until the next
+  round runs.
 
-- **`early_termination` is parameterized.** Most games leave it at default
-  false (the trick proceeds until all participants have played). Getaway
-  uses it.
+- **`early <predicate>` is optional.** Most games omit it (the pass proceeds until
+  all participants have played). Getaway uses `early on_play_of_tochoo`: a tochoo
+  (an off-suit play, only possible when void) ends the trick.
 
-- **The mechanic itself emits observation events** for each play, with
-  visibility derived from the zones. Hidden-info vs perfect-info games use
-  the same mechanic; the difference is in zone visibility.
+- **`trump <expr>` is optional.** Omitted, the round uses the game-level `trump:`
+  declaration (Spades); supplied, it overrides per hand (Oh Hell turns one up each
+  deal; Bridge's contract sets it, none for no-trump).
 
-- **The mechanic produces shared state** (`next_leader`) which the enclosing
-  phase reads to start the next trick. The mechanic does not assume
-  "winner-leads-next" — the enclosing phase makes that choice.
+- **The round emits observation events** for each play, with visibility derived
+  from the zones. Hidden-info and perfect-info games use the same construct; the
+  difference is zone visibility.
 
-- **`chooser_for` defaults to identity.** Almost every game leaves it
-  unset, meaning each actor chooses their own card. Bridge passes a
-  game-defined helper that routes dummy's turn to declarer. See
-  [decisions.md](decisions.md) "Delegated play".
+- **The next leader is the body's choice.** The round does not assume
+  "winner-leads-next"; the surrounding phase sets `leader := outcome` (or not).
 
 ## Move types
 
@@ -92,10 +86,11 @@ Key design notes:
 
 ## Mechanics
 
-- `Trick` (see above) — owns its own per-trick state (`led_suit`,
-  played-cards, `trick_terminated_early`). Per [appendix.md](appendix.md)
-  (corpus catalogue), this is where these variables live; games don't
-  redeclare them.
+- The trick `round` (see above) — owns its own per-trick state (`led_suit`,
+  played-cards, `trick_terminated_early`), readable as `state.x` during the pass
+  and, for the just-finished round, in the surrounding body. Per
+  [appendix.md](appendix.md) (corpus catalogue), this is where these variables
+  live; games don't redeclare them.
 - `Auction` (see [games/pinochle.md](games/pinochle.md)) — parameterized
   over participants, opening bid, increment, outcome callback. Owns its
   own per-auction state (`current_bid`, `last_bidder`, `passed[player]`).
@@ -277,8 +272,8 @@ The closed operation vocabulary, in the three families set out in
 [decisions.md](decisions.md) "The operation vocabulary". Surface verbs are
 sugar over a small set of primitives; this is the catalogue.
 
-**Movement** — one primitive; the verb supplies defaults. A movement appears
-as a statement and as a value (a `Trick`'s `routing`).
+**Movement** — one primitive; the verb supplies defaults. A movement is a
+statement; trick routing is ordinary body movements after a `round` returns.
 
 - `deal` — cards from a source (usually a deck) to recipients, per-recipient visibility; emits a semi-private observation to non-recipients (they see something moved)
 - `transfer` — cards or resource units between zones; the amount is an expression and the item names the unit (`transfer 5 chips from stack[A] to pot`, `transfer chosen 3 cards from hand[p] to ...`). See [decisions.md](decisions.md) "Resource amount syntax".

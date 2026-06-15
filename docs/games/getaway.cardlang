@@ -38,8 +38,8 @@ game Getaway {
 
   phase first_trick {
     // Forced opening lead: the ace of spades. The first trick always goes to
-    // the waste (a routing parameter, not a rule — see decisions.md "Trick
-    // mechanic parameters vs rules").
+    // the waste (a body movement after the round, not a rule — see decisions.md
+    // "Round configuration vs rules").
     active_rules: [MustFollowSuit, MustLeadAceOfSpadesOnFirstPlay]
     legal_moves: [play_to_trick]
 

@@ -6,7 +6,7 @@
 // is played (first side to two games), and the side with the higher total wins.
 //
 // Bridge trick play needs only follow-suit, so the thirteen tricks run on the
-// ordinary `Trick` mechanic (a no-trump contract passes trump = none). The
+// kernel `round` construct (a no-trump contract passes trump = none). The
 // auction — ascending bids over C D H S NT, with double and redouble — is the
 // one special part and runs in the built-in `BridgeAuction` mechanic, which sets
 // the contract/declarer state vars this file's scoring reads. The dummy and
