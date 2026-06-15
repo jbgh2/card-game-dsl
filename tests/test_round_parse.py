@@ -20,6 +20,12 @@ rule MustFollowSuit { constrains: play_to_trick  applies_when: state.led_suit is
 """
 
 
+EARLY_SRC = SRC.replace(
+    "outcome highest_trump_or_led_suit trump trump_suit",
+    "outcome highest_of_led_suit early on_play_of_tochoo",
+)
+
+
 def test_round_parses() -> None:
     game = parse_text(SRC, "g.cardlang")
     rnd = next(i for i in game.phases[0].items if isinstance(i, n.Round))
@@ -29,3 +35,11 @@ def test_round_parses() -> None:
     assert isinstance(rnd.leader, n.NameRef) and rnd.leader.name == "leader"
     assert isinstance(rnd.participants, n.AllPlayers)
     assert rnd.trump is not None and isinstance(rnd.trump, n.NameRef)
+    assert rnd.early_termination is None
+
+
+def test_round_early_termination_parses() -> None:
+    game = parse_text(EARLY_SRC, "g.cardlang")
+    rnd = next(i for i in game.phases[0].items if isinstance(i, n.Round))
+    assert rnd.early_termination == "on_play_of_tochoo"
+    assert rnd.trump is None

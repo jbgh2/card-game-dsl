@@ -24,7 +24,7 @@ Each hand:
    (bonus 300, or 500 when vulnerable), the below-the-line counters reset, and a
    second game ends the rubber (bonus 500/700).
 
-The thirteen tricks run on the ordinary `Trick` mechanic; only the auction is
+The thirteen tricks run on the kernel `round` construct; only the auction is
 special (the built-in `BridgeAuction` mechanic). The auction phase declares a
 typed outcome — `contract_finalized(declarer, level, strain, doubling)` or
 `all_pass` — and the `produces:` consumer either routes on into play or skips the
@@ -100,16 +100,9 @@ game Bridge {
 
       leader := declarer offset_by left
       repeat until (all player p: hand[p] is empty) {
-        instantiate Trick (
-          participants = all players,
-          leader       = leader,
-          source_zone  = hand,
-          play_zone    = trick_pile,
-          play_rules   = active_rules,
-          outcome      = highest_trump_or_led_suit,
-          trump        = trump_suit,
-          routing      = move all cards from trick_pile to captured[team_of(outcome)]
-        )
+        round play_to_trick from leader over all players source hand into trick_pile
+              outcome highest_trump_or_led_suit trump trump_suit
+        move all cards from trick_pile to captured[team_of(outcome)]
         tricks_taken[team_of(outcome)] += 1
         leader := outcome
       }

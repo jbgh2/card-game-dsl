@@ -38,8 +38,8 @@ a real reference (Pagat is the chosen corpus) and let the primitives emerge.
 
 Resist the temptation to extract a pattern after one or two examples. Wait
 until three games have demonstrated the same pattern in the same place.
-Examples in the current corpus: the Trick mechanic stabilized once
-Hearts, Getaway, and Spades all used the same parameter shape;
+Examples in the current corpus: the trick `round` configuration stabilized once
+Hearts, Getaway, and Spades all played tricks the same way;
 constraint composition was validated against four games including
 Pinochle, whose four-rule play stack is the most demanding case in
 the corpus.
@@ -168,9 +168,9 @@ sequential, with `apply_components:` as the one batched-write
 exception. (See [decisions.md](decisions.md), "State scoping" and
 "Mutation semantics".)
 
-**Mechanics own their internal state.** The `Trick`, `Auction`, and
-`BettingRound` mechanics each declare their own per-instance state
-blocks. Games don't redeclare what a mechanic already tracks. (See
+**Mechanics own their internal state.** The trick `round`, and the `Auction`
+and `BettingRound` mechanics, each carry their own per-instance state.
+Games don't redeclare what a mechanic or construct already tracks. (See
 [library.md](library.md), "Mechanics".)
 
 **Typed phase outcomes route control flow at the phase boundary.**
@@ -192,7 +192,7 @@ User-defined types support optional `derived` fields. Stdlib types
 are built in. (See [library.md](library.md), "Types" and
 [decisions.md](decisions.md), "Typed object model".)
 
-**Vocabulary in the syntax.** Domain words from rulebooks — `Trick`,
+**Vocabulary in the syntax.** Domain words from rulebooks —
 `Auction`, `BettingRound`, `Hand`, `Deck`, `Discard`, `Muck`,
 `ChipStack`, `MustFollowSuit` — are first-class names in the library
 rather than abstractions the user has to invent. (See "Domain

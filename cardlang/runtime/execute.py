@@ -49,7 +49,7 @@ def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
             return ctx
         case n.Instantiate():
             # The mechanic's result binds `outcome` for the rest of the body
-            # (e.g. `instantiate Trick(...)` then `leader := outcome`).
+            # (e.g. `instantiate BridgeAuction(...)` then reading `outcome`).
             return ctx.with_outcome(mechanics.instantiate(stmt, ctx))
         case n.Offer():
             _offer(stmt, ctx)
@@ -233,7 +233,7 @@ def _move_legal(mt: n.MoveTypeDef, ctx: Ctx) -> bool:
 
 def _produces(stmt: n.Produces, ctx: Ctx) -> None:
     # Dispatch to the matching arm and bind the payloads as arm locals. No frame
-    # is pushed (the routing precedent); `let`-locals thread via the immutable
+    # is pushed; `let`-locals thread via the immutable
     # `Ctx`, and the signal unwind leaves no state to clean up. The produced
     # outcome comes from either an outcome-declaring phase that already ran (and
     # stashed it by name), or a `define` invoked here.

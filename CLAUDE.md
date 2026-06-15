@@ -17,6 +17,8 @@ docs/
   decisions.md           Settled design decisions (the load-bearing spec)
   roadmap.md             Explicitly deferred work + suggested next steps
   implementation.md      Plan for building the parser + static checker (tooling)
+  building.md            Front-end execution blueprint (pipeline, triage, gates)
+  kernel-migration.md    Stage plan: remove per-game Python mechanics → DSL kernel
   maintaining.md         Doc hygiene rules — read before editing docs
   appendix.md            Background research synthesis + corpus state catalogue
   games/                 One file per game in the corpus. Living spec examples.
@@ -35,7 +37,8 @@ docs/
 - **"How is game Y described in the DSL?"** → `docs/games/Y.md`
 - **"What's still being decided?"** → `docs/open-questions/_index.md` then the named file
 - **"What should we build next?"** → `docs/roadmap.md` (and `docs/games/_candidates.md` for the full pipeline)
-- **"How do we build the tooling (parser/checker)?"** → `docs/implementation.md`
+- **"How do we build the tooling (parser/checker)?"** → `docs/implementation.md`, `docs/building.md`
+- **"How do we remove the per-game Python mechanics?"** → `docs/kernel-migration.md`
 - **"Which game uses which state variable?"** → `docs/appendix.md` (corpus catalogue)
 
 ## Verifying changes — MANDATORY before every `git push`

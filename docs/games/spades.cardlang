@@ -82,15 +82,9 @@ game Spades {
       }
 
       repeat until (all player p: hand[p] is empty) {
-        instantiate Trick (
-          participants = all players,
-          leader       = leader,
-          source_zone  = hand,
-          play_zone    = trick_pile,
-          play_rules   = active_rules,
-          outcome      = highest_trump_or_led_suit,
-          routing      = move all cards from trick_pile to captured[team_of(outcome)]
-        )
+        round play_to_trick from leader over all players source hand into trick_pile
+              outcome highest_trump_or_led_suit
+        move all cards from trick_pile to captured[team_of(outcome)]
         tricks_won[outcome] += 1
         leader := outcome
       }

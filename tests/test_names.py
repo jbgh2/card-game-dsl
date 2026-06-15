@@ -32,7 +32,8 @@ def test_hearts_name_classifications() -> None:
     assert kinds["state"] == "pronoun"
     assert kinds["action"] == "pronoun"
     assert kinds["outcome"] == "pronoun"
-    assert kinds["highest_of_led_suit"] == "function"
+    # (Outcome functions like highest_of_led_suit are now `round` string fields,
+    # not bare-name NameRefs, so Hearts no longer carries a "function" ref_kind.)
     assert kinds["c"] == "local"
     assert kinds["card"] == "local"
 

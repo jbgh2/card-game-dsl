@@ -360,94 +360,49 @@
               }
             },
             {
-              "kind": "instantiate",
-              "mechanic": "Trick",
-              "args": [
-                {
-                  "kind": "named_arg",
-                  "name": "participants",
-                  "value": {
-                    "kind": "all_players"
-                  }
+              "kind": "round",
+              "move_type": "play_to_trick",
+              "leader": {
+                "kind": "name",
+                "name": "leader",
+                "ref": "state_var"
+              },
+              "participants": {
+                "kind": "all_players"
+              },
+              "source_zone": "hand",
+              "play_zone": "trick_pile",
+              "outcome_fn": "highest_of_led_suit",
+              "trump": null,
+              "early_termination": null
+            },
+            {
+              "kind": "movement",
+              "verb": "move",
+              "mode": null,
+              "amount": "all",
+              "item": "cards",
+              "source": {
+                "kind": "name",
+                "name": "trick_pile",
+                "ref": "zone"
+              },
+              "dest": {
+                "kind": "subscript",
+                "obj": {
+                  "kind": "name",
+                  "name": "captured",
+                  "ref": "zone"
                 },
-                {
-                  "kind": "named_arg",
-                  "name": "leader",
-                  "value": {
-                    "kind": "name",
-                    "name": "leader",
-                    "ref": "state_var"
-                  }
-                },
-                {
-                  "kind": "named_arg",
-                  "name": "source_zone",
-                  "value": {
-                    "kind": "name",
-                    "name": "hand",
-                    "ref": "zone"
-                  }
-                },
-                {
-                  "kind": "named_arg",
-                  "name": "play_zone",
-                  "value": {
-                    "kind": "name",
-                    "name": "trick_pile",
-                    "ref": "zone"
-                  }
-                },
-                {
-                  "kind": "named_arg",
-                  "name": "play_rules",
-                  "value": {
-                    "kind": "name",
-                    "name": "active_rules",
-                    "ref": "pronoun"
-                  }
-                },
-                {
-                  "kind": "named_arg",
+                "index": {
+                  "kind": "name",
                   "name": "outcome",
-                  "value": {
-                    "kind": "name",
-                    "name": "highest_of_led_suit",
-                    "ref": "function"
-                  }
-                },
-                {
-                  "kind": "named_arg",
-                  "name": "routing",
-                  "value": {
-                    "kind": "movement",
-                    "verb": "move",
-                    "mode": null,
-                    "amount": "all",
-                    "item": "cards",
-                    "source": {
-                      "kind": "name",
-                      "name": "trick_pile",
-                      "ref": "zone"
-                    },
-                    "dest": {
-                      "kind": "subscript",
-                      "obj": {
-                        "kind": "name",
-                        "name": "captured",
-                        "ref": "zone"
-                      },
-                      "index": {
-                        "kind": "name",
-                        "name": "outcome",
-                        "ref": "pronoun"
-                      }
-                    },
-                    "dest_each": false,
-                    "distribution": null,
-                    "visibility": null
-                  }
+                  "ref": "pronoun"
                 }
-              ]
+              },
+              "dest_each": false,
+              "distribution": null,
+              "visibility": null
             },
             {
               "kind": "assign",
@@ -566,94 +521,49 @@
               },
               "body": [
                 {
-                  "kind": "instantiate",
-                  "mechanic": "Trick",
-                  "args": [
-                    {
-                      "kind": "named_arg",
-                      "name": "participants",
-                      "value": {
-                        "kind": "all_players"
-                      }
+                  "kind": "round",
+                  "move_type": "play_to_trick",
+                  "leader": {
+                    "kind": "name",
+                    "name": "leader",
+                    "ref": "state_var"
+                  },
+                  "participants": {
+                    "kind": "all_players"
+                  },
+                  "source_zone": "hand",
+                  "play_zone": "trick_pile",
+                  "outcome_fn": "highest_of_led_suit",
+                  "trump": null,
+                  "early_termination": null
+                },
+                {
+                  "kind": "movement",
+                  "verb": "move",
+                  "mode": null,
+                  "amount": "all",
+                  "item": "cards",
+                  "source": {
+                    "kind": "name",
+                    "name": "trick_pile",
+                    "ref": "zone"
+                  },
+                  "dest": {
+                    "kind": "subscript",
+                    "obj": {
+                      "kind": "name",
+                      "name": "captured",
+                      "ref": "zone"
                     },
-                    {
-                      "kind": "named_arg",
-                      "name": "leader",
-                      "value": {
-                        "kind": "name",
-                        "name": "leader",
-                        "ref": "state_var"
-                      }
-                    },
-                    {
-                      "kind": "named_arg",
-                      "name": "source_zone",
-                      "value": {
-                        "kind": "name",
-                        "name": "hand",
-                        "ref": "zone"
-                      }
-                    },
-                    {
-                      "kind": "named_arg",
-                      "name": "play_zone",
-                      "value": {
-                        "kind": "name",
-                        "name": "trick_pile",
-                        "ref": "zone"
-                      }
-                    },
-                    {
-                      "kind": "named_arg",
-                      "name": "play_rules",
-                      "value": {
-                        "kind": "name",
-                        "name": "active_rules",
-                        "ref": "pronoun"
-                      }
-                    },
-                    {
-                      "kind": "named_arg",
+                    "index": {
+                      "kind": "name",
                       "name": "outcome",
-                      "value": {
-                        "kind": "name",
-                        "name": "highest_of_led_suit",
-                        "ref": "function"
-                      }
-                    },
-                    {
-                      "kind": "named_arg",
-                      "name": "routing",
-                      "value": {
-                        "kind": "movement",
-                        "verb": "move",
-                        "mode": null,
-                        "amount": "all",
-                        "item": "cards",
-                        "source": {
-                          "kind": "name",
-                          "name": "trick_pile",
-                          "ref": "zone"
-                        },
-                        "dest": {
-                          "kind": "subscript",
-                          "obj": {
-                            "kind": "name",
-                            "name": "captured",
-                            "ref": "zone"
-                          },
-                          "index": {
-                            "kind": "name",
-                            "name": "outcome",
-                            "ref": "pronoun"
-                          }
-                        },
-                        "dest_each": false,
-                        "distribution": null,
-                        "visibility": null
-                      }
+                      "ref": "pronoun"
                     }
-                  ]
+                  },
+                  "dest_each": false,
+                  "distribution": null,
+                  "visibility": null
                 },
                 {
                   "kind": "assign",
@@ -1139,7 +1049,6 @@
       "if_impossible": null
     }
   ],
-  "routings": [],
   "move_types": [],
   "types": [],
   "defines": []

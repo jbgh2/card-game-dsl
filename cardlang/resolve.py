@@ -28,6 +28,7 @@ from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
 from cardlang.stdlib.functions import (
     STDLIB_CALL_FUNCS,
+    STDLIB_EARLY_PREDICATES,
     STDLIB_VALUE_NAMES,
     ZONE_METHODS,
 )
@@ -173,7 +174,6 @@ class _Categories:
     functions: frozenset[str]
     ranks: frozenset[str]
     suits: frozenset[str]
-    routings: frozenset[str]
 
 
 def _walk(node: object) -> Iterator[object]:
@@ -221,7 +221,6 @@ def _categories(game: n.Game) -> _Categories:
         functions=STDLIB_VALUE_NAMES,
         ranks=frozenset(game.ranking),
         suits=deck_suits(game.deck),
-        routings=frozenset(r.name for r in game.routings),
     )
 
 
@@ -242,8 +241,6 @@ def _classify(name: str, cats: _Categories) -> str | None:
         return "pronoun"
     if name in cats.functions:
         return "function"
-    if name in cats.routings:
-        return "routing"  # a named trick-routing body referenced as a Trick arg
     return None
 
 
@@ -366,6 +363,15 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bag.error(f"round outcome '{nd.outcome_fn}' is unknown", nd.span)
                 if nd.move_type not in LIBRARY_MOVE_TYPES:
                     bag.error(f"round move type '{nd.move_type}' is unknown", nd.span)
+                if (
+                    nd.early_termination is not None
+                    and nd.early_termination not in STDLIB_EARLY_PREDICATES
+                ):
+                    bag.error(
+                        f"round early-termination predicate "
+                        f"'{nd.early_termination}' is unknown",
+                        nd.span,
+                    )
 
 
 def _raise_if_errors(bag: DiagnosticBag) -> None:

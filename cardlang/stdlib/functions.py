@@ -1,19 +1,28 @@
 """Standard-library functions, value-callbacks, and zone-query methods.
 
-The name resolver checks bare-name function references (e.g. an outcome
-function passed to `Trick`), `f(...)` calls, and `zone.method(...)` queries
+The name resolver checks bare-name function references (e.g. a `round`'s
+`outcome` / `early` function), `f(...)` calls, and `zone.method(...)` queries
 against these sets, so the IR can mark them as functions and unknown calls are
 caught. Seeded for the formalized corpus; extended corpus-first.
 """
 
 from __future__ import annotations
 
-# Stdlib values referenced by bare name (outcome functions passed as callbacks).
+# Stdlib values referenced by bare name (a `round`'s `outcome` callback).
+# An outcome callback has signature (played, led_suit, trump, rank_index) -> Player.
 STDLIB_VALUE_NAMES: frozenset[str] = frozenset(
     {
         "highest_of_led_suit",
         "highest_trump_or_led_suit",  # trick winner with a trump suit in play
-        "on_play_of_tochoo",  # Getaway early-termination: ends the trick on a tochoo play
+    }
+)
+
+# Early-termination predicates a `round`'s `early` clause may name. Distinct from
+# outcome callbacks above — a different signature, (card, led_suit) -> Boolean —
+# so they validate against their own set, not the outcome-function namespace.
+STDLIB_EARLY_PREDICATES: frozenset[str] = frozenset(
+    {
+        "on_play_of_tochoo",  # Getaway: a tochoo (off-suit play when void) ends the trick
     }
 )
 

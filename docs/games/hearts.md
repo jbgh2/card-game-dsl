@@ -58,15 +58,9 @@ game Hearts {
       legal_moves: [play_to_trick]
 
       leader := player_holding(2 of clubs)
-      instantiate Trick (
-        participants = all players,
-        leader       = leader,
-        source_zone  = hand,
-        play_zone    = trick_pile,
-        play_rules   = active_rules,
-        outcome      = highest_of_led_suit,
-        routing      = move all cards from trick_pile to captured[outcome]
-      )
+      round play_to_trick from leader over all players source hand into trick_pile
+            outcome highest_of_led_suit
+      move all cards from trick_pile to captured[outcome]
       leader := outcome
     }
 
@@ -86,15 +80,9 @@ game Hearts {
 
       // Body: loop tricks until hands empty.
       repeat until all hands empty {
-        instantiate Trick (
-          participants = all players,
-          leader       = leader,
-          source_zone  = hand,
-          play_zone    = trick_pile,
-          play_rules   = active_rules,                    // resolves at runtime
-          outcome      = highest_of_led_suit,
-          routing      = move all cards from trick_pile to captured[outcome]
-        )
+        round play_to_trick from leader over all players source hand into trick_pile
+              outcome highest_of_led_suit
+        move all cards from trick_pile to captured[outcome]
         leader := outcome
       }
     }

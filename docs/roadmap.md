@@ -46,18 +46,22 @@ Things we have noted but consciously not designed yet:
   adapter provides information-state *strings* only; tensors are deferred.
 
 - **Grow the interactive-decision kernel and migrate the corpus to it.** `offer`
-  and a first `round` (the trick) are built; the rest of the decision sublanguage
+  and the `round` construct are built, and every trick game (Hearts, Spades,
+  Getaway, Bridge, Oh Hell) now plays on the kernel `round` — the built-in `Trick`
+  mechanic is retired, with `round` carrying rule-delta transitions (Hearts/Spades)
+  and early-termination (Getaway). The rest of the decision sublanguage
   (decisions.md "Interactive decisions: a kernel and an in-DSL standard library")
-  is the major in-flight work: `round` growing rule-delta transitions
-  (Hearts/Spades) and early-termination (Getaway) so the remaining trick games
-  migrate off the built-in `Trick`; typed outcomes and definition-composition;
-  and the `auction` / `challenge` / `block` / `climb` standard-library
-  vocabulary. Nine games (Schnapsen, Pinochle, Bridge, Skat, Tarot, Cribbage,
-  Stud, Tichu, Coup) still hold their decision logic in concrete per-game runtime
+  is the major in-flight work: the remaining `round` axes (accumulator, order,
+  move vocabulary); typed outcomes and definition-composition; and the `auction` /
+  `challenge` / `block` / `climb` standard-library vocabulary. Nine games
+  (Schnapsen, Pinochle, Bridge, Skat, Tarot, Cribbage, Stud, Tichu, Coup) still
+  hold their decision logic in concrete per-game runtime
   mechanics; lifting each into the kernel + DSL standard library (promoting a
   definition at ~3 examples) closes the spec-vs-runtime gap. The bidding
   sub-language, detailed melding, and strict-trick legality noted on this list
-  are subsumed by this work.
+  are subsumed by this work. The game-by-game execution order, the per-game
+  scope, and the language-gap checkpoints are in
+  [kernel-migration.md](kernel-migration.md).
 
 - **Typed outcomes: Stages 1–3 built; remaining corpus migrations + checker coverage.**
   Stage 1 is built: `cardlang/typecheck.py` is a real type checker (a `Type`
@@ -82,9 +86,9 @@ Things we have noted but consciously not designed yet:
   not at a clean DSL/mechanic boundary: **Pinochle** (`declare_trump`),
   **French Tarot**, and **Skat** fuse their auctions into Python monoliths whose
   extraction is the interactive-decision-kernel work; **Getaway**'s two-way
-  resolution lives inside the *shared* `Trick` mechanic's routing, so a typed
-  outcome there needs a shared-`Trick` contract change or a routing-level outcome
-  construct.
+  resolution now lives in its `round` body (`if state.trick_terminated_early`), so
+  a typed outcome there would mean the `round` itself producing a tagged
+  pickup-vs-discard result rather than the body branching on round state.
 
   Deferred from Stage 2: union-typed and refinement-typed struct fields
   (`suit : Suit | NT`, `Integer in 1..7`); param-full `define` (parameters +

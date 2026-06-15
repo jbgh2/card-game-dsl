@@ -60,6 +60,11 @@ CALL_SIGS: dict[str, Sig] = {
 VALUE_SIGS: dict[str, Type] = {
     "highest_of_led_suit": TAny(),
     "highest_trump_or_led_suit": TAny(),
+}
+
+# Early-termination predicates named by a `round`'s `early` clause. Signature is
+# (card, led_suit) -> Boolean; the table is loose (TAny) like the value callbacks.
+EARLY_SIGS: dict[str, Type] = {
     "on_play_of_tochoo": TAny(),
 }
 

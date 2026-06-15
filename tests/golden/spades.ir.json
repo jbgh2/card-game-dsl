@@ -1,0 +1,1209 @@
+{
+  "cardlang_ir": 1,
+  "kind": "game",
+  "name": "Spades",
+  "players": {
+    "kind": "players",
+    "low": 4,
+    "high": null
+  },
+  "deck": "standard52",
+  "direction": "clockwise",
+  "ranking": [
+    "A",
+    "K",
+    "Q",
+    "J",
+    "10",
+    "9",
+    "8",
+    "7",
+    "6",
+    "5",
+    "4",
+    "3",
+    "2"
+  ],
+  "trump": "spades",
+  "partnerships": [
+    [
+      0,
+      2
+    ],
+    [
+      1,
+      3
+    ]
+  ],
+  "zones": [
+    {
+      "kind": "zone",
+      "name": "deck",
+      "index": null,
+      "type": {
+        "kind": "type_ref",
+        "name": "Deck",
+        "args": []
+      }
+    },
+    {
+      "kind": "zone",
+      "name": "hand",
+      "index": "player",
+      "type": {
+        "kind": "type_ref",
+        "name": "Hand",
+        "args": [
+          "player"
+        ]
+      }
+    },
+    {
+      "kind": "zone",
+      "name": "trick_pile",
+      "index": null,
+      "type": {
+        "kind": "type_ref",
+        "name": "TrickPile",
+        "args": []
+      }
+    },
+    {
+      "kind": "zone",
+      "name": "captured",
+      "index": "team",
+      "type": {
+        "kind": "type_ref",
+        "name": "TeamPile",
+        "args": [
+          "team"
+        ]
+      }
+    }
+  ],
+  "state": {
+    "kind": "state",
+    "decls": [
+      {
+        "kind": "state_decl",
+        "name": "score",
+        "index": "team",
+        "type": "Integer",
+        "optional": false,
+        "default": {
+          "kind": "int",
+          "value": 0
+        }
+      },
+      {
+        "kind": "state_decl",
+        "name": "bags",
+        "index": "team",
+        "type": "Integer",
+        "optional": false,
+        "default": {
+          "kind": "int",
+          "value": 0
+        }
+      }
+    ]
+  },
+  "phases": [
+    {
+      "kind": "phase",
+      "name": "hand_sequence",
+      "qualifier": {
+        "kind": "phase_qualifier",
+        "qualifier": "repeats",
+        "expr": {
+          "kind": "quantifier",
+          "quant": "any",
+          "role": "team",
+          "binder": "t",
+          "body": {
+            "kind": "binop",
+            "op": "or",
+            "left": {
+              "kind": "binop",
+              "op": ">=",
+              "left": {
+                "kind": "subscript",
+                "obj": {
+                  "kind": "name",
+                  "name": "score",
+                  "ref": "state_var"
+                },
+                "index": {
+                  "kind": "name",
+                  "name": "t",
+                  "ref": "local"
+                }
+              },
+              "right": {
+                "kind": "int",
+                "value": 500
+              }
+            },
+            "right": {
+              "kind": "binop",
+              "op": "<=",
+              "left": {
+                "kind": "subscript",
+                "obj": {
+                  "kind": "name",
+                  "name": "score",
+                  "ref": "state_var"
+                },
+                "index": {
+                  "kind": "name",
+                  "name": "t",
+                  "ref": "local"
+                }
+              },
+              "right": {
+                "kind": "binop",
+                "op": "-",
+                "left": {
+                  "kind": "int",
+                  "value": 0
+                },
+                "right": {
+                  "kind": "int",
+                  "value": 200
+                }
+              }
+            }
+          }
+        }
+      },
+      "outcome_cases": [],
+      "items": [
+        {
+          "kind": "state",
+          "decls": [
+            {
+              "kind": "state_decl",
+              "name": "dealer",
+              "index": null,
+              "type": "Player",
+              "optional": false,
+              "default": {
+                "kind": "int",
+                "value": 0
+              }
+            },
+            {
+              "kind": "state_decl",
+              "name": "leader",
+              "index": null,
+              "type": "Player",
+              "optional": true,
+              "default": {
+                "kind": "name",
+                "name": "none",
+                "ref": "null"
+              }
+            },
+            {
+              "kind": "state_decl",
+              "name": "bid",
+              "index": "player",
+              "type": "Integer",
+              "optional": false,
+              "default": {
+                "kind": "int",
+                "value": 0
+              }
+            },
+            {
+              "kind": "state_decl",
+              "name": "tricks_won",
+              "index": "player",
+              "type": "Integer",
+              "optional": false,
+              "default": {
+                "kind": "int",
+                "value": 0
+              }
+            }
+          ]
+        },
+        {
+          "kind": "before_each",
+          "body": [
+            {
+              "kind": "movement",
+              "verb": "move",
+              "mode": null,
+              "amount": "all",
+              "item": "cards",
+              "source": null,
+              "dest": {
+                "kind": "name",
+                "name": "deck",
+                "ref": "zone"
+              },
+              "dest_each": false,
+              "distribution": null,
+              "visibility": null
+            },
+            {
+              "kind": "epistemic_op",
+              "op": "shuffle",
+              "target": {
+                "kind": "name",
+                "name": "deck",
+                "ref": "zone"
+              }
+            },
+            {
+              "kind": "movement",
+              "verb": "deal",
+              "mode": null,
+              "amount": {
+                "kind": "int",
+                "value": 13
+              },
+              "item": "cards",
+              "source": {
+                "kind": "name",
+                "name": "deck",
+                "ref": "zone"
+              },
+              "dest": {
+                "kind": "name",
+                "name": "hand",
+                "ref": "zone"
+              },
+              "dest_each": true,
+              "distribution": null,
+              "visibility": null
+            },
+            {
+              "kind": "assign",
+              "name": "dealer",
+              "index": null,
+              "op": ":=",
+              "value": {
+                "kind": "binop",
+                "op": "offset_by",
+                "left": {
+                  "kind": "name",
+                  "name": "dealer",
+                  "ref": "state_var"
+                },
+                "right": {
+                  "kind": "name",
+                  "name": "left",
+                  "ref": "enum_value"
+                }
+              }
+            },
+            {
+              "kind": "assign",
+              "name": "leader",
+              "index": null,
+              "op": ":=",
+              "value": {
+                "kind": "binop",
+                "op": "offset_by",
+                "left": {
+                  "kind": "name",
+                  "name": "dealer",
+                  "ref": "state_var"
+                },
+                "right": {
+                  "kind": "name",
+                  "name": "left",
+                  "ref": "enum_value"
+                }
+              }
+            },
+            {
+              "kind": "for_each",
+              "role": "player",
+              "binder": "p",
+              "body": {
+                "kind": "assign",
+                "name": "bid",
+                "index": {
+                  "kind": "name",
+                  "name": "p",
+                  "ref": "local"
+                },
+                "op": ":=",
+                "value": {
+                  "kind": "int",
+                  "value": 0
+                }
+              }
+            },
+            {
+              "kind": "for_each",
+              "role": "player",
+              "binder": "p",
+              "body": {
+                "kind": "assign",
+                "name": "tricks_won",
+                "index": {
+                  "kind": "name",
+                  "name": "p",
+                  "ref": "local"
+                },
+                "op": ":=",
+                "value": {
+                  "kind": "int",
+                  "value": 0
+                }
+              }
+            }
+          ]
+        },
+        {
+          "kind": "phase",
+          "name": "bidding",
+          "qualifier": null,
+          "outcome_cases": [],
+          "items": [
+            {
+              "kind": "legal_moves",
+              "names": [
+                "submit_bid"
+              ]
+            },
+            {
+              "kind": "for_each",
+              "role": "player",
+              "binder": "p",
+              "body": {
+                "kind": "assign",
+                "name": "bid",
+                "index": {
+                  "kind": "name",
+                  "name": "p",
+                  "ref": "local"
+                },
+                "op": ":=",
+                "value": {
+                  "kind": "choose",
+                  "domain": "integer",
+                  "lo": {
+                    "kind": "int",
+                    "value": 0
+                  },
+                  "hi": {
+                    "kind": "int",
+                    "value": 13
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "kind": "phase",
+          "name": "play",
+          "qualifier": null,
+          "outcome_cases": [],
+          "items": [
+            {
+              "kind": "active_rules",
+              "refs": [
+                {
+                  "kind": "rule_ref",
+                  "name": "MustFollowSuit",
+                  "op": "plain"
+                }
+              ]
+            },
+            {
+              "kind": "legal_moves",
+              "names": [
+                "play_to_trick"
+              ]
+            },
+            {
+              "kind": "phase",
+              "name": "spades_not_broken",
+              "qualifier": null,
+              "outcome_cases": [],
+              "items": [
+                {
+                  "kind": "active_rules",
+                  "refs": [
+                    {
+                      "kind": "rule_ref",
+                      "name": "NoLeadingSpadesUntilBroken",
+                      "op": "add"
+                    }
+                  ]
+                },
+                {
+                  "kind": "transition_to",
+                  "target": "spades_broken",
+                  "event": {
+                    "kind": "move_event",
+                    "move_type": "play_to_trick",
+                    "where": {
+                      "kind": "binop",
+                      "op": "==",
+                      "left": {
+                        "kind": "member",
+                        "obj": {
+                          "kind": "member",
+                          "obj": {
+                            "kind": "name",
+                            "name": "action",
+                            "ref": "pronoun"
+                          },
+                          "field": "card"
+                        },
+                        "field": "suit"
+                      },
+                      "right": {
+                        "kind": "name",
+                        "name": "spades",
+                        "ref": "enum_value"
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "phase",
+              "name": "spades_broken",
+              "qualifier": null,
+              "outcome_cases": [],
+              "items": []
+            },
+            {
+              "kind": "repeat_until",
+              "cond": {
+                "kind": "quantifier",
+                "quant": "all",
+                "role": "player",
+                "binder": "p",
+                "body": {
+                  "kind": "is_check",
+                  "check": "empty",
+                  "operand": {
+                    "kind": "subscript",
+                    "obj": {
+                      "kind": "name",
+                      "name": "hand",
+                      "ref": "zone"
+                    },
+                    "index": {
+                      "kind": "name",
+                      "name": "p",
+                      "ref": "local"
+                    }
+                  }
+                }
+              },
+              "body": [
+                {
+                  "kind": "round",
+                  "move_type": "play_to_trick",
+                  "leader": {
+                    "kind": "name",
+                    "name": "leader",
+                    "ref": "state_var"
+                  },
+                  "participants": {
+                    "kind": "all_players"
+                  },
+                  "source_zone": "hand",
+                  "play_zone": "trick_pile",
+                  "outcome_fn": "highest_trump_or_led_suit",
+                  "trump": null,
+                  "early_termination": null
+                },
+                {
+                  "kind": "movement",
+                  "verb": "move",
+                  "mode": null,
+                  "amount": "all",
+                  "item": "cards",
+                  "source": {
+                    "kind": "name",
+                    "name": "trick_pile",
+                    "ref": "zone"
+                  },
+                  "dest": {
+                    "kind": "subscript",
+                    "obj": {
+                      "kind": "name",
+                      "name": "captured",
+                      "ref": "zone"
+                    },
+                    "index": {
+                      "kind": "call",
+                      "func": "team_of",
+                      "args": [
+                        {
+                          "kind": "name",
+                          "name": "outcome",
+                          "ref": "pronoun"
+                        }
+                      ]
+                    }
+                  },
+                  "dest_each": false,
+                  "distribution": null,
+                  "visibility": null
+                },
+                {
+                  "kind": "assign",
+                  "name": "tricks_won",
+                  "index": {
+                    "kind": "name",
+                    "name": "outcome",
+                    "ref": "pronoun"
+                  },
+                  "op": "+=",
+                  "value": {
+                    "kind": "int",
+                    "value": 1
+                  }
+                },
+                {
+                  "kind": "assign",
+                  "name": "leader",
+                  "index": null,
+                  "op": ":=",
+                  "value": {
+                    "kind": "name",
+                    "name": "outcome",
+                    "ref": "pronoun"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "phase",
+          "name": "scoring",
+          "qualifier": null,
+          "outcome_cases": [],
+          "items": [
+            {
+              "kind": "state",
+              "decls": [
+                {
+                  "kind": "state_decl",
+                  "name": "team_bid",
+                  "index": "team",
+                  "type": "Integer",
+                  "optional": false,
+                  "default": {
+                    "kind": "int",
+                    "value": 0
+                  }
+                },
+                {
+                  "kind": "state_decl",
+                  "name": "team_tricks",
+                  "index": "team",
+                  "type": "Integer",
+                  "optional": false,
+                  "default": {
+                    "kind": "int",
+                    "value": 0
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "for_each",
+              "role": "player",
+              "binder": "p",
+              "body": {
+                "kind": "assign",
+                "name": "team_bid",
+                "index": {
+                  "kind": "call",
+                  "func": "team_of",
+                  "args": [
+                    {
+                      "kind": "name",
+                      "name": "p",
+                      "ref": "local"
+                    }
+                  ]
+                },
+                "op": "+=",
+                "value": {
+                  "kind": "if",
+                  "cond": {
+                    "kind": "binop",
+                    "op": "==",
+                    "left": {
+                      "kind": "subscript",
+                      "obj": {
+                        "kind": "name",
+                        "name": "bid",
+                        "ref": "state_var"
+                      },
+                      "index": {
+                        "kind": "name",
+                        "name": "p",
+                        "ref": "local"
+                      }
+                    },
+                    "right": {
+                      "kind": "int",
+                      "value": 0
+                    }
+                  },
+                  "then": {
+                    "kind": "int",
+                    "value": 0
+                  },
+                  "elifs": [],
+                  "otherwise": {
+                    "kind": "subscript",
+                    "obj": {
+                      "kind": "name",
+                      "name": "bid",
+                      "ref": "state_var"
+                    },
+                    "index": {
+                      "kind": "name",
+                      "name": "p",
+                      "ref": "local"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "kind": "for_each",
+              "role": "player",
+              "binder": "p",
+              "body": {
+                "kind": "assign",
+                "name": "team_tricks",
+                "index": {
+                  "kind": "call",
+                  "func": "team_of",
+                  "args": [
+                    {
+                      "kind": "name",
+                      "name": "p",
+                      "ref": "local"
+                    }
+                  ]
+                },
+                "op": "+=",
+                "value": {
+                  "kind": "subscript",
+                  "obj": {
+                    "kind": "name",
+                    "name": "tricks_won",
+                    "ref": "state_var"
+                  },
+                  "index": {
+                    "kind": "name",
+                    "name": "p",
+                    "ref": "local"
+                  }
+                }
+              }
+            },
+            {
+              "kind": "for_each",
+              "role": "team",
+              "binder": "t",
+              "body": {
+                "kind": "if",
+                "cond": {
+                  "kind": "binop",
+                  "op": ">=",
+                  "left": {
+                    "kind": "subscript",
+                    "obj": {
+                      "kind": "name",
+                      "name": "team_tricks",
+                      "ref": "state_var"
+                    },
+                    "index": {
+                      "kind": "name",
+                      "name": "t",
+                      "ref": "local"
+                    }
+                  },
+                  "right": {
+                    "kind": "subscript",
+                    "obj": {
+                      "kind": "name",
+                      "name": "team_bid",
+                      "ref": "state_var"
+                    },
+                    "index": {
+                      "kind": "name",
+                      "name": "t",
+                      "ref": "local"
+                    }
+                  }
+                },
+                "then": [
+                  {
+                    "kind": "assign",
+                    "name": "score",
+                    "index": {
+                      "kind": "name",
+                      "name": "t",
+                      "ref": "local"
+                    },
+                    "op": "+=",
+                    "value": {
+                      "kind": "binop",
+                      "op": "+",
+                      "left": {
+                        "kind": "binop",
+                        "op": "*",
+                        "left": {
+                          "kind": "int",
+                          "value": 10
+                        },
+                        "right": {
+                          "kind": "subscript",
+                          "obj": {
+                            "kind": "name",
+                            "name": "team_bid",
+                            "ref": "state_var"
+                          },
+                          "index": {
+                            "kind": "name",
+                            "name": "t",
+                            "ref": "local"
+                          }
+                        }
+                      },
+                      "right": {
+                        "kind": "binop",
+                        "op": "-",
+                        "left": {
+                          "kind": "subscript",
+                          "obj": {
+                            "kind": "name",
+                            "name": "team_tricks",
+                            "ref": "state_var"
+                          },
+                          "index": {
+                            "kind": "name",
+                            "name": "t",
+                            "ref": "local"
+                          }
+                        },
+                        "right": {
+                          "kind": "subscript",
+                          "obj": {
+                            "kind": "name",
+                            "name": "team_bid",
+                            "ref": "state_var"
+                          },
+                          "index": {
+                            "kind": "name",
+                            "name": "t",
+                            "ref": "local"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "kind": "assign",
+                    "name": "bags",
+                    "index": {
+                      "kind": "name",
+                      "name": "t",
+                      "ref": "local"
+                    },
+                    "op": "+=",
+                    "value": {
+                      "kind": "binop",
+                      "op": "-",
+                      "left": {
+                        "kind": "subscript",
+                        "obj": {
+                          "kind": "name",
+                          "name": "team_tricks",
+                          "ref": "state_var"
+                        },
+                        "index": {
+                          "kind": "name",
+                          "name": "t",
+                          "ref": "local"
+                        }
+                      },
+                      "right": {
+                        "kind": "subscript",
+                        "obj": {
+                          "kind": "name",
+                          "name": "team_bid",
+                          "ref": "state_var"
+                        },
+                        "index": {
+                          "kind": "name",
+                          "name": "t",
+                          "ref": "local"
+                        }
+                      }
+                    }
+                  }
+                ],
+                "else": [
+                  {
+                    "kind": "assign",
+                    "name": "score",
+                    "index": {
+                      "kind": "name",
+                      "name": "t",
+                      "ref": "local"
+                    },
+                    "op": "-=",
+                    "value": {
+                      "kind": "binop",
+                      "op": "*",
+                      "left": {
+                        "kind": "int",
+                        "value": 10
+                      },
+                      "right": {
+                        "kind": "subscript",
+                        "obj": {
+                          "kind": "name",
+                          "name": "team_bid",
+                          "ref": "state_var"
+                        },
+                        "index": {
+                          "kind": "name",
+                          "name": "t",
+                          "ref": "local"
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "for_each",
+              "role": "player",
+              "binder": "p",
+              "body": {
+                "kind": "if",
+                "cond": {
+                  "kind": "binop",
+                  "op": "==",
+                  "left": {
+                    "kind": "subscript",
+                    "obj": {
+                      "kind": "name",
+                      "name": "bid",
+                      "ref": "state_var"
+                    },
+                    "index": {
+                      "kind": "name",
+                      "name": "p",
+                      "ref": "local"
+                    }
+                  },
+                  "right": {
+                    "kind": "int",
+                    "value": 0
+                  }
+                },
+                "then": [
+                  {
+                    "kind": "if",
+                    "cond": {
+                      "kind": "binop",
+                      "op": "==",
+                      "left": {
+                        "kind": "subscript",
+                        "obj": {
+                          "kind": "name",
+                          "name": "tricks_won",
+                          "ref": "state_var"
+                        },
+                        "index": {
+                          "kind": "name",
+                          "name": "p",
+                          "ref": "local"
+                        }
+                      },
+                      "right": {
+                        "kind": "int",
+                        "value": 0
+                      }
+                    },
+                    "then": [
+                      {
+                        "kind": "assign",
+                        "name": "score",
+                        "index": {
+                          "kind": "call",
+                          "func": "team_of",
+                          "args": [
+                            {
+                              "kind": "name",
+                              "name": "p",
+                              "ref": "local"
+                            }
+                          ]
+                        },
+                        "op": "+=",
+                        "value": {
+                          "kind": "int",
+                          "value": 100
+                        }
+                      }
+                    ],
+                    "else": [
+                      {
+                        "kind": "assign",
+                        "name": "score",
+                        "index": {
+                          "kind": "call",
+                          "func": "team_of",
+                          "args": [
+                            {
+                              "kind": "name",
+                              "name": "p",
+                              "ref": "local"
+                            }
+                          ]
+                        },
+                        "op": "-=",
+                        "value": {
+                          "kind": "int",
+                          "value": 100
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "else": null
+              }
+            },
+            {
+              "kind": "repeat_until",
+              "cond": {
+                "kind": "quantifier",
+                "quant": "all",
+                "role": "team",
+                "binder": "t",
+                "body": {
+                  "kind": "binop",
+                  "op": "<",
+                  "left": {
+                    "kind": "subscript",
+                    "obj": {
+                      "kind": "name",
+                      "name": "bags",
+                      "ref": "state_var"
+                    },
+                    "index": {
+                      "kind": "name",
+                      "name": "t",
+                      "ref": "local"
+                    }
+                  },
+                  "right": {
+                    "kind": "int",
+                    "value": 10
+                  }
+                }
+              },
+              "body": [
+                {
+                  "kind": "for_each",
+                  "role": "team",
+                  "binder": "t",
+                  "body": {
+                    "kind": "if",
+                    "cond": {
+                      "kind": "binop",
+                      "op": ">=",
+                      "left": {
+                        "kind": "subscript",
+                        "obj": {
+                          "kind": "name",
+                          "name": "bags",
+                          "ref": "state_var"
+                        },
+                        "index": {
+                          "kind": "name",
+                          "name": "t",
+                          "ref": "local"
+                        }
+                      },
+                      "right": {
+                        "kind": "int",
+                        "value": 10
+                      }
+                    },
+                    "then": [
+                      {
+                        "kind": "assign",
+                        "name": "score",
+                        "index": {
+                          "kind": "name",
+                          "name": "t",
+                          "ref": "local"
+                        },
+                        "op": "-=",
+                        "value": {
+                          "kind": "int",
+                          "value": 100
+                        }
+                      },
+                      {
+                        "kind": "assign",
+                        "name": "bags",
+                        "index": {
+                          "kind": "name",
+                          "name": "t",
+                          "ref": "local"
+                        },
+                        "op": "-=",
+                        "value": {
+                          "kind": "int",
+                          "value": 10
+                        }
+                      }
+                    ],
+                    "else": null
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "winner": {
+    "kind": "winner",
+    "rank_dir": "highest",
+    "target": "score"
+  },
+  "loser": null,
+  "rules": [
+    {
+      "kind": "rule",
+      "name": "NoLeadingSpadesUntilBroken",
+      "constrains": "play_to_trick",
+      "applies_when": {
+        "kind": "applies_when",
+        "always": false,
+        "pred": {
+          "kind": "is_check",
+          "check": "none",
+          "operand": {
+            "kind": "member",
+            "obj": {
+              "kind": "name",
+              "name": "state",
+              "ref": "pronoun"
+            },
+            "field": "led_suit"
+          }
+        }
+      },
+      "demands": {
+        "kind": "demands",
+        "form": "cards",
+        "expr": {
+          "kind": "method_call",
+          "obj": {
+            "kind": "name",
+            "name": "hand",
+            "ref": "zone"
+          },
+          "method": "where",
+          "args": [
+            {
+              "kind": "lambda",
+              "param": "c",
+              "body": {
+                "kind": "binop",
+                "op": "!=",
+                "left": {
+                  "kind": "member",
+                  "obj": {
+                    "kind": "name",
+                    "name": "c",
+                    "ref": "local"
+                  },
+                  "field": "suit"
+                },
+                "right": {
+                  "kind": "name",
+                  "name": "spades",
+                  "ref": "enum_value"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "if_impossible": null
+    },
+    {
+      "kind": "rule",
+      "name": "MustFollowSuit",
+      "constrains": "play_to_trick",
+      "applies_when": {
+        "kind": "applies_when",
+        "always": false,
+        "pred": {
+          "kind": "is_check",
+          "check": "not_none",
+          "operand": {
+            "kind": "member",
+            "obj": {
+              "kind": "name",
+              "name": "state",
+              "ref": "pronoun"
+            },
+            "field": "led_suit"
+          }
+        }
+      },
+      "demands": {
+        "kind": "demands",
+        "form": "cards",
+        "expr": {
+          "kind": "method_call",
+          "obj": {
+            "kind": "name",
+            "name": "hand",
+            "ref": "zone"
+          },
+          "method": "cards_of_suit",
+          "args": [
+            {
+              "kind": "member",
+              "obj": {
+                "kind": "name",
+                "name": "state",
+                "ref": "pronoun"
+              },
+              "field": "led_suit"
+            }
+          ]
+        }
+      },
+      "if_impossible": null
+    }
+  ],
+  "move_types": [],
+  "types": [],
+  "defines": []
+}
