@@ -44,16 +44,9 @@ game Getaway {
     legal_moves: [play_to_trick]
 
     leader := player_holding(A of spades)
-    instantiate Trick (
-      participants      = all players,
-      leader            = leader,
-      source_zone       = hand,
-      play_zone         = trick_pile,
-      play_rules        = active_rules,
-      early_termination = on_play_of_tochoo,
-      outcome           = highest_of_led_suit,
-      routing           = move all cards from trick_pile to waste
-    )
+    round play_to_trick from leader over all players source hand into trick_pile
+          outcome highest_of_led_suit early on_play_of_tochoo
+    move all cards from trick_pile to waste
     leader := outcome
   }
 
@@ -65,16 +58,12 @@ game Getaway {
     // Stop at one survivor — or zero, in the rare trick where the last players
     // all shed their final card at once (handled by the `loser:` clause).
     repeat until (number of players where hand[player] is not empty) <= 1 {
-      instantiate Trick (
-        participants      = players where not eliminated[player],
-        leader            = leader,
-        source_zone       = hand,
-        play_zone         = trick_pile,
-        play_rules        = active_rules,
-        early_termination = on_play_of_tochoo,
-        outcome           = highest_of_led_suit,
-        routing           = GetawayRouting
-      )
+      round play_to_trick from leader over players where not eliminated[player]
+            source hand into trick_pile outcome highest_of_led_suit early on_play_of_tochoo
+      // A tochoo ended the trick: the highest led-suit card picks up the pile.
+      // Otherwise everyone followed and the played cards are discarded.
+      if state.trick_terminated_early { move all cards from trick_pile to hand[outcome] }
+      else { move all cards from trick_pile to waste }
       leader := outcome
       for each player p: if hand[p] is empty { eliminated[p] := true }
     }
@@ -85,13 +74,6 @@ game Getaway {
   loser: if (number of players where hand[player] is not empty) == 1
          then the player where hand[player] is not empty
          else leader
-}
-
-// A tochoo ended the trick: the highest led-suit card picks up the pile.
-// Otherwise everyone followed and the played cards are discarded.
-routing GetawayRouting {
-  if state.trick_terminated_early { move all cards from trick_pile to hand[outcome] }
-  else { move all cards from trick_pile to waste }
 }
 
 // === Getaway-specific rules ===
