@@ -132,7 +132,9 @@ class RuntimeState:
         # The most recently completed round's terminal state, so the surrounding
         # body can read `state.x` after a `round` returns (round-state exposure;
         # see runtime.mechanics.run_trick / the `state` pronoun in evaluate).
-        self.last_round_state: dict[str, Any] = {}
+        # `None` means no round has completed yet — reading `state` then is an
+        # error, not a silent empty frame.
+        self.last_round_state: dict[str, Any] | None = None
         self.fired_transitions: set[str] = set()  # transition targets reached this iteration
         self.rule_index: dict[str, n.RuleDef] = {}  # rule name -> definition
         self.move_type_index: dict[str, n.MoveTypeDef] = {}  # name -> definition

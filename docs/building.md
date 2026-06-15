@@ -51,10 +51,11 @@ raw DSL text ──parse──▶ typed AST ──resolve──▶ resolved AST
 ## The AST↔IR seam
 
 The IR is the **resolved, type-annotated AST — not desugared**. Library
-constructs (`Hand<Owner>`, `Trick`, `BettingRound`, `ChallengeWindow`) are
-preserved as first-class IR nodes carrying their resolved bindings and inferred
-types. They are not lowered to primitives: `Trick` and the betting/challenge
-mechanics are control-flow units whose desugaring needs runtime semantics, and
+constructs (`Hand<Owner>`, the `round` construct, `BettingRound`,
+`ChallengeWindow`) are preserved as first-class IR nodes carrying their resolved
+bindings and inferred types. They are not lowered to primitives: `round` and the
+betting/challenge mechanics are control-flow units whose desugaring needs runtime
+semantics, and
 the runtime is the next milestone, not this one. Keeping the IR at the resolved-AST
 level is what lets the runtime adapter's language stay an independent choice
 (see [implementation.md](implementation.md), "The validated IR is the contract").
@@ -163,10 +164,10 @@ construct.
 | shoot-the-moon (`if p shot the moon: 0 else 26`) | needs-formalizing | explicit: shooter (`base[p] == 26`) scores 0, others 26 |
 | `the move must consist of exactly 3 cards` | decision: demand-clause-shape | `demands: moves where move.card_count == 3` — `demands` has two forms: a card-set filter, or `moves where <move-predicate>`. Recurs in Stud/Cribbage/Tichu; promote to decisions.md |
 | `player_holding(2 of clubs)` | runtime-primitive | `player_holding(Card) -> Player` (stdlib query) |
-| `highest_of_led_suit` (Trick outcome) | runtime-primitive | `(played, state) -> Player` named outcome function |
+| `highest_of_led_suit` (round outcome) | runtime-primitive | `(played, state) -> Player` named outcome function |
 | `hand.where(c => …)`, `hand.cards_of_suit(s)` | runtime-primitive | `Zone.where(pred)`, `Zone.cards_of_suit(Suit) -> Set<Card>` |
 | `move.card_count` | runtime-primitive | `Move.card_count -> Integer` |
-| `Trick`, `play_to_trick`, `transfer_between_hands` | runtime-primitive | library mechanic / move types (library.md) |
+| `play_to_trick`, `transfer_between_hands` | runtime-primitive | move types (library.md); the trick itself is the formal `round` construct |
 | `transition_to: … when any heart_played event fires` | decision (existing) | no ad-hoc events: `transition_to: hearts_broken when play_to_trick where card.suit == hearts` — the move-event + `where` form already used by `triggered_by:` (decisions.md, "Triggered scoring components"; "Event-driven sub-phase transitions") |
 | `outcome of last trick from first_trick` | decision: hoist-to-scope | construct removed; `leader` lives in the enclosing phase state, seeded by `first_trick` and read by `play` via lexical scope. Bare `outcome` (the just-run mechanic) stays. Affects Bridge/Getaway too |
 

@@ -73,6 +73,59 @@ def test_round_early_termination_ends_tricks_early() -> None:
     assert early_terminations > 0
 
 
+def test_round_early_termination_fires_only_on_a_tochoo() -> None:
+    # Not just "fires at all": when a trick ends early, the breaking (last) card
+    # must be off the led suit — a genuine tochoo. Guards against an over-eager
+    # predicate that fires on a legal follow. (A tochoo by the last player in turn
+    # order still ends the trick, so play count alone is not the signal.)
+    game = check_dsl(EARLY_SRC, "g.cardlang")
+    checked = 0
+    for seed in range(20):
+        plays: list[Any] = []
+
+        def tr(e: str, d: Any) -> None:
+            nonlocal checked
+            if e == "play":
+                plays.append(d[1])  # (player, card) -> the card
+            elif e == "trick_end":
+                if d["early"]:
+                    led = plays[0].suit
+                    assert plays[-1].suit != led  # the tochoo is off-suit
+                    checked += 1
+                plays.clear()
+
+        play_game(game, random.Random(seed), tr)
+    assert checked > 0
+
+
+NO_ROUND_SRC = """
+game G {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase setup {
+    shuffle deck
+    deal 1 cards from deck to each hand
+    // Reading `state.x` with no round having run is a bug; it must fail loudly,
+    // not silently return a stale or empty frame.
+    if state.trick_terminated_early { score[0] := 1 }
+  }
+  winner: highest score
+}
+"""
+
+
+def test_round_state_read_without_a_round_fails_loudly() -> None:
+    game = check_dsl(NO_ROUND_SRC, "g.cardlang")
+    try:
+        play_game(game, random.Random(0))
+        assert False, "expected a loud failure reading state with no round"
+    except AssertionError as exc:
+        assert "no active or just-completed round" in str(exc)
+
+
 STATE_SRC = """
 game G {
   players: 4

@@ -86,9 +86,9 @@ Things we have noted but consciously not designed yet:
   not at a clean DSL/mechanic boundary: **Pinochle** (`declare_trump`),
   **French Tarot**, and **Skat** fuse their auctions into Python monoliths whose
   extraction is the interactive-decision-kernel work; **Getaway**'s two-way
-  resolution lives inside the *shared* `Trick` mechanic's routing, so a typed
-  outcome there needs a shared-`Trick` contract change or a routing-level outcome
-  construct.
+  resolution now lives in its `round` body (`if state.trick_terminated_early`), so
+  a typed outcome there would mean the `round` itself producing a tagged
+  pickup-vs-discard result rather than the body branching on round state.
 
   Deferred from Stage 2: union-typed and refinement-typed struct fields
   (`suit : Suit | NT`, `Integer in 1..7`); param-full `define` (parameters +

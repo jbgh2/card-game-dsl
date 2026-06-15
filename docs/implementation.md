@@ -138,8 +138,8 @@ Check against the typed object model ([decisions.md](decisions.md),
 "Typed object model"): zone parameterization (`Hand<Owner>`), generic
 parameters, the visibility-projection enum on each zone, rule clause
 types (`applies_when` is a state predicate; `demands` returns a set of
-candidate moves; `if_impossible` is a fallback), the `Trick` mechanic's
-`outcome` and `routing` function signatures, scoring components producing
+candidate moves; `if_impossible` is a fallback), the `round`'s
+`outcome` and `early`-predicate function signatures, scoring components producing
 `ScoreDelta`, and exhaustiveness of pattern matches on typed phase
 outcomes ([decisions.md](decisions.md), "Typed phase outcomes").
 

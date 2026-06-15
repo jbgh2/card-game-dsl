@@ -374,8 +374,8 @@ outcome across the phase boundary — the shared enclosing variable is
 the channel.
 
 **Mechanic-internal state lives inside the mechanic.** Auction's
-`passed[player]`, Trick's per-trick state, BettingRound's
-`bet_to_match` all live inside their mechanics. Mechanic instances
+`passed[player]`, the trick `round`'s per-trick state, BettingRound's
+`bet_to_match` all live inside their mechanic/construct. Such instances
 are short-lived; their state vanishes with the instance.
 
 **Rules consulted from within a mechanic see the mechanic's state.**
@@ -437,9 +437,9 @@ semantics; the continuous-evaluation rule degenerates to
 "checked at iteration boundary" because that's the only time the
 predicate could flip.
 
-A separate `early_termination:` parameter does appear on the Trick
-mechanic — that's for *trick-level* termination on game-state-free
-conditions (Getaway's first-trick-to-waste). It is not for
+A `round`'s optional `early` predicate does provide *trick-level*
+termination on game-state-free conditions (Getaway's tochoo ends the
+trick the moment a void player plays off-suit). It is not for
 game-ending; game-ending is the `repeats until` clause's job.
 
 ## Loop lifecycle: `before_each` and `after_each`
@@ -801,8 +801,8 @@ Games relocate cards and resources, reveal and hide them, shuffle and
 rotate. These operations are a small, closed vocabulary in three families,
 not an open-ended set of verbs. The surface reads like a rulebook, but each
 verb lowers to one of a few semantic primitives — the same
-small-core/rich-library split that makes `Trick` a library item rather than
-syntax ([principles.md](principles.md)).
+small-core/rich-library split that makes the trick a `round` configuration
+rather than syntax ([principles.md](principles.md)).
 
 **Movement** — relocating items between two places. One primitive underlies
 every movement verb: `deal`, `transfer`, `move`, `burn`, `muck`, and `draw`
@@ -810,8 +810,8 @@ are sugar that differ only in defaults (which zone, which visibility), not in
 kind. A movement carries a selection (`all`, a count, or a `chosen`/`random`
 amount), an item noun (cards, or a resource such as coins), a source place, a
 destination (a single zone or `to each` recipient), and an optional
-visibility override. The same construct is both a statement and a value — a
-`Trick`'s `routing` argument is a movement. Because the amount is an
+visibility override. The same movement construct underlies every relocation.
+Because the amount is an
 expression and the item names the unit, a resource transfer and a variable
 amount are the *same* construct as a card deal; there is no separate
 resource-movement syntax.
@@ -1380,11 +1380,12 @@ chooser_for(actor) =                    // who decides what move it is
     actor
 ```
 
-A choice-prompting kernel construct (`round` / `offer`) consults an
-optional `chooser_for` helper that defaults to the identity function
-(actor chooses for themselves). Bridge supplies its game-defined helper;
-other games omit it. Any choice-prompting construct that exposes a
-similar hook follows the same convention.
+The intended mechanism: a choice-prompting kernel construct (`round` /
+`offer`) consults an optional `chooser_for` helper that defaults to the
+identity function (actor chooses for themselves), and Bridge supplies its
+game-defined helper. This is a planned kernel hook — not yet wired, since no
+formalized game models delegated play today (`round` currently always lets the
+actor choose). It is recorded here as the design, not a built capability.
 
 A game with delegated play also typically wants a parallel
 `play_source_for` helper to route the actor's move-source zone

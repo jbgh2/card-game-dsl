@@ -1,8 +1,8 @@
 """Emit stage: type-annotated AST -> validated IR.
 
 The IR is the resolved AST rendered as a plain JSON-able dict — not desugared
-(docs/building.md, "The AST↔IR seam"). Library constructs (phases, the `Trick`
-instantiation, rules) are preserved as tagged nodes. Spans are a front-end
+(docs/building.md, "The AST↔IR seam"). Library constructs (phases, the `round`
+construct, rules) are preserved as tagged nodes. Spans are a front-end
 diagnostic concern and are deliberately omitted, so the IR is stable under
 reformatting of the source and suitable for golden-file snapshots.
 

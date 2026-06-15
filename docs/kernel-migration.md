@@ -39,9 +39,9 @@ library is *written in the DSL*, not the engine). The stage is done when:
 - [decisions.md](decisions.md), [library.md](library.md), and this file are
   updated in lockstep, per the [CLAUDE.md](../CLAUDE.md) operating rules.
 
-The built-in `Trick` mechanic is also engine code, not DSL. Hearts, Spades,
-Getaway, and Bridge's play still run on it; Oh Hell has already migrated to the
-kernel `round`. Retiring built-in `Trick` is folded into the prerequisite below.
+The built-in `Trick` mechanic was also engine code, not DSL. Retiring it —
+moving Hearts, Spades, Getaway, and Bridge's play onto the kernel `round` (Oh
+Hell already used it) — is done as part of the prerequisite below.
 
 ## Non-negotiable discipline
 

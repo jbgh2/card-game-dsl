@@ -106,8 +106,15 @@ def _pronoun(name: str, ctx: Ctx) -> Any:
         case "state":
             # Inside a round, `state` is the live accumulator; once a round has
             # returned, the surrounding body sees that round's terminal state.
+            # Reading `state` with neither active is a bug (e.g. a body that reads
+            # `state.x` before any round has run) — fail loudly, don't return a
+            # stale or empty frame.
             if ctx.rs.mech_state:
                 return ctx.rs.mech_state[-1]
+            if ctx.rs.last_round_state is None:
+                raise AssertionError(
+                    "`state` read with no active or just-completed round"
+                )
             return ctx.rs.last_round_state
         case "outcome":
             return ctx.outcome

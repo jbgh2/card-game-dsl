@@ -5,11 +5,13 @@ from __future__ import annotations
 
 from cardlang.stdlib.functions import (
     STDLIB_CALL_FUNCS,
+    STDLIB_EARLY_PREDICATES,
     STDLIB_VALUE_NAMES,
     ZONE_METHODS,
 )
 from cardlang.stdlib.signatures import (
     CALL_SIGS,
+    EARLY_SIGS,
     METHOD_SIGS,
     VALUE_SIGS,
     ZONE_CONTENT,
@@ -23,6 +25,7 @@ def test_tables_reconcile_with_name_sets() -> None:
     # "stdlib is data": the signature tables must cover exactly the name sets.
     assert set(CALL_SIGS) == set(STDLIB_CALL_FUNCS)
     assert set(VALUE_SIGS) == set(STDLIB_VALUE_NAMES)
+    assert set(EARLY_SIGS) == set(STDLIB_EARLY_PREDICATES)
     assert set(METHOD_SIGS) == set(ZONE_METHODS)
     assert set(ZONE_CONTENT) == set(LIBRARY_ZONE_TYPES)
 

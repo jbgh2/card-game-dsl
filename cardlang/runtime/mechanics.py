@@ -114,10 +114,8 @@ def run_round(stmt: n.Round, ctx: Ctx) -> Player:
 
     participants = evaluate(stmt.participants, ctx)
     leader = evaluate(stmt.leader, ctx)
-    # `outcome_fn` is a bare stdlib value-function name on the Round node, so it
-    # resolves directly here. (The `instantiate Trick` path reaches the same
-    # function via evaluate() of a NameRef arg — keep these two in step if the
-    # stdlib value-function lookup ever changes.)
+    # `outcome_fn` and `early_termination` are bare stdlib value-function names on
+    # the Round node (validated at resolve time), so they resolve directly here.
     outcome_fn = stdlib.value_function(stmt.outcome_fn)
     early_term = (
         stdlib.value_function(stmt.early_termination)
@@ -472,7 +470,7 @@ def run_pinochle_hand(stmt: n.Instantiate, ctx: Ctx) -> Player:
 # ---------------------------------------------------------------------------
 #
 # Bridge trick play needs only follow-suit (no head/trump obligation), so the
-# DSL drives the thirteen tricks with the ordinary `Trick` mechanic (NT maps to
+# DSL drives the thirteen tricks with the kernel `round` construct (NT maps to
 # trump = none). Only the auction is special, and it is built concretely here:
 # ascending bids over the strain order C D H S NT, with double and redouble, the
 # auction ending after three passes follow a call. Random bidders raise

@@ -28,6 +28,7 @@ from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
 from cardlang.stdlib.functions import (
     STDLIB_CALL_FUNCS,
+    STDLIB_EARLY_PREDICATES,
     STDLIB_VALUE_NAMES,
     ZONE_METHODS,
 )
@@ -364,7 +365,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bag.error(f"round move type '{nd.move_type}' is unknown", nd.span)
                 if (
                     nd.early_termination is not None
-                    and nd.early_termination not in STDLIB_VALUE_NAMES
+                    and nd.early_termination not in STDLIB_EARLY_PREDICATES
                 ):
                     bag.error(
                         f"round early-termination predicate "
