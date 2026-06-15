@@ -73,6 +73,53 @@ def test_round_early_termination_ends_tricks_early() -> None:
     assert early_terminations > 0
 
 
+STATE_SRC = """
+game G {
+  players: 4
+  direction: clockwise
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player>  trick_pile : TrickPile  waste : Discard }
+  state { tricks_won[player] : Integer = 0  leader : Player? = none }
+  phase deal { shuffle deck  deal 13 cards from deck to each hand  leader := 0 }
+  phase play {
+    active_rules: [MustFollowSuit]
+    legal_moves: [play_to_trick]
+    repeat until (number of players where hand[player] is not empty) <= 1 {
+      round play_to_trick from leader over players where hand[player] is not empty source hand into trick_pile outcome highest_of_led_suit early on_play_of_tochoo
+      // Read the just-finished round's terminal state in the surrounding body.
+      if state.trick_terminated_early { tricks_won[outcome] += 1 }
+      move all cards from trick_pile to waste
+      leader := outcome
+    }
+  }
+  winner: highest tricks_won
+}
+rule MustFollowSuit { constrains: play_to_trick  applies_when: state.led_suit is not none  demands: hand.cards_of_suit(state.led_suit) }
+"""
+
+
+def test_round_terminated_state_readable_in_body() -> None:
+    # After a `round` returns, the surrounding body must see the round's terminal
+    # state (`state.trick_terminated_early`) — the Getaway conditional-routing
+    # pattern. The body counts one per early-terminated trick; that count must
+    # equal the tracer's early `trick_end` events for every seed.
+    game = check_dsl(STATE_SRC, "g.cardlang")
+    total_early = 0
+    for seed in range(20):
+        traced_early = 0
+
+        def tr(e: str, d: Any) -> None:
+            nonlocal traced_early
+            if e == "trick_end" and d["early"]:
+                traced_early += 1
+
+        result = play_game(game, random.Random(seed), tr)
+        assert sum(result.scores.values()) == traced_early
+        total_early += traced_early
+    assert total_early > 0
+
+
 def test_round_plays_full_tricks_and_conserves_cards() -> None:
     game = check_dsl(SRC, "g.cardlang")
     for seed in range(20):

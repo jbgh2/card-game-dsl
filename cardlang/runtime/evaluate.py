@@ -104,7 +104,11 @@ def _name(e: n.NameRef, ctx: Ctx) -> Any:
 def _pronoun(name: str, ctx: Ctx) -> Any:
     match name:
         case "state":
-            return ctx.rs.mech_state[-1]
+            # Inside a round, `state` is the live accumulator; once a round has
+            # returned, the surrounding body sees that round's terminal state.
+            if ctx.rs.mech_state:
+                return ctx.rs.mech_state[-1]
+            return ctx.rs.last_round_state
         case "outcome":
             return ctx.outcome
         case "action":

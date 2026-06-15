@@ -150,7 +150,9 @@ def run_trick(
     assert isinstance(outcome, int)
     ctx.trace("trick", (outcome, [c for _, c in played]))
     run_body(routing_body, trick_ctx.with_outcome(outcome))  # route the played cards
-    ctx.rs.mech_state.pop()
+    # Stash the terminal state as we pop, so a surrounding body (kernel `round`
+    # routing lifted out of the trick) can still read `state.trick_terminated_early`.
+    ctx.rs.last_round_state = ctx.rs.mech_state.pop()
     return outcome
 
 

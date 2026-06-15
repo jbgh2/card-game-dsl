@@ -129,6 +129,10 @@ class RuntimeState:
         self.frames: list[dict[str, Any]] = []
         self.indexed: set[str] = set()  # variable names that are per-player
         self.mech_state: list[dict[str, Any]] = []  # active mechanic state (`state.`)
+        # The most recently completed round's terminal state, so the surrounding
+        # body can read `state.x` after a `round` returns (round-state exposure;
+        # see runtime.mechanics.run_trick / the `state` pronoun in evaluate).
+        self.last_round_state: dict[str, Any] = {}
         self.fired_transitions: set[str] = set()  # transition targets reached this iteration
         self.rule_index: dict[str, n.RuleDef] = {}  # rule name -> definition
         self.routing_index: dict[str, n.RoutingDef] = {}  # routing name -> definition
