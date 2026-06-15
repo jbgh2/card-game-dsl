@@ -29,9 +29,11 @@ def test_pass_out_routes_through_skip_to_next_hand() -> None:
     forced = {"passes": 4}  # one full opening round of passes -> all_pass, hand 1
 
     def chooser(player: Player, candidates: list[Any], n: int) -> list[Any]:
-        if n == 1 and ("pass",) in candidates and forced["passes"] > 0:
+        # Auction candidates are (move_type, parameter) pairs; `pass` is nullary.
+        pass_move = ("pass", None)
+        if n == 1 and pass_move in candidates and forced["passes"] > 0:
             forced["passes"] -= 1
-            return [("pass",)]
+            return [pass_move]
         return rand(player, candidates, n)
 
     contracts: list[dict[str, Any]] = []

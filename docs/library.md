@@ -98,9 +98,14 @@ Key design notes:
   bidding* instead — every player bids exactly once in turn, no
   ascending constraint, so the mechanic doesn't fit. Auction stays
   the ascending-bidding pattern.
-- `BridgeAuction` (see [games/bridge.md](games/bridge.md)) — Bridge-specific
-  specialization; placeholder. Real definition deferred; needs
-  doubling/redoubling and the structured contract outcome.
+- Bridge's auction (see [games/bridge.md](games/bridge.md)) runs on the **auction
+  form of the kernel `round`** — a continuous ring over a bid vocabulary
+  (`offering [pass, submit_bid, double, redouble] … until … outcome
+  bridge_auction_outcome`), with the standing contract (level, strain, doubling,
+  high bidder) threaded through the phase's accumulator state and the declarer
+  computed by the named outcome callback over the bid history. It is game-local;
+  the shared `auction` definition is promoted to this catalogue corpus-first, at
+  the third ascending-auction instance (Tarot).
 - `BettingRound` (see [games/seven-card-stud.md](games/seven-card-stud.md))
   — parameterized over active players, opening bet, limit increment, max
   raises, and outcome. Owns its own per-betting-round state

@@ -1,12 +1,14 @@
 """Mechanic runtime: the kernel `round` and the per-game hand engines.
 
-`run_round` drives the kernel `round` construct; `run_trick` plays one trick —
-each participant in turn order from the leader plays a legal card, the lead sets
-`led_suit`, an optional early-termination predicate may end the pass, then
-`outcome` selects the winner (returned, and bound as `outcome` for the
-surrounding body, which does the routing). `instantiate` dispatches the
-remaining per-game hand engines (Schnapsen, Pinochle, Bridge auction, Skat,
-Tarot, Cribbage, Stud, Tichu, Coup) not yet lifted into the DSL.
+`run_round` drives the trick form of the kernel `round` construct; `run_trick`
+plays one trick — each participant in turn order from the leader plays a legal
+card, the lead sets `led_suit`, an optional early-termination predicate may end
+the pass, then `outcome` selects the winner (bound as `outcome` for the
+surrounding body, which does the routing). `run_auction` drives the auction form:
+a continuous ring over a move vocabulary, threading a phase-state accumulator
+until termination, then producing a typed variant outcome. `instantiate`
+dispatches the remaining per-game hand engines (Schnapsen, Pinochle, Skat, Tarot,
+Cribbage, Stud, Tichu, Coup) not yet lifted into the DSL.
 """
 
 from __future__ import annotations
@@ -26,8 +28,6 @@ def instantiate(stmt: n.Instantiate, ctx: Ctx) -> Player:
         return run_schnapsen_hand(stmt, ctx)
     if stmt.mechanic == "PinochleHand":
         return run_pinochle_hand(stmt, ctx)
-    if stmt.mechanic == "BridgeAuction":
-        return run_bridge_auction(stmt, ctx)
     if stmt.mechanic == "SkatHand":
         from cardlang.runtime.skat import run_skat_hand
 
@@ -140,6 +140,73 @@ def run_round(stmt: n.Round, ctx: Ctx) -> Player:
         trump=trump,
         ctx=ctx,
     )
+
+
+def _enumerate_domain(type_name: str, ctx: Ctx) -> list[Any]:
+    """The value-domain a parameterized move ranges over, in a fixed order so the
+    flattened candidate list is deterministic. `Suit` is the deck's suits;
+    `Suit?` appends `none` (the no-trump strain), which ranks last."""
+    base = type_name.rstrip("?")
+    if base == "Suit":
+        values: list[Any] = list(SUITS)
+        if type_name.endswith("?"):
+            values.append(None)
+        return values
+    raise NotImplementedError(f"move parameter domain '{type_name}' not supported yet")
+
+
+def run_auction(stmt: n.Round, ctx: Ctx) -> None:
+    """The auction form of `round`: a continuous ring over a move vocabulary.
+
+    Each turn the acting player chooses one of the legal *concrete* moves — every
+    parameterized move expanded over its value-domain and guard-filtered, plus the
+    nullary moves — as a single flat candidate list (one chooser draw, matching
+    OpenSpiel's one-decision-node-per-turn action set). The chosen move's effect
+    runs with `actor` (and the move parameter) bound, threading the phase-state
+    accumulator. The ring loops until the termination predicate holds; then the
+    outcome function produces the phase's typed variant from the bid history.
+    """
+    from cardlang.runtime import stdlib
+    from cardlang.runtime.execute import run_body
+
+    participants = list(evaluate(stmt.participants, ctx))
+    leader = evaluate(stmt.leader, ctx)
+    order = ctx.rs.seating.turn_order_from(leader)
+    assert stmt.move_types is not None and stmt.termination is not None
+    move_defs = [ctx.rs.move_type_index[name] for name in stmt.move_types]
+    history: list[tuple[Player, str, Any]] = []
+
+    i = 0
+    guard = 0
+    while not evaluate(stmt.termination, ctx):
+        guard += 1
+        if guard > 1000:
+            raise RuntimeError("auction did not terminate within 1000 turns")
+        player = order[i % len(order)]
+        i += 1
+        if player not in participants:
+            continue
+        pctx = ctx.acting_as(player)
+        candidates: list[tuple[str, Any]] = []
+        for mt in move_defs:
+            if mt.param is None:
+                if mt.guard is None or bool(evaluate(mt.guard, pctx)):
+                    candidates.append((mt.name, None))
+            else:
+                for value in _enumerate_domain(mt.param.type_name, ctx):
+                    vctx = pctx.with_local(mt.param.name, value)
+                    if mt.guard is None or bool(evaluate(mt.guard, vctx)):
+                        candidates.append((mt.name, value))
+        if not candidates:
+            continue  # no legal move this turn
+        name, value = ctx.chooser(player, candidates, 1)[0]
+        mt = ctx.rs.move_type_index[name]
+        eff_ctx = pctx.with_local(mt.param.name, value) if mt.param is not None else pctx
+        run_body(mt.effect, eff_ctx)
+        history.append((player, name, value))
+
+    tag, payloads = stdlib.auction_outcome_function(stmt.outcome_fn)(history, ctx)
+    raise _ProduceSignal(tag, payloads)
 
 
 # ---------------------------------------------------------------------------
@@ -468,107 +535,6 @@ def run_pinochle_hand(stmt: n.Instantiate, ctx: Ctx) -> Player:
         {"meld": dict(meld_score), "trick": dict(trick_score), "abandoned": False},
     )
     return high_bidder
-
-
-# ---------------------------------------------------------------------------
-# Bridge auction mechanic
-# ---------------------------------------------------------------------------
-#
-# Bridge trick play needs only follow-suit (no head/trump obligation), so the
-# DSL drives the thirteen tricks with the kernel `round` construct (NT maps to
-# trump = none). Only the auction is special, and it is built concretely here:
-# ascending bids over the strain order C D H S NT, with double and redouble, the
-# auction ending after three passes follow a call. Random bidders raise
-# minimally (pick a strain; take the lowest level that beats the standing bid),
-# which keeps contracts low enough to be made sometimes — so games and the rubber
-# actually complete under random play. Doubling/redoubling and declarer
-# determination (first of the partnership to name the final strain) are faithful;
-# conventions and strategy are out of scope for a random playout.
-
-_STRAINS: tuple[str | None, ...] = ("clubs", "diamonds", "hearts", "spades", None)
-
-
-def run_bridge_auction(stmt: n.Instantiate, ctx: Ctx) -> Player:
-    rs = ctx.rs
-    args = {a.name: a.value for a in stmt.args}
-    opener: Player = evaluate(_expr(args["opener"]), ctx)
-    order = rs.seating.turn_order_from(opener)
-    team_of = rs.team_of
-
-    cur_level = 0
-    cur_strain = -1  # -1 = no bid yet
-    high_team: int | None = None
-    doubled = 1  # 1 undoubled, 2 doubled, 4 redoubled
-    strain_first: dict[tuple[int, int], Player] = {}  # (team, strain) -> first to name it
-    passes = 0
-    made_bid = False
-    i = 0
-    guard = 0
-
-    while True:
-        guard += 1
-        if guard > 500:  # minimal-ascent bids bound this far below 500
-            raise RuntimeError(
-                "bridge auction exceeded 500 calls without closing (non-termination?)"
-            )
-        p = order[i % len(order)]
-        i += 1
-        actions: list[tuple[Any, ...]] = [("pass",)]
-        for st in range(5):  # minimal level that beats the standing bid in strain st
-            lvl = 1 if cur_level == 0 else (cur_level if st > cur_strain else cur_level + 1)
-            # Cap random bids at level 3: a random declarer almost never makes a
-            # high contract, so without a cap a rubber takes hundreds of failed
-            # hands to crawl to two games. Partscores (1-3) are made often enough
-            # that games accumulate in a realistic ~dozens of hands. Game-level
-            # and slam contracts are thus unreachable under random play (their
-            # scoring is implemented but unexercised, like Spades' +500 branch).
-            if lvl <= 3:
-                actions.append(("bid", lvl, st))
-        if made_bid and team_of[p] != high_team and doubled == 1:
-            actions.append(("double",))
-        if made_bid and doubled == 2 and team_of[p] == high_team:
-            actions.append(("redouble",))
-
-        choice = ctx.chooser(p, actions, 1)[0]
-        kind = choice[0]
-        if kind == "pass":
-            passes += 1
-            if (made_bid and passes >= 3) or (not made_bid and passes >= 4):
-                break
-        elif kind == "bid":
-            cur_level, cur_strain = choice[1], choice[2]
-            high_team = team_of[p]
-            strain_first.setdefault((high_team, cur_strain), p)
-            doubled = 1
-            made_bid = True
-            passes = 0
-        elif kind == "double":
-            doubled = 2
-            passes = 0
-        else:  # redouble
-            doubled = 4
-            passes = 0
-
-    # The auction's typed outcome: the enclosing `phase auction -> outcome { ... }`
-    # adopts the produced variant, and a `produces:` arm sets the contract state.
-    if not made_bid:
-        ctx.trace("bridge_contract", {"all_pass": True})
-        raise _ProduceSignal("all_pass", [])
-    assert high_team is not None
-    declarer = strain_first[(high_team, cur_strain)]
-    ctx.trace(
-        "bridge_contract",
-        {
-            "all_pass": False,
-            "declarer_team": team_of[declarer],
-            "level": cur_level,
-            "strain": _STRAINS[cur_strain],
-            "doubled_mult": doubled,
-        },
-    )
-    raise _ProduceSignal(
-        "contract_finalized", [declarer, cur_level, _STRAINS[cur_strain], doubled]
-    )
 
 
 def _fire_transitions(

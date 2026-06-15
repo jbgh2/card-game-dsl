@@ -9,11 +9,15 @@ caught. Seeded for the formalized corpus; extended corpus-first.
 from __future__ import annotations
 
 # Stdlib values referenced by bare name (a `round`'s `outcome` callback).
-# An outcome callback has signature (played, led_suit, trump, rank_index) -> Player.
+# A trick outcome has signature (played, led_suit, trump, rank_index) -> Player; an
+# auction outcome (the auction form of `round`) has (history, ctx) -> (tag, payloads)
+# and produces the phase's typed variant. Both live in this namespace; the runtime
+# dispatches by the round form it is driving.
 STDLIB_VALUE_NAMES: frozenset[str] = frozenset(
     {
         "highest_of_led_suit",
         "highest_trump_or_led_suit",  # trick winner with a trump suit in play
+        "bridge_auction_outcome",  # Bridge auction -> contract_finalized | all_pass
     }
 )
 
@@ -32,6 +36,7 @@ STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
         "player_holding",
         "team_of",  # the partnership a player belongs to
         "suit_of",  # the suit of a card, or of a single-card zone (trump indicator)
+        "strain_index",  # bidding rank of a strain: C<D<H<S<NT (none = no-trump, highest)
         "error",  # the if_impossible fallback that rejects the move
     }
 )

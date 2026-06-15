@@ -54,6 +54,12 @@ def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
         case n.Offer():
             _offer(stmt, ctx)
             return ctx
+        case n.Round() if stmt.move_types is not None:
+            # The auction form raises a _ProduceSignal with the phase's typed
+            # outcome (caught by the enclosing outcome-declaring phase), like an
+            # instantiated mechanic — it binds no `outcome` player.
+            mechanics.run_auction(stmt, ctx)
+            return ctx
         case n.Round():
             return ctx.with_outcome(mechanics.run_round(stmt, ctx))
         case n.Produce():

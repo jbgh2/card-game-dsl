@@ -24,11 +24,13 @@ Each hand:
    (bonus 300, or 500 when vulnerable), the below-the-line counters reset, and a
    second game ends the rubber (bonus 500/700).
 
-The thirteen tricks run on the kernel `round` construct; only the auction is
-special (the built-in `BridgeAuction` mechanic). The auction phase declares a
-typed outcome — `contract_finalized(declarer, level, strain, doubling)` or
-`all_pass` — and the `produces:` consumer either routes on into play or skips the
-passed-out hand (see [decisions.md](../decisions.md) "Typed phase outcomes").
+The thirteen tricks run on the trick form of the kernel `round` construct; the
+auction runs on its auction form — a continuous ring over the bid vocabulary
+(`offering [pass, submit_bid, double, redouble] … until …`), threading the
+standing contract through the phase's accumulator state. The auction phase
+declares a typed outcome — `contract_finalized(declarer, level, strain, doubling)`
+or `all_pass` — and the `produces:` consumer either routes on into play or skips
+the passed-out hand (see [decisions.md](../decisions.md) "Typed phase outcomes").
 Random bids are capped at level 3 so rubbers stay
 a realistic dozen-odd hands — game-level and slam contracts are unreachable under
 random play (their scoring is implemented but unexercised). The dummy and
@@ -81,8 +83,17 @@ game Bridge {
     phase auction -> outcome {
       contract_finalized(Player, Integer, Suit?, Integer) | all_pass
     } {
-      legal_moves: [submit_bid, pass, double, redouble]
-      instantiate BridgeAuction(opener = dealer)
+      state {
+        cur_level   : Integer = 0
+        cur_strain  : Suit?   = none
+        high_bidder : Player? = none
+        doubled     : Integer = 1
+        made_bid    : Boolean = false
+        passes      : Integer = 0
+      }
+      round offering [pass, submit_bid, double, redouble] from dealer over all players
+            until (made_bid and passes >= 3) or (not made_bid and passes >= 4)
+            outcome bridge_auction_outcome
     }
     auction produces:
       contract_finalized(d, level, strain, dbl) {
@@ -160,5 +171,35 @@ rule MustFollowSuit {
   constrains: play_to_trick
   applies_when: state.led_suit is not none
   demands: hand.cards_of_suit(state.led_suit)
+}
+
+// The bid vocabulary. The cheapest beating level in a strain is derived; random
+// bids are capped at level 3 so rubbers stay a realistic length.
+move_type pass { effect { passes += 1 } }
+
+move_type submit_bid(strain : Suit?) {
+  when: (if cur_level == 0 then 1
+         elif strain_index(strain) > strain_index(cur_strain) then cur_level
+         else cur_level + 1) <= 3
+  effect {
+    cur_level   := if cur_level == 0 then 1
+                   elif strain_index(strain) > strain_index(cur_strain) then cur_level
+                   else cur_level + 1
+    cur_strain  := strain
+    high_bidder := actor
+    doubled     := 1
+    made_bid    := true
+    passes      := 0
+  }
+}
+
+move_type double {
+  when: made_bid and team_of(actor) != team_of(high_bidder) and doubled == 1
+  effect { doubled := 2  passes := 0 }
+}
+
+move_type redouble {
+  when: made_bid and team_of(actor) == team_of(high_bidder) and doubled == 2
+  effect { doubled := 4  passes := 0 }
 }
 ```
