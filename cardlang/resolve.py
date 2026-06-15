@@ -366,6 +366,15 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bag.error(f"round outcome '{nd.outcome_fn}' is unknown", nd.span)
                 if nd.move_type not in LIBRARY_MOVE_TYPES:
                     bag.error(f"round move type '{nd.move_type}' is unknown", nd.span)
+                if (
+                    nd.early_termination is not None
+                    and nd.early_termination not in STDLIB_VALUE_NAMES
+                ):
+                    bag.error(
+                        f"round early-termination predicate "
+                        f"'{nd.early_termination}' is unknown",
+                        nd.span,
+                    )
 
 
 def _raise_if_errors(bag: DiagnosticBag) -> None:

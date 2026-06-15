@@ -164,6 +164,11 @@ def run_round(stmt: n.Round, ctx: Ctx) -> Player:
     # function via evaluate() of a NameRef arg — keep these two in step if the
     # stdlib value-function lookup ever changes.)
     outcome_fn = stdlib.value_function(stmt.outcome_fn)
+    early_term = (
+        stdlib.value_function(stmt.early_termination)
+        if stmt.early_termination is not None
+        else None
+    )
     trump = evaluate(stmt.trump, ctx) if stmt.trump is not None else ctx.rs.trump
     play_rules = phases.compute_active_rules(ctx.current_phase, ctx.rs)
     return run_trick(
@@ -174,7 +179,7 @@ def run_round(stmt: n.Round, ctx: Ctx) -> Player:
         play_rules=play_rules,
         outcome_fn=outcome_fn,
         routing_body=(),          # routing is done in the surrounding body
-        early_term=None,
+        early_term=early_term,
         trump=trump,
         ctx=ctx,
     )

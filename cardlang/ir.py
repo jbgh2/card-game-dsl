@@ -292,6 +292,7 @@ def _stmt(s: n.Stmt) -> IRDict:
                 "play_zone": s.play_zone,
                 "outcome_fn": s.outcome_fn,
                 "trump": _expr(s.trump) if s.trump is not None else None,
+                "early_termination": s.early_termination,
             }
         case n.Produce():
             return {

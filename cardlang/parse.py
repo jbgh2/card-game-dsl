@@ -497,10 +497,11 @@ class _Builder(Transformer[Token, n.Game]):
         return n.Offer(player=player, move_types=names, span=self._span(meta))
 
     def round_stmt(self, meta: Meta, c: list[object]) -> n.Round:
-        # c: [NAME(move_type), expr(leader), expr(participants),
-        #     NAME(source), NAME(into), NAME(outcome), expr(trump)?]
-        # With maybe_placeholders=True, len(c)==7 always; c[6] is None when absent.
+        # c: [NAME(move_type), expr(leader), expr(participants), NAME(source),
+        #     NAME(into), NAME(outcome), expr(trump)?, NAME(early)?]
+        # With maybe_placeholders=True, len(c)==8 always; c[6]/c[7] are None when absent.
         trump = _as_expr(c[6]) if c[6] is not None else None
+        early = str(c[7]) if c[7] is not None else None
         return n.Round(
             move_type=str(c[0]),
             leader=_as_expr(c[1]),
@@ -509,6 +510,7 @@ class _Builder(Transformer[Token, n.Game]):
             play_zone=str(c[4]),
             outcome_fn=str(c[5]),
             trump=trump,
+            early_termination=early,
             span=self._span(meta),
         )
 

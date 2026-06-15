@@ -422,10 +422,11 @@ class Offer:
 @dataclass(frozen=True, slots=True)
 class Round:
     """`round <move_type> from <leader> over <participants> source <zone> into
-    <zone> outcome <fn> [trump <expr>]` — a turn-order pass where each
-    participant makes one card play (filtered by the active rules), then the
-    outcome function picks the winner, which is bound as `outcome`. Routing is
-    left to the surrounding body."""
+    <zone> outcome <fn> [trump <expr>] [early <predicate>]` — a turn-order pass
+    where each participant makes one card play (filtered by the active rules),
+    then the outcome function picks the winner, which is bound as `outcome`.
+    Routing is left to the surrounding body. An optional `early` predicate ends
+    the pass before every participant has played (e.g. Getaway's tochoo)."""
 
     move_type: str
     leader: Expr
@@ -434,6 +435,7 @@ class Round:
     play_zone: str
     outcome_fn: str
     trump: Expr | None
+    early_termination: str | None = None
     span: Span | None = None
 
 
