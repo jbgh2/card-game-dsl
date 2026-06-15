@@ -76,6 +76,11 @@ def _move_type(m: n.MoveTypeDef) -> IRDict:
     return {
         "kind": "move_type",
         "name": m.name,
+        "param": (
+            {"name": m.param.name, "type_name": m.param.type_name}
+            if m.param is not None
+            else None
+        ),
         "guard": _expr(m.guard) if m.guard is not None else None,
         "effect": [_stmt(s) for s in m.effect],
     }

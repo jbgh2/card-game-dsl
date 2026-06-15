@@ -798,6 +798,12 @@ class _Builder(Transformer[Token, n.Game]):
             span=self._span(meta),
         )
 
+    def move_param(self, meta: Meta, c: list[object]) -> n.MoveParam:
+        # c: NAME(param), payload_type string (carries a trailing `?` if nullable).
+        return n.MoveParam(
+            name=str(c[0]), type_name=str(c[1]), span=self._span(meta)
+        )
+
     def move_when(self, meta: Meta, c: list[object]) -> _MoveWhen:
         return _MoveWhen(c[0])
 
@@ -865,13 +871,16 @@ class _Builder(Transformer[Token, n.Game]):
         name = str(c[0])
         guard: object | None = None
         effect: tuple[object, ...] = ()
+        param: n.MoveParam | None = None
         for item in c[1:]:
-            if isinstance(item, _MoveWhen):
+            if isinstance(item, n.MoveParam):
+                param = item
+            elif isinstance(item, _MoveWhen):
                 guard = None if isinstance(item.pred, _Always) else _as_expr(item.pred)
             elif isinstance(item, _MoveEffect):
                 effect = item.body
         return n.MoveTypeDef(
-            name=name, guard=guard, effect=effect, span=self._span(meta)  # type: ignore[arg-type]
+            name=name, guard=guard, effect=effect, param=param, span=self._span(meta)  # type: ignore[arg-type]
         )
 
     def start(self, meta: Meta, c: list[object]) -> n.Game:

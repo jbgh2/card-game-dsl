@@ -622,13 +622,26 @@ class RuleDef:
 
 
 @dataclass(frozen=True, slots=True)
+class MoveParam:
+    """A `move_type`'s optional parameter: a name bound in the guard/effect and a
+    type whose value-domain is enumerated (`submit_bid(strain : Suit?)`). The
+    ``type_name`` keeps a trailing `?` for a nullable domain, like a payload type."""
+
+    name: str
+    type_name: str
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class MoveTypeDef:
-    """`move_type NAME { when: <pred> effect { <stmt>* } }` — a named, guarded
-    action. ``guard`` is None when the move is always legal."""
+    """`move_type NAME [(<param> : <type>)] { when: <pred> effect { <stmt>* } }` —
+    a named, guarded action. ``guard`` is None when the move is always legal;
+    ``param`` is None for a nullary move (the trick/offer form)."""
 
     name: str
     guard: Expr | None
     effect: tuple[Stmt, ...]
+    param: MoveParam | None = None
     span: Span | None = None
 
 

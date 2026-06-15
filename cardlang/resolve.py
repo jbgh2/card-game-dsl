@@ -205,6 +205,8 @@ def _categories(game: n.Game) -> _Categories:
                 locals_.add(nd.param)
             case n.Comprehension() | n.Quantifier() | n.ForEach():
                 locals_.add(nd.binder)
+            case n.MoveTypeDef() if nd.param is not None:
+                locals_.add(nd.param.name)  # the param binds in guard/effect
             case n.EachSimultaneous():
                 locals_.add(nd.role)
             case n.PlayerQuery():
