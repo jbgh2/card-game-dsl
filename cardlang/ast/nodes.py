@@ -421,21 +421,34 @@ class Offer:
 
 @dataclass(frozen=True, slots=True)
 class Round:
-    """`round <move_type> from <leader> over <participants> source <zone> into
-    <zone> outcome <fn> [trump <expr>] [early <predicate>]` — a turn-order pass
-    where each participant makes one card play (filtered by the active rules),
-    then the outcome function picks the winner, which is bound as `outcome`.
-    Routing is left to the surrounding body. An optional `early` predicate ends
-    the pass before every participant has played (e.g. Getaway's tochoo)."""
+    """The kernel decision round, in one of two forms.
 
-    move_type: str
+    *Trick form* — `round <move_type> from <leader> over <participants> source
+    <zone> into <zone> outcome <fn> [trump <expr>] [early <predicate>]`: a single
+    turn-order pass where each participant makes one card play (filtered by the
+    active rules), then the outcome function picks the winner, bound as `outcome`.
+    Routing is left to the surrounding body; an optional `early` predicate ends
+    the pass before every participant has played (Getaway's tochoo).
+
+    *Auction form* — `round offering [<move_type>, …] from <leader> over
+    <participants> until <pred> outcome <fn>`: a continuous ring over a
+    heterogeneous move vocabulary (bids/passes), looping until the termination
+    predicate holds, then the outcome function produces the typed variant. The
+    trick-specific fields (`move_type`, `source_zone`, `play_zone`) are absent;
+    `move_types` and `termination` are present (decisions.md "Interactive
+    decisions": the same kernel round along the move-vocabulary/termination axes).
+    """
+
+    move_type: str | None
     leader: Expr
     participants: Expr
-    source_zone: str
-    play_zone: str
+    source_zone: str | None
+    play_zone: str | None
     outcome_fn: str
     trump: Expr | None
     early_termination: str | None = None
+    move_types: tuple[str, ...] | None = None
+    termination: Expr | None = None
     span: Span | None = None
 
 

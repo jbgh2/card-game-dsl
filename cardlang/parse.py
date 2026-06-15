@@ -514,6 +514,27 @@ class _Builder(Transformer[Token, n.Game]):
             span=self._span(meta),
         )
 
+    def auction_moves(self, meta: Meta, c: list[object]) -> tuple[str, ...]:
+        return tuple(str(x) for x in c)
+
+    def auction_stmt(self, meta: Meta, c: list[object]) -> n.Round:
+        # c: [tuple(move_types), expr(leader), expr(participants), expr(termination),
+        #     NAME(outcome)]. The auction form leaves the trick-specific fields None.
+        move_types = c[0]
+        assert isinstance(move_types, tuple)
+        return n.Round(
+            move_type=None,
+            leader=_as_expr(c[1]),
+            participants=_as_expr(c[2]),
+            source_zone=None,
+            play_zone=None,
+            outcome_fn=str(c[4]),
+            trump=None,
+            move_types=move_types,
+            termination=_as_expr(c[3]),
+            span=self._span(meta),
+        )
+
     def let_stmt(self, meta: Meta, c: list[object]) -> n.LetStmt:
         index = c[1] if isinstance(c[1], str) else None
         return n.LetStmt(

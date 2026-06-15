@@ -496,7 +496,12 @@ def _stmt_exprs(s: n.Stmt) -> list[n.Expr]:
     if isinstance(s, n.Offer):
         return [s.player]
     if isinstance(s, n.Round):
-        return [s.leader, s.participants] + ([s.trump] if s.trump is not None else [])
+        exprs = [s.leader, s.participants]
+        if s.trump is not None:
+            exprs.append(s.trump)
+        if s.termination is not None:
+            exprs.append(s.termination)
+        return exprs
     if isinstance(s, n.Instantiate):
         return [a.value for a in s.args if not isinstance(a.value, n.Movement)]
     if isinstance(s, (n.IfStmt, n.RepeatUntil)):

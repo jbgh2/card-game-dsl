@@ -355,6 +355,18 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 for name in nd.move_types:
                     if name not in defined_move_types:
                         bag.error(f"offer names unknown move type '{name}'", nd.span)
+            case n.Round() if nd.move_types is not None:
+                # Auction form: a vocabulary of game-defined move types, no card
+                # zones. The termination predicate's names are checked by the
+                # generic NameRef pass.
+                for name in nd.move_types:
+                    if name not in defined_move_types:
+                        bag.error(
+                            f"round vocabulary names unknown move type '{name}'",
+                            nd.span,
+                        )
+                if nd.outcome_fn not in STDLIB_VALUE_NAMES:
+                    bag.error(f"round outcome '{nd.outcome_fn}' is unknown", nd.span)
             case n.Round():
                 zone_names = {z.name for z in game.zones}
                 if nd.source_zone not in zone_names:

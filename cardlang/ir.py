@@ -293,6 +293,8 @@ def _stmt(s: n.Stmt) -> IRDict:
                 "outcome_fn": s.outcome_fn,
                 "trump": _expr(s.trump) if s.trump is not None else None,
                 "early_termination": s.early_termination,
+                "move_types": list(s.move_types) if s.move_types is not None else None,
+                "termination": _expr(s.termination) if s.termination is not None else None,
             }
         case n.Produce():
             return {

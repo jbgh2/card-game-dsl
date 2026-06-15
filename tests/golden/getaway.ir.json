@@ -196,7 +196,9 @@
           "play_zone": "trick_pile",
           "outcome_fn": "highest_of_led_suit",
           "trump": null,
-          "early_termination": "on_play_of_tochoo"
+          "early_termination": "on_play_of_tochoo",
+          "move_types": null,
+          "termination": null
         },
         {
           "kind": "movement",
@@ -317,7 +319,9 @@
               "play_zone": "trick_pile",
               "outcome_fn": "highest_of_led_suit",
               "trump": null,
-              "early_termination": "on_play_of_tochoo"
+              "early_termination": "on_play_of_tochoo",
+              "move_types": null,
+              "termination": null
             },
             {
               "kind": "if",

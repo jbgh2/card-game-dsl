@@ -124,6 +124,11 @@ def run_round(stmt: n.Round, ctx: Ctx) -> Player:
     )
     trump = evaluate(stmt.trump, ctx) if stmt.trump is not None else ctx.rs.trump
     play_rules = phases.compute_active_rules(ctx.current_phase, ctx.rs)
+    # The trick form carries card zones; the auction form (move_types set) has no
+    # source/into and is driven elsewhere (it does not reach run_trick).
+    assert (
+        stmt.source_zone is not None and stmt.play_zone is not None
+    ), "run_round handles only the trick form of `round`"
     return run_trick(
         participants=list(participants),
         leader=leader,
