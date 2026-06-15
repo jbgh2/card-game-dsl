@@ -70,8 +70,15 @@ These hold for every step; they are what make a 1,800-line deletion safe.
 
 ## Step 0 — Generalize the `round` kernel (prerequisite)
 
-The `Round` node (`cardlang/ast/nodes.py`) is currently trick-shaped: one card
-play per participant plus an `outcome` function. Everything below composes on a
+*The trick-migration portion of this step is built: every trick game (Hearts,
+Spades, Getaway, Bridge, Oh Hell) runs on the kernel `round`, the built-in
+`Trick` mechanic and the routing-def construct are retired, and `round` carries
+the termination axis (`early`) plus round-state exposure. The remaining axes
+below (accumulator, order, move vocabulary) land with the workstreams that first
+need them — see [roadmap.md](roadmap.md).*
+
+The `Round` node (`cardlang/ast/nodes.py`) is trick-shaped: one card play per
+participant plus an `outcome` function. Everything below composes on a
 `round` grown to the closed axes from [decisions.md](decisions.md):
 
 - **participants** — actor / others / ring / list
