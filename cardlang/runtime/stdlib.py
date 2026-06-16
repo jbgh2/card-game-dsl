@@ -144,9 +144,17 @@ def bridge_auction_outcome(
     level = rs.get("cur_level")
     doubled = rs.get("doubled")
     declarer = next(
-        p
-        for (p, move, param) in history
-        if move == "submit_bid" and param == strain and rs.team_of[p] == high_team
+        (
+            p
+            for (p, move, param) in history
+            if move == "submit_bid" and param == strain and rs.team_of[p] == high_team
+        ),
+        None,
+    )
+    assert declarer is not None, (
+        f"bridge auction: made_bid is set but no submit_bid in the history names "
+        f"the final strain {strain!r} for the high team {high_team} "
+        f"(high_bidder={rs.get('high_bidder')})"
     )
     ctx.trace(
         "bridge_contract",

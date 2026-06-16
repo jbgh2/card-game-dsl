@@ -91,21 +91,21 @@ Key design notes:
   and, for the just-finished round, in the surrounding body. Per
   [appendix.md](appendix.md) (corpus catalogue), this is where these variables
   live; games don't redeclare them.
-- `Auction` (see [games/pinochle.md](games/pinochle.md)) — parameterized
-  over participants, opening bid, increment, outcome callback. Owns its
-  own per-auction state (`current_bid`, `last_bidder`, `passed[player]`).
-  Used by Pinochle. Spades and Oh Hell use *inline per-player
-  bidding* instead — every player bids exactly once in turn, no
-  ascending constraint, so the mechanic doesn't fit. Auction stays
-  the ascending-bidding pattern.
-- Bridge's auction (see [games/bridge.md](games/bridge.md)) runs on the **auction
-  form of the kernel `round`** — a continuous ring over a bid vocabulary
-  (`offering [pass, submit_bid, double, redouble] … until … outcome
-  bridge_auction_outcome`), with the standing contract (level, strain, doubling,
-  high bidder) threaded through the phase's accumulator state and the declarer
-  computed by the named outcome callback over the bid history. It is game-local;
-  the shared `auction` definition is promoted to this catalogue corpus-first, at
-  the third ascending-auction instance (Tarot).
+- **Auctions run on the auction form of the kernel `round`** (see
+  [decisions.md](decisions.md) "The auction form of `round`") — a continuous ring
+  over a bid vocabulary (`offering [...] until <pred> outcome <fn>`) with the
+  standing bid threaded through the phase's accumulator state. Bridge's auction
+  (see [games/bridge.md](games/bridge.md)) runs on it today: the vocabulary is
+  `[pass, submit_bid, double, redouble]`, and `bridge_auction_outcome` computes the
+  declarer from the bid history, producing `contract_finalized | all_pass`. The
+  ascending-bid auctions (Pinochle's opening-bid/increment ring naming the high
+  bidder; Tarot's four levels; Skat's call-and-response) move onto the same form as
+  the migration reaches them ([kernel-migration.md](kernel-migration.md)); each is
+  game-local until the shared `auction` definition — the ascending-bid
+  configuration of this form — is promoted to this catalogue corpus-first at its
+  third instance. Spades and Oh Hell use *inline per-player bidding* instead —
+  every player bids exactly once in turn, no ascending constraint — so they do not
+  use the auction form.
 - `BettingRound` (see [games/seven-card-stud.md](games/seven-card-stud.md))
   — parameterized over active players, opening bet, limit increment, max
   raises, and outcome. Owns its own per-betting-round state

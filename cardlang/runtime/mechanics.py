@@ -178,10 +178,11 @@ def run_auction(stmt: n.Round, ctx: Ctx) -> None:
 
     i = 0
     guard = 0
+    no_move_streak = 0  # consecutive ring steps with no legal move for anyone
     while not evaluate(stmt.termination, ctx):
         guard += 1
-        if guard > 1000:
-            raise RuntimeError("auction did not terminate within 1000 turns")
+        if guard > 1000:  # ring steps, not productive turns; well above any auction
+            raise RuntimeError("auction did not terminate within 1000 ring steps")
         player = order[i % len(order)]
         i += 1
         if player not in participants:
@@ -198,7 +199,18 @@ def run_auction(stmt: n.Round, ctx: Ctx) -> None:
                     if mt.guard is None or bool(evaluate(mt.guard, vctx)):
                         candidates.append((mt.name, value))
         if not candidates:
-            continue  # no legal move this turn
+            # A seat with no legal move is skipped (no chooser draw). But if a full
+            # revolution produces no move for *anyone* while the auction has not
+            # terminated, the vocabulary has a hole — fail loudly rather than spin
+            # to the guard cap with a misleading "did not terminate" message.
+            no_move_streak += 1
+            if no_move_streak >= len(order):
+                raise RuntimeError(
+                    f"auction stuck: no participant has a legal move and the "
+                    f"termination predicate is unmet (vocabulary {list(stmt.move_types)})"
+                )
+            continue
+        no_move_streak = 0
         name, value = ctx.chooser(player, candidates, 1)[0]
         mt = ctx.rs.move_type_index[name]
         eff_ctx = pctx.with_local(mt.param.name, value) if mt.param is not None else pctx

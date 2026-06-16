@@ -330,8 +330,9 @@ round offering [<move_type>, …] from <seat> over <ring>
 - **Move vocabulary (`offering`).** Each turn presents the acting player **one
   flat candidate list** of the legal concrete moves — every parameterized
   `move_type` expanded over its value-domain and guard-filtered, plus the nullary
-  moves, in declaration order — resolved by a **single** decision (one chooser
-  draw). This is not stylistic: the target runtime (OpenSpiel) mandates one
+  moves, in the order the vocabulary lists them (`offering [...]`) — resolved by a
+  **single** decision (one chooser draw). This is not stylistic: the target
+  runtime (OpenSpiel) mandates one
   finite, enumerable action set per decision node, so a turn is one node over a
   flat set, never an outer move-type choice followed by an inner parameter choice.
   Bridge's `submit_bid(strain : Suit?)` expands to one bid per strain whose
@@ -349,9 +350,11 @@ round offering [<move_type>, …] from <seat> over <ring>
   of the high side to have named the final strain) and produces
   `contract_finalized(declarer, level, strain, doubling) | all_pass`.
 
-A migration onto this form is behaviour-preserving: the per-turn candidate list
-has the same length and order as the hand-written engine it replaces, so a random
-playout consumes the RNG identically (the outcome callback consumes none).
+An auction's only decision points are these per-turn candidate draws; the outcome
+callback consumes no randomness. So two auctions that present the same per-turn
+candidate lists (same length and order) play identically under a random playout —
+the property that lets a hand-written engine be re-expressed in this form without
+changing behaviour.
 
 ## State scoping (lexical)
 
@@ -1389,8 +1392,8 @@ The shared *bidding mechanic* possibilities — an ascending-bid `auction`
 definition, an inline per-player pattern — are extracted only when
 multiple games clearly share them. Bridge's auction (doubling, redoubling, and
 the structured contract outcome) runs on the auction form of the kernel `round`
-(see "The auction form of `round`" below), game-local until the shared `auction`
-definition is promoted corpus-first at its third instance.
+(see "The auction form of `round`" above), game-local until the shared `auction`
+definition is promoted corpus-first.
 Spades and Oh Hell both use inline per-player bidding; a
 `PerPlayerBidding` mechanic could be extracted, deferred until a
 third per-player-bid game (Wizard, Boerenbridge variant, 7-Truf)

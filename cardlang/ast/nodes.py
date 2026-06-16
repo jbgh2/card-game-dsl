@@ -773,6 +773,7 @@ Node = (
     | Winner
     | Loser
     | MoveTypeDef
+    | MoveParam
     | VariantCase
     | DefineDef
     | StructField
