@@ -66,8 +66,12 @@ def _choose(e: n.Choose, ctx: Ctx) -> Any:
     lo = int(evaluate(e.lo, ctx))
     hi = int(evaluate(e.hi, ctx))
     candidates = list(range(lo, hi + 1))
-    player = ctx.current_player if ctx.current_player is not None else 0
-    return ctx.chooser(player, candidates, 1)[0]
+    if not candidates:
+        raise RuntimeError(
+            f"`choose integer in {lo} .. {hi}` has no value to choose (empty range): "
+            f"a choice must offer at least one candidate"
+        )
+    return ctx.chooser(ctx.require_actor("a `choose`"), candidates, 1)[0]
 
 
 def _pos(arg: n.Arg) -> n.Expr:

@@ -224,6 +224,17 @@ class Ctx:
     def acting_as(self, player: Player) -> "Ctx":
         return replace(self, current_player=player)
 
+    def require_actor(self, what: str) -> Player:
+        """The acting player at a decision point — never an implicit default. A
+        choice with no acting player is a malformed game (who is choosing?), so
+        fail loudly rather than silently attributing it to player 0."""
+        if self.current_player is None:
+            raise RuntimeError(
+                f"{what} with no acting player; make it part of a per-player "
+                f"context (e.g. `for each player p`) so the chooser knows who decides"
+            )
+        return self.current_player
+
     def in_phase(self, phase: n.Phase) -> "Ctx":
         return replace(self, current_phase=phase)
 
