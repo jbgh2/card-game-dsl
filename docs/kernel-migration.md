@@ -124,6 +124,17 @@ consecutive passes), typed outcome = a contract variant. Then per game, supplyin
 if it is not expressible, that is a `language-gap` → file an open question, do
 not special-case it.
 
+**Dependency surfaced by Bridge.** The auction form does not silently skip a
+participant with no legal move — the ring is stated by the participants clause and
+"all but one passed" by `until` ([decisions.md](decisions.md), "The auction form
+of `round`"). Bridge keeps every seat in with an always-legal `pass`, but the
+ascending auctions drop players who pass for good (and skip the standing high
+bidder) with no decision — a *shrinking ring*. Reproducing that byte-identically
+needs the participant predicate re-evaluated each turn — the **participant-filtering
+axis** otherwise scheduled for Workstream 2 (Stud's non-folded ring). It must be
+pulled forward into the first ascending auction (Pinochle); an always-legal `pass`
+would offer passed players and consume RNG the monolith does not.
+
 **Scope note.** Skat, Tarot, and Pinochle are *monoliths* — the auction is fused
 with play and scoring in one Python function ([roadmap.md](roadmap.md)). The
 auction extraction is the entry point, but the whole hand must land in the DSL

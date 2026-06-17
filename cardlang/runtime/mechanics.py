@@ -178,7 +178,6 @@ def run_auction(stmt: n.Round, ctx: Ctx) -> None:
 
     i = 0
     guard = 0
-    no_move_streak = 0  # consecutive ring steps with no legal move for anyone
     while not evaluate(stmt.termination, ctx):
         guard += 1
         if guard > 1000:  # ring steps, not productive turns; well above any auction
@@ -199,18 +198,21 @@ def run_auction(stmt: n.Round, ctx: Ctx) -> None:
                     if mt.guard is None or bool(evaluate(mt.guard, vctx)):
                         candidates.append((mt.name, value))
         if not candidates:
-            # A seat with no legal move is skipped (no chooser draw). But if a full
-            # revolution produces no move for *anyone* while the auction has not
-            # terminated, the vocabulary has a hole — fail loudly rather than spin
-            # to the guard cap with a misleading "did not terminate" message.
-            no_move_streak += 1
-            if no_move_streak >= len(order):
-                raise RuntimeError(
-                    f"auction stuck: no participant has a legal move and the "
-                    f"termination predicate is unmet (vocabulary {list(stmt.move_types)})"
-                )
-            continue
-        no_move_streak = 0
+            # A participant offered a turn must have a legal move — the
+            # finite-action invariant of a decision node. The engine does NOT
+            # silently skip a player with nothing to do: who is still in the ring
+            # is the game's to state (the participants clause, `over … [where …]`),
+            # and "all but one has passed" is its `until` predicate — not an engine
+            # default (decisions.md "The auction form of `round`"). So an empty
+            # candidate set is a malformed game: a missing always-legal move (give
+            # `pass` no `when:`), or a participants filter that should have dropped
+            # this player.
+            raise RuntimeError(
+                f"auction: participant {player} has no legal move. Give an "
+                f"always-legal move (e.g. an unguarded `pass`) or exclude "
+                f"dropped-out players from the participants clause "
+                f"(vocabulary {list(stmt.move_types)})"
+            )
         name, value = ctx.chooser(player, candidates, 1)[0]
         mt = ctx.rs.move_type_index[name]
         eff_ctx = pctx.with_local(mt.param.name, value) if mt.param is not None else pctx

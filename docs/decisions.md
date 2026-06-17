@@ -337,6 +337,20 @@ round offering [<move_type>, …] from <seat> over <ring>
   flat set, never an outer move-type choice followed by an inner parameter choice.
   Bridge's `submit_bid(strain : Suit?)` expands to one bid per strain whose
   cheapest beating level is still legal; `pass`/`double`/`redouble` are nullary.
+- **The ring (`over`) is explicit; there is no silent skip.** A participant
+  offered a turn always has at least one legal move — the finite-action invariant
+  of a decision node. The game states *who is still in the ring* through the
+  participants clause (`over <players> [where <predicate>]`, the same participants
+  axis the trick uses — Getaway's `over players where not eliminated[player]`) and
+  *when the bidding closes* through `until`. A player who has dropped out (passed
+  for good, folded) is excluded by the participants predicate, and "all but one has
+  passed" is a termination predicate — neither is an engine default. So a
+  participant with no legal move is a **malformed game** (a missing always-legal
+  move, or a participants filter that should have dropped the player), reported as
+  an error, not a silently-skipped turn. Bridge keeps every seat in the ring with
+  an always-legal `pass`; a ring that *shrinks* as players drop out (Pinochle's
+  passed bidders, Stud's folders) narrows through its participants predicate,
+  re-evaluated as the ring cycles.
 - **Accumulator.** The decision-relevant running state (Bridge's standing level,
   strain, doubling, high bidder, pass count) is ordinary **phase state**, read and
   written by the move-type effects and read by the termination predicate. No
