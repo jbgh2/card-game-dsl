@@ -96,7 +96,11 @@ def _movement(stmt: n.Movement, ctx: Ctx) -> None:
         assert stmt.dest is not None
         dest = evaluate(stmt.dest, ctx)
         assert isinstance(dest, Zone)
-        player = ctx.current_player if ctx.current_player is not None else 0
+        player = (
+            ctx.require_actor("a chosen movement")
+            if stmt.mode == "chosen"
+            else ctx.current_player or 0
+        )
         dest.add_all(_select(source, stmt, ctx, player))
 
 
@@ -222,7 +226,15 @@ def _offer(stmt: n.Offer, ctx: Ctx) -> None:
         if _move_legal(ctx.rs.move_type_index[name], pctx)
     ]
     if not legal:
-        return  # no legal move: the offer is a no-op
+        # No implicit skip: a decision point must have a legal move. The explicit
+        # alternatives are the game's — an always-legal move in the vocabulary (an
+        # unguarded `pass`/`decline`), or guarding the offer (`if <able> { offer …
+        # }`) so it is only reached when something is legal.
+        raise RuntimeError(
+            f"offer to player {player}: none of {list(stmt.move_types)} is legal. "
+            f"Add an always-legal move (an unguarded `pass`/`decline`) or guard the "
+            f"offer so it is only made when the player can act."
+        )
     chosen = ctx.chooser(player, legal, 1)[0]
     run_body(ctx.rs.move_type_index[chosen].effect, pctx)
 
@@ -290,7 +302,9 @@ def _pass_selection(body: n.Stmt, ctx: Ctx) -> list[Card]:
     assert isinstance(source, Zone)
     assert not isinstance(body.amount, str)
     count = int(evaluate(body.amount, ctx))
-    return ctx.chooser(ctx.current_player or 0, list(source.cards), count)
+    return ctx.chooser(
+        ctx.require_actor("a simultaneous-pass selection"), list(source.cards), count
+    )
 
 
 def _apply_pass(

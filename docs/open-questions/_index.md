@@ -50,6 +50,9 @@ or when a game forces the issue.
   block and contextual-rank cards (Tichu's Mahjong, Dog, Phoenix, Dragon).
 - [out-of-turn-moves](out-of-turn-moves.md) — `out_of_turn_legal`
   vs permitting-rules vs phase-level lists (Tichu bombs).
+- [phase-legal-moves](phase-legal-moves.md) — what `legal_moves:` is for
+  (derived from the body vs explicit) and whether to statically check it
+  against what the body offers, now that `offering` also declares a vocabulary.
 
 ## Tier 5 — Cosmetic, no design risk
 
@@ -59,5 +62,3 @@ Naming and aesthetic choices. Pick when convenient.
   vs `operation` vs `move`.
 - [hearts-sub-phase-shape](hearts-sub-phase-shape.md) — `first_trick` as
   sibling vs nested sub-phase of `play`.
-- [phase-legal-moves](phase-legal-moves.md) — derive from `active_rules`,
-  state explicitly, or hybrid.
