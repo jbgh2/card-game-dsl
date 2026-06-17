@@ -12,6 +12,7 @@ import random
 
 import pytest
 
+from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
 
@@ -57,3 +58,28 @@ def test_choose_over_empty_range_raises() -> None:
     # silent default.
     with pytest.raises(RuntimeError, match="empty range"):
         _run(CHOOSE_EMPTY_RANGE)
+
+
+RULE_WITHOUT_IF_IMPOSSIBLE = """
+game G {
+  players: 2
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { x[player] : Integer = 0 }
+  phase play { }
+  winner: highest x
+}
+rule MustFollowSuit {
+  constrains: play_to_trick
+  applies_when: state.led_suit is not none
+  demands: hand.cards_of_suit(state.led_suit)
+}
+"""
+
+
+def test_card_set_demand_without_if_impossible_is_rejected() -> None:
+    # A card-set demand can filter the legal set to empty; the rule must declare
+    # its `if_impossible` fallback at compile time rather than rely on a silent
+    # default. This catches the gap statically, not only when a void state runs.
+    with pytest.raises(DiagnosticError, match="no `if_impossible`"):
+        check_dsl(RULE_WITHOUT_IF_IMPOSSIBLE, "t.cardlang")

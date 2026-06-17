@@ -20,10 +20,11 @@ def legal_cards(player: Player, move_type: str, ctx: Ctx) -> list[Card]:
     hand = pctx.rs.zones.instance("hand", player).cards
 
     # Narrow the legal set one rule at a time. When a rule's card-set demand
-    # would empty the running set, it cannot be satisfied — consult *that*
-    # rule's `if_impossible`: an explicit `error(...)` rejects the move (raises
-    # IllegalMove), an explicit card-set is the fallback, and the default (no
-    # clause) drops the rule so the move stays legal under the others.
+    # would empty the running set, it cannot be satisfied — its `if_impossible`
+    # decides what happens: an explicit `error(...)` rejects the move (raises
+    # IllegalMove), and a card-set fallback (e.g. `hand`) replaces the empty set.
+    # A card-set demand with no `if_impossible` is a malformed game — rejected at
+    # resolve time, so reaching it here is a backstop error, never a silent drop.
     result = set(hand)
     for rule in ctx.active_rules:
         if rule.constrains != move_type or not _applies(rule, pctx):
@@ -33,7 +34,12 @@ def legal_cards(player: Player, move_type: str, ctx: Ctx) -> list[Card]:
         narrowed = result & set(evaluate(rule.demands.expr, pctx))
         if narrowed:
             result = narrowed
-        elif rule.if_impossible is not None:
+        elif rule.if_impossible is None:
+            raise RuntimeError(
+                f"rule '{rule.name}' filtered out every legal card for "
+                f"'{move_type}' and declares no `if_impossible` fallback"
+            )
+        else:
             fallback = evaluate(rule.if_impossible, pctx)  # error(...) raises here
             if isinstance(fallback, Zone):
                 fallback = fallback.cards  # `if_impossible: hand` — play any card

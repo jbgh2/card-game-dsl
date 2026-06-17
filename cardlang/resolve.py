@@ -91,6 +91,21 @@ def _resolve_rule(rule: n.RuleDef, bag: DiagnosticBag) -> None:
             f"rule '{rule.name}' constrains unknown move type '{rule.constrains}'",
             rule.span,
         )
+    # A card-set `demands` can filter the legal set to empty; the rule must say
+    # what happens then (`if_impossible`) rather than relying on a silent default.
+    # `actions where` demands constrain the choose-count, not the card set, so
+    # they are exempt (no implicit actions — see decisions.md "No implicit actions").
+    if (
+        rule.demands is not None
+        and rule.demands.kind == "cards"
+        and rule.if_impossible is None
+    ):
+        bag.error(
+            f"rule '{rule.name}' has a card-set `demands` but no `if_impossible`: "
+            f"declare the fallback when no card satisfies it (`if_impossible: hand` "
+            f"to play any card, or `error(...)` to reject the move)",
+            rule.span,
+        )
 
 
 def _resolve_phase_level(

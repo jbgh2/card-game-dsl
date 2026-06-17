@@ -218,7 +218,12 @@ what it constrains:
   move may use, filtering a zone. `MustFollowSuit`'s `demands:
   hand.cards_of_suit(state.led_suit)` and Hearts' `demands:
   hand.where(c => c.suit != hearts)` are this form. The legal move set
-  is the intersection of every active rule's candidate set.
+  is the intersection of every active rule's candidate set. Because that
+  intersection can empty — a void player cannot follow suit — a card-set
+  `demands` **must** declare an `if_impossible:` fallback: `hand` to play any
+  card, or `error(...)` to reject the move. There is no silent default (see "No
+  implicit actions"); a card-set rule without `if_impossible` is rejected at
+  resolve time.
 
 - **A predicate on the move** — `demands: actions where <predicate>`,
   constraining the shape of the move itself rather than which cards it
