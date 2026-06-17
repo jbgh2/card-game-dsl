@@ -85,6 +85,14 @@ def run_trick(
         if player not in participants:
             continue
         candidates = rules.legal_cards(player, "play_to_trick", trick_ctx)
+        if not candidates:
+            # No implicit pass: a player on turn must have a legal play. An empty
+            # set means a rule filtered every card with no `if_impossible` fallback,
+            # or the player's hand is exhausted — both malformed for a trick.
+            raise RuntimeError(
+                f"player {player} has no legal play in the trick; a constraining "
+                f"rule needs an `if_impossible` clause, or the participants are wrong"
+            )
         choice = ctx.chooser(player, candidates, 1)[0]
         ctx.rs.zones.instance(source_family, player).remove(choice)
         ctx.rs.zones.single(play_zone).add(choice)

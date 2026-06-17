@@ -120,13 +120,14 @@ rule NoPenaltyCardsOnFirstTrick {
   constrains: play_to_trick
   applies_when: always   // already scoped to the first_trick sub-phase
   demands: hand.where(c ⇒ c.suit != hearts and c != queen_of_spades)
-  // if_impossible defaults to any card in hand
+  if_impossible: hand   // only penalty cards in hand: play one
 }
 
 rule NoLeadingHeartsUntilBroken {
   constrains: play_to_trick
   applies_when: state.led_suit is none   // i.e., leading
   demands: hand.where(c ⇒ c.suit != hearts)
+  if_impossible: hand   // only hearts left: a heart must be led
 }
 
 rule PassExactlyThreeCards {
@@ -140,5 +141,6 @@ rule MustFollowSuit {
   constrains: play_to_trick
   applies_when: state.led_suit is not none
   demands: hand.cards_of_suit(state.led_suit)
+  if_impossible: hand   // void in the led suit: play any card
 }
 ```

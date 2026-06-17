@@ -1591,7 +1591,11 @@
           ]
         }
       },
-      "if_impossible": null
+      "if_impossible": {
+        "kind": "name",
+        "name": "hand",
+        "ref": "zone"
+      }
     }
   ],
   "move_types": [

@@ -218,7 +218,12 @@ what it constrains:
   move may use, filtering a zone. `MustFollowSuit`'s `demands:
   hand.cards_of_suit(state.led_suit)` and Hearts' `demands:
   hand.where(c => c.suit != hearts)` are this form. The legal move set
-  is the intersection of every active rule's candidate set.
+  is the intersection of every active rule's candidate set. Because that
+  intersection can empty — a void player cannot follow suit — a card-set
+  `demands` **must** declare an `if_impossible:` fallback: `hand` to play any
+  card, or `error(...)` to reject the move. There is no silent default (see "No
+  implicit actions"); a card-set rule without `if_impossible` is rejected at
+  resolve time.
 
 - **A predicate on the move** — `demands: actions where <predicate>`,
   constraining the shape of the move itself rather than which cards it
@@ -369,6 +374,32 @@ callback consumes no randomness. So two auctions that present the same per-turn
 candidate lists (same length and order) play identically under a random playout —
 the property that lets a hand-written engine be re-expressed in this form without
 changing behaviour.
+
+## No implicit actions
+
+Every decision point has at least one legal move, and the engine neither invents
+one nor silently skips the decision. Where a player would have nothing legal to
+do, that is a **malformed game** — reported as an error, not absorbed. This keeps
+the action space honest (the OpenSpiel finite-enumerable invariant) and makes a
+missing rule, an unguarded choice, or a too-wide participant set *loud* instead of
+hidden. The fix is always something the game states explicitly; the reusable forms
+live in the standard library so a game opts into a behaviour by name:
+
+- **An `offer` (or any ring of decisions) with no legal move** → add an
+  always-legal move to the vocabulary (an unguarded `pass`/`decline`), or guard the
+  decision (`if <able> { offer … }`). For a ring that shrinks as players drop out,
+  narrow the participants clause (`over <players> where <still-in>`) so a player
+  with nothing to do is never offered a turn.
+- **A rule that can filter every candidate** → declare its `if_impossible`:
+  `error(...)` to reject the move, or an explicit fallback card-set. A trick play
+  with no legal card (a rule emptied the set with no fallback, or the hand is
+  exhausted) is an error, not an implicit pass.
+- **A `choose` over an empty domain** (e.g. an inverted range) → an error; a choice
+  must offer at least one candidate.
+- **The acting player is never defaulted.** A choice or chosen movement made with
+  no acting player is an error ("who is choosing?"), not a silent attribution to
+  player 0 — wrap it in a per-player context (`for each player p`, the simultaneous
+  pass) so the chooser knows who decides.
 
 ## State scoping (lexical)
 
