@@ -911,7 +911,11 @@
           ]
         }
       },
-      "if_impossible": null
+      "if_impossible": {
+        "kind": "name",
+        "name": "hand",
+        "ref": "zone"
+      }
     },
     {
       "kind": "rule",
@@ -971,7 +975,11 @@
           ]
         }
       },
-      "if_impossible": null
+      "if_impossible": {
+        "kind": "name",
+        "name": "hand",
+        "ref": "zone"
+      }
     },
     {
       "kind": "rule",
@@ -1046,7 +1054,11 @@
           ]
         }
       },
-      "if_impossible": null
+      "if_impossible": {
+        "kind": "name",
+        "name": "hand",
+        "ref": "zone"
+      }
     }
   ],
   "move_types": [],

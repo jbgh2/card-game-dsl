@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from cardlang.ast import nodes as n
 from cardlang.runtime.evaluate import evaluate
-from cardlang.runtime.state import Ctx
+from cardlang.runtime.state import Ctx, Zone
 from cardlang.runtime.values import Card, Player
 
 
@@ -35,6 +35,8 @@ def legal_cards(player: Player, move_type: str, ctx: Ctx) -> list[Card]:
             result = narrowed
         elif rule.if_impossible is not None:
             fallback = evaluate(rule.if_impossible, pctx)  # error(...) raises here
+            if isinstance(fallback, Zone):
+                fallback = fallback.cards  # `if_impossible: hand` — play any card
             if isinstance(fallback, (list, set, tuple)):
                 result &= set(fallback)
     return [card for card in hand if card in result]
