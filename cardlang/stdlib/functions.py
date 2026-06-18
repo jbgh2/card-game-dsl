@@ -8,18 +8,28 @@ caught. Seeded for the formalized corpus; extended corpus-first.
 
 from __future__ import annotations
 
-# Stdlib values referenced by bare name (a `round`'s `outcome` callback).
-# A trick outcome has signature (played, led_suit, trump, rank_index) -> Player; an
-# auction outcome (the auction form of `round`) has (history, ctx) -> (tag, payloads)
-# and produces the phase's typed variant. Both live in this namespace; the runtime
-# dispatches by the round form it is driving.
-STDLIB_VALUE_NAMES: frozenset[str] = frozenset(
+# Stdlib values referenced by bare name (a `round`'s `outcome` callback). The two
+# round forms have different outcome signatures and are validated against separate
+# namespaces (a trick outcome named on an auction round, or vice versa, is rejected
+# at resolve time, not left to crash the dispatcher at runtime):
+#
+# - a *trick* outcome  : (played, led_suit, trump, rank_index) -> Player
+# - an *auction* outcome (the auction form): (history, ctx) -> (tag, payloads),
+#   producing the phase's typed variant.
+STDLIB_TRICK_OUTCOMES: frozenset[str] = frozenset(
     {
         "highest_of_led_suit",
         "highest_trump_or_led_suit",  # trick winner with a trump suit in play
+    }
+)
+STDLIB_AUCTION_OUTCOMES: frozenset[str] = frozenset(
+    {
         "bridge_auction_outcome",  # Bridge auction -> contract_finalized | all_pass
     }
 )
+# The union is the bare-name function namespace (for NameRef classification) and
+# the surface the signature tables must cover.
+STDLIB_VALUE_NAMES: frozenset[str] = STDLIB_TRICK_OUTCOMES | STDLIB_AUCTION_OUTCOMES
 
 # Early-termination predicates a `round`'s `early` clause may name. Distinct from
 # outcome callbacks above — a different signature, (card, led_suit) -> Boolean —

@@ -83,3 +83,97 @@ def test_card_set_demand_without_if_impossible_is_rejected() -> None:
     # default. This catches the gap statically, not only when a void state runs.
     with pytest.raises(DiagnosticError, match="no `if_impossible`"):
         check_dsl(RULE_WITHOUT_IF_IMPOSSIBLE, "t.cardlang")
+
+
+TRICK_ROUND_WITH_AUCTION_OUTCOME = """
+game G {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player>  trick_pile : TrickPile }
+  state { leader : Player? = none }
+  phase play {
+    leader := 0
+    round play_to_trick from leader over all players source hand into trick_pile
+          outcome bridge_auction_outcome
+  }
+  winner: highest leader
+}
+"""
+
+
+AUCTION_ROUND_WITH_TRICK_OUTCOME = """
+game G {
+  players: 2
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { passes : Integer = 0 }
+  phase bid {
+    round offering [pass] from 0 over all players until (passes >= 2)
+          outcome highest_trump_or_led_suit
+  }
+  winner: highest passes
+}
+move_type pass { effect { passes += 1 } }
+"""
+
+
+def test_trick_round_rejects_an_auction_outcome() -> None:
+    # A trick round whose outcome names an auction-form callback resolves to the
+    # wrong dispatcher at runtime — reject it at compile time, by form-specific
+    # outcome namespace, not with a late AssertionError.
+    with pytest.raises(DiagnosticError, match="not a trick outcome function"):
+        check_dsl(TRICK_ROUND_WITH_AUCTION_OUTCOME, "t.cardlang")
+
+
+def test_auction_round_rejects_a_trick_outcome() -> None:
+    with pytest.raises(DiagnosticError, match="not an auction outcome function"):
+        check_dsl(AUCTION_ROUND_WITH_TRICK_OUTCOME, "t.cardlang")
+
+
+AUCTION_NON_BOOLEAN_UNTIL = """
+game G {
+  players: 2
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { passes : Integer = 0 }
+  phase bid {
+    round offering [pass] from 0 over all players until 1
+          outcome bridge_auction_outcome
+  }
+  winner: highest passes
+}
+move_type pass { effect { passes += 1 } }
+"""
+
+
+def test_auction_until_must_be_boolean() -> None:
+    # The `until` termination is a predicate; a non-Boolean (here Integer `1`)
+    # would silently fall back to Python truthiness at runtime, so it is a
+    # type error.
+    with pytest.raises(DiagnosticError, match="`until` condition must be Boolean"):
+        check_dsl(AUCTION_NON_BOOLEAN_UNTIL, "t.cardlang")
+
+
+PARAM_NAME_COLLIDES_WITH_STATE = """
+game G {
+  players: 2
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { strain : Integer = 0  done[player] : Integer = 0 }
+  phase play {
+    for each player p: offer to p one of [pick]
+    for each player p: done[p] := strain + 1
+  }
+  winner: highest done
+}
+move_type pick(strain : Suit?) { when: always  effect { } }
+"""
+
+
+def test_move_param_does_not_shadow_a_same_named_state_var() -> None:
+    # A move parameter binds only in its own guard/effect. A same-named state var
+    # read elsewhere (`strain` here) must still resolve as state — not be captured
+    # as the move's local and read from an empty `ctx.locals` at runtime.
+    result = play_game(check_dsl(PARAM_NAME_COLLIDES_WITH_STATE, "t.cardlang"), random.Random(0))
+    assert result.winner in (0, 1)

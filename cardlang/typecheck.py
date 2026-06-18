@@ -551,6 +551,8 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
         _check_bool(stmt.cond, env, bag, "if condition")
     elif isinstance(stmt, n.RepeatUntil):
         _check_bool(stmt.cond, env, bag, "repeat-until condition")
+    elif isinstance(stmt, n.Round) and stmt.termination is not None:
+        _check_bool(stmt.termination, env, bag, "auction `until` condition")
 
 
 def _check_produce_stmt(

@@ -26,7 +26,7 @@ game Mini {
   state { high : Integer = 0  passes : Integer = 0 }
   phase bid {
     round offering [raise, pass] from 0 over all players
-          until (passes >= 2) outcome highest_trump_or_led_suit
+          until (passes >= 2) outcome bridge_auction_outcome
   }
   winner: highest high
 }
@@ -44,7 +44,7 @@ def test_auction_round_parses_vocab_and_termination() -> None:
     rnd = _round(parse_text(SRC, "g.cardlang"))
     assert rnd.move_types == ("raise", "pass")
     assert rnd.termination is not None
-    assert rnd.outcome_fn == "highest_trump_or_led_suit"
+    assert rnd.outcome_fn == "bridge_auction_outcome"
     # The trick-specific fields are absent in the auction form.
     assert rnd.move_type is None
     assert rnd.source_zone is None and rnd.play_zone is None
