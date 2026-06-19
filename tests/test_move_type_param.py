@@ -20,7 +20,7 @@ game G {
   cards: standard52
   zones { deck : Deck  hand[player] : Hand<player> }
   state { coins[player] : Integer = 0  picked[player] : Suit? = none }
-  phase play { for each player p: offer to p one of [pick] }
+  phase play { for each player p: coins[p] += 1 }
   winner: highest coins
 }
 move_type pick(s : Suit?) { effect { picked[actor] := s } }

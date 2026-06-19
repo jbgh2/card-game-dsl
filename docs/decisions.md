@@ -353,9 +353,11 @@ round offering [<move_type>, …] from <seat> over <ring>
   participant with no legal move is a **malformed game** (a missing always-legal
   move, or a participants filter that should have dropped the player), reported as
   an error, not a silently-skipped turn. Bridge keeps every seat in the ring with
-  an always-legal `pass`; a ring that *shrinks* as players drop out (Pinochle's
-  passed bidders, Stud's folders) narrows through its participants predicate,
-  re-evaluated as the ring cycles.
+  an always-legal `pass`. The participants clause is currently a **snapshot taken
+  once at round entry**; a ring that *shrinks* as players drop out (Pinochle's
+  passed bidders, Stud's folders) needs the predicate re-evaluated each turn — a
+  participant-filter axis the kernel does not yet have, landing with the first game
+  that needs it (see [kernel-migration.md](kernel-migration.md)).
 - **Accumulator.** The decision-relevant running state (Bridge's standing level,
   strain, doubling, high bidder, pass count) is ordinary **phase state**, read and
   written by the move-type effects and read by the termination predicate. No
@@ -1794,7 +1796,9 @@ axis (an `early` predicate — Getaway's tochoo) plus round-state exposure. The
 **auction form** is built too (see "The auction form of `round`"): a continuous
 ring over a heterogeneous move vocabulary, with the accumulator as phase state, a
 termination predicate, and a typed outcome over the bid history — Bridge's auction
-runs on it. The remaining work (a non-trivial *order* axis for Skat's
-call-and-response; the challenge / block / climbing vocabulary; promoting the
-shared `auction` definition at its third instance) is the in-flight build (see
-[roadmap.md](roadmap.md) and [kernel-migration.md](kernel-migration.md)).
+runs on it. The remaining work (a participant-filter axis for a ring that shrinks
+as players drop out — Pinochle's passed bidders, Stud's folders; a non-trivial
+*order* axis for Skat's call-and-response; the challenge / block / climbing
+vocabulary; promoting the shared `auction` definition at its third instance) is
+the in-flight build (see [roadmap.md](roadmap.md) and
+[kernel-migration.md](kernel-migration.md)).

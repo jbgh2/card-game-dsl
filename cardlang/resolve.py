@@ -342,7 +342,8 @@ def _rewrite_value(value: object, cats: _Categories, bag: DiagnosticBag) -> obje
 
 
 def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
-    defined_move_types = {m.name for m in game.move_types}
+    move_type_defs = {m.name: m for m in game.move_types}
+    defined_move_types = set(move_type_defs)
     defined_types = {t.name for t in game.types}
     defined_defines = {d.name for d in game.defines}
     # A `produces:` consumer may also name an outcome-declaring phase (its outcome
@@ -382,6 +383,15 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 for name in nd.move_types:
                     if name not in defined_move_types:
                         bag.error(f"offer names unknown move type '{name}'", nd.span)
+                    elif move_type_defs[name].param is not None:
+                        # `offer` picks a move by name and cannot supply a parameter;
+                        # a parameterized move belongs in an auction `round offering`,
+                        # which enumerates the parameter's domain.
+                        bag.error(
+                            f"offer names parameterized move type '{name}'; only an "
+                            f"auction `round offering` can enumerate its parameter",
+                            nd.span,
+                        )
             case n.Round() if nd.move_types is not None:
                 # Auction form: a vocabulary of game-defined move types, no card
                 # zones. The termination predicate's names are checked by the

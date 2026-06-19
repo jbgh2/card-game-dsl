@@ -209,7 +209,7 @@ def run_auction(stmt: n.Round, ctx: Ctx) -> None:
             # A participant offered a turn must have a legal move — the
             # finite-action invariant of a decision node. The engine does NOT
             # silently skip a player with nothing to do: who is still in the ring
-            # is the game's to state (the participants clause, `over … [where …]`),
+            # is for the game to state (the participants clause, `over … [where …]`),
             # and "all but one has passed" is its `until` predicate — not an engine
             # default (decisions.md "The auction form of `round`"). So an empty
             # candidate set is a malformed game: a missing always-legal move (give
