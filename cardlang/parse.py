@@ -514,6 +514,27 @@ class _Builder(Transformer[Token, n.Game]):
             span=self._span(meta),
         )
 
+    def auction_moves(self, meta: Meta, c: list[object]) -> tuple[str, ...]:
+        return tuple(str(x) for x in c)
+
+    def auction_stmt(self, meta: Meta, c: list[object]) -> n.Round:
+        # c: [tuple(move_types), expr(leader), expr(participants), expr(termination),
+        #     NAME(outcome)]. The auction form leaves the trick-specific fields None.
+        move_types = c[0]
+        assert isinstance(move_types, tuple)
+        return n.Round(
+            move_type=None,
+            leader=_as_expr(c[1]),
+            participants=_as_expr(c[2]),
+            source_zone=None,
+            play_zone=None,
+            outcome_fn=str(c[4]),
+            trump=None,
+            move_types=move_types,
+            termination=_as_expr(c[3]),
+            span=self._span(meta),
+        )
+
     def let_stmt(self, meta: Meta, c: list[object]) -> n.LetStmt:
         index = c[1] if isinstance(c[1], str) else None
         return n.LetStmt(
@@ -798,6 +819,12 @@ class _Builder(Transformer[Token, n.Game]):
             span=self._span(meta),
         )
 
+    def move_param(self, meta: Meta, c: list[object]) -> n.MoveParam:
+        # c: NAME(param), payload_type string (carries a trailing `?` if nullable).
+        return n.MoveParam(
+            name=str(c[0]), type_name=str(c[1]), span=self._span(meta)
+        )
+
     def move_when(self, meta: Meta, c: list[object]) -> _MoveWhen:
         return _MoveWhen(c[0])
 
@@ -865,13 +892,16 @@ class _Builder(Transformer[Token, n.Game]):
         name = str(c[0])
         guard: object | None = None
         effect: tuple[object, ...] = ()
+        param: n.MoveParam | None = None
         for item in c[1:]:
-            if isinstance(item, _MoveWhen):
+            if isinstance(item, n.MoveParam):
+                param = item
+            elif isinstance(item, _MoveWhen):
                 guard = None if isinstance(item.pred, _Always) else _as_expr(item.pred)
             elif isinstance(item, _MoveEffect):
                 effect = item.body
         return n.MoveTypeDef(
-            name=name, guard=guard, effect=effect, span=self._span(meta)  # type: ignore[arg-type]
+            name=name, guard=guard, effect=effect, param=param, span=self._span(meta)  # type: ignore[arg-type]
         )
 
     def start(self, meta: Meta, c: list[object]) -> n.Game:

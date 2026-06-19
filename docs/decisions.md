@@ -312,6 +312,71 @@ the standard `MustFollowSuit` rule consults instead of comparing
 Same shape as a `round`'s `outcome` or `early` function — a per-game or
 stdlib function referenced by name, not a new language construct.
 
+## The auction form of `round`
+
+A trick is one pass over the participants; an auction is a *continuous ring* —
+the turn order cycles repeatedly until the bidding closes. Both are the same
+kernel `round`, configured along different axes ("Interactive decisions: a kernel
+and an in-DSL standard library"). The continuous ring, its accumulator, and its
+termination are axes **on the `round`**, not a `repeat until` loop wrapped around
+a single-pass round: the loop, the turn-cycling, and the close condition live in
+the kernel so the per-game file supplies only *values* (the move vocabulary, the
+termination predicate, the outcome). This keeps a later call-and-response order
+(Skat's Reizen) a value on the order axis rather than bespoke loop code in each
+game's body.
+
+The surface:
+
+```
+round offering [<move_type>, …] from <seat> over <ring>
+      until <predicate> outcome <fn>
+```
+
+- **Move vocabulary (`offering`).** Each turn presents the acting player **one
+  flat candidate list** of the legal concrete moves — every parameterized
+  `move_type` expanded over its value-domain and guard-filtered, plus the nullary
+  moves, in the order the vocabulary lists them (`offering [...]`) — resolved by a
+  **single** decision (one chooser draw). This is not stylistic: the target
+  runtime (OpenSpiel) mandates one
+  finite, enumerable action set per decision node, so a turn is one node over a
+  flat set, never an outer move-type choice followed by an inner parameter choice.
+  Bridge's `submit_bid(strain : Suit?)` expands to one bid per strain whose
+  cheapest beating level is still legal; `pass`/`double`/`redouble` are nullary.
+- **The ring (`over`) is explicit; there is no silent skip.** A participant
+  offered a turn always has at least one legal move — the finite-action invariant
+  of a decision node. The game states *who is still in the ring* through the
+  participants clause (`over <players> [where <predicate>]`, the same participants
+  axis the trick uses — Getaway's `over players where not eliminated[player]`) and
+  *when the bidding closes* through `until`. A player who has dropped out (passed
+  for good, folded) is excluded by the participants predicate, and "all but one has
+  passed" is a termination predicate — neither is an engine default. So a
+  participant with no legal move is a **malformed game** (a missing always-legal
+  move, or a participants filter that should have dropped the player), reported as
+  an error, not a silently-skipped turn. Bridge keeps every seat in the ring with
+  an always-legal `pass`. The participants clause is currently a **snapshot taken
+  once at round entry**; a ring that *shrinks* as players drop out (Pinochle's
+  passed bidders, Stud's folders) needs the predicate re-evaluated each turn — a
+  participant-filter axis the kernel does not yet have, landing with the first game
+  that needs it (see [kernel-migration.md](kernel-migration.md)).
+- **Accumulator.** The decision-relevant running state (Bridge's standing level,
+  strain, doubling, high bidder, pass count) is ordinary **phase state**, read and
+  written by the move-type effects and read by the termination predicate. No
+  separate accumulator construct.
+- **Termination (`until`).** A predicate over that state, checked each time around
+  the ring (Bridge: three passes after a bid, four with no bid).
+- **Outcome.** A named function over the threaded **bid history** plus the
+  terminal state — the same status as a trick's `outcome` callback (a
+  runtime-primitive, no decisions of its own) — that produces the phase's typed
+  variant. Bridge's `bridge_auction_outcome` finds the declarer (the first player
+  of the high side to have named the final strain) and produces
+  `contract_finalized(declarer, level, strain, doubling) | all_pass`.
+
+An auction's only decision points are these per-turn candidate draws; the outcome
+callback consumes no randomness. So two auctions that present the same per-turn
+candidate lists (same length and order) play identically under a random playout —
+the property that lets a hand-written engine be re-expressed in this form without
+changing behaviour.
+
 ## No implicit actions
 
 Every decision point has at least one legal move, and the engine neither invents
@@ -1370,11 +1435,12 @@ if bidder_team_total >= current_bid:              // total-points threshold
   score[bidder_team] += bidder_team_total
 ```
 
-The shared *bidding mechanic* possibilities — Auction for ascending
-bidding, an inline per-player pattern — are extracted only when
-multiple games clearly share them. Auction is the only such
-extracted-and-reused mechanic so far (Pinochle uses it; Bridge will
-have its own `BridgeAuction` for doubling and structured contracts).
+The shared *bidding mechanic* possibilities — an ascending-bid `auction`
+definition, an inline per-player pattern — are extracted only when
+multiple games clearly share them. Bridge's auction (doubling, redoubling, and
+the structured contract outcome) runs on the auction form of the kernel `round`
+(see "The auction form of `round`" above), game-local until the shared `auction`
+definition is promoted corpus-first.
 Spades and Oh Hell both use inline per-player bidding; a
 `PerPlayerBidding` mechanic could be extracted, deferred until a
 third per-player-bid game (Wizard, Boerenbridge variant, 7-Truf)
@@ -1722,13 +1788,17 @@ Nomic, CCG card-text) out of scope by construction rather than by preference.
 The full design — the kernel/standard-library split, the closed axes, the
 promotion rule, and the worked Coup example — is in
 [../superpowers/specs/2026-06-06-interaction-decision-sublanguage-design.md](../superpowers/specs/2026-06-06-interaction-decision-sublanguage-design.md).
-The kernel's atom (`offer`, `move_type` definitions, the `actor` pronoun) and the
-`round` construct are built: every trick game (Hearts, Spades, Getaway, Bridge,
-Oh Hell) plays on the kernel `round`, the built-in `Trick` mechanic has been
-retired, and `round` carries the termination axis (an `early` predicate —
-Getaway's tochoo) plus round-state exposure (a finished round's terminal `state`
-readable in the surrounding body). The remaining axes (accumulator, non-trivial
-order, heterogeneous move vocabulary) and the auction / challenge / block /
-climbing vocabulary, with typed outcomes and definition-composition, are the
-in-flight build (see [roadmap.md](roadmap.md) and
+The kernel's atom (`offer`, parameterized `move_type` definitions, the `actor`
+pronoun) and the `round` construct are built. Every trick game (Hearts, Spades,
+Getaway, Bridge, Oh Hell) plays on the trick form of the kernel `round`, the
+built-in `Trick` mechanic has been retired, and `round` carries the termination
+axis (an `early` predicate — Getaway's tochoo) plus round-state exposure. The
+**auction form** is built too (see "The auction form of `round`"): a continuous
+ring over a heterogeneous move vocabulary, with the accumulator as phase state, a
+termination predicate, and a typed outcome over the bid history — Bridge's auction
+runs on it. The remaining work (a participant-filter axis for a ring that shrinks
+as players drop out — Pinochle's passed bidders, Stud's folders; a non-trivial
+*order* axis for Skat's call-and-response; the challenge / block / climbing
+vocabulary; promoting the shared `auction` definition at its third instance) is
+the in-flight build (see [roadmap.md](roadmap.md) and
 [kernel-migration.md](kernel-migration.md)).

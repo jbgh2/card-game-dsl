@@ -4,8 +4,10 @@ are correct (cardlang/stdlib/signatures.py)."""
 from __future__ import annotations
 
 from cardlang.stdlib.functions import (
+    STDLIB_AUCTION_OUTCOMES,
     STDLIB_CALL_FUNCS,
     STDLIB_EARLY_PREDICATES,
+    STDLIB_TRICK_OUTCOMES,
     STDLIB_VALUE_NAMES,
     ZONE_METHODS,
 )
@@ -28,6 +30,22 @@ def test_tables_reconcile_with_name_sets() -> None:
     assert set(EARLY_SIGS) == set(STDLIB_EARLY_PREDICATES)
     assert set(METHOD_SIGS) == set(ZONE_METHODS)
     assert set(ZONE_CONTENT) == set(LIBRARY_ZONE_TYPES)
+    # The two outcome namespaces partition the value-name set (the resolver
+    # validates each round form against its own; the union is the bare-name space).
+    assert STDLIB_TRICK_OUTCOMES | STDLIB_AUCTION_OUTCOMES == STDLIB_VALUE_NAMES
+    assert STDLIB_TRICK_OUTCOMES.isdisjoint(STDLIB_AUCTION_OUTCOMES)
+
+
+def test_outcome_names_are_dispatchable() -> None:
+    # Each declared outcome name must resolve to a runtime callback — guards the
+    # resolve namespace from drifting out of sync with the runtime dispatchers
+    # (else a name passes resolve and then Assertion-fails mid-playout).
+    from cardlang.runtime.stdlib import auction_outcome_function, value_function
+
+    for name in STDLIB_TRICK_OUTCOMES:
+        assert callable(value_function(name))
+    for name in STDLIB_AUCTION_OUTCOMES:
+        assert callable(auction_outcome_function(name))
 
 
 def test_known_call_signatures() -> None:

@@ -131,6 +131,7 @@ move_event: NAME ["where" expr]
           | assign_stmt
           | offer
           | round_stmt
+          | auction_stmt
           | produce_stmt
           | produces_stmt
           | continue_to
@@ -199,6 +200,14 @@ else_block: "else" "{" statement* "}"
 instantiate: "instantiate" NAME "(" [named_arg ("," named_arg)*] ")"
 offer: "offer" "to" expr "one" "of" "[" NAME ("," NAME)* "]"
 round_stmt: "round" NAME "from" expr "over" expr "source" NAME "into" NAME "outcome" NAME ["trump" expr] ["early" NAME]   -> round_stmt
+// The auction form of `round`: a continuous ring over a move vocabulary
+// (`offering`) that loops until the termination predicate holds (`until`), then
+// the `outcome` function produces the typed variant. No card source/into zones —
+// auction moves (bids/passes) don't move cards. (decisions.md "Interactive
+// decisions": the same `round` kernel, configured along the move-vocabulary,
+// accumulator, and termination axes.)
+auction_stmt: "round" auction_moves "from" expr "over" expr "until" expr "outcome" NAME   -> auction_stmt
+auction_moves: "offering" "[" NAME ("," NAME)* "]"
 named_arg: NAME "=" arg_value
 ?arg_value: movement
           | expr
@@ -213,7 +222,11 @@ lvalue: NAME [index_expr]
 // Rules (top-level)
 // ----------------------------------------------------------------------------
 
-move_type_def: "move_type" NAME "{" [move_when] move_effect "}"
+move_type_def: "move_type" NAME [move_param] "{" [move_when] move_effect "}"
+// An optional parameter drawn from an enumerable domain (Bridge's
+// `submit_bid(strain : Suit?)`): the move's legal instantiations over the
+// parameter's value-domain flatten into one per-turn candidate list.
+move_param: "(" NAME ":" payload_type ")"
 move_when: "when" ":" applies_pred
 move_effect: "effect" "{" statement* "}"
 

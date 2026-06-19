@@ -496,7 +496,12 @@ def _stmt_exprs(s: n.Stmt) -> list[n.Expr]:
     if isinstance(s, n.Offer):
         return [s.player]
     if isinstance(s, n.Round):
-        return [s.leader, s.participants] + ([s.trump] if s.trump is not None else [])
+        exprs = [s.leader, s.participants]
+        if s.trump is not None:
+            exprs.append(s.trump)
+        if s.termination is not None:
+            exprs.append(s.termination)
+        return exprs
     if isinstance(s, n.Instantiate):
         return [a.value for a in s.args if not isinstance(a.value, n.Movement)]
     if isinstance(s, (n.IfStmt, n.RepeatUntil)):
@@ -546,6 +551,8 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
         _check_bool(stmt.cond, env, bag, "if condition")
     elif isinstance(stmt, n.RepeatUntil):
         _check_bool(stmt.cond, env, bag, "repeat-until condition")
+    elif isinstance(stmt, n.Round) and stmt.termination is not None:
+        _check_bool(stmt.termination, env, bag, "auction `until` condition")
 
 
 def _check_produce_stmt(

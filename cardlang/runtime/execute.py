@@ -49,10 +49,16 @@ def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
             return ctx
         case n.Instantiate():
             # The mechanic's result binds `outcome` for the rest of the body
-            # (e.g. `instantiate BridgeAuction(...)` then reading `outcome`).
+            # (e.g. `instantiate PinochleHand(...)` then reading `outcome`).
             return ctx.with_outcome(mechanics.instantiate(stmt, ctx))
         case n.Offer():
             _offer(stmt, ctx)
+            return ctx
+        case n.Round() if stmt.move_types is not None:
+            # The auction form raises a _ProduceSignal with the phase's typed
+            # outcome (caught by the enclosing outcome-declaring phase), like an
+            # instantiated mechanic — it binds no `outcome` player.
+            mechanics.run_auction(stmt, ctx)
             return ctx
         case n.Round():
             return ctx.with_outcome(mechanics.run_round(stmt, ctx))
@@ -261,6 +267,13 @@ def _produces(stmt: n.Produces, ctx: Ctx) -> None:
     if arm is None:
         raise AssertionError(
             f"'{stmt.define}' produced '{tag}', which no produces: arm matches"
+        )
+    # The arm's binders and the produced payloads must match in arity — `zip`
+    # would otherwise silently drop extra payloads (or leave binders unbound).
+    if len(arm.binders) != len(payloads):
+        raise AssertionError(
+            f"'{stmt.define}' produced '{tag}' with {len(payloads)} payload(s), but "
+            f"its produces: arm binds {len(arm.binders)}"
         )
     arm_ctx = ctx
     for binder, value in zip(arm.binders, payloads):

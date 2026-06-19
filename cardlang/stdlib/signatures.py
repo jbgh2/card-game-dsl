@@ -20,6 +20,7 @@ from cardlang.types import (
     TCard,
     TCollection,
     TEnum,
+    TInteger,
     TOptional,
     TPlayer,
     TString,
@@ -53,6 +54,7 @@ CALL_SIGS: dict[str, Sig] = {
     "player_holding": Sig((TCard(),), TPlayer()),
     "team_of": Sig((TPlayer(),), TTeam()),
     "suit_of": Sig((TAny(),), TOptional(TEnum("Suit"))),  # card or single-card zone
+    "strain_index": Sig((TOptional(TEnum("Suit")),), TInteger()),  # strain bidding rank
     "error": Sig((TString(),), TAny()),  # the if_impossible fallback
 }
 
@@ -60,6 +62,7 @@ CALL_SIGS: dict[str, Sig] = {
 VALUE_SIGS: dict[str, Type] = {
     "highest_of_led_suit": TAny(),
     "highest_trump_or_led_suit": TAny(),
+    "bridge_auction_outcome": TAny(),  # auction form: produces the typed variant
 }
 
 # Early-termination predicates named by a `round`'s `early` clause. Signature is

@@ -76,6 +76,11 @@ def _move_type(m: n.MoveTypeDef) -> IRDict:
     return {
         "kind": "move_type",
         "name": m.name,
+        "param": (
+            {"name": m.param.name, "type_name": m.param.type_name}
+            if m.param is not None
+            else None
+        ),
         "guard": _expr(m.guard) if m.guard is not None else None,
         "effect": [_stmt(s) for s in m.effect],
     }
@@ -288,6 +293,8 @@ def _stmt(s: n.Stmt) -> IRDict:
                 "outcome_fn": s.outcome_fn,
                 "trump": _expr(s.trump) if s.trump is not None else None,
                 "early_termination": s.early_termination,
+                "move_types": list(s.move_types) if s.move_types is not None else None,
+                "termination": _expr(s.termination) if s.termination is not None else None,
             }
         case n.Produce():
             return {

@@ -518,7 +518,9 @@
                   "play_zone": "trick_pile",
                   "outcome_fn": "highest_trump_or_led_suit",
                   "trump": null,
-                  "early_termination": null
+                  "early_termination": null,
+                  "move_types": null,
+                  "termination": null
                 },
                 {
                   "kind": "movement",

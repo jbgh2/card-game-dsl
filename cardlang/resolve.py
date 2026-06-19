@@ -27,8 +27,10 @@ from typing import Iterator
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
 from cardlang.stdlib.functions import (
+    STDLIB_AUCTION_OUTCOMES,
     STDLIB_CALL_FUNCS,
     STDLIB_EARLY_PREDICATES,
+    STDLIB_TRICK_OUTCOMES,
     STDLIB_VALUE_NAMES,
     ZONE_METHODS,
 )
@@ -308,6 +310,18 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         # vars across the whole game).
         arms = tuple(_rewrite_produce_arm(arm, cats, bag) for arm in node.arms)
         return replace(node, arms=arms)
+    if isinstance(node, n.MoveTypeDef):
+        # The parameter binds only in this move's guard/effect — scope it here
+        # rather than the game-wide `locals` set (which would shadow a same-named
+        # state var everywhere; mirrors the produce-arm binders above).
+        scoped = (
+            cats
+            if node.param is None
+            else replace(cats, locals=cats.locals | {node.param.name})
+        )
+        guard = _rewrite_value(node.guard, scoped, bag) if node.guard is not None else None
+        effect = tuple(_rewrite(s, scoped, bag) for s in node.effect)
+        return replace(node, guard=guard, effect=effect)  # type: ignore[arg-type]
     if not is_dataclass(node) or isinstance(node, Span):
         return node
     changes: dict[str, object] = {}
@@ -328,7 +342,8 @@ def _rewrite_value(value: object, cats: _Categories, bag: DiagnosticBag) -> obje
 
 
 def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
-    defined_move_types = {m.name for m in game.move_types}
+    move_type_defs = {m.name: m for m in game.move_types}
+    defined_move_types = set(move_type_defs)
     defined_types = {t.name for t in game.types}
     defined_defines = {d.name for d in game.defines}
     # A `produces:` consumer may also name an outcome-declaring phase (its outcome
@@ -368,14 +383,43 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 for name in nd.move_types:
                     if name not in defined_move_types:
                         bag.error(f"offer names unknown move type '{name}'", nd.span)
+                    elif move_type_defs[name].param is not None:
+                        # `offer` picks a move by name and cannot supply a parameter;
+                        # a parameterized move belongs in an auction `round offering`,
+                        # which enumerates the parameter's domain.
+                        bag.error(
+                            f"offer names parameterized move type '{name}'; only an "
+                            f"auction `round offering` can enumerate its parameter",
+                            nd.span,
+                        )
+            case n.Round() if nd.move_types is not None:
+                # Auction form: a vocabulary of game-defined move types, no card
+                # zones. The termination predicate's names are checked by the
+                # generic NameRef pass.
+                for name in nd.move_types:
+                    if name not in defined_move_types:
+                        bag.error(
+                            f"round vocabulary names unknown move type '{name}'",
+                            nd.span,
+                        )
+                if nd.outcome_fn not in STDLIB_AUCTION_OUTCOMES:
+                    bag.error(
+                        f"auction round outcome '{nd.outcome_fn}' is not an auction "
+                        f"outcome function",
+                        nd.span,
+                    )
             case n.Round():
                 zone_names = {z.name for z in game.zones}
                 if nd.source_zone not in zone_names:
                     bag.error(f"round source zone '{nd.source_zone}' is unknown", nd.span)
                 if nd.play_zone not in zone_names:
                     bag.error(f"round play zone '{nd.play_zone}' is unknown", nd.span)
-                if nd.outcome_fn not in STDLIB_VALUE_NAMES:
-                    bag.error(f"round outcome '{nd.outcome_fn}' is unknown", nd.span)
+                if nd.outcome_fn not in STDLIB_TRICK_OUTCOMES:
+                    bag.error(
+                        f"trick round outcome '{nd.outcome_fn}' is not a trick "
+                        f"outcome function",
+                        nd.span,
+                    )
                 if nd.move_type not in LIBRARY_MOVE_TYPES:
                     bag.error(f"round move type '{nd.move_type}' is unknown", nd.span)
                 if (

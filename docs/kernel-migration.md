@@ -17,11 +17,12 @@ done.
 
 ## The goal, concretely
 
-Today nine games hold their decision logic in hand-written Python dispatched by
-name in `cardlang/runtime/mechanics.py::instantiate`:
+Eight games still hold their decision logic in hand-written Python dispatched by
+name in `cardlang/runtime/mechanics.py::instantiate` (Bridge's auction has been
+lifted onto the kernel `round` — see Workstream 1 — so `run_bridge_auction` is
+gone):
 
-- inline in `mechanics.py`: `run_schnapsen_hand`, `run_pinochle_hand`,
-  `run_bridge_auction` (~410 lines)
+- inline in `mechanics.py`: `run_schnapsen_hand`, `run_pinochle_hand`
 - separate modules: `runtime/coup.py`, `cribbage.py`, `skat.py`, `stud.py`,
   `tarot.py`, `tichu.py` (~1,440 lines)
 
@@ -107,10 +108,10 @@ current high bid + pass state, termination = all-but-one passed (or N
 consecutive passes), typed outcome = a contract variant. Then per game, supplying
 *values along the axes*:
 
-- **Bridge** — a two-dimensional bid space (level × strain) plus
-  doubling/redoubling; outcome is the existing typed `Contract` struct (its
-  `contract_finalized | all_pass` outcome is already migrated). Replaces
-  `run_bridge_auction`.
+- **Bridge** — *done.* A two-dimensional bid space (level × strain) plus
+  doubling/redoubling, on the auction form of `round`; the typed
+  `contract_finalized | all_pass` outcome computes the declarer over the bid
+  history. `run_bridge_auction` and its `instantiate` branch are deleted.
 - **Pinochle** — ascending bid to name the declarer, then `declare_trump`;
   outcome feeds the meld + play phases. (Meld scoring is Workstream 3/4.)
 - **Tarot** — four-level ascending bid (Petite < Garde < Garde sans < Garde
@@ -123,6 +124,17 @@ consecutive passes), typed outcome = a contract variant. Then per game, supplyin
 *order* from a simple ascending ring. Confirm it is a value on the order axis;
 if it is not expressible, that is a `language-gap` → file an open question, do
 not special-case it.
+
+**Dependency surfaced by Bridge.** The auction form does not silently skip a
+participant with no legal move — the ring is stated by the participants clause and
+"all but one passed" by `until` ([decisions.md](decisions.md), "The auction form
+of `round`"). Bridge keeps every seat in with an always-legal `pass`, but the
+ascending auctions drop players who pass for good (and skip the standing high
+bidder) with no decision — a *shrinking ring*. Reproducing that byte-identically
+needs the participant predicate re-evaluated each turn — the **participant-filtering
+axis** otherwise scheduled for Workstream 2 (Stud's non-folded ring). It must be
+pulled forward into the first ascending auction (Pinochle); an always-legal `pass`
+would offer passed players and consume RNG the monolith does not.
 
 **Scope note.** Skat, Tarot, and Pinochle are *monoliths* — the auction is fused
 with play and scoring in one Python function ([roadmap.md](roadmap.md)). The
