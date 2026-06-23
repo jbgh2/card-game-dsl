@@ -177,7 +177,6 @@ def run_auction(stmt: n.Round, ctx: Ctx) -> None:
     from cardlang.runtime import stdlib
     from cardlang.runtime.execute import run_body
 
-    participants = list(evaluate(stmt.participants, ctx))
     leader = evaluate(stmt.leader, ctx)
     order = ctx.rs.seating.turn_order_from(leader)
     assert stmt.move_types is not None and stmt.termination is not None
@@ -192,6 +191,13 @@ def run_auction(stmt: n.Round, ctx: Ctx) -> None:
             raise RuntimeError("auction did not terminate within 1000 ring steps")
         player = order[i % len(order)]
         i += 1
+        # The participants ring is re-evaluated each turn (the participant-filter
+        # axis): a player the predicate drops mid-ring — a standing high bidder, a
+        # player who has passed for good — is skipped with no chooser draw. The
+        # ascending auctions (Pinochle, Tarot, Skat) and Stud's betting state the
+        # shrinking ring this way; a static ring (Bridge's `all players`) is the
+        # invariant case (decisions.md "The auction form of `round`").
+        participants = list(evaluate(stmt.participants, ctx))
         if player not in participants:
             continue
         pctx = ctx.acting_as(player)
