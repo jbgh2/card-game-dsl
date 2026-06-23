@@ -49,7 +49,7 @@ def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
             return ctx
         case n.Instantiate():
             # The mechanic's result binds `outcome` for the rest of the body
-            # (e.g. `instantiate PinochleHand(...)` then reading `outcome`).
+            # (e.g. `instantiate SchnapsenHand(...)` then reading `outcome`).
             return ctx.with_outcome(mechanics.instantiate(stmt, ctx))
         case n.Offer():
             _offer(stmt, ctx)

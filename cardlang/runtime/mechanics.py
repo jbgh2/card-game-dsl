@@ -26,8 +26,8 @@ from cardlang.runtime.values import SUITS, Card, Player
 def instantiate(stmt: n.Instantiate, ctx: Ctx) -> Player:
     if stmt.mechanic == "SchnapsenHand":
         return run_schnapsen_hand(stmt, ctx)
-    if stmt.mechanic == "PinochleHand":
-        return run_pinochle_hand(stmt, ctx)
+    if stmt.mechanic == "PinochleRest":
+        return run_pinochle_rest(stmt, ctx)
     if stmt.mechanic == "SkatHand":
         from cardlang.runtime.skat import run_skat_hand
 
@@ -469,44 +469,21 @@ def _pinochle_legal(
     return list(hand)
 
 
-def run_pinochle_hand(stmt: n.Instantiate, ctx: Ctx) -> Player:
+def run_pinochle_rest(stmt: n.Instantiate, ctx: Ctx) -> Player:
+    """The Pinochle hand after the auction: trump declaration, meld, and the
+    twelve strict tricks. The ascending auction runs on the kernel `round`
+    (`docs/games/pinochle.cardlang`, `pinochle_auction_outcome`); this mechanic
+    reads the declarer it settled on from the `declarer` arg (hand-level
+    `high_bidder`)."""
     from cardlang.runtime import stdlib
 
     rs = ctx.rs
     args = {a.name: a.value for a in stmt.args}
-    opener: Player = evaluate(_expr(args["opener"]), ctx)
+    high_bidder: Player = evaluate(_expr(args["declarer"]), ctx)
     players = list(rs.seating.players)
     hands = rs.zones.families["hand"]
     captured = rs.zones.families["captured"]
     rank = rs.rank_index
-
-    # --- ascending auction ---
-    order = rs.seating.turn_order_from(opener)
-    passed: dict[Player, bool] = {p: False for p in players}
-    current_bid = 0
-    high_bidder: Player | None = None
-    opening, increment, cap, max_bids = 50, 10, 250, 16
-    bids = 0
-    i = 0
-    while sum(not passed[p] for p in players) > 1 and bids < max_bids:
-        p = order[i % len(order)]
-        i += 1
-        if passed[p] or p == high_bidder:
-            continue
-        next_bid = current_bid + increment if current_bid else opening
-        if next_bid > cap:
-            passed[p] = True
-            continue
-        if ctx.chooser(p, ["bid", "pass"], 1)[0] == "bid":
-            current_bid = next_bid
-            high_bidder = p
-            bids += 1
-        else:
-            passed[p] = True
-    if high_bidder is None:
-        high_bidder, current_bid = opener, opening
-    rs.set("high_bidder", high_bidder)
-    rs.set("current_bid", current_bid)
 
     # --- trump declaration (needs a marriage in the chosen suit) ---
     hb = hands[high_bidder].cards

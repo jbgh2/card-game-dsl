@@ -22,11 +22,12 @@ Each hand:
 6. **Score** — the bidding side adds meld + tricks if it reached its bid, else is
    set back by the bid; the other side always adds its meld + tricks.
 
-The hand engine — the auction, the trump declaration, the meld scoring, and the
-strict trick play — runs in the built-in `PinochleHand` mechanic. Auctions vary
-in shape across the corpus and the strict-trick legality rules recur, so neither
-is lifted into the rule DSL yet; the cardlang
-below holds the deal, the contract settlement, and termination.
+The ascending auction runs on the kernel `round` (a shrinking participants ring
+over the `submit_bid`/`pass` vocabulary below, settling on a declarer and his
+bid). The trump declaration, the meld scoring, and the strict trick play run in
+the `PinochleRest` mechanic — the strict-trick legality rules recur but aren't
+lifted into the rule DSL yet; the cardlang below holds the deal, the auction, the
+contract settlement, and termination.
 
 ```
 game Pinochle {
@@ -71,9 +72,27 @@ game Pinochle {
       bid_abandoned := false
     }
 
+    phase auction -> outcome { bid_won(Player, Integer) } {
+      state {
+        passed[player] : Boolean = false
+        bids           : Integer = 0
+        lead_bidder    : Player? = none
+        working_bid    : Integer = 0
+        opener         : Player? = none
+      }
+      opener := dealer offset_by left
+      round offering [submit_bid, pass] from opener
+            over players where not passed[player]
+                              and (lead_bidder is none or player != lead_bidder)
+            until (number of players where not passed[player]) <= 1 or bids >= 16
+            outcome pinochle_auction_outcome
+    }
+    auction produces:
+      bid_won(d, c) { high_bidder := d  current_bid := c  continue to play }
+
     phase play {
-      legal_moves: [submit_bid, pass, declare_trump_suit, play_to_trick]
-      instantiate PinochleHand(opener = dealer offset_by left)
+      legal_moves: [declare_trump_suit, play_to_trick]
+      instantiate PinochleRest(declarer = high_bidder)
     }
 
     phase scoring {
@@ -96,4 +115,14 @@ game Pinochle {
 
   winner: highest score
 }
+
+// The bid value is derived, not chosen: 50 to open, then a fixed 10 higher.
+move_type submit_bid {
+  effect {
+    working_bid := if working_bid == 0 then 50 else working_bid + 10
+    lead_bidder := actor
+    bids        := bids + 1
+  }
+}
+move_type pass { effect { passed[actor] := true } }
 ```
