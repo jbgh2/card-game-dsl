@@ -181,5 +181,11 @@ def pinochle_auction_outcome(
     rs = ctx.rs
     lead_bidder = rs.get("lead_bidder")
     if lead_bidder is None:
-        return ("bid_won", [rs.get("opener"), 50])
-    return ("bid_won", [lead_bidder, rs.get("working_bid")])
+        declarer, bid = rs.get("opener"), 50
+        ctx.trace("pinochle_contract", {"all_pass": True, "declarer": declarer, "bid": bid})
+        return ("bid_won", [declarer, bid])
+    bid = rs.get("working_bid")
+    ctx.trace(
+        "pinochle_contract", {"all_pass": False, "declarer": lead_bidder, "bid": bid}
+    )
+    return ("bid_won", [lead_bidder, bid])
