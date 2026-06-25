@@ -47,7 +47,7 @@ def play_game(
     assert game.winner is not None or game.loser is not None, (
         "a game must declare a winner or a loser"
     )
-    seating = Seating(game.players.low)
+    seating = Seating(game.players.low, clockwise=game.direction != "counterclockwise")
     teams = tuple(range(len(game.partnerships)))
     team_of = {
         p: ti for ti, members in enumerate(game.partnerships) for p in members
