@@ -1,0 +1,402 @@
+{
+  "0": {
+    "scores": {
+      "0": 130,
+      "1": 160
+    },
+    "winner": 1,
+    "hands_played": 2
+  },
+  "1": {
+    "scores": {
+      "0": 190,
+      "1": 10
+    },
+    "winner": 0,
+    "hands_played": 5
+  },
+  "2": {
+    "scores": {
+      "0": 270,
+      "1": 20
+    },
+    "winner": 0,
+    "hands_played": 4
+  },
+  "3": {
+    "scores": {
+      "0": 120,
+      "1": 190
+    },
+    "winner": 1,
+    "hands_played": 3
+  },
+  "4": {
+    "scores": {
+      "0": 340,
+      "1": 110
+    },
+    "winner": 0,
+    "hands_played": 2
+  },
+  "5": {
+    "scores": {
+      "0": 420,
+      "1": 70
+    },
+    "winner": 0,
+    "hands_played": 1
+  },
+  "6": {
+    "scores": {
+      "0": 200,
+      "1": 210
+    },
+    "winner": 1,
+    "hands_played": 1
+  },
+  "7": {
+    "scores": {
+      "0": 220,
+      "1": 130
+    },
+    "winner": 0,
+    "hands_played": 1
+  },
+  "8": {
+    "scores": {
+      "0": 210,
+      "1": 220
+    },
+    "winner": 1,
+    "hands_played": 1
+  },
+  "9": {
+    "scores": {
+      "0": 360,
+      "1": 200
+    },
+    "winner": 0,
+    "hands_played": 2
+  },
+  "10": {
+    "scores": {
+      "0": 130,
+      "1": 260
+    },
+    "winner": 1,
+    "hands_played": 1
+  },
+  "11": {
+    "scores": {
+      "0": 200,
+      "1": 150
+    },
+    "winner": 0,
+    "hands_played": 1
+  },
+  "12": {
+    "scores": {
+      "0": 170,
+      "1": 200
+    },
+    "winner": 1,
+    "hands_played": 1
+  },
+  "13": {
+    "scores": {
+      "0": 200,
+      "1": 210
+    },
+    "winner": 1,
+    "hands_played": 1
+  },
+  "14": {
+    "scores": {
+      "0": 200,
+      "1": 130
+    },
+    "winner": 0,
+    "hands_played": 1
+  },
+  "15": {
+    "scores": {
+      "0": 220,
+      "1": 290
+    },
+    "winner": 1,
+    "hands_played": 6
+  },
+  "16": {
+    "scores": {
+      "0": 100,
+      "1": 190
+    },
+    "winner": 1,
+    "hands_played": 2
+  },
+  "17": {
+    "scores": {
+      "0": 220,
+      "1": 190
+    },
+    "winner": 0,
+    "hands_played": 1
+  },
+  "18": {
+    "scores": {
+      "0": 190,
+      "1": 200
+    },
+    "winner": 1,
+    "hands_played": 1
+  },
+  "19": {
+    "scores": {
+      "0": 180,
+      "1": 170
+    },
+    "winner": 0,
+    "hands_played": 1
+  },
+  "20": {
+    "scores": {
+      "0": 180,
+      "1": 70
+    },
+    "winner": 0,
+    "hands_played": 2
+  },
+  "21": {
+    "scores": {
+      "0": 220,
+      "1": 290
+    },
+    "winner": 1,
+    "hands_played": 1
+  },
+  "22": {
+    "scores": {
+      "0": 210,
+      "1": 220
+    },
+    "winner": 1,
+    "hands_played": 1
+  },
+  "23": {
+    "scores": {
+      "0": 70,
+      "1": 300
+    },
+    "winner": 1,
+    "hands_played": 2
+  },
+  "24": {
+    "scores": {
+      "0": 160,
+      "1": 230
+    },
+    "winner": 1,
+    "hands_played": 1
+  },
+  "25": {
+    "scores": {
+      "0": 180,
+      "1": 210
+    },
+    "winner": 1,
+    "hands_played": 1
+  },
+  "26": {
+    "scores": {
+      "0": 130,
+      "1": 220
+    },
+    "winner": 1,
+    "hands_played": 1
+  },
+  "27": {
+    "scores": {
+      "0": -100,
+      "1": 250
+    },
+    "winner": 1,
+    "hands_played": 4
+  },
+  "28": {
+    "scores": {
+      "0": 240,
+      "1": 320
+    },
+    "winner": 1,
+    "hands_played": 1
+  },
+  "29": {
+    "scores": {
+      "0": -170,
+      "1": 160
+    },
+    "winner": 1,
+    "hands_played": 2
+  },
+  "30": {
+    "scores": {
+      "0": 130,
+      "1": 180
+    },
+    "winner": 1,
+    "hands_played": 2
+  },
+  "31": {
+    "scores": {
+      "0": 220,
+      "1": 380
+    },
+    "winner": 1,
+    "hands_played": 1
+  },
+  "32": {
+    "scores": {
+      "0": 270,
+      "1": 140
+    },
+    "winner": 0,
+    "hands_played": 1
+  },
+  "33": {
+    "scores": {
+      "0": 40,
+      "1": 300
+    },
+    "winner": 1,
+    "hands_played": 2
+  },
+  "34": {
+    "scores": {
+      "0": 150,
+      "1": 100
+    },
+    "winner": 0,
+    "hands_played": 2
+  },
+  "35": {
+    "scores": {
+      "0": 310,
+      "1": 120
+    },
+    "winner": 0,
+    "hands_played": 1
+  },
+  "36": {
+    "scores": {
+      "0": 210,
+      "1": 140
+    },
+    "winner": 0,
+    "hands_played": 3
+  },
+  "37": {
+    "scores": {
+      "0": 190,
+      "1": 260
+    },
+    "winner": 1,
+    "hands_played": 1
+  },
+  "38": {
+    "scores": {
+      "0": 160,
+      "1": 310
+    },
+    "winner": 1,
+    "hands_played": 2
+  },
+  "39": {
+    "scores": {
+      "0": 320,
+      "1": 110
+    },
+    "winner": 0,
+    "hands_played": 2
+  },
+  "40": {
+    "scores": {
+      "0": 140,
+      "1": 150
+    },
+    "winner": 1,
+    "hands_played": 2
+  },
+  "41": {
+    "scores": {
+      "0": 150,
+      "1": 300
+    },
+    "winner": 1,
+    "hands_played": 1
+  },
+  "42": {
+    "scores": {
+      "0": 450,
+      "1": 110
+    },
+    "winner": 0,
+    "hands_played": 1
+  },
+  "43": {
+    "scores": {
+      "0": 190,
+      "1": 300
+    },
+    "winner": 1,
+    "hands_played": 1
+  },
+  "44": {
+    "scores": {
+      "0": 50,
+      "1": 260
+    },
+    "winner": 1,
+    "hands_played": 1
+  },
+  "45": {
+    "scores": {
+      "0": 300,
+      "1": 150
+    },
+    "winner": 0,
+    "hands_played": 1
+  },
+  "46": {
+    "scores": {
+      "0": 140,
+      "1": 250
+    },
+    "winner": 1,
+    "hands_played": 1
+  },
+  "47": {
+    "scores": {
+      "0": 70,
+      "1": 240
+    },
+    "winner": 1,
+    "hands_played": 3
+  },
+  "48": {
+    "scores": {
+      "0": 140,
+      "1": 230
+    },
+    "winner": 1,
+    "hands_played": 1
+  },
+  "49": {
+    "scores": {
+      "0": 330,
+      "1": 200
+    },
+    "winner": 0,
+    "hands_played": 1
+  }
+}

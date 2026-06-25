@@ -20,9 +20,10 @@ done.
 Eight games still hold their decision logic in hand-written Python dispatched by
 name in `cardlang/runtime/mechanics.py::instantiate` (Bridge's auction has been
 lifted onto the kernel `round` — see Workstream 1 — so `run_bridge_auction` is
-gone):
+gone; Pinochle's auction too, so `run_pinochle_hand` is now the post-auction
+`run_pinochle_rest`):
 
-- inline in `mechanics.py`: `run_schnapsen_hand`, `run_pinochle_hand`
+- inline in `mechanics.py`: `run_schnapsen_hand`, `run_pinochle_rest`
 - separate modules: `runtime/coup.py`, `cribbage.py`, `skat.py`, `stud.py`,
   `tarot.py`, `tichu.py` (~1,440 lines)
 
@@ -112,8 +113,14 @@ consecutive passes), typed outcome = a contract variant. Then per game, supplyin
   doubling/redoubling, on the auction form of `round`; the typed
   `contract_finalized | all_pass` outcome computes the declarer over the bid
   history. `run_bridge_auction` and its `instantiate` branch are deleted.
-- **Pinochle** — ascending bid to name the declarer, then `declare_trump`;
-  outcome feeds the meld + play phases. (Meld scoring is Workstream 3/4.)
+- **Pinochle** — *done (auction).* The ascending bid runs on the auction form of
+  `round` over a **shrinking participants ring** (`over players where not
+  passed[player] and (lead_bidder is none or player != lead_bidder)`), the nullary
+  `submit_bid`/`pass` vocabulary, and the single-variant `bid_won(declarer, bid)`
+  outcome (opener-at-50 fallback when all pass). `run_pinochle_rest` (the renamed
+  monolith minus its auction block) reads the declarer and runs `declare_trump` +
+  meld + tricks; byte-identical over 50 seeds. (Meld scoring is Workstream 3/4;
+  the module is deleted then.)
 - **Tarot** — four-level ascending bid (Petite < Garde < Garde sans < Garde
   contre) with chien handling dispatched by level.
 - **Skat** — the Reizen call-and-response auction (one player names successive
@@ -125,16 +132,18 @@ consecutive passes), typed outcome = a contract variant. Then per game, supplyin
 if it is not expressible, that is a `language-gap` → file an open question, do
 not special-case it.
 
-**Dependency surfaced by Bridge.** The auction form does not silently skip a
-participant with no legal move — the ring is stated by the participants clause and
+**Dependency surfaced by Bridge — built.** The auction form does not silently skip
+a participant with no legal move — the ring is stated by the participants clause and
 "all but one passed" by `until` ([decisions.md](decisions.md), "The auction form
 of `round`"). Bridge keeps every seat in with an always-legal `pass`, but the
 ascending auctions drop players who pass for good (and skip the standing high
 bidder) with no decision — a *shrinking ring*. Reproducing that byte-identically
 needs the participant predicate re-evaluated each turn — the **participant-filtering
-axis** otherwise scheduled for Workstream 2 (Stud's non-folded ring). It must be
-pulled forward into the first ascending auction (Pinochle); an always-legal `pass`
-would offer passed players and consume RNG the monolith does not.
+axis**, which `run_auction` now does (it re-evaluates `over … where …` per turn, a
+no-draw skip for a dropped player; a static ring like Bridge's `all players` is the
+invariant case). Built with Pinochle; reused by Workstream 2 (Stud's non-folded
+ring). An always-legal `pass` would instead offer passed players and consume RNG
+the monolith does not.
 
 **Scope note.** Skat, Tarot, and Pinochle are *monoliths* — the auction is fused
 with play and scoring in one Python function ([roadmap.md](roadmap.md)). The

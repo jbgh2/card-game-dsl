@@ -26,8 +26,8 @@ from cardlang.runtime.values import SUITS, Card, Player
 def instantiate(stmt: n.Instantiate, ctx: Ctx) -> Player:
     if stmt.mechanic == "SchnapsenHand":
         return run_schnapsen_hand(stmt, ctx)
-    if stmt.mechanic == "PinochleHand":
-        return run_pinochle_hand(stmt, ctx)
+    if stmt.mechanic == "PinochleRest":
+        return run_pinochle_rest(stmt, ctx)
     if stmt.mechanic == "SkatHand":
         from cardlang.runtime.skat import run_skat_hand
 
@@ -177,7 +177,6 @@ def run_auction(stmt: n.Round, ctx: Ctx) -> None:
     from cardlang.runtime import stdlib
     from cardlang.runtime.execute import run_body
 
-    participants = list(evaluate(stmt.participants, ctx))
     leader = evaluate(stmt.leader, ctx)
     order = ctx.rs.seating.turn_order_from(leader)
     assert stmt.move_types is not None and stmt.termination is not None
@@ -192,6 +191,13 @@ def run_auction(stmt: n.Round, ctx: Ctx) -> None:
             raise RuntimeError("auction did not terminate within 1000 ring steps")
         player = order[i % len(order)]
         i += 1
+        # The participants ring is re-evaluated each turn (the participant-filter
+        # axis): a player the predicate drops mid-ring — a standing high bidder, a
+        # player who has passed for good — is skipped with no chooser draw. The
+        # ascending auctions (Pinochle, Tarot, Skat) and Stud's betting state the
+        # shrinking ring this way; a static ring (Bridge's `all players`) is the
+        # invariant case (decisions.md "The auction form of `round`").
+        participants = list(evaluate(stmt.participants, ctx))
         if player not in participants:
             continue
         pctx = ctx.acting_as(player)
@@ -463,44 +469,21 @@ def _pinochle_legal(
     return list(hand)
 
 
-def run_pinochle_hand(stmt: n.Instantiate, ctx: Ctx) -> Player:
+def run_pinochle_rest(stmt: n.Instantiate, ctx: Ctx) -> Player:
+    """The Pinochle hand after the auction: trump declaration, meld, and the
+    twelve strict tricks. The ascending auction runs on the kernel `round`
+    (`docs/games/pinochle.cardlang`, `pinochle_auction_outcome`); this mechanic
+    reads the declarer it settled on from the `declarer` arg (hand-level
+    `high_bidder`)."""
     from cardlang.runtime import stdlib
 
     rs = ctx.rs
     args = {a.name: a.value for a in stmt.args}
-    opener: Player = evaluate(_expr(args["opener"]), ctx)
+    high_bidder: Player = evaluate(_expr(args["declarer"]), ctx)
     players = list(rs.seating.players)
     hands = rs.zones.families["hand"]
     captured = rs.zones.families["captured"]
     rank = rs.rank_index
-
-    # --- ascending auction ---
-    order = rs.seating.turn_order_from(opener)
-    passed: dict[Player, bool] = {p: False for p in players}
-    current_bid = 0
-    high_bidder: Player | None = None
-    opening, increment, cap, max_bids = 50, 10, 250, 16
-    bids = 0
-    i = 0
-    while sum(not passed[p] for p in players) > 1 and bids < max_bids:
-        p = order[i % len(order)]
-        i += 1
-        if passed[p] or p == high_bidder:
-            continue
-        next_bid = current_bid + increment if current_bid else opening
-        if next_bid > cap:
-            passed[p] = True
-            continue
-        if ctx.chooser(p, ["bid", "pass"], 1)[0] == "bid":
-            current_bid = next_bid
-            high_bidder = p
-            bids += 1
-        else:
-            passed[p] = True
-    if high_bidder is None:
-        high_bidder, current_bid = opener, opening
-    rs.set("high_bidder", high_bidder)
-    rs.set("current_bid", current_bid)
 
     # --- trump declaration (needs a marriage in the chosen suit) ---
     hb = hands[high_bidder].cards

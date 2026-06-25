@@ -125,6 +125,8 @@ def auction_outcome_function(name: str) -> AuctionOutcomeFn:
     match name:
         case "bridge_auction_outcome":
             return bridge_auction_outcome
+        case "pinochle_auction_outcome":
+            return pinochle_auction_outcome
         case _:
             raise AssertionError(f"unknown auction outcome '{name}'")
 
@@ -167,3 +169,27 @@ def bridge_auction_outcome(
         },
     )
     return ("contract_finalized", [declarer, level, strain, doubled])
+
+
+def pinochle_auction_outcome(
+    history: AuctionHistory, ctx: Ctx
+) -> tuple[str, list[Any]]:
+    """Pinochle's ascending auction always settles on a declarer: the standing
+    high bidder at the bid he reached, or — if every seat passed without a bid —
+    the opener at the minimum 50. (The bidding side must reach this in meld +
+    tricks or be set back; see `pinochle.cardlang`.)"""
+    rs = ctx.rs
+    lead_bidder = rs.get("lead_bidder")
+    if lead_bidder is None:
+        declarer, bid = rs.get("opener"), 50
+        assert declarer is not None, (
+            "pinochle auction: all-pass fallback has no opener — the `auction` "
+            "phase must set `opener := dealer offset_by left` before the round"
+        )
+        ctx.trace("pinochle_contract", {"all_pass": True, "declarer": declarer, "bid": bid})
+        return ("bid_won", [declarer, bid])
+    bid = rs.get("working_bid")
+    ctx.trace(
+        "pinochle_contract", {"all_pass": False, "declarer": lead_bidder, "bid": bid}
+    )
+    return ("bid_won", [lead_bidder, bid])

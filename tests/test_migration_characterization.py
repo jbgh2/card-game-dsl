@@ -1,9 +1,15 @@
-"""Characterization nets for the Stage-3 typed-outcome migrations.
+"""Characterization nets for byte-identical kernel migrations.
 
 Bridge and Schnapsen move their multi-way decision from a Boolean state gate to a
 typed phase outcome. The migration only changes a mechanic's *return protocol*
 (set-state-and-return-Player -> raise `_ProduceSignal`); it moves no chooser
 calls, so for a fixed playout the per-seed results must stay **byte-identical**.
+
+Pinochle lifts its ascending auction out of `run_pinochle_hand` onto the kernel
+`round` (the participant-filter axis). The auction reproduces the monolith's
+chooser draws exactly — same offered turns, same two-candidate `[bid, pass]`
+vocabulary, same no-draw skips of passed/high bidders — so the per-seed results
+must likewise stay byte-identical. This golden is pinned pre-migration.
 
 The Schnapsen golden was pinned pre-migration; a diff is a settlement bug (its
 six-way settlement has no other independent-recompute net — see roadmap.md).
@@ -61,7 +67,7 @@ def _capture_pinned(name: str) -> dict[str, Any]:
     return result
 
 
-@pytest.mark.parametrize("name", ["bridge", "schnapsen"])
+@pytest.mark.parametrize("name", ["bridge", "schnapsen", "pinochle"])
 def test_migration_preserves_per_seed_results(name: str) -> None:
     expected = json.loads((GOLDEN / f"{name}_scores.json").read_text())
     assert _capture_pinned(name) == expected

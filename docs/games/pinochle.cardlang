@@ -8,11 +8,12 @@
 // reach its bid in meld + tricks or be set back by the bid amount. First team to
 // 150 wins.
 //
-// The hand engine — the auction, trump declaration, meld scoring, and the strict
-// follow/head/trump/over-trump trick play — runs in the built-in `PinochleHand`
-// mechanic (auctions and strict-trick legality are not yet expressible in the
-// rule DSL; see IMPLEMENTATION_LOG.md). The cardlang holds the deal, the
-// contract settlement, and termination.
+// The ascending auction runs on the kernel `round` (the move vocabulary below,
+// a shrinking participants ring, and `pinochle_auction_outcome`). Trump
+// declaration, meld scoring, and the strict follow/head/trump/over-trump trick
+// play run in the `PinochleRest` mechanic (strict-trick legality is not yet
+// expressible in the rule DSL; see IMPLEMENTATION_LOG.md). The cardlang holds
+// the deal, the auction, the contract settlement, and termination.
 
 game Pinochle {
 
@@ -56,9 +57,37 @@ game Pinochle {
       bid_abandoned := false
     }
 
+    // The ascending auction settles on a declarer and his bid; the remaining
+    // hand (trump declaration, meld, the twelve strict tricks) runs in the
+    // PinochleRest mechanic, which still holds the strict follow/head/trump
+    // legality not yet expressible in the rule DSL.
+    phase auction -> outcome { bid_won(Player, Integer) } {
+      // Each non-passed seat — never the standing high bidder — bids the next
+      // 10 up (50 to open) or passes for good; the participants ring re-evaluates
+      // each turn, so a passed seat or the high bidder is never offered again.
+      // The ring shrinks until one seat remains or the 16-bid cap is hit. The
+      // 16-bid cap also bounds the bid value: 50 + 15*10 = 200, so no further
+      // ceiling is needed (raising the cap would let working_bid exceed 200).
+      state {
+        passed[player] : Boolean = false
+        bids           : Integer = 0
+        lead_bidder    : Player? = none   // standing high bidder (auction-local)
+        working_bid    : Integer = 0      // his standing bid (auction-local)
+        opener         : Player? = none
+      }
+      opener := dealer offset_by left
+      round offering [submit_bid, pass] from opener
+            over players where not passed[player]
+                              and (lead_bidder is none or player != lead_bidder)
+            until (number of players where not passed[player]) <= 1 or bids >= 16
+            outcome pinochle_auction_outcome
+    }
+    auction produces:
+      bid_won(d, c) { high_bidder := d  current_bid := c  continue to play }
+
     phase play {
-      legal_moves: [submit_bid, pass, declare_trump_suit, play_to_trick]
-      instantiate PinochleHand(opener = dealer offset_by left)
+      legal_moves: [declare_trump_suit, play_to_trick]
+      instantiate PinochleRest(declarer = high_bidder)
     }
 
     phase scoring {
@@ -81,4 +110,22 @@ game Pinochle {
   }
 
   winner: highest score
+}
+
+// === Auction move vocabulary ===
+//
+// The bid value is derived, not chosen: 50 to open, then a fixed 10 higher each
+// time. A seat either bids that or passes for good — the participants ring then
+// drops it. `submit_bid` is nullary (contrast Bridge, whose bid names a strain).
+
+move_type submit_bid {
+  effect {
+    working_bid := if working_bid == 0 then 50 else working_bid + 10
+    lead_bidder := actor
+    bids        := bids + 1
+  }
+}
+
+move_type pass {
+  effect { passed[actor] := true }
 }

@@ -353,11 +353,15 @@ round offering [<move_type>, …] from <seat> over <ring>
   participant with no legal move is a **malformed game** (a missing always-legal
   move, or a participants filter that should have dropped the player), reported as
   an error, not a silently-skipped turn. Bridge keeps every seat in the ring with
-  an always-legal `pass`. The participants clause is currently a **snapshot taken
-  once at round entry**; a ring that *shrinks* as players drop out (Pinochle's
-  passed bidders, Stud's folders) needs the predicate re-evaluated each turn — a
-  participant-filter axis the kernel does not yet have, landing with the first game
-  that needs it (see [kernel-migration.md](kernel-migration.md)).
+  an always-legal `pass`. The participants predicate is **re-evaluated each turn**
+  — the participant-filter axis: a ring that *shrinks* as players drop out
+  (Pinochle's passed bidders and the standing high bidder, Stud's folders) drops a
+  player the moment the predicate stops holding for it, so it is never offered
+  another turn and consumes no draw. A static ring (Bridge's `all players`) is the
+  invariant case. The trick form evaluates its ring once per pass, which — a trick
+  being a single pass per participant — is observationally identical; this is one
+  participants axis, with the continuous auction ring the case where per-turn
+  re-evaluation is visible.
 - **Accumulator.** The decision-relevant running state (Bridge's standing level,
   strain, doubling, high bidder, pass count) is ordinary **phase state**, read and
   written by the move-type effects and read by the termination predicate. No
@@ -1795,9 +1799,11 @@ built-in `Trick` mechanic has been retired, and `round` carries the termination
 axis (an `early` predicate — Getaway's tochoo) plus round-state exposure. The
 **auction form** is built too (see "The auction form of `round`"): a continuous
 ring over a heterogeneous move vocabulary, with the accumulator as phase state, a
-termination predicate, and a typed outcome over the bid history — Bridge's auction
-runs on it. The remaining work (a participant-filter axis for a ring that shrinks
-as players drop out — Pinochle's passed bidders, Stud's folders; a non-trivial
+termination predicate, and a typed outcome over the bid history — Bridge's and
+Pinochle's auctions run on it. The participant-filter axis is built — the ring is
+re-evaluated each turn, so it shrinks as players drop out (Pinochle's passed
+bidders and standing high bidder). The remaining work (migrating the rest of the
+ascending auctions — Tarot, Skat — and Stud's betting ring onto it; a non-trivial
 *order* axis for Skat's call-and-response; the challenge / block / climbing
 vocabulary; promoting the shared `auction` definition at its third instance) is
 the in-flight build (see [roadmap.md](roadmap.md) and

@@ -25,6 +25,7 @@ STDLIB_TRICK_OUTCOMES: frozenset[str] = frozenset(
 STDLIB_AUCTION_OUTCOMES: frozenset[str] = frozenset(
     {
         "bridge_auction_outcome",  # Bridge auction -> contract_finalized | all_pass
+        "pinochle_auction_outcome",  # Pinochle ascending auction -> bid_won
     }
 )
 # The union is the bare-name function namespace (for NameRef classification) and
