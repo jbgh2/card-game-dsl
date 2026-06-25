@@ -1799,11 +1799,12 @@ built-in `Trick` mechanic has been retired, and `round` carries the termination
 axis (an `early` predicate — Getaway's tochoo) plus round-state exposure. The
 **auction form** is built too (see "The auction form of `round`"): a continuous
 ring over a heterogeneous move vocabulary, with the accumulator as phase state, a
-termination predicate, and a typed outcome over the bid history — Bridge's auction
-runs on it. The participant-filter axis is built — the ring is re-evaluated each
-turn, so it shrinks as players drop out. The remaining work (migrating the
-ascending auctions onto that ring — Pinochle's passed bidders and standing high
-bidder, then Stud's folders; a non-trivial *order* axis for Skat's
-call-and-response; the challenge / block / climbing vocabulary; promoting the
-shared `auction` definition at its third instance) is the in-flight build (see
-[roadmap.md](roadmap.md) and [kernel-migration.md](kernel-migration.md)).
+termination predicate, and a typed outcome over the bid history — Bridge's and
+Pinochle's auctions run on it. The participant-filter axis is built — the ring is
+re-evaluated each turn, so it shrinks as players drop out (Pinochle's passed
+bidders and standing high bidder). The remaining work (migrating the rest of the
+ascending auctions — Tarot, Skat — and Stud's betting ring onto it; a non-trivial
+*order* axis for Skat's call-and-response; the challenge / block / climbing
+vocabulary; promoting the shared `auction` definition at its third instance) is
+the in-flight build (see [roadmap.md](roadmap.md) and
+[kernel-migration.md](kernel-migration.md)).

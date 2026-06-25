@@ -38,43 +38,45 @@ def _move(candidates: list[Any], name: str) -> Any | None:
     return None
 
 
+def _capture_contracts(game: Any, chooser: Any) -> list[dict[str, Any]]:
+    """Play one game with `chooser` and return every contract the auction's
+    `pinochle_auction_outcome` traced (`pinochle_contract` events, in order)."""
+    contracts: list[dict[str, Any]] = []
+
+    def tr(event: str, data: Any) -> None:
+        if event == "pinochle_contract":
+            contracts.append(data)
+
+    play_game(game, random.Random(0), tr, chooser=chooser)
+    return contracts
+
+
 def test_all_pass_gives_the_opener_the_minimum_contract() -> None:
     game = check_dsl(PINOCHLE, "pinochle.cardlang")
-    contracts: list[dict[str, Any]] = []
 
     def always_pass(player: int, candidates: list[Any], n: int) -> list[Any]:
         passit = _move(candidates, "pass")
         return [passit] if passit is not None else [candidates[0]]
 
-    def tr(event: str, data: Any) -> None:
-        if event == "pinochle_contract":
-            contracts.append(data)
-
-    play_game(game, random.Random(0), tr, chooser=always_pass)
+    contracts = _capture_contracts(game, always_pass)
 
     assert contracts, "no auction ran"
-    first = contracts[0]
-    assert first == {"all_pass": True, "declarer": FIRST_OPENER, "bid": 50}
+    assert contracts[0] == {"all_pass": True, "declarer": FIRST_OPENER, "bid": 50}
 
 
 def test_full_bidding_settles_on_the_high_bidder_at_the_cap() -> None:
     game = check_dsl(PINOCHLE, "pinochle.cardlang")
-    contracts: list[dict[str, Any]] = []
 
     def always_bid(player: int, candidates: list[Any], n: int) -> list[Any]:
         bid = _move(candidates, "submit_bid")
         return [bid] if bid is not None else [candidates[0]]
 
-    def tr(event: str, data: Any) -> None:
-        if event == "pinochle_contract":
-            contracts.append(data)
-
-    play_game(game, random.Random(0), tr, chooser=always_bid)
+    contracts = _capture_contracts(game, always_bid)
 
     assert contracts, "no auction ran"
-    first = contracts[0]
-    # Sixteen bids at +10 from the opening 50 reach the cap of 200; the normal arm
-    # threads the standing high bid (not the opener fallback's flat 50).
-    assert first["all_pass"] is False
-    assert first["bid"] == 200
-    assert first["declarer"] in range(4)
+    # Sixteen bids at +10 from the opening 50 reach the cap of 200, and the
+    # standing high bidder wins — deterministically seat 1 (the bidding rotation
+    # from opener 2 is 2,3,0,1,...; the 16th bid lands on seat 1), NOT the
+    # opener-fallback seat 2 at the flat 50. Pinning the declarer guards the
+    # high-bidder-vs-opener selection and the ring rotation against off-by-one.
+    assert contracts[0] == {"all_pass": False, "declarer": 1, "bid": 200}

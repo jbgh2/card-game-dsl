@@ -65,7 +65,9 @@ game Pinochle {
       // Each non-passed seat — never the standing high bidder — bids the next
       // 10 up (50 to open) or passes for good; the participants ring re-evaluates
       // each turn, so a passed seat or the high bidder is never offered again.
-      // The ring shrinks until one seat remains or the bid cap (16 bids) is hit.
+      // The ring shrinks until one seat remains or the 16-bid cap is hit. The
+      // 16-bid cap also bounds the bid value: 50 + 15*10 = 200, so no further
+      // ceiling is needed (raising the cap would let working_bid exceed 200).
       state {
         passed[player] : Boolean = false
         bids           : Integer = 0

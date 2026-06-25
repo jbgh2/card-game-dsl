@@ -182,6 +182,10 @@ def pinochle_auction_outcome(
     lead_bidder = rs.get("lead_bidder")
     if lead_bidder is None:
         declarer, bid = rs.get("opener"), 50
+        assert declarer is not None, (
+            "pinochle auction: all-pass fallback has no opener — the `auction` "
+            "phase must set `opener := dealer offset_by left` before the round"
+        )
         ctx.trace("pinochle_contract", {"all_pass": True, "declarer": declarer, "bid": bid})
         return ("bid_won", [declarer, bid])
     bid = rs.get("working_bid")
