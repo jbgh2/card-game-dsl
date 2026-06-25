@@ -15,8 +15,6 @@ make), the Excuse half-point IOU deferral, and 3-/5-player variants.
 
 from __future__ import annotations
 
-from typing import Any
-
 from cardlang.ast import nodes as n
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx
@@ -95,29 +93,23 @@ def _legal(hand: list[Card], trick: list[tuple[Player, Card]]) -> list[Card]:
     return base + excuse
 
 
-def run_tarot_hand(stmt: n.Instantiate, ctx: Ctx) -> Player:
+def run_tarot_rest(stmt: n.Instantiate, ctx: Ctx) -> Player:
+    """The Tarot hand after the auction: chien handling (by bid level), the
+    eighteen atout-trump tricks, and the bouts/multiplier/petit scoring. The
+    four-level bid runs on the kernel `round` (`french-tarot.cardlang`,
+    `tarot_auction_outcome`); this mechanic reads the taker and level it settled
+    on from hand state, and `opener` (the first-trick leader) from its arg."""
     rs = ctx.rs
     args = {a.name: a.value for a in stmt.args}
-    start: Player = evaluate(args["starting"], ctx)  # type: ignore[arg-type]
+    start: Player = evaluate(args["opener"], ctx)  # type: ignore[arg-type]
     choose = ctx.chooser
     n_players = rs.seating.count
-    ccw = [(start - i) % n_players for i in range(n_players)]  # counter-clockwise
     hands = rs.zones.families["hand"]
     captured = rs.zones.families["captured"]
     chien = rs.zones.single("chien")
 
-    # --- bidding: one ascending bid per player ---
-    current = -1
-    taker: Player | None = None
-    for p in ccw:
-        opts: list[tuple[Any, ...]] = [("pass",)]
-        opts += [("bid", lv) for lv in range(4) if lv > current]
-        a = choose(p, opts, 1)[0]
-        if a[0] == "bid":
-            current, taker = a[1], p
-    if taker is None:
-        return start  # all pass — hand thrown in, no score
-    level = _LEVELS[current]
+    taker: Player = rs.get("taker")
+    level = _LEVELS[rs.get("bid_level") - 1]  # bid_level is 1..4 (0 = no bid)
 
     # --- chien handling by bid level ---
     if level in ("petite", "garde"):

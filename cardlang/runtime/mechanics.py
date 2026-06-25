@@ -32,10 +32,10 @@ def instantiate(stmt: n.Instantiate, ctx: Ctx) -> Player:
         from cardlang.runtime.skat import run_skat_hand
 
         return run_skat_hand(stmt, ctx)
-    if stmt.mechanic == "TarotHand":
-        from cardlang.runtime.tarot import run_tarot_hand
+    if stmt.mechanic == "TarotRest":
+        from cardlang.runtime.tarot import run_tarot_rest
 
-        return run_tarot_hand(stmt, ctx)
+        return run_tarot_rest(stmt, ctx)
     if stmt.mechanic == "CribbageHand":
         from cardlang.runtime.cribbage import run_cribbage_hand
 
