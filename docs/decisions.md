@@ -1805,7 +1805,8 @@ single-pass ring, the ring honouring the game's `direction`). The
 participant-filter axis is built — the ring is re-evaluated each turn, so it
 shrinks as players drop out (Pinochle's passed bidders and standing high bidder,
 Tarot's seats dropping after one bid). The remaining work (Stud's betting ring; a
-non-trivial *order* axis for Skat's call-and-response; the challenge / block /
-climbing vocabulary; promoting the shared `auction` definition at its third
-instance) is the in-flight build (see [roadmap.md](roadmap.md) and
+non-trivial *order* axis for Skat's call-and-response, a filed language gap —
+[open-questions/auction-order-axis.md](open-questions/auction-order-axis.md); the
+challenge / block / climbing vocabulary; promoting the shared `auction` definition
+at its third instance) is the in-flight build (see [roadmap.md](roadmap.md) and
 [kernel-migration.md](kernel-migration.md)).
