@@ -67,7 +67,7 @@ def _capture_pinned(name: str) -> dict[str, Any]:
     return result
 
 
-@pytest.mark.parametrize("name", ["bridge", "schnapsen", "pinochle"])
+@pytest.mark.parametrize("name", ["bridge", "schnapsen", "pinochle", "french-tarot"])
 def test_migration_preserves_per_seed_results(name: str) -> None:
     expected = json.loads((GOLDEN / f"{name}_scores.json").read_text())
     assert _capture_pinned(name) == expected
