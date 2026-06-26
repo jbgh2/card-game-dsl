@@ -124,6 +124,8 @@ def run_round(stmt: n.Round, ctx: Ctx) -> Player:
     leader = evaluate(stmt.leader, ctx)
     # `outcome_fn` and `early_termination` are bare stdlib value-function names on
     # the Round node (validated at resolve time), so they resolve directly here.
+    # Only the betting form omits `outcome_fn`, and it never reaches run_round.
+    assert stmt.outcome_fn is not None, "trick round requires an outcome function"
     outcome_fn = stdlib.value_function(stmt.outcome_fn)
     early_term = (
         stdlib.value_function(stmt.early_termination)
@@ -233,6 +235,11 @@ def run_auction(stmt: n.Round, ctx: Ctx) -> None:
         run_body(mt.effect, eff_ctx)
         history.append((player, name, value))
 
+    # The betting form omits `outcome`: the ring closed, the shared chip/fold
+    # state has already been mutated by the move effects, so the round just
+    # returns and the surrounding body deals the next street or settles.
+    if stmt.outcome_fn is None:
+        return
     tag, payloads = stdlib.auction_outcome_function(stmt.outcome_fn)(history, ctx)
     raise _ProduceSignal(tag, payloads)
 

@@ -430,11 +430,14 @@ class Round:
     Routing is left to the surrounding body; an optional `early` predicate ends
     the pass before every participant has played (Getaway's tochoo).
 
-    *Auction form* — `round offering [<move_type>, …] from <leader> over
-    <participants> until <pred> outcome <fn>`: a continuous ring over a
-    heterogeneous move vocabulary (bids/passes), looping until the termination
-    predicate holds, then the outcome function produces the typed variant. The
-    trick-specific fields (`move_type`, `source_zone`, `play_zone`) are absent;
+    *Auction/betting form* — `round offering [<move_type>, …] from <leader> over
+    <participants> until <pred> [outcome <fn>]`: a continuous ring over a
+    heterogeneous move vocabulary (bids/passes/bets), looping until the
+    termination predicate holds. The `outcome_fn` is optional: an auction supplies
+    one and the function produces the typed variant when the ring closes; a betting
+    round omits it (`outcome_fn is None`) — each action mutates shared chip/fold
+    state directly, so the closed ring returns and play moves to the next street.
+    The trick-specific fields (`move_type`, `source_zone`, `play_zone`) are absent;
     `move_types` and `termination` are present (decisions.md "Interactive
     decisions": the same kernel round along the move-vocabulary/termination axes).
     """
@@ -444,7 +447,7 @@ class Round:
     participants: Expr
     source_zone: str | None
     play_zone: str | None
-    outcome_fn: str
+    outcome_fn: str | None
     trump: Expr | None
     early_termination: str | None = None
     move_types: tuple[str, ...] | None = None

@@ -329,7 +329,7 @@ The surface:
 
 ```
 round offering [<move_type>, …] from <seat> over <ring>
-      until <predicate> outcome <fn>
+      until <predicate> [outcome <fn>]
 ```
 
 - **Move vocabulary (`offering`).** Each turn presents the acting player **one
@@ -368,12 +368,16 @@ round offering [<move_type>, …] from <seat> over <ring>
   separate accumulator construct.
 - **Termination (`until`).** A predicate over that state, checked each time around
   the ring (Bridge: three passes after a bid, four with no bid).
-- **Outcome.** A named function over the threaded **bid history** plus the
-  terminal state — the same status as a trick's `outcome` callback (a
+- **Outcome (optional).** A named function over the threaded **bid history** plus
+  the terminal state — the same status as a trick's `outcome` callback (a
   runtime-primitive, no decisions of its own) — that produces the phase's typed
   variant. Bridge's `bridge_auction_outcome` finds the declarer (the first player
   of the high side to have named the final strain) and produces
-  `contract_finalized(declarer, level, strain, doubling) | all_pass`.
+  `contract_finalized(declarer, level, strain, doubling) | all_pass`. The `outcome`
+  clause is **omitted** when the ring produces no variant: a betting round mutates
+  shared chip/fold state directly through its move effects, so when the ring closes
+  it simply returns and the surrounding body deals the next street or settles — no
+  typed outcome, no `produces:` arm.
 
 An auction's only decision points are these per-turn candidate draws; the outcome
 callback consumes no randomness. So two auctions that present the same per-turn
