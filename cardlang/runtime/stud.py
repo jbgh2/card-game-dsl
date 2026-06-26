@@ -221,7 +221,16 @@ def run_stud_hand(stmt: n.Instantiate, ctx: Ctx) -> Player:
     for p in in_hand:  # cards leave play
         muck.add_all(hole[p].take_all())
         muck.add_all(upcards[p].take_all())
-    ctx.trace("stud_hand", {"total_chips": sum(stack[p] for p in players)})
+    ctx.trace(
+        "stud_hand",
+        {
+            "total_chips": sum(stack[p] for p in players),
+            # Per-seat stacks after the hand settles. The end-of-game scores are
+            # degenerate (the winner holds all 400 chips), so this per-hand vector
+            # is the sensitive signal a byte-identical migration must preserve.
+            "stacks": {p: stack[p] for p in players},
+        },
+    )
     return dealer
 
 

@@ -24,6 +24,7 @@ def _hand(*specs: str) -> Zone:
 # cards may repeat across players).
 _STRAIGHT_FLUSH = _hand("AS", "KS", "QS", "JS", "10S", "2D", "3C")  # beats all
 _QUADS = _hand("9C", "9D", "9H", "9S", "2C", "3D", "4H")
+_FULL_HOUSE = _hand("KC", "KD", "KH", "2C", "2D", "5S", "7H")
 _HIGH_CARD = _hand("AD", "JH", "8C", "5S", "3D", "2H", "7C")
 
 
@@ -66,6 +67,25 @@ def test_tie_splits_with_odd_chip_to_first_and_folded_contribution_counts() -> N
     # Layer 5 (P0,P1): 8 chips, tie -> 4 each. P0=6, P1=5, P2=0.
     assert deltas == {0: 6, 1: 5, 2: 0}
     assert sum(deltas.values()) == 11
+
+
+def test_three_way_all_in_layers_each_side_pot_to_its_strongest_eligible() -> None:
+    # Three all-ins at different amounts plus a caller: P0 in for 10, P1 for 50,
+    # P2 for 100, P3 calls 100. Three layers, each won by a different player —
+    # the case the chip-conservation invariant cannot catch (a misallocation
+    # across layers still sums to the same total).
+    deltas = _settle_deltas(
+        [0, 1, 2, 3],
+        committed={0: 10, 1: 50, 2: 100, 3: 100},
+        folded={0: False, 1: False, 2: False, 3: False},
+        hands={0: _STRAIGHT_FLUSH, 1: _QUADS, 2: _FULL_HOUSE, 3: _HIGH_CARD},
+    )
+    # Layer 10 (all four eligible): 10*4 = 40 -> P0 (straight flush, best overall,
+    #   but eligible for this layer only — the short all-in).
+    # Layer 50 (P1,P2,P3):          40*3 = 120 -> P1 (quads, best of the three).
+    # Layer 100 (P2,P3):            50*2 = 100 -> P2 (full house > P3 high card).
+    assert deltas == {0: 40, 1: 120, 2: 100, 3: 0}
+    assert sum(deltas.values()) == 260  # 10 + 50 + 100 + 100, fully distributed
 
 
 def test_all_but_one_folded_takes_whole_pot() -> None:
