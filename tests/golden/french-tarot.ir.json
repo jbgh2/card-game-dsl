@@ -1,0 +1,786 @@
+{
+  "cardlang_ir": 1,
+  "kind": "game",
+  "name": "FrenchTarot",
+  "players": {
+    "kind": "players",
+    "low": 4,
+    "high": null
+  },
+  "deck": "tarot78",
+  "direction": "counterclockwise",
+  "ranking": [],
+  "trump": null,
+  "partnerships": [],
+  "zones": [
+    {
+      "kind": "zone",
+      "name": "deck",
+      "index": null,
+      "type": {
+        "kind": "type_ref",
+        "name": "Deck",
+        "args": []
+      }
+    },
+    {
+      "kind": "zone",
+      "name": "hand",
+      "index": "player",
+      "type": {
+        "kind": "type_ref",
+        "name": "Hand",
+        "args": [
+          "player"
+        ]
+      }
+    },
+    {
+      "kind": "zone",
+      "name": "chien",
+      "index": null,
+      "type": {
+        "kind": "type_ref",
+        "name": "FaceDownPile",
+        "args": []
+      }
+    },
+    {
+      "kind": "zone",
+      "name": "trick_pile",
+      "index": null,
+      "type": {
+        "kind": "type_ref",
+        "name": "TrickPile",
+        "args": []
+      }
+    },
+    {
+      "kind": "zone",
+      "name": "captured",
+      "index": "player",
+      "type": {
+        "kind": "type_ref",
+        "name": "PlayerPile",
+        "args": [
+          "player"
+        ]
+      }
+    }
+  ],
+  "state": {
+    "kind": "state",
+    "decls": [
+      {
+        "kind": "state_decl",
+        "name": "score",
+        "index": "player",
+        "type": "Integer",
+        "optional": false,
+        "default": {
+          "kind": "int",
+          "value": 0
+        }
+      },
+      {
+        "kind": "state_decl",
+        "name": "hands_played",
+        "index": null,
+        "type": "Integer",
+        "optional": false,
+        "default": {
+          "kind": "int",
+          "value": 0
+        }
+      }
+    ]
+  },
+  "phases": [
+    {
+      "kind": "phase",
+      "name": "hand_sequence",
+      "qualifier": {
+        "kind": "phase_qualifier",
+        "qualifier": "repeats",
+        "expr": {
+          "kind": "binop",
+          "op": ">=",
+          "left": {
+            "kind": "name",
+            "name": "hands_played",
+            "ref": "state_var"
+          },
+          "right": {
+            "kind": "int",
+            "value": 36
+          }
+        }
+      },
+      "outcome_cases": [],
+      "items": [
+        {
+          "kind": "state",
+          "decls": [
+            {
+              "kind": "state_decl",
+              "name": "dealer",
+              "index": null,
+              "type": "Player",
+              "optional": false,
+              "default": {
+                "kind": "int",
+                "value": 0
+              }
+            },
+            {
+              "kind": "state_decl",
+              "name": "taker",
+              "index": null,
+              "type": "Player",
+              "optional": true,
+              "default": {
+                "kind": "name",
+                "name": "none",
+                "ref": "null"
+              }
+            },
+            {
+              "kind": "state_decl",
+              "name": "bid_level",
+              "index": null,
+              "type": "Integer",
+              "optional": false,
+              "default": {
+                "kind": "int",
+                "value": 0
+              }
+            }
+          ]
+        },
+        {
+          "kind": "before_each",
+          "body": [
+            {
+              "kind": "movement",
+              "verb": "move",
+              "mode": null,
+              "amount": "all",
+              "item": "cards",
+              "source": null,
+              "dest": {
+                "kind": "name",
+                "name": "deck",
+                "ref": "zone"
+              },
+              "dest_each": false,
+              "distribution": null,
+              "visibility": null
+            },
+            {
+              "kind": "epistemic_op",
+              "op": "shuffle",
+              "target": {
+                "kind": "name",
+                "name": "deck",
+                "ref": "zone"
+              }
+            },
+            {
+              "kind": "movement",
+              "verb": "deal",
+              "mode": null,
+              "amount": {
+                "kind": "int",
+                "value": 18
+              },
+              "item": "cards",
+              "source": {
+                "kind": "name",
+                "name": "deck",
+                "ref": "zone"
+              },
+              "dest": {
+                "kind": "name",
+                "name": "hand",
+                "ref": "zone"
+              },
+              "dest_each": true,
+              "distribution": null,
+              "visibility": null
+            },
+            {
+              "kind": "movement",
+              "verb": "deal",
+              "mode": null,
+              "amount": {
+                "kind": "int",
+                "value": 6
+              },
+              "item": "cards",
+              "source": {
+                "kind": "name",
+                "name": "deck",
+                "ref": "zone"
+              },
+              "dest": {
+                "kind": "name",
+                "name": "chien",
+                "ref": "zone"
+              },
+              "dest_each": false,
+              "distribution": null,
+              "visibility": null
+            },
+            {
+              "kind": "assign",
+              "name": "dealer",
+              "index": null,
+              "op": ":=",
+              "value": {
+                "kind": "binop",
+                "op": "offset_by",
+                "left": {
+                  "kind": "name",
+                  "name": "dealer",
+                  "ref": "state_var"
+                },
+                "right": {
+                  "kind": "name",
+                  "name": "right",
+                  "ref": "enum_value"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "kind": "phase",
+          "name": "auction",
+          "qualifier": null,
+          "outcome_cases": [
+            {
+              "kind": "variant_case",
+              "tag": "taken",
+              "payload_types": [
+                "Player",
+                "Integer"
+              ]
+            },
+            {
+              "kind": "variant_case",
+              "tag": "thrown_in",
+              "payload_types": []
+            }
+          ],
+          "items": [
+            {
+              "kind": "state",
+              "decls": [
+                {
+                  "kind": "state_decl",
+                  "name": "acted",
+                  "index": "player",
+                  "type": "Boolean",
+                  "optional": false,
+                  "default": {
+                    "kind": "name",
+                    "name": "false",
+                    "ref": "bool"
+                  }
+                },
+                {
+                  "kind": "state_decl",
+                  "name": "current_level",
+                  "index": null,
+                  "type": "Integer",
+                  "optional": false,
+                  "default": {
+                    "kind": "int",
+                    "value": 0
+                  }
+                },
+                {
+                  "kind": "state_decl",
+                  "name": "lead_taker",
+                  "index": null,
+                  "type": "Player",
+                  "optional": true,
+                  "default": {
+                    "kind": "name",
+                    "name": "none",
+                    "ref": "null"
+                  }
+                },
+                {
+                  "kind": "state_decl",
+                  "name": "opener",
+                  "index": null,
+                  "type": "Player",
+                  "optional": true,
+                  "default": {
+                    "kind": "name",
+                    "name": "none",
+                    "ref": "null"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "assign",
+              "name": "opener",
+              "index": null,
+              "op": ":=",
+              "value": {
+                "kind": "binop",
+                "op": "offset_by",
+                "left": {
+                  "kind": "name",
+                  "name": "dealer",
+                  "ref": "state_var"
+                },
+                "right": {
+                  "kind": "name",
+                  "name": "right",
+                  "ref": "enum_value"
+                }
+              }
+            },
+            {
+              "kind": "round",
+              "move_type": null,
+              "leader": {
+                "kind": "name",
+                "name": "opener",
+                "ref": "state_var"
+              },
+              "participants": {
+                "kind": "player_query",
+                "query": "set",
+                "pred": {
+                  "kind": "not",
+                  "operand": {
+                    "kind": "subscript",
+                    "obj": {
+                      "kind": "name",
+                      "name": "acted",
+                      "ref": "state_var"
+                    },
+                    "index": {
+                      "kind": "name",
+                      "name": "player",
+                      "ref": "local"
+                    }
+                  }
+                }
+              },
+              "source_zone": null,
+              "play_zone": null,
+              "outcome_fn": "tarot_auction_outcome",
+              "trump": null,
+              "early_termination": null,
+              "move_types": [
+                "pass",
+                "bid_petite",
+                "bid_garde",
+                "bid_garde_sans",
+                "bid_garde_contre"
+              ],
+              "termination": {
+                "kind": "binop",
+                "op": "==",
+                "left": {
+                  "kind": "player_query",
+                  "query": "count",
+                  "pred": {
+                    "kind": "not",
+                    "operand": {
+                      "kind": "subscript",
+                      "obj": {
+                        "kind": "name",
+                        "name": "acted",
+                        "ref": "state_var"
+                      },
+                      "index": {
+                        "kind": "name",
+                        "name": "player",
+                        "ref": "local"
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "kind": "int",
+                  "value": 0
+                }
+              }
+            }
+          ]
+        },
+        {
+          "kind": "produces",
+          "define": "auction",
+          "arms": [
+            {
+              "kind": "produce_arm",
+              "tag": "taken",
+              "binders": [
+                "t",
+                "lvl"
+              ],
+              "body": [
+                {
+                  "kind": "assign",
+                  "name": "taker",
+                  "index": null,
+                  "op": ":=",
+                  "value": {
+                    "kind": "name",
+                    "name": "t",
+                    "ref": "local"
+                  }
+                },
+                {
+                  "kind": "assign",
+                  "name": "bid_level",
+                  "index": null,
+                  "op": ":=",
+                  "value": {
+                    "kind": "name",
+                    "name": "lvl",
+                    "ref": "local"
+                  }
+                },
+                {
+                  "kind": "continue_to",
+                  "target": "play"
+                }
+              ]
+            },
+            {
+              "kind": "produce_arm",
+              "tag": "thrown_in",
+              "binders": [],
+              "body": [
+                {
+                  "kind": "skip_to_next_hand"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "phase",
+          "name": "play",
+          "qualifier": null,
+          "outcome_cases": [],
+          "items": [
+            {
+              "kind": "legal_moves",
+              "names": [
+                "discard_to_chien",
+                "play_to_trick"
+              ]
+            },
+            {
+              "kind": "instantiate",
+              "mechanic": "TarotRest",
+              "args": [
+                {
+                  "kind": "named_arg",
+                  "name": "opener",
+                  "value": {
+                    "kind": "binop",
+                    "op": "offset_by",
+                    "left": {
+                      "kind": "name",
+                      "name": "dealer",
+                      "ref": "state_var"
+                    },
+                    "right": {
+                      "kind": "name",
+                      "name": "right",
+                      "ref": "enum_value"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "after_each",
+          "body": [
+            {
+              "kind": "assign",
+              "name": "hands_played",
+              "index": null,
+              "op": "+=",
+              "value": {
+                "kind": "int",
+                "value": 1
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "winner": {
+    "kind": "winner",
+    "rank_dir": "highest",
+    "target": "score"
+  },
+  "loser": null,
+  "rules": [],
+  "move_types": [
+    {
+      "kind": "move_type",
+      "name": "pass",
+      "param": null,
+      "guard": null,
+      "effect": [
+        {
+          "kind": "assign",
+          "name": "acted",
+          "index": {
+            "kind": "name",
+            "name": "actor",
+            "ref": "pronoun"
+          },
+          "op": ":=",
+          "value": {
+            "kind": "name",
+            "name": "true",
+            "ref": "bool"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "move_type",
+      "name": "bid_petite",
+      "param": null,
+      "guard": {
+        "kind": "binop",
+        "op": "<",
+        "left": {
+          "kind": "name",
+          "name": "current_level",
+          "ref": "state_var"
+        },
+        "right": {
+          "kind": "int",
+          "value": 1
+        }
+      },
+      "effect": [
+        {
+          "kind": "assign",
+          "name": "current_level",
+          "index": null,
+          "op": ":=",
+          "value": {
+            "kind": "int",
+            "value": 1
+          }
+        },
+        {
+          "kind": "assign",
+          "name": "lead_taker",
+          "index": null,
+          "op": ":=",
+          "value": {
+            "kind": "name",
+            "name": "actor",
+            "ref": "pronoun"
+          }
+        },
+        {
+          "kind": "assign",
+          "name": "acted",
+          "index": {
+            "kind": "name",
+            "name": "actor",
+            "ref": "pronoun"
+          },
+          "op": ":=",
+          "value": {
+            "kind": "name",
+            "name": "true",
+            "ref": "bool"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "move_type",
+      "name": "bid_garde",
+      "param": null,
+      "guard": {
+        "kind": "binop",
+        "op": "<",
+        "left": {
+          "kind": "name",
+          "name": "current_level",
+          "ref": "state_var"
+        },
+        "right": {
+          "kind": "int",
+          "value": 2
+        }
+      },
+      "effect": [
+        {
+          "kind": "assign",
+          "name": "current_level",
+          "index": null,
+          "op": ":=",
+          "value": {
+            "kind": "int",
+            "value": 2
+          }
+        },
+        {
+          "kind": "assign",
+          "name": "lead_taker",
+          "index": null,
+          "op": ":=",
+          "value": {
+            "kind": "name",
+            "name": "actor",
+            "ref": "pronoun"
+          }
+        },
+        {
+          "kind": "assign",
+          "name": "acted",
+          "index": {
+            "kind": "name",
+            "name": "actor",
+            "ref": "pronoun"
+          },
+          "op": ":=",
+          "value": {
+            "kind": "name",
+            "name": "true",
+            "ref": "bool"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "move_type",
+      "name": "bid_garde_sans",
+      "param": null,
+      "guard": {
+        "kind": "binop",
+        "op": "<",
+        "left": {
+          "kind": "name",
+          "name": "current_level",
+          "ref": "state_var"
+        },
+        "right": {
+          "kind": "int",
+          "value": 3
+        }
+      },
+      "effect": [
+        {
+          "kind": "assign",
+          "name": "current_level",
+          "index": null,
+          "op": ":=",
+          "value": {
+            "kind": "int",
+            "value": 3
+          }
+        },
+        {
+          "kind": "assign",
+          "name": "lead_taker",
+          "index": null,
+          "op": ":=",
+          "value": {
+            "kind": "name",
+            "name": "actor",
+            "ref": "pronoun"
+          }
+        },
+        {
+          "kind": "assign",
+          "name": "acted",
+          "index": {
+            "kind": "name",
+            "name": "actor",
+            "ref": "pronoun"
+          },
+          "op": ":=",
+          "value": {
+            "kind": "name",
+            "name": "true",
+            "ref": "bool"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "move_type",
+      "name": "bid_garde_contre",
+      "param": null,
+      "guard": {
+        "kind": "binop",
+        "op": "<",
+        "left": {
+          "kind": "name",
+          "name": "current_level",
+          "ref": "state_var"
+        },
+        "right": {
+          "kind": "int",
+          "value": 4
+        }
+      },
+      "effect": [
+        {
+          "kind": "assign",
+          "name": "current_level",
+          "index": null,
+          "op": ":=",
+          "value": {
+            "kind": "int",
+            "value": 4
+          }
+        },
+        {
+          "kind": "assign",
+          "name": "lead_taker",
+          "index": null,
+          "op": ":=",
+          "value": {
+            "kind": "name",
+            "name": "actor",
+            "ref": "pronoun"
+          }
+        },
+        {
+          "kind": "assign",
+          "name": "acted",
+          "index": {
+            "kind": "name",
+            "name": "actor",
+            "ref": "pronoun"
+          },
+          "op": ":=",
+          "value": {
+            "kind": "name",
+            "name": "true",
+            "ref": "bool"
+          }
+        }
+      ]
+    }
+  ],
+  "types": [],
+  "defines": []
+}

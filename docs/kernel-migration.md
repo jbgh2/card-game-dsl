@@ -18,14 +18,14 @@ done.
 ## The goal, concretely
 
 Eight games still hold their decision logic in hand-written Python dispatched by
-name in `cardlang/runtime/mechanics.py::instantiate` (Bridge's auction has been
-lifted onto the kernel `round` — see Workstream 1 — so `run_bridge_auction` is
-gone; Pinochle's auction too, so `run_pinochle_hand` is now the post-auction
-`run_pinochle_rest`):
+name in `cardlang/runtime/mechanics.py::instantiate`. Bridge's, Pinochle's, and
+Tarot's auctions have been lifted onto the kernel `round` — so `run_bridge_auction`
+is gone, and `run_pinochle_hand` / `run_tarot_hand` are now the post-auction
+`run_pinochle_rest` / `run_tarot_rest`:
 
 - inline in `mechanics.py`: `run_schnapsen_hand`, `run_pinochle_rest`
 - separate modules: `runtime/coup.py`, `cribbage.py`, `skat.py`, `stud.py`,
-  `tarot.py`, `tichu.py` (~1,440 lines)
+  `tarot.py` (post-auction), `tichu.py`
 
 This violates the two-layer architecture ([principles.md](principles.md): the
 library is *written in the DSL*, not the engine). The stage is done when:
@@ -121,16 +121,33 @@ consecutive passes), typed outcome = a contract variant. Then per game, supplyin
   monolith minus its auction block) reads the declarer and runs `declare_trump` +
   meld + tricks; byte-identical over 50 seeds. (Meld scoring is Workstream 3/4;
   the module is deleted then.)
-- **Tarot** — four-level ascending bid (Petite < Garde < Garde sans < Garde
-  contre) with chien handling dispatched by level.
-- **Skat** — the Reizen call-and-response auction (one player names successive
-  values, the other holds or passes), then the contract choice (Suit / Grand /
-  Null, hand vs. picking up the skat).
+- **Tarot** — *done (auction).* The four-level ascending bid (Petite < Garde <
+  Garde sans < Garde contre) on the auction form of `round`: a **counterclockwise
+  single-pass ring** (each seat drops out of the participants ring after acting,
+  one bid each), five nullary level moves guarded by the standing bid, and a
+  two-variant `taken(taker, level) | thrown_in` outcome (an all-pass hand is
+  thrown in via `skip to next hand`). Exposed and fixed the kernel's
+  clockwise-only `turn_order_from` (now honours `direction`). `run_tarot_hand` is
+  the post-auction `run_tarot_rest` (chien dispatched by level, eighteen tricks,
+  scoring); byte-identical over 50 seeds.
+- **Skat** — *deferred (language gap).* The Reizen call-and-response auction (one
+  player names successive values, the other holds or passes) is **not expressible
+  on the existing order axis**: role-dependent vocabularies (speaker `bid`/`pass`
+  vs responder `yes`/`pass`), conditional participation (the responder is skipped
+  when the speaker passes), and a seat *reorder* in the second contest that a
+  participants filter cannot produce. Per the checkpoint below this is a
+  `language-gap`, filed as
+  [open-questions/auction-order-axis.md](open-questions/auction-order-axis.md) and
+  left in `run_skat_hand` pending a second call-and-response game (or sign-off to
+  add a new `order` value). The contract choice (Suit / Grand / Null, hand vs.
+  picking up the skat) waits on the same.
 
-**Checkpoint (possible new axis).** Skat's call-and-response is a different
-*order* from a simple ascending ring. Confirm it is a value on the order axis;
-if it is not expressible, that is a `language-gap` → file an open question, do
-not special-case it.
+**Checkpoint (possible new axis) — resolved as a gap.** Skat's call-and-response
+is a different *order* from a simple ascending ring. It was confirmed **not** a
+value on the existing order axis (turn-from-a-seat / priority / simultaneous), so
+per the discipline it was surfaced as an open question rather than special-cased
+with an engine hook — see the Skat bullet above and
+[open-questions/auction-order-axis.md](open-questions/auction-order-axis.md).
 
 **Dependency surfaced by Bridge — built.** The auction form does not silently skip
 a participant with no legal move — the ring is stated by the participants clause and

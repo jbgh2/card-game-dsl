@@ -138,12 +138,14 @@ Player = int
 class Seating:
     """A ring of players with directional navigation.
 
-    `direction: clockwise` means increasing index is clockwise. The Direction
-    enum values map to ring offsets; for four players `across` is the opposite
-    seat.
+    `direction: clockwise` means increasing index is clockwise, so the turn-order
+    ring advances by +1; `counterclockwise` advances by -1. `offset_by left`/
+    `right` are absolute (+1 / -1) in either ring; for four players `across` is
+    the opposite seat.
     """
 
     count: int
+    clockwise: bool = True
 
     @property
     def players(self) -> tuple[Player, ...]:
@@ -162,5 +164,7 @@ class Seating:
         return self.offset_by(player, "left")
 
     def turn_order_from(self, leader: Player) -> list[Player]:
-        """Players in clockwise turn order starting at `leader`."""
-        return [(leader + i) % self.count for i in range(self.count)]
+        """Players in turn order from `leader`, following the game's direction:
+        +1 per seat clockwise, -1 counterclockwise."""
+        step = 1 if self.clockwise else -1
+        return [(leader + i * step) % self.count for i in range(self.count)]

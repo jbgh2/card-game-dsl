@@ -64,6 +64,7 @@ VALUE_SIGS: dict[str, Type] = {
     "highest_trump_or_led_suit": TAny(),
     "bridge_auction_outcome": TAny(),  # auction form: produces the typed variant
     "pinochle_auction_outcome": TAny(),  # auction form: produces bid_won
+    "tarot_auction_outcome": TAny(),  # auction form: produces taken | thrown_in
 }
 
 # Early-termination predicates named by a `round`'s `early` clause. Signature is

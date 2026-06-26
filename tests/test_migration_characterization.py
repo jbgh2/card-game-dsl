@@ -11,6 +11,11 @@ chooser draws exactly — same offered turns, same two-candidate `[bid, pass]`
 vocabulary, same no-draw skips of passed/high bidders — so the per-seed results
 must likewise stay byte-identical. This golden is pinned pre-migration.
 
+French Tarot does the same for its four-level bid (a counterclockwise single-pass
+ring of nullary level moves), reproducing the monolith's per-turn candidate lists
+(`pass` then the levels above the standing bid) and ring order. Its golden is
+pinned pre-migration too.
+
 The Schnapsen golden was pinned pre-migration; a diff is a settlement bug (its
 six-way settlement has no other independent-recompute net — see roadmap.md).
 
@@ -67,7 +72,7 @@ def _capture_pinned(name: str) -> dict[str, Any]:
     return result
 
 
-@pytest.mark.parametrize("name", ["bridge", "schnapsen", "pinochle"])
+@pytest.mark.parametrize("name", ["bridge", "schnapsen", "pinochle", "french-tarot"])
 def test_migration_preserves_per_seed_results(name: str) -> None:
     expected = json.loads((GOLDEN / f"{name}_scores.json").read_text())
     assert _capture_pinned(name) == expected

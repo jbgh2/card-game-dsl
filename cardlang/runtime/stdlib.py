@@ -127,6 +127,8 @@ def auction_outcome_function(name: str) -> AuctionOutcomeFn:
             return bridge_auction_outcome
         case "pinochle_auction_outcome":
             return pinochle_auction_outcome
+        case "tarot_auction_outcome":
+            return tarot_auction_outcome
         case _:
             raise AssertionError(f"unknown auction outcome '{name}'")
 
@@ -193,3 +195,19 @@ def pinochle_auction_outcome(
         "pinochle_contract", {"all_pass": False, "declarer": lead_bidder, "bid": bid}
     )
     return ("bid_won", [lead_bidder, bid])
+
+
+def tarot_auction_outcome(
+    history: AuctionHistory, ctx: Ctx
+) -> tuple[str, list[Any]]:
+    """French Tarot's four-level bid: the high bidder becomes the taker at the
+    level he reached, or — if every seat passed — the hand is thrown in (re-dealt,
+    no score). `current_level` is 1..4 (petite..garde_contre; 0 = no bid)."""
+    rs = ctx.rs
+    taker = rs.get("lead_taker")
+    if taker is None:
+        ctx.trace("tarot_contract", {"thrown_in": True})
+        return ("thrown_in", [])
+    level = rs.get("current_level")
+    ctx.trace("tarot_contract", {"thrown_in": False, "taker": taker, "level": level})
+    return ("taken", [taker, level])

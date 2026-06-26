@@ -7,15 +7,16 @@
 // bouts-conditional threshold. Thirty-six hands are played; the highest score
 // wins.
 //
-// The hand engine — the ascending four-level bid, the chien handling, the
-// eighteen atout-trump tricks with the Excuse's special routing and the
-// must-trump / must-over-trump obligations, and the bouts/multiplier/petit
-// scoring — runs in the built-in `TarotHand` mechanic, which updates `score`
-// directly (zero-sum: the taker collects 3× the per-opponent amount). Card
-// points are kept in doubled integer units (the 78 cards sum to 182). poignée
-// declaration and the Excuse half-point IOU deferral are out of scope (see
-// IMPLEMENTATION_LOG.md). The cardlang holds the deal, hand counting, and
-// termination.
+// The four-level ascending bid runs on the kernel `round` (the move vocabulary
+// below, a counterclockwise single-pass ring, and `tarot_auction_outcome`). The
+// chien handling, the eighteen atout-trump tricks with the Excuse's special
+// routing and the must-trump / must-over-trump obligations, and the
+// bouts/multiplier/petit scoring run in the `TarotRest` mechanic, which updates
+// `score` directly (zero-sum: the taker collects 3× the per-opponent amount).
+// Card points are kept in doubled integer units (the 78 cards sum to 182).
+// poignée declaration and the Excuse half-point IOU deferral are out of scope
+// (see IMPLEMENTATION_LOG.md). The cardlang holds the deal, the auction, hand
+// counting, and termination.
 
 game FrenchTarot {
 
@@ -40,7 +41,9 @@ game FrenchTarot {
 
   phase hand_sequence repeats until hands_played >= 36 {
     state {
-      dealer : Player = 0
+      dealer    : Player  = 0
+      taker     : Player? = none   // set by the auction's `taken` arm
+      bid_level : Integer = 0      // 1..4 = petite..garde_contre
     }
 
     before_each {
@@ -51,10 +54,32 @@ game FrenchTarot {
       dealer := dealer offset_by right        // counter-clockwise rotation
     }
 
+    // The four-level ascending bid, counterclockwise from the dealer's right:
+    // each seat speaks once and may raise to a level above the standing bid or
+    // pass — modelled as dropping out of the ring after acting. If every seat
+    // passes the hand is thrown in; otherwise the high bidder is the taker.
+    phase auction -> outcome { taken(Player, Integer) | thrown_in } {
+      state {
+        acted[player] : Boolean = false
+        current_level : Integer = 0    // 0 = no bid yet; 1..4 = the bid levels
+        lead_taker    : Player? = none
+        opener        : Player? = none
+      }
+      opener := dealer offset_by right
+      round offering [pass, bid_petite, bid_garde, bid_garde_sans, bid_garde_contre]
+            from opener
+            over players where not acted[player]
+            until (number of players where not acted[player]) == 0
+            outcome tarot_auction_outcome
+    }
+    auction produces:
+      taken(t, lvl) { taker := t  bid_level := lvl  continue to play }
+      thrown_in     { skip to next hand }
+
     phase play {
-      legal_moves: [submit_bid, pass, discard_to_chien, call_poignee, play_to_trick]
-      // The player to the dealer's right speaks and leads first.
-      instantiate TarotHand(starting = dealer offset_by right)
+      legal_moves: [discard_to_chien, play_to_trick]
+      // The player to the dealer's right leads the first trick.
+      instantiate TarotRest(opener = dealer offset_by right)
     }
 
     after_each {
@@ -64,3 +89,20 @@ game FrenchTarot {
 
   winner: highest score
 }
+
+// === Auction move vocabulary ===
+//
+// One pass counterclockwise: a seat passes, or raises to a level strictly above
+// the standing bid (each level guarded by the current high). The candidate list
+// is `pass` then the still-higher levels in ascending order — `pass`, then bids
+// > current. A seat drops out of the participants ring once it has acted.
+
+move_type pass             { effect { acted[actor] := true } }
+move_type bid_petite       { when: current_level < 1
+                             effect { current_level := 1  lead_taker := actor  acted[actor] := true } }
+move_type bid_garde        { when: current_level < 2
+                             effect { current_level := 2  lead_taker := actor  acted[actor] := true } }
+move_type bid_garde_sans   { when: current_level < 3
+                             effect { current_level := 3  lead_taker := actor  acted[actor] := true } }
+move_type bid_garde_contre { when: current_level < 4
+                             effect { current_level := 4  lead_taker := actor  acted[actor] := true } }

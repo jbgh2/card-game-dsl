@@ -24,6 +24,10 @@ to Tier 1 as further corpus data arrives.
 These questions need one more game in the corpus before committing to a
 design. The data point is named in each file.
 
+- [auction-order-axis](auction-order-axis.md) — whether Skat's Reizen
+  call-and-response is a new `order` value on the auction `round`, body
+  composition, or stays in Python; blocked on a second call-and-response
+  game (or a sign-off to add the axis now).
 
 ## Tier 3 — Medium impact, narrow scope
 
