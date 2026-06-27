@@ -51,10 +51,10 @@ raw DSL text ──parse──▶ typed AST ──resolve──▶ resolved AST
 ## The AST↔IR seam
 
 The IR is the **resolved, type-annotated AST — not desugared**. Library
-constructs (`Hand<Owner>`, the `round` construct, `BettingRound`,
-`ChallengeWindow`) are preserved as first-class IR nodes carrying their resolved
-bindings and inferred types. They are not lowered to primitives: `round` and the
-betting/challenge mechanics are control-flow units whose desugaring needs runtime
+constructs (`Hand<Owner>`, the `round` construct — including its betting form —
+and `ChallengeWindow`) are preserved as first-class IR nodes carrying their
+resolved bindings and inferred types. They are not lowered to primitives: `round`
+and the challenge mechanic are control-flow units whose desugaring needs runtime
 semantics, and
 the runtime is the next milestone, not this one. Keeping the IR at the resolved-AST
 level is what lets the runtime adapter's language stay an independent choice

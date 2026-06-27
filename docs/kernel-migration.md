@@ -200,9 +200,14 @@ amount syntax" / "Resource transfer failure").
 - **Showdown stays Python — for now.** Side-pot settlement by amount committed +
   the muck run in `instantiate StudShowdown()` (the renamed, shrunk `run_stud_hand`
   — antes/deal/betting removed). It is RNG-free, so it cannot shift the chooser
-  sequence; the per-hand stack golden pins its payouts. To be lifted into the DSL
-  next (the pot subsystem), then the `StudShowdown` branch deleted. `best_five_card_hand`
-  remains a documented runtime-primitive to wire when settlement moves to the DSL.
+  sequence; the per-hand stack golden pins its payouts. When it is lifted out of the
+  `instantiate` branch it becomes a **Stud-local `settle` primitive** (the layering +
+  `best_five_card_hand` for the showdown), *not* a generalized "pot subsystem":
+  side-pot reconciliation is a single corpus instance (Coup has no pot — its second
+  resource game is a coin/treasury economy; the natural second *side-pot* game is a
+  poker variant like Hold'em, still a candidate), so per corpus-first it stays
+  game-local until a second poker variant justifies a shared `betting`/pot
+  definition. `best_five_card_hand` is the documented runtime-primitive to wire then.
 
 **Checkpoint (event-indexed pots) — needs-formalizing, not a language gap.** The
 settlement reconciles purely from per-player committed running totals + fold flags
@@ -291,7 +296,12 @@ These land inside the workstreams above and are shared on the third use:
 
 - generalized `round` axes — Step 0, the spine for all of it;
 - the `scoring_component` runtime subsystem — Workstream 4;
-- the resource/pot economy — Workstream 2, reused by Coup;
+- the integer **resource primitive** (per-player amounts + `transfer`) — settled by
+  Coup ([decisions.md](decisions.md), "Resource amount syntax" / "Resource transfer
+  failure"), used by Stud's chips and Coup's coins. *Distinct from Stud's side-pot
+  reconciliation,* which is poker-specific: Coup has no pot (a coin/treasury
+  economy, not a shared pot), so it shares the primitive but not the layering. The
+  side-pot pot stays Stud-local until a second poker variant (Hold'em) lands;
 - the `Combination` model + queries — Workstream 3, reused by Pinochle and
   Cribbage.
 

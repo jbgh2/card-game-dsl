@@ -165,9 +165,9 @@ open-question framing.
    - `triggered-scoring` → "Triggered scoring components"
    - `actor-vs-chooser` → "Delegated play"
    - `mechanic-internal-legality` → folded into "State scoping (lexical)"
-     (mechanic state is in scope for rules via standard lexical
-     nesting; Stud's BettingRound legality was lifted to rules in
-     the same commit).
+     (a still-Python mechanic's state is in scope for rules via standard
+     lexical nesting). Stud's betting legality later moved onto the kernel
+     `round`'s move-type `when:` guards over phase state, not rules.
 
 2. **Tier 2 is empty.** All Tier 2 questions resolved. The remaining
    open questions are Tier 3 (medium impact, narrow scope) and below;

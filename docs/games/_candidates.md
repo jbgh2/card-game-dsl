@@ -448,9 +448,13 @@ the replace-vs-merge sub-question directly. This is exercisable in the
 existing poker corpus (Stud already in), so move-level-visibility may not
 need a new game at all.
 
-**Notes.** Texas Hold'em is the canonical variant. No-limit vs
-fixed-limit is a parameterization of `BettingRound`, not a
-structural change. Stud's `BettingRound` mechanic should port over.
+**Notes.** Texas Hold'em is the canonical variant. No-limit vs fixed-limit is a
+parameterization of the **betting form of `round`** (`order priority`), not a
+structural change. Stud's betting is the template — the per-street `round
+offering [check, bet, call, fold, raise]` plus the Stud-local `settle` for side
+pots — and Hold'em would be the **second side-pot instance** that justifies
+promoting a shared `betting`/pot definition (Coup, the other resource game, has a
+coin/treasury economy with no pot, so it does not).
 
 ### omaha-hi-lo
 

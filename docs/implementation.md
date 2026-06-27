@@ -126,8 +126,8 @@ Resolve names across every block: zones, move types, rules, mechanics,
 user-defined types, state variables, players and partnerships, scoring
 components, and stdlib functions. Build scopes following lexical phase
 nesting (see [decisions.md](decisions.md), "State scoping"), including
-mechanic-internal state blocks that rules read by lexical scope (e.g.
-`BettingRound`).
+mechanic-internal state blocks that rules read by lexical scope (e.g. a
+still-Python `SchnapsenHand`'s endgame state).
 
 *Forcing function:* every `constrains: <move_type>`, every
 `active_rules: [...]` entry, every type and zone reference must resolve.
