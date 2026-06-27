@@ -26,6 +26,14 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             return _strain_index(args[0])
         case "error":
             raise IllegalMove(args[0] if args else "illegal move")
+        case "bring_in_seat":
+            from cardlang.runtime.stud import bring_in_seat
+
+            return bring_in_seat(ctx)
+        case "first_to_act_seat":
+            from cardlang.runtime.stud import first_to_act_seat
+
+            return first_to_act_seat(ctx)
         case _:
             raise AssertionError(f"unknown stdlib function '{name}'")
 

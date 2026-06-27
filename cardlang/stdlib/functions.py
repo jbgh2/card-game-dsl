@@ -50,6 +50,8 @@ STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
         "suit_of",  # the suit of a card, or of a single-card zone (trump indicator)
         "strain_index",  # bidding rank of a strain: C<D<H<S<NT (none = no-trump, highest)
         "error",  # the if_impossible fallback that rejects the move
+        "bring_in_seat",  # Stud: the lowest-door seat that posts the bring-in
+        "first_to_act_seat",  # Stud: the highest-upcards seat that acts first on a street
     }
 )
 

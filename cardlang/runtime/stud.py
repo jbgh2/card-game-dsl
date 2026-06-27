@@ -78,6 +78,52 @@ def hand_rank(cards: list[Card]) -> tuple[int, ...]:
     return max(_rank5(combo) for combo in combinations(cards, 5))
 
 
+# --- seat selectors (Stud-local stdlib primitives, called from the DSL) -------
+#
+# The bring-in (lowest door card) and the first-to-act on 4th-7th street (highest
+# visible upcards) are argmin/argmax over players keyed on card ranks/suits —
+# neither expressible in the DSL today (no single-card zone read, no argmin/argmax).
+# They are pure functions of the dealt cards (no RNG), so they reproduce the
+# monolith's bringer/leader exactly and the betting ring order follows.
+
+
+def _lowest_door(seats: list[Player], door: dict[Player, Card]) -> Player:
+    """The bring-in seat: the lowest door card (the single upcard), ties broken by
+    suit (clubs < diamonds < hearts < spades)."""
+    return min(seats, key=lambda p: (_RV[door[p].rank], _SUIT_ORDER[door[p].suit]))
+
+
+def _highest_upcards(seats: list[Player], up: dict[Player, list[Card]]) -> Player:
+    """The first-to-act seat (4th-7th street): the highest visible upcards, ranked
+    by descending card values. A partial board may be fewer than five cards, so a
+    lexicographic compare of the sorted ranks, not the full poker evaluator."""
+    return max(seats, key=lambda p: sorted((_RV[c.rank] for c in up[p]), reverse=True))
+
+
+def bring_in_seat(ctx: Ctx) -> Player:
+    """The player who must post the bring-in: the lowest door card among players
+    still holding chips (no one has folded at bring-in time)."""
+    stack = ctx.rs.get("stack")
+    up = ctx.rs.zones.families["upcards"]
+    able = [p for p in ctx.rs.seating.players if stack[p] > 0]
+    door = {p: up[p].cards[0] for p in able}
+    return _lowest_door(able, door)
+
+
+def first_to_act_seat(ctx: Ctx) -> Player:
+    """The first player to act on a later street: the highest visible upcards among
+    players still live (holding chips and not folded)."""
+    stack = ctx.rs.get("stack")
+    folded = ctx.rs.get("folded")
+    players = list(ctx.rs.seating.players)
+    up = ctx.rs.zones.families["upcards"]
+    live = [p for p in players if stack[p] > 0 and not folded[p]]
+    if not live:  # unreachable in a real hand (a street runs only with >= 2 live)
+        return players[0]
+    cards = {p: list(up[p].cards) for p in live}
+    return _highest_upcards(live, cards)
+
+
 def run_stud_hand(stmt: n.Instantiate, ctx: Ctx) -> Player:
     rs = ctx.rs
     choose = ctx.chooser

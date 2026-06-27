@@ -56,6 +56,8 @@ CALL_SIGS: dict[str, Sig] = {
     "suit_of": Sig((TAny(),), TOptional(TEnum("Suit"))),  # card or single-card zone
     "strain_index": Sig((TOptional(TEnum("Suit")),), TInteger()),  # strain bidding rank
     "error": Sig((TString(),), TAny()),  # the if_impossible fallback
+    "bring_in_seat": Sig((), TPlayer()),  # Stud: lowest-door seat (no args; reads upcards)
+    "first_to_act_seat": Sig((), TPlayer()),  # Stud: highest-upcards live seat
 }
 
 # Outcome / value callbacks passed by bare name — result type is mechanic-driven.
