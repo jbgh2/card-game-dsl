@@ -14,7 +14,7 @@ LIBRARY_MECHANICS: frozenset[str] = frozenset(
         "SkatHand",  # Skat's Reizen auction + contract + suit/grand/null tricks
         "TarotRest",  # French Tarot post-auction: chien + atout tricks + bouts scoring
         "CribbageHand",  # Cribbage's discard + pegging + the show (a counting engine)
-        "StudHand",  # Seven-Card Stud's antes + betting streets + showdown
+        "StudShowdown",  # Seven-Card Stud's RNG-free suffix: side-pot settlement + muck
         "TichuHand",  # Tichu's pushing + climbing trick + special cards + scoring
         "CoupGame",  # Coup's influence / coin / challenge-block / elimination engine
     }

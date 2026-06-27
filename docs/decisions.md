@@ -329,7 +329,7 @@ The surface:
 
 ```
 round offering [<move_type>, …] from <seat> over <ring>
-      until <predicate> [outcome <fn>]
+      [order <ring | priority>] until <predicate> [outcome <fn>]
 ```
 
 - **Move vocabulary (`offering`).** Each turn presents the acting player **one
@@ -362,6 +362,15 @@ round offering [<move_type>, …] from <seat> over <ring>
   being a single pass per participant — is observationally identical; this is one
   participants axis, with the continuous auction ring the case where per-turn
   re-evaluation is visible.
+- **Order (`order`).** How the ring is traversed — a value on the closed order
+  axis (turn-from-a-seat / priority / simultaneous). `order ring` (the default)
+  is the continuous ring: the pointer advances each turn, so after a player acts
+  the next *seat* is offered, wrapping. `order priority` re-scans the seat order
+  from the leader every turn and offers the first still-pending participant: after
+  an aggression re-opens earlier seats, action returns to the *earliest* owing
+  seat, not the next one round the ring. Bridge/Pinochle/Tarot auctions are
+  `ring`; Stud's betting is `priority` (a checked player responds to a later raise
+  before seats that have not yet acted), and Coup's response windows will be too.
 - **Accumulator.** The decision-relevant running state (Bridge's standing level,
   strain, doubling, high bidder, pass count) is ordinary **phase state**, read and
   written by the move-type effects and read by the termination predicate. No

@@ -40,10 +40,10 @@ def instantiate(stmt: n.Instantiate, ctx: Ctx) -> Player:
         from cardlang.runtime.cribbage import run_cribbage_hand
 
         return run_cribbage_hand(stmt, ctx)
-    if stmt.mechanic == "StudHand":
-        from cardlang.runtime.stud import run_stud_hand
+    if stmt.mechanic == "StudShowdown":
+        from cardlang.runtime.stud import run_stud_showdown
 
-        return run_stud_hand(stmt, ctx)
+        return run_stud_showdown(stmt, ctx)
     if stmt.mechanic == "TichuHand":
         from cardlang.runtime.tichu import run_tichu_hand
 

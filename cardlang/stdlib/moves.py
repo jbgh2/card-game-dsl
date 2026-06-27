@@ -43,13 +43,8 @@ LIBRARY_MOVE_TYPES: frozenset[str] = frozenset(
         "discard_to_crib",
         "play_card",
         "declare_go",
-        # Seven-Card Stud moves (handled by the StudHand mechanic).
-        "bring_in",
-        "check",
-        "call",
-        "bet",
-        "raise",
-        "fold",
+        # Seven-Card Stud's betting moves (check/bet/call/raise/fold) are
+        # game-defined `move_type`s in seven-card-stud.cardlang, not library moves.
         # Tichu moves (handled by the TichuHand mechanic).
         "play_combination",
         "push_card",

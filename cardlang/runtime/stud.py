@@ -1,18 +1,22 @@
-"""The Seven-Card Stud hand mechanic (fixed-limit; concrete).
+"""Seven-Card Stud's runtime support (fixed-limit).
 
-The corpus's first betting game. Chips are modelled as integer state (a `stack`
-per player) rather than a resource-zone subsystem; the mechanic runs the antes,
-the bring-in, five betting streets (3rd–7th), and the showdown with proper
-side-pot distribution by amount committed. The poker hand evaluator
-(`hand_rank`, best five of seven) is module-level so it can be unit-tested.
+The corpus's first betting game. Chips are integer state (a `stack` per player),
+not a resource-zone subsystem. The antes, deal, bring-in post, and the five
+betting streets (3rd–7th) run in the DSL on the kernel `round` in priority order
+(seven-card-stud.cardlang); this module holds only what is not expressible there:
 
-Random players bet/call/raise/fold uniformly among the legal actions (a player
-never folds when checking is free). Total chips are invariant — the falsifiable
-invariant for the betting and pot logic.
+- `run_stud_showdown` — the RNG-free showdown suffix (side-pot distribution by
+  amount committed, then the muck), invoked by `instantiate StudShowdown()`;
+- `hand_rank` — the best-five-of-seven poker evaluator (module-level, unit-tested);
+- `bring_in_seat` / `first_to_act_seat` — the door-card seat selectors (argmin /
+  argmax over players), stdlib primitives the betting phase calls.
 
-Simplifications (see docs/roadmap.md): the 4th-street open-pair limit
-doubling is omitted (lower limit on 3rd/4th, upper on 5th–7th); reveal order at
-showdown is irrelevant to a random playout.
+Random players bet/call/raise/fold uniformly among the legal actions. Total chips
+are invariant — the falsifiable invariant for the betting and pot logic.
+
+Simplifications (see docs/roadmap.md): the 4th-street open-pair limit doubling is
+omitted (lower limit on 3rd/4th, upper on 5th–7th); reveal order at showdown is
+irrelevant to a random playout.
 """
 
 from __future__ import annotations
@@ -22,18 +26,15 @@ from itertools import combinations
 from typing import Any
 
 from cardlang.ast import nodes as n
-from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Card, Player
 
+# The ante (1), bring-in (2), street limits (5/10), and raise cap (3) now live in
+# seven-card-stud.cardlang; this module keeps only the RNG-free showdown, the
+# poker evaluator, and the seat selectors.
 _RV = {"2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "10": 10,
        "J": 11, "Q": 12, "K": 13, "A": 14}
 _SUIT_ORDER = {"clubs": 0, "diamonds": 1, "hearts": 2, "spades": 3}
-
-ANTE = 1
-BRING_IN = 2
-LOWER, UPPER = 5, 10
-MAX_RAISES = 3
 
 
 def _rank5(five: tuple[Card, ...]) -> tuple[int, ...]:
@@ -124,146 +125,28 @@ def first_to_act_seat(ctx: Ctx) -> Player:
     return _highest_upcards(live, cards)
 
 
-def run_stud_hand(stmt: n.Instantiate, ctx: Ctx) -> Player:
+def run_stud_showdown(stmt: n.Instantiate, ctx: Ctx) -> Player:
+    """The Stud hand's showdown: side-pot settlement and the end-of-hand muck.
+
+    The antes, deal, bring-in, and the five betting streets now run in the DSL
+    (the kernel `round` in priority order); this RNG-free suffix reads the betting
+    result from phase state — `in_hand`, `committed`, `folded`, `stack` — distributes
+    the committed chips by side-pot layer, and mucks the hands. Because it draws no
+    randomness, it cannot shift the chooser sequence: the per-hand stack golden
+    pins its payouts.
+    """
     rs = ctx.rs
-    choose = ctx.chooser
-    args = {a.name: a.value for a in stmt.args}
-    dealer: Player = evaluate(args["dealer"], ctx)  # type: ignore[arg-type]
     players = list(rs.seating.players)
-    deck = rs.zones.single("deck")
+    stack = rs.get("stack")
+    committed = rs.get("committed")
+    folded = rs.get("folded")
+    in_hand_flags = rs.get("in_hand")
+    in_hand = [p for p in players if in_hand_flags[p]]
     hole = rs.zones.families["hole"]
     upcards = rs.zones.families["upcards"]
     muck = rs.zones.single("muck")
-    burn = rs.zones.single("burn")
-    stack = rs.get("stack")
 
-    in_hand = [p for p in players if stack[p] > 0]
-    if len(in_hand) < 2:
-        return dealer
-
-    committed = {p: 0 for p in in_hand}
-    folded = {p: False for p in in_hand}
-    allin = {p: False for p in in_hand}
-
-    def put(p: Player, amount: int) -> int:
-        amount = min(amount, stack[p])
-        stack[p] -= amount
-        committed[p] += amount
-        if stack[p] == 0:
-            allin[p] = True
-        return amount
-
-    # antes
-    for p in in_hand:
-        put(p, ANTE)
-    # deal two hole + one upcard
-    for p in in_hand:
-        hole[p].add(deck.cards.pop(0))
-        hole[p].add(deck.cards.pop(0))
-        upcards[p].add(deck.cards.pop(0))
-
-    # bring-in: lowest door (upcard), ties by suit. If fewer than two players
-    # can act (everyone went all-in on the ante — e.g. each entered with exactly
-    # one chip), there is no bring-in or betting: the hand is dealt out and goes
-    # straight to showdown.
-    able = [p for p in in_hand if not allin[p]]
-    bet_by = {p: 0 for p in in_hand}
-    bringer: Player | None = None
-    if len(able) >= 2:
-        bringer = min(able, key=lambda p: (_RV[upcards[p].cards[0].rank], _SUIT_ORDER[upcards[p].cards[0].suit]))
-        bet_by[bringer] = put(bringer, BRING_IN)
-
-    def order_from(start: Player) -> list[Player]:
-        si = in_hand.index(start) if start in in_hand else 0
-        return in_hand[si:] + in_hand[:si]
-
-    def betting_round(first: Player, opening: int, limit: int, bet_by0: dict[Player, int]) -> None:
-        order = order_from(first)
-        bet_by = dict(bet_by0)
-        bet_to_match = opening
-        raises = 1 if opening > 0 else 0
-        acted: set[Player] = set()
-        guard = 0
-        while True:
-            guard += 1
-            if guard > 2000:
-                raise RuntimeError(
-                    "stud betting round exceeded 2000 iterations without "
-                    "settling (non-termination?)"
-                )
-            pending = [
-                p for p in order
-                if not folded[p] and not allin[p]
-                and (p not in acted or bet_by[p] < bet_to_match)
-            ]
-            if not pending:
-                break
-            p = pending[0]
-            to_call = bet_to_match - bet_by[p]
-            if to_call <= 0:
-                opts = ["check"] + (["bet"] if bet_to_match == 0 else [])
-            else:
-                opts = ["call", "fold"] + (
-                    ["raise"] if bet_to_match > 0 and raises < MAX_RAISES else []
-                )
-            a = choose(p, opts, 1)[0]
-            if a == "check":
-                acted.add(p)
-            elif a == "call":
-                bet_by[p] += put(p, to_call)
-                acted.add(p)
-            elif a == "bet":
-                bet_by[p] += put(p, limit)
-                bet_to_match = bet_by[p]
-                raises = 1
-                acted = {p}
-            elif a == "raise":
-                bet_by[p] += put(p, to_call + limit)
-                bet_to_match = max(bet_to_match, bet_by[p])
-                raises += 1
-                acted = {p}
-            else:  # fold
-                folded[p] = True
-                muck.add_all(upcards[p].take_all())
-            live = [q for q in in_hand if not folded[q] and not allin[q]]
-            if len(live) <= 1 and all(bet_by[q] >= bet_to_match for q in live):
-                if not any(  # nobody still owes a call
-                    q for q in in_hand
-                    if not folded[q] and not allin[q] and bet_by[q] < bet_to_match
-                ):
-                    break
-
-    def deal_street(face_up: bool) -> None:
-        if deck.cards:
-            burn.add(deck.cards.pop(0))
-        for p in in_hand:
-            if not folded[p] and deck.cards:
-                (upcards[p] if face_up else hole[p]).add(deck.cards.pop(0))
-
-    def first_to_act() -> Player:
-        # Highest visible upcards act first; ranked by descending card values (a
-        # partial hand may be fewer than five cards, so not the full evaluator).
-        live = [p for p in in_hand if not folded[p] and not allin[p]]
-        if not live:
-            return in_hand[0]
-        return max(live, key=lambda p: sorted((_RV[c.rank] for c in upcards[p].cards), reverse=True))
-
-    def contenders() -> list[Player]:
-        return [p for p in in_hand if not folded[p]]
-
-    # 3rd street (bring-in standing as the opening bet), then 4th–7th
-    if bringer is not None and len(contenders()) > 1:
-        betting_round(order_from(bringer)[1], BRING_IN, LOWER, bet_by)
-    for street, limit, face_up in [(4, LOWER, True), (5, UPPER, True), (6, UPPER, True), (7, UPPER, False)]:
-        if len(contenders()) <= 1:
-            break
-        deal_street(face_up)
-        if len([p for p in contenders() if not allin[p]]) >= 2:
-            betting_round(first_to_act(), 0, limit, {p: 0 for p in in_hand})
-
-    # showdown: distribute committed chips by side-pot layers
     _settle(in_hand, committed, folded, stack, hole, upcards)
-
     for p in in_hand:  # cards leave play
         muck.add_all(hole[p].take_all())
         muck.add_all(upcards[p].take_all())
@@ -277,7 +160,7 @@ def run_stud_hand(stmt: n.Instantiate, ctx: Ctx) -> Player:
             "stacks": {p: stack[p] for p in players},
         },
     )
-    return dealer
+    return players[0]
 
 
 def _settle(
