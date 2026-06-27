@@ -61,8 +61,6 @@ game SevenCardStud {
         bet_to_match      : Integer = 0        // the street's standing bet
         raises            : Integer = 0        // raises so far (cap of 3)
         limit             : Integer = 0        // the current street's bet size
-        bringer           : Player  = 0
-        actor_seat        : Player  = 0        // the leader the priority ring scans from
       }
 
       // Snapshot the entrants (held chips); ante and deal follow this set.
@@ -84,7 +82,7 @@ game SevenCardStud {
       // Bring-in + 3rd street. Skipped only when fewer than two entrants can act
       // (everyone all-in on the ante); then the hand is dealt straight to showdown.
       if (number of players where stack[player] > 0) >= 2 {
-        bringer := bring_in_seat()
+        let bringer = bring_in_seat()
         // The bring-in is a forced post (no decision): the lowest door puts 2 — a
         // partial all-in if it holds only one chip — and stands as the opening bet.
         bet_by[bringer] := if 2 < stack[bringer] then 2 else stack[bringer]
@@ -93,8 +91,7 @@ game SevenCardStud {
         bet_to_match := 2
         raises := 1
         limit := 5
-        actor_seat := bringer offset_by left
-        round offering [check, bet, call, fold, raise] from actor_seat
+        round offering [check, bet, call, fold, raise] from bringer offset_by left
               over players where not folded[player] and stack[player] > 0
                                 and (not acted[player] or bet_by[player] < bet_to_match)
               order priority
@@ -107,7 +104,11 @@ game SevenCardStud {
 
       // 4th–7th streets: burn, deal one card, then a betting round (limits 5/10/10/10;
       // 7th is dealt face down). Each street runs only while more than one contender
-      // remains; once a street drops the field to one, the rest are skipped.
+      // remains. The contender count is monotonic (folds only add, in_hand is fixed),
+      // so once it drops to one every later street's guard short-circuits — the four
+      // streets are written flat, not nested, with identical behaviour.
+
+      // 4th street (face up, lower limit).
       if (number of players where in_hand[player] and not folded[player]) > 1 {
         deal 1 card from deck to burn
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
@@ -117,8 +118,7 @@ game SevenCardStud {
           limit := 5
           for each player p: bet_by[p] := 0
           for each player p: acted[p] := false
-          actor_seat := first_to_act_seat()
-          round offering [check, bet, call, fold, raise] from actor_seat
+          round offering [check, bet, call, fold, raise] from first_to_act_seat()
                 over players where not folded[player] and stack[player] > 0
                                   and (not acted[player] or bet_by[player] < bet_to_match)
                 order priority
@@ -128,68 +128,71 @@ game SevenCardStud {
                        and (number of players where not folded[player] and stack[player] > 0
                               and bet_by[player] < bet_to_match) == 0)
         }
-        if (number of players where in_hand[player] and not folded[player]) > 1 {
-          deal 1 card from deck to burn
-          for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
-          if (number of players where not folded[player] and stack[player] > 0) >= 2 {
-            bet_to_match := 0
-            raises := 0
-            limit := 10
-            for each player p: bet_by[p] := 0
-            for each player p: acted[p] := false
-            actor_seat := first_to_act_seat()
-            round offering [check, bet, call, fold, raise] from actor_seat
-                  over players where not folded[player] and stack[player] > 0
-                                    and (not acted[player] or bet_by[player] < bet_to_match)
-                  order priority
-                  until (number of players where not folded[player] and stack[player] > 0
-                           and (not acted[player] or bet_by[player] < bet_to_match)) == 0
-                     or ((number of players where not folded[player] and stack[player] > 0) <= 1
-                         and (number of players where not folded[player] and stack[player] > 0
-                                and bet_by[player] < bet_to_match) == 0)
-          }
-          if (number of players where in_hand[player] and not folded[player]) > 1 {
-            deal 1 card from deck to burn
-            for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
-            if (number of players where not folded[player] and stack[player] > 0) >= 2 {
-              bet_to_match := 0
-              raises := 0
-              limit := 10
-              for each player p: bet_by[p] := 0
-              for each player p: acted[p] := false
-              actor_seat := first_to_act_seat()
-              round offering [check, bet, call, fold, raise] from actor_seat
-                    over players where not folded[player] and stack[player] > 0
-                                      and (not acted[player] or bet_by[player] < bet_to_match)
-                    order priority
-                    until (number of players where not folded[player] and stack[player] > 0
-                             and (not acted[player] or bet_by[player] < bet_to_match)) == 0
-                       or ((number of players where not folded[player] and stack[player] > 0) <= 1
-                           and (number of players where not folded[player] and stack[player] > 0
-                                  and bet_by[player] < bet_to_match) == 0)
-            }
-            if (number of players where in_hand[player] and not folded[player]) > 1 {
-              deal 1 card from deck to burn
-              for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to hole[p] }
-              if (number of players where not folded[player] and stack[player] > 0) >= 2 {
-                bet_to_match := 0
-                raises := 0
-                limit := 10
-                for each player p: bet_by[p] := 0
-                for each player p: acted[p] := false
-                actor_seat := first_to_act_seat()
-                round offering [check, bet, call, fold, raise] from actor_seat
-                      over players where not folded[player] and stack[player] > 0
-                                        and (not acted[player] or bet_by[player] < bet_to_match)
-                      order priority
-                      until (number of players where not folded[player] and stack[player] > 0
-                               and (not acted[player] or bet_by[player] < bet_to_match)) == 0
-                         or ((number of players where not folded[player] and stack[player] > 0) <= 1
-                             and (number of players where not folded[player] and stack[player] > 0
-                                    and bet_by[player] < bet_to_match) == 0)
-              }
-            }
-          }
+      }
+
+      // 5th street (face up, upper limit).
+      if (number of players where in_hand[player] and not folded[player]) > 1 {
+        deal 1 card from deck to burn
+        for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
+        if (number of players where not folded[player] and stack[player] > 0) >= 2 {
+          bet_to_match := 0
+          raises := 0
+          limit := 10
+          for each player p: bet_by[p] := 0
+          for each player p: acted[p] := false
+          round offering [check, bet, call, fold, raise] from first_to_act_seat()
+                over players where not folded[player] and stack[player] > 0
+                                  and (not acted[player] or bet_by[player] < bet_to_match)
+                order priority
+                until (number of players where not folded[player] and stack[player] > 0
+                         and (not acted[player] or bet_by[player] < bet_to_match)) == 0
+                   or ((number of players where not folded[player] and stack[player] > 0) <= 1
+                       and (number of players where not folded[player] and stack[player] > 0
+                              and bet_by[player] < bet_to_match) == 0)
+        }
+      }
+
+      // 6th street (face up, upper limit).
+      if (number of players where in_hand[player] and not folded[player]) > 1 {
+        deal 1 card from deck to burn
+        for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
+        if (number of players where not folded[player] and stack[player] > 0) >= 2 {
+          bet_to_match := 0
+          raises := 0
+          limit := 10
+          for each player p: bet_by[p] := 0
+          for each player p: acted[p] := false
+          round offering [check, bet, call, fold, raise] from first_to_act_seat()
+                over players where not folded[player] and stack[player] > 0
+                                  and (not acted[player] or bet_by[player] < bet_to_match)
+                order priority
+                until (number of players where not folded[player] and stack[player] > 0
+                         and (not acted[player] or bet_by[player] < bet_to_match)) == 0
+                   or ((number of players where not folded[player] and stack[player] > 0) <= 1
+                       and (number of players where not folded[player] and stack[player] > 0
+                              and bet_by[player] < bet_to_match) == 0)
+        }
+      }
+
+      // 7th street (face DOWN, upper limit).
+      if (number of players where in_hand[player] and not folded[player]) > 1 {
+        deal 1 card from deck to burn
+        for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to hole[p] }
+        if (number of players where not folded[player] and stack[player] > 0) >= 2 {
+          bet_to_match := 0
+          raises := 0
+          limit := 10
+          for each player p: bet_by[p] := 0
+          for each player p: acted[p] := false
+          round offering [check, bet, call, fold, raise] from first_to_act_seat()
+                over players where not folded[player] and stack[player] > 0
+                                  and (not acted[player] or bet_by[player] < bet_to_match)
+                order priority
+                until (number of players where not folded[player] and stack[player] > 0
+                         and (not acted[player] or bet_by[player] < bet_to_match)) == 0
+                   or ((number of players where not folded[player] and stack[player] > 0) <= 1
+                       and (number of players where not folded[player] and stack[player] > 0
+                              and bet_by[player] < bet_to_match) == 0)
         }
       }
 

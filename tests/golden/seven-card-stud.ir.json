@@ -306,28 +306,6 @@
                     "kind": "int",
                     "value": 0
                   }
-                },
-                {
-                  "kind": "state_decl",
-                  "name": "bringer",
-                  "index": null,
-                  "type": "Player",
-                  "optional": false,
-                  "default": {
-                    "kind": "int",
-                    "value": 0
-                  }
-                },
-                {
-                  "kind": "state_decl",
-                  "name": "actor_seat",
-                  "index": null,
-                  "type": "Player",
-                  "optional": false,
-                  "default": {
-                    "kind": "int",
-                    "value": 0
-                  }
                 }
               ]
             },
@@ -576,10 +554,9 @@
               },
               "then": [
                 {
-                  "kind": "assign",
+                  "kind": "let",
                   "name": "bringer",
                   "index": null,
-                  "op": ":=",
                   "value": {
                     "kind": "call",
                     "func": "bring_in_seat",
@@ -592,7 +569,7 @@
                   "index": {
                     "kind": "name",
                     "name": "bringer",
-                    "ref": "state_var"
+                    "ref": "local"
                   },
                   "op": ":=",
                   "value": {
@@ -614,7 +591,7 @@
                         "index": {
                           "kind": "name",
                           "name": "bringer",
-                          "ref": "state_var"
+                          "ref": "local"
                         }
                       }
                     },
@@ -633,7 +610,7 @@
                       "index": {
                         "kind": "name",
                         "name": "bringer",
-                        "ref": "state_var"
+                        "ref": "local"
                       }
                     }
                   }
@@ -644,7 +621,7 @@
                   "index": {
                     "kind": "name",
                     "name": "bringer",
-                    "ref": "state_var"
+                    "ref": "local"
                   },
                   "op": ":=",
                   "value": {
@@ -660,7 +637,7 @@
                       "index": {
                         "kind": "name",
                         "name": "bringer",
-                        "ref": "state_var"
+                        "ref": "local"
                       }
                     },
                     "right": {
@@ -673,7 +650,7 @@
                       "index": {
                         "kind": "name",
                         "name": "bringer",
-                        "ref": "state_var"
+                        "ref": "local"
                       }
                     }
                   }
@@ -684,7 +661,7 @@
                   "index": {
                     "kind": "name",
                     "name": "bringer",
-                    "ref": "state_var"
+                    "ref": "local"
                   },
                   "op": ":=",
                   "value": {
@@ -700,7 +677,7 @@
                       "index": {
                         "kind": "name",
                         "name": "bringer",
-                        "ref": "state_var"
+                        "ref": "local"
                       }
                     },
                     "right": {
@@ -713,7 +690,7 @@
                       "index": {
                         "kind": "name",
                         "name": "bringer",
-                        "ref": "state_var"
+                        "ref": "local"
                       }
                     }
                   }
@@ -749,32 +726,21 @@
                   }
                 },
                 {
-                  "kind": "assign",
-                  "name": "actor_seat",
-                  "index": null,
-                  "op": ":=",
-                  "value": {
+                  "kind": "round",
+                  "move_type": null,
+                  "leader": {
                     "kind": "binop",
                     "op": "offset_by",
                     "left": {
                       "kind": "name",
                       "name": "bringer",
-                      "ref": "state_var"
+                      "ref": "local"
                     },
                     "right": {
                       "kind": "name",
                       "name": "left",
                       "ref": "enum_value"
                     }
-                  }
-                },
-                {
-                  "kind": "round",
-                  "move_type": null,
-                  "leader": {
-                    "kind": "name",
-                    "name": "actor_seat",
-                    "ref": "state_var"
                   },
                   "participants": {
                     "kind": "player_query",
@@ -1395,23 +1361,12 @@
                       }
                     },
                     {
-                      "kind": "assign",
-                      "name": "actor_seat",
-                      "index": null,
-                      "op": ":=",
-                      "value": {
-                        "kind": "call",
-                        "func": "first_to_act_seat",
-                        "args": []
-                      }
-                    },
-                    {
                       "kind": "round",
                       "move_type": null,
                       "leader": {
-                        "kind": "name",
-                        "name": "actor_seat",
-                        "ref": "state_var"
+                        "kind": "call",
+                        "func": "first_to_act_seat",
+                        "args": []
                       },
                       "participants": {
                         "kind": "player_query",
@@ -1759,12 +1714,161 @@
                     }
                   ],
                   "else": null
+                }
+              ],
+              "else": null
+            },
+            {
+              "kind": "if",
+              "cond": {
+                "kind": "binop",
+                "op": ">",
+                "left": {
+                  "kind": "player_query",
+                  "query": "count",
+                  "pred": {
+                    "kind": "binop",
+                    "op": "and",
+                    "left": {
+                      "kind": "subscript",
+                      "obj": {
+                        "kind": "name",
+                        "name": "in_hand",
+                        "ref": "state_var"
+                      },
+                      "index": {
+                        "kind": "name",
+                        "name": "player",
+                        "ref": "local"
+                      }
+                    },
+                    "right": {
+                      "kind": "not",
+                      "operand": {
+                        "kind": "subscript",
+                        "obj": {
+                          "kind": "name",
+                          "name": "folded",
+                          "ref": "state_var"
+                        },
+                        "index": {
+                          "kind": "name",
+                          "name": "player",
+                          "ref": "local"
+                        }
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "kind": "int",
+                  "value": 1
+                }
+              },
+              "then": [
+                {
+                  "kind": "movement",
+                  "verb": "deal",
+                  "mode": null,
+                  "amount": {
+                    "kind": "int",
+                    "value": 1
+                  },
+                  "item": "card",
+                  "source": {
+                    "kind": "name",
+                    "name": "deck",
+                    "ref": "zone"
+                  },
+                  "dest": {
+                    "kind": "name",
+                    "name": "burn",
+                    "ref": "zone"
+                  },
+                  "dest_each": false,
+                  "distribution": null,
+                  "visibility": null
+                },
+                {
+                  "kind": "for_each",
+                  "role": "player",
+                  "binder": "p",
+                  "body": {
+                    "kind": "if",
+                    "cond": {
+                      "kind": "binop",
+                      "op": "and",
+                      "left": {
+                        "kind": "subscript",
+                        "obj": {
+                          "kind": "name",
+                          "name": "in_hand",
+                          "ref": "state_var"
+                        },
+                        "index": {
+                          "kind": "name",
+                          "name": "p",
+                          "ref": "local"
+                        }
+                      },
+                      "right": {
+                        "kind": "not",
+                        "operand": {
+                          "kind": "subscript",
+                          "obj": {
+                            "kind": "name",
+                            "name": "folded",
+                            "ref": "state_var"
+                          },
+                          "index": {
+                            "kind": "name",
+                            "name": "p",
+                            "ref": "local"
+                          }
+                        }
+                      }
+                    },
+                    "then": [
+                      {
+                        "kind": "movement",
+                        "verb": "deal",
+                        "mode": null,
+                        "amount": {
+                          "kind": "int",
+                          "value": 1
+                        },
+                        "item": "card",
+                        "source": {
+                          "kind": "name",
+                          "name": "deck",
+                          "ref": "zone"
+                        },
+                        "dest": {
+                          "kind": "subscript",
+                          "obj": {
+                            "kind": "name",
+                            "name": "upcards",
+                            "ref": "zone"
+                          },
+                          "index": {
+                            "kind": "name",
+                            "name": "p",
+                            "ref": "local"
+                          }
+                        },
+                        "dest_each": false,
+                        "distribution": null,
+                        "visibility": null
+                      }
+                    ],
+                    "else": null
+                  }
                 },
                 {
                   "kind": "if",
                   "cond": {
                     "kind": "binop",
-                    "op": ">",
+                    "op": ">=",
                     "left": {
                       "kind": "player_query",
                       "query": "count",
@@ -1772,19 +1876,6 @@
                         "kind": "binop",
                         "op": "and",
                         "left": {
-                          "kind": "subscript",
-                          "obj": {
-                            "kind": "name",
-                            "name": "in_hand",
-                            "ref": "state_var"
-                          },
-                          "index": {
-                            "kind": "name",
-                            "name": "player",
-                            "ref": "local"
-                          }
-                        },
-                        "right": {
                           "kind": "not",
                           "operand": {
                             "kind": "subscript",
@@ -1799,122 +1890,120 @@
                               "ref": "local"
                             }
                           }
+                        },
+                        "right": {
+                          "kind": "binop",
+                          "op": ">",
+                          "left": {
+                            "kind": "subscript",
+                            "obj": {
+                              "kind": "name",
+                              "name": "stack",
+                              "ref": "state_var"
+                            },
+                            "index": {
+                              "kind": "name",
+                              "name": "player",
+                              "ref": "local"
+                            }
+                          },
+                          "right": {
+                            "kind": "int",
+                            "value": 0
+                          }
                         }
                       }
                     },
                     "right": {
                       "kind": "int",
-                      "value": 1
+                      "value": 2
                     }
                   },
                   "then": [
                     {
-                      "kind": "movement",
-                      "verb": "deal",
-                      "mode": null,
-                      "amount": {
+                      "kind": "assign",
+                      "name": "bet_to_match",
+                      "index": null,
+                      "op": ":=",
+                      "value": {
                         "kind": "int",
-                        "value": 1
-                      },
-                      "item": "card",
-                      "source": {
-                        "kind": "name",
-                        "name": "deck",
-                        "ref": "zone"
-                      },
-                      "dest": {
-                        "kind": "name",
-                        "name": "burn",
-                        "ref": "zone"
-                      },
-                      "dest_each": false,
-                      "distribution": null,
-                      "visibility": null
+                        "value": 0
+                      }
+                    },
+                    {
+                      "kind": "assign",
+                      "name": "raises",
+                      "index": null,
+                      "op": ":=",
+                      "value": {
+                        "kind": "int",
+                        "value": 0
+                      }
+                    },
+                    {
+                      "kind": "assign",
+                      "name": "limit",
+                      "index": null,
+                      "op": ":=",
+                      "value": {
+                        "kind": "int",
+                        "value": 10
+                      }
                     },
                     {
                       "kind": "for_each",
                       "role": "player",
                       "binder": "p",
                       "body": {
-                        "kind": "if",
-                        "cond": {
-                          "kind": "binop",
-                          "op": "and",
-                          "left": {
-                            "kind": "subscript",
-                            "obj": {
-                              "kind": "name",
-                              "name": "in_hand",
-                              "ref": "state_var"
-                            },
-                            "index": {
-                              "kind": "name",
-                              "name": "p",
-                              "ref": "local"
-                            }
-                          },
-                          "right": {
-                            "kind": "not",
-                            "operand": {
-                              "kind": "subscript",
-                              "obj": {
-                                "kind": "name",
-                                "name": "folded",
-                                "ref": "state_var"
-                              },
-                              "index": {
-                                "kind": "name",
-                                "name": "p",
-                                "ref": "local"
-                              }
-                            }
-                          }
+                        "kind": "assign",
+                        "name": "bet_by",
+                        "index": {
+                          "kind": "name",
+                          "name": "p",
+                          "ref": "local"
                         },
-                        "then": [
-                          {
-                            "kind": "movement",
-                            "verb": "deal",
-                            "mode": null,
-                            "amount": {
-                              "kind": "int",
-                              "value": 1
-                            },
-                            "item": "card",
-                            "source": {
-                              "kind": "name",
-                              "name": "deck",
-                              "ref": "zone"
-                            },
-                            "dest": {
-                              "kind": "subscript",
-                              "obj": {
-                                "kind": "name",
-                                "name": "upcards",
-                                "ref": "zone"
-                              },
-                              "index": {
-                                "kind": "name",
-                                "name": "p",
-                                "ref": "local"
-                              }
-                            },
-                            "dest_each": false,
-                            "distribution": null,
-                            "visibility": null
-                          }
-                        ],
-                        "else": null
+                        "op": ":=",
+                        "value": {
+                          "kind": "int",
+                          "value": 0
+                        }
                       }
                     },
                     {
-                      "kind": "if",
-                      "cond": {
-                        "kind": "binop",
-                        "op": ">=",
-                        "left": {
-                          "kind": "player_query",
-                          "query": "count",
-                          "pred": {
+                      "kind": "for_each",
+                      "role": "player",
+                      "binder": "p",
+                      "body": {
+                        "kind": "assign",
+                        "name": "acted",
+                        "index": {
+                          "kind": "name",
+                          "name": "p",
+                          "ref": "local"
+                        },
+                        "op": ":=",
+                        "value": {
+                          "kind": "name",
+                          "name": "false",
+                          "ref": "bool"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "round",
+                      "move_type": null,
+                      "leader": {
+                        "kind": "call",
+                        "func": "first_to_act_seat",
+                        "args": []
+                      },
+                      "participants": {
+                        "kind": "player_query",
+                        "query": "set",
+                        "pred": {
+                          "kind": "binop",
+                          "op": "and",
+                          "left": {
                             "kind": "binop",
                             "op": "and",
                             "left": {
@@ -1954,105 +2043,72 @@
                                 "value": 0
                               }
                             }
+                          },
+                          "right": {
+                            "kind": "binop",
+                            "op": "or",
+                            "left": {
+                              "kind": "not",
+                              "operand": {
+                                "kind": "subscript",
+                                "obj": {
+                                  "kind": "name",
+                                  "name": "acted",
+                                  "ref": "state_var"
+                                },
+                                "index": {
+                                  "kind": "name",
+                                  "name": "player",
+                                  "ref": "local"
+                                }
+                              }
+                            },
+                            "right": {
+                              "kind": "binop",
+                              "op": "<",
+                              "left": {
+                                "kind": "subscript",
+                                "obj": {
+                                  "kind": "name",
+                                  "name": "bet_by",
+                                  "ref": "state_var"
+                                },
+                                "index": {
+                                  "kind": "name",
+                                  "name": "player",
+                                  "ref": "local"
+                                }
+                              },
+                              "right": {
+                                "kind": "name",
+                                "name": "bet_to_match",
+                                "ref": "state_var"
+                              }
+                            }
                           }
-                        },
-                        "right": {
-                          "kind": "int",
-                          "value": 2
                         }
                       },
-                      "then": [
-                        {
-                          "kind": "assign",
-                          "name": "bet_to_match",
-                          "index": null,
-                          "op": ":=",
-                          "value": {
-                            "kind": "int",
-                            "value": 0
-                          }
-                        },
-                        {
-                          "kind": "assign",
-                          "name": "raises",
-                          "index": null,
-                          "op": ":=",
-                          "value": {
-                            "kind": "int",
-                            "value": 0
-                          }
-                        },
-                        {
-                          "kind": "assign",
-                          "name": "limit",
-                          "index": null,
-                          "op": ":=",
-                          "value": {
-                            "kind": "int",
-                            "value": 10
-                          }
-                        },
-                        {
-                          "kind": "for_each",
-                          "role": "player",
-                          "binder": "p",
-                          "body": {
-                            "kind": "assign",
-                            "name": "bet_by",
-                            "index": {
-                              "kind": "name",
-                              "name": "p",
-                              "ref": "local"
-                            },
-                            "op": ":=",
-                            "value": {
-                              "kind": "int",
-                              "value": 0
-                            }
-                          }
-                        },
-                        {
-                          "kind": "for_each",
-                          "role": "player",
-                          "binder": "p",
-                          "body": {
-                            "kind": "assign",
-                            "name": "acted",
-                            "index": {
-                              "kind": "name",
-                              "name": "p",
-                              "ref": "local"
-                            },
-                            "op": ":=",
-                            "value": {
-                              "kind": "name",
-                              "name": "false",
-                              "ref": "bool"
-                            }
-                          }
-                        },
-                        {
-                          "kind": "assign",
-                          "name": "actor_seat",
-                          "index": null,
-                          "op": ":=",
-                          "value": {
-                            "kind": "call",
-                            "func": "first_to_act_seat",
-                            "args": []
-                          }
-                        },
-                        {
-                          "kind": "round",
-                          "move_type": null,
-                          "leader": {
-                            "kind": "name",
-                            "name": "actor_seat",
-                            "ref": "state_var"
-                          },
-                          "participants": {
+                      "source_zone": null,
+                      "play_zone": null,
+                      "outcome_fn": null,
+                      "trump": null,
+                      "early_termination": null,
+                      "move_types": [
+                        "check",
+                        "bet",
+                        "call",
+                        "fold",
+                        "raise"
+                      ],
+                      "termination": {
+                        "kind": "binop",
+                        "op": "or",
+                        "left": {
+                          "kind": "binop",
+                          "op": "==",
+                          "left": {
                             "kind": "player_query",
-                            "query": "set",
+                            "query": "count",
                             "pred": {
                               "kind": "binop",
                               "op": "and",
@@ -2141,413 +2197,17 @@
                               }
                             }
                           },
-                          "source_zone": null,
-                          "play_zone": null,
-                          "outcome_fn": null,
-                          "trump": null,
-                          "early_termination": null,
-                          "move_types": [
-                            "check",
-                            "bet",
-                            "call",
-                            "fold",
-                            "raise"
-                          ],
-                          "termination": {
-                            "kind": "binop",
-                            "op": "or",
-                            "left": {
-                              "kind": "binop",
-                              "op": "==",
-                              "left": {
-                                "kind": "player_query",
-                                "query": "count",
-                                "pred": {
-                                  "kind": "binop",
-                                  "op": "and",
-                                  "left": {
-                                    "kind": "binop",
-                                    "op": "and",
-                                    "left": {
-                                      "kind": "not",
-                                      "operand": {
-                                        "kind": "subscript",
-                                        "obj": {
-                                          "kind": "name",
-                                          "name": "folded",
-                                          "ref": "state_var"
-                                        },
-                                        "index": {
-                                          "kind": "name",
-                                          "name": "player",
-                                          "ref": "local"
-                                        }
-                                      }
-                                    },
-                                    "right": {
-                                      "kind": "binop",
-                                      "op": ">",
-                                      "left": {
-                                        "kind": "subscript",
-                                        "obj": {
-                                          "kind": "name",
-                                          "name": "stack",
-                                          "ref": "state_var"
-                                        },
-                                        "index": {
-                                          "kind": "name",
-                                          "name": "player",
-                                          "ref": "local"
-                                        }
-                                      },
-                                      "right": {
-                                        "kind": "int",
-                                        "value": 0
-                                      }
-                                    }
-                                  },
-                                  "right": {
-                                    "kind": "binop",
-                                    "op": "or",
-                                    "left": {
-                                      "kind": "not",
-                                      "operand": {
-                                        "kind": "subscript",
-                                        "obj": {
-                                          "kind": "name",
-                                          "name": "acted",
-                                          "ref": "state_var"
-                                        },
-                                        "index": {
-                                          "kind": "name",
-                                          "name": "player",
-                                          "ref": "local"
-                                        }
-                                      }
-                                    },
-                                    "right": {
-                                      "kind": "binop",
-                                      "op": "<",
-                                      "left": {
-                                        "kind": "subscript",
-                                        "obj": {
-                                          "kind": "name",
-                                          "name": "bet_by",
-                                          "ref": "state_var"
-                                        },
-                                        "index": {
-                                          "kind": "name",
-                                          "name": "player",
-                                          "ref": "local"
-                                        }
-                                      },
-                                      "right": {
-                                        "kind": "name",
-                                        "name": "bet_to_match",
-                                        "ref": "state_var"
-                                      }
-                                    }
-                                  }
-                                }
-                              },
-                              "right": {
-                                "kind": "int",
-                                "value": 0
-                              }
-                            },
-                            "right": {
-                              "kind": "binop",
-                              "op": "and",
-                              "left": {
-                                "kind": "binop",
-                                "op": "<=",
-                                "left": {
-                                  "kind": "player_query",
-                                  "query": "count",
-                                  "pred": {
-                                    "kind": "binop",
-                                    "op": "and",
-                                    "left": {
-                                      "kind": "not",
-                                      "operand": {
-                                        "kind": "subscript",
-                                        "obj": {
-                                          "kind": "name",
-                                          "name": "folded",
-                                          "ref": "state_var"
-                                        },
-                                        "index": {
-                                          "kind": "name",
-                                          "name": "player",
-                                          "ref": "local"
-                                        }
-                                      }
-                                    },
-                                    "right": {
-                                      "kind": "binop",
-                                      "op": ">",
-                                      "left": {
-                                        "kind": "subscript",
-                                        "obj": {
-                                          "kind": "name",
-                                          "name": "stack",
-                                          "ref": "state_var"
-                                        },
-                                        "index": {
-                                          "kind": "name",
-                                          "name": "player",
-                                          "ref": "local"
-                                        }
-                                      },
-                                      "right": {
-                                        "kind": "int",
-                                        "value": 0
-                                      }
-                                    }
-                                  }
-                                },
-                                "right": {
-                                  "kind": "int",
-                                  "value": 1
-                                }
-                              },
-                              "right": {
-                                "kind": "binop",
-                                "op": "==",
-                                "left": {
-                                  "kind": "player_query",
-                                  "query": "count",
-                                  "pred": {
-                                    "kind": "binop",
-                                    "op": "and",
-                                    "left": {
-                                      "kind": "binop",
-                                      "op": "and",
-                                      "left": {
-                                        "kind": "not",
-                                        "operand": {
-                                          "kind": "subscript",
-                                          "obj": {
-                                            "kind": "name",
-                                            "name": "folded",
-                                            "ref": "state_var"
-                                          },
-                                          "index": {
-                                            "kind": "name",
-                                            "name": "player",
-                                            "ref": "local"
-                                          }
-                                        }
-                                      },
-                                      "right": {
-                                        "kind": "binop",
-                                        "op": ">",
-                                        "left": {
-                                          "kind": "subscript",
-                                          "obj": {
-                                            "kind": "name",
-                                            "name": "stack",
-                                            "ref": "state_var"
-                                          },
-                                          "index": {
-                                            "kind": "name",
-                                            "name": "player",
-                                            "ref": "local"
-                                          }
-                                        },
-                                        "right": {
-                                          "kind": "int",
-                                          "value": 0
-                                        }
-                                      }
-                                    },
-                                    "right": {
-                                      "kind": "binop",
-                                      "op": "<",
-                                      "left": {
-                                        "kind": "subscript",
-                                        "obj": {
-                                          "kind": "name",
-                                          "name": "bet_by",
-                                          "ref": "state_var"
-                                        },
-                                        "index": {
-                                          "kind": "name",
-                                          "name": "player",
-                                          "ref": "local"
-                                        }
-                                      },
-                                      "right": {
-                                        "kind": "name",
-                                        "name": "bet_to_match",
-                                        "ref": "state_var"
-                                      }
-                                    }
-                                  }
-                                },
-                                "right": {
-                                  "kind": "int",
-                                  "value": 0
-                                }
-                              }
-                            }
-                          },
-                          "order_mode": "priority"
-                        }
-                      ],
-                      "else": null
-                    },
-                    {
-                      "kind": "if",
-                      "cond": {
-                        "kind": "binop",
-                        "op": ">",
-                        "left": {
-                          "kind": "player_query",
-                          "query": "count",
-                          "pred": {
-                            "kind": "binop",
-                            "op": "and",
-                            "left": {
-                              "kind": "subscript",
-                              "obj": {
-                                "kind": "name",
-                                "name": "in_hand",
-                                "ref": "state_var"
-                              },
-                              "index": {
-                                "kind": "name",
-                                "name": "player",
-                                "ref": "local"
-                              }
-                            },
-                            "right": {
-                              "kind": "not",
-                              "operand": {
-                                "kind": "subscript",
-                                "obj": {
-                                  "kind": "name",
-                                  "name": "folded",
-                                  "ref": "state_var"
-                                },
-                                "index": {
-                                  "kind": "name",
-                                  "name": "player",
-                                  "ref": "local"
-                                }
-                              }
-                            }
+                          "right": {
+                            "kind": "int",
+                            "value": 0
                           }
                         },
                         "right": {
-                          "kind": "int",
-                          "value": 1
-                        }
-                      },
-                      "then": [
-                        {
-                          "kind": "movement",
-                          "verb": "deal",
-                          "mode": null,
-                          "amount": {
-                            "kind": "int",
-                            "value": 1
-                          },
-                          "item": "card",
-                          "source": {
-                            "kind": "name",
-                            "name": "deck",
-                            "ref": "zone"
-                          },
-                          "dest": {
-                            "kind": "name",
-                            "name": "burn",
-                            "ref": "zone"
-                          },
-                          "dest_each": false,
-                          "distribution": null,
-                          "visibility": null
-                        },
-                        {
-                          "kind": "for_each",
-                          "role": "player",
-                          "binder": "p",
-                          "body": {
-                            "kind": "if",
-                            "cond": {
-                              "kind": "binop",
-                              "op": "and",
-                              "left": {
-                                "kind": "subscript",
-                                "obj": {
-                                  "kind": "name",
-                                  "name": "in_hand",
-                                  "ref": "state_var"
-                                },
-                                "index": {
-                                  "kind": "name",
-                                  "name": "p",
-                                  "ref": "local"
-                                }
-                              },
-                              "right": {
-                                "kind": "not",
-                                "operand": {
-                                  "kind": "subscript",
-                                  "obj": {
-                                    "kind": "name",
-                                    "name": "folded",
-                                    "ref": "state_var"
-                                  },
-                                  "index": {
-                                    "kind": "name",
-                                    "name": "p",
-                                    "ref": "local"
-                                  }
-                                }
-                              }
-                            },
-                            "then": [
-                              {
-                                "kind": "movement",
-                                "verb": "deal",
-                                "mode": null,
-                                "amount": {
-                                  "kind": "int",
-                                  "value": 1
-                                },
-                                "item": "card",
-                                "source": {
-                                  "kind": "name",
-                                  "name": "deck",
-                                  "ref": "zone"
-                                },
-                                "dest": {
-                                  "kind": "subscript",
-                                  "obj": {
-                                    "kind": "name",
-                                    "name": "upcards",
-                                    "ref": "zone"
-                                  },
-                                  "index": {
-                                    "kind": "name",
-                                    "name": "p",
-                                    "ref": "local"
-                                  }
-                                },
-                                "dest_each": false,
-                                "distribution": null,
-                                "visibility": null
-                              }
-                            ],
-                            "else": null
-                          }
-                        },
-                        {
-                          "kind": "if",
-                          "cond": {
+                          "kind": "binop",
+                          "op": "and",
+                          "left": {
                             "kind": "binop",
-                            "op": ">=",
+                            "op": "<=",
                             "left": {
                               "kind": "player_query",
                               "query": "count",
@@ -2595,450 +2255,12 @@
                             },
                             "right": {
                               "kind": "int",
-                              "value": 2
+                              "value": 1
                             }
                           },
-                          "then": [
-                            {
-                              "kind": "assign",
-                              "name": "bet_to_match",
-                              "index": null,
-                              "op": ":=",
-                              "value": {
-                                "kind": "int",
-                                "value": 0
-                              }
-                            },
-                            {
-                              "kind": "assign",
-                              "name": "raises",
-                              "index": null,
-                              "op": ":=",
-                              "value": {
-                                "kind": "int",
-                                "value": 0
-                              }
-                            },
-                            {
-                              "kind": "assign",
-                              "name": "limit",
-                              "index": null,
-                              "op": ":=",
-                              "value": {
-                                "kind": "int",
-                                "value": 10
-                              }
-                            },
-                            {
-                              "kind": "for_each",
-                              "role": "player",
-                              "binder": "p",
-                              "body": {
-                                "kind": "assign",
-                                "name": "bet_by",
-                                "index": {
-                                  "kind": "name",
-                                  "name": "p",
-                                  "ref": "local"
-                                },
-                                "op": ":=",
-                                "value": {
-                                  "kind": "int",
-                                  "value": 0
-                                }
-                              }
-                            },
-                            {
-                              "kind": "for_each",
-                              "role": "player",
-                              "binder": "p",
-                              "body": {
-                                "kind": "assign",
-                                "name": "acted",
-                                "index": {
-                                  "kind": "name",
-                                  "name": "p",
-                                  "ref": "local"
-                                },
-                                "op": ":=",
-                                "value": {
-                                  "kind": "name",
-                                  "name": "false",
-                                  "ref": "bool"
-                                }
-                              }
-                            },
-                            {
-                              "kind": "assign",
-                              "name": "actor_seat",
-                              "index": null,
-                              "op": ":=",
-                              "value": {
-                                "kind": "call",
-                                "func": "first_to_act_seat",
-                                "args": []
-                              }
-                            },
-                            {
-                              "kind": "round",
-                              "move_type": null,
-                              "leader": {
-                                "kind": "name",
-                                "name": "actor_seat",
-                                "ref": "state_var"
-                              },
-                              "participants": {
-                                "kind": "player_query",
-                                "query": "set",
-                                "pred": {
-                                  "kind": "binop",
-                                  "op": "and",
-                                  "left": {
-                                    "kind": "binop",
-                                    "op": "and",
-                                    "left": {
-                                      "kind": "not",
-                                      "operand": {
-                                        "kind": "subscript",
-                                        "obj": {
-                                          "kind": "name",
-                                          "name": "folded",
-                                          "ref": "state_var"
-                                        },
-                                        "index": {
-                                          "kind": "name",
-                                          "name": "player",
-                                          "ref": "local"
-                                        }
-                                      }
-                                    },
-                                    "right": {
-                                      "kind": "binop",
-                                      "op": ">",
-                                      "left": {
-                                        "kind": "subscript",
-                                        "obj": {
-                                          "kind": "name",
-                                          "name": "stack",
-                                          "ref": "state_var"
-                                        },
-                                        "index": {
-                                          "kind": "name",
-                                          "name": "player",
-                                          "ref": "local"
-                                        }
-                                      },
-                                      "right": {
-                                        "kind": "int",
-                                        "value": 0
-                                      }
-                                    }
-                                  },
-                                  "right": {
-                                    "kind": "binop",
-                                    "op": "or",
-                                    "left": {
-                                      "kind": "not",
-                                      "operand": {
-                                        "kind": "subscript",
-                                        "obj": {
-                                          "kind": "name",
-                                          "name": "acted",
-                                          "ref": "state_var"
-                                        },
-                                        "index": {
-                                          "kind": "name",
-                                          "name": "player",
-                                          "ref": "local"
-                                        }
-                                      }
-                                    },
-                                    "right": {
-                                      "kind": "binop",
-                                      "op": "<",
-                                      "left": {
-                                        "kind": "subscript",
-                                        "obj": {
-                                          "kind": "name",
-                                          "name": "bet_by",
-                                          "ref": "state_var"
-                                        },
-                                        "index": {
-                                          "kind": "name",
-                                          "name": "player",
-                                          "ref": "local"
-                                        }
-                                      },
-                                      "right": {
-                                        "kind": "name",
-                                        "name": "bet_to_match",
-                                        "ref": "state_var"
-                                      }
-                                    }
-                                  }
-                                }
-                              },
-                              "source_zone": null,
-                              "play_zone": null,
-                              "outcome_fn": null,
-                              "trump": null,
-                              "early_termination": null,
-                              "move_types": [
-                                "check",
-                                "bet",
-                                "call",
-                                "fold",
-                                "raise"
-                              ],
-                              "termination": {
-                                "kind": "binop",
-                                "op": "or",
-                                "left": {
-                                  "kind": "binop",
-                                  "op": "==",
-                                  "left": {
-                                    "kind": "player_query",
-                                    "query": "count",
-                                    "pred": {
-                                      "kind": "binop",
-                                      "op": "and",
-                                      "left": {
-                                        "kind": "binop",
-                                        "op": "and",
-                                        "left": {
-                                          "kind": "not",
-                                          "operand": {
-                                            "kind": "subscript",
-                                            "obj": {
-                                              "kind": "name",
-                                              "name": "folded",
-                                              "ref": "state_var"
-                                            },
-                                            "index": {
-                                              "kind": "name",
-                                              "name": "player",
-                                              "ref": "local"
-                                            }
-                                          }
-                                        },
-                                        "right": {
-                                          "kind": "binop",
-                                          "op": ">",
-                                          "left": {
-                                            "kind": "subscript",
-                                            "obj": {
-                                              "kind": "name",
-                                              "name": "stack",
-                                              "ref": "state_var"
-                                            },
-                                            "index": {
-                                              "kind": "name",
-                                              "name": "player",
-                                              "ref": "local"
-                                            }
-                                          },
-                                          "right": {
-                                            "kind": "int",
-                                            "value": 0
-                                          }
-                                        }
-                                      },
-                                      "right": {
-                                        "kind": "binop",
-                                        "op": "or",
-                                        "left": {
-                                          "kind": "not",
-                                          "operand": {
-                                            "kind": "subscript",
-                                            "obj": {
-                                              "kind": "name",
-                                              "name": "acted",
-                                              "ref": "state_var"
-                                            },
-                                            "index": {
-                                              "kind": "name",
-                                              "name": "player",
-                                              "ref": "local"
-                                            }
-                                          }
-                                        },
-                                        "right": {
-                                          "kind": "binop",
-                                          "op": "<",
-                                          "left": {
-                                            "kind": "subscript",
-                                            "obj": {
-                                              "kind": "name",
-                                              "name": "bet_by",
-                                              "ref": "state_var"
-                                            },
-                                            "index": {
-                                              "kind": "name",
-                                              "name": "player",
-                                              "ref": "local"
-                                            }
-                                          },
-                                          "right": {
-                                            "kind": "name",
-                                            "name": "bet_to_match",
-                                            "ref": "state_var"
-                                          }
-                                        }
-                                      }
-                                    }
-                                  },
-                                  "right": {
-                                    "kind": "int",
-                                    "value": 0
-                                  }
-                                },
-                                "right": {
-                                  "kind": "binop",
-                                  "op": "and",
-                                  "left": {
-                                    "kind": "binop",
-                                    "op": "<=",
-                                    "left": {
-                                      "kind": "player_query",
-                                      "query": "count",
-                                      "pred": {
-                                        "kind": "binop",
-                                        "op": "and",
-                                        "left": {
-                                          "kind": "not",
-                                          "operand": {
-                                            "kind": "subscript",
-                                            "obj": {
-                                              "kind": "name",
-                                              "name": "folded",
-                                              "ref": "state_var"
-                                            },
-                                            "index": {
-                                              "kind": "name",
-                                              "name": "player",
-                                              "ref": "local"
-                                            }
-                                          }
-                                        },
-                                        "right": {
-                                          "kind": "binop",
-                                          "op": ">",
-                                          "left": {
-                                            "kind": "subscript",
-                                            "obj": {
-                                              "kind": "name",
-                                              "name": "stack",
-                                              "ref": "state_var"
-                                            },
-                                            "index": {
-                                              "kind": "name",
-                                              "name": "player",
-                                              "ref": "local"
-                                            }
-                                          },
-                                          "right": {
-                                            "kind": "int",
-                                            "value": 0
-                                          }
-                                        }
-                                      }
-                                    },
-                                    "right": {
-                                      "kind": "int",
-                                      "value": 1
-                                    }
-                                  },
-                                  "right": {
-                                    "kind": "binop",
-                                    "op": "==",
-                                    "left": {
-                                      "kind": "player_query",
-                                      "query": "count",
-                                      "pred": {
-                                        "kind": "binop",
-                                        "op": "and",
-                                        "left": {
-                                          "kind": "binop",
-                                          "op": "and",
-                                          "left": {
-                                            "kind": "not",
-                                            "operand": {
-                                              "kind": "subscript",
-                                              "obj": {
-                                                "kind": "name",
-                                                "name": "folded",
-                                                "ref": "state_var"
-                                              },
-                                              "index": {
-                                                "kind": "name",
-                                                "name": "player",
-                                                "ref": "local"
-                                              }
-                                            }
-                                          },
-                                          "right": {
-                                            "kind": "binop",
-                                            "op": ">",
-                                            "left": {
-                                              "kind": "subscript",
-                                              "obj": {
-                                                "kind": "name",
-                                                "name": "stack",
-                                                "ref": "state_var"
-                                              },
-                                              "index": {
-                                                "kind": "name",
-                                                "name": "player",
-                                                "ref": "local"
-                                              }
-                                            },
-                                            "right": {
-                                              "kind": "int",
-                                              "value": 0
-                                            }
-                                          }
-                                        },
-                                        "right": {
-                                          "kind": "binop",
-                                          "op": "<",
-                                          "left": {
-                                            "kind": "subscript",
-                                            "obj": {
-                                              "kind": "name",
-                                              "name": "bet_by",
-                                              "ref": "state_var"
-                                            },
-                                            "index": {
-                                              "kind": "name",
-                                              "name": "player",
-                                              "ref": "local"
-                                            }
-                                          },
-                                          "right": {
-                                            "kind": "name",
-                                            "name": "bet_to_match",
-                                            "ref": "state_var"
-                                          }
-                                        }
-                                      }
-                                    },
-                                    "right": {
-                                      "kind": "int",
-                                      "value": 0
-                                    }
-                                  }
-                                }
-                              },
-                              "order_mode": "priority"
-                            }
-                          ],
-                          "else": null
-                        },
-                        {
-                          "kind": "if",
-                          "cond": {
+                          "right": {
                             "kind": "binop",
-                            "op": ">",
+                            "op": "==",
                             "left": {
                               "kind": "player_query",
                               "query": "count",
@@ -3046,19 +2268,483 @@
                                 "kind": "binop",
                                 "op": "and",
                                 "left": {
-                                  "kind": "subscript",
-                                  "obj": {
-                                    "kind": "name",
-                                    "name": "in_hand",
-                                    "ref": "state_var"
+                                  "kind": "binop",
+                                  "op": "and",
+                                  "left": {
+                                    "kind": "not",
+                                    "operand": {
+                                      "kind": "subscript",
+                                      "obj": {
+                                        "kind": "name",
+                                        "name": "folded",
+                                        "ref": "state_var"
+                                      },
+                                      "index": {
+                                        "kind": "name",
+                                        "name": "player",
+                                        "ref": "local"
+                                      }
+                                    }
                                   },
-                                  "index": {
-                                    "kind": "name",
-                                    "name": "player",
-                                    "ref": "local"
+                                  "right": {
+                                    "kind": "binop",
+                                    "op": ">",
+                                    "left": {
+                                      "kind": "subscript",
+                                      "obj": {
+                                        "kind": "name",
+                                        "name": "stack",
+                                        "ref": "state_var"
+                                      },
+                                      "index": {
+                                        "kind": "name",
+                                        "name": "player",
+                                        "ref": "local"
+                                      }
+                                    },
+                                    "right": {
+                                      "kind": "int",
+                                      "value": 0
+                                    }
                                   }
                                 },
                                 "right": {
+                                  "kind": "binop",
+                                  "op": "<",
+                                  "left": {
+                                    "kind": "subscript",
+                                    "obj": {
+                                      "kind": "name",
+                                      "name": "bet_by",
+                                      "ref": "state_var"
+                                    },
+                                    "index": {
+                                      "kind": "name",
+                                      "name": "player",
+                                      "ref": "local"
+                                    }
+                                  },
+                                  "right": {
+                                    "kind": "name",
+                                    "name": "bet_to_match",
+                                    "ref": "state_var"
+                                  }
+                                }
+                              }
+                            },
+                            "right": {
+                              "kind": "int",
+                              "value": 0
+                            }
+                          }
+                        }
+                      },
+                      "order_mode": "priority"
+                    }
+                  ],
+                  "else": null
+                }
+              ],
+              "else": null
+            },
+            {
+              "kind": "if",
+              "cond": {
+                "kind": "binop",
+                "op": ">",
+                "left": {
+                  "kind": "player_query",
+                  "query": "count",
+                  "pred": {
+                    "kind": "binop",
+                    "op": "and",
+                    "left": {
+                      "kind": "subscript",
+                      "obj": {
+                        "kind": "name",
+                        "name": "in_hand",
+                        "ref": "state_var"
+                      },
+                      "index": {
+                        "kind": "name",
+                        "name": "player",
+                        "ref": "local"
+                      }
+                    },
+                    "right": {
+                      "kind": "not",
+                      "operand": {
+                        "kind": "subscript",
+                        "obj": {
+                          "kind": "name",
+                          "name": "folded",
+                          "ref": "state_var"
+                        },
+                        "index": {
+                          "kind": "name",
+                          "name": "player",
+                          "ref": "local"
+                        }
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "kind": "int",
+                  "value": 1
+                }
+              },
+              "then": [
+                {
+                  "kind": "movement",
+                  "verb": "deal",
+                  "mode": null,
+                  "amount": {
+                    "kind": "int",
+                    "value": 1
+                  },
+                  "item": "card",
+                  "source": {
+                    "kind": "name",
+                    "name": "deck",
+                    "ref": "zone"
+                  },
+                  "dest": {
+                    "kind": "name",
+                    "name": "burn",
+                    "ref": "zone"
+                  },
+                  "dest_each": false,
+                  "distribution": null,
+                  "visibility": null
+                },
+                {
+                  "kind": "for_each",
+                  "role": "player",
+                  "binder": "p",
+                  "body": {
+                    "kind": "if",
+                    "cond": {
+                      "kind": "binop",
+                      "op": "and",
+                      "left": {
+                        "kind": "subscript",
+                        "obj": {
+                          "kind": "name",
+                          "name": "in_hand",
+                          "ref": "state_var"
+                        },
+                        "index": {
+                          "kind": "name",
+                          "name": "p",
+                          "ref": "local"
+                        }
+                      },
+                      "right": {
+                        "kind": "not",
+                        "operand": {
+                          "kind": "subscript",
+                          "obj": {
+                            "kind": "name",
+                            "name": "folded",
+                            "ref": "state_var"
+                          },
+                          "index": {
+                            "kind": "name",
+                            "name": "p",
+                            "ref": "local"
+                          }
+                        }
+                      }
+                    },
+                    "then": [
+                      {
+                        "kind": "movement",
+                        "verb": "deal",
+                        "mode": null,
+                        "amount": {
+                          "kind": "int",
+                          "value": 1
+                        },
+                        "item": "card",
+                        "source": {
+                          "kind": "name",
+                          "name": "deck",
+                          "ref": "zone"
+                        },
+                        "dest": {
+                          "kind": "subscript",
+                          "obj": {
+                            "kind": "name",
+                            "name": "upcards",
+                            "ref": "zone"
+                          },
+                          "index": {
+                            "kind": "name",
+                            "name": "p",
+                            "ref": "local"
+                          }
+                        },
+                        "dest_each": false,
+                        "distribution": null,
+                        "visibility": null
+                      }
+                    ],
+                    "else": null
+                  }
+                },
+                {
+                  "kind": "if",
+                  "cond": {
+                    "kind": "binop",
+                    "op": ">=",
+                    "left": {
+                      "kind": "player_query",
+                      "query": "count",
+                      "pred": {
+                        "kind": "binop",
+                        "op": "and",
+                        "left": {
+                          "kind": "not",
+                          "operand": {
+                            "kind": "subscript",
+                            "obj": {
+                              "kind": "name",
+                              "name": "folded",
+                              "ref": "state_var"
+                            },
+                            "index": {
+                              "kind": "name",
+                              "name": "player",
+                              "ref": "local"
+                            }
+                          }
+                        },
+                        "right": {
+                          "kind": "binop",
+                          "op": ">",
+                          "left": {
+                            "kind": "subscript",
+                            "obj": {
+                              "kind": "name",
+                              "name": "stack",
+                              "ref": "state_var"
+                            },
+                            "index": {
+                              "kind": "name",
+                              "name": "player",
+                              "ref": "local"
+                            }
+                          },
+                          "right": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        }
+                      }
+                    },
+                    "right": {
+                      "kind": "int",
+                      "value": 2
+                    }
+                  },
+                  "then": [
+                    {
+                      "kind": "assign",
+                      "name": "bet_to_match",
+                      "index": null,
+                      "op": ":=",
+                      "value": {
+                        "kind": "int",
+                        "value": 0
+                      }
+                    },
+                    {
+                      "kind": "assign",
+                      "name": "raises",
+                      "index": null,
+                      "op": ":=",
+                      "value": {
+                        "kind": "int",
+                        "value": 0
+                      }
+                    },
+                    {
+                      "kind": "assign",
+                      "name": "limit",
+                      "index": null,
+                      "op": ":=",
+                      "value": {
+                        "kind": "int",
+                        "value": 10
+                      }
+                    },
+                    {
+                      "kind": "for_each",
+                      "role": "player",
+                      "binder": "p",
+                      "body": {
+                        "kind": "assign",
+                        "name": "bet_by",
+                        "index": {
+                          "kind": "name",
+                          "name": "p",
+                          "ref": "local"
+                        },
+                        "op": ":=",
+                        "value": {
+                          "kind": "int",
+                          "value": 0
+                        }
+                      }
+                    },
+                    {
+                      "kind": "for_each",
+                      "role": "player",
+                      "binder": "p",
+                      "body": {
+                        "kind": "assign",
+                        "name": "acted",
+                        "index": {
+                          "kind": "name",
+                          "name": "p",
+                          "ref": "local"
+                        },
+                        "op": ":=",
+                        "value": {
+                          "kind": "name",
+                          "name": "false",
+                          "ref": "bool"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "round",
+                      "move_type": null,
+                      "leader": {
+                        "kind": "call",
+                        "func": "first_to_act_seat",
+                        "args": []
+                      },
+                      "participants": {
+                        "kind": "player_query",
+                        "query": "set",
+                        "pred": {
+                          "kind": "binop",
+                          "op": "and",
+                          "left": {
+                            "kind": "binop",
+                            "op": "and",
+                            "left": {
+                              "kind": "not",
+                              "operand": {
+                                "kind": "subscript",
+                                "obj": {
+                                  "kind": "name",
+                                  "name": "folded",
+                                  "ref": "state_var"
+                                },
+                                "index": {
+                                  "kind": "name",
+                                  "name": "player",
+                                  "ref": "local"
+                                }
+                              }
+                            },
+                            "right": {
+                              "kind": "binop",
+                              "op": ">",
+                              "left": {
+                                "kind": "subscript",
+                                "obj": {
+                                  "kind": "name",
+                                  "name": "stack",
+                                  "ref": "state_var"
+                                },
+                                "index": {
+                                  "kind": "name",
+                                  "name": "player",
+                                  "ref": "local"
+                                }
+                              },
+                              "right": {
+                                "kind": "int",
+                                "value": 0
+                              }
+                            }
+                          },
+                          "right": {
+                            "kind": "binop",
+                            "op": "or",
+                            "left": {
+                              "kind": "not",
+                              "operand": {
+                                "kind": "subscript",
+                                "obj": {
+                                  "kind": "name",
+                                  "name": "acted",
+                                  "ref": "state_var"
+                                },
+                                "index": {
+                                  "kind": "name",
+                                  "name": "player",
+                                  "ref": "local"
+                                }
+                              }
+                            },
+                            "right": {
+                              "kind": "binop",
+                              "op": "<",
+                              "left": {
+                                "kind": "subscript",
+                                "obj": {
+                                  "kind": "name",
+                                  "name": "bet_by",
+                                  "ref": "state_var"
+                                },
+                                "index": {
+                                  "kind": "name",
+                                  "name": "player",
+                                  "ref": "local"
+                                }
+                              },
+                              "right": {
+                                "kind": "name",
+                                "name": "bet_to_match",
+                                "ref": "state_var"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "source_zone": null,
+                      "play_zone": null,
+                      "outcome_fn": null,
+                      "trump": null,
+                      "early_termination": null,
+                      "move_types": [
+                        "check",
+                        "bet",
+                        "call",
+                        "fold",
+                        "raise"
+                      ],
+                      "termination": {
+                        "kind": "binop",
+                        "op": "or",
+                        "left": {
+                          "kind": "binop",
+                          "op": "==",
+                          "left": {
+                            "kind": "player_query",
+                            "query": "count",
+                            "pred": {
+                              "kind": "binop",
+                              "op": "and",
+                              "left": {
+                                "kind": "binop",
+                                "op": "and",
+                                "left": {
                                   "kind": "not",
                                   "operand": {
                                     "kind": "subscript",
@@ -3073,6 +2759,126 @@
                                       "ref": "local"
                                     }
                                   }
+                                },
+                                "right": {
+                                  "kind": "binop",
+                                  "op": ">",
+                                  "left": {
+                                    "kind": "subscript",
+                                    "obj": {
+                                      "kind": "name",
+                                      "name": "stack",
+                                      "ref": "state_var"
+                                    },
+                                    "index": {
+                                      "kind": "name",
+                                      "name": "player",
+                                      "ref": "local"
+                                    }
+                                  },
+                                  "right": {
+                                    "kind": "int",
+                                    "value": 0
+                                  }
+                                }
+                              },
+                              "right": {
+                                "kind": "binop",
+                                "op": "or",
+                                "left": {
+                                  "kind": "not",
+                                  "operand": {
+                                    "kind": "subscript",
+                                    "obj": {
+                                      "kind": "name",
+                                      "name": "acted",
+                                      "ref": "state_var"
+                                    },
+                                    "index": {
+                                      "kind": "name",
+                                      "name": "player",
+                                      "ref": "local"
+                                    }
+                                  }
+                                },
+                                "right": {
+                                  "kind": "binop",
+                                  "op": "<",
+                                  "left": {
+                                    "kind": "subscript",
+                                    "obj": {
+                                      "kind": "name",
+                                      "name": "bet_by",
+                                      "ref": "state_var"
+                                    },
+                                    "index": {
+                                      "kind": "name",
+                                      "name": "player",
+                                      "ref": "local"
+                                    }
+                                  },
+                                  "right": {
+                                    "kind": "name",
+                                    "name": "bet_to_match",
+                                    "ref": "state_var"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "right": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        "right": {
+                          "kind": "binop",
+                          "op": "and",
+                          "left": {
+                            "kind": "binop",
+                            "op": "<=",
+                            "left": {
+                              "kind": "player_query",
+                              "query": "count",
+                              "pred": {
+                                "kind": "binop",
+                                "op": "and",
+                                "left": {
+                                  "kind": "not",
+                                  "operand": {
+                                    "kind": "subscript",
+                                    "obj": {
+                                      "kind": "name",
+                                      "name": "folded",
+                                      "ref": "state_var"
+                                    },
+                                    "index": {
+                                      "kind": "name",
+                                      "name": "player",
+                                      "ref": "local"
+                                    }
+                                  }
+                                },
+                                "right": {
+                                  "kind": "binop",
+                                  "op": ">",
+                                  "left": {
+                                    "kind": "subscript",
+                                    "obj": {
+                                      "kind": "name",
+                                      "name": "stack",
+                                      "ref": "state_var"
+                                    },
+                                    "index": {
+                                      "kind": "name",
+                                      "name": "player",
+                                      "ref": "local"
+                                    }
+                                  },
+                                  "right": {
+                                    "kind": "int",
+                                    "value": 0
+                                  }
                                 }
                               }
                             },
@@ -3081,53 +2887,19 @@
                               "value": 1
                             }
                           },
-                          "then": [
-                            {
-                              "kind": "movement",
-                              "verb": "deal",
-                              "mode": null,
-                              "amount": {
-                                "kind": "int",
-                                "value": 1
-                              },
-                              "item": "card",
-                              "source": {
-                                "kind": "name",
-                                "name": "deck",
-                                "ref": "zone"
-                              },
-                              "dest": {
-                                "kind": "name",
-                                "name": "burn",
-                                "ref": "zone"
-                              },
-                              "dest_each": false,
-                              "distribution": null,
-                              "visibility": null
-                            },
-                            {
-                              "kind": "for_each",
-                              "role": "player",
-                              "binder": "p",
-                              "body": {
-                                "kind": "if",
-                                "cond": {
+                          "right": {
+                            "kind": "binop",
+                            "op": "==",
+                            "left": {
+                              "kind": "player_query",
+                              "query": "count",
+                              "pred": {
+                                "kind": "binop",
+                                "op": "and",
+                                "left": {
                                   "kind": "binop",
                                   "op": "and",
                                   "left": {
-                                    "kind": "subscript",
-                                    "obj": {
-                                      "kind": "name",
-                                      "name": "in_hand",
-                                      "ref": "state_var"
-                                    },
-                                    "index": {
-                                      "kind": "name",
-                                      "name": "p",
-                                      "ref": "local"
-                                    }
-                                  },
-                                  "right": {
                                     "kind": "not",
                                     "operand": {
                                       "kind": "subscript",
@@ -3138,544 +2910,694 @@
                                       },
                                       "index": {
                                         "kind": "name",
-                                        "name": "p",
+                                        "name": "player",
                                         "ref": "local"
                                       }
                                     }
-                                  }
-                                },
-                                "then": [
-                                  {
-                                    "kind": "movement",
-                                    "verb": "deal",
-                                    "mode": null,
-                                    "amount": {
-                                      "kind": "int",
-                                      "value": 1
-                                    },
-                                    "item": "card",
-                                    "source": {
-                                      "kind": "name",
-                                      "name": "deck",
-                                      "ref": "zone"
-                                    },
-                                    "dest": {
+                                  },
+                                  "right": {
+                                    "kind": "binop",
+                                    "op": ">",
+                                    "left": {
                                       "kind": "subscript",
                                       "obj": {
                                         "kind": "name",
-                                        "name": "hole",
-                                        "ref": "zone"
+                                        "name": "stack",
+                                        "ref": "state_var"
                                       },
                                       "index": {
                                         "kind": "name",
-                                        "name": "p",
+                                        "name": "player",
                                         "ref": "local"
                                       }
                                     },
-                                    "dest_each": false,
-                                    "distribution": null,
-                                    "visibility": null
-                                  }
-                                ],
-                                "else": null
-                              }
-                            },
-                            {
-                              "kind": "if",
-                              "cond": {
-                                "kind": "binop",
-                                "op": ">=",
-                                "left": {
-                                  "kind": "player_query",
-                                  "query": "count",
-                                  "pred": {
-                                    "kind": "binop",
-                                    "op": "and",
-                                    "left": {
-                                      "kind": "not",
-                                      "operand": {
-                                        "kind": "subscript",
-                                        "obj": {
-                                          "kind": "name",
-                                          "name": "folded",
-                                          "ref": "state_var"
-                                        },
-                                        "index": {
-                                          "kind": "name",
-                                          "name": "player",
-                                          "ref": "local"
-                                        }
-                                      }
-                                    },
                                     "right": {
-                                      "kind": "binop",
-                                      "op": ">",
-                                      "left": {
-                                        "kind": "subscript",
-                                        "obj": {
-                                          "kind": "name",
-                                          "name": "stack",
-                                          "ref": "state_var"
-                                        },
-                                        "index": {
-                                          "kind": "name",
-                                          "name": "player",
-                                          "ref": "local"
-                                        }
-                                      },
-                                      "right": {
-                                        "kind": "int",
-                                        "value": 0
-                                      }
-                                    }
-                                  }
-                                },
-                                "right": {
-                                  "kind": "int",
-                                  "value": 2
-                                }
-                              },
-                              "then": [
-                                {
-                                  "kind": "assign",
-                                  "name": "bet_to_match",
-                                  "index": null,
-                                  "op": ":=",
-                                  "value": {
-                                    "kind": "int",
-                                    "value": 0
-                                  }
-                                },
-                                {
-                                  "kind": "assign",
-                                  "name": "raises",
-                                  "index": null,
-                                  "op": ":=",
-                                  "value": {
-                                    "kind": "int",
-                                    "value": 0
-                                  }
-                                },
-                                {
-                                  "kind": "assign",
-                                  "name": "limit",
-                                  "index": null,
-                                  "op": ":=",
-                                  "value": {
-                                    "kind": "int",
-                                    "value": 10
-                                  }
-                                },
-                                {
-                                  "kind": "for_each",
-                                  "role": "player",
-                                  "binder": "p",
-                                  "body": {
-                                    "kind": "assign",
-                                    "name": "bet_by",
-                                    "index": {
-                                      "kind": "name",
-                                      "name": "p",
-                                      "ref": "local"
-                                    },
-                                    "op": ":=",
-                                    "value": {
                                       "kind": "int",
                                       "value": 0
                                     }
                                   }
                                 },
-                                {
-                                  "kind": "for_each",
-                                  "role": "player",
-                                  "binder": "p",
-                                  "body": {
-                                    "kind": "assign",
-                                    "name": "acted",
+                                "right": {
+                                  "kind": "binop",
+                                  "op": "<",
+                                  "left": {
+                                    "kind": "subscript",
+                                    "obj": {
+                                      "kind": "name",
+                                      "name": "bet_by",
+                                      "ref": "state_var"
+                                    },
                                     "index": {
                                       "kind": "name",
-                                      "name": "p",
+                                      "name": "player",
                                       "ref": "local"
-                                    },
-                                    "op": ":=",
-                                    "value": {
+                                    }
+                                  },
+                                  "right": {
+                                    "kind": "name",
+                                    "name": "bet_to_match",
+                                    "ref": "state_var"
+                                  }
+                                }
+                              }
+                            },
+                            "right": {
+                              "kind": "int",
+                              "value": 0
+                            }
+                          }
+                        }
+                      },
+                      "order_mode": "priority"
+                    }
+                  ],
+                  "else": null
+                }
+              ],
+              "else": null
+            },
+            {
+              "kind": "if",
+              "cond": {
+                "kind": "binop",
+                "op": ">",
+                "left": {
+                  "kind": "player_query",
+                  "query": "count",
+                  "pred": {
+                    "kind": "binop",
+                    "op": "and",
+                    "left": {
+                      "kind": "subscript",
+                      "obj": {
+                        "kind": "name",
+                        "name": "in_hand",
+                        "ref": "state_var"
+                      },
+                      "index": {
+                        "kind": "name",
+                        "name": "player",
+                        "ref": "local"
+                      }
+                    },
+                    "right": {
+                      "kind": "not",
+                      "operand": {
+                        "kind": "subscript",
+                        "obj": {
+                          "kind": "name",
+                          "name": "folded",
+                          "ref": "state_var"
+                        },
+                        "index": {
+                          "kind": "name",
+                          "name": "player",
+                          "ref": "local"
+                        }
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "kind": "int",
+                  "value": 1
+                }
+              },
+              "then": [
+                {
+                  "kind": "movement",
+                  "verb": "deal",
+                  "mode": null,
+                  "amount": {
+                    "kind": "int",
+                    "value": 1
+                  },
+                  "item": "card",
+                  "source": {
+                    "kind": "name",
+                    "name": "deck",
+                    "ref": "zone"
+                  },
+                  "dest": {
+                    "kind": "name",
+                    "name": "burn",
+                    "ref": "zone"
+                  },
+                  "dest_each": false,
+                  "distribution": null,
+                  "visibility": null
+                },
+                {
+                  "kind": "for_each",
+                  "role": "player",
+                  "binder": "p",
+                  "body": {
+                    "kind": "if",
+                    "cond": {
+                      "kind": "binop",
+                      "op": "and",
+                      "left": {
+                        "kind": "subscript",
+                        "obj": {
+                          "kind": "name",
+                          "name": "in_hand",
+                          "ref": "state_var"
+                        },
+                        "index": {
+                          "kind": "name",
+                          "name": "p",
+                          "ref": "local"
+                        }
+                      },
+                      "right": {
+                        "kind": "not",
+                        "operand": {
+                          "kind": "subscript",
+                          "obj": {
+                            "kind": "name",
+                            "name": "folded",
+                            "ref": "state_var"
+                          },
+                          "index": {
+                            "kind": "name",
+                            "name": "p",
+                            "ref": "local"
+                          }
+                        }
+                      }
+                    },
+                    "then": [
+                      {
+                        "kind": "movement",
+                        "verb": "deal",
+                        "mode": null,
+                        "amount": {
+                          "kind": "int",
+                          "value": 1
+                        },
+                        "item": "card",
+                        "source": {
+                          "kind": "name",
+                          "name": "deck",
+                          "ref": "zone"
+                        },
+                        "dest": {
+                          "kind": "subscript",
+                          "obj": {
+                            "kind": "name",
+                            "name": "hole",
+                            "ref": "zone"
+                          },
+                          "index": {
+                            "kind": "name",
+                            "name": "p",
+                            "ref": "local"
+                          }
+                        },
+                        "dest_each": false,
+                        "distribution": null,
+                        "visibility": null
+                      }
+                    ],
+                    "else": null
+                  }
+                },
+                {
+                  "kind": "if",
+                  "cond": {
+                    "kind": "binop",
+                    "op": ">=",
+                    "left": {
+                      "kind": "player_query",
+                      "query": "count",
+                      "pred": {
+                        "kind": "binop",
+                        "op": "and",
+                        "left": {
+                          "kind": "not",
+                          "operand": {
+                            "kind": "subscript",
+                            "obj": {
+                              "kind": "name",
+                              "name": "folded",
+                              "ref": "state_var"
+                            },
+                            "index": {
+                              "kind": "name",
+                              "name": "player",
+                              "ref": "local"
+                            }
+                          }
+                        },
+                        "right": {
+                          "kind": "binop",
+                          "op": ">",
+                          "left": {
+                            "kind": "subscript",
+                            "obj": {
+                              "kind": "name",
+                              "name": "stack",
+                              "ref": "state_var"
+                            },
+                            "index": {
+                              "kind": "name",
+                              "name": "player",
+                              "ref": "local"
+                            }
+                          },
+                          "right": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        }
+                      }
+                    },
+                    "right": {
+                      "kind": "int",
+                      "value": 2
+                    }
+                  },
+                  "then": [
+                    {
+                      "kind": "assign",
+                      "name": "bet_to_match",
+                      "index": null,
+                      "op": ":=",
+                      "value": {
+                        "kind": "int",
+                        "value": 0
+                      }
+                    },
+                    {
+                      "kind": "assign",
+                      "name": "raises",
+                      "index": null,
+                      "op": ":=",
+                      "value": {
+                        "kind": "int",
+                        "value": 0
+                      }
+                    },
+                    {
+                      "kind": "assign",
+                      "name": "limit",
+                      "index": null,
+                      "op": ":=",
+                      "value": {
+                        "kind": "int",
+                        "value": 10
+                      }
+                    },
+                    {
+                      "kind": "for_each",
+                      "role": "player",
+                      "binder": "p",
+                      "body": {
+                        "kind": "assign",
+                        "name": "bet_by",
+                        "index": {
+                          "kind": "name",
+                          "name": "p",
+                          "ref": "local"
+                        },
+                        "op": ":=",
+                        "value": {
+                          "kind": "int",
+                          "value": 0
+                        }
+                      }
+                    },
+                    {
+                      "kind": "for_each",
+                      "role": "player",
+                      "binder": "p",
+                      "body": {
+                        "kind": "assign",
+                        "name": "acted",
+                        "index": {
+                          "kind": "name",
+                          "name": "p",
+                          "ref": "local"
+                        },
+                        "op": ":=",
+                        "value": {
+                          "kind": "name",
+                          "name": "false",
+                          "ref": "bool"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "round",
+                      "move_type": null,
+                      "leader": {
+                        "kind": "call",
+                        "func": "first_to_act_seat",
+                        "args": []
+                      },
+                      "participants": {
+                        "kind": "player_query",
+                        "query": "set",
+                        "pred": {
+                          "kind": "binop",
+                          "op": "and",
+                          "left": {
+                            "kind": "binop",
+                            "op": "and",
+                            "left": {
+                              "kind": "not",
+                              "operand": {
+                                "kind": "subscript",
+                                "obj": {
+                                  "kind": "name",
+                                  "name": "folded",
+                                  "ref": "state_var"
+                                },
+                                "index": {
+                                  "kind": "name",
+                                  "name": "player",
+                                  "ref": "local"
+                                }
+                              }
+                            },
+                            "right": {
+                              "kind": "binop",
+                              "op": ">",
+                              "left": {
+                                "kind": "subscript",
+                                "obj": {
+                                  "kind": "name",
+                                  "name": "stack",
+                                  "ref": "state_var"
+                                },
+                                "index": {
+                                  "kind": "name",
+                                  "name": "player",
+                                  "ref": "local"
+                                }
+                              },
+                              "right": {
+                                "kind": "int",
+                                "value": 0
+                              }
+                            }
+                          },
+                          "right": {
+                            "kind": "binop",
+                            "op": "or",
+                            "left": {
+                              "kind": "not",
+                              "operand": {
+                                "kind": "subscript",
+                                "obj": {
+                                  "kind": "name",
+                                  "name": "acted",
+                                  "ref": "state_var"
+                                },
+                                "index": {
+                                  "kind": "name",
+                                  "name": "player",
+                                  "ref": "local"
+                                }
+                              }
+                            },
+                            "right": {
+                              "kind": "binop",
+                              "op": "<",
+                              "left": {
+                                "kind": "subscript",
+                                "obj": {
+                                  "kind": "name",
+                                  "name": "bet_by",
+                                  "ref": "state_var"
+                                },
+                                "index": {
+                                  "kind": "name",
+                                  "name": "player",
+                                  "ref": "local"
+                                }
+                              },
+                              "right": {
+                                "kind": "name",
+                                "name": "bet_to_match",
+                                "ref": "state_var"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "source_zone": null,
+                      "play_zone": null,
+                      "outcome_fn": null,
+                      "trump": null,
+                      "early_termination": null,
+                      "move_types": [
+                        "check",
+                        "bet",
+                        "call",
+                        "fold",
+                        "raise"
+                      ],
+                      "termination": {
+                        "kind": "binop",
+                        "op": "or",
+                        "left": {
+                          "kind": "binop",
+                          "op": "==",
+                          "left": {
+                            "kind": "player_query",
+                            "query": "count",
+                            "pred": {
+                              "kind": "binop",
+                              "op": "and",
+                              "left": {
+                                "kind": "binop",
+                                "op": "and",
+                                "left": {
+                                  "kind": "not",
+                                  "operand": {
+                                    "kind": "subscript",
+                                    "obj": {
                                       "kind": "name",
-                                      "name": "false",
-                                      "ref": "bool"
+                                      "name": "folded",
+                                      "ref": "state_var"
+                                    },
+                                    "index": {
+                                      "kind": "name",
+                                      "name": "player",
+                                      "ref": "local"
                                     }
                                   }
                                 },
-                                {
-                                  "kind": "assign",
-                                  "name": "actor_seat",
-                                  "index": null,
-                                  "op": ":=",
-                                  "value": {
-                                    "kind": "call",
-                                    "func": "first_to_act_seat",
-                                    "args": []
+                                "right": {
+                                  "kind": "binop",
+                                  "op": ">",
+                                  "left": {
+                                    "kind": "subscript",
+                                    "obj": {
+                                      "kind": "name",
+                                      "name": "stack",
+                                      "ref": "state_var"
+                                    },
+                                    "index": {
+                                      "kind": "name",
+                                      "name": "player",
+                                      "ref": "local"
+                                    }
+                                  },
+                                  "right": {
+                                    "kind": "int",
+                                    "value": 0
+                                  }
+                                }
+                              },
+                              "right": {
+                                "kind": "binop",
+                                "op": "or",
+                                "left": {
+                                  "kind": "not",
+                                  "operand": {
+                                    "kind": "subscript",
+                                    "obj": {
+                                      "kind": "name",
+                                      "name": "acted",
+                                      "ref": "state_var"
+                                    },
+                                    "index": {
+                                      "kind": "name",
+                                      "name": "player",
+                                      "ref": "local"
+                                    }
                                   }
                                 },
-                                {
-                                  "kind": "round",
-                                  "move_type": null,
-                                  "leader": {
-                                    "kind": "name",
-                                    "name": "actor_seat",
-                                    "ref": "state_var"
+                                "right": {
+                                  "kind": "binop",
+                                  "op": "<",
+                                  "left": {
+                                    "kind": "subscript",
+                                    "obj": {
+                                      "kind": "name",
+                                      "name": "bet_by",
+                                      "ref": "state_var"
+                                    },
+                                    "index": {
+                                      "kind": "name",
+                                      "name": "player",
+                                      "ref": "local"
+                                    }
                                   },
-                                  "participants": {
-                                    "kind": "player_query",
-                                    "query": "set",
-                                    "pred": {
-                                      "kind": "binop",
-                                      "op": "and",
-                                      "left": {
-                                        "kind": "binop",
-                                        "op": "and",
-                                        "left": {
-                                          "kind": "not",
-                                          "operand": {
-                                            "kind": "subscript",
-                                            "obj": {
-                                              "kind": "name",
-                                              "name": "folded",
-                                              "ref": "state_var"
-                                            },
-                                            "index": {
-                                              "kind": "name",
-                                              "name": "player",
-                                              "ref": "local"
-                                            }
-                                          }
-                                        },
-                                        "right": {
-                                          "kind": "binop",
-                                          "op": ">",
-                                          "left": {
-                                            "kind": "subscript",
-                                            "obj": {
-                                              "kind": "name",
-                                              "name": "stack",
-                                              "ref": "state_var"
-                                            },
-                                            "index": {
-                                              "kind": "name",
-                                              "name": "player",
-                                              "ref": "local"
-                                            }
-                                          },
-                                          "right": {
-                                            "kind": "int",
-                                            "value": 0
-                                          }
-                                        }
+                                  "right": {
+                                    "kind": "name",
+                                    "name": "bet_to_match",
+                                    "ref": "state_var"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "right": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        "right": {
+                          "kind": "binop",
+                          "op": "and",
+                          "left": {
+                            "kind": "binop",
+                            "op": "<=",
+                            "left": {
+                              "kind": "player_query",
+                              "query": "count",
+                              "pred": {
+                                "kind": "binop",
+                                "op": "and",
+                                "left": {
+                                  "kind": "not",
+                                  "operand": {
+                                    "kind": "subscript",
+                                    "obj": {
+                                      "kind": "name",
+                                      "name": "folded",
+                                      "ref": "state_var"
+                                    },
+                                    "index": {
+                                      "kind": "name",
+                                      "name": "player",
+                                      "ref": "local"
+                                    }
+                                  }
+                                },
+                                "right": {
+                                  "kind": "binop",
+                                  "op": ">",
+                                  "left": {
+                                    "kind": "subscript",
+                                    "obj": {
+                                      "kind": "name",
+                                      "name": "stack",
+                                      "ref": "state_var"
+                                    },
+                                    "index": {
+                                      "kind": "name",
+                                      "name": "player",
+                                      "ref": "local"
+                                    }
+                                  },
+                                  "right": {
+                                    "kind": "int",
+                                    "value": 0
+                                  }
+                                }
+                              }
+                            },
+                            "right": {
+                              "kind": "int",
+                              "value": 1
+                            }
+                          },
+                          "right": {
+                            "kind": "binop",
+                            "op": "==",
+                            "left": {
+                              "kind": "player_query",
+                              "query": "count",
+                              "pred": {
+                                "kind": "binop",
+                                "op": "and",
+                                "left": {
+                                  "kind": "binop",
+                                  "op": "and",
+                                  "left": {
+                                    "kind": "not",
+                                    "operand": {
+                                      "kind": "subscript",
+                                      "obj": {
+                                        "kind": "name",
+                                        "name": "folded",
+                                        "ref": "state_var"
                                       },
-                                      "right": {
-                                        "kind": "binop",
-                                        "op": "or",
-                                        "left": {
-                                          "kind": "not",
-                                          "operand": {
-                                            "kind": "subscript",
-                                            "obj": {
-                                              "kind": "name",
-                                              "name": "acted",
-                                              "ref": "state_var"
-                                            },
-                                            "index": {
-                                              "kind": "name",
-                                              "name": "player",
-                                              "ref": "local"
-                                            }
-                                          }
-                                        },
-                                        "right": {
-                                          "kind": "binop",
-                                          "op": "<",
-                                          "left": {
-                                            "kind": "subscript",
-                                            "obj": {
-                                              "kind": "name",
-                                              "name": "bet_by",
-                                              "ref": "state_var"
-                                            },
-                                            "index": {
-                                              "kind": "name",
-                                              "name": "player",
-                                              "ref": "local"
-                                            }
-                                          },
-                                          "right": {
-                                            "kind": "name",
-                                            "name": "bet_to_match",
-                                            "ref": "state_var"
-                                          }
-                                        }
+                                      "index": {
+                                        "kind": "name",
+                                        "name": "player",
+                                        "ref": "local"
                                       }
                                     }
                                   },
-                                  "source_zone": null,
-                                  "play_zone": null,
-                                  "outcome_fn": null,
-                                  "trump": null,
-                                  "early_termination": null,
-                                  "move_types": [
-                                    "check",
-                                    "bet",
-                                    "call",
-                                    "fold",
-                                    "raise"
-                                  ],
-                                  "termination": {
+                                  "right": {
                                     "kind": "binop",
-                                    "op": "or",
+                                    "op": ">",
                                     "left": {
-                                      "kind": "binop",
-                                      "op": "==",
-                                      "left": {
-                                        "kind": "player_query",
-                                        "query": "count",
-                                        "pred": {
-                                          "kind": "binop",
-                                          "op": "and",
-                                          "left": {
-                                            "kind": "binop",
-                                            "op": "and",
-                                            "left": {
-                                              "kind": "not",
-                                              "operand": {
-                                                "kind": "subscript",
-                                                "obj": {
-                                                  "kind": "name",
-                                                  "name": "folded",
-                                                  "ref": "state_var"
-                                                },
-                                                "index": {
-                                                  "kind": "name",
-                                                  "name": "player",
-                                                  "ref": "local"
-                                                }
-                                              }
-                                            },
-                                            "right": {
-                                              "kind": "binop",
-                                              "op": ">",
-                                              "left": {
-                                                "kind": "subscript",
-                                                "obj": {
-                                                  "kind": "name",
-                                                  "name": "stack",
-                                                  "ref": "state_var"
-                                                },
-                                                "index": {
-                                                  "kind": "name",
-                                                  "name": "player",
-                                                  "ref": "local"
-                                                }
-                                              },
-                                              "right": {
-                                                "kind": "int",
-                                                "value": 0
-                                              }
-                                            }
-                                          },
-                                          "right": {
-                                            "kind": "binop",
-                                            "op": "or",
-                                            "left": {
-                                              "kind": "not",
-                                              "operand": {
-                                                "kind": "subscript",
-                                                "obj": {
-                                                  "kind": "name",
-                                                  "name": "acted",
-                                                  "ref": "state_var"
-                                                },
-                                                "index": {
-                                                  "kind": "name",
-                                                  "name": "player",
-                                                  "ref": "local"
-                                                }
-                                              }
-                                            },
-                                            "right": {
-                                              "kind": "binop",
-                                              "op": "<",
-                                              "left": {
-                                                "kind": "subscript",
-                                                "obj": {
-                                                  "kind": "name",
-                                                  "name": "bet_by",
-                                                  "ref": "state_var"
-                                                },
-                                                "index": {
-                                                  "kind": "name",
-                                                  "name": "player",
-                                                  "ref": "local"
-                                                }
-                                              },
-                                              "right": {
-                                                "kind": "name",
-                                                "name": "bet_to_match",
-                                                "ref": "state_var"
-                                              }
-                                            }
-                                          }
-                                        }
+                                      "kind": "subscript",
+                                      "obj": {
+                                        "kind": "name",
+                                        "name": "stack",
+                                        "ref": "state_var"
                                       },
-                                      "right": {
-                                        "kind": "int",
-                                        "value": 0
+                                      "index": {
+                                        "kind": "name",
+                                        "name": "player",
+                                        "ref": "local"
                                       }
                                     },
                                     "right": {
-                                      "kind": "binop",
-                                      "op": "and",
-                                      "left": {
-                                        "kind": "binop",
-                                        "op": "<=",
-                                        "left": {
-                                          "kind": "player_query",
-                                          "query": "count",
-                                          "pred": {
-                                            "kind": "binop",
-                                            "op": "and",
-                                            "left": {
-                                              "kind": "not",
-                                              "operand": {
-                                                "kind": "subscript",
-                                                "obj": {
-                                                  "kind": "name",
-                                                  "name": "folded",
-                                                  "ref": "state_var"
-                                                },
-                                                "index": {
-                                                  "kind": "name",
-                                                  "name": "player",
-                                                  "ref": "local"
-                                                }
-                                              }
-                                            },
-                                            "right": {
-                                              "kind": "binop",
-                                              "op": ">",
-                                              "left": {
-                                                "kind": "subscript",
-                                                "obj": {
-                                                  "kind": "name",
-                                                  "name": "stack",
-                                                  "ref": "state_var"
-                                                },
-                                                "index": {
-                                                  "kind": "name",
-                                                  "name": "player",
-                                                  "ref": "local"
-                                                }
-                                              },
-                                              "right": {
-                                                "kind": "int",
-                                                "value": 0
-                                              }
-                                            }
-                                          }
-                                        },
-                                        "right": {
-                                          "kind": "int",
-                                          "value": 1
-                                        }
-                                      },
-                                      "right": {
-                                        "kind": "binop",
-                                        "op": "==",
-                                        "left": {
-                                          "kind": "player_query",
-                                          "query": "count",
-                                          "pred": {
-                                            "kind": "binop",
-                                            "op": "and",
-                                            "left": {
-                                              "kind": "binop",
-                                              "op": "and",
-                                              "left": {
-                                                "kind": "not",
-                                                "operand": {
-                                                  "kind": "subscript",
-                                                  "obj": {
-                                                    "kind": "name",
-                                                    "name": "folded",
-                                                    "ref": "state_var"
-                                                  },
-                                                  "index": {
-                                                    "kind": "name",
-                                                    "name": "player",
-                                                    "ref": "local"
-                                                  }
-                                                }
-                                              },
-                                              "right": {
-                                                "kind": "binop",
-                                                "op": ">",
-                                                "left": {
-                                                  "kind": "subscript",
-                                                  "obj": {
-                                                    "kind": "name",
-                                                    "name": "stack",
-                                                    "ref": "state_var"
-                                                  },
-                                                  "index": {
-                                                    "kind": "name",
-                                                    "name": "player",
-                                                    "ref": "local"
-                                                  }
-                                                },
-                                                "right": {
-                                                  "kind": "int",
-                                                  "value": 0
-                                                }
-                                              }
-                                            },
-                                            "right": {
-                                              "kind": "binop",
-                                              "op": "<",
-                                              "left": {
-                                                "kind": "subscript",
-                                                "obj": {
-                                                  "kind": "name",
-                                                  "name": "bet_by",
-                                                  "ref": "state_var"
-                                                },
-                                                "index": {
-                                                  "kind": "name",
-                                                  "name": "player",
-                                                  "ref": "local"
-                                                }
-                                              },
-                                              "right": {
-                                                "kind": "name",
-                                                "name": "bet_to_match",
-                                                "ref": "state_var"
-                                              }
-                                            }
-                                          }
-                                        },
-                                        "right": {
-                                          "kind": "int",
-                                          "value": 0
-                                        }
-                                      }
+                                      "kind": "int",
+                                      "value": 0
+                                    }
+                                  }
+                                },
+                                "right": {
+                                  "kind": "binop",
+                                  "op": "<",
+                                  "left": {
+                                    "kind": "subscript",
+                                    "obj": {
+                                      "kind": "name",
+                                      "name": "bet_by",
+                                      "ref": "state_var"
+                                    },
+                                    "index": {
+                                      "kind": "name",
+                                      "name": "player",
+                                      "ref": "local"
                                     }
                                   },
-                                  "order_mode": "priority"
+                                  "right": {
+                                    "kind": "name",
+                                    "name": "bet_to_match",
+                                    "ref": "state_var"
+                                  }
                                 }
-                              ],
-                              "else": null
+                              }
+                            },
+                            "right": {
+                              "kind": "int",
+                              "value": 0
                             }
-                          ],
-                          "else": null
+                          }
                         }
-                      ],
-                      "else": null
+                      },
+                      "order_mode": "priority"
                     }
                   ],
                   "else": null

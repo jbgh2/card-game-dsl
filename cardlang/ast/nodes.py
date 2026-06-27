@@ -459,6 +459,12 @@ class Round:
     span: Span | None = None
 
 
+# The values `Round.order_mode` may take (None is treated as the default, ring).
+ROUND_ORDER_RING = "ring"
+ROUND_ORDER_PRIORITY = "priority"
+ROUND_ORDER_MODES = frozenset({ROUND_ORDER_RING, ROUND_ORDER_PRIORITY})
+
+
 Stmt = (
     Movement
     | EpistemicOp

@@ -410,10 +410,10 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         f"outcome function",
                         nd.span,
                     )
-                if nd.order_mode is not None and nd.order_mode not in ("ring", "priority"):
+                if nd.order_mode is not None and nd.order_mode not in n.ROUND_ORDER_MODES:
                     bag.error(
-                        f"round order '{nd.order_mode}' is unknown (expected "
-                        f"'ring' or 'priority')",
+                        f"round order '{nd.order_mode}' is unknown (expected one of "
+                        f"{sorted(n.ROUND_ORDER_MODES)})",
                         nd.span,
                     )
             case n.Round():

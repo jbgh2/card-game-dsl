@@ -67,7 +67,7 @@ game SevenCardStud {
         in_hand[player] : Boolean = false   committed[player] : Integer = 0
         folded[player]  : Boolean = false   bet_by[player]    : Integer = 0
         acted[player]   : Boolean = false   bet_to_match : Integer = 0
-        raises : Integer = 0   limit : Integer = 0   bringer : Player = 0   actor_seat : Player = 0
+        raises : Integer = 0   limit : Integer = 0
       }
 
       for each player p: in_hand[p] := stack[p] > 0
@@ -76,13 +76,12 @@ game SevenCardStud {
 
       // Bring-in (a forced post) + 3rd street.
       if (number of players where stack[player] > 0) >= 2 {
-        bringer := bring_in_seat()
+        let bringer = bring_in_seat()
         bet_by[bringer] := if 2 < stack[bringer] then 2 else stack[bringer]
         stack[bringer] := stack[bringer] - bet_by[bringer]
         committed[bringer] := committed[bringer] + bet_by[bringer]
         bet_to_match := 2   raises := 1   limit := 5
-        actor_seat := bringer offset_by left
-        round offering [check, bet, call, fold, raise] from actor_seat
+        round offering [check, bet, call, fold, raise] from bringer offset_by left
               over players where not folded[player] and stack[player] > 0
                                 and (not acted[player] or bet_by[player] < bet_to_match)
               order priority
@@ -92,10 +91,11 @@ game SevenCardStud {
                      and (number of players where not folded[player] and stack[player] > 0
                             and bet_by[player] < bet_to_match) == 0)
       }
-      // ... 4th–7th streets: a burn + a dealt card (upcard on 4th/5th/6th, hole on
-      // 7th), then the same betting round with limits 5 / 10 / 10 / 10 and
-      // actor_seat := first_to_act_seat(); each runs only while > 1 contender
-      // remains (see seven-card-stud.cardlang for the full nesting).
+      // ... 4th–7th streets: four flat `if (contenders > 1) { ... }` blocks — a burn
+      // + a dealt card (upcard on 4th/5th/6th, hole on 7th), then the same betting
+      // round with limits 5 / 10 / 10 / 10 and `from first_to_act_seat()`. The
+      // contender count is monotonic, so the flat guards short-circuit exactly as
+      // nesting would (see seven-card-stud.cardlang).
 
       instantiate StudShowdown()              // side-pot settlement + muck (RNG-free)
     }

@@ -166,15 +166,29 @@ def _enumerate_domain(type_name: str, ctx: Ctx) -> list[Any]:
 
 
 def run_auction(stmt: n.Round, ctx: Ctx) -> None:
-    """The auction form of `round`: a continuous ring over a move vocabulary.
+    """The auction/betting form of `round`: a continuous ring over a move vocabulary.
 
     Each turn the acting player chooses one of the legal *concrete* moves — every
     parameterized move expanded over its value-domain and guard-filtered, plus the
     nullary moves — as a single flat candidate list (one chooser draw, matching
     OpenSpiel's one-decision-node-per-turn action set). The chosen move's effect
     runs with `actor` (and the move parameter) bound, threading the phase-state
-    accumulator. The ring loops until the termination predicate holds; then the
-    outcome function produces the phase's typed variant from the bid history.
+    accumulator. The ring loops until the termination predicate holds.
+
+    Two axes vary:
+
+    - **outcome (optional).** An auction supplies `outcome <fn>`, and when the ring
+      closes the function produces the phase's typed variant from the bid history
+      (a `_ProduceSignal`). A betting round omits it: the move effects have already
+      mutated the shared chip/fold state, so the closed ring simply returns.
+    - **order.** `ring` (the default) advances the pointer each turn, so a seat that
+      has acted is offered again only when the ring wraps. `priority` re-scans the
+      seat order from the leader every turn and offers the first still-pending
+      participant, so after an aggression re-opens earlier seats action returns to
+      the earliest of them (betting, response windows). In priority mode `until` is
+      the sole terminator — the participants clause and the termination predicate
+      must agree, so an empty ring with `until` still false is a malformed game,
+      raised rather than silently ended.
     """
     from cardlang.runtime import stdlib
     from cardlang.runtime.execute import run_body
@@ -197,21 +211,22 @@ def run_auction(stmt: n.Round, ctx: Ctx) -> None:
         # ascending auctions (Pinochle, Tarot, Skat) and Stud's betting state the
         # shrinking ring this way; a static ring (Bridge's `all players`) is the
         # invariant case (decisions.md "The auction form of `round`").
-        participants = list(evaluate(stmt.participants, ctx))
-        if stmt.order_mode == "priority":
+        # The participants set is only membership-tested, so a set keeps the ring
+        # order (which comes from `order`) the single source of sequencing.
+        participants = set(evaluate(stmt.participants, ctx))
+        if stmt.order_mode == n.ROUND_ORDER_PRIORITY:
             # Priority order: re-scan the seat order from the leader each turn and
             # offer the first still-pending participant (betting, response windows).
             # The pointer does not advance — a seat that stays pending is re-offered
             # before later seats. `until` is the sole terminator, so an unsatisfied
             # `until` with no pending participant is a malformed game.
-            pending = [p for p in order if p in participants]
-            if not pending:
+            player = next((p for p in order if p in participants), None)
+            if player is None:
                 raise RuntimeError(
                     "priority round: no participant is pending but the `until` "
                     "predicate is unsatisfied (the termination and participants "
                     "clauses disagree)"
                 )
-            player = pending[0]
         else:
             player = order[i % len(order)]
             i += 1
