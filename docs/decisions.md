@@ -71,8 +71,9 @@ level. The distinction stays:
 
 - A **mechanic** is a named, parameterized, reusable unit, instantiated
   with arguments. It's the right shape when a chunk of logic appears
-  in multiple games (Auction, BettingRound). (The trick is no longer a
-  mechanic — it is the kernel `round` construct.)
+  in multiple games (a still-Python hand engine like Schnapsen's). (The
+  trick, the auction, and a betting round are no longer mechanics — they
+  are configurations of the kernel `round` construct.)
 - A **phase** is a positional unit in the phase tree, not parameterized
   and not reusable across games. It's the right shape when a chunk
   appears at a specific position with semantics tied to where it sits.
@@ -486,10 +487,13 @@ outcome`); there is no construct for referencing a prior phase's
 outcome across the phase boundary — the shared enclosing variable is
 the channel.
 
-**Mechanic-internal state lives inside the mechanic.** Auction's
-`passed[player]`, the trick `round`'s per-trick state, BettingRound's
-`bet_to_match` all live inside their mechanic/construct. Such instances
-are short-lived; their state vanishes with the instance.
+**Mechanic-internal state lives inside the mechanic.** The trick `round`'s
+per-trick state (`led_suit`, the played cards) lives inside the construct, and a
+still-Python mechanic's locals (Schnapsen's talon-closing snapshot) live inside
+its instance. Such instances are short-lived; their state vanishes with the
+instance. (An auction's pass state or a betting round's `bet_to_match` is *not*
+mechanic-internal — those forms of `round` thread their accumulator through
+ordinary **phase state**, declared in the phase's `state { }`.)
 
 **Rules consulted from within a mechanic see the mechanic's state.**
 Lexical scoping puts the active mechanic instance's `state { }`
@@ -502,10 +506,12 @@ to imperative code in the phase body. Examples in the corpus:
 
 - Hearts' `MustFollowSuit` reads `state.led_suit`, which lives
   inside the trick `round`.
-- Pinochle's `BidExceedsCurrent` reads `state.current_bid`, which
-  lives inside the Auction mechanic.
-- Stud's BettingRound legality rules read `state.bet_to_match`
-  and `state.raises_so_far`, which live inside BettingRound.
+
+(The auction and betting forms of `round` express their legality differently —
+not as `active_rules:` reading mechanic state, but as the move types' own `when:`
+guards over phase state: Pinochle's ascending bid guards `submit_bid` on the
+standing bid; Stud's `check`/`bet`/`call`/`raise`/`fold` guard on `bet_to_match`,
+`bet_by`, and `raises`.)
 
 Rules are reusable across games; what binds them to a particular
 mechanic's state is the call site (where the mechanic is

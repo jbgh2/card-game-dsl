@@ -1,0 +1,251 @@
+// Regression fixture for the PARTIAL bring-in branch: every player starts with
+// exactly two chips, so after the one-chip ante the bringer holds one chip and
+// the bring-in is min(2, 1) = 1 — a partial all-in while bet_to_match stays 2.
+// The 100-chip golden never reaches this branch. Other players then call for
+// their last chip (also partial all-ins). Body copied from
+// seven-card-stud.cardlang with players: 3 and a two-chip stack.
+
+game StudPartialBringIn {
+
+  players: 3
+  direction: clockwise
+
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+
+  zones {
+    deck            : Deck
+    hole[player]    : Hand<player>           // face-down cards
+    upcards[player] : PublicHand<player>     // face-up cards
+    muck            : Muck                   // folded / spent cards
+    burn            : Burn                   // one burned card per street
+  }
+
+  state {
+    // Chips as integers; total is invariant. The winner holds them all.
+    stack[player] : Integer = 2
+  }
+
+  phase hand_sequence repeats until (number of players where stack[player] > 0) <= 1 {
+    state {
+      dealer : Player = 0
+    }
+
+    before_each {
+      move all cards to deck
+      shuffle deck
+      dealer := dealer offset_by left
+    }
+
+    phase play {
+      state {
+        // Per-hand betting state, reset each hand on phase re-entry.
+        in_hand[player]   : Boolean = false   // entered the hand holding chips
+        committed[player] : Integer = 0       // chips put in this hand (for side pots)
+        folded[player]    : Boolean = false
+        bet_by[player]    : Integer = 0        // chips put in on the current street
+        acted[player]     : Boolean = false    // has acted since the last aggression
+        bet_to_match      : Integer = 0        // the street's standing bet
+        raises            : Integer = 0        // raises so far (cap of 3)
+        limit             : Integer = 0        // the current street's bet size
+        bringer           : Player  = 0
+        actor_seat        : Player  = 0        // the leader the priority ring scans from
+      }
+
+      // Snapshot the entrants (held chips); ante and deal follow this set.
+      for each player p: in_hand[p] := stack[p] > 0
+
+      // Antes: every entrant posts one chip (entrants hold >= 1, so never partial).
+      for each player p: if in_hand[p] {
+        stack[p] := stack[p] - 1
+        committed[p] := committed[p] + 1
+      }
+
+      // Deal two hole + one upcard, grouped per entrant (the monolith pop order:
+      // each player takes three off the top before the next).
+      for each player p: if in_hand[p] {
+        deal 2 cards from deck to hole[p]
+        deal 1 card from deck to upcards[p]
+      }
+
+      // Bring-in + 3rd street. Skipped only when fewer than two entrants can act
+      // (everyone all-in on the ante); then the hand is dealt straight to showdown.
+      if (number of players where stack[player] > 0) >= 2 {
+        bringer := bring_in_seat()
+        // The bring-in is a forced post (no decision): the lowest door puts 2 — a
+        // partial all-in if it holds only one chip — and stands as the opening bet.
+        bet_by[bringer] := if 2 < stack[bringer] then 2 else stack[bringer]
+        stack[bringer] := stack[bringer] - bet_by[bringer]
+        committed[bringer] := committed[bringer] + bet_by[bringer]
+        bet_to_match := 2
+        raises := 1
+        limit := 5
+        actor_seat := bringer offset_by left
+        round offering [check, bet, call, fold, raise] from actor_seat
+              over players where not folded[player] and stack[player] > 0
+                                and (not acted[player] or bet_by[player] < bet_to_match)
+              order priority
+              until (number of players where not folded[player] and stack[player] > 0
+                       and (not acted[player] or bet_by[player] < bet_to_match)) == 0
+                 or ((number of players where not folded[player] and stack[player] > 0) <= 1
+                     and (number of players where not folded[player] and stack[player] > 0
+                            and bet_by[player] < bet_to_match) == 0)
+      }
+
+      // 4th–7th streets: burn, deal one card, then a betting round (limits 5/10/10/10;
+      // 7th is dealt face down). Each street runs only while more than one contender
+      // remains; once a street drops the field to one, the rest are skipped.
+      if (number of players where in_hand[player] and not folded[player]) > 1 {
+        deal 1 card from deck to burn
+        for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
+        if (number of players where not folded[player] and stack[player] > 0) >= 2 {
+          bet_to_match := 0
+          raises := 0
+          limit := 5
+          for each player p: bet_by[p] := 0
+          for each player p: acted[p] := false
+          actor_seat := first_to_act_seat()
+          round offering [check, bet, call, fold, raise] from actor_seat
+                over players where not folded[player] and stack[player] > 0
+                                  and (not acted[player] or bet_by[player] < bet_to_match)
+                order priority
+                until (number of players where not folded[player] and stack[player] > 0
+                         and (not acted[player] or bet_by[player] < bet_to_match)) == 0
+                   or ((number of players where not folded[player] and stack[player] > 0) <= 1
+                       and (number of players where not folded[player] and stack[player] > 0
+                              and bet_by[player] < bet_to_match) == 0)
+        }
+        if (number of players where in_hand[player] and not folded[player]) > 1 {
+          deal 1 card from deck to burn
+          for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
+          if (number of players where not folded[player] and stack[player] > 0) >= 2 {
+            bet_to_match := 0
+            raises := 0
+            limit := 10
+            for each player p: bet_by[p] := 0
+            for each player p: acted[p] := false
+            actor_seat := first_to_act_seat()
+            round offering [check, bet, call, fold, raise] from actor_seat
+                  over players where not folded[player] and stack[player] > 0
+                                    and (not acted[player] or bet_by[player] < bet_to_match)
+                  order priority
+                  until (number of players where not folded[player] and stack[player] > 0
+                           and (not acted[player] or bet_by[player] < bet_to_match)) == 0
+                     or ((number of players where not folded[player] and stack[player] > 0) <= 1
+                         and (number of players where not folded[player] and stack[player] > 0
+                                and bet_by[player] < bet_to_match) == 0)
+          }
+          if (number of players where in_hand[player] and not folded[player]) > 1 {
+            deal 1 card from deck to burn
+            for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
+            if (number of players where not folded[player] and stack[player] > 0) >= 2 {
+              bet_to_match := 0
+              raises := 0
+              limit := 10
+              for each player p: bet_by[p] := 0
+              for each player p: acted[p] := false
+              actor_seat := first_to_act_seat()
+              round offering [check, bet, call, fold, raise] from actor_seat
+                    over players where not folded[player] and stack[player] > 0
+                                      and (not acted[player] or bet_by[player] < bet_to_match)
+                    order priority
+                    until (number of players where not folded[player] and stack[player] > 0
+                             and (not acted[player] or bet_by[player] < bet_to_match)) == 0
+                       or ((number of players where not folded[player] and stack[player] > 0) <= 1
+                           and (number of players where not folded[player] and stack[player] > 0
+                                  and bet_by[player] < bet_to_match) == 0)
+            }
+            if (number of players where in_hand[player] and not folded[player]) > 1 {
+              deal 1 card from deck to burn
+              for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to hole[p] }
+              if (number of players where not folded[player] and stack[player] > 0) >= 2 {
+                bet_to_match := 0
+                raises := 0
+                limit := 10
+                for each player p: bet_by[p] := 0
+                for each player p: acted[p] := false
+                actor_seat := first_to_act_seat()
+                round offering [check, bet, call, fold, raise] from actor_seat
+                      over players where not folded[player] and stack[player] > 0
+                                        and (not acted[player] or bet_by[player] < bet_to_match)
+                      order priority
+                      until (number of players where not folded[player] and stack[player] > 0
+                               and (not acted[player] or bet_by[player] < bet_to_match)) == 0
+                         or ((number of players where not folded[player] and stack[player] > 0) <= 1
+                             and (number of players where not folded[player] and stack[player] > 0
+                                    and bet_by[player] < bet_to_match) == 0)
+              }
+            }
+          }
+        }
+      }
+
+      // Showdown: side-pot settlement by amount committed, then muck. RNG-free.
+      instantiate StudShowdown()
+    }
+  }
+
+  winner: highest stack
+}
+
+// Stud-local betting vocabulary. Both moves of each decision are always offered
+// in `offering [check, bet, call, fold, raise]` order; the `when:` guards filter
+// to the monolith's exact option list per decision: free-to-act -> [check(, bet)],
+// facing a bet -> [call, fold(, raise)]. A bet/raise is a partial all-in when the
+// actor cannot cover it (`if want < stack then want else stack`), and resets every
+// other player's `acted` so action re-opens.
+
+move_type check {
+  when: bet_to_match <= bet_by[actor]
+  effect { acted[actor] := true }
+}
+
+move_type bet {
+  when: bet_to_match == 0
+  effect {
+    let post = if limit < stack[actor] then limit else stack[actor]
+    stack[actor] := stack[actor] - post
+    committed[actor] := committed[actor] + post
+    bet_by[actor] := bet_by[actor] + post
+    bet_to_match := bet_by[actor]
+    raises := 1
+    for each player p: acted[p] := false
+    acted[actor] := true
+  }
+}
+
+move_type call {
+  when: bet_to_match > bet_by[actor]
+  effect {
+    let owed = bet_to_match - bet_by[actor]
+    let pay = if owed < stack[actor] then owed else stack[actor]
+    stack[actor] := stack[actor] - pay
+    committed[actor] := committed[actor] + pay
+    bet_by[actor] := bet_by[actor] + pay
+    acted[actor] := true
+  }
+}
+
+move_type raise {
+  when: bet_to_match > bet_by[actor] and raises < 3
+  effect {
+    let owed = bet_to_match - bet_by[actor]
+    let want = owed + limit
+    let pay = if want < stack[actor] then want else stack[actor]
+    stack[actor] := stack[actor] - pay
+    committed[actor] := committed[actor] + pay
+    bet_by[actor] := bet_by[actor] + pay
+    bet_to_match := if bet_to_match > bet_by[actor] then bet_to_match else bet_by[actor]
+    raises := raises + 1
+    for each player p: acted[p] := false
+    acted[actor] := true
+  }
+}
+
+move_type fold {
+  when: bet_to_match > bet_by[actor]
+  effect {
+    folded[actor] := true
+    move all cards from upcards[actor] to muck
+  }
+}
