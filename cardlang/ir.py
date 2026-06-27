@@ -295,6 +295,7 @@ def _stmt(s: n.Stmt) -> IRDict:
                 "early_termination": s.early_termination,
                 "move_types": list(s.move_types) if s.move_types is not None else None,
                 "termination": _expr(s.termination) if s.termination is not None else None,
+                "order_mode": s.order_mode,
             }
         case n.Produce():
             return {

@@ -544,7 +544,8 @@
                     "value": 16
                   }
                 }
-              }
+              },
+              "order_mode": null
             }
           ]
         },

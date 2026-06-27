@@ -209,7 +209,11 @@ round_stmt: "round" NAME "from" expr "over" expr "source" NAME "into" NAME "outc
 // (bids/passes/bets) don't move cards. (decisions.md "Interactive decisions": the
 // same `round` kernel, configured along the move-vocabulary, accumulator, and
 // termination axes.)
-auction_stmt: "round" auction_moves "from" expr "over" expr "until" expr ["outcome" NAME]   -> auction_stmt
+// The optional `order` clause selects the ring-traversal model (the order axis):
+// absent / `order ring` is the continuous ring (each turn advances the pointer);
+// `order priority` re-scans the seat order from the leader each turn and offers the
+// first still-pending participant (betting, response windows).
+auction_stmt: "round" auction_moves "from" expr "over" expr ["order" NAME] "until" expr ["outcome" NAME]   -> auction_stmt
 auction_moves: "offering" "[" NAME ("," NAME)* "]"
 named_arg: NAME "=" arg_value
 ?arg_value: movement

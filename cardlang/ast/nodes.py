@@ -452,6 +452,10 @@ class Round:
     early_termination: str | None = None
     move_types: tuple[str, ...] | None = None
     termination: Expr | None = None
+    # The order axis for the continuous-ring form: None / "ring" walks the ring
+    # (pointer advances each turn); "priority" re-scans from the leader each turn
+    # and offers the first still-pending participant (betting, response windows).
+    order_mode: str | None = None
     span: Span | None = None
 
 

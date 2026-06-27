@@ -410,6 +410,12 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         f"outcome function",
                         nd.span,
                     )
+                if nd.order_mode is not None and nd.order_mode not in ("ring", "priority"):
+                    bag.error(
+                        f"round order '{nd.order_mode}' is unknown (expected "
+                        f"'ring' or 'priority')",
+                        nd.span,
+                    )
             case n.Round():
                 zone_names = {z.name for z in game.zones}
                 if nd.source_zone not in zone_names:

@@ -191,8 +191,6 @@ def run_auction(stmt: n.Round, ctx: Ctx) -> None:
         guard += 1
         if guard > 1000:  # ring steps, not productive turns; well above any auction
             raise RuntimeError("auction did not terminate within 1000 ring steps")
-        player = order[i % len(order)]
-        i += 1
         # The participants ring is re-evaluated each turn (the participant-filter
         # axis): a player the predicate drops mid-ring — a standing high bidder, a
         # player who has passed for good — is skipped with no chooser draw. The
@@ -200,8 +198,25 @@ def run_auction(stmt: n.Round, ctx: Ctx) -> None:
         # shrinking ring this way; a static ring (Bridge's `all players`) is the
         # invariant case (decisions.md "The auction form of `round`").
         participants = list(evaluate(stmt.participants, ctx))
-        if player not in participants:
-            continue
+        if stmt.order_mode == "priority":
+            # Priority order: re-scan the seat order from the leader each turn and
+            # offer the first still-pending participant (betting, response windows).
+            # The pointer does not advance — a seat that stays pending is re-offered
+            # before later seats. `until` is the sole terminator, so an unsatisfied
+            # `until` with no pending participant is a malformed game.
+            pending = [p for p in order if p in participants]
+            if not pending:
+                raise RuntimeError(
+                    "priority round: no participant is pending but the `until` "
+                    "predicate is unsatisfied (the termination and participants "
+                    "clauses disagree)"
+                )
+            player = pending[0]
+        else:
+            player = order[i % len(order)]
+            i += 1
+            if player not in participants:
+                continue
         pctx = ctx.acting_as(player)
         candidates: list[tuple[str, Any]] = []
         for mt in move_defs:

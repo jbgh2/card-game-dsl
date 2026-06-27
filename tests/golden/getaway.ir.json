@@ -198,7 +198,8 @@
           "trump": null,
           "early_termination": "on_play_of_tochoo",
           "move_types": null,
-          "termination": null
+          "termination": null,
+          "order_mode": null
         },
         {
           "kind": "movement",
@@ -321,7 +322,8 @@
               "trump": null,
               "early_termination": "on_play_of_tochoo",
               "move_types": null,
-              "termination": null
+              "termination": null,
+              "order_mode": null
             },
             {
               "kind": "if",

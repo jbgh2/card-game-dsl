@@ -518,10 +518,10 @@ class _Builder(Transformer[Token, n.Game]):
         return tuple(str(x) for x in c)
 
     def auction_stmt(self, meta: Meta, c: list[object]) -> n.Round:
-        # c: [tuple(move_types), expr(leader), expr(participants), expr(termination),
-        #     NAME(outcome)?]. The auction/betting form leaves the trick-specific
-        #     fields None; the betting form leaves `outcome_fn` None too (c[4] is a
-        #     None placeholder when the `outcome` clause is absent).
+        # c: [tuple(move_types), expr(leader), expr(participants), NAME(order)?,
+        #     expr(termination), NAME(outcome)?]. The auction/betting form leaves the
+        #     trick-specific fields None; both the `order` clause (c[3], default ring)
+        #     and `outcome` (c[5], betting omits it) are None placeholders when absent.
         move_types = c[0]
         assert isinstance(move_types, tuple)
         return n.Round(
@@ -530,10 +530,11 @@ class _Builder(Transformer[Token, n.Game]):
             participants=_as_expr(c[2]),
             source_zone=None,
             play_zone=None,
-            outcome_fn=str(c[4]) if c[4] is not None else None,
+            outcome_fn=str(c[5]) if c[5] is not None else None,
             trump=None,
             move_types=move_types,
-            termination=_as_expr(c[3]),
+            termination=_as_expr(c[4]),
+            order_mode=str(c[3]) if c[3] is not None else None,
             span=self._span(meta),
         )
 
