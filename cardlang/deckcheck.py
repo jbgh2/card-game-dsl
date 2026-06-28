@@ -1,13 +1,18 @@
 """Static deck-capacity check.
 
-A conservative compile-time pass: for each per-hand window (the deals between deck
-resets) it bounds the worst-case number of cards dealt *from the deck* and errors
-if that exceeds the deck's capacity. So a too-large player count — an 8-player
-Seven-Card Stud needing 60 cards from a 52-card deck, a 5-player Bridge needing 65
-— is a compile error, not a runtime `ValueError` on an exhausted deck.
+A conservative compile-time pass: for each per-hand window it bounds the worst-case
+deck *usage* — the most cards drawn from the deck between refills — and errors if
+that exceeds the deck's capacity. So a too-large player count (an 8-player
+Seven-Card Stud needing 60 cards from a 52-card deck, a 5-player Bridge needing 65)
+is a compile error, not a runtime `ValueError` on an exhausted deck.
+
+It tracks usage as a running count that **resets when the deck is refilled** — a
+movement whose destination is the deck (`move all cards to deck`) puts cards back,
+so deals before and after it draw from separate fills and must not be summed. The
+window's bound is the peak usage at any single deal.
 
 It never rejects a valid game: where a deal count can't be bounded statically it
-contributes nothing rather than guessing. Specifically it SKIPS
+adds nothing. Specifically it SKIPS
 
 - `deal all …` (takes only what remains — can't overflow by construction),
 - a non-literal amount (`deal hand_size …`, a state var or any expression),
@@ -15,10 +20,9 @@ contributes nothing rather than guessing. Specifically it SKIPS
 
 and counts the bounded forms at their worst case: an `if` contributes the larger
 of its branches (a guarded deal is *taken*), and a `for each player` /
-`to each <family>` multiplies by the player count (the high end of a range). The
-per-hand reset (`move all cards to deck` is a gather, not a deck-source deal) means
-one window = one iteration of a `repeats` phase: its `before_each` deals counted
-once plus the deals in its (non-repeating) sub-phases.
+`to each <family>` deals once per player (the high end of a range). One window =
+one iteration of a `repeats` phase: its `before_each` (which refills then deals)
+plus the deals in its (non-repeating) sub-phases.
 """
 
 from __future__ import annotations
@@ -27,9 +31,13 @@ from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError
 from cardlang.stdlib.values import deck_size
 
+# (peak usage reached, deck usage carried out) for a walked fragment, given the
+# usage carried in. "Usage" is cards drawn from the deck since its last refill.
+_Usage = tuple[int, int]
+
 
 def check_capacity(game: n.Game) -> n.Game:
-    """Raise a `DiagnosticError` if any per-hand window can deal more cards than the
+    """Raise a `DiagnosticError` if any per-hand window can draw more cards than the
     deck holds. A no-op for an unknown deck or a game with no deck zone."""
     capacity = deck_size(game.deck)
     if capacity is None:
@@ -58,34 +66,38 @@ def _check_windows(
     game: n.Game,
     bag: DiagnosticBag,
 ) -> None:
-    """Check `phase` as one window, then recurse into any nested `repeats` phases
-    (each its own reset boundary, hence its own window)."""
-    dealt = _window_deals(phase, 1, deck_zones, players)
-    if dealt > capacity:
+    """Check `phase` as one window (deck full at entry), then recurse into nested
+    `repeats` phases (each its own reset boundary, hence its own window)."""
+    peak, _ = _window_usage(phase, 0, players, deck_zones)
+    if peak > capacity:
         span = phase.span if phase.span is not None else game.players.span
         bag.error(
             f"deck '{game.deck}' holds {capacity} cards but phase '{phase.name}' "
-            f"deals up to {dealt} from it in one hand with {players} players",
+            f"deals up to {peak} from it in one hand with {players} players",
             span,
         )
     for sub in _nested_repeating_phases(phase):
         _check_windows(sub, players, deck_zones, capacity, game, bag)
 
 
-def _window_deals(phase: n.Phase, factor: int, deck_zones: set[str], players: int) -> int:
-    """Worst-case cards dealt from the deck in one iteration of `phase`: its
-    lifecycle hooks (run once) plus its statements and folded non-repeating
-    sub-phases. Nested `repeats` phases are excluded — they are their own windows."""
-    total = 0
+def _window_usage(phase: n.Phase, carry: int, players: int, deck_zones: set[str]) -> _Usage:
+    """Peak deck usage over one iteration of `phase`: its lifecycle hooks plus its
+    statements and folded non-repeating sub-phases, threaded left to right. Nested
+    `repeats` phases are excluded — they are their own windows."""
+    peak = carry
     for item in phase.items:
         if isinstance(item, (n.BeforeEach, n.AfterEach)):
-            total += _stmts(item.body, factor, deck_zones, players)
+            p, carry = _seq_usage(item.body, carry, players, deck_zones)
         elif isinstance(item, n.Phase):
-            if not _repeats(item):
-                total += _window_deals(item, factor, deck_zones, players)
+            if _repeats(item):
+                continue  # separate window
+            p, carry = _window_usage(item, carry, players, deck_zones)
         elif isinstance(item, n.Stmt):
-            total += _stmt(item, factor, deck_zones, players)
-    return total
+            p, carry = _stmt_usage(item, carry, players, deck_zones)
+        else:
+            continue  # StateBlock, ActiveRules, LegalMoves, TransitionTo, …
+        peak = max(peak, p)
+    return peak, carry
 
 
 def _nested_repeating_phases(phase: n.Phase) -> list[n.Phase]:
@@ -105,50 +117,64 @@ def _repeats(phase: n.Phase) -> bool:
     return phase.qualifier is not None and phase.qualifier.kind == "repeats"
 
 
-def _stmts(stmts: tuple[n.Stmt, ...] | list[n.Stmt], factor: int, deck_zones: set[str], players: int) -> int:
-    return sum(_stmt(s, factor, deck_zones, players) for s in stmts)
+def _seq_usage(
+    stmts: tuple[n.Stmt, ...] | list[n.Stmt], carry: int, players: int, deck_zones: set[str]
+) -> _Usage:
+    peak = carry
+    for s in stmts:
+        p, carry = _stmt_usage(s, carry, players, deck_zones)
+        peak = max(peak, p)
+    return peak, carry
 
 
-def _stmt(stmt: n.Stmt, factor: int, deck_zones: set[str], players: int) -> int:
+def _stmt_usage(stmt: n.Stmt, carry: int, players: int, deck_zones: set[str]) -> _Usage:
     if isinstance(stmt, n.Movement):
-        return _movement_deals(stmt, factor, deck_zones, players)
-    if isinstance(stmt, n.ForEach):
-        sub = factor * players if stmt.role == "player" else factor
-        return _stmt(stmt.body, sub, deck_zones, players)
-    if isinstance(stmt, n.EachSimultaneous):
-        sub = factor * players if stmt.role == "player" else factor
-        return _stmt(stmt.body, sub, deck_zones, players)
+        return _movement_usage(stmt, carry, players, deck_zones)
+    if isinstance(stmt, (n.ForEach, n.EachSimultaneous)):
+        # The body runs once per player (or once for a non-player ring); thread the
+        # carry across iterations so a refilling body resets each pass.
+        iters = players if stmt.role == "player" else 1
+        peak = carry
+        for _ in range(iters):
+            p, carry = _stmt_usage(stmt.body, carry, players, deck_zones)
+            peak = max(peak, p)
+        return peak, carry
     if isinstance(stmt, n.IfStmt):
-        then_dealt = _stmts(stmt.then_body, factor, deck_zones, players)
-        else_dealt = _stmts(stmt.else_body, factor, deck_zones, players) if stmt.else_body else 0
-        return max(then_dealt, else_dealt)  # worst case: the branch that deals more
-    # RepeatUntil and everything else (assignments, offers, rounds, …) deal nothing
-    # statically boundable from the deck.
-    return 0
+        then_peak, then_carry = _seq_usage(stmt.then_body, carry, players, deck_zones)
+        else_peak, else_carry = (
+            _seq_usage(stmt.else_body, carry, players, deck_zones)
+            if stmt.else_body
+            else (carry, carry)
+        )
+        return max(then_peak, else_peak), max(then_carry, else_carry)
+    # RepeatUntil (runtime iteration count) and everything else draw nothing
+    # statically boundable from the deck; usage is unchanged.
+    return carry, carry
 
 
-def _movement_deals(m: n.Movement, factor: int, deck_zones: set[str], players: int) -> int:
-    """Cards a single movement draws from the deck, or 0 if it is not a deck-source
-    deal or its count cannot be bounded."""
-    if m.source is None:  # a gather (`move all cards to deck`) — not a deck draw
-        return 0
-    if _base_name(m.source) not in deck_zones:
-        return 0
+def _movement_usage(m: n.Movement, carry: int, players: int, deck_zones: set[str]) -> _Usage:
+    """Deck usage after a single movement. A move *into* the deck refills it (usage
+    resets to 0); a deal *from* the deck adds to usage; anything else is inert."""
+    if m.dest is not None and _base_name(m.dest) in deck_zones:
+        return carry, 0  # refill: cards go back to the deck
+    if m.source is None or _base_name(m.source) not in deck_zones:
+        return carry, carry  # not a deck draw
     if m.amount == "all":
-        return 0  # takes only what remains; cannot overflow
+        return carry, carry  # takes only what remains; cannot overflow
     if m.amount == "one":
         per_dest = 1
     elif isinstance(m.amount, n.IntLit):
         per_dest = m.amount.value
     else:
-        return 0  # a non-literal amount (state var / expression) — cannot bound
+        return carry, carry  # a non-literal amount (state var / expression)
     if m.dest_each:
         per_dest *= players  # `to each <family>` deals to every player
-    return per_dest * factor
+    drawn = carry + per_dest
+    return drawn, drawn
 
 
 def _base_name(expr: n.Expr) -> str | None:
-    """The root zone name of a movement source (`deck`, `deck[i]`, …)."""
+    """The root zone name of a movement endpoint (`deck`, `deck[i]`, …)."""
     while isinstance(expr, (n.Subscript, n.Member)):
         expr = expr.obj
     return expr.name if isinstance(expr, n.NameRef) else None

@@ -86,6 +86,25 @@ def test_non_literal_amount_is_skipped() -> None:
     )
 
 
+def test_deck_refill_resets_the_window() -> None:
+    # Re-using the deck mid-hand is valid: `move all cards to deck` refills it, so
+    # the two 52-card deals draw from separate fills and must not be summed to 104.
+    body = (
+        "deal 13 cards from deck to each hand  move all cards to deck  "
+        "deal 13 cards from deck to each hand"
+    )
+    check_dsl(_game("4", body), "refill.cardlang")
+
+
+def test_two_deals_without_a_refill_overflow() -> None:
+    # The contrast: the same two deals with no refill between them draw 104 from one
+    # fill -> overflow. Confirms the reset is the refill, not the statement boundary.
+    body = "deal 13 cards from deck to each hand  deal 13 cards from deck to each hand"
+    with pytest.raises(DiagnosticError) as exc:
+        check_dsl(_game("4", body), "norefill.cardlang")
+    assert "104" in str(exc.value)
+
+
 def test_deal_inside_repeat_until_is_skipped() -> None:
     # The iteration count is a runtime value, so deals inside `repeat until` can't
     # be bounded -> skipped (55 per iteration would otherwise overflow).
