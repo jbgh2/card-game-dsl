@@ -29,8 +29,28 @@ _SUITS_BY_DECK: dict[str, frozenset[str]] = {
 DIRECTION_VALUES: frozenset[str] = frozenset({"left", "right", "across", "hold"})
 
 
+# deck name -> total card count. Irregular decks (copies in pinochle48/coup15,
+# explicit lists in tarot78/tichu56) make a suits×ranks formula wrong, so the size
+# is an explicit table — pinned to `len(runtime.build_deck(name))` by a drift test.
+_DECK_SIZE: dict[str, int] = {
+    "standard52": 52,
+    "schnapsen20": 20,
+    "pinochle48": 48,
+    "skat32": 32,
+    "tarot78": 78,
+    "tichu56": 56,
+    "coup15": 15,
+}
+
+
 def deck_suits(deck: str) -> frozenset[str]:
     return _SUITS_BY_DECK.get(deck, frozenset())
+
+
+def deck_size(deck: str) -> int | None:
+    """The deck's card count, or None for an unknown deck (rejected earlier; the
+    capacity check treats None as 'cannot bound' and skips the game)."""
+    return _DECK_SIZE.get(deck)
 
 
 def enum_values(deck: str) -> frozenset[str]:

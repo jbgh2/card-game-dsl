@@ -3,7 +3,7 @@
 A single place that chains the stages so the CLI, the corpus harness, and
 tests all run the exact same path:
 
-    (extract) -> parse -> resolve -> typecheck (-> emit IR)
+    (extract) -> parse -> resolve -> typecheck -> deck-capacity (-> emit IR)
 
 Game files come in two shapes: Markdown (`.md`, DSL inside a fenced block) and
 raw DSL (`.cardlang`). The extract step applies only to Markdown.
@@ -17,6 +17,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from cardlang.ast.nodes import Game
+from cardlang.deckcheck import check_capacity
 from cardlang.extract import extract_single_block
 from cardlang.ir import IRValue, emit
 from cardlang.parse import parse_block, parse_text
@@ -25,9 +26,10 @@ from cardlang.typecheck import typecheck
 
 
 def _check(game: Game) -> Game:
-    """Run the post-parse check stages (resolve -> typecheck)."""
+    """Run the post-parse check stages (resolve -> typecheck -> deck capacity)."""
     game = resolve(game)
     game = typecheck(game)
+    game = check_capacity(game)
     return game
 
 

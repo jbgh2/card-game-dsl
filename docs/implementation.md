@@ -30,7 +30,9 @@ In scope (the compile-time net):
 - A **formal grammar and parser** for the surface syntax, producing a
   typed AST.
 - **Static semantic checks**: name resolution, type checking,
-  exhaustiveness, and an explicit no-placeholder audit.
+  exhaustiveness, an explicit no-placeholder audit, and a deck-capacity
+  check (worst-case cards dealt per hand vs the deck size, so a too-large
+  player count is a compile error, not a runtime exhausted-deck crash).
 - The **corpus as acceptance harness**: every game parses and checks, or
   fails loudly.
 
