@@ -61,6 +61,7 @@ def resolve(game: n.Game) -> n.Game:
     cats = _categories(game)
     game = _classify_names(game, cats, bag)
     _validate_refs(game, cats, bag)
+    _check_functions(game, bag)
 
     _raise_if_errors(bag)
     return game
@@ -230,6 +231,8 @@ def _categories(game: n.Game) -> _Categories:
                 locals_.add(nd.name)
                 if nd.index is not None:
                     locals_.add(nd.index)
+            case n.FunctionDef():
+                locals_.update(p.name for p in nd.params)
     return _Categories(
         locals=frozenset(locals_),
         state_vars=frozenset(state_vars),
@@ -341,11 +344,63 @@ def _rewrite_value(value: object, cats: _Categories, bag: DiagnosticBag) -> obje
     return value
 
 
+def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
+    """Functions are hermetic and non-recursive: a body may reference only its own
+    parameters and binders it introduces (`number of players where …`), not a name
+    that the flat classifier tagged `local` from some unrelated binder; and the call
+    graph must be acyclic (a cycle would loop forever at runtime)."""
+    fn_names = {f.name for f in game.functions}
+    calls: dict[str, set[str]] = {
+        f.name: {c.func for c in _walk(f.body) if isinstance(c, n.Call) and c.func in fn_names}
+        for f in game.functions
+    }
+    for fn in game.functions:
+        allowed = {p.name for p in fn.params}
+        for nd in _walk(fn.body):  # binders the body itself introduces are in scope
+            match nd:
+                case n.Comprehension() | n.Quantifier() | n.ForEach():
+                    allowed.add(nd.binder)
+                case n.EachSimultaneous():
+                    allowed.add(nd.role)
+                case n.PlayerQuery():
+                    allowed.add("player")
+                case n.Lambda():
+                    allowed.add(nd.param)
+        for nd in _walk(fn.body):
+            if isinstance(nd, n.NameRef) and nd.ref_kind == "local" and nd.name not in allowed:
+                bag.error(
+                    f"function '{fn.name}' references '{nd.name}', which is not one of "
+                    f"its parameters or a binding in its body",
+                    nd.span,
+                )
+        if _reaches(fn.name, fn.name, calls):
+            bag.error(
+                f"function '{fn.name}' is recursive; functions must be non-recursive",
+                fn.span,
+            )
+
+
+def _reaches(start: str, target: str, calls: dict[str, set[str]]) -> bool:
+    """Whether `target` is reachable from `start` through the call graph."""
+    seen: set[str] = set()
+    stack = list(calls.get(start, ()))
+    while stack:
+        cur = stack.pop()
+        if cur == target:
+            return True
+        if cur in seen:
+            continue
+        seen.add(cur)
+        stack.extend(calls.get(cur, ()))
+    return False
+
+
 def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     move_type_defs = {m.name: m for m in game.move_types}
     defined_move_types = set(move_type_defs)
     defined_types = {t.name for t in game.types}
     defined_defines = {d.name for d in game.defines}
+    defined_functions = {f.name for f in game.functions}
     # A `produces:` consumer may also name an outcome-declaring phase (its outcome
     # is produced as the phase runs, then dispatched by a sibling consumer).
     outcome_phases = {
@@ -353,7 +408,9 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     }
     for nd in _walk(game):
         match nd:
-            case n.Call() if nd.func not in STDLIB_CALL_FUNCS:
+            case n.Call() if (
+                nd.func not in STDLIB_CALL_FUNCS and nd.func not in defined_functions
+            ):
                 bag.error(f"call to unknown function '{nd.func}'", nd.span)
             case n.StructLit() if nd.type_name not in defined_types:
                 bag.error(f"unknown type '{nd.type_name}'", nd.span)

@@ -969,6 +969,41 @@ sugar or an epistemic op — until a game proves it is genuinely none of them.
 Adding a fourth family is a deliberate act, not the default response to a new
 word.
 
+## Named functions
+
+A game factors an expression it would otherwise repeat with a **named function** —
+a parameterized expression callable wherever an expression appears:
+
+```
+function <name>(<param> : <type>, …) = <expr>
+```
+
+declared at the top level alongside the `move_type`s. A call `<name>(<arg>, …)`
+evaluates the body with the parameters bound to the arguments. Seven-Card Stud's
+betting ring uses three: `can_act(p)` (not folded, still holds chips), `owes(p)`
+(still owes the standing bet), and `pending(p) = can_act(p) and (not acted[p] or
+owes(p))` (the ring/termination predicate). The `over` filter and the `until`
+terminator both name `pending(player)`, so they cannot drift out of step — a
+correctness property, not only brevity.
+
+The body is **hermetic**: it reads only its parameters and game/phase state (read
+at call time), never the caller's local binders or call-site `actor` / `action` /
+`outcome`. A function that needs a player takes it as a parameter. It is
+**non-recursive** — the call graph must be acyclic. Both are enforced at compile
+time, with the ordinary checks: a call to an unknown function, a wrong argument
+count or type, a body name that is neither a parameter nor a binding the body
+itself introduces (`number of players where …`), and a call cycle are each a loud
+error. The body's type is inferred — a function whose body is a `Player` used
+where a `Boolean` is expected is caught at the call site — and a function may call
+another (`pending` calls `can_act` and `owes`).
+
+This is a deliberate, authorized general construct: factoring predicates is a need
+the corpus has as games grow more advanced, not a Stud-only convenience. It
+resolves the *named-predicate* half of
+[open-questions/round-config-factoring.md](open-questions/round-config-factoring.md);
+the *street-loop* half (folding a repeated parameterized `round` block into one
+loop) remains open.
+
 ## Knowledge, visibility, and the projection model
 
 Knowledge over zone contents is the primitive concept for everything

@@ -140,6 +140,7 @@ class RuntimeState:
         self.move_type_index: dict[str, n.MoveTypeDef] = {}  # name -> definition
         self.type_index: dict[str, n.TypeDef] = {}  # type name -> definition
         self.define_index: dict[str, n.DefineDef] = {}  # define name -> definition
+        self.function_index: dict[str, n.FunctionDef] = {}  # function name -> definition
         # Outcome a phase produced as it ran, keyed by phase name; consumed (and
         # cleared) by a later-sibling `produces:` block.
         self.phase_outcomes: dict[str, tuple[str, list[Any]]] = {}

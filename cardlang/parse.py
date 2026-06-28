@@ -907,18 +907,31 @@ class _Builder(Transformer[Token, n.Game]):
             name=name, guard=guard, effect=effect, param=param, span=self._span(meta)  # type: ignore[arg-type]
         )
 
+    def func_param(self, meta: Meta, c: list[object]) -> n.MoveParam:
+        return n.MoveParam(name=str(c[0]), type_name=str(c[1]), span=self._span(meta))
+
+    def function_def(self, meta: Meta, c: list[object]) -> n.FunctionDef:
+        # c: NAME, func_param* (n.MoveParam), expr(body). The body is the last child.
+        name = str(c[0])
+        params = tuple(x for x in c if isinstance(x, n.MoveParam))
+        return n.FunctionDef(
+            name=name, params=params, body=_as_expr(c[-1]), span=self._span(meta)
+        )
+
     def start(self, meta: Meta, c: list[object]) -> n.Game:
         game = next(x for x in c if isinstance(x, n.Game))
         rules = tuple(x for x in c if isinstance(x, n.RuleDef))
         move_types = tuple(x for x in c if isinstance(x, n.MoveTypeDef))
         types = tuple(x for x in c if isinstance(x, n.TypeDef))
         defines = tuple(x for x in c if isinstance(x, n.DefineDef))
+        functions = tuple(x for x in c if isinstance(x, n.FunctionDef))
         return replace(
             game,
             rules=rules,
             move_types=move_types,
             types=types,
             defines=defines,
+            functions=functions,
         )
 
 
