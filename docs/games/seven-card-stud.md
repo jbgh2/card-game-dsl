@@ -20,10 +20,22 @@ Each hand:
 The `.md` source is a cash game with no overall winner; to give the runtime a
 terminal, the executable plays until one player holds **all** the chips and names
 that player the winner. Chips are modelled as an integer `stack` per player (not
-a resource-zone subsystem); the total is invariant. The hand engine — antes,
-bring-in, betting, and showdown with side-pot distribution — runs in the built-in
-`StudHand` mechanic; the poker evaluator is unit-tested. The 4th-street open-pair
-limit doubling is simplified out.
+a resource-zone subsystem); the total is invariant. The betting — antes, deal,
+the bring-in post, and the five streets — runs in the DSL on the kernel `round` in
+**priority order**: each turn re-scans the seat order from the leader and offers
+the first still-pending player, so after a raise re-opens earlier seats action
+returns to the earliest owing seat. Only the showdown (side-pot settlement and the
+muck, both RNG-free) and the door-card seat selectors (`bring_in_seat` /
+`first_to_act_seat`) are runtime support; the poker evaluator is unit-tested. The
+4th-street open-pair limit doubling is simplified out.
+
+The betting state is carried as ordinary phase state (`bet_to_match`, `raises`,
+per-player `bet_by`/`acted`/`folded`/`committed`); a `check`/`bet`/`call`/`raise`/
+`fold` move type writes it (a bet or raise is a partial all-in when the actor
+can't cover it, and resets every other player's `acted` so action re-opens). The
+`until` predicate closes a street when no live player still owes or has yet to act
+(or one lone contender remains, already matched). The 3rd street is shown in full;
+streets 4–7 repeat the same betting round after a burn and a dealt card.
 
 ```
 game SevenCardStud {
@@ -43,27 +55,88 @@ game SevenCardStud {
   }
 
   state {
-    // Chips as integers; total is invariant. The winner holds them all.
-    stack[player] : Integer = 100
+    stack[player] : Integer = 100            // chips; total invariant, winner holds all
   }
 
   phase hand_sequence repeats until (number of players where stack[player] > 0) <= 1 {
-    state {
-      dealer : Player = 0
-    }
-
-    before_each {
-      move all cards to deck
-      shuffle deck
-      dealer := dealer offset_by left
-    }
+    state { dealer : Player = 0 }
+    before_each { move all cards to deck  shuffle deck  dealer := dealer offset_by left }
 
     phase play {
-      legal_moves: [bring_in, check, call, bet, raise, fold]
-      instantiate StudHand(dealer = dealer)
+      state {
+        in_hand[player] : Boolean = false   committed[player] : Integer = 0
+        folded[player]  : Boolean = false   bet_by[player]    : Integer = 0
+        acted[player]   : Boolean = false   bet_to_match : Integer = 0
+        raises : Integer = 0   limit : Integer = 0
+      }
+
+      for each player p: in_hand[p] := stack[p] > 0
+      for each player p: if in_hand[p] { stack[p] := stack[p] - 1  committed[p] := committed[p] + 1 }
+      for each player p: if in_hand[p] { deal 2 cards from deck to hole[p]  deal 1 card from deck to upcards[p] }
+
+      // Bring-in (a forced post) + 3rd street.
+      if (number of players where stack[player] > 0) >= 2 {
+        let bringer = bring_in_seat()
+        bet_by[bringer] := if 2 < stack[bringer] then 2 else stack[bringer]
+        stack[bringer] := stack[bringer] - bet_by[bringer]
+        committed[bringer] := committed[bringer] + bet_by[bringer]
+        bet_to_match := 2   raises := 1   limit := 5
+        round offering [check, bet, call, fold, raise] from bringer offset_by left
+              over players where not folded[player] and stack[player] > 0
+                                and (not acted[player] or bet_by[player] < bet_to_match)
+              order priority
+              until (number of players where not folded[player] and stack[player] > 0
+                       and (not acted[player] or bet_by[player] < bet_to_match)) == 0
+                 or ((number of players where not folded[player] and stack[player] > 0) <= 1
+                     and (number of players where not folded[player] and stack[player] > 0
+                            and bet_by[player] < bet_to_match) == 0)
+      }
+      // ... 4th–7th streets: four flat `if (contenders > 1) { ... }` blocks — a burn
+      // + a dealt card (upcard on 4th/5th/6th, hole on 7th), then the same betting
+      // round with limits 5 / 10 / 10 / 10 and `from first_to_act_seat()`. The
+      // contender count is monotonic, so the flat guards short-circuit exactly as
+      // nesting would (see seven-card-stud.cardlang).
+
+      instantiate StudShowdown()              // side-pot settlement + muck (RNG-free)
     }
   }
 
   winner: highest stack
+}
+
+// The betting vocabulary (game-defined move types). Offered in this order; the
+// `when:` guards filter to the legal options at each decision.
+move_type check { when: bet_to_match <= bet_by[actor]  effect { acted[actor] := true } }
+move_type bet {
+  when: bet_to_match == 0
+  effect {
+    let post = if limit < stack[actor] then limit else stack[actor]
+    stack[actor] := stack[actor] - post   committed[actor] := committed[actor] + post
+    bet_by[actor] := bet_by[actor] + post  bet_to_match := bet_by[actor]  raises := 1
+    for each player p: acted[p] := false   acted[actor] := true
+  }
+}
+move_type call {
+  when: bet_to_match > bet_by[actor]
+  effect {
+    let owed = bet_to_match - bet_by[actor]   let pay = if owed < stack[actor] then owed else stack[actor]
+    stack[actor] := stack[actor] - pay   committed[actor] := committed[actor] + pay
+    bet_by[actor] := bet_by[actor] + pay   acted[actor] := true
+  }
+}
+move_type raise {
+  when: bet_to_match > bet_by[actor] and raises < 3
+  effect {
+    let owed = bet_to_match - bet_by[actor]   let want = owed + limit
+    let pay = if want < stack[actor] then want else stack[actor]
+    stack[actor] := stack[actor] - pay   committed[actor] := committed[actor] + pay
+    bet_by[actor] := bet_by[actor] + pay
+    bet_to_match := if bet_to_match > bet_by[actor] then bet_to_match else bet_by[actor]
+    raises := raises + 1   for each player p: acted[p] := false   acted[actor] := true
+  }
+}
+move_type fold {
+  when: bet_to_match > bet_by[actor]
+  effect { folded[actor] := true  move all cards from upcards[actor] to muck }
 }
 ```

@@ -71,8 +71,9 @@ level. The distinction stays:
 
 - A **mechanic** is a named, parameterized, reusable unit, instantiated
   with arguments. It's the right shape when a chunk of logic appears
-  in multiple games (Auction, BettingRound). (The trick is no longer a
-  mechanic — it is the kernel `round` construct.)
+  in multiple games (a still-Python hand engine like Schnapsen's). (The
+  trick, the auction, and a betting round are no longer mechanics — they
+  are configurations of the kernel `round` construct.)
 - A **phase** is a positional unit in the phase tree, not parameterized
   and not reusable across games. It's the right shape when a chunk
   appears at a specific position with semantics tied to where it sits.
@@ -329,7 +330,7 @@ The surface:
 
 ```
 round offering [<move_type>, …] from <seat> over <ring>
-      until <predicate> outcome <fn>
+      [order <ring | priority>] until <predicate> [outcome <fn>]
 ```
 
 - **Move vocabulary (`offering`).** Each turn presents the acting player **one
@@ -362,18 +363,31 @@ round offering [<move_type>, …] from <seat> over <ring>
   being a single pass per participant — is observationally identical; this is one
   participants axis, with the continuous auction ring the case where per-turn
   re-evaluation is visible.
+- **Order (`order`).** How the ring is traversed — a value on the closed order
+  axis (turn-from-a-seat / priority / simultaneous). `order ring` (the default)
+  is the continuous ring: the pointer advances each turn, so after a player acts
+  the next *seat* is offered, wrapping. `order priority` re-scans the seat order
+  from the leader every turn and offers the first still-pending participant: after
+  an aggression re-opens earlier seats, action returns to the *earliest* owing
+  seat, not the next one round the ring. Bridge/Pinochle/Tarot auctions are
+  `ring`; Stud's betting is `priority` (a checked player responds to a later raise
+  before seats that have not yet acted), and Coup's response windows will be too.
 - **Accumulator.** The decision-relevant running state (Bridge's standing level,
   strain, doubling, high bidder, pass count) is ordinary **phase state**, read and
   written by the move-type effects and read by the termination predicate. No
   separate accumulator construct.
 - **Termination (`until`).** A predicate over that state, checked each time around
   the ring (Bridge: three passes after a bid, four with no bid).
-- **Outcome.** A named function over the threaded **bid history** plus the
-  terminal state — the same status as a trick's `outcome` callback (a
+- **Outcome (optional).** A named function over the threaded **bid history** plus
+  the terminal state — the same status as a trick's `outcome` callback (a
   runtime-primitive, no decisions of its own) — that produces the phase's typed
   variant. Bridge's `bridge_auction_outcome` finds the declarer (the first player
   of the high side to have named the final strain) and produces
-  `contract_finalized(declarer, level, strain, doubling) | all_pass`.
+  `contract_finalized(declarer, level, strain, doubling) | all_pass`. The `outcome`
+  clause is **omitted** when the ring produces no variant: a betting round mutates
+  shared chip/fold state directly through its move effects, so when the ring closes
+  it simply returns and the surrounding body deals the next street or settles — no
+  typed outcome, no `produces:` arm.
 
 An auction's only decision points are these per-turn candidate draws; the outcome
 callback consumes no randomness. So two auctions that present the same per-turn
@@ -473,10 +487,13 @@ outcome`); there is no construct for referencing a prior phase's
 outcome across the phase boundary — the shared enclosing variable is
 the channel.
 
-**Mechanic-internal state lives inside the mechanic.** Auction's
-`passed[player]`, the trick `round`'s per-trick state, BettingRound's
-`bet_to_match` all live inside their mechanic/construct. Such instances
-are short-lived; their state vanishes with the instance.
+**Mechanic-internal state lives inside the mechanic.** The trick `round`'s
+per-trick state (`led_suit`, the played cards) lives inside the construct, and a
+still-Python mechanic's locals (Schnapsen's talon-closing snapshot) live inside
+its instance. Such instances are short-lived; their state vanishes with the
+instance. (An auction's pass state or a betting round's `bet_to_match` is *not*
+mechanic-internal — those forms of `round` thread their accumulator through
+ordinary **phase state**, declared in the phase's `state { }`.)
 
 **Rules consulted from within a mechanic see the mechanic's state.**
 Lexical scoping puts the active mechanic instance's `state { }`
@@ -489,10 +506,12 @@ to imperative code in the phase body. Examples in the corpus:
 
 - Hearts' `MustFollowSuit` reads `state.led_suit`, which lives
   inside the trick `round`.
-- Pinochle's `BidExceedsCurrent` reads `state.current_bid`, which
-  lives inside the Auction mechanic.
-- Stud's BettingRound legality rules read `state.bet_to_match`
-  and `state.raises_so_far`, which live inside BettingRound.
+
+(The auction and betting forms of `round` express their legality differently —
+not as `active_rules:` reading mechanic state, but as the move types' own `when:`
+guards over phase state: Pinochle's ascending bid guards `submit_bid` on the
+standing bid; Stud's `check`/`bet`/`call`/`raise`/`fold` guard on `bet_to_match`,
+`bet_by`, and `raises`.)
 
 Rules are reusable across games; what binds them to a particular
 mechanic's state is the call site (where the mechanic is

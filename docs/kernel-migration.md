@@ -175,24 +175,52 @@ The corpus's only betting game and first real chip economy (Coup already settled
 resource amount + transfer-failure — [decisions.md](decisions.md), "Resource
 amount syntax" / "Resource transfer failure").
 
-- A `betting` definition over `round`: `ring` over non-folded players,
-  accumulator = bet-to-match / last-aggressor / raises-so-far, move vocabulary =
-  check / call / bet / raise / fold, termination = action closed. The legality
-  rules already exist as `BettingRound` active-rules ([library.md](library.md)).
-- A **pot** subsystem: chips as a resource, side-pot reconciliation by amount
-  committed, distribution at showdown via `best_five_card_hand` (already a
-  declared `runtime-primitive` signature).
-- Multi-street: ante, bring-in, five betting streets (3rd–7th), showdown.
+- **The betting runs on the kernel `round` — done.** Antes, the deal, the bring-in
+  post, and the five streets (3rd–7th) are DSL statements; each street's betting is
+  a `round offering [check, bet, call, fold, raise]` over the non-folded, non-allin
+  ring (`over players where not folded[player] and stack[player] > 0 and (not
+  acted[player] or bet_by[player] < bet_to_match)`) in **priority order**. The
+  accumulator (bet-to-match, raises, per-player bet_by/acted) is ordinary phase
+  state written by the move-type effects; a bet/raise is a partial all-in when the
+  actor can't cover it and resets every other `acted`. Termination (`until`) closes
+  a street when no live player still owes or has yet to act (or one lone matched
+  contender remains). The bid value isn't chosen — `limit` is per-street state.
+- **The `priority` order value — done.** Stud's betting order ("after a raise
+  re-opens earlier seats, action returns to the earliest owing seat") is the
+  pre-designed `priority` value on the order axis (turn-from-a-seat / priority /
+  simultaneous), not a new axis. It is `order priority` on the betting round
+  ([decisions.md](decisions.md), "The auction form of `round`"); the continuous
+  ring (`order ring`, the default) was the only order built before. Reused by
+  Coup's WS5 response windows.
+- **Seat selectors as stdlib primitives.** The bring-in (lowest door card) and the
+  first-to-act (highest visible upcards) are argmin/argmax over players keyed on
+  card ranks/suits — not DSL-expressible — so `bring_in_seat()` / `first_to_act_seat()`
+  are Stud-local stdlib functions called from the betting phase (like `team_of`),
+  pure reads of the dealt cards (no RNG).
+- **Showdown stays Python — for now.** Side-pot settlement by amount committed +
+  the muck run in `instantiate StudShowdown()` (the renamed, shrunk `run_stud_hand`
+  — antes/deal/betting removed). It is RNG-free, so it cannot shift the chooser
+  sequence; the per-hand stack golden pins its payouts. When it is lifted out of the
+  `instantiate` branch it becomes a **Stud-local `settle` primitive** (the layering +
+  `best_five_card_hand` for the showdown), *not* a generalized "pot subsystem":
+  side-pot reconciliation is a single corpus instance (Coup has no pot — its second
+  resource game is a coin/treasury economy; the natural second *side-pot* game is a
+  poker variant like Hold'em, still a candidate), so per corpus-first it stays
+  game-local until a second poker variant justifies a shared `betting`/pot
+  definition. `best_five_card_hand` is the documented runtime-primitive to wire then.
 
-**Checkpoint (language gap candidate).** `reconcile_pots` needs "the pot that was
-current when a player folded" — event-indexed state, flagged in
-[building.md](building.md) as the first real gap candidate. Decide
-`needs-formalizing` (expressible with existing loops/`let`/`transfer`/queries)
-vs `language-gap`; if the latter, file `open-questions/<slug>.md` rather than
-reaching into the runtime.
+**Checkpoint (event-indexed pots) — needs-formalizing, not a language gap.** The
+settlement reconciles purely from per-player committed running totals + fold flags
+(sorted commitment levels, divmod odd-chip to the first winner); there is no "pot
+current when a player folded" anywhere. So it is expressible with loops/`let`/
+queries — to be done when settlement moves to the DSL; **not** filed as an open
+question.
 
-**Test-depth net.** Total-chips invariant exists; add a side-pot correctness
-recompute before deleting `run_stud_hand`.
+**Test-depth nets — built.** The per-hand stack golden (`seven-card-stud_hands.json`,
+50 seeds, pinned pre-migration — the end-of-game scores are degenerate, so the
+sensitive signal is the post-hand stack vector) confirmed the betting migration is
+byte-identical; the `_settle` recompute covers the side-pot layers (short all-in,
+tie+odd-chip, three-way layered, all-but-one-folded).
 
 ## Workstream 3 — Combinations and climbing (Tichu)
 
@@ -268,7 +296,12 @@ These land inside the workstreams above and are shared on the third use:
 
 - generalized `round` axes — Step 0, the spine for all of it;
 - the `scoring_component` runtime subsystem — Workstream 4;
-- the resource/pot economy — Workstream 2, reused by Coup;
+- the integer **resource primitive** (per-player amounts + `transfer`) — settled by
+  Coup ([decisions.md](decisions.md), "Resource amount syntax" / "Resource transfer
+  failure"), used by Stud's chips and Coup's coins. *Distinct from Stud's side-pot
+  reconciliation,* which is poker-specific: Coup has no pot (a coin/treasury
+  economy, not a shared pot), so it shares the primitive but not the layering. The
+  side-pot pot stays Stud-local until a second poker variant (Hold'em) lands;
 - the `Combination` model + queries — Workstream 3, reused by Pinochle and
   Cribbage.
 

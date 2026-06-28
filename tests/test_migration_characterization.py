@@ -76,3 +76,50 @@ def _capture_pinned(name: str) -> dict[str, Any]:
 def test_migration_preserves_per_seed_results(name: str) -> None:
     expected = json.loads((GOLDEN / f"{name}_scores.json").read_text())
     assert _capture_pinned(name) == expected
+
+
+# Stud's end-of-game scores are degenerate — the winner always holds all 400
+# chips — so the generic capture above would pin only `winner` + `hands_played`,
+# too coarse to catch a chooser-draw divergence that doesn't flip the eventual
+# winner. Instead pin the full per-hand stack-vector sequence: any divergence in
+# the betting/showdown draws surfaces at the hand it occurs. Pinned pre-migration.
+_STUD_CAPTURE = """
+import json, random, sys
+from pathlib import Path
+from cardlang.pipeline import check_dsl
+from cardlang.runtime.driver import play_game
+
+game = check_dsl(
+    Path("docs/games/seven-card-stud.cardlang").read_text(), "seven-card-stud.cardlang"
+)
+out = {}
+for seed in range(50):
+    hands = []
+
+    def tracer(event, data, _h=hands):
+        if event == "stud_hand":
+            _h.append([data["stacks"][p] for p in sorted(data["stacks"])])
+
+    play_game(game, random.Random(seed), tracer)
+    out[str(seed)] = hands
+print(json.dumps(out))
+"""
+
+
+def _capture_stud_hands() -> dict[str, Any]:
+    env = dict(os.environ, PYTHONHASHSEED="0")
+    proc = subprocess.run(
+        [sys.executable, "-c", _STUD_CAPTURE],
+        cwd=REPO,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    result: dict[str, Any] = json.loads(proc.stdout)
+    return result
+
+
+def test_stud_migration_preserves_per_hand_stacks() -> None:
+    expected = json.loads((GOLDEN / "seven-card-stud_hands.json").read_text())
+    assert _capture_stud_hands() == expected

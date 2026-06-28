@@ -168,9 +168,10 @@ sequential, with `apply_components:` as the one batched-write
 exception. (See [decisions.md](decisions.md), "State scoping" and
 "Mutation semantics".)
 
-**Mechanics own their internal state.** The trick `round`, and the `Auction`
-and `BettingRound` mechanics, each carry their own per-instance state.
-Games don't redeclare what a mechanic or construct already tracks. (See
+**Mechanics own their internal state.** A still-Python mechanic (Schnapsen's
+hand, Coup's game) carries its own per-instance state; games don't redeclare what
+it tracks. (The trick, auction, and betting forms of the kernel `round` instead
+thread their accumulator through ordinary phase state.) (See
 [library.md](library.md), "Mechanics".)
 
 **Typed phase outcomes route control flow at the phase boundary.**
@@ -192,10 +193,10 @@ User-defined types support optional `derived` fields. Stdlib types
 are built in. (See [library.md](library.md), "Types" and
 [decisions.md](decisions.md), "Typed object model".)
 
-**Vocabulary in the syntax.** Domain words from rulebooks —
-`Auction`, `BettingRound`, `Hand`, `Deck`, `Discard`, `Muck`,
-`ChipStack`, `MustFollowSuit` — are first-class names in the library
-rather than abstractions the user has to invent. (See "Domain
+**Vocabulary in the syntax.** Domain words from rulebooks — the `round`
+construct (its trick / auction / betting forms), `Hand`, `Deck`, `Discard`,
+`Muck`, `ChipStack`, `ChallengeWindow`, `MustFollowSuit` — are first-class names
+in the library rather than abstractions the user has to invent. (See "Domain
 vocabulary in the syntax" above and [library.md](library.md).)
 
 **Two-layer architecture.** A small set of deep primitives

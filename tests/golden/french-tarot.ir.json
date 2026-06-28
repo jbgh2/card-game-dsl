@@ -412,7 +412,8 @@
                   "kind": "int",
                   "value": 0
                 }
-              }
+              },
+              "order_mode": null
             }
           ]
         },

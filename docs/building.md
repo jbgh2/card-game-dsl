@@ -23,7 +23,7 @@ source (.md fenced block)
    │  extract
    ▼
 raw DSL text ──parse──▶ typed AST ──resolve──▶ resolved AST
-   ──typecheck──▶ type-annotated AST ──emit──▶ validated IR (JSON)
+   ──typecheck──▶ type-annotated AST ──deck-capacity──▶ ──emit──▶ validated IR (JSON)
 ```
 
 - **extract** — game files are Markdown; the DSL lives in fenced code blocks. A
@@ -46,15 +46,23 @@ raw DSL text ──parse──▶ typed AST ──resolve──▶ resolved AST
   `demands` returns candidate moves, `if_impossible` is a fallback), mechanic
   `outcome`/`routing` signatures, scoring components producing `ScoreDelta`, and
   exhaustiveness of matches on typed phase/mechanic outcomes.
+- **deck-capacity** — a conservative static check: for each per-hand window (the
+  deals between deck resets) it bounds the worst-case cards dealt from the deck and
+  errors if that exceeds the deck's capacity, so a too-large player count (an
+  8-player Seven-Card Stud, a 5-player Bridge) is a compile error, not a runtime
+  crash on an exhausted deck. It never rejects a valid game: a deal it cannot bound
+  — `deal all`, a non-literal amount, a deal inside `repeat until` — contributes
+  nothing; a guarded deal (`if`) counts as taken and a per-player deal (`for each
+  player` / `to each`) multiplies by the player count (the high end of a range).
 - **emit** — lowers the type-annotated AST to the validated IR.
 
 ## The AST↔IR seam
 
 The IR is the **resolved, type-annotated AST — not desugared**. Library
-constructs (`Hand<Owner>`, the `round` construct, `BettingRound`,
-`ChallengeWindow`) are preserved as first-class IR nodes carrying their resolved
-bindings and inferred types. They are not lowered to primitives: `round` and the
-betting/challenge mechanics are control-flow units whose desugaring needs runtime
+constructs (`Hand<Owner>`, the `round` construct — including its betting form —
+and `ChallengeWindow`) are preserved as first-class IR nodes carrying their
+resolved bindings and inferred types. They are not lowered to primitives: `round`
+and the challenge mechanic are control-flow units whose desugaring needs runtime
 semantics, and
 the runtime is the next milestone, not this one. Keeping the IR at the resolved-AST
 level is what lets the runtime adapter's language stay an independent choice

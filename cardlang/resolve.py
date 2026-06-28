@@ -402,10 +402,18 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                             f"round vocabulary names unknown move type '{name}'",
                             nd.span,
                         )
-                if nd.outcome_fn not in STDLIB_AUCTION_OUTCOMES:
+                # The betting form omits `outcome` (it mutates state directly and
+                # produces no variant); only an auction's outcome fn is validated.
+                if nd.outcome_fn is not None and nd.outcome_fn not in STDLIB_AUCTION_OUTCOMES:
                     bag.error(
                         f"auction round outcome '{nd.outcome_fn}' is not an auction "
                         f"outcome function",
+                        nd.span,
+                    )
+                if nd.order_mode is not None and nd.order_mode not in n.ROUND_ORDER_MODES:
+                    bag.error(
+                        f"round order '{nd.order_mode}' is unknown (expected one of "
+                        f"{sorted(n.ROUND_ORDER_MODES)})",
                         nd.span,
                     )
             case n.Round():

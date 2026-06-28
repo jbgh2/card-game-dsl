@@ -54,12 +54,9 @@ Key design notes:
 - `pass` — source: nothing material, marks player as out of auction
 - `declare_trump_suit` — source: nothing material, sets trump state
 - `steal_left` — source: another player's hand, destination: own hand (Getaway)
-- `bring_in` — forced opening bet at third street (Stud)
-- `check` — pass-action when there's no bet to match (Stud)
-- `call` — match the current bet (Stud)
-- `bet` — open a betting round (Stud)
-- `raise` — increase the current bet (Stud)
-- `fold` — exit the current hand (Stud)
+- `check` / `bet` / `call` / `raise` / `fold` — Stud's betting vocabulary,
+  **game-defined** `move_type`s (not library moves) that write the betting
+  accumulator phase state; the bring-in is a forced effect, not a move
 - `income` / `foreign_aid` / `coup` / `tax` / `assassinate` / `steal` /
   `exchange` — Coup turn actions (general and character actions)
 - `challenge` — contest a character claim during a challenge window (Coup)
@@ -73,7 +70,6 @@ Key design notes:
 - `MustOvertrumpIfTrumping` — constrains `play_to_trick`; must beat highest trump played when trumping
 - `BidExceedsCurrent` — constrains `submit_bid`; ascending auction rule
 - `BidIsLegalIncrement` — constrains `submit_bid`; bid increment validity
-- `BringInMandatory` — constrains `bring_in`; bring-in player must post the bring-in amount (Stud)
 - `NoLeadingHeartsUntilBroken` — Hearts-specific
 - `NoLeadingSpadesUntilBroken` — Spades-specific
 - *Generalization candidate:* `NoLeadingSuitUntilBroken(suit)` — parameterize
@@ -106,15 +102,21 @@ Key design notes:
   third instance. Spades and Oh Hell use *inline per-player bidding* instead —
   every player bids exactly once in turn, no ascending constraint — so they do not
   use the auction form.
-- `BettingRound` (see [games/seven-card-stud.md](games/seven-card-stud.md))
-  — parameterized over active players, opening bet, limit increment, max
-  raises, and outcome. Owns its own per-betting-round state
-  (`bet_to_match`, `last_aggressor`, `has_acted`, `raises_so_far`, `bet_by`).
-  Action-legality is expressed as `active_rules:` on the mechanic
-  (`CheckLegalIfNothingToCall`, `CallLegalIfBetToMatch`,
-  `BetLegalIfNoBetToMatch`, `RaiseLegalIfBetExistsAndRaiseCapNotHit`),
-  reading per-round state via lexical scoping. Used by Stud across
-  multiple streets; applicable to any limit-betting game.
+- **Betting runs on the betting form of the kernel `round`** (see
+  [decisions.md](decisions.md) "The auction form of `round`") — the same
+  continuous-ring form as an auction, in **`order priority`** (after a raise
+  re-opens earlier seats, action returns to the earliest owing seat) and with the
+  `outcome` clause omitted (a bet mutates chip/fold state directly, producing no
+  variant). Stud (see [games/seven-card-stud.md](games/seven-card-stud.md)) runs a
+  `round offering [check, bet, call, fold, raise]` per street over the
+  non-folded, non-allin ring. The accumulator (`bet_to_match`, `raises`, per-player
+  `bet_by`/`acted`/`committed`) is ordinary phase state; action-legality is the
+  move types' own `when:` guards (free-to-act → check/bet; facing a bet →
+  call/fold/raise-if-uncapped), not separate rules; the bring-in and first-to-act
+  seats come from the `bring_in_seat()` / `first_to_act_seat()` stdlib selectors.
+  The shared `betting` definition — this configuration of the form — is promoted to
+  this catalogue corpus-first at its third instance; Stud is the only instance
+  today, so the move types stay game-local.
 - `ChallengeWindow` (see [games/coup.md](games/coup.md)) — Coup.
   Parameterized over the claimant and the claimed character; resolves
   to `claim_stands | claim_refuted`. Offers each other in-game player a
@@ -393,9 +395,11 @@ Standard helpers available across games.
   value. Stdlib because every poker variant needs it; the
   implementation is standard and not game-specific.
 - `next_active_player(p) → Player` — returns the next player
-  clockwise from `p` who is not folded and not all-in. Stud uses
-  this in `BettingRound`'s main loop; any betting game would use
-  the same shape.
+  clockwise from `p` who is not folded and not all-in. A general
+  helper; Stud's betting ring no longer needs it — the kernel
+  `round`'s per-turn participant filter (`over players where not
+  folded[player] and stack[player] > 0 …`) advances the ring and
+  skips folded/all-in seats without a draw.
 - `player_holding(card) → Player` — returns the player whose hand
   contains the named card (or none if no player holds it).
   Used by Hearts (`player_holding(2 of clubs)`), Getaway

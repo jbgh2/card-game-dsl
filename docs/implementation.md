@@ -30,7 +30,9 @@ In scope (the compile-time net):
 - A **formal grammar and parser** for the surface syntax, producing a
   typed AST.
 - **Static semantic checks**: name resolution, type checking,
-  exhaustiveness, and an explicit no-placeholder audit.
+  exhaustiveness, an explicit no-placeholder audit, and a deck-capacity
+  check (worst-case cards dealt per hand vs the deck size, so a too-large
+  player count is a compile error, not a runtime exhausted-deck crash).
 - The **corpus as acceptance harness**: every game parses and checks, or
   fails loudly.
 
@@ -126,8 +128,8 @@ Resolve names across every block: zones, move types, rules, mechanics,
 user-defined types, state variables, players and partnerships, scoring
 components, and stdlib functions. Build scopes following lexical phase
 nesting (see [decisions.md](decisions.md), "State scoping"), including
-mechanic-internal state blocks that rules read by lexical scope (e.g.
-`BettingRound`).
+mechanic-internal state blocks that rules read by lexical scope (e.g. a
+still-Python `SchnapsenHand`'s endgame state).
 
 *Forcing function:* every `constrains: <move_type>`, every
 `active_rules: [...]` entry, every type and zone reference must resolve.

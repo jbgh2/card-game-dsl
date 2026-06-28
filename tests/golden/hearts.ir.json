@@ -376,7 +376,8 @@
               "trump": null,
               "early_termination": null,
               "move_types": null,
-              "termination": null
+              "termination": null,
+              "order_mode": null
             },
             {
               "kind": "movement",
@@ -539,7 +540,8 @@
                   "trump": null,
                   "early_termination": null,
                   "move_types": null,
-                  "termination": null
+                  "termination": null,
+                  "order_mode": null
                 },
                 {
                   "kind": "movement",

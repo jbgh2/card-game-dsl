@@ -1,26 +1,13 @@
-// Seven-Card Stud — formalized DSL (parser/checker/runtime target).
-//
-// Companion to seven-card-stud.md. Fixed-limit Seven-Card Stud, the corpus's
-// first betting game. Chips are modelled as an integer `stack` per player (not a
-// resource-zone subsystem). Each player antes, the low door card brings in, and
-// five betting streets (3rd–7th) precede a showdown where the best five-of-seven
-// poker hand takes the pot (with side pots for all-ins). The .md models a cash
-// game with no overall winner; to give the runtime a terminal, this plays until
-// one player holds all the chips and declares that player the winner.
-//
-// The betting runs on the kernel `round` in PRIORITY order: each turn re-scans
-// the seat order from the leader and offers the first still-pending player (after
-// a raise re-opens earlier seats, action returns to the earliest owing seat).
-// Antes, the deal, the bring-in post, and the five streets are DSL statements;
-// the bring-in / first-to-act seat selectors are stdlib primitives (argmin/argmax
-// over door cards). Only the showdown — side-pot settlement and the muck, both
-// RNG-free — runs in the built-in `StudShowdown` mechanic; the poker evaluator is
-// unit-tested. See IMPLEMENTATION_LOG.md (chips-as-integers, the open-pair limit
-// simplification).
+// Regression fixture for the PARTIAL bring-in branch: every player starts with
+// exactly two chips, so after the one-chip ante the bringer holds one chip and
+// the bring-in is min(2, 1) = 1 — a partial all-in while bet_to_match stays 2.
+// The 100-chip golden never reaches this branch. Other players then call for
+// their last chip (also partial all-ins). Body copied from
+// seven-card-stud.cardlang with players: 3 and a two-chip stack.
 
-game SevenCardStud {
+game StudPartialBringIn {
 
-  players: 4
+  players: 3
   direction: clockwise
 
   cards: standard52
@@ -36,7 +23,7 @@ game SevenCardStud {
 
   state {
     // Chips as integers; total is invariant. The winner holds them all.
-    stack[player] : Integer = 100
+    stack[player] : Integer = 2
   }
 
   phase hand_sequence repeats until (number of players where stack[player] > 0) <= 1 {

@@ -40,10 +40,10 @@ def instantiate(stmt: n.Instantiate, ctx: Ctx) -> Player:
         from cardlang.runtime.cribbage import run_cribbage_hand
 
         return run_cribbage_hand(stmt, ctx)
-    if stmt.mechanic == "StudHand":
-        from cardlang.runtime.stud import run_stud_hand
+    if stmt.mechanic == "StudShowdown":
+        from cardlang.runtime.stud import run_stud_showdown
 
-        return run_stud_hand(stmt, ctx)
+        return run_stud_showdown(stmt, ctx)
     if stmt.mechanic == "TichuHand":
         from cardlang.runtime.tichu import run_tichu_hand
 
@@ -124,6 +124,8 @@ def run_round(stmt: n.Round, ctx: Ctx) -> Player:
     leader = evaluate(stmt.leader, ctx)
     # `outcome_fn` and `early_termination` are bare stdlib value-function names on
     # the Round node (validated at resolve time), so they resolve directly here.
+    # Only the betting form omits `outcome_fn`, and it never reaches run_round.
+    assert stmt.outcome_fn is not None, "trick round requires an outcome function"
     outcome_fn = stdlib.value_function(stmt.outcome_fn)
     early_term = (
         stdlib.value_function(stmt.early_termination)
@@ -164,15 +166,29 @@ def _enumerate_domain(type_name: str, ctx: Ctx) -> list[Any]:
 
 
 def run_auction(stmt: n.Round, ctx: Ctx) -> None:
-    """The auction form of `round`: a continuous ring over a move vocabulary.
+    """The auction/betting form of `round`: a continuous ring over a move vocabulary.
 
     Each turn the acting player chooses one of the legal *concrete* moves — every
     parameterized move expanded over its value-domain and guard-filtered, plus the
     nullary moves — as a single flat candidate list (one chooser draw, matching
     OpenSpiel's one-decision-node-per-turn action set). The chosen move's effect
     runs with `actor` (and the move parameter) bound, threading the phase-state
-    accumulator. The ring loops until the termination predicate holds; then the
-    outcome function produces the phase's typed variant from the bid history.
+    accumulator. The ring loops until the termination predicate holds.
+
+    Two axes vary:
+
+    - **outcome (optional).** An auction supplies `outcome <fn>`, and when the ring
+      closes the function produces the phase's typed variant from the bid history
+      (a `_ProduceSignal`). A betting round omits it: the move effects have already
+      mutated the shared chip/fold state, so the closed ring simply returns.
+    - **order.** `ring` (the default) advances the pointer each turn, so a seat that
+      has acted is offered again only when the ring wraps. `priority` re-scans the
+      seat order from the leader every turn and offers the first still-pending
+      participant, so after an aggression re-opens earlier seats action returns to
+      the earliest of them (betting, response windows). In priority mode `until` is
+      the sole terminator — the participants clause and the termination predicate
+      must agree, so an empty ring with `until` still false is a malformed game,
+      raised rather than silently ended.
     """
     from cardlang.runtime import stdlib
     from cardlang.runtime.execute import run_body
@@ -189,17 +205,33 @@ def run_auction(stmt: n.Round, ctx: Ctx) -> None:
         guard += 1
         if guard > 1000:  # ring steps, not productive turns; well above any auction
             raise RuntimeError("auction did not terminate within 1000 ring steps")
-        player = order[i % len(order)]
-        i += 1
         # The participants ring is re-evaluated each turn (the participant-filter
         # axis): a player the predicate drops mid-ring — a standing high bidder, a
         # player who has passed for good — is skipped with no chooser draw. The
         # ascending auctions (Pinochle, Tarot, Skat) and Stud's betting state the
         # shrinking ring this way; a static ring (Bridge's `all players`) is the
         # invariant case (decisions.md "The auction form of `round`").
-        participants = list(evaluate(stmt.participants, ctx))
-        if player not in participants:
-            continue
+        # The participants set is only membership-tested, so a set keeps the ring
+        # order (which comes from `order`) the single source of sequencing.
+        participants = set(evaluate(stmt.participants, ctx))
+        if stmt.order_mode == n.ROUND_ORDER_PRIORITY:
+            # Priority order: re-scan the seat order from the leader each turn and
+            # offer the first still-pending participant (betting, response windows).
+            # The pointer does not advance — a seat that stays pending is re-offered
+            # before later seats. `until` is the sole terminator, so an unsatisfied
+            # `until` with no pending participant is a malformed game.
+            player = next((p for p in order if p in participants), None)
+            if player is None:
+                raise RuntimeError(
+                    "priority round: no participant is pending but the `until` "
+                    "predicate is unsatisfied (the termination and participants "
+                    "clauses disagree)"
+                )
+        else:
+            player = order[i % len(order)]
+            i += 1
+            if player not in participants:
+                continue
         pctx = ctx.acting_as(player)
         candidates: list[tuple[str, Any]] = []
         for mt in move_defs:
@@ -233,6 +265,11 @@ def run_auction(stmt: n.Round, ctx: Ctx) -> None:
         run_body(mt.effect, eff_ctx)
         history.append((player, name, value))
 
+    # The betting form omits `outcome`: the ring closed, the shared chip/fold
+    # state has already been mutated by the move effects, so the round just
+    # returns and the surrounding body deals the next street or settles.
+    if stmt.outcome_fn is None:
+        return
     tag, payloads = stdlib.auction_outcome_function(stmt.outcome_fn)(history, ctx)
     raise _ProduceSignal(tag, payloads)
 
