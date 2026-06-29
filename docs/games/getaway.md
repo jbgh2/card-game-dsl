@@ -52,7 +52,7 @@ game Getaway {
     legal_moves:  [play_to_trick]
 
     // Loop tricks until at most one player still holds cards.
-    repeat until (number of players where hand[player] is not empty) <= 1 {
+    repeat until (number of players where has_cards(player)) <= 1 {
       round play_to_trick from leader over players where not eliminated[player]
             source hand into trick_pile outcome highest_of_led_suit early on_play_of_tochoo
       // On a tochoo the highest led-suit card picks up the pile; otherwise the
@@ -67,8 +67,8 @@ game Getaway {
   // The sole survivor loses. If the last players all shed their final card on
   // one trick (no one holds cards), the winner of that trick — the last
   // `leader` — loses.
-  loser: if (number of players where hand[player] is not empty) == 1
-         then the player where hand[player] is not empty
+  loser: if (number of players where has_cards(player)) == 1
+         then the player where has_cards(player)
          else leader
 }
 
@@ -89,6 +89,11 @@ rule MustFollowSuit {
   demands: hand.cards_of_suit(state.led_suit)
   if_impossible: hand   // void in the led suit: play any card
 }
+
+// A player still in the hand holds cards. Named so the survivor count (the
+// `repeat until`) and the loser clause test the same predicate — they must agree
+// on who is left for the last-card winner to be named the loser.
+function has_cards(p : Player) = hand[p] is not empty
 ```
 
 ## Formalization notes
