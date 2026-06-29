@@ -365,13 +365,22 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
     parameters, binders it introduces (`number of players where …`), and game/phase
     state — not a name the flat classifier tagged `local` from some unrelated binder,
     and not the call-site pronouns `actor`/`action`/`outcome` (the runtime clears
-    them); and the call graph must be acyclic (a cycle would loop forever at runtime)."""
+    them); and the call graph must be acyclic (a cycle would loop forever at runtime).
+    A function may not reuse a stdlib call name: a call would type-check against the
+    stdlib signature but dispatch to the user function at run time."""
     fn_names = {f.name for f in game.functions}
     calls: dict[str, set[str]] = {
         f.name: {c.func for c in _walk(f.body) if isinstance(c, n.Call) and c.func in fn_names}
         for f in game.functions
     }
     for fn in game.functions:
+        if fn.name in STDLIB_CALL_FUNCS:
+            bag.error(
+                f"function '{fn.name}' shadows the stdlib function of the same name; "
+                f"rename it (a call would type-check against the stdlib signature but "
+                f"run this function instead)",
+                fn.span,
+            )
         allowed = {p.name for p in fn.params}
         for nd in _walk(fn.body):  # binders the body itself introduces are in scope
             match nd:

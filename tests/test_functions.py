@@ -126,3 +126,51 @@ def test_function_reading_a_call_site_pronoun_is_rejected() -> None:
     )
     with pytest.raises(DiagnosticError):
         check_dsl(src, "pronoun-capture.cardlang")
+
+
+def test_function_shadowing_a_stdlib_call_is_rejected() -> None:
+    # A user function may not reuse a stdlib call name: a call would type-check
+    # against the stdlib signature but dispatch to the user function at runtime
+    # (`evaluate` consults user functions first). Reject the collision.
+    src = SRC + "function team_of(p : Player) = score[p] >= 0\n"
+    with pytest.raises(DiagnosticError):
+        check_dsl(src, "shadow-stdlib.cardlang")
+
+
+def test_function_call_in_a_move_guard_is_arity_checked() -> None:
+    # A `when:` guard is an expression position: a function call in it gets the same
+    # arity validation as one in a statement (here `ready` wants one argument).
+    src = SRC.replace(
+        "move_type stop { effect { done[actor] := true } }",
+        "move_type stop { when: ready() effect { done[actor] := true } }",
+    )
+    with pytest.raises(DiagnosticError):
+        check_dsl(src, "guard-arity.cardlang")
+
+
+# A rule whose `demands` predicate calls a function with the wrong arity: the rule
+# expression positions (`applies_when`/`demands`/`if_impossible`) are checked too.
+RULE_SRC = """
+game G {
+  players: 2
+  direction: clockwise
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase play { active_rules: [R]  legal_moves: [play_to_trick] }
+  winner: highest score
+}
+rule R {
+  constrains: play_to_trick
+  applies_when: always
+  demands: hand.where(c => owes())
+  if_impossible: hand
+}
+function owes(p : Player) = score[p] >= 0
+"""
+
+
+def test_function_call_in_a_rule_expression_is_arity_checked() -> None:
+    with pytest.raises(DiagnosticError):
+        check_dsl(RULE_SRC, "rule-arity.cardlang")

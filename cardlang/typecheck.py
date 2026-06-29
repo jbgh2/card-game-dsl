@@ -1097,6 +1097,20 @@ def typecheck(game: Game) -> Game:
     if game.loser is not None:
         _check_expr(game.loser.selection, env, bag)
 
+    # Move guards and rule predicates are expression positions too: a function call
+    # in a `when:`, `applies_when:`, `demands:`, or `if_impossible:` needs the same
+    # arity/type validation as one in a statement (the body walk above skips them).
+    for move_type in game.move_types:
+        if move_type.guard is not None:
+            _check_expr(move_type.guard, env, bag)
+    for rule in game.rules:
+        if rule.applies_when is not None and rule.applies_when.pred is not None:
+            _check_expr(rule.applies_when.pred, env, bag)
+        if rule.demands is not None:
+            _check_expr(rule.demands.expr, env, bag)
+        if rule.if_impossible is not None:
+            _check_expr(rule.if_impossible, env, bag)
+
     if bag.has_errors:
         error = DiagnosticError(bag.items[0])
         if len(bag.items) > 1:
