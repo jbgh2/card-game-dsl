@@ -766,55 +766,26 @@
                       "kind": "binop",
                       "op": "+",
                       "left": {
-                        "kind": "binop",
-                        "op": "*",
-                        "left": {
-                          "kind": "int",
-                          "value": 10
-                        },
-                        "right": {
-                          "kind": "subscript",
-                          "obj": {
-                            "kind": "name",
-                            "name": "team_bid",
-                            "ref": "state_var"
-                          },
-                          "index": {
+                        "kind": "call",
+                        "func": "contract_score",
+                        "args": [
+                          {
                             "kind": "name",
                             "name": "t",
                             "ref": "local"
                           }
-                        }
+                        ]
                       },
                       "right": {
-                        "kind": "binop",
-                        "op": "-",
-                        "left": {
-                          "kind": "subscript",
-                          "obj": {
-                            "kind": "name",
-                            "name": "team_tricks",
-                            "ref": "state_var"
-                          },
-                          "index": {
+                        "kind": "call",
+                        "func": "overtricks",
+                        "args": [
+                          {
                             "kind": "name",
                             "name": "t",
                             "ref": "local"
                           }
-                        },
-                        "right": {
-                          "kind": "subscript",
-                          "obj": {
-                            "kind": "name",
-                            "name": "team_bid",
-                            "ref": "state_var"
-                          },
-                          "index": {
-                            "kind": "name",
-                            "name": "t",
-                            "ref": "local"
-                          }
-                        }
+                        ]
                       }
                     }
                   },
@@ -828,34 +799,15 @@
                     },
                     "op": "+=",
                     "value": {
-                      "kind": "binop",
-                      "op": "-",
-                      "left": {
-                        "kind": "subscript",
-                        "obj": {
-                          "kind": "name",
-                          "name": "team_tricks",
-                          "ref": "state_var"
-                        },
-                        "index": {
+                      "kind": "call",
+                      "func": "overtricks",
+                      "args": [
+                        {
                           "kind": "name",
                           "name": "t",
                           "ref": "local"
                         }
-                      },
-                      "right": {
-                        "kind": "subscript",
-                        "obj": {
-                          "kind": "name",
-                          "name": "team_bid",
-                          "ref": "state_var"
-                        },
-                        "index": {
-                          "kind": "name",
-                          "name": "t",
-                          "ref": "local"
-                        }
-                      }
+                      ]
                     }
                   }
                 ],
@@ -870,25 +822,15 @@
                     },
                     "op": "-=",
                     "value": {
-                      "kind": "binop",
-                      "op": "*",
-                      "left": {
-                        "kind": "int",
-                        "value": 10
-                      },
-                      "right": {
-                        "kind": "subscript",
-                        "obj": {
-                          "kind": "name",
-                          "name": "team_bid",
-                          "ref": "state_var"
-                        },
-                        "index": {
+                      "kind": "call",
+                      "func": "contract_score",
+                      "args": [
+                        {
                           "kind": "name",
                           "name": "t",
                           "ref": "local"
                         }
-                      }
+                      ]
                     }
                   }
                 ]
@@ -1217,5 +1159,77 @@
   "move_types": [],
   "types": [],
   "defines": [],
-  "functions": []
+  "functions": [
+    {
+      "kind": "function",
+      "name": "contract_score",
+      "params": [
+        {
+          "name": "t",
+          "type_name": "Team"
+        }
+      ],
+      "body": {
+        "kind": "binop",
+        "op": "*",
+        "left": {
+          "kind": "int",
+          "value": 10
+        },
+        "right": {
+          "kind": "subscript",
+          "obj": {
+            "kind": "name",
+            "name": "team_bid",
+            "ref": "state_var"
+          },
+          "index": {
+            "kind": "name",
+            "name": "t",
+            "ref": "local"
+          }
+        }
+      }
+    },
+    {
+      "kind": "function",
+      "name": "overtricks",
+      "params": [
+        {
+          "name": "t",
+          "type_name": "Team"
+        }
+      ],
+      "body": {
+        "kind": "binop",
+        "op": "-",
+        "left": {
+          "kind": "subscript",
+          "obj": {
+            "kind": "name",
+            "name": "team_tricks",
+            "ref": "state_var"
+          },
+          "index": {
+            "kind": "name",
+            "name": "t",
+            "ref": "local"
+          }
+        },
+        "right": {
+          "kind": "subscript",
+          "obj": {
+            "kind": "name",
+            "name": "team_bid",
+            "ref": "state_var"
+          },
+          "index": {
+            "kind": "name",
+            "name": "t",
+            "ref": "local"
+          }
+        }
+      }
+    }
+  ]
 }
