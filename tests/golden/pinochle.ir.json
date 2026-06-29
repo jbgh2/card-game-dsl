@@ -691,34 +691,15 @@
                           "kind": "binop",
                           "op": ">=",
                           "left": {
-                            "kind": "binop",
-                            "op": "+",
-                            "left": {
-                              "kind": "subscript",
-                              "obj": {
-                                "kind": "name",
-                                "name": "meld_score",
-                                "ref": "state_var"
-                              },
-                              "index": {
+                            "kind": "call",
+                            "func": "team_score_in_hand",
+                            "args": [
+                              {
                                 "kind": "name",
                                 "name": "t",
                                 "ref": "local"
                               }
-                            },
-                            "right": {
-                              "kind": "subscript",
-                              "obj": {
-                                "kind": "name",
-                                "name": "trick_score",
-                                "ref": "state_var"
-                              },
-                              "index": {
-                                "kind": "name",
-                                "name": "t",
-                                "ref": "local"
-                              }
-                            }
+                            ]
                           },
                           "right": {
                             "kind": "name",
@@ -737,34 +718,15 @@
                             },
                             "op": "+=",
                             "value": {
-                              "kind": "binop",
-                              "op": "+",
-                              "left": {
-                                "kind": "subscript",
-                                "obj": {
-                                  "kind": "name",
-                                  "name": "meld_score",
-                                  "ref": "state_var"
-                                },
-                                "index": {
+                              "kind": "call",
+                              "func": "team_score_in_hand",
+                              "args": [
+                                {
                                   "kind": "name",
                                   "name": "t",
                                   "ref": "local"
                                 }
-                              },
-                              "right": {
-                                "kind": "subscript",
-                                "obj": {
-                                  "kind": "name",
-                                  "name": "trick_score",
-                                  "ref": "state_var"
-                                },
-                                "index": {
-                                  "kind": "name",
-                                  "name": "t",
-                                  "ref": "local"
-                                }
-                              }
+                              ]
                             }
                           }
                         ],
@@ -798,34 +760,15 @@
                         },
                         "op": "+=",
                         "value": {
-                          "kind": "binop",
-                          "op": "+",
-                          "left": {
-                            "kind": "subscript",
-                            "obj": {
-                              "kind": "name",
-                              "name": "meld_score",
-                              "ref": "state_var"
-                            },
-                            "index": {
+                          "kind": "call",
+                          "func": "team_score_in_hand",
+                          "args": [
+                            {
                               "kind": "name",
                               "name": "t",
                               "ref": "local"
                             }
-                          },
-                          "right": {
-                            "kind": "subscript",
-                            "obj": {
-                              "kind": "name",
-                              "name": "trick_score",
-                              "ref": "state_var"
-                            },
-                            "index": {
-                              "kind": "name",
-                              "name": "t",
-                              "ref": "local"
-                            }
-                          }
+                          ]
                         }
                       }
                     ]
@@ -950,5 +893,46 @@
   ],
   "types": [],
   "defines": [],
-  "functions": []
+  "functions": [
+    {
+      "kind": "function",
+      "name": "team_score_in_hand",
+      "params": [
+        {
+          "name": "t",
+          "type_name": "Team"
+        }
+      ],
+      "body": {
+        "kind": "binop",
+        "op": "+",
+        "left": {
+          "kind": "subscript",
+          "obj": {
+            "kind": "name",
+            "name": "meld_score",
+            "ref": "state_var"
+          },
+          "index": {
+            "kind": "name",
+            "name": "t",
+            "ref": "local"
+          }
+        },
+        "right": {
+          "kind": "subscript",
+          "obj": {
+            "kind": "name",
+            "name": "trick_score",
+            "ref": "state_var"
+          },
+          "index": {
+            "kind": "name",
+            "name": "t",
+            "ref": "local"
+          }
+        }
+      }
+    }
+  ]
 }

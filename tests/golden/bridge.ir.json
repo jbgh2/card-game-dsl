@@ -1630,72 +1630,15 @@
         "kind": "binop",
         "op": "<=",
         "left": {
-          "kind": "if",
-          "cond": {
-            "kind": "binop",
-            "op": "==",
-            "left": {
+          "kind": "call",
+          "func": "next_level",
+          "args": [
+            {
               "kind": "name",
-              "name": "cur_level",
-              "ref": "state_var"
-            },
-            "right": {
-              "kind": "int",
-              "value": 0
+              "name": "strain",
+              "ref": "local"
             }
-          },
-          "then": {
-            "kind": "int",
-            "value": 1
-          },
-          "elifs": [
-            [
-              {
-                "kind": "binop",
-                "op": ">",
-                "left": {
-                  "kind": "call",
-                  "func": "strain_index",
-                  "args": [
-                    {
-                      "kind": "name",
-                      "name": "strain",
-                      "ref": "local"
-                    }
-                  ]
-                },
-                "right": {
-                  "kind": "call",
-                  "func": "strain_index",
-                  "args": [
-                    {
-                      "kind": "name",
-                      "name": "cur_strain",
-                      "ref": "state_var"
-                    }
-                  ]
-                }
-              },
-              {
-                "kind": "name",
-                "name": "cur_level",
-                "ref": "state_var"
-              }
-            ]
-          ],
-          "otherwise": {
-            "kind": "binop",
-            "op": "+",
-            "left": {
-              "kind": "name",
-              "name": "cur_level",
-              "ref": "state_var"
-            },
-            "right": {
-              "kind": "int",
-              "value": 1
-            }
-          }
+          ]
         },
         "right": {
           "kind": "int",
@@ -1709,72 +1652,15 @@
           "index": null,
           "op": ":=",
           "value": {
-            "kind": "if",
-            "cond": {
-              "kind": "binop",
-              "op": "==",
-              "left": {
+            "kind": "call",
+            "func": "next_level",
+            "args": [
+              {
                 "kind": "name",
-                "name": "cur_level",
-                "ref": "state_var"
-              },
-              "right": {
-                "kind": "int",
-                "value": 0
+                "name": "strain",
+                "ref": "local"
               }
-            },
-            "then": {
-              "kind": "int",
-              "value": 1
-            },
-            "elifs": [
-              [
-                {
-                  "kind": "binop",
-                  "op": ">",
-                  "left": {
-                    "kind": "call",
-                    "func": "strain_index",
-                    "args": [
-                      {
-                        "kind": "name",
-                        "name": "strain",
-                        "ref": "local"
-                      }
-                    ]
-                  },
-                  "right": {
-                    "kind": "call",
-                    "func": "strain_index",
-                    "args": [
-                      {
-                        "kind": "name",
-                        "name": "cur_strain",
-                        "ref": "state_var"
-                      }
-                    ]
-                  }
-                },
-                {
-                  "kind": "name",
-                  "name": "cur_level",
-                  "ref": "state_var"
-                }
-              ]
-            ],
-            "otherwise": {
-              "kind": "binop",
-              "op": "+",
-              "left": {
-                "kind": "name",
-                "name": "cur_level",
-                "ref": "state_var"
-              },
-              "right": {
-                "kind": "int",
-                "value": 1
-              }
-            }
+            ]
           }
         },
         {
@@ -1993,5 +1879,84 @@
   ],
   "types": [],
   "defines": [],
-  "functions": []
+  "functions": [
+    {
+      "kind": "function",
+      "name": "next_level",
+      "params": [
+        {
+          "name": "s",
+          "type_name": "Suit?"
+        }
+      ],
+      "body": {
+        "kind": "if",
+        "cond": {
+          "kind": "binop",
+          "op": "==",
+          "left": {
+            "kind": "name",
+            "name": "cur_level",
+            "ref": "state_var"
+          },
+          "right": {
+            "kind": "int",
+            "value": 0
+          }
+        },
+        "then": {
+          "kind": "int",
+          "value": 1
+        },
+        "elifs": [
+          [
+            {
+              "kind": "binop",
+              "op": ">",
+              "left": {
+                "kind": "call",
+                "func": "strain_index",
+                "args": [
+                  {
+                    "kind": "name",
+                    "name": "s",
+                    "ref": "local"
+                  }
+                ]
+              },
+              "right": {
+                "kind": "call",
+                "func": "strain_index",
+                "args": [
+                  {
+                    "kind": "name",
+                    "name": "cur_strain",
+                    "ref": "state_var"
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "name",
+              "name": "cur_level",
+              "ref": "state_var"
+            }
+          ]
+        ],
+        "otherwise": {
+          "kind": "binop",
+          "op": "+",
+          "left": {
+            "kind": "name",
+            "name": "cur_level",
+            "ref": "state_var"
+          },
+          "right": {
+            "kind": "int",
+            "value": 1
+          }
+        }
+      }
+    }
+  ]
 }

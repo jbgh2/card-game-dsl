@@ -101,13 +101,13 @@ game Pinochle {
       } else {
         for each team t:
           if t == team_of(high_bidder) {
-            if meld_score[t] + trick_score[t] >= current_bid {
-              score[t] += meld_score[t] + trick_score[t]
+            if team_score_in_hand(t) >= current_bid {
+              score[t] += team_score_in_hand(t)
             } else {
               score[t] -= current_bid
             }
           } else {
-            score[t] += meld_score[t] + trick_score[t]
+            score[t] += team_score_in_hand(t)
           }
       }
     }
@@ -125,4 +125,8 @@ move_type submit_bid {
   }
 }
 move_type pass { effect { passed[actor] := true } }
+
+// A team's total for the hand: meld plus tricks. Named so the bidder's
+// make-the-bid test and every team's payout add the same total from one place.
+function team_score_in_hand(t : Team) = meld_score[t] + trick_score[t]
 ```

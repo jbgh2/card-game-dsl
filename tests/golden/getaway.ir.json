@@ -265,21 +265,15 @@
               "kind": "player_query",
               "query": "count",
               "pred": {
-                "kind": "is_check",
-                "check": "not_empty",
-                "operand": {
-                  "kind": "subscript",
-                  "obj": {
-                    "kind": "name",
-                    "name": "hand",
-                    "ref": "zone"
-                  },
-                  "index": {
+                "kind": "call",
+                "func": "has_cards",
+                "args": [
+                  {
                     "kind": "name",
                     "name": "player",
                     "ref": "local"
                   }
-                }
+                ]
               }
             },
             "right": {
@@ -460,21 +454,15 @@
           "kind": "player_query",
           "query": "count",
           "pred": {
-            "kind": "is_check",
-            "check": "not_empty",
-            "operand": {
-              "kind": "subscript",
-              "obj": {
-                "kind": "name",
-                "name": "hand",
-                "ref": "zone"
-              },
-              "index": {
+            "kind": "call",
+            "func": "has_cards",
+            "args": [
+              {
                 "kind": "name",
                 "name": "player",
                 "ref": "local"
               }
-            }
+            ]
           }
         },
         "right": {
@@ -486,21 +474,15 @@
         "kind": "player_query",
         "query": "pick",
         "pred": {
-          "kind": "is_check",
-          "check": "not_empty",
-          "operand": {
-            "kind": "subscript",
-            "obj": {
-              "kind": "name",
-              "name": "hand",
-              "ref": "zone"
-            },
-            "index": {
+          "kind": "call",
+          "func": "has_cards",
+          "args": [
+            {
               "kind": "name",
               "name": "player",
               "ref": "local"
             }
-          }
+          ]
         }
       },
       "elifs": [],
@@ -632,5 +614,33 @@
   "move_types": [],
   "types": [],
   "defines": [],
-  "functions": []
+  "functions": [
+    {
+      "kind": "function",
+      "name": "has_cards",
+      "params": [
+        {
+          "name": "p",
+          "type_name": "Player"
+        }
+      ],
+      "body": {
+        "kind": "is_check",
+        "check": "not_empty",
+        "operand": {
+          "kind": "subscript",
+          "obj": {
+            "kind": "name",
+            "name": "hand",
+            "ref": "zone"
+          },
+          "index": {
+            "kind": "name",
+            "name": "p",
+            "ref": "local"
+          }
+        }
+      }
+    }
+  ]
 }
