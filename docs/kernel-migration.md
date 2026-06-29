@@ -237,12 +237,35 @@ instances → promote to the standard library).
   trick to an opponent). Plus pushing (pre-play card passing) and the
   double-victory finish.
 
-**Checkpoint (likeliest new axis besides Coup).** A **bomb** interrupts turn
-order — any player, any time. Confirm whether that is a value on the
-participants/order axes or a genuinely new interrupt axis; if the latter, it is a
-signed-off axis change + open question, not an engine special-case.
+**Status — combination engine extracted; the `climb` construct deferred to a
+second instance.** The combination engine (`_combos` / `_legal_follows` / the
+card-point table) is extracted RNG-free into `cardlang/runtime/combinations.py`,
+and the byte-identical net is pinned (`tests/golden/tichu_scores.json`, 50 seeds —
+the migration must reproduce it). The remaining migration is **deferred**, by
+design:
 
-Delete `run_tichu_hand` once green.
+- **`climb` is trick-shaped, not auction-shaped.** A combination play moves a
+  *specific computed card-set* (the chosen combination's cards) from the hand to
+  the pile — and the movement vocabulary moves cards *by count* (`all` / `one` /
+  `N cards`), never a named set. So the play cannot be a DSL `move_type` effect the
+  way a bet is. The `climb` belongs as a **kernel `round` construct** (`run_climb`,
+  beside `run_trick` / `run_auction`): it enumerates candidates from the engine,
+  chooses, and performs the card movement itself. There is *no* DSL-visible
+  `Combination` value and no runtime-query move parameter.
+- **Generalize from two instances, not one.** A `climb` shaped around Tichu's
+  Dog / Dragon / Phoenix routing would be a single-instance construct. **Big Two**
+  ([games/_candidates.md](games/_candidates.md), "Climbing & shedding") is the
+  direct second instance — combination climbing with the same `play_combination`
+  shape — and **President** a simpler third. Co-design `climb` + the shared
+  combination queries against Tichu **and** Big Two so the construct is right the
+  first time, per the project's promote-at-the-second/third-instance discipline.
+- The bomb **interrupt** axis (any player, any time) is moot at the migrated
+  scope: the current Tichu omits out-of-turn bombs (bombs play only on-turn, as a
+  follow), so the kernel needs no interrupt axis to reproduce it. Revisit if a game
+  forces out-of-turn play.
+
+When resumed (with Big Two): build `run_climb`, wire the engine as stdlib queries,
+express pushing / finishing / scoring in the DSL, and delete `run_tichu_hand`.
 
 ## Workstream 4 — Counting and in-play scoring (Cribbage, Schnapsen, Pinochle scoring)
 
