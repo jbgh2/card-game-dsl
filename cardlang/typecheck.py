@@ -25,7 +25,7 @@ from typing import Iterator, Mapping, assert_never
 from cardlang.ast import nodes as n
 from cardlang.ast.nodes import Game
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError
-from cardlang.stdlib.signatures import CALL_SIGS, METHOD_SIGS, ZONE_CONTENT
+from cardlang.stdlib.signatures import CALL_SIGS, METHOD_SIGS, ZONE_CONTENT, Sig
 from cardlang.stdlib.values import DIRECTION_VALUES, deck_suits
 from cardlang.types import (
     TAny,
@@ -163,6 +163,7 @@ class TypeEnv:
     value_enums: Mapping[str, TEnum] = field(default_factory=dict)
     locals: Mapping[str, Type] = field(default_factory=dict)
     structs: Mapping[str, TStruct] = field(default_factory=dict)
+    functions: Mapping[str, Sig] = field(default_factory=dict)  # user functions
 
     def with_local(self, name: str, t: Type) -> "TypeEnv":
         return replace(self, locals={**self.locals, name: t})
@@ -186,7 +187,7 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
             obj = infer(e.obj, env)
             return obj.element if isinstance(obj, TCollection) else TAny()
         case n.Call():
-            sig = CALL_SIGS.get(e.func)
+            sig = CALL_SIGS.get(e.func) or env.functions.get(e.func)
             return sig.ret if sig is not None else TAny()
         case n.MethodCall():
             msig = METHOD_SIGS.get(e.method)
@@ -390,13 +391,57 @@ def _child_exprs(e: n.Expr) -> list[n.Expr]:
     return []  # leaves: NameRef, IntLit, StrLit, CardLiteral, AllPlayers
 
 
+def _called_functions(e: n.Expr, fn_names: set[str]) -> set[str]:
+    """The user-function names called anywhere in `e`."""
+    out: set[str] = set()
+    if isinstance(e, n.Call) and e.func in fn_names:
+        out.add(e.func)
+    for child in _child_exprs(e):
+        out |= _called_functions(child, fn_names)
+    return out
+
+
+def _function_sigs(game: Game, env: TypeEnv, bag: DiagnosticBag) -> dict[str, Sig]:
+    """Each user function's signature: declared parameter types and the return type
+    inferred from the body. Built in dependency order (callees first — the call
+    graph is acyclic, enforced by resolve) so a body's calls see their callees'
+    return types; each body is checked against its parameters."""
+    func_defs = {f.name: f for f in game.functions}
+    fn_names = set(func_defs)
+    sigs: dict[str, Sig] = {}
+
+    def param_type(p: n.MoveParam) -> Type:
+        optional = p.type_name.endswith("?")
+        base = p.type_name[:-1] if optional else p.type_name
+        return type_from_name(base, optional, env.structs)
+
+    def visit(name: str, on_stack: frozenset[str]) -> None:
+        if name in sigs or name in on_stack:  # done, or a cycle resolve already flagged
+            return
+        f = func_defs[name]
+        for callee in _called_functions(f.body, fn_names):
+            visit(callee, on_stack | {name})
+        func_env = replace(env, functions=sigs)
+        param_types: list[Type] = []
+        for p in f.params:
+            t = param_type(p)
+            param_types.append(t)
+            func_env = func_env.with_local(p.name, t)
+        _check_expr(f.body, func_env, bag)
+        sigs[name] = Sig(tuple(param_types), infer(f.body, func_env))
+
+    for fname in func_defs:
+        visit(fname, frozenset())
+    return sigs
+
+
 def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
     """Recursively validate a single expression: stdlib argument types and
     subscript legality. Types of unrefined sub-parts are `TAny` (permissive)."""
     for child in _child_exprs(e):
         _check_expr(child, env, bag)
     if isinstance(e, n.Call):
-        sig = CALL_SIGS.get(e.func)
+        sig = CALL_SIGS.get(e.func) or env.functions.get(e.func)
         if sig is not None:
             args = _arg_exprs(e.args)
             if len(args) != len(sig.params):
@@ -1024,6 +1069,7 @@ def typecheck(game: Game) -> Game:
         )
 
     env = env_from_game(game)
+    env = replace(env, functions=_function_sigs(game, env, bag))
     variants = variant_registry(game, env.structs)
     for stmt in _all_statements(game):
         for expr in _stmt_exprs(stmt):
@@ -1050,6 +1096,33 @@ def typecheck(game: Game) -> Game:
             )
     if game.loser is not None:
         _check_expr(game.loser.selection, env, bag)
+
+    # The remaining expression positions: a function call in any of these needs the
+    # same arity/type validation as one in a statement, but the statement walk above
+    # does not reach them. This is every place a call can appear that isn't already
+    # covered (statements, round over/until, phase qualifiers, loser, function
+    # bodies): move guards, rule predicates, state defaults, transition predicates,
+    # and derived type-field bodies.
+    for move_type in game.move_types:
+        if move_type.guard is not None:
+            _check_expr(move_type.guard, env, bag)
+    for rule in game.rules:
+        if rule.applies_when is not None and rule.applies_when.pred is not None:
+            _check_expr(rule.applies_when.pred, env, bag)
+        if rule.demands is not None:
+            _check_expr(rule.demands.expr, env, bag)
+        if rule.if_impossible is not None:
+            _check_expr(rule.if_impossible, env, bag)
+    for block in _state_blocks(game):
+        for decl in block.decls:
+            _check_expr(decl.default, env, bag)
+    for phase in _all_phases(game):
+        for item in phase.items:
+            if isinstance(item, n.TransitionTo) and item.event.where is not None:
+                _check_expr(item.event.where, env, bag)
+    for tdef in game.types:
+        for derived in tdef.derived:
+            _check_expr(derived.value, env, bag)
 
     if bag.has_errors:
         error = DiagnosticError(bag.items[0])

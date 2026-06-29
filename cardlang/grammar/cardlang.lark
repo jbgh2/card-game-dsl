@@ -12,6 +12,7 @@ start: top_item+
          | move_type_def
          | type_def
          | define_def
+         | function_def
 
 // ----------------------------------------------------------------------------
 // Game structure
@@ -234,6 +235,13 @@ move_type_def: "move_type" NAME [move_param] "{" [move_when] move_effect "}"
 // `submit_bid(strain : Suit?)`): the move's legal instantiations over the
 // parameter's value-domain flatten into one per-turn candidate list.
 move_param: "(" NAME ":" payload_type ")"
+
+// A named function: a parameterized expression callable anywhere an expression
+// appears, so a game can factor a predicate it would otherwise repeat. The body
+// is hermetic — it reads only its parameters and game/phase state, never the
+// caller's binders — and non-recursive.
+function_def: "function" NAME "(" [func_param ("," func_param)*] ")" "=" expr
+func_param: NAME ":" payload_type
 move_when: "when" ":" applies_pred
 move_effect: "effect" "{" statement* "}"
 

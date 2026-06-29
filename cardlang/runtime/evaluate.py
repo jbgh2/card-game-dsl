@@ -7,6 +7,7 @@ exactly what the deep-resolution pass exists to make possible.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any, assert_never
 
 from cardlang.ast import nodes as n
@@ -36,6 +37,9 @@ def evaluate(e: n.Expr, ctx: Ctx) -> Any:
         case n.Subscript():
             return _subscript(e, ctx)
         case n.Call():
+            fn = ctx.rs.function_index.get(e.func)
+            if fn is not None:
+                return _user_function(fn, e.args, ctx)
             return stdlib.call(e.func, [evaluate(_pos(a), ctx) for a in e.args], ctx)
         case n.MethodCall():
             return _method(e, ctx)
@@ -78,6 +82,25 @@ def _pos(arg: n.Arg) -> n.Expr:
     if isinstance(arg, n.NamedArg):
         raise NotImplementedError("named call arguments not used by Hearts")
     return arg
+
+
+def _user_function(fn: n.FunctionDef, args: tuple[n.Arg, ...], ctx: Ctx) -> Any:
+    """Evaluate a user function hermetically: the arguments evaluate in the caller's
+    context, then the body runs in a fresh scope holding only the parameters, over
+    the shared game/phase state. Hermeticity for `actor`/`action`/`outcome` is
+    enforced at compile time (resolve rejects those pronouns in a body), so the
+    `outcome`/`action` clears here are belt-and-suspenders. `current_player` is
+    *inherited*, not cleared: a body may read a bare per-player zone (e.g.
+    `hand.cards_of_suit(...)`), whose family instance resolves through the acting
+    player the caller set."""
+    values = [evaluate(_pos(a), ctx) for a in args]
+    body_ctx = replace(
+        ctx,
+        locals={p.name: v for p, v in zip(fn.params, values)},
+        outcome=None,
+        action=None,
+    )
+    return evaluate(fn.body, body_ctx)
 
 
 def _name(e: n.NameRef, ctx: Ctx) -> Any:

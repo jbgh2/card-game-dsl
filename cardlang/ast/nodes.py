@@ -672,6 +672,19 @@ class MoveTypeDef:
 
 
 @dataclass(frozen=True, slots=True)
+class FunctionDef:
+    """`function NAME(<param> : <type>, …) = <expr>` — a named, parameterized
+    expression callable wherever an expression appears. The body is hermetic: it
+    reads only its parameters (bound to the call arguments) and game/phase state
+    (read at call time), never the caller's binders. Non-recursive."""
+
+    name: str
+    params: tuple[MoveParam, ...]
+    body: Expr
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class VariantCase:
     """One case of a variant outcome: a tag with zero or more typed payloads."""
 
@@ -776,6 +789,7 @@ class Game:
     move_types: tuple[MoveTypeDef, ...] = ()
     types: tuple[TypeDef, ...] = ()
     defines: tuple[DefineDef, ...] = ()
+    functions: tuple[FunctionDef, ...] = ()
     span: Span | None = None
 
 

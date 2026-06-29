@@ -45,6 +45,12 @@ _KNOWN_ROLES = {"player", "team"}
 # The magic namespaces a bare name may resolve to.
 _PRONOUNS = frozenset({"state", "action", "outcome", "active_rules", "actor"})
 
+# Pronouns that name call-site context (`_user_function` clears them before a
+# function body runs). A hermetic body may not read them — it would see None;
+# pass the value in as a parameter instead. `state`/`active_rules` are game/phase
+# context and remain readable.
+_CALL_SITE_PRONOUNS = frozenset({"actor", "action", "outcome"})
+
 
 def resolve(game: n.Game) -> n.Game:
     bag = DiagnosticBag()
@@ -61,6 +67,7 @@ def resolve(game: n.Game) -> n.Game:
     cats = _categories(game)
     game = _classify_names(game, cats, bag)
     _validate_refs(game, cats, bag)
+    _check_functions(game, bag)
 
     _raise_if_errors(bag)
     return game
@@ -230,6 +237,10 @@ def _categories(game: n.Game) -> _Categories:
                 locals_.add(nd.name)
                 if nd.index is not None:
                     locals_.add(nd.index)
+            # A function's parameters are NOT added here: they scope to that
+            # function's body only (rewritten in `_rewrite`), like move-type and
+            # produce-arm binders. Adding them globally would let a parameter named
+            # like a state var, zone, or pronoun win everywhere in the file.
     return _Categories(
         locals=frozenset(locals_),
         state_vars=frozenset(state_vars),
@@ -322,6 +333,14 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         guard = _rewrite_value(node.guard, scoped, bag) if node.guard is not None else None
         effect = tuple(_rewrite(s, scoped, bag) for s in node.effect)
         return replace(node, guard=guard, effect=effect)  # type: ignore[arg-type]
+    if isinstance(node, n.FunctionDef):
+        # The parameters bind only in this function's body — scope them here rather
+        # than the game-wide `locals` set (mirrors the move-type/produce-arm binders
+        # above). A bare name in the body that is neither a parameter nor a binding
+        # it introduces stays un-shadowed, so the hermeticity check can catch it.
+        scoped = replace(cats, locals=cats.locals | {p.name for p in node.params})
+        body = _rewrite_value(node.body, scoped, bag)
+        return replace(node, body=body)  # type: ignore[arg-type]
     if not is_dataclass(node) or isinstance(node, Span):
         return node
     changes: dict[str, object] = {}
@@ -341,11 +360,82 @@ def _rewrite_value(value: object, cats: _Categories, bag: DiagnosticBag) -> obje
     return value
 
 
+def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
+    """Functions are hermetic and non-recursive: a body may reference only its own
+    parameters, binders it introduces (`number of players where …`), and game/phase
+    state — not a name the flat classifier tagged `local` from some unrelated binder,
+    and not the call-site pronouns `actor`/`action`/`outcome` (the runtime clears
+    them); and the call graph must be acyclic (a cycle would loop forever at runtime).
+    A function may not reuse a stdlib call name: a call would type-check against the
+    stdlib signature but dispatch to the user function at run time."""
+    fn_names = {f.name for f in game.functions}
+    calls: dict[str, set[str]] = {
+        f.name: {c.func for c in _walk(f.body) if isinstance(c, n.Call) and c.func in fn_names}
+        for f in game.functions
+    }
+    for fn in game.functions:
+        if fn.name in STDLIB_CALL_FUNCS:
+            bag.error(
+                f"function '{fn.name}' shadows the stdlib function of the same name; "
+                f"rename it (a call would type-check against the stdlib signature but "
+                f"run this function instead)",
+                fn.span,
+            )
+        allowed = {p.name for p in fn.params}
+        for nd in _walk(fn.body):  # binders the body itself introduces are in scope
+            match nd:
+                case n.Comprehension() | n.Quantifier() | n.ForEach():
+                    allowed.add(nd.binder)
+                case n.EachSimultaneous():
+                    allowed.add(nd.role)
+                case n.PlayerQuery():
+                    allowed.add("player")
+                case n.Lambda():
+                    allowed.add(nd.param)
+        for nd in _walk(fn.body):
+            if not isinstance(nd, n.NameRef):
+                continue
+            if nd.ref_kind == "local" and nd.name not in allowed:
+                bag.error(
+                    f"function '{fn.name}' references '{nd.name}', which is not one of "
+                    f"its parameters or a binding in its body",
+                    nd.span,
+                )
+            elif nd.ref_kind == "pronoun" and nd.name in _CALL_SITE_PRONOUNS:
+                bag.error(
+                    f"function '{fn.name}' reads the call-site pronoun '{nd.name}'; a "
+                    f"function is hermetic and may not read actor/action/outcome — "
+                    f"pass the value in as a parameter",
+                    nd.span,
+                )
+        if _reaches(fn.name, fn.name, calls):
+            bag.error(
+                f"function '{fn.name}' is recursive; functions must be non-recursive",
+                fn.span,
+            )
+
+
+def _reaches(start: str, target: str, calls: dict[str, set[str]]) -> bool:
+    """Whether `target` is reachable from `start` through the call graph."""
+    seen: set[str] = set()
+    stack = list(calls.get(start, ()))
+    while stack:
+        cur = stack.pop()
+        if cur == target:
+            return True
+        if cur in seen:
+            continue
+        seen.add(cur)
+        stack.extend(calls.get(cur, ()))
+    return False
+
+
 def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     move_type_defs = {m.name: m for m in game.move_types}
     defined_move_types = set(move_type_defs)
     defined_types = {t.name for t in game.types}
     defined_defines = {d.name for d in game.defines}
+    defined_functions = {f.name for f in game.functions}
     # A `produces:` consumer may also name an outcome-declaring phase (its outcome
     # is produced as the phase runs, then dispatched by a sibling consumer).
     outcome_phases = {
@@ -353,7 +443,9 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     }
     for nd in _walk(game):
         match nd:
-            case n.Call() if nd.func not in STDLIB_CALL_FUNCS:
+            case n.Call() if (
+                nd.func not in STDLIB_CALL_FUNCS and nd.func not in defined_functions
+            ):
                 bag.error(f"call to unknown function '{nd.func}'", nd.span)
             case n.StructLit() if nd.type_name not in defined_types:
                 bag.error(f"unknown type '{nd.type_name}'", nd.span)

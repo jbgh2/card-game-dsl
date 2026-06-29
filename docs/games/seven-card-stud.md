@@ -82,14 +82,11 @@ game SevenCardStud {
         committed[bringer] := committed[bringer] + bet_by[bringer]
         bet_to_match := 2   raises := 1   limit := 5
         round offering [check, bet, call, fold, raise] from bringer offset_by left
-              over players where not folded[player] and stack[player] > 0
-                                and (not acted[player] or bet_by[player] < bet_to_match)
+              over players where pending(player)
               order priority
-              until (number of players where not folded[player] and stack[player] > 0
-                       and (not acted[player] or bet_by[player] < bet_to_match)) == 0
-                 or ((number of players where not folded[player] and stack[player] > 0) <= 1
-                     and (number of players where not folded[player] and stack[player] > 0
-                            and bet_by[player] < bet_to_match) == 0)
+              until (number of players where pending(player)) == 0
+                 or ((number of players where can_act(player)) <= 1
+                     and (number of players where can_act(player) and owes(player)) == 0)
       }
       // ... 4th–7th streets: four flat `if (contenders > 1) { ... }` blocks — a burn
       // + a dealt card (upcard on 4th/5th/6th, hole on 7th), then the same betting
@@ -139,4 +136,11 @@ move_type fold {
   when: bet_to_match > bet_by[actor]
   effect { folded[actor] := true  move all cards from upcards[actor] to muck }
 }
+
+// Betting-ring predicates, factored with named functions so the `over` filter and
+// the `until` terminator name the same set (and cannot drift). `pending` composes
+// the others.
+function can_act(p : Player) = not folded[p] and stack[p] > 0
+function owes(p : Player)    = bet_by[p] < bet_to_match
+function pending(p : Player) = can_act(p) and (not acted[p] or owes(p))
 ```

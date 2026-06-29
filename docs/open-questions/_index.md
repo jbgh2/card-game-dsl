@@ -40,6 +40,11 @@ of the language.
   `chain.zone` for complex receivers.
 - [optional-window-moves](optional-window-moves.md) — `may submit X`
   for non-mandatory moves during a window (Tichu calls).
+- [round-config-factoring](round-config-factoring.md) — folding a repeated,
+  parameterized `round` block (a list/`for each in [...]` loop over Stud's five
+  betting streets) into one body; the within-round predicate duplication is
+  already resolved with named functions, so this is the residual block-level
+  repetition, and the second-instance data point is Hold'em.
 
 ## Tier 4 — Low impact, defer until forced
 
