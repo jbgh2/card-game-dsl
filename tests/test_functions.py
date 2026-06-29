@@ -18,6 +18,7 @@ import pytest
 from cardlang import ast as a
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
+from cardlang.resolve import _walk
 from cardlang.runtime.driver import play_game
 
 # `ready(player)` factors a predicate used in both `over` and `until`; `busy`
@@ -92,3 +93,36 @@ def test_recursive_function_is_rejected() -> None:
     )
     with pytest.raises(DiagnosticError):
         check_dsl(src, "cycle.cardlang")
+
+
+def test_function_param_does_not_leak_into_pronoun_sites() -> None:
+    # A parameter scopes to its own body only. A function whose parameter is named
+    # `actor` must not turn the unrelated `score[actor]` in the move effects into a
+    # local lookup: those moves receive `actor` as a pronoun (the acting player),
+    # and a leaked classification makes them read a missing local and fail at run.
+    src = SRC.replace(
+        "function ready(p : Player) = not done[p] and not busy(p)",
+        "function lead(actor : Player) = score[actor]\n"
+        "function ready(p : Player) = not done[p] and not busy(p)",
+    )
+    game = check_dsl(src, "shadow.cardlang")
+    move_actor_kinds = {
+        ref.ref_kind
+        for mt in game.move_types
+        for ref in _walk(mt)
+        if isinstance(ref, a.nodes.NameRef) and ref.name == "actor"
+    }
+    assert move_actor_kinds == {"pronoun"}, move_actor_kinds
+    for seed in range(10):
+        play_game(game, random.Random(seed))  # the score[actor] writes must resolve
+
+
+def test_function_reading_a_call_site_pronoun_is_rejected() -> None:
+    # A hermetic body may not read `actor`/`action`/`outcome` — the runtime clears
+    # them, so the body would read None. Reject at compile time, not at run time.
+    src = SRC.replace(
+        "function busy(p : Player)  = score[p] >= 5",
+        "function busy(p : Player)  = score[actor] >= 5",
+    )
+    with pytest.raises(DiagnosticError):
+        check_dsl(src, "pronoun-capture.cardlang")
