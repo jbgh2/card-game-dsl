@@ -15,7 +15,7 @@ from typing import Any
 
 from cardlang.pipeline import check_source
 from cardlang.runtime.driver import play_game
-from cardlang.runtime.tichu import Play, _combos, _legal_follows
+from cardlang.runtime.combinations import Play, _combos, _legal_follows
 from cardlang.runtime.values import Card
 
 TICHU = Path(__file__).parent.parent / "docs" / "games" / "tichu.cardlang"
