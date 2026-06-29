@@ -179,13 +179,9 @@ rule MustFollowSuit {
 move_type pass { effect { passes += 1 } }
 
 move_type submit_bid(strain : Suit?) {
-  when: (if cur_level == 0 then 1
-         elif strain_index(strain) > strain_index(cur_strain) then cur_level
-         else cur_level + 1) <= 3
+  when: next_level(strain) <= 3
   effect {
-    cur_level   := if cur_level == 0 then 1
-                   elif strain_index(strain) > strain_index(cur_strain) then cur_level
-                   else cur_level + 1
+    cur_level   := next_level(strain)
     cur_strain  := strain
     high_bidder := actor
     doubled     := 1
@@ -203,4 +199,11 @@ move_type redouble {
   when: made_bid and team_of(actor) == team_of(high_bidder) and doubled == 2
   effect { doubled := 4  passes := 0 }
 }
+
+// The cheapest level that beats the standing bid in a strain, named once so the
+// `submit_bid` guard and effect agree by construction (the level the guard
+// admits is the level the effect writes).
+function next_level(s : Suit?) = if cur_level == 0 then 1
+                                 elif strain_index(s) > strain_index(cur_strain) then cur_level
+                                 else cur_level + 1
 ```
