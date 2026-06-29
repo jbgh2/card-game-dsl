@@ -104,10 +104,10 @@ game Spades {
       // Contract scoring per team.
       for each team t:
         if team_tricks[t] >= team_bid[t] {
-          score[t] += 10 * team_bid[t] + (team_tricks[t] - team_bid[t])
-          bags[t]  += team_tricks[t] - team_bid[t]
+          score[t] += contract_score(t) + overtricks(t)
+          bags[t]  += overtricks(t)
         } else {
-          score[t] -= 10 * team_bid[t]
+          score[t] -= contract_score(t)
         }
 
       // Nil scoring per player.
@@ -145,3 +145,8 @@ rule MustFollowSuit {
   demands: hand.cards_of_suit(state.led_suit)
   if_impossible: hand   // void in the led suit: play any card
 }
+
+// Per-team contract aggregates, named so the make and miss branches score the
+// contract from one place: its value (10 per bid) and the overtricks beyond it.
+function contract_score(t : Team) = 10 * team_bid[t]
+function overtricks(t : Team)     = team_tricks[t] - team_bid[t]
