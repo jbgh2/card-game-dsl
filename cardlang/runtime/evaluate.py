@@ -86,14 +86,17 @@ def _pos(arg: n.Arg) -> n.Expr:
 
 def _user_function(fn: n.FunctionDef, args: tuple[n.Arg, ...], ctx: Ctx) -> Any:
     """Evaluate a user function hermetically: the arguments evaluate in the caller's
-    context, then the body runs in a fresh scope holding only the parameters — no
-    inherited locals, and no call-site `actor`/`action`/`outcome` — over the shared
-    game/phase state."""
+    context, then the body runs in a fresh scope holding only the parameters, over
+    the shared game/phase state. Hermeticity for `actor`/`action`/`outcome` is
+    enforced at compile time (resolve rejects those pronouns in a body), so the
+    `outcome`/`action` clears here are belt-and-suspenders. `current_player` is
+    *inherited*, not cleared: a body may read a bare per-player zone (e.g.
+    `hand.cards_of_suit(...)`), whose family instance resolves through the acting
+    player the caller set."""
     values = [evaluate(_pos(a), ctx) for a in args]
     body_ctx = replace(
         ctx,
         locals={p.name: v for p, v in zip(fn.params, values)},
-        current_player=None,
         outcome=None,
         action=None,
     )

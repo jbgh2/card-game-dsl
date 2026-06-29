@@ -1097,9 +1097,12 @@ def typecheck(game: Game) -> Game:
     if game.loser is not None:
         _check_expr(game.loser.selection, env, bag)
 
-    # Move guards and rule predicates are expression positions too: a function call
-    # in a `when:`, `applies_when:`, `demands:`, or `if_impossible:` needs the same
-    # arity/type validation as one in a statement (the body walk above skips them).
+    # The remaining expression positions: a function call in any of these needs the
+    # same arity/type validation as one in a statement, but the statement walk above
+    # does not reach them. This is every place a call can appear that isn't already
+    # covered (statements, round over/until, phase qualifiers, loser, function
+    # bodies): move guards, rule predicates, state defaults, transition predicates,
+    # and derived type-field bodies.
     for move_type in game.move_types:
         if move_type.guard is not None:
             _check_expr(move_type.guard, env, bag)
@@ -1110,6 +1113,16 @@ def typecheck(game: Game) -> Game:
             _check_expr(rule.demands.expr, env, bag)
         if rule.if_impossible is not None:
             _check_expr(rule.if_impossible, env, bag)
+    for block in _state_blocks(game):
+        for decl in block.decls:
+            _check_expr(decl.default, env, bag)
+    for phase in _all_phases(game):
+        for item in phase.items:
+            if isinstance(item, n.TransitionTo) and item.event.where is not None:
+                _check_expr(item.event.where, env, bag)
+    for tdef in game.types:
+        for derived in tdef.derived:
+            _check_expr(derived.value, env, bag)
 
     if bag.has_errors:
         error = DiagnosticError(bag.items[0])

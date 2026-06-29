@@ -174,3 +174,112 @@ function owes(p : Player) = score[p] >= 0
 def test_function_call_in_a_rule_expression_is_arity_checked() -> None:
     with pytest.raises(DiagnosticError):
         check_dsl(RULE_SRC, "rule-arity.cardlang")
+
+
+# A function may factor a bare per-player zone; the family instance resolves through
+# the acting player the caller set (`current_player` is inherited, not cleared).
+ZONE_FN_SRC = """
+game G {
+  players: 2
+  direction: clockwise
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player>  trick_pile : TrickPile  waste : Discard }
+  state { tricks[player] : Integer = 0  leader : Player? = none }
+  phase setup {
+    shuffle deck
+    deal all cards from deck as-equally-as-possible to each hand
+    leader := 0
+  }
+  phase play {
+    active_rules: [MustFollowSuit]
+    legal_moves: [play_to_trick]
+    repeat until (all player p: hand[p] is empty) {
+      round play_to_trick from leader over all players source hand into trick_pile
+            outcome highest_of_led_suit
+      tricks[outcome] += 1
+      move all cards from trick_pile to waste
+      leader := outcome
+    }
+  }
+  winner: highest tricks
+}
+rule MustFollowSuit {
+  constrains: play_to_trick
+  applies_when: state.led_suit is not none
+  demands: must_follow()
+  if_impossible: hand
+}
+function must_follow() = hand.cards_of_suit(state.led_suit)
+"""
+
+
+def test_function_reading_a_bare_per_player_zone_runs_at_play() -> None:
+    # The rule `demands: must_follow()` is evaluated per acting player during
+    # legal-card selection; the bare `hand` must resolve to that player's hand
+    # rather than asserting on a cleared current player.
+    game = check_dsl(ZONE_FN_SRC, "zone-fn.cardlang")
+    for seed in range(10):
+        play_game(game, random.Random(seed))  # must not raise
+
+
+def test_function_call_in_a_state_default_is_arity_checked() -> None:
+    src = SRC.replace(
+        "done[player] : Boolean = false }",
+        "done[player] : Boolean = busy() }",
+    )
+    with pytest.raises(DiagnosticError):
+        check_dsl(src, "state-default-arity.cardlang")
+
+
+# A transition predicate (`where …`) is an expression position; a function call in
+# it gets the same arity validation.
+TRANSITION_SRC = """
+game G {
+  players: 2
+  direction: clockwise
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player>  trick_pile : TrickPile }
+  state { score[player] : Integer = 0 }
+  phase play {
+    phase a {
+      transition_to: b when play_to_trick where flag()
+    }
+    phase b { }
+  }
+  winner: highest score
+}
+function flag(p : Player) = score[p] >= 0
+"""
+
+
+def test_function_call_in_a_transition_predicate_is_arity_checked() -> None:
+    with pytest.raises(DiagnosticError):
+        check_dsl(TRANSITION_SRC, "transition-arity.cardlang")
+
+
+# A derived type-field body is an expression position too.
+DERIVED_SRC = """
+type R = {
+  a : Integer
+} derived {
+  bad = tag()
+}
+game G {
+  players: 2
+  direction: clockwise
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck }
+  state { r : R = none  score[player] : Integer = 0 }
+  phase p { }
+  winner: highest score
+}
+function tag(p : Player) = p == p
+"""
+
+
+def test_function_call_in_a_derived_field_is_arity_checked() -> None:
+    with pytest.raises(DiagnosticError):
+        check_dsl(DERIVED_SRC, "derived-arity.cardlang")
