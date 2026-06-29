@@ -123,3 +123,50 @@ def _capture_stud_hands() -> dict[str, Any]:
 def test_stud_migration_preserves_per_hand_stacks() -> None:
     expected = json.loads((GOLDEN / "seven-card-stud_hands.json").read_text())
     assert _capture_stud_hands() == expected
+
+
+# Tichu (climbing + the combination model) moves its whole hand — pushing, the
+# climbing trick, the special cards, finishing, and scoring — from a Python
+# monolith onto the kernel. The migration reproduces the monolith's RNG sequence
+# (chooser draws plus two non-chooser draws — the Tichu-call gates and the Dragon
+# routing — reproduced by stdlib primitives), so the per-seed results stay
+# byte-identical. We pin `scores` + `winner` (not `hands_played`: the monolith has
+# no `scoring` phase so the driver's hand counter reads 0, but the migration adds
+# one — a structural change, not a draw divergence). Team scores accumulate every
+# hand's card points, so any draw divergence cascades into the finals. Pinned
+# pre-migration.
+_TICHU_CAPTURE = """
+import json, random, sys
+from pathlib import Path
+from cardlang.pipeline import check_dsl
+from cardlang.runtime.driver import play_game
+
+game = check_dsl(Path("docs/games/tichu.cardlang").read_text(), "tichu.cardlang")
+out = {}
+for seed in range(50):
+    r = play_game(game, random.Random(seed))
+    out[str(seed)] = {
+        "scores": {str(k): v for k, v in sorted(r.scores.items())},
+        "winner": r.winner,
+    }
+print(json.dumps(out))
+"""
+
+
+def _capture_tichu() -> dict[str, Any]:
+    env = dict(os.environ, PYTHONHASHSEED="0")
+    proc = subprocess.run(
+        [sys.executable, "-c", _TICHU_CAPTURE],
+        cwd=REPO,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    result: dict[str, Any] = json.loads(proc.stdout)
+    return result
+
+
+def test_tichu_migration_preserves_per_seed_results() -> None:
+    expected = json.loads((GOLDEN / "tichu_scores.json").read_text())
+    assert _capture_tichu() == expected
