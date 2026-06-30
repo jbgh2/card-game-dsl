@@ -16,6 +16,7 @@ LIBRARY_MECHANICS: frozenset[str] = frozenset(
         "CribbageHand",  # Cribbage's discard + pegging + the show (a counting engine)
         "StudShowdown",  # Seven-Card Stud's RNG-free suffix: side-pot settlement + muck
         "TichuHand",  # Tichu's pushing + climbing trick + special cards + scoring
+        "BigTwoHand",  # Big Two's climbing/shedding hand: combinations + penalty scoring
         "CoupGame",  # Coup's influence / coin / challenge-block / elimination engine
     }
 )

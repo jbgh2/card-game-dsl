@@ -20,7 +20,7 @@ CORPUS = sorted(GAMES.glob("*.cardlang"))
 
 
 def test_corpus_is_present() -> None:
-    assert len(CORPUS) == 13  # guard: all executable games present
+    assert len(CORPUS) == 14  # guard: all executable games present
 
 
 @pytest.mark.parametrize("path", CORPUS, ids=lambda p: p.name)

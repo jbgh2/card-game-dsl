@@ -1,0 +1,58 @@
+// Big Two — formalized DSL (parser/checker/runtime target).
+//
+// Companion to big-two.md. Four-player climbing/shedding game on the standard 52
+// (no jokers). Players are dealt 13 cards each and climb: each play must have the
+// *same number of cards* as the standing combination and beat it, or pass; a
+// trick ends when action returns to the last player who played, who then leads
+// again. The hand ends the instant one player empties their hand — the others
+// score penalty points for the cards they still hold (1 per card up to nine, 2
+// for ten–twelve, 3 for a full thirteen). Lowest cumulative penalty wins.
+//
+// The hand engine — the combination model (single / pair / triple / five-card,
+// the straight < flush < full house < quads < straight flush hierarchy, suit
+// tie-breaks), the climbing trick, the 3♦ opening lead, the shedding finish, and
+// penalty scoring — runs in the built-in `BigTwoHand` mechanic, which updates
+// `score` directly. The combination engine and the climbing are not expressible
+// in the trick DSL; this is a concrete mechanic, the second climbing instance
+// (with Tichu) that the kernel `climb` construct is co-designed against — see
+// docs/kernel-migration.md, Workstream 3. Scope reductions (strongest
+// representative per rank/type; basic 1/2/3 penalty, no 2s/blitz surcharge) are
+// noted in big-two.md.
+
+game BigTwo {
+
+  players: 4
+  direction: clockwise
+
+  cards: standard52
+
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+    discard      : Discard          // played combinations land here, no capture
+  }
+
+  state {
+    // Game-level: persist across hands.
+    score[player] : Integer = 0     // cumulative penalty points (lower is better)
+    winner_seat   : Player? = none  // who went out last hand; leads the next one
+  }
+
+  // The match runs until a player's penalty total reaches 100 (a loss threshold);
+  // penalties only accumulate — three of the four players gain points every hand
+  // — so this is reached under uniform-random play, and the lowest total wins.
+  phase hand_sequence repeats until (any player p: score[p] >= 100) {
+    before_each {
+      move all cards to deck
+      shuffle deck
+      deal 13 cards from deck to each hand
+    }
+
+    phase play {
+      legal_moves: [play_combination, pass]
+      instantiate BigTwoHand()
+    }
+  }
+
+  winner: lowest score
+}

@@ -8,7 +8,7 @@ surrounding body, which does the routing). `run_auction` drives the auction form
 a continuous ring over a move vocabulary, threading a phase-state accumulator
 until termination, then producing a typed variant outcome. `instantiate`
 dispatches the remaining per-game hand engines (Schnapsen, Pinochle, Skat, Tarot,
-Cribbage, Stud, Tichu, Coup) not yet lifted into the DSL.
+Cribbage, Stud, Tichu, Big Two, Coup) not yet lifted into the DSL.
 """
 
 from __future__ import annotations
@@ -48,6 +48,10 @@ def instantiate(stmt: n.Instantiate, ctx: Ctx) -> Player:
         from cardlang.runtime.tichu import run_tichu_hand
 
         return run_tichu_hand(stmt, ctx)
+    if stmt.mechanic == "BigTwoHand":
+        from cardlang.runtime.bigtwo import run_bigtwo_hand
+
+        return run_bigtwo_hand(stmt, ctx)
     if stmt.mechanic == "CoupGame":
         from cardlang.runtime.coup import run_coup_game
 
