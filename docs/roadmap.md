@@ -184,6 +184,16 @@ open-question framing.
 
    Headline recommendations from the pipeline:
 
+   - **Big Two** — the recommended next game. It is the **second
+     combination-climbing instance** after Tichu, and the one that
+     unblocks the deferred WS3 migration ([kernel-migration.md](kernel-migration.md),
+     "Workstream 3"): the `climb` kernel `round` construct and the shared
+     combination queries should be co-designed against Tichu *and* Big
+     Two so the construct is right the first time, rather than shaped
+     around Tichu's special cards alone. The Step-1 combination engine
+     (`cardlang/runtime/combinations.py`) already covers most of Big
+     Two's combinations (it adds flushes + suit-tiebreak). See
+     [games/_candidates.md](games/_candidates.md), "Climbing & shedding".
    - **Klondike or FreeCell** — first solitaire; tests positional
      zones. Doesn't directly unblock a Tier 2 question but forces a
      deferred design decision.
