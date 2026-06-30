@@ -861,7 +861,9 @@
                       }
                     }
                   },
-                  "order_mode": "priority"
+                  "order_mode": "priority",
+                  "combos_fn": null,
+                  "follows_fn": null
                 }
               ],
               "else": null
@@ -1234,7 +1236,9 @@
                           }
                         }
                       },
-                      "order_mode": "priority"
+                      "order_mode": "priority",
+                      "combos_fn": null,
+                      "follows_fn": null
                     }
                   ],
                   "else": null
@@ -1610,7 +1614,9 @@
                           }
                         }
                       },
-                      "order_mode": "priority"
+                      "order_mode": "priority",
+                      "combos_fn": null,
+                      "follows_fn": null
                     }
                   ],
                   "else": null
@@ -1986,7 +1992,9 @@
                           }
                         }
                       },
-                      "order_mode": "priority"
+                      "order_mode": "priority",
+                      "combos_fn": null,
+                      "follows_fn": null
                     }
                   ],
                   "else": null
@@ -2362,7 +2370,9 @@
                           }
                         }
                       },
-                      "order_mode": "priority"
+                      "order_mode": "priority",
+                      "combos_fn": null,
+                      "follows_fn": null
                     }
                   ],
                   "else": null

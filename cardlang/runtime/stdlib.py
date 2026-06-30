@@ -34,6 +34,10 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.stud import first_to_act_seat
 
             return first_to_act_seat(ctx)
+        case "bigtwo_first_leader":
+            from cardlang.runtime.bigtwo import first_leader_seat
+
+            return first_leader_seat(ctx)
         case _:
             raise AssertionError(f"unknown stdlib function '{name}'")
 
@@ -84,6 +88,34 @@ def value_function(name: str) -> Callable[..., Any]:
             return on_play_of_tochoo
         case _:
             raise AssertionError(f"unknown stdlib value '{name}'")
+
+
+# --- climbing-form combination-engine queries (named on a `round climb`) ---
+#
+# A *lead* query returns every combination a hand may lead; a *follows* query
+# returns those that beat the standing play. Both take the runtime ctx (a lead
+# query may read game state, e.g. Big Two's opening 3♦ filter). The engines are
+# game-local, so these dispatch to per-game modules.
+
+
+def climb_lead_function(name: str) -> Callable[[list[Card], Ctx], list[Any]]:
+    match name:
+        case "bigtwo_lead_options":
+            from cardlang.runtime.bigtwo import bigtwo_lead_options
+
+            return bigtwo_lead_options
+        case _:
+            raise AssertionError(f"unknown climb lead query '{name}'")
+
+
+def climb_follow_function(name: str) -> Callable[[list[Card], Any, Ctx], list[Any]]:
+    match name:
+        case "bigtwo_follows":
+            from cardlang.runtime.bigtwo import bigtwo_follows
+
+            return bigtwo_follows
+        case _:
+            raise AssertionError(f"unknown climb follows query '{name}'")
 
 
 def highest_of_led_suit(

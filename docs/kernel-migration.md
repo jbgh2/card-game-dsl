@@ -237,46 +237,59 @@ instances → promote to the standard library).
   trick to an opponent). Plus pushing (pre-play card passing) and the
   double-victory finish.
 
-**Status — both climbing instances landed as concrete mechanics; the `climb`
-construct is the next step.** Tichu's combination engine (`_combos` /
-`_legal_follows` / the card-point table) is extracted RNG-free into
-`cardlang/runtime/combinations.py`, with the byte-identical net pinned
-(`tests/golden/tichu_scores.json`, 50 seeds). **Big Two** has now landed as the
-second instance — its hand engine (`cardlang/runtime/bigtwo.py`, dispatched by
-`instantiate BigTwoHand`; `docs/games/big-two.cardlang`) is a concrete mechanic
-like Tichu's, with its own combination engine and byte-identical net
-(`tests/golden/bigtwo_scores.json`). With two instances in hand, the `climb`
-co-design proceeds:
+**Status — the `climb` construct is built; Big Two runs on it byte-identically;
+Tichu's migration is the remaining step.** The kernel `round climb` construct
+(`run_climb` in `mechanics.py`, dispatched in `execute.py`, with the grammar / AST
+/ IR / resolve / typecheck wiring) plays one combination-climbing trick over a pair
+of game-local engine queries. **Big Two** is fully migrated onto it
+(`docs/games/big-two.cardlang`) — the climbing loop, the 3♦ opening, pile routing,
+the shed-out finish, and penalty scoring are DSL; its engine (`bigtwo.py`) is named
+as the `bigtwo_lead_options` / `bigtwo_follows` queries — and reproduces its pinned
+net (`tests/golden/bigtwo_scores.json`, 50 seeds) byte-for-byte. The `run_bigtwo_hand`
+monolith and the `BigTwoHand` mechanic are deleted. **Tichu** still runs in
+`run_tichu_hand` (`combinations.py` extracted, `tichu_scores.json` pinned); its
+migration onto `climb` is the next step.
+
+The design the construct settled:
 
 - **`climb` is trick-shaped, not auction-shaped.** A combination play moves a
   *specific computed card-set* (the chosen combination's cards) from the hand to
   the pile — and the movement vocabulary moves cards *by count* (`all` / `one` /
   `N cards`), never a named set. So the play cannot be a DSL `move_type` effect the
-  way a bet is. The `climb` belongs as a **kernel `round` construct** (`run_climb`,
-  beside `run_trick` / `run_auction`): it enumerates candidates from the engine,
-  chooses, and performs the card movement itself. There is *no* DSL-visible
-  `Combination` value and no runtime-query move parameter.
+  way a bet is. `climb` is a **kernel `round` construct** (`run_climb`, beside
+  `run_trick` / `run_auction`): it enumerates candidates from the engine, runs one
+  climbing trick (lead → beat-or-pass; the trick ends when action returns to the
+  last player, or the `until` predicate holds), and performs the card movement
+  itself. There is *no* DSL-visible `Combination` value and no runtime-query move
+  parameter — the construct depends only on the engine's *interface*
+  (`combos(hand, ctx)`, `legal_follows(hand, led, ctx)`, `play.cards`).
 - **Two engines, one construct interface.** Tichu's and Big Two's combination
   engines differ — Big Two keys on (rank, suit) because suit breaks every tie,
   carries flushes/quads, and follows cross-type within the five-card group, where
-  Tichu keys rank-only, has bombs, and the special cards. So `run_climb` depends on
-  the *interface* (`combos(hand)`, `legal_follows(hand, led)`, `play.cards`), not a
-  shared representation; the engines stay game-local (beside the promote-at-the-
-  third-instance rule — Pinochle melds / Cribbage scoring are the third). The
-  divergent *routing* (Big Two: discard the pile, the trick winner leads; Tichu:
-  capture to a team pile, Dog → partner, Dragon → an opponent) is the design's open
-  question: `run_climb` returns the winner and the winning play, and the DSL body
-  does the routing/scoring (the `run_trick` discipline). If Tichu's Dog/Dragon
-  cannot factor out of `run_climb` into the body, that is a new axis to **surface**,
-  not an engine hook quietly added.
+  Tichu keys rank-only, has bombs, and the special cards. So the engines stay
+  game-local (beside the promote-at-the-third-instance rule — Pinochle melds /
+  Cribbage scoring are the third), each named as a `combinations` / `follows` query
+  pair on the `round climb`. The divergent *routing* lives in the DSL body, not the
+  construct (the `run_trick` discipline): `run_climb` returns the winner (the last
+  player to play, bound as `outcome`), and the body routes the pile and the next
+  lead — Big Two: `move trick_pile to discard`, the winner leads.
+- **What Tichu's migration still needs (PR after this).** Tichu's Dog is a
+  *trick-ending lead* (its followers get no chooser draw — an `ends_trick` property
+  on the engine's play that `run_climb` reads to skip the follow phase); this is a
+  genuine **new axis** to surface and sign off, not an engine hook. Its termination
+  is "≤ 1 player still holds cards" (Big Two's is "any player empty"), an existing
+  value on the termination axis. Plus pushing (pre-play passing), the
+  double-victory finish, and Dragon → opponent routing (a post-trick
+  `dragon_recipient()` draw at the same RNG site). Routing the Dragon's pile to an
+  opponent and the Dog's lead to the partner needs the body to know *what* won, not
+  just *who* — so `run_climb` will expose the winning play's kind as terminal
+  round-state (the `run_trick` → `last_round_state` pattern, read as `state.x`),
+  which Big Two does not consult (re-verified byte-identical when added). Then
+  `run_tichu_hand` is deleted, byte-identical against `tichu_scores.json`.
 - The bomb **interrupt** axis (any player, any time) is moot at the migrated
   scope: the current Tichu omits out-of-turn bombs (bombs play only on-turn, as a
   follow), and Big Two has no bombs, so the kernel needs no interrupt axis to
   reproduce either. Revisit if a game forces out-of-turn play.
-
-Next: build `run_climb`, wire both engines as stdlib queries, express pushing /
-finishing / scoring in the DSL for both games, and delete `run_tichu_hand` and
-`run_bigtwo_hand` — byte-identical against both pinned nets.
 
 ## Workstream 4 — Counting and in-play scoring (Cribbage, Schnapsen, Pinochle scoring)
 

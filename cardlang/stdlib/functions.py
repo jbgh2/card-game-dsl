@@ -42,6 +42,26 @@ STDLIB_EARLY_PREDICATES: frozenset[str] = frozenset(
     }
 )
 
+# Combination-engine queries the climbing form of `round` names. Two signatures,
+# validated against separate sets so a follow query named as the lead query (or
+# vice versa) is rejected at resolve time:
+#
+# - a *lead* query    (`combinations`): (hand, ctx) -> list[Play]
+# - a *follows* query (`follows`)     : (hand, current, ctx) -> list[Play]
+#
+# The engines are game-local (Big Two's and Tichu's combination rules differ), so
+# these grow corpus-first, one pair per climbing game.
+STDLIB_CLIMB_LEADS: frozenset[str] = frozenset(
+    {
+        "bigtwo_lead_options",  # Big Two: every combination (3♦-filtered on the opening lead)
+    }
+)
+STDLIB_CLIMB_FOLLOWS: frozenset[str] = frozenset(
+    {
+        "bigtwo_follows",  # Big Two: combinations that beat the standing play (same size)
+    }
+)
+
 # Stdlib functions invoked with arguments: `f(...)`.
 STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
     {
@@ -52,6 +72,7 @@ STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
         "error",  # the if_impossible fallback that rejects the move
         "bring_in_seat",  # Stud: the lowest-door seat that posts the bring-in
         "first_to_act_seat",  # Stud: the highest-upcards seat that acts first on a street
+        "bigtwo_first_leader",  # Big Two: the holder of the 3♦, who leads the first hand
     }
 )
 

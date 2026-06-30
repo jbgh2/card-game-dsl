@@ -395,6 +395,56 @@ candidate lists (same length and order) play identically under a random playout 
 the property that lets a hand-written engine be re-expressed in this form without
 changing behaviour.
 
+## The climbing form of `round`
+
+Combination-climbing games (Big Two; Tichu, pending migration) run on a third
+configuration of the kernel `round`. A climbing trick plays like a trick, but each
+play is a *combination* (a computed set of cards), not a single card:
+
+```
+round climb <move_type> from <leader> over <participants>
+      source <zone> into <zone>
+      combinations <lead_query> follows <follows_query>
+      until <predicate>
+```
+
+The leader leads a combination from the `combinations` lead query; each
+participant in turn beats the standing play with a higher combination of the same
+size (from the `follows` query) or passes — a pass does **not** drop a player. The
+trick ends when action returns to the last player who played (everyone else passed
+one full lap) or `until` holds (a player has shed out). The last player to play is
+the `outcome`; the surrounding body routes the pile and the next lead, exactly as
+for a trick.
+
+Two decisions distinguish it from the trick and auction forms:
+
+- **The combination engine is a named query, not a DSL value.** A combination play
+  moves a *specific computed card-set* — the cards of the chosen combination — and
+  the movement vocabulary moves cards *by count* (`all` / `one` / `N cards`), never
+  a named set. So a combination play cannot be a DSL `move_type` effect the way a
+  bet is, and there is no DSL-visible `Combination` value. Instead the engine is two
+  **game-local stdlib queries** named on the round — `combinations` (lead options)
+  and `follows` (legal follows) — and `run_climb` performs the card movement itself.
+  The engines stay per-game because the combination rules differ materially (Big
+  Two: suit tie-breaks on every play, flushes and quads, cross-type beating within
+  the five-card group; Tichu: rank-only keys, bombs, the four special cards); they
+  merge only at a third instance (Pinochle melds / Cribbage scoring), per the
+  promote-at-the-third rule. The construct depends only on the queries' interface: a
+  list of plays, each exposing its cards as `.cards`.
+
+- **The winner is the loop's last player, not an outcome function.** Unlike the
+  trick form, which selects the winner from the played cards, the climbing winner is
+  whoever played the standing combination when everyone else passed — returned
+  directly. There is no `outcome` callback.
+
+As with the auction form, the round's only decision points are the per-turn
+candidate draws (the lead query, then `[follows…, pass]`); the scoring and routing
+in the surrounding body consume no randomness. So a climbing hand re-expressed on
+this form reproduces a hand-written engine's behaviour byte-for-byte when it
+presents the same per-turn candidate lists — the property Big Two's migration
+([games/big-two.cardlang](games/big-two.cardlang)) is verified against
+([kernel-migration.md](kernel-migration.md), Workstream 3).
+
 ## No implicit actions
 
 Every decision point has at least one legal move, and the engine neither invents

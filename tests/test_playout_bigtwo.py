@@ -86,38 +86,47 @@ def test_climbing_legality() -> None:
 
 def _expected_penalty(cards_left: int) -> int:
     """An independent restatement of the scoring rule — deliberately NOT importing
-    the engine's `_penalty`, so the playout and the checker can't share a bug."""
+    the climb game's `bigtwo_penalty`, so the playout and the checker can't share a
+    bug."""
     multiplier = 1 if cards_left <= 9 else 2 if cards_left <= 12 else 3
     return multiplier * cards_left
+
+
+# Every per-hand penalty a non-winner can score (1–13 cards left), recomputed here.
+_VALID_PENALTIES = frozenset(_expected_penalty(n) for n in range(1, 14))
 
 
 def test_random_games_satisfy_invariants() -> None:
     game = check_source(BIG_TWO)
     for seed in range(30):
         census: dict[str, int] = {}
-        expected: dict[int, int] = {p: 0 for p in range(4)}
-        hands_seen = 0
+        # `hand_end` carries the cumulative score after each hand; per-hand deltas
+        # let us check shedding (exactly one zero-delta winner per hand) and that
+        # every non-winner's delta is a well-formed penalty (an independent check
+        # of the DSL `bigtwo_penalty`, not sharing its code).
+        hand_totals: list[dict[int, int]] = []
 
         def tracer(event: str, data: Any) -> None:
-            nonlocal hands_seen
-            if event == "bigtwo_hand":
-                hands_seen += 1
-                left = data["cards_left"]
-                winner = data["winner"]
-                assert left[winner] == 0, f"seed {seed}: winner kept cards"
-                assert sum(1 for v in left.values() if v == 0) == 1, f"seed {seed}: not exactly one out"
-                for p, n_left in left.items():
-                    if p != winner:
-                        assert n_left > 0
-                        expected[p] += _expected_penalty(n_left)
+            if event == "hand_end":
+                hand_totals.append(dict(data))
             elif event == "game_end":
                 census.clear()
                 census.update(data)
 
         result = play_game(game, random.Random(seed), tracer)
 
-        assert hands_seen >= 1, f"seed {seed}: no hand was played"
+        assert hand_totals, f"seed {seed}: no hand was played"
+        prev = {p: 0 for p in range(4)}
+        for cum in hand_totals:
+            deltas = {p: cum[p] - prev[p] for p in cum}
+            zero = [p for p, d in deltas.items() if d == 0]
+            assert len(zero) == 1, f"seed {seed}: not exactly one shed-out winner: {deltas}"
+            for p, d in deltas.items():
+                if d != 0:
+                    assert d in _VALID_PENALTIES, f"seed {seed}: bad penalty {d}"
+            prev = cum
+
         assert census["total"] == 52, f"seed {seed}: {census}"
-        assert result.scores == expected, f"seed {seed}: {result.scores} != {expected}"
+        assert result.scores == hand_totals[-1], f"seed {seed}: final score mismatch"
         assert result.winner == min(result.scores, key=lambda p: result.scores[p])
         assert max(result.scores.values()) >= 100, f"seed {seed}: match did not reach the threshold"

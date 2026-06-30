@@ -58,6 +58,7 @@ CALL_SIGS: dict[str, Sig] = {
     "error": Sig((TString(),), TAny()),  # the if_impossible fallback
     "bring_in_seat": Sig((), TPlayer()),  # Stud: lowest-door seat (no args; reads upcards)
     "first_to_act_seat": Sig((), TPlayer()),  # Stud: highest-upcards live seat
+    "bigtwo_first_leader": Sig((), TPlayer()),  # Big Two: the 3♦ holder (leads hand 1)
 }
 
 # Outcome / value callbacks passed by bare name — result type is mechanic-driven.

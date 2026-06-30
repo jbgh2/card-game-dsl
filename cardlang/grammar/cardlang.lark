@@ -133,6 +133,7 @@ move_event: NAME ["where" expr]
           | offer
           | round_stmt
           | auction_stmt
+          | climb_stmt
           | produce_stmt
           | produces_stmt
           | continue_to
@@ -216,6 +217,18 @@ round_stmt: "round" NAME "from" expr "over" expr "source" NAME "into" NAME "outc
 // first still-pending participant (betting, response windows).
 auction_stmt: "round" auction_moves "from" expr "over" expr ["order" NAME] "until" expr ["outcome" NAME]   -> auction_stmt
 auction_moves: "offering" "[" NAME ("," NAME)* "]"
+// The climbing form of `round`: one combination-climbing trick (Big Two, Tichu).
+// The leader leads a combination from the engine, then each participant in turn
+// beats the standing play or passes; the trick ends when action returns to the
+// last player who played, or the `until` predicate holds (a player has shed out).
+// The engine is named by `combinations` (the lead-options query) and `follows`
+// (the legal-follows query) — game-local stdlib queries, since the combination
+// rules differ across games. The winning player (the last to play) is bound as
+// `outcome` for the surrounding body, which routes the pile and the next lead;
+// there is no `outcome` *function* — the winner is the loop's last player, not a
+// function of the cards. (decisions.md "Interactive decisions": the same `round`
+// kernel along the move-vocabulary / order / termination axes.)
+climb_stmt: "round" "climb" NAME "from" expr "over" expr "source" NAME "into" NAME "combinations" NAME "follows" NAME "until" expr   -> climb_stmt
 named_arg: NAME "=" arg_value
 ?arg_value: movement
           | expr

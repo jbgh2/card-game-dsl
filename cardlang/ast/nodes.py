@@ -440,6 +440,16 @@ class Round:
     The trick-specific fields (`move_type`, `source_zone`, `play_zone`) are absent;
     `move_types` and `termination` are present (decisions.md "Interactive
     decisions": the same kernel round along the move-vocabulary/termination axes).
+
+    *Climbing form* — `round climb <move_type> from <leader> over <participants>
+    source <zone> into <zone> combinations <fn> follows <fn> until <pred>`: one
+    combination-climbing trick (Big Two, Tichu). The leader leads a combination
+    from the engine, then each participant beats the standing play or passes; the
+    trick ends when action returns to the last player who played, or `termination`
+    holds (a player has shed out). `combos_fn` / `follows_fn` name the game-local
+    combination-engine queries (the engines differ across games, so the construct
+    depends only on their interface). The last player to play is bound as `outcome`;
+    there is no outcome *function*. Distinguished by `combos_fn is not None`.
     """
 
     move_type: str | None
@@ -456,6 +466,11 @@ class Round:
     # (pointer advances each turn); "priority" re-scans from the leader each turn
     # and offers the first still-pending participant (betting, response windows).
     order_mode: str | None = None
+    # The climbing form's combination-engine queries: the lead-options query and
+    # the legal-follows query. Both present (and `combos_fn is not None`) marks the
+    # climb form; absent in the trick and auction forms.
+    combos_fn: str | None = None
+    follows_fn: str | None = None
     span: Span | None = None
 
 

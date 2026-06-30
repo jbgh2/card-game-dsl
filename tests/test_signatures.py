@@ -48,6 +48,20 @@ def test_outcome_names_are_dispatchable() -> None:
         assert callable(auction_outcome_function(name))
 
 
+def test_climb_queries_are_dispatchable() -> None:
+    # The climbing form's combination-engine query names must each resolve to a
+    # runtime callable, like the outcome names above — guards the resolve namespace
+    # (STDLIB_CLIMB_LEADS / STDLIB_CLIMB_FOLLOWS) from drifting out of sync with the
+    # runtime dispatchers.
+    from cardlang.runtime.stdlib import climb_follow_function, climb_lead_function
+    from cardlang.stdlib.functions import STDLIB_CLIMB_FOLLOWS, STDLIB_CLIMB_LEADS
+
+    for name in STDLIB_CLIMB_LEADS:
+        assert callable(climb_lead_function(name))
+    for name in STDLIB_CLIMB_FOLLOWS:
+        assert callable(climb_follow_function(name))
+
+
 def test_known_call_signatures() -> None:
     assert CALL_SIGS["player_holding"] == Sig((TCard(),), TPlayer())
     assert CALL_SIGS["team_of"] == Sig((TPlayer(),), TTeam())
