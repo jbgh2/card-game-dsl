@@ -180,7 +180,15 @@ def _legal_follows(hand: list[Card], led: Play) -> list[Play]:
 def bigtwo_lead_options(hand: list[Card], ctx: Ctx) -> list[Play]:
     """The combinations a leader may lead. On the opening lead of the match (game
     state `opened` still false) only those containing the 3♦ are offered — the
-    holder of the 3♦ leads the first hand and must include it."""
+    holder of the 3♦ leads the first hand and must include it.
+
+    The filter runs over `_combos`' representatives, so a multi-card opening whose
+    strongest representative omits the 3♦ (a pair/triple of 3s — the two highest
+    suits — or a straight/flush built on a higher-suit 3) is not offered; the single
+    3♦ always is, so a legal opening is guaranteed. This is a corollary of the
+    representative scope reduction (see the module docstring / big-two.md), not a
+    correctness bug — exhaustive opening coverage means dropping representatives
+    (full per-suit enumeration), a global change deferred for random play."""
     combos = _combos(hand)
     if not ctx.rs.get("opened"):
         three = Card("3", "diamonds")

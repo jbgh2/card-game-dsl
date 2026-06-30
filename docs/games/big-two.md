@@ -53,8 +53,14 @@ shed-out finish, and penalty scoring are DSL. Scope reductions (random play): ea
 pair/triple is offered as its single strongest representative per rank (highest
 suits), and each five-card type as its strongest representative (the top five of a
 suit for a flush, the highest top card for a straight); none of these change which
-combinations a hand can legally beat. Match-doubling surcharges (for holding 2s, or
-a 13-card blitz) are omitted — the basic 1/2/3-per-card penalty only. The turn
+combinations a hand can legally beat. One corollary at the **opening 3♦ lead**: the
+single 3♦ is always offered, but a multi-card opening whose strongest representative
+omits the 3♦ (a pair or triple of 3s — represented by its two highest suits — or a
+straight/flush built on a higher-suit 3) is not. The single 3♦ guarantees a legal
+opening; exhaustive opening coverage would require dropping the representative
+reduction (full per-suit enumeration), a global change deferred for random play.
+Match-doubling surcharges (for holding 2s, or a 13-card blitz) are omitted — the
+basic 1/2/3-per-card penalty only. The turn
 direction (clockwise) is a fixed choice; Pagat leaves it to the table.
 
 ```
