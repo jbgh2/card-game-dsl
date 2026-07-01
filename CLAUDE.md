@@ -108,7 +108,7 @@ The corpus today: Hearts, Getaway (Bhabhi), Spades, Pinochle, Bridge
 (rubber, simplified), Seven-Card Stud, Tichu, Schnapsen, Cribbage
 (six-card, two-player), Oh Hell (four-player), Skat (three-player,
 DSkV rules), French Tarot (four-player, FFT rules), Coup
-(base game, 3–6 players). Each is a
+(base game, 3–6 players), Big Two (four-player, standard). Each is a
 complete description: a non-player should be able to read the file
 cold and play a hand. That's the acceptance test for clarity.
 

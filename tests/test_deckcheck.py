@@ -4,7 +4,7 @@ A too-large player count is a compile error, not a runtime crash on an exhausted
 deck. The check is conservative — it bounds what it can and skips what it can't
 (`all`, non-literal amounts, deals inside `repeat until`), so it must never reject
 a valid corpus game. These tests pin both directions: over-capacity games fail,
-all 13 corpus games pass, and the skip rules hold.
+all 14 corpus games pass, and the skip rules hold.
 """
 
 from __future__ import annotations

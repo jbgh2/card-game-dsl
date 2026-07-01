@@ -208,22 +208,9 @@ Scum. Contextual rank is *variant-gated* — the basic game has no jokers;
 cite the joker-single variant specifically. **Pagat**:
 <https://www.pagat.com/climbing/president.html>.
 
-### big-two
-
-4 players, standard 52, climbing where combinations (single, pair,
-triple, five-card hands — straight / flush / full-house /
-four-plus-one / straight-flush) are played in sequence; first to
-empty hand wins.
-
-**Why interesting.** Combination-based climbing — each "play" is a
-*multi-card move* whose legality is a structured predicate over the
-played set (the combination must be of the same type as the
-previous play and beat it). Useful test of how the DSL expresses
-"valid combination" as a rule on a `play_combination` move type.
-Contrast with President's simpler "single card beats single card."
-
-**Notes.** Cantonese and Asian variants have slightly different
-combination hierarchies. Standard Big Two suffices.
+(Big Two, formerly a candidate here, is now in the corpus
+([big-two.cardlang](big-two.cardlang)) as the second combination-climbing
+instance after Tichu — it drives the `climb` kernel construct.)
 
 ### crazy-eights
 

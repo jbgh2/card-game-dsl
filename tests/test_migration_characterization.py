@@ -170,3 +170,48 @@ def _capture_tichu() -> dict[str, Any]:
 def test_tichu_migration_preserves_per_seed_results() -> None:
     expected = json.loads((GOLDEN / "tichu_scores.json").read_text())
     assert _capture_tichu() == expected
+
+
+# Big Two (the second climbing instance) moves its whole hand — the climbing
+# trick, the combination model, the 3♦ opening, the shedding finish, and penalty
+# scoring — onto the kernel `climb` construct alongside Tichu. The migration must
+# reproduce the monolith's chooser-draw sequence, so the per-seed results stay
+# byte-identical. We pin `scores` + `winner` (Big Two has no `scoring` phase, so
+# the driver's hand counter reads 0, as for Tichu). Its engine is set-free, so the
+# capture is hash-independent, but we still pin under `PYTHONHASHSEED=0` to match
+# the harness. Pinned pre-migration.
+_BIGTWO_CAPTURE = """
+import json, random, sys
+from pathlib import Path
+from cardlang.pipeline import check_dsl
+from cardlang.runtime.driver import play_game
+
+game = check_dsl(Path("docs/games/big-two.cardlang").read_text(), "big-two.cardlang")
+out = {}
+for seed in range(50):
+    r = play_game(game, random.Random(seed))
+    out[str(seed)] = {
+        "scores": {str(k): v for k, v in sorted(r.scores.items())},
+        "winner": r.winner,
+    }
+print(json.dumps(out))
+"""
+
+
+def _capture_bigtwo() -> dict[str, Any]:
+    env = dict(os.environ, PYTHONHASHSEED="0")
+    proc = subprocess.run(
+        [sys.executable, "-c", _BIGTWO_CAPTURE],
+        cwd=REPO,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    result: dict[str, Any] = json.loads(proc.stdout)
+    return result
+
+
+def test_bigtwo_migration_preserves_per_seed_results() -> None:
+    expected = json.loads((GOLDEN / "bigtwo_scores.json").read_text())
+    assert _capture_bigtwo() == expected

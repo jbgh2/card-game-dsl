@@ -17,7 +17,7 @@ done.
 
 ## The goal, concretely
 
-Eight games still hold their decision logic in hand-written Python dispatched by
+Nine games still hold their decision logic in hand-written Python dispatched by
 name in `cardlang/runtime/mechanics.py::instantiate`. Bridge's, Pinochle's, and
 Tarot's auctions have been lifted onto the kernel `round` — so `run_bridge_auction`
 is gone, and `run_pinochle_hand` / `run_tarot_hand` are now the post-auction
@@ -25,15 +25,15 @@ is gone, and `run_pinochle_hand` / `run_tarot_hand` are now the post-auction
 
 - inline in `mechanics.py`: `run_schnapsen_hand`, `run_pinochle_rest`
 - separate modules: `runtime/coup.py`, `cribbage.py`, `skat.py`, `stud.py`,
-  `tarot.py` (post-auction), `tichu.py`
+  `tarot.py` (post-auction), `tichu.py`, `bigtwo.py`
 
 This violates the two-layer architecture ([principles.md](principles.md): the
 library is *written in the DSL*, not the engine). The stage is done when:
 
 - `instantiate` dispatches only to kernel constructs — no per-game name
-  branches — and the six `runtime/*.py` game modules and the three inline
+  branches — and the seven `runtime/*.py` game modules and the three inline
   `run_*_hand` functions are deleted;
-- all 13 games run on the kernel plus the in-DSL standard library, with every
+- all 14 games run on the kernel plus the in-DSL standard library, with every
   `tests/test_playout_*.py` green and **behaviour preserved**;
 - IR golden snapshots are regenerated and reviewed;
 - `mypy --strict` is clean and no `language-gap` entry is silent (each is zero
@@ -237,12 +237,16 @@ instances → promote to the standard library).
   trick to an opponent). Plus pushing (pre-play card passing) and the
   double-victory finish.
 
-**Status — combination engine extracted; the `climb` construct deferred to a
-second instance.** The combination engine (`_combos` / `_legal_follows` / the
-card-point table) is extracted RNG-free into `cardlang/runtime/combinations.py`,
-and the byte-identical net is pinned (`tests/golden/tichu_scores.json`, 50 seeds —
-the migration must reproduce it). The remaining migration is **deferred**, by
-design:
+**Status — both climbing instances landed as concrete mechanics; the `climb`
+construct is the next step.** Tichu's combination engine (`_combos` /
+`_legal_follows` / the card-point table) is extracted RNG-free into
+`cardlang/runtime/combinations.py`, with the byte-identical net pinned
+(`tests/golden/tichu_scores.json`, 50 seeds). **Big Two** has now landed as the
+second instance — its hand engine (`cardlang/runtime/bigtwo.py`, dispatched by
+`instantiate BigTwoHand`; `docs/games/big-two.cardlang`) is a concrete mechanic
+like Tichu's, with its own combination engine and byte-identical net
+(`tests/golden/bigtwo_scores.json`). With two instances in hand, the `climb`
+co-design proceeds:
 
 - **`climb` is trick-shaped, not auction-shaped.** A combination play moves a
   *specific computed card-set* (the chosen combination's cards) from the hand to
@@ -252,20 +256,27 @@ design:
   beside `run_trick` / `run_auction`): it enumerates candidates from the engine,
   chooses, and performs the card movement itself. There is *no* DSL-visible
   `Combination` value and no runtime-query move parameter.
-- **Generalize from two instances, not one.** A `climb` shaped around Tichu's
-  Dog / Dragon / Phoenix routing would be a single-instance construct. **Big Two**
-  ([games/_candidates.md](games/_candidates.md), "Climbing & shedding") is the
-  direct second instance — combination climbing with the same `play_combination`
-  shape — and **President** a simpler third. Co-design `climb` + the shared
-  combination queries against Tichu **and** Big Two so the construct is right the
-  first time, per the project's promote-at-the-second/third-instance discipline.
+- **Two engines, one construct interface.** Tichu's and Big Two's combination
+  engines differ — Big Two keys on (rank, suit) because suit breaks every tie,
+  carries flushes/quads, and follows cross-type within the five-card group, where
+  Tichu keys rank-only, has bombs, and the special cards. So `run_climb` depends on
+  the *interface* (`combos(hand)`, `legal_follows(hand, led)`, `play.cards`), not a
+  shared representation; the engines stay game-local (beside the promote-at-the-
+  third-instance rule — Pinochle melds / Cribbage scoring are the third). The
+  divergent *routing* (Big Two: discard the pile, the trick winner leads; Tichu:
+  capture to a team pile, Dog → partner, Dragon → an opponent) is the design's open
+  question: `run_climb` returns the winner and the winning play, and the DSL body
+  does the routing/scoring (the `run_trick` discipline). If Tichu's Dog/Dragon
+  cannot factor out of `run_climb` into the body, that is a new axis to **surface**,
+  not an engine hook quietly added.
 - The bomb **interrupt** axis (any player, any time) is moot at the migrated
   scope: the current Tichu omits out-of-turn bombs (bombs play only on-turn, as a
-  follow), so the kernel needs no interrupt axis to reproduce it. Revisit if a game
-  forces out-of-turn play.
+  follow), and Big Two has no bombs, so the kernel needs no interrupt axis to
+  reproduce either. Revisit if a game forces out-of-turn play.
 
-When resumed (with Big Two): build `run_climb`, wire the engine as stdlib queries,
-express pushing / finishing / scoring in the DSL, and delete `run_tichu_hand`.
+Next: build `run_climb`, wire both engines as stdlib queries, express pushing /
+finishing / scoring in the DSL for both games, and delete `run_tichu_hand` and
+`run_bigtwo_hand` — byte-identical against both pinned nets.
 
 ## Workstream 4 — Counting and in-play scoring (Cribbage, Schnapsen, Pinochle scoring)
 
@@ -349,10 +360,10 @@ breadth. Step 0 and Coup-last hold either way.
 
 ## Stage definition of done
 
-- No per-game branch remains in `mechanics.py::instantiate`; the six
+- No per-game branch remains in `mechanics.py::instantiate`; the seven
   `runtime/*.py` game modules and the three inline `run_*_hand` functions are
   gone; the built-in `Trick` mechanic is gone.
-- All 13 games run on the kernel + in-DSL standard library; every
+- All 14 games run on the kernel + in-DSL standard library; every
   `test_playout_*` is green; IR goldens regenerated and reviewed; `mypy
   --strict` clean; conservation invariants and the new recompute nets green.
 - The `language-gap` list is zero or every entry is a named, deferred open
