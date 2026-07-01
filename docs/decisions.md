@@ -1280,6 +1280,15 @@ exercises most) and confirms the finite-action-space anchor end to end. The
 adapter is per-game and proof-scoped; the general, all-corpus path remains the
 eventual compilation pass (see [roadmap.md](roadmap.md)).
 
+The per-game Python mechanics dispatched by `instantiate` are the gap in the
+meantime: they run their decision logic outside the observation-event stream, so
+their information sets are **not** derived — info-set debt tracked against the
+[kernel migration](kernel-migration.md) and quantified in
+[design-notes/kernel-extensibility.md](design-notes/kernel-extensibility.md), §6.
+Retiring those mechanics onto the kernel is what makes info-set derivation uniform
+across the corpus, which is the property that keeps OpenSpiel a reachable target
+rather than a per-game hand-coding exercise.
+
 ## Game result: `winner:` and `loser:`
 
 A game declares its terminal result with exactly one top-level clause,
