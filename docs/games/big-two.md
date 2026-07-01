@@ -45,14 +45,23 @@ Each hand:
    thirteen (39). The winner scores 0. The match ends when a player's cumulative
    penalty reaches 100; the **lowest** total wins.
 
-The hand engine runs in the built-in `BigTwoHand` mechanic. Scope reductions
-(random play): each pair/triple is offered as its single strongest representative
-per rank (highest suits), and each five-card type as its strongest representative
-(the top five of a suit for a flush, the highest top card for a straight); none of
-these change which combinations a hand can legally beat. Match-doubling surcharges
-(for holding 2s, or a 13-card blitz) are omitted — the basic 1/2/3-per-card
-penalty only. The turn direction (clockwise) is a fixed choice; Pagat leaves it to
-the table.
+The hand runs on the kernel **`round climb`** construct: one combination-climbing
+trick per round, with the combination engine named as the game-local stdlib
+queries `bigtwo_lead_options` (lead candidates, 3♦-filtered on the opening) and
+`bigtwo_follows` (legal follows). The climbing loop, the pile routing, the
+shed-out finish, and penalty scoring are DSL. Scope reductions (random play): each
+pair/triple is offered as its single strongest representative per rank (highest
+suits), and each five-card type as its strongest representative (the top five of a
+suit for a flush, the highest top card for a straight); none of these change which
+combinations a hand can legally beat. One corollary at the **opening 3♦ lead**: the
+single 3♦ is always offered, but a multi-card opening whose strongest representative
+omits the 3♦ (a pair or triple of 3s — represented by its two highest suits — or a
+straight/flush built on a higher-suit 3) is not. The single 3♦ guarantees a legal
+opening; exhaustive opening coverage would require dropping the representative
+reduction (full per-suit enumeration), a global change deferred for random play.
+Match-doubling surcharges (for holding 2s, or a 13-card blitz) are omitted — the
+basic 1/2/3-per-card penalty only. The turn
+direction (clockwise) is a fixed choice; Pagat leaves it to the table.
 
 ```
 game BigTwo {
@@ -65,12 +74,15 @@ game BigTwo {
   zones {
     deck         : Deck
     hand[player] : Hand<player>
-    discard      : Discard          // played combinations land here, no capture
+    trick_pile   : TrickPile          // the climbing trick in progress
+    discard      : Discard            // spent tricks (no capture in Big Two)
   }
 
   state {
-    score[player] : Integer = 0     // cumulative penalty points (lower is better)
-    winner_seat   : Player? = none  // who went out last hand; leads the next one
+    score[player] : Integer = 0       // cumulative penalty points (lower is better)
+    winner_seat   : Player? = none    // who shed out last hand; leads the next one
+    opened        : Boolean = false   // has the opening (3♦) lead been played?
+    leader        : Player? = none    // who leads the current trick
   }
 
   phase hand_sequence repeats until (any player p: score[p] >= 100) {
@@ -78,14 +90,34 @@ game BigTwo {
       move all cards to deck
       shuffle deck
       deal 13 cards from deck to each hand
+      leader := (if winner_seat is none then bigtwo_first_leader() else winner_seat)
     }
 
     phase play {
-      legal_moves: [play_combination, pass]
-      instantiate BigTwoHand()
+      legal_moves: [play_combination]
+      repeat until (any player p: hand[p] is empty) {
+        round climb play_combination from leader
+              over players where hand[player] is not empty
+              source hand into trick_pile
+              combinations bigtwo_lead_options follows bigtwo_follows
+              until (any player p: hand[p] is empty)
+        opened := true
+        move all cards from trick_pile to discard
+        leader := outcome
+      }
+    }
+
+    phase scoring {
+      winner_seat := leader
+      for each player p:
+        if hand[p] is not empty {
+          score[p] += bigtwo_penalty(count over hand[p] as c: true)
+        }
     }
   }
 
   winner: lowest score
 }
+
+function bigtwo_penalty(n : Integer) = if n <= 9 then n elif n <= 12 then 2 * n else 3 * n
 ```

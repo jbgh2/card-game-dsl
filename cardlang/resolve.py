@@ -29,6 +29,8 @@ from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
 from cardlang.stdlib.functions import (
     STDLIB_AUCTION_OUTCOMES,
     STDLIB_CALL_FUNCS,
+    STDLIB_CLIMB_FOLLOWS,
+    STDLIB_CLIMB_LEADS,
     STDLIB_EARLY_PREDICATES,
     STDLIB_TRICK_OUTCOMES,
     STDLIB_VALUE_NAMES,
@@ -506,6 +508,30 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bag.error(
                         f"round order '{nd.order_mode}' is unknown (expected one of "
                         f"{sorted(n.ROUND_ORDER_MODES)})",
+                        nd.span,
+                    )
+            case n.Round() if nd.combos_fn is not None:
+                # Climbing form: trick zones plus the two combination-engine queries
+                # (`combinations` lead, `follows` legal-follows). The termination
+                # predicate's names are checked by the generic NameRef pass; its
+                # Boolean type by the type checker.
+                zone_names = {z.name for z in game.zones}
+                if nd.source_zone not in zone_names:
+                    bag.error(f"climb round source zone '{nd.source_zone}' is unknown", nd.span)
+                if nd.play_zone not in zone_names:
+                    bag.error(f"climb round play zone '{nd.play_zone}' is unknown", nd.span)
+                if nd.move_type not in LIBRARY_MOVE_TYPES:
+                    bag.error(f"climb round move type '{nd.move_type}' is unknown", nd.span)
+                if nd.combos_fn not in STDLIB_CLIMB_LEADS:
+                    bag.error(
+                        f"climb round `combinations` query '{nd.combos_fn}' is not a "
+                        f"combination lead query",
+                        nd.span,
+                    )
+                if nd.follows_fn not in STDLIB_CLIMB_FOLLOWS:
+                    bag.error(
+                        f"climb round `follows` query '{nd.follows_fn}' is not a "
+                        f"combination follows query",
                         nd.span,
                     )
             case n.Round():

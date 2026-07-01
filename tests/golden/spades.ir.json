@@ -521,7 +521,9 @@
                   "early_termination": null,
                   "move_types": null,
                   "termination": null,
-                  "order_mode": null
+                  "order_mode": null,
+                  "combos_fn": null,
+                  "follows_fn": null
                 },
                 {
                   "kind": "movement",

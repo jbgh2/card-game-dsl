@@ -545,7 +545,9 @@
                   }
                 }
               },
-              "order_mode": null
+              "order_mode": null,
+              "combos_fn": null,
+              "follows_fn": null
             }
           ]
         },

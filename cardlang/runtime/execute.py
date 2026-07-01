@@ -54,6 +54,10 @@ def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
         case n.Offer():
             _offer(stmt, ctx)
             return ctx
+        case n.Round() if stmt.combos_fn is not None:
+            # The climbing form plays one combination-climbing trick and binds the
+            # winning player (the last to play) as `outcome`, like the trick form.
+            return ctx.with_outcome(mechanics.run_climb(stmt, ctx))
         case n.Round() if stmt.move_types is not None:
             # The auction form raises a _ProduceSignal with the phase's typed
             # outcome (caught by the enclosing outcome-declaring phase), like an

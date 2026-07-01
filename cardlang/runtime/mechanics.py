@@ -6,9 +6,10 @@ card, the lead sets `led_suit`, an optional early-termination predicate may end
 the pass, then `outcome` selects the winner (bound as `outcome` for the
 surrounding body, which does the routing). `run_auction` drives the auction form:
 a continuous ring over a move vocabulary, threading a phase-state accumulator
-until termination, then producing a typed variant outcome. `instantiate`
-dispatches the remaining per-game hand engines (Schnapsen, Pinochle, Skat, Tarot,
-Cribbage, Stud, Tichu, Big Two, Coup) not yet lifted into the DSL.
+until termination, then producing a typed variant outcome. `run_climb` drives the
+climbing form: one combination-climbing trick over game-local engine queries.
+`instantiate` dispatches the remaining per-game hand engines (Schnapsen, Pinochle,
+Skat, Tarot, Cribbage, Stud, Tichu, Coup) not yet lifted into the DSL.
 """
 
 from __future__ import annotations
@@ -48,10 +49,6 @@ def instantiate(stmt: n.Instantiate, ctx: Ctx) -> Player:
         from cardlang.runtime.tichu import run_tichu_hand
 
         return run_tichu_hand(stmt, ctx)
-    if stmt.mechanic == "BigTwoHand":
-        from cardlang.runtime.bigtwo import run_bigtwo_hand
-
-        return run_bigtwo_hand(stmt, ctx)
     if stmt.mechanic == "CoupGame":
         from cardlang.runtime.coup import run_coup_game
 
@@ -276,6 +273,76 @@ def run_auction(stmt: n.Round, ctx: Ctx) -> None:
         return
     tag, payloads = stdlib.auction_outcome_function(stmt.outcome_fn)(history, ctx)
     raise _ProduceSignal(tag, payloads)
+
+
+def run_climb(stmt: n.Round, ctx: Ctx) -> Player:
+    """The climbing form of `round`: one combination-climbing trick.
+
+    The leader leads a combination drawn from the `combinations` lead query; then
+    each participant in seating order beats the standing play (a combination from
+    the `follows` query) or passes. A pass does **not** drop a player — the trick
+    ends when action returns to the last player who played (everyone else passed
+    one full lap), or when the `until` predicate holds (a player has shed out,
+    ending the hand mid-trick). The last player to play is returned, bound as
+    `outcome` for the surrounding body, which routes the pile and sets the next
+    lead. The combination engine is game-local, so this construct depends only on
+    the queries' interface: each returns a list of plays, and a play exposes the
+    cards it moves as a `.cards` tuple. Players already shed out (Tichu) are skipped
+    with no chooser draw; Big Two ends the trick the instant a player sheds, so its
+    participants all hold cards throughout.
+    """
+    from cardlang.runtime import stdlib
+
+    assert (
+        stmt.combos_fn is not None
+        and stmt.follows_fn is not None
+        and stmt.source_zone is not None
+        and stmt.play_zone is not None
+        and stmt.termination is not None
+    ), "run_climb handles only the climbing form of `round`"
+    leader: Player = evaluate(stmt.leader, ctx)
+    participants = set(evaluate(stmt.participants, ctx))
+    lead_query = stdlib.climb_lead_function(stmt.combos_fn)
+    follow_query = stdlib.climb_follow_function(stmt.follows_fn)
+    hands = ctx.rs.zones.families[stmt.source_zone]
+    pile = ctx.rs.zones.single(stmt.play_zone)
+
+    # The participant ring in seating order from the leader.
+    ring = [p for p in ctx.rs.seating.turn_order_from(leader) if p in participants]
+    assert ring and ring[0] == leader, "the leader must lead a climbing trick"
+
+    current: Any = None
+    last: Player = leader
+    idx = 0
+    guard = 0
+    while True:
+        guard += 1
+        if guard > 5000:
+            raise RuntimeError("climb trick exceeded 5000 plays without resolving")
+        turn = ring[idx % len(ring)]
+        if current is not None and turn == last:
+            return last  # action returned to the last player: they win the trick
+        if not hands[turn].cards:  # already shed out (Tichu): skip, no draw
+            idx += 1
+            continue
+        if current is None:  # the leader must lead
+            play = ctx.chooser(turn, lead_query(hands[turn].cards, ctx), 1)[0]
+        else:
+            options = [*follow_query(hands[turn].cards, current, ctx), "pass"]
+            choice = ctx.chooser(turn, options, 1)[0]
+            if choice == "pass":
+                idx += 1
+                continue
+            play = choice
+        for c in play.cards:
+            hands[turn].remove(c)
+        pile.add_all(play.cards)
+        current, last = play, turn
+        # A play that satisfies the hand-termination predicate (a shed-out) ends
+        # the trick at once, matching the monolith's zero further chooser draws.
+        if bool(evaluate(stmt.termination, ctx)):
+            return last
+        idx += 1
 
 
 # ---------------------------------------------------------------------------

@@ -1,23 +1,22 @@
 // Big Two — formalized DSL (parser/checker/runtime target).
 //
 // Companion to big-two.md. Four-player climbing/shedding game on the standard 52
-// (no jokers). Players are dealt 13 cards each and climb: each play must have the
-// *same number of cards* as the standing combination and beat it, or pass; a
-// trick ends when action returns to the last player who played, who then leads
-// again. The hand ends the instant one player empties their hand — the others
-// score penalty points for the cards they still hold (1 per card up to nine, 2
-// for ten–twelve, 3 for a full thirteen). Lowest cumulative penalty wins.
+// (no jokers). Players are dealt 13 cards each and climb: each play has the *same
+// number of cards* as the standing combination and beats it, or passes; a trick
+// ends when action returns to the last player who played (everyone else passed),
+// who then leads again. The hand ends the instant one player sheds out — the
+// others score penalty points for the cards they still hold (1 per card up to
+// nine, 2 for ten–twelve, 3 for a full thirteen). Lowest cumulative penalty wins.
 //
-// The hand engine — the combination model (single / pair / triple / five-card,
-// the straight < flush < full house < quads < straight flush hierarchy, suit
-// tie-breaks), the climbing trick, the 3♦ opening lead, the shedding finish, and
-// penalty scoring — runs in the built-in `BigTwoHand` mechanic, which updates
-// `score` directly. The combination engine and the climbing are not expressible
-// in the trick DSL; this is a concrete mechanic, the second climbing instance
-// (with Tichu) that the kernel `climb` construct is co-designed against — see
-// docs/kernel-migration.md, Workstream 3. Scope reductions (strongest
-// representative per rank/type; basic 1/2/3 penalty, no 2s/blitz surcharge) are
-// noted in big-two.md.
+// The hand runs on the kernel `round climb` construct. The combination model —
+// the two rank orders (2 high for sets; natural for straights), suit tie-breaks,
+// and the straight < flush < full house < quads < straight flush hierarchy — is
+// not expressible in the DSL, so it lives in the game-local stdlib queries
+// `bigtwo_lead_options` / `bigtwo_follows` (see big-two.md). Everything else —
+// the climbing trick loop, the 3♦ opening, pile routing to the discard, the
+// shed-out finish, and penalty scoring — is DSL. This is the second climbing
+// instance the `climb` construct is co-designed against (with Tichu); see
+// docs/kernel-migration.md, Workstream 3.
 
 game BigTwo {
 
@@ -29,30 +28,65 @@ game BigTwo {
   zones {
     deck         : Deck
     hand[player] : Hand<player>
-    discard      : Discard          // played combinations land here, no capture
+    trick_pile   : TrickPile          // the climbing trick in progress
+    discard      : Discard            // spent tricks (no capture in Big Two)
   }
 
   state {
     // Game-level: persist across hands.
-    score[player] : Integer = 0     // cumulative penalty points (lower is better)
-    winner_seat   : Player? = none  // who went out last hand; leads the next one
+    score[player] : Integer = 0       // cumulative penalty points (lower is better)
+    winner_seat   : Player? = none    // who shed out last hand; leads the next one
+    opened        : Boolean = false   // has the opening (3♦) lead been played?
+    leader        : Player? = none    // who leads the current trick
   }
 
   // The match runs until a player's penalty total reaches 100 (a loss threshold);
-  // penalties only accumulate — three of the four players gain points every hand
-  // — so this is reached under uniform-random play, and the lowest total wins.
+  // penalties only accumulate — three of the four players gain points every hand —
+  // so this is reached under uniform-random play, and the lowest total wins.
   phase hand_sequence repeats until (any player p: score[p] >= 100) {
     before_each {
       move all cards to deck
       shuffle deck
       deal 13 cards from deck to each hand
+      // The 3♦ holder leads the first hand; thereafter the previous winner does.
+      leader := (if winner_seat is none then bigtwo_first_leader() else winner_seat)
     }
 
     phase play {
-      legal_moves: [play_combination, pass]
-      instantiate BigTwoHand()
+      legal_moves: [play_combination]
+
+      // One climbing trick per `round climb`; the body routes the spent pile to
+      // the discard and passes the lead to the trick's winner. The `until`
+      // predicate ends the trick the instant a player sheds out (which also ends
+      // the hand), so the rest of that trick is not offered.
+      repeat until (any player p: hand[p] is empty) {
+        round climb play_combination from leader
+              over players where hand[player] is not empty
+              source hand into trick_pile
+              combinations bigtwo_lead_options follows bigtwo_follows
+              until (any player p: hand[p] is empty)
+        opened := true
+        move all cards from trick_pile to discard
+        leader := outcome
+      }
+    }
+
+    phase scoring {
+      // The shed-out player (the last trick's winner) carries no penalty and leads
+      // the next hand; the others lose 1/2/3 points per card still held.
+      winner_seat := leader
+      for each player p:
+        if hand[p] is not empty {
+          score[p] += bigtwo_penalty(count over hand[p] as c: true)
+        }
     }
   }
 
   winner: lowest score
 }
+
+// === Big Two scoring ===
+
+// Penalty for the cards a non-winner still holds: 1 per card up to nine, 2 per
+// card for ten–twelve, 3 per card for a full thirteen (39).
+function bigtwo_penalty(n : Integer) = if n <= 9 then n elif n <= 12 then 2 * n else 3 * n

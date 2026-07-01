@@ -538,6 +538,26 @@ class _Builder(Transformer[Token, n.Game]):
             span=self._span(meta),
         )
 
+    def climb_stmt(self, meta: Meta, c: list[object]) -> n.Round:
+        # c: [NAME(move_type), expr(leader), expr(participants), NAME(source),
+        #     NAME(into), NAME(combinations), NAME(follows), expr(termination)].
+        # The climbing form keeps the trick zones (source/into) but names the
+        # combination-engine queries instead of an outcome function; the winner is
+        # the loop's last player. `combos_fn is not None` marks the form.
+        return n.Round(
+            move_type=str(c[0]),
+            leader=_as_expr(c[1]),
+            participants=_as_expr(c[2]),
+            source_zone=str(c[3]),
+            play_zone=str(c[4]),
+            outcome_fn=None,
+            trump=None,
+            combos_fn=str(c[5]),
+            follows_fn=str(c[6]),
+            termination=_as_expr(c[7]),
+            span=self._span(meta),
+        )
+
     def let_stmt(self, meta: Meta, c: list[object]) -> n.LetStmt:
         index = c[1] if isinstance(c[1], str) else None
         return n.LetStmt(

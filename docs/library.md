@@ -46,6 +46,51 @@ Key design notes:
 - **The next leader is the body's choice.** The round does not assume
   "winner-leads-next"; the surrounding phase sets `leader := outcome` (or not).
 
+## The climb: a `round` configuration
+
+A climbing trick (Big Two; Tichu, pending its migration) is the kernel `round`
+construct in its **climbing form** — one trick where each play is a *combination*,
+not a single card. The leader leads a combination drawn from the engine, then each
+participant beats the standing play with a higher one **of the same size** or
+passes; a pass does not drop a player. The trick ends when action returns to the
+last player who played (everyone else passed one full lap), or the `until`
+predicate holds (a player has shed out). The last player to play is bound as
+`outcome` for the surrounding body, which routes the pile and the next lead.
+
+```
+round climb <move_type> from <leader> over <participants>
+      source <zone> into <zone>
+      combinations <lead_query> follows <follows_query>
+      until <predicate>
+```
+
+Key design notes:
+
+- **The combination engine is named, not built in.** `combinations` names a
+  lead-options query (every combination a hand may lead) and `follows` a
+  legal-follows query (those that beat the standing play). They are **game-local
+  stdlib** ([decisions.md](decisions.md) "The climbing form of `round`"): Big Two's
+  and Tichu's combination rules genuinely differ (suit tie-breaks, flushes and
+  quads, cross-type five-card beating vs. bombs and special cards), so the engines
+  stay per-game until a third instance. The construct depends only on their
+  interface — a list of plays, each exposing the cards it moves as `.cards`.
+
+- **No `outcome` function.** Unlike the trick form, the winner is not a function of
+  the cards — it is the loop's last player to play, returned directly and bound as
+  `outcome`. A combination play moves a *computed card-set*, which the movement
+  grammar (cards by count) cannot name, so the construct performs the movement
+  itself ([decisions.md](decisions.md) "The climbing form of `round`").
+
+- **`until <predicate>` ends the trick — and the hand.** It is the shed-out gate:
+  Big Two's `any player p: hand[p] is empty` stops the trick the instant a player
+  empties (matching the rule that the hand ends on the first shed). It is checked
+  after each play, so the rest of that trick is not offered.
+
+- **Routing is the surrounding body, not a parameter** (as for the trick). Big Two
+  routes the spent pile to the discard (`move all cards from trick_pile to discard`)
+  and passes the lead to the winner (`leader := outcome`); a point-capturing game
+  (Tichu) will route to a team pile instead.
+
 ## Move types
 
 - `play_to_trick` — source: hand, destination: trick_pile

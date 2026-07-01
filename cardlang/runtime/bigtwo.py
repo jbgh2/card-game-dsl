@@ -1,41 +1,34 @@
-"""The Big Two hand mechanic (four-player climbing/shedding game; concrete).
+"""The Big Two combination engine and its climbing-form stdlib queries.
 
 The corpus's second climbing game (after Tichu) and the partner instance that —
-together with Tichu — shapes the kernel `climb` construct. Built, like Tichu, as
-one concrete mechanic dispatched by `instantiate BigTwoHand`: the climbing trick
-(lead a combination, then beat it with a higher one of the *same size* or pass;
-the trick ends when action returns to the last player who played), the four
-combination sizes (single / pair / triple / five-card), the five-card hierarchy
-(straight < flush < full house < quads < straight flush), and the shedding finish
-(the hand ends the instant a player empties their hand; the others score penalty
-points for the cards they still hold). Lowest cumulative penalty wins the match.
+together with Tichu — shapes the kernel `climb` construct. Big Two's whole hand
+runs on `round climb` (`docs/games/big-two.cardlang`); this module is the RNG-free
+combination engine plus the three game-local queries the climb round names:
+`bigtwo_lead_options` (lead candidates), `bigtwo_follows` (legal follows), and
+`first_leader_seat` (the 3♦ holder, who leads the first hand).
 
-The top half of this module is the **combination engine** — RNG-free, ported into
-stdlib-query shape — split into two parts only Big Two has but Tichu does not:
-suit *always* breaks ties (a single 52-card deck, so 7♠ > 7♥), and the five-card
-group includes flushes and quads-plus-kicker. Two rank orders coexist: 2 is the
-highest rank for singles/pairs/triples/quads/full-houses (and a flush's top card),
-while straights and straight flushes run in *natural* order (A high in 10-J-Q-K-A,
-low in the A-2-3-4-5 wheel; no wrap-around). This is the part the `climb` migration
-(docs/kernel-migration.md, Workstream 3) will call as queries, kept game-local
-beside Tichu's `combinations.py` until a third instance justifies merging them.
+The engine has two parts only Big Two has but Tichu does not: suit *always* breaks
+ties (a single 52-card deck, so 7♠ > 7♥), and the five-card group includes flushes
+and quads-plus-kicker. Two rank orders coexist: 2 is the highest rank for
+singles/pairs/triples/quads/full-houses (and a flush's top card), while straights
+and straight flushes run in *natural* order (A high in 10-J-Q-K-A, low in the
+A-2-3-4-5 wheel; no wrap-around). It is kept game-local beside Tichu's
+`combinations.py` (the engines differ) until a third instance justifies merging.
 
 Scope reductions (random play; see docs/games/big-two.md): pairs/triples are
 offered as the single strongest representative per rank (highest suits), and each
 five-card type as its strongest representative (the top-5 of a suit for a flush,
 the highest top-card for a straight); these never change which combinations a hand
 can *legally beat*. Match-doubling surcharges (for 2s or a 13-card blitz) are
-omitted — the basic 1/2/3-per-card penalty only.
+omitted — the basic 1/2/3-per-card penalty (in big-two.cardlang) only.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from cardlang.ast import nodes as n
-from cardlang.runtime.state import Chooser, Ctx, Zone
+from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Card, Player
 
 # Big Two rank order for singles / pairs / triples / quads / full houses and a
@@ -179,108 +172,39 @@ def _legal_follows(hand: list[Card], led: Play) -> list[Play]:
     return [p for p in _combos(hand) if p.size == led.size and p.key > led.key]
 
 
-def _penalty(cards_left: int) -> int:
-    """Penalty points for the cards a non-winner still holds: one per card up to
-    nine, two per card for ten–twelve, three per card for a full thirteen."""
-    if cards_left <= 9:
-        return cards_left
-    if cards_left <= 12:
-        return 2 * cards_left
-    return 3 * cards_left
-
-
 # ---------------------------------------------------------------------------
-# The hand mechanic
+# The climbing-form stdlib queries (named on `round climb` in big-two.cardlang)
 # ---------------------------------------------------------------------------
 
 
-def _play_trick(
-    leader: Player,
-    hands: dict[Player, Zone],
-    discard: Zone,
-    advance: Callable[[Player], Player],
-    choose: Chooser,
-    out: list[Player],
-    must_include: Card | None,
-) -> Player:
-    """Play one climbing trick: the leader leads a combination, then each player
-    in turn beats the standing play or passes (a pass does *not* drop you for the
-    rest of the trick). The trick ends when action returns to the last player who
-    played — everyone else has passed — and that player leads the next trick.
-    Returns the next leader, or the player who just emptied their hand (which ends
-    the whole hand: the caller sees `out` filled)."""
-    current: Play | None = None
-    last = leader
-    turn = leader
-    guard = 0
-    while True:
-        guard += 1
-        if guard > 1000:
-            raise RuntimeError("big two trick exceeded 1000 plays without resolving")
-        if current is not None and turn == last:
-            return last  # all others passed: `last` wins the trick and leads next
-        if current is None:  # the leader must lead
-            leads = _combos(hands[turn].cards)
-            if must_include is not None:
-                leads = [p for p in leads if must_include in p.cards]
-            play = choose(turn, leads, 1)[0]
-        else:
-            choice = choose(turn, [*_legal_follows(hands[turn].cards, current), "pass"], 1)[0]
-            if choice == "pass":
-                turn = advance(turn)
-                continue
-            play = choice
-        for c in play.cards:
-            hands[turn].remove(c)
-        discard.add_all(play.cards)
-        current, last = play, turn
-        if not hands[turn].cards:  # the player went out — the hand ends now
-            out.append(turn)
-            return turn
-        turn = advance(turn)
+def bigtwo_lead_options(hand: list[Card], ctx: Ctx) -> list[Play]:
+    """The combinations a leader may lead. On the opening lead of the match (game
+    state `opened` still false) only those containing the 3♦ are offered — the
+    holder of the 3♦ leads the first hand and must include it.
 
-
-def run_bigtwo_hand(stmt: n.Instantiate, ctx: Ctx) -> Player:
-    rs = ctx.rs
-    choose = ctx.chooser
-    players = list(rs.seating.players)
-    npl = len(players)
-    hands = rs.zones.families["hand"]
-    discard = rs.zones.single("discard")
-    score = rs.get("score")
-    step = 1 if rs.seating.clockwise else -1
-
-    def advance(p: Player) -> Player:
-        return (p + step) % npl
-
-    # The 3♦ holder leads the first hand of the match and must include it in the
-    # opening combination; thereafter the previous hand's winner leads (no 3♦
-    # rule). `winner_seat` is game state — `none` until the first hand is scored.
-    prev_winner = rs.get("winner_seat")
-    if prev_winner is None:
+    The filter runs over `_combos`' representatives, so a multi-card opening whose
+    strongest representative omits the 3♦ (a pair/triple of 3s — the two highest
+    suits — or a straight/flush built on a higher-suit 3) is not offered; the single
+    3♦ always is, so a legal opening is guaranteed. This is a corollary of the
+    representative scope reduction (see the module docstring / big-two.md), not a
+    correctness bug — exhaustive opening coverage means dropping representatives
+    (full per-suit enumeration), a global change deferred for random play."""
+    combos = _combos(hand)
+    if not ctx.rs.get("opened"):
         three = Card("3", "diamonds")
-        leader = next(p for p in players if three in hands[p].cards)
-        must_include: Card | None = three
-    else:
-        leader = prev_winner
-        must_include = None
+        combos = [p for p in combos if three in p.cards]
+    return combos
 
-    out: list[Player] = []
-    guard = 0
-    while not out:
-        guard += 1
-        if guard > 1000:
-            raise RuntimeError("big two hand exceeded 1000 tricks without resolving")
-        leader = _play_trick(leader, hands, discard, advance, choose, out, must_include)
-        must_include = None  # only the opening lead of the first hand is constrained
 
-    first_out = out[0]
-    for p in players:
-        if p != first_out:
-            score[p] += _penalty(len(hands[p].cards))
-    rs.set("winner_seat", first_out)
-    ctx.trace(
-        "bigtwo_hand",
-        {"winner": first_out, "cards_left": {p: len(hands[p].cards) for p in players}},
-    )
-    return first_out
+def bigtwo_follows(hand: list[Card], current: Play, ctx: Ctx) -> list[Play]:
+    """The combinations that legally beat the standing play (same size, higher
+    key). `ctx` is unused — Big Two follows depend only on the hand and the led
+    play — but the climb round passes it uniformly with the lead query."""
+    return _legal_follows(hand, current)
+
+
+def first_leader_seat(ctx: Ctx) -> Player:
+    """The seat holding the 3♦, who leads the first hand of the match."""
+    three = Card("3", "diamonds")
+    hands = ctx.rs.zones.families["hand"]
+    return next(p for p in ctx.rs.seating.players if three in hands[p].cards)
