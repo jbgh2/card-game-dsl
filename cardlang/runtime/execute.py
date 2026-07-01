@@ -54,18 +54,21 @@ def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
         case n.Offer():
             _offer(stmt, ctx)
             return ctx
-        case n.Round() if stmt.combos_fn is not None:
-            # The climbing form plays one combination-climbing trick and binds the
-            # winning player (the last to play) as `outcome`, like the trick form.
-            return ctx.with_outcome(mechanics.run_climb(stmt, ctx))
-        case n.Round() if stmt.move_types is not None:
-            # The auction form raises a _ProduceSignal with the phase's typed
-            # outcome (caught by the enclosing outcome-declaring phase), like an
-            # instantiated mechanic — it binds no `outcome` player.
-            mechanics.run_auction(stmt, ctx)
-            return ctx
         case n.Round():
-            return ctx.with_outcome(mechanics.run_round(stmt, ctx))
+            # One interpreter over the form selected by field-presence, dispatched
+            # on the returned Outcome union: a winning Player (trick/climb) binds
+            # `outcome`; a typed `(tag, payloads)` variant (auction) raises like an
+            # instantiated mechanic, caught by the enclosing outcome-declaring phase;
+            # `None` (betting) mutated the shared chip/fold state and just closes.
+            outcome = mechanics.run_decision_round(
+                mechanics.build_form(stmt, ctx), {}, ctx
+            )
+            if outcome is None:
+                return ctx
+            if isinstance(outcome, tuple):
+                tag, payloads = outcome
+                raise _ProduceSignal(tag, payloads)
+            return ctx.with_outcome(outcome)
         case n.Produce():
             raise _ProduceSignal(stmt.tag, [evaluate(p, ctx) for p in stmt.payloads])
         case n.Produces():
