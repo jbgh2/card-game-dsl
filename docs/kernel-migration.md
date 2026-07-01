@@ -28,7 +28,14 @@ is gone, and `run_pinochle_hand` / `run_tarot_hand` are now the post-auction
   `tarot.py` (post-auction), `tichu.py`, `bigtwo.py`
 
 This violates the two-layer architecture ([principles.md](principles.md): the
-library is *written in the DSL*, not the engine). The stage is done when:
+library is *written in the DSL*, not the engine). It also carries **info-set
+debt**: a Python mechanic runs its decisions outside the observation-event
+stream, so its information sets are not *derived* — the hardest, load-bearing
+requirement for the OpenSpiel target ([CLAUDE.md](../CLAUDE.md), "OpenSpiel is the
+target…"; [decisions.md](decisions.md), "OpenSpiel compilation";
+[design-notes/kernel-extensibility.md](design-notes/kernel-extensibility.md), §6).
+Retiring these mechanics onto the kernel closes that debt as well as the
+architecture violation. The stage is done when:
 
 - `instantiate` dispatches only to kernel constructs — no per-game name
   branches — and the seven `runtime/*.py` game modules and the three inline

@@ -15,10 +15,17 @@ casino games) in a form that:
 - Compresses common patterns into a reusable library of mechanics, rules, and
   move types.
 - Supports variants as small deltas on a base game.
-- Compiles cleanly to OpenSpiel so existing imperfect-information AI algorithms
-  (Information-Set MCTS, CFR, deep RL, determinization) work out of the box.
+- Compiles cleanly to OpenSpiel — **the invariant output target** — so existing
+  imperfect-information AI algorithms (Information-Set MCTS, CFR, deep RL,
+  determinization) work out of the box. The load-bearing, genuinely hard part is
+  that information sets are *derived* from zone visibility, not hand-authored per
+  game (see "Visibility as a first-class property" below); a design that cannot
+  compile to OpenSpiel with correct derived info sets is not finished.
 - Provides an escape hatch to a lower-level API for the rough edges, so we can
-  surface and fix the rough edges over time without users being blocked.
+  surface and fix the rough edges over time without users being blocked. **The
+  escape hatch has a real cost: a hand-written mechanic bypasses info-set
+  derivation, so it is info-set *debt* against the OpenSpiel target, not a
+  finished solution** (see [design-notes/kernel-extensibility.md](design-notes/kernel-extensibility.md), §6).
 
 **Out of scope (initially):** Collectible card games (Magic, etc.) and
 deck-builders. These need an effects-text sub-language and consciously
@@ -105,6 +112,15 @@ Every zone declares who can see its contents. Information sets are *derived*
 from zone visibility plus the observation events emitted by moves — never
 authored by hand. This is the GDL-II `sees`/`random` semantics, made
 operational. Visibility belongs to the zone, not to operations on the zone.
+
+**This derivation is the hardest, most load-bearing requirement in the whole
+design.** It is what makes OpenSpiel an achievable target rather than a per-game
+hand-coding exercise, and it is the property that any new mechanic or construct
+must preserve. It is currently only partly realized: the per-game Python
+`instantiate` mechanics run their decision logic outside the observation-event
+stream, so their info sets are not derived — info-set debt against the OpenSpiel
+target, quantified in
+[design-notes/kernel-extensibility.md](design-notes/kernel-extensibility.md), §6.
 
 ### Explicit over implicit; defaults instead of boilerplate
 

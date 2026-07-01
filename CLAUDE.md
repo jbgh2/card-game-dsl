@@ -7,6 +7,44 @@ imperfect-information AI algorithms work on the resulting games.
 This file orients agents working on the project. The design lives in `docs/`;
 read this file first to know where to look.
 
+## OpenSpiel is the target, and deriving information sets is the hard part (load-bearing)
+
+**OpenSpiel is the invariant output target, not a "later" concern.** Every game
+must ultimately compile to OpenSpiel so imperfect-information AI (IS-MCTS, CFR,
+deep RL, determinization) works out of the box. That is why the language exists,
+and it bounds every design choice *now*: a construct that cannot compile to
+OpenSpiel with correct information sets is not done, however cleanly it runs.
+
+**The hardest requirement is that information sets are *derived*, never
+hand-authored.** A player's information set must fall out of zone visibility plus
+the observation events that moves emit — the GDL-II `sees` semantics made
+operational (`docs/decisions.md`, "Knowledge, visibility, and the projection
+model"; `docs/principles.md`, "Visibility as a first-class property"). Derived
+info sets are the *whole reason* this DSL is worth more than hand-coding each game
+against OpenSpiel directly. For hidden hands, face-down cards, bluffs, and
+concealed bids this is genuinely hard — and it is exactly where the value is.
+
+**Honest status — a debt to bear in mind, not a solved problem.** Only Hearts
+reaches OpenSpiel today, via a *hand-authored, Hearts-specific* adapter; and every
+per-game Python escape-hatch mechanic dispatched by `instantiate` (Schnapsen,
+Pinochle rest, Coup, Skat, Cribbage, Stud showdown, and Tichu until its climb
+migration) *bypasses* info-set derivation — its hidden state never becomes a
+projected observation. The leak lands hardest on exactly the
+imperfect-information games the AI target most exists to serve. The gap is
+quantified in `docs/design-notes/kernel-extensibility.md`, §6.
+
+**So, for every change, treat info-set derivation as a first-class acceptance
+criterion** — alongside "does it run" and "is it byte-identical":
+
+- Prefer the kernel path (the `round` forms; the decision-interpreter direction in
+  `docs/design-notes/kernel-extensibility.md`) over adding a new Python escape
+  hatch. The kernel can emit uniform observation events that *derive* info sets; a
+  bespoke Python mechanic cannot.
+- When an escape hatch is genuinely unavoidable, record it as **info-set debt** in
+  `docs/kernel-migration.md`, not as a finished mechanic.
+- A feature that runs but emits no observations from which its info sets derive is
+  *incomplete* for the OpenSpiel target. Say so; don't let it read as done.
+
 ## What's here
 
 ```
@@ -26,6 +64,7 @@ docs/
     _candidates.md       Pipeline of games to consider next — corpus-first dev
   open-questions/        One file per open design question, with a tiered _index.md
   research/              Two background surveys (verbatim, longer reads)
+  design-notes/          Exploratory design analyses (proposals, not settled spec)
 ```
 
 ## Where to look for what
@@ -35,6 +74,7 @@ docs/
 - **"What's already in the standard library?"** → `docs/library.md`
 - **"How does X work?" (knowledge, scoring, mutation, typed outcomes, etc.)** → `docs/decisions.md`
 - **"How is game Y described in the DSL?"** → `docs/games/Y.md`
+- **"How do we keep info sets derivable / hit the OpenSpiel target?"** → the load-bearing section above, then `docs/design-notes/kernel-extensibility.md`
 - **"What's still being decided?"** → `docs/open-questions/_index.md` then the named file
 - **"What should we build next?"** → `docs/roadmap.md` (and `docs/games/_candidates.md` for the full pipeline)
 - **"How do we build the tooling (parser/checker)?"** → `docs/implementation.md`, `docs/building.md`
