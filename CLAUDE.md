@@ -31,8 +31,7 @@ per-observer observations are emitted from the kernel's decision/movement
 sites through the declared zone-type projections, and
 `tests/test_openspiel_ready.py` proves indistinguishability (hidden-card swaps
 leave a player's information state byte-identical), soundness, and perfect
-recall for each (Bridge's proof currently covers its auction phase only — the
-harness's replay policy never reaches trick play). No per-game observation
+recall for each (Bridge's proof currently covers only the pass-only line of its auction — the harness's greedy replay never places a bid, let alone reaches trick play). No per-game observation
 rules remain. But every per-game Python escape-hatch mechanic dispatched by
 `instantiate` (Schnapsen, Pinochle rest, Coup, Skat, Tarot rest, Cribbage,
 Stud showdown, Tichu) still *bypasses* this derivation — the adapter rejects
