@@ -118,6 +118,20 @@ def climb_follow_function(name: str) -> Callable[[list[Card], Any, Ctx], list[An
             raise AssertionError(f"unknown climb follows query '{name}'")
 
 
+def climb_universe_function(name: str) -> Callable[[], list[Any]]:
+    """The engine's full play universe — every combination it can ever emit —
+    keyed by the SAME name as its `combinations` lead query. The OpenSpiel
+    adapter derives the climb action space from this; the lead query itself
+    cannot serve (its representatives depend on the live hand and game state)."""
+    match name:
+        case "bigtwo_lead_options":
+            from cardlang.runtime.bigtwo import bigtwo_universe
+
+            return bigtwo_universe
+        case _:
+            raise AssertionError(f"no combination universe for climb engine '{name}'")
+
+
 def highest_of_led_suit(
     played: list[tuple[Player, Card]],
     led_suit: str,
