@@ -153,15 +153,25 @@ class ActionSpace:
     def match(self, aid: int, pool: list[Any]) -> Any:
         """The candidate in `pool` that `aid` denotes (a recorded action must be
         among the live candidates — anything else is a corrupted history)."""
+        _missing = object()
         value = self.decode(aid)
         if isinstance(value, ComboAction):
-            return next(
-                c
-                for c in pool
-                if getattr(c, "cards", None) is not None
-                and frozenset(c.cards) == value.cards
+            found = next(
+                (
+                    c
+                    for c in pool
+                    if getattr(c, "cards", None) is not None
+                    and frozenset(c.cards) == value.cards
+                ),
+                _missing,
             )
-        return next(c for c in pool if c == value)
+        else:
+            found = next((c for c in pool if c == value), _missing)
+        if found is _missing:
+            raise ValueError(
+                f"recorded action {aid} ({self.to_string(aid)}) is not among the live candidates"
+            )
+        return found
 
     def to_string(self, aid: int) -> str:
         value = self.decode(aid)

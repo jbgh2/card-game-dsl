@@ -63,7 +63,7 @@ def test_bigtwo_first_decision_offers_combos() -> None:
     _, space = load(BIGTWO)
     r = run(BIGTWO, 0, ())
     assert isinstance(r, Pause)
-    assert all(space._combo_base <= a or a >= 52 for a in r.legal)  # no bare cards
+    assert all(a >= space._name_base for a in r.legal)  # every legal action is a name ("pass") or combo — no bare cards
     # stepping one combo action advances
     nxt = run(BIGTWO, 0, (r.legal[0],))
     assert isinstance(nxt, (Pause, Terminal))

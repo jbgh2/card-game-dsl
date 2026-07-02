@@ -107,11 +107,16 @@ def test_indistinguishability_under_hidden_swap(short_name: str, filename: str) 
     assert candidates, "no same-suit swap pair available; lower DEPTH for this game"
 
     info_a = information_state(p, pause_a.rs, pause_a.obs_logs[p])
+    last_err: ValueError | None = None
     for x, y in candidates:
         try:
             pause_b = run(path, seed, tuple(history), on_first_decision=_swap_fn(opp1, opp2, x, y))
-        except Exception:
-            continue  # this pair made a recorded action illegal; try the next
+        except ValueError as e:
+            # this pair made a recorded action illegal (ActionSpace.match's
+            # "not among the live candidates", or a zone .remove failure);
+            # try the next pair, but remember why in case none work.
+            last_err = e
+            continue
         assert isinstance(pause_b, Pause)
         info_b = information_state(p, pause_b.rs, pause_b.obs_logs[p])
         assert info_a == info_b, (
@@ -119,7 +124,7 @@ def test_indistinguishability_under_hidden_swap(short_name: str, filename: str) 
             f"CHANGED P{p}'s information state — the info-set leaks"
         )
         return  # one successful controlled swap proves the property
-    pytest.fail(f"{short_name}: no swap pair produced a legal replay")
+    pytest.fail(f"{short_name}: no swap pair produced a legal replay; last replay error: {last_err!r}")
 
 
 @pytest.mark.parametrize(("short_name", "filename"), SIX)

@@ -78,7 +78,10 @@ def play_game(
         # The deal-injection seam (SP1 proof harness): fire once, inside the
         # first chooser call, before delegating. NOTE: the first decider's
         # candidates were computed before this fires — a mutation must not
-        # touch the first decider's own zones (the harness guarantees it).
+        # touch the first decider's own zones if the caller will use the
+        # pause's legal actions or replay further actions (those candidates
+        # would go stale). A caller that only inspects the paused world may
+        # mutate anyone's zones, including the first decider's own.
         inner = base_chooser
         hook = on_first_decision
         fired = False

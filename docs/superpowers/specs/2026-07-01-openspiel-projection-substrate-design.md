@@ -77,6 +77,12 @@ are recorded in `cardlang/stdlib/zones.py` next to `takes_owner`:
 | `Muck`, `Burn` | `trivial` to all |
 | `ChipStack<O>` | `count_only` to all |
 
+This table mirrors library.md's prose; the CODE table (`ZONE_PROJECTIONS` in
+`cardlang/stdlib/zones.py`, whose keys equal `LIBRARY_ZONE_TYPES`) is the
+closed authoritative set — library.md types not yet in `LIBRARY_ZONE_TYPES`
+(e.g. `SharedHand`, `RandomizedPile`) get entries when the resolver first
+admits them.
+
 The corpus exercises only `identity` / `count_only` / `trivial`; the remaining
 lattice levels (`identity_set`, `count_by_type`, `existence_only`) are defined
 by the table's type but need no emission logic until a game uses them. No
