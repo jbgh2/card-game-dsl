@@ -235,7 +235,7 @@ class TrickForm:
         return outcome
 
 
-def _enumerate_domain(type_name: str, ctx: Ctx) -> list[Any]:
+def enumerate_domain(type_name: str) -> list[Any]:
     """The value-domain a parameterized move ranges over, in a fixed order so the
     flattened candidate list is deterministic. `Suit` is the deck's suits;
     `Suit?` appends `none` (the no-trump strain), which ranks last."""
@@ -333,7 +333,7 @@ class AuctionForm:
                 if mt.guard is None or bool(evaluate(mt.guard, pctx)):
                     candidates.append((mt.name, None))
             else:
-                for value in _enumerate_domain(mt.param.type_name, ctx):
+                for value in enumerate_domain(mt.param.type_name):
                     vctx = pctx.with_local(mt.param.name, value)
                     if mt.guard is None or bool(evaluate(mt.guard, vctx)):
                         candidates.append((mt.name, value))

@@ -1,15 +1,26 @@
-"""Action encoding for the Hearts OpenSpiel adapter.
+"""Derived per-game action encoding.
 
-Hearts decisions are all single-card selections (the 3-card pass decomposes into
-three sequential single-card actions), so the action space is exactly the 52
-cards: ``action_id = suit_index * 13 + rank_index``.
+Every decision a kernel game can pose maps to a stable global action id — the
+same id means the same action in every world, which is what makes determinized
+replay sound (SP1 spec, Pillar 2). The space is the disjoint union, in a fixed
+layout, of: the 52 cards (always); bare-name actions (offer move-types, the
+climb "pass"); the integer block 0..52 (games with `choose`); the auction
+vocabulary (moves flattened over their parameter domains, declared order); and
+the combination universe (the climb engine's `universe()` query, canonically
+ordered and golden-pinned).
 """
 
 from __future__ import annotations
 
+import dataclasses
+from dataclasses import dataclass
+from typing import Any, Iterator
+
+from cardlang.ast import nodes as n
+from cardlang.runtime.mechanics import enumerate_domain
 from cardlang.runtime.values import RANKS, SUITS, Card
 
-NUM_DISTINCT_ACTIONS = len(SUITS) * len(RANKS)  # 52
+NUM_DISTINCT_ACTIONS = len(SUITS) * len(RANKS)  # 52 — the card block
 
 
 def card_to_action(card: Card) -> int:
@@ -20,3 +31,146 @@ def action_to_card(action: int) -> Card:
     if not 0 <= action < NUM_DISTINCT_ACTIONS:
         raise ValueError(f"action {action} out of range 0..{NUM_DISTINCT_ACTIONS - 1}")
     return Card(RANKS[action % len(RANKS)], SUITS[action // len(RANKS)])
+
+
+_MAX_CHOOSE = 52  # integer chooses are bounded by the deck size in a card game
+
+
+@dataclass(frozen=True)
+class ComboAction:
+    """A decoded combination action: the card-set it moves. Matched against
+    engine plays by card-set (each set denotes exactly one play — a pinned
+    invariant of the universe)."""
+
+    cards: frozenset[Card]
+
+
+def _walk(node: Any) -> Iterator[Any]:
+    """Every dataclass node reachable from `node` (AST nodes hold only
+    dataclasses, tuples, and leaves)."""
+    if dataclasses.is_dataclass(node) and not isinstance(node, type):
+        yield node
+        for f in dataclasses.fields(node):
+            yield from _walk(getattr(node, f.name))
+    elif isinstance(node, tuple):
+        for item in node:
+            yield from _walk(item)
+
+
+class ActionSpace:
+    """The derived global action universe of one game."""
+
+    def __init__(
+        self,
+        names: list[str],
+        vocab: list[tuple[str, Any]],
+        has_integers: bool,
+        combos: list[Any],
+    ) -> None:
+        self._names = names
+        self._vocab = vocab
+        self._has_integers = has_integers
+        self._combos = combos
+        self._name_base = NUM_DISTINCT_ACTIONS
+        self._int_base = self._name_base + len(names)
+        self._vocab_base = self._int_base + (_MAX_CHOOSE + 1 if has_integers else 0)
+        self._combo_base = self._vocab_base + len(vocab)
+        self.num_distinct_actions = self._combo_base + len(combos)
+        self._name_ids = {v: i for i, v in enumerate(names)}
+        self._vocab_ids = {v: i for i, v in enumerate(vocab)}
+        self._combo_ids = {frozenset(p.cards): i for i, p in enumerate(combos)}
+        assert len(self._combo_ids) == len(combos), "combo card-sets must be unique"
+
+    @staticmethod
+    def for_game(game: n.Game) -> "ActionSpace":
+        from cardlang.runtime import stdlib
+
+        names: list[str] = []
+        vocab: list[tuple[str, Any]] = []
+        has_integers = False
+        combos: list[Any] = []
+        mt_index = {m.name: m for m in game.move_types}
+        climb_engines: list[str] = []
+        for node in _walk(game):
+            if isinstance(node, n.Choose):
+                has_integers = True
+            elif isinstance(node, n.Offer):
+                names.extend(m for m in node.move_types if m not in names)
+            elif isinstance(node, n.Round) and node.combos_fn is not None:
+                if node.combos_fn not in climb_engines:
+                    climb_engines.append(node.combos_fn)
+            elif isinstance(node, n.Round) and node.move_types is not None:
+                for mt_name in node.move_types:
+                    mt = mt_index[mt_name]
+                    entries = (
+                        [(mt.name, None)]
+                        if mt.param is None
+                        else [(mt.name, v) for v in enumerate_domain(mt.param.type_name)]
+                    )
+                    vocab.extend(e for e in entries if e not in vocab)
+        if climb_engines:
+            assert len(climb_engines) == 1, "one climb engine per game for now"
+            if "pass" not in names:
+                names.append("pass")
+            universe = stdlib.climb_universe_function(climb_engines[0])()
+            combos = sorted(
+                universe,
+                key=lambda p: (p.size, p.kind, sorted(card_to_action(c) for c in p.cards)),
+            )
+        return ActionSpace(sorted(names), vocab, has_integers, combos)
+
+    def encode(self, value: Any) -> int:
+        if isinstance(value, Card):
+            return card_to_action(value)
+        if isinstance(value, bool):
+            raise ValueError("boolean is not an action value")
+        if isinstance(value, int):
+            assert self._has_integers, "this game has no integer decisions"
+            assert 0 <= value <= _MAX_CHOOSE, f"choose value {value} out of 0..{_MAX_CHOOSE}"
+            return self._int_base + value
+        if isinstance(value, str):
+            return self._name_base + self._name_ids[value]
+        if isinstance(value, tuple):
+            return self._vocab_base + self._vocab_ids[value]
+        cards = getattr(value, "cards", None)
+        if cards is not None:
+            return self._combo_base + self._combo_ids[frozenset(cards)]
+        raise ValueError(f"cannot encode action value {value!r}")
+
+    def decode(self, aid: int) -> Any:
+        if 0 <= aid < NUM_DISTINCT_ACTIONS:
+            return action_to_card(aid)
+        if self._name_base <= aid < self._int_base:
+            return self._names[aid - self._name_base]
+        if self._int_base <= aid < self._vocab_base:
+            return aid - self._int_base
+        if self._vocab_base <= aid < self._combo_base:
+            return self._vocab[aid - self._vocab_base]
+        if self._combo_base <= aid < self.num_distinct_actions:
+            return ComboAction(frozenset(self._combos[aid - self._combo_base].cards))
+        raise ValueError(f"action {aid} out of range 0..{self.num_distinct_actions - 1}")
+
+    def match(self, aid: int, pool: list[Any]) -> Any:
+        """The candidate in `pool` that `aid` denotes (a recorded action must be
+        among the live candidates — anything else is a corrupted history)."""
+        value = self.decode(aid)
+        if isinstance(value, ComboAction):
+            return next(
+                c
+                for c in pool
+                if getattr(c, "cards", None) is not None
+                and frozenset(c.cards) == value.cards
+            )
+        return next(c for c in pool if c == value)
+
+    def to_string(self, aid: int) -> str:
+        value = self.decode(aid)
+        if isinstance(value, Card):
+            return str(value)
+        if isinstance(value, ComboAction):
+            play = self._combos[aid - self._combo_base]
+            return f"{play.kind}[" + ",".join(sorted(str(c) for c in play.cards)) + "]"
+        if isinstance(value, tuple):
+            name, param = value
+            return name if param is None else f"{name}({param})"
+        return str(value)
