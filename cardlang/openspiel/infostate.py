@@ -54,22 +54,3 @@ def information_state(
     state_vars = ";".join(f"{k}={_render(v)}" for k, v in sorted(merged.items()))
     obs = ";".join(repr(e) for e in obs_log)
     return f"P{player}|" + ";".join(zones) + f"|state:{state_vars}|obs:{obs}"
-
-
-# ============================================================================
-# Legacy: Hearts-specific encoding (kept for backward compatibility; to be
-# removed in Task 9 when game.py and tests no longer import it)
-# ============================================================================
-
-
-def hearts_information_state(
-    player: int, rs: Any, observed_log: list[tuple[int, int, str]]
-) -> str:
-    hand = sorted(str(c) for c in rs.zones.instance("hand", player).cards)
-    # Public plays (visible to all) + this player's own pass picks.
-    observable = [
-        (pl, aid) for (pl, aid, kind) in observed_log if kind == "play" or pl == player
-    ]
-    scores = rs.get(rs.score_var) if rs.score_var else {}
-    score_str = ",".join(f"{p}:{scores[p]}" for p in sorted(scores))
-    return f"P{player}|hand={hand}|obs={observable}|scores={score_str}"

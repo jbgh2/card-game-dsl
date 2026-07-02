@@ -22,6 +22,7 @@ from cardlang.ast import nodes as n
 from cardlang.openspiel.encoding import ActionSpace
 from cardlang.pipeline import check_source
 from cardlang.runtime.driver import GameResult, play_game
+from cardlang.runtime.observe import render
 from cardlang.runtime.state import ChooserAbort, RuntimeState
 
 
@@ -64,11 +65,26 @@ class Terminal:
 class ReplayChooser:
     """Returns recorded actions in order; aborts at the first un-recorded one.
     A chooser call requesting ``k`` picks decomposes into ``k`` sequential
-    actions, so multi-card selections stay in the same global action space."""
+    actions, so multi-card selections stay in the same global action space.
 
-    def __init__(self, space: ActionSpace, history: tuple[int, ...]) -> None:
+    Each consumed pick is emitted to the actor as a ``("chose", ...)`` event at
+    the moment of the draw. The runtime's own aggregate `chose` (fired when the
+    whole call returns) cannot cover a pause *inside* a multi-pick call — the
+    picks already made would be invisible, collapsing distinct decision nodes
+    into one information state (a perfect-recall violation). Per-draw emission
+    keeps every replayed pick in the actor's log, and the log append-only
+    across ``(seed, history)`` extensions; the runtime aggregate that follows a
+    completed call is kept (it is the canonical event native playouts emit)."""
+
+    def __init__(
+        self,
+        space: ActionSpace,
+        history: tuple[int, ...],
+        emit: Callable[[int, tuple[Any, ...]], None],
+    ) -> None:
         self.space = space
         self.history = history
+        self.emit = emit
         self.cursor = 0
 
     def __call__(self, player: int, candidates: list[Any], k: int) -> list[Any]:
@@ -83,6 +99,7 @@ class ReplayChooser:
             choice = self.space.match(aid, pool)  # must be among the candidates
             pool.remove(choice)
             picked.append(choice)
+            self.emit(player, ("chose", render(choice)))
         return picked
 
 
@@ -117,16 +134,20 @@ def run(
 ) -> Pause | Terminal:
     """Replay ``history`` under ``seed``; return the next decision or the result."""
     game, space = load(path_str)
-    chooser = ReplayChooser(space, history)
     logs: dict[int, list[tuple[Any, ...]]] = {
         p: [] for p in range(game.players.low)
     }
+
+    def observe(player: int, event: tuple[Any, ...]) -> None:
+        logs[player].append(event)
+
+    chooser = ReplayChooser(space, history, observe)
     try:
         result = play_game(
             game,
             random.Random(seed),
             chooser=chooser,
-            observer=lambda pl, ev: logs[pl].append(ev),
+            observer=observe,
             on_first_decision=on_first_decision,
         )
     except ChooserAbort as abort:

@@ -1,31 +1,30 @@
-"""Hearts as an OpenSpiel game: API conformance, a full rollout, and info-state
-correctness (perfect recall, no leakage of hidden hands).
-
-Skipped entirely when `pyspiel` (open_spiel) isn't installed.
-"""
+"""Hearts on the GENERAL OpenSpiel adapter: API conformance, a full rollout,
+and the ported info-state regression tests (leakage, mid-pass hiding, perfect
+recall, own-action distinction) — now against DERIVED observations."""
 
 from __future__ import annotations
 
 import random
+from pathlib import Path
 
 import pytest
 
 pyspiel = pytest.importorskip("pyspiel")
 
-import cardlang.openspiel.game  # noqa: E402  (registers the game on import)
-from cardlang.openspiel.infostate import hearts_information_state  # noqa: E402
+import cardlang.openspiel.game  # noqa: E402  (registers all six games on import)
+from cardlang.openspiel.infostate import information_state  # noqa: E402
 from cardlang.openspiel.replay import Pause, run  # noqa: E402
+
+HEARTS = str(Path(__file__).resolve().parent.parent / "docs" / "games" / "hearts.cardlang")
 
 
 def test_random_sim_conformance() -> None:
     game = pyspiel.load_game("cardlang_hearts")
     assert game.num_distinct_actions() == 52
-    # OpenSpiel's own API/consistency tester (legal_actions, apply, clone,
-    # chance, terminal, returns, info-state). Small num_sims: re-sim is O(n²).
     pyspiel.random_sim_test(game, num_sims=2, serialize=False, verbose=False)
 
 
-def test_full_rollout_is_zero_sum_and_terminates() -> None:
+def test_full_rollout_returns_negated_scores() -> None:
     game = pyspiel.load_game("cardlang_hearts")
     state = game.new_initial_state()
     rng = random.Random(2)
@@ -40,74 +39,73 @@ def test_full_rollout_is_zero_sum_and_terminates() -> None:
         assert steps < 10000
     ret = state.returns()
     assert len(ret) == 4
-    assert abs(sum(ret)) < 1e-6  # zero-sum (recentred Hearts scores)
+    assert all(r <= 0 for r in ret)  # lowest-wins: returns are negated penalties
+    assert min(ret) < 0  # 26 penalty points exist per hand; someone took some
 
 
 def test_infostate_does_not_leak_hidden_hands() -> None:
-    r = run(0, ())  # first decision: a player choosing a pass card
+    r = run(HEARTS, 0, ())
     assert isinstance(r, Pause)
     p = r.player
-    info_p = hearts_information_state(p, r.rs, r.observed_log)
+    info_p = information_state(p, r.rs, r.obs_logs[p])
     for q in range(4):
         if q == p:
             continue
         for card in r.rs.zones.instance("hand", q).cards:
-            assert str(card) not in info_p, f"leak: {card} (player {q}) in P{p} info-state"
+            assert str(card) not in info_p, f"leak: {card} (player {q}) in P{p}"
 
 
 def test_infostate_hides_other_players_pass_mid_simultaneous_pass() -> None:
-    # Advance through the (simultaneous) pass until a *second* player is to act,
-    # so the first passer has fully chosen — the exact node where the
-    # "trick-play public / pass actor-private" filter must hide the first
-    # passer's picks. (The history=() test above leaves that filter unexercised.)
     seed = 0
     history: list[int] = []
-    r = run(seed, tuple(history))
+    r = run(HEARTS, seed, ())
     assert isinstance(r, Pause)
     first = r.player
     while isinstance(r, Pause) and r.player == first:
         history.append(r.legal[0])
-        r = run(seed, tuple(history))
+        r = run(HEARTS, seed, tuple(history))
     assert isinstance(r, Pause) and r.player != first
     p2 = r.player
-    # Still in the pass (no trick plays yet): p2's observable log must contain
-    # only p2's own actions — the first passer's pass picks are filtered out.
-    observable = [
-        (pl, aid) for (pl, aid, kind) in r.observed_log if kind == "play" or pl == p2
-    ]
-    assert all(pl == p2 for (pl, _) in observable)
-    assert any(pl == first and kind == "pass" for (pl, _, kind) in r.observed_log)
-    # And the first passer's (un-transferred, hidden) hand never appears.
-    info_p2 = hearts_information_state(p2, r.rs, r.observed_log)
+    # Step one pick into p2's own selection: the pause under test is mid-pass
+    # AND mid-selection, where p2's log holds exactly their own single "chose"
+    # event (at p2's first pick nothing has been drawn yet, so there would be
+    # nothing to distinguish).
+    history.append(r.legal[0])
+    r = run(HEARTS, seed, tuple(history))
+    assert isinstance(r, Pause) and r.player == p2
+    info_p2 = information_state(p2, r.rs, r.obs_logs[p2])
+    # Mid-pass, transfers have not applied: the first passer's picks are still
+    # in their hand, so the hidden-hand check covers the picks themselves.
     for card in r.rs.zones.instance("hand", first).cards:
         assert str(card) not in info_p2
+    # And p2 must have received zero "chose" events during the pass beyond
+    # their own single selection ("chose" is actor-only by construction).
+    assert sum(1 for e in r.obs_logs[p2] if e[0] == "chose") == 1
 
 
 def test_perfect_recall_no_duplicate_infostates_in_a_game() -> None:
-    # Walk one full deterministic game; each player's own-decision info-states
-    # must all be distinct (perfect recall).
     seed = 3
     history: list[int] = []
     seen: dict[int, set[str]] = {p: set() for p in range(4)}
-    r = run(seed, tuple(history))
+    r = run(HEARTS, seed, ())
     steps = 0
     while isinstance(r, Pause):
-        s = hearts_information_state(r.player, r.rs, r.observed_log)
+        s = information_state(r.player, r.rs, r.obs_logs[r.player])
         assert s not in seen[r.player], "duplicate info-state (perfect recall violated)"
         seen[r.player].add(s)
         history.append(r.legal[0])
-        r = run(seed, tuple(history))
+        r = run(HEARTS, seed, tuple(history))
         steps += 1
         assert steps < 5000
 
 
 def test_perfect_recall_distinguishes_own_actions() -> None:
-    r0 = run(0, ())
+    r0 = run(HEARTS, 0, ())
     assert isinstance(r0, Pause)
     a, b = r0.legal[0], r0.legal[1]
-    ra = run(0, (a,))
-    rb = run(0, (b,))
+    ra = run(HEARTS, 0, (a,))
+    rb = run(HEARTS, 0, (b,))
     assert isinstance(ra, Pause) and isinstance(rb, Pause)
-    ia = hearts_information_state(ra.player, ra.rs, ra.observed_log)
-    ib = hearts_information_state(rb.player, rb.rs, rb.observed_log)
-    assert ia != ib  # the player's own (different) action changes their info-state
+    ia = information_state(ra.player, ra.rs, ra.obs_logs[ra.player])
+    ib = information_state(rb.player, rb.rs, rb.obs_logs[rb.player])
+    assert ia != ib
