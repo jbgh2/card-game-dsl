@@ -48,3 +48,75 @@ def test_ctx_observe_delivers_to_installed_observer() -> None:
     )
     ctx.observe(2, ("chose", "Q spades"))
     assert seen == [(2, ("chose", "Q spades"))]
+
+
+# Task 3: Observation emitter tests
+
+from cardlang.runtime import observe
+from cardlang.runtime.values import Card
+
+
+def _ctx_with_log() -> tuple[Ctx, dict[int, list[tuple[Any, ...]]]]:
+    rs = RuntimeState(Seating(4), _store(), random.Random(0))
+    rs.team_of = {0: 0, 1: 1, 2: 0, 3: 1}
+    logs: dict[int, list[tuple[Any, ...]]] = {p: [] for p in range(4)}
+    ctx = Ctx(
+        rs=rs,
+        chooser=lambda p, c, k: list(c)[:k],
+        observer=lambda pl, ev: logs[pl].append(ev),
+    )
+    return ctx, logs
+
+
+def test_render_shapes() -> None:
+    assert observe.render(Card("Q", "spades")) == str(Card("Q", "spades"))
+    assert observe.render(("bid", None)) == "bid"
+    assert observe.render(("bid", "hearts")) == "bid(hearts)"
+    assert observe.render(7) == 7
+    assert observe.render("pass") == "pass"
+    two = [Card("2", "clubs"), Card("A", "spades")]
+    assert observe.render(two) == tuple(sorted(str(c) for c in two))
+
+
+def test_choice_reaches_only_the_actor() -> None:
+    ctx, logs = _ctx_with_log()
+    observe.choice(ctx, 2, Card("Q", "spades"))
+    assert logs[2] == [("chose", str(Card("Q", "spades")))]
+    assert logs[0] == logs[1] == logs[3] == []
+
+
+def test_announce_reaches_everyone() -> None:
+    ctx, logs = _ctx_with_log()
+    observe.announce(ctx, 1, ("bid", 3))
+    for p in range(4):
+        assert logs[p] == [("announce", 1, "bid(3)")]
+
+
+def test_movement_projects_per_observer() -> None:
+    ctx, logs = _ctx_with_log()
+    cards = [Card("2", "clubs"), Card("9", "hearts")]
+    # deck (count_only to all) -> hand[1] (identity to owner, count to others)
+    observe.movement(ctx, ("deck", None), ("hand", 1), cards)
+    ident = tuple(sorted(str(c) for c in cards))
+    assert logs[1] == [("move", "deck", 2, "hand[1]", ident)]
+    for p in (0, 2, 3):
+        assert logs[p] == [("move", "deck", 2, "hand[1]", 2)]
+
+
+def test_movement_identity_zone_is_public() -> None:
+    ctx, logs = _ctx_with_log()
+    card = [Card("Q", "spades")]
+    # hand[0] -> captured[1] (TeamPile: identity to all)
+    observe.movement(ctx, ("hand", 0), ("captured", 1), card)
+    ident = (str(Card("Q", "spades")),)
+    assert logs[0] == [("move", "hand[0]", ident, "captured[1]", ident)]
+    for p in (1, 2, 3):
+        assert logs[p] == [("move", "hand[0]", 1, "captured[1]", ident)]
+
+
+def test_team_owner_resolution() -> None:
+    ctx, _ = _ctx_with_log()
+    # captured is team-indexed; player 2 is on team 0.
+    assert observe.view_of(ctx.rs, "captured", 0, 2, [Card("2", "clubs")]) == (
+        str(Card("2", "clubs")),
+    )
