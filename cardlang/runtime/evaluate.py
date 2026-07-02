@@ -11,7 +11,7 @@ from dataclasses import replace
 from typing import Any, assert_never
 
 from cardlang.ast import nodes as n
-from cardlang.runtime import stdlib
+from cardlang.runtime import observe, stdlib
 from cardlang.runtime.state import Ctx, Move, StructValue, Zone
 from cardlang.runtime.values import Card
 
@@ -75,7 +75,11 @@ def _choose(e: n.Choose, ctx: Ctx) -> Any:
             f"`choose integer in {lo} .. {hi}` has no value to choose (empty range): "
             f"a choice must offer at least one candidate"
         )
-    return ctx.chooser(ctx.require_actor("a `choose`"), candidates, 1)[0]
+    actor = ctx.require_actor("a `choose`")
+    value = ctx.chooser(actor, candidates, 1)[0]
+    observe.choice(ctx, actor, value)
+    observe.announce(ctx, actor, value)
+    return value
 
 
 def _pos(arg: n.Arg) -> n.Expr:

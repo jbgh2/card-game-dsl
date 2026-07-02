@@ -43,6 +43,7 @@ def play_game(
     rng: random.Random,
     tracer: Callable[[str, Any], None] | None = None,
     chooser: Chooser | None = None,
+    observer: Callable[[Player, tuple[Any, ...]], None] | None = None,
 ) -> GameResult:
     assert game.winner is not None or game.loser is not None, (
         "a game must declare a winner or a loser"
@@ -71,7 +72,7 @@ def play_game(
     rs.zones.single(rs.deck_zone).add_all(build_deck(game.deck))
     if game.winner is not None:
         rs.score_var = game.winner.target  # loser games have no score var
-    ctx = Ctx(rs=rs, chooser=chooser or random_chooser(rng), tracer=tracer)
+    ctx = Ctx(rs=rs, chooser=chooser or random_chooser(rng), tracer=tracer, observer=observer)
 
     rs.push_frame()  # game-level state (cumulative_score, …)
     if game.state is not None:

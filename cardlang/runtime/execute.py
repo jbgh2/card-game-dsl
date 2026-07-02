@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any, assert_never
 
 from cardlang.ast import nodes as n
-from cardlang.runtime import mechanics
+from cardlang.runtime import mechanics, observe
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, Zone, _ContinueTo, _ProduceSignal, _SkipHand
 from cardlang.runtime.values import Card, Player
@@ -105,6 +105,10 @@ def _movement(stmt: n.Movement, ctx: Ctx) -> None:
             for player in ctx.rs.seating.players:
                 cards = _select(source, stmt, ctx, player)
                 ctx.rs.zones.instance(stmt.dest.name, player).add_all(cards)
+                if ctx.observer is not None:
+                    observe.movement(
+                        ctx, ctx.rs.zones.locate(source), (stmt.dest.name, player), cards
+                    )
     else:
         assert stmt.dest is not None
         dest = evaluate(stmt.dest, ctx)
@@ -114,19 +118,29 @@ def _movement(stmt: n.Movement, ctx: Ctx) -> None:
             if stmt.mode == "chosen"
             else ctx.current_player or 0
         )
-        dest.add_all(_select(source, stmt, ctx, player))
+        selected = _select(source, stmt, ctx, player)
+        dest.add_all(selected)
+        if ctx.observer is not None:
+            observe.movement(
+                ctx, ctx.rs.zones.locate(source), ctx.rs.zones.locate(dest), selected
+            )
 
 
 def _deal_round_robin(source: Zone, dest_family: str, ctx: Ctx) -> None:
     """Deal the source one card at a time around the players, so an indivisible
     deck is spread as equally as possible (the first players get the remainder)."""
     players = list(ctx.rs.seating.players)
+    dealt: dict[Player, list[Card]] = {p: [] for p in players}
     i = 0
     while source.cards:
-        ctx.rs.zones.instance(dest_family, players[i % len(players)]).add(
-            source.cards.pop(0)
-        )
+        card = source.cards.pop(0)
+        ctx.rs.zones.instance(dest_family, players[i % len(players)]).add(card)
+        dealt[players[i % len(players)]].append(card)
         i += 1
+    if ctx.observer is not None:
+        src = ctx.rs.zones.locate(source)
+        for p in players:
+            observe.movement(ctx, src, (dest_family, p), dealt[p])
 
 
 def _gather(stmt: n.Movement, ctx: Ctx) -> None:
@@ -137,10 +151,16 @@ def _gather(stmt: n.Movement, ctx: Ctx) -> None:
     zones = ctx.rs.zones
     for name, zone in zones.singles.items():
         if zone is not dest:
-            dest.add_all(zone.take_all())
-    for family in zones.families.values():
-        for zone in family.values():
-            dest.add_all(zone.take_all())
+            taken = zone.take_all()
+            if ctx.observer is not None:
+                observe.movement(ctx, (name, None), zones.locate(dest), taken)
+            dest.add_all(taken)
+    for fname, family in zones.families.items():
+        for key, zone in family.items():
+            taken = zone.take_all()
+            if ctx.observer is not None:
+                observe.movement(ctx, (fname, key), zones.locate(dest), taken)
+            dest.add_all(taken)
 
 
 def _select(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> list[Card]:
@@ -249,6 +269,8 @@ def _offer(stmt: n.Offer, ctx: Ctx) -> None:
             f"offer so it is only made when the player can act."
         )
     chosen = ctx.chooser(player, legal, 1)[0]
+    observe.choice(ctx, player, chosen)
+    observe.announce(ctx, player, chosen)
     run_body(ctx.rs.move_type_index[chosen].effect, pctx)
 
 
@@ -322,9 +344,10 @@ def _pass_selection(body: n.Stmt, ctx: Ctx) -> list[Card]:
     assert isinstance(source, Zone)
     assert not isinstance(body.amount, str)
     count = int(evaluate(body.amount, ctx))
-    return ctx.chooser(
-        ctx.require_actor("a simultaneous-pass selection"), list(source.cards), count
-    )
+    actor = ctx.require_actor("a simultaneous-pass selection")
+    chosen = ctx.chooser(actor, list(source.cards), count)
+    observe.choice(ctx, actor, chosen)
+    return chosen
 
 
 def _apply_pass(
@@ -339,6 +362,10 @@ def _apply_pass(
     for card in selections[player]:
         source.remove(card)
         dest.add(card)
+    if ctx.observer is not None:
+        observe.movement(
+            ctx, ctx.rs.zones.locate(source), ctx.rs.zones.locate(dest), selections[player]
+        )
 
 
 def _repeat_until(stmt: n.RepeatUntil, ctx: Ctx) -> None:
