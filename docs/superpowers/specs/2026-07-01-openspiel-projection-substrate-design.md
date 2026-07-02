@@ -211,12 +211,15 @@ action decodes to exactly one play.
    4096-seed sampled chance root is kept and named as a known limitation — a
    *sampled* deal space, not the combinatorial deal; orthogonal to info-set
    correctness.
-6. **Utilities are general-sum by default.** Returns are the game's true
-   scores (sign-adjusted so higher is better for lowest-wins games), with
-   team-keyed scores (Bridge, Spades) mapped to each player through the
-   declared partnerships; `GameType.Utility.ZERO_SUM` with recentred scores
-   is derived only where it holds. An elimination (`loser:`) game has no
-   scores — it returns `+1` per survivor and `-(n-1)` for the loser.
+6. **Utilities are general-sum, unconditionally.** Returns are the game's
+   true scores (sign-adjusted so higher is better for lowest-wins games),
+   with team-keyed scores (Bridge, Spades) mapped to each player through
+   the declared partnerships; every game is declared
+   `GameType.Utility.GENERAL_SUM` (`cardlang/openspiel/game.py`) — true
+   scores are the designer-facing signal, so no recentred `ZERO_SUM`
+   variant is derived even where the true scores happen to sum to zero. An
+   elimination (`loser:`) game has no scores — it returns `+1` per survivor
+   and `-(n-1)` for the loser.
    Designer-facing statistics read true scores.
 7. **Proof harness** — `tests/test_openspiel_ready.py`, parameterized over
    the six games (see next section), plus a small reusable playtest-report
