@@ -107,8 +107,12 @@ observation events**:
   the recorded invariant that every tracer test filters by event name): a bid
   / bet / pass / climb-pass is a public announcement — all players observe
   `(actor, move, value)`. Card-choice decisions carry no separate content
-  event; what others learn of them is exactly what the resulting movement
-  reveals through zone projections.
+  event for *other* players; what others learn of them is exactly what the
+  resulting movement reveals through zone projections. Additionally, **every
+  actor observes their own choice at the moment of the draw** (an actor-only
+  `chose` event) — this is what carries perfect recall of one's own decisions
+  when the resulting movement is deferred or hidden (the simultaneous pass:
+  cards are selected before any transfer applies).
 - **`EachSimultaneous`** (Hearts's pass): each actor observes their own
   selection at identity; others observe only the movement counts, and no
   cross-player ordering is emitted (the "observers cannot infer any ordering"
@@ -155,12 +159,17 @@ domains:
   over `_enumerate_domain` in declared order.
 - **`choose` ranges** — integer/domain choose-expressions (Spades/Oh Hell
   bids), one action per value.
-- **Combinations** (the forcing function) — the universe is derived by
-  running the game's own lead query over the full deck:
-  `lead_query(full_52_deck, ctx)` enumerates every combination that exists
-  (any combination a hand can hold is a subset of the deck; for Big Two
-  ≈ 20–25k actions), plus `pass`. Canonically ordered by a total key
-  (size, then card keys) and pinned by a golden so IDs are stable across
+- **Combinations** (the forcing function) — the universe comes from a third
+  game-local engine query, `universe()`, registered in the stdlib beside
+  `combinations`/`follows` and keyed by the same name: every play the engine
+  can ever emit, unique by card-set. (Running the lead query over the full
+  deck — the obvious derivation — is *unsound* for representative-based
+  engines: Big Two's `_combos` offers only the top-suits representative per
+  rank, so a full-deck enumeration omits reachable plays like a ♦♣ pair whose
+  hand holds no higher suits.) For Big Two this is 19,898 plays, enumerated
+  by shape and verified by a property test: every `_combos(hand)` output over
+  sampled hands is a member. Plus `pass`. Canonically ordered by
+  (size, kind, card ids) and pinned by a golden so IDs are stable across
   seeds and versions.
 
 **Why global IDs, not candidate-index:** determinization — a headline target
@@ -171,12 +180,12 @@ only sound when an action ID has the same meaning in every world. The current
 Hearts adapter already relies on this property of card IDs; the universe
 builder extends it to every decision kind.
 
-Caveat recorded for Big Two's opening-3♦ lead filter: the lead query is
-state-dependent (`ctx`), so universe enumeration must run it in a
-state-neutral mode (enumerate over the full deck with the opening filter
-disabled — the filter constrains *legality*, not the universe). The builder
-takes the union over filter-off enumeration; per-state legality still comes
-from the live query at each decision.
+The `universe()` query is also what keeps enumeration state-neutral: the
+lead query is live game state (`ctx` — Big Two's opening-3♦ filter constrains
+*legality*), while the universe is a static superset; per-state legality
+still comes from the live queries at each decision. A superset is safe — the
+one hard invariant is that each card-set appears at most once, so a recorded
+action decodes to exactly one play.
 
 ## Components
 
@@ -203,9 +212,12 @@ from the live query at each decision.
    *sampled* deal space, not the combinatorial deal; orthogonal to info-set
    correctness.
 6. **Utilities are general-sum by default.** Returns are the game's true
-   scores (sign-adjusted so higher is better for lowest-wins games);
-   `GameType.Utility.ZERO_SUM` with recentred scores is derived only where it
-   holds. Designer-facing statistics read true scores.
+   scores (sign-adjusted so higher is better for lowest-wins games), with
+   team-keyed scores (Bridge, Spades) mapped to each player through the
+   declared partnerships; `GameType.Utility.ZERO_SUM` with recentred scores
+   is derived only where it holds. An elimination (`loser:`) game has no
+   scores — it returns `+1` per survivor and `-(n-1)` for the loser.
+   Designer-facing statistics read true scores.
 7. **Proof harness** — `tests/test_openspiel_ready.py`, parameterized over
    the six games (see next section), plus a small reusable playtest-report
    helper (games-length / branching / returns / per-seat stats) shared
@@ -230,9 +242,13 @@ from the live query at each decision.
 3. **Perfect recall** — along sampled playouts, each player's observation-log
    component is append-only (earlier observations are a prefix of later ones),
    the operational form of "candidate sets only narrow."
-4. **Hearts regression** — derived info states partition sampled histories at
-   least as finely as the old hand-authored ones; then the bespoke
+4. **Hearts regression** — the existing Hearts info-state test suite (hidden
+   hands never leak, other players' pass picks hidden mid-pass, perfect
+   recall, own-action distinction) is ported to run against the *derived*
+   info states and must pass unchanged in meaning; then the bespoke
    `hearts_information_state` and count-based `kind` logic are deleted.
+   (Those ported tests are the behavioral content the hand-authored rules
+   encoded — the operational form of "at least as fine.")
 5. **Byte-identity** — bare `mypy` clean; full `pytest -q` green under
    `PYTHONHASHSEED=0`; no existing golden changes.
 
