@@ -1,22 +1,38 @@
-"""The French Tarot hand mechanic (four-player, FFT rules; concrete).
+"""French Tarot's runtime support (pure stdlib primitives).
 
-Built as one concrete mechanic: the four-level ascending bid (Petite < Garde <
-Garde sans < Garde contre), the chien handling dispatched by bid level, eighteen
-tricks under atout trumps with the must-trump / must-over-trump obligations and
-the Excuse's special routing, and the bouts-conditional threshold scoring with
-the bid multiplier and petit-au-bout. The random chooser bids, discards, and
-plays uniformly. Card points are kept in *doubled* integer units (the printed
-half-points doubled; the 78 cards sum to 182).
+The whole hand — the four-level bid (the auction form of the kernel `round`),
+the chien handling by bid level, the eighteen atout-trump tricks with the
+Excuse's special routing and the must-follow/must-trump/must-over-trump
+obligations (the `ExcuseIsExempt`/`MustFollowSuit`/`MustTrumpIfVoid`/
+`MustOverTrump` rule cascade), and the bouts-conditional threshold scoring all
+run in the DSL (docs/games/french-tarot.cardlang). This module holds only what
+is not expressible there:
 
-Out of scope (matching french-tarot.md, plus pragmatic random-play cuts):
-poignée declaration (a strategic pre-play reveal a random player can't sensibly
-make), the Excuse half-point IOU deferral, and 3-/5-player variants.
+- `tarot_card_points` / `tarot_trump_height` — per-card pure queries (the
+  doubled card-point value; the trump rank strength for the over-trump
+  comparison).
+- `tarot_led_suit` — the effective led suit over the live `trick_pile` (the
+  first non-Excuse card's suit, or "excuse" if only the Excuse has been played
+  so far) — distinct from the kernel's own `state.led_suit` (the literal first
+  card played, "excuse" included), which gates the rules' `applies_when`.
+- `tarot_trick_winner` — the trick round's `outcome` function: highest atout
+  if any was played, else highest of the effective led suit; the Excuse never
+  wins.
+- `tarot_excuse_player` — which player (if any) played the Excuse in the trick
+  that just completed, read off the round's exposed terminal state.
+- `tarot_per_opp` — the zero-sum per-opponent settlement amount: the
+  bouts-conditional threshold, the taker's doubled card points (the chien's
+  too, at Garde sans le chien — the chien is never moved there, so it counts
+  where it sits), the petit-au-bout adjustment, and the bid multiplier
+  (verbatim monolith arithmetic: a float division then Python's banker's
+  rounding).
+
+Card points are kept in *doubled* integer units (the printed half-points
+doubled; the 78 cards sum to 182).
 """
 
 from __future__ import annotations
 
-from cardlang.ast import nodes as n
-from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Card, Player
 
@@ -27,7 +43,7 @@ _MULT = {"petite": 1, "garde": 2, "garde_sans": 4, "garde_contre": 6}
 _SUIT_STR = {"K": 14, "Q": 13, "C": 12, "J": 11}
 
 
-def _value(c: Card) -> int:
+def tarot_card_points(c: Card) -> int:
     """Doubled card-point value (printed value × 2, so all integers)."""
     if c.suit == "excuse":
         return 9
@@ -37,6 +53,9 @@ def _value(c: Card) -> int:
 
 
 def _is_bout(c: Card) -> bool:
+    """A bout (oudler): the Excuse, the 1 of atouts (petit), or the 21. The
+    DSL's own `is_bout` function (french-tarot.cardlang) computes the same
+    predicate independently for the discard filter, mirroring this."""
     return c.suit == "excuse" or (c.suit == "atouts" and c.rank in ("1", "21"))
 
 
@@ -44,150 +63,79 @@ def _suit_strength(c: Card) -> int:
     return _SUIT_STR.get(c.rank, 0) or int(c.rank)
 
 
-def _led_suit(trick: list[tuple[Player, Card]]) -> str:
+def _led_suit(cards: list[Card]) -> str:
     """The suit to follow: the first non-Excuse card's suit."""
-    for _, c in trick:
+    for c in cards:
         if c.suit != "excuse":
             return c.suit
-    return "excuse"  # only the Excuse so far
+    return "excuse"  # only the Excuse played so far
 
 
-def _trick_winner(trick: list[tuple[Player, Card]]) -> Player:
-    atouts = [(p, c) for p, c in trick if c.suit == "atouts"]
+def tarot_led_suit(ctx: Ctx) -> str:
+    """The effective led suit for the live trick, read off the `trick_pile`
+    zone (the follow-suit demand's own view — distinct from the kernel's
+    `state.led_suit`, the literal first card's suit, which gates a rule's
+    `applies_when` instead)."""
+    return _led_suit(ctx.rs.zones.single("trick_pile").cards)
+
+
+def tarot_trump_height(c: Card) -> int:
+    """Trump strength for the over-trump comparison: an atout's rank as an
+    int (1..21); 0 for a non-atout (never subject to, or able to satisfy, an
+    over-trump demand)."""
+    return int(c.rank) if c.suit == "atouts" else 0
+
+
+def tarot_trick_winner(
+    played: list[tuple[Player, Card]],
+    led_suit: str,
+    trump: str | None,
+    rank_index: dict[str, int],
+) -> Player:
+    """The trick outcome: highest atout if any was played; else highest of the
+    effective led suit (the first non-Excuse card's suit — recomputed here,
+    never the raw `led_suit` arg, which the kernel sets from the literal
+    first-played card and can be "excuse"). The Excuse itself never wins.
+    Ignores `led_suit`/`trump`/`rank_index` (the OutcomeFn interface)."""
+    atouts = [(p, c) for p, c in played if c.suit == "atouts"]
     if atouts:
         return max(atouts, key=lambda pc: int(pc[1].rank))[0]
-    led = _led_suit(trick)
-    of_led = [(p, c) for p, c in trick if c.suit == led]
+    led = _led_suit([c for _, c in played])
+    of_led = [(p, c) for p, c in played if c.suit == led]
     return max(of_led, key=lambda pc: _suit_strength(pc[1]))[0]
 
 
-def _legal(hand: list[Card], trick: list[tuple[Player, Card]]) -> list[Card]:
-    """Follow suit; if void, trump and over-trump if able; the Excuse may always
-    be played."""
-    if not trick:
-        return list(hand)
-    excuse = [c for c in hand if c.suit == "excuse"]
-    body = [c for c in hand if c.suit != "excuse"]
-    led = _led_suit(trick)
-    trumps_in_trick = [c for _, c in trick if c.suit == "atouts"]
-    highest_trump = max((int(c.rank) for c in trumps_in_trick), default=0)
-
-    if led == "atouts":
-        mine = [c for c in body if c.suit == "atouts"]
-        if mine:
-            over = [c for c in mine if int(c.rank) > highest_trump]
-            base = over or mine
-        else:
-            base = body
-    else:
-        same = [c for c in body if c.suit == led]
-        if same:
-            base = same
-        else:
-            mine = [c for c in body if c.suit == "atouts"]
-            if mine:
-                over = [c for c in mine if int(c.rank) > highest_trump]
-                base = over or mine
-            else:
-                base = body
-    return base + excuse
+def tarot_excuse_player(ctx: Ctx) -> Player | None:
+    """The player who played the Excuse in the trick that just completed, or
+    None if nobody did. Reads the round's exposed terminal state exactly as
+    the `state` pronoun does (`mech_state[-1]` while a round is still active,
+    else `last_round_state`) — the DSL calls this right after `round
+    play_to_trick` returns, when the round is no longer active."""
+    state = ctx.rs.mech_state[-1] if ctx.rs.mech_state else ctx.rs.last_round_state
+    assert state is not None, "tarot_excuse_player() read with no completed round"
+    played: list[tuple[Player, Card]] = state["played"]
+    return next((p for p, c in played if c.suit == "excuse"), None)
 
 
-def run_tarot_rest(stmt: n.Instantiate, ctx: Ctx) -> Player:
-    """The Tarot hand after the auction: chien handling (by bid level), the
-    eighteen atout-trump tricks, and the bouts/multiplier/petit scoring. The
-    four-level bid runs on the kernel `round` (`french-tarot.cardlang`,
-    `tarot_auction_outcome`); this mechanic reads the taker and level it settled
-    on from hand state, and `opener` (the first-trick leader) from its arg."""
+def tarot_per_opp(ctx: Ctx, pb: int) -> int:
+    """The zero-sum per-opponent settlement amount for the hand just played:
+    the bouts-conditional threshold ({3: 36, 2: 41, 1: 51, 0: 56} doubled
+    points), the taker's doubled card points (`captured[taker]`, plus the
+    chien's at Garde sans le chien — never moved, counted where it sits), the
+    petit-au-bout adjustment `pb`, and the bid multiplier. Verbatim monolith
+    arithmetic (a float division then Python's banker's rounding)."""
     rs = ctx.rs
-    args = {a.name: a.value for a in stmt.args}
-    start: Player = evaluate(args["opener"], ctx)  # type: ignore[arg-type]
-    choose = ctx.chooser
-    n_players = rs.seating.count
-    hands = rs.zones.families["hand"]
+    taker: Player = rs.get("taker")
+    level = _LEVELS[rs.get("bid_level") - 1]  # bid_level is 1..4 (0 = no bid)
     captured = rs.zones.families["captured"]
     chien = rs.zones.single("chien")
 
-    taker: Player = rs.get("taker")
-    level = _LEVELS[rs.get("bid_level") - 1]  # bid_level is 1..4 (0 = no bid)
-
-    # --- chien handling by bid level ---
-    if level in ("petite", "garde"):
-        hands[taker].add_all(chien.take_all())
-        keepable = [c for c in hands[taker].cards if not _is_bout(c)]
-        pref = [c for c in keepable if c.suit not in ("atouts", "excuse") and c.rank != "K"]
-        pool = pref if len(pref) >= 6 else keepable
-        for c in choose(taker, pool, 6):  # discard six; they count to the taker
-            hands[taker].remove(c)
-            captured[taker].add(c)
-
-    def same_team(a: Player, b: Player) -> bool:
-        return (a == taker) == (b == taker)
-
-    # --- eighteen tricks ---
-    leader = start
-    last_winner = leader
-    petit_in_last = False
-    for t in range(18):
-        order = [(leader - i) % n_players for i in range(n_players)]
-        trick: list[tuple[Player, Card]] = []
-        for q in order:
-            legal = _legal(hands[q].cards, trick)
-            card = choose(q, legal, 1)[0]
-            hands[q].remove(card)
-            trick.append((q, card))
-            ctx.trace("play", (q, card))
-        winner = _trick_winner(trick)
-        ctx.trace("trick_end", {"trump": "atouts"})
-        ctx.trace("trick", (winner, [c for _, c in trick]))
-
-        excuse = [(p, c) for p, c in trick if c.suit == "excuse"]
-        if excuse and not same_team(excuse[0][0], winner):
-            ep = excuse[0][0]
-            for _, c in trick:
-                (captured[ep] if c.suit == "excuse" else captured[winner]).add(c)
-            comp = next(
-                (c for c in captured[ep].cards if _value(c) == 1 and c.suit != "excuse"),
-                None,
-            )
-            if comp is not None:  # repay the trick winner a low card for the Excuse
-                captured[ep].remove(comp)
-                captured[winner].add(comp)
-        else:
-            for _, c in trick:
-                captured[winner].add(c)
-
-        if t == 17:
-            petit_in_last = any(c.suit == "atouts" and c.rank == "1" for _, c in trick)
-        last_winner = winner
-        leader = winner
-
-    # --- scoring ---
-    opponents = [p for p in rs.seating.players if p != taker]
-    taker_doubled = sum(_value(c) for c in captured[taker].cards)
-    if level == "garde_sans":
-        taker_doubled += sum(_value(c) for c in chien.cards)
+    taker_doubled = sum(tarot_card_points(c) for c in captured[taker].cards)
     bouts = sum(1 for c in captured[taker].cards if _is_bout(c))
     if level == "garde_sans":
+        taker_doubled += sum(tarot_card_points(c) for c in chien.cards)
         bouts += sum(1 for c in chien.cards if _is_bout(c))
     threshold = {3: 36, 2: 41, 1: 51, 0: 56}[bouts]
 
-    pb = 0
-    if petit_in_last:
-        pb = 10 if same_team(last_winner, taker) else -10
     pt = taker_doubled / 2 - threshold
-    per_opp = round((25 + pt + pb) * _MULT[level])
-
-    score = rs.get("score")
-    score[taker] += 3 * per_opp
-    for opp in opponents:
-        score[opp] -= per_opp
-
-    opp_doubled = sum(_value(c) for opp in opponents for c in captured[opp].cards)
-    if level == "garde_contre":
-        opp_doubled += sum(_value(c) for c in chien.cards)
-    ctx.trace(
-        "tarot_hand",
-        {"taker_doubled": taker_doubled, "opp_doubled": opp_doubled, "bouts": bouts},
-    )
-    return taker
+    return round((25 + pt + pb) * _MULT[level])

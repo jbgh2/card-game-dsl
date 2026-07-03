@@ -111,7 +111,14 @@ class Card:
         return _RANK_INDEX[self.rank]
 
     def __str__(self) -> str:
-        sym = {"clubs": "♣", "diamonds": "♦", "hearts": "♥", "spades": "♠"}[self.suit]
+        sym = {
+            "clubs": "♣",
+            "diamonds": "♦",
+            "hearts": "♥",
+            "spades": "♠",
+            "atouts": "★",
+            "excuse": "☆",
+        }.get(self.suit, f":{self.suit}")
         return f"{self.rank}{sym}"
 
 

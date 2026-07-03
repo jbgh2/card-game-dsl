@@ -10,7 +10,7 @@
   "deck": "tarot78",
   "direction": "counterclockwise",
   "ranking": [],
-  "trump": null,
+  "trump": "atouts",
   "partnerships": [],
   "zones": [
     {
@@ -478,35 +478,881 @@
           "outcome_cases": [],
           "items": [
             {
+              "kind": "active_rules",
+              "refs": [
+                {
+                  "kind": "rule_ref",
+                  "name": "ExcuseIsExempt",
+                  "op": "plain"
+                },
+                {
+                  "kind": "rule_ref",
+                  "name": "MustFollowSuit",
+                  "op": "plain"
+                },
+                {
+                  "kind": "rule_ref",
+                  "name": "MustTrumpIfVoid",
+                  "op": "plain"
+                },
+                {
+                  "kind": "rule_ref",
+                  "name": "MustOverTrump",
+                  "op": "plain"
+                }
+              ]
+            },
+            {
               "kind": "legal_moves",
               "names": [
-                "discard_to_chien",
                 "play_to_trick"
               ]
             },
             {
-              "kind": "instantiate",
-              "mechanic": "TarotRest",
-              "args": [
+              "kind": "state",
+              "decls": [
                 {
-                  "kind": "named_arg",
-                  "name": "opener",
+                  "kind": "state_decl",
+                  "name": "leader",
+                  "index": null,
+                  "type": "Player",
+                  "optional": true,
+                  "default": {
+                    "kind": "name",
+                    "name": "none",
+                    "ref": "null"
+                  }
+                },
+                {
+                  "kind": "state_decl",
+                  "name": "petit_in_last",
+                  "index": null,
+                  "type": "Boolean",
+                  "optional": false,
+                  "default": {
+                    "kind": "name",
+                    "name": "false",
+                    "ref": "bool"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "if",
+              "cond": {
+                "kind": "binop",
+                "op": "<=",
+                "left": {
+                  "kind": "name",
+                  "name": "bid_level",
+                  "ref": "state_var"
+                },
+                "right": {
+                  "kind": "int",
+                  "value": 2
+                }
+              },
+              "then": [
+                {
+                  "kind": "for_each",
+                  "role": "player",
+                  "binder": "p",
+                  "body": {
+                    "kind": "if",
+                    "cond": {
+                      "kind": "binop",
+                      "op": "==",
+                      "left": {
+                        "kind": "name",
+                        "name": "p",
+                        "ref": "local"
+                      },
+                      "right": {
+                        "kind": "name",
+                        "name": "taker",
+                        "ref": "state_var"
+                      }
+                    },
+                    "then": [
+                      {
+                        "kind": "movement",
+                        "verb": "move",
+                        "mode": null,
+                        "amount": "all",
+                        "item": "cards",
+                        "source": {
+                          "kind": "name",
+                          "name": "chien",
+                          "ref": "zone"
+                        },
+                        "dest": {
+                          "kind": "subscript",
+                          "obj": {
+                            "kind": "name",
+                            "name": "hand",
+                            "ref": "zone"
+                          },
+                          "index": {
+                            "kind": "name",
+                            "name": "p",
+                            "ref": "local"
+                          }
+                        },
+                        "dest_each": false,
+                        "distribution": null,
+                        "visibility": null
+                      },
+                      {
+                        "kind": "if",
+                        "cond": {
+                          "kind": "binop",
+                          "op": ">=",
+                          "left": {
+                            "kind": "comprehension",
+                            "agg": "sum",
+                            "source": {
+                              "kind": "subscript",
+                              "obj": {
+                                "kind": "name",
+                                "name": "hand",
+                                "ref": "zone"
+                              },
+                              "index": {
+                                "kind": "name",
+                                "name": "p",
+                                "ref": "local"
+                              }
+                            },
+                            "binder": "c",
+                            "body": {
+                              "kind": "if",
+                              "cond": {
+                                "kind": "call",
+                                "func": "is_pref_discard",
+                                "args": [
+                                  {
+                                    "kind": "name",
+                                    "name": "c",
+                                    "ref": "local"
+                                  }
+                                ]
+                              },
+                              "then": {
+                                "kind": "int",
+                                "value": 1
+                              },
+                              "elifs": [],
+                              "otherwise": {
+                                "kind": "int",
+                                "value": 0
+                              }
+                            }
+                          },
+                          "right": {
+                            "kind": "int",
+                            "value": 6
+                          }
+                        },
+                        "then": [
+                          {
+                            "kind": "movement",
+                            "verb": "move",
+                            "mode": "chosen",
+                            "amount": {
+                              "kind": "int",
+                              "value": 6
+                            },
+                            "item": "cards",
+                            "source": {
+                              "kind": "subscript",
+                              "obj": {
+                                "kind": "name",
+                                "name": "hand",
+                                "ref": "zone"
+                              },
+                              "index": {
+                                "kind": "name",
+                                "name": "p",
+                                "ref": "local"
+                              }
+                            },
+                            "dest": {
+                              "kind": "subscript",
+                              "obj": {
+                                "kind": "name",
+                                "name": "captured",
+                                "ref": "zone"
+                              },
+                              "index": {
+                                "kind": "name",
+                                "name": "p",
+                                "ref": "local"
+                              }
+                            },
+                            "dest_each": false,
+                            "distribution": null,
+                            "visibility": null,
+                            "filter": {
+                              "kind": "lambda",
+                              "param": "c",
+                              "body": {
+                                "kind": "call",
+                                "func": "is_pref_discard",
+                                "args": [
+                                  {
+                                    "kind": "name",
+                                    "name": "c",
+                                    "ref": "local"
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ],
+                        "else": [
+                          {
+                            "kind": "movement",
+                            "verb": "move",
+                            "mode": "chosen",
+                            "amount": {
+                              "kind": "int",
+                              "value": 6
+                            },
+                            "item": "cards",
+                            "source": {
+                              "kind": "subscript",
+                              "obj": {
+                                "kind": "name",
+                                "name": "hand",
+                                "ref": "zone"
+                              },
+                              "index": {
+                                "kind": "name",
+                                "name": "p",
+                                "ref": "local"
+                              }
+                            },
+                            "dest": {
+                              "kind": "subscript",
+                              "obj": {
+                                "kind": "name",
+                                "name": "captured",
+                                "ref": "zone"
+                              },
+                              "index": {
+                                "kind": "name",
+                                "name": "p",
+                                "ref": "local"
+                              }
+                            },
+                            "dest_each": false,
+                            "distribution": null,
+                            "visibility": null,
+                            "filter": {
+                              "kind": "lambda",
+                              "param": "c",
+                              "body": {
+                                "kind": "not",
+                                "operand": {
+                                  "kind": "call",
+                                  "func": "is_bout",
+                                  "args": [
+                                    {
+                                      "kind": "name",
+                                      "name": "c",
+                                      "ref": "local"
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    ],
+                    "else": null
+                  }
+                }
+              ],
+              "else": null
+            },
+            {
+              "kind": "assign",
+              "name": "leader",
+              "index": null,
+              "op": ":=",
+              "value": {
+                "kind": "binop",
+                "op": "offset_by",
+                "left": {
+                  "kind": "name",
+                  "name": "dealer",
+                  "ref": "state_var"
+                },
+                "right": {
+                  "kind": "name",
+                  "name": "right",
+                  "ref": "enum_value"
+                }
+              }
+            },
+            {
+              "kind": "repeat_until",
+              "cond": {
+                "kind": "quantifier",
+                "quant": "all",
+                "role": "player",
+                "binder": "p",
+                "body": {
+                  "kind": "is_check",
+                  "check": "empty",
+                  "operand": {
+                    "kind": "subscript",
+                    "obj": {
+                      "kind": "name",
+                      "name": "hand",
+                      "ref": "zone"
+                    },
+                    "index": {
+                      "kind": "name",
+                      "name": "p",
+                      "ref": "local"
+                    }
+                  }
+                }
+              },
+              "body": [
+                {
+                  "kind": "round",
+                  "move_type": "play_to_trick",
+                  "leader": {
+                    "kind": "name",
+                    "name": "leader",
+                    "ref": "state_var"
+                  },
+                  "participants": {
+                    "kind": "all_players"
+                  },
+                  "source_zone": "hand",
+                  "play_zone": "trick_pile",
+                  "outcome_fn": "tarot_trick_winner",
+                  "trump": null,
+                  "early_termination": null,
+                  "move_types": null,
+                  "termination": null,
+                  "order_mode": null,
+                  "combos_fn": null,
+                  "follows_fn": null
+                },
+                {
+                  "kind": "assign",
+                  "name": "petit_in_last",
+                  "index": null,
+                  "op": ":=",
                   "value": {
                     "kind": "binop",
-                    "op": "offset_by",
+                    "op": ">",
+                    "left": {
+                      "kind": "comprehension",
+                      "agg": "sum",
+                      "source": {
+                        "kind": "name",
+                        "name": "trick_pile",
+                        "ref": "zone"
+                      },
+                      "binder": "c",
+                      "body": {
+                        "kind": "if",
+                        "cond": {
+                          "kind": "binop",
+                          "op": "and",
+                          "left": {
+                            "kind": "binop",
+                            "op": "==",
+                            "left": {
+                              "kind": "member",
+                              "obj": {
+                                "kind": "name",
+                                "name": "c",
+                                "ref": "local"
+                              },
+                              "field": "suit"
+                            },
+                            "right": {
+                              "kind": "name",
+                              "name": "atouts",
+                              "ref": "enum_value"
+                            }
+                          },
+                          "right": {
+                            "kind": "binop",
+                            "op": "==",
+                            "left": {
+                              "kind": "member",
+                              "obj": {
+                                "kind": "name",
+                                "name": "c",
+                                "ref": "local"
+                              },
+                              "field": "rank"
+                            },
+                            "right": {
+                              "kind": "str",
+                              "value": "1"
+                            }
+                          }
+                        },
+                        "then": {
+                          "kind": "int",
+                          "value": 1
+                        },
+                        "elifs": [],
+                        "otherwise": {
+                          "kind": "int",
+                          "value": 0
+                        }
+                      }
+                    },
+                    "right": {
+                      "kind": "int",
+                      "value": 0
+                    }
+                  }
+                },
+                {
+                  "kind": "let",
+                  "name": "xp",
+                  "index": null,
+                  "value": {
+                    "kind": "call",
+                    "func": "tarot_excuse_player",
+                    "args": []
+                  }
+                },
+                {
+                  "kind": "if",
+                  "cond": {
+                    "kind": "binop",
+                    "op": "and",
+                    "left": {
+                      "kind": "is_check",
+                      "check": "not_none",
+                      "operand": {
+                        "kind": "name",
+                        "name": "xp",
+                        "ref": "local"
+                      }
+                    },
+                    "right": {
+                      "kind": "binop",
+                      "op": "!=",
+                      "left": {
+                        "kind": "binop",
+                        "op": "==",
+                        "left": {
+                          "kind": "name",
+                          "name": "xp",
+                          "ref": "local"
+                        },
+                        "right": {
+                          "kind": "name",
+                          "name": "taker",
+                          "ref": "state_var"
+                        }
+                      },
+                      "right": {
+                        "kind": "binop",
+                        "op": "==",
+                        "left": {
+                          "kind": "name",
+                          "name": "outcome",
+                          "ref": "pronoun"
+                        },
+                        "right": {
+                          "kind": "name",
+                          "name": "taker",
+                          "ref": "state_var"
+                        }
+                      }
+                    }
+                  },
+                  "then": [
+                    {
+                      "kind": "movement",
+                      "verb": "move",
+                      "mode": null,
+                      "amount": "all",
+                      "item": "cards",
+                      "source": {
+                        "kind": "name",
+                        "name": "trick_pile",
+                        "ref": "zone"
+                      },
+                      "dest": {
+                        "kind": "subscript",
+                        "obj": {
+                          "kind": "name",
+                          "name": "captured",
+                          "ref": "zone"
+                        },
+                        "index": {
+                          "kind": "name",
+                          "name": "xp",
+                          "ref": "local"
+                        }
+                      },
+                      "dest_each": false,
+                      "distribution": null,
+                      "visibility": null,
+                      "filter": {
+                        "kind": "lambda",
+                        "param": "c",
+                        "body": {
+                          "kind": "binop",
+                          "op": "==",
+                          "left": {
+                            "kind": "member",
+                            "obj": {
+                              "kind": "name",
+                              "name": "c",
+                              "ref": "local"
+                            },
+                            "field": "suit"
+                          },
+                          "right": {
+                            "kind": "name",
+                            "name": "excuse",
+                            "ref": "enum_value"
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "kind": "movement",
+                      "verb": "move",
+                      "mode": null,
+                      "amount": "all",
+                      "item": "cards",
+                      "source": {
+                        "kind": "name",
+                        "name": "trick_pile",
+                        "ref": "zone"
+                      },
+                      "dest": {
+                        "kind": "subscript",
+                        "obj": {
+                          "kind": "name",
+                          "name": "captured",
+                          "ref": "zone"
+                        },
+                        "index": {
+                          "kind": "name",
+                          "name": "outcome",
+                          "ref": "pronoun"
+                        }
+                      },
+                      "dest_each": false,
+                      "distribution": null,
+                      "visibility": null
+                    },
+                    {
+                      "kind": "if",
+                      "cond": {
+                        "kind": "binop",
+                        "op": ">",
+                        "left": {
+                          "kind": "comprehension",
+                          "agg": "sum",
+                          "source": {
+                            "kind": "subscript",
+                            "obj": {
+                              "kind": "name",
+                              "name": "captured",
+                              "ref": "zone"
+                            },
+                            "index": {
+                              "kind": "name",
+                              "name": "xp",
+                              "ref": "local"
+                            }
+                          },
+                          "binder": "c",
+                          "body": {
+                            "kind": "if",
+                            "cond": {
+                              "kind": "binop",
+                              "op": "==",
+                              "left": {
+                                "kind": "call",
+                                "func": "tarot_card_points",
+                                "args": [
+                                  {
+                                    "kind": "name",
+                                    "name": "c",
+                                    "ref": "local"
+                                  }
+                                ]
+                              },
+                              "right": {
+                                "kind": "int",
+                                "value": 1
+                              }
+                            },
+                            "then": {
+                              "kind": "int",
+                              "value": 1
+                            },
+                            "elifs": [],
+                            "otherwise": {
+                              "kind": "int",
+                              "value": 0
+                            }
+                          }
+                        },
+                        "right": {
+                          "kind": "int",
+                          "value": 0
+                        }
+                      },
+                      "then": [
+                        {
+                          "kind": "movement",
+                          "verb": "move",
+                          "mode": null,
+                          "amount": "one",
+                          "item": "cards",
+                          "source": {
+                            "kind": "subscript",
+                            "obj": {
+                              "kind": "name",
+                              "name": "captured",
+                              "ref": "zone"
+                            },
+                            "index": {
+                              "kind": "name",
+                              "name": "xp",
+                              "ref": "local"
+                            }
+                          },
+                          "dest": {
+                            "kind": "subscript",
+                            "obj": {
+                              "kind": "name",
+                              "name": "captured",
+                              "ref": "zone"
+                            },
+                            "index": {
+                              "kind": "name",
+                              "name": "outcome",
+                              "ref": "pronoun"
+                            }
+                          },
+                          "dest_each": false,
+                          "distribution": null,
+                          "visibility": null,
+                          "filter": {
+                            "kind": "lambda",
+                            "param": "c",
+                            "body": {
+                              "kind": "binop",
+                              "op": "==",
+                              "left": {
+                                "kind": "call",
+                                "func": "tarot_card_points",
+                                "args": [
+                                  {
+                                    "kind": "name",
+                                    "name": "c",
+                                    "ref": "local"
+                                  }
+                                ]
+                              },
+                              "right": {
+                                "kind": "int",
+                                "value": 1
+                              }
+                            }
+                          }
+                        }
+                      ],
+                      "else": null
+                    }
+                  ],
+                  "else": [
+                    {
+                      "kind": "movement",
+                      "verb": "move",
+                      "mode": null,
+                      "amount": "all",
+                      "item": "cards",
+                      "source": {
+                        "kind": "name",
+                        "name": "trick_pile",
+                        "ref": "zone"
+                      },
+                      "dest": {
+                        "kind": "subscript",
+                        "obj": {
+                          "kind": "name",
+                          "name": "captured",
+                          "ref": "zone"
+                        },
+                        "index": {
+                          "kind": "name",
+                          "name": "outcome",
+                          "ref": "pronoun"
+                        }
+                      },
+                      "dest_each": false,
+                      "distribution": null,
+                      "visibility": null
+                    }
+                  ]
+                },
+                {
+                  "kind": "assign",
+                  "name": "leader",
+                  "index": null,
+                  "op": ":=",
+                  "value": {
+                    "kind": "name",
+                    "name": "outcome",
+                    "ref": "pronoun"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "let",
+              "name": "pb",
+              "index": null,
+              "value": {
+                "kind": "if",
+                "cond": {
+                  "kind": "name",
+                  "name": "petit_in_last",
+                  "ref": "state_var"
+                },
+                "then": {
+                  "kind": "if",
+                  "cond": {
+                    "kind": "binop",
+                    "op": "==",
                     "left": {
                       "kind": "name",
-                      "name": "dealer",
+                      "name": "leader",
                       "ref": "state_var"
                     },
                     "right": {
                       "kind": "name",
-                      "name": "right",
-                      "ref": "enum_value"
+                      "name": "taker",
+                      "ref": "state_var"
+                    }
+                  },
+                  "then": {
+                    "kind": "int",
+                    "value": 10
+                  },
+                  "elifs": [],
+                  "otherwise": {
+                    "kind": "binop",
+                    "op": "-",
+                    "left": {
+                      "kind": "int",
+                      "value": 0
+                    },
+                    "right": {
+                      "kind": "int",
+                      "value": 10
                     }
                   }
+                },
+                "elifs": [],
+                "otherwise": {
+                  "kind": "int",
+                  "value": 0
                 }
-              ]
+              }
+            },
+            {
+              "kind": "let",
+              "name": "v",
+              "index": null,
+              "value": {
+                "kind": "call",
+                "func": "tarot_per_opp",
+                "args": [
+                  {
+                    "kind": "name",
+                    "name": "pb",
+                    "ref": "local"
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "for_each",
+              "role": "player",
+              "binder": "p",
+              "body": {
+                "kind": "if",
+                "cond": {
+                  "kind": "binop",
+                  "op": "==",
+                  "left": {
+                    "kind": "name",
+                    "name": "p",
+                    "ref": "local"
+                  },
+                  "right": {
+                    "kind": "name",
+                    "name": "taker",
+                    "ref": "state_var"
+                  }
+                },
+                "then": [
+                  {
+                    "kind": "assign",
+                    "name": "score",
+                    "index": {
+                      "kind": "name",
+                      "name": "p",
+                      "ref": "local"
+                    },
+                    "op": "+=",
+                    "value": {
+                      "kind": "binop",
+                      "op": "*",
+                      "left": {
+                        "kind": "int",
+                        "value": 3
+                      },
+                      "right": {
+                        "kind": "name",
+                        "name": "v",
+                        "ref": "local"
+                      }
+                    }
+                  }
+                ],
+                "else": [
+                  {
+                    "kind": "assign",
+                    "name": "score",
+                    "index": {
+                      "kind": "name",
+                      "name": "p",
+                      "ref": "local"
+                    },
+                    "op": "-=",
+                    "value": {
+                      "kind": "name",
+                      "name": "v",
+                      "ref": "local"
+                    }
+                  }
+                ]
+              }
             }
           ]
         },
@@ -534,7 +1380,292 @@
     "target": "score"
   },
   "loser": null,
-  "rules": [],
+  "rules": [
+    {
+      "kind": "rule",
+      "name": "ExcuseIsExempt",
+      "constrains": "play_to_trick",
+      "applies_when": {
+        "kind": "applies_when",
+        "always": false,
+        "pred": {
+          "kind": "is_check",
+          "check": "not_none",
+          "operand": {
+            "kind": "member",
+            "obj": {
+              "kind": "name",
+              "name": "state",
+              "ref": "pronoun"
+            },
+            "field": "led_suit"
+          }
+        }
+      },
+      "demands": null,
+      "if_impossible": null,
+      "exempts": {
+        "kind": "method_call",
+        "obj": {
+          "kind": "name",
+          "name": "hand",
+          "ref": "zone"
+        },
+        "method": "where",
+        "args": [
+          {
+            "kind": "lambda",
+            "param": "c",
+            "body": {
+              "kind": "binop",
+              "op": "==",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "c",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "str",
+                "value": "Excuse"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "kind": "rule",
+      "name": "MustFollowSuit",
+      "constrains": "play_to_trick",
+      "applies_when": {
+        "kind": "applies_when",
+        "always": false,
+        "pred": {
+          "kind": "is_check",
+          "check": "not_none",
+          "operand": {
+            "kind": "member",
+            "obj": {
+              "kind": "name",
+              "name": "state",
+              "ref": "pronoun"
+            },
+            "field": "led_suit"
+          }
+        }
+      },
+      "demands": {
+        "kind": "demands",
+        "form": "cards",
+        "expr": {
+          "kind": "method_call",
+          "obj": {
+            "kind": "name",
+            "name": "hand",
+            "ref": "zone"
+          },
+          "method": "cards_of_suit",
+          "args": [
+            {
+              "kind": "call",
+              "func": "tarot_led_suit",
+              "args": []
+            }
+          ]
+        }
+      },
+      "if_impossible": {
+        "kind": "name",
+        "name": "hand",
+        "ref": "zone"
+      }
+    },
+    {
+      "kind": "rule",
+      "name": "MustTrumpIfVoid",
+      "constrains": "play_to_trick",
+      "applies_when": {
+        "kind": "applies_when",
+        "always": false,
+        "pred": {
+          "kind": "is_check",
+          "check": "not_none",
+          "operand": {
+            "kind": "member",
+            "obj": {
+              "kind": "name",
+              "name": "state",
+              "ref": "pronoun"
+            },
+            "field": "led_suit"
+          }
+        }
+      },
+      "demands": {
+        "kind": "demands",
+        "form": "cards",
+        "expr": {
+          "kind": "method_call",
+          "obj": {
+            "kind": "name",
+            "name": "hand",
+            "ref": "zone"
+          },
+          "method": "cards_of_suit",
+          "args": [
+            {
+              "kind": "name",
+              "name": "atouts",
+              "ref": "enum_value"
+            }
+          ]
+        }
+      },
+      "if_impossible": {
+        "kind": "name",
+        "name": "hand",
+        "ref": "zone"
+      }
+    },
+    {
+      "kind": "rule",
+      "name": "MustOverTrump",
+      "constrains": "play_to_trick",
+      "applies_when": {
+        "kind": "applies_when",
+        "always": false,
+        "pred": {
+          "kind": "binop",
+          "op": "and",
+          "left": {
+            "kind": "is_check",
+            "check": "not_none",
+            "operand": {
+              "kind": "member",
+              "obj": {
+                "kind": "name",
+                "name": "state",
+                "ref": "pronoun"
+              },
+              "field": "led_suit"
+            }
+          },
+          "right": {
+            "kind": "binop",
+            "op": ">",
+            "left": {
+              "kind": "comprehension",
+              "agg": "sum",
+              "source": {
+                "kind": "name",
+                "name": "trick_pile",
+                "ref": "zone"
+              },
+              "binder": "t",
+              "body": {
+                "kind": "if",
+                "cond": {
+                  "kind": "binop",
+                  "op": "==",
+                  "left": {
+                    "kind": "member",
+                    "obj": {
+                      "kind": "name",
+                      "name": "t",
+                      "ref": "local"
+                    },
+                    "field": "suit"
+                  },
+                  "right": {
+                    "kind": "name",
+                    "name": "atouts",
+                    "ref": "enum_value"
+                  }
+                },
+                "then": {
+                  "kind": "int",
+                  "value": 1
+                },
+                "elifs": [],
+                "otherwise": {
+                  "kind": "int",
+                  "value": 0
+                }
+              }
+            },
+            "right": {
+              "kind": "int",
+              "value": 0
+            }
+          }
+        }
+      },
+      "demands": {
+        "kind": "demands",
+        "form": "cards",
+        "expr": {
+          "kind": "method_call",
+          "obj": {
+            "kind": "name",
+            "name": "hand",
+            "ref": "zone"
+          },
+          "method": "where",
+          "args": [
+            {
+              "kind": "lambda",
+              "param": "c",
+              "body": {
+                "kind": "binop",
+                "op": ">",
+                "left": {
+                  "kind": "call",
+                  "func": "tarot_trump_height",
+                  "args": [
+                    {
+                      "kind": "name",
+                      "name": "c",
+                      "ref": "local"
+                    }
+                  ]
+                },
+                "right": {
+                  "kind": "comprehension",
+                  "agg": "max",
+                  "source": {
+                    "kind": "name",
+                    "name": "trick_pile",
+                    "ref": "zone"
+                  },
+                  "binder": "t",
+                  "body": {
+                    "kind": "call",
+                    "func": "tarot_trump_height",
+                    "args": [
+                      {
+                        "kind": "name",
+                        "name": "t",
+                        "ref": "local"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "if_impossible": {
+        "kind": "name",
+        "name": "hand",
+        "ref": "zone"
+      }
+    }
+  ],
   "move_types": [
     {
       "kind": "move_type",
@@ -786,5 +1917,169 @@
   ],
   "types": [],
   "defines": [],
-  "functions": []
+  "functions": [
+    {
+      "kind": "function",
+      "name": "is_bout",
+      "params": [
+        {
+          "name": "c",
+          "type_name": "Card"
+        }
+      ],
+      "body": {
+        "kind": "binop",
+        "op": "or",
+        "left": {
+          "kind": "binop",
+          "op": "==",
+          "left": {
+            "kind": "member",
+            "obj": {
+              "kind": "name",
+              "name": "c",
+              "ref": "local"
+            },
+            "field": "suit"
+          },
+          "right": {
+            "kind": "name",
+            "name": "excuse",
+            "ref": "enum_value"
+          }
+        },
+        "right": {
+          "kind": "binop",
+          "op": "and",
+          "left": {
+            "kind": "binop",
+            "op": "==",
+            "left": {
+              "kind": "member",
+              "obj": {
+                "kind": "name",
+                "name": "c",
+                "ref": "local"
+              },
+              "field": "suit"
+            },
+            "right": {
+              "kind": "name",
+              "name": "atouts",
+              "ref": "enum_value"
+            }
+          },
+          "right": {
+            "kind": "binop",
+            "op": "or",
+            "left": {
+              "kind": "binop",
+              "op": "==",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "c",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "str",
+                "value": "1"
+              }
+            },
+            "right": {
+              "kind": "binop",
+              "op": "==",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "c",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "str",
+                "value": "21"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "kind": "function",
+      "name": "is_pref_discard",
+      "params": [
+        {
+          "name": "c",
+          "type_name": "Card"
+        }
+      ],
+      "body": {
+        "kind": "binop",
+        "op": "and",
+        "left": {
+          "kind": "binop",
+          "op": "and",
+          "left": {
+            "kind": "binop",
+            "op": "!=",
+            "left": {
+              "kind": "member",
+              "obj": {
+                "kind": "name",
+                "name": "c",
+                "ref": "local"
+              },
+              "field": "suit"
+            },
+            "right": {
+              "kind": "name",
+              "name": "atouts",
+              "ref": "enum_value"
+            }
+          },
+          "right": {
+            "kind": "binop",
+            "op": "!=",
+            "left": {
+              "kind": "member",
+              "obj": {
+                "kind": "name",
+                "name": "c",
+                "ref": "local"
+              },
+              "field": "suit"
+            },
+            "right": {
+              "kind": "name",
+              "name": "excuse",
+              "ref": "enum_value"
+            }
+          }
+        },
+        "right": {
+          "kind": "binop",
+          "op": "!=",
+          "left": {
+            "kind": "member",
+            "obj": {
+              "kind": "name",
+              "name": "c",
+              "ref": "local"
+            },
+            "field": "rank"
+          },
+          "right": {
+            "kind": "str",
+            "value": "K"
+          }
+        }
+      }
+    }
+  ]
 }
