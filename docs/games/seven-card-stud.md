@@ -20,14 +20,17 @@ Each hand:
 The `.md` source is a cash game with no overall winner; to give the runtime a
 terminal, the executable plays until one player holds **all** the chips and names
 that player the winner. Chips are modelled as an integer `stack` per player (not
-a resource-zone subsystem); the total is invariant. The betting — antes, deal,
-the bring-in post, and the five streets — runs in the DSL on the kernel `round` in
-**priority order**: each turn re-scans the seat order from the leader and offers
-the first still-pending player, so after a raise re-opens earlier seats action
-returns to the earliest owing seat. Only the showdown (side-pot settlement and the
-muck, both RNG-free) and the door-card seat selectors (`bring_in_seat` /
-`first_to_act_seat`) are runtime support; the poker evaluator is unit-tested. The
-4th-street open-pair limit doubling is simplified out.
+a resource-zone subsystem); the total is invariant. The whole hand runs in the
+DSL: the betting — antes, deal, the bring-in post, and the five streets — on the
+kernel `round` in **priority order** (each turn re-scans the seat order from the
+leader and offers the first still-pending player, so after a raise re-opens
+earlier seats action returns to the earliest owing seat), and the showdown as
+plain statements — a contested hand reveals the contenders' hole cards into the
+public board, each entrant collects its side-pot share via `pot_share(p)`, and
+the hands leave play to the muck. The stdlib primitives are pure reads: the
+door-card seat selectors (`bring_in_seat` / `first_to_act_seat`) and the
+side-pot query (`pot_share`); the poker evaluator behind them is unit-tested.
+The 4th-street open-pair limit doubling is simplified out.
 
 The betting state is carried as ordinary phase state (`bet_to_match`, `raises`,
 per-player `bet_by`/`acted`/`folded`/`committed`); a `check`/`bet`/`call`/`raise`/
@@ -94,7 +97,22 @@ game SevenCardStud {
       // contender count is monotonic, so the flat guards short-circuit exactly as
       // nesting would (see seven-card-stud.cardlang).
 
-      instantiate StudShowdown()              // side-pot settlement + muck (RNG-free)
+      // Showdown — RNG-free, decision-free. A contested hand reveals the
+      // contenders' hole cards (the two-step move keeps the muck order the
+      // next hand's pre-shuffle deck depends on; the flip into the public
+      // board emits the seven identities — the derived reveal). Each entrant
+      // collects its side-pot share; the hands leave play to the muck.
+      if (number of players where in_hand[player] and not folded[player]) > 1 {
+        for each player p: if in_hand[p] and not folded[p] {
+          move all cards from upcards[p] to hole[p]
+          move all cards from hole[p] to upcards[p]
+        }
+      }
+      for each player p: if in_hand[p] { stack[p] := stack[p] + pot_share(p) }
+      for each player p: if in_hand[p] {
+        move all cards from hole[p] to muck
+        move all cards from upcards[p] to muck
+      }
     }
   }
 

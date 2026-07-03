@@ -83,6 +83,12 @@ def test_migration_preserves_per_seed_results(name: str) -> None:
 # too coarse to catch a chooser-draw divergence that doesn't flip the eventual
 # winner. Instead pin the full per-hand stack-vector sequence: any divergence in
 # the betting/showdown draws surfaces at the hand it occurs. Pinned pre-migration.
+#
+# Anchored on the driver's own `hand_end` trace (driver.py, emitted once per hand
+# as `dict(rs.get(score_var))` — for Stud's `winner: highest stack`, that is
+# `dict(stack)`) rather than the mechanic-local `stud_hand` trace the showdown
+# used to emit: same values, same count, but a signal that survives the showdown
+# leaving `instantiate` for the kernel (docs/kernel-migration.md).
 _STUD_CAPTURE = """
 import json, random, sys
 from pathlib import Path
@@ -97,8 +103,8 @@ for seed in range(50):
     hands = []
 
     def tracer(event, data, _h=hands):
-        if event == "stud_hand":
-            _h.append([data["stacks"][p] for p in sorted(data["stacks"])])
+        if event == "hand_end":
+            _h.append([data[p] for p in sorted(data)])
 
     play_game(game, random.Random(seed), tracer)
     out[str(seed)] = hands

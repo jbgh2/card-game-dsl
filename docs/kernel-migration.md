@@ -17,15 +17,19 @@ done.
 
 ## The goal, concretely
 
-Nine games still hold their decision logic in hand-written Python dispatched by
+Seven games still hold their decision logic in hand-written Python dispatched by
 name in `cardlang/runtime/mechanics.py::instantiate`. Bridge's, Pinochle's, and
 Tarot's auctions have been lifted onto the kernel `round` — so `run_bridge_auction`
 is gone, and `run_pinochle_hand` / `run_tarot_hand` are now the post-auction
 `run_pinochle_rest` / `run_tarot_rest`:
 
 - inline in `mechanics.py`: `run_schnapsen_hand`, `run_pinochle_rest`
-- separate modules: `runtime/coup.py`, `cribbage.py`, `skat.py`, `stud.py`,
-  `tarot.py` (post-auction), `tichu.py`, `bigtwo.py`
+- separate modules: `runtime/coup.py`, `cribbage.py`, `skat.py`,
+  `tarot.py` (post-auction), `tichu.py`
+
+(`runtime/stud.py` and `runtime/bigtwo.py` remain, but hold no `instantiate`
+mechanic — only pure stdlib primitives the DSL calls: Stud's poker evaluator,
+seat selectors, and `pot_share`; Big Two's combination engine.)
 
 This violates the two-layer architecture ([principles.md](principles.md): the
 library is *written in the DSL*, not the engine). It also carries **info-set
@@ -52,8 +56,9 @@ in order would silently collapse into the same string. The stage is done
 when:
 
 - `instantiate` dispatches only to kernel constructs — no per-game name
-  branches — and the seven `runtime/*.py` game modules and the three inline
-  `run_*_hand` functions are deleted;
+  branches — and the five remaining game-mechanic modules and the two inline
+  `run_*` functions are deleted (pure stdlib-primitive modules like `stud.py`
+  and `bigtwo.py` stay);
 - all 14 games run on the kernel plus the in-DSL standard library, with every
   `tests/test_playout_*.py` green and **behaviour preserved**;
 - IR golden snapshots are regenerated and reviewed;
@@ -218,30 +223,42 @@ amount syntax" / "Resource transfer failure").
   card ranks/suits — not DSL-expressible — so `bring_in_seat()` / `first_to_act_seat()`
   are Stud-local stdlib functions called from the betting phase (like `team_of`),
   pure reads of the dealt cards (no RNG).
-- **Showdown stays Python — for now.** Side-pot settlement by amount committed +
-  the muck run in `instantiate StudShowdown()` (the renamed, shrunk `run_stud_hand`
-  — antes/deal/betting removed). It is RNG-free, so it cannot shift the chooser
-  sequence; the per-hand stack golden pins its payouts. When it is lifted out of the
-  `instantiate` branch it becomes a **Stud-local `settle` primitive** (the layering +
-  `best_five_card_hand` for the showdown), *not* a generalized "pot subsystem":
-  side-pot reconciliation is a single corpus instance (Coup has no pot — its second
-  resource game is a coin/treasury economy; the natural second *side-pot* game is a
-  poker variant like Hold'em, still a candidate), so per corpus-first it stays
-  game-local until a second poker variant justifies a shared `betting`/pot
-  definition. `best_five_card_hand` is the documented runtime-primitive to wire then.
+- **The showdown runs in the DSL — done.** A contested hand reveals the
+  contenders' hole cards into the `PublicHand` (two movements per contender —
+  the board parked into `hole`, then all seven flipped into `upcards` — so the
+  muck inherits the hole-first order the next hand's pre-shuffle deck depends
+  on; the flip's movement event carries the seven identities, the *derived*
+  reveal). Each entrant then collects `stack[p] := stack[p] + pot_share(p)` and
+  the hands leave play to the muck; a folded entrant's hole cards muck with a
+  count-only emission (unrevealed), and a lone contender collects with no
+  reveal at all. `pot_share` is the **Stud-local settle primitive** (the
+  committed-total layering, odd chip to the first winner in seat order,
+  uncalled remainder to the best contender), *not* a generalized "pot
+  subsystem": side-pot reconciliation is a single corpus instance (Coup has no
+  pot — its second resource game is a coin/treasury economy; the natural second
+  *side-pot* game is a poker variant like Hold'em, still a candidate), so per
+  corpus-first it stays game-local until a second poker variant justifies a
+  shared `betting`/pot definition. The evaluator `hand_rank` stays internal;
+  `best_five_card_hand` is the documented runtime-primitive to wire then. The
+  showdown is RNG-free and decision-free, so it cannot shift the chooser
+  sequence; the per-hand stack golden pinned its payouts byte-identically
+  across the migration. With it, Stud is fully kernel: registered in
+  `cardlang/openspiel/game.py:GAMES` with derived info sets proven in the
+  readiness harness (its conformance check is a bounded random API walk —
+  a full random sim of a ~10k-action chip-migration game is quadratic).
 
-**Checkpoint (event-indexed pots) — needs-formalizing, not a language gap.** The
-settlement reconciles purely from per-player committed running totals + fold flags
-(sorted commitment levels, divmod odd-chip to the first winner); there is no "pot
-current when a player folded" anywhere. So it is expressible with loops/`let`/
-queries — to be done when settlement moves to the DSL; **not** filed as an open
-question.
+**Checkpoint (event-indexed pots) — confirmed closed.** The settlement
+reconciles purely from per-player committed running totals + fold flags (sorted
+commitment levels, divmod odd-chip to the first winner); there is no "pot
+current when a player folded" anywhere. `pot_share` reads exactly that state;
+no event-indexed pot ever existed, and nothing is filed as an open question.
 
 **Test-depth nets — built.** The per-hand stack golden (`seven-card-stud_hands.json`,
 50 seeds, pinned pre-migration — the end-of-game scores are degenerate, so the
-sensitive signal is the post-hand stack vector) confirmed the betting migration is
-byte-identical; the `_settle` recompute covers the side-pot layers (short all-in,
-tie+odd-chip, three-way layered, all-but-one-folded).
+sensitive signal is the post-hand stack vector) confirmed the betting *and*
+showdown migrations are byte-identical; the `_payouts` recompute covers the
+side-pot layers (short all-in, tie+odd-chip, three-way layered,
+all-but-one-folded).
 
 ## Workstream 3 — Combinations and climbing (Tichu)
 

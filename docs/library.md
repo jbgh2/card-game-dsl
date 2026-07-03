@@ -159,9 +159,15 @@ Key design notes:
   move types' own `when:` guards (free-to-act → check/bet; facing a bet →
   call/fold/raise-if-uncapped), not separate rules; the bring-in and first-to-act
   seats come from the `bring_in_seat()` / `first_to_act_seat()` stdlib selectors.
-  The shared `betting` definition — this configuration of the form — is promoted to
-  this catalogue corpus-first at its third instance; Stud is the only instance
-  today, so the move types stay game-local.
+  The showdown settles in plain statements around the `pot_share(player)` stdlib
+  query — the chips that player collects under the side-pot layering
+  (committed-total levels, ties split with the odd chip to the first winner in
+  seat order, uncalled remainder to the best contender), a pure read of the
+  betting state and the live hands; `stack[p] := stack[p] + pot_share(p)` is
+  what moves the chips. The shared `betting` definition — this configuration of
+  the form — is promoted to this catalogue corpus-first at its third instance;
+  Stud is the only instance today, so the move types and `pot_share` stay
+  game-local.
 - `ChallengeWindow` (see [games/coup.md](games/coup.md)) — Coup.
   Parameterized over the claimant and the claimed character; resolves
   to `claim_stands | claim_refuted`. Offers each other in-game player a

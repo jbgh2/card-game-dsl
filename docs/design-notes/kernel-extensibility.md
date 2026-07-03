@@ -3,16 +3,16 @@
 *Status: design analysis / proposal — not a settled decision. The committed spec is in [decisions.md](../decisions.md); this note argues a direction and a sequenced, byte-identical plan.*
 
 *Implementation status: §9 steps 1–3 are done, and step 4 is delivered for the
-fully-kernel games (the projection substrate + general adapter; the eight
+fully-kernel games (the projection substrate + general adapter; the seven
 `instantiate` games remain). The runtime is now the single
 `run_decision_round` interpreter with the trick, auction/betting, and climb forms
 as six-slot hook bundles (`TrickForm` / `AuctionForm` / `ClimbForm` in
 `cardlang/runtime/mechanics.py`), selected by `build_form` and dispatched once in
 `execute.py`. §§1–8 are the rationale that produced it — where they speak of "the
 three `run_*` loops," read the discovery basis, not the current structure. The
-info-set leak (§6, §9 step 4) is closed for the six fully-kernel games; it
-remains open for the eight `instantiate` games, as does the front-end
-derivation (§5).*
+info-set leak (§6, §9 step 4) is closed for the seven fully-kernel games
+(Seven-Card Stud joined when its showdown left `instantiate`); it remains open
+for the seven `instantiate` games, as does the front-end derivation (§5).*
 
 
 ## 1. The question and the short answer
@@ -135,7 +135,7 @@ is reusable above the primitives and descriptions are unreadable. On
 axis (b) — *information sets* — GDL is the paragon: its `sees`/`random`
 relation *derives* each player's information set from the spec, which
 is precisely the property our OpenSpiel target needs. Our Python
-escape-hatch mechanics (Schnapsen, Coup, Skat, Cribbage, Stud showdown)
+escape-hatch mechanics (Schnapsen, Coup, Skat, Cribbage, Tichu)
 share GDL's *bad* axis (a) — build-from-primitives, nothing reusable
 above them — while being the **opposite** of GDL on axis (b): their
 info-sets are hand-authored, not derived. So the escape hatches get
@@ -565,17 +565,19 @@ parts are proven on paper *before* any code depends on them.
    was added — existing behavior was relocated onto the shared loop,
    nothing more.
 
-4. **Close the info-set leak as its own workstream — *done* for the six
+4. **Close the info-set leak as its own workstream — *done* for the seven
    fully-kernel games.** The fixed core's decision event is routed through a
    per-observer projection keyed to declared zone visibility
    (`cardlang/runtime/observe.py`), and the Hearts-specific adapter (both its
    count-`n` and its kind/ownership conventions) is replaced by one general
    reader of projected events (`cardlang/openspiel/infostate.py`,
    `cardlang/openspiel/game.py`) covering Hearts, Getaway, Spades, Bridge, Oh
-   Hell, and Big Two — proven by `tests/test_openspiel_ready.py`
+   Hell, Big Two, and Seven-Card Stud — proven by `tests/test_openspiel_ready.py`
    (indistinguishability, soundness, perfect recall; Bridge's proof currently
    covers only the pass-only line of its auction — the harness's greedy replay
-   never places a bid, let alone reaches trick play). This was the payoff that justified the exercise. The eight
+   never places a bid, let alone reaches trick play; Stud's conformance is a
+   bounded random API walk, its full sim being quadratic in a ~10k-action
+   game). This was the payoff that justified the exercise. The seven
    `instantiate` games remain info-set debt: the adapter rejects them loudly
    rather than silently mis-modeling them.
 

@@ -72,6 +72,7 @@ STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
         "error",  # the if_impossible fallback that rejects the move
         "bring_in_seat",  # Stud: the lowest-door seat that posts the bring-in
         "first_to_act_seat",  # Stud: the highest-upcards seat that acts first on a street
+        "pot_share",  # Stud: the chips a player collects at showdown (side-pot layering)
         "bigtwo_first_leader",  # Big Two: the holder of the 3♦, who leads the first hand
     }
 )

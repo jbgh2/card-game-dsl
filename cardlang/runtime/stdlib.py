@@ -34,6 +34,10 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.stud import first_to_act_seat
 
             return first_to_act_seat(ctx)
+        case "pot_share":
+            from cardlang.runtime.stud import pot_share
+
+            return pot_share(ctx, args[0])
         case "bigtwo_first_leader":
             from cardlang.runtime.bigtwo import first_leader_seat
 

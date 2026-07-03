@@ -3,8 +3,8 @@
 One general adapter (SP1 spec): the state is ``(seed, history)`` over the
 re-simulation engine, the action space and information states are DERIVED, and
 registration is a loop over the game table — adding a fully-kernel game to the
-table is the whole per-game cost. Importing this module registers all six;
-load with e.g. ``pyspiel.load_game("cardlang_hearts")``.
+table is the whole per-game cost. Importing this module registers every game
+in the table; load with e.g. ``pyspiel.load_game("cardlang_hearts")``.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from cardlang.openspiel.infostate import information_state
 _NUM_SEEDS = 4096  # sampled deal space at the root chance node (known limitation)
 _GAMES_DIR = Path(__file__).resolve().parent.parent.parent / "docs" / "games"
 
-# short_name -> game file. The six fully-kernel games (no `instantiate`).
+# short_name -> game file. The fully-kernel games (no `instantiate`).
 GAMES: dict[str, str] = {
     "cardlang_hearts": "hearts.cardlang",
     "cardlang_getaway": "getaway.cardlang",
@@ -28,6 +28,7 @@ GAMES: dict[str, str] = {
     "cardlang_bridge": "bridge.cardlang",
     "cardlang_oh_hell": "oh-hell.cardlang",
     "cardlang_big_two": "big-two.cardlang",
+    "cardlang_seven_card_stud": "seven-card-stud.cardlang",
 }
 
 
@@ -148,7 +149,9 @@ def _register(short_name: str, filename: str) -> None:
         min_utility=-100000.0,  # loose static bounds; true scores are far inside
         max_utility=100000.0,
         utility_sum=None,
-        max_game_length=10000,
+        # Loose static bound like the utilities; Stud is the long pole (a whole
+        # chip-migration game runs ~486 hands x ~21 decisions ~ 10k actions).
+        max_game_length=40000,
     )
 
     class _Game(pyspiel.Game):

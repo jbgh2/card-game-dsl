@@ -72,6 +72,20 @@ def test_bigtwo_space_adds_pass_and_the_combo_universe() -> None:
     assert space.decode(aid) == "pass"
 
 
+def test_stud_space_adds_the_betting_vocabulary() -> None:
+    space = _space("seven-card-stud.cardlang")
+    # 52 cards + the nullary betting vocabulary in offering order at 52..56;
+    # no bare names, no integer block, no combos.
+    assert space.num_distinct_actions == 57
+    assert [space.to_string(a) for a in range(52, 57)] == [
+        "check",
+        "bet",
+        "call",
+        "fold",
+        "raise",
+    ]
+
+
 def test_combo_round_trip_and_match() -> None:
     from cardlang.runtime.bigtwo import bigtwo_universe
 

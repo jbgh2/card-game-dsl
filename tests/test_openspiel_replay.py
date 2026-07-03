@@ -16,13 +16,14 @@ from cardlang.runtime.driver import play_game
 GAMES = Path(__file__).resolve().parent.parent / "docs" / "games"
 HEARTS = str(GAMES / "hearts.cardlang")
 BIGTWO = str(GAMES / "big-two.cardlang")
-SIX = [
+KERNEL_GAMES = [
     "hearts.cardlang",
     "getaway.cardlang",
     "spades.cardlang",
     "bridge.cardlang",
     "oh-hell.cardlang",
     "big-two.cardlang",
+    "seven-card-stud.cardlang",
 ]
 
 
@@ -40,7 +41,7 @@ def _record(path: str, seed: int, policy_seed: int) -> tuple[list[int], list[flo
     return recorded, returns_for(game, result)
 
 
-@pytest.mark.parametrize("name", SIX)
+@pytest.mark.parametrize("name", KERNEL_GAMES)
 def test_replay_reproduces_a_reference_game(name: str) -> None:
     path = str(GAMES / name)
     recorded, native = _record(path, seed=1, policy_seed=101)
