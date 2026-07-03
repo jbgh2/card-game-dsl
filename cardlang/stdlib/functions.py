@@ -74,6 +74,9 @@ STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
         "first_to_act_seat",  # Stud: the highest-upcards seat that acts first on a street
         "pot_share",  # Stud: the chips a player collects at showdown (side-pot layering)
         "bigtwo_first_leader",  # Big Two: the holder of the 3♦, who leads the first hand
+        "rank_value",  # a card's rank strength under the game's `ranking:` (higher = stronger)
+        "card_value",  # a card's deck-declared card-point value (point-trick counters)
+        "pinochle_meld_value",  # Pinochle: a player's hand's meld points under the declared trump
     }
 )
 

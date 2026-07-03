@@ -25,8 +25,8 @@ against OpenSpiel directly. For hidden hands, face-down cards, bluffs, and
 concealed bids this is genuinely hard — and it is exactly where the value is.
 
 **Honest status — the substrate exists; the escape hatches are still debt.**
-The seven fully-kernel games (Hearts, Getaway, Spades, Bridge, Oh Hell, Big
-Two, Seven-Card Stud) reach OpenSpiel through ONE general adapter with
+The eight fully-kernel games (Hearts, Getaway, Spades, Bridge, Oh Hell, Big
+Two, Seven-Card Stud, Pinochle) reach OpenSpiel through ONE general adapter with
 *derived* information sets: per-observer observations are emitted from the
 kernel's decision/movement sites through the declared zone-type projections, and
 `tests/test_openspiel_ready.py` proves indistinguishability (hidden-card swaps
@@ -35,11 +35,11 @@ recall for each (Bridge's proof currently covers only the pass-only line of its
 auction — the harness's greedy replay never places a bid, let alone reaches
 trick play; Stud's conformance is a bounded random API walk, its full sim being
 quadratic-in-length). No per-game observation rules remain. But every per-game
-Python escape-hatch mechanic dispatched by `instantiate` (Schnapsen, Pinochle
-rest, Coup, Skat, Tarot rest, Cribbage, Tichu) still *bypasses* this
-derivation — the adapter rejects those seven games loudly, and the leak lands
-hardest on exactly the imperfect-information games the AI target most exists to
-serve. The gap is quantified in `docs/design-notes/kernel-extensibility.md`, §6.
+Python escape-hatch mechanic dispatched by `instantiate` (Schnapsen, Coup,
+Skat, Tarot rest, Cribbage, Tichu) still *bypasses* this derivation — the
+adapter rejects those six games loudly, and the leak lands hardest on exactly
+the imperfect-information games the AI target most exists to serve. The gap is
+quantified in `docs/design-notes/kernel-extensibility.md`, §6.
 
 **So, for every change, treat info-set derivation as a first-class acceptance
 criterion** — alongside "does it run" and "is it byte-identical":

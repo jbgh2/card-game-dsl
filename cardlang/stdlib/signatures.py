@@ -60,6 +60,9 @@ CALL_SIGS: dict[str, Sig] = {
     "first_to_act_seat": Sig((), TPlayer()),  # Stud: highest-upcards live seat
     "pot_share": Sig((TPlayer(),), TInteger()),  # Stud: showdown chips for a player
     "bigtwo_first_leader": Sig((), TPlayer()),  # Big Two: the 3♦ holder (leads hand 1)
+    "rank_value": Sig((TCard(),), TInteger()),  # a card's rank strength (higher = stronger)
+    "card_value": Sig((TCard(),), TInteger()),  # a card's deck-declared card-point value
+    "pinochle_meld_value": Sig((TPlayer(),), TInteger()),  # Pinochle: a hand's meld under trump
 }
 
 # Outcome / value callbacks passed by bare name — result type is mechanic-driven.

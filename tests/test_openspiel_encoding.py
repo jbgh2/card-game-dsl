@@ -86,6 +86,24 @@ def test_stud_space_adds_the_betting_vocabulary() -> None:
     ]
 
 
+def test_pinochle_space_adds_the_bid_and_trump_vocabulary() -> None:
+    space = _space("pinochle.cardlang")
+    # 52 cards + the auction's nullary [submit_bid, pass] + declare_trump_suit
+    # over its four-suit domain, in the order the game file's rounds are
+    # walked (auction first, then the play phase): 52=submit_bid, 53=pass,
+    # 54..57=declare_trump_suit(clubs/diamonds/hearts/spades). No bare names,
+    # no integer block, no combos.
+    assert space.num_distinct_actions == 58
+    assert [space.to_string(a) for a in range(52, 58)] == [
+        "submit_bid",
+        "pass",
+        "declare_trump_suit(clubs)",
+        "declare_trump_suit(diamonds)",
+        "declare_trump_suit(hearts)",
+        "declare_trump_suit(spades)",
+    ]
+
+
 def test_combo_round_trip_and_match() -> None:
     from cardlang.runtime.bigtwo import bigtwo_universe
 

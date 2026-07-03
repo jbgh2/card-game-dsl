@@ -110,15 +110,31 @@ Key design notes:
 ## Rules
 
 - `MustFollowSuit` — constrains `play_to_trick`; the canonical follow-suit rule
-- `MustHeadIfFollowing` — constrains `play_to_trick`; must beat highest of led suit when following
-- `MustTrumpIfVoid` — constrains `play_to_trick`; must trump when void in led suit
-- `MustOvertrumpIfTrumping` — constrains `play_to_trick`; must beat highest trump played when trumping
+  (Hearts, Getaway, Spades, Bridge, Oh Hell, Pinochle)
+- `MustHeadTrick` — constrains `play_to_trick`; must beat the highest card of
+  the led suit played so far when following (Pinochle)
+- `MustTrumpIfVoid` — constrains `play_to_trick`; must trump when void in the
+  led suit (Pinochle)
+- `MustOverTrump` — constrains `play_to_trick`; must beat the highest trump
+  played so far when trumping (Pinochle)
 - `BidExceedsCurrent` — constrains `submit_bid`; ascending auction rule
 - `BidIsLegalIncrement` — constrains `submit_bid`; bid increment validity
 - `NoLeadingHeartsUntilBroken` — Hearts-specific
 - `NoLeadingSpadesUntilBroken` — Spades-specific
 - *Generalization candidate:* `NoLeadingSuitUntilBroken(suit)` — parameterize
   by suit so Hearts and Spades both use the same rule
+
+Pinochle's four rules above run as one `active_rules:` cascade, in this
+order (list order is application order): follow suit and head the trick if
+able; if void, trump and over-trump if able; else anything. Each rule's
+`if_impossible: hand` intersects the *running* set with the whole hand — "keep
+the prior narrowing" — so an inapplicable obligation falls through
+(`rules.legal_cards`'s per-rule intersection, [decisions.md](decisions.md)
+"Rule demand forms"). Strict-trick legality recurs across the corpus
+(Schnapsen's endgame is the same shape, still Python); rules are not yet a
+shared/reusable definition the way move types and mechanics are — each game
+declares its own rule bodies — so promoting a common cascade waits on a
+second DSL instance.
 
 ## Outcome functions
 
@@ -132,6 +148,14 @@ Key design notes:
   and, for the just-finished round, in the surrounding body. Per
   [appendix.md](appendix.md) (corpus catalogue), this is where these variables
   live; games don't redeclare them.
+- **Pinochle's strict-trick play** is the ordinary trick `round` with no new
+  construct: legality narrows through the `active_rules:` cascade documented
+  under "Rules" above. Meld settles in a plain statement around the
+  `pinochle_meld_value(player)` stdlib query (see "Stdlib functions") — a pure
+  read of the live hand and the declared trump; `meld_score[team_of(p)] +=
+  pinochle_meld_value(p)` is what credits it to the team. Not yet the shared
+  combination model floated for Workstream 3 — game-local until a second
+  melding game arrives.
 - **Auctions run on the auction form of the kernel `round`** (see
   [decisions.md](decisions.md) "The auction form of `round`") — a continuous ring
   over a bid vocabulary (`offering [...] until <pred> outcome <fn>`) with the
@@ -463,5 +487,14 @@ Standard helpers available across games.
   used in Cribbage and adding games: A=1, 2..10 = face value, J/Q/K = 10.
   Distinct from a card's *ranking* (which orders cards for
   trick-taking comparisons).
+- `rank_value(card: Card) → Integer` — the card's rank strength under the
+  game's `ranking:` declaration (higher = stronger; `rs.rank_index`), deck-
+  agnostic. Used by Pinochle's `MustHeadTrick`/`MustOverTrump` rules to find
+  the highest card of a suit played so far in the trick.
+- `card_value(card: Card) → Integer` — the card's deck-declared card-point
+  value (the `values` table on the `cards:` deck; 0 for ranks the deck scores
+  nothing for), general-purpose for any point-trick game. Used by Pinochle
+  (`trick_score[...] += sum over trick_pile as c: card_value(c)`); Schnapsen
+  and Skat's own card-point tallies are the next candidates to move onto it.
 
 More will be added as games surface common helpers.

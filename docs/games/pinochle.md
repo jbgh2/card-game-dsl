@@ -22,12 +22,19 @@ Each hand:
 6. **Score** — the bidding side adds meld + tricks if it reached its bid, else is
    set back by the bid; the other side always adds its meld + tricks.
 
-The ascending auction runs on the kernel `round` (a shrinking participants ring
-over the `submit_bid`/`pass` vocabulary below, settling on a declarer and his
-bid). The trump declaration, the meld scoring, and the strict trick play run in
-the `PinochleRest` mechanic — the strict-trick legality rules recur but aren't
-lifted into the rule DSL yet; the cardlang below holds the deal, the auction, the
-contract settlement, and termination.
+The whole hand runs in the DSL. The ascending auction runs on the kernel
+`round` (a shrinking participants ring over the `submit_bid`/`pass` vocabulary
+below, settling on a declarer and his bid). Trump declaration is a second,
+one-draw `round offering [declare_trump_suit]`, guarded by a `has_marriage`
+function checked over each of the four suits (no marriage anywhere abandons
+the bid with no decision offered at all). Meld is a forced
+`pinochle_meld_value(p)` stdlib query per player, credited to his team. The
+twelve strict tricks run on the trick form of `round`, legality narrowed by
+the MustFollowSuit/MustHeadTrick/MustTrumpIfVoid/MustOverTrump rule cascade
+below (follow suit and head the trick if able; else trump and over-trump if
+able; else anything). The meld evaluator (`pinochle_meld_value`) is a pure
+stdlib primitive (`cardlang/runtime/pinochle.py`) — not yet the shared
+combination model.
 
 ```
 game Pinochle {
@@ -60,6 +67,7 @@ game Pinochle {
       bid_abandoned     : Boolean = false
       meld_score[team]  : Integer = 0
       trick_score[team] : Integer = 0
+      leader            : Player? = none
     }
 
     before_each {
@@ -70,6 +78,7 @@ game Pinochle {
       for each team t: meld_score[t] := 0
       for each team t: trick_score[t] := 0
       bid_abandoned := false
+      trump_suit := none
     }
 
     phase auction -> outcome { bid_won(Player, Integer) } {
@@ -91,8 +100,36 @@ game Pinochle {
       bid_won(d, c) { high_bidder := d  current_bid := c  continue to play }
 
     phase play {
-      legal_moves: [declare_trump_suit, play_to_trick]
-      instantiate PinochleRest(declarer = high_bidder)
+      active_rules: [MustFollowSuit, MustHeadTrick, MustTrumpIfVoid, MustOverTrump]
+      legal_moves:  [declare_trump_suit, play_to_trick]
+
+      // The high bidder names trump — a suit he holds a marriage (K-Q) in. With
+      // no marriage anywhere he abandons the bid (no decision is offered) and
+      // the hand goes straight to scoring, where his side is set back.
+      if has_marriage(high_bidder, clubs) or has_marriage(high_bidder, diamonds)
+         or has_marriage(high_bidder, hearts) or has_marriage(high_bidder, spades) {
+        round offering [declare_trump_suit] from high_bidder
+              over players where player == high_bidder
+              until trump_suit is not none
+
+        // Meld is forced (a rational player melds everything) — a pure
+        // computation per player, credited to his team.
+        for each player p: meld_score[team_of(p)] += pinochle_meld_value(p)
+
+        // Twelve strict tricks: high bidder leads; A/10/K score 10 each and
+        // the last trick 10 (card_value reads the pinochle48 deck table).
+        leader := high_bidder
+        repeat until (all player p: hand[p] is empty) {
+          round play_to_trick from leader over all players source hand into trick_pile
+                outcome highest_trump_or_led_suit trump trump_suit
+          trick_score[team_of(outcome)] += sum over trick_pile as c: card_value(c)
+          move all cards from trick_pile to captured[team_of(outcome)]
+          leader := outcome
+        }
+        trick_score[team_of(leader)] += 10   // ten for the last trick
+      } else {
+        bid_abandoned := true
+      }
     }
 
     phase scoring {
@@ -129,4 +166,61 @@ move_type pass { effect { passed[actor] := true } }
 // A team's total for the hand: meld plus tricks. Named so the bidder's
 // make-the-bid test and every team's payout add the same total from one place.
 function team_score_in_hand(t : Team) = meld_score[t] + trick_score[t]
+
+// Trump declaration: the guard enumerates `Suit` in deck order and keeps the
+// marriage suits, so the candidate list is the auction's marriage-suit set
+// exactly (same length, same order as `has_marriage` below is checked).
+move_type declare_trump_suit(s : Suit) {
+  when: has_marriage(actor, s)
+  effect { trump_suit := s }
+}
+
+// Does p hold both the K and the Q of s? (`sum over` counts conditionally.
+// Bare rank names are not enum values in this language — `10`/`9` lex as
+// integers, and there is no bare-name path for `K`/`Q` either — so the rank
+// check compares against the literal string a `Card.rank` actually holds.)
+function has_marriage(p : Player, s : Suit) =
+  (sum over hand[p] as c: if c.suit == s and c.rank == "K" then 1 else 0) > 0 and
+  (sum over hand[p] as c: if c.suit == s and c.rank == "Q" then 1 else 0) > 0
+
+// === Pinochle strict-trick legality (rule DSL) ===
+//
+// The cascade reproduces the classic obligation: follow suit and head the
+// trick if able; if void, trump and over-trump if able; else anything. Each
+// rule's `if_impossible: hand` intersects the running set with the whole
+// hand — i.e. "keep the prior narrowing" — so an inapplicable obligation
+// falls through (rules.legal_cards).
+
+rule MustFollowSuit {
+  constrains: play_to_trick
+  applies_when: state.led_suit is not none
+  demands: hand.cards_of_suit(state.led_suit)
+  if_impossible: hand   // void in the led suit
+}
+
+rule MustHeadTrick {
+  constrains: play_to_trick
+  applies_when: state.led_suit is not none
+  demands: hand.where(c => c.suit == state.led_suit and
+             rank_value(c) > (max over trick_pile as t:
+               if t.suit == state.led_suit then rank_value(t) else 0 - 1))
+  if_impossible: hand   // cannot head (or is void): the prior narrowing stands
+}
+
+rule MustTrumpIfVoid {
+  constrains: play_to_trick
+  applies_when: state.led_suit is not none
+  demands: hand.cards_of_suit(trump_suit)
+  if_impossible: hand   // holds the led suit, or has no trump
+}
+
+rule MustOverTrump {
+  constrains: play_to_trick
+  applies_when: state.led_suit is not none and
+                (sum over trick_pile as t: if t.suit == trump_suit then 1 else 0) > 0
+  demands: hand.where(c => c.suit == trump_suit and
+             rank_value(c) > (max over trick_pile as t:
+               if t.suit == trump_suit then rank_value(t) else 0 - 1))
+  if_impossible: hand   // cannot over-trump: any trump (or the prior set) stands
+}
 ```

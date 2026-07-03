@@ -24,6 +24,7 @@ KERNEL_GAMES = [
     "oh-hell.cardlang",
     "big-two.cardlang",
     "seven-card-stud.cardlang",
+    "pinochle.cardlang",
 ]
 
 

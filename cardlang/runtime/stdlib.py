@@ -42,6 +42,14 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.bigtwo import first_leader_seat
 
             return first_leader_seat(ctx)
+        case "rank_value":
+            return ctx.rs.rank_index[args[0].rank]
+        case "card_value":
+            return ctx.rs.card_values.get(args[0].rank, 0)
+        case "pinochle_meld_value":
+            from cardlang.runtime.pinochle import pinochle_meld_value
+
+            return pinochle_meld_value(ctx, args[0])
         case _:
             raise AssertionError(f"unknown stdlib function '{name}'")
 

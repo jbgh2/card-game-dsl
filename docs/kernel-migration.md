@@ -17,19 +17,21 @@ done.
 
 ## The goal, concretely
 
-Seven games still hold their decision logic in hand-written Python dispatched by
+Six games still hold their decision logic in hand-written Python dispatched by
 name in `cardlang/runtime/mechanics.py::instantiate`. Bridge's, Pinochle's, and
 Tarot's auctions have been lifted onto the kernel `round` — so `run_bridge_auction`
-is gone, and `run_pinochle_hand` / `run_tarot_hand` are now the post-auction
-`run_pinochle_rest` / `run_tarot_rest`:
+is gone, Pinochle's post-auction mechanic is gone too (Pinochle is fully kernel —
+trump declaration, meld, and the twelve strict tricks all run in the DSL), and
+`run_tarot_hand` is now the post-auction `run_tarot_rest`:
 
-- inline in `mechanics.py`: `run_schnapsen_hand`, `run_pinochle_rest`
+- inline in `mechanics.py`: `run_schnapsen_hand`
 - separate modules: `runtime/coup.py`, `cribbage.py`, `skat.py`,
   `tarot.py` (post-auction), `tichu.py`
 
-(`runtime/stud.py` and `runtime/bigtwo.py` remain, but hold no `instantiate`
-mechanic — only pure stdlib primitives the DSL calls: Stud's poker evaluator,
-seat selectors, and `pot_share`; Big Two's combination engine.)
+(`runtime/stud.py`, `runtime/bigtwo.py`, and `runtime/pinochle.py` remain, but
+hold no `instantiate` mechanic — only pure stdlib primitives the DSL calls:
+Stud's poker evaluator, seat selectors, and `pot_share`; Big Two's combination
+engine; Pinochle's meld evaluator, `pinochle_meld_value`.)
 
 This violates the two-layer architecture ([principles.md](principles.md): the
 library is *written in the DSL*, not the engine). It also carries **info-set
@@ -56,9 +58,9 @@ in order would silently collapse into the same string. The stage is done
 when:
 
 - `instantiate` dispatches only to kernel constructs — no per-game name
-  branches — and the five remaining game-mechanic modules and the two inline
-  `run_*` functions are deleted (pure stdlib-primitive modules like `stud.py`
-  and `bigtwo.py` stay);
+  branches — and the five remaining game-mechanic modules and the one inline
+  `run_*` function are deleted (pure stdlib-primitive modules like `stud.py`,
+  `bigtwo.py`, and `pinochle.py` stay);
 - all 14 games run on the kernel plus the in-DSL standard library, with every
   `tests/test_playout_*.py` green and **behaviour preserved**;
 - IR golden snapshots are regenerated and reviewed;
@@ -139,14 +141,29 @@ consecutive passes), typed outcome = a contract variant. Then per game, supplyin
   doubling/redoubling, on the auction form of `round`; the typed
   `contract_finalized | all_pass` outcome computes the declarer over the bid
   history. `run_bridge_auction` and its `instantiate` branch are deleted.
-- **Pinochle** — *done (auction).* The ascending bid runs on the auction form of
-  `round` over a **shrinking participants ring** (`over players where not
-  passed[player] and (lead_bidder is none or player != lead_bidder)`), the nullary
-  `submit_bid`/`pass` vocabulary, and the single-variant `bid_won(declarer, bid)`
-  outcome (opener-at-50 fallback when all pass). `run_pinochle_rest` (the renamed
-  monolith minus its auction block) reads the declarer and runs `declare_trump` +
-  meld + tricks; byte-identical over 50 seeds. (Meld scoring is Workstream 3/4;
-  the module is deleted then.)
+- **Pinochle** — *done — fully kernel.* The ascending bid runs on the auction
+  form of `round` over a **shrinking participants ring** (`over players where
+  not passed[player] and (lead_bidder is none or player != lead_bidder)`), the
+  nullary `submit_bid`/`pass` vocabulary, and the single-variant
+  `bid_won(declarer, bid)` outcome (opener-at-50 fallback when all pass). Trump
+  declaration is a second, one-draw round on the same form (`round offering
+  [declare_trump_suit] from high_bidder over players where player ==
+  high_bidder until trump_suit is not none`), guarded by a `has_marriage`
+  function checked over the four suits; no marriage anywhere is a
+  statement-level `if`/`else` with no decision offered at all (abandoning the
+  bid) — reproducing the monolith's no-draw abandon path exactly. Meld is a
+  forced `for each player p: meld_score[team_of(p)] += pinochle_meld_value(p)`
+  (the Counter-based tally moved verbatim into the new `runtime/pinochle.py`),
+  and the twelve strict tricks run on the trick form of `round`, legality
+  narrowed by a four-rule cascade (MustFollowSuit, MustHeadTrick,
+  MustTrumpIfVoid, MustOverTrump) whose running-intersection semantics
+  (`rules.legal_cards`) reproduce the monolith's follow/head/trump/over-trump
+  obligation exactly (verified against 20,000 simulated (hand, trick, trump)
+  scenarios pre-migration). The post-auction Python mechanic and its trick-
+  legality helper are deleted along with the `instantiate` branch;
+  byte-identical over 50 seeds. With it,
+  Pinochle is fully kernel: registered in `cardlang/openspiel/game.py:GAMES`
+  with derived info sets proven in the readiness harness.
 - **Tarot** — *done (auction).* The four-level ascending bid (Petite < Garde <
   Garde sans < Garde contre) on the auction form of `round`: a **counterclockwise
   single-pass ring** (each seat drops out of the participants ring after acting,
@@ -188,12 +205,16 @@ Bridge's `all players` is the invariant case). Built with Pinochle; reused by Wo
 ring). An always-legal `pass` would instead offer passed players and consume RNG
 the monolith does not.
 
-**Scope note.** Skat, Tarot, and Pinochle are *monoliths* — the auction is fused
-with play and scoring in one Python function ([roadmap.md](roadmap.md)). The
-auction extraction is the entry point, but the whole hand must land in the DSL
-before the module is deleted: auction here, trick play on the Step 0 `round`,
-scoring in Workstream 4. Bridge is already split (play is DSL), so it finishes
-first and validates `auction` end to end.
+**Scope note.** Skat and Tarot are *monoliths* — the auction is fused with play
+and scoring in one Python function ([roadmap.md](roadmap.md)); Pinochle was
+too, until its trick play and scoring followed its auction onto the kernel
+(above). The auction extraction is the entry point, but the whole hand must
+land in the DSL before the module is deleted: auction here, trick play on the
+Step 0 `round`, scoring in Workstream 4 (Pinochle's own meld stayed a
+game-local stdlib primitive rather than moving to Workstream 4's shared
+`scoring_component` subsystem — see that workstream's note below). Bridge is
+already split (play is DSL), so it finishes first and validates `auction` end
+to end.
 
 ## Workstream 2 — Betting and the pot (Seven-Card Stud)
 
@@ -333,7 +354,7 @@ The design the construct settled:
   follow), and Big Two has no bombs, so the kernel needs no interrupt axis to
   reproduce either. Revisit if a game forces out-of-turn play.
 
-## Workstream 4 — Counting and in-play scoring (Cribbage, Schnapsen, Pinochle scoring)
+## Workstream 4 — Counting and in-play scoring (Cribbage, Schnapsen)
 
 This workstream builds the **`scoring_component` runtime subsystem**
 ([decisions.md](decisions.md), "Scoring composition" / "Triggered scoring
@@ -348,15 +369,20 @@ components"), which the runtime has so far folded inline ([roadmap.md](roadmap.m
   20/40), the trump-jack exchange (`offer`), and closing the stock (`offer` →
   the mid-hand open→closed phase-shape transition; its `claimed | talon_closed |
   open_play` outcome is already typed), with the two-phase follow rules.
-- **Pinochle** — meld detection + scoring via the shared combination model, then
-  trick play and point scoring.
+- **Pinochle** — *done, ahead of this workstream.* The whole hand (trump
+  declaration, meld, and the twelve strict tricks) landed on the kernel via
+  Workstream 1 (above) before this workstream reached it. Meld stayed a
+  Counter-based, game-local `pinochle_meld_value` stdlib primitive (like
+  Stud's `pot_share`) rather than either this workstream's `scoring_component`
+  subsystem or Workstream 3's combination model — migrate, don't redesign;
+  promoting it to either shared mechanism is corpus-first future work, not a
+  requirement the migration itself carried.
 
 **Test-depth nets.** Add Schnapsen's six-way settlement recompute (1/2/3 game
 points) before migrating it; the Cribbage scorers are already unit-tested and
 should keep that coverage as stdlib queries.
 
-Delete `run_cribbage_hand`, `run_schnapsen_hand`, and the Pinochle scoring
-remainder once green.
+Delete `run_cribbage_hand` and `run_schnapsen_hand` once green.
 
 ## Workstream 5 — Challenge, block, influence (Coup)
 
@@ -402,7 +428,8 @@ These land inside the workstreams above and are shared on the third use:
    bid → Tarot → Skat.
 3. **Stud** — betting + pot.
 4. **Tichu** — climbing + the combination model.
-5. **Cribbage + Schnapsen + Pinochle scoring** — the scoring-component subsystem.
+5. **Cribbage + Schnapsen** — the scoring-component subsystem (Pinochle's own
+   scoring landed with its Workstream 1 migration, ahead of this step).
 6. **Coup** — challenge / block / influence.
 
 This is breadth-first by shape: it reaches `auction`'s third instance early and
