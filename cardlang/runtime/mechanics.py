@@ -18,7 +18,7 @@ from collections import Counter
 from typing import Any, Protocol
 
 from cardlang.ast import nodes as n
-from cardlang.runtime import phases, rules
+from cardlang.runtime import observe, phases, rules
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, Move, _ProduceSignal
 from cardlang.runtime.values import SUITS, Card, Player
@@ -124,6 +124,8 @@ def run_decision_round(form: DecisionForm, state: State, ctx: Ctx) -> Outcome:
         # here: the messages stay byte-identical and the climbing form keeps its
         # original empty-lead behaviour rather than a reshaped guard.
         choice = ctx.chooser(actor, candidates, 1)[0]  # the single per-step draw
+        ctx.trace("decision", (actor, choice))  # the canonical decision event (§4)
+        observe.choice(ctx, actor, choice)
         state = form.apply(actor, choice, state, ctx)
     return form.outcome(state, ctx)
 
@@ -206,6 +208,7 @@ class TrickForm:
     def apply(self, actor: Player, choice: Any, state: State, ctx: Ctx) -> State:
         ctx.rs.zones.instance(self.source_family, actor).remove(choice)
         ctx.rs.zones.single(self.play_zone).add(choice)
+        observe.movement(ctx, (self.source_family, actor), (self.play_zone, None), [choice])
         state["played"].append((actor, choice))
         ctx.trace("play", (actor, choice))
         if state["led_suit"] is None:
@@ -232,7 +235,7 @@ class TrickForm:
         return outcome
 
 
-def _enumerate_domain(type_name: str, ctx: Ctx) -> list[Any]:
+def enumerate_domain(type_name: str) -> list[Any]:
     """The value-domain a parameterized move ranges over, in a fixed order so the
     flattened candidate list is deterministic. `Suit` is the deck's suits;
     `Suit?` appends `none` (the no-trump strain), which ranks last."""
@@ -330,7 +333,7 @@ class AuctionForm:
                 if mt.guard is None or bool(evaluate(mt.guard, pctx)):
                     candidates.append((mt.name, None))
             else:
-                for value in _enumerate_domain(mt.param.type_name, ctx):
+                for value in enumerate_domain(mt.param.type_name):
                     vctx = pctx.with_local(mt.param.name, value)
                     if mt.guard is None or bool(evaluate(mt.guard, vctx)):
                         candidates.append((mt.name, value))
@@ -355,6 +358,7 @@ class AuctionForm:
     def apply(self, actor: Player, choice: Any, state: State, ctx: Ctx) -> State:
         from cardlang.runtime.execute import run_body
 
+        observe.announce(ctx, actor, choice)
         name, value = choice
         mt = ctx.rs.move_type_index[name]
         pctx = ctx.acting_as(actor)
@@ -404,6 +408,8 @@ class ClimbForm:
         self.follow_query = stdlib.climb_follow_function(stmt.follows_fn)
         self.hands = ctx.rs.zones.families[stmt.source_zone]
         self.pile = ctx.rs.zones.single(stmt.play_zone)
+        self.source_name: str = stmt.source_zone
+        self.pile_name: str = stmt.play_zone
         # The participant ring in seating order from the leader.
         participants = set(evaluate(stmt.participants, ctx))
         self.ring: list[Player] = [
@@ -448,12 +454,14 @@ class ClimbForm:
 
     def apply(self, actor: Player, choice: Any, state: State, ctx: Ctx) -> State:
         if choice == "pass":
+            observe.announce(ctx, actor, "pass")
             state["idx"] += 1
             return state
         play = choice
         for c in play.cards:
             self.hands[actor].remove(c)
         self.pile.add_all(play.cards)
+        observe.movement(ctx, (self.source_name, actor), (self.pile_name, None), play.cards)
         state["current"], state["last"] = play, actor
         state["idx"] += 1
         return state

@@ -35,7 +35,21 @@ requirement for the OpenSpiel target ([CLAUDE.md](../CLAUDE.md), "OpenSpiel is t
 target…"; [decisions.md](decisions.md), "OpenSpiel compilation";
 [design-notes/kernel-extensibility.md](design-notes/kernel-extensibility.md), §6).
 Retiring these mechanics onto the kernel closes that debt as well as the
-architecture violation. The stage is done when:
+architecture violation. Each migration now has a second, concrete payoff: the
+OpenSpiel projection substrate
+([superpowers/specs/2026-07-01-openspiel-projection-substrate-design.md](superpowers/specs/2026-07-01-openspiel-projection-substrate-design.md))
+derives information sets for any fully-kernel game for free, so a game
+leaving its Python mechanic becomes OpenSpiel-ready automatically — register
+it in `cardlang/openspiel/game.py:GAMES` and add it to the proof harness
+(`tests/test_openspiel_ready.py`) — so "migrated" now means "derived info
+sets proven," not just "runs on the kernel." One latent footgun to watch for
+as new mechanics migrate: `cardlang/openspiel/infostate.py`'s `_render`
+sorts list/tuple-valued state variables before rendering into the
+information state, so a future *ordered* list-valued state variable (a bid
+history, a play sequence — anything where order itself carries information)
+must not be rendered sorted, or distinct information sets that differ only
+in order would silently collapse into the same string. The stage is done
+when:
 
 - `instantiate` dispatches only to kernel constructs — no per-game name
   branches — and the seven `runtime/*.py` game modules and the three inline
