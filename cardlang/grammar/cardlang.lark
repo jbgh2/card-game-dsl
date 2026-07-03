@@ -277,6 +277,7 @@ rule_def: "rule" NAME "{" rule_clause* "}"
             | applies_when
             | demands
             | if_impossible
+            | exempts
 constrains: "constrains" ":" NAME
 applies_when: "applies_when" ":" applies_pred
 ?applies_pred: "always"  -> always
@@ -284,6 +285,12 @@ applies_when: "applies_when" ":" applies_pred
 demands: "demands" ":" demand_value
 ?demand_value: actions_where
              | expr
+// Cards exempt from this rule: never subject to its obligation, never able to
+// satisfy it, and — when the rule constrains a move — offered as candidates
+// AFTER every other legal card (rules.legal_cards), regardless of hand
+// position. Tarot's Excuse is the corpus's first instance (always playable,
+// never bound by follow-suit/trump obligations).
+exempts: "exempts" ":" expr
 // A predicate over the candidate player move, whose subject is `action`
 // (see decisions.md "Rule demand forms"). `action` is the move instance —
 // `action.card`, `action.card_count`, `action.amount` — never the zone-movement

@@ -660,11 +660,19 @@ class Demands:
 
 @dataclass(frozen=True, slots=True)
 class RuleDef:
+    """... ``exempts`` (optional): a candidate-card expression (like a card-set
+    `demands`) whose cards sit outside this rule's obligation entirely — never
+    constrained by it, never counted toward satisfying it. When the rule
+    `constrains` a move type, `rules.legal_cards` removes exempt cards from the
+    demand cascade's working set and appends them after every other candidate,
+    in hand order (Tarot's Excuse: always playable, offered last)."""
+
     name: str
     constrains: str | None
     applies_when: AppliesWhen | None
     demands: Demands | None
     if_impossible: Expr | None
+    exempts: Expr | None = None
     span: Span | None = None
 
 

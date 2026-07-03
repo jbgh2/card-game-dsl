@@ -371,7 +371,7 @@ def _rule(r: n.RuleDef) -> IRDict:
             "form": r.demands.kind,
             "expr": _expr(r.demands.expr),
         }
-    return {
+    rule: IRDict = {
         "kind": "rule",
         "name": r.name,
         "constrains": r.constrains,
@@ -379,6 +379,11 @@ def _rule(r: n.RuleDef) -> IRDict:
         "demands": demands,
         "if_impossible": _expr(r.if_impossible) if r.if_impossible else None,
     }
+    # Emitted ONLY when present (like the movement `filter` key), so every
+    # existing rule's golden stays byte-identical.
+    if r.exempts is not None:
+        rule["exempts"] = _expr(r.exempts)
+    return rule
 
 
 # --- expressions ---

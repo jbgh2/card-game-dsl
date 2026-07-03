@@ -102,6 +102,11 @@ class _IfImpossible:
 
 
 @dataclass(frozen=True, slots=True)
+class _Exempts:
+    expr: object  # Expr
+
+
+@dataclass(frozen=True, slots=True)
 class _Always:
     pass
 
@@ -615,12 +620,16 @@ class _Builder(Transformer[Token, n.Game]):
     def if_impossible(self, meta: Meta, c: list[object]) -> _IfImpossible:
         return _IfImpossible(_as_expr(c[0]))
 
+    def exempts(self, meta: Meta, c: list[object]) -> _Exempts:
+        return _Exempts(_as_expr(c[0]))
+
     def rule_def(self, meta: Meta, c: list[object]) -> n.RuleDef:
         name = str(c[0])
         constrains: str | None = None
         applies: n.AppliesWhen | None = None
         demands: n.Demands | None = None
         if_imp: object | None = None
+        exempts_expr: object | None = None
         for clause in c[1:]:
             if isinstance(clause, _Constrains):
                 constrains = clause.move_type
@@ -630,6 +639,8 @@ class _Builder(Transformer[Token, n.Game]):
                 demands = clause
             elif isinstance(clause, _IfImpossible):
                 if_imp = clause.expr
+            elif isinstance(clause, _Exempts):
+                exempts_expr = clause.expr
             else:
                 raise AssertionError(f"unexpected rule clause: {clause!r}")
         return n.RuleDef(
@@ -638,6 +649,7 @@ class _Builder(Transformer[Token, n.Game]):
             applies_when=applies,
             demands=demands,
             if_impossible=if_imp,  # type: ignore[arg-type]
+            exempts=exempts_expr,  # type: ignore[arg-type]
             span=self._span(meta),
         )
 

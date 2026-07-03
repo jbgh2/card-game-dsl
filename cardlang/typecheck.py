@@ -1113,6 +1113,8 @@ def typecheck(game: Game) -> Game:
             _check_expr(rule.demands.expr, env, bag)
         if rule.if_impossible is not None:
             _check_expr(rule.if_impossible, env, bag)
+        if rule.exempts is not None:
+            _check_expr(rule.exempts, env, bag)
     for block in _state_blocks(game):
         for decl in block.decls:
             _check_expr(decl.default, env, bag)
