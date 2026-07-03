@@ -31,10 +31,12 @@ general adapter with *derived* information sets: per-observer observations are
 emitted from the kernel's decision/movement sites through the declared
 zone-type projections, and `tests/test_openspiel_ready.py` proves
 indistinguishability (hidden-card swaps leave a player's information state
-byte-identical), soundness, and perfect recall for each (Bridge's proof
-currently covers only the pass-only line of its auction — the harness's greedy
-replay never places a bid, let alone reaches trick play; Stud's and French
-Tarot's conformance are bounded random API walks, their full sims being
+byte-identical), soundness, and perfect recall for each (Bridge's and French
+Tarot's swap/soundness/recall proofs cover only the pass-only line of their
+auctions — the harness's greedy replay never places a bid, let alone reaches
+the chien discard or trick play; French Tarot's hidden discard is instead
+proven derived by a dedicated observational test. Stud's and French Tarot's
+conformance are bounded random API walks, their full sims being
 quadratic-in-length). No per-game observation rules remain. But every per-game
 Python escape-hatch mechanic dispatched by `instantiate` (Schnapsen, Coup,
 Skat, Cribbage, Tichu) still *bypasses* this derivation — the adapter rejects

@@ -578,10 +578,12 @@ parts are proven on paper *before* any code depends on them.
    `cardlang/openspiel/game.py`) covering Hearts, Getaway, Spades, Bridge, Oh
    Hell, Big Two, Seven-Card Stud, Pinochle, and French Tarot — proven by
    `tests/test_openspiel_ready.py` (indistinguishability, soundness, perfect
-   recall; Bridge's proof currently covers only the pass-only line of its
-   auction — the harness's greedy replay never places a bid, let alone reaches
-   trick play; Stud's and French Tarot's conformance are bounded random API
-   walks, their full sims being quadratic in game length). This was the payoff
+   recall; Bridge's and French Tarot's swap/soundness/recall proofs cover only
+   the pass-only line of their auctions — the harness's greedy replay never
+   places a bid, let alone reaches the chien discard or trick play, so French
+   Tarot's hidden discard is instead proven derived by a dedicated
+   observational test; Stud's and French Tarot's conformance are bounded random
+   API walks, their full sims being quadratic in game length). This was the payoff
    that justified the exercise. The five `instantiate` games remain info-set
    debt: the adapter rejects them loudly rather than silently mis-modeling
    them.

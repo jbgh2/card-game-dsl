@@ -195,9 +195,6 @@ def test_per_opp_at_petite_threshold_with_three_bouts() -> None:
     # 3 bouts -> threshold 36 (doubled). Taker holds exactly 36 doubled points
     # (18 real) worth of cards including all 3 bouts: pt = 36/2 - 36 = -18.
     # per_opp = round((25 - 18 + 0) * 1) = 7.
-    captured = [EXCUSE, _atout("1"), _atout("21")] + [
-        Card(r, "clubs") for r in ("2", "3", "4", "5", "6", "7", "8")
-    ]  # 3 bouts (27 doubled) + 7 plain clubs (7 doubled) = 34... adjust below
     # Build a hand whose doubled total is exactly 36 with 3 bouts (9+9+9=27
     # from the bouts; 9 more doubled points needed from plain-suit cards, each
     # worth 1 except K/Q/C/J which are worth 9/7/5/3 — nine "2..10" cards give
@@ -260,8 +257,7 @@ def test_per_opp_banker_rounding_at_petite() -> None:
     # pt = 1/2 - 56 = -55.5 -> (25 - 55.5) = -30.5 -> round(-30.5) == -30
     # (round-to-even: -30 is even, -31 is odd).
     ctx = _scoring_ctx(taker=0, bid_level=1, captured_taker=[Card("2", "clubs")], chien=[])
-    assert round(-30.5) == -30  # documents Python's banker's rounding here
-    assert tarot_per_opp(ctx, pb=0) == -30
+    assert tarot_per_opp(ctx, pb=0) == -30  # round(-30.5) == -30, round-half-to-even
 
 
 # --- Card.__str__ glyphs ---
