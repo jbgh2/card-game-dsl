@@ -43,6 +43,8 @@ def play_game(
     rng: random.Random,
     tracer: Callable[[str, Any], None] | None = None,
     chooser: Chooser | None = None,
+    observer: Callable[[Player, tuple[Any, ...]], None] | None = None,
+    on_first_decision: Callable[[RuntimeState], None] | None = None,
 ) -> GameResult:
     assert game.winner is not None or game.loser is not None, (
         "a game must declare a winner or a loser"
@@ -71,7 +73,28 @@ def play_game(
     rs.zones.single(rs.deck_zone).add_all(build_deck(game.deck))
     if game.winner is not None:
         rs.score_var = game.winner.target  # loser games have no score var
-    ctx = Ctx(rs=rs, chooser=chooser or random_chooser(rng), tracer=tracer)
+    base_chooser = chooser or random_chooser(rng)
+    if on_first_decision is not None:
+        # The deal-injection seam (SP1 proof harness): fire once, inside the
+        # first chooser call, before delegating. NOTE: the first decider's
+        # candidates were computed before this fires — a mutation must not
+        # touch the first decider's own zones if the caller will use the
+        # pause's legal actions or replay further actions (those candidates
+        # would go stale). A caller that only inspects the paused world may
+        # mutate anyone's zones, including the first decider's own.
+        inner = base_chooser
+        hook = on_first_decision
+        fired = False
+
+        def hooked(player: Player, candidates: list[Any], n: int) -> list[Any]:
+            nonlocal fired
+            if not fired:
+                fired = True
+                hook(rs)
+            return inner(player, candidates, n)
+
+        base_chooser = hooked
+    ctx = Ctx(rs=rs, chooser=base_chooser, tracer=tracer, observer=observer)
 
     rs.push_frame()  # game-level state (cumulative_score, …)
     if game.state is not None:

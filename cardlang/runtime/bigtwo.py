@@ -208,3 +208,70 @@ def first_leader_seat(ctx: Ctx) -> Player:
     three = Card("3", "diamonds")
     hands = ctx.rs.zones.families["hand"]
     return next(p for p in ctx.rs.seating.players if three in hands[p].cards)
+
+
+def bigtwo_universe() -> list[Play]:
+    """Every play this engine can ever produce over any hand — the combination
+    action universe for the OpenSpiel adapter (a stable superset of the
+    reachable representatives; supersets are safe, collisions are not, so the
+    one invariant is that each card-set appears at most once).
+
+    Enumerates by shape, mirroring `_combos` / `_five_card_combos` exactly:
+    representatives take the top suits present in the hand, so over all hands
+    every suit subset is reachable — pairs are all C(4,2) per rank, triples all
+    C(4,3), a straight is any non-monochrome suit assignment over its window
+    (monochrome is a straight flush), a flush any 5-of-a-suit whose ranks are
+    not a straight window, a quad takes any of the 48 spare cards as kicker.
+    """
+    import itertools
+
+    suits_desc = sorted(_SUIT, key=lambda s: _SUIT[s], reverse=True)
+    out: list[Play] = []
+
+    for r in _RANK:
+        for s in suits_desc:
+            out.append(Play("single", 1, (_RANK[r], _SUIT[s]), (Card(r, s),)))
+    for r in _RANK:
+        for s1, s2 in itertools.combinations(suits_desc, 2):
+            out.append(Play("pair", 2, (_RANK[r], _SUIT[s1]), (Card(r, s1), Card(r, s2))))
+        for suits3 in itertools.combinations(suits_desc, 3):
+            out.append(Play("triple", 3, (_RANK[r],), tuple(Card(r, s) for s in suits3)))
+
+    for seq in _STRAIGHTS:
+        top_nat = _NAT[seq[-1]]
+        for suit in suits_desc:  # monochrome: the straight flushes
+            cards = tuple(Card(r, suit) for r in seq)
+            out.append(Play("straightflush", 5, (_STRAIGHTFLUSH, top_nat, _SUIT[suit]), cards))
+        for assignment in itertools.product(suits_desc, repeat=5):
+            if len(set(assignment)) == 1:
+                continue  # monochrome emitted above as a straight flush
+            cards = tuple(Card(r, s) for r, s in zip(seq, assignment))
+            out.append(Play("straight", 5, (_STRAIGHT, top_nat, _SUIT[assignment[-1]]), cards))
+
+    for suit in suits_desc:
+        for ranks in itertools.combinations(_RANK, 5):
+            if _is_straight_ranks(frozenset(ranks)):
+                continue  # that card-set is a straight flush
+            ordered = sorted(ranks, key=lambda r: _RANK[r], reverse=True)
+            cards = tuple(Card(r, suit) for r in ordered)
+            out.append(Play("flush", 5, (_FLUSH, _SUIT[suit], _RANK[ordered[0]]), cards))
+
+    for tr in _RANK:
+        for pr in _RANK:
+            if pr == tr:
+                continue
+            for ts in itertools.combinations(suits_desc, 3):
+                for ps in itertools.combinations(suits_desc, 2):
+                    cards = tuple(
+                        [Card(tr, s) for s in ts] + [Card(pr, s) for s in ps]
+                    )
+                    out.append(Play("fullhouse", 5, (_FULLHOUSE, _RANK[tr]), cards))
+
+    for r in _RANK:
+        four = tuple(Card(r, s) for s in suits_desc)
+        for kr in _RANK:
+            if kr == r:
+                continue
+            for ks in suits_desc:
+                out.append(Play("quads", 5, (_QUADS, _RANK[r]), four + (Card(kr, ks),)))
+    return out

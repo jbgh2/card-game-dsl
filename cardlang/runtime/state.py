@@ -102,7 +102,13 @@ class ZoneStore:
     ) -> None:
         self.singles: dict[str, Zone] = {}
         self.families: dict[str, dict[int, Zone]] = {}
+        # The declared library type and index kind per zone, so the observation
+        # emitter and info-state builder can look up any zone's projection.
+        self.zone_type: dict[str, str] = {}
+        self.zone_index: dict[str, str | None] = {}
         for decl in decls:
+            self.zone_type[decl.name] = decl.type_ref.name
+            self.zone_index[decl.name] = decl.index
             if decl.index is None:
                 self.singles[decl.name] = Zone()
             else:
@@ -117,6 +123,18 @@ class ZoneStore:
 
     def instance(self, name: str, key: int) -> Zone:
         return self.families[name][key]
+
+    def locate(self, zone: Zone) -> "tuple[str, Player | None]":
+        """The (name, instance-key) of a zone object — the reverse lookup the
+        observation emitter needs when a movement holds only the Zone value."""
+        for name, z in self.singles.items():
+            if z is zone:
+                return name, None
+        for name, family in self.families.items():
+            for key, z in family.items():
+                if z is zone:
+                    return name, key
+        raise KeyError("zone object is not in this store")
 
 
 class RuntimeState:
@@ -214,10 +232,17 @@ class Ctx:
     outcome: Player | None = None
     action: Move | None = None
     active_rules: tuple[n.RuleDef, ...] = ()
+    observer: Callable[[Player, tuple[Any, ...]], None] | None = None
 
     def trace(self, event: str, data: Any) -> None:
         if self.tracer is not None:
             self.tracer(event, data)
+
+    def observe(self, player: Player, event: tuple[Any, ...]) -> None:
+        """Deliver a per-observer observation event (the projection substrate).
+        No observer installed (normal playouts) means no cost and no effect."""
+        if self.observer is not None:
+            self.observer(player, event)
 
     def with_local(self, name: str, value: Any) -> "Ctx":
         return replace(self, locals={**self.locals, name: value})

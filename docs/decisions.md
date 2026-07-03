@@ -424,7 +424,7 @@ Two decisions distinguish it from the trick and auction forms:
   a named set. So a combination play cannot be a DSL `move_type` effect the way a
   bet is, and there is no DSL-visible `Combination` value. Instead the engine is two
   **game-local stdlib queries** named on the round — `combinations` (lead options)
-  and `follows` (legal follows) — and `run_climb` performs the card movement itself.
+  and `follows` (legal follows) — and the climb form performs the card movement itself.
   The engines stay per-game because the combination rules differ materially (Big
   Two: suit tie-breaks on every play, flushes and quads, cross-type beating within
   the five-card group; Tichu: rank-only keys, bombs, the four special cards); they

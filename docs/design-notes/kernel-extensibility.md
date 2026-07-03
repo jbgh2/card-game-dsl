@@ -2,6 +2,18 @@
 
 *Status: design analysis / proposal — not a settled decision. The committed spec is in [decisions.md](../decisions.md); this note argues a direction and a sequenced, byte-identical plan.*
 
+*Implementation status: §9 steps 1–3 are done, and step 4 is delivered for the
+fully-kernel games (the projection substrate + general adapter; the eight
+`instantiate` games remain). The runtime is now the single
+`run_decision_round` interpreter with the trick, auction/betting, and climb forms
+as six-slot hook bundles (`TrickForm` / `AuctionForm` / `ClimbForm` in
+`cardlang/runtime/mechanics.py`), selected by `build_form` and dispatched once in
+`execute.py`. §§1–8 are the rationale that produced it — where they speak of "the
+three `run_*` loops," read the discovery basis, not the current structure. The
+info-set leak (§6, §9 step 4) is closed for the six fully-kernel games; it
+remains open for the eight `instantiate` games, as does the front-end
+derivation (§5).*
+
 
 ## 1. The question and the short answer
 
@@ -343,7 +355,10 @@ interaction at all, and should be judged on its own.
 
 ## 6. The traps
 
-**The information-set leak (headline).** The docs promise that
+**The information-set leak (headline).** *Status: the substrate this section
+argues for now exists for kernel-form games (`cardlang/runtime/observe.py`,
+`cardlang/openspiel/`); the leak persists exactly where `instantiate`
+mechanics run — see §9 step 4.* The docs promise that
 information sets are "*derived* from zone visibility plus the
 observation events emitted by moves — never authored by hand"
 ([principles.md](../principles.md)) — the GDL-II `sees`/`random` semantics made
@@ -517,32 +532,52 @@ parts are proven on paper *before* any code depends on them.
    precede it — but that must be established here, not assumed. Cheap
    and mandatory; it is the de-risking gate.
 
-2. **Hygiene: unify the four forms behind the goldens.** Extract the
-   shared skeleton (§4), migrate `run_trick` / `run_auction` /
-   `run_climb` onto the six-slot signature, and collapse `execute.py`'s
-   field-presence `Round` cascade into one `outcome`-union dispatch.
-   This must be **byte-identical** — but state precisely what that
-   ranges over: final scores/returns and the *specific named events the
-   goldens assert on*, **not** the complete ordered trace stream.
-   Adding the new `("decision", …)` event is safe under the current
-   suite only because every tracer-using test filters by event name
-   (`if event == "trick_end"`, `in ("bridge_contract","trick",…)`), so
-   an unrecognized event is ignored; no test may snapshot the full
-   ordered stream without first accommodating it. Record that invariant.
-   Lowest behavioral risk; do it right after the proof.
+2. **Hygiene: unify the sequential forms behind the goldens — *done*.**
+   The shared skeleton (§4) is extracted as `run_decision_round` in
+   `mechanics.py`; `run_trick` / `run_auction` / `run_climb` are migrated
+   onto the six-slot `DecisionForm` bundles (`TrickForm`, `AuctionForm`,
+   `ClimbForm`); `build_form` selects the bundle by field-presence and
+   `execute.py`'s `Round` cascade is collapsed into one `Outcome`-union
+   dispatch (`Player` ⇒ bind `outcome`; `(tag, payloads)` ⇒ raise the
+   typed variant; `None` ⇒ close a betting ring). The loop cursors that
+   were Python locals (the auction ring pointer, the climb index, the
+   trick's turn-order position and `led_suit`) moved into the threaded
+   `State`, so `next_actor` / `candidates` are pure functions of
+   `(state, ctx)` and `order_mode` became a choice of `next_actor`
+   closure. It is **byte-identical** in the sense that matters: the single
+   `ctx.chooser` draw per step and the per-form domain trace events are
+   unchanged, so scores/returns and the *specific named events the
+   goldens assert on* are identical — the complete ordered trace stream
+   is *not* a claim, and nothing snapshots it. The refactor added **no**
+   new event: the canonical `("decision", (actor, choice))` event is
+   deferred to step 4, where it is safe under the current suite only
+   because every tracer-using test filters by event name (`if event ==
+   "trick_end"`, `in ("bridge_contract","trick",…)`), so an unrecognized
+   event is ignored; no test may snapshot the full ordered stream without
+   first accommodating it. `EachSimultaneous` stays its own construct
+   (§4/§8), as do the per-game Python `instantiate` mechanics.
 
 3. **Migrate the forms onto the interpreter one at a time, each behind
-   the goldens.** Incrementally: one form per change, byte-identical. No
-   new axis is added here — it relocates existing behavior, nothing
-   more.
+   the goldens — *done*.** Carried out as part of step 2: trick, then
+   auction/betting, then climb, each landing green (`mypy`; full
+   `pytest -q` under `PYTHONHASHSEED=0`) before the next, then the old
+   loop bodies and the field-presence cascade were deleted. No new axis
+   was added — existing behavior was relocated onto the shared loop,
+   nothing more.
 
-4. **Close the info-set leak as its own workstream.** Route the fixed
-   core's decision event through a per-observer projection keyed to
-   declared zone visibility, and replace the Hearts-specific adapter
-   (both its count-`n` and its kind/ownership conventions) with a reader
-   of projected events. This is the payoff that justifies the exercise;
-   it can proceed in parallel with step 3 once the interpreter emits the
-   event uniformly.
+4. **Close the info-set leak as its own workstream — *done* for the six
+   fully-kernel games.** The fixed core's decision event is routed through a
+   per-observer projection keyed to declared zone visibility
+   (`cardlang/runtime/observe.py`), and the Hearts-specific adapter (both its
+   count-`n` and its kind/ownership conventions) is replaced by one general
+   reader of projected events (`cardlang/openspiel/infostate.py`,
+   `cardlang/openspiel/game.py`) covering Hearts, Getaway, Spades, Bridge, Oh
+   Hell, and Big Two — proven by `tests/test_openspiel_ready.py`
+   (indistinguishability, soundness, perfect recall; Bridge's proof currently
+   covers only the pass-only line of its auction — the harness's greedy replay
+   never places a bid, let alone reaches trick play). This was the payoff that justified the exercise. The eight
+   `instantiate` games remain info-set debt: the adapter rejects them loudly
+   rather than silently mis-modeling them.
 
 New features arrive only *after* this scaffolding — as **hook bundles**
 that reuse the existing round surface where possible, not new kernel

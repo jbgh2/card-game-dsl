@@ -35,7 +35,21 @@ requirement for the OpenSpiel target ([CLAUDE.md](../CLAUDE.md), "OpenSpiel is t
 target…"; [decisions.md](decisions.md), "OpenSpiel compilation";
 [design-notes/kernel-extensibility.md](design-notes/kernel-extensibility.md), §6).
 Retiring these mechanics onto the kernel closes that debt as well as the
-architecture violation. The stage is done when:
+architecture violation. Each migration now has a second, concrete payoff: the
+OpenSpiel projection substrate
+([superpowers/specs/2026-07-01-openspiel-projection-substrate-design.md](superpowers/specs/2026-07-01-openspiel-projection-substrate-design.md))
+derives information sets for any fully-kernel game for free, so a game
+leaving its Python mechanic becomes OpenSpiel-ready automatically — register
+it in `cardlang/openspiel/game.py:GAMES` and add it to the proof harness
+(`tests/test_openspiel_ready.py`) — so "migrated" now means "derived info
+sets proven," not just "runs on the kernel." One latent footgun to watch for
+as new mechanics migrate: `cardlang/openspiel/infostate.py`'s `_render`
+sorts list/tuple-valued state variables before rendering into the
+information state, so a future *ordered* list-valued state variable (a bid
+history, a play sequence — anything where order itself carries information)
+must not be rendered sorted, or distinct information sets that differ only
+in order would silently collapse into the same string. The stage is done
+when:
 
 - `instantiate` dispatches only to kernel constructs — no per-game name
   branches — and the seven `runtime/*.py` game modules and the three inline
@@ -163,9 +177,9 @@ of `round`"). Bridge keeps every seat in with an always-legal `pass`, but the
 ascending auctions drop players who pass for good (and skip the standing high
 bidder) with no decision — a *shrinking ring*. Reproducing that byte-identically
 needs the participant predicate re-evaluated each turn — the **participant-filtering
-axis**, which `run_auction` now does (it re-evaluates `over … where …` per turn, a
-no-draw skip for a dropped player; a static ring like Bridge's `all players` is the
-invariant case). Built with Pinochle; reused by Workstream 2 (Stud's non-folded
+axis**, which the auction form (`AuctionForm.next_actor`) now does (it re-evaluates
+`over … where …` per turn, a no-draw skip for a dropped player; a static ring like
+Bridge's `all players` is the invariant case). Built with Pinochle; reused by Workstream 2 (Stud's non-folded
 ring). An always-legal `pass` would instead offer passed players and consume RNG
 the monolith does not.
 
@@ -246,9 +260,12 @@ instances → promote to the standard library).
 
 **Status — the `climb` construct is built; Big Two runs on it byte-identically;
 Tichu's migration is the remaining step.** The kernel `round climb` construct
-(`run_climb` in `mechanics.py`, dispatched in `execute.py`, with the grammar / AST
-/ IR / resolve / typecheck wiring) plays one combination-climbing trick over a pair
-of game-local engine queries. **Big Two** is fully migrated onto it
+(a `ClimbForm` hook bundle over the shared `run_decision_round` interpreter in
+`mechanics.py`, dispatched in `execute.py`, with the grammar / AST / IR / resolve /
+typecheck wiring) plays one combination-climbing trick over a pair of game-local
+engine queries. Its runtime is now one of the three form bundles over the single
+per-step decision loop (`docs/design-notes/kernel-extensibility.md` §4, §9 step 2),
+not a standalone loop. **Big Two** is fully migrated onto it
 (`docs/games/big-two.cardlang`) — the climbing loop, the 3♦ opening, pile routing,
 the shed-out finish, and penalty scoring are DSL; its engine (`bigtwo.py`) is named
 as the `bigtwo_lead_options` / `bigtwo_follows` queries — and reproduces its pinned
@@ -263,11 +280,11 @@ The design the construct settled:
   *specific computed card-set* (the chosen combination's cards) from the hand to
   the pile — and the movement vocabulary moves cards *by count* (`all` / `one` /
   `N cards`), never a named set. So the play cannot be a DSL `move_type` effect the
-  way a bet is. `climb` is a **kernel `round` construct** (`run_climb`, beside
-  `run_trick` / `run_auction`): it enumerates candidates from the engine, runs one
-  climbing trick (lead → beat-or-pass; the trick ends when action returns to the
-  last player, or the `until` predicate holds), and performs the card movement
-  itself. There is *no* DSL-visible `Combination` value and no runtime-query move
+  way a bet is. `climb` is a **kernel `round` construct** (the `ClimbForm` bundle,
+  beside `TrickForm` / `AuctionForm` over the shared interpreter): it enumerates
+  candidates from the engine, runs one climbing trick (lead → beat-or-pass; the
+  trick ends when action returns to the last player, or the `until` predicate
+  holds), and performs the card movement itself. There is *no* DSL-visible `Combination` value and no runtime-query move
   parameter — the construct depends only on the engine's *interface*
   (`combos(hand, ctx)`, `legal_follows(hand, led, ctx)`, `play.cards`).
 - **Two engines, one construct interface.** Tichu's and Big Two's combination
@@ -277,21 +294,22 @@ The design the construct settled:
   game-local (beside the promote-at-the-third-instance rule — Pinochle melds /
   Cribbage scoring are the third), each named as a `combinations` / `follows` query
   pair on the `round climb`. The divergent *routing* lives in the DSL body, not the
-  construct (the `run_trick` discipline): `run_climb` returns the winner (the last
-  player to play, bound as `outcome`), and the body routes the pile and the next
-  lead — Big Two: `move trick_pile to discard`, the winner leads.
+  construct (the trick-form discipline): the climb form's `outcome` returns the
+  winner (the last player to play, bound as `outcome`), and the body routes the pile
+  and the next lead — Big Two: `move trick_pile to discard`, the winner leads.
 - **What Tichu's migration still needs (PR after this).** Tichu's Dog is a
   *trick-ending lead* (its followers get no chooser draw — an `ends_trick` property
-  on the engine's play that `run_climb` reads to skip the follow phase); this is a
+  on the engine's play that the climb form reads to skip the follow phase); this is a
   genuine **new axis** to surface and sign off, not an engine hook. Its termination
   is "≤ 1 player still holds cards" (Big Two's is "any player empty"), an existing
   value on the termination axis. Plus pushing (pre-play passing), the
   double-victory finish, and Dragon → opponent routing (a post-trick
   `dragon_recipient()` draw at the same RNG site). Routing the Dragon's pile to an
   opponent and the Dog's lead to the partner needs the body to know *what* won, not
-  just *who* — so `run_climb` will expose the winning play's kind as terminal
-  round-state (the `run_trick` → `last_round_state` pattern, read as `state.x`),
-  which Big Two does not consult (re-verified byte-identical when added). Then
+  just *who* — so the climb form will expose the winning play's kind as terminal
+  round-state (the trick form's `mech_state` → `last_round_state` pattern, read as
+  `state.x`), which Big Two does not consult (re-verified byte-identical when added).
+  Then
   `run_tichu_hand` is deleted, byte-identical against `tichu_scores.json`.
 - The bomb **interrupt** axis (any player, any time) is moot at the migrated
   scope: the current Tichu omits out-of-turn bombs (bombs play only on-turn, as a
