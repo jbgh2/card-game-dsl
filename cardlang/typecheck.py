@@ -532,7 +532,7 @@ def _stmt_exprs(s: n.Stmt) -> list[n.Expr]:
         out: list[n.Expr] = []
         if not isinstance(s.amount, str):
             out.append(s.amount)
-        for opt in (s.source, s.dest, s.visibility):
+        for opt in (s.source, s.dest, s.visibility, s.filter):
             if opt is not None:
                 out.append(opt)
         return out

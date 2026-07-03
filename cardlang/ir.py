@@ -223,7 +223,7 @@ def _phase_item(item: n.PhaseItem) -> IRDict:
 def _stmt(s: n.Stmt) -> IRDict:
     match s:
         case n.Movement():
-            return {
+            movement: IRDict = {
                 "kind": "movement",
                 "verb": s.verb,
                 "mode": s.mode,
@@ -235,6 +235,12 @@ def _stmt(s: n.Stmt) -> IRDict:
                 "distribution": s.distribution,
                 "visibility": _expr(s.visibility) if s.visibility else None,
             }
+            # Emitted ONLY when present, so every existing movement (none of
+            # which uses `where`) stays byte-identical in its golden — this is
+            # the whole point of the conditional key (plan §2e/§4).
+            if s.filter is not None:
+                movement["filter"] = _expr(s.filter)
+            return movement
         case n.EpistemicOp():
             return {"kind": "epistemic_op", "op": s.op, "target": _expr(s.target)}
         case n.RotateStmt():

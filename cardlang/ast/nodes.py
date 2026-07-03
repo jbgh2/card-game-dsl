@@ -262,7 +262,12 @@ Expr = (
 class Movement:
     """A movement operation (`deal`/`transfer`/`move`/`burn`/`muck`/`draw`).
     ``amount`` is ``"all"``, ``"one"``, or an :data:`Expr` count. ``dest`` is
-    ``None`` for the `in <zone>` form where the verb implies the destination."""
+    ``None`` for the `in <zone>` form where the verb implies the destination.
+    ``filter`` (the `from <zone> where <lambda> to <zone>` form only) narrows
+    the source pool to the matching cards, in source order, before the
+    selection draws from it — `chosen`/`random` draw from the narrowed pool,
+    the default (dealt) form takes the pool's first `count` (first match, not
+    top-of-source), and `all` takes every matching card, leaving the rest."""
 
     verb: str
     mode: str | None  # "chosen" | "random" | None
@@ -272,6 +277,7 @@ class Movement:
     dest: Expr | None
     dest_each: bool
     distribution: str | None = None  # "as_equally_as_possible" for a round-robin deal
+    filter: Expr | None = None  # a `where <lambda>` predicate narrowing the source pool
     visibility: Expr | None = None
     span: Span | None = None
 
