@@ -104,6 +104,59 @@ def test_pinochle_space_adds_the_bid_and_trump_vocabulary() -> None:
     ]
 
 
+def test_french_tarot_space_derives_its_own_78_card_block() -> None:
+    space = _space("french-tarot.cardlang")
+    # The tarot78 deck is not standard-52-expressible (the atouts' rank "1"/
+    # the Cavalier's "C", and the Excuse, all fall outside SUITS x RANKS), so
+    # the space derives its OWN 78-card block (deck-declaration order: clubs
+    # K..1, diamonds K..1, hearts K..1, spades K..1, atouts 1..21, Excuse) —
+    # rather than the module's standard 52-card mapping — plus the auction's
+    # five nullary bid-level moves in game-file declaration order.
+    assert space.num_distinct_actions == 78 + 5
+    assert space.encode(Card("K", "clubs")) == 0
+    assert space.encode(Card("1", "atouts")) == 56
+    assert space.encode(Card("21", "atouts")) == 76
+    assert space.encode(Card("Excuse", "excuse")) == 77
+    assert [space.to_string(a) for a in range(78, 83)] == [
+        "pass",
+        "bid_petite",
+        "bid_garde",
+        "bid_garde_sans",
+        "bid_garde_contre",
+    ]
+
+
+def test_french_tarot_card_block_round_trips_all_78() -> None:
+    from cardlang.runtime.values import build_deck
+
+    space = _space("french-tarot.cardlang")
+    seen = set()
+    for card in build_deck("tarot78"):
+        aid = space.encode(card)
+        assert 0 <= aid < 78
+        assert aid not in seen
+        seen.add(aid)
+        assert space.decode(aid) == card
+    assert len(seen) == 78
+
+
+def test_french_tarot_to_string_uses_the_card_glyph_rendering() -> None:
+    space = _space("french-tarot.cardlang")
+    assert space.to_string(space.encode(Card("K", "clubs"))) == "K♣"
+    assert space.to_string(space.encode(Card("1", "atouts"))) == "1★"
+    assert space.to_string(space.encode(Card("Excuse", "excuse"))) == "Excuse☆"
+
+
+def test_existing_games_keep_the_standard_52_card_block() -> None:
+    # The derivation must be a no-op for every deck already expressible in the
+    # standard scheme — a subset deck (pinochle48) leaves unused slots rather
+    # than getting its own (smaller) from-scratch block.
+    assert _space("hearts.cardlang").encode(Card("A", "clubs")) == card_to_action(
+        Card("A", "clubs")
+    )
+    assert _space("pinochle.cardlang").num_distinct_actions == 58  # unchanged
+
+
 def test_combo_round_trip_and_match() -> None:
     from cardlang.runtime.bigtwo import bigtwo_universe
 

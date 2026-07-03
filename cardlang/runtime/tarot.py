@@ -123,14 +123,24 @@ def tarot_per_opp(ctx: Ctx, pb: int) -> int:
     points), the taker's doubled card points (`captured[taker]`, plus the
     chien's at Garde sans le chien — never moved, counted where it sits), the
     petit-au-bout adjustment `pb`, and the bid multiplier. Verbatim monolith
-    arithmetic (a float division then Python's banker's rounding)."""
+    arithmetic (a float division then Python's banker's rounding).
+
+    Counts `discard[taker]` (the taker's hidden chien discards, at Petite/
+    Garde) as taker cards too — the fidelity stage's discard reroute moved
+    those six cards out of `captured[taker]` into their own hidden zone, so
+    without this they would silently drop out of the taker's total. Their
+    bouts contribution is always zero and is not added: both discard filters
+    (`is_pref_discard`, `not is_bout`) exclude every bout by construction, so
+    a discarded card can never BE one."""
     rs = ctx.rs
     taker: Player = rs.get("taker")
     level = _LEVELS[rs.get("bid_level") - 1]  # bid_level is 1..4 (0 = no bid)
     captured = rs.zones.families["captured"]
     chien = rs.zones.single("chien")
+    discard = rs.zones.families["discard"]
 
     taker_doubled = sum(tarot_card_points(c) for c in captured[taker].cards)
+    taker_doubled += sum(tarot_card_points(c) for c in discard[taker].cards)
     bouts = sum(1 for c in captured[taker].cards if _is_bout(c))
     if level == "garde_sans":
         taker_doubled += sum(tarot_card_points(c) for c in chien.cards)

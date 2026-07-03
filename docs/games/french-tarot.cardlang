@@ -10,15 +10,21 @@
 // The four-level ascending bid runs on the kernel `round` (the move vocabulary
 // below, a counterclockwise single-pass ring, and `tarot_auction_outcome`). The
 // chien handling, the eighteen atout-trump tricks, and the scoring all run on
-// the kernel too: the chien discard is a filtered movement (preferring
-// non-trump non-King cards, never a bout); the tricks run on the trick form of
-// `round`, legality narrowed by the ExcuseIsExempt/MustFollowSuit/
-// MustTrumpIfVoid/MustOverTrump rule cascade (the Excuse is exempt from every
-// obligation and never wins); the Excuse's special routing (it stays with its
-// own side, repaying the trick winner a low card) is ordinary body movements
-// after the round. Card points are kept in doubled integer units (the 78 cards
-// sum to 182). poignée declaration and the Excuse half-point IOU deferral are
-// out of scope (see IMPLEMENTATION_LOG.md).
+// the kernel too: the chien discard is a filtered movement into the taker's
+// HIDDEN `discard[player]` (preferring non-trump non-King cards, never a bout)
+// — genuinely concealed from the opponents, not folded into the public captured
+// pile; the tricks run on the trick form of `round`, legality narrowed by the
+// ExcuseIsExempt/MustFollowSuit/MustTrumpIfVoid/MustOverTrump rule cascade (the
+// Excuse is exempt from every obligation and never wins); the Excuse's special
+// routing (it stays with its own side, repaying the trick winner a low card) is
+// ordinary body movements after the round. Card points are kept in doubled
+// integer units (the 78 cards sum to 182). Real FFT forces the taker to
+// discard atouts/the Excuse/a King face up when fewer than six other cards
+// remain to discard, so the opponents see what was shown; this is out of
+// scope (a 24-card taker hand+chien essentially never runs short of plain
+// non-King cards, and showing a forced discard is a strategic reveal a
+// random player never needs). poignée declaration and the Excuse half-point
+// IOU deferral are out of scope (see IMPLEMENTATION_LOG.md).
 
 game FrenchTarot {
 
@@ -34,6 +40,7 @@ game FrenchTarot {
     chien            : FaceDownPile        // the six-card kitty
     trick_pile       : TrickPile
     captured[player] : PlayerPile<player>
+    discard[player]  : HiddenPile<player>  // the taker's discarded chien cards, hidden from opponents
   }
 
   state {
@@ -88,7 +95,8 @@ game FrenchTarot {
       }
 
       // Chien, by contract level. At Petite/Garde the taker merges the chien and
-      // discards six — bouts are never discardable, and plain non-King cards are
+      // discards six, HIDDEN from the opponents (a genuine discard, not a public
+      // one) — bouts are never discardable, and plain non-King cards are
       // preferred whenever six exist. At Garde sans / Garde contre the chien is
       // NOT moved: it stays in its zone and is counted at scoring — moving it
       // would reorder the next hand's pre-shuffle gather.
@@ -96,9 +104,9 @@ game FrenchTarot {
         for each player p: if p == taker {
           move all cards from chien to hand[p]
           if (sum over hand[p] as c: if is_pref_discard(c) then 1 else 0) >= 6 {
-            move chosen 6 cards from hand[p] where c => is_pref_discard(c) to captured[p]
+            move chosen 6 cards from hand[p] where c => is_pref_discard(c) to discard[p]
           } else {
-            move chosen 6 cards from hand[p] where c => not is_bout(c) to captured[p]
+            move chosen 6 cards from hand[p] where c => not is_bout(c) to discard[p]
           }
         }
       }
@@ -165,9 +173,9 @@ function is_bout(c : Card) =
   c.suit == excuse or (c.suit == atouts and (c.rank == "1" or c.rank == "21"))
 
 // Preferred discard: a plain-suit non-King (never a trump, the Excuse, or a
-// bout). Bare rank names are not enum values in this language (SP3's
-// pinochle deviation: only `<rank> of <suit>` card literals resolve a bare
-// rank) — the check compares against the string literal `Card.rank` holds.
+// bout). Bare rank names are not enum values in this language — only
+// `<rank> of <suit>` card literals resolve a bare rank — so the check
+// compares against the string literal `Card.rank` holds.
 function is_pref_discard(c : Card) =
   c.suit != atouts and c.suit != excuse and c.rank != "K"
 

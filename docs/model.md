@@ -96,7 +96,7 @@ This replaces the ad-hoc `hearts_broken` boolean flag with structure.
 ### What rules really are
 
 A rule is **a named, reusable constraint on a move type, optionally with an
-applicability condition**. Three clauses:
+applicability condition**. Four clauses:
 
 ```
 rule <Name> {
@@ -104,6 +104,7 @@ rule <Name> {
   applies_when: <predicate on state>     // default: always
   demands: <function returning a set of legal candidate moves>
   if_impossible: <fallback>              // default: any legal move under this move type
+  exempts: <function returning a set of cards>   // optional; see below
 }
 ```
 
@@ -112,6 +113,13 @@ intersection: if multiple rules are active, the legal set is the intersection
 of each rule's demand. The vacuous case (rule's demand can't be satisfied by
 the actor) falls back to `if_impossible`, which defaults to permissive — this
 prevents the intersection from collapsing to empty.
+
+`exempts:` names a different axis, not a fourth ingredient of the
+intersection: the cards it selects (when `applies_when` holds) sit *outside*
+every rule's demand entirely — never narrowed, never counted toward
+satisfying one — and are appended after every other legal card, in hand
+order (French Tarot's Excuse: never bound by follow-suit/trump obligations,
+always playable last; see [decisions.md](decisions.md) "Rule exemption").
 
 Rules are referenced from phases by name:
 

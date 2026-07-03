@@ -66,6 +66,18 @@
           "player"
         ]
       }
+    },
+    {
+      "kind": "zone",
+      "name": "discard",
+      "index": "player",
+      "type": {
+        "kind": "type_ref",
+        "name": "HiddenPile",
+        "args": [
+          "player"
+        ]
+      }
     }
   ],
   "state": {
@@ -680,7 +692,7 @@
                               "kind": "subscript",
                               "obj": {
                                 "kind": "name",
-                                "name": "captured",
+                                "name": "discard",
                                 "ref": "zone"
                               },
                               "index": {
@@ -736,7 +748,7 @@
                               "kind": "subscript",
                               "obj": {
                                 "kind": "name",
-                                "name": "captured",
+                                "name": "discard",
                                 "ref": "zone"
                               },
                               "index": {

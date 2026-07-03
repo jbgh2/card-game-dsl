@@ -6,6 +6,9 @@ primitive on their own — a wrong `tarot_per_opp` could still zero-sum by
 construction. These pin the published values directly (docs/roadmap.md,
 "Test-depth regression nets"), following the test_pinochle_meld.py /
 test_stud_settle.py precedent for a migrated game's pure-primitive module.
+`tarot_per_opp`'s synthetic `_scoring_ctx` also declares the fidelity stage's
+`discard[player]` zone, so a hand with (or without) taker discards can be
+constructed directly.
 """
 
 from __future__ import annotations
@@ -160,7 +163,11 @@ def test_excuse_player_none_when_nobody_played_it() -> None:
 
 
 def _scoring_ctx(
-    taker: int, bid_level: int, captured_taker: list[Card], chien: list[Card]
+    taker: int,
+    bid_level: int,
+    captured_taker: list[Card],
+    chien: list[Card],
+    discard_taker: list[Card] | None = None,
 ) -> Ctx:
     from cardlang.ast import nodes as n
 
@@ -169,6 +176,9 @@ def _scoring_ctx(
         n.ZoneDecl(
             name="captured", index="player", type_ref=n.TypeRef(name="PlayerPile")
         ),
+        n.ZoneDecl(
+            name="discard", index="player", type_ref=n.TypeRef(name="HiddenPile")
+        ),
     )
     rs = RuntimeState(Seating(4), ZoneStore(zone_decls, (0, 1, 2, 3)), random.Random(0))
     rs.push_frame()
@@ -176,6 +186,8 @@ def _scoring_ctx(
     rs.declare("bid_level", False, bid_level)
     rs.zones.single("chien").add_all(chien)
     rs.zones.instance("captured", taker).add_all(captured_taker)
+    if discard_taker is not None:
+        rs.zones.instance("discard", taker).add_all(discard_taker)
     return Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]))
 
 
@@ -211,6 +223,25 @@ def test_per_opp_garde_sans_counts_the_chien() -> None:
     ) == 30
     ctx = _scoring_ctx(taker=0, bid_level=3, captured_taker=captured, chien=chien)
     assert tarot_per_opp(ctx, pb=0) == 16
+
+
+def test_per_opp_counts_the_taker_discard() -> None:
+    # The fidelity stage reroutes the chien discard to a hidden `discard[taker]`
+    # zone, no longer commingled into `captured[taker]` — tarot_per_opp must
+    # still count it toward the taker's total (same 36-doubled-point, 3-bout
+    # hand as test_per_opp_at_petite_threshold_with_three_bouts, but split
+    # across captured + discard instead of sitting entirely in captured).
+    captured = [EXCUSE, _atout("1"), _atout("21")]  # the 3 bouts: 27 doubled
+    discard = [
+        Card(r, "clubs") for r in ("2", "3", "4", "5", "6", "7", "8", "9", "10")
+    ]  # 9 plain cards: 9 doubled
+    assert sum(tarot_card_points(c) for c in captured) + sum(
+        tarot_card_points(c) for c in discard
+    ) == 36
+    ctx = _scoring_ctx(
+        taker=0, bid_level=1, captured_taker=captured, chien=[], discard_taker=discard
+    )
+    assert tarot_per_opp(ctx, pb=0) == 7  # identical to the all-in-captured case
 
 
 def test_per_opp_petit_au_bout_adjustment() -> None:

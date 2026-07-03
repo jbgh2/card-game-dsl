@@ -3,11 +3,13 @@
 Every decision a kernel game can pose maps to a stable global action id — the
 same id means the same action in every world, which is what makes determinized
 replay sound (SP1 spec, Pillar 2). The space is the disjoint union, in a fixed
-layout, of: the 52 cards (always); bare-name actions (offer move-types, the
-climb "pass"); the integer block 0..52 (games with `choose`); the auction
-vocabulary (moves flattened over their parameter domains, declared order); and
-the combination universe (the climb engine's `universe()` query, canonically
-ordered and golden-pinned).
+layout, of: the card block (always — the standard 52 for any deck expressible
+in it, else a per-game block derived from the deck itself; see
+`_derived_card_block`); bare-name actions (offer move-types, the climb "pass");
+the integer block 0..52 (games with `choose`); the auction vocabulary (moves
+flattened over their parameter domains, declared order); and the combination
+universe (the climb engine's `universe()` query, canonically ordered and
+golden-pinned).
 """
 
 from __future__ import annotations
@@ -18,9 +20,9 @@ from typing import Any, Iterator
 
 from cardlang.ast import nodes as n
 from cardlang.runtime.mechanics import enumerate_domain
-from cardlang.runtime.values import RANKS, SUITS, Card
+from cardlang.runtime.values import RANKS, SUITS, Card, build_deck
 
-NUM_DISTINCT_ACTIONS = len(SUITS) * len(RANKS)  # 52 — the card block
+NUM_DISTINCT_ACTIONS = len(SUITS) * len(RANKS)  # 52 — the standard card block
 
 
 def card_to_action(card: Card) -> int:
@@ -31,6 +33,42 @@ def action_to_card(action: int) -> Card:
     if not 0 <= action < NUM_DISTINCT_ACTIONS:
         raise ValueError(f"action {action} out of range 0..{NUM_DISTINCT_ACTIONS - 1}")
     return Card(RANKS[action % len(RANKS)], SUITS[action // len(RANKS)])
+
+
+def _is_standard_card(card: Card) -> bool:
+    return card.suit in SUITS and card.rank in RANKS
+
+
+def _dedup_deck_cards(deck_name: str) -> list[Card]:
+    """A deck's distinct cards, first-occurrence deduped in deck-declaration
+    order (a `copies > 1` deck like pinochle48 repeats each card; the action
+    space needs one id per distinct card, never one per physical copy)."""
+    seen: set[Card] = set()
+    out: list[Card] = []
+    for c in build_deck(deck_name):
+        if c not in seen:
+            seen.add(c)
+            out.append(c)
+    return out
+
+
+def _derived_card_block(deck_name: str) -> list[Card] | None:
+    """The per-game card block `ActionSpace` numbers cards over. `None` — the
+    sentinel for "use the standard 52-slot mapping above" — when every distinct
+    card the deck holds is expressible as one (`suit in SUITS and rank in
+    RANKS`): the module-level `card_to_action` formula already covers it
+    exactly, since `build_deck` for a `ranks`-cross-product deck iterates
+    suit-major/rank-minor — the SAME order `card_to_action` assumes — so every
+    currently-registered game's ids hold verbatim (a subset deck like
+    pinochle48 or schnapsen20 just leaves some of the 52 slots unused, exactly
+    as before this function existed). Only a deck that needs MORE than the
+    standard catalogue (French Tarot's atouts/Excuse; a future Tichu/Coup
+    migration) gets its own from-scratch numbering, over its full distinct-card
+    list — never a hybrid of the two schemes."""
+    distinct = _dedup_deck_cards(deck_name)
+    if all(_is_standard_card(c) for c in distinct):
+        return None
+    return distinct
 
 
 _MAX_CHOOSE = 52  # integer chooses are bounded by the deck size in a card game
@@ -62,16 +100,21 @@ class ActionSpace:
 
     def __init__(
         self,
+        card_block: list[Card] | None,
         names: list[str],
         vocab: list[tuple[str, Any]],
         has_integers: bool,
         combos: list[Any],
     ) -> None:
+        self._card_block = card_block
+        self._card_ids = (
+            None if card_block is None else {c: i for i, c in enumerate(card_block)}
+        )
         self._names = names
         self._vocab = vocab
         self._has_integers = has_integers
         self._combos = combos
-        self._name_base = NUM_DISTINCT_ACTIONS
+        self._name_base = NUM_DISTINCT_ACTIONS if card_block is None else len(card_block)
         self._int_base = self._name_base + len(names)
         self._vocab_base = self._int_base + (_MAX_CHOOSE + 1 if has_integers else 0)
         self._combo_base = self._vocab_base + len(vocab)
@@ -117,11 +160,14 @@ class ActionSpace:
                 universe,
                 key=lambda p: (p.size, p.kind, sorted(card_to_action(c) for c in p.cards)),
             )
-        return ActionSpace(sorted(names), vocab, has_integers, combos)
+        card_block = _derived_card_block(game.deck)
+        return ActionSpace(card_block, sorted(names), vocab, has_integers, combos)
 
     def encode(self, value: Any) -> int:
         if isinstance(value, Card):
-            return card_to_action(value)
+            if self._card_ids is None:
+                return card_to_action(value)
+            return self._card_ids[value]
         if isinstance(value, bool):
             raise ValueError("boolean is not an action value")
         if isinstance(value, int):
@@ -138,8 +184,8 @@ class ActionSpace:
         raise ValueError(f"cannot encode action value {value!r}")
 
     def decode(self, aid: int) -> Any:
-        if 0 <= aid < NUM_DISTINCT_ACTIONS:
-            return action_to_card(aid)
+        if 0 <= aid < self._name_base:
+            return action_to_card(aid) if self._card_block is None else self._card_block[aid]
         if self._name_base <= aid < self._int_base:
             return self._names[aid - self._name_base]
         if self._int_base <= aid < self._vocab_base:

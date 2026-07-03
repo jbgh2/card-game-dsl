@@ -110,13 +110,19 @@ Key design notes:
 ## Rules
 
 - `MustFollowSuit` — constrains `play_to_trick`; the canonical follow-suit rule
-  (Hearts, Getaway, Spades, Bridge, Oh Hell, Pinochle)
+  (Hearts, Getaway, Spades, Bridge, Oh Hell, Pinochle, French Tarot — Tarot's
+  demand reads `tarot_led_suit()`, the effective led suit, not the raw
+  `state.led_suit`; see below)
 - `MustHeadTrick` — constrains `play_to_trick`; must beat the highest card of
   the led suit played so far when following (Pinochle)
 - `MustTrumpIfVoid` — constrains `play_to_trick`; must trump when void in the
-  led suit (Pinochle)
+  led suit (Pinochle, French Tarot)
 - `MustOverTrump` — constrains `play_to_trick`; must beat the highest trump
-  played so far when trumping (Pinochle)
+  played so far when trumping (Pinochle, French Tarot)
+- `ExcuseIsExempt` — constrains `play_to_trick`; `exempts:` the Excuse from
+  every obligation in the cascade (French Tarot). The corpus's first use of
+  the rule `exempts:` clause ([decisions.md](decisions.md) "Rule exemption");
+  see below.
 - `BidExceedsCurrent` — constrains `submit_bid`; ascending auction rule
 - `BidIsLegalIncrement` — constrains `submit_bid`; bid increment validity
 - `NoLeadingHeartsUntilBroken` — Hearts-specific
@@ -124,22 +130,38 @@ Key design notes:
 - *Generalization candidate:* `NoLeadingSuitUntilBroken(suit)` — parameterize
   by suit so Hearts and Spades both use the same rule
 
-Pinochle's four rules above run as one `active_rules:` cascade, in this
-order (list order is application order): follow suit and head the trick if
-able; if void, trump and over-trump if able; else anything. Each rule's
-`if_impossible: hand` intersects the *running* set with the whole hand — "keep
-the prior narrowing" — so an inapplicable obligation falls through
-(`rules.legal_cards`'s per-rule intersection, [decisions.md](decisions.md)
-"Rule demand forms"). Strict-trick legality recurs across the corpus
-(Schnapsen's endgame is the same shape, still Python); rules are not yet a
-shared/reusable definition the way move types and mechanics are — each game
-declares its own rule bodies — so promoting a common cascade waits on a
-second DSL instance.
+Pinochle's four rules (`MustFollowSuit`/`MustHeadTrick`/`MustTrumpIfVoid`/
+`MustOverTrump`) run as one `active_rules:` cascade, in this order (list order
+is application order): follow suit and head the trick if able; if void, trump
+and over-trump if able; else anything. Each rule's `if_impossible: hand`
+intersects the *running* set with the whole hand — "keep the prior
+narrowing" — so an inapplicable obligation falls through (`rules.legal_cards`'s
+per-rule intersection, [decisions.md](decisions.md) "Rule demand forms").
+Strict-trick legality recurs across the corpus (Schnapsen's endgame is the
+same shape, still Python); rules are not yet a shared/reusable definition the
+way move types and mechanics are — each game declares its own rule bodies —
+so promoting a common cascade waits on a second DSL instance.
+
+French Tarot's four-rule cascade (`ExcuseIsExempt`/`MustFollowSuit`/
+`MustTrumpIfVoid`/`MustOverTrump`) is the same running-intersection shape,
+with one addition: `ExcuseIsExempt`'s `exempts:` clause removes the Excuse
+from the cascade before the other three rules run, and appends it after every
+other legal card once they've narrowed the rest — the Excuse is never subject
+to follow-suit/trump/over-trump and never counts toward satisfying them.
+`MustFollowSuit`'s demand reads the stdlib `tarot_led_suit()` (the first
+non-Excuse card played, or "excuse" if only the Excuse has been played so
+far) rather than the kernel's own `state.led_suit` (the literal first card,
+"excuse" included) — the split that reproduces the reference rule exactly:
+when the Excuse is led, the next player faces "void in the led suit" (since
+`tarot_led_suit()` is still "excuse", which nobody's non-Excuse cards can
+match) and so must trump if able, a quirk the split preserves precisely.
 
 ## Outcome functions
 
 - `highest_of_led_suit` — no-trump outcome
 - `TrumpedHighestOfLedSuit(trump_suit)` — with-trump outcome
+- `tarot_trick_winner` — French Tarot: highest atout, else highest of the
+  effective led suit (`tarot_led_suit()`); the Excuse never wins
 
 ## Mechanics
 
@@ -300,9 +322,10 @@ parameters that bind into the visibility declaration.
 type Hand<Owner: Player>             = Zone<Card>             { composition: identity to Owner, count_only to others }
 type SharedHand<Group: Team>         = Zone<Card>             { composition: identity to Group.members, count_only to others }
 type PublicHand<Owner: Player>       = Zone<Card>             { composition: identity to all }      // ownership without privacy (e.g. Bridge dummy)
+type HiddenPile<Owner: Player>       = Zone<Card>             { composition: identity to Owner, count_only to others }  // a resting pile a player owns but conceals (French Tarot's chien discard) — same profile as Hand, distinct name for a zone that is no longer an active hand
 type Deck                            = Zone<Card>             { composition: count_only to all, ordered: yes }
 type FaceDownPile                    = Zone<Card>             { composition: count_only to all, ordered: yes }
-type Discard                         = Zone<Card>             { composition: identity to all }       // face-up pile (discards, capture piles, displayed melds, etc.)
+type Discard                         = Zone<Card>             { composition: identity to all }       // face-up, PUBLIC pile (discards, capture piles, displayed melds, etc.) — contrast HiddenPile, above, for a discard that must stay concealed
 type PlayerPile<Owner: Player>       = Zone<Card>             { composition: identity to all }       // face-up pile owned by a player
 type TeamPile<Group: Team>           = Zone<Card>             { composition: identity to all }       // face-up pile owned by a team (captured tricks, displayed melds, etc.)
 type TrickPile                       = Zone<Card>             { composition: identity to all, ordered: yes }   // current-trick play area
@@ -365,6 +388,13 @@ statement; trick routing is ordinary body movements after a `round` returns.
   [decisions.md](decisions.md) "Loop lifecycle")
 - `burn` / `muck` — relocate to the burn / muck pile (destination implied by the verb); mucked cards land in a trivial-projection zone, prior observations persisting
 - `draw` — take from a pile into a hand
+
+The `from <zone> … to <zone>` form additionally takes an optional `where
+<lambda>` clause, narrowing the source pool to matching cards (in source
+order) before the selection draws from it — see [decisions.md](decisions.md)
+"The operation vocabulary" ("Movement `where` filter"). French Tarot's chien
+discard is the corpus's first use (`move chosen 6 cards from hand[p] where
+c => is_pref_discard(c) to discard[p]`).
 
 **Epistemic** — prose statements; no relocation. Signatures are shown below,
 but the surface is prose (`shuffle deck`, `reveal proof to all`); call syntax
@@ -496,5 +526,40 @@ Standard helpers available across games.
   nothing for), general-purpose for any point-trick game. Used by Pinochle
   (`trick_score[...] += sum over trick_pile as c: card_value(c)`); Schnapsen
   and Skat's own card-point tallies are the next candidates to move onto it.
+
+French Tarot's non-uniform 78-card deck (suit×rank card points that vary by
+suit, an effective led suit that isn't the kernel's own, and a settlement the
+`ranking:`/`card_value` general machinery can't express — see
+[decisions.md](decisions.md) "Deck declaration") needs six game-local
+primitives, all reading `cardlang/runtime/tarot.py`:
+
+- `tarot_card_points(card: Card) → Integer` — the doubled card-point value
+  (printed value × 2, so all integers; the 78 cards sum to 182). K/Q/Cavalier/J
+  score 9/7/5/3 in a plain suit; a bout (the Excuse, the 1 of atouts, the 21)
+  scores 9; every other card scores 1.
+- `tarot_trump_height(card: Card) → Integer` — an atout's rank as an int
+  (1..21) for the over-trump comparison; 0 for a non-atout.
+- `tarot_led_suit() → Suit` — the effective led suit of the live trick: the
+  first non-Excuse card played so far, or "excuse" if only the Excuse has
+  been played — distinct from the kernel's own `state.led_suit` (the literal
+  first card, "excuse" included), which gates the rules' `applies_when`
+  instead of naming the follow-suit demand (see the Rules section above).
+- `tarot_trick_winner` — a **trick outcome function** (named on `round …
+  outcome tarot_trick_winner`, not called with parens): highest atout if any
+  was played, else highest of the effective led suit; the Excuse never wins.
+- `tarot_excuse_player() → Player?` — which player (if any) played the Excuse
+  in the trick that just completed, read off the round's exposed terminal
+  state (`state.played`) the same way the `state` pronoun is.
+- `tarot_per_opp(pb: Integer) → Integer` — the zero-sum per-opponent
+  settlement amount: the bouts-conditional threshold ({3 bouts: 36, 2: 41, 1:
+  51, 0: 56} doubled points), the taker's doubled card points (`captured` and
+  `discard`, plus the chien's at Garde sans le chien — the chien is never
+  moved there, so it counts where it sits), the petit-au-bout adjustment
+  `pb`, and the bid multiplier.
+
+`Card.__str__`'s rendering (used by observation logs and `to_string` in the
+OpenSpiel encoding) maps atouts to `★` and the Excuse to `☆` alongside the
+four standard suit glyphs, falling back to `:<suit>` for any other suit — so a
+future non-French-suited deck renders without crashing.
 
 More will be added as games surface common helpers.

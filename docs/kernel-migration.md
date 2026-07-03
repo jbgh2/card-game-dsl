@@ -17,21 +17,23 @@ done.
 
 ## The goal, concretely
 
-Six games still hold their decision logic in hand-written Python dispatched by
+Five games still hold their decision logic in hand-written Python dispatched by
 name in `cardlang/runtime/mechanics.py::instantiate`. Bridge's, Pinochle's, and
 Tarot's auctions have been lifted onto the kernel `round` — so `run_bridge_auction`
-is gone, Pinochle's post-auction mechanic is gone too (Pinochle is fully kernel —
-trump declaration, meld, and the twelve strict tricks all run in the DSL), and
-`run_tarot_hand` is now the post-auction `run_tarot_rest`:
+is gone, and Pinochle and Tarot are both fully kernel (Pinochle: trump
+declaration, meld, and the twelve strict tricks; Tarot: the chien handling, the
+eighteen atout-trump tricks, and the bouts-conditional scoring — `run_tarot_hand`
+and its post-auction `run_tarot_rest` are both gone):
 
 - inline in `mechanics.py`: `run_schnapsen_hand`
-- separate modules: `runtime/coup.py`, `cribbage.py`, `skat.py`,
-  `tarot.py` (post-auction), `tichu.py`
+- separate modules: `runtime/coup.py`, `cribbage.py`, `skat.py`, `tichu.py`
 
-(`runtime/stud.py`, `runtime/bigtwo.py`, and `runtime/pinochle.py` remain, but
-hold no `instantiate` mechanic — only pure stdlib primitives the DSL calls:
-Stud's poker evaluator, seat selectors, and `pot_share`; Big Two's combination
-engine; Pinochle's meld evaluator, `pinochle_meld_value`.)
+(`runtime/stud.py`, `runtime/bigtwo.py`, `runtime/pinochle.py`, and
+`runtime/tarot.py` remain, but hold no `instantiate` mechanic — only pure
+stdlib primitives the DSL calls: Stud's poker evaluator, seat selectors, and
+`pot_share`; Big Two's combination engine; Pinochle's meld evaluator,
+`pinochle_meld_value`; Tarot's per-card queries, effective led suit, trick
+outcome, Excuse-player lookup, and the per-opponent settlement arithmetic.)
 
 This violates the two-layer architecture ([principles.md](principles.md): the
 library is *written in the DSL*, not the engine). It also carries **info-set
@@ -164,15 +166,40 @@ consecutive passes), typed outcome = a contract variant. Then per game, supplyin
   byte-identical over 50 seeds. With it,
   Pinochle is fully kernel: registered in `cardlang/openspiel/game.py:GAMES`
   with derived info sets proven in the readiness harness.
-- **Tarot** — *done (auction).* The four-level ascending bid (Petite < Garde <
-  Garde sans < Garde contre) on the auction form of `round`: a **counterclockwise
-  single-pass ring** (each seat drops out of the participants ring after acting,
-  one bid each), five nullary level moves guarded by the standing bid, and a
-  two-variant `taken(taker, level) | thrown_in` outcome (an all-pass hand is
-  thrown in via `skip to next hand`). Exposed and fixed the kernel's
-  clockwise-only `turn_order_from` (now honours `direction`). `run_tarot_hand` is
-  the post-auction `run_tarot_rest` (chien dispatched by level, eighteen tricks,
-  scoring); byte-identical over 50 seeds.
+- **Tarot** — *done — fully kernel.* The four-level ascending bid (Petite <
+  Garde < Garde sans < Garde contre) runs on the auction form of `round`: a
+  **counterclockwise single-pass ring** (each seat drops out of the
+  participants ring after acting, one bid each), five nullary level moves
+  guarded by the standing bid, and a two-variant `taken(taker, level) |
+  thrown_in` outcome (an all-pass hand is thrown in via `skip to next hand`).
+  Exposed and fixed the kernel's clockwise-only `turn_order_from` (now honours
+  `direction`). The whole post-auction hand then followed onto the kernel too:
+  the chien discard (at Petite/Garde) is a filtered movement — the new
+  movement `where <lambda>` clause, narrowing the source pool to the matching
+  cards before the selection draws from it (preferring non-trump non-King
+  cards, falling back to any non-bout) — and the eighteen atout-trump tricks
+  run on the trick form of `round` under a new `ExcuseIsExempt`/
+  `MustFollowSuit`/`MustTrumpIfVoid`/`MustOverTrump` rule cascade. The Excuse's
+  exemption needed a second new axis — a rule `exempts:` clause: cards it
+  selects (when the rule's `applies_when` holds) sit outside the demand
+  cascade entirely and are appended after every other legal card, in hand
+  order, regardless of hand position — which an ordinary demands-intersection
+  cannot express (it can narrow a candidate set, never reorder one to the
+  end). Both axes were user-approved before implementation, landing as their
+  own red-fixture-to-green commits (`docs/decisions.md`, "Movement `where`
+  filter" / "Rule `exempts:` clause"). `run_tarot_hand` and its post-auction
+  `run_tarot_rest` are both gone; byte-identical over 50 seeds against the
+  unchanged golden. A follow-up fidelity stage then rerouted the chien
+  discard from the taker's public `captured` pile (a wart the byte-identical
+  migration inherited from the monolith) to a genuinely hidden
+  `discard[player] : HiddenPile<player>` zone — a deliberate, user-mandated
+  model change, so its golden regenerated (reviewed: zero-sum and
+  `hands_played` invariants held per seed, the 50-seed contract mix stayed
+  within measurement noise of the pre-change baseline). With it, Tarot is
+  fully kernel: registered in `cardlang/openspiel/game.py:GAMES` (its own
+  derived 78-card action-space block, since atouts/the Excuse fall outside the
+  standard 52-card catalogue) with derived info sets — including the hidden
+  discard specifically — proven in the readiness harness.
 - **Skat** — *deferred (language gap).* The Reizen call-and-response auction (one
   player names successive values, the other holds or passes) is **not expressible
   on the existing order axis**: role-dependent vocabularies (speaker `bid`/`pass`
@@ -205,16 +232,16 @@ Bridge's `all players` is the invariant case). Built with Pinochle; reused by Wo
 ring). An always-legal `pass` would instead offer passed players and consume RNG
 the monolith does not.
 
-**Scope note.** Skat and Tarot are *monoliths* — the auction is fused with play
-and scoring in one Python function ([roadmap.md](roadmap.md)); Pinochle was
-too, until its trick play and scoring followed its auction onto the kernel
-(above). The auction extraction is the entry point, but the whole hand must
-land in the DSL before the module is deleted: auction here, trick play on the
-Step 0 `round`, scoring in Workstream 4 (Pinochle's own meld stayed a
-game-local stdlib primitive rather than moving to Workstream 4's shared
-`scoring_component` subsystem — see that workstream's note below). Bridge is
-already split (play is DSL), so it finishes first and validates `auction` end
-to end.
+**Scope note.** Skat is still a *monolith* — the auction is fused with play and
+scoring in one Python function ([roadmap.md](roadmap.md)); Pinochle and Tarot
+were too, until each one's trick play and scoring followed its auction onto
+the kernel (above). The auction extraction is the entry point, but the whole
+hand must land in the DSL before the module is deleted: auction here, trick
+play on the Step 0 `round`, scoring in Workstream 4 (Pinochle's own meld and
+Tarot's own per-opponent settlement arithmetic both stayed game-local stdlib
+primitives rather than moving to Workstream 4's shared `scoring_component`
+subsystem — see that workstream's note below). Bridge is already split (play
+is DSL), so it finishes first and validates `auction` end to end.
 
 ## Workstream 2 — Betting and the pot (Seven-Card Stud)
 
@@ -377,6 +404,12 @@ components"), which the runtime has so far folded inline ([roadmap.md](roadmap.m
   subsystem or Workstream 3's combination model — migrate, don't redesign;
   promoting it to either shared mechanism is corpus-first future work, not a
   requirement the migration itself carried.
+- **Tarot** — *done, ahead of this workstream.* Likewise landed via Workstream
+  1 (above): the bouts-conditional threshold, the taker's doubled card points,
+  the petit-au-bout adjustment, and the bid multiplier all settle in
+  `tarot_per_opp`, a game-local stdlib primitive in the same shape as
+  `pinochle_meld_value`/`pot_share` — not this workstream's `scoring_component`
+  subsystem.
 
 **Test-depth nets.** Add Schnapsen's six-way settlement recompute (1/2/3 game
 points) before migrating it; the Cribbage scorers are already unit-tested and

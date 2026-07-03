@@ -56,8 +56,8 @@ Things we have noted but consciously not designed yet:
   (decisions.md "Interactive decisions: a kernel and an in-DSL standard library")
   is the major in-flight work: the remaining `round` axes (accumulator, order,
   move vocabulary); typed outcomes and definition-composition; and the `auction` /
-  `challenge` / `block` / `climb` standard-library vocabulary. Six games
-  (Schnapsen, Skat, Tarot, Cribbage, Tichu, Coup) still
+  `challenge` / `block` / `climb` standard-library vocabulary. Five games
+  (Schnapsen, Skat, Cribbage, Tichu, Coup) still
   hold their decision logic in concrete per-game runtime
   mechanics; lifting each into the kernel + DSL standard library (promoting a
   definition at ~3 examples) closes the spec-vs-runtime gap. The bidding
@@ -86,12 +86,14 @@ Things we have noted but consciously not designed yet:
   talon_closed | open_play`) are migrated off their Boolean gates onto it.
 
   The remaining typed-outcome migrations stay deferred because their decision is
-  not at a clean DSL/mechanic boundary: **French Tarot** and **Skat** fuse
-  their auctions into Python monoliths whose extraction is the
-  interactive-decision-kernel work (Pinochle's own `declare_trump` decision
-  cleared this bar — it is now a plain one-draw DSL round, no typed outcome
-  needed: `bid_abandoned` is an ordinary Boolean state var, like the games
-  above it); **Getaway**'s two-way
+  not at a clean DSL/mechanic boundary: **Skat** fuses its auction into a
+  Python monolith whose extraction is the interactive-decision-kernel work
+  (Pinochle's own `declare_trump` decision cleared this bar — it is now a
+  plain one-draw DSL round, no typed outcome needed: `bid_abandoned` is an
+  ordinary Boolean state var, like the games above it; **French Tarot**'s
+  whole hand, not just its auction, cleared it too — the chien discard, the
+  eighteen tricks, and the scoring are all plain DSL now, no typed outcome
+  beyond the auction's own `taken | thrown_in`); **Getaway**'s two-way
   resolution now lives in its `round` body (`if state.trick_terminated_early`), so
   a typed outcome there would mean the `round` itself producing a tagged
   pickup-vs-discard result rather than the body branching on round state.
