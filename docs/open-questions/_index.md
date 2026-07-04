@@ -14,10 +14,15 @@ When a question resolves, move its content to [decisions.md](../decisions.md)
 folder, and remove the entry from this index. See
 [maintaining.md](../maintaining.md) for the full hygiene rules.
 
-**Tier 1 is currently empty** — all originally Tier 1 questions
-(and bidding-meaning, promoted after Oh Hell) have been resolved
-into [decisions.md](../decisions.md). Tier 2 items may be promoted
-to Tier 1 as further corpus data arrives.
+## Tier 1 — High impact, enough data to commit now
+
+- [move-parameter-domains](move-parameter-domains.md) — declared finite
+  parameter domains (Rank/Player/bounded Integer) enumerable by plain
+  `offer`, doubling as the OpenSpiel action-space contract; three
+  independent stress-sweep games hit the nullary-move-type explosion.
+- [game-length-bounds](game-length-bounds.md) — a per-game `max_length:`
+  declaration replacing the runtime's 10k iteration cap and the adapter's
+  hardcoded `max_game_length=40000`; OpenSpiel requires the number anyway.
 
 ## Tier 2 — High impact, blocked on a data point
 
@@ -28,6 +33,13 @@ design. The data point is named in each file.
   call-and-response is a new `order` value on the auction `round`, body
   composition, or stays in Python; blocked on a second call-and-response
   game (or a sign-off to add the axis now).
+- [turn-loop-form](turn-loop-form.md) — a `turns` form beneath the three
+  round forms (rotation, participant filtering, termination owned by the
+  kernel); seven stress-sweep games hand-rolled the same scaffolding;
+  blocked on a corpus-quality anchor game (President or Gin Rummy).
+- [meld-groups](meld-groups.md) — a card-group construct with joint
+  validity predicates; Pinochle + Gin + Canasta are the three data points;
+  blocked on a rummy-family game entering the corpus properly.
 
 ## Tier 3 — Medium impact, narrow scope
 
@@ -45,6 +57,9 @@ of the language.
   betting streets) into one body; the within-round predicate duplication is
   already resolved with named functions, so this is the residual block-level
   repetition, and the second-instance data point is Hold'em.
+- [single-actor-binding](single-actor-binding.md) — an `as <player> { ... }`
+  block for one-player decisions, replacing the `for each player p: if p ==
+  X` loop-and-skip idiom that five games have independently reinvented.
 
 ## Tier 4 — Low impact, defer until forced
 
