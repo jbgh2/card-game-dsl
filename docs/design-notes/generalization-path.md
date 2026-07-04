@@ -213,3 +213,41 @@ not, with the reason:
 - **Open rule spaces** (Mao): out by the axis-3 guardrail, and out for
   OpenSpiel too.
 - **Real-time / dexterity / unbounded play**: out for both, unchanged.
+
+## 6. The agent layer: epistemic interfaces (a payoff, not an axis)
+
+Nothing in this section changes the language. Conventions, implicature,
+and play style are *strategy*, not rules, so they stay beyond the
+compile target — at the OpenSpiel seam, where policies (CFR, IS-MCTS,
+RL, LLM agents) attach. But two properties the language already
+guarantees compose into something hand-coded game environments do not
+offer:
+
+1. **Candidate sets are a machine-readable theory-of-mind substrate.**
+   [decisions.md](../decisions.md) defines an observer's knowledge as a
+   candidate set over zone contents. For hint-economy and deduction
+   games, that object *is* the game — "slot 2 is one of {R4, R5}, and
+   she knows I know it is red." A compiled game exposes each player's
+   epistemic state as inspectable data, not as the side effect of a
+   hand-written observation encoder.
+
+2. **The swap proofs make derived textualizations leak-free by
+   construction.** A natural-language "what you know" rendering
+   generated from the projection machinery is provably identical across
+   all worlds the observer cannot distinguish — the
+   indistinguishability proof is precisely the statement that a prompt
+   built this way carries no inside information. An LLM agent playing
+   through such an interface cannot be handed a leak even by accident,
+   and the harness that proves games OpenSpiel-ready doubles as the
+   audit of the interface.
+
+Because observations are derived uniformly, one textualization harness
+serves every game: anything the language can compile becomes
+LLM-playable with faithful epistemic prompts for free. The sharpest
+witness is Hanabi — its difficulty for machines is pragmatics over
+exactly these candidate sets, which is why self-play RL solves it only
+with alien conventions that collapse in ad-hoc play (noting axis 2's
+`announce` prerequisite and the dedicated-deck scope call). But the
+interface is game-agnostic: Cheat (public claims against private
+candidate sets) and any sealed-bid game exercise it from the existing
+corpus direction.
