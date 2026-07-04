@@ -10,13 +10,14 @@ as six-slot hook bundles (`TrickForm` / `AuctionForm` / `ClimbForm` in
 `cardlang/runtime/mechanics.py`), selected by `build_form` and dispatched once in
 `execute.py`. §§1–8 are the rationale that produced it — where they speak of "the
 three `run_*` loops," read the discovery basis, not the current structure. The
-info-set leak (§6, §9 step 4) is closed for the nine fully-kernel games
+info-set leak (§6, §9 step 4) is closed for the ten fully-kernel games
 (Seven-Card Stud joined when its showdown left `instantiate`; Pinochle when its
 trump declaration, meld, and trick play did; French Tarot when its chien
 handling, tricks, and scoring did — the last also needing a movement `where`
 filter and a rule `exempts:` clause, two new closed-axis additions, not engine
-hooks); it remains open for the five `instantiate` games, as does the
-front-end derivation (§5).*
+hooks; Cribbage when its pegging and show did, reusing the `where` filter with
+ordinary statement control flow and no new axis); it remains open for the four
+`instantiate` games, as does the front-end derivation (§5).*
 
 
 ## 1. The question and the short answer
@@ -139,7 +140,7 @@ is reusable above the primitives and descriptions are unreadable. On
 axis (b) — *information sets* — GDL is the paragon: its `sees`/`random`
 relation *derives* each player's information set from the spec, which
 is precisely the property our OpenSpiel target needs. Our Python
-escape-hatch mechanics (Schnapsen, Coup, Skat, Cribbage, Tichu)
+escape-hatch mechanics (Schnapsen, Coup, Skat, Tichu)
 share GDL's *bad* axis (a) — build-from-primitives, nothing reusable
 above them — while being the **opposite** of GDL on axis (b): their
 info-sets are hand-authored, not derived. So the escape hatches get
@@ -576,7 +577,7 @@ parts are proven on paper *before* any code depends on them.
    count-`n` and its kind/ownership conventions) is replaced by one general
    reader of projected events (`cardlang/openspiel/infostate.py`,
    `cardlang/openspiel/game.py`) covering Hearts, Getaway, Spades, Bridge, Oh
-   Hell, Big Two, Seven-Card Stud, Pinochle, and French Tarot — proven by
+   Hell, Big Two, Seven-Card Stud, Pinochle, French Tarot, and Cribbage — proven by
    `tests/test_openspiel_ready.py` (indistinguishability, soundness, perfect
    recall; Bridge's and French Tarot's swap/soundness/recall proofs cover only
    the pass-only line of their auctions — the harness's greedy replay never
@@ -584,7 +585,7 @@ parts are proven on paper *before* any code depends on them.
    Tarot's hidden discard is instead proven derived by a dedicated
    observational test; Stud's and French Tarot's conformance are bounded random
    API walks, their full sims being quadratic in game length). This was the payoff
-   that justified the exercise. The five `instantiate` games remain info-set
+   that justified the exercise. The four `instantiate` games remain info-set
    debt: the adapter rejects them loudly rather than silently mis-modeling
    them.
 

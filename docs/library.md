@@ -214,6 +214,20 @@ match) and so must trump if able, a quirk the split preserves precisely.
   the form — is promoted to this catalogue corpus-first at its third instance;
   Stud is the only instance today, so the move types and `pot_share` stay
   game-local.
+- **Cribbage's counting hand** runs entirely on ordinary statements — no `round`
+  form fits pegging's per-play scoring plus forced-play flow (see
+  [kernel-migration.md](kernel-migration.md), Workstream 4). Both players'
+  discards and every pegging play are filtered card movements (`move chosen …
+  where …`); `repeat until` / `if`/`else` / `skip to next hand` reproduce the
+  121-point cutoff one scoring component at a time. The current sub-round's card
+  provenance (who played each `play_pile` card) is carried by two `Integer` state
+  variables (`seq_bits`/`seq_len`, public information — every player watched the
+  count) and decoded by the `peg_origin_of` stdlib query. Six game-local stdlib
+  primitives (see "Stdlib functions") — `peg_value`, `peg_pair_points`,
+  `peg_run_points`, `peg_origin_of`, `cribbage_show_value`, `cribbage_crib_value`
+  — hold the pegging-count and show scorers, in the same game-local shape as
+  Stud's `pot_share` and Pinochle's `pinochle_meld_value`; game-local until the
+  shared `scoring_component` subsystem lands corpus-first.
 - `ChallengeWindow` (see [games/coup.md](games/coup.md)) — Coup.
   Parameterized over the claimant and the claimed character; resolves
   to `claim_stands | claim_refuted`. Offers each other in-game player a
@@ -231,7 +245,7 @@ match) and so must trump if able, a quirk the split preserves precisely.
 
 ## Scoring components
 
-Introduced in Bridge, now in Bridge, Spades, and Cribbage. Composition
+Introduced in Bridge, now in Bridge and Spades. Composition
 by summation of `ScoreDelta` outputs; triggered components fire on
 specific events via `triggered_by:` clauses (see decisions.md
 "Triggered scoring components").
@@ -252,18 +266,6 @@ specific events via `triggered_by:` clauses (see decisions.md
   also accumulates bags on overtricks.
 - `BagOverflow` — triggered after `apply_components` on the
   bags-crosses-10 threshold.
-
-**Cribbage:**
-
-- `HisHeels` — triggered on `cut_starter` event when the starter is a Jack.
-- `PeggingFifteen`, `PeggingThirtyOne` — triggered on `play_card` when
-  the running total reaches 15 or 31.
-- `PeggingPair`, `PeggingRun` — triggered on `play_card` from suffix
-  patterns on the play pile.
-- `PeggingLastCard` — triggered on `end_of_round`.
-- `ShowFifteens`, `ShowPairs`, `ShowRuns`, `ShowFlush`, `ShowHisNob`
-  — per-batch components, applied three times (non-dealer hand, dealer
-  hand, crib).
 
 All currently game-specific. Generalization candidates will emerge with
 more scoring-heavy games (Bridge variants, Pinochle's full meld
@@ -513,10 +515,6 @@ Standard helpers available across games.
   declaration; returns the team containing the given player. Used
   in Spades, Pinochle, Bridge, anywhere team-of-trick-winner
   matters.
-- `value(card: Card) → Integer` — the card's pegging-pip value as
-  used in Cribbage and adding games: A=1, 2..10 = face value, J/Q/K = 10.
-  Distinct from a card's *ranking* (which orders cards for
-  trick-taking comparisons).
 - `rank_value(card: Card) → Integer` — the card's rank strength under the
   game's `ranking:` declaration (higher = stronger; `rs.rank_index`), deck-
   agnostic. Used by Pinochle's `MustHeadTrick`/`MustOverTrump` rules to find
@@ -526,6 +524,26 @@ Standard helpers available across games.
   nothing for), general-purpose for any point-trick game. Used by Pinochle
   (`trick_score[...] += sum over trick_pile as c: card_value(c)`); Schnapsen
   and Skat's own card-point tallies are the next candidates to move onto it.
+
+Cribbage's pegging and show scoring, plus the pegging count's card provenance,
+are six game-local primitives reading `cardlang/runtime/cribbage.py` — game-local
+(like Stud's `pot_share`) until the shared `scoring_component` subsystem lands
+corpus-first:
+
+- `peg_value(card: Card) → Integer` — the card's pegging/fifteens pip value:
+  A=1, 2..10 = face value, J/Q/K = 10. Distinct from a card's *ranking* (which
+  orders cards for trick-taking comparisons).
+- `peg_pair_points() → Integer` — pair points (2/6/12 for a two/three/four-of-a-
+  kind streak) at the tail of the live `play_pile` count.
+- `peg_run_points() → Integer` — run points (the length of the longest run of
+  three or more ending at the tail) of the live `play_pile` count.
+- `peg_origin_of(card: Card) → Player` — which player played a given live
+  `play_pile` card, decoded from the `seq_bits`/`seq_len` play-order state; routes
+  each sub-round's cards into `played[dealer]` / `played[nondealer]` at the close.
+- `cribbage_show_value(player: Player) → Integer` — a player's pegged hand's show
+  score (fifteens, pairs, runs, flush, his-nob) counted against the shared starter.
+- `cribbage_crib_value() → Integer` — the dealer's crib show score (a flush needs
+  all five cards, unlike the four-card hand flush).
 
 French Tarot's non-uniform 78-card deck (suit×rank card points that vary by
 suit, an effective led suit that isn't the kernel's own, and a settlement the

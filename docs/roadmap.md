@@ -56,8 +56,8 @@ Things we have noted but consciously not designed yet:
   (decisions.md "Interactive decisions: a kernel and an in-DSL standard library")
   is the major in-flight work: the remaining `round` axes (accumulator, order,
   move vocabulary); typed outcomes and definition-composition; and the `auction` /
-  `challenge` / `block` / `climb` standard-library vocabulary. Five games
-  (Schnapsen, Skat, Cribbage, Tichu, Coup) still
+  `challenge` / `block` / `climb` standard-library vocabulary. Four games
+  (Schnapsen, Skat, Tichu, Coup) still
   hold their decision logic in concrete per-game runtime
   mechanics; lifting each into the kernel + DSL standard library (promoting a
   definition at ~3 examples) closes the spec-vs-runtime gap. The bidding

@@ -70,6 +70,30 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.tarot import tarot_card_points
 
             return tarot_card_points(args[0])
+        case "peg_value":
+            from cardlang.runtime.cribbage import value
+
+            return value(args[0])
+        case "peg_pair_points":
+            from cardlang.runtime.cribbage import peg_pair_points
+
+            return peg_pair_points(ctx.rs.zones.single("play_pile").cards)
+        case "peg_run_points":
+            from cardlang.runtime.cribbage import peg_run_points
+
+            return peg_run_points(ctx.rs.zones.single("play_pile").cards)
+        case "peg_origin_of":
+            from cardlang.runtime.cribbage import peg_origin_of
+
+            return peg_origin_of(ctx, args[0])
+        case "cribbage_show_value":
+            from cardlang.runtime.cribbage import cribbage_show_value
+
+            return cribbage_show_value(ctx, args[0])
+        case "cribbage_crib_value":
+            from cardlang.runtime.cribbage import cribbage_crib_value
+
+            return cribbage_crib_value(ctx)
         case _:
             raise AssertionError(f"unknown stdlib function '{name}'")
 

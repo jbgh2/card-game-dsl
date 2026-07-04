@@ -221,3 +221,62 @@ def _capture_bigtwo() -> dict[str, Any]:
 def test_bigtwo_migration_preserves_per_seed_results() -> None:
     expected = json.loads((GOLDEN / "bigtwo_scores.json").read_text())
     assert _capture_bigtwo() == expected
+
+
+# Cribbage moves the whole hand — crib discards, the starter cut and his heels,
+# the pegging count (fifteens/pairs/runs/31/go), and the show (non-dealer hand,
+# dealer hand, crib) — from `run_cribbage_hand` onto the kernel: filtered
+# movements reproduce the two discard draws and the per-play pegging draw
+# exactly, and ordinary statement control flow (`repeat until`, `if`/`else`,
+# `skip to next hand`) reproduces the 121-cutoff gating. Cribbage's score
+# trajectory (not just the eventual winner) can cross 121 at any component of
+# any play, so — like Stud — we pin the full per-hand score vector rather than
+# just `scores`/`winner`: a chooser-draw divergence surfaces at the hand it
+# first perturbs. Anchored on the driver's own `hand_end` trace (driver.py,
+# `dict(rs.get(score_var))` — for Cribbage's `winner: highest score`, that is
+# `dict(score)`), a signal that survives the migration (no mechanic-local trace
+# is read by any test — the old `cribbage_show` trace's only occurrence was its
+# own emission). `hands_played` is NOT pinned: Cribbage has no phase named
+# `scoring`, so the driver's hand counter reads 0 both before and after — the
+# per-hand vector list length already carries that information. Cribbage's
+# chooser candidate lists are hand-ordered lists (never sets), so this capture
+# is hash-independent; `PYTHONHASHSEED=0` is kept for harness consistency, as
+# for Big Two. Pinned pre-migration.
+_CRIBBAGE_CAPTURE = """
+import json, random, sys
+from pathlib import Path
+from cardlang.pipeline import check_dsl
+from cardlang.runtime.driver import play_game
+
+game = check_dsl(Path("docs/games/cribbage.cardlang").read_text(), "cribbage.cardlang")
+out = {}
+for seed in range(50):
+    hands = []
+
+    def tracer(event, data, _h=hands):
+        if event == "hand_end":
+            _h.append([data[p] for p in sorted(data)])
+
+    play_game(game, random.Random(seed), tracer)
+    out[str(seed)] = hands
+print(json.dumps(out))
+"""
+
+
+def _capture_cribbage_hands() -> dict[str, Any]:
+    env = dict(os.environ, PYTHONHASHSEED="0")
+    proc = subprocess.run(
+        [sys.executable, "-c", _CRIBBAGE_CAPTURE],
+        cwd=REPO,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    result: dict[str, Any] = json.loads(proc.stdout)
+    return result
+
+
+def test_cribbage_migration_preserves_per_hand_scores() -> None:
+    expected = json.loads((GOLDEN / "cribbage_hands.json").read_text())
+    assert _capture_cribbage_hands() == expected

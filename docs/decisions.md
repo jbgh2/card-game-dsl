@@ -464,7 +464,7 @@ Two decisions distinguish it from the trick and auction forms:
   The engines stay per-game because the combination rules differ materially (Big
   Two: suit tie-breaks on every play, flushes and quads, cross-type beating within
   the five-card group; Tichu: rank-only keys, bombs, the four special cards); they
-  merge only at a third instance (Pinochle melds / Cribbage scoring), per the
+  merge only at a third instance (Pinochle melds would be a further one), per the
   promote-at-the-third rule. The construct depends only on the queries' interface: a
   list of plays, each exposing its cards as `.cards`.
 
@@ -629,12 +629,13 @@ abandoned in turn.
 
 This matches standard activation-record semantics — when an outer
 scope exits, every inner scope exits with it — and means most games
-get mid-phase termination for free. Cribbage is the canonical case:
-`phase hand_sequence repeats until any score >= 121` catches a
-peg-out during pegging or during the show without any additional
-machinery, because the predicate is re-checked the moment `score`
-changes. The mechanic instances active when the predicate flips
-(PeggingRound, the show batches) are abandoned.
+get mid-phase termination for free. Cribbage is the canonical case: a
+peg-out can occur mid-hand, during pegging or during the show, and the
+game stops the instant either score reaches 121 — expressed by an
+`if game_over() { skip to next hand }` guard at each scoring point,
+which unwinds the active pegging loop and show statements to the
+enclosing `phase hand_sequence repeats until (any player p: score[p]
+>= 121)`, whose predicate then ends the game at the hand boundary.
 
 Games where the termination predicate can change only at iteration
 boundaries (Hearts: scoring is end-of-hand only) get the same
@@ -661,8 +662,8 @@ sub-phases:
   guarantee a trailing sub-phase cannot give: under continuous evaluation
   ("Loop termination semantics" above) a loop can exit mid-iteration, and a
   "last sub-phase = cleanup" would be skipped — whereas `after_each` always
-  runs (the test-framework `afterEach` semantic). Cribbage, whose hand can end
-  mid-play on a peg-out, needs this.
+  runs (the test-framework `afterEach` semantic). Oh Hell, French Tarot, and
+  Skat use `after_each` for end-of-hand teardown.
 
 The loop's `state { }` initializes once and **persists** across iterations;
 the hooks run **each** iteration. That separates per-game state from
@@ -722,10 +723,7 @@ A phase may contain *multiple* `apply_components:` batches in
 sequence. Each batch is internally unordered (deltas summed against
 pre-batch state, applied at once), but later batches see the
 accumulated effect of earlier batches and any intervening imperative
-statements. Cribbage's show uses this — non-dealer hand, dealer
-hand, and crib are three sequential batches, with the
-hand_sequence's `score >= 121` termination check observed between
-each. Batching encodes "these scores are independent of each
+statements. Batching encodes "these scores are independent of each
 other"; sequencing encodes "these scores depend on what came
 before, potentially including game termination."
 
@@ -1475,8 +1473,7 @@ Some scoring fires in response to a specific event rather than as
 part of an `apply_components:` batch. Bridge's GameBonus fires when
 a partnership's below-the-line score crosses 100; RubberBonus fires
 when `games_won` reaches 2; Spades' bag-overflow fires when
-`bags >= 10`; Cribbage's pegging events (fifteens, pairs, runs,
-thirty-one, last-card) fire on each play during pegging. These
+`bags >= 10`. These
 share one shape, distinct from the batched per-hand composition:
 fire on an event, evaluate a predicate, contribute a `ScoreDelta`.
 
@@ -1529,11 +1526,9 @@ clause on the enclosing loop fires immediately upon the
 triggered-component delta being applied. See "Loop termination
 semantics" above.
 
-**Corpus usage.** The corpus presently has nine triggered
-components across three games — Bridge (GameBonus, RubberBonus),
-Spades (BagOverflow), Cribbage (HisHeels, PeggingFifteen,
-PeggingThirtyOne, PeggingPair, PeggingRun, PeggingLastCard). All
-fit the shape above.
+**Corpus usage.** The corpus presently has three triggered
+components across two games — Bridge (GameBonus, RubberBonus) and
+Spades (BagOverflow). All fit the shape above.
 
 ## `choose` as expression
 

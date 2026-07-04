@@ -17,23 +17,29 @@ done.
 
 ## The goal, concretely
 
-Five games still hold their decision logic in hand-written Python dispatched by
+Four games still hold their decision logic in hand-written Python dispatched by
 name in `cardlang/runtime/mechanics.py::instantiate`. Bridge's, Pinochle's, and
 Tarot's auctions have been lifted onto the kernel `round` — so `run_bridge_auction`
 is gone, and Pinochle and Tarot are both fully kernel (Pinochle: trump
 declaration, meld, and the twelve strict tricks; Tarot: the chien handling, the
 eighteen atout-trump tricks, and the bouts-conditional scoring — `run_tarot_hand`
-and its post-auction `run_tarot_rest` are both gone):
+and its post-auction `run_tarot_rest` are both gone). Cribbage's whole counting
+hand — discard, cut, pegging, and the show — runs on ordinary DSL statements
+(filtered movements, `repeat until`, `skip to next hand`), so `run_cribbage_hand`
+is gone as well:
 
 - inline in `mechanics.py`: `run_schnapsen_hand`
-- separate modules: `runtime/coup.py`, `cribbage.py`, `skat.py`, `tichu.py`
+- separate modules: `runtime/coup.py`, `skat.py`, `tichu.py`
 
-(`runtime/stud.py`, `runtime/bigtwo.py`, `runtime/pinochle.py`, and
-`runtime/tarot.py` remain, but hold no `instantiate` mechanic — only pure
-stdlib primitives the DSL calls: Stud's poker evaluator, seat selectors, and
-`pot_share`; Big Two's combination engine; Pinochle's meld evaluator,
-`pinochle_meld_value`; Tarot's per-card queries, effective led suit, trick
-outcome, Excuse-player lookup, and the per-opponent settlement arithmetic.)
+(`runtime/stud.py`, `runtime/bigtwo.py`, `runtime/pinochle.py`,
+`runtime/tarot.py`, and `runtime/cribbage.py` remain, but hold no `instantiate`
+mechanic — only pure stdlib primitives the DSL calls: Stud's poker evaluator,
+seat selectors, and `pot_share`; Big Two's combination engine; Pinochle's meld
+evaluator, `pinochle_meld_value`; Tarot's per-card queries, effective led suit,
+trick outcome, Excuse-player lookup, and the per-opponent settlement arithmetic;
+Cribbage's pegging/show scorers and provenance decoder — `peg_value`,
+`peg_pair_points`, `peg_run_points`, `peg_origin_of`, `cribbage_show_value`,
+`cribbage_crib_value`.)
 
 This violates the two-layer architecture ([principles.md](principles.md): the
 library is *written in the DSL*, not the engine). It also carries **info-set
@@ -311,8 +317,8 @@ all-but-one-folded).
 ## Workstream 3 — Combinations and climbing (Tichu)
 
 The first climbing game and first non-(rank,suit) cards. It introduces a
-**combination model** reused later by Pinochle melds and Cribbage scoring (three
-instances → promote to the standard library).
+**combination model** reused later by Pinochle melds (promote to the standard
+library once a third instance arrives).
 
 - A typed `Combination` value: type × length × strength, with a comparison
   (single / pair / triple / straight / full house / bomb).
@@ -356,8 +362,8 @@ The design the construct settled:
   engines differ — Big Two keys on (rank, suit) because suit breaks every tie,
   carries flushes/quads, and follows cross-type within the five-card group, where
   Tichu keys rank-only, has bombs, and the special cards. So the engines stay
-  game-local (beside the promote-at-the-third-instance rule — Pinochle melds /
-  Cribbage scoring are the third), each named as a `combinations` / `follows` query
+  game-local (beside the promote-at-the-third-instance rule — Pinochle melds would
+  be a further instance), each named as a `combinations` / `follows` query
   pair on the `round climb`. The divergent *routing* lives in the DSL body, not the
   construct (the trick-form discipline): the climb form's `outcome` returns the
   winner (the last player to play, bound as `outcome`), and the body routes the pile
@@ -387,11 +393,19 @@ This workstream builds the **`scoring_component` runtime subsystem**
 ([decisions.md](decisions.md), "Scoring composition" / "Triggered scoring
 components"), which the runtime has so far folded inline ([roadmap.md](roadmap.md)).
 
-- **Cribbage** — discard to the crib (offers), pegging as a `round` with a
-  running-total accumulator and triggered components (fifteen / thirty-one /
-  pair / run / last-card), then the show: combination scoring (fifteens, pairs,
-  runs, flush, his-nob) applied to non-dealer hand, dealer hand, and crib. Re-home
-  the module-level Cribbage scorers as standard-library combination queries.
+- **Cribbage** — *done, ahead of this workstream.* The whole hand landed on the
+  kernel without the `scoring_component` subsystem this workstream builds: the
+  discards and every pegging play are filtered card movements, and the 121-point
+  cutoff is reproduced a component at a time by ordinary statement control flow
+  (`repeat until`, `if`/`else`, `skip to next hand`). No `round` form fits
+  pegging's per-play scoring plus forced-play flow, so it uses none; the current
+  sub-round's card provenance is carried in two `Integer` state variables and
+  decoded by the `peg_origin_of` stdlib primitive. The module-level Cribbage
+  scorers (pegging counts + the show's fifteens/pairs/runs/flush/his-nob) re-homed
+  as game-local stdlib primitives, like Stud's `pot_share` and Pinochle's
+  `pinochle_meld_value` — migrate, don't redesign; promoting them to the shared
+  `scoring_component` subsystem is corpus-first future work, not a requirement
+  this migration carried.
 - **Schnapsen** — marriages as an in-play declaration (`offer` that scores
   20/40), the trump-jack exchange (`offer`), and closing the stock (`offer` →
   the mid-hand open→closed phase-shape transition; its `claimed | talon_closed |
@@ -412,10 +426,10 @@ components"), which the runtime has so far folded inline ([roadmap.md](roadmap.m
   subsystem.
 
 **Test-depth nets.** Add Schnapsen's six-way settlement recompute (1/2/3 game
-points) before migrating it; the Cribbage scorers are already unit-tested and
-should keep that coverage as stdlib queries.
+points) before migrating it; the Cribbage scorers kept their unit-test coverage
+as stdlib queries.
 
-Delete `run_cribbage_hand` and `run_schnapsen_hand` once green.
+Delete `run_schnapsen_hand` once green.
 
 ## Workstream 5 — Challenge, block, influence (Coup)
 
@@ -461,8 +475,10 @@ These land inside the workstreams above and are shared on the third use:
    bid → Tarot → Skat.
 3. **Stud** — betting + pot.
 4. **Tichu** — climbing + the combination model.
-5. **Cribbage + Schnapsen** — the scoring-component subsystem (Pinochle's own
-   scoring landed with its Workstream 1 migration, ahead of this step).
+5. **Cribbage + Schnapsen** — the scoring-component subsystem (Pinochle's and
+   Cribbage's scoring both landed ahead of this step — Pinochle with its
+   Workstream 1 migration, Cribbage on ordinary statements plus game-local stdlib
+   primitives rather than the subsystem itself; Schnapsen remains).
 6. **Coup** — challenge / block / influence.
 
 This is breadth-first by shape: it reaches `auction`'s third instance early and

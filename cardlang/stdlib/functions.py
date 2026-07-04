@@ -83,6 +83,12 @@ STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
         "tarot_excuse_player",  # French Tarot: who played the Excuse in the trick just completed
         "tarot_per_opp",  # French Tarot: the zero-sum per-opponent settlement amount
         "tarot_card_points",  # French Tarot: a card's doubled card-point value
+        "peg_value",  # Cribbage: pegging/fifteens value of a card (A=1, faces 10)
+        "peg_pair_points",  # Cribbage: pairs points at the tail of the live pegging count
+        "peg_run_points",  # Cribbage: run points at the tail of the live pegging count
+        "peg_origin_of",  # Cribbage: which player played a live pegging-pile card
+        "cribbage_show_value",  # Cribbage: a player's pegged hand's show score
+        "cribbage_crib_value",  # Cribbage: the dealer's crib show score
     }
 )
 

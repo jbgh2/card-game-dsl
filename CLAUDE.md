@@ -25,9 +25,9 @@ against OpenSpiel directly. For hidden hands, face-down cards, bluffs, and
 concealed bids this is genuinely hard — and it is exactly where the value is.
 
 **Honest status — the substrate exists; the escape hatches are still debt.**
-The nine fully-kernel games (Hearts, Getaway, Spades, Bridge, Oh Hell, Big
-Two, Seven-Card Stud, Pinochle, French Tarot) reach OpenSpiel through ONE
-general adapter with *derived* information sets: per-observer observations are
+The ten fully-kernel games (Hearts, Getaway, Spades, Bridge, Oh Hell, Big
+Two, Seven-Card Stud, Pinochle, French Tarot, Cribbage) reach OpenSpiel through
+ONE general adapter with *derived* information sets: per-observer observations are
 emitted from the kernel's decision/movement sites through the declared
 zone-type projections, and `tests/test_openspiel_ready.py` proves
 indistinguishability (hidden-card swaps leave a player's information state
@@ -39,8 +39,8 @@ proven derived by a dedicated observational test. Stud's and French Tarot's
 conformance are bounded random API walks, their full sims being
 quadratic-in-length). No per-game observation rules remain. But every per-game
 Python escape-hatch mechanic dispatched by `instantiate` (Schnapsen, Coup,
-Skat, Cribbage, Tichu) still *bypasses* this derivation — the adapter rejects
-those five games loudly, and the leak lands hardest on exactly the
+Skat, Tichu) still *bypasses* this derivation — the adapter rejects
+those four games loudly, and the leak lands hardest on exactly the
 imperfect-information games the AI target most exists to serve. The gap is
 quantified in `docs/design-notes/kernel-extensibility.md`, §6.
 

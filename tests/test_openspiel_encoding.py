@@ -147,6 +147,15 @@ def test_french_tarot_to_string_uses_the_card_glyph_rendering() -> None:
     assert space.to_string(space.encode(Card("Excuse", "excuse"))) == "Excuse☆"
 
 
+def test_cribbage_space_is_pure_cards() -> None:
+    # No offers, no `choose`, no auction vocabulary, no climb engine — just the
+    # standard 52-card block (the first 2-player registered game).
+    space = _space("cribbage.cardlang")
+    assert space.num_distinct_actions == 52
+    assert space.encode(Card("A", "clubs")) == card_to_action(Card("A", "clubs"))
+    assert space.decode(space.encode(Card("K", "hearts"))) == Card("K", "hearts")
+
+
 def test_existing_games_keep_the_standard_52_card_block() -> None:
     # The derivation must be a no-op for every deck already expressible in the
     # standard scheme — a subset deck (pinochle48) leaves unused slots rather

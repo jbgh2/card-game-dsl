@@ -26,6 +26,7 @@ KERNEL_GAMES = [
     "seven-card-stud.cardlang",
     "pinochle.cardlang",
     "french-tarot.cardlang",
+    "cribbage.cardlang",
 ]
 
 
