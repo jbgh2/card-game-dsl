@@ -1407,6 +1407,14 @@ for elimination games that select the player who *still* holds cards.
 
 ## Scoring composition
 
+> **Status: designed, not yet built.** No game runs this subsystem — the runtime
+> has no `apply_components:` construct, and `ScoreDelta`/`triggered_by:` are not
+> implemented. It is the intended shape for composed scoring; the corpus scores
+> through game-local statements and stdlib primitives today (Bridge and Spades
+> inline; Pinochle's `pinochle_meld_value`, Tarot's `tarot_per_opp`, Cribbage's
+> pegging/show primitives). The components named here and in the sibling sections
+> are the proposed decomposition, promoted corpus-first when the subsystem lands.
+
 Scoring composes from named components. The scoring phase of a game
 declares which components apply:
 
@@ -1468,6 +1476,9 @@ the indirection (the cribbage show-scoring components are an
 example).
 
 ## Triggered scoring components
+
+> Part of the `scoring_component` subsystem — designed, not yet built (see
+> "Scoring composition" above).
 
 Some scoring fires in response to a specific event rather than as
 part of an `apply_components:` batch. Bridge's GameBonus fires when

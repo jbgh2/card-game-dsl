@@ -245,10 +245,17 @@ match) and so must trump if able, a quirk the split preserves precisely.
 
 ## Scoring components
 
-Introduced in Bridge, now in Bridge and Spades. Composition
-by summation of `ScoreDelta` outputs; triggered components fire on
+> **Status: proposed, not yet built.** No game runs a `scoring_component` /
+> `ScoreDelta` subsystem — the runtime has no `apply_components:` construct. The
+> decompositions below are the intended design; the corpus scores through
+> game-local statements and stdlib primitives (see the Mechanics section above and
+> `decisions.md`, "Scoring composition"). This catalogue is promoted corpus-first
+> when the subsystem is built.
+
+Composition by summation of `ScoreDelta` outputs; triggered components fire on
 specific events via `triggered_by:` clauses (see decisions.md
-"Triggered scoring components").
+"Triggered scoring components"). Proposed decompositions for Bridge and Spades
+follow.
 
 **Bridge:**
 
