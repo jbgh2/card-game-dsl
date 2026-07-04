@@ -1,0 +1,378 @@
+// Ninety-Nine (adding game) — formalized DSL (stress test, not corpus canon).
+//
+// Source: https://www.pagat.com/adders/98.html (the "NINETY-NINE" section of
+// Pagat's combined 98/99/100 write-up — pagat.com/adders/99.html itself 404s;
+// this page is the one Pagat actually serves and is the authoritative source
+// for the rules below). ADDING game, not Parlett's trick-taking "Ninety-Nine".
+//
+// Each player holds 3 cards face down and starts with lives (pennies, in
+// Pagat's telling). On your turn you play one card face up to a shared pile,
+// adding its value to a running count that must never exceed 99, then draw a
+// replacement so your hand stays at 3. A player who cannot play any card
+// without pushing the count past 99 "lays down their hand" (revealed face up)
+// and loses a life; the hand ends immediately, the deal passes left, and a
+// fresh hand of 3 is dealt to every player still holding a life. Last player
+// with a life remaining wins.
+//
+// Card values (Pagat's exact "NINETY-NINE" wording):
+//   2,3,5,6,7,8 : face value.        J, Q            : 10.
+//   A           : "1 or 11, at the player's choice."
+//   4           : "the value remains the same but the direction of play
+//                  reverses" (adds 0, reverses turn order for the rest of
+//                  the hand).
+//   9           : "counts as zero" (adds 0, no other effect).
+//   10          : "increases or reduces the value of the pile by ten, at
+//                  the player's choice."
+//   K           : "the value of the pile is set to 99" (an absolute
+//                  override, not additive — always legal).
+// A player must make a legal (non-busting) play if one exists; only with no
+// safe card at all do they lay down and lose a life ("forced play while
+// able", the same obligation Cribbage's pegging loop enforces).
+//
+// SIMPLIFICATIONS (every deliberate departure from Pagat, recorded here and
+// at each site with a comment):
+//
+// 1. Lives = 3, not Pagat's 5 pennies. The task brief fixed the game at 3
+//    cards / 3 lives to keep random playouts short; Pagat's default stake is
+//    5. Mechanically identical, just a shorter fuse to elimination.
+// 2. Players fixed at 4 (Pagat allows "2 or more"), matching the corpus
+//    convention of every other game file picking one concrete table size.
+// 3. Direction of play resets to the natural (dealer's-left) order at the
+//    start of every hand. Pagat is silent on whether a 4's reversal
+//    persists across a life-loss; resetting at each fresh deal is the more
+//    conservative, unambiguous reading (a hand is a clean restart in every
+//    other respect — count, pile, hands — so direction resets too).
+// 4. Subtracting 10 is never clamped at a floor of zero. Pagat doesn't
+//    specify a minimum; the running count is simply an integer that must
+//    not exceed 99, so we allow it to go negative (arithmetically
+//    unremarkable, never a bust condition, and vanishingly rare in the low
+//    single digits where it could even arise).
+// 5. Stock exhaustion: Pagat's text doesn't address the stock running dry
+//    mid-hand (it's a low-probability event with the historical 5-life
+//    stake actually dealt, but this is a stress test with random legal
+//    play). House rule added: when the deck is empty and a draw is due, the
+//    whole face-up pile is reshuffled back into the deck first. This is
+//    sound because the running total lives in `count`, an ordinary integer
+//    state variable, not something recomputed from the pile's physical
+//    contents — see GAP notes below on why it has to be tracked that way.
+//
+// GAPS ENCOUNTERED (see the structured report for full severity/workaround
+// detail — summarized here at the point each one bit):
+//
+// - GAP (major, workaround below): `zone.top` — the accessor `expose_top`'s
+//   own doc entry defines itself in terms of (library.md: "expose_top(zone)
+//   — shorthand for reveal(zone.top, all)") — is not implemented in the
+//   runtime (`cardlang/runtime/evaluate.py`'s `_member` dispatches on Card /
+//   Move / StructValue / dict, never Zone). So a played card's identity
+//   cannot be recovered from the pile after the fact. Workaround: `count` is
+//   tracked as an explicit, imperatively-mutated Integer state variable,
+//   updated inside each rank's own `move_type` effect at the moment the card
+//   is chosen — never recomputed by inspecting the pile. This also happens
+//   to be the *only* correct encoding for the King's absolute reset (see
+//   next gap), so the workaround is not a loss.
+// - GAP (minor, informational): a `sum over pile as c: <per-card value>`
+//   comprehension (Cribbage's technique for its pegging count) cannot
+//   express King's "set the pile to 99 outright" — a per-card value
+//   function has no way to see what was played *before* it, so it can't
+//   zero out earlier contributions. King's effect is inherently
+//   order-dependent in a way a stateless fold over zone contents can't
+//   capture; only an explicit imperative `count := 99` works.
+// - GAP (minor, workaround below): `offer` (`cardlang/resolve.py`) rejects
+//   move types with a parameter ("offer names parameterized move type ...;
+//   only an [unparameterized move] is allowed") — so the Ace's 1-vs-11
+//   choice and the 10's +/- choice cannot be a single parameterized move
+//   type (`play_ten(delta: Integer)`) the way Bridge's `submit_bid(strain)`
+//   works inside a `round offering [...]`. Worked around by declaring two
+//   nullary move types per choice (`play_ace_low`/`play_ace_high`,
+//   `play_ten_add`/`play_ten_sub`); same for the six plain numeric ranks,
+//   which similarly cannot share one move type because each needs a
+//   different fixed delta and there is no way to read back which of several
+//   same-`when:` candidate cards `move chosen` actually selected. This is
+//   why the move vocabulary below has 14 entries instead of a handful.
+// - GAP (major, workaround below): the epistemic operation vocabulary
+//   (library.md, "Epistemic") lists `reveal`/`peek`/`hide`/`announce` as
+//   "join here, in prose, as their games are formalized," but the grammar
+//   (`cardlang/grammar/cardlang.lark`, `epistemic_op`) only actually
+//   implements `shuffle`. Pagat's "you lay down your hand" (a face-up
+//   proof-of-no-legal-play) has no `reveal` statement to reach for.
+//   Workaround: move the busted player's hand to a face-up `PublicHand`
+//   zone (`laid_down[player]`) — the same "change zone type to change
+//   visibility" trick Seven-Card Stud's showdown uses for its hole-card
+//   reveal, since a *move* between differently-visible zones is fully
+//   implemented even though a dedicated `reveal` statement is not.
+// - GAP (minor): no built-in turn-order reversal. `direction:` is a static,
+//   whole-game declaration (`cardlang/runtime/values.py`'s `Seating` has no
+//   runtime-mutable direction), and every `round` form's traversal order is
+//   fixed for the construct's duration — none supports a mid-pass reversal.
+//   Ninety-Nine's 4 is the corpus's first "Uno-style" reversal, so this
+//   isn't in any existing `round` shape. Workaround: don't use `round` for
+//   the turn loop at all. `left`/`right` are absolute per-seat steps
+//   (`offset_by`), independent of the game's static `direction:`, so a
+//   game-local `Direction`-typed state variable (`turn_dir`, flipped by
+//   `play_four`'s effect) reused as the step in an ordinary `repeat until`
+//   loop reproduces reversal exactly — the same `offset_by <Direction var>`
+//   idiom Hearts already uses for its passing direction, just mutated
+//   instead of `rotate`d through a fixed list.
+
+game NinetyNine {
+
+  players: 4
+  direction: clockwise   // unused for turn order (see GAP above); kept for
+                         // corpus uniformity, like Cribbage's own comment.
+
+  cards: standard52
+
+  zones {
+    deck              : Deck
+    hand[player]       : Hand<player>          // the concealed 3-card hand
+    pile               : TrickPile             // the shared face-up running pile
+    laid_down[player]  : PublicHand<player>     // a busted player's hand, revealed
+  }
+
+  state {
+    // Game-level: a life spent on a bust never comes back. Winner is
+    // whoever still has one when everyone else has none (Coup's
+    // `winner: highest alive` shape, generalized from 1/0 to a life count).
+    lives[player] : Integer = 3
+  }
+
+  phase hand_sequence repeats until (number of players where lives[player] > 0) <= 1 {
+    state {
+      dealer : Player = 0
+    }
+
+    before_each {
+      move all cards to deck   // gather the previous hand's pile/hands/laid_down
+      shuffle deck
+      // Pagat: "the deal passes to next player to the left of the previous
+      // dealer who is still in" — skip eliminated seats the same way `active`
+      // is skipped to below, so the new dealer (and hence who starts play) is
+      // always a living seat.
+      dealer := dealer offset_by left
+      repeat until lives[dealer] > 0 { dealer := dealer offset_by left }
+      for each player p: if lives[p] > 0 { deal 3 cards from deck to hand[p] }
+    }
+
+    phase play {
+      state {
+        count    : Integer   = 0      // the running pile total; never derived, always assigned
+        turn_dir : Direction  = left  // reset to the natural order every hand (simplification 3)
+        active   : Player     = 0
+        busted   : Boolean    = false
+      }
+
+      // The player to the (new) dealer's left begins (Pagat: "The player to
+      // the dealer's left begins"), skipping to the first surviving seat.
+      active := dealer offset_by left
+      repeat until lives[active] > 0 { active := active offset_by left }
+
+      repeat until busted {
+        if has_legal_play(active) {
+          // GAP: `offer` rejects parameterized move types (only a nullary
+          // move may be offered), so the Ace's 1/11 choice, the 10's
+          // +/- choice, and the six plain-numeric ranks each need their own
+          // move type below rather than one `play_card(value)` — there is
+          // also no way to read back which card `move chosen` picked, so a
+          // single move type couldn't compute the right delta anyway.
+          offer to active one of [
+            play_2, play_3, play_5, play_6, play_7, play_8, play_face_ten,
+            play_nine, play_four, play_king,
+            play_ace_low, play_ace_high, play_ten_add, play_ten_sub
+          ]
+          // House rule (simplification 5): refill the stock from the pile
+          // if a draw is due and none remains.
+          if deck is empty {
+            move all cards from pile to deck
+            shuffle deck
+          }
+          move one card from deck to hand[active]
+          active := active offset_by turn_dir
+          repeat until lives[active] > 0 { active := active offset_by turn_dir }
+        } else {
+          // "Lay down your hand": reveal it face up, lose a life, and the
+          // hand ends on the spot.
+          lives[active] := lives[active] - 1
+          // GAP: no `reveal` statement exists (only `shuffle` is implemented
+          // of the epistemic ops; library.md's `reveal`/`peek`/`hide`/
+          // `announce` are documented but not in the grammar). Workaround:
+          // move the hand into a face-up PublicHand zone — a zone-visibility
+          // change via `move`, the same trick Seven-Card Stud's showdown
+          // reveal uses — rather than a dedicated reveal op.
+          move all cards from hand[active] to laid_down[active]
+          busted := true
+        }
+      }
+    }
+  }
+
+  winner: highest lives
+}
+
+// === Move vocabulary ===
+//
+// One nullary move_type per rank-effect (GAP above: `offer` forbids
+// parameterized move types, and there is no way to read back which specific
+// card `move chosen` selected, so the six plain-value ranks and the two
+// player-chosen-value ranks each need their own type rather than one
+// parameterized by value). Every `when:` guard mirrors `is_safe_to_play`
+// below for that rank; they must agree, the same lockstep Seven-Card Stud's
+// `pending()` and its move types' own guards keep.
+
+move_type play_2 {
+  when: (sum over hand[actor] as c: if c.rank == "2" and count + 2 <= 99 then 1 else 0) > 0
+  effect {
+    move chosen one card from hand[actor] where c => c.rank == "2" and count + 2 <= 99 to pile
+    count := count + 2
+  }
+}
+
+move_type play_3 {
+  when: (sum over hand[actor] as c: if c.rank == "3" and count + 3 <= 99 then 1 else 0) > 0
+  effect {
+    move chosen one card from hand[actor] where c => c.rank == "3" and count + 3 <= 99 to pile
+    count := count + 3
+  }
+}
+
+move_type play_5 {
+  when: (sum over hand[actor] as c: if c.rank == "5" and count + 5 <= 99 then 1 else 0) > 0
+  effect {
+    move chosen one card from hand[actor] where c => c.rank == "5" and count + 5 <= 99 to pile
+    count := count + 5
+  }
+}
+
+move_type play_6 {
+  when: (sum over hand[actor] as c: if c.rank == "6" and count + 6 <= 99 then 1 else 0) > 0
+  effect {
+    move chosen one card from hand[actor] where c => c.rank == "6" and count + 6 <= 99 to pile
+    count := count + 6
+  }
+}
+
+move_type play_7 {
+  when: (sum over hand[actor] as c: if c.rank == "7" and count + 7 <= 99 then 1 else 0) > 0
+  effect {
+    move chosen one card from hand[actor] where c => c.rank == "7" and count + 7 <= 99 to pile
+    count := count + 7
+  }
+}
+
+move_type play_8 {
+  when: (sum over hand[actor] as c: if c.rank == "8" and count + 8 <= 99 then 1 else 0) > 0
+  effect {
+    move chosen one card from hand[actor] where c => c.rank == "8" and count + 8 <= 99 to pile
+    count := count + 8
+  }
+}
+
+// J and Q are both fixed at 10 (Pagat: "Jacks, Queens: count as 10"), so
+// they share one move type — unlike the plain numerics above, they need no
+// per-rank distinction since the delta is identical.
+move_type play_face_ten {
+  when: (sum over hand[actor] as c: if (c.rank == "J" or c.rank == "Q") and count + 10 <= 99 then 1 else 0) > 0
+  effect {
+    move chosen one card from hand[actor] where c => (c.rank == "J" or c.rank == "Q") and count + 10 <= 99 to pile
+    count := count + 10
+  }
+}
+
+// Nine "counts as zero": added to the pile, no numeric or direction effect.
+move_type play_nine {
+  when: (sum over hand[actor] as c: if c.rank == "9" then 1 else 0) > 0
+  effect {
+    move chosen one card from hand[actor] where c => c.rank == "9" to pile
+  }
+}
+
+// Four: adds nothing, reverses the direction of play for the rest of the
+// hand. GAP: no built-in turn-order reversal exists (`direction:` is
+// static; no `round` form supports a mid-pass reversal) — worked around by
+// flipping a game-local Direction-typed state variable, reused as the
+// `offset_by` step in the hand-rolled turn loop above.
+move_type play_four {
+  when: (sum over hand[actor] as c: if c.rank == "4" then 1 else 0) > 0
+  effect {
+    move chosen one card from hand[actor] where c => c.rank == "4" to pile
+    turn_dir := if turn_dir == left then right else left
+  }
+}
+
+// King: an absolute override, not additive — always legal regardless of the
+// current count. GAP: a `sum over pile as c: <value(c)>` fold (Cribbage's
+// technique for its pegging count) cannot express this — a per-card value
+// function can't see what was played before it, so it can't zero out
+// earlier contributions the way an absolute reset requires. `count` is
+// therefore an explicit imperatively-assigned Integer, never derived from
+// the pile's contents (also forced by `zone.top` being unimplemented — see
+// header).
+move_type play_king {
+  when: (sum over hand[actor] as c: if c.rank == "K" then 1 else 0) > 0
+  effect {
+    move chosen one card from hand[actor] where c => c.rank == "K" to pile
+    count := 99
+  }
+}
+
+// Ace: "1 or 11, at the player's choice" — the choice is which move type is
+// offered, not a parameter (GAP above).
+move_type play_ace_low {
+  when: (sum over hand[actor] as c: if c.rank == "A" and count + 1 <= 99 then 1 else 0) > 0
+  effect {
+    move chosen one card from hand[actor] where c => c.rank == "A" and count + 1 <= 99 to pile
+    count := count + 1
+  }
+}
+
+move_type play_ace_high {
+  when: (sum over hand[actor] as c: if c.rank == "A" and count + 11 <= 99 then 1 else 0) > 0
+  effect {
+    move chosen one card from hand[actor] where c => c.rank == "A" and count + 11 <= 99 to pile
+    count := count + 11
+  }
+}
+
+// Ten: "increases or reduces the value of the pile by ten, at the player's
+// choice." Subtracting is unconditionally safe (simplification 4: no floor
+// at zero), so play_ten_sub's guard needs only a 10 in hand.
+move_type play_ten_add {
+  when: (sum over hand[actor] as c: if c.rank == "10" and count + 10 <= 99 then 1 else 0) > 0
+  effect {
+    move chosen one card from hand[actor] where c => c.rank == "10" and count + 10 <= 99 to pile
+    count := count + 10
+  }
+}
+
+move_type play_ten_sub {
+  when: (sum over hand[actor] as c: if c.rank == "10" then 1 else 0) > 0
+  effect {
+    move chosen one card from hand[actor] where c => c.rank == "10" to pile
+    count := count - 10
+  }
+}
+
+// === Legality helpers ===
+//
+// `is_safe_to_play` mirrors every move type's own `when:` in one place
+// (queried per-card, existence only — it doesn't distinguish ace-low from
+// ace-high, since low is always at least as permissive as high, and low
+// alone is enough to answer "is there some way to play this card").
+// `has_legal_play` is the forced-play gate: a player who has one must use
+// it; only with none does the hand end. Both read `count`, `phase play`'s
+// own running total, resolved through the same scope-chain-at-consultation
+// rule the move types above rely on (proven by Seven-Card Stud's `can_act`/
+// `owes`/`pending`, top-level functions that read that game's phase-local
+// betting state).
+
+function is_safe_to_play(c : Card) =
+  if c.rank == "4" or c.rank == "9" or c.rank == "K" or c.rank == "10" then true
+  elif c.rank == "A" then count + 1 <= 99
+  elif c.rank == "2" then count + 2 <= 99
+  elif c.rank == "3" then count + 3 <= 99
+  elif c.rank == "5" then count + 5 <= 99
+  elif c.rank == "6" then count + 6 <= 99
+  elif c.rank == "7" then count + 7 <= 99
+  elif c.rank == "8" then count + 8 <= 99
+  else count + 10 <= 99   // J or Q
+
+function has_legal_play(p : Player) = (sum over hand[p] as c: if is_safe_to_play(c) then 1 else 0) > 0

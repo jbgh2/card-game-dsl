@@ -1,0 +1,847 @@
+// Canasta — formalized DSL (stress test, not part of the settled corpus).
+//
+// Source: https://www.pagat.com/rummy/canasta.html ("Basic Rules of Canasta").
+// Four players in two fixed partnerships (seats 0+2 vs 1+3). Each turn a player
+// draws (2 from stock, or the whole discard pile if they can immediately meld
+// its top card) then may lay down any number of melds of 3+ same-rank cards
+// (wild cards: 2s substitute, capped at 3 per meld and never outnumbering the
+// meld's natural cards), then discards one card. A meld of 7+ cards is a
+// canasta (natural = no wild cards, worth more). Red 3s are an automatic
+// bonus/penalty, drawn face-up and replaced. Going out requires the
+// partnership to already hold a canasta.
+//
+// ============================================================================
+// SIMPLIFICATIONS (every deliberate cut from the Pagat basic rules, recorded
+// per the stress-test brief — nothing below is silently dropped):
+// ============================================================================
+//
+// 1. GAP (blocker): `cards:` cannot express "2 standard 52-card packs + 4
+//    jokers = 108 cards." The grammar's `cards:` production accepts only a
+//    bare stdlib deck NAME (cardlang/grammar/cardlang.lark: `cards: "cards"
+//    ":" NAME`), resolved against a closed, hardcoded Python registry
+//    (cardlang/runtime/values.py `DECKS`, cardlang/stdlib/values.py
+//    `_SUITS_BY_DECK`/`_DECK_SIZE`) — there is no in-language deck-composition
+//    syntax (the `cards: { suits: {...} }` block and `cards: standard52 + {
+//    specials: [...] }` composition described in docs/decisions.md "Deck
+//    declaration" do not exist in the grammar; every stdlib deck, including
+//    every extended one like `tichu56`/`tarot78`/`coup15`, is pre-registered
+//    in Python, not assembled from a game file). A game file cannot add a
+//    deck, add jokers, or double an existing deck. Workaround: `cards:
+//    standard52` (single 52-card pack, no jokers). This is the single most
+//    consequential cut in this file — everything below cascades from it:
+//      - No jokers at all (there is no "joker" card in any registered deck).
+//        Only the four 2s are wild. The joker's 50-point value and its extra
+//        wild-card slots are simply gone.
+//      - A single 52-card pack means at most 4 copies of any rank exist
+//        game-wide, so a 7-card canasta needs one partnership to hold every
+//        copy of a rank plus wild 2s — vanishingly unlikely under random
+//        play (and rare even under skilled play). Hands are dealt at 7
+//        cards (not 11) and the game runs a fixed 4 hands (not to 5000
+//        cumulative) — see cuts 6 and 10 below — specifically so the game
+//        terminates promptly despite this.
+//
+// 2. Fixed minimum initial-meld value (50), not the cumulative-score-scaled
+//    table (negative score: 15; 0-1495: 50; 1500-2995: 90; 3000+: 120). A
+//    partnership's very first meld of the hand must alone total >= 50 card
+//    points (natural cards only — see cut 4); after that the partnership's
+//    threshold is satisfied for the rest of the hand. (Suggested explicitly
+//    by the stress-test brief as an acceptable cut.)
+//
+// 3. Black 3s (clubs/spades) can never be melded and can never be the top
+//    card of a takeable discard pile (no `take_pile_as_three`/`meld_three`
+//    move type exists) — this matches the real restriction, though for a
+//    different proximate reason: only 2 black 3s exist in a single 52-card
+//    pack, so a natural 3-of-a-kind is mathematically impossible anyway (see
+//    cut 1). Black 3s are ordinary discardable dead cards. The real "black 3
+//    may be melded only as your final going-out action" rule (a pair, or
+//    with all remaining cards) is dropped along with it, since it's now moot.
+//
+// 4. GAP (major): wild cards cannot be added to a specific meld as a distinct
+//    player decision, and a new meld's initial-value check only counts
+//    natural cards. Melding is expressed as one move_type per rank
+//    (`meld_<rank>`, `when:`-guarded, effect routes into that rank's own
+//    static `TeamPile` zone — see cut 5 for why) whose effect moves *every*
+//    matching-rank natural card from hand AND automatically tops up with the
+//    maximum legal number of wild 2s from hand in the same action (capped at
+//    3 total wild and at wild <= natural, per real rules). A player cannot
+//    hold 2s back in hand while melding that rank, nor choose to add wilds
+//    without also being able to add naturals. Re-triggering the same
+//    `meld_<rank>` move later (naturals = 0, meld already exists) is legal
+//    and _is_ how a later-drawn 2 gets added on its own — so the mechanic is
+//    exercised, just without the fine per-wild-card choice real Canasta
+//    gives. `min`/`max` are not callable stdlib functions (see gap list at
+//    the end), so the wild-count cap is computed with a small local `min2`
+//    function instead.
+//
+// 5. GAP (major): a team's melds cannot be one 2-D zone family indexed by
+//    (team, rank) — `zone_decl` supports exactly one bracketed index
+//    (cardlang/grammar/cardlang.lark: `zone_decl: NAME [index] ":"
+//    type_ref`). Each meldable rank gets its own zone name
+//    (`meld_two[team]`, `meld_four[team]`, ... `meld_ace[team]`, 12 zones),
+//    each a plain `TeamPile<team>`. Combined with cut 4's "no dynamic
+//    zone-by-value lookup" (a move effect must name a static zone; there is
+//    no `meld_zone_for(rank)` indirection), melding unavoidably becomes one
+//    move_type per rank rather than a single parameterized `meld(rank:
+//    Rank)` move — see the gap list for why the parameterized form doesn't
+//    work either (only `Suit`/`Suit?` move-parameter domains are
+//    runtime-enumerable; `cardlang/runtime/mechanics.py::enumerate_domain`
+//    has no `Rank` case, and `round offering [...]` is the only construct
+//    that enumerates a parameterized move type over its domain — plain
+//    `offer` doesn't enumerate move-type parameters at all).
+//
+// 6. Hands are dealt 7 cards, not 11 (52 - 4*7 = 24 stock cards instead of
+//    52 - 4*11 = 8) — needed purely so a hand has enough stock left to
+//    exercise more than a couple of draws, given cut 1 already halves the
+//    deck. The hand ends the instant fewer than 2 stock cards remain (an
+//    exact "stock is empty" check would let `draw_from_stock`'s own guard
+//    try to deal 2 cards from a 1-card stock and crash) — a few unusable
+//    stock cards are simply abandoned at that point, standing in for "the
+//    stock depletes," one of Pagat's three listed hand-ending conditions.
+//
+// 7. Frozen-pile take is simplified to a single generic "take the whole
+//    pile into hand, then meld every natural card of the top card's rank"
+//    move per rank (`take_pile_as_<rank>`), rather than modelling "meld only
+//    the top card, keep the rest of the pile in hand to use freely." Since
+//    every card of a rank is interchangeable here (Canasta has no suit-based
+//    legality at all), taking the whole pile and auto-routing same-rank
+//    cards into the meld is behaviourally equivalent to "meld the top card"
+//    for scoring purposes; it just also auto-melds any *other* cards of that
+//    same rank that happened to be buried lower in the pile, which the
+//    authentic rule would leave the player free to hold back. The frozen/
+//    not-frozen legality distinction itself (2 natural cards always
+//    sufficient; 1 natural card sufficient only if not frozen AND the
+//    partnership already has a meld of that rank) IS implemented faithfully
+//    — see `frozen_for`.
+//
+// 8. GAP (major): there is no `.top` / `expose_top` access to "the top card
+//    of a zone" (docs/library.md and docs/decisions.md describe
+//    `expose_top(zone)` as sugar for `reveal(zone.top, all)`, but the
+//    grammar's `epistemic_op` production implements only `shuffle`
+//    (cardlang/grammar/cardlang.lark: `epistemic_op: "shuffle" zone_expr ->
+//    shuffle_op`, no other alternative); `reveal`/`peek`/`hide`/
+//    `announce`/`expose_top`/`forget` are documented but not parseable, and
+//    `Zone` exposes no `.top` member in cardlang/runtime/evaluate.py's
+//    `_member`). So "what rank is on top of the discard pile" is tracked by
+//    hand with an explicit `last_discard_rank : String` state variable, set
+//    to a literal rank string by each per-rank `discard_<rank>` move type's
+//    own effect (which already knows its rank statically) — this is also
+//    why discards are one move type per rank rather than a single generic
+//    `move chosen one card from hand[actor] to discard_pile` (which would
+//    leave no way to learn what was actually discarded). The discard pile
+//    itself is not seeded from stock at the start of a hand (real rules turn
+//    the top stock card up); it simply starts empty, which is
+//    observationally identical except that nobody can ever legally take it
+//    on the very first turn — true anyway, since an empty pile holds nothing
+//    to meld.
+//
+// 9. The "must have a canasta to go out" rule is enforced at scoring, not as
+//    move legality. GAP (major): gating a `discard_<rank>` move on "if this
+//    is your last card, your team must already have a canasta" is only safe
+//    when at least one *other* legal move exists at that decision — but when
+//    a hand holds exactly one card, exactly one `discard_<rank>` move type
+//    is even a candidate (the one matching that card's rank), so blocking it
+//    would leave the decision with zero legal moves, an engine error (see
+//    docs/decisions.md "No implicit actions": a decision must always have a
+//    legal move; there is no silent skip). So a discard that empties a hand
+//    is always legal; instead, the scoring phase checks whether the
+//    partnership that went out already held a canasta at that moment, and
+//    withholds the 100-point going-out bonus if not (`team_has_canasta`).
+//    This preserves the rule's scoring consequence without the crash risk of
+//    a look-ahead-free legality gate.
+//
+// 10. Fixed 4-hand game (`hands_played >= 4`), not "first partnership to
+//     5000 cumulative points." Cuts 1 and 6 make most hands score only a
+//     handful of points (few melds ever complete), so "first to 5000" could
+//     run for an impractical number of hands in a random playout. Mirrors
+//     French Tarot's own `hands_played >= 36` fixed-length pattern
+//     (docs/games/french-tarot.cardlang).
+//
+// 11. Going-out concealed (+200) and the score-crossing edge cases around
+//     red 3s (e.g. a partnership holding all four) are dropped; a plain
+//     +100 going-out bonus and a flat +/-100 per red 3 are kept.
+//
+// See the structured stress-test report for the full language-gap catalogue
+// (closed deck registry; closed stdlib-function dispatch table so no new
+// game-local runtime primitive can be added without writing Python, which is
+// out of scope here; single-index zone families; no dynamic zone-by-value
+// lookup; no `.top`/`expose_top`; no callable `min`/`max`; the `count`
+// aggregator returns the *collection size*, not a filtered count — it
+// ignores its body entirely, so every filtered count in this file uses `sum
+// over ... as c: if <pred> then 1 else 0` instead, matching existing corpus
+// idiom (docs/games/pinochle.cardlang)).
+
+game Canasta {
+
+  players: 4
+  partnerships: [[0, 2], [1, 3]]
+  direction: clockwise
+
+  cards: standard52
+
+  zones {
+    stock              : Deck
+    hand[player]        : Hand<player>
+    discard_pile         : Discard
+    meld_two[team]       : TeamPile<team>
+    meld_four[team]      : TeamPile<team>
+    meld_five[team]      : TeamPile<team>
+    meld_six[team]       : TeamPile<team>
+    meld_seven[team]     : TeamPile<team>
+    meld_eight[team]     : TeamPile<team>
+    meld_nine[team]      : TeamPile<team>
+    meld_ten[team]       : TeamPile<team>
+    meld_jack[team]      : TeamPile<team>
+    meld_queen[team]     : TeamPile<team>
+    meld_king[team]      : TeamPile<team>
+    meld_ace[team]       : TeamPile<team>
+    red_threes[team]     : TeamPile<team>
+  }
+
+  state {
+    // Game-level: persist across hands.
+    score[team]  : Integer = 0
+    hands_played : Integer = 0
+  }
+
+  phase hand_sequence repeats until hands_played >= 4 {
+    state {
+      dealer            : Player  = 0
+      has_melded[team]  : Boolean = false
+      last_discard_rank : String  = ""
+      pile_has_wild     : Boolean = false
+    }
+
+    before_each {
+      move all cards to stock
+      shuffle stock
+      deal 7 cards from stock to each hand
+      dealer := dealer offset_by left
+      for each team t: has_melded[t] := false
+      last_discard_rank := ""
+      pile_has_wild := false
+
+      // Red 3s: immediately face up, replaced from stock (cascades if a
+      // replacement is itself a red 3).
+      for each player p: repeat until (sum over hand[p] as c: if is_red_three(c) then 1 else 0) == 0 {
+        let r3 = sum over hand[p] as c: if is_red_three(c) then 1 else 0
+        move all cards from hand[p] where c => is_red_three(c) to red_threes[team_of(p)]
+        if r3 <= (count over stock as c: true) {
+          move r3 cards from stock to hand[p]
+        } else {
+          move all cards from stock to hand[p]
+        }
+      }
+    }
+
+    phase play {
+      state {
+        active       : Player  = 0
+        melding_done : Boolean = false
+      }
+
+      active := dealer offset_by left
+
+      repeat until (count over stock as c: true) < 2 or (any player p: hand[p] is empty) {
+        offer to active one of [
+          draw_from_stock,
+          take_pile_as_two, take_pile_as_four, take_pile_as_five, take_pile_as_six,
+          take_pile_as_seven, take_pile_as_eight, take_pile_as_nine, take_pile_as_ten,
+          take_pile_as_jack, take_pile_as_queen, take_pile_as_king, take_pile_as_ace
+        ]
+
+        melding_done := false
+        repeat until melding_done {
+          offer to active one of [
+            meld_two, meld_four, meld_five, meld_six, meld_seven, meld_eight,
+            meld_nine, meld_ten, meld_jack, meld_queen, meld_king, meld_ace,
+            stop_melding
+          ]
+        }
+
+        if hand[active] is not empty {
+          offer to active one of [
+            discard_two, discard_three, discard_four, discard_five, discard_six,
+            discard_seven, discard_eight, discard_nine, discard_ten, discard_jack,
+            discard_queen, discard_king, discard_ace
+          ]
+        }
+
+        active := active offset_by left
+      }
+    }
+
+    phase scoring {
+      for each team t: score[t] += meld_points_of(t)
+      for each player p: score[team_of(p)] -= hand_penalty_of(p)
+      for each team t: score[t] += red_three_bonus(t)
+      for each team t: score[t] += canasta_bonus_of(t)
+
+      // Going-out bonus: withheld unless the going-out partnership already
+      // held a canasta (cut 9 — enforced here, not as move legality).
+      let went_out = number of players where hand[player] is empty
+      if went_out == 1 {
+        let outp = the player where hand[player] is empty
+        if team_has_canasta(team_of(outp)) {
+          score[team_of(outp)] += 100
+        }
+      }
+    }
+
+    after_each {
+      hands_played += 1
+    }
+  }
+
+  winner: highest score
+}
+
+// =============================================================================
+// === Move vocabulary ===
+// =============================================================================
+
+// --- Draw or take (one per turn) ---
+
+move_type draw_from_stock {
+  when: (count over stock as c: true) >= 2
+  effect {
+    move 2 cards from stock to hand[actor]
+    repeat until (sum over hand[actor] as c: if is_red_three(c) then 1 else 0) == 0 {
+      let r3 = sum over hand[actor] as c: if is_red_three(c) then 1 else 0
+      move all cards from hand[actor] where c => is_red_three(c) to red_threes[team_of(actor)]
+      if r3 <= (count over stock as c: true) {
+        move r3 cards from stock to hand[actor]
+      } else {
+        move all cards from stock to hand[actor]
+      }
+    }
+  }
+}
+
+move_type take_pile_as_two {
+  when: discard_pile is not empty and last_discard_rank == "2" and
+        (has_melded[team_of(actor)] or (sum over hand[actor] as c: if c.rank == "2" then point_value(c) else 0) >= 50) and
+        (naturals_of(actor, "2") >= 2 or
+         (naturals_of(actor, "2") >= 1 and meld_two[team_of(actor)] is not empty and not frozen_for(team_of(actor))))
+  effect {
+    move all cards from discard_pile to hand[actor]
+    pile_has_wild := false
+    move all cards from hand[actor] where c => c.rank == "2" to meld_two[team_of(actor)]
+    has_melded[team_of(actor)] := true
+  }
+}
+
+move_type take_pile_as_four {
+  when: discard_pile is not empty and last_discard_rank == "4" and
+        (has_melded[team_of(actor)] or (sum over hand[actor] as c: if c.rank == "4" then point_value(c) else 0) >= 50) and
+        (naturals_of(actor, "4") >= 2 or
+         (naturals_of(actor, "4") >= 1 and meld_four[team_of(actor)] is not empty and not frozen_for(team_of(actor))))
+  effect {
+    move all cards from discard_pile to hand[actor]
+    pile_has_wild := false
+    move all cards from hand[actor] where c => c.rank == "4" to meld_four[team_of(actor)]
+    has_melded[team_of(actor)] := true
+  }
+}
+
+move_type take_pile_as_five {
+  when: discard_pile is not empty and last_discard_rank == "5" and
+        (has_melded[team_of(actor)] or (sum over hand[actor] as c: if c.rank == "5" then point_value(c) else 0) >= 50) and
+        (naturals_of(actor, "5") >= 2 or
+         (naturals_of(actor, "5") >= 1 and meld_five[team_of(actor)] is not empty and not frozen_for(team_of(actor))))
+  effect {
+    move all cards from discard_pile to hand[actor]
+    pile_has_wild := false
+    move all cards from hand[actor] where c => c.rank == "5" to meld_five[team_of(actor)]
+    has_melded[team_of(actor)] := true
+  }
+}
+
+move_type take_pile_as_six {
+  when: discard_pile is not empty and last_discard_rank == "6" and
+        (has_melded[team_of(actor)] or (sum over hand[actor] as c: if c.rank == "6" then point_value(c) else 0) >= 50) and
+        (naturals_of(actor, "6") >= 2 or
+         (naturals_of(actor, "6") >= 1 and meld_six[team_of(actor)] is not empty and not frozen_for(team_of(actor))))
+  effect {
+    move all cards from discard_pile to hand[actor]
+    pile_has_wild := false
+    move all cards from hand[actor] where c => c.rank == "6" to meld_six[team_of(actor)]
+    has_melded[team_of(actor)] := true
+  }
+}
+
+move_type take_pile_as_seven {
+  when: discard_pile is not empty and last_discard_rank == "7" and
+        (has_melded[team_of(actor)] or (sum over hand[actor] as c: if c.rank == "7" then point_value(c) else 0) >= 50) and
+        (naturals_of(actor, "7") >= 2 or
+         (naturals_of(actor, "7") >= 1 and meld_seven[team_of(actor)] is not empty and not frozen_for(team_of(actor))))
+  effect {
+    move all cards from discard_pile to hand[actor]
+    pile_has_wild := false
+    move all cards from hand[actor] where c => c.rank == "7" to meld_seven[team_of(actor)]
+    has_melded[team_of(actor)] := true
+  }
+}
+
+move_type take_pile_as_eight {
+  when: discard_pile is not empty and last_discard_rank == "8" and
+        (has_melded[team_of(actor)] or (sum over hand[actor] as c: if c.rank == "8" then point_value(c) else 0) >= 50) and
+        (naturals_of(actor, "8") >= 2 or
+         (naturals_of(actor, "8") >= 1 and meld_eight[team_of(actor)] is not empty and not frozen_for(team_of(actor))))
+  effect {
+    move all cards from discard_pile to hand[actor]
+    pile_has_wild := false
+    move all cards from hand[actor] where c => c.rank == "8" to meld_eight[team_of(actor)]
+    has_melded[team_of(actor)] := true
+  }
+}
+
+move_type take_pile_as_nine {
+  when: discard_pile is not empty and last_discard_rank == "9" and
+        (has_melded[team_of(actor)] or (sum over hand[actor] as c: if c.rank == "9" then point_value(c) else 0) >= 50) and
+        (naturals_of(actor, "9") >= 2 or
+         (naturals_of(actor, "9") >= 1 and meld_nine[team_of(actor)] is not empty and not frozen_for(team_of(actor))))
+  effect {
+    move all cards from discard_pile to hand[actor]
+    pile_has_wild := false
+    move all cards from hand[actor] where c => c.rank == "9" to meld_nine[team_of(actor)]
+    has_melded[team_of(actor)] := true
+  }
+}
+
+move_type take_pile_as_ten {
+  when: discard_pile is not empty and last_discard_rank == "10" and
+        (has_melded[team_of(actor)] or (sum over hand[actor] as c: if c.rank == "10" then point_value(c) else 0) >= 50) and
+        (naturals_of(actor, "10") >= 2 or
+         (naturals_of(actor, "10") >= 1 and meld_ten[team_of(actor)] is not empty and not frozen_for(team_of(actor))))
+  effect {
+    move all cards from discard_pile to hand[actor]
+    pile_has_wild := false
+    move all cards from hand[actor] where c => c.rank == "10" to meld_ten[team_of(actor)]
+    has_melded[team_of(actor)] := true
+  }
+}
+
+move_type take_pile_as_jack {
+  when: discard_pile is not empty and last_discard_rank == "J" and
+        (has_melded[team_of(actor)] or (sum over hand[actor] as c: if c.rank == "J" then point_value(c) else 0) >= 50) and
+        (naturals_of(actor, "J") >= 2 or
+         (naturals_of(actor, "J") >= 1 and meld_jack[team_of(actor)] is not empty and not frozen_for(team_of(actor))))
+  effect {
+    move all cards from discard_pile to hand[actor]
+    pile_has_wild := false
+    move all cards from hand[actor] where c => c.rank == "J" to meld_jack[team_of(actor)]
+    has_melded[team_of(actor)] := true
+  }
+}
+
+move_type take_pile_as_queen {
+  when: discard_pile is not empty and last_discard_rank == "Q" and
+        (has_melded[team_of(actor)] or (sum over hand[actor] as c: if c.rank == "Q" then point_value(c) else 0) >= 50) and
+        (naturals_of(actor, "Q") >= 2 or
+         (naturals_of(actor, "Q") >= 1 and meld_queen[team_of(actor)] is not empty and not frozen_for(team_of(actor))))
+  effect {
+    move all cards from discard_pile to hand[actor]
+    pile_has_wild := false
+    move all cards from hand[actor] where c => c.rank == "Q" to meld_queen[team_of(actor)]
+    has_melded[team_of(actor)] := true
+  }
+}
+
+move_type take_pile_as_king {
+  when: discard_pile is not empty and last_discard_rank == "K" and
+        (has_melded[team_of(actor)] or (sum over hand[actor] as c: if c.rank == "K" then point_value(c) else 0) >= 50) and
+        (naturals_of(actor, "K") >= 2 or
+         (naturals_of(actor, "K") >= 1 and meld_king[team_of(actor)] is not empty and not frozen_for(team_of(actor))))
+  effect {
+    move all cards from discard_pile to hand[actor]
+    pile_has_wild := false
+    move all cards from hand[actor] where c => c.rank == "K" to meld_king[team_of(actor)]
+    has_melded[team_of(actor)] := true
+  }
+}
+
+move_type take_pile_as_ace {
+  when: discard_pile is not empty and last_discard_rank == "A" and
+        (has_melded[team_of(actor)] or (sum over hand[actor] as c: if c.rank == "A" then point_value(c) else 0) >= 50) and
+        (naturals_of(actor, "A") >= 2 or
+         (naturals_of(actor, "A") >= 1 and meld_ace[team_of(actor)] is not empty and not frozen_for(team_of(actor))))
+  effect {
+    move all cards from discard_pile to hand[actor]
+    pile_has_wild := false
+    move all cards from hand[actor] where c => c.rank == "A" to meld_ace[team_of(actor)]
+    has_melded[team_of(actor)] := true
+  }
+}
+
+// --- Melding (any number per turn; `stop_melding` always legal) ---
+
+move_type stop_melding {
+  effect { melding_done := true }
+}
+
+// Twos meld naturally (no separate wild concept applies to a meld of 2s).
+move_type meld_two {
+  when: (has_melded[team_of(actor)] or (sum over hand[actor] as c: if c.rank == "2" then point_value(c) else 0) >= 50)
+        and (naturals_of(actor, "2") >= 3 or meld_two[team_of(actor)] is not empty)
+  effect {
+    move all cards from hand[actor] where c => c.rank == "2" to meld_two[team_of(actor)]
+    has_melded[team_of(actor)] := true
+  }
+}
+
+move_type meld_four {
+  when: (has_melded[team_of(actor)] or (sum over hand[actor] as c: if c.rank == "4" then point_value(c) else 0) >= 50)
+        and (naturals_of(actor, "4") >= 3 or meld_four[team_of(actor)] is not empty)
+  effect {
+    move all cards from hand[actor] where c => c.rank == "4" to meld_four[team_of(actor)]
+    let existing_wild = sum over meld_four[team_of(actor)] as c: if c.rank == "2" then 1 else 0
+    let existing_natural = sum over meld_four[team_of(actor)] as c: if c.rank != "2" then 1 else 0
+    let available_twos = sum over hand[actor] as c: if c.rank == "2" then 1 else 0
+    let wild_room = min2(min2(existing_natural - existing_wild, 3 - existing_wild), available_twos)
+    move wild_room cards from hand[actor] where c => c.rank == "2" to meld_four[team_of(actor)]
+    has_melded[team_of(actor)] := true
+  }
+}
+
+move_type meld_five {
+  when: (has_melded[team_of(actor)] or (sum over hand[actor] as c: if c.rank == "5" then point_value(c) else 0) >= 50)
+        and (naturals_of(actor, "5") >= 3 or meld_five[team_of(actor)] is not empty)
+  effect {
+    move all cards from hand[actor] where c => c.rank == "5" to meld_five[team_of(actor)]
+    let existing_wild = sum over meld_five[team_of(actor)] as c: if c.rank == "2" then 1 else 0
+    let existing_natural = sum over meld_five[team_of(actor)] as c: if c.rank != "2" then 1 else 0
+    let available_twos = sum over hand[actor] as c: if c.rank == "2" then 1 else 0
+    let wild_room = min2(min2(existing_natural - existing_wild, 3 - existing_wild), available_twos)
+    move wild_room cards from hand[actor] where c => c.rank == "2" to meld_five[team_of(actor)]
+    has_melded[team_of(actor)] := true
+  }
+}
+
+move_type meld_six {
+  when: (has_melded[team_of(actor)] or (sum over hand[actor] as c: if c.rank == "6" then point_value(c) else 0) >= 50)
+        and (naturals_of(actor, "6") >= 3 or meld_six[team_of(actor)] is not empty)
+  effect {
+    move all cards from hand[actor] where c => c.rank == "6" to meld_six[team_of(actor)]
+    let existing_wild = sum over meld_six[team_of(actor)] as c: if c.rank == "2" then 1 else 0
+    let existing_natural = sum over meld_six[team_of(actor)] as c: if c.rank != "2" then 1 else 0
+    let available_twos = sum over hand[actor] as c: if c.rank == "2" then 1 else 0
+    let wild_room = min2(min2(existing_natural - existing_wild, 3 - existing_wild), available_twos)
+    move wild_room cards from hand[actor] where c => c.rank == "2" to meld_six[team_of(actor)]
+    has_melded[team_of(actor)] := true
+  }
+}
+
+move_type meld_seven {
+  when: (has_melded[team_of(actor)] or (sum over hand[actor] as c: if c.rank == "7" then point_value(c) else 0) >= 50)
+        and (naturals_of(actor, "7") >= 3 or meld_seven[team_of(actor)] is not empty)
+  effect {
+    move all cards from hand[actor] where c => c.rank == "7" to meld_seven[team_of(actor)]
+    let existing_wild = sum over meld_seven[team_of(actor)] as c: if c.rank == "2" then 1 else 0
+    let existing_natural = sum over meld_seven[team_of(actor)] as c: if c.rank != "2" then 1 else 0
+    let available_twos = sum over hand[actor] as c: if c.rank == "2" then 1 else 0
+    let wild_room = min2(min2(existing_natural - existing_wild, 3 - existing_wild), available_twos)
+    move wild_room cards from hand[actor] where c => c.rank == "2" to meld_seven[team_of(actor)]
+    has_melded[team_of(actor)] := true
+  }
+}
+
+move_type meld_eight {
+  when: (has_melded[team_of(actor)] or (sum over hand[actor] as c: if c.rank == "8" then point_value(c) else 0) >= 50)
+        and (naturals_of(actor, "8") >= 3 or meld_eight[team_of(actor)] is not empty)
+  effect {
+    move all cards from hand[actor] where c => c.rank == "8" to meld_eight[team_of(actor)]
+    let existing_wild = sum over meld_eight[team_of(actor)] as c: if c.rank == "2" then 1 else 0
+    let existing_natural = sum over meld_eight[team_of(actor)] as c: if c.rank != "2" then 1 else 0
+    let available_twos = sum over hand[actor] as c: if c.rank == "2" then 1 else 0
+    let wild_room = min2(min2(existing_natural - existing_wild, 3 - existing_wild), available_twos)
+    move wild_room cards from hand[actor] where c => c.rank == "2" to meld_eight[team_of(actor)]
+    has_melded[team_of(actor)] := true
+  }
+}
+
+move_type meld_nine {
+  when: (has_melded[team_of(actor)] or (sum over hand[actor] as c: if c.rank == "9" then point_value(c) else 0) >= 50)
+        and (naturals_of(actor, "9") >= 3 or meld_nine[team_of(actor)] is not empty)
+  effect {
+    move all cards from hand[actor] where c => c.rank == "9" to meld_nine[team_of(actor)]
+    let existing_wild = sum over meld_nine[team_of(actor)] as c: if c.rank == "2" then 1 else 0
+    let existing_natural = sum over meld_nine[team_of(actor)] as c: if c.rank != "2" then 1 else 0
+    let available_twos = sum over hand[actor] as c: if c.rank == "2" then 1 else 0
+    let wild_room = min2(min2(existing_natural - existing_wild, 3 - existing_wild), available_twos)
+    move wild_room cards from hand[actor] where c => c.rank == "2" to meld_nine[team_of(actor)]
+    has_melded[team_of(actor)] := true
+  }
+}
+
+move_type meld_ten {
+  when: (has_melded[team_of(actor)] or (sum over hand[actor] as c: if c.rank == "10" then point_value(c) else 0) >= 50)
+        and (naturals_of(actor, "10") >= 3 or meld_ten[team_of(actor)] is not empty)
+  effect {
+    move all cards from hand[actor] where c => c.rank == "10" to meld_ten[team_of(actor)]
+    let existing_wild = sum over meld_ten[team_of(actor)] as c: if c.rank == "2" then 1 else 0
+    let existing_natural = sum over meld_ten[team_of(actor)] as c: if c.rank != "2" then 1 else 0
+    let available_twos = sum over hand[actor] as c: if c.rank == "2" then 1 else 0
+    let wild_room = min2(min2(existing_natural - existing_wild, 3 - existing_wild), available_twos)
+    move wild_room cards from hand[actor] where c => c.rank == "2" to meld_ten[team_of(actor)]
+    has_melded[team_of(actor)] := true
+  }
+}
+
+move_type meld_jack {
+  when: (has_melded[team_of(actor)] or (sum over hand[actor] as c: if c.rank == "J" then point_value(c) else 0) >= 50)
+        and (naturals_of(actor, "J") >= 3 or meld_jack[team_of(actor)] is not empty)
+  effect {
+    move all cards from hand[actor] where c => c.rank == "J" to meld_jack[team_of(actor)]
+    let existing_wild = sum over meld_jack[team_of(actor)] as c: if c.rank == "2" then 1 else 0
+    let existing_natural = sum over meld_jack[team_of(actor)] as c: if c.rank != "2" then 1 else 0
+    let available_twos = sum over hand[actor] as c: if c.rank == "2" then 1 else 0
+    let wild_room = min2(min2(existing_natural - existing_wild, 3 - existing_wild), available_twos)
+    move wild_room cards from hand[actor] where c => c.rank == "2" to meld_jack[team_of(actor)]
+    has_melded[team_of(actor)] := true
+  }
+}
+
+move_type meld_queen {
+  when: (has_melded[team_of(actor)] or (sum over hand[actor] as c: if c.rank == "Q" then point_value(c) else 0) >= 50)
+        and (naturals_of(actor, "Q") >= 3 or meld_queen[team_of(actor)] is not empty)
+  effect {
+    move all cards from hand[actor] where c => c.rank == "Q" to meld_queen[team_of(actor)]
+    let existing_wild = sum over meld_queen[team_of(actor)] as c: if c.rank == "2" then 1 else 0
+    let existing_natural = sum over meld_queen[team_of(actor)] as c: if c.rank != "2" then 1 else 0
+    let available_twos = sum over hand[actor] as c: if c.rank == "2" then 1 else 0
+    let wild_room = min2(min2(existing_natural - existing_wild, 3 - existing_wild), available_twos)
+    move wild_room cards from hand[actor] where c => c.rank == "2" to meld_queen[team_of(actor)]
+    has_melded[team_of(actor)] := true
+  }
+}
+
+move_type meld_king {
+  when: (has_melded[team_of(actor)] or (sum over hand[actor] as c: if c.rank == "K" then point_value(c) else 0) >= 50)
+        and (naturals_of(actor, "K") >= 3 or meld_king[team_of(actor)] is not empty)
+  effect {
+    move all cards from hand[actor] where c => c.rank == "K" to meld_king[team_of(actor)]
+    let existing_wild = sum over meld_king[team_of(actor)] as c: if c.rank == "2" then 1 else 0
+    let existing_natural = sum over meld_king[team_of(actor)] as c: if c.rank != "2" then 1 else 0
+    let available_twos = sum over hand[actor] as c: if c.rank == "2" then 1 else 0
+    let wild_room = min2(min2(existing_natural - existing_wild, 3 - existing_wild), available_twos)
+    move wild_room cards from hand[actor] where c => c.rank == "2" to meld_king[team_of(actor)]
+    has_melded[team_of(actor)] := true
+  }
+}
+
+move_type meld_ace {
+  when: (has_melded[team_of(actor)] or (sum over hand[actor] as c: if c.rank == "A" then point_value(c) else 0) >= 50)
+        and (naturals_of(actor, "A") >= 3 or meld_ace[team_of(actor)] is not empty)
+  effect {
+    move all cards from hand[actor] where c => c.rank == "A" to meld_ace[team_of(actor)]
+    let existing_wild = sum over meld_ace[team_of(actor)] as c: if c.rank == "2" then 1 else 0
+    let existing_natural = sum over meld_ace[team_of(actor)] as c: if c.rank != "2" then 1 else 0
+    let available_twos = sum over hand[actor] as c: if c.rank == "2" then 1 else 0
+    let wild_room = min2(min2(existing_natural - existing_wild, 3 - existing_wild), available_twos)
+    move wild_room cards from hand[actor] where c => c.rank == "2" to meld_ace[team_of(actor)]
+    has_melded[team_of(actor)] := true
+  }
+}
+
+// --- Discard (exactly one per turn, unless melding emptied the hand) ---
+// Suit is irrelevant throughout Canasta, so "which specific card of a rank
+// leaves the hand" never matters — the default (non-`chosen`) movement mode
+// deterministically takes the first match, no chooser draw spent on it.
+
+move_type discard_two {
+  when: naturals_of(actor, "2") > 0
+  effect {
+    move one card from hand[actor] where c => c.rank == "2" to discard_pile
+    last_discard_rank := "2"
+    pile_has_wild := true
+  }
+}
+
+move_type discard_three {
+  when: naturals_of(actor, "3") > 0
+  effect {
+    move one card from hand[actor] where c => c.rank == "3" to discard_pile
+    last_discard_rank := "3"
+  }
+}
+
+move_type discard_four {
+  when: naturals_of(actor, "4") > 0
+  effect {
+    move one card from hand[actor] where c => c.rank == "4" to discard_pile
+    last_discard_rank := "4"
+  }
+}
+
+move_type discard_five {
+  when: naturals_of(actor, "5") > 0
+  effect {
+    move one card from hand[actor] where c => c.rank == "5" to discard_pile
+    last_discard_rank := "5"
+  }
+}
+
+move_type discard_six {
+  when: naturals_of(actor, "6") > 0
+  effect {
+    move one card from hand[actor] where c => c.rank == "6" to discard_pile
+    last_discard_rank := "6"
+  }
+}
+
+move_type discard_seven {
+  when: naturals_of(actor, "7") > 0
+  effect {
+    move one card from hand[actor] where c => c.rank == "7" to discard_pile
+    last_discard_rank := "7"
+  }
+}
+
+move_type discard_eight {
+  when: naturals_of(actor, "8") > 0
+  effect {
+    move one card from hand[actor] where c => c.rank == "8" to discard_pile
+    last_discard_rank := "8"
+  }
+}
+
+move_type discard_nine {
+  when: naturals_of(actor, "9") > 0
+  effect {
+    move one card from hand[actor] where c => c.rank == "9" to discard_pile
+    last_discard_rank := "9"
+  }
+}
+
+move_type discard_ten {
+  when: naturals_of(actor, "10") > 0
+  effect {
+    move one card from hand[actor] where c => c.rank == "10" to discard_pile
+    last_discard_rank := "10"
+  }
+}
+
+move_type discard_jack {
+  when: naturals_of(actor, "J") > 0
+  effect {
+    move one card from hand[actor] where c => c.rank == "J" to discard_pile
+    last_discard_rank := "J"
+  }
+}
+
+move_type discard_queen {
+  when: naturals_of(actor, "Q") > 0
+  effect {
+    move one card from hand[actor] where c => c.rank == "Q" to discard_pile
+    last_discard_rank := "Q"
+  }
+}
+
+move_type discard_king {
+  when: naturals_of(actor, "K") > 0
+  effect {
+    move one card from hand[actor] where c => c.rank == "K" to discard_pile
+    last_discard_rank := "K"
+  }
+}
+
+move_type discard_ace {
+  when: naturals_of(actor, "A") > 0
+  effect {
+    move one card from hand[actor] where c => c.rank == "A" to discard_pile
+    last_discard_rank := "A"
+  }
+}
+
+// =============================================================================
+// === Functions ===
+// =============================================================================
+
+// Smallest of two integers — `min`/`max` are not callable stdlib functions
+// (only usable as a `sum`/`max`/`min` zone-comprehension aggregator, a
+// different construct), so wild-cap arithmetic uses this instead.
+function min2(a : Integer, b : Integer) = if a < b then a else b
+
+function is_red_three(c : Card) = c.rank == "3" and (c.suit == hearts or c.suit == diamonds)
+
+// Card-point table (Pagat's basic-rules table minus the joker row, which
+// cannot exist under the single-52-card-pack simplification — see cut 1).
+function point_value(c : Card) =
+  if c.rank == "2" then 20
+  elif c.rank == "A" then 20
+  elif c.rank == "K" then 10
+  elif c.rank == "Q" then 10
+  elif c.rank == "J" then 10
+  elif c.rank == "10" then 10
+  elif c.rank == "9" then 10
+  elif c.rank == "8" then 10
+  else 5
+
+function naturals_of(p : Player, r : String) = sum over hand[p] as c: if c.rank == r then 1 else 0
+
+// A pile is frozen against a partnership if a wild card has ever hit it
+// since it last emptied, or the partnership hasn't melded yet this hand.
+function frozen_for(t : Team) = pile_has_wild or not has_melded[t]
+
+function team_has_canasta(t : Team) =
+  (count over meld_two[t]   as c: true) >= 7 or
+  (count over meld_four[t]  as c: true) >= 7 or
+  (count over meld_five[t]  as c: true) >= 7 or
+  (count over meld_six[t]   as c: true) >= 7 or
+  (count over meld_seven[t] as c: true) >= 7 or
+  (count over meld_eight[t] as c: true) >= 7 or
+  (count over meld_nine[t]  as c: true) >= 7 or
+  (count over meld_ten[t]   as c: true) >= 7 or
+  (count over meld_jack[t]  as c: true) >= 7 or
+  (count over meld_queen[t] as c: true) >= 7 or
+  (count over meld_king[t]  as c: true) >= 7 or
+  (count over meld_ace[t]   as c: true) >= 7
+
+function meld_points_of(t : Team) =
+  (sum over meld_two[t]   as c: point_value(c)) +
+  (sum over meld_four[t]  as c: point_value(c)) +
+  (sum over meld_five[t]  as c: point_value(c)) +
+  (sum over meld_six[t]   as c: point_value(c)) +
+  (sum over meld_seven[t] as c: point_value(c)) +
+  (sum over meld_eight[t] as c: point_value(c)) +
+  (sum over meld_nine[t]  as c: point_value(c)) +
+  (sum over meld_ten[t]   as c: point_value(c)) +
+  (sum over meld_jack[t]  as c: point_value(c)) +
+  (sum over meld_queen[t] as c: point_value(c)) +
+  (sum over meld_king[t]  as c: point_value(c)) +
+  (sum over meld_ace[t]   as c: point_value(c))
+
+function hand_penalty_of(p : Player) = sum over hand[p] as c: point_value(c)
+
+function red_three_bonus(t : Team) =
+  if has_melded[t]
+  then 100 * (count over red_threes[t] as c: true)
+  else 0 - 100 * (count over red_threes[t] as c: true)
+
+// Natural canasta (no wild 2s inside) = 500; mixed canasta (has wild 2s) =
+// 300. The twos meld is always natural (2s melding 2s isn't "wild" of
+// itself), so it's a flat 500 with no mixed check.
+function canasta_bonus_of(t : Team) =
+  (if (count over meld_two[t] as c: true) >= 7 then 500 else 0) +
+  (if (count over meld_four[t] as c: true) >= 7 then
+     (if (sum over meld_four[t] as c: if c.rank == "2" then 1 else 0) == 0 then 500 else 300) else 0) +
+  (if (count over meld_five[t] as c: true) >= 7 then
+     (if (sum over meld_five[t] as c: if c.rank == "2" then 1 else 0) == 0 then 500 else 300) else 0) +
+  (if (count over meld_six[t] as c: true) >= 7 then
+     (if (sum over meld_six[t] as c: if c.rank == "2" then 1 else 0) == 0 then 500 else 300) else 0) +
+  (if (count over meld_seven[t] as c: true) >= 7 then
+     (if (sum over meld_seven[t] as c: if c.rank == "2" then 1 else 0) == 0 then 500 else 300) else 0) +
+  (if (count over meld_eight[t] as c: true) >= 7 then
+     (if (sum over meld_eight[t] as c: if c.rank == "2" then 1 else 0) == 0 then 500 else 300) else 0) +
+  (if (count over meld_nine[t] as c: true) >= 7 then
+     (if (sum over meld_nine[t] as c: if c.rank == "2" then 1 else 0) == 0 then 500 else 300) else 0) +
+  (if (count over meld_ten[t] as c: true) >= 7 then
+     (if (sum over meld_ten[t] as c: if c.rank == "2" then 1 else 0) == 0 then 500 else 300) else 0) +
+  (if (count over meld_jack[t] as c: true) >= 7 then
+     (if (sum over meld_jack[t] as c: if c.rank == "2" then 1 else 0) == 0 then 500 else 300) else 0) +
+  (if (count over meld_queen[t] as c: true) >= 7 then
+     (if (sum over meld_queen[t] as c: if c.rank == "2" then 1 else 0) == 0 then 500 else 300) else 0) +
+  (if (count over meld_king[t] as c: true) >= 7 then
+     (if (sum over meld_king[t] as c: if c.rank == "2" then 1 else 0) == 0 then 500 else 300) else 0) +
+  (if (count over meld_ace[t] as c: true) >= 7 then
+     (if (sum over meld_ace[t] as c: if c.rank == "2" then 1 else 0) == 0 then 500 else 300) else 0)

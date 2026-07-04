@@ -1,0 +1,245 @@
+// Go Fish — formalized DSL (parser/checker/runtime target). NOT part of the
+// language's kernel-clean corpus; written as a stress test of the DSL against
+// a game the corpus has never attempted.
+//
+// Source: https://www.pagat.com/quartet/gofish.html ("Go Fish", the Quartets
+// family). On your turn you name another player and a rank you already hold
+// at least one card of ("Mary, please give me your jacks"). If the named
+// player holds any cards of that rank, they must give ALL of them to you and
+// you go again (ask anyone, any rank, immediately). Otherwise they say "go
+// fish": you draw the top stock card; if it matches the rank you asked for,
+// you show it and go again; otherwise you keep it and the turn passes left.
+// A completed book of all four cards of a rank is shown to the table and set
+// aside. The game ends the instant either the stock is exhausted or any
+// player's hand empties; the player with the most books wins.
+//
+// === Simplifications (every deliberate rule cut, recorded per CLAUDE.md) ===
+//
+// 1. MINOR — fixed at exactly 4 players (Pagat allows 2-6, commonly 3-4).
+//    Avoids branching the opponent-choice domain on player count (see #3);
+//    matches the corpus convention of fixing player count (Hearts, Getaway,
+//    Spades, Bridge, Pinochle all fix at 4 rather than declaring a range).
+//
+// 2. MINOR — deal size fixed at 5 cards/player (Pagat's own rule for 3-6
+//    players; only 2-player Go Fish deals 7). No cut relative to the rules
+//    actually being formalized here.
+//
+// 3. MAJOR / GAP — "ask any other player" is narrowed to "ask a player at a
+//    fixed relative seat (left / right / across)". The real rule lets you
+//    name ANY other player by identity. See the `// GAP:` comment at the
+//    target-selection site below for why (no general "player at arbitrary
+//    seat offset" primitive exists) and why this specific workaround was
+//    chosen (it still reaches every opponent for 4 players, just via a fixed
+//    seat-relation vocabulary instead of a free identity choice).
+//
+// 4. MAJOR / GAP — "you may only ask for a rank you already hold" is not
+//    enforced as a legality restriction on the choice (there is no way to
+//    filter a `choose integer` domain by a per-value predicate, and the
+//    engine's only enumerable move-parameter domain is `Suit`). It is instead
+//    enforced *semantically* inside the move's effect: asking for a rank you
+//    do not hold is well-defined but behaves exactly like drawing blind (the
+//    target's hand is never even consulted), so it can never produce a hit
+//    without truly holding the rank, and a rational player never prefers it.
+//    See the `// GAP:` comment at the ask-resolution site below.
+//
+// 5. MINOR — turn order on a miss is a fixed "pass to the left" (Pagat: "turn
+//    passes left"), not resolved relative to the asked player.
+//
+// 6. MINOR — completed books are modelled as a permanently public pile
+//    (`identity to all`, same as a captured-tricks pile elsewhere in the
+//    corpus) rather than "shown once, then turned face down". Once shown, a
+//    book plays no further role in any rule (nothing ever reads its contents
+//    again except the end-of-game book *count*), so this is observationally
+//    identical to the physical "turn it face down" convention — not a
+//    fidelity loss, just the cleanest zone type available.
+//
+// 7. MINOR — no mid-game hand replenishment when a hand empties (matches the
+//    fetched Pagat rule text precisely: the game ends the instant any hand is
+//    empty or the stock runs out; some house rules deal a fresh hand instead,
+//    which is a variant, not the base rule formalized here).
+
+game GoFish {
+
+  players: 4
+  direction: clockwise
+
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2   // no trick-play; only a canonical rank
+                                        // order for the rank_matches() index
+
+  zones {
+    deck         : Deck                 // face-down stock
+    hand[player] : Hand<player>         // private hand
+    book[player] : PlayerPile<player>   // completed books, shown to the table
+  }
+
+  state {
+    dealer            : Player  = 0
+    current_player     : Player  = 0
+    book_count[player] : Integer = 0
+  }
+
+  phase setup {
+    shuffle deck
+    deal 5 cards from deck to each hand
+
+    // A player dealt a complete book at the outset shows it immediately (five
+    // cards can contain at most one rank's worth of four, so at most one book
+    // per player can possibly complete here).
+    for each player p:
+      if (max over hand[p] as c: (sum over hand[p] as c2: if c2.rank == c.rank then 1 else 0)) == 4 {
+        move all cards from hand[p]
+             where c => (sum over hand[p] as c2: if c2.rank == c.rank then 1 else 0) == 4
+             to book[p]
+        book_count[p] += 1
+      }
+
+    current_player := dealer offset_by left
+  }
+
+  phase play {
+    // The whole turn (ask, resolve, maybe draw, maybe pass) is one `take_turn`
+    // move, offered to whichever player `current_player` names; its effect
+    // decides internally whether `current_player` changes. This is plain
+    // imperative body logic (like Oh Hell/Spades' `choose integer` bidding),
+    // not the trick/auction/climb `round` forms — Go Fish's "same player asks
+    // again on a hit, turn passes only on a genuine miss" turn-continuation
+    // rule doesn't fit any of those three closed configurations (see the
+    // report). `offer` supplies exactly what a bare `choose` cannot: an
+    // `actor` binding for a specific, state-chosen player outside a
+    // `for_each`/`round` context.
+    repeat until (deck is empty) or (any player p: hand[p] is empty) {
+      offer to current_player one of [take_turn]
+    }
+  }
+
+  winner: highest book_count
+}
+
+// === Go Fish move vocabulary ===
+
+// One nullary move, always legal on a non-empty hand (guaranteed by the
+// enclosing `repeat until`, which stops the instant any hand empties). The
+// target and rank are decided *inside* the effect via `choose integer` — see
+// the header's simplification #3/#4 and the two `// GAP:` comments below for
+// why this isn't a parameterized move_type (as Bridge's submit_bid(strain) or
+// Pinochle's declare_trump_suit(s) are) offered through `round offering`.
+move_type take_turn {
+  effect {
+    // GAP: the natural encoding is `move_type ask(target: Player, rank: Rank)`
+    // dispatched through `round offering [ask] from actor over ...`, letting
+    // the engine enumerate every (target, rank) pair as Bridge's
+    // submit_bid(strain: Suit?) enumerates strains. Two independent language
+    // limits block it, both verified empirically against this engine (not
+    // just read off the grammar):
+    //   (a) `move_type` supports at most ONE parameter (the grammar's
+    //       `move_param` production is a single `NAME : payload_type`, not a
+    //       list) — a two-parameter `ask(target: Player, rank: Rank)` is a
+    //       syntax error ("No terminal matches ','").
+    //   (b) even collapsed to ONE parameter, `enumerate_domain` (the runtime
+    //       function that expands a move_type's parameter into a per-turn
+    //       candidate list) implements only the `Suit`/`Suit?` domain.
+    //       `move_type ask(rank: Rank)` parses and passes the checker cleanly,
+    //       but crashes every playout with
+    //       `NotImplementedError: move parameter domain 'Rank' not supported
+    //       yet` — checker-green, runtime-dead. (`Player` is equally
+    //       unimplemented as an enumerable domain, so splitting into
+    //       `ask_target(p: Player)` then `ask_rank(r: Rank)` fails the same
+    //       way.) Neither is fixable from a game file — enumerate_domain and
+    //       the grammar live outside stress-test/games/.
+    // Workaround: represent the choice as two `choose integer` picks (already
+    // a corpus-precedented decision primitive — Oh Hell/Spades bid with
+    // `choose integer in 0..hand_size` directly in a phase body). `choose`
+    // auto-announces its result to every player (decisions.md "`choose` as
+    // expression"), which is exactly right here: naming a target and a rank
+    // out loud is genuinely public in Go Fish, unlike a hidden hand choice.
+    //
+    // GAP: the target domain is restricted to the three fixed seat relations
+    // (left/right/across) rather than "any of the other 3 players by
+    // identity", because there is no general "player at arbitrary seat
+    // offset" — `offset_by` only accepts the closed direction vocabulary
+    // {none, left, right, across}, not an arbitrary integer or player value
+    // (confirmed by reading cardlang/runtime/values.py's Seating.offset_by,
+    // which switches on a fixed dict of four direction strings). For exactly
+    // 4 players this still reaches every possible opponent (left, right, and
+    // across partition the other three seats with no overlap); it would
+    // under-cover a 5+ player table, which is why simplification #1 fixes the
+    // table at 4.
+    let target_pick = choose integer in 0 .. 2
+    let target = if target_pick == 0 then actor offset_by left
+                 elif target_pick == 1 then actor offset_by right
+                 else actor offset_by across
+
+    // GAP: the rank domain is the full fixed 13-rank order (see the header's
+    // ranking declaration), not narrowed to "ranks the actor currently
+    // holds" — narrowing it would require indexing a `choose integer` by
+    // position in the actor's own (private, arbitrarily-ordered) hand, which
+    // breaks the *other* requirement: every other player must be able to
+    // decode the announced integer into an actual rank, and a private hand's
+    // internal order is exactly what they don't know. The fixed 13-rank
+    // index is the only representation that is simultaneously (i) usable
+    // with the corpus-precedented `choose integer` primitive, and (ii)
+    // publicly decodable by every observer from the announcement alone.
+    // "Must already hold the named rank" is instead enforced below, in the
+    // hit/miss resolution itself (see simplification #4).
+    let rank_pick = choose integer in 0 .. 12
+
+    let asker_holds  = sum over hand[actor]  as c: if rank_matches(c, rank_pick) then 1 else 0
+    let target_holds = sum over hand[target] as c: if rank_matches(c, rank_pick) then 1 else 0
+
+    // A hit requires the actor to actually hold the named rank (the rule
+    // this DSL cannot enforce as a *legality* restriction, per simplification
+    // #4, is enforced here as a *resolution* restriction instead): an ask for
+    // a rank the actor doesn't hold can never succeed, target's hand is never
+    // even consulted, so it is strictly equivalent to a wasted go-fish draw.
+    if asker_holds > 0 and target_holds > 0 {
+      move all cards from hand[target]
+           where c => rank_matches(c, rank_pick)
+           to hand[actor]
+
+      if (max over hand[actor] as c: (sum over hand[actor] as c2: if c2.rank == c.rank then 1 else 0)) == 4 {
+        move all cards from hand[actor]
+             where c => (sum over hand[actor] as c2: if c2.rank == c.rank then 1 else 0) == 4
+             to book[actor]
+        book_count[actor] += 1
+      }
+      // Hit: `current_player` is left unchanged, so the next loop iteration
+      // offers `take_turn` to the same player again — "you go again".
+    } else {
+      draw 1 card from deck to hand[actor]
+      let after_draw = sum over hand[actor] as c: if rank_matches(c, rank_pick) then 1 else 0
+
+      if (max over hand[actor] as c: (sum over hand[actor] as c2: if c2.rank == c.rank then 1 else 0)) == 4 {
+        move all cards from hand[actor]
+             where c => (sum over hand[actor] as c2: if c2.rank == c.rank then 1 else 0) == 4
+             to book[actor]
+        book_count[actor] += 1
+      }
+
+      if after_draw > asker_holds {
+        // The drawn card matches the named rank: go again (same as a hit).
+      } else {
+        current_player := actor offset_by left
+      }
+    }
+  }
+}
+
+// Maps a `choose integer in 0..12` pick to one of the 13 ranks, in the same
+// order as the game's `ranking:` declaration. Bare rank names are not enum
+// values in this language (see pinochle.cardlang's has_marriage for the same
+// idiom), so the comparison is against the literal string Card.rank holds.
+function rank_matches(c : Card, idx : Integer) =
+  if   idx == 0  then c.rank == "A"
+  elif idx == 1  then c.rank == "K"
+  elif idx == 2  then c.rank == "Q"
+  elif idx == 3  then c.rank == "J"
+  elif idx == 4  then c.rank == "10"
+  elif idx == 5  then c.rank == "9"
+  elif idx == 6  then c.rank == "8"
+  elif idx == 7  then c.rank == "7"
+  elif idx == 8  then c.rank == "6"
+  elif idx == 9  then c.rank == "5"
+  elif idx == 10 then c.rank == "4"
+  elif idx == 11 then c.rank == "3"
+  else                c.rank == "2"

@@ -1,0 +1,365 @@
+// Palace (Shithead) — stress-test implementation, DSL only, no `instantiate`.
+//
+// Source: https://www.pagat.com/beating/shithead.html (McLeod's rules, the
+// project's authoritative reference). 4 players. Each is dealt 3 face-down
+// "blind" cards, 3 face-up cards on top of them, and a 3-card hand; the rest
+// of the deck is the stock. Before play, a player may swap any number of
+// hand cards with their own face-up cards. Play goes clockwise onto a single
+// shared pile: a play must equal or beat the pile's effective top rank.
+// Twos are wild (playable on anything; anything is playable on a two — the
+// pile "resets"). Tens always burn the pile and win the actor another turn.
+// Four cards of matching rank in a row on top also burn and win another
+// turn. A player who cannot play must pick up the whole pile. After playing
+// from hand, a player redraws from stock up to 3 cards, stock permitting. A
+// player's hand must be exhausted before their face-up cards, and face-up
+// before their blind cards; blind cards are flipped unseen — the player
+// never learns a blind card's identity until it lands face-up on the pile,
+// at which point (if it doesn't beat the pile) the player must pick up the
+// whole pile including that card. The last player still holding any cards
+// (hand + face-up + blind) is the loser.
+//
+// Simplifications (every one is a deliberate, declared cut, not a silent
+// drop):
+//
+//  1. Fixed at 4 players. Pagat allows 2-6 (6 needs two jokers added); the
+//     grammar has a `players: <lo>..<hi>` range form, but no corpus game
+//     exercises it and a variable-arity ring would ripple through every
+//     zone/index in this file for no stress-test benefit. Documented, not
+//     hidden.
+//  2. Single-card plays only. The reference rules let a player lay down
+//     several cards of matching rank in one play (e.g. both black sevens
+//     together). Modelling a *multi-card* play as one move needs the
+//     movement grammar to move a chosen-size *set* selected by a joint
+//     predicate over combinations, which the corpus's `chosen N cards`
+//     selection doesn't do (it picks N cards independently matching a
+//     per-card predicate, not "exactly N cards that share a rank"). Cutting
+//     to one card per turn avoids a combination-engine build for a single
+//     stress-test game (Big Two/Tichu's `climb` form needs one for a
+//     structurally different reason — beating combinations of a *fixed*
+//     size the leader chose — and doesn't fit here either, since Palace has
+//     no "pass": a player without a legal play must pick up, not skip).
+//     Four-of-a-kind burning is still modelled, via a same-rank run counter
+//     across consecutive single-card turns (whoever plays the fourth
+//     matching card in a row still burns the pile) — see GAP below on why
+//     this had to be a scalar counter rather than reading the pile itself.
+//  3. Starting player: the rules don't say who leads the first card (only
+//     who leads later — the winner of the burn/no-legal-play cycles keeps
+//     playing). This file starts with the dealer's left-hand neighbour, the
+//     convention every clockwise game in the corpus uses for its opening
+//     lead (Bridge, Pinochle: `dealer offset_by left`).
+//  4. The pre-play swap is modelled as each player, in seat order, swapping
+//     zero or more pairs and then declaring done, rather than every player
+//     deciding simultaneously in private. See the GAP note on the `swap`
+//     phase below: the `simultaneously:` block's fixed grammar (no loops,
+//     no `let`, no branches in its body) can't express "swap an
+//     unbounded, self-chosen number of pairs," so a later player in the
+//     sequential order sees an earlier player's *finished* face-up
+//     selection before choosing their own — a strictly sequential game would
+//     not leak that. Face-up cards are public regardless, so hands never
+//     leak; only the *order* in which swap decisions become visible differs
+//     from true simultaneity.
+//
+// GAP: no reusable statement-level procedure. `play_from_hand`,
+// `play_from_faceup`, and `play_from_blind` share ~15 lines of "resolve the
+// played card against the pile" logic (rank/wild/burn bookkeeping) that the
+// language has no way to factor: `function` only factors *expressions*
+// (hermetic, non-recursive, no statements), and there is no move-type-body
+// equivalent. The three move types below triplicate that block by hand.
+//
+// GAP: `action.card` is not bound inside a game-defined `move_type`'s own
+// `effect` body (confirmed empirically — evaluates `action` as `none` and
+// crashes on field access). It *is* bound for `transition_to: ... when
+// move_type where action.card...` and rule `demands: actions where...`
+// (both corpus-used), just not for a move's own effect reading what it just
+// moved. Worked around below by routing every play through a one-card
+// staging zone (`played`) and reading its content back via the
+// `sum`/`max over <zone> as x: ...` aggregation idiom the corpus already
+// uses for "the best/matching card in a collection" (Pinochle's
+// `MustHeadTrick`) — a size-1 aggregate is an exact scalar read, so no
+// identity ever needs extracting from a zone as a bare value.
+//
+// GAP: there is no `.top` / `.non_empty` / `.highest_by` zone-query method
+// implemented (library.md and decisions.md describe a fuller `ZoneContents`
+// API, but the type checker's method table — `cardlang/stdlib/signatures.py`
+// — only wires up `.where` and `.cards_of_suit`). "The pile's effective top
+// rank" therefore can't be read off the pile zone directly at all — not just
+// because burying history would make `max over pile` wrong the instant a 2
+// is played (which it would), but because there is no zone-level "top"
+// notion to read in the first place. It has to be tracked as ordinary
+// scalar state (`top_rank_value`, `top_is_wild`), written by every move that
+// changes it. This is a real, load-bearing gap for any game with a
+// persistent (not per-trick) discard pile with special-rank resets.
+//
+// GAP: `legal_moves:` is checked against a closed, hardcoded stdlib name
+// table (`cardlang/stdlib/moves.py`), not the set of `move_type`s the game
+// itself declares — a fully custom vocabulary (this file's six move types,
+// none of them library names) cannot be listed there at all; the resolver
+// rejects every one of them by name. Seven-Card Stud's betting moves hit
+// the same wall and simply omit `legal_moves:` for those phases; this file
+// follows the same precedent (no `legal_moves:` clause appears below).
+//
+// The three-layer per-player holding (hidden hand, public face-up, and
+// blind-even-to-owner face-down) is expressed with library zone types only:
+// `Hand<player>` and `PublicHand<player>` as documented, and `blind[player]`
+// declared as `FaceDownPile` — a library type documented as a *singleton*
+// stock zone (Schnapsen's talon), but the resolver checks a zone's `[index]`
+// (whether it's a per-player family) completely separately from the zone
+// *type*'s own owner-arity, so `FaceDownPile` indexed by player type-checks,
+// and its owner/others projection table is symmetric (`count_only` both
+// ways) — exactly "not even the owner knows," with no new zone type needed.
+// See the `swap`/`play` phases for how blind cards are then *played*
+// without ever letting the owner peek: the reveal is a random `move`, not a
+// player choice (see the `play_from_blind` move type below).
+
+game Palace {
+
+  players: 4
+  direction: clockwise
+
+  cards: standard52
+  // 2 and 10 are wild/special (never compared by rank — see `legal_play`
+  // below); their position here is otherwise arbitrary.
+  ranking: 3 4 5 6 7 8 9 J Q K A 10 2
+
+  zones {
+    deck           : Deck             // the stock
+    hand[player]   : Hand<player>     // private hand
+    faceup[player] : PublicHand<player>   // public table cards, owner included
+    blind[player]  : FaceDownPile     // count_only to everyone, INCLUDING the owner
+    played         : TrickPile        // one-card staging zone for the card just played
+    pile           : TrickPile        // the shared, accumulating discard pile
+    burn           : Burn             // cards removed from play for good
+  }
+
+  state {
+    dealer         : Player  = 0
+    current        : Player  = 0      // whose turn it is
+    top_rank_value : Integer = 0 - 1  // -1 = pile is "empty" (anything goes)
+    top_is_wild    : Boolean = false  // true when a 2 is the effective top
+    run_rank_value : Integer = 0 - 1  // rank_value of the run currently on top
+    run_length     : Integer = 0      // consecutive same-rank plays on top
+    again          : Boolean = false  // does the actor who just played go again?
+    done_swap[player] : Boolean = false
+  }
+
+  phase setup {
+    shuffle deck
+    deal 3 cards from deck to each blind
+    deal 3 cards from deck to each faceup
+    deal 3 cards from deck to each hand
+    current := dealer offset_by left
+  }
+
+  // Each player, in seat order, may swap any number of hand/face-up pairs
+  // before play starts (see the header GAP note on why this is sequential,
+  // not simultaneous).
+  phase swap {
+    for each player p:
+      repeat until done_swap[p] {
+        offer to p one of [swap_one, stop_swapping]
+      }
+  }
+
+  phase play {
+    repeat until (number of players where has_cards(player)) <= 1 {
+      offer to current one of
+        [play_from_hand, play_from_faceup, play_from_blind, pick_up_pile]
+      if has_cards(current) {
+        if again {
+          // the actor plays again: `current` is unchanged
+        } else {
+          current := next_active(current)
+        }
+      } else {
+        current := next_active(current)
+      }
+    }
+  }
+
+  loser: the player where has_cards(player)
+}
+
+// === Helpers ===
+
+function has_cards(p : Player) =
+  hand[p] is not empty or faceup[p] is not empty or blind[p] is not empty
+
+// Players fixed at 4, so at most 3 hops around the ring find the next
+// player still holding cards.
+function next_active(p : Player) =
+  if has_cards(p offset_by left) then p offset_by left
+  elif has_cards(p offset_by left offset_by left) then p offset_by left offset_by left
+  elif has_cards(p offset_by left offset_by left offset_by left)
+    then p offset_by left offset_by left offset_by left
+  else p
+
+// A card beats (or ties) the pile's effective top if it's a wild 2, an
+// always-legal 10, the pile is "empty" (nothing to beat), the effective top
+// is itself a 2 (wild — anything goes), or its rank is >= the top's.
+function legal_by_values(rank_val : Integer, is_two : Boolean, is_ten : Boolean) =
+  is_two or is_ten or top_rank_value < 0 or top_is_wild or rank_val >= top_rank_value
+
+function legal_play(c : Card) = legal_by_values(rank_value(c), c.rank == "2", c.rank == "10")
+
+// === Pre-play swap ===
+
+move_type swap_one {
+  when: hand[actor] is not empty and faceup[actor] is not empty
+  effect {
+    transfer chosen 1 card from hand[actor] to faceup[actor]
+    transfer chosen 1 card from faceup[actor] to hand[actor]
+  }
+}
+
+move_type stop_swapping {
+  effect { done_swap[actor] := true }
+}
+
+// === Play ===
+
+move_type play_from_hand {
+  when: hand[actor] is not empty and
+        (sum over hand[actor] as c: if legal_play(c) then 1 else 0) > 0
+  effect {
+    transfer chosen 1 card from hand[actor] where c => legal_play(c) to played
+    let new_rank = max over played as c: rank_value(c)
+    let is_two   = (sum over played as c: if c.rank == "2" then 1 else 0) > 0
+    let is_ten   = (sum over played as c: if c.rank == "10" then 1 else 0) > 0
+    move all cards from played to pile
+    if new_rank == run_rank_value {
+      run_length := run_length + 1
+    } else {
+      run_length := 1
+      run_rank_value := new_rank
+    }
+    if is_ten or run_length >= 4 {
+      move all cards from pile to burn
+      run_length := 0
+      run_rank_value := 0 - 1
+      top_rank_value := 0 - 1
+      top_is_wild := false
+      again := true
+    } else {
+      if is_two {
+        top_is_wild := true
+        again := false
+      } else {
+        top_rank_value := new_rank
+        top_is_wild := false
+        again := false
+      }
+    }
+    // Replenish from stock back up to 3, stock permitting.
+    let hand_size = count over hand[actor] as c: true
+    let short = 3 - hand_size
+    if short > 0 {
+      let stock = count over deck as c: true
+      let draw_amt = if short < stock then short else stock
+      if draw_amt > 0 { draw draw_amt cards from deck to hand[actor] }
+    }
+  }
+}
+
+move_type play_from_faceup {
+  when: hand[actor] is empty and faceup[actor] is not empty and
+        (sum over faceup[actor] as c: if legal_play(c) then 1 else 0) > 0
+  effect {
+    transfer chosen 1 card from faceup[actor] where c => legal_play(c) to played
+    let new_rank = max over played as c: rank_value(c)
+    let is_two   = (sum over played as c: if c.rank == "2" then 1 else 0) > 0
+    let is_ten   = (sum over played as c: if c.rank == "10" then 1 else 0) > 0
+    move all cards from played to pile
+    if new_rank == run_rank_value {
+      run_length := run_length + 1
+    } else {
+      run_length := 1
+      run_rank_value := new_rank
+    }
+    if is_ten or run_length >= 4 {
+      move all cards from pile to burn
+      run_length := 0
+      run_rank_value := 0 - 1
+      top_rank_value := 0 - 1
+      top_is_wild := false
+      again := true
+    } else {
+      if is_two {
+        top_is_wild := true
+        again := false
+      } else {
+        top_rank_value := new_rank
+        top_is_wild := false
+        again := false
+      }
+    }
+  }
+}
+
+// Blind cards are unseen even by their owner (`blind[player]` is
+// `count_only` to everyone, owner included), so there is nothing to filter a
+// legal candidate from: the flip is a chance event (`random`, not `chosen`),
+// and legality is discovered only after the card lands face-up in `played`.
+// If it doesn't beat the pile, the whole pile — including the flipped card —
+// goes to the actor's hand, exactly as the reference rules say.
+move_type play_from_blind {
+  when: hand[actor] is empty and faceup[actor] is empty and blind[actor] is not empty
+  effect {
+    move random 1 card from blind[actor] to played
+    let new_rank = max over played as c: rank_value(c)
+    let is_two   = (sum over played as c: if c.rank == "2" then 1 else 0) > 0
+    let is_ten   = (sum over played as c: if c.rank == "10" then 1 else 0) > 0
+    if legal_by_values(new_rank, is_two, is_ten) {
+      move all cards from played to pile
+      if new_rank == run_rank_value {
+        run_length := run_length + 1
+      } else {
+        run_length := 1
+        run_rank_value := new_rank
+      }
+      if is_ten or run_length >= 4 {
+        move all cards from pile to burn
+        run_length := 0
+        run_rank_value := 0 - 1
+        top_rank_value := 0 - 1
+        top_is_wild := false
+        again := true
+      } else {
+        if is_two {
+          top_is_wild := true
+          again := false
+        } else {
+          top_rank_value := new_rank
+          top_is_wild := false
+          again := false
+        }
+      }
+    } else {
+      move all cards from played to hand[actor]
+      move all cards from pile to hand[actor]
+      run_length := 0
+      run_rank_value := 0 - 1
+      top_rank_value := 0 - 1
+      top_is_wild := false
+      again := false
+    }
+  }
+}
+
+// Forced pickup: legal exactly when the actor's active zone (hand, or
+// face-up once hand is empty) holds no card that beats the pile. Blind play
+// never reaches this move — an unplayable blind flip resolves its own
+// pickup inline, above, since it isn't a choice.
+move_type pick_up_pile {
+  when: (hand[actor] is not empty and
+         (sum over hand[actor] as c: if legal_play(c) then 1 else 0) == 0)
+     or (hand[actor] is empty and faceup[actor] is not empty and
+         (sum over faceup[actor] as c: if legal_play(c) then 1 else 0) == 0)
+  effect {
+    move all cards from pile to hand[actor]
+    run_length := 0
+    run_rank_value := 0 - 1
+    top_rank_value := 0 - 1
+    top_is_wild := false
+    again := false
+  }
+}

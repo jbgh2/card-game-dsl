@@ -38,5 +38,4 @@ bowers), climbing with roles (President), melding (Gin, Canasta), fishing
 false claims (Cheat), community-card poker (Hold'em), multi-deck (Canasta),
 question-asking (Go Fish), blind draws (Old Maid), layered hands (Palace).
 
-The synthesized findings live in the conversation/PR that produced this
-branch, not here.
+The synthesized findings live in [FINDINGS.md](FINDINGS.md).

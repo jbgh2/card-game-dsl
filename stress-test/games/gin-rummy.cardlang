@@ -1,0 +1,458 @@
+// Gin Rummy — stress-test DSL encoding (NOT part of the canonical corpus).
+//
+// Source of rules: https://www.pagat.com/rummy/ginrummy.html ("Gin Rummy",
+// fetched live per CLAUDE.md). Two players, standard 52-card deck, ten cards
+// each. Each turn: draw from stock or take the top discard (if you took the
+// discard, you must discard a different card), then discard. A player may
+// knock once their deadwood (point value of cards not part of a valid
+// combination) is 10 or less; going out with zero deadwood is gin. Melds are
+// a set (3-4 of the same rank) or a run (3+ consecutive same-suit cards, ace
+// low). Score: gin = 20 + opponent's deadwood; ordinary knock, if the
+// knocker's deadwood is strictly lower, = the difference; undercut (knocker's
+// deadwood >= opponent's) = the difference + 10, credited to the opponent.
+// Game to 100.
+//
+// THE STRESS POINT this file is built to probe: minimal-deadwood meld
+// detection — partitioning a hand into melds that minimizes leftover point
+// value. See the "GAP" comments below and the accompanying report for the
+// full finding; the short version is: the DSL's expression sublanguage can
+// only aggregate flatly over a *single* zone's contents (`sum`/`count`/
+// `max`/`min over <zone> as x: …`) or quantify over `player`/`team` — there
+// is no subset enumeration and named `function`s are non-recursive, so
+// "compute the partition of this hand that minimizes deadwood" cannot be
+// written as an expression. What the DSL *can* do is VALIDATE a declared
+// partition (a small, fixed-size group's "same rank" / "same suit and
+// consecutive" test reduces to a `max == min` / `max - min == count - 1`
+// aggregate, which the language handles cleanly). So melding here is modeled
+// as an explicit incremental player decision — cards move one at a time into
+// one of three meld-in-progress zones, each addition gated by an "does this
+// legally extend the current partial group" predicate — rather than an
+// engine-computed optimum. Under uniform-random play this means a hand
+// rarely reaches a completed meld (the chooser must, by chance, keep
+// extending the same group instead of picking `finish_arranging`) — that is
+// exploring a combinatorial decision space randomly (same phenomenon as
+// Bridge rarely bidding a slam under random play), not a defect.
+//
+// Declared simplifications (every one deliberate, not a silent drop):
+//   - No layoff: after a knock, the non-knocking opponent does not get to
+//     extend cards onto the knocker's exposed melds. The task brief
+//     explicitly allows skipping this ("skippable — record"). The opponent's
+//     deadwood is their own best *self-declared* partition of their own
+//     hand (they still run the same meld-building mechanic on their own
+//     hand once the knock happens), just without borrowing space in the
+//     knocker's melds. This makes undercuts somewhat likelier than the real
+//     game under random play, since laying off would only ever lower a
+//     defender's deadwood.
+//   - Card point values (A=1, 2-10=pip, J/Q/K=10) are derived from the
+//     stdlib `rank_value()` function (itself derived from this file's own
+//     `ranking:` declaration: `ranking: K Q J … A` makes ace rank_value 0),
+//     NOT from the stdlib `card_value()` function. `card_value()` reads a
+//     per-deck point table that is empty for `standard52` in the current
+//     runtime (`cardlang/runtime/values.py`: `"standard52": Deck(..., values={})`),
+//     and the DSL's `cards:` header has no syntax for a game to supply its
+//     own point table (only a bare deck name — the "compose with extras"
+//     form library.md sketches isn't implemented in the grammar). Cribbage
+//     solved the analogous problem with a bespoke Python runtime primitive
+//     (`peg_value`); since writing Python is forbidden here, `rank_value()`
+//     is repurposed instead — a workaround, not a Python addition.
+//   - Dropped: the box bonus (+20 per hand won) and the match-end 100/200
+//     "additional bonus" Pagat describes. Pure decorative arithmetic on top
+//     of the ordinary hand score; doesn't exercise any language capability
+//     this stress test cares about, so it was cut for scope, not silently
+//     lost — noted here.
+//   - Dropped: the traditional dealer/non-dealer first-turn refusal-of-the-
+//     upcard wrinkle some rule sets use. The non-dealer simply takes an
+//     ordinary first turn.
+//   - Simplified: knocking does not separately model laying a final card
+//     face down. The knock directly computes deadwood from all 11 held
+//     cards (melded groups + hand remainder) at the moment of the knock
+//     decision, and there is no separate "big gin" bonus for melding all 11
+//     without a leftover discard (Pagat's page, as fetched, does not mention
+//     one) — an all-11-melded hand scores as an ordinary gin.
+//   - Dealer alternates every hand (as Cribbage does in this corpus) rather
+//     than "loser deals next" or similar variants some rule sets use.
+//
+// One thing that is NOT a simplification, worth flagging as a positive
+// result: "if you took the top discard, you must discard a different card"
+// IS enforced, structurally rather than by comparing card identities (the
+// language has no way to bind "the specific card a movement just moved" to
+// a value for later comparison — see the GAP comment on `newly_drawn`
+// below). A drawn discard-pile card is held in a separate private zone and
+// only merged into the hand *after* an ordinary discard (or immediately, if
+// attempting a knock, or immediately for a stock draw) — so the just-taken
+// card is simply not a member of the pool `discard` selects from when the
+// restriction should apply.
+
+game GinRummy {
+
+  players: 2
+  direction: clockwise
+
+  cards: standard52
+  // Ace low, as the real game requires (A-2-3 is a run; A-K-Q is not).
+  // Listed highest-to-lowest per this project's `ranking:` convention (the
+  // first-listed rank gets the highest `rank_value`; see driver.py).
+  ranking: K Q J 10 9 8 7 6 5 4 3 2 A
+
+  zones {
+    deck                 : Deck
+    hand[player]         : Hand<player>
+    // GAP: holds a just-drawn card before it's decided whether the "must
+    // discard a different card" restriction applies to it (see header). Also
+    // doubles as the only way to give arranging access to a discard-pile
+    // pickup: `attempt_knock` merges it into `hand` before arranging runs.
+    newly_drawn[player]  : Hand<player>
+    // The single pick-up-able card (0 or 1 cards) vs. everything discarded
+    // before it (still public, no longer drawable) — split so "the top of
+    // the discard pile" is a zone-emptiness check, not a positional query
+    // (the `Discard` library type carries no declared card order).
+    discard_top          : Discard
+    discard_history      : Discard
+    // Meld-in-progress zones: private (owner only) while a player is still
+    // deciding groupings. Three slots is exactly enough for a post-draw
+    // 11-card hand (3+4+4 = 11; 3+3+4 = 10).
+    stageA[player]       : Hand<player>
+    stageB[player]       : Hand<player>
+    stageC[player]       : Hand<player>
+    // Revealed melds and revealed leftover cards, populated only once a
+    // knock actually happens — the movement into these public zones IS the
+    // reveal (derived from zone visibility, not a hand-authored "reveal"
+    // step; see decisions.md "Knowledge, visibility, and the projection
+    // model"). Both the knocker and the opponent commit here so the
+    // observation trail matches what a real player would see at showdown.
+    meldA[player]        : PlayerPile<player>
+    meldB[player]        : PlayerPile<player>
+    meldC[player]        : PlayerPile<player>
+    shown_deadwood[player] : PlayerPile<player>
+  }
+
+  state {
+    // Game-level: persists across hands.
+    score[player]   : Integer = 0
+    // A hard, luck-independent backstop on top of the score threshold below —
+    // see the tractability note there. Bounds total simulated time regardless
+    // of how many hands a run of bad luck needs.
+    hands_played    : Integer = 0
+  }
+
+  // GAP/simplification: Pagat plays to 100. A `round offering […] until …`
+  // decision node is re-evaluated (all four vocabulary guards, each a
+  // several-deep nested-function aggregate) at every one of up to ~11 steps
+  // of every arranging attempt, and — because there is no combinatorial
+  // search — a hand only reaches deadwood <= 10 when uniform-random choice
+  // happens to grow two or three *compatible* groups at once, which is rare
+  // (empirically well under 1% of hands even with the forced-continuation
+  // trick below). A full race to 100 needs enough successful hands to add up
+  // that it does not reliably finish inside this harness's per-seed timeout
+  // — a consequence of the expressiveness gap (no partition search means no
+  // cheap way to know a hand is promising), not a rules simplification in
+  // the ordinary sense. The threshold is cut to keep 20 playouts tractable;
+  // every other rule (deadwood math, gin/knock/undercut amounts, meld
+  // validity) is unchanged. `hands_played >= 180` is a second, luck-independent
+  // backstop: rare-success variance means a threshold alone could still make
+  // one unlucky seed in twenty run long, so the game also just stops after
+  // 180 hands (`winner: highest score` then resolves whatever the tally is,
+  // including a 0-0 tie if no seat ever knocked) — bounding total simulated
+  // work (empirically ~40-45s at the cap, comfortably under this harness's
+  // 60s-per-seed budget) regardless of how the dice fall. Confirmed via
+  // `stress-test/run_playout.py … 20`: 20/20 complete, no seed times out.
+  phase hand_sequence repeats until (any player p: score[p] >= 25) or hands_played >= 180 {
+    state {
+      dealer          : Player  = 0
+      active          : Player  = 0
+      knocked         : Boolean = false
+      stock_exhausted : Boolean = false
+      knocker         : Player? = none
+      knock_deadwood  : Integer = 0
+      opp_deadwood    : Integer = 0
+      drew            : Boolean = false
+      acted           : Boolean = false
+      attempting      : Boolean = false
+      arranging_done  : Boolean = false
+      // GAP/simplification: taking the discard pile never touches the stock,
+      // so a uniform-random policy that keeps picking `draw_discard` (a
+      // legal choice every single turn) can run indefinitely without ever
+      // reaching Pagat's "stock down to two" cutoff — a real but vanishingly
+      // rare possibility in skilled play, pathological under random
+      // exploration. Bounding turns and cancelling the hand the same way
+      // stock exhaustion does keeps this a faithful-enough approximation
+      // while keeping playouts finite.
+      turns           : Integer = 0
+    }
+
+    before_each {
+      move all cards to deck
+      shuffle deck
+      deal 10 cards from deck to each hand
+      move one card from deck to discard_top   // the 21st card, turned face up
+      dealer := the player where player != dealer
+      active := the player where player != dealer   // non-dealer plays first
+      knocked := false
+      stock_exhausted := false
+      knocker := none
+      knock_deadwood := 0
+      opp_deadwood := 0
+      turns := 0
+      hands_played += 1
+    }
+
+    phase play {
+      // No `active_rules`/`legal_moves` here: every decision runs on the
+      // `round offering […] from … over … until …` form (a single-participant
+      // ring — `over players where player == active` never shrinks, so the
+      // ring simply keeps re-offering the same player until their `until`
+      // flag flips), matching Bridge's auction phase, which needs neither
+      // clause either since its vocabulary lives entirely in `round offering`.
+      repeat until knocked or stock_exhausted {
+        drew := false
+        round offering [draw_stock, draw_discard] from active over players where player == active until drew
+
+        attempting := false
+        acted := false
+        round offering [discard, attempt_knock] from active over players where player == active until acted
+
+        if attempting {
+          arranging_done := false
+          round offering [add_to_meld_a, add_to_meld_b, add_to_meld_c, finish_arranging]
+                from active over players where player == active until arranging_done
+
+          if meld_deadwood(active) <= 10 {
+            knocked := true
+            knocker := active
+            knock_deadwood := meld_deadwood(active)
+
+            // The reveal: moving into these public (`identity to all`) zones
+            // is what makes the knocker's hand known to the opponent —
+            // derived from zone visibility, not an explicit "reveal" op
+            // (which isn't implemented in this runtime; see the report).
+            move all cards from stageA[active] to meldA[active]
+            move all cards from stageB[active] to meldB[active]
+            move all cards from stageC[active] to meldC[active]
+            move all cards from hand[active] to shown_deadwood[active]
+
+            // No layoff (see header): the opponent runs the same
+            // meld-building mechanic on their own hand, but may not extend
+            // it into the knocker's exposed groups.
+            let opponent = the player where player != active
+            arranging_done := false
+            round offering [add_to_meld_a, add_to_meld_b, add_to_meld_c, finish_arranging]
+                  from opponent over players where player == opponent until arranging_done
+            opp_deadwood := meld_deadwood(opponent)
+
+            move all cards from stageA[opponent] to meldA[opponent]
+            move all cards from stageB[opponent] to meldB[opponent]
+            move all cards from stageC[opponent] to meldC[opponent]
+            move all cards from hand[opponent] to shown_deadwood[opponent]
+          } else {
+            // The arrangement didn't reach a legal knock: put everything
+            // back and discard normally instead. (A consequence of not
+            // being able to check "can this player knock" *before* the
+            // arranging decision — see the report's info-set note: this
+            // path does leak a little more than the real game would, since
+            // the attempted groups sat briefly in public zones.)
+            move all cards from stageA[active] to hand[active]
+            move all cards from stageB[active] to hand[active]
+            move all cards from stageC[active] to hand[active]
+            // Reuse `discard`'s own effect (via a one-shot single-participant
+            // round) rather than repeating its archiving logic inline — and
+            // a `chosen` movement directly in phase-body flow has no acting
+            // player bound, so it must run through a round/offer form anyway.
+            acted := false
+            round offering [discard] from active over players where player == active until acted
+          }
+        }
+
+        if not knocked {
+          active := the player where player != active
+          turns := turns + 1
+          if (count over deck as c: true) <= 2 or turns >= 60 { stock_exhausted := true }   // cancelled, no score
+        }
+      }
+    }
+
+    phase scoring {
+      if not stock_exhausted {
+        let opponent = the player where player != knocker
+        if knock_deadwood == 0 {
+          score[knocker] += 20 + opp_deadwood                    // gin
+        } else {
+          if knock_deadwood < opp_deadwood {
+            score[knocker] += opp_deadwood - knock_deadwood         // ordinary knock
+          } else {
+            score[opponent] += (knock_deadwood - opp_deadwood) + 10 // undercut
+          }
+        }
+      }
+    }
+  }
+
+  winner: highest score
+}
+
+// === Turn move vocabulary ===
+
+move_type draw_stock {
+  when: (count over deck as c: true) > 0
+  effect {
+    move one card from deck to newly_drawn[actor]
+    move all cards from newly_drawn[actor] to hand[actor]   // no restriction on a stock draw
+    drew := true
+  }
+}
+
+move_type draw_discard {
+  when: discard_top is not empty
+  effect {
+    // Held back, NOT merged into hand[actor] yet — see the header note and
+    // the `discard`/`attempt_knock` effects below for why.
+    move one card from discard_top to newly_drawn[actor]
+    drew := true
+  }
+}
+
+move_type discard {
+  effect {
+    // Selecting only from hand[actor] (not newly_drawn[actor]) is what
+    // enforces "if you took the discard, you must discard a different
+    // card" — the just-taken card structurally isn't in this pool yet.
+    if discard_top is not empty { move all cards from discard_top to discard_history }
+    move chosen 1 card from hand[actor] to discard_top
+    move all cards from newly_drawn[actor] to hand[actor]
+    acted := true
+  }
+}
+
+move_type attempt_knock {
+  effect {
+    // Arranging needs access to a held-back discard pickup too (no
+    // restriction applies to *melding* it, only to discarding it back).
+    move all cards from newly_drawn[actor] to hand[actor]
+    attempting := true
+    acted := true
+  }
+}
+
+// One move type per meld slot (functions can't take a zone as a parameter in
+// this language, so the identical logic is written out per slot rather than
+// factored — see the report). Each move adds exactly one card, chosen from
+// the cards that legally extend the slot's *current* partial group: empty
+// (any card seeds it), matching the group's established rank (building a
+// set), or matching its established suit and adjacent to its current
+// high/low card (building a run). Because every earlier addition passed this
+// same check, a slot's contents are a valid partial run or set by
+// construction at every intermediate size — `meld_valid_*` below re-derives
+// full validity from scratch anyway, both as a belt-and-suspenders check and
+// because it is the direct answer to "can the language validate a declared
+// partition" (see the report).
+
+move_type add_to_meld_a {
+  when: (sum over hand[actor] as c: if extends_a(c, actor) then 1 else 0) > 0
+  effect { move chosen 1 card from hand[actor] where c => extends_a(c, actor) to stageA[actor] }
+}
+
+move_type add_to_meld_b {
+  when: (sum over hand[actor] as c: if extends_b(c, actor) then 1 else 0) > 0
+  effect { move chosen 1 card from hand[actor] where c => extends_b(c, actor) to stageB[actor] }
+}
+
+move_type add_to_meld_c {
+  when: (sum over hand[actor] as c: if extends_c(c, actor) then 1 else 0) > 0
+  effect { move chosen 1 card from hand[actor] where c => extends_c(c, actor) to stageC[actor] }
+}
+
+// Guarded (not unconditionally offered): whenever an *already-started* slot
+// (non-empty, not yet full) still has a card in hand that would extend it,
+// finishing is illegal — the arranging round must keep growing that group
+// rather than abandoning it. Starting a brand-new empty slot stays a genuine
+// (random) choice; only "walk away from a group already in progress that
+// could still grow" is forced closed. Without this, a uniform-random
+// chooser picks `finish_arranging` about as often as any "add" move at every
+// step and essentially never accumulates 3 cards in one slot — see the
+// header's stress-point note. This is a concession to the RNG making
+// progress, not a change to what counts as a valid meld.
+function must_continue(p: Player) =
+  (size_a(p) > 0 and size_a(p) < 4 and (sum over hand[p] as c: if extends_a(c, p) then 1 else 0) > 0) or
+  (size_b(p) > 0 and size_b(p) < 4 and (sum over hand[p] as c: if extends_b(c, p) then 1 else 0) > 0) or
+  (size_c(p) > 0 and size_c(p) < 4 and (sum over hand[p] as c: if extends_c(c, p) then 1 else 0) > 0)
+
+move_type finish_arranging {
+  when: not must_continue(actor)
+  effect { arranging_done := true }
+}
+
+// === Card-point and meld-validity queries ===
+//
+// GAP: none of this reads a "declared minimal partition" — there is no such
+// thing to read. Every function here either (a) reduces a per-card value
+// from the game's own `ranking:` declaration, or (b) validates the *already
+// assembled* contents of one small, fixed-size zone via a flat aggregate
+// (`max == min`, `max - min == count - 1`). Finding the partition that
+// minimizes deadwood over all ways to group a hand is exactly what none of
+// this can express (see the file header and the report).
+
+function suit_index(c: Card) = if c.suit == spades then 0 elif c.suit == hearts then 1 elif c.suit == diamonds then 2 else 3
+
+// A=1, 2..10 face value, J/Q/K=10 — derived from `rank_value()` (see header).
+function deadwood_points(c: Card) = if rank_value(c) + 1 > 10 then 10 else rank_value(c) + 1
+
+function size_a(p: Player) = count over stageA[p] as c: true
+function size_b(p: Player) = count over stageB[p] as c: true
+function size_c(p: Player) = count over stageC[p] as c: true
+
+function same_rank_a(p: Player) = (max over stageA[p] as c: rank_value(c)) == (min over stageA[p] as c: rank_value(c))
+function same_rank_b(p: Player) = (max over stageB[p] as c: rank_value(c)) == (min over stageB[p] as c: rank_value(c))
+function same_rank_c(p: Player) = (max over stageC[p] as c: rank_value(c)) == (min over stageC[p] as c: rank_value(c))
+
+function same_suit_a(p: Player) = (max over stageA[p] as c: suit_index(c)) == (min over stageA[p] as c: suit_index(c))
+function same_suit_b(p: Player) = (max over stageB[p] as c: suit_index(c)) == (min over stageB[p] as c: suit_index(c))
+function same_suit_c(p: Player) = (max over stageC[p] as c: suit_index(c)) == (min over stageC[p] as c: suit_index(c))
+
+// A slot is a valid meld iff it holds 3 or 4 cards and they are either all
+// the same rank (a set) or all the same suit and consecutive (a run) — the
+// max/min aggregate reduction the file header describes.
+function meld_valid_a(p: Player) =
+  (size_a(p) == 3 or size_a(p) == 4) and
+  ( same_rank_a(p) or
+    ( same_suit_a(p) and (max over stageA[p] as c: rank_value(c)) - (min over stageA[p] as c: rank_value(c)) == size_a(p) - 1 ) )
+function meld_valid_b(p: Player) =
+  (size_b(p) == 3 or size_b(p) == 4) and
+  ( same_rank_b(p) or
+    ( same_suit_b(p) and (max over stageB[p] as c: rank_value(c)) - (min over stageB[p] as c: rank_value(c)) == size_b(p) - 1 ) )
+function meld_valid_c(p: Player) =
+  (size_c(p) == 3 or size_c(p) == 4) and
+  ( same_rank_c(p) or
+    ( same_suit_c(p) and (max over stageC[p] as c: rank_value(c)) - (min over stageC[p] as c: rank_value(c)) == size_c(p) - 1 ) )
+
+// Would adding card `c` to player `p`'s slot still be extendable toward a
+// valid meld? Empty slots accept anything; otherwise the card must match
+// the slot's established rank (toward a set) or match its suit and sit
+// exactly one above its current max or one below its current min (toward a
+// run growing at either end).
+function extends_a(c: Card, p: Player) =
+  size_a(p) < 4 and
+  ( size_a(p) == 0
+    or (same_rank_a(p) and rank_value(c) == (max over stageA[p] as x: rank_value(x)))
+    or (same_suit_a(p) and rank_value(c) == (max over stageA[p] as x: rank_value(x)) + 1)
+    or (same_suit_a(p) and rank_value(c) == (min over stageA[p] as x: rank_value(x)) - 1) )
+function extends_b(c: Card, p: Player) =
+  size_b(p) < 4 and
+  ( size_b(p) == 0
+    or (same_rank_b(p) and rank_value(c) == (max over stageB[p] as x: rank_value(x)))
+    or (same_suit_b(p) and rank_value(c) == (max over stageB[p] as x: rank_value(x)) + 1)
+    or (same_suit_b(p) and rank_value(c) == (min over stageB[p] as x: rank_value(x)) - 1) )
+function extends_c(c: Card, p: Player) =
+  size_c(p) < 4 and
+  ( size_c(p) == 0
+    or (same_rank_c(p) and rank_value(c) == (max over stageC[p] as x: rank_value(x)))
+    or (same_suit_c(p) and rank_value(c) == (max over stageC[p] as x: rank_value(x)) + 1)
+    or (same_suit_c(p) and rank_value(c) == (min over stageC[p] as x: rank_value(x)) - 1) )
+
+// A player's total deadwood: whatever's still in hand, plus each slot's
+// contents whenever that slot ISN'T a valid meld (an incomplete or
+// abandoned grouping counts against the player exactly as if its cards had
+// never left the hand).
+function meld_deadwood(p: Player) =
+  (sum over hand[p] as c: deadwood_points(c)) +
+  (if meld_valid_a(p) then 0 else sum over stageA[p] as c: deadwood_points(c)) +
+  (if meld_valid_b(p) then 0 else sum over stageB[p] as c: deadwood_points(c)) +
+  (if meld_valid_c(p) then 0 else sum over stageC[p] as c: deadwood_points(c))

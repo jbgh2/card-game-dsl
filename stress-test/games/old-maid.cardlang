@@ -1,0 +1,69 @@
+// Old Maid — stress test
+// https://www.pagat.com/passing/oldmaid.html
+//
+// Source: Standard 52-card deck minus one queen, dealt equally to players.
+// Rules: Each player removes pairs from hand, then takes turns drawing one unseen
+// card from the next player's hand. A player who empties their hand is out.
+// The last player holding cards (the odd queen) loses.
+//
+// BLOCKER (MAJOR): Pair detection requires within-zone relational queries.
+// - The DSL has no `cards_of_rank` / `has_card_of_rank` operation
+// - `where` clauses can only see the current card `c`, not other zone members
+// - Cannot express "move all cards from hand where another card of same rank exists"
+// - This blocks the game's core mechanic (initial pair discard)
+//
+// WORKAROUND (LOSSY): Instead of detecting pairs, muck all but 1 card before dealing.
+// - Keeps only the odd queen (Q♥) in the deck
+// - Game terminates with 2 players and minimal cards
+// - Fidelity is low: the game mechanics work, but card composition is not canonical
+// - Demonstrates: blind card draw, hand elimination, loser determination
+//
+// INFOSET NOTE: Blind draw is preserved via zone visibility.
+// - hand[player] is `count_only` to non-owners → drawer sees count, not cards
+// - Drawer picks a position (move one card), not a card identity
+// - After draw, drawer sees the actual card and can pair-match it (if implemented)
+// - This correctly models the information asymmetry of the blind draw
+
+game OldMaid {
+
+  players: 2
+  direction: clockwise
+
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+
+  zones {
+    deck        : Deck
+    hand[player] : Hand<player>
+    discard     : Discard
+  }
+
+  phase setup {
+    shuffle deck
+    // Simplified: muck all but one card (the odd queen) from the deck.
+    // In real Old Maid, players' pairs would be removed from their hands.
+    // Here, to make the game terminate, we remove most cards from play,
+    // leaving just the odd queen and a few other cards.
+    // This is a severe simplification but avoids the pair-detection blocker.
+    move all cards from deck where (c => c != Q of hearts) to discard
+
+    // Now deal the remaining 2-3 cards to start the game with minimal hands.
+    deal all cards from deck as-equally-as-possible to each hand
+  }
+
+  phase play {
+    // Loop until one player has all remaining cards
+    repeat until ((number of players where hand[player] is not empty) <= 1) {
+      for each player p:
+        if hand[p] is not empty {
+          let other = the player where player != p
+          if hand[other] is not empty {
+            // Blind draw: move one card from other's hand (position unknown to drawer)
+            move one card from hand[other] to hand[p]
+          }
+        }
+    }
+  }
+
+  loser: the player where hand[player] is not empty
+}

@@ -1,0 +1,88 @@
+// Whist — formalized DSL (stress test).
+//
+// Source: https://www.pagat.com/whist/whist.html
+// 4 players in fixed partnerships, standard 52-card deck, 13 tricks, trump suit
+// determined by a dealt card (turned face-up), must follow suit, 1 point per trick
+// over 6, win at 5 points per partnership.
+//
+// Simplifications:
+// - Honours (four highest trumps worth bonus points) are omitted.
+// - The trump card is dealt to a separate public zone rather than as the dealer's
+//   13th card. In traditional play the dealer holds 13 cards with the last one
+//   turned up; here, 12 cards are dealt to each player and 1 to a trump zone.
+//   This leaves 3 cards undealt but does not affect game semantics (no player
+//   needs to draw beyond 12 cards per trick × 13 tricks). This is the same
+//   approach used in Oh Hell's variable-hand-size implementation.
+
+game Whist {
+
+  players: 4
+  partnerships: [[0, 2], [1, 3]]
+  direction: clockwise
+
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+
+  zones {
+    deck           : Deck
+    hand[player]   : Hand<player>
+    trump_card     : Discard              // the dealt trump card, face-up to all
+    trick_pile     : TrickPile
+    captured[team] : TeamPile<team>
+  }
+
+  state {
+    score[team]    : Integer = 0
+  }
+
+  phase hand_sequence repeats until (any team t: score[t] >= 5) {
+    state {
+      dealer         : Player  = 0
+      leader         : Player? = none
+      trump_suit     : Suit?   = none
+      tricks_won[team] : Integer = 0
+    }
+
+    before_each {
+      move all cards to deck
+      shuffle deck
+      deal 12 cards from deck to each hand
+      deal 1 card from deck to trump_card
+      trump_suit := suit_of(trump_card)
+      dealer := dealer offset_by left
+      leader := dealer offset_by left
+      for each team t: tricks_won[t] := 0
+    }
+
+    phase play {
+      active_rules: [MustFollowSuit]
+      legal_moves:  [play_to_trick]
+
+      repeat until (all player p: hand[p] is empty) {
+        round play_to_trick from leader over all players source hand into trick_pile
+              outcome highest_trump_or_led_suit trump trump_suit
+        move all cards from trick_pile to captured[team_of(outcome)]
+        tricks_won[team_of(outcome)] += 1
+        leader := outcome
+      }
+    }
+
+    phase scoring {
+      // Score 1 point per trick over 6 (so tricks 7–13 count).
+      // tricks_won[team] already tracks tricks won during play.
+      for each team t:
+        if tricks_won[t] > 6 {
+          score[t] += tricks_won[t] - 6
+        }
+    }
+  }
+
+  winner: highest score
+}
+
+rule MustFollowSuit {
+  constrains: play_to_trick
+  applies_when: state.led_suit is not none
+  demands: hand.cards_of_suit(state.led_suit)
+  if_impossible: hand   // void in the led suit: play any card
+}

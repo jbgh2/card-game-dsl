@@ -1,0 +1,329 @@
+// Casino — formalized DSL (stress test).
+//
+// Source: https://www.pagat.com/fishing/casino.html
+//
+// A 2-player fishing game. No trick-taking: each turn a player plays one
+// card from hand and either captures table cards (matching rank, or a
+// combination of table cards summing to the played card's pip value),
+// combines it with table cards into an announced "build" to capture later,
+// or trails it face-up onto the table. Cards remaining on the table at the
+// end of the round go to whoever captured last. Scoring: most cards (3),
+// most spades (1), each ace (1), ten of diamonds (2), two of spades (1),
+// plus 1 for a sweep (a capture that empties the table). First to 21 wins.
+//
+// STRESS-TEST FINDINGS (see structured report for full detail):
+//
+// - `card_value()` is hard-wired per-deck in cardlang/runtime/values.py and
+//   `standard52`'s table is EMPTY — there is no in-language way to declare
+//   per-rank point/pip values for a stdlib deck (the `cards: standard52 + {
+//   values: {...} }` composition shown in docs/library.md is not implemented
+//   by the grammar: `cards:` takes a single deck NAME, full stop). WORKAROUND
+//   (forced, not stylistic): the `ranking:` declaration is repurposed purely
+//   to make `rank_value()` return each numeral card's pip value. `rank_index
+//   = len(ranking) - 1 - position`, so listing ranks in this exact order —
+//     J Q 10 9 8 7 6 5 4 3 2 A K
+//   — yields rank_value(2)=2, rank_value(3)=3, ..., rank_value(10)=10,
+//   rank_value(A)=1. J/Q/K land on whatever values fall out of the ordering
+//   (12, 11, 0) and are NEVER read numerically — `is_numeral(c)` excludes
+//   them from every sum/build computation by comparing `c.rank` against the
+//   string literals "J"/"Q"/"K" directly, matching them ONLY by rank
+//   (as the real rules require for face-card captures). Casino has no
+//   trick-taking, so `ranking:` carries no "trick strength" meaning here at
+//   all; this is a repurposing of a construct built for a different job.
+//
+// - `choose` is an expression only for `choose integer in a..b`
+//   (cardlang/ast/nodes.py Choose, grammar choose_expr). There is no
+//   "choose a subset of a zone satisfying a joint predicate" primitive —
+//   no way to ask for a set of table cards whose values sum to N in one
+//   decision. Quantifiers (`any`/`all`) only bind over `player`/`team`
+//   (cardlang/runtime/evaluate.py `_role_domain`), not over zone contents,
+//   so "does a matching card exist" has to be spelled with the
+//   `(sum over zone as c: if <pred> then 1 else 0) > 0` boolean-via-integer
+//   idiom (the same idiom Cribbage's pegging loop already uses).
+//
+// - SIMPLIFICATION (recorded, not silently dropped): sum-capture and build
+//   creation are restricted to exactly TWO cards (the played/added card plus
+//   ONE table/hand card) rather than an arbitrary-size combination. This is
+//   forced by the point above: exact-N subset-sum existence has to be
+//   spelled out as an N-times-nested `sum over ... as ...` comprehension
+//   (workable for N=2, and just barely for N=3 in `start_build`'s guard,
+//   which nests hand x table x hand); a *general* N is not expressible
+//   without a subset-sum stdlib primitive the language doesn't have. Real
+//   Casino allows summing 3+ table cards (e.g. 2+3+4=9) and capturing
+//   several disjoint groups in one play; neither is expressible here. This
+//   is the game's real stress point, and it lands exactly where the task
+//   predicted: sum-capture and builds are the combinatorial-table-interaction
+//   the DSL was never asked to do before.
+//
+// - SIMPLIFICATION: builds are further restricted to at most ONE outstanding
+//   build in the whole game at a time (real Casino allows several concurrent
+//   builds, generally one per player). A per-card "which build is this card
+//   part of" tag would need mutable per-card attributes; the language's
+//   attributes mechanism (docs/decisions.md "Typed object model") is
+//   documented but not implemented anywhere in the runtime (grep turns up
+//   nothing outside a design comment in cardlang/types.py). A second zone
+//   (`build_pile`, alongside the loose-card `table`) stands in for
+//   "which cards are in a/the build" instead — this works cleanly for a
+//   single build, but would need one zone per concurrent build for the
+//   general case, which the language has no way to allocate dynamically
+//   (no list-of-zones / dynamic zone construct).
+//
+// - SIMPLIFICATION (softened rule, not a silent cut): the "you may not trail
+//   after building/adding to a build" forced-play rule is enforced only when
+//   the builder actually has a legal capture/build alternative that turn.
+//   The true rule can, in principle, leave a player holding a build they
+//   cannot resolve (an opponent's `add_to_build` can change the announced
+//   value out from under them) and nothing else legal — the language's
+//   "no implicit actions" invariant (every decision must have >= 1 legal
+//   move) demands *some* out, so trailing is allowed as a fallback exactly
+//   when no capture/build move exists. This is documented here as a
+//   deliberate widening of the real rule, not a bug.
+//
+// - The end-of-round "last capturer takes the remaining table cards" rule,
+//   and the sweep bonus, are ordinary imperative statements (in the style of
+//   Cribbage's pegging), not a `round` form — Casino's turn structure
+//   (alternate single decisions until both hands are empty, across six
+//   mini-deals) has no trick/auction/climb shape to reuse.
+//
+// Card attributes, `scoring_component`/`apply_components:`, and the
+// `<actor> chooses <description>` expression form described in
+// docs/decisions.md are all either unimplemented or narrower than the prose
+// suggests; none of them are used here (see the structured report).
+
+game Casino {
+
+  players: 2
+  direction: clockwise
+
+  cards: standard52
+  // Repurposed purely so rank_value() returns each numeral card's pip value
+  // for capturing/building (A=1, 2..10=face value). See header note above.
+  ranking: J Q 10 9 8 7 6 5 4 3 2 A K
+
+  zones {
+    deck             : Deck
+    hand[player]     : Hand<player>
+    table            : Discard          // loose (non-build) table cards, public
+    build_pile       : Discard          // the single outstanding build's cards, public
+    play_area        : Discard          // scratch: the card just played, before routing
+    partner_area     : Discard          // scratch: the table partner(s) of a sum-capture
+    captured[player] : PlayerPile<player>
+  }
+
+  state {
+    score[player] : Integer = 0
+  }
+
+  phase hand_sequence repeats until (any player p: score[p] >= 21) {
+    state {
+      dealer        : Player  = 0
+      active        : Player  = 0
+      build_active  : Boolean = false
+      build_value   : Integer = 0
+      build_owner   : Player? = none
+      last_capturer : Player? = none
+    }
+
+    before_each {
+      move all cards to deck   // gather table/hands/captured/build_pile/scratch back home
+      shuffle deck
+      dealer        := the player where player != dealer
+      build_active  := false
+      build_value   := 0
+      build_owner   := none
+      last_capturer := none
+      deal 4 cards from deck to table
+      active := the player where player != dealer   // non-dealer leads
+    }
+
+    phase play {
+      // Six mini-deals of 4 cards per hand (48 of the 52 cards; the other 4
+      // went to the table above); players alternate single-card turns until
+      // both hands empty, then the next mini-deal, until the deck runs out.
+      repeat until deck is empty {
+        deal 4 cards from deck to each hand
+        repeat until (all player p: hand[p] is empty) {
+          offer to active one of [
+            trail, capture_rank, capture_sum_pair, capture_build,
+            start_build, add_to_build
+          ]
+          active := the player where player != active
+        }
+      }
+
+      // End of round: whoever captured last takes anything left on the table;
+      // an unresolved build's cards go to whoever owns it.
+      if table is not empty and last_capturer is not none {
+        move all cards from table to captured[last_capturer]
+      }
+      if build_active {
+        move all cards from build_pile to captured[build_owner]
+      }
+    }
+
+    phase scoring {
+      let count0  = sum over captured[0] as c: 1
+      let count1  = sum over captured[1] as c: 1
+      if count0 > count1 { score[0] += 3 }
+      if count1 > count0 { score[1] += 3 }
+
+      let spades0 = sum over captured[0] as c: if c.suit == spades then 1 else 0
+      let spades1 = sum over captured[1] as c: if c.suit == spades then 1 else 0
+      if spades0 > spades1 { score[0] += 1 }
+      if spades1 > spades0 { score[1] += 1 }
+
+      for each player p: score[p] += sum over captured[p] as c: if c.rank == "A" then 1 else 0
+      for each player p: score[p] += sum over captured[p] as c: if (c.suit == diamonds and c.rank == "10") then 2 else 0
+      for each player p: score[p] += sum over captured[p] as c: if (c.suit == spades and c.rank == "2") then 1 else 0
+    }
+  }
+
+  winner: highest score
+}
+
+// === Casino-local move vocabulary ===
+//
+// Every turn is one `offer` over this vocabulary; each move type's `when:`
+// guard narrows it to what is actually legal, and each effect embeds its own
+// `chosen` card selections (the language has no per-move parameter that
+// could carry "which hand card, which table partner" together — see header).
+
+move_type trail {
+  // Forced-play: the player who created/last-added-to the outstanding build
+  // may not trail UNLESS no capture/build alternative exists for them
+  // (see header's "softened rule" note).
+  when: not must_resolve_build(actor) or not any_capture_or_build(actor)
+  effect {
+    move chosen one card from hand[actor] to table
+  }
+}
+
+move_type capture_rank {
+  when: can_capture_rank(actor)
+  effect {
+    move chosen one card from hand[actor]
+      where c => (sum over table as t: if t.rank == c.rank then 1 else 0) > 0
+      to play_area
+    move all cards from table
+      where t => (sum over play_area as p: if p.rank == t.rank then 1 else 0) > 0
+      to captured[actor]
+    move all cards from play_area to captured[actor]
+    last_capturer := actor
+    if table is empty { score[actor] += 1 }
+  }
+}
+
+move_type capture_sum_pair {
+  when: can_capture_sum_pair(actor)
+  effect {
+    move chosen one card from hand[actor]
+      where c => is_numeral(c) and pair_sum_exists(rank_value(c))
+      to play_area
+    let target = sum over play_area as p: rank_value(p)
+    move chosen one card from table
+      where t1 => is_numeral(t1) and
+        (sum over table as t2: if t2 != t1 and is_numeral(t2) and rank_value(t2) == target - rank_value(t1) then 1 else 0) > 0
+      to partner_area
+    let remaining = target - (sum over partner_area as p2: rank_value(p2))
+    move chosen one card from table
+      where t2 => is_numeral(t2) and rank_value(t2) == remaining
+      to partner_area
+    move all cards from play_area to captured[actor]
+    move all cards from partner_area to captured[actor]
+    last_capturer := actor
+    if table is empty { score[actor] += 1 }
+  }
+}
+
+move_type capture_build {
+  when: can_capture_build(actor)
+  effect {
+    move chosen one card from hand[actor]
+      where c => is_numeral(c) and rank_value(c) == build_value
+      to captured[actor]
+    move all cards from build_pile to captured[actor]
+    build_active := false
+    build_value  := 0
+    build_owner  := none
+    last_capturer := actor
+    if table is empty { score[actor] += 1 }
+  }
+}
+
+move_type start_build {
+  when: can_start_build(actor)
+  effect {
+    move chosen one card from hand[actor]
+      where c1 => is_numeral(c1) and
+        (sum over table as t: (sum over hand[actor] as c2:
+          if is_numeral(t) and is_numeral(c2) and c2 != c1
+             and rank_value(c1) + rank_value(t) == rank_value(c2)
+          then 1 else 0)) > 0
+      to play_area
+    let played_value = sum over play_area as p: rank_value(p)
+    move chosen one card from table
+      where t => is_numeral(t) and
+        (sum over hand[actor] as c2: if is_numeral(c2) and rank_value(c2) == played_value + rank_value(t) then 1 else 0) > 0
+      to build_pile
+    move all cards from play_area to build_pile
+    build_value  := sum over build_pile as b: rank_value(b)
+    build_active := true
+    build_owner  := actor
+  }
+}
+
+move_type add_to_build {
+  when: can_add_to_build(actor)
+  effect {
+    move chosen one card from hand[actor]
+      where c1 => is_numeral(c1) and
+        (sum over hand[actor] as c2: if is_numeral(c2) and c2 != c1 and rank_value(c2) == build_value + rank_value(c1) then 1 else 0) > 0
+      to play_area
+    build_value := build_value + (sum over play_area as p: rank_value(p))
+    move all cards from play_area to build_pile
+    build_owner := actor
+  }
+}
+
+// === Named helper predicates ===
+//
+// Existence checks over table/hand combinations, factored out so each move
+// type's `when:` guard and the `any_capture_or_build` fallback (used to
+// soften the forced-play rule) name the same conditions and cannot drift
+// out of step (the same discipline Stud's `can_act`/`owes`/`pending` uses).
+
+function is_numeral(c: Card) = c.rank != "J" and c.rank != "Q" and c.rank != "K"
+
+function pair_sum_exists(v: Integer) =
+  (sum over table as c1: (sum over table as c2:
+    if c1 != c2 and is_numeral(c1) and is_numeral(c2) and rank_value(c1) + rank_value(c2) == v
+    then 1 else 0)) > 0
+
+function can_capture_rank(p: Player) =
+  (sum over hand[p] as c: if (sum over table as t: if t.rank == c.rank then 1 else 0) > 0 then 1 else 0) > 0
+
+function can_capture_sum_pair(p: Player) =
+  (sum over hand[p] as c: if is_numeral(c) and pair_sum_exists(rank_value(c)) then 1 else 0) > 0
+
+function can_capture_build(p: Player) =
+  build_active and (sum over hand[p] as c: if is_numeral(c) and rank_value(c) == build_value then 1 else 0) > 0
+
+function can_start_build(p: Player) =
+  not build_active and
+  (sum over hand[p] as c1: (sum over table as t: (sum over hand[p] as c2:
+    if is_numeral(c1) and is_numeral(t) and is_numeral(c2) and c2 != c1
+       and rank_value(c1) + rank_value(t) == rank_value(c2)
+    then 1 else 0))) > 0
+
+function can_add_to_build(p: Player) =
+  build_active and
+  (sum over hand[p] as c1: (sum over hand[p] as c2:
+    if is_numeral(c1) and is_numeral(c2) and c2 != c1
+       and rank_value(c2) == build_value + rank_value(c1)
+    then 1 else 0)) > 0
+
+function must_resolve_build(p: Player) = build_active and build_owner == p
+
+function any_capture_or_build(p: Player) =
+  can_capture_rank(p) or can_capture_sum_pair(p) or can_capture_build(p)
+  or can_start_build(p) or can_add_to_build(p)

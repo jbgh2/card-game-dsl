@@ -1,0 +1,257 @@
+// Blackjack (casino banking game, American-style hole card, no peek, no
+// insurance) — stress-test DSL implementation. NOT part of the canonical
+// corpus (see stress-test/README.md); written to test whether the language
+// generalizes past its ten kernel-clean example games.
+//
+// Source: https://www.pagat.com/banking/blackjack.html (Pagat, this project's
+// authoritative rules reference).
+//
+// Three punters (seats 0-2) against a fixed banker seat (seat 3, named
+// `house` — deliberately NOT the stdlib rotating `dealer` slot documented in
+// library.md's "Stdlib state": the casino banker never rotates, so reusing
+// that name would misrepresent it). Each punter is dealt two face-up cards;
+// the house gets one face-up card and one face-down hole card. Punters act in
+// turn (hit/stand) starting to the house's left; the house then reveals its
+// hole card and draws by fixed rule (hit below 17, stand at 17+) with no
+// discretion at all — expressed with the SAME `round offering [...] ...`
+// kernel Seven-Card Stud's betting uses, just with a single vocabulary word
+// that carries no `when:` guard, so every turn the kernel offers the house
+// has exactly one legal action. That is the answer to this stress test's
+// first question: the language does NOT need a new construct for a
+// rule-bound actor — the existing auction/betting `round` form already
+// expresses "forced move" as a singleton legal-action set.
+//
+// Hand value uses the standard ace-high-then-reduce algorithm (`pip_value` /
+// `hand_total` below): every card scores its ace-high pip value, and aces are
+// downgraded from 11 to 1 one at a time — bounded by a single 52-card pack's
+// maximum of 4 aces — until the total is 21 or under, or the hand is a
+// genuine bust. That answers this stress test's second question: best-hand
+// value with ace flexibility is expressible as a pure, non-recursive `elif`
+// cascade, no loop required, because the physical deck bounds the ace count.
+//
+// Simplifications (recorded per CLAUDE.md and the stress-test brief):
+//   - Fixed bet of 2 chips per punter per round, not literally "1" as the
+//     brief suggested as an example. Rationale at `function payout`'s GAP
+//     note: the language has no division operator at all (confirmed against
+//     the grammar — `sum`/`term`/`factor` support only + - *), so a 1-chip
+//     bet's exact 3:2 blackjack payout (1.5 chips) is inexpressible without
+//     either a division op the language doesn't have or a rounding fudge that
+//     would silently change the payout ratio the rules specify. A 2-chip bet
+//     makes 3:2 land on an exact integer (3) with only integer arithmetic, so
+//     it is the least-distorting fix — the ratio is exact, only the nominal
+//     unit changed.
+//   - No splits, no double-down, no insurance, no surrender. Splits/insurance
+//     are explicitly out of scope per the brief; double-down and surrender
+//     are cut for the same reason (each adds a variable-shape side hand or a
+//     partial-forfeit payout this stress test doesn't need to reach the two
+//     target stress points).
+//   - No early dealer peek for blackjack: the house's hole card is dealt face
+//     down at the start of the hand (line ~118) exactly as the American
+//     convention has it, but is not inspected or revealed until every punter
+//     has finished acting, so a punter can bust against a concealed dealer
+//     blackjack and never gets to react to it. (This is NOT the "no hole
+//     card" / European convention, where the dealer's second card isn't even
+//     dealt until after the players act — a hole card genuinely exists here,
+//     it is just not peeked at. Calling out the distinction because the
+//     whole point of this stress-test corner is the hidden hole card.)
+//   - No insurance (out of scope per the brief). Not a consequence of "no
+//     peek" above — insurance is offered off the house's visible up-card, so
+//     it would be just as expressible with peeking skipped; it is cut simply
+//     because the brief scopes it out.
+//   - Fixed 20-round session ("play a fixed number of rounds" per the
+//     brief), single 52-card pack reshuffled every round (no multi-deck shoe,
+//     no penetration/cut-card). `winner: highest stack` ranks all four seats,
+//     so the house itself can be reported as the session's "winner" — an
+//     honest side effect of forcing a terminal ranking onto a banking game
+//     with no natural winner (Seven-Card Stud's cash-game terminal has the
+//     same shape), not a distortion.
+
+game Blackjack {
+
+  players: 4
+  direction: clockwise
+
+  cards: standard52
+  // No `ranking:`/`trump:` declared: both are optional (Big Two, Coup, French
+  // Tarot, and Tichu all omit `ranking:` too), and Blackjack has no
+  // trick-taking or rank comparison for either to serve — hand value is its
+  // own arithmetic (`pip_value`/`hand_total` below), unrelated to `rank_value`
+  // or `card_value`, which read the `ranking:`/deck-values table this game has
+  // no use for.
+
+  zones {
+    deck         : Deck
+    hand[player] : PublicHand<player>   // face-up cards: a punter's whole
+                                        // hand; the house's up-card, then
+                                        // (after reveal) everything
+    hole[player] : Hand<player>         // only the house's slot is ever used:
+                                        // the face-down hole card, hidden
+                                        // from punters until reveal
+  }
+
+  state {
+    house         : Player  = 3   // the fixed banker seat; never rotates
+    stack[player] : Integer = 100
+    round_num     : Integer = 0
+    bet_amount    : Integer = 2   // fixed bet; see header for why 2, not 1
+  }
+
+  phase hand_sequence repeats until round_num >= 20 {
+    before_each {
+      move all cards to deck
+      shuffle deck
+      round_num := round_num + 1
+    }
+
+    phase play {
+      state {
+        in_hand[player]  : Boolean = false   // holds enough to cover the bet
+        standing[player] : Boolean = false   // done acting this hand
+        natural[player]  : Boolean = false   // dealt a two-card 21
+      }
+
+      for each player p: if is_punter(p) { in_hand[p] := stack[p] >= bet_amount }
+
+      // Place the bets.
+      for each player p: if is_punter(p) and in_hand[p] {
+        stack[p]     := stack[p] - bet_amount
+        stack[house] := stack[house] + bet_amount
+      }
+
+      // Deal: two face-up cards to every punter still in the hand; the house
+      // gets one face-up card and one face-down hole card.
+      for each player p: if is_punter(p) and in_hand[p] { deal 2 cards from deck to hand[p] }
+      deal 1 card from deck to hand[house]
+      deal 1 card from deck to hole[house]
+
+      // A natural (two-card 21) settles without further action.
+      for each player p: if is_punter(p) and in_hand[p] {
+        natural[p] := hand_total(p) == 21
+        if natural[p] { standing[p] := true }
+      }
+      natural[house] := hand_total(house) == 21
+
+      // Punters act in turn, starting to the house's left; each keeps
+      // getting offered a turn (hit or stand) until they stand or bust, then
+      // action passes to the next punter still playing.
+      round offering [hit, stand] from house offset_by left
+            over players where still_playing(player)
+            order priority
+            until (number of players where still_playing(player)) == 0
+
+      // Reveal the hole card: a movement from a hidden zone into a public
+      // one, the same "flip" idiom Seven-Card Stud's showdown uses to turn a
+      // hole card face up (move into hole[p], then out into the public zone).
+      move all cards from hole[house] to hand[house]
+
+      // The house is not a real decision-maker: `dealer_hit` is the only
+      // vocabulary word offered and it carries no `when:` guard, so every
+      // turn the kernel offers the house has exactly one legal action —
+      // "forced play" on the same round-offering kernel Stud's betting uses,
+      // not a new construct. Skipped entirely on a dealer natural (a
+      // two-card 21 stands pat; there is nothing to draw to).
+      if not natural[house] {
+        round offering [dealer_hit] from house
+              over players where player == house
+              order priority
+              until hand_total(house) >= 17
+      }
+
+      // Settle every punter still in the hand against the final house total.
+      // The bet itself was already moved to the house's stack when placed, so
+      // a payout of 0 correctly leaves it there (a loss); any positive payout
+      // must come back out of the house's stack, or chips are created from
+      // nothing (caught in testing: an unbalanced first draft left the total
+      // chip count non-invariant across a round).
+      for each player p: if is_punter(p) and in_hand[p] {
+        stack[p]     := stack[p] + payout(p)
+        stack[house] := stack[house] - payout(p)
+      }
+    }
+  }
+
+  winner: highest stack
+}
+
+move_type hit {
+  effect {
+    deal 1 card from deck to hand[actor]
+    if hand_total(actor) > 21 { standing[actor] := true }
+  }
+}
+
+move_type stand {
+  effect { standing[actor] := true }
+}
+
+move_type dealer_hit {
+  effect { deal 1 card from deck to hand[actor] }
+}
+
+function is_punter(p : Player) = p != house
+
+function still_playing(p : Player) = is_punter(p) and in_hand[p] and not standing[p]
+
+// Ace-high pip value (A always scores 11 here); `hand_total` below downgrades
+// aces to 1 (subtracting 10 each) until the total fits or the hand is a
+// genuine bust. Bare rank tokens are not enum values in this language — 2..10
+// lex as integers, and there is no bare-name path for J/Q/K/A either — so the
+// check compares against the string literal a `Card.rank` actually holds, the
+// same idiom Pinochle's `has_marriage` and French Tarot's `is_pref_discard`
+// use for exactly this reason.
+function pip_value(c : Card) =
+  if c.rank == "A" then 11
+  elif c.rank == "K" then 10
+  elif c.rank == "Q" then 10
+  elif c.rank == "J" then 10
+  elif c.rank == "10" then 10
+  elif c.rank == "9" then 9
+  elif c.rank == "8" then 8
+  elif c.rank == "7" then 7
+  elif c.rank == "6" then 6
+  elif c.rank == "5" then 5
+  elif c.rank == "4" then 4
+  elif c.rank == "3" then 3
+  else 2
+
+function num_aces(p : Player) =
+  (sum over hand[p] as c: if c.rank == "A" then 1 else 0) +
+  (sum over hole[p] as c: if c.rank == "A" then 1 else 0)
+
+function soft_total(p : Player) =
+  (sum over hand[p] as c: pip_value(c)) +
+  (sum over hole[p] as c: pip_value(c))
+
+// Best hand value: the ace-high total if it is 21 or under; otherwise knock
+// aces down from 11 to 1 one at a time until it fits or every ace has been
+// downgraded (a genuine bust if still over 21 at that point). A single
+// 52-card pack holds at most 4 aces, so a hand can never hold more than
+// that — the cascade's depth is a fact about the deck, not an arbitrary cap.
+// Function bodies are non-recursive pure expressions (no loop construct is
+// available inside one), so this is written as a bounded `elif` chain rather
+// than a "subtract 10 while over 21" loop.
+function hand_total(p : Player) =
+  if soft_total(p) <= 21 then soft_total(p)
+  elif num_aces(p) >= 1 and soft_total(p) - 10 <= 21 then soft_total(p) - 10
+  elif num_aces(p) >= 2 and soft_total(p) - 20 <= 21 then soft_total(p) - 20
+  elif num_aces(p) >= 3 and soft_total(p) - 30 <= 21 then soft_total(p) - 30
+  elif num_aces(p) >= 4 and soft_total(p) - 40 <= 21 then soft_total(p) - 40
+  else soft_total(p) - 10 * num_aces(p)
+
+// GAP: the real payout schedule is 1:1 (regular win) and 3:2 (blackjack).
+// cardlang has no division operator anywhere in its expression grammar
+// (`sum`/`term`/`factor` support only + - *), so `bet_amount * 3 / 2` cannot
+// be written at all — not "written awkwardly," genuinely absent from the
+// grammar. The `+ 3` below is only correct because `bet_amount` is pinned to
+// 2 (winnings of exactly 3); it is not derived from `bet_amount` and would be
+// silently wrong for any other bet size. See the header note for why 2 was
+// chosen instead of the brief's suggested 1.
+function payout(p : Player) =
+  if hand_total(p) > 21 then 0                              // busted: forfeit
+  elif natural[p] and natural[house] then bet_amount         // both naturals: push
+  elif natural[p] then bet_amount + 3                         // blackjack pays 3:2
+  elif natural[house] then 0                                  // dealer blackjack beats any other total
+  elif hand_total(house) > 21 then bet_amount + bet_amount    // dealer busts: 1:1
+  elif hand_total(p) > hand_total(house) then bet_amount + bet_amount   // higher total: 1:1
+  elif hand_total(p) == hand_total(house) then bet_amount     // tie: push
+  else 0                                                       // lower total: lose

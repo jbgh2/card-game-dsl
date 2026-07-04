@@ -1,0 +1,294 @@
+// Durak (Podkidnoy / "throw-in" Durak) — DSL stress test.
+//
+// Source: https://www.pagat.com/beating/podkidnoy_durak.html (Pagat, fetched
+// live). NOT part of the canonical corpus; lives under stress-test/games/ to
+// probe how far the phase/move-type/round machinery bends for a game whose
+// core mechanic (an attack/defense "bout" with multi-player throw-ins and a
+// take-or-beat choice) is not the trick, the climb, or the auction/betting
+// form of `round` — none of those fit, so this plays entirely on `offer` +
+// custom `move_type`s + ordinary `repeat until` statements, the same way
+// docs/games/cribbage.cardlang's pegging loop does when no `round` form fits.
+//
+// THE STRESS POINT, and how it bent the language:
+//   - An attacker plays a card; the defender must beat it (higher card of the
+//     same suit, or any trump) or take the whole table; any OTHER non-defender
+//     player may then throw in another card of a rank already on the table
+//     (attack or defense), up to a cap of 6 attack cards (or the defender's
+//     start-of-bout hand size if smaller); attacker/defender roles rotate;
+//     hands refill from the talon to 6, in attack order. This is genuinely not
+//     a `round` of any configured form (trick/climb/auction) — it alternates
+//     between two structurally different decisions (attacker-side
+//     throw-or-pass, defender-side beat-or-take) with a data-dependent number
+//     of rounds between them. It is expressed as a hand-rolled `repeat until`
+//     loop with two kinds of `offer`, mirroring cribbage's forced-play loop.
+//   - `move_type` parameters can only range over a `Suit`/`Suit?` domain
+//     (`cardlang/runtime/mechanics.py::enumerate_domain` has no `Card` case),
+//     and the plain `offer to <player> one of [...]` statement
+//     (`cardlang/runtime/execute.py::_offer`) doesn't bind a move-type
+//     parameter at all — only nullary move types work there. So "which card"
+//     can never be a move-type parameter here; every move type below is
+//     nullary, and the actual card choice happens as a filtered `move chosen
+//     one card from hand[actor] where c => <predicate> to <zone>` statement
+//     *inside* the move type's `effect { }` body. This works, but it means a
+//     single logical decision ("throw in a card") costs two sequential
+//     chooser draws (which action, then which card) rather than the auction
+//     form's one-flat-action-set-per-turn design.
+//   - `ZoneContents` query methods documented in library.md (`.non_empty`,
+//     `.count`, `highest_of_suit`, etc.) are mostly unimplemented —
+//     `cardlang/runtime/evaluate.py::_method` supports only `.where(...)` and
+//     `.cards_of_suit(...)`, and both return a plain list, not a Zone, so
+//     `.where(...).non_empty` cannot be chained. Existence checks below use
+//     the `(sum over Z as c: if <pred> then 1 else 0) > 0` idiom, exactly as
+//     docs/games/cribbage.cardlang already does for its own forced-play guard.
+//
+// SIMPLIFICATIONS (every one the header promises to disclose):
+//   1. Deck (BLOCKER, worked around). `cards:` only accepts a name into a
+//      closed Python-side registry (`cardlang/runtime/values.py::DECKS`) —
+//      the grammar's `cards: "cards" ":" NAME` production takes a bare NAME,
+//      with NO inline block form, despite docs/decisions.md documenting a
+//      `cards: { suits: {...} }` literal. There is no 36-card entry, and
+//      adding one means editing Python, which is out of scope here. This
+//      plays the attested 52-card variant of Podkidnoy Durak instead (Pagat:
+//      "5-6 players: may use a 52-card pack instead of 36") — `standard52`,
+//      ranks 2..A — rather than the classic 36-card (6..A) game.
+//   2. First attacker. The official rule is "the holder of the lowest trump
+//      leads first," which needs the minimum-rank trump card across every
+//      player's hand — a comprehension can only iterate one raw zone
+//      (`zone_expr` is a bare `NAME[index]`, no union over a zone family), so
+//      there is no way to scan every hand at once without a dedicated stdlib
+//      primitive that doesn't exist. Simplified to the same "dealer's left
+//      leads" convention every other trick game in the corpus already uses
+//      for its opening lead.
+//   3. Trump-card visibility. Officially the turned-up trump card stays the
+//      bottom (last-drawable) card of the talon all game — one card with
+//      permanently stronger visibility living inside an otherwise
+//      count_only pile. Visibility is a per-ZONE declaration, not a per-card
+//      exception within a zone; the only established pattern for revealing
+//      one card out of a hidden pile (Oh Hell's `trump_indicator`) physically
+//      relocates it to its own public zone instead. Done the same way here:
+//      `trump_card` is its own public zone and never re-enters the talon, so
+//      (unlike the official rule) it can never be drawn later.
+//   4. The optional "exchange your lowest trump for the shown trump card"
+//      rule (Pagat: commonly played, not universal) is omitted — a strategic
+//      embellishment, and moot anyway given #3.
+//   5. Throw-in / refill order. Officially both happen in clockwise order
+//      starting from the attacker (refill: "the attacker replenishes first,
+//      then the other players who joined in the attack, in clockwise order").
+//      `for each player NAME: <stmt>` iterates the fixed canonical seating
+//      order, not one rotatable to start at an arbitrary seat, so both the
+//      throw-in offer scan and the talon refill use fixed-seat order
+//      (skipping the defender) instead. This never changes which moves are
+//      legal — only the tie-break for who is asked first each lap, and who
+//      gets the talon's last few cards when it is nearly exhausted.
+//   6. All non-defender players (attacker included) are throw-in-eligible
+//      every lap, matching the base rule for up to 4-6 players; the "only
+//      the two seats next to the defender may throw in" variant Pagat notes
+//      for 5-6 player games is not modeled (moot at 4 players).
+//   7. True-draw tie-break. If the last two active players both empty their
+//      hands on the very same bout (a vanishingly rare edge case), there is
+//      properly no fool, but `loser:` must still name exactly one player —
+//      mirroring docs/games/getaway.cardlang's own precedent for the
+//      analogous "everyone sheds on the same trick" edge case, this names the
+//      final bout's attacker as an arbitrary, documented convention.
+
+game Durak {
+
+  players: 4
+  direction: clockwise
+
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+
+  zones {
+    deck           : Deck
+    trump_card     : Discard          // set aside face-up; see simplification #3
+    hand[player]   : Hand<player>
+    pending_attack : Discard          // the single unresolved attack card, if any (0 or 1 cards)
+    table          : Discard          // this bout's resolved attack/defense pairs, public
+    spent          : Muck             // bouts that closed clean, out of the game for good
+  }
+
+  state {
+    // Game-level: needed by both `setup` and `play`, or by `loser:`.
+    dealer     : Player = 0
+    trump_suit : Suit?  = none
+    attacker   : Player = 0
+    defender   : Player = 0
+  }
+
+  phase setup {
+    shuffle deck
+    deal 6 cards from deck to each hand
+    deal 1 cards from deck to trump_card
+    trump_suit := suit_of(trump_card)
+    // Simplification #2: dealer's left leads first, not the lowest-trump holder.
+    attacker := dealer offset_by left
+    defender := next_active(attacker)
+  }
+
+  phase play {
+    state {
+      // Per-bout accumulator, reset at the top of every bout below (the same
+      // manual-reset-at-loop-top idiom seven-card-stud.cardlang uses for its
+      // own per-street betting state).
+      cap              : Integer = 6
+      attack_count     : Integer = 0
+      awaiting_defense : Boolean = false
+      bout_taken       : Boolean = false
+      progressed       : Boolean = false
+    }
+
+    repeat until (number of players where has_cards(player)) <= 1 {
+      // The cap is the defender's hand size *before* this bout (or 6 if
+      // they already hold 6+).
+      cap := if (count over hand[defender] as c: true) < 6
+             then (count over hand[defender] as c: true) else 6
+      attack_count := 0
+      bout_taken := false
+      awaiting_defense := false
+      progressed := false
+
+      // The main attacker's opening lead: forced, any card.
+      for each player p: if p == attacker {
+        move chosen one card from hand[p] to pending_attack
+      }
+      awaiting_defense := true
+      attack_count := 1
+
+      // The bout: alternate a defend/take decision with a throw-in scan
+      // until the defender takes, or a full scan finds no one willing (and
+      // able) to add another card.
+      repeat until bout_taken or (not awaiting_defense and not progressed) {
+        if awaiting_defense {
+          offer to defender one of [defend, take]
+        }
+        progressed := false
+        if not bout_taken {
+          for each player p: if p != defender and not awaiting_defense and can_throw(p) {
+            offer to p one of [throw_in, pass_attack]
+          }
+        }
+      }
+
+      // Route the bout's cards.
+      if bout_taken {
+        // already moved into hand[defender] inside `take`'s effect
+      } else {
+        move all cards from table to spent
+      }
+
+      // Refill from the talon to 6: attacker, then the other non-defender
+      // players (simplification #5: fixed seat order), then the defender.
+      if (count over hand[attacker] as c: true) < 6 {
+        let deck_n = count over deck as c: true
+        let need   = 6 - (count over hand[attacker] as c: true)
+        let take_n = if need < deck_n then need else deck_n
+        deal take_n cards from deck to hand[attacker]
+      }
+      for each player p: if p != attacker and p != defender {
+        if (count over hand[p] as c: true) < 6 {
+          let deck_n = count over deck as c: true
+          let need   = 6 - (count over hand[p] as c: true)
+          let take_n = if need < deck_n then need else deck_n
+          deal take_n cards from deck to hand[p]
+        }
+      }
+      if (count over hand[defender] as c: true) < 6 {
+        let deck_n = count over deck as c: true
+        let need   = 6 - (count over hand[defender] as c: true)
+        let take_n = if need < deck_n then need else deck_n
+        deal take_n cards from deck to hand[defender]
+      }
+
+      // Rotate attacker/defender for the next bout.
+      if bout_taken {
+        attacker := next_active(defender)
+      } else {
+        attacker := if has_cards(defender) then defender else next_active(defender)
+      }
+      defender := next_active(attacker)
+    }
+  }
+
+  // The sole player still holding cards is the fool. Simplification #7 covers
+  // the (near-impossible) simultaneous-shed tie.
+  loser: if (number of players where has_cards(player)) == 1
+         then the player where has_cards(player)
+         else attacker
+}
+
+// === Durak move types ===
+// All nullary — see the header note on move-type parameters. Each move type's
+// own card choice, when it has one, is a filtered `chosen` movement inside
+// its effect.
+
+move_type defend {
+  when: can_beat(actor)
+  effect {
+    move chosen one card from hand[actor] where c => beats_pending(c) to table
+    move all cards from pending_attack to table
+    awaiting_defense := false
+  }
+}
+
+move_type take {
+  effect {
+    move all cards from pending_attack to hand[actor]
+    move all cards from table to hand[actor]
+    awaiting_defense := false
+    bout_taken := true
+  }
+}
+
+move_type throw_in {
+  when: can_throw(actor)
+  effect {
+    move chosen one card from hand[actor] where c => rank_in_play(c) to pending_attack
+    awaiting_defense := true
+    attack_count := attack_count + 1
+    progressed := true
+  }
+}
+
+move_type pass_attack {
+  effect { }
+}
+
+// === Helper functions ===
+
+// A player still in the hand holds cards (same name/shape as
+// docs/games/getaway.cardlang's helper, for the same reason: the survivor
+// count, the rotation guard, and the loser clause must all agree on who is
+// still in).
+function has_cards(p : Player) = hand[p] is not empty
+
+// The next player at or after `p offset_by left` who still holds cards —
+// four seats means at most three chained offsets to try (see simplification
+// #5 on why this can't be a rotate-the-ring-from-p primitive instead).
+function next_active(p : Player) =
+  if has_cards(p offset_by left) then p offset_by left
+  elif has_cards(p offset_by left offset_by left) then p offset_by left offset_by left
+  elif has_cards(p offset_by left offset_by left offset_by left) then p offset_by left offset_by left offset_by left
+  else p
+
+// Can `c` beat `t`? Non-trump `t`: a higher card of the same suit, or any
+// trump. Trump `t`: only a higher trump.
+function legal_beat(c : Card, t : Card) =
+  if t.suit == trump_suit
+  then (c.suit == trump_suit and rank_value(c) > rank_value(t))
+  else ((c.suit == t.suit and rank_value(c) > rank_value(t)) or c.suit == trump_suit)
+
+function beats_pending(c : Card) =
+  (sum over pending_attack as t: if legal_beat(c, t) then 1 else 0) > 0
+
+function can_beat(p : Player) =
+  (sum over hand[p] as c: if beats_pending(c) then 1 else 0) > 0
+
+// Is `c`'s rank already in play this bout (an attack or a defense card, on
+// the table or still pending)?
+function rank_in_play(c : Card) =
+  (sum over table as t: if t.rank == c.rank then 1 else 0) > 0
+  or (sum over pending_attack as t: if t.rank == c.rank then 1 else 0) > 0
+
+function can_throw(p : Player) =
+  attack_count < cap and (sum over hand[p] as c: if rank_in_play(c) then 1 else 0) > 0

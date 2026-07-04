@@ -1,0 +1,299 @@
+// Cheat (a.k.a. BS, "I Doubt It") — stress-test DSL encoding (NOT part of the
+// canonical corpus).
+//
+// Source: https://www.pagat.com/beating/cheat.html (Pagat).
+//
+// Rules as fetched: one standard 52-card deck dealt out (as evenly as
+// possible) among 2-10 players. Turn order is clockwise. On a turn, a player
+// discards one or more cards FACE DOWN onto a shared pile and announces a
+// rank for them; the player does NOT have to actually hold that rank — lying
+// is the whole game. The claimed rank is not a free choice: "the first player
+// must discard Aces, the second player discards Twos, the next player
+// Threes, and so on... after Tens come Jacks, then Queens, then Kings, then
+// back to Aces" — a fixed ascending cycle tied to the running count of plays
+// made so far (NOT reset by a challenge; play "continues clockwise from the
+// next player in sequence, with ranks advancing as normal"). Any other player
+// may call "Cheat!"; the challenged play is turned face up. If every card
+// matches the announced rank, the challenger takes the whole discard pile
+// into their hand; otherwise the player who played them does. The first
+// player to shed their whole hand AND survive any challenge on that final
+// play wins.
+//
+// === Simplifications / deliberate cuts (declared, not hidden) ===
+//
+// 1. Players fixed to 3..4 (Pagat allows 2-10). Chosen to match the
+//    range this stress-test task specified; nothing else about the
+//    encoding depends on the exact count and it generalizes to any N >= 3
+//    the round/auction machinery below is written generically over `players`.
+// 2. A play discards 1-4 cards (a common house-rule cap), not Pagat's
+//    unbounded "one or more cards" (a player could, in principle, dump an
+//    entire suit of 13 at once). This keeps the `choose integer in 1..cap`
+//    decision's action space small and finite, which the target runtime
+//    (OpenSpiel) needs anyway; raising the cap to `hand_size` would be a
+//    one-line change (see the `cap` binding below) with no other
+//    consequence.
+// 3. Challenge arbitration (GAP, major — see inline `// GAP:` below). Pagat's
+//    "any player may challenge" is a real-time race: whoever shouts "Cheat!"
+//    first gets to challenge, and in practice it is usually the very next
+//    player to act who is best-placed to notice a miscount. The DSL's
+//    decision model has no construct for a genuinely simultaneous
+//    multi-player reaction (matching the target runtime, OpenSpiel, whose
+//    decision nodes are sequential) — Coup's analogous "challenge window" is
+//    still a Python `instantiate` mechanic in this repo's corpus
+//    (docs/decisions.md, "Interactive decisions": "the challenge / block /
+//    climbing vocabulary" is explicitly listed as not yet built as a shared
+//    library form). So this file rolls its own challenge window on the
+//    *auction* form of the kernel `round` (`round offering [call_cheat,
+//    pass_cheat] from claimant offset_by left over players where player !=
+//    claimant ...`), exactly the way Stud rolled its own betting round before
+//    a shared `betting` library form existed. This turns "whoever reacts
+//    fastest" into "the claimant's left-hand neighbour gets first refusal,
+//    then clockwise around the table" — a full seat-order priority queue
+//    instead of a race. This changes the game's texture (seat position now
+//    matters for who gets to catch a lie) but preserves every other rule
+//    exactly: anyone still gets a chance to challenge every single play, and
+//    the outcome (pile goes to the liar or the challenger) is identical.
+//
+// See the bottom of this file for the numbered stdlib-language findings this
+// encoding surfaced (visibility overrides, epistemic ops, move-type
+// parameter domains, `rotate`, `winner:`) — none blocked the encoding, all
+// have a documented workaround in the body below at the site they bit.
+
+game Cheat {
+
+  players: 3..4
+  direction: clockwise
+
+  cards: standard52
+
+  zones {
+    deck        : Deck          // only used once, at setup
+    hand[player]: Hand<player>  // identity to owner, count_only to others
+    last_play   : FaceDownPile  // this turn's face-down discard, pre-adjudication
+    reveal_area : Discard       // face-up staging zone: a challenge exposes last_play here
+    pile        : FaceDownPile  // the accumulated, never-revealed, unchallenged discards
+  }
+
+  // `required_rank`/`turn`/`claimant`/`challenger`/`passes` are ordinary state,
+  // hence PUBLIC to every player by the language's own convention (see
+  // cardlang/openspiel/infostate.py: "state variables... public by
+  // convention: hidden information lives only in zones"). That is exactly
+  // the epistemic status the rank claim needs — everyone at the table always
+  // knows what rank is being claimed and who is being challenged; the only
+  // thing that must stay hidden is the true identity of the cards in
+  // `last_play`/`pile`, which is zone-visibility's job, not state's.
+  state {
+    turn          : Player  = 0     // whose turn to play
+    claimant      : Player  = 0     // who made the play currently up for challenge
+    challenger    : Player? = none  // who called "Cheat!" this turn, if anyone
+    passes        : Integer = 0     // challenge-window responses so far this turn
+    required_rank : String  = "A"   // the rank this turn's play must claim to be
+    score[player] : Integer = 0     // 1 for the winner, 0 otherwise (see finding #5)
+  }
+
+  phase setup {
+    shuffle deck
+    deal all cards from deck as-equally-as-possible to each hand
+  }
+
+  phase play {
+    // Ends the instant somebody sheds out and survives the resulting
+    // challenge window (or draws no challenge at all) — see the `score`
+    // assignment below, which only fires when `hand[claimant]` truly ends
+    // the turn empty.
+    repeat until (any player p: score[p] == 1) {
+      claimant   := turn
+      challenger := none
+      passes     := 0
+
+      // --- the play: `turn` discards 1-4 cards face down, claim implied by
+      // `required_rank` (state, hence already public — no announcement
+      // needed). The actual cards chosen are a private "chosen" selection;
+      // wrapping in `for each player p: if p == turn` is what binds `actor`
+      // for that selection (see cardlang/runtime/execute.py: a `chosen`
+      // movement requires `ctx.require_actor`, which only a move_type effect
+      // or a `for each` binder supplies) — the same idiom French Tarot uses
+      // for its taker-only chien discard.
+      for each player p: if p == turn {
+        let hand_size = count over hand[p] as c: true
+        let cap = if hand_size < 4 then hand_size else 4
+        let n = choose integer in 1 .. cap
+        move chosen n cards from hand[p] to last_play
+      }
+      // No visibility override needed on the movement above (see finding #1
+      // below): `hand[p]` is `identity to owner`, so `turn`'s own observation
+      // of *that* movement already carries the true identities through the
+      // SOURCE side, regardless of `last_play`'s own `count_only to all`
+      // declaration — the actor always privately knows what they really
+      // played, other players only ever learn the count.
+
+      // --- the challenge window: a priority queue starting at claimant's
+      // left, going once around; the first "Cheat!" ends it immediately,
+      // otherwise it ends after everyone else has had one chance to pass.
+      // See finding #3 (GAP, major) above: this is a seat-ordered queue
+      // standing in for Pagat's real-time race.
+      round offering [call_cheat, pass_cheat]
+            from claimant offset_by left
+            over players where player != claimant
+            until challenger is not none
+               or passes >= (number of players where player != claimant)
+
+      if challenger is not none {
+        // Reveal: moving last_play's (hidden) cards into `reveal_area`
+        // (`identity to all`) makes every observer's projection of the
+        // DESTINATION `identity`, regardless of the source's own
+        // `count_only` declaration — see decisions.md, "Observation
+        // events": "the destination projection updates... Observers learn
+        // what arrived if their projection of B reveals it." That is
+        // exactly Pagat's "the challenged player's cards are revealed," with
+        // no bespoke `reveal` operation needed (see finding #2, GAP, major,
+        // below — the grammar does not actually expose a `reveal` statement,
+        // so this zone-routing trick is the real mechanism, not a shortcut
+        // around one).
+        move all cards from last_play to reveal_area
+        let claim_true =
+          (sum over reveal_area as c: if c.rank == required_rank then 1 else 0)
+            == (count over reveal_area as c: true)
+        if claim_true {
+          // The claim held: the challenger was wrong and takes everything.
+          move all cards from reveal_area to hand[challenger]
+          move all cards from pile to hand[challenger]
+        } else {
+          // Caught cheating: the liar takes everything back.
+          move all cards from reveal_area to hand[claimant]
+          move all cards from pile to hand[claimant]
+        }
+      } else {
+        // Nobody challenged: the play joins the pile, still never revealed
+        // to anyone but the player who made it (who already privately knows,
+        // per the source-side observation noted above).
+        move all cards from last_play to pile
+      }
+
+      // `claimant`'s hand can only be empty here if they truly shed their
+      // whole hand AND survived the challenge (a caught lie always refills
+      // it via the `pile`/`reveal_area` move above) — so this one check is
+      // exactly Pagat's "first to get rid of all their cards and survive any
+      // challenge resulting from their final play."
+      if hand[claimant] is empty { score[claimant] := 1 }
+
+      required_rank := next_claim_rank(required_rank)
+      turn := turn offset_by left
+    }
+  }
+
+  // See finding #5 (below): `winner:` only takes `rank_dir NAME`, not a raw
+  // player expression the way `loser:` does — `score` is a 0/1 proxy for
+  // "is the winner", the same shape Coup's `winner: highest alive` already
+  // uses in this corpus for an elimination-style result.
+  winner: highest score
+}
+
+// === Cheat-local move vocabulary: the challenge window ===
+//
+// Both are always legal for any player still in the challenge ring (no
+// `when:` guard needed — matches Bridge's/Pinochle's unconditional `pass`
+// move types, which likewise omit `when:` entirely).
+
+move_type call_cheat {
+  effect { challenger := actor }
+}
+
+move_type pass_cheat {
+  effect { passes := passes + 1 }
+}
+
+// === Cheat-local stdlib: the fixed ascending claim cycle ===
+//
+// Pagat's sequence (A, 2, 3, ... 10, J, Q, K, back to A) is exactly the
+// built-in `rotate <var> through [...]` state-cycle primitive's job — except
+// `rotate`'s value list is grammatically `name_list: NAME ("," NAME)*`, bare
+// NAME tokens only, and numeric ranks 2-10 lex as INT, not NAME (see finding
+// #4, minor, below). A plain `elif` chain over string rank labels (already
+// the corpus's own idiom for rank comparisons — Cribbage/French
+// Tarot/Pinochle all write `c.rank == "K"` etc. as bare string literals)
+// reproduces the identical cycle with no engine change.
+function next_claim_rank(r: String) =
+  if   r == "A"  then "2"
+  elif r == "2"  then "3"
+  elif r == "3"  then "4"
+  elif r == "4"  then "5"
+  elif r == "5"  then "6"
+  elif r == "6"  then "7"
+  elif r == "7"  then "8"
+  elif r == "8"  then "9"
+  elif r == "9"  then "10"
+  elif r == "10" then "J"
+  elif r == "J"  then "Q"
+  elif r == "Q"  then "K"
+  else "A"
+
+// === Language findings this encoding surfaced ===
+//
+// 1. (major) Per-move `visibility:` override is unimplemented at runtime.
+//    decisions.md ("Per-observer visibility on moves") documents a move-level
+//    `visibility: { observer: projection, ... }` clause that overrides a
+//    zone's declared projection for specific observers, with a worked
+//    example. The grammar parses it (`vis_clause`) and the type checker
+//    walks it (typecheck.py:535), but `cardlang/runtime/observe.py`'s
+//    `movement()` — the ONLY place per-observer projections are actually
+//    emitted — reads solely `zone_projection(...)` off the zone's static
+//    declaration; the parsed `Movement.visibility` field is never read
+//    anywhere in cardlang/runtime/. A move-level override is therefore dead
+//    syntax today: writing one would parse and typecheck but have zero
+//    runtime effect on what any observer learns. This did not block Cheat —
+//    the zone-declaration-only model turns out to be expressive enough (the
+//    actor's own hand already leaks identity to them through the SOURCE side
+//    of the movement, per the comment at the `move chosen n cards...` site
+//    above) — but a game that genuinely needed a DIFFERENT projection for
+//    the SAME zone depending on which move touched it (not just "the mover
+//    happens to also own the source zone") would hit a real, verified gap.
+// 2. (major) The epistemic operation vocabulary is mostly unimplemented.
+//    decisions.md's "Stdlib memory-affecting operations" table specs
+//    `peek`/`reveal`/`hide`/`shuffle`/`announce`/`expose_top`/`forget` as
+//    prose statements. The grammar's `epistemic_op` production
+//    (cardlang/grammar/cardlang.lark:191) accepts only `shuffle zone_expr` —
+//    none of the other six parse as statements at all. Cheat needed exactly
+//    "reveal the challenged play to everyone," and the workaround (route the
+//    cards through an `identity to all` zone — see the `reveal_area` move
+//    above) turned out to be a clean, arguably MORE honest expression of the
+//    same idea (it is literally what a `reveal` builtin would have to do
+//    internally, per the zone-projection model), so this is not a blocker
+//    for card-content reveals. It would block a game that needed to reveal a
+//    STATE variable's value to a subset of players (`announce`'s documented
+//    job) rather than all players uniformly, since state is unconditionally
+//    public to every player already (cardlang/openspiel/infostate.py) with
+//    no per-observer override — there is no way in the current language to
+//    make a state fact known to *some but not all* players without passing
+//    it through a zone.
+// 3. (major) Move-type parameter domains only support `Suit`/`Suit?`.
+//    `enumerate_domain()` (cardlang/runtime/mechanics.py:223) is the function
+//    that expands a parameterized `move_type`'s declared domain into the
+//    flat per-turn candidate list every `round offering [...]` needs; it
+//    handles exactly one case (`Suit`, optionally nullable) and raises
+//    `NotImplementedError` for anything else. This blocked modeling the
+//    claimed rank OR the card count as a move-type parameter (e.g. a
+//    Bridge-`submit_bid`-style `move_type play(claimed_rank: Rank, count:
+//    Integer)`) two different ways: `Rank` isn't `Suit`, and move_type_def
+//    only ever takes ONE parameter anyway (`move_param` in the grammar is a
+//    single `"(" NAME ":" payload_type ")"`, not a list). The workaround —
+//    plain phase-body statements (`choose integer`, a deterministic `state`
+//    cycle) instead of the `round offering` vocabulary for the main play
+//    decision — works fully but means the "declare your claim" step is not
+//    expressed as a first-class move_type the way Bridge's bid is; it is
+//    ordinary imperative code, the same shape Cribbage's/French Tarot's
+//    non-round mechanics already use for the parts that do not fit a
+//    `round`.
+// 4. (minor) `rotate`'s cycle list is NAME-only, so it cannot hold numeric
+//    ranks. See the `next_claim_rank` function above and its comment;
+//    the workaround (a hand-written `elif` chain) is functionally
+//    identical to what `rotate` would do, just not reusing the primitive.
+// 5. (minor) `winner:` cannot take a direct player-valued expression the way
+//    `loser:` can (grammar: `winner: "winner" ":" rank_dir NAME` vs.
+//    `loser: "loser" ":" expr`). Cheat's result is "this one specific
+//    player, full stop" (like Coup's last-survivor result), not a ranked
+//    score, so it needs the same `score`-proxy workaround Coup's `winner:
+//    highest alive` already uses elsewhere in this corpus — not a Cheat-
+//    specific problem, but a real asymmetry between the two clauses worth
+//    flagging since nothing else in the grammar explains why `loser:` is
+//    strictly more expressive than `winner:`.

@@ -1,0 +1,267 @@
+// President — stress-test DSL encoding (NOT part of the canonical corpus).
+//
+// Source: https://www.pagat.com/climbing/president.html (Pagat), plus the
+// page's "Number of ranks" section for the 4-player extended exchange
+// (President<->Scum swap two cards, Vice-President<->Vice-Scum swap one).
+//
+// 4 players, standard 52-card deck, no jokers, suits irrelevant. Ranking
+// (high to low): 2 A K Q J 10 9 8 7 6 5 4 3. A play is a single card or a
+// same-rank set of 2 or 3; a set is beaten only by a higher-ranked set of
+// the SAME size, or passed. A trick clears when action returns to the last
+// player to play (everyone else passed); that player leads next. A player
+// who runs out of cards is simply skipped from then on — the hand
+// continues among the rest. Finishing order over the whole hand gives the
+// four social ranks: President (1st out), Vice-President (2nd), Vice-Scum
+// (3rd), Scum (last, and never has to finish shedding). Before the NEXT
+// hand's play (after the new deal): Scum gives President their two highest
+// cards and President gives back any two of their choice; Vice-Scum gives
+// Vice-President their one highest card and Vice-President gives back any
+// one. Roles, once established, persist and set the following hand's
+// leader (President leads first) and this whole exchange.
+//
+// === Simplifications / deliberate cuts (declared, not hidden) ===
+//
+// 1. Combination engine reuse (GAP, major — see inline `// GAP:` at the
+//    `round climb` site). The kernel's only combination-engine queries
+//    usable by `round climb` are `bigtwo_lead_options` / `bigtwo_follows`
+//    (cardlang/stdlib/functions.py's STDLIB_CLIMB_LEADS/FOLLOWS are a fixed,
+//    Python-backed frozenset the checker validates against; adding a
+//    `president_lead_options`/`president_follows` pair would require writing
+//    Python, which this stress test forbids). Reusing Big Two's engine as-is
+//    is a genuine rules distortion in two ways: (a) it breaks ties on equal
+//    rank by suit (spades > hearts > clubs > diamonds), so e.g. a single 7 of
+//    spades can legally "beat" a single 7 of hearts — President's own rule
+//    text says "Suits are irrelevant" and equal rank never beats equal rank;
+//    (b) it also offers Big Two's five-card combinations (straights,
+//    flushes, full houses, quads) whenever a hand happens to hold one —
+//    President has no such combinations at all (singles/pairs/triples
+//    only). The climbing `round` form does not run `active_rules` over its
+//    move type (confirmed by reading cardlang/runtime/mechanics.py's
+//    ClimbForm — legality comes entirely from the named `combinations`/
+//    `follows` queries, with no rule-cascade hook to narrow them), so there
+//    is no DSL-level way to filter either distortion out. `opened : Boolean
+//    = true` (never set false) neutralizes the other Big-Two-specific
+//    behaviour baked into `bigtwo_lead_options` — the forced 3-of-diamonds
+//    opening lead — which President has no equivalent of, so suppressing it
+//    is the *correct* adaptation, not a workaround.
+// 2. First hand's leader: Pagat's base rules don't say who leads before any
+//    roles exist. Seat 0 leads hand 1; every later hand's leader is that
+//    hand's President (Pagat: "The President leads the new hand").
+// 3. Physical reseating ("the President selects the most comfortable
+//    chair...") is cosmetic and never affects legality in this engine (seats
+//    are fixed identities; only *who leads* matters), so it is omitted —
+//    President leading is the only seating effect modeled.
+// 4. Finish-order tie-break within one trick (GAP, minor/major depending on
+//    frequency — see inline `// GAP:` at the tracking loop). If two players
+//    both empty their hand inside the same trick (e.g. one sheds their last
+//    card and the very next player beats it with their own last card),
+//    `round climb` returns only the trick's final `outcome`; the surrounding
+//    body has no visibility into which of the two emptied first. Finish
+//    order between simultaneous shedders is assigned by ascending seat
+//    order, not true within-trick chronology.
+// 5. No numeric score exists in the source rules (finishing order is a
+//    purely social result, replayed hand after hand). To give this
+//    simulation a terminating `winner:`, hands are played until
+//    `hands_played >= 6` and each hand awards invented points by finish
+//    rank (President 3, Vice-President 2, Vice-Scum 1, Scum 0); highest
+//    total wins. This whole scoring scheme is this file's invention, not
+//    Pagat's.
+// 6. Revolutions, bombs, and other special-card variants are out of scope
+//    per the brief; only the base climbing/passing rules are modeled.
+// 7. (Language finding, fixed here, not a cut.) There is no primitive for
+//    "give your top K cards" as one deterministic multi-card movement.
+//    The obvious encoding — compute a threshold T such that at least K
+//    cards rank at or above T, then `move chosen K cards where rank_value
+//    >= T` — is WRONG whenever K > 1 and the K-th place is a tie that
+//    extends the qualifying pool past K: e.g. a hand of [2, 10, 10, 7, 3]
+//    (rank_values 15,10,10,7,3), giving the top 2, computes T=10 (10 is the
+//    lowest value with >= 2 cards at or above it), so the pool is {2, 10,
+//    10} — three cards — and a free `chosen 2` from that pool can legally
+//    pick {10, 10}, illegally keeping the single highest card (the 2). A
+//    forced top-K give is therefore expressed as K sequential forced
+//    top-1 gives (below), each recomputing the threshold against the
+//    shrunken hand — for K=1 the pool is always exactly the tied top rank,
+//    so the residual "choice" is only ever between suit-equivalent
+//    duplicates, which is genuinely harmless (suit never matters to rank
+//    comparison in this game).
+// 8. (Runtime finding, fixed here, not a cut.) `round climb`'s own
+//    `ClimbForm.__init__` asserts the named leader is a current participant
+//    (`hand[player] is not empty`) — a bare `leader := outcome` crashes the
+//    next trick whenever the trick's winner sheds out on their own winning
+//    play (a normal event in President, impossible in Big Two, where the
+//    whole hand ends the instant anyone sheds, so the leader is never asked
+//    to lead again). Worked around below by falling forward, in seating
+//    order, to the next player who still holds cards.
+
+game President {
+
+  players: 4
+  direction: clockwise
+
+  cards: standard52
+  ranking: 2 A K Q J 10 9 8 7 6 5 4 3
+
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+    trick_pile   : TrickPile          // the climbing trick in progress
+    discard      : Discard            // spent tricks (no capture in President)
+  }
+
+  state {
+    // Persist across hands: the four social ranks, and the invented match score.
+    president     : Player? = none
+    vice          : Player? = none
+    vice_scum     : Player? = none
+    scum          : Player? = none
+    points[player] : Integer = 0
+    hands_played  : Integer = 0
+    // Neutralizes bigtwo_lead_options's Big-Two-specific 3-of-diamonds forced
+    // opening lead (see simplification 1 above) — President has no such rule.
+    opened        : Boolean = true
+  }
+
+  phase hand_sequence repeats until hands_played >= 6 {
+    state {
+      leader   : Player? = none
+      // Per-hand finishing-order tracking (hand_sequence-scoped, not
+      // phase-play-scoped, so `phase scoring` — a sibling of `phase play` —
+      // can still read it once play exits).
+      finish1  : Player? = none   // 1st out: next President
+      finish2  : Player? = none   // 2nd out: next Vice-President
+      finish3  : Player? = none   // 3rd out: next Vice-Scum
+      finish4  : Player? = none   // last: next Scum
+      recorded[player] : Boolean = false
+    }
+
+    before_each {
+      move all cards to deck
+      shuffle deck
+      deal 13 cards from deck to each hand
+      hands_played += 1
+      leader := (if president is none then 0 else president)
+      finish1 := none
+      finish2 := none
+      finish3 := none
+      finish4 := none
+      for each player p: recorded[p] := false
+    }
+
+    // The inter-hand exchange (Pagat: "When the deal is complete..."). Only
+    // runs from the second hand on, once roles exist. Scum's and Vice-Scum's
+    // gives are forced to their highest card(s); President's and
+    // Vice-President's returns are the giver's free choice — written out
+    // explicitly (not "each player simultaneously") since the four legs are
+    // asymmetric in both direction and cardinality.
+    phase exchange when president is not none {
+      legal_moves: [transfer_between_hands]
+
+      // Scum's two highest, given as two sequential forced single-highest
+      // gives, not one "chosen 2 cards where rank_value >= threshold" move —
+      // see the header note on why a single combined threshold-pool grab is
+      // wrong when N > 1.
+      for each player p: if p == scum {
+        let t1 = highest_threshold(p)
+        move chosen 1 cards from hand[p] where c => rank_value(c) >= t1 to hand[president]
+        let t2 = highest_threshold(p)
+        move chosen 1 cards from hand[p] where c => rank_value(c) >= t2 to hand[president]
+      }
+      for each player p: if p == president {
+        transfer chosen 2 cards from hand[p] to hand[scum]
+      }
+      for each player p: if p == vice_scum {
+        let threshold = highest_threshold(p)
+        move chosen 1 cards from hand[p] where c => rank_value(c) >= threshold to hand[vice]
+      }
+      for each player p: if p == vice {
+        transfer chosen 1 cards from hand[p] to hand[vice_scum]
+      }
+    }
+
+    phase play {
+      legal_moves: [play_combination]
+
+      // One climbing trick per `round climb`, repeated until at most one
+      // player still has an unrecorded finish (i.e. still holds cards) —
+      // that lone survivor is Scum by elimination, never forced to keep
+      // playing (Pagat: only the loser is left "with any cards").
+      repeat until (number of players where not recorded[player]) <= 1 {
+        // GAP (major): `combinations`/`follows` can only name
+        // `bigtwo_lead_options`/`bigtwo_follows` — see simplification 1
+        // above. `until false` (a required clause) never ends the trick
+        // early: unlike Big Two, going out mid-trick must NOT end the
+        // trick — the rest of the ring still gets to try to beat the
+        // shedding play (round climb's own `next_actor` already skips a
+        // player the moment their hand is empty, with no chooser draw, so
+        // this falls out for free once `until` never fires).
+        round climb play_combination from leader
+              over players where hand[player] is not empty
+              source hand into trick_pile
+              combinations bigtwo_lead_options follows bigtwo_follows
+              until false
+        move all cards from trick_pile to discard
+        // The trick's last player normally leads next — but if that player
+        // just went out on their winning play (round climb's own
+        // `next_actor` already let them win while empty), they cannot lead:
+        // the next surviving player in seating order does instead. Fixed to
+        // three hops since there are only four seats — enough to reach
+        // whichever of the other three still holds cards.
+        leader := (
+          if hand[outcome] is not empty then outcome
+          elif hand[outcome offset_by left] is not empty then outcome offset_by left
+          elif hand[outcome offset_by left offset_by left] is not empty
+            then outcome offset_by left offset_by left
+          else outcome offset_by left offset_by left offset_by left
+        )
+
+        // GAP (minor/major): if two players both empty their hand within
+        // this one trick, this loop cannot see which one emptied first —
+        // `round climb` exposes only the trick's outcome, not per-play
+        // timing. They are recorded in ascending seat order instead.
+        for each player p:
+          if hand[p] is empty and not recorded[p] {
+            recorded[p] := true
+            if finish1 is none {
+              finish1 := p
+            } else {
+              if finish2 is none {
+                finish2 := p
+              } else {
+                if finish3 is none {
+                  finish3 := p
+                } else {
+                  finish4 := p
+                }
+              }
+            }
+          }
+      }
+      // The lone player left holding cards (if any) is Scum by elimination.
+      for each player p: if not recorded[p] {
+        finish4 := p
+        recorded[p] := true
+      }
+    }
+
+    phase scoring {
+      president := finish1
+      vice      := finish2
+      vice_scum := finish3
+      scum      := finish4
+      points[finish1] += 3
+      points[finish2] += 2
+      points[finish3] += 1
+    }
+  }
+
+  winner: highest points
+}
+
+// === President-local stdlib-adjacent helpers ===
+
+// A hand's highest rank_value. `chosen 1 cards where rank_value(c) >=
+// highest_threshold(p)` always has a nonempty pool (every hand has a
+// highest card) and the pool is exactly that top rank's tier — so the
+// "choice" is only ever between suit-equivalent duplicates of the single
+// highest rank, never a real decision.
+function highest_threshold(p : Player) = max over hand[p] as c: rank_value(c)
