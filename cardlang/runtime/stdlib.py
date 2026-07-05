@@ -34,10 +34,66 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.stud import first_to_act_seat
 
             return first_to_act_seat(ctx)
+        case "pot_share":
+            from cardlang.runtime.stud import pot_share
+
+            return pot_share(ctx, args[0])
         case "bigtwo_first_leader":
             from cardlang.runtime.bigtwo import first_leader_seat
 
             return first_leader_seat(ctx)
+        case "rank_value":
+            return ctx.rs.rank_index[args[0].rank]
+        case "card_value":
+            return ctx.rs.card_values.get(args[0].rank, 0)
+        case "pinochle_meld_value":
+            from cardlang.runtime.pinochle import pinochle_meld_value
+
+            return pinochle_meld_value(ctx, args[0])
+        case "tarot_led_suit":
+            from cardlang.runtime.tarot import tarot_led_suit
+
+            return tarot_led_suit(ctx)
+        case "tarot_trump_height":
+            from cardlang.runtime.tarot import tarot_trump_height
+
+            return tarot_trump_height(args[0])
+        case "tarot_excuse_player":
+            from cardlang.runtime.tarot import tarot_excuse_player
+
+            return tarot_excuse_player(ctx)
+        case "tarot_per_opp":
+            from cardlang.runtime.tarot import tarot_per_opp
+
+            return tarot_per_opp(ctx, args[0])
+        case "tarot_card_points":
+            from cardlang.runtime.tarot import tarot_card_points
+
+            return tarot_card_points(args[0])
+        case "peg_value":
+            from cardlang.runtime.cribbage import value
+
+            return value(args[0])
+        case "peg_pair_points":
+            from cardlang.runtime.cribbage import peg_pair_points
+
+            return peg_pair_points(ctx.rs.zones.single("play_pile").cards)
+        case "peg_run_points":
+            from cardlang.runtime.cribbage import peg_run_points
+
+            return peg_run_points(ctx.rs.zones.single("play_pile").cards)
+        case "peg_origin_of":
+            from cardlang.runtime.cribbage import peg_origin_of
+
+            return peg_origin_of(ctx, args[0])
+        case "cribbage_show_value":
+            from cardlang.runtime.cribbage import cribbage_show_value
+
+            return cribbage_show_value(ctx, args[0])
+        case "cribbage_crib_value":
+            from cardlang.runtime.cribbage import cribbage_crib_value
+
+            return cribbage_crib_value(ctx)
         case _:
             raise AssertionError(f"unknown stdlib function '{name}'")
 
@@ -86,6 +142,10 @@ def value_function(name: str) -> Callable[..., Any]:
             return highest_trump_or_led_suit
         case "on_play_of_tochoo":
             return on_play_of_tochoo
+        case "tarot_trick_winner":
+            from cardlang.runtime.tarot import tarot_trick_winner
+
+            return tarot_trick_winner
         case _:
             raise AssertionError(f"unknown stdlib value '{name}'")
 

@@ -21,10 +21,19 @@ Each hand:
    first, then the dealer's hand, then the crib — and the count stops the instant
    a player reaches 121, so the first to 121 wins outright.
 
-The hand engine — discard, cut, pegging, and the show — runs in the built-in
-`CribbageHand` mechanic, which updates `score` directly and stops at 121. The
-combination scorers are unit-tested against known hands (the 29-hand, runs with
-multiplicity, flushes, his nob). The cardlang holds the deal and termination.
+The whole hand — discard, cut, pegging, and the show — runs in the DSL. Both
+players' discards and every pegging play are filtered card movements (`move
+chosen … where …`); ordinary statement control flow (`repeat until`, `if`/`else`,
+`skip to next hand`) reproduces the 121-point cutoff one scoring component at a
+time. Pegging needs no `round` form of its own — no existing round fits its
+per-play scoring plus forced-play flow — so the current sub-round's card
+provenance (who played each `play_pile` card) is carried by two `Integer` state
+variables (`seq_bits`/`seq_len`, public information: every player watched the
+count) and decoded by the `peg_origin_of` stdlib primitive at each close, which
+routes the pile into `played[dealer]` / `played[nondealer]`. The combination
+scorers (fifteens, pairs, runs, flush, his nob) and the pegging-count scorers are
+stdlib primitives, unit-tested against known hands (the 29-hand, runs with
+multiplicity, flushes, his nob).
 
 ```
 game Cribbage {
@@ -38,13 +47,14 @@ game Cribbage {
   zones {
     deck           : Deck
     hand[player]   : Hand<player>
-    crib           : FaceDownPile          // owned by the dealer, fed by both
+    crib           : FaceDownPile          // the dealer's crib, hidden from BOTH players until the show
     starter        : Discard               // one face-up card, shared
-    play_pile      : TrickPile             // the current pegging round
-    played[player] : PlayerPile<player>    // pegged cards
+    play_pile      : TrickPile             // the current pegging sub-round
+    played[player] : PlayerPile<player>    // pegged cards, by whoever played them
   }
 
   state {
+    // Game-level: persists across hands.
     score[player] : Integer = 0
   }
 
@@ -61,11 +71,98 @@ game Cribbage {
     }
 
     phase play {
-      legal_moves: [discard_to_crib, play_card, declare_go]
-      instantiate CribbageHand(dealer = dealer)
+      state {
+        total       : Integer = 0   // the running count of the current sub-round
+        gos         : Integer = 0   // consecutive players unable to play
+        seq_bits    : Integer = 0   // play-order of the count: 1-bit per play, MSB first, 1 = dealer
+        seq_len     : Integer = 0   // plays in the current sub-round (= size of play_pile)
+        last_played : Player  = 0   // only read after a play has set it
+        active      : Player  = 0
+      }
+
+      // Both players discard two to the dealer's crib, in seat order.
+      for each player p: move chosen 2 cards from hand[p] to crib
+
+      // Cut the starter (top of the shuffled deck). His heels: a Jack scores the dealer 2.
+      move one card from deck to starter
+      if (sum over starter as c: if c.rank == "J" then 1 else 0) > 0 {
+        score[dealer] += 2
+      }
+      if game_over() { skip to next hand }
+
+      // Pegging: the non-dealer leads; forced play while able; a go is silent (no decision).
+      active := the player where player != dealer
+      repeat until (all player p: hand[p] is empty) {
+        for each player p: if p == active {
+          if hand[active] is empty {
+            active := the player where player != active
+          } else {
+            if (sum over hand[active] as c: if total + peg_value(c) <= 31 then 1 else 0) > 0 {
+              move chosen one card from hand[active] where c => total + peg_value(c) <= 31 to play_pile
+              seq_bits := seq_bits * 2 + (if active == dealer then 1 else 0)
+              seq_len := seq_len + 1
+              total := sum over play_pile as c: peg_value(c)
+              last_played := active
+              gos := 0
+              if total == 15 or total == 31 { score[active] += 2 }
+              if game_over() { skip to next hand }
+              score[active] += peg_pair_points()
+              if game_over() { skip to next hand }
+              score[active] += peg_run_points()
+              if game_over() { skip to next hand }
+              if total == 31 {
+                move all cards from play_pile where c => peg_origin_of(c) == dealer to played[dealer]
+                move all cards from play_pile to played[the player where player != dealer]
+                total := 0
+                seq_bits := 0
+                seq_len := 0
+              }
+              active := the player where player != active
+            } else {
+              gos := gos + 1
+              if gos >= 2 {
+                score[last_played] += 1          // the go point for the sub-round's last card
+                move all cards from play_pile where c => peg_origin_of(c) == dealer to played[dealer]
+                move all cards from play_pile to played[the player where player != dealer]
+                total := 0
+                seq_bits := 0
+                seq_len := 0
+                gos := 0
+                if game_over() { skip to next hand }
+                active := the player where player != last_played
+              } else {
+                active := the player where player != active
+              }
+            }
+          }
+        }
+      }
+      // Final open sub-round: last card scores 1 (a 31 always closed inside the
+      // loop, clearing the pile, so this close is never the scored-31 case).
+      if play_pile is not empty {
+        score[last_played] += 1
+        move all cards from play_pile where c => peg_origin_of(c) == dealer to played[dealer]
+        move all cards from play_pile to played[the player where player != dealer]
+        if game_over() { skip to next hand }
+      }
+
+      // The show: non-dealer's hand, dealer's hand, then the crib (to the
+      // dealer), stopping the instant a player crosses 121.
+      let nondealer = the player where player != dealer
+      score[nondealer] += cribbage_show_value(nondealer)
+      if game_over() { skip to next hand }
+      score[dealer] += cribbage_show_value(dealer)
+      if game_over() { skip to next hand }
+      score[dealer] += cribbage_crib_value()
     }
   }
 
   winner: highest score
 }
+
+// True the instant either player has reached the 121-point target — read at
+// every scoring point inside `phase play` (mirroring the monolith's `add()`
+// gate: once a component crosses 121, no later component in the same hand may
+// score, and no further chooser draw may occur).
+function game_over() = any player p: score[p] >= 121
 ```

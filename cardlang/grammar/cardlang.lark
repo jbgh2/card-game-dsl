@@ -162,7 +162,7 @@ produce_arm: NAME ["(" NAME ("," NAME)* ")"] "{" statement* "}"
 // The verb is sugar over a single IR node; the amount is an expression and the
 // item noun covers cards and resources. The "in" form lets muck/burn imply
 // their destination.
-movement: MOVE_VERB selection "from" zone_expr [dist_clause] move_dest [vis_clause]  -> move_from
+movement: MOVE_VERB selection "from" zone_expr [where_clause] [dist_clause] move_dest [vis_clause]  -> move_from
         | MOVE_VERB selection "in" zone_expr [vis_clause]              -> move_in
         | MOVE_VERB selection move_dest [vis_clause]                   -> move_gather
 MOVE_VERB: "deal" | "transfer" | "move" | "burn" | "muck" | "draw"
@@ -170,6 +170,10 @@ MOVE_VERB: "deal" | "transfer" | "move" | "burn" | "muck" | "draw"
 // stated amount; `as-equally-as-possible` deals the source round-robin so the
 // remainder is spread (Getaway deals the whole deck across 3–8 hands).
 dist_clause: "as-equally-as-possible"  -> dist_equally
+// Narrows the source pool to the cards matching a predicate before the
+// selection draws from it (a lambda, like `.where` — the source-order subset,
+// not a reordering). Only the `from` form takes it (any destination shape).
+where_clause: "where" expr
 selection: [select_mode] amount NAME
 select_mode: "chosen" -> sel_chosen
            | "random" -> sel_random
@@ -273,6 +277,7 @@ rule_def: "rule" NAME "{" rule_clause* "}"
             | applies_when
             | demands
             | if_impossible
+            | exempts
 constrains: "constrains" ":" NAME
 applies_when: "applies_when" ":" applies_pred
 ?applies_pred: "always"  -> always
@@ -280,6 +285,12 @@ applies_when: "applies_when" ":" applies_pred
 demands: "demands" ":" demand_value
 ?demand_value: actions_where
              | expr
+// Cards exempt from this rule: never subject to its obligation, never able to
+// satisfy it, and — when the rule constrains a move — offered as candidates
+// AFTER every other legal card (rules.legal_cards), regardless of hand
+// position. Tarot's Excuse is the corpus's first instance (always playable,
+// never bound by follow-suit/trump obligations).
+exempts: "exempts" ":" expr
 // A predicate over the candidate player move, whose subject is `action`
 // (see decisions.md "Rule demand forms"). `action` is the move instance —
 // `action.card`, `action.card_count`, `action.amount` — never the zone-movement

@@ -2381,9 +2381,313 @@
               "else": null
             },
             {
-              "kind": "instantiate",
-              "mechanic": "StudShowdown",
-              "args": []
+              "kind": "if",
+              "cond": {
+                "kind": "binop",
+                "op": ">",
+                "left": {
+                  "kind": "player_query",
+                  "query": "count",
+                  "pred": {
+                    "kind": "binop",
+                    "op": "and",
+                    "left": {
+                      "kind": "subscript",
+                      "obj": {
+                        "kind": "name",
+                        "name": "in_hand",
+                        "ref": "state_var"
+                      },
+                      "index": {
+                        "kind": "name",
+                        "name": "player",
+                        "ref": "local"
+                      }
+                    },
+                    "right": {
+                      "kind": "not",
+                      "operand": {
+                        "kind": "subscript",
+                        "obj": {
+                          "kind": "name",
+                          "name": "folded",
+                          "ref": "state_var"
+                        },
+                        "index": {
+                          "kind": "name",
+                          "name": "player",
+                          "ref": "local"
+                        }
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "kind": "int",
+                  "value": 1
+                }
+              },
+              "then": [
+                {
+                  "kind": "for_each",
+                  "role": "player",
+                  "binder": "p",
+                  "body": {
+                    "kind": "if",
+                    "cond": {
+                      "kind": "binop",
+                      "op": "and",
+                      "left": {
+                        "kind": "subscript",
+                        "obj": {
+                          "kind": "name",
+                          "name": "in_hand",
+                          "ref": "state_var"
+                        },
+                        "index": {
+                          "kind": "name",
+                          "name": "p",
+                          "ref": "local"
+                        }
+                      },
+                      "right": {
+                        "kind": "not",
+                        "operand": {
+                          "kind": "subscript",
+                          "obj": {
+                            "kind": "name",
+                            "name": "folded",
+                            "ref": "state_var"
+                          },
+                          "index": {
+                            "kind": "name",
+                            "name": "p",
+                            "ref": "local"
+                          }
+                        }
+                      }
+                    },
+                    "then": [
+                      {
+                        "kind": "movement",
+                        "verb": "move",
+                        "mode": null,
+                        "amount": "all",
+                        "item": "cards",
+                        "source": {
+                          "kind": "subscript",
+                          "obj": {
+                            "kind": "name",
+                            "name": "upcards",
+                            "ref": "zone"
+                          },
+                          "index": {
+                            "kind": "name",
+                            "name": "p",
+                            "ref": "local"
+                          }
+                        },
+                        "dest": {
+                          "kind": "subscript",
+                          "obj": {
+                            "kind": "name",
+                            "name": "hole",
+                            "ref": "zone"
+                          },
+                          "index": {
+                            "kind": "name",
+                            "name": "p",
+                            "ref": "local"
+                          }
+                        },
+                        "dest_each": false,
+                        "distribution": null,
+                        "visibility": null
+                      },
+                      {
+                        "kind": "movement",
+                        "verb": "move",
+                        "mode": null,
+                        "amount": "all",
+                        "item": "cards",
+                        "source": {
+                          "kind": "subscript",
+                          "obj": {
+                            "kind": "name",
+                            "name": "hole",
+                            "ref": "zone"
+                          },
+                          "index": {
+                            "kind": "name",
+                            "name": "p",
+                            "ref": "local"
+                          }
+                        },
+                        "dest": {
+                          "kind": "subscript",
+                          "obj": {
+                            "kind": "name",
+                            "name": "upcards",
+                            "ref": "zone"
+                          },
+                          "index": {
+                            "kind": "name",
+                            "name": "p",
+                            "ref": "local"
+                          }
+                        },
+                        "dest_each": false,
+                        "distribution": null,
+                        "visibility": null
+                      }
+                    ],
+                    "else": null
+                  }
+                }
+              ],
+              "else": null
+            },
+            {
+              "kind": "for_each",
+              "role": "player",
+              "binder": "p",
+              "body": {
+                "kind": "if",
+                "cond": {
+                  "kind": "subscript",
+                  "obj": {
+                    "kind": "name",
+                    "name": "in_hand",
+                    "ref": "state_var"
+                  },
+                  "index": {
+                    "kind": "name",
+                    "name": "p",
+                    "ref": "local"
+                  }
+                },
+                "then": [
+                  {
+                    "kind": "assign",
+                    "name": "stack",
+                    "index": {
+                      "kind": "name",
+                      "name": "p",
+                      "ref": "local"
+                    },
+                    "op": ":=",
+                    "value": {
+                      "kind": "binop",
+                      "op": "+",
+                      "left": {
+                        "kind": "subscript",
+                        "obj": {
+                          "kind": "name",
+                          "name": "stack",
+                          "ref": "state_var"
+                        },
+                        "index": {
+                          "kind": "name",
+                          "name": "p",
+                          "ref": "local"
+                        }
+                      },
+                      "right": {
+                        "kind": "call",
+                        "func": "pot_share",
+                        "args": [
+                          {
+                            "kind": "name",
+                            "name": "p",
+                            "ref": "local"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ],
+                "else": null
+              }
+            },
+            {
+              "kind": "for_each",
+              "role": "player",
+              "binder": "p",
+              "body": {
+                "kind": "if",
+                "cond": {
+                  "kind": "subscript",
+                  "obj": {
+                    "kind": "name",
+                    "name": "in_hand",
+                    "ref": "state_var"
+                  },
+                  "index": {
+                    "kind": "name",
+                    "name": "p",
+                    "ref": "local"
+                  }
+                },
+                "then": [
+                  {
+                    "kind": "movement",
+                    "verb": "move",
+                    "mode": null,
+                    "amount": "all",
+                    "item": "cards",
+                    "source": {
+                      "kind": "subscript",
+                      "obj": {
+                        "kind": "name",
+                        "name": "hole",
+                        "ref": "zone"
+                      },
+                      "index": {
+                        "kind": "name",
+                        "name": "p",
+                        "ref": "local"
+                      }
+                    },
+                    "dest": {
+                      "kind": "name",
+                      "name": "muck",
+                      "ref": "zone"
+                    },
+                    "dest_each": false,
+                    "distribution": null,
+                    "visibility": null
+                  },
+                  {
+                    "kind": "movement",
+                    "verb": "move",
+                    "mode": null,
+                    "amount": "all",
+                    "item": "cards",
+                    "source": {
+                      "kind": "subscript",
+                      "obj": {
+                        "kind": "name",
+                        "name": "upcards",
+                        "ref": "zone"
+                      },
+                      "index": {
+                        "kind": "name",
+                        "name": "p",
+                        "ref": "local"
+                      }
+                    },
+                    "dest": {
+                      "kind": "name",
+                      "name": "muck",
+                      "ref": "zone"
+                    },
+                    "dest_each": false,
+                    "distribution": null,
+                    "visibility": null
+                  }
+                ],
+                "else": null
+              }
             }
           ]
         }

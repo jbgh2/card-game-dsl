@@ -20,6 +20,7 @@ STDLIB_TRICK_OUTCOMES: frozenset[str] = frozenset(
     {
         "highest_of_led_suit",
         "highest_trump_or_led_suit",  # trick winner with a trump suit in play
+        "tarot_trick_winner",  # French Tarot: highest atout else led suit; Excuse never wins
     }
 )
 STDLIB_AUCTION_OUTCOMES: frozenset[str] = frozenset(
@@ -72,7 +73,22 @@ STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
         "error",  # the if_impossible fallback that rejects the move
         "bring_in_seat",  # Stud: the lowest-door seat that posts the bring-in
         "first_to_act_seat",  # Stud: the highest-upcards seat that acts first on a street
+        "pot_share",  # Stud: the chips a player collects at showdown (side-pot layering)
         "bigtwo_first_leader",  # Big Two: the holder of the 3♦, who leads the first hand
+        "rank_value",  # a card's rank strength under the game's `ranking:` (higher = stronger)
+        "card_value",  # a card's deck-declared card-point value (point-trick counters)
+        "pinochle_meld_value",  # Pinochle: a player's hand's meld points under the declared trump
+        "tarot_led_suit",  # French Tarot: the effective led suit (first non-Excuse card) in play
+        "tarot_trump_height",  # French Tarot: an atout's rank strength (0 for a non-atout)
+        "tarot_excuse_player",  # French Tarot: who played the Excuse in the trick just completed
+        "tarot_per_opp",  # French Tarot: the zero-sum per-opponent settlement amount
+        "tarot_card_points",  # French Tarot: a card's doubled card-point value
+        "peg_value",  # Cribbage: pegging/fifteens value of a card (A=1, faces 10)
+        "peg_pair_points",  # Cribbage: pairs points at the tail of the live pegging count
+        "peg_run_points",  # Cribbage: run points at the tail of the live pegging count
+        "peg_origin_of",  # Cribbage: which player played a live pegging-pile card
+        "cribbage_show_value",  # Cribbage: a player's pegged hand's show score
+        "cribbage_crib_value",  # Cribbage: the dealer's crib show score
     }
 )
 

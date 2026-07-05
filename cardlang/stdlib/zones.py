@@ -24,6 +24,7 @@ LIBRARY_ZONE_TYPES: dict[str, bool] = {
     "TeamPile": True,  # a capture pile owned by a partnership (Spades)
     "FaceDownPile": False,  # a face-down stock (Schnapsen's talon)
     "Burn": False,  # the per-street burned-card pile (Stud)
+    "HiddenPile": True,  # a resting pile a player owns but conceals (Tarot's discards)
 }
 
 
@@ -53,6 +54,7 @@ ZONE_PROJECTIONS: dict[str, ZoneVisibility] = {
     "TeamPile": ZoneVisibility("identity", "identity"),
     "FaceDownPile": ZoneVisibility("count_only", "count_only"),
     "Burn": ZoneVisibility("trivial", "trivial"),
+    "HiddenPile": ZoneVisibility("identity", "count_only"),  # same profile as Hand
 }
 
 

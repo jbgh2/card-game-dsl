@@ -51,6 +51,17 @@ constraint composition was validated against four games including
 Pinochle, whose four-rule play stack is the most demanding case in
 the corpus.
 
+### Accepted means honored (total surface)
+
+The corpus-first gate bounds *which* constructs exist; it never licenses a
+construct that half-works. Once a construct is admitted, its surface is total:
+every combination the grammar accepts either has defined, tested semantics or
+is rejected loudly at check time. A clause that parses but is silently ignored
+at runtime is the worst failure mode this project can ship — a designer who
+writes a legal sentence must get the behavior or an error, never a silent
+misread. The normative rule is [decisions.md](decisions.md), "Surface
+totality".
+
 ### Composition over inheritance
 
 Games are bags of named mechanics + parameters + phase structure. No game

@@ -202,6 +202,12 @@ construct.
 5. **The shape of one disciplined commit:** one construct; a fixture that was red
    is now green; the IR snapshot diff is reviewed; the full corpus harness is
    still green; neither enumeration grew silently.
+6. **Composition matrix per construct.** A new or extended construct's fixture
+   set enumerates its composition points — the host production's other optional
+   clauses × the executor branches that receive the node — with one test (or one
+   static-rejection test) per cell ([decisions.md](decisions.md), "Surface
+   totality"). "Accepted-but-ignored" — parses, runs, silently drops a clause —
+   is the defect class the matrix exists to prevent.
 
 ## CI gates
 
@@ -213,6 +219,9 @@ construct.
   open-questions entry.
 - `mypy --strict` is clean (the exhaustiveness invariant).
 - Golden snapshots match.
+- The composition matrix holds: every optional-clause combination the grammar
+  accepts is either exercised by a fixture or rejected by the checker with a
+  rejection fixture — no accepted-but-ignored cells.
 
 ## Module layout
 

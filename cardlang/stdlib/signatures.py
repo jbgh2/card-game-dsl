@@ -58,13 +58,29 @@ CALL_SIGS: dict[str, Sig] = {
     "error": Sig((TString(),), TAny()),  # the if_impossible fallback
     "bring_in_seat": Sig((), TPlayer()),  # Stud: lowest-door seat (no args; reads upcards)
     "first_to_act_seat": Sig((), TPlayer()),  # Stud: highest-upcards live seat
+    "pot_share": Sig((TPlayer(),), TInteger()),  # Stud: showdown chips for a player
     "bigtwo_first_leader": Sig((), TPlayer()),  # Big Two: the 3♦ holder (leads hand 1)
+    "rank_value": Sig((TCard(),), TInteger()),  # a card's rank strength (higher = stronger)
+    "card_value": Sig((TCard(),), TInteger()),  # a card's deck-declared card-point value
+    "pinochle_meld_value": Sig((TPlayer(),), TInteger()),  # Pinochle: a hand's meld under trump
+    "tarot_led_suit": Sig((), TEnum("Suit")),  # French Tarot: the effective led suit
+    "tarot_trump_height": Sig((TCard(),), TInteger()),  # French Tarot: an atout's rank strength
+    "tarot_excuse_player": Sig((), TOptional(TPlayer())),  # French Tarot: who played the Excuse
+    "tarot_per_opp": Sig((TInteger(),), TInteger()),  # French Tarot: the per-opponent settlement
+    "tarot_card_points": Sig((TCard(),), TInteger()),  # French Tarot: doubled card-point value
+    "peg_value": Sig((TCard(),), TInteger()),  # Cribbage: pegging/fifteens value
+    "peg_pair_points": Sig((), TInteger()),  # Cribbage: live pegging-count pair points
+    "peg_run_points": Sig((), TInteger()),  # Cribbage: live pegging-count run points
+    "peg_origin_of": Sig((TCard(),), TPlayer()),  # Cribbage: who played a pegging-pile card
+    "cribbage_show_value": Sig((TPlayer(),), TInteger()),  # Cribbage: a hand's show score
+    "cribbage_crib_value": Sig((), TInteger()),  # Cribbage: the crib's show score
 }
 
 # Outcome / value callbacks passed by bare name — result type is mechanic-driven.
 VALUE_SIGS: dict[str, Type] = {
     "highest_of_led_suit": TAny(),
     "highest_trump_or_led_suit": TAny(),
+    "tarot_trick_winner": TAny(),  # trick winner; the Excuse never wins
     "bridge_auction_outcome": TAny(),  # auction form: produces the typed variant
     "pinochle_auction_outcome": TAny(),  # auction form: produces bid_won
     "tarot_auction_outcome": TAny(),  # auction form: produces taken | thrown_in

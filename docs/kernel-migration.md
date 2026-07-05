@@ -17,15 +17,29 @@ done.
 
 ## The goal, concretely
 
-Nine games still hold their decision logic in hand-written Python dispatched by
+Four games still hold their decision logic in hand-written Python dispatched by
 name in `cardlang/runtime/mechanics.py::instantiate`. Bridge's, Pinochle's, and
 Tarot's auctions have been lifted onto the kernel `round` — so `run_bridge_auction`
-is gone, and `run_pinochle_hand` / `run_tarot_hand` are now the post-auction
-`run_pinochle_rest` / `run_tarot_rest`:
+is gone, and Pinochle and Tarot are both fully kernel (Pinochle: trump
+declaration, meld, and the twelve strict tricks; Tarot: the chien handling, the
+eighteen atout-trump tricks, and the bouts-conditional scoring — `run_tarot_hand`
+and its post-auction `run_tarot_rest` are both gone). Cribbage's whole counting
+hand — discard, cut, pegging, and the show — runs on ordinary DSL statements
+(filtered movements, `repeat until`, `skip to next hand`), so `run_cribbage_hand`
+is gone as well:
 
-- inline in `mechanics.py`: `run_schnapsen_hand`, `run_pinochle_rest`
-- separate modules: `runtime/coup.py`, `cribbage.py`, `skat.py`, `stud.py`,
-  `tarot.py` (post-auction), `tichu.py`, `bigtwo.py`
+- inline in `mechanics.py`: `run_schnapsen_hand`
+- separate modules: `runtime/coup.py`, `skat.py`, `tichu.py`
+
+(`runtime/stud.py`, `runtime/bigtwo.py`, `runtime/pinochle.py`,
+`runtime/tarot.py`, and `runtime/cribbage.py` remain, but hold no `instantiate`
+mechanic — only pure stdlib primitives the DSL calls: Stud's poker evaluator,
+seat selectors, and `pot_share`; Big Two's combination engine; Pinochle's meld
+evaluator, `pinochle_meld_value`; Tarot's per-card queries, effective led suit,
+trick outcome, Excuse-player lookup, and the per-opponent settlement arithmetic;
+Cribbage's pegging/show scorers and provenance decoder — `peg_value`,
+`peg_pair_points`, `peg_run_points`, `peg_origin_of`, `cribbage_show_value`,
+`cribbage_crib_value`.)
 
 This violates the two-layer architecture ([principles.md](principles.md): the
 library is *written in the DSL*, not the engine). It also carries **info-set
@@ -52,8 +66,9 @@ in order would silently collapse into the same string. The stage is done
 when:
 
 - `instantiate` dispatches only to kernel constructs — no per-game name
-  branches — and the seven `runtime/*.py` game modules and the three inline
-  `run_*_hand` functions are deleted;
+  branches — and the five remaining game-mechanic modules and the one inline
+  `run_*` function are deleted (pure stdlib-primitive modules like `stud.py`,
+  `bigtwo.py`, and `pinochle.py` stay);
 - all 14 games run on the kernel plus the in-DSL standard library, with every
   `tests/test_playout_*.py` green and **behaviour preserved**;
 - IR golden snapshots are regenerated and reviewed;
@@ -134,23 +149,63 @@ consecutive passes), typed outcome = a contract variant. Then per game, supplyin
   doubling/redoubling, on the auction form of `round`; the typed
   `contract_finalized | all_pass` outcome computes the declarer over the bid
   history. `run_bridge_auction` and its `instantiate` branch are deleted.
-- **Pinochle** — *done (auction).* The ascending bid runs on the auction form of
-  `round` over a **shrinking participants ring** (`over players where not
-  passed[player] and (lead_bidder is none or player != lead_bidder)`), the nullary
-  `submit_bid`/`pass` vocabulary, and the single-variant `bid_won(declarer, bid)`
-  outcome (opener-at-50 fallback when all pass). `run_pinochle_rest` (the renamed
-  monolith minus its auction block) reads the declarer and runs `declare_trump` +
-  meld + tricks; byte-identical over 50 seeds. (Meld scoring is Workstream 3/4;
-  the module is deleted then.)
-- **Tarot** — *done (auction).* The four-level ascending bid (Petite < Garde <
-  Garde sans < Garde contre) on the auction form of `round`: a **counterclockwise
-  single-pass ring** (each seat drops out of the participants ring after acting,
-  one bid each), five nullary level moves guarded by the standing bid, and a
-  two-variant `taken(taker, level) | thrown_in` outcome (an all-pass hand is
-  thrown in via `skip to next hand`). Exposed and fixed the kernel's
-  clockwise-only `turn_order_from` (now honours `direction`). `run_tarot_hand` is
-  the post-auction `run_tarot_rest` (chien dispatched by level, eighteen tricks,
-  scoring); byte-identical over 50 seeds.
+- **Pinochle** — *done — fully kernel.* The ascending bid runs on the auction
+  form of `round` over a **shrinking participants ring** (`over players where
+  not passed[player] and (lead_bidder is none or player != lead_bidder)`), the
+  nullary `submit_bid`/`pass` vocabulary, and the single-variant
+  `bid_won(declarer, bid)` outcome (opener-at-50 fallback when all pass). Trump
+  declaration is a second, one-draw round on the same form (`round offering
+  [declare_trump_suit] from high_bidder over players where player ==
+  high_bidder until trump_suit is not none`), guarded by a `has_marriage`
+  function checked over the four suits; no marriage anywhere is a
+  statement-level `if`/`else` with no decision offered at all (abandoning the
+  bid) — reproducing the monolith's no-draw abandon path exactly. Meld is a
+  forced `for each player p: meld_score[team_of(p)] += pinochle_meld_value(p)`
+  (the Counter-based tally moved verbatim into the new `runtime/pinochle.py`),
+  and the twelve strict tricks run on the trick form of `round`, legality
+  narrowed by a four-rule cascade (MustFollowSuit, MustHeadTrick,
+  MustTrumpIfVoid, MustOverTrump) whose running-intersection semantics
+  (`rules.legal_cards`) reproduce the monolith's follow/head/trump/over-trump
+  obligation exactly (verified against 20,000 simulated (hand, trick, trump)
+  scenarios pre-migration). The post-auction Python mechanic and its trick-
+  legality helper are deleted along with the `instantiate` branch;
+  byte-identical over 50 seeds. With it,
+  Pinochle is fully kernel: registered in `cardlang/openspiel/game.py:GAMES`
+  with derived info sets proven in the readiness harness.
+- **Tarot** — *done — fully kernel.* The four-level ascending bid (Petite <
+  Garde < Garde sans < Garde contre) runs on the auction form of `round`: a
+  **counterclockwise single-pass ring** (each seat drops out of the
+  participants ring after acting, one bid each), five nullary level moves
+  guarded by the standing bid, and a two-variant `taken(taker, level) |
+  thrown_in` outcome (an all-pass hand is thrown in via `skip to next hand`).
+  Exposed and fixed the kernel's clockwise-only `turn_order_from` (now honours
+  `direction`). The whole post-auction hand then followed onto the kernel too:
+  the chien discard (at Petite/Garde) is a filtered movement — the new
+  movement `where <lambda>` clause, narrowing the source pool to the matching
+  cards before the selection draws from it (preferring non-trump non-King
+  cards, falling back to any non-bout) — and the eighteen atout-trump tricks
+  run on the trick form of `round` under a new `ExcuseIsExempt`/
+  `MustFollowSuit`/`MustTrumpIfVoid`/`MustOverTrump` rule cascade. The Excuse's
+  exemption needed a second new axis — a rule `exempts:` clause: cards it
+  selects (when the rule's `applies_when` holds) sit outside the demand
+  cascade entirely and are appended after every other legal card, in hand
+  order, regardless of hand position — which an ordinary demands-intersection
+  cannot express (it can narrow a candidate set, never reorder one to the
+  end). Both axes were user-approved before implementation, landing as their
+  own red-fixture-to-green commits (`docs/decisions.md`, "Movement `where`
+  filter" / "Rule `exempts:` clause"). `run_tarot_hand` and its post-auction
+  `run_tarot_rest` are both gone; byte-identical over 50 seeds against the
+  unchanged golden. A follow-up fidelity stage then rerouted the chien
+  discard from the taker's public `captured` pile (a wart the byte-identical
+  migration inherited from the monolith) to a genuinely hidden
+  `discard[player] : HiddenPile<player>` zone — a deliberate, user-mandated
+  model change, so its golden regenerated (reviewed: zero-sum and
+  `hands_played` invariants held per seed, the 50-seed contract mix stayed
+  within measurement noise of the pre-change baseline). With it, Tarot is
+  fully kernel: registered in `cardlang/openspiel/game.py:GAMES` (its own
+  derived 78-card action-space block, since atouts/the Excuse fall outside the
+  standard 52-card catalogue) with derived info sets — including the hidden
+  discard specifically — proven in the readiness harness.
 - **Skat** — *deferred (language gap).* The Reizen call-and-response auction (one
   player names successive values, the other holds or passes) is **not expressible
   on the existing order axis**: role-dependent vocabularies (speaker `bid`/`pass`
@@ -183,12 +238,16 @@ Bridge's `all players` is the invariant case). Built with Pinochle; reused by Wo
 ring). An always-legal `pass` would instead offer passed players and consume RNG
 the monolith does not.
 
-**Scope note.** Skat, Tarot, and Pinochle are *monoliths* — the auction is fused
-with play and scoring in one Python function ([roadmap.md](roadmap.md)). The
-auction extraction is the entry point, but the whole hand must land in the DSL
-before the module is deleted: auction here, trick play on the Step 0 `round`,
-scoring in Workstream 4. Bridge is already split (play is DSL), so it finishes
-first and validates `auction` end to end.
+**Scope note.** Skat is still a *monolith* — the auction is fused with play and
+scoring in one Python function ([roadmap.md](roadmap.md)); Pinochle and Tarot
+were too, until each one's trick play and scoring followed its auction onto
+the kernel (above). The auction extraction is the entry point, but the whole
+hand must land in the DSL before the module is deleted: auction here, trick
+play on the Step 0 `round`, scoring in Workstream 4 (Pinochle's own meld and
+Tarot's own per-opponent settlement arithmetic both stayed game-local stdlib
+primitives rather than moving to Workstream 4's shared `scoring_component`
+subsystem — see that workstream's note below). Bridge is already split (play
+is DSL), so it finishes first and validates `auction` end to end.
 
 ## Workstream 2 — Betting and the pot (Seven-Card Stud)
 
@@ -218,36 +277,48 @@ amount syntax" / "Resource transfer failure").
   card ranks/suits — not DSL-expressible — so `bring_in_seat()` / `first_to_act_seat()`
   are Stud-local stdlib functions called from the betting phase (like `team_of`),
   pure reads of the dealt cards (no RNG).
-- **Showdown stays Python — for now.** Side-pot settlement by amount committed +
-  the muck run in `instantiate StudShowdown()` (the renamed, shrunk `run_stud_hand`
-  — antes/deal/betting removed). It is RNG-free, so it cannot shift the chooser
-  sequence; the per-hand stack golden pins its payouts. When it is lifted out of the
-  `instantiate` branch it becomes a **Stud-local `settle` primitive** (the layering +
-  `best_five_card_hand` for the showdown), *not* a generalized "pot subsystem":
-  side-pot reconciliation is a single corpus instance (Coup has no pot — its second
-  resource game is a coin/treasury economy; the natural second *side-pot* game is a
-  poker variant like Hold'em, still a candidate), so per corpus-first it stays
-  game-local until a second poker variant justifies a shared `betting`/pot
-  definition. `best_five_card_hand` is the documented runtime-primitive to wire then.
+- **The showdown runs in the DSL — done.** A contested hand reveals the
+  contenders' hole cards into the `PublicHand` (two movements per contender —
+  the board parked into `hole`, then all seven flipped into `upcards` — so the
+  muck inherits the hole-first order the next hand's pre-shuffle deck depends
+  on; the flip's movement event carries the seven identities, the *derived*
+  reveal). Each entrant then collects `stack[p] := stack[p] + pot_share(p)` and
+  the hands leave play to the muck; a folded entrant's hole cards muck with a
+  count-only emission (unrevealed), and a lone contender collects with no
+  reveal at all. `pot_share` is the **Stud-local settle primitive** (the
+  committed-total layering, odd chip to the first winner in seat order,
+  uncalled remainder to the best contender), *not* a generalized "pot
+  subsystem": side-pot reconciliation is a single corpus instance (Coup has no
+  pot — its second resource game is a coin/treasury economy; the natural second
+  *side-pot* game is a poker variant like Hold'em, still a candidate), so per
+  corpus-first it stays game-local until a second poker variant justifies a
+  shared `betting`/pot definition. The evaluator `hand_rank` stays internal;
+  `best_five_card_hand` is the documented runtime-primitive to wire then. The
+  showdown is RNG-free and decision-free, so it cannot shift the chooser
+  sequence; the per-hand stack golden pinned its payouts byte-identically
+  across the migration. With it, Stud is fully kernel: registered in
+  `cardlang/openspiel/game.py:GAMES` with derived info sets proven in the
+  readiness harness (its conformance check is a bounded random API walk —
+  a full random sim of a ~10k-action chip-migration game is quadratic).
 
-**Checkpoint (event-indexed pots) — needs-formalizing, not a language gap.** The
-settlement reconciles purely from per-player committed running totals + fold flags
-(sorted commitment levels, divmod odd-chip to the first winner); there is no "pot
-current when a player folded" anywhere. So it is expressible with loops/`let`/
-queries — to be done when settlement moves to the DSL; **not** filed as an open
-question.
+**Checkpoint (event-indexed pots) — confirmed closed.** The settlement
+reconciles purely from per-player committed running totals + fold flags (sorted
+commitment levels, divmod odd-chip to the first winner); there is no "pot
+current when a player folded" anywhere. `pot_share` reads exactly that state;
+no event-indexed pot ever existed, and nothing is filed as an open question.
 
 **Test-depth nets — built.** The per-hand stack golden (`seven-card-stud_hands.json`,
 50 seeds, pinned pre-migration — the end-of-game scores are degenerate, so the
-sensitive signal is the post-hand stack vector) confirmed the betting migration is
-byte-identical; the `_settle` recompute covers the side-pot layers (short all-in,
-tie+odd-chip, three-way layered, all-but-one-folded).
+sensitive signal is the post-hand stack vector) confirmed the betting *and*
+showdown migrations are byte-identical; the `_payouts` recompute covers the
+side-pot layers (short all-in, tie+odd-chip, three-way layered,
+all-but-one-folded).
 
 ## Workstream 3 — Combinations and climbing (Tichu)
 
 The first climbing game and first non-(rank,suit) cards. It introduces a
-**combination model** reused later by Pinochle melds and Cribbage scoring (three
-instances → promote to the standard library).
+**combination model** reused later by Pinochle melds (promote to the standard
+library once a third instance arrives).
 
 - A typed `Combination` value: type × length × strength, with a comparison
   (single / pair / triple / straight / full house / bomb).
@@ -291,8 +362,8 @@ The design the construct settled:
   engines differ — Big Two keys on (rank, suit) because suit breaks every tie,
   carries flushes/quads, and follows cross-type within the five-card group, where
   Tichu keys rank-only, has bombs, and the special cards. So the engines stay
-  game-local (beside the promote-at-the-third-instance rule — Pinochle melds /
-  Cribbage scoring are the third), each named as a `combinations` / `follows` query
+  game-local (beside the promote-at-the-third-instance rule — Pinochle melds would
+  be a further instance), each named as a `combinations` / `follows` query
   pair on the `round climb`. The divergent *routing* lives in the DSL body, not the
   construct (the trick-form discipline): the climb form's `outcome` returns the
   winner (the last player to play, bound as `outcome`), and the body routes the pile
@@ -316,30 +387,49 @@ The design the construct settled:
   follow), and Big Two has no bombs, so the kernel needs no interrupt axis to
   reproduce either. Revisit if a game forces out-of-turn play.
 
-## Workstream 4 — Counting and in-play scoring (Cribbage, Schnapsen, Pinochle scoring)
+## Workstream 4 — Counting and in-play scoring (Cribbage, Schnapsen)
 
 This workstream builds the **`scoring_component` runtime subsystem**
 ([decisions.md](decisions.md), "Scoring composition" / "Triggered scoring
 components"), which the runtime has so far folded inline ([roadmap.md](roadmap.md)).
 
-- **Cribbage** — discard to the crib (offers), pegging as a `round` with a
-  running-total accumulator and triggered components (fifteen / thirty-one /
-  pair / run / last-card), then the show: combination scoring (fifteens, pairs,
-  runs, flush, his-nob) applied to non-dealer hand, dealer hand, and crib. Re-home
-  the module-level Cribbage scorers as standard-library combination queries.
+- **Cribbage** — *done, ahead of this workstream.* The whole hand landed on the
+  kernel without the `scoring_component` subsystem this workstream builds: the
+  discards and every pegging play are filtered card movements, and the 121-point
+  cutoff is reproduced a component at a time by ordinary statement control flow
+  (`repeat until`, `if`/`else`, `skip to next hand`). No `round` form fits
+  pegging's per-play scoring plus forced-play flow, so it uses none; the current
+  sub-round's card provenance is carried in two `Integer` state variables and
+  decoded by the `peg_origin_of` stdlib primitive. The module-level Cribbage
+  scorers (pegging counts + the show's fifteens/pairs/runs/flush/his-nob) re-homed
+  as game-local stdlib primitives, like Stud's `pot_share` and Pinochle's
+  `pinochle_meld_value` — migrate, don't redesign; promoting them to the shared
+  `scoring_component` subsystem is corpus-first future work, not a requirement
+  this migration carried.
 - **Schnapsen** — marriages as an in-play declaration (`offer` that scores
   20/40), the trump-jack exchange (`offer`), and closing the stock (`offer` →
   the mid-hand open→closed phase-shape transition; its `claimed | talon_closed |
   open_play` outcome is already typed), with the two-phase follow rules.
-- **Pinochle** — meld detection + scoring via the shared combination model, then
-  trick play and point scoring.
+- **Pinochle** — *done, ahead of this workstream.* The whole hand (trump
+  declaration, meld, and the twelve strict tricks) landed on the kernel via
+  Workstream 1 (above) before this workstream reached it. Meld stayed a
+  Counter-based, game-local `pinochle_meld_value` stdlib primitive (like
+  Stud's `pot_share`) rather than either this workstream's `scoring_component`
+  subsystem or Workstream 3's combination model — migrate, don't redesign;
+  promoting it to either shared mechanism is corpus-first future work, not a
+  requirement the migration itself carried.
+- **Tarot** — *done, ahead of this workstream.* Likewise landed via Workstream
+  1 (above): the bouts-conditional threshold, the taker's doubled card points,
+  the petit-au-bout adjustment, and the bid multiplier all settle in
+  `tarot_per_opp`, a game-local stdlib primitive in the same shape as
+  `pinochle_meld_value`/`pot_share` — not this workstream's `scoring_component`
+  subsystem.
 
 **Test-depth nets.** Add Schnapsen's six-way settlement recompute (1/2/3 game
-points) before migrating it; the Cribbage scorers are already unit-tested and
-should keep that coverage as stdlib queries.
+points) before migrating it; the Cribbage scorers kept their unit-test coverage
+as stdlib queries.
 
-Delete `run_cribbage_hand`, `run_schnapsen_hand`, and the Pinochle scoring
-remainder once green.
+Delete `run_schnapsen_hand` once green.
 
 ## Workstream 5 — Challenge, block, influence (Coup)
 
@@ -385,7 +475,10 @@ These land inside the workstreams above and are shared on the third use:
    bid → Tarot → Skat.
 3. **Stud** — betting + pot.
 4. **Tichu** — climbing + the combination model.
-5. **Cribbage + Schnapsen + Pinochle scoring** — the scoring-component subsystem.
+5. **Cribbage + Schnapsen** — the scoring-component subsystem (Pinochle's and
+   Cribbage's scoring both landed ahead of this step — Pinochle with its
+   Workstream 1 migration, Cribbage on ordinary statements plus game-local stdlib
+   primitives rather than the subsystem itself; Schnapsen remains).
 6. **Coup** — challenge / block / influence.
 
 This is breadth-first by shape: it reaches `auction`'s third instance early and

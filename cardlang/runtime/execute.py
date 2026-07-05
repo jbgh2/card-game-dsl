@@ -100,7 +100,7 @@ def _movement(stmt: n.Movement, ctx: Ctx) -> None:
     if stmt.dest_each:
         assert isinstance(stmt.dest, n.NameRef)
         if stmt.distribution == "as_equally_as_possible":
-            _deal_round_robin(source, stmt.dest.name, ctx)
+            _deal_round_robin(source, stmt.dest.name, ctx, stmt)
         else:
             for player in ctx.rs.seating.players:
                 cards = _select(source, stmt, ctx, player)
@@ -126,17 +126,30 @@ def _movement(stmt: n.Movement, ctx: Ctx) -> None:
             )
 
 
-def _deal_round_robin(source: Zone, dest_family: str, ctx: Ctx) -> None:
+def _deal_round_robin(
+    source: Zone, dest_family: str, ctx: Ctx, stmt: n.Movement
+) -> None:
     """Deal the source one card at a time around the players, so an indivisible
-    deck is spread as equally as possible (the first players get the remainder)."""
+    deck is spread as equally as possible (the first players get the remainder).
+    A `where` filter narrows the dealt cards to the source-order matching subset,
+    leaving non-matching cards in the source — the same semantics `_select_filtered`
+    gives the single-destination and non-round-robin `to each` forms."""
     players = list(ctx.rs.seating.players)
     dealt: dict[Player, list[Card]] = {p: [] for p in players}
-    i = 0
-    while source.cards:
-        card = source.cards.pop(0)
-        ctx.rs.zones.instance(dest_family, players[i % len(players)]).add(card)
-        dealt[players[i % len(players)]].append(card)
-        i += 1
+    if stmt.filter is None:
+        i = 0
+        while source.cards:
+            card = source.cards.pop(0)
+            ctx.rs.zones.instance(dest_family, players[i % len(players)]).add(card)
+            dealt[players[i % len(players)]].append(card)
+            i += 1
+    else:
+        pred = evaluate(stmt.filter, ctx)
+        pool = [c for c in source.cards if pred(c)]
+        for i, card in enumerate(pool):
+            source.remove(card)
+            ctx.rs.zones.instance(dest_family, players[i % len(players)]).add(card)
+            dealt[players[i % len(players)]].append(card)
     if ctx.observer is not None:
         src = ctx.rs.zones.locate(source)
         for p in players:
@@ -164,6 +177,12 @@ def _gather(stmt: n.Movement, ctx: Ctx) -> None:
 
 
 def _select(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> list[Card]:
+    # The `where` filter is a fully separate branch (not folded into the path
+    # below) so the unfiltered form — every existing movement in the corpus —
+    # runs the exact, untouched code it always has: no shared refactor that
+    # could shift an RNG draw and move an unrelated score golden.
+    if stmt.filter is not None:
+        return _select_filtered(source, stmt, ctx, player)
     amount = stmt.amount
     if amount == "all":
         return source.take_all()
@@ -188,6 +207,48 @@ def _select(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> list[Ca
         )
     taken = source.cards[:count]  # deal off the top
     del source.cards[:count]
+    return taken
+
+
+def _select_filtered(
+    source: Zone, stmt: n.Movement, ctx: Ctx, player: Player
+) -> list[Card]:
+    """The `where <lambda>` form: the pool is the source's matching cards, in
+    source order (non-matching cards are left untouched in the source). `all`
+    takes every matching card; `chosen`/`random` draw from the pool exactly
+    like the unfiltered form does from the whole source; the default (dealt)
+    form takes the pool's first `count` — first match in source order, not
+    top-of-source, since the pool has already skipped non-matching cards."""
+    assert stmt.filter is not None
+    pred = evaluate(stmt.filter, ctx)
+    pool = [c for c in source.cards if pred(c)]
+    amount = stmt.amount
+    if amount == "all":
+        for card in pool:
+            source.remove(card)
+        return pool
+    if amount == "one":
+        count = 1
+    else:
+        assert not isinstance(amount, str)
+        count = int(evaluate(amount, ctx))
+    if stmt.mode == "chosen":
+        chosen = ctx.chooser(player, pool, count)
+        for card in chosen:
+            source.remove(card)
+        return chosen
+    if stmt.mode == "random":
+        chosen = ctx.rs.rng.sample(pool, count)
+        for card in chosen:
+            source.remove(card)
+        return chosen
+    if count > len(pool):  # fail loudly like the chosen/random branches
+        raise ValueError(
+            f"cannot deal {count} cards from a filtered pool holding {len(pool)}"
+        )
+    taken = pool[:count]  # first match, not top-of-source
+    for card in taken:
+        source.remove(card)
     return taken
 
 

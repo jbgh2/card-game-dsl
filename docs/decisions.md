@@ -237,6 +237,16 @@ The two are not interchangeable: the first names *which cards*, the
 second *how the move is shaped*. A move is legal when it satisfies
 every active rule's demand, of either form.
 
+> **Enforcement status.** Card-set demands are enforced where the trick form
+> computes card legality (`rules.legal_cards`, the trick round's decision
+> site). The `actions where` form, and rules constraining move types other
+> than `play_to_trick`, are resolved, type-checked, and emitted to IR but
+> **not yet enforced at runtime** — rule application today runs at the trick
+> form's card-decision site only. Hearts' `PassExactlyThreeCards` documents
+> the game's law while the pass movement's `chosen 3` enforces the count.
+> Widening rule application beyond trick play is an open question
+> ([open-questions/rule-scope-beyond-trick-play.md](open-questions/rule-scope-beyond-trick-play.md)).
+
 **The move under inspection is bound as `action`.** A predicate over a
 player's move — `demands: actions where …` here, and the `when <move-type>
 where …` triggers of sub-phase transitions (see "Sub-phase entry and exit")
@@ -248,6 +258,42 @@ and it is never spelled `move` — `move` is the zone-movement verb (see "The
 operation vocabulary"). `action` is the same player-move object the `offer
 action` syntax names. (The *concept* is still a move type; `action` is an
 instance of one, as taken.)
+
+## Rule exemption (`exempts:`)
+
+A rule may declare `exempts: <card-set expr>` alongside (or instead of)
+`demands:`. When the rule's `applies_when` holds, the cards it selects sit
+**outside the demand cascade entirely**: no other rule's `demands` can narrow
+them away, they never count toward satisfying an obligation, and — when the
+rule `constrains` a move — they are legal candidates offered **after every
+other legal card**, in hand order, regardless of where they sit in the hand.
+
+This is a distinct axis from `demands:`, not a special case of it. A card-set
+`demands` can only *narrow* the running candidate set (`rules.legal_cards`'s
+per-rule intersection); it has no way to *reorder* a card to the end of the
+result regardless of hand position. French Tarot's Excuse needs exactly that:
+it is never subject to follow-suit/trump/over-trump, never able to satisfy
+one, and must be offered last — reproducing the reference implementation's
+`base + excuse` candidate order, which the RNG stream depends on (a
+determinized replay must draw the same candidate at the same list index).
+Folding this into `demands:` (e.g. a "the demands union" trick, or
+re-ordering the whole cascade's output) cannot express "exempt AND always
+last" without special-casing the exempt cards somewhere — which is exactly
+what a dedicated clause makes explicit instead of implicit.
+
+Semantics (`cardlang/runtime/rules.py::legal_cards`): a pre-pass collects the
+exempt set from every rule that `constrains` the move type in question and
+whose `applies_when` holds; `working` is the hand minus that set; the demand
+cascade runs over `working` exactly as before (unchanged code path); the
+result is `working`'s narrowed survivors, in hand order, followed by the hand's
+exempt cards, in hand order. A rule with no `exempts:` clause contributes
+nothing to the exempt set, so a game that never uses this clause sees a
+byte-for-byte identical result to before the axis existed (verified: every
+pre-existing game's golden IR and characterization tests are untouched by its
+introduction). `applies_when` gates exemption exactly as it gates a demand —
+French Tarot's `ExcuseIsExempt` only exempts the Excuse once a suit has been
+led (`state.led_suit is not none`), so the leader (who faces no obligations at
+all) still sees their whole hand in its ordinary, unreordered position.
 
 ## Round configuration vs rules
 
@@ -428,7 +474,7 @@ Two decisions distinguish it from the trick and auction forms:
   The engines stay per-game because the combination rules differ materially (Big
   Two: suit tie-breaks on every play, flushes and quads, cross-type beating within
   the five-card group; Tichu: rank-only keys, bombs, the four special cards); they
-  merge only at a third instance (Pinochle melds / Cribbage scoring), per the
+  merge only at a third instance (Pinochle melds would be a further one), per the
   promote-at-the-third rule. The construct depends only on the queries' interface: a
   list of plays, each exposing its cards as `.cards`.
 
@@ -593,12 +639,13 @@ abandoned in turn.
 
 This matches standard activation-record semantics — when an outer
 scope exits, every inner scope exits with it — and means most games
-get mid-phase termination for free. Cribbage is the canonical case:
-`phase hand_sequence repeats until any score >= 121` catches a
-peg-out during pegging or during the show without any additional
-machinery, because the predicate is re-checked the moment `score`
-changes. The mechanic instances active when the predicate flips
-(PeggingRound, the show batches) are abandoned.
+get mid-phase termination for free. Cribbage is the canonical case: a
+peg-out can occur mid-hand, during pegging or during the show, and the
+game stops the instant either score reaches 121 — expressed by an
+`if game_over() { skip to next hand }` guard at each scoring point,
+which unwinds the active pegging loop and show statements to the
+enclosing `phase hand_sequence repeats until (any player p: score[p]
+>= 121)`, whose predicate then ends the game at the hand boundary.
 
 Games where the termination predicate can change only at iteration
 boundaries (Hearts: scoring is end-of-hand only) get the same
@@ -625,8 +672,8 @@ sub-phases:
   guarantee a trailing sub-phase cannot give: under continuous evaluation
   ("Loop termination semantics" above) a loop can exit mid-iteration, and a
   "last sub-phase = cleanup" would be skipped — whereas `after_each` always
-  runs (the test-framework `afterEach` semantic). Cribbage, whose hand can end
-  mid-play on a peg-out, needs this.
+  runs (the test-framework `afterEach` semantic). Oh Hell, French Tarot, and
+  Skat use `after_each` for end-of-hand teardown.
 
 The loop's `state { }` initializes once and **persists** across iterations;
 the hooks run **each** iteration. That separates per-game state from
@@ -686,10 +733,7 @@ A phase may contain *multiple* `apply_components:` batches in
 sequence. Each batch is internally unordered (deltas summed against
 pre-batch state, applied at once), but later batches see the
 accumulated effect of earlier batches and any intervening imperative
-statements. Cribbage's show uses this — non-dealer hand, dealer
-hand, and crib are three sequential batches, with the
-hand_sequence's `score >= 121` termination check observed between
-each. Batching encodes "these scores are independent of each
+statements. Batching encodes "these scores are independent of each
 other"; sequencing encodes "these scores depend on what came
 before, potentially including game termination."
 
@@ -975,21 +1019,56 @@ rather than syntax ([principles.md](principles.md)).
 
 **Movement** — relocating items between two places. One primitive underlies
 every movement verb: `deal`, `transfer`, `move`, `burn`, `muck`, and `draw`
-are sugar that differ only in defaults (which zone, which visibility), not in
-kind. A movement carries a selection (`all`, a count, or a `chosen`/`random`
-amount), an item noun (cards, or a resource such as coins), a source place, a
-destination (a single zone or `to each` recipient), and an optional
-visibility override. The same movement construct underlies every relocation.
-Because the amount is an
-expression and the item names the unit, a resource transfer and a variable
-amount are the *same* construct as a card deal; there is no separate
-resource-movement syntax.
+are sugar that differ only in defaults, not in kind. A movement carries a
+selection (`all`, a count, or a `chosen`/`random` amount), an item noun, a
+source place, and a destination (a single zone or `to each` recipient). The
+item noun is `cards`/`card` today; the noun stays open in the grammar so a
+resource transfer (coins, chips) can one day be the *same* construct as a
+card deal rather than separate syntax — but resource movements and the
+grammar's per-movement `visibility =` override are deferred surface, rejected
+by the checker ([roadmap.md](roadmap.md)) rather than left for the runtime to
+silently ignore.
 
 A `to each` deal distributes the stated amount to every recipient. When the
 amount is `all` and the deck does not divide evenly, `as-equally-as-possible`
 deals it round-robin so the remainder is spread across the first recipients —
 Getaway deals the whole deck across 3–8 hands this way (`deal all cards from
 deck as-equally-as-possible to each hand`).
+
+The checker enforces the production's valid combinations ("Surface totality"
+below): `as-equally-as-possible` requires an `all` deal `to each` with no
+selection mode (it distributes the whole source — or the whole `where` pool —
+round-robin); `deal all … to each` *without* it is rejected as a trap (the
+first recipient would drain the source); a gather (`move all cards to
+<zone>`, no `from`) collects everything into a single zone — counted,
+selected, or `to each` gathers are rejected; and the `in <zone>` form is
+deferred ([roadmap.md](roadmap.md)).
+
+**Movement `where` filter.** The `from` form of a movement (any destination
+shape) takes an optional `where <lambda>` clause, narrowing the *source pool*
+to the cards matching the predicate — in source order — before the selection
+draws from it: `move chosen 6 cards from hand[p] where c => is_pref_discard(c)
+to discard[p]`. The four selection modes read the narrowed pool exactly as
+they would read the whole source: `chosen`/`random` draw `count` from the pool
+via the chooser/RNG; the default (dealt) form takes the pool's first `count` —
+first *match* in source order, not top-of-source, since non-matching cards
+were already skipped; `all` takes every matching card and leaves the rest
+untouched in the source. Requesting more than the pool holds fails loudly,
+identically to the unfiltered form. The destination forms compose: a filtered
+`to each` deal narrows each recipient's pool in turn, and a filtered
+`as-equally-as-possible` deal distributes the whole matching pool round-robin,
+leaving non-matching cards in the source. An unfiltered movement is
+unaffected — the filter is a genuinely separate code path
+(`execute.py::_select_filtered`), not a generalization of the unfiltered one,
+so no existing game's card-selection behaviour changed when this clause was
+added.
+
+French Tarot's chien discard is the corpus's first use: the taker's kept
+chien cards must exclude every bout while preferring plain non-King cards
+when six exist (`hand.where(c => is_pref_discard(c))`, falling back to
+`hand.where(c => not is_bout(c))` when fewer than six such cards remain) — a
+per-card predicate over which cards a decision may even draw from, distinct
+from the *count* a plain `chosen N cards` movement already expressed.
 
 **Epistemic** — changing knowledge or order without relocating anything:
 `reveal`, `peek`, `hide`, `announce`, `expose_top`, `forget`, `shuffle`. A
@@ -1378,6 +1457,14 @@ for elimination games that select the player who *still* holds cards.
 
 ## Scoring composition
 
+> **Status: designed, not yet built.** No game runs this subsystem — the runtime
+> has no `apply_components:` construct, and `ScoreDelta`/`triggered_by:` are not
+> implemented. It is the intended shape for composed scoring; the corpus scores
+> through game-local statements and stdlib primitives today (Bridge and Spades
+> inline; Pinochle's `pinochle_meld_value`, Tarot's `tarot_per_opp`, Cribbage's
+> pegging/show primitives). The components named here and in the sibling sections
+> are the proposed decomposition, promoted corpus-first when the subsystem lands.
+
 Scoring composes from named components. The scoring phase of a game
 declares which components apply:
 
@@ -1440,12 +1527,14 @@ example).
 
 ## Triggered scoring components
 
+> Part of the `scoring_component` subsystem — designed, not yet built (see
+> "Scoring composition" above).
+
 Some scoring fires in response to a specific event rather than as
 part of an `apply_components:` batch. Bridge's GameBonus fires when
 a partnership's below-the-line score crosses 100; RubberBonus fires
 when `games_won` reaches 2; Spades' bag-overflow fires when
-`bags >= 10`; Cribbage's pegging events (fifteens, pairs, runs,
-thirty-one, last-card) fire on each play during pegging. These
+`bags >= 10`. These
 share one shape, distinct from the batched per-hand composition:
 fire on an event, evaluate a predicate, contribute a `ScoreDelta`.
 
@@ -1498,11 +1587,9 @@ clause on the enclosing loop fires immediately upon the
 triggered-component delta being applied. See "Loop termination
 semantics" above.
 
-**Corpus usage.** The corpus presently has nine triggered
-components across three games — Bridge (GameBonus, RubberBonus),
-Spades (BagOverflow), Cribbage (HisHeels, PeggingFifteen,
-PeggingThirtyOne, PeggingPair, PeggingRun, PeggingLastCard). All
-fit the shape above.
+**Corpus usage.** The corpus presently has three triggered
+components across two games — Bridge (GameBonus, RubberBonus) and
+Spades (BagOverflow). All fit the shape above.
 
 ## `choose` as expression
 
@@ -1950,3 +2037,40 @@ non-trivial *order* axis for Skat's call-and-response, a filed language gap —
 challenge / block / climbing vocabulary; promoting the shared `auction` definition
 at its third instance) is the in-flight build (see [roadmap.md](roadmap.md) and
 [kernel-migration.md](kernel-migration.md)).
+
+## Surface totality
+
+The corpus-first gate ([principles.md](principles.md), "Three implementations
+before abstracting") governs *admission*: a construct or axis enters the
+language only when games demonstrate the need. It does not license partial
+implementation. Once a construct is admitted, its surface is **total** — every
+composition the grammar accepts has an accounted outcome.
+
+Concretely: when a construct is added or extended, enumerate its composition
+points — the host production's other optional clauses, the selection modes, the
+destination forms, and every executor branch that receives the node — and put
+each cell in exactly one of three states:
+
+1. **Implemented** — defined semantics, with a test.
+2. **Statically rejected** — resolve/typecheck refuses the combination with a
+   clear message, with a test asserting the rejection. The rejected combination
+   is recorded in [roadmap.md](roadmap.md) so a future game can lift it when it
+   needs the cell.
+3. **Grammatically inexpressible** — the grammar itself cannot produce the
+   combination.
+
+The fourth state — parses, runs, and silently ignores the clause
+("accepted-but-ignored") — is a defect, not deferred work. For the design-tool
+goal it is the worst failure mode: a designer who writes a legal sentence must
+get either the behavior or an error, never a silent misread. When a cell is not
+worth implementing, prefer static rejection over a runtime error, and never
+silence.
+
+The movement production is the worked example of the matrix: the selection
+modes (dealt / `chosen` / `random` / `all`), the destination forms (`to
+<zone>`, `to each`, the round-robin `as-equally-as-possible to each` deal, the
+gather), the `where` filter, the item noun, and the deferred clauses (the `in
+<zone>` form, the `visibility =` override) compose into a grid in which every
+cell is implemented (`tests/test_movement_filter_execute.py`) or statically
+rejected (`tests/test_movement_combination_validity.py`) — see "The operation
+vocabulary" for the enforced combinations.

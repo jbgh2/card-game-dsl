@@ -22,9 +22,28 @@ Things we have noted but consciously not designed yet:
   Forge text-DSL pattern (one mini-language per card) is the reference if/when
   we tackle this.
 
-- **Detailed melding logic.** Pinochle's meld phase is hand-waved as a
-  mechanic. Real melding (combinations, scoring, conflicts) is its own design
+- **Detailed melding logic.** Pinochle's meld phase is a flat Counter-based
+  tally (`pinochle_meld_value`, a game-local stdlib primitive — the DSL body
+  itself is fully migrated). Real melding as a reusable combination model
+  (shared conflict resolution across arbitrary meld categories, not just the
+  one hand-picked trump-run-subsumes-marriage overlap) is its own design
   exercise.
+
+- **Grammar surface deferred by the checker.** Grammatically valid forms are
+  statically rejected until a game needs them (decisions.md "Surface
+  totality": rejected loudly rather than silently ignored). Movements: the
+  `in <zone>` form (the verb implying its destination — `muck one cards in
+  discard`), the per-movement `visibility =` override (visibility derives from
+  the declared zone types; the override's semantics is
+  [open-questions/move-level-visibility.md](open-questions/move-level-visibility.md)),
+  and resource movements (`move 2 chips …` — the corpus keeps chips/coins as
+  Integer state; moving resources through zones is undesigned). Elsewhere:
+  `override` rule deltas in `active_rules:`, `before_each`/`after_each` on a
+  phase with no iteration, transition events other than `play_to_trick`, a
+  trick round naming a move type its form cannot run, and duplicate
+  `state { }` blocks. Rules that the runtime cannot yet enforce at all are a
+  named open question, not a rejection —
+  [open-questions/rule-scope-beyond-trick-play.md](open-questions/rule-scope-beyond-trick-play.md).
 
 - **Solitaire and positional zones.** CardStock excludes spatially-dependent
   layouts. We don't, but we haven't implemented one yet. Klondike or FreeCell
@@ -53,8 +72,8 @@ Things we have noted but consciously not designed yet:
   (decisions.md "Interactive decisions: a kernel and an in-DSL standard library")
   is the major in-flight work: the remaining `round` axes (accumulator, order,
   move vocabulary); typed outcomes and definition-composition; and the `auction` /
-  `challenge` / `block` / `climb` standard-library vocabulary. Nine games
-  (Schnapsen, Pinochle, Bridge, Skat, Tarot, Cribbage, Stud, Tichu, Coup) still
+  `challenge` / `block` / `climb` standard-library vocabulary. Four games
+  (Schnapsen, Skat, Tichu, Coup) still
   hold their decision logic in concrete per-game runtime
   mechanics; lifting each into the kernel + DSL standard library (promoting a
   definition at ~3 examples) closes the spec-vs-runtime gap. The bidding
@@ -83,9 +102,14 @@ Things we have noted but consciously not designed yet:
   talon_closed | open_play`) are migrated off their Boolean gates onto it.
 
   The remaining typed-outcome migrations stay deferred because their decision is
-  not at a clean DSL/mechanic boundary: **Pinochle** (`declare_trump`),
-  **French Tarot**, and **Skat** fuse their auctions into Python monoliths whose
-  extraction is the interactive-decision-kernel work; **Getaway**'s two-way
+  not at a clean DSL/mechanic boundary: **Skat** fuses its auction into a
+  Python monolith whose extraction is the interactive-decision-kernel work
+  (Pinochle's own `declare_trump` decision cleared this bar — it is now a
+  plain one-draw DSL round, no typed outcome needed: `bid_abandoned` is an
+  ordinary Boolean state var, like the games above it; **French Tarot**'s
+  whole hand, not just its auction, cleared it too — the chien discard, the
+  eighteen tricks, and the scoring are all plain DSL now, no typed outcome
+  beyond the auction's own `taken | thrown_in`); **Getaway**'s two-way
   resolution now lives in its `round` body (`if state.trick_terminated_early`), so
   a typed outcome there would mean the `round` itself producing a tagged
   pickup-vs-discard result rather than the body branching on round state.

@@ -1,24 +1,34 @@
-"""The Cribbage hand mechanic (two-player, six-card; concrete).
+"""Cribbage's runtime support (pure stdlib primitives).
 
-Cribbage is a counting game, not a trick game: discard two to the crib, cut a
-starter, peg through alternating play to 31 (scoring fifteens, pairs, runs, 31s,
-and the last card), then *show* — count fifteens, pairs, runs, flush, and his
-nob in the non-dealer's hand, the dealer's hand, and the crib (each against the
-shared starter, in that order). First to 121 wins, and the count stops the
-instant someone crosses (the non-dealer shows first), so the winner is exactly
-the first to reach 121.
+The whole hand — the crib discards, the starter cut (his heels), pegging
+(fifteens, pairs, runs, 31, go / last card), and the show (fifteens, pairs,
+runs, flush, his nob over non-dealer / dealer / crib in order, stopping the
+instant a player crosses 121) — runs in the DSL (docs/games/cribbage.cardlang)
+as filtered movements and ordinary statement control flow. This module holds
+what is not expressible there:
 
-The combination scorers are module-level so they can be unit-tested against known
-cribbage hands — the strongest falsifiable check for a counting game.
+- `value`/`count_fifteens`/`count_pairs`/`run_score`/`flush_score`/
+  `nob_score`/`show_score` — the show's combination scorers, and
+  `peg_pair_points`/`peg_run_points` — the pegging-count scorers. Module-level
+  so they can be unit-tested against known cribbage hands (the strongest
+  falsifiable check for a counting game) independent of the ctx-adapter
+  wiring below.
+- `peg_origin`/`peg_origin_of` — the pegging sub-round's card-provenance
+  decoder. Zones don't retain who moved a card, and no `round` form fits
+  pegging's per-play scoring plus forced-play flow (docs/kernel-migration.md,
+  WS4), so `phase play` tracks provenance itself as two Integer state vars
+  (`seq_bits` packs one bit per play, MSB first, 1 = dealer; `seq_len` counts
+  the plays — both public information, since everyone at the table watched
+  the count). `peg_origin_of` decodes them to route a `play_pile` card to
+  `played[dealer]` / `played[nondealer]` at each sub-round close.
+- `cribbage_show_value`/`cribbage_crib_value` — the show's per-zone
+  adapters, reading `played[player]` / `crib` against the shared `starter`.
 """
 
 from __future__ import annotations
 
 from itertools import combinations
-from typing import Any
 
-from cardlang.ast import nodes as n
-from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Card, Player
 
@@ -119,117 +129,45 @@ def peg_run_points(seq: list[Card]) -> int:
     return 0
 
 
-def run_cribbage_hand(stmt: n.Instantiate, ctx: Ctx) -> Player:
+# --- pegging provenance (see the module docstring) ---
+
+
+def peg_origin(seq_bits: int, seq_len: int, position: int) -> int:
+    """1 if the position-th play (0-based, oldest first) of the current
+    pegging sub-round was made by the dealer, else 0."""
+    return (seq_bits >> (seq_len - 1 - position)) & 1
+
+
+def peg_origin_of(ctx: Ctx, c: Card) -> Player:
+    """Which player played `c` in the live pegging sub-round: reads `c`'s
+    position in `play_pile` (the sub-round's cards, oldest first) against the
+    `seq_bits`/`seq_len`/`dealer` state `phase play` maintains. Must be read
+    before `play_pile` is drained for this sub-round — the close routing reads
+    every card's origin before either split movement removes anything."""
     rs = ctx.rs
-    choose = ctx.chooser
-    args = {a.name: a.value for a in stmt.args}
-    dealer: Player = evaluate(args["dealer"], ctx)  # type: ignore[arg-type]
-    players = list(rs.seating.players)
-
-    def other(p: Player) -> Player:
-        return players[1] if p == players[0] else players[0]
-
-    hands = rs.zones.families["hand"]
-    crib = rs.zones.single("crib")
-    starter_zone = rs.zones.single("starter")
-    played = rs.zones.families["played"]
     play_pile = rs.zones.single("play_pile")
-    deck = rs.zones.single("deck")
-    score = rs.get("score")
-    nondealer = other(dealer)
-    over = {"done": False}
-
-    def add(p: Player, pts: int) -> None:
-        if over["done"] or pts == 0:
-            return
-        score[p] += pts
-        if score[p] >= 121:
-            over["done"] = True
-
-    # discard two each to the crib
-    for p in players:
-        for c in choose(p, list(hands[p].cards), 2):
-            hands[p].remove(c)
-            crib.add(c)
-    hand4 = {p: list(hands[p].cards) for p in players}  # the show hands (pre-pegging)
-
-    # cut the starter
-    starter = deck.cards.pop(0)
-    starter_zone.add(starter)
-    if starter.rank == "J":
-        add(dealer, 2)  # his heels
-    if over["done"]:
+    position = play_pile.cards.index(c)
+    seq_bits = rs.get("seq_bits")
+    seq_len = rs.get("seq_len")
+    dealer: Player = rs.get("dealer")
+    if peg_origin(seq_bits, seq_len, position):
         return dealer
+    return next(p for p in rs.seating.players if p != dealer)
 
-    # pegging
-    total = 0
-    seq: list[tuple[Player, Card]] = []
-    gos = 0
-    last_played: Player | None = None
-    active = nondealer
 
-    def close(scored31: bool) -> None:
-        nonlocal total, seq, gos
-        if not scored31 and last_played is not None:
-            add(last_played, 1)  # last card / go
-        for pl, c in seq:  # the round's cards live in play_pile until now
-            play_pile.remove(c)
-            played[pl].add(c)
-        total, seq, gos = 0, [], 0
+def cribbage_show_value(ctx: Ctx, p: Player) -> int:
+    """`p`'s show score: `played[p]` holds exactly the monolith's `hand4[p]`
+    snapshot once pegging ends (every card started in `hand[p]` and is routed
+    to `played[p]`, never the crib), scored against the shared starter."""
+    rs = ctx.rs
+    hand4 = list(rs.zones.instance("played", p).cards)
+    starter = rs.zones.single("starter").cards[0]
+    return show_score(hand4, starter, is_crib=False)
 
-    while hands[players[0]].cards or hands[players[1]].cards:
-        if not hands[active].cards:
-            active = other(active)
-            continue
-        playable = [c for c in hands[active].cards if total + value(c) <= 31]
-        if playable:
-            c = choose(active, playable, 1)[0]
-            hands[active].remove(c)
-            play_pile.add(c)
-            seq.append((active, c))
-            total += value(c)
-            last_played = active
-            gos = 0
-            round_cards = [card for _, card in seq]
-            if total in (15, 31):
-                add(active, 2)
-            add(active, peg_pair_points(round_cards))
-            add(active, peg_run_points(round_cards))
-            if over["done"]:
-                return dealer
-            if total == 31:
-                close(True)
-                active = other(active)  # the player who reached 31 just played
-                continue
-            active = other(active)
-        else:
-            gos += 1
-            if gos >= 2:
-                next_leader = other(last_played) if last_played is not None else active
-                close(False)
-                if over["done"]:
-                    return dealer
-                active = next_leader
-                continue
-            active = other(active)
-    if seq:  # final open round: last card
-        close(total == 31)
-        if over["done"]:
-            return dealer
 
-    # the show: non-dealer hand, dealer hand, crib — in that order, early-out
-    batches = [
-        (hand4[nondealer], nondealer, False),
-        (hand4[dealer], dealer, False),
-        (list(crib.cards), dealer, True),
-    ]
-    for cards, owner, is_crib in batches:
-        pts = show_score(cards, starter, is_crib)
-        add(owner, pts)
-        ctx.trace(
-            "cribbage_show",
-            {"owner": owner, "points": pts, "is_crib": is_crib},
-        )
-        if over["done"]:
-            break
-    return dealer
+def cribbage_crib_value(ctx: Ctx) -> int:
+    """The dealer's crib show score against the shared starter."""
+    rs = ctx.rs
+    crib = list(rs.zones.single("crib").cards)
+    starter = rs.zones.single("starter").cards[0]
+    return show_score(crib, starter, is_crib=True)

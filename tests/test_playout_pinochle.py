@@ -23,6 +23,12 @@ PINOCHLE = Path(__file__).parent.parent / "docs" / "games" / "pinochle.cardlang"
 # pinochle48 strength, low to high: 9 J Q K 10 A.
 RANK = {r: i for i, r in enumerate(("9", "J", "Q", "K", "10", "A"))}
 
+# pinochle48's card-point table (A/10/K = 10; Q/J/9 = 0) — the same table
+# `card_value(c)` reads at runtime (cardlang/runtime/values.py DECKS["pinochle48"]).
+# Duplicated here (not imported) so the recompute below is independent of the
+# migrated code it checks.
+COUNTER_VALUE = {"A": 10, "10": 10, "K": 10}
+
 
 def _pinochle() -> Any:
     return check_source(PINOCHLE)
@@ -43,7 +49,6 @@ def test_150_random_games_satisfy_invariants() -> None:
         plays: list[tuple[int, Card]] = []
         tricks: list[tuple[int, list[Card]]] = []
         trumps: list[str] = []
-        hand_results: list[dict[str, Any]] = []
         census: dict[str, int] = {}
 
         def tracer(event: str, data: Any) -> None:
@@ -53,8 +58,6 @@ def test_150_random_games_satisfy_invariants() -> None:
                 tricks.append(data)
             elif event == "trick_end":
                 trumps.append(data["trump"])
-            elif event == "pinochle_hand":
-                hand_results.append(data)
             elif event == "game_end":
                 census.clear()
                 census.update(data)
@@ -76,8 +79,21 @@ def test_150_random_games_satisfy_invariants() -> None:
             assert {p for p, _ in group} == {0, 1, 2, 3}
             assert winner == _expected_winner(group, trumps[i]), f"seed {seed} trick {i}"
 
-        # Every played-out hand distributes exactly 250 trick points, and meld
-        # is never negative.
-        for h in hand_results:
-            assert sum(h["trick"].values()) == 250, f"seed {seed}: {h}"
-            assert all(m >= 0 for m in h["meld"].values())
+        # Every played-out hand distributes exactly 250 trick points (240 in
+        # counters + 10 for the last trick). Recomputed from the traced `trick`
+        # events (winner + the 4 played cards) rather than a mechanic-local
+        # trace, so the check survives trick play leaving `instantiate` for the
+        # kernel (docs/kernel-migration.md). A played hand contributes exactly
+        # 12 consecutive `trick` events and an abandoned one contributes none,
+        # so the flat per-game sequence still divides evenly into hands; `team
+        # = player % 2` follows from `partnerships: [[0, 2], [1, 3]]`, and each
+        # trick's `winner` is independently pinned against `_expected_winner`
+        # above.
+        assert len(tricks) % 12 == 0, f"seed {seed}: {len(tricks)} tricks, not hand-aligned"
+        for start in range(0, len(tricks), 12):
+            hand_tricks = tricks[start : start + 12]
+            trick_points = {0: 0, 1: 0}
+            for winner, cards in hand_tricks:
+                trick_points[winner % 2] += sum(COUNTER_VALUE.get(c.rank, 0) for c in cards)
+            trick_points[hand_tricks[-1][0] % 2] += 10  # ten for the last trick
+            assert sum(trick_points.values()) == 250, f"seed {seed} hand at trick {start}: {trick_points}"

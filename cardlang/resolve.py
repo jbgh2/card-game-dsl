@@ -129,6 +129,27 @@ def _resolve_phase_level(
     """
     sibling_names = {p.name for p in phases}
     for phase in phases:
+        # Combination validity (decisions.md "Surface totality"): the runtime
+        # declares only a phase's FIRST state block and runs the lifecycle
+        # hooks only on a `repeats until` phase — reject what it would
+        # silently drop.
+        state_blocks = [i for i in phase.items if isinstance(i, n.StateBlock)]
+        if len(state_blocks) > 1:
+            bag.error(
+                f"phase '{phase.name}' declares more than one `state {{ }}` "
+                f"block — merge the declarations into one",
+                state_blocks[1].span,
+            )
+        if phase.qualifier is None or phase.qualifier.kind != "repeats":
+            for hook in phase.items:
+                if isinstance(hook, (n.BeforeEach, n.AfterEach)):
+                    kw = "before_each" if isinstance(hook, n.BeforeEach) else "after_each"
+                    bag.error(
+                        f"`{kw}` runs per iteration of a `repeats until` phase; "
+                        f"phase '{phase.name}' has no iteration — put the "
+                        f"statements in the phase body",
+                        hook.span,
+                    )
         for item in phase.items:
             _resolve_phase_item(item, sibling_names, defined_rules, bag)
         children = tuple(i for i in phase.items if isinstance(i, n.Phase))
@@ -145,6 +166,12 @@ def _resolve_phase_item(
         for ref in item.refs:
             if ref.name not in defined_rules:
                 bag.error(f"active_rules names undefined rule '{ref.name}'", ref.span)
+            if ref.op == "override":
+                bag.error(
+                    f"`override {ref.name}` is not yet supported by the runtime "
+                    f"(roadmap.md) — use `add`/`remove` deltas",
+                    ref.span,
+                )
     elif isinstance(item, n.LegalMoves):
         for name in item.names:
             if name not in LIBRARY_MOVE_TYPES:
@@ -158,6 +185,13 @@ def _resolve_phase_item(
         if item.event.move_type not in LIBRARY_MOVE_TYPES:
             bag.error(
                 f"transition event names unknown move type '{item.event.move_type}'",
+                item.event.span,
+            )
+        elif item.event.move_type != "play_to_trick":
+            bag.error(
+                f"transitions fire from trick plays only today: the event move "
+                f"type must be `play_to_trick`, not "
+                f"'{item.event.move_type}' (roadmap.md)",
                 item.event.span,
             )
     elif isinstance(item, (n.BeforeEach, n.AfterEach)):
@@ -548,6 +582,15 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     )
                 if nd.move_type not in LIBRARY_MOVE_TYPES:
                     bag.error(f"round move type '{nd.move_type}' is unknown", nd.span)
+                elif nd.move_type != "play_to_trick":
+                    # The trick form's decision site is hardwired to
+                    # `play_to_trick`; any other name would silently run as a
+                    # trick anyway (decisions.md "Surface totality").
+                    bag.error(
+                        f"the trick round form runs `play_to_trick`; "
+                        f"'{nd.move_type}' is not runnable on it (roadmap.md)",
+                        nd.span,
+                    )
                 if (
                     nd.early_termination is not None
                     and nd.early_termination not in STDLIB_EARLY_PREDICATES

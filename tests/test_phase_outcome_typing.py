@@ -630,29 +630,32 @@ game G {
     assert "prod" in str(ei.value) or "earlier sibling" in str(ei.value)
 
 
-def test_accepts_after_each_consuming_an_ancestor_producer() -> None:
-    # `child`'s after_each can consume `prod`, an earlier sibling in the enclosing
-    # body that has already run.
+def test_accepts_after_each_consuming_its_loop_body_producer() -> None:
+    # after_each runs after the body on every iteration, so it can consume
+    # `prod`, a producer in its own loop body with no skip before it. This is
+    # the only place an after_each consumer's producer can live: hooks belong
+    # to `repeats until` phases (on any other phase the runtime never runs
+    # them, and the checker rejects the combination), and the loop wall keeps
+    # outer run-once producers from carrying in.
     src = """
 game G {
   players: 2
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
-  state { score[player] : Integer = 0 }
-  phase round {
+  state { score[player] : Integer = 0  k : Integer = 0 }
+  phase loop repeats until (k >= 2) {
+    before_each { k := k + 1 }
     phase prod -> outcome { val(Integer) } { produce val(5) }
-    phase child {
-      after_each {
-        prod produces:
-          val(x) { score[0] += x }
-      }
+    after_each {
+      prod produces:
+        val(x) { score[0] += x }
     }
   }
   winner: highest score
 }
 """
-    check_dsl(src, "g.cardlang")  # no raise — prod is an earlier sibling that ran
+    check_dsl(src, "g.cardlang")  # no raise — prod reruns each pass before the hook
 
 
 def test_rejects_outcome_phase_define_name_collision() -> None:

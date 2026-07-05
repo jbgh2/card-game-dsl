@@ -110,9 +110,19 @@ Key design notes:
 ## Rules
 
 - `MustFollowSuit` — constrains `play_to_trick`; the canonical follow-suit rule
-- `MustHeadIfFollowing` — constrains `play_to_trick`; must beat highest of led suit when following
-- `MustTrumpIfVoid` — constrains `play_to_trick`; must trump when void in led suit
-- `MustOvertrumpIfTrumping` — constrains `play_to_trick`; must beat highest trump played when trumping
+  (Hearts, Getaway, Spades, Bridge, Oh Hell, Pinochle, French Tarot — Tarot's
+  demand reads `tarot_led_suit()`, the effective led suit, not the raw
+  `state.led_suit`; see below)
+- `MustHeadTrick` — constrains `play_to_trick`; must beat the highest card of
+  the led suit played so far when following (Pinochle)
+- `MustTrumpIfVoid` — constrains `play_to_trick`; must trump when void in the
+  led suit (Pinochle, French Tarot)
+- `MustOverTrump` — constrains `play_to_trick`; must beat the highest trump
+  played so far when trumping (Pinochle, French Tarot)
+- `ExcuseIsExempt` — constrains `play_to_trick`; `exempts:` the Excuse from
+  every obligation in the cascade (French Tarot). The corpus's first use of
+  the rule `exempts:` clause ([decisions.md](decisions.md) "Rule exemption");
+  see below.
 - `BidExceedsCurrent` — constrains `submit_bid`; ascending auction rule
 - `BidIsLegalIncrement` — constrains `submit_bid`; bid increment validity
 - `NoLeadingHeartsUntilBroken` — Hearts-specific
@@ -120,10 +130,38 @@ Key design notes:
 - *Generalization candidate:* `NoLeadingSuitUntilBroken(suit)` — parameterize
   by suit so Hearts and Spades both use the same rule
 
+Pinochle's four rules (`MustFollowSuit`/`MustHeadTrick`/`MustTrumpIfVoid`/
+`MustOverTrump`) run as one `active_rules:` cascade, in this order (list order
+is application order): follow suit and head the trick if able; if void, trump
+and over-trump if able; else anything. Each rule's `if_impossible: hand`
+intersects the *running* set with the whole hand — "keep the prior
+narrowing" — so an inapplicable obligation falls through (`rules.legal_cards`'s
+per-rule intersection, [decisions.md](decisions.md) "Rule demand forms").
+Strict-trick legality recurs across the corpus (Schnapsen's endgame is the
+same shape, still Python); rules are not yet a shared/reusable definition the
+way move types and mechanics are — each game declares its own rule bodies —
+so promoting a common cascade waits on a second DSL instance.
+
+French Tarot's four-rule cascade (`ExcuseIsExempt`/`MustFollowSuit`/
+`MustTrumpIfVoid`/`MustOverTrump`) is the same running-intersection shape,
+with one addition: `ExcuseIsExempt`'s `exempts:` clause removes the Excuse
+from the cascade before the other three rules run, and appends it after every
+other legal card once they've narrowed the rest — the Excuse is never subject
+to follow-suit/trump/over-trump and never counts toward satisfying them.
+`MustFollowSuit`'s demand reads the stdlib `tarot_led_suit()` (the first
+non-Excuse card played, or "excuse" if only the Excuse has been played so
+far) rather than the kernel's own `state.led_suit` (the literal first card,
+"excuse" included) — the split that reproduces the reference rule exactly:
+when the Excuse is led, the next player faces "void in the led suit" (since
+`tarot_led_suit()` is still "excuse", which nobody's non-Excuse cards can
+match) and so must trump if able, a quirk the split preserves precisely.
+
 ## Outcome functions
 
 - `highest_of_led_suit` — no-trump outcome
 - `TrumpedHighestOfLedSuit(trump_suit)` — with-trump outcome
+- `tarot_trick_winner` — French Tarot: highest atout, else highest of the
+  effective led suit (`tarot_led_suit()`); the Excuse never wins
 
 ## Mechanics
 
@@ -132,6 +170,14 @@ Key design notes:
   and, for the just-finished round, in the surrounding body. Per
   [appendix.md](appendix.md) (corpus catalogue), this is where these variables
   live; games don't redeclare them.
+- **Pinochle's strict-trick play** is the ordinary trick `round` with no new
+  construct: legality narrows through the `active_rules:` cascade documented
+  under "Rules" above. Meld settles in a plain statement around the
+  `pinochle_meld_value(player)` stdlib query (see "Stdlib functions") — a pure
+  read of the live hand and the declared trump; `meld_score[team_of(p)] +=
+  pinochle_meld_value(p)` is what credits it to the team. Not yet the shared
+  combination model floated for Workstream 3 — game-local until a second
+  melding game arrives.
 - **Auctions run on the auction form of the kernel `round`** (see
   [decisions.md](decisions.md) "The auction form of `round`") — a continuous ring
   over a bid vocabulary (`offering [...] until <pred> outcome <fn>`) with the
@@ -159,9 +205,29 @@ Key design notes:
   move types' own `when:` guards (free-to-act → check/bet; facing a bet →
   call/fold/raise-if-uncapped), not separate rules; the bring-in and first-to-act
   seats come from the `bring_in_seat()` / `first_to_act_seat()` stdlib selectors.
-  The shared `betting` definition — this configuration of the form — is promoted to
-  this catalogue corpus-first at its third instance; Stud is the only instance
-  today, so the move types stay game-local.
+  The showdown settles in plain statements around the `pot_share(player)` stdlib
+  query — the chips that player collects under the side-pot layering
+  (committed-total levels, ties split with the odd chip to the first winner in
+  seat order, uncalled remainder to the best contender), a pure read of the
+  betting state and the live hands; `stack[p] := stack[p] + pot_share(p)` is
+  what moves the chips. The shared `betting` definition — this configuration of
+  the form — is promoted to this catalogue corpus-first at its third instance;
+  Stud is the only instance today, so the move types and `pot_share` stay
+  game-local.
+- **Cribbage's counting hand** runs entirely on ordinary statements — no `round`
+  form fits pegging's per-play scoring plus forced-play flow (see
+  [kernel-migration.md](kernel-migration.md), Workstream 4). Both players'
+  discards and every pegging play are filtered card movements (`move chosen …
+  where …`); `repeat until` / `if`/`else` / `skip to next hand` reproduce the
+  121-point cutoff one scoring component at a time. The current sub-round's card
+  provenance (who played each `play_pile` card) is carried by two `Integer` state
+  variables (`seq_bits`/`seq_len`, public information — every player watched the
+  count) and decoded by the `peg_origin_of` stdlib query. Six game-local stdlib
+  primitives (see "Stdlib functions") — `peg_value`, `peg_pair_points`,
+  `peg_run_points`, `peg_origin_of`, `cribbage_show_value`, `cribbage_crib_value`
+  — hold the pegging-count and show scorers, in the same game-local shape as
+  Stud's `pot_share` and Pinochle's `pinochle_meld_value`; game-local until the
+  shared `scoring_component` subsystem lands corpus-first.
 - `ChallengeWindow` (see [games/coup.md](games/coup.md)) — Coup.
   Parameterized over the claimant and the claimed character; resolves
   to `claim_stands | claim_refuted`. Offers each other in-game player a
@@ -179,10 +245,17 @@ Key design notes:
 
 ## Scoring components
 
-Introduced in Bridge, now in Bridge, Spades, and Cribbage. Composition
-by summation of `ScoreDelta` outputs; triggered components fire on
+> **Status: proposed, not yet built.** No game runs a `scoring_component` /
+> `ScoreDelta` subsystem — the runtime has no `apply_components:` construct. The
+> decompositions below are the intended design; the corpus scores through
+> game-local statements and stdlib primitives (see the Mechanics section above and
+> `decisions.md`, "Scoring composition"). This catalogue is promoted corpus-first
+> when the subsystem is built.
+
+Composition by summation of `ScoreDelta` outputs; triggered components fire on
 specific events via `triggered_by:` clauses (see decisions.md
-"Triggered scoring components").
+"Triggered scoring components"). Proposed decompositions for Bridge and Spades
+follow.
 
 **Bridge:**
 
@@ -200,18 +273,6 @@ specific events via `triggered_by:` clauses (see decisions.md
   also accumulates bags on overtricks.
 - `BagOverflow` — triggered after `apply_components` on the
   bags-crosses-10 threshold.
-
-**Cribbage:**
-
-- `HisHeels` — triggered on `cut_starter` event when the starter is a Jack.
-- `PeggingFifteen`, `PeggingThirtyOne` — triggered on `play_card` when
-  the running total reaches 15 or 31.
-- `PeggingPair`, `PeggingRun` — triggered on `play_card` from suffix
-  patterns on the play pile.
-- `PeggingLastCard` — triggered on `end_of_round`.
-- `ShowFifteens`, `ShowPairs`, `ShowRuns`, `ShowFlush`, `ShowHisNob`
-  — per-batch components, applied three times (non-dealer hand, dealer
-  hand, crib).
 
 All currently game-specific. Generalization candidates will emerge with
 more scoring-heavy games (Bridge variants, Pinochle's full meld
@@ -270,9 +331,10 @@ parameters that bind into the visibility declaration.
 type Hand<Owner: Player>             = Zone<Card>             { composition: identity to Owner, count_only to others }
 type SharedHand<Group: Team>         = Zone<Card>             { composition: identity to Group.members, count_only to others }
 type PublicHand<Owner: Player>       = Zone<Card>             { composition: identity to all }      // ownership without privacy (e.g. Bridge dummy)
+type HiddenPile<Owner: Player>       = Zone<Card>             { composition: identity to Owner, count_only to others }  // a resting pile a player owns but conceals (French Tarot's chien discard) — same profile as Hand, distinct name for a zone that is no longer an active hand
 type Deck                            = Zone<Card>             { composition: count_only to all, ordered: yes }
 type FaceDownPile                    = Zone<Card>             { composition: count_only to all, ordered: yes }
-type Discard                         = Zone<Card>             { composition: identity to all }       // face-up pile (discards, capture piles, displayed melds, etc.)
+type Discard                         = Zone<Card>             { composition: identity to all }       // face-up, PUBLIC pile (discards, capture piles, displayed melds, etc.) — contrast HiddenPile, above, for a discard that must stay concealed
 type PlayerPile<Owner: Player>       = Zone<Card>             { composition: identity to all }       // face-up pile owned by a player
 type TeamPile<Group: Team>           = Zone<Card>             { composition: identity to all }       // face-up pile owned by a team (captured tricks, displayed melds, etc.)
 type TrickPile                       = Zone<Card>             { composition: identity to all, ordered: yes }   // current-trick play area
@@ -335,6 +397,13 @@ statement; trick routing is ordinary body movements after a `round` returns.
   [decisions.md](decisions.md) "Loop lifecycle")
 - `burn` / `muck` — relocate to the burn / muck pile (destination implied by the verb); mucked cards land in a trivial-projection zone, prior observations persisting
 - `draw` — take from a pile into a hand
+
+The `from <zone> … to <zone>` form additionally takes an optional `where
+<lambda>` clause, narrowing the source pool to matching cards (in source
+order) before the selection draws from it — see [decisions.md](decisions.md)
+"The operation vocabulary" ("Movement `where` filter"). French Tarot's chien
+discard is the corpus's first use (`move chosen 6 cards from hand[p] where
+c => is_pref_discard(c) to discard[p]`).
 
 **Epistemic** — prose statements; no relocation. Signatures are shown below,
 but the surface is prose (`shuffle deck`, `reveal proof to all`); call syntax
@@ -453,9 +522,69 @@ Standard helpers available across games.
   declaration; returns the team containing the given player. Used
   in Spades, Pinochle, Bridge, anywhere team-of-trick-winner
   matters.
-- `value(card: Card) → Integer` — the card's pegging-pip value as
-  used in Cribbage and adding games: A=1, 2..10 = face value, J/Q/K = 10.
-  Distinct from a card's *ranking* (which orders cards for
-  trick-taking comparisons).
+- `rank_value(card: Card) → Integer` — the card's rank strength under the
+  game's `ranking:` declaration (higher = stronger; `rs.rank_index`), deck-
+  agnostic. Used by Pinochle's `MustHeadTrick`/`MustOverTrump` rules to find
+  the highest card of a suit played so far in the trick.
+- `card_value(card: Card) → Integer` — the card's deck-declared card-point
+  value (the `values` table on the `cards:` deck; 0 for ranks the deck scores
+  nothing for), general-purpose for any point-trick game. Used by Pinochle
+  (`trick_score[...] += sum over trick_pile as c: card_value(c)`); Schnapsen
+  and Skat's own card-point tallies are the next candidates to move onto it.
+
+Cribbage's pegging and show scoring, plus the pegging count's card provenance,
+are six game-local primitives reading `cardlang/runtime/cribbage.py` — game-local
+(like Stud's `pot_share`) until the shared `scoring_component` subsystem lands
+corpus-first:
+
+- `peg_value(card: Card) → Integer` — the card's pegging/fifteens pip value:
+  A=1, 2..10 = face value, J/Q/K = 10. Distinct from a card's *ranking* (which
+  orders cards for trick-taking comparisons).
+- `peg_pair_points() → Integer` — pair points (2/6/12 for a two/three/four-of-a-
+  kind streak) at the tail of the live `play_pile` count.
+- `peg_run_points() → Integer` — run points (the length of the longest run of
+  three or more ending at the tail) of the live `play_pile` count.
+- `peg_origin_of(card: Card) → Player` — which player played a given live
+  `play_pile` card, decoded from the `seq_bits`/`seq_len` play-order state; routes
+  each sub-round's cards into `played[dealer]` / `played[nondealer]` at the close.
+- `cribbage_show_value(player: Player) → Integer` — a player's pegged hand's show
+  score (fifteens, pairs, runs, flush, his-nob) counted against the shared starter.
+- `cribbage_crib_value() → Integer` — the dealer's crib show score (a flush needs
+  all five cards, unlike the four-card hand flush).
+
+French Tarot's non-uniform 78-card deck (suit×rank card points that vary by
+suit, an effective led suit that isn't the kernel's own, and a settlement the
+`ranking:`/`card_value` general machinery can't express — see
+[decisions.md](decisions.md) "Deck declaration") needs six game-local
+primitives, all reading `cardlang/runtime/tarot.py`:
+
+- `tarot_card_points(card: Card) → Integer` — the doubled card-point value
+  (printed value × 2, so all integers; the 78 cards sum to 182). K/Q/Cavalier/J
+  score 9/7/5/3 in a plain suit; a bout (the Excuse, the 1 of atouts, the 21)
+  scores 9; every other card scores 1.
+- `tarot_trump_height(card: Card) → Integer` — an atout's rank as an int
+  (1..21) for the over-trump comparison; 0 for a non-atout.
+- `tarot_led_suit() → Suit` — the effective led suit of the live trick: the
+  first non-Excuse card played so far, or "excuse" if only the Excuse has
+  been played — distinct from the kernel's own `state.led_suit` (the literal
+  first card, "excuse" included), which gates the rules' `applies_when`
+  instead of naming the follow-suit demand (see the Rules section above).
+- `tarot_trick_winner` — a **trick outcome function** (named on `round …
+  outcome tarot_trick_winner`, not called with parens): highest atout if any
+  was played, else highest of the effective led suit; the Excuse never wins.
+- `tarot_excuse_player() → Player?` — which player (if any) played the Excuse
+  in the trick that just completed, read off the round's exposed terminal
+  state (`state.played`) the same way the `state` pronoun is.
+- `tarot_per_opp(pb: Integer) → Integer` — the zero-sum per-opponent
+  settlement amount: the bouts-conditional threshold ({3 bouts: 36, 2: 41, 1:
+  51, 0: 56} doubled points), the taker's doubled card points (`captured` and
+  `discard`, plus the chien's at Garde sans le chien — the chien is never
+  moved there, so it counts where it sits), the petit-au-bout adjustment
+  `pb`, and the bid multiplier.
+
+`Card.__str__`'s rendering (used by observation logs and `to_string` in the
+OpenSpiel encoding) maps atouts to `★` and the Excuse to `☆` alongside the
+four standard suit glyphs, falling back to `:<suit>` for any other suit — so a
+future non-French-suited deck renders without crashing.
 
 More will be added as games surface common helpers.

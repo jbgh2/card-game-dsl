@@ -19,7 +19,7 @@ from functools import lru_cache
 from importlib import resources
 
 from lark import Lark, Token, Tree
-from lark.exceptions import UnexpectedInput
+from lark.exceptions import UnexpectedInput, VisitError
 from lark.tree import Meta
 from lark.visitors import Transformer, v_args
 
@@ -102,6 +102,11 @@ class _IfImpossible:
 
 
 @dataclass(frozen=True, slots=True)
+class _Exempts:
+    expr: object  # Expr
+
+
+@dataclass(frozen=True, slots=True)
 class _Always:
     pass
 
@@ -125,6 +130,11 @@ class _ElseBlock:
 @dataclass(frozen=True, slots=True)
 class _Dist:
     mode: str
+
+
+@dataclass(frozen=True, slots=True)
+class _Where:
+    expr: object  # Expr
 
 
 @dataclass(frozen=True, slots=True)
@@ -398,6 +408,7 @@ class _Builder(Transformer[Token, n.Game]):
         dest = next(x for x in c if isinstance(x, _Dest))
         vis = next((x.expr for x in c if isinstance(x, _Vis)), None)
         dist = next((x.mode for x in c if isinstance(x, _Dist)), None)
+        filt = next((x.expr for x in c if isinstance(x, _Where)), None)
         return n.Movement(
             verb=str(c[0]),
             mode=sel.mode,
@@ -407,12 +418,16 @@ class _Builder(Transformer[Token, n.Game]):
             dest=dest.zone,  # type: ignore[arg-type]
             dest_each=dest.each,
             distribution=dist,
+            filter=filt,  # type: ignore[arg-type]
             visibility=vis,  # type: ignore[arg-type]
             span=self._span(meta),
         )
 
     def dist_equally(self, meta: Meta, c: list[object]) -> _Dist:
         return _Dist("as_equally_as_possible")
+
+    def where_clause(self, meta: Meta, c: list[object]) -> _Where:
+        return _Where(_as_expr(c[0]))
 
     def move_gather(self, meta: Meta, c: list[object]) -> n.Movement:
         assert isinstance(c[1], _Selection) and isinstance(c[2], _Dest)
@@ -605,12 +620,16 @@ class _Builder(Transformer[Token, n.Game]):
     def if_impossible(self, meta: Meta, c: list[object]) -> _IfImpossible:
         return _IfImpossible(_as_expr(c[0]))
 
+    def exempts(self, meta: Meta, c: list[object]) -> _Exempts:
+        return _Exempts(_as_expr(c[0]))
+
     def rule_def(self, meta: Meta, c: list[object]) -> n.RuleDef:
         name = str(c[0])
         constrains: str | None = None
         applies: n.AppliesWhen | None = None
         demands: n.Demands | None = None
         if_imp: object | None = None
+        exempts_expr: object | None = None
         for clause in c[1:]:
             if isinstance(clause, _Constrains):
                 constrains = clause.move_type
@@ -620,6 +639,8 @@ class _Builder(Transformer[Token, n.Game]):
                 demands = clause
             elif isinstance(clause, _IfImpossible):
                 if_imp = clause.expr
+            elif isinstance(clause, _Exempts):
+                exempts_expr = clause.expr
             else:
                 raise AssertionError(f"unexpected rule clause: {clause!r}")
         return n.RuleDef(
@@ -628,6 +649,7 @@ class _Builder(Transformer[Token, n.Game]):
             applies_when=applies,
             demands=demands,
             if_impossible=if_imp,  # type: ignore[arg-type]
+            exempts=exempts_expr,  # type: ignore[arg-type]
             span=self._span(meta),
         )
 
@@ -815,6 +837,17 @@ class _Builder(Transformer[Token, n.Game]):
             elif isinstance(item, _Zones):
                 zones = item.zones
             elif isinstance(item, n.StateBlock):
+                if state is not None:
+                    # Keeping the last block would silently discard the first's
+                    # declarations (decisions.md "Surface totality"): reject.
+                    raise DiagnosticError(
+                        Diagnostic(
+                            Severity.ERROR,
+                            "a game declares one `state { }` block — merge the "
+                            "declarations into it",
+                            item.span,
+                        )
+                    )
                 state = item
             elif isinstance(item, n.Phase):
                 phases.append(item)
@@ -986,7 +1019,14 @@ def parse_to_tree(text: str, source_name: str, line_offset: int = 0) -> Tree[Tok
 def parse_text(text: str, source_name: str, line_offset: int = 0) -> n.Game:
     """Parse DSL ``text`` into a :class:`~cardlang.ast.nodes.Game` AST."""
     tree = parse_to_tree(text, source_name, line_offset)
-    return _Builder(source_name, line_offset).transform(tree)
+    try:
+        return _Builder(source_name, line_offset).transform(tree)
+    except VisitError as exc:
+        # Lark wraps transformer exceptions; surface a builder-raised
+        # diagnostic (e.g. a duplicate `state { }` block) as itself.
+        if isinstance(exc.orig_exc, DiagnosticError):
+            raise exc.orig_exc from None
+        raise
 
 
 def parse_block(block: FencedBlock) -> n.Game:

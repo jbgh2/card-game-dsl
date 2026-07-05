@@ -8,13 +8,12 @@ participant plays a legal card, an outcome function picks the winner), `AuctionF
 the auction and betting forms), and `ClimbForm` (one combination-climbing trick over
 game-local engine queries). `build_form` selects the bundle by field-presence and
 `execute.py` dispatches on the returned Outcome union. `instantiate` dispatches the
-remaining per-game hand engines (Schnapsen, Pinochle, Skat, Tarot, Cribbage, Stud,
-Tichu, Coup) not yet lifted into the DSL.
+remaining per-game hand engines (Schnapsen, Skat, Tichu, Coup) not yet lifted
+into the DSL.
 """
 
 from __future__ import annotations
 
-from collections import Counter
 from typing import Any, Protocol
 
 from cardlang.ast import nodes as n
@@ -27,24 +26,10 @@ from cardlang.runtime.values import SUITS, Card, Player
 def instantiate(stmt: n.Instantiate, ctx: Ctx) -> Player:
     if stmt.mechanic == "SchnapsenHand":
         return run_schnapsen_hand(stmt, ctx)
-    if stmt.mechanic == "PinochleRest":
-        return run_pinochle_rest(stmt, ctx)
     if stmt.mechanic == "SkatHand":
         from cardlang.runtime.skat import run_skat_hand
 
         return run_skat_hand(stmt, ctx)
-    if stmt.mechanic == "TarotRest":
-        from cardlang.runtime.tarot import run_tarot_rest
-
-        return run_tarot_rest(stmt, ctx)
-    if stmt.mechanic == "CribbageHand":
-        from cardlang.runtime.cribbage import run_cribbage_hand
-
-        return run_cribbage_hand(stmt, ctx)
-    if stmt.mechanic == "StudShowdown":
-        from cardlang.runtime.stud import run_stud_showdown
-
-        return run_stud_showdown(stmt, ctx)
     if stmt.mechanic == "TichuHand":
         from cardlang.runtime.tichu import run_tichu_hand
 
@@ -644,150 +629,6 @@ def run_schnapsen_hand(stmt: n.Instantiate, ctx: Ctx) -> Player:
     if closed_by is not None:
         raise _ProduceSignal("talon_closed", [closed_by, closer_opp_tr])
     raise _ProduceSignal("open_play", [last_winner])
-
-
-# ---------------------------------------------------------------------------
-# Pinochle hand mechanic
-# ---------------------------------------------------------------------------
-#
-# Pinochle's hand is, like Schnapsen's, built concretely: an ascending auction,
-# the high bidder's trump declaration (he must hold a marriage in the suit, else
-# he abandons the bid), deterministic meld scoring, then twelve strict tricks.
-# Auctions differ in shape across the corpus (Bridge double/redouble, Skat's
-# Reizen, Tarot's four levels), so this is not generalized yet; nor are the
-# strict-trick legality rules, which recur (Schnapsen endgame, here, and the
-# coming trump games) and are flagged in docs/roadmap.md as the surface to
-# lift into the rule DSL. The random chooser bids/passes and plays uniformly;
-# melding is forced (a rational player melds everything), so it is a pure
-# computation, not a choice.
-
-
-def pinochle_meld(cards: list[Card], trump: str) -> int:
-    """Standard single-pack Pinochle meld value of a hand given the trump suit.
-    Doubles (two copies) score the published double values. The only intra-class
-    overlap handled is the trump run subsuming its own marriage."""
-    cnt = Counter((c.rank, c.suit) for c in cards)
-    doubles = {0: 0, 1: 1, 2: 2}  # copies present, capped at 2 (pack has two)
-    score = 0
-
-    run_cards = [("A", trump), ("10", trump), ("K", trump), ("Q", trump), ("J", trump)]
-    n_run = min(cnt[m] for m in run_cards)
-    score += {0: 0, 1: 150, 2: 1500}[doubles[min(n_run, 2)]]
-    score += 10 * cnt[("9", trump)]  # dix
-
-    for s in SUITS:
-        marr = min(cnt[("K", s)], cnt[("Q", s)])
-        if s == trump:
-            score += 40 * max(0, marr - n_run)  # K-Q used by the run don't recount
-        else:
-            score += 20 * marr
-
-    n_pin = min(cnt[("Q", "spades")], cnt[("J", "diamonds")])
-    score += {0: 0, 1: 40, 2: 300}[min(n_pin, 2)]
-
-    for rank, single, double in (("A", 100, 1000), ("K", 80, 800), ("Q", 60, 600), ("J", 40, 400)):
-        n = min(cnt[(rank, s)] for s in SUITS)
-        score += {0: 0, 1: single, 2: double}[min(n, 2)]
-    return score
-
-
-def _pinochle_legal(
-    hand: list[Card],
-    trick: list[tuple[Player, Card]],
-    led_suit: str,
-    trump: str,
-    rank: dict[str, int],
-) -> list[Card]:
-    """A follower's legal cards: follow suit and head the led suit if able; else
-    trump and over-trump if able; else anything."""
-    same = [c for c in hand if c.suit == led_suit]
-    if same:
-        led_in_trick = [c for _, c in trick if c.suit == led_suit]
-        best = max(led_in_trick, key=lambda c: rank[c.rank])
-        higher = [c for c in same if rank[c.rank] > rank[best.rank]]
-        return higher or same
-    trumps = [c for c in hand if c.suit == trump]
-    if trumps:
-        trump_in_trick = [c for _, c in trick if c.suit == trump]
-        if trump_in_trick:
-            best_t = max(trump_in_trick, key=lambda c: rank[c.rank])
-            over = [c for c in trumps if rank[c.rank] > rank[best_t.rank]]
-            return over or trumps
-        return trumps
-    return list(hand)
-
-
-def run_pinochle_rest(stmt: n.Instantiate, ctx: Ctx) -> Player:
-    """The Pinochle hand after the auction: trump declaration, meld, and the
-    twelve strict tricks. The ascending auction runs on the kernel `round`
-    (`docs/games/pinochle.cardlang`, `pinochle_auction_outcome`); this mechanic
-    reads the declarer it settled on from the `declarer` arg (hand-level
-    `high_bidder`)."""
-    from cardlang.runtime import stdlib
-
-    rs = ctx.rs
-    args = {a.name: a.value for a in stmt.args}
-    high_bidder: Player = evaluate(_expr(args["declarer"]), ctx)
-    players = list(rs.seating.players)
-    hands = rs.zones.families["hand"]
-    captured = rs.zones.families["captured"]
-    rank = rs.rank_index
-
-    # --- trump declaration (needs a marriage in the chosen suit) ---
-    hb = hands[high_bidder].cards
-    marriage_suits = [
-        s
-        for s in SUITS
-        if any(c.rank == "K" and c.suit == s for c in hb)
-        and any(c.rank == "Q" and c.suit == s for c in hb)
-    ]
-    if not marriage_suits:
-        rs.set("bid_abandoned", True)
-        return high_bidder
-    rs.set("bid_abandoned", False)
-    trump = ctx.chooser(high_bidder, marriage_suits, 1)[0]
-    rs.set("trump_suit", trump)
-
-    # --- meld (forced; a pure computation) ---
-    meld_score = rs.get("meld_score")
-    for p in players:
-        meld_score[rs.team_of[p]] += pinochle_meld(hands[p].cards, trump)
-
-    # --- twelve strict tricks ---
-    trick_score = rs.get("trick_score")
-    counters = {"A": 10, "10": 10, "K": 10}
-    leader = high_bidder
-    last_winner = leader
-    for _ in range(12):
-        trick: list[tuple[Player, Card]] = []
-        for q in rs.seating.turn_order_from(leader):
-            hand = hands[q].cards
-            legal = (
-                list(hand)
-                if not trick
-                else _pinochle_legal(hand, trick, trick[0][1].suit, trump, rank)
-            )
-            card = ctx.chooser(q, legal, 1)[0]
-            hands[q].remove(card)
-            trick.append((q, card))
-            ctx.trace("play", (q, card))
-        led_suit = trick[0][1].suit
-        winner = stdlib.highest_trump_or_led_suit(trick, led_suit, trump, rank)
-        ctx.trace("trick_end", {"trump": trump})
-        ctx.trace("trick", (winner, [c for _, c in trick]))
-        team = rs.team_of[winner]
-        for _, c in trick:
-            captured[team].add(c)
-            trick_score[team] += counters.get(c.rank, 0)
-        last_winner = winner
-        leader = winner
-    trick_score[rs.team_of[last_winner]] += 10  # ten for the last trick
-
-    ctx.trace(
-        "pinochle_hand",
-        {"meld": dict(meld_score), "trick": dict(trick_score), "abandoned": False},
-    )
-    return high_bidder
 
 
 def _fire_transitions(

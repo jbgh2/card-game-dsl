@@ -11,12 +11,12 @@
 // The betting runs on the kernel `round` in PRIORITY order: each turn re-scans
 // the seat order from the leader and offers the first still-pending player (after
 // a raise re-opens earlier seats, action returns to the earliest owing seat).
-// Antes, the deal, the bring-in post, and the five streets are DSL statements;
-// the bring-in / first-to-act seat selectors are stdlib primitives (argmin/argmax
-// over door cards). Only the showdown — side-pot settlement and the muck, both
-// RNG-free — runs in the built-in `StudShowdown` mechanic; the poker evaluator is
-// unit-tested. See IMPLEMENTATION_LOG.md (chips-as-integers, the open-pair limit
-// simplification).
+// Antes, the deal, the bring-in post, the five streets, and the showdown (a
+// contested hand's reveal, the per-entrant pot collection, the muck) are all DSL
+// statements; the bring-in / first-to-act seat selectors and the `pot_share`
+// side-pot query are stdlib primitives (argmin/argmax over door cards; argmax
+// over poker-rank tuples). The poker evaluator is unit-tested. See
+// IMPLEMENTATION_LOG.md (chips-as-integers, the open-pair limit simplification).
 
 game SevenCardStud {
 
@@ -184,8 +184,30 @@ game SevenCardStud {
         }
       }
 
-      // Showdown: side-pot settlement by amount committed, then muck. RNG-free.
-      instantiate StudShowdown()
+      // Showdown — RNG-free, decision-free. A contested hand reveals the
+      // contenders' hole cards (public before the pot is judged; a lone
+      // contender collects unrevealed). Each entrant then collects its
+      // side-pot share — pot_share(p) is the committed-total layering, odd
+      // chip to the first winner in seat order, uncalled remainder to the
+      // best contender — and the hands leave play to the muck.
+      if (number of players where in_hand[player] and not folded[player]) > 1 {
+        for each player p: if in_hand[p] and not folded[p] {
+          // Two steps so the merged seven land hole-first (hole, then board):
+          // the muck below inherits that order, and the muck is what the next
+          // hand's `move all cards to deck` + `shuffle` draw through — the
+          // deal the RNG stream sees. The flip into the PublicHand is the
+          // reveal: its movement event carries all seven identities.
+          move all cards from upcards[p] to hole[p]
+          move all cards from hole[p] to upcards[p]
+        }
+      }
+      for each player p: if in_hand[p] {
+        stack[p] := stack[p] + pot_share(p)
+      }
+      for each player p: if in_hand[p] {
+        move all cards from hole[p] to muck
+        move all cards from upcards[p] to muck
+      }
     }
   }
 

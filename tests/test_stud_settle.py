@@ -1,4 +1,4 @@
-"""Known-value tests for Stud side-pot distribution (`_settle`).
+"""Known-value tests for Stud side-pot distribution (`_payouts`).
 
 The chip-conservation invariant in the playout can't catch a *misallocated*
 side pot — the leftover sweep rebalances the total regardless. These tests pin
@@ -10,7 +10,7 @@ landing in a pot others win.
 from __future__ import annotations
 
 from cardlang.runtime.state import Zone
-from cardlang.runtime.stud import _settle
+from cardlang.runtime.stud import _payouts
 from cardlang.runtime.values import Card
 
 _SUIT = {"C": "clubs", "D": "diamonds", "H": "hearts", "S": "spades"}
@@ -34,11 +34,9 @@ def _settle_deltas(
     folded: dict[int, bool],
     hands: dict[int, Zone],
 ) -> dict[int, int]:
-    stack = {p: 0 for p in in_hand}
     hole = {p: hands[p] for p in in_hand}
     upcards = {p: Zone() for p in in_hand}
-    _settle(in_hand, committed, folded, stack, hole, upcards)
-    return stack
+    return _payouts(in_hand, committed, folded, hole, upcards)
 
 
 def test_short_all_in_wins_only_main_pot() -> None:

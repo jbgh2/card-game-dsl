@@ -62,6 +62,17 @@ explicit `domain:`/bounded-type surface so the static action space is
 declared, not inferred. Rank and Player are closed finite sets the runtime
 already knows; bounded Integer needs the static-bound rule above.
 
+An adjacent instance is planned rather than hypothetical: the Schnapsen
+migration ([kernel-migration.md](../kernel-migration.md), Workstream 4) needs
+a `Card` move parameter (`play_card(c : Card)` in the leader's mixed
+vocabulary), with exactly the shape this question recommends — the *static*
+domain is the declared deck, encoding onto the existing per-card action ids
+(so a card play has one id whether it is a vocabulary move or a plain card
+play, and `num_distinct_actions` does not grow), while the *runtime*
+candidate set narrows to the actor's live hand, in hand order. Whatever
+surface this question settles should subsume that case rather than leave
+`Card` a special one.
+
 Related: [decisions.md](../decisions.md) "The auction form of `round`" (the
 one construct that enumerates parameters today) and "No implicit actions";
 [phase-legal-moves](phase-legal-moves.md) (what a declared move vocabulary is

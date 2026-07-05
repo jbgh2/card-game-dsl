@@ -25,17 +25,22 @@ against OpenSpiel directly. For hidden hands, face-down cards, bluffs, and
 concealed bids this is genuinely hard — and it is exactly where the value is.
 
 **Honest status — the substrate exists; the escape hatches are still debt.**
-The six fully-kernel games (Hearts, Getaway, Spades, Bridge, Oh Hell, Big Two)
-reach OpenSpiel through ONE general adapter with *derived* information sets:
-per-observer observations are emitted from the kernel's decision/movement
-sites through the declared zone-type projections, and
-`tests/test_openspiel_ready.py` proves indistinguishability (hidden-card swaps
-leave a player's information state byte-identical), soundness, and perfect
-recall for each (Bridge's proof currently covers only the pass-only line of its auction — the harness's greedy replay never places a bid, let alone reaches trick play). No per-game observation
-rules remain. But every per-game Python escape-hatch mechanic dispatched by
-`instantiate` (Schnapsen, Pinochle rest, Coup, Skat, Tarot rest, Cribbage,
-Stud showdown, Tichu) still *bypasses* this derivation — the adapter rejects
-those eight games loudly, and the leak lands hardest on exactly the
+The ten fully-kernel games (Hearts, Getaway, Spades, Bridge, Oh Hell, Big
+Two, Seven-Card Stud, Pinochle, French Tarot, Cribbage) reach OpenSpiel through
+ONE general adapter with *derived* information sets: per-observer observations are
+emitted from the kernel's decision/movement sites through the declared
+zone-type projections, and `tests/test_openspiel_ready.py` proves
+indistinguishability (hidden-card swaps leave a player's information state
+byte-identical), soundness, and perfect recall for each (Bridge's and French
+Tarot's swap/soundness/recall proofs cover only the pass-only line of their
+auctions — the harness's greedy replay never places a bid, let alone reaches
+the chien discard or trick play; French Tarot's hidden discard is instead
+proven derived by a dedicated observational test. Stud's and French Tarot's
+conformance are bounded random API walks, their full sims being
+quadratic-in-length). No per-game observation rules remain. But every per-game
+Python escape-hatch mechanic dispatched by `instantiate` (Schnapsen, Coup,
+Skat, Tichu) still *bypasses* this derivation — the adapter rejects
+those four games loudly, and the leak lands hardest on exactly the
 imperfect-information games the AI target most exists to serve. The gap is
 quantified in `docs/design-notes/kernel-extensibility.md`, §6.
 
@@ -50,6 +55,12 @@ criterion** — alongside "does it run" and "is it byte-identical":
   `docs/kernel-migration.md`, not as a finished mechanic.
 - A feature that runs but emits no observations from which its info sets derive is
   *incomplete* for the OpenSpiel target. Say so; don't let it read as done.
+- New or extended grammar surface must be **total**: every combination the grammar
+  accepts is implemented + tested, or statically rejected with a clear message —
+  never parsed and silently ignored ("accepted-but-ignored" is a defect class, the
+  worst failure mode for a designer tool). Corpus-first gates *which* constructs
+  exist, not how completely one works. The rule and the enumeration recipe are in
+  `docs/decisions.md`, "Surface totality".
 
 ## What's here
 
@@ -81,6 +92,7 @@ docs/
 - **"How does X work?" (knowledge, scoring, mutation, typed outcomes, etc.)** → `docs/decisions.md`
 - **"How is game Y described in the DSL?"** → `docs/games/Y.md`
 - **"How do we keep info sets derivable / hit the OpenSpiel target?"** → the load-bearing section above, then `docs/design-notes/kernel-extensibility.md`
+- **"How complete must a new construct be?"** → `docs/decisions.md`, "Surface totality"
 - **"What's still being decided?"** → `docs/open-questions/_index.md` then the named file
 - **"What should we build next?"** → `docs/roadmap.md` (and `docs/games/_candidates.md` for the full pipeline)
 - **"How do we build the tooling (parser/checker)?"** → `docs/implementation.md`, `docs/building.md`

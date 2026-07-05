@@ -120,8 +120,11 @@ def returns_for(game: n.Game, result: GameResult) -> list[float]:
     scores = result.scores
     if set(scores) == set(range(n_players)):
         return [sign * scores[p] for p in range(n_players)]
-    # Team-keyed scores (Bridge, Spades). All six games have 4 players, so the
-    # player-key and team-key sets can never coincide ambiguously here.
+    # Team-keyed scores (Bridge, Spades): scores are keyed by team index, not
+    # player. The player-keyed branch above already handled every player-keyed
+    # game (including 2-player Cribbage); a game reaches here only when its
+    # team-key set differs from its player-key set — true for the corpus's team
+    # games, which all have 4 players and 2 teams.
     team_of = {p: ti for ti, members in enumerate(game.partnerships) for p in members}
     return [sign * scores[team_of[p]] for p in range(n_players)]
 
