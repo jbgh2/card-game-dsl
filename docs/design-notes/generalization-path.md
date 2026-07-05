@@ -44,6 +44,14 @@ design rather than amending it:
    declared domain (see
    [open-questions/move-parameter-domains.md](../open-questions/move-parameter-domains.md)).
 
+One discipline governs how every axis below lands: **admission obliges
+totality**. Axes stay gated on witness games (corpus-first), but once an
+axis is admitted, its surface is total — every combination the grammar
+then accepts is implemented or statically rejected, never parsed and
+silently ignored ([decisions.md](../decisions.md), "Surface totality"). A
+generalization step that half-lands — new surface the runtime silently
+drops — corrupts the designer feedback loop this path exists to serve.
+
 The broad-sweep stress test supplied the existence proof for the seam:
 games fitting none of the built-in round forms ran anyway on raw
 `offer` + `repeat` + `move`, and the gaps that were found clustered in
