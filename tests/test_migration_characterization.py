@@ -78,7 +78,7 @@ def _capture_pinned(name: str) -> dict[str, Any]:
     return result
 
 
-@pytest.mark.parametrize("name", ["bridge", "schnapsen", "pinochle", "french-tarot"])
+@pytest.mark.parametrize("name", ["bridge", "schnapsen", "pinochle", "french-tarot", "skat"])
 def test_migration_preserves_per_seed_results(name: str) -> None:
     expected = json.loads((GOLDEN / f"{name}_scores.json").read_text())
     assert _capture_pinned(name) == expected
@@ -338,3 +338,54 @@ def _capture_schnapsen_hands() -> dict[str, Any]:
 def test_schnapsen_migration_preserves_per_hand_scores() -> None:
     expected = json.loads((GOLDEN / "schnapsen_hands.json").read_text())
     assert _capture_schnapsen_hands() == expected
+
+
+# Skat moves the whole hand — the Reizen call-and-response (a role-guarded
+# two-participant ring on the auction form), the contract declaration, the ten
+# strict-follow tricks, and the base x multiplier scoring — from
+# `run_skat_hand` onto the kernel. Unlike Schnapsen, the monolith iterates no
+# sets (measured: ZERO divergent seeds across PYTHONHASHSEED {0,1,2,3,7} x 50
+# seeds), so these goldens pinned pre-migration with nothing sanctioned, and
+# any diff is a real draw divergence. A hand settles only the declarer's
+# ±game_value, so the final 36-hand score can mask a mid-game divergence; like
+# Stud/Cribbage/Schnapsen we also pin the full per-hand `score` vector,
+# anchored on the driver's own `hand_end` trace (for Skat's `winner: highest
+# score`, that is `dict(score)`).
+_SKAT_CAPTURE = """
+import json, random, sys
+from pathlib import Path
+from cardlang.pipeline import check_dsl
+from cardlang.runtime.driver import play_game
+
+game = check_dsl(Path("docs/games/skat.cardlang").read_text(), "skat.cardlang")
+out = {}
+for seed in range(50):
+    hands = []
+
+    def tracer(event, data, _h=hands):
+        if event == "hand_end":
+            _h.append([data[p] for p in sorted(data)])
+
+    play_game(game, random.Random(seed), tracer)
+    out[str(seed)] = hands
+print(json.dumps(out))
+"""
+
+
+def _capture_skat_hands() -> dict[str, Any]:
+    env = dict(os.environ, PYTHONHASHSEED="0")
+    proc = subprocess.run(
+        [sys.executable, "-c", _SKAT_CAPTURE],
+        cwd=REPO,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    result: dict[str, Any] = json.loads(proc.stdout)
+    return result
+
+
+def test_skat_migration_preserves_per_hand_scores() -> None:
+    expected = json.loads((GOLDEN / "skat_hands.json").read_text())
+    assert _capture_skat_hands() == expected
