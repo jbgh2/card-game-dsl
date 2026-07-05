@@ -1140,6 +1140,33 @@ the language models about information asymmetry. Cards and resources
 both live in zones; visibility is a per-observer projection
 assignment rather than a binary hidden/public flag.
 
+### Hidden information lives only in zones; state is public
+
+The projection vocabulary below applies to **zones and nothing else**.
+Every `state` variable — game-, phase-, and loop-level, scalar or
+player-indexed — is public to every observer, always. There is no
+observer-dependent scalar state and no way to declare any.
+
+This is a deliberate boundary, not a missing feature. It is what makes
+information sets derivable: an observer's knowledge is exactly (their
+zone projections) + (the public state and public move history), so the
+information-state encoding never has to ask *which* variables an
+observer may read. It also gives claim-versus-content games their
+natural encoding for free — a public assertion (a claimed rank, a named
+bid meaning, a running count) is a state variable *because* it is
+public, while the concealed truth it may misrepresent sits in a
+face-down zone whose projection hides it.
+
+The corollary is a modeling rule: **anything an observer must not know
+is contents, not state.** A hidden scalar (a secret counter, a sealed
+simultaneous bid) is encoded as tokens or cards in a zone whose
+projection conceals them — `count_only` if the *amount* is the secret's
+public residue, `trivial` if even that leaks. If a future game's rules
+genuinely require a hidden scalar that resists token encoding, that is
+a challenge to this decision and goes through
+[open-questions/knowledge-events.md](open-questions/knowledge-events.md)'s
+adjacent territory rather than around it.
+
 ### Knowledge as candidate sets
 
 Every observer (player) has, at every moment, a **knowledge state**

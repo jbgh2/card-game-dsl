@@ -31,7 +31,7 @@ to a real implementation.
 |---|---|---|
 | [zone-access-syntax](../open-questions/zone-access-syntax.md) | multi-hop relational chain in rule-subject position | **[doppelkopf](#doppelkopf)** (forces it — Fox/Charlie/Re scoring read "the partner of the ♣Q holder"), [koenigrufen](#koenigrufen) (2nd witness, runtime-chosen call), [sheepshead](#sheepshead) (corroborates, doesn't force the depth) |
 | [optional-window-moves](../open-questions/optional-window-moves.md) | 2nd off-the-clock declaration beyond Tichu | **[doppelkopf](#doppelkopf)** (Re/Kontra/no-90 ladder; "at any time", personal hand-size threshold) |
-| [special-cards-declaration](../open-questions/special-cards-declaration.md) (contextual rank) | 2nd play-time *relative*-rank card beyond Tichu's Phoenix | **[president](#president)** single-joker variant ("one higher than the card below it") |
+| [special-cards-declaration](../open-questions/special-cards-declaration.md) (contextual rank) | 2nd play-time *relative*-rank card beyond Tichu's Phoenix | **[euchre](#euchre)** (bowers: rank *and effective suit* remap, in the base rules, keyed to a runtime-chosen trump), [president](#president) single-joker variant ("one higher than the card below it") |
 | [move-level-visibility](../open-questions/move-level-visibility.md) | per-observer move-level override (forces replace-vs-merge) | **poker "show one, show all"** — a Stud or [holdem](#holdem) variant, exercisable in the *existing* poker corpus |
 | [memory-event-syntax](../open-questions/memory-event-syntax.md) | an event composition can't express | **[hanabi](#hanabi)** (partial-identity hint over an inverted hand — forces it; _dedicated deck, out of scope_), [cabo](#cabo) (composable from existing ops) |
 | [knowledge-events](../open-questions/knowledge-events.md) | phase outcome observed unequally | **[mascarade](#mascarade)**, [love-letter](#love-letter) (both _dedicated deck, out of scope_) |
@@ -48,6 +48,27 @@ cleanest forcing functions (Hanabi; Mascarade / Love Letter) are
 dedicated-deck games outside the current standard-deck corpus.
 
 ## Trick-taking with bidding
+
+### euchre
+
+4 players (partnerships of 2), 24-card deck (9–A only), five-card hands,
+two-round trump-making (order up the turned card, then name a suit), play
+to 10 points.
+
+**Why interesting.** The bowers are the sharpest known witness for
+[special-cards-declaration](../open-questions/special-cards-declaration.md)'s
+contextual-rank axis, and they go further than Tichu's Phoenix: the jack of
+trumps becomes the highest trump, and the jack of the *same-colour* suit
+changes its **effective suit** — it is a trump for following, beating, and
+leading, keyed to a trump suit chosen at runtime. Any design that only
+remaps rank (not suit-for-follow-purposes) fails Euchre in the base rules,
+not a variant. Secondary pressures: the 24-card stripped deck exercises the
+deck declaration, and the accept-or-name trump-making is a compact two-round
+auction shape. "Going alone" adds a mid-auction participation change.
+
+**Notes.** **Pagat** for the trump-making sequence, stick-the-dealer, and
+going-alone scoring: <https://www.pagat.com/euchre/euchre.html>. North
+American rules; British variants differ in deck size.
 
 ### 500
 
