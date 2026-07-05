@@ -221,9 +221,16 @@ class TrickForm:
 
 
 def enumerate_domain(type_name: str) -> list[Any]:
-    """The value-domain a parameterized move ranges over, in a fixed order so the
-    flattened candidate list is deterministic. `Suit` is the deck's suits;
-    `Suit?` appends `none` (the no-trump strain), which ranks last."""
+    """The *static* value-domain a parameterized move ranges over, in a fixed
+    order so the flattened candidate list is deterministic. `Suit` is the deck's
+    suits; `Suit?` appends `none` (the no-trump strain), which ranks last.
+
+    `Card` is deliberately absent: a Card-parameterized move's domain is
+    state-dependent — the actor's live hand, enumerated by
+    `AuctionForm.candidates` — and its OpenSpiel actions are the shared card
+    block (`encoding.ActionSpace`), so no static enumeration exists. The
+    supported domains are closed at resolve time (a round vocabulary rejects any
+    other parameter type), so this dispatch is total over what reaches it."""
     base = type_name.rstrip("?")
     if base == "Suit":
         values: list[Any] = list(SUITS)
@@ -318,7 +325,20 @@ class AuctionForm:
                 if mt.guard is None or bool(evaluate(mt.guard, pctx)):
                     candidates.append((mt.name, None))
             else:
-                for value in enumerate_domain(mt.param.type_name):
+                if mt.param.type_name == "Card":
+                    # The Card domain is state-dependent: the actor's LIVE HAND,
+                    # in hand order. A static deck-order enumeration filtered to
+                    # the hand would reorder the candidates and shift the chooser
+                    # draw — card plays are offered in hand order, like every
+                    # other card-play form. The OpenSpiel action space never
+                    # enumerates this domain; a Card-parameterized move's actions
+                    # are the shared card block (encoding.ActionSpace).
+                    domain: list[Any] = list(
+                        pctx.rs.zones.instance("hand", actor).cards
+                    )
+                else:
+                    domain = enumerate_domain(mt.param.type_name)
+                for value in domain:
                     vctx = pctx.with_local(mt.param.name, value)
                     if mt.guard is None or bool(evaluate(mt.guard, vctx)):
                         candidates.append((mt.name, value))
