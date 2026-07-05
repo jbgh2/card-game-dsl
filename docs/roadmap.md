@@ -72,8 +72,8 @@ Things we have noted but consciously not designed yet:
   (decisions.md "Interactive decisions: a kernel and an in-DSL standard library")
   is the major in-flight work: the remaining `round` axes (accumulator, order,
   move vocabulary); typed outcomes and definition-composition; and the `auction` /
-  `challenge` / `block` / `climb` standard-library vocabulary. Four games
-  (Schnapsen, Skat, Tichu, Coup) still
+  `challenge` / `block` / `climb` standard-library vocabulary. Three games
+  (Skat, Tichu, Coup) still
   hold their decision logic in concrete per-game runtime
   mechanics; lifting each into the kernel + DSL standard library (promoting a
   definition at ~3 examples) closes the spec-vs-runtime gap. The bidding
@@ -138,8 +138,8 @@ Things we have noted but consciously not designed yet:
   that inline computation can't express.
 
 - **Representative playouts.** The runtime's random chooser exercises invariants
-  but never reaches skill-gated branches (Spades' +500 win, bridge slams,
-  Schnapsen false claims are implemented but unexercised). A light "rational-ish"
+  but never reaches skill-gated branches (Spades' +500 win and bridge slams
+  are implemented but unexercised). A light "rational-ish"
   policy plugged into the `chooser` seam would make playouts representative and
   surface bugs the conservation invariants structurally cannot.
 
@@ -152,9 +152,11 @@ Things we have noted but consciously not designed yet:
 - **Test-depth regression nets.** Conservation invariants catch *leaks* but not
   *mis-allocation or wrong amounts*. Add independent-recompute checks when those
   games are next touched: Schnapsen's six-way settlement amount (1/2/3 game
-  points), Spades' nil and bag-overflow score branches, and Coup's challenge
-  resolving to the correct loser. (The Bridge analogue — a full scoring recompute
-  — is done.)
+  points — its kernel migration pinned the per-hand `game_score` vector golden, a
+  characterization that localizes a divergence but does not independently
+  recompute the tiers), Spades' nil and bag-overflow score branches, and Coup's
+  challenge resolving to the correct loser. (The Bridge analogue — a full scoring
+  recompute — is done.)
 
 - **Determinization as a compiler pass.** For IS-MCTS support. Deferred.
 

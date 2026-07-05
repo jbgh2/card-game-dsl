@@ -10,7 +10,8 @@ for each player p: if p == taker {
 }
 ```
 
-French Tarot invented it (the chien discard), Cribbage uses it, and three
+French Tarot invented it (the chien discard), Cribbage uses it, Schnapsen
+uses it (the follower's answer to a led card), and three
 stress-branch games rediscovered it independently (President ×4, Cheat ×2,
 Durak). It exists because a `chosen` movement needs an actor binding
 (`ctx.require_actor`), and the only statement-level constructs that supply

@@ -64,7 +64,7 @@ of the language.
   repetition, and the second-instance data point is Hold'em.
 - [single-actor-binding](single-actor-binding.md) — an `as <player> { ... }`
   block for one-player decisions, replacing the `for each player p: if p ==
-  X` loop-and-skip idiom that five games have independently reinvented.
+  X` loop-and-skip idiom that six games now use.
 
 ## Tier 4 — Low impact, defer until forced
 

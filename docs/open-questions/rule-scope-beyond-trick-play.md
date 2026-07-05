@@ -37,8 +37,9 @@ round?** Candidate sites, each with a different enforcement shape:
 
 The data point to wait for: the first game whose non-trick decision genuinely
 needs a *reusable, named* constraint (the corpus-first bar) rather than an
-inline guard or filter. Schnapsen's follower legality — the corpus's next
-non-trick legality — is planned as a function guard (`follow_ok`), which
+inline guard or filter. Schnapsen's follower legality — the corpus's first
+non-trick card legality — landed as a function predicate (`follow_ok`)
+filtering a chosen movement, which
 suggests guards may be enough and rules may be a trick-form-only device; if
 so, the resolution is to *say that* (narrow the rule grammar's claim), not to
 build the wider machinery.

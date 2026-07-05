@@ -18,6 +18,14 @@ is invisible to anything that wants to reason about the game statically: a
 hand-rolled loop gives the kernel no uniform decision/observation site, where
 the three `round` forms give it one per form.
 
+One boundary data point cuts the other way: Schnapsen's leader loop (free
+actions repeating until a card is led) looked like it might need this form,
+but the auction form over a single-participant ring expressed it exactly —
+the per-turn participants predicate re-offers the one seat, and the free
+actions leave `until` false ([games/schnapsen.cardlang](../games/schnapsen.cardlang)).
+The dividing line that emerged: a turn that is one flat candidate list is an
+auction-form configuration; `turns` is for a body of *statements* per turn.
+
 By the corpus-first standard — a third data point forces a mechanic — a
 *seventh* data point in a single sweep is the strongest forcing evidence any
 library addition has had. What's missing is not evidence of need but a

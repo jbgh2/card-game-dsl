@@ -88,7 +88,11 @@ game Schnapsen {
               from leader over players where player == leader
               until trick_pile is not empty
 
-        // The follower answers; strict follow-and-head in the endgame.
+        // The follower answers; strict follow-and-head in the endgame. The
+        // `for each player p: if p == fol` wrapper binds the single acting
+        // player for the chosen movement — the idiom
+        // open-questions/single-actor-binding.md names as a candidate
+        // `as <player> { }` block.
         let fol = the player where player != leader
         if endgame {
           for each player p: if p == fol {

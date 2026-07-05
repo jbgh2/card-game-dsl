@@ -102,6 +102,11 @@ Key design notes:
 - `check` / `bet` / `call` / `raise` / `fold` — Stud's betting vocabulary,
   **game-defined** `move_type`s (not library moves) that write the betting
   accumulator phase state; the bring-in is a forced effect, not a move
+- `play_card(c : Card)` / `declare_marriage(s : Suit)` / `exchange_trump_jack` /
+  `close_talon` — Schnapsen's lead vocabulary, **game-defined** `move_type`s in
+  the same shape: one auction-form candidate list per leader turn. `play_card`
+  is the corpus's first Card-parameterized move ([decisions.md](decisions.md)
+  "The Card move-parameter domain": candidates are the live hand, in hand order)
 - `income` / `foreign_aid` / `coup` / `tax` / `assassinate` / `steal` /
   `exchange` — Coup turn actions (general and character actions)
 - `challenge` — contest a character claim during a challenge window (Coup)
@@ -137,10 +142,13 @@ and over-trump if able; else anything. Each rule's `if_impossible: hand`
 intersects the *running* set with the whole hand — "keep the prior
 narrowing" — so an inapplicable obligation falls through (`rules.legal_cards`'s
 per-rule intersection, [decisions.md](decisions.md) "Rule demand forms").
-Strict-trick legality recurs across the corpus (Schnapsen's endgame is the
-same shape, still Python); rules are not yet a shared/reusable definition the
-way move types and mechanics are — each game declares its own rule bodies —
-so promoting a common cascade waits on a second DSL instance.
+Strict-trick legality recurs across the corpus, but not always as rules:
+Schnapsen's endgame is the same follow-and-head shape expressed as an in-file
+predicate (`follow_ok`) filtering a chosen movement, because its follower
+answers outside any trick `round` (see "Mechanics" below). Rules are not yet a
+shared/reusable definition the way move types and mechanics are — each game
+declares its own rule bodies — so promoting a common cascade waits on a second
+`active_rules` DSL instance.
 
 French Tarot's four-rule cascade (`ExcuseIsExempt`/`MustFollowSuit`/
 `MustTrumpIfVoid`/`MustOverTrump`) is the same running-intersection shape,
@@ -182,17 +190,19 @@ match) and so must trump if able, a quirk the split preserves precisely.
   [decisions.md](decisions.md) "The auction form of `round`") — a continuous ring
   over a bid vocabulary (`offering [...] until <pred> outcome <fn>`) with the
   standing bid threaded through the phase's accumulator state. Bridge's auction
-  (see [games/bridge.md](games/bridge.md)) runs on it today: the vocabulary is
+  (see [games/bridge.md](games/bridge.md)) runs on it: the vocabulary is
   `[pass, submit_bid, double, redouble]`, and `bridge_auction_outcome` computes the
-  declarer from the bid history, producing `contract_finalized | all_pass`. The
-  ascending-bid auctions (Pinochle's opening-bid/increment ring naming the high
-  bidder; Tarot's four levels; Skat's call-and-response) move onto the same form as
-  the migration reaches them ([kernel-migration.md](kernel-migration.md)); each is
-  game-local until the shared `auction` definition — the ascending-bid
+  declarer from the bid history, producing `contract_finalized | all_pass`. So do
+  the ascending-bid auctions — Pinochle's opening-bid/increment ring naming the
+  high bidder and Tarot's four levels; Skat's call-and-response moves onto the
+  same form when its migration lands ([kernel-migration.md](kernel-migration.md)).
+  Each is game-local until the shared `auction` definition — the ascending-bid
   configuration of this form — is promoted to this catalogue corpus-first at its
   third instance. Spades and Oh Hell use *inline per-player bidding* instead —
   every player bids exactly once in turn, no ascending constraint — so they do not
-  use the auction form.
+  use the auction form. Schnapsen configures the same form differently again: a
+  single-participant ring whose free actions loop the leader until a card is led
+  (see "Mechanics" below).
 - **Betting runs on the betting form of the kernel `round`** (see
   [decisions.md](decisions.md) "The auction form of `round`") — the same
   continuous-ring form as an auction, in **`order priority`** (after a raise
@@ -228,6 +238,21 @@ match) and so must trump if able, a quirk the split preserves precisely.
   — hold the pegging-count and show scorers, in the same game-local shape as
   Stud's `pot_share` and Pinochle's `pinochle_meld_value`; game-local until the
   shared `scoring_component` subsystem lands corpus-first.
+- **Schnapsen's hand** runs on the kernel with no mechanic: the leader's mixed
+  lead decision (play a card / declare a marriage / exchange the trump jack /
+  close the talon) is the **auction form over a single-participant ring** —
+  `round offering [play_card, declare_marriage, exchange_trump_jack,
+  close_talon] from leader over players where player == leader until trick_pile
+  is not empty`. The free actions (exchange/close) leave the predicate false,
+  so the ring re-offers the leader; a lead (play or the marriage's queen) flips
+  it. `play_card(c : Card)` enumerates the live hand in hand order
+  ([decisions.md](decisions.md) "The Card move-parameter domain"). The
+  follower's answer is a filtered chosen movement over the in-file `follow_ok`
+  cascade (strict follow-and-head once the talon is closed or exhausted,
+  anything while open), and the trick, claim-at-66, and paired talon draws are
+  plain statements around the game-local `schnapsen_trick_winner` primitive
+  (see "Stdlib functions"), with three `produce` sites for the typed
+  `claimed | talon_closed | open_play` outcome.
 - `ChallengeWindow` (see [games/coup.md](games/coup.md)) — Coup.
   Parameterized over the claimant and the claimed character; resolves
   to `claim_stands | claim_refuted`. Offers each other in-game player a
@@ -529,8 +554,9 @@ Standard helpers available across games.
 - `card_value(card: Card) → Integer` — the card's deck-declared card-point
   value (the `values` table on the `cards:` deck; 0 for ranks the deck scores
   nothing for), general-purpose for any point-trick game. Used by Pinochle
-  (`trick_score[...] += sum over trick_pile as c: card_value(c)`); Schnapsen
-  and Skat's own card-point tallies are the next candidates to move onto it.
+  (`trick_score[...] += sum over trick_pile as c: card_value(c)`) and Schnapsen
+  (`card_points[w] += sum over trick_pile as c: card_value(c)`); Skat's own
+  card-point tally is the next candidate to move onto it.
 
 Cribbage's pegging and show scoring, plus the pegging count's card provenance,
 are six game-local primitives reading `cardlang/runtime/cribbage.py` — game-local
@@ -551,6 +577,16 @@ corpus-first:
   score (fifteens, pairs, runs, flush, his-nob) counted against the shared starter.
 - `cribbage_crib_value() → Integer` — the dealer's crib show score (a flush needs
   all five cards, unlike the four-card hand flush).
+
+Schnapsen's two-card trick resolution is one game-local primitive reading
+`cardlang/runtime/schnapsen.py`, in the same shape as `pot_share` and
+`pinochle_meld_value`:
+
+- `schnapsen_trick_winner(leader: Player, trump: Suit?) → Player` — the
+  completed trick's winner from the two-card `trick_pile` (the leader played
+  first; highest trump, else highest of the led suit — no over-trump
+  obligation). Also emits the play/trick_end/trick trace events the playout
+  harness audits winners against.
 
 French Tarot's non-uniform 78-card deck (suit×rank card points that vary by
 suit, an effective led suit that isn't the kernel's own, and a settlement the
