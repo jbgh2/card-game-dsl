@@ -8,7 +8,7 @@ participant plays a legal card, an outcome function picks the winner), `AuctionF
 the auction and betting forms), and `ClimbForm` (one combination-climbing trick over
 game-local engine queries). `build_form` selects the bundle by field-presence and
 `execute.py` dispatches on the returned Outcome union. `instantiate` dispatches the
-remaining per-game hand engines (Skat, Tichu, Coup) not yet lifted
+remaining per-game hand engines (Tichu, Coup) not yet lifted
 into the DSL.
 """
 
@@ -24,10 +24,6 @@ from cardlang.runtime.values import SUITS, Player
 
 
 def instantiate(stmt: n.Instantiate, ctx: Ctx) -> Player:
-    if stmt.mechanic == "SkatHand":
-        from cardlang.runtime.skat import run_skat_hand
-
-        return run_skat_hand(stmt, ctx)
     if stmt.mechanic == "TichuHand":
         from cardlang.runtime.tichu import run_tichu_hand
 

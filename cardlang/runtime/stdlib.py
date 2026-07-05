@@ -74,6 +74,26 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.schnapsen import schnapsen_trick_winner
 
             return schnapsen_trick_winner(ctx, args[0], args[1])
+        case "skat_next_bid":
+            from cardlang.runtime.skat import skat_next_bid
+
+            return skat_next_bid(args[0])
+        case "skat_follow_ok":
+            from cardlang.runtime.skat import skat_follow_ok
+
+            return skat_follow_ok(ctx, args[0], args[1])
+        case "skat_trick_winner":
+            from cardlang.runtime.skat import skat_trick_winner
+
+            return skat_trick_winner(ctx, args[0])
+        case "skat_matadors":
+            from cardlang.runtime.skat import skat_matadors
+
+            return skat_matadors(ctx, args[0])
+        case "skat_effective_loss":
+            from cardlang.runtime.skat import skat_effective_loss
+
+            return skat_effective_loss(args[0], args[1], args[2])
         case "peg_value":
             from cardlang.runtime.cribbage import value
 

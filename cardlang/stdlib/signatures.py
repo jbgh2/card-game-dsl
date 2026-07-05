@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 from cardlang.types import (
     TAny,
+    TBoolean,
     TCard,
     TCollection,
     TEnum,
@@ -71,6 +72,13 @@ CALL_SIGS: dict[str, Sig] = {
     "schnapsen_trick_winner": Sig(
         (TPlayer(), TOptional(TEnum("Suit"))), TPlayer()
     ),  # Schnapsen: the completed two-card trick's winner
+    "skat_next_bid": Sig((TInteger(),), TInteger()),  # Skat: the next Reizen ladder value
+    "skat_follow_ok": Sig((TPlayer(), TCard()), TBoolean()),  # Skat: follow-class legality
+    "skat_trick_winner": Sig((TPlayer(),), TPlayer()),  # Skat: the three-card trick's winner
+    "skat_matadors": Sig((TPlayer(),), TInteger()),  # Skat: with/without matador count
+    "skat_effective_loss": Sig(
+        (TInteger(), TInteger(), TInteger()), TInteger()
+    ),  # Skat: the overbid-aware loss base
     "peg_value": Sig((TCard(),), TInteger()),  # Cribbage: pegging/fifteens value
     "peg_pair_points": Sig((), TInteger()),  # Cribbage: live pegging-count pair points
     "peg_run_points": Sig((), TInteger()),  # Cribbage: live pegging-count run points
