@@ -100,10 +100,11 @@ predicate); bid outcome variants like `contract_finalized | all_pass`
 Gated or deferred, each with an open-question file: **combination
 climbing** (Big Two, Tichu) — a new *form*, "a combination play cannot
 be a DSL `move_type` effect the way a bet is" ([decisions.md](../decisions.md)), the
-seven-stage edit; **Skat Reizen call-and-response** — a new *order
-axis*, with three quoted reasons a ring cannot express it (role-
-dependent vocabularies, conditional participation, seat reorder,
-[open-questions/auction-order-axis.md](../open-questions/auction-order-axis.md)); **Dog `ends_trick` lead** — "a
+seven-stage edit; **Skat Reizen call-and-response** — filed then as a new
+*order axis* with three reasons a ring cannot express it (role-dependent
+vocabularies, conditional participation, seat reorder), since resolved as a
+ring *configuration* with no new axis ([decisions.md](../decisions.md), "The
+auction form of `round`", the call-and-response bullet); **Dog `ends_trick` lead** — "a
 genuine new axis to surface and sign off" ([kernel-migration.md](../kernel-migration.md), WS3);
 **out-of-turn bombs** — a *mechanism* that *inverts* the model's "rules
 constrain" framing, permitting rather than restricting
@@ -140,7 +141,7 @@ is reusable above the primitives and descriptions are unreadable. On
 axis (b) — *information sets* — GDL is the paragon: its `sees`/`random`
 relation *derives* each player's information set from the spec, which
 is precisely the property our OpenSpiel target needs. Our Python
-escape-hatch mechanics (Coup, Skat, Tichu)
+escape-hatch mechanics (Coup, Tichu)
 share GDL's *bad* axis (a) — build-from-primitives, nothing reusable
 above them — while being the **opposite** of GDL on axis (b): their
 info-sets are hand-authored, not derived. So the escape hatches get
@@ -629,16 +630,26 @@ here.
   Lines*, Springer 2013 (cited as a *caution*: interactions need glue).
   <https://www.springer.com/gp/book/9783642375200>
 - Internal: [principles.md](../principles.md), [model.md](../model.md), [decisions.md](../decisions.md)
-  (auction form, climbing form, round-config-vs-rules, order axis /
+  (auction form incl. the resolved call-and-response bullet, climbing form,
+  round-config-vs-rules, order axis /
   simultaneous, projection model), [kernel-migration.md](../kernel-migration.md) (WS1–WS5),
-  [open-questions/auction-order-axis.md](../open-questions/auction-order-axis.md), [.../out-of-turn-moves.md],
+  [.../out-of-turn-moves.md],
   [.../optional-window-moves.md], [.../special-cards-declaration.md].
 
 ---
 
 ## Validation: lowering Skat Reizen
 
-*Discharges the Skat call-and-response item queued in §1 against the six-hook interpreter of §4. Ground truth is the `exchange` closure in [`skat.py`](../../cardlang/runtime/skat.py) lines 117–134; the three closed-axis objections are from [`open-questions/auction-order-axis.md`](../open-questions/auction-order-axis.md).*
+*Status: overtaken by the landed migration. The Reizen runs on the UNMODIFIED
+auction form — role-guarded moves over a two-participant ring, with the
+exhausted-ladder auto-pass folded into `until` (so even this section's
+forced-`["pass"]`-draw caveat does not arise) — see decisions.md, "The auction
+form of `round`", the call-and-response bullet. The analysis below validated
+the six-hook lowering before that configuration was found; its conclusion that
+call-and-response "cannot reuse the `offering` clause" did not survive contact
+with the probe.*
+
+*Discharges the Skat call-and-response item queued in §1 against the six-hook interpreter of §4. Ground truth was the `exchange` closure in the pre-migration `run_skat_hand`; the three closed-axis objections were the since-resolved auction-order-axis question's.*
 
 **(1) Verdict.** Reizen lowers **cleanly and completely** onto the six existing hooks. All three properties that `auction-order-axis.md` calls impossible for a value on the *enum* order axis dissolve into ordinary returns of `next_actor` and `candidates` — because §4 makes those hooks **functions of `(state, ctx)`**, not seat-ring pointers. The objections were sound against an *enum*; they say nothing against a *closure*. No hook is reshaped; no seventh slot is needed (see (4)).
 

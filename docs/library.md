@@ -107,6 +107,12 @@ Key design notes:
   the same shape: one auction-form candidate list per leader turn. `play_card`
   is the corpus's first Card-parameterized move ([decisions.md](decisions.md)
   "The Card move-parameter domain": candidates are the live hand, in hand order)
+- `bid` / `yes` / `pass` / `play_at_eighteen` / `throw_in` / `pick_up_skat` /
+  `declare_hand` / `choose_suit_game` / `declare_grand` / `declare_null` /
+  `declare_suit(s : Suit)` — Skat's Reizen and declaration vocabulary,
+  **game-defined** `move_type`s: `bid` and `yes` are role-guarded (the
+  call-and-response configuration, [decisions.md](decisions.md) "The auction
+  form of `round`"), and `declare_suit` runs the Suit domain in a one-draw round
 - `income` / `foreign_aid` / `coup` / `tax` / `assassinate` / `steal` /
   `exchange` — Coup turn actions (general and character actions)
 - `challenge` — contest a character claim during a challenge window (Coup)
@@ -194,8 +200,9 @@ match) and so must trump if able, a quirk the split preserves precisely.
   `[pass, submit_bid, double, redouble]`, and `bridge_auction_outcome` computes the
   declarer from the bid history, producing `contract_finalized | all_pass`. So do
   the ascending-bid auctions — Pinochle's opening-bid/increment ring naming the
-  high bidder and Tarot's four levels; Skat's call-and-response moves onto the
-  same form when its migration lands ([kernel-migration.md](kernel-migration.md)).
+  high bidder and Tarot's four levels — and Skat's Reizen call-and-response,
+  a role-guarded two-participant ring ([decisions.md](decisions.md), the
+  call-and-response bullet under "The auction form of `round`").
   Each is game-local until the shared `auction` definition — the ascending-bid
   configuration of this form — is promoted to this catalogue corpus-first at its
   third instance. Spades and Oh Hell use *inline per-player bidding* instead —
@@ -253,6 +260,19 @@ match) and so must trump if able, a quirk the split preserves precisely.
   plain statements around the game-local `schnapsen_trick_winner` primitive
   (see "Stdlib functions"), with three `produce` sites for the typed
   `claimed | talon_closed | open_play` outcome.
+- **Skat's hand** runs on the kernel with no mechanic: the Reizen is two
+  sequential auction `round`s over role-guarded two-participant rings (the
+  call-and-response configuration; the 62-value ladder lives in the
+  `skat_next_bid` primitive and its exhaustion in the `until` predicate), the
+  contract declaration a pair of `offer`s plus a one-draw
+  `declare_suit(s : Suit)` round, and the ten tricks three single-actor
+  filtered movements per trick over `skat_follow_ok` — like Schnapsen's
+  follower, the strict-follow legality is a filter predicate, not an
+  `active_rules` cascade, because the reference draws from hand-ordered
+  legality where the trick form's rules-driven candidate set is unordered.
+  The winner, matador count, and overbid arithmetic are the game-local
+  primitives below; scoring writes `score[declarer]` directly (no typed
+  outcome — the settlement is a plain two-armed statement).
 - `ChallengeWindow` (see [games/coup.md](games/coup.md)) — Coup.
   Parameterized over the claimant and the claimed character; resolves
   to `claim_stands | claim_refuted`. Offers each other in-game player a
@@ -303,8 +323,9 @@ All currently game-specific. Generalization candidates will emerge with
 more scoring-heavy games (Bridge variants, Pinochle's full meld
 scoring). Skat added another scoring shape (game_value computed from
 base × multiplier with matadors, hand, schneider, schwarz inputs)
-but kept the per-game-helper pattern — the calculation lives in
-SkatScoring rather than a generalized abstraction.
+but kept the per-game-helper pattern — the multiplier arithmetic is plain
+statements in the game file over the `skat_matadors` /
+`skat_effective_loss` primitives rather than a generalized abstraction.
 
 ## Phase types
 
@@ -554,9 +575,9 @@ Standard helpers available across games.
 - `card_value(card: Card) → Integer` — the card's deck-declared card-point
   value (the `values` table on the `cards:` deck; 0 for ranks the deck scores
   nothing for), general-purpose for any point-trick game. Used by Pinochle
-  (`trick_score[...] += sum over trick_pile as c: card_value(c)`) and Schnapsen
-  (`card_points[w] += sum over trick_pile as c: card_value(c)`); Skat's own
-  card-point tally is the next candidate to move onto it.
+  (`trick_score[...] += sum over trick_pile as c: card_value(c)`), Schnapsen
+  (`card_points[w] += sum over trick_pile as c: card_value(c)`), and Skat
+  (the declarer's points: `sum over captured[declarer]` plus `sum over skat`).
 
 Cribbage's pegging and show scoring, plus the pegging count's card provenance,
 are six game-local primitives reading `cardlang/runtime/cribbage.py` — game-local
@@ -587,6 +608,26 @@ Schnapsen's two-card trick resolution is one game-local primitive reading
   first; highest trump, else highest of the led suit — no over-trump
   obligation). Also emits the play/trick_end/trick trace events the playout
   harness audits winners against.
+
+Skat's contract machinery is five game-local primitives reading
+`cardlang/runtime/skat.py`; the contract-dependent ones read the declared
+contract (`is_grand` / `is_null` / `trump_suit`) from phase state:
+
+- `skat_next_bid(value: Integer) → Integer` — the next of the 62 reachable
+  Reizen game values above `value`, or 0 when the ladder is exhausted (the
+  auction's `until` reads 0 as "the speaker cannot raise").
+- `skat_follow_ok(p: Player, c: Card) → Boolean` — follow-class legality
+  against the led card (`trick_pile[0]`): the four jacks and the trump suit
+  are one class in Suit and Grand; Null has plain suits and no trumps.
+- `skat_trick_winner(leader: Player) → Player` — the completed three-card
+  trick's winner (highest trump, else highest of the led suit; Null's own
+  rank order). Emits the play/trick_end/trick traces the playout harness
+  recomputes winners from.
+- `skat_matadors(p: Player) → Integer` — the with/without run from the club
+  Jack down the trump order, over `p`'s hand plus the skat.
+- `skat_effective_loss(game_value: Integer, bid: Integer, base: Integer) →
+  Integer` — the loss base under the overbid rule (the smallest multiple of
+  the base covering the bid; a ceiling the expression language lacks).
 
 French Tarot's non-uniform 78-card deck (suit×rank card points that vary by
 suit, an effective led suit that isn't the kernel's own, and a settlement the
