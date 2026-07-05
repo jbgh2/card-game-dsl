@@ -100,7 +100,7 @@ def _movement(stmt: n.Movement, ctx: Ctx) -> None:
     if stmt.dest_each:
         assert isinstance(stmt.dest, n.NameRef)
         if stmt.distribution == "as_equally_as_possible":
-            _deal_round_robin(source, stmt.dest.name, ctx)
+            _deal_round_robin(source, stmt.dest.name, ctx, stmt)
         else:
             for player in ctx.rs.seating.players:
                 cards = _select(source, stmt, ctx, player)
@@ -126,17 +126,30 @@ def _movement(stmt: n.Movement, ctx: Ctx) -> None:
             )
 
 
-def _deal_round_robin(source: Zone, dest_family: str, ctx: Ctx) -> None:
+def _deal_round_robin(
+    source: Zone, dest_family: str, ctx: Ctx, stmt: n.Movement
+) -> None:
     """Deal the source one card at a time around the players, so an indivisible
-    deck is spread as equally as possible (the first players get the remainder)."""
+    deck is spread as equally as possible (the first players get the remainder).
+    A `where` filter narrows the dealt cards to the source-order matching subset,
+    leaving non-matching cards in the source — the same semantics `_select_filtered`
+    gives the single-destination and non-round-robin `to each` forms."""
     players = list(ctx.rs.seating.players)
     dealt: dict[Player, list[Card]] = {p: [] for p in players}
-    i = 0
-    while source.cards:
-        card = source.cards.pop(0)
-        ctx.rs.zones.instance(dest_family, players[i % len(players)]).add(card)
-        dealt[players[i % len(players)]].append(card)
-        i += 1
+    if stmt.filter is None:
+        i = 0
+        while source.cards:
+            card = source.cards.pop(0)
+            ctx.rs.zones.instance(dest_family, players[i % len(players)]).add(card)
+            dealt[players[i % len(players)]].append(card)
+            i += 1
+    else:
+        pred = evaluate(stmt.filter, ctx)
+        pool = [c for c in source.cards if pred(c)]
+        for i, card in enumerate(pool):
+            source.remove(card)
+            ctx.rs.zones.instance(dest_family, players[i % len(players)]).add(card)
+            dealt[players[i % len(players)]].append(card)
     if ctx.observer is not None:
         src = ctx.rs.zones.locate(source)
         for p in players:

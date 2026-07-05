@@ -126,3 +126,71 @@ def test_unfiltered_movement_is_unaffected() -> None:
     execute(stmt, ctx)
     assert ctx.rs.zones.single("pile").cards == [HEARTS_A]
     assert ctx.rs.zones.instance("hand", 0).cards == [CLUBS_K]
+
+
+# --- The filter on a round-robin (`as-equally-as-possible to each`) deal. The
+# round-robin path (`_deal_round_robin`) is separate from `_select`, so it must
+# honor the filter too — otherwise a filtered round-robin deal silently deals the
+# whole source (the P2 latent bug Codex flagged). ---
+
+SPADES_3 = Card("3", "spades")
+
+
+def _parse_deal(n_players: int, stmt_src: str) -> tuple[n.Game, n.Movement]:
+    src = f"""
+game Mini {{
+  players: {n_players}
+  cards: standard52
+  zones {{ deck : Deck  hand[player] : Hand<player> }}
+  state {{ score[player] : Integer = 0 }}
+  phase p {{
+    {stmt_src}
+  }}
+  winner: highest score
+}}
+"""
+    game = check_dsl(src, "mini.cardlang")
+    stmt = game.phases[0].items[-1]
+    assert isinstance(stmt, n.Movement)
+    return game, stmt
+
+
+def _deal_ctx(game: n.Game, n_players: int, deck_cards: list[Card]) -> Ctx:
+    players = tuple(range(n_players))
+    rs = RuntimeState(
+        Seating(n_players), ZoneStore(game.zones, players), random.Random(0)
+    )
+    rs.zones.single("deck").add_all(deck_cards)
+    # A round-robin deal never draws; the chooser is present but unused.
+    return Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]))
+
+
+def test_filtered_round_robin_deals_only_the_matching_subset() -> None:
+    game, stmt = _parse_deal(
+        2,
+        "deal all cards from deck where c => c.suit == hearts "
+        "as-equally-as-possible to each hand",
+    )
+    ctx = _deal_ctx(game, 2, [HEARTS_A, CLUBS_K, HEARTS_2, SPADES_3])
+    execute(stmt, ctx)
+
+    # Only the two hearts are dealt, round-robin in source order (p0 first).
+    assert ctx.rs.zones.instance("hand", 0).cards == [HEARTS_A]
+    assert ctx.rs.zones.instance("hand", 1).cards == [HEARTS_2]
+    # The non-hearts are left untouched in the deck, in order.
+    assert ctx.rs.zones.single("deck").cards == [CLUBS_K, SPADES_3]
+
+
+def test_unfiltered_round_robin_still_deals_the_whole_source() -> None:
+    game, stmt = _parse_deal(
+        2, "deal all cards from deck as-equally-as-possible to each hand"
+    )
+    assert stmt.filter is None
+    ctx = _deal_ctx(game, 2, [HEARTS_A, CLUBS_K, HEARTS_2, SPADES_3])
+    execute(stmt, ctx)
+
+    # Whole deck round-robin (unchanged byte-for-byte): p0 gets 1st+3rd, p1 gets
+    # 2nd+4th, the deck is emptied.
+    assert ctx.rs.zones.instance("hand", 0).cards == [HEARTS_A, HEARTS_2]
+    assert ctx.rs.zones.instance("hand", 1).cards == [CLUBS_K, SPADES_3]
+    assert ctx.rs.zones.single("deck").cards == []
