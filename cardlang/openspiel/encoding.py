@@ -10,6 +10,13 @@ the integer block 0..52 (games with `choose`); the auction vocabulary (moves
 flattened over their parameter domains, declared order); and the combination
 universe (the climb engine's `universe()` query, canonically ordered and
 golden-pinned).
+
+A Card-parameterized vocabulary move (Schnapsen's `play_card`) contributes NO
+vocab ids: its domain is state-dependent (the actor's live hand), and a card
+play already has an id — the card block's. `encode` folds a `(move, card)`
+candidate into `card_to_action(card)` and `match` accepts either
+representation, so a card's id is identical whether it is a leader's
+`play_card` or a follower's movement pick (Option B, SP6 sign-off 1).
 """
 
 from __future__ import annotations
@@ -145,6 +152,12 @@ class ActionSpace:
             elif isinstance(node, n.Round) and node.move_types is not None:
                 for mt_name in node.move_types:
                     mt = mt_index[mt_name]
+                    if mt.param is not None and mt.param.type_name == "Card":
+                        # A Card-parameterized move's concrete actions ARE the
+                        # card block (see the module docstring) — minting
+                        # per-card vocab ids would give a card play two
+                        # representations and inflate num_distinct_actions.
+                        continue
                     entries = (
                         [(mt.name, None)]
                         if mt.param is None
@@ -177,6 +190,9 @@ class ActionSpace:
         if isinstance(value, str):
             return self._name_base + self._name_ids[value]
         if isinstance(value, tuple):
+            name, param = value
+            if isinstance(param, Card):
+                return self.encode(param)  # Card-param move: the card block id
             return self._vocab_base + self._vocab_ids[value]
         cards = getattr(value, "cards", None)
         if cards is not None:
@@ -208,6 +224,20 @@ class ActionSpace:
                     for c in pool
                     if getattr(c, "cards", None) is not None
                     and frozenset(c.cards) == value.cards
+                ),
+                _missing,
+            )
+        elif isinstance(value, Card):
+            # A card id denotes a bare card in a movement/trick pool, or a
+            # Card-parameterized vocabulary move — a `(name, card)` candidate —
+            # in an auction pool (never both in one pool; resolve rejects a
+            # second Card-parameterized move per vocabulary).
+            found = next(
+                (
+                    c
+                    for c in pool
+                    if c == value
+                    or (isinstance(c, tuple) and len(c) == 2 and c[1] == value)
                 ),
                 _missing,
             )
