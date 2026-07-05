@@ -598,6 +598,72 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
         _check_bool(stmt.cond, env, bag, "repeat-until condition")
     elif isinstance(stmt, n.Round) and stmt.termination is not None:
         _check_bool(stmt.termination, env, bag, "round `until` condition")
+    elif isinstance(stmt, n.Movement):
+        _check_movement(stmt, bag)
+
+
+def _check_movement(stmt: n.Movement, bag: DiagnosticBag) -> None:
+    """Combination validity for the movement production (decisions.md, "Surface
+    totality"): every combination the grammar accepts is either implemented by
+    the executor or rejected here with a clear message — a clause the runtime
+    would silently ignore must not reach it."""
+    if stmt.item not in ("card", "cards"):
+        bag.error(
+            f"movements move cards; '{stmt.item}' is not a supported item noun "
+            "(resource movements are deferred — roadmap.md)",
+            stmt.span,
+        )
+    if stmt.source is not None and stmt.dest is None:
+        bag.error(
+            f"the `{stmt.verb} ... in <zone>` form is not yet supported by the "
+            "runtime (roadmap.md); name the destination with `to <zone>`",
+            stmt.span,
+        )
+    if stmt.visibility is not None:
+        bag.error(
+            "per-movement visibility overrides are not yet honored by the "
+            "runtime — visibility derives from the declared zone types "
+            "(roadmap.md)",
+            stmt.span,
+        )
+    if stmt.source is None and stmt.dest is not None:  # a gather
+        if stmt.amount != "all" or stmt.mode is not None:
+            bag.error(
+                "a gather (`move ... to <zone>` with no `from`) collects every "
+                "card: write `move all cards to <zone>`",
+                stmt.span,
+            )
+        if stmt.dest_each:
+            bag.error(
+                "a gather collects into one zone; `to each` is not supported — "
+                "gather to a single zone, then deal from it",
+                stmt.span,
+            )
+    if stmt.distribution is not None:
+        if not stmt.dest_each:
+            bag.error(
+                "`as-equally-as-possible` distributes a `to each` deal; it has "
+                "no meaning with a single destination",
+                stmt.span,
+            )
+        if stmt.amount != "all":
+            bag.error(
+                "an `as-equally-as-possible` deal distributes the whole source "
+                "(or the whole `where` pool): the amount must be `all`",
+                stmt.span,
+            )
+        if stmt.mode is not None:
+            bag.error(
+                f"`as-equally-as-possible` deals round-robin; a `{stmt.mode}` "
+                "selection cannot combine with it",
+                stmt.span,
+            )
+    elif stmt.dest_each and stmt.amount == "all":
+        bag.error(
+            "`deal all ... to each` would give the whole source to the first "
+            "player; use `as-equally-as-possible` to distribute it",
+            stmt.span,
+        )
 
 
 def _check_produce_stmt(

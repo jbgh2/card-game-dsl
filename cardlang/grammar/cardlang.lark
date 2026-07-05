@@ -172,7 +172,7 @@ MOVE_VERB: "deal" | "transfer" | "move" | "burn" | "muck" | "draw"
 dist_clause: "as-equally-as-possible"  -> dist_equally
 // Narrows the source pool to the cards matching a predicate before the
 // selection draws from it (a lambda, like `.where` — the source-order subset,
-// not a reordering). Only the `from <zone> ... to <zone>` form takes it.
+// not a reordering). Only the `from` form takes it (any destination shape).
 where_clause: "where" expr
 selection: [select_mode] amount NAME
 select_mode: "chosen" -> sel_chosen

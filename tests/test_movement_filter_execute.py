@@ -181,6 +181,31 @@ def test_filtered_round_robin_deals_only_the_matching_subset() -> None:
     assert ctx.rs.zones.single("deck").cards == [CLUBS_K, SPADES_3]
 
 
+def test_filtered_to_each_draws_each_players_pick_from_the_pool() -> None:
+    # The non-round-robin `to each` form goes through _select per player, so the
+    # filter narrows each player's candidate pool — and the pool shrinks as
+    # earlier players take from it.
+    game, stmt = _parse_deal(
+        2,
+        "deal chosen 1 cards from deck where c => c.suit == hearts to each hand",
+    )
+    seen: list[tuple[int, int, int]] = []
+
+    def chooser(p: int, c: list[Any], k: int) -> list[Any]:
+        seen.append((p, len(c), k))
+        return list(c[:k])
+
+    ctx = _deal_ctx(game, 2, [HEARTS_A, CLUBS_K, HEARTS_2, SPADES_3])
+    ctx = Ctx(rs=ctx.rs, chooser=chooser)
+    execute(stmt, ctx)
+
+    # Each player chose from the hearts-only pool; the pool shrank 2 -> 1.
+    assert seen == [(0, 2, 1), (1, 1, 1)]
+    assert ctx.rs.zones.instance("hand", 0).cards == [HEARTS_A]
+    assert ctx.rs.zones.instance("hand", 1).cards == [HEARTS_2]
+    assert ctx.rs.zones.single("deck").cards == [CLUBS_K, SPADES_3]
+
+
 def test_unfiltered_round_robin_still_deals_the_whole_source() -> None:
     game, stmt = _parse_deal(
         2, "deal all cards from deck as-equally-as-possible to each hand"

@@ -36,6 +36,11 @@ of the language.
 
 - [move-level-visibility](move-level-visibility.md) — override-replace vs
   override-merge.
+- [rule-scope-beyond-trick-play](rule-scope-beyond-trick-play.md) — rules apply
+  only at the trick form's card-decision site; `actions where` demands and
+  rules constraining non-trick move types are validated but unenforced. Where
+  (if anywhere) should declarative rules bind outside a trick round? Data
+  point: the first game needing a reusable non-trick constraint.
 - [zone-access-syntax](zone-access-syntax.md) — `zone[chain]` vs
   `chain.zone` for complex receivers.
 - [optional-window-moves](optional-window-moves.md) — `may submit X`

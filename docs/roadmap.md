@@ -29,6 +29,22 @@ Things we have noted but consciously not designed yet:
   one hand-picked trump-run-subsumes-marriage overlap) is its own design
   exercise.
 
+- **Grammar surface deferred by the checker.** Grammatically valid forms are
+  statically rejected until a game needs them (decisions.md "Surface
+  totality": rejected loudly rather than silently ignored). Movements: the
+  `in <zone>` form (the verb implying its destination — `muck one cards in
+  discard`), the per-movement `visibility =` override (visibility derives from
+  the declared zone types; the override's semantics is
+  [open-questions/move-level-visibility.md](open-questions/move-level-visibility.md)),
+  and resource movements (`move 2 chips …` — the corpus keeps chips/coins as
+  Integer state; moving resources through zones is undesigned). Elsewhere:
+  `override` rule deltas in `active_rules:`, `before_each`/`after_each` on a
+  phase with no iteration, transition events other than `play_to_trick`, a
+  trick round naming a move type its form cannot run, and duplicate
+  `state { }` blocks. Rules that the runtime cannot yet enforce at all are a
+  named open question, not a rejection —
+  [open-questions/rule-scope-beyond-trick-play.md](open-questions/rule-scope-beyond-trick-play.md).
+
 - **Solitaire and positional zones.** CardStock excludes spatially-dependent
   layouts. We don't, but we haven't implemented one yet. Klondike or FreeCell
   will be the test case.

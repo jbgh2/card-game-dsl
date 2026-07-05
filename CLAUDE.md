@@ -55,6 +55,12 @@ criterion** — alongside "does it run" and "is it byte-identical":
   `docs/kernel-migration.md`, not as a finished mechanic.
 - A feature that runs but emits no observations from which its info sets derive is
   *incomplete* for the OpenSpiel target. Say so; don't let it read as done.
+- New or extended grammar surface must be **total**: every combination the grammar
+  accepts is implemented + tested, or statically rejected with a clear message —
+  never parsed and silently ignored ("accepted-but-ignored" is a defect class, the
+  worst failure mode for a designer tool). Corpus-first gates *which* constructs
+  exist, not how completely one works. The rule and the enumeration recipe are in
+  `docs/decisions.md`, "Surface totality".
 
 ## What's here
 
@@ -86,6 +92,7 @@ docs/
 - **"How does X work?" (knowledge, scoring, mutation, typed outcomes, etc.)** → `docs/decisions.md`
 - **"How is game Y described in the DSL?"** → `docs/games/Y.md`
 - **"How do we keep info sets derivable / hit the OpenSpiel target?"** → the load-bearing section above, then `docs/design-notes/kernel-extensibility.md`
+- **"How complete must a new construct be?"** → `docs/decisions.md`, "Surface totality"
 - **"What's still being decided?"** → `docs/open-questions/_index.md` then the named file
 - **"What should we build next?"** → `docs/roadmap.md` (and `docs/games/_candidates.md` for the full pipeline)
 - **"How do we build the tooling (parser/checker)?"** → `docs/implementation.md`, `docs/building.md`

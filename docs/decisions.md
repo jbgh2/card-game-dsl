@@ -237,6 +237,16 @@ The two are not interchangeable: the first names *which cards*, the
 second *how the move is shaped*. A move is legal when it satisfies
 every active rule's demand, of either form.
 
+> **Enforcement status.** Card-set demands are enforced where the trick form
+> computes card legality (`rules.legal_cards`, the trick round's decision
+> site). The `actions where` form, and rules constraining move types other
+> than `play_to_trick`, are resolved, type-checked, and emitted to IR but
+> **not yet enforced at runtime** — rule application today runs at the trick
+> form's card-decision site only. Hearts' `PassExactlyThreeCards` documents
+> the game's law while the pass movement's `chosen 3` enforces the count.
+> Widening rule application beyond trick play is an open question
+> ([open-questions/rule-scope-beyond-trick-play.md](open-questions/rule-scope-beyond-trick-play.md)).
+
 **The move under inspection is bound as `action`.** A predicate over a
 player's move — `demands: actions where …` here, and the `when <move-type>
 where …` triggers of sub-phase transitions (see "Sub-phase entry and exit")
@@ -1009,15 +1019,15 @@ rather than syntax ([principles.md](principles.md)).
 
 **Movement** — relocating items between two places. One primitive underlies
 every movement verb: `deal`, `transfer`, `move`, `burn`, `muck`, and `draw`
-are sugar that differ only in defaults (which zone, which visibility), not in
-kind. A movement carries a selection (`all`, a count, or a `chosen`/`random`
-amount), an item noun (cards, or a resource such as coins), a source place, a
-destination (a single zone or `to each` recipient), and an optional
-visibility override. The same movement construct underlies every relocation.
-Because the amount is an
-expression and the item names the unit, a resource transfer and a variable
-amount are the *same* construct as a card deal; there is no separate
-resource-movement syntax.
+are sugar that differ only in defaults, not in kind. A movement carries a
+selection (`all`, a count, or a `chosen`/`random` amount), an item noun, a
+source place, and a destination (a single zone or `to each` recipient). The
+item noun is `cards`/`card` today; the noun stays open in the grammar so a
+resource transfer (coins, chips) can one day be the *same* construct as a
+card deal rather than separate syntax — but resource movements and the
+grammar's per-movement `visibility =` override are deferred surface, rejected
+by the checker ([roadmap.md](roadmap.md)) rather than left for the runtime to
+silently ignore.
 
 A `to each` deal distributes the stated amount to every recipient. When the
 amount is `all` and the deck does not divide evenly, `as-equally-as-possible`
@@ -1025,20 +1035,33 @@ deals it round-robin so the remainder is spread across the first recipients —
 Getaway deals the whole deck across 3–8 hands this way (`deal all cards from
 deck as-equally-as-possible to each hand`).
 
-**Movement `where` filter.** The `from <zone> … to <zone>` form of a movement
-takes an optional `where <lambda>` clause, narrowing the *source pool* to the
-cards matching the predicate — in source order — before the selection draws
-from it: `move chosen 6 cards from hand[p] where c => is_pref_discard(c) to
-discard[p]`. The four selection modes read the narrowed pool exactly as they
-would read the whole source: `chosen`/`random` draw `count` from the pool via
-the chooser/RNG; the default (dealt) form takes the pool's first `count` —
+The checker enforces the production's valid combinations ("Surface totality"
+below): `as-equally-as-possible` requires an `all` deal `to each` with no
+selection mode (it distributes the whole source — or the whole `where` pool —
+round-robin); `deal all … to each` *without* it is rejected as a trap (the
+first recipient would drain the source); a gather (`move all cards to
+<zone>`, no `from`) collects everything into a single zone — counted,
+selected, or `to each` gathers are rejected; and the `in <zone>` form is
+deferred ([roadmap.md](roadmap.md)).
+
+**Movement `where` filter.** The `from` form of a movement (any destination
+shape) takes an optional `where <lambda>` clause, narrowing the *source pool*
+to the cards matching the predicate — in source order — before the selection
+draws from it: `move chosen 6 cards from hand[p] where c => is_pref_discard(c)
+to discard[p]`. The four selection modes read the narrowed pool exactly as
+they would read the whole source: `chosen`/`random` draw `count` from the pool
+via the chooser/RNG; the default (dealt) form takes the pool's first `count` —
 first *match* in source order, not top-of-source, since non-matching cards
 were already skipped; `all` takes every matching card and leaves the rest
 untouched in the source. Requesting more than the pool holds fails loudly,
-identically to the unfiltered form. An unfiltered movement is unaffected — the
-filter is a genuinely separate code path (`execute.py::_select_filtered`), not
-a generalization of the unfiltered one, so no existing game's card-selection
-behaviour changed when this clause was added.
+identically to the unfiltered form. The destination forms compose: a filtered
+`to each` deal narrows each recipient's pool in turn, and a filtered
+`as-equally-as-possible` deal distributes the whole matching pool round-robin,
+leaving non-matching cards in the source. An unfiltered movement is
+unaffected — the filter is a genuinely separate code path
+(`execute.py::_select_filtered`), not a generalization of the unfiltered one,
+so no existing game's card-selection behaviour changed when this clause was
+added.
 
 French Tarot's chien discard is the corpus's first use: the taker's kept
 chien cards must exclude every bout while preferring plain non-King cards
@@ -1987,3 +2010,40 @@ non-trivial *order* axis for Skat's call-and-response, a filed language gap —
 challenge / block / climbing vocabulary; promoting the shared `auction` definition
 at its third instance) is the in-flight build (see [roadmap.md](roadmap.md) and
 [kernel-migration.md](kernel-migration.md)).
+
+## Surface totality
+
+The corpus-first gate ([principles.md](principles.md), "Three implementations
+before abstracting") governs *admission*: a construct or axis enters the
+language only when games demonstrate the need. It does not license partial
+implementation. Once a construct is admitted, its surface is **total** — every
+composition the grammar accepts has an accounted outcome.
+
+Concretely: when a construct is added or extended, enumerate its composition
+points — the host production's other optional clauses, the selection modes, the
+destination forms, and every executor branch that receives the node — and put
+each cell in exactly one of three states:
+
+1. **Implemented** — defined semantics, with a test.
+2. **Statically rejected** — resolve/typecheck refuses the combination with a
+   clear message, with a test asserting the rejection. The rejected combination
+   is recorded in [roadmap.md](roadmap.md) so a future game can lift it when it
+   needs the cell.
+3. **Grammatically inexpressible** — the grammar itself cannot produce the
+   combination.
+
+The fourth state — parses, runs, and silently ignores the clause
+("accepted-but-ignored") — is a defect, not deferred work. For the design-tool
+goal it is the worst failure mode: a designer who writes a legal sentence must
+get either the behavior or an error, never a silent misread. When a cell is not
+worth implementing, prefer static rejection over a runtime error, and never
+silence.
+
+The movement production is the worked example of the matrix: the selection
+modes (dealt / `chosen` / `random` / `all`), the destination forms (`to
+<zone>`, `to each`, the round-robin `as-equally-as-possible to each` deal, the
+gather), the `where` filter, the item noun, and the deferred clauses (the `in
+<zone>` form, the `visibility =` override) compose into a grid in which every
+cell is implemented (`tests/test_movement_filter_execute.py`) or statically
+rejected (`tests/test_movement_combination_validity.py`) — see "The operation
+vocabulary" for the enforced combinations.

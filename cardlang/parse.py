@@ -19,7 +19,7 @@ from functools import lru_cache
 from importlib import resources
 
 from lark import Lark, Token, Tree
-from lark.exceptions import UnexpectedInput
+from lark.exceptions import UnexpectedInput, VisitError
 from lark.tree import Meta
 from lark.visitors import Transformer, v_args
 
@@ -837,6 +837,17 @@ class _Builder(Transformer[Token, n.Game]):
             elif isinstance(item, _Zones):
                 zones = item.zones
             elif isinstance(item, n.StateBlock):
+                if state is not None:
+                    # Keeping the last block would silently discard the first's
+                    # declarations (decisions.md "Surface totality"): reject.
+                    raise DiagnosticError(
+                        Diagnostic(
+                            Severity.ERROR,
+                            "a game declares one `state { }` block — merge the "
+                            "declarations into it",
+                            item.span,
+                        )
+                    )
                 state = item
             elif isinstance(item, n.Phase):
                 phases.append(item)
@@ -1008,7 +1019,14 @@ def parse_to_tree(text: str, source_name: str, line_offset: int = 0) -> Tree[Tok
 def parse_text(text: str, source_name: str, line_offset: int = 0) -> n.Game:
     """Parse DSL ``text`` into a :class:`~cardlang.ast.nodes.Game` AST."""
     tree = parse_to_tree(text, source_name, line_offset)
-    return _Builder(source_name, line_offset).transform(tree)
+    try:
+        return _Builder(source_name, line_offset).transform(tree)
+    except VisitError as exc:
+        # Lark wraps transformer exceptions; surface a builder-raised
+        # diagnostic (e.g. a duplicate `state { }` block) as itself.
+        if isinstance(exc.orig_exc, DiagnosticError):
+            raise exc.orig_exc from None
+        raise
 
 
 def parse_block(block: FencedBlock) -> n.Game:

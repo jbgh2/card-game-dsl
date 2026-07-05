@@ -72,9 +72,15 @@ def test_player_range_uses_the_high_end() -> None:
 
 
 def test_deal_all_is_skipped() -> None:
-    # `deal all ... to each` takes only what remains; scoring it as capacity*players
-    # would falsely overflow. It must be skipped.
-    check_dsl(_game("5", "deal all cards from deck to each hand"), "all.cardlang")
+    # An `all` round-robin deal takes only what remains; scoring it as
+    # capacity*players would falsely overflow. It must be skipped. (The bare
+    # `deal all ... to each` form is rejected by the combination checker —
+    # see test_movement_combination_validity.py — so the round-robin form is
+    # the one that reaches deckcheck.)
+    check_dsl(
+        _game("5", "deal all cards from deck as-equally-as-possible to each hand"),
+        "all.cardlang",
+    )
 
 
 def test_non_literal_amount_is_skipped() -> None:

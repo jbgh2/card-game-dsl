@@ -164,6 +164,12 @@ decide: define it now, or mark it an explicit typed stub the checker
 tolerates with a warning. The goal is that hand-waving becomes a
 **visible, enumerated list** rather than silent gaps.
 
+This pass also owns **combination validity** ([decisions.md](decisions.md),
+"Surface totality"): the checker encodes which clause combinations the runtime
+supports, so an accepted-but-unsupported combination fails at check time with a
+clear message — never at play time, and never silently. New grammar surface
+lands with either runtime support or a checker rejection in the same change.
+
 ### E. Diagnostics and harness
 
 Error reporting carries line and column plus the offending source line
