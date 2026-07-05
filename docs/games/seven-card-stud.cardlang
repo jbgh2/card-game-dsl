@@ -15,8 +15,9 @@
 // contested hand's reveal, the per-entrant pot collection, the muck) are all DSL
 // statements; the bring-in / first-to-act seat selectors and the `pot_share`
 // side-pot query are stdlib primitives (argmin/argmax over door cards; argmax
-// over poker-rank tuples). The poker evaluator is unit-tested. See
-// IMPLEMENTATION_LOG.md (chips-as-integers, the open-pair limit simplification).
+// over poker-rank tuples). The poker evaluator is unit-tested. Chips are plain
+// integers, and the 4th-street open-pair limit doubling is simplified out
+// (see seven-card-stud.md).
 
 game SevenCardStud {
 

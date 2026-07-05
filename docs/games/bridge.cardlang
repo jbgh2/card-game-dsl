@@ -13,7 +13,7 @@
 // the phase's accumulator state until the bidding closes. The dummy and
 // delegated play are omitted: they are pure information/agency structure that a
 // uniform-random playout does not exercise (declarer choosing dummy's card is
-// the same random draw either way). See IMPLEMENTATION_LOG.md.
+// the same random draw either way; see bridge.md).
 
 game Bridge {
 

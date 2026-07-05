@@ -29,9 +29,11 @@ Each hand:
    meets the bid. Null is a fixed value (23, or 35 played from the hand).
 
 The hand engine — Reizen, the contract choice, the per-contract trump structure,
-and the scoring — runs in the built-in `SkatHand` mechanic (the auction and the
-three trump structures are not yet expressible in the rule DSL). The cardlang holds the deal, hand counting, and
-termination.
+and the scoring — runs in the built-in `SkatHand` mechanic (the Reizen's
+call-and-response order is not yet a value on the auction `round` — see
+[open-questions/auction-order-axis.md](../open-questions/auction-order-axis.md) —
+and the three trump structures are not yet expressible in the rule DSL). The
+cardlang holds the deal, hand counting, and termination.
 
 ```
 game Skat {

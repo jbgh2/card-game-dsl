@@ -11,7 +11,7 @@
 // mechanic, which drives `coins`, `treasury`, and `alive` directly. Coins are
 // integers (total always 50) and influence cards conserve to 15. `alive[p]` is 1
 // while a player holds influence and 0 once exiled, so `winner: highest alive`
-// names the sole survivor. See IMPLEMENTATION_LOG.md.
+// names the sole survivor.
 
 game Coup {
 

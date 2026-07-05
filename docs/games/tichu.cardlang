@@ -13,7 +13,7 @@
 // climbing, and the special cards are not expressible in the trick DSL; this is
 // a concrete mechanic. Scope reductions (Mahjong wish, Phoenix-in-straights,
 // straight-flush bombs, out-of-turn bombs, low random Tichu-call rate) are noted
-// in IMPLEMENTATION_LOG.md.
+// in tichu.md.
 
 game Tichu {
 
