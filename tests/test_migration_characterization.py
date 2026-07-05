@@ -16,8 +16,14 @@ ring of nullary level moves), reproducing the monolith's per-turn candidate list
 (`pass` then the levels above the standing bid) and ring order. Its golden is
 pinned pre-migration too.
 
-The Schnapsen golden was pinned pre-migration; a diff is a settlement bug (its
-six-way settlement has no other independent-recompute net — see roadmap.md).
+The Schnapsen golden was pinned pre-migration, then re-pinned once under a
+SANCTIONED normalization: the monolith offered marriage candidates in
+hash-dependent set order (`{c.suit for c in lh}`), which the deterministic kernel
+cannot reproduce, so the iteration was normalized to deck-suit order (the `Suit`
+domain order the auction form enumerates) and the two hash-sensitive seeds (32,
+41 — measured across PYTHONHASHSEED 0..23) regenerated. Any other diff is a
+settlement bug (its six-way settlement has no other independent-recompute net —
+see roadmap.md).
 
 `rules.legal_cards` returns a `set`, so the chooser sees candidates in
 hash-dependent order — the per-seed scores vary with `PYTHONHASHSEED`. We capture
@@ -280,3 +286,55 @@ def _capture_cribbage_hands() -> dict[str, Any]:
 def test_cribbage_migration_preserves_per_hand_scores() -> None:
     expected = json.loads((GOLDEN / "cribbage_hands.json").read_text())
     assert _capture_cribbage_hands() == expected
+
+
+# Schnapsen moves the whole hand — the leader's mixed lead decision (play a
+# card / declare a marriage / exchange the trump jack / close the talon), the
+# follower's strict-endgame answer, the trick-draw loop, and claiming 66 — from
+# `run_schnapsen_hand` onto the kernel (the auction form over a
+# single-participant ring, plus filtered movements). A hand settles only 1–3
+# game points either way, so the final match score can mask a mid-game draw
+# divergence; like Stud and Cribbage we also pin the full per-hand `game_score`
+# vector, so a divergence surfaces at the hand it first perturbs. Anchored on
+# the driver's own `hand_end` trace (driver.py, `dict(rs.get(score_var))` — for
+# Schnapsen's `winner: lowest game_score`, that is `dict(game_score)`), a signal
+# that survives the hand leaving `instantiate` for the kernel. Pinned under the
+# same normalization as the scores golden (see the module docstring).
+_SCHNAPSEN_CAPTURE = """
+import json, random, sys
+from pathlib import Path
+from cardlang.pipeline import check_dsl
+from cardlang.runtime.driver import play_game
+
+game = check_dsl(Path("docs/games/schnapsen.cardlang").read_text(), "schnapsen.cardlang")
+out = {}
+for seed in range(50):
+    hands = []
+
+    def tracer(event, data, _h=hands):
+        if event == "hand_end":
+            _h.append([data[p] for p in sorted(data)])
+
+    play_game(game, random.Random(seed), tracer)
+    out[str(seed)] = hands
+print(json.dumps(out))
+"""
+
+
+def _capture_schnapsen_hands() -> dict[str, Any]:
+    env = dict(os.environ, PYTHONHASHSEED="0")
+    proc = subprocess.run(
+        [sys.executable, "-c", _SCHNAPSEN_CAPTURE],
+        cwd=REPO,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    result: dict[str, Any] = json.loads(proc.stdout)
+    return result
+
+
+def test_schnapsen_migration_preserves_per_hand_scores() -> None:
+    expected = json.loads((GOLDEN / "schnapsen_hands.json").read_text())
+    assert _capture_schnapsen_hands() == expected

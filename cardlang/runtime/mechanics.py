@@ -539,7 +539,12 @@ def run_schnapsen_hand(stmt: n.Instantiate, ctx: Ctx) -> Player:
         while led is None:
             lh = hands[leader].cards
             cands: list[tuple[Any, ...]] = [("play", c) for c in lh]
-            for s in {c.suit for c in lh}:
+            # Marriage candidates in deck-suit order (the `Suit` domain order),
+            # not hand-set order: set iteration is PYTHONHASHSEED-dependent, and
+            # the chooser draw depends on candidate order, so the offered order
+            # must be deterministic — and match `enumerate_domain("Suit")`, which
+            # the kernel auction form enumerates a Suit-parameterized move over.
+            for s in SUITS:
                 ranks_s = {c.rank for c in lh if c.suit == s}
                 if "K" in ranks_s and "Q" in ranks_s:
                     cands.append(("marriage", s))
