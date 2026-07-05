@@ -17,7 +17,7 @@ done.
 
 ## The goal, concretely
 
-Four games still hold their decision logic in hand-written Python dispatched by
+Three games still hold their decision logic in hand-written Python dispatched by
 name in `cardlang/runtime/mechanics.py::instantiate`. Bridge's, Pinochle's, and
 Tarot's auctions have been lifted onto the kernel `round` — so `run_bridge_auction`
 is gone, and Pinochle and Tarot are both fully kernel (Pinochle: trump
@@ -26,20 +26,25 @@ eighteen atout-trump tricks, and the bouts-conditional scoring — `run_tarot_ha
 and its post-auction `run_tarot_rest` are both gone). Cribbage's whole counting
 hand — discard, cut, pegging, and the show — runs on ordinary DSL statements
 (filtered movements, `repeat until`, `skip to next hand`), so `run_cribbage_hand`
-is gone as well:
+is gone as well. Schnapsen's hand — the leader's mixed lead decision on the
+auction form over a single-participant ring (with the Card move-parameter
+domain), the follower's strict-endgame filtered movement, and the
+trick/claim/draw statements — is fully kernel too, so the inline
+`run_schnapsen_hand` is gone:
 
-- inline in `mechanics.py`: `run_schnapsen_hand`
 - separate modules: `runtime/coup.py`, `skat.py`, `tichu.py`
 
 (`runtime/stud.py`, `runtime/bigtwo.py`, `runtime/pinochle.py`,
-`runtime/tarot.py`, and `runtime/cribbage.py` remain, but hold no `instantiate`
+`runtime/tarot.py`, `runtime/cribbage.py`, and `runtime/schnapsen.py` remain,
+but hold no `instantiate`
 mechanic — only pure stdlib primitives the DSL calls: Stud's poker evaluator,
 seat selectors, and `pot_share`; Big Two's combination engine; Pinochle's meld
 evaluator, `pinochle_meld_value`; Tarot's per-card queries, effective led suit,
 trick outcome, Excuse-player lookup, and the per-opponent settlement arithmetic;
 Cribbage's pegging/show scorers and provenance decoder — `peg_value`,
 `peg_pair_points`, `peg_run_points`, `peg_origin_of`, `cribbage_show_value`,
-`cribbage_crib_value`.)
+`cribbage_crib_value`; Schnapsen's two-card trick resolution,
+`schnapsen_trick_winner`.)
 
 This violates the two-layer architecture ([principles.md](principles.md): the
 library is *written in the DSL*, not the engine). It also carries **info-set
@@ -66,8 +71,8 @@ in order would silently collapse into the same string. The stage is done
 when:
 
 - `instantiate` dispatches only to kernel constructs — no per-game name
-  branches — and the five remaining game-mechanic modules and the one inline
-  `run_*` function are deleted (pure stdlib-primitive modules like `stud.py`,
+  branches — and the three remaining game-mechanic modules are deleted (pure
+  stdlib-primitive modules like `stud.py`,
   `bigtwo.py`, and `pinochle.py` stay);
 - all 14 games run on the kernel plus the in-DSL standard library, with every
   `tests/test_playout_*.py` green and **behaviour preserved**;
@@ -90,7 +95,7 @@ These hold for every step; they are what make a 1,800-line deletion safe.
   stay green across the change, with no behavioural diff. Migrate, don't
   redesign.
 - **Test-depth nets before risky migrations.** Random playouts never reach
-  skill-gated branches (Schnapsen false claims, Spades nil/+500, Coup
+  skill-gated branches (Spades nil/+500, Coup
   challenge-loser — see [roadmap.md](roadmap.md), "Test-depth regression nets").
   Where a game has such a branch, add an independent-recompute test **before**
   migrating it, or the migration can pass playouts while being subtly wrong.
@@ -406,10 +411,20 @@ components"), which the runtime has so far folded inline ([roadmap.md](roadmap.m
   `pinochle_meld_value` — migrate, don't redesign; promoting them to the shared
   `scoring_component` subsystem is corpus-first future work, not a requirement
   this migration carried.
-- **Schnapsen** — marriages as an in-play declaration (`offer` that scores
-  20/40), the trump-jack exchange (`offer`), and closing the stock (`offer` →
-  the mid-hand open→closed phase-shape transition; its `claimed | talon_closed |
-  open_play` outcome is already typed), with the two-phase follow rules.
+- **Schnapsen** — *done.* Not `offer`s: the leader's whole mixed turn (lead a
+  card / declare a marriage / exchange the trump jack / close the talon) is ONE
+  flat candidate list, so it landed as the **auction form over a
+  single-participant ring** (`until trick_pile is not empty`; the free actions
+  leave the predicate false and the ring re-offers the leader), with
+  `play_card(c : Card)` the corpus's first state-dependent move-parameter
+  domain ([decisions.md](decisions.md), "The Card move-parameter domain"). The
+  two-phase follow legality is the in-file `follow_ok` predicate filtering the
+  follower's chosen movement (no `active_rules` cascade — the follower answers
+  outside any trick `round`); marriages score 20/40 into a `pending` counter
+  flushed on the declarer's first trick win; the `claimed | talon_closed |
+  open_play` outcome `produce`s from the phase body. The two-card trick
+  resolution re-homed as the game-local `schnapsen_trick_winner` stdlib
+  primitive (the `pot_share`/`pinochle_meld_value` shape).
 - **Pinochle** — *done, ahead of this workstream.* The whole hand (trump
   declaration, meld, and the twelve strict tricks) landed on the kernel via
   Workstream 1 (above) before this workstream reached it. Meld stayed a
@@ -425,11 +440,11 @@ components"), which the runtime has so far folded inline ([roadmap.md](roadmap.m
   `pinochle_meld_value`/`pot_share` — not this workstream's `scoring_component`
   subsystem.
 
-**Test-depth nets.** Add Schnapsen's six-way settlement recompute (1/2/3 game
-points) before migrating it; the Cribbage scorers kept their unit-test coverage
-as stdlib queries.
-
-Delete `run_schnapsen_hand` once green.
+**Test-depth nets.** Schnapsen's nets are the pinned 50-seed scores golden plus
+the per-hand `game_score` vector golden (`tests/test_migration_characterization.py`
+— a hand settles only 1–3 game points, so the per-hand vector surfaces a draw
+divergence at the hand it first perturbs); the Cribbage scorers kept their
+unit-test coverage as stdlib queries.
 
 ## Workstream 5 — Challenge, block, influence (Coup)
 
@@ -475,10 +490,10 @@ These land inside the workstreams above and are shared on the third use:
    bid → Tarot → Skat.
 3. **Stud** — betting + pot.
 4. **Tichu** — climbing + the combination model.
-5. **Cribbage + Schnapsen** — the scoring-component subsystem (Pinochle's and
-   Cribbage's scoring both landed ahead of this step — Pinochle with its
-   Workstream 1 migration, Cribbage on ordinary statements plus game-local stdlib
-   primitives rather than the subsystem itself; Schnapsen remains).
+5. **Cribbage + Schnapsen** — done, without the scoring-component subsystem
+   (Pinochle's, Cribbage's, and Schnapsen's scoring all landed as ordinary
+   statements plus game-local stdlib primitives; the subsystem itself remains
+   unbuilt, corpus-first future work).
 6. **Coup** — challenge / block / influence.
 
 This is breadth-first by shape: it reaches `auction`'s third instance early and

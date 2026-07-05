@@ -10,9 +10,11 @@ parameters can only range over `Suit`/`Suit?` and only the auction form of
 
 Two restrictions compose into the wall:
 
-1. `enumerate_domain` (cardlang/runtime/mechanics.py) supports `Suit` and
-   `Suit?` only — `Rank`, `Player`, and bounded-`Integer` parameters
-   typecheck but raise `NotImplementedError` at the decision site.
+1. The enumerable domains are the closed set `Suit`/`Suit?`/`Card` —
+   `Rank`, `Player`, and bounded-`Integer` parameters in a round vocabulary
+   are rejected at resolve time ("an auction round can enumerate only Suit,
+   Suit? … or Card"), a clean wall rather than the former
+   `NotImplementedError` mid-playout.
 2. The plain `offer` statement rejects parameterized move types outright
    (cardlang/resolve.py: "only an auction round offering can enumerate its
    parameter"), so outside an auction there is no parameter enumeration
@@ -62,16 +64,14 @@ explicit `domain:`/bounded-type surface so the static action space is
 declared, not inferred. Rank and Player are closed finite sets the runtime
 already knows; bounded Integer needs the static-bound rule above.
 
-An adjacent instance is planned rather than hypothetical: the Schnapsen
-migration ([kernel-migration.md](../kernel-migration.md), Workstream 4) needs
-a `Card` move parameter (`play_card(c : Card)` in the leader's mixed
-vocabulary), with exactly the shape this question recommends — the *static*
-domain is the declared deck, encoding onto the existing per-card action ids
-(so a card play has one id whether it is a vocabulary move or a plain card
-play, and `num_distinct_actions` does not grow), while the *runtime*
-candidate set narrows to the actor's live hand, in hand order. Whatever
-surface this question settles should subsume that case rather than leave
-`Card` a special one.
+One adjacent instance has landed: Schnapsen's `play_card(c : Card)`
+([decisions.md](../decisions.md) "The Card move-parameter domain"), with
+exactly the shape this question recommends — the *static* side is the
+existing per-card action ids (a card play has one id whether it is a
+vocabulary move or a plain card play, and `num_distinct_actions` does not
+grow), while the *runtime* candidate set is the actor's live hand, in hand
+order. Whatever surface this question settles should subsume that case
+rather than leave `Card` a special one.
 
 Related: [decisions.md](../decisions.md) "The auction form of `round`" (the
 one construct that enumerates parameters today) and "No implicit actions";

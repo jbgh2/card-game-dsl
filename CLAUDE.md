@@ -25,8 +25,9 @@ against OpenSpiel directly. For hidden hands, face-down cards, bluffs, and
 concealed bids this is genuinely hard — and it is exactly where the value is.
 
 **Honest status — the substrate exists; the escape hatches are still debt.**
-The ten fully-kernel games (Hearts, Getaway, Spades, Bridge, Oh Hell, Big
-Two, Seven-Card Stud, Pinochle, French Tarot, Cribbage) reach OpenSpiel through
+The eleven fully-kernel games (Hearts, Getaway, Spades, Bridge, Oh Hell, Big
+Two, Seven-Card Stud, Pinochle, French Tarot, Cribbage, Schnapsen) reach
+OpenSpiel through
 ONE general adapter with *derived* information sets: per-observer observations are
 emitted from the kernel's decision/movement sites through the declared
 zone-type projections, and `tests/test_openspiel_ready.py` proves
@@ -34,13 +35,14 @@ indistinguishability (hidden-card swaps leave a player's information state
 byte-identical), soundness, and perfect recall for each (Bridge's and French
 Tarot's swap/soundness/recall proofs cover only the pass-only line of their
 auctions — the harness's greedy replay never places a bid, let alone reaches
-the chien discard or trick play; French Tarot's hidden discard is instead
-proven derived by a dedicated observational test. Stud's and French Tarot's
+the chien discard or trick play; French Tarot's hidden discard and Schnapsen's
+lead actions are instead
+proven derived by dedicated observational tests. Stud's and French Tarot's
 conformance are bounded random API walks, their full sims being
 quadratic-in-length). No per-game observation rules remain. But every per-game
-Python escape-hatch mechanic dispatched by `instantiate` (Schnapsen, Coup,
+Python escape-hatch mechanic dispatched by `instantiate` (Coup,
 Skat, Tichu) still *bypasses* this derivation — the adapter rejects
-those four games loudly, and the leak lands hardest on exactly the
+those three games loudly, and the leak lands hardest on exactly the
 imperfect-information games the AI target most exists to serve. The gap is
 quantified in `docs/design-notes/kernel-extensibility.md`, §6.
 
@@ -163,7 +165,8 @@ with the current state of the language. When you change the language,
 update every game that exercises the changed construct in the same edit.
 
 The corpus today: Hearts, Getaway (Bhabhi), Spades, Pinochle, Bridge
-(rubber, simplified), Seven-Card Stud, Tichu, Schnapsen, Cribbage
+(rubber, simplified), Seven-Card Stud, Tichu, Schnapsen (two-player,
+fully kernel), Cribbage
 (six-card, two-player), Oh Hell (four-player), Skat (three-player,
 DSkV rules), French Tarot (four-player, FFT rules), Coup
 (base game, 3–6 players), Big Two (four-player, standard). Each is a

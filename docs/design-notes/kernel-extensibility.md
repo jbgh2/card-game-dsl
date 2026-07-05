@@ -140,7 +140,7 @@ is reusable above the primitives and descriptions are unreadable. On
 axis (b) — *information sets* — GDL is the paragon: its `sees`/`random`
 relation *derives* each player's information set from the spec, which
 is precisely the property our OpenSpiel target needs. Our Python
-escape-hatch mechanics (Schnapsen, Coup, Skat, Tichu)
+escape-hatch mechanics (Coup, Skat, Tichu)
 share GDL's *bad* axis (a) — build-from-primitives, nothing reusable
 above them — while being the **opposite** of GDL on axis (b): their
 info-sets are hand-authored, not derived. So the escape hatches get

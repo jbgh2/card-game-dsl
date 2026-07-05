@@ -8,7 +8,7 @@ participant plays a legal card, an outcome function picks the winner), `AuctionF
 the auction and betting forms), and `ClimbForm` (one combination-climbing trick over
 game-local engine queries). `build_form` selects the bundle by field-presence and
 `execute.py` dispatches on the returned Outcome union. `instantiate` dispatches the
-remaining per-game hand engines (Schnapsen, Skat, Tichu, Coup) not yet lifted
+remaining per-game hand engines (Skat, Tichu, Coup) not yet lifted
 into the DSL.
 """
 
@@ -19,13 +19,11 @@ from typing import Any, Protocol
 from cardlang.ast import nodes as n
 from cardlang.runtime import observe, phases, rules
 from cardlang.runtime.evaluate import evaluate
-from cardlang.runtime.state import Ctx, Move, _ProduceSignal
-from cardlang.runtime.values import SUITS, Card, Player
+from cardlang.runtime.state import Ctx, Move
+from cardlang.runtime.values import SUITS, Player
 
 
 def instantiate(stmt: n.Instantiate, ctx: Ctx) -> Player:
-    if stmt.mechanic == "SchnapsenHand":
-        return run_schnapsen_hand(stmt, ctx)
     if stmt.mechanic == "SkatHand":
         from cardlang.runtime.skat import run_skat_hand
 
@@ -39,11 +37,6 @@ def instantiate(stmt: n.Instantiate, ctx: Ctx) -> Player:
 
         return run_coup_game(stmt, ctx)
     raise NotImplementedError(f"mechanic '{stmt.mechanic}' not supported yet")
-
-
-def _expr(value: n.Expr | n.Movement) -> n.Expr:
-    assert not isinstance(value, n.Movement)
-    return value
 
 
 # ---------------------------------------------------------------------------
@@ -221,9 +214,16 @@ class TrickForm:
 
 
 def enumerate_domain(type_name: str) -> list[Any]:
-    """The value-domain a parameterized move ranges over, in a fixed order so the
-    flattened candidate list is deterministic. `Suit` is the deck's suits;
-    `Suit?` appends `none` (the no-trump strain), which ranks last."""
+    """The *static* value-domain a parameterized move ranges over, in a fixed
+    order so the flattened candidate list is deterministic. `Suit` is the deck's
+    suits; `Suit?` appends `none` (the no-trump strain), which ranks last.
+
+    `Card` is deliberately absent: a Card-parameterized move's domain is
+    state-dependent — the actor's live hand, enumerated by
+    `AuctionForm.candidates` — and its OpenSpiel actions are the shared card
+    block (`encoding.ActionSpace`), so no static enumeration exists. The
+    supported domains are closed at resolve time (a round vocabulary rejects any
+    other parameter type), so this dispatch is total over what reaches it."""
     base = type_name.rstrip("?")
     if base == "Suit":
         values: list[Any] = list(SUITS)
@@ -318,7 +318,20 @@ class AuctionForm:
                 if mt.guard is None or bool(evaluate(mt.guard, pctx)):
                     candidates.append((mt.name, None))
             else:
-                for value in enumerate_domain(mt.param.type_name):
+                if mt.param.type_name == "Card":
+                    # The Card domain is state-dependent: the actor's LIVE HAND,
+                    # in hand order. A static deck-order enumeration filtered to
+                    # the hand would reorder the candidates and shift the chooser
+                    # draw — card plays are offered in hand order, like every
+                    # other card-play form. The OpenSpiel action space never
+                    # enumerates this domain; a Card-parameterized move's actions
+                    # are the shared card block (encoding.ActionSpace).
+                    domain: list[Any] = list(
+                        pctx.rs.zones.instance("hand", actor).cards
+                    )
+                else:
+                    domain = enumerate_domain(mt.param.type_name)
+                for value in domain:
                     vctx = pctx.with_local(mt.param.name, value)
                     if mt.guard is None or bool(evaluate(mt.guard, vctx)):
                         candidates.append((mt.name, value))
@@ -468,167 +481,6 @@ def build_form(stmt: n.Round, ctx: Ctx) -> DecisionForm:
     if stmt.move_types is not None:
         return AuctionForm(stmt, ctx)
     return TrickForm(stmt, ctx)
-
-
-# ---------------------------------------------------------------------------
-# Schnapsen hand mechanic
-# ---------------------------------------------------------------------------
-#
-# Schnapsen's hand is its own engine: the leader picks among heterogeneous
-# moves (lead a card, declare a marriage, exchange the trump jack, close the
-# talon), the two players play a trick, the winner then the loser draw from the
-# talon, and play flips to strict follow-suit once the talon is closed or
-# exhausted. This is built concretely for Schnapsen (corpus-first: abstract at
-# the *second* instance of action-selection, not the first). The random chooser
-# picks among legal moves uniformly; the only strategy baked in is claiming 66
-# the moment a player reaches it (which exercises the win-by-claim settlement).
-# All five move types, marriages (pending until the declarer wins a trick), the
-# Viennese closing snapshot, and the strict endgame are implemented; the cardlang
-# holds the deal, the settlement tiers, and termination.
-
-
-def _strict_legal(
-    hand: list[Card], led: Card, trump: str | None, rank: dict[str, int]
-) -> list[Card]:
-    """Endgame legality: follow suit and head if you can; else trump if void;
-    else anything. Schnapsen has no over-trump obligation."""
-    same = [c for c in hand if c.suit == led.suit]
-    if same:
-        higher = [c for c in same if rank[c.rank] > rank[led.rank]]
-        return higher or same
-    trumps = [c for c in hand if c.suit == trump]
-    return trumps or list(hand)
-
-
-def run_schnapsen_hand(stmt: n.Instantiate, ctx: Ctx) -> Player:
-    from cardlang.runtime import stdlib
-
-    rs = ctx.rs
-    args = {a.name: a.value for a in stmt.args}
-    leader: Player = evaluate(_expr(args["leader"]), ctx)
-    trump: str = evaluate(_expr(args["trump"]), ctx)
-    rank = rs.rank_index
-    values = rs.card_values
-    players = list(rs.seating.players)
-    hands = rs.zones.families["hand"]
-    captured = rs.zones.families["captured"]
-    talon = rs.zones.single("talon")
-    indicator = rs.zones.single("trump_indicator")
-    card_points = rs.get("card_points")
-    tricks_won = rs.get("tricks_won")
-
-    def other(p: Player) -> Player:
-        return players[1] if p == players[0] else players[0]
-
-    def stock_empty() -> bool:
-        return not talon.cards and not indicator.cards
-
-    pending: dict[Player, int] = {p: 0 for p in players}
-    closed = False
-    closed_by: Player | None = None
-    closer_opp_cp = 0
-    closer_opp_tr = 0
-    claimer: Player | None = None
-    last_winner = leader
-
-    while hands[players[0]].cards and hands[players[1]].cards:
-        endgame = closed or stock_empty()
-
-        # The leader takes free actions (exchange / close), then leads a card.
-        led: Card | None = None
-        while led is None:
-            lh = hands[leader].cards
-            cands: list[tuple[Any, ...]] = [("play", c) for c in lh]
-            for s in {c.suit for c in lh}:
-                ranks_s = {c.rank for c in lh if c.suit == s}
-                if "K" in ranks_s and "Q" in ranks_s:
-                    cands.append(("marriage", s))
-            if not closed and not stock_empty():
-                if indicator.cards and any(
-                    c.rank == "J" and c.suit == trump for c in lh
-                ):
-                    cands.append(("exchange",))
-                if talon.cards:
-                    cands.append(("close",))
-            action = ctx.chooser(leader, cands, 1)[0]
-            if action[0] == "exchange":
-                jack = next(c for c in lh if c.rank == "J" and c.suit == trump)
-                ind = indicator.cards[0]
-                hands[leader].remove(jack)
-                indicator.remove(ind)
-                indicator.add(jack)
-                hands[leader].add(ind)
-            elif action[0] == "close":
-                closed = True
-                closed_by = leader
-                closer_opp_cp = card_points[other(leader)]
-                closer_opp_tr = tricks_won[other(leader)]
-            elif action[0] == "marriage":
-                suit = action[1]
-                worth = 40 if suit == trump else 20
-                if tricks_won[leader] > 0:
-                    card_points[leader] += worth
-                else:
-                    pending[leader] += worth
-                queen = next(c for c in lh if c.rank == "Q" and c.suit == suit)
-                hands[leader].remove(queen)
-                led = queen
-            else:  # ("play", card)
-                hands[leader].remove(action[1])
-                led = action[1]
-
-        follower = other(leader)
-        legal = (
-            _strict_legal(hands[follower].cards, led, trump, rank)
-            if endgame
-            else list(hands[follower].cards)
-        )
-        fcard = ctx.chooser(follower, legal, 1)[0]
-        hands[follower].remove(fcard)
-
-        played = [(leader, led), (follower, fcard)]
-        ctx.trace("play", (leader, led))
-        ctx.trace("play", (follower, fcard))
-        winner = stdlib.highest_trump_or_led_suit(played, led.suit, trump, rank)
-        ctx.trace("trick_end", {"trump": trump})
-        ctx.trace("trick", (winner, [led, fcard]))
-        captured[winner].add(led)
-        captured[winner].add(fcard)
-        card_points[winner] += values[led.rank] + values[fcard.rank]
-        tricks_won[winner] += 1
-        if pending[winner] > 0:
-            card_points[winner] += pending[winner]
-            pending[winner] = 0
-        last_winner = winner
-
-        for p in (winner, other(winner)):  # claim the instant a player reaches 66
-            if card_points[p] >= 66:
-                claimer = p
-                break
-        if claimer is not None:
-            break
-
-        if not closed and not stock_empty():
-            for p in (winner, other(winner)):  # winner draws first
-                if talon.cards:
-                    hands[p].add(talon.cards.pop(0))
-                elif indicator.cards:
-                    hands[p].add(indicator.cards.pop(0))
-        leader = winner
-
-    # The hand's typed outcome: the enclosing `phase play -> outcome { ... }`
-    # adopts it, and a `produces:` arm settles the hand in game points. The
-    # claimer's effective opponent totals (closed vs open) are resolved here so
-    # the arm needs only the final figures.
-    if claimer is not None:
-        opp = other(claimer)
-        claimer_closed = closed_by == claimer
-        opp_cp = closer_opp_cp if claimer_closed else card_points[opp]
-        opp_tr = closer_opp_tr if claimer_closed else tricks_won[opp]
-        raise _ProduceSignal("claimed", [claimer, opp_cp, opp_tr])
-    if closed_by is not None:
-        raise _ProduceSignal("talon_closed", [closed_by, closer_opp_tr])
-    raise _ProduceSignal("open_play", [last_winner])
 
 
 def _fire_transitions(

@@ -11,9 +11,10 @@
 // trumps in Suit and Grand; Null has no trumps and a distinct rank order), and
 // the base x multiplier scoring (matadors, hand, Schneider, Schwarz, overbid) —
 // runs in the built-in `SkatHand` mechanic, which updates `score` directly.
-// (Auctions and the per-contract trump structures are not yet expressible in
-// the rule DSL; see IMPLEMENTATION_LOG.md.) The cardlang holds the 3-2-4-3 deal,
-// hand counting, and termination.
+// (The Reizen's call-and-response order is not yet a value on the auction
+// `round` — see open-questions/auction-order-axis.md — and the per-contract
+// trump structures are not yet expressible in the rule DSL.) The cardlang
+// holds the 3-2-4-3 deal, hand counting, and termination.
 
 game Skat {
 

@@ -70,6 +70,10 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.tarot import tarot_card_points
 
             return tarot_card_points(args[0])
+        case "schnapsen_trick_winner":
+            from cardlang.runtime.schnapsen import schnapsen_trick_winner
+
+            return schnapsen_trick_winner(ctx, args[0], args[1])
         case "peg_value":
             from cardlang.runtime.cribbage import value
 

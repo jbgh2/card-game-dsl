@@ -159,8 +159,9 @@ game forces more.
 Standard-deck stepping stones exist, so this axis does not depend on a
 dedicated-deck scope decision: President's *revolution* variant (a
 play inverts the ranking mid-hand) is `active_rules`-from-state at
-one-card scale, and Schnapsen's talon closure (in the corpus, currently
-escape-hatched) is a mode flip changing follow rules mid-hand.
+one-card scale, and Schnapsen's talon closure (in the corpus, a public
+`closed` state variable flipping the follower's legality predicate) is a
+mode flip changing follow rules mid-hand.
 
 ## 4. Horizon: effect composition and deck-scoped compilation (CCGs)
 

@@ -68,6 +68,9 @@ CALL_SIGS: dict[str, Sig] = {
     "tarot_excuse_player": Sig((), TOptional(TPlayer())),  # French Tarot: who played the Excuse
     "tarot_per_opp": Sig((TInteger(),), TInteger()),  # French Tarot: the per-opponent settlement
     "tarot_card_points": Sig((TCard(),), TInteger()),  # French Tarot: doubled card-point value
+    "schnapsen_trick_winner": Sig(
+        (TPlayer(), TOptional(TEnum("Suit"))), TPlayer()
+    ),  # Schnapsen: the completed two-card trick's winner
     "peg_value": Sig((TCard(),), TInteger()),  # Cribbage: pegging/fifteens value
     "peg_pair_points": Sig((), TInteger()),  # Cribbage: live pegging-count pair points
     "peg_run_points": Sig((), TInteger()),  # Cribbage: live pegging-count run points

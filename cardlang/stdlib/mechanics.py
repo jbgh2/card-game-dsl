@@ -9,7 +9,6 @@ from __future__ import annotations
 
 LIBRARY_MECHANICS: frozenset[str] = frozenset(
     {
-        "SchnapsenHand",  # Schnapsen's trick-and-draw hand with heterogeneous lead moves
         "SkatHand",  # Skat's Reizen auction + contract + suit/grand/null tricks
         "TichuHand",  # Tichu's pushing + climbing trick + special cards + scoring
         "CoupGame",  # Coup's influence / coin / challenge-block / elimination engine

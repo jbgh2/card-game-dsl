@@ -71,7 +71,7 @@ level. The distinction stays:
 
 - A **mechanic** is a named, parameterized, reusable unit, instantiated
   with arguments. It's the right shape when a chunk of logic appears
-  in multiple games (a still-Python hand engine like Schnapsen's). (The
+  in multiple games (a still-Python hand engine like Skat's). (The
   trick, the auction, and a betting round are no longer mechanics — they
   are configurations of the kernel `round` construct.)
 - A **phase** is a positional unit in the phase tree, not parameterized
@@ -193,18 +193,14 @@ phase parent { active_rules: [A, B, C] }
 phase child  { active_rules: [X, Y] }                   // X, Y only — parent set discarded
 ```
 
-**Corpus usage.** Every existing use is `+ X`. Hearts, Spades, and
-Schnapsen add follow-restriction rules; Pinochle and Spades add
-first-trick constraints; Tichu adds the Mahjong-wish rule; Schnapsen
-and Tichu add legal moves (close_talon, exchange_trump_jack,
-call_tichu, call_grand_tichu) during their respective windows. `- X`
+**Corpus usage.** Every existing use is `+ X`. Hearts and Spades add
+follow-restriction rules; Pinochle and Spades add
+first-trick constraints; Tichu adds the Mahjong-wish rule; Tichu adds
+legal moves (call_tichu, call_grand_tichu) during its window. `- X`
 and `override X` are reserved for cases where the rulebook itself
 describes a rule being struck out or replaced. The rulebook-natural
 reading of every game in the current corpus uses `+ X` even when the
-mechanical effect could be expressed as a removal — including
-Schnapsen's close-the-talon transition, which was specifically
-investigated for `- X` and read as `+ X` on the strict-play
-sub-phase.
+mechanical effect could be expressed as a removal.
 
 The criterion for which operator to use: write the slot the way the
 game's rulebook introduces the change. Rulebooks describe what
@@ -441,6 +437,35 @@ candidate lists (same length and order) play identically under a random playout 
 the property that lets a hand-written engine be re-expressed in this form without
 changing behaviour.
 
+## The Card move-parameter domain
+
+A `move_type` parameter may be typed `Card` — the corpus's first
+**state-dependent** parameter domain (Schnapsen's `play_card(c : Card)`, the
+lead-any-card arm of the leader's mixed vocabulary). The static domains
+(`Suit`, `Suit?`) enumerate a fixed value table; `Card` enumerates the **acting
+player's live hand, in hand order**, then guard-filters like any other
+parameterized move. Hand order is load-bearing: card plays are offered in hand
+order everywhere else in the runtime (the trick form, filtered movements), so a
+deck-order enumeration filtered to the hand would put the same decision under a
+different chooser-draw contract.
+
+The enumerable domains are a **closed set** — `Suit`, `Suit?`, `Card` —
+enforced at resolve time (see "Surface totality"): any other parameter type in
+a `round offering` vocabulary is rejected with a message, as is a second
+Card-parameterized move in one vocabulary and a Card parameter in a game with
+no `hand[player]` zone. Widening the set (Rank, Player, bounded Integer) is
+[open-questions/move-parameter-domains.md](open-questions/move-parameter-domains.md),
+whose resolution should subsume this case.
+
+**OpenSpiel encoding.** A Card-parameterized move contributes **no vocabulary
+action ids**. A card play already has an id — the card block's — so the adapter
+folds a `(play_card, c)` candidate into `card_to_action(c)`, and a card's
+action id is identical whether it is the leader's `play_card` or the follower's
+plain movement pick; `num_distinct_actions` does not grow with the parameter.
+(Minting per-card vocabulary ids instead would give one card play two
+representations.) This is also why at most one Card-parameterized move may
+appear per vocabulary: the card id alone must name the move.
+
 ## The climbing form of `round`
 
 Combination-climbing games (Big Two; Tichu, pending migration) run on a third
@@ -585,8 +610,12 @@ the channel.
 
 **Mechanic-internal state lives inside the mechanic.** The trick `round`'s
 per-trick state (`led_suit`, the played cards) lives inside the construct, and a
-still-Python mechanic's locals (Schnapsen's talon-closing snapshot) live inside
-its instance. Such instances are short-lived; their state vanishes with the
+still-Python mechanic's locals (Skat's Reizen bookkeeping) live inside
+its instance. (Schnapsen's talon-closing snapshot, once such a local, is
+ordinary phase state now that its hand runs on the kernel — closes and
+marriages are public declarations at the table, so `closed_by` and the
+closer-snapshot counters are public state per "Hidden information lives
+only in zones; state is public".) Such instances are short-lived; their state vanishes with the
 instance. (An auction's pass state or a betting round's `bet_to_match` is *not*
 mechanic-internal — those forms of `round` thread their accumulator through
 ordinary **phase state**, declared in the phase's `state { }`.)

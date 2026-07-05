@@ -147,6 +147,35 @@ def test_french_tarot_to_string_uses_the_card_glyph_rendering() -> None:
     assert space.to_string(space.encode(Card("Excuse", "excuse"))) == "Excuse☆"
 
 
+def test_schnapsen_space_folds_play_card_into_the_card_block() -> None:
+    space = _space("schnapsen.cardlang")
+    # 52 cards (schnapsen20 is a standard-catalogue subset, so the standard
+    # block applies with unused slots) + the lead vocabulary WITHOUT play_card:
+    # a Card-parameterized move's actions ARE the card block (Option B), so it
+    # mints no vocab ids — declare_marriage over the four suits, then the
+    # nullary exchange/close, in vocabulary order.
+    assert space.num_distinct_actions == 58
+    assert [space.to_string(a) for a in range(52, 58)] == [
+        "declare_marriage(clubs)",
+        "declare_marriage(diamonds)",
+        "declare_marriage(hearts)",
+        "declare_marriage(spades)",
+        "exchange_trump_jack",
+        "close_talon",
+    ]
+    # A leader's play_card candidate encodes as the card itself — the same id
+    # as the follower playing that card as a bare movement pick.
+    card = Card("A", "hearts")
+    aid = space.encode(("play_card", card))
+    assert aid == space.encode(card) < 52
+    # A card id matches either representation in a live candidate pool.
+    assert space.match(aid, [("play_card", card), ("close_talon", None)]) == (
+        "play_card",
+        card,
+    )
+    assert space.match(aid, [Card("J", "clubs"), card]) == card
+
+
 def test_cribbage_space_is_pure_cards() -> None:
     # No offers, no `choose`, no auction vocabulary, no climb engine — just the
     # standard 52-card block (the first 2-player registered game).
