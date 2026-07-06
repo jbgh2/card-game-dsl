@@ -6,9 +6,7 @@ game with a :class:`ReplayChooser` that decodes and returns the recorded
 actions in order and raises ``ChooserAbort`` at the first decision beyond the
 history — surfacing the current decision point with the live world and the
 per-player observation logs attached. The chooser makes no RNG calls, so a run
-is a pure function of ``seed``. Games with `instantiate` mechanics are
-rejected: their Python phases emit no observations (info-set debt,
-docs/kernel-migration.md)."""
+is a pure function of ``seed``."""
 
 from __future__ import annotations
 
@@ -26,22 +24,10 @@ from cardlang.runtime.observe import render
 from cardlang.runtime.state import ChooserAbort, RuntimeState
 
 
-def _has_instantiate(game: n.Game) -> bool:
-    from cardlang.openspiel.encoding import _walk
-
-    return any(isinstance(node, n.Instantiate) for node in _walk(game))
-
-
 @lru_cache(maxsize=None)
 def load(path_str: str) -> tuple[n.Game, ActionSpace]:
     """Parse + check a game and derive its action space (cached per path)."""
     game = check_source(Path(path_str))
-    if _has_instantiate(game):
-        raise ValueError(
-            f"game '{game.name}' uses a Python `instantiate` mechanic: its hidden "
-            f"state emits no observations, so information sets cannot be derived "
-            f"(info-set debt — see docs/kernel-migration.md)"
-        )
     return game, ActionSpace.for_game(game)
 
 

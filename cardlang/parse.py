@@ -502,10 +502,6 @@ class _Builder(Transformer[Token, n.Game]):
     def named_arg(self, meta: Meta, c: list[object]) -> n.NamedArg:
         return n.NamedArg(name=str(c[0]), value=c[1], span=self._span(meta))  # type: ignore[arg-type]
 
-    def instantiate(self, meta: Meta, c: list[object]) -> n.Instantiate:
-        args = tuple(a for a in c[1:] if isinstance(a, n.NamedArg))
-        return n.Instantiate(mechanic=str(c[0]), args=args, span=self._span(meta))
-
     def offer(self, meta: Meta, c: list[object]) -> n.Offer:
         player = _as_expr(c[0])
         names = tuple(str(x) for x in c[1:])

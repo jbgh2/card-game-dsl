@@ -31,15 +31,9 @@ LIBRARY_MOVE_TYPES: frozenset[str] = frozenset(
         # `round climb` step. Tichu's push is a chosen movement and its calls
         # are rng-gated primitives, so neither carries a move type.
         "play_combination",
-        # Coup moves (handled by the CoupGame mechanic).
-        "income",
-        "foreign_aid",
-        "coup",
-        "tax",
-        "assassinate",
-        "steal",
-        "exchange",
-        "challenge",
-        "block",
+        # Coup's seven actions (income / foreign_aid / coup / tax / assassinate /
+        # steal / exchange) are game-defined `move_type`s in coup.cardlang, not
+        # library moves; challenging and blocking are rng-gated windows at the
+        # migrated scope, not moves.
     }
 )

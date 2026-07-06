@@ -233,7 +233,7 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
 
 def _run_phase_body(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
     """Run a phase's body. An outcome-declaring phase captures the variant it
-    produces (via DSL `produce` or an instantiated mechanic) into `phase_outcomes`
+    produces (via DSL `produce` or a round's typed outcome) into `phase_outcomes`
     for a later-sibling `produces:` consumer."""
     if not phase.outcome_cases:
         run_body(phase, ctx, hands)

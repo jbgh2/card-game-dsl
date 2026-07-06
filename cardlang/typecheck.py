@@ -547,8 +547,6 @@ def _stmt_exprs(s: n.Stmt) -> list[n.Expr]:
         if s.termination is not None:
             exprs.append(s.termination)
         return exprs
-    if isinstance(s, n.Instantiate):
-        return [a.value for a in s.args if not isinstance(a.value, n.Movement)]
     if isinstance(s, (n.IfStmt, n.RepeatUntil)):
         return [s.cond]
     if isinstance(s, n.Produce):

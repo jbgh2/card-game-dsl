@@ -110,7 +110,3 @@ def test_returns_for_loser_game() -> None:
     assert abs(sum(rets)) < 1e-9
 
 
-def test_instantiate_games_are_rejected_as_infoset_debt() -> None:
-    # (lru_cache does not cache exceptions, so no cache management is needed.)
-    with pytest.raises(ValueError, match="info-set debt"):
-        load(str(GAMES / "coup.cardlang"))

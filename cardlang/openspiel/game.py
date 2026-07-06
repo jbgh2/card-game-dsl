@@ -20,7 +20,7 @@ from cardlang.openspiel.infostate import information_state
 _NUM_SEEDS = 4096  # sampled deal space at the root chance node (known limitation)
 _GAMES_DIR = Path(__file__).resolve().parent.parent.parent / "docs" / "games"
 
-# short_name -> game file. The fully-kernel games (no `instantiate`).
+# short_name -> game file. Every corpus game (all fully kernel).
 GAMES: dict[str, str] = {
     "cardlang_hearts": "hearts.cardlang",
     "cardlang_getaway": "getaway.cardlang",

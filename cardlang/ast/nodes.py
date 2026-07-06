@@ -122,7 +122,7 @@ class MethodCall:
 
 @dataclass(frozen=True, slots=True)
 class NamedArg:
-    """A `name = value` argument (instantiate args, named call args)."""
+    """A `name = value` argument (named call args)."""
 
     name: str
     value: Expr | Movement
@@ -340,15 +340,6 @@ class IfStmt:
 
 
 @dataclass(frozen=True, slots=True)
-class Instantiate:
-    """`instantiate <mechanic> ( <named_arg>* )`."""
-
-    mechanic: str
-    args: tuple[NamedArg, ...]
-    span: Span | None = None
-
-
-@dataclass(frozen=True, slots=True)
 class LetStmt:
     """`let <name>[<index>]? = <expr>`."""
 
@@ -494,7 +485,6 @@ Stmt = (
     | ForEach
     | RepeatUntil
     | IfStmt
-    | Instantiate
     | LetStmt
     | AssignStmt
     | Offer
@@ -859,7 +849,6 @@ Node = (
     | ForEach
     | RepeatUntil
     | IfStmt
-    | Instantiate
     | LetStmt
     | AssignStmt
     | Offer
