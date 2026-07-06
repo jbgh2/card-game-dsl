@@ -49,6 +49,12 @@ class Play:
     def is_bomb(self) -> bool:
         return self.kind == "bomb"
 
+    @property
+    def ends_trick(self) -> bool:
+        """A Dog lead ends the trick at once — its followers get no chooser
+        draw; the lead passes to the partner (the climb form reads this)."""
+        return self.kind == "dog"
+
 
 def _combos(hand: list[Card]) -> list[Play]:
     """Combinations a hand can form. Phoenix is used as a wildcard in pairs,

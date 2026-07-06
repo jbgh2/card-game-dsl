@@ -9,7 +9,6 @@ from __future__ import annotations
 
 LIBRARY_MECHANICS: frozenset[str] = frozenset(
     {
-        "TichuHand",  # Tichu's pushing + climbing trick + special cards + scoring
         "CoupGame",  # Coup's influence / coin / challenge-block / elimination engine
     }
 )

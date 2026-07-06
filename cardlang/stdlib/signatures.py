@@ -79,6 +79,18 @@ CALL_SIGS: dict[str, Sig] = {
     "skat_effective_loss": Sig(
         (TInteger(), TInteger(), TInteger()), TInteger()
     ),  # Skat: the overbid-aware loss base
+    "tichu_call_roll": Sig((), TInteger()),  # Tichu: one call gate (0/100/200, rng)
+    "tichu_mahjong_holder": Sig((), TPlayer()),  # Tichu: leads the first trick
+    "tichu_players_holding": Sig((), TInteger()),  # Tichu: players still holding cards
+    "tichu_double_victory": Sig((), TBoolean()),  # Tichu: first two finishers teammates?
+    "tichu_partner": Sig((TPlayer(),), TPlayer()),  # Tichu: the teammate
+    "tichu_next_holder": Sig((TPlayer(),), TPlayer()),  # Tichu: next holder ccw (or arg)
+    "tichu_dragon_won": Sig((), TBoolean()),  # Tichu: Dragon captured the last trick?
+    "tichu_dragon_recipient": Sig((TPlayer(),), TPlayer()),  # Tichu: opponent given the trick (rng)
+    "tichu_opponent_team": Sig((TPlayer(),), TTeam()),  # Tichu: the other team
+    "tichu_first_out": Sig((), TPlayer()),  # Tichu: the first finisher (default 0)
+    "tichu_card_points": Sig((TCard(),), TInteger()),  # Tichu: the card-point table
+    "tichu_hand_summary": Sig((), TInteger()),  # Tichu: emit tichu_hand; captured points
     "peg_value": Sig((TCard(),), TInteger()),  # Cribbage: pegging/fifteens value
     "peg_pair_points": Sig((), TInteger()),  # Cribbage: live pegging-count pair points
     "peg_run_points": Sig((), TInteger()),  # Cribbage: live pegging-count run points

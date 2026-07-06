@@ -1,217 +1,173 @@
-"""The Tichu hand mechanic (four-player partnership climbing game; concrete).
+"""Tichu's game-local runtime primitives.
 
-The corpus's first climbing game and first with non-(rank,suit) cards. Built as
-one concrete mechanic: the pushing phase, the climbing trick (play a combination
-that matches the led type/length and beats it, or a bomb, or pass; three passes
-end the trick), the four special cards (Mahjong leads and is lowest; the Dog
-hands the lead to partner; the Phoenix is a wild / contextual single worth -25;
-the Dragon is the highest single, worth 25, and its trick goes to an opponent),
-finishing order with the double-victory shortcut, and card-point + Tichu-call
-scoring. First partnership to 1000 wins.
+The hand runs fully on the kernel (tichu.cardlang): the Tichu/Grand-Tichu
+calls and the push are plain statements (a `for each player` of one chosen
+3-card movement, then a draw-free giver-major distribution), each climbing
+trick is one `round climb` over the combination engine's queries, and the
+finishing/scoring flow is statement control flow over the round's terminal
+state (`state.lead_ended_trick`, `state.shed_first` / `state.shed_second`).
+What stays game-local: the combination engine itself (`combinations.py`,
+shared with nothing — Big Two's differs), the two non-chooser RNG sites the
+monolith drew (the call-rate gates and the Dragon's trick going to a random
+opponent — reproduced draw-for-draw at the same sites), partnership lookups,
+and the card-point table.
 
-Card points total 100 every hand (K and 10 score 10, 5 scores 5, Dragon +25,
-Phoenix -25) — the falsifiable conservation invariant.
-
-Scope reductions (random play; see docs/roadmap.md): the Mahjong
-wish, the Phoenix as a wildcard inside straights / consecutive-pairs,
-straight-flush bombs, and out-of-turn bombs are omitted. Tichu / Grand Tichu are
-called at a low random rate so card points (always +100/hand) drive the game to
-1000.
+The state-reading primitives (`tichu_double_victory`, `tichu_first_out`) read
+the finishing order from phase state via `ctx.rs.get` — the Stud/Cribbage/Skat
+precedent for game-local primitives over live state. `tichu_dragon_won` reads
+the completed round's standing play from `last_round_state` (the same terminal
+frame the body reads as `state.x`).
 """
 
 from __future__ import annotations
 
-from typing import Any
-
-from cardlang.ast import nodes as n
 from cardlang.runtime.combinations import Play, _combos, _legal_follows, _points
-from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Card, Player
 
 
-def run_tichu_hand(stmt: n.Instantiate, ctx: Ctx) -> Player:
-    rs = ctx.rs
-    rng = rs.rng
-    choose = ctx.chooser
-    args = {a.name: a.value for a in stmt.args}
-    starting: Player = evaluate(args["starting"], ctx)  # type: ignore[arg-type]
-    players = list(rs.seating.players)
-    npl = len(players)
-    hands = rs.zones.families["hand"]
-    captured = rs.zones.families["captured"]
-    discard = rs.zones.single("discard")
-    team_of = rs.team_of
+# --- the climb queries (the monolith's candidate lists, verbatim) ---
 
-    def ccw(p: Player) -> Player:
-        return (p - 1) % npl
 
-    def partner(p: Player) -> Player:
-        return next(q for q in players if q != p and team_of[q] == team_of[p])
+def tichu_lead_options(hand: list[Card], ctx: Ctx) -> list[Play]:
+    """Every combination the leader may lead: the engine's combos, then the
+    three specials as lead singles in hand order (Dragon highest at 15, the
+    Phoenix at 1.5, the Dog as its own trick-ending kind). `ctx` is unused —
+    Tichu leads depend only on the hand — but the climb round passes it
+    uniformly with the follows query."""
+    leads = _combos(hand)
+    for c in hand:
+        if c.rank == "Dragon":
+            leads.append(Play("single", 1, 15, (c,)))
+        elif c.rank == "Phoenix":
+            leads.append(Play("single", 1, 1.5, (c,)))
+        elif c.rank == "Dog":
+            leads.append(Play("dog", 1, 0, (c,)))
+    return leads
 
-    # Tichu / Grand Tichu calls (low random rate so card points drive the game).
-    called = {p: 0 for p in players}  # 0 none, 100 tichu, 200 grand
-    for p in players:
-        if rng.random() < 0.04:
-            called[p] = 200
-        elif rng.random() < 0.08:
-            called[p] = 100
 
-    # Pushing: each player gives one card to each other player (simultaneously).
-    gifts: dict[Player, list[Card]] = {p: [] for p in players}
-    for p in players:
-        picks = choose(p, list(hands[p].cards), npl - 1)
-        for c in picks:
-            hands[p].remove(c)
-        recipients = [q for q in players if q != p]
-        for q, c in zip(recipients, picks):
-            gifts[q].append(c)
-    for q in players:
-        hands[q].add_all(gifts[q])
+def tichu_follows(hand: list[Card], current: Play, ctx: Ctx) -> list[Play]:
+    """The combinations that legally beat the standing play (same kind and
+    length, higher key; any bomb; the Dragon/Phoenix single answers). `ctx` is
+    unused, passed uniformly with the lead query."""
+    return _legal_follows(hand, current)
 
-    # Mahjong holder leads the first trick.
-    leader = next((p for p in players if any(c.rank == "Mahjong" for c in hands[p].cards)), starting)
-    out_order: list[Player] = []
 
-    def record_out(p: Player) -> None:
-        if not hands[p].cards and p not in out_order:
-            out_order.append(p)
+# --- the two non-chooser RNG sites (the monolith's, draw-for-draw) ---
 
-    def still_in() -> list[Player]:
-        return [p for p in players if hands[p].cards]
 
-    guard = 0
-    while len(still_in()) > 1:
-        guard += 1
-        if guard > 5000:
-            raise RuntimeError(
-                "tichu hand exceeded 5000 tricks without resolving (non-termination?)"
-            )
-        if len(out_order) >= 2 and team_of[out_order[0]] == team_of[out_order[1]]:
-            break  # double victory — stop early
-        leader = _play_trick(  # type: ignore[no-untyped-call]
-            leader, hands, captured, discard, players, ccw, partner,
-            team_of, choose, rng, called, record_out, still_in,
-        )
-        if leader is None:  # everyone out
-            break
-        while hands[leader].cards == [] and still_in():
-            leader = ccw(leader)
+def tichu_call_roll(ctx: Ctx) -> int:
+    """One player's Tichu/Grand-Tichu gate: 200 at 4%, else 100 at 8%, else 0.
+    The second draw happens only when the first misses (short-circuit), so the
+    rng consumption matches the monolith exactly."""
+    rng = ctx.rs.rng
+    if rng.random() < 0.04:
+        return 200
+    if rng.random() < 0.08:
+        return 100
+    return 0
 
-    double_victory = _score_hand(
-        rs, hands, captured, players, team_of, out_order, called, partner
+
+def tichu_dragon_recipient(ctx: Ctx, winner: Player) -> Player:
+    """The opponent the Dragon-winner gives the trick to (a random pick — the
+    migrated scope plays randomly; a real choice would be a chooser draw)."""
+    opponents = [
+        p for p in ctx.rs.seating.players
+        if ctx.rs.team_of[p] != ctx.rs.team_of[winner]
+    ]
+    return ctx.rs.rng.choice(opponents)
+
+
+# --- zone / seating / state reads (pure) ---
+
+
+def tichu_mahjong_holder(ctx: Ctx) -> Player:
+    """Who leads the first trick: the Mahjong holder (post-push hands; the
+    full deal guarantees one exists)."""
+    hands = ctx.rs.zones.families["hand"]
+    return next(
+        p for p in ctx.rs.seating.players
+        if any(c.rank == "Mahjong" for c in hands[p].cards)
     )
-    card_pts = sum(_points(c) for t in rs.teams for c in captured[t].cards)
-    ctx.trace("tichu_hand", {"double_victory": double_victory, "card_points": card_pts})
-    return out_order[0] if out_order else leader if leader is not None else starting
 
 
-def _play_trick(  # type: ignore[no-untyped-def]
-    leader, hands, captured, discard, players, ccw, partner,
-    team_of, choose, rng, called, record_out, still_in,
-):
-    """Play one climbing trick; route its cards; return the next leader (or None
-    if everyone is out)."""
-    current: Play | None = None
-    last_player: Player | None = None
-    pending: set[Player] = set()
-    pile: list[Card] = []
-    dragon_won = False
-    turn = leader
-    guard = 0
-    while True:
-        guard += 1
-        if guard > 5000:
-            raise RuntimeError(
-                "tichu trick exceeded 5000 plays without resolving (non-termination?)"
-            )
-        if current is not None and not pending:
-            break  # everyone else passed — trick over
-        if not hands[turn].cards or (current is not None and turn not in pending):
-            turn = ccw(turn)
-            continue
-        if current is None:  # the leader must lead
-            leads = _combos(hands[turn].cards)
-            for c in hands[turn].cards:  # Dragon / Phoenix / Dog as a lead single
-                if c.rank == "Dragon":
-                    leads.append(Play("single", 1, 15, (c,)))
-                elif c.rank == "Phoenix":
-                    leads.append(Play("single", 1, 1.5, (c,)))
-                elif c.rank == "Dog":
-                    leads.append(Play("dog", 1, 0, (c,)))
-            play = choose(turn, leads, 1)[0]
-            for c in play.cards:
-                hands[turn].remove(c)
-            if play.kind == "dog":  # lead passes to partner, no capture
-                discard.add_all(play.cards)
-                return partner(turn)
-            pile.extend(play.cards)
-            current, last_player = play, turn
-            pending = {p for p in players if p != turn and hands[p].cards}
-            record_out(turn)
-            turn = ccw(turn)
-        else:  # follow or pass
-            opts: list[Any] = [*_legal_follows(hands[turn].cards, current), "pass"]
-            choice = choose(turn, opts, 1)[0]
-            if choice == "pass":
-                pending.discard(turn)
-                turn = ccw(turn)
-            else:
-                for c in choice.cards:
-                    hands[turn].remove(c)
-                pile.extend(choice.cards)
-                current, last_player = choice, turn
-                pending = {p for p in players if p != turn and hands[p].cards}
-                record_out(turn)
-                turn = ccw(turn)
-
-    assert last_player is not None
-    dragon_won = current is not None and len(current.cards) == 1 and current.cards[0].rank == "Dragon"
-    if dragon_won:  # the Dragon's trick is given to an opponent
-        opponents = [p for p in players if team_of[p] != team_of[last_player]]
-        recipient = rng.choice(opponents)
-        captured[team_of[recipient]].add_all(pile)
-    else:
-        captured[team_of[last_player]].add_all(pile)
-
-    if hands[last_player].cards:
-        return last_player
-    nxt = ccw(last_player)
-    while not hands[nxt].cards and still_in():
-        nxt = ccw(nxt)
-    return nxt if still_in() else None
+def tichu_players_holding(ctx: Ctx) -> int:
+    """How many players still hold cards (the hand ends at <= 1)."""
+    hands = ctx.rs.zones.families["hand"]
+    return sum(1 for p in ctx.rs.seating.players if hands[p].cards)
 
 
-def _score_hand(rs, hands, captured, players, team_of, out_order, called, partner) -> bool:  # type: ignore[no-untyped-def]
-    score = rs.get("score")
-    teams = rs.teams
-    delta = {t: 0 for t in teams}
-
-    double_victory = (
-        len(out_order) >= 2 and team_of[out_order[0]] == team_of[out_order[1]]
+def tichu_double_victory(ctx: Ctx) -> bool:
+    """Both recorded finishers are teammates (ends the hand early, +200)."""
+    first, second = ctx.rs.get("out_first"), ctx.rs.get("out_second")
+    return (
+        first is not None
+        and second is not None
+        and ctx.rs.team_of[first] == ctx.rs.team_of[second]
     )
-    if double_victory:
-        delta[team_of[out_order[0]]] += 200
-    else:
-        # The lone remaining player: their hand → the opponents, their captured
-        # tricks → the first player out.
-        remaining = [p for p in players if hands[p].cards]
-        first_out = out_order[0] if out_order else players[0]
-        if remaining:
-            last = remaining[0]
-            opp_team = next(t for t in teams if t != team_of[last])
-            captured[opp_team].add_all(hands[last].take_all())
-            captured[team_of[first_out]].add_all(captured[team_of[last]].take_all())
-        for t in teams:
-            delta[t] += sum(_points(c) for c in captured[t].cards)
 
-    for p in players:  # Tichu / Grand Tichu calls
-        if called[p]:
-            if out_order and p == out_order[0]:
-                delta[team_of[p]] += called[p]
-            else:
-                delta[team_of[p]] -= called[p]
 
-    for t in teams:
-        score[t] += delta[t]
-    return double_victory
+def tichu_partner(ctx: Ctx, p: Player) -> Player:
+    """The teammate (partners sit across)."""
+    return next(
+        q for q in ctx.rs.seating.players
+        if q != p and ctx.rs.team_of[q] == ctx.rs.team_of[p]
+    )
+
+
+def tichu_next_holder(ctx: Ctx, p: Player) -> Player:
+    """`p` if they still hold cards, else the next holder counterclockwise —
+    the monolith's post-trick leader advance. Returns `p` unchanged when
+    everyone is out (the hand is over; the value is never read)."""
+    hands = ctx.rs.zones.families["hand"]
+    players = list(ctx.rs.seating.players)
+    if not any(hands[q].cards for q in players):
+        return p
+    q = p
+    while not hands[q].cards:
+        q = (q - 1) % len(players)
+    return q
+
+
+def tichu_dragon_won(ctx: Ctx) -> bool:
+    """Did the Dragon capture the trick just completed? Reads the standing
+    play from the round's terminal state: the Dragon appears in a pile only as
+    a played single, and only a bomb can beat it — so the check is exactly the
+    monolith's (the final play is one card and it is the Dragon)."""
+    st = ctx.rs.last_round_state
+    cur = None if st is None else st.get("current")
+    return (
+        cur is not None and len(cur.cards) == 1 and cur.cards[0].rank == "Dragon"
+    )
+
+
+def tichu_opponent_team(ctx: Ctx, p: Player) -> int:
+    """The team `p` does not belong to (two-team game)."""
+    return next(t for t in ctx.rs.teams if t != ctx.rs.team_of[p])
+
+
+def tichu_first_out(ctx: Ctx) -> Player:
+    """The first player to shed out, defaulting to player 0 when nobody is
+    recorded (the monolith's fallback; unreachable in a completed hand)."""
+    first = ctx.rs.get("out_first")
+    return 0 if first is None else int(first)
+
+
+def tichu_card_points(ctx: Ctx, c: Card) -> int:
+    """The card-point table (K and 10 score 10, 5 scores 5, Dragon +25,
+    Phoenix -25; 100 points per hand)."""
+    return _points(c)
+
+
+def tichu_hand_summary(ctx: Ctx) -> int:
+    """Emit the hand's `tichu_hand` trace — the double-victory flag and the
+    card points sitting in the two captured piles after routing — and return
+    the card points. The playout harness asserts every non-double-victory hand
+    distributes exactly 100 (tests/test_playout_tichu.py)."""
+    captured = ctx.rs.zones.families["captured"]
+    pts = sum(_points(c) for t in ctx.rs.teams for c in captured[t].cards)
+    ctx.trace(
+        "tichu_hand",
+        {"double_victory": tichu_double_victory(ctx), "card_points": pts},
+    )
+    return pts

@@ -94,6 +94,54 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.skat import skat_effective_loss
 
             return skat_effective_loss(args[0], args[1], args[2])
+        case "tichu_call_roll":
+            from cardlang.runtime.tichu import tichu_call_roll
+
+            return tichu_call_roll(ctx)
+        case "tichu_mahjong_holder":
+            from cardlang.runtime.tichu import tichu_mahjong_holder
+
+            return tichu_mahjong_holder(ctx)
+        case "tichu_players_holding":
+            from cardlang.runtime.tichu import tichu_players_holding
+
+            return tichu_players_holding(ctx)
+        case "tichu_double_victory":
+            from cardlang.runtime.tichu import tichu_double_victory
+
+            return tichu_double_victory(ctx)
+        case "tichu_partner":
+            from cardlang.runtime.tichu import tichu_partner
+
+            return tichu_partner(ctx, args[0])
+        case "tichu_next_holder":
+            from cardlang.runtime.tichu import tichu_next_holder
+
+            return tichu_next_holder(ctx, args[0])
+        case "tichu_dragon_won":
+            from cardlang.runtime.tichu import tichu_dragon_won
+
+            return tichu_dragon_won(ctx)
+        case "tichu_dragon_recipient":
+            from cardlang.runtime.tichu import tichu_dragon_recipient
+
+            return tichu_dragon_recipient(ctx, args[0])
+        case "tichu_opponent_team":
+            from cardlang.runtime.tichu import tichu_opponent_team
+
+            return tichu_opponent_team(ctx, args[0])
+        case "tichu_first_out":
+            from cardlang.runtime.tichu import tichu_first_out
+
+            return tichu_first_out(ctx)
+        case "tichu_card_points":
+            from cardlang.runtime.tichu import tichu_card_points
+
+            return tichu_card_points(ctx, args[0])
+        case "tichu_hand_summary":
+            from cardlang.runtime.tichu import tichu_hand_summary
+
+            return tichu_hand_summary(ctx)
         case "peg_value":
             from cardlang.runtime.cribbage import value
 
@@ -188,6 +236,10 @@ def climb_lead_function(name: str) -> Callable[[list[Card], Ctx], list[Any]]:
             from cardlang.runtime.bigtwo import bigtwo_lead_options
 
             return bigtwo_lead_options
+        case "tichu_lead_options":
+            from cardlang.runtime.tichu import tichu_lead_options
+
+            return tichu_lead_options
         case _:
             raise AssertionError(f"unknown climb lead query '{name}'")
 
@@ -198,6 +250,10 @@ def climb_follow_function(name: str) -> Callable[[list[Card], Any, Ctx], list[An
             from cardlang.runtime.bigtwo import bigtwo_follows
 
             return bigtwo_follows
+        case "tichu_follows":
+            from cardlang.runtime.tichu import tichu_follows
+
+            return tichu_follows
         case _:
             raise AssertionError(f"unknown climb follows query '{name}'")
 
