@@ -32,7 +32,8 @@ Tichu, Coup) reach
 OpenSpiel through
 ONE general adapter with *derived* information sets: per-observer observations are
 emitted from the kernel's decision/movement sites through the declared
-zone-type projections, and `tests/test_openspiel_ready.py` proves
+zone-type projections, and `tests/openspiel_ready/` (one proof module per
+game over a shared four-proof harness) proves
 indistinguishability (hidden-card swaps leave a player's information state
 byte-identical), soundness, and perfect recall for each (Bridge's and French
 Tarot's swap/soundness/recall proofs cover only the pass-only line of their

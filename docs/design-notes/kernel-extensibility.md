@@ -584,7 +584,7 @@ parts are proven on paper *before* any code depends on them.
    reader of projected events (`cardlang/openspiel/infostate.py`,
    `cardlang/openspiel/game.py`) covering Hearts, Getaway, Spades, Bridge, Oh
    Hell, Big Two, Seven-Card Stud, Pinochle, French Tarot, and Cribbage — proven by
-   `tests/test_openspiel_ready.py` (indistinguishability, soundness, perfect
+   `tests/openspiel_ready/` (indistinguishability, soundness, perfect
    recall; Bridge's and French Tarot's swap/soundness/recall proofs cover only
    the pass-only line of their auctions — the harness's greedy replay never
    places a bid, let alone reaches the chien discard or trick play, so French

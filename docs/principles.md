@@ -132,7 +132,7 @@ hand-coding exercise, and it is the property that any new mechanic or construct
 must preserve. It is realized across the whole corpus: every game's decisions
 run on kernel sites that emit observation events through the declared zone
 projections, and the readiness proofs cover all fourteen games
-(`tests/test_openspiel_ready.py`; the history of closing this per game is in
+(`tests/openspiel_ready/`; the history of closing this per game is in
 [kernel-migration.md](kernel-migration.md)). Any future construct that runs a
 decision outside the observation-event stream reopens the debt — don't.
 
