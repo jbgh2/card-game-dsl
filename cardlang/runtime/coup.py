@@ -83,7 +83,7 @@ def run_coup_game(stmt: n.Instantiate, ctx: Ctx) -> Player:
                     influence[claimant].remove(proof)
                     deck.cards.append(proof)
                     rng.shuffle(deck.cards)
-                    influence[claimant].add(deck.cards.pop())  # private replacement
+                    influence[claimant].add(deck.cards.pop(0))  # private replacement, off the top
                     lose_influence(c)
                     return "stands"
                 lose_influence(claimant)  # bluff caught
@@ -103,8 +103,8 @@ def run_coup_game(stmt: n.Instantiate, ctx: Ctx) -> Player:
     # --- setup ---
     rng.shuffle(deck.cards)
     for p in players:
-        influence[p].add(deck.cards.pop())
-        influence[p].add(deck.cards.pop())
+        influence[p].add(deck.cards.pop(0))  # deal off the top (kernel convention)
+        influence[p].add(deck.cards.pop(0))
         gain(p, 2)
 
     # --- turn loop ---
@@ -130,7 +130,15 @@ def run_coup_game(stmt: n.Instantiate, ctx: Ctx) -> Player:
     total_cards = len(deck.cards) + sum(
         len(influence[p].cards) + len(revealed[p].cards) for p in players
     )
-    ctx.trace("coup_game", {"total_coins": total_coins, "total_cards": total_cards})
+    ctx.trace(
+        "coup_game",
+        {
+            "total_coins": total_coins,
+            "total_cards": total_cards,
+            "coins": {p: coins[p] for p in players},
+            "alive": {p: alive[p] for p in players},
+        },
+    )
     return next((p for p in players if in_game(p)), turn_p)
 
 
@@ -179,7 +187,7 @@ def _take_turn(  # type: ignore[no-untyped-def]
                 coins[actor] += amount
     elif action == "exchange":
         if challenge_window(actor, "Ambassador") == "stands":
-            drawn = [deck.cards.pop() for _ in range(min(2, len(deck.cards)))]
+            drawn = [deck.cards.pop(0) for _ in range(min(2, len(deck.cards)))]
             for card in drawn:
                 influence[actor].add(card)
             for card in choose(actor, list(influence[actor].cards), len(drawn)):
