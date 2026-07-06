@@ -71,9 +71,9 @@ level. The distinction stays:
 
 - A **mechanic** is a named, parameterized, reusable unit, instantiated
   with arguments. It's the right shape when a chunk of logic appears
-  in multiple games (a still-Python hand engine like Tichu's). (The
-  trick, the auction, and a betting round are no longer mechanics — they
-  are configurations of the kernel `round` construct.)
+  in multiple games (a still-Python hand engine like Coup's). (The
+  trick, the auction, a betting round, and the climbing trick are no longer
+  mechanics — they are configurations of the kernel `round` construct.)
 - A **phase** is a positional unit in the phase tree, not parameterized
   and not reusable across games. It's the right shape when a chunk
   appears at a specific position with semantics tied to where it sits.
@@ -485,7 +485,7 @@ appear per vocabulary: the card id alone must name the move.
 
 ## The climbing form of `round`
 
-Combination-climbing games (Big Two; Tichu, pending migration) run on a third
+Combination-climbing games (Big Two, Tichu) run on a third
 configuration of the kernel `round`. A climbing trick plays like a trick, but each
 play is a *combination* (a computed set of cards), not a single card:
 
@@ -500,9 +500,18 @@ The leader leads a combination from the `combinations` lead query; each
 participant in turn beats the standing play with a higher combination of the same
 size (from the `follows` query) or passes — a pass does **not** drop a player. The
 trick ends when action returns to the last player who played (everyone else passed
-one full lap) or `until` holds (a player has shed out). The last player to play is
+one full lap), when `until` holds (a player has shed out — Big Two; a game whose
+tricks always play out writes `until false` and ends the hand in the surrounding
+`repeat until` — Tichu), or the instant the lead itself is a trick-ending play:
+the engine may mark a play `ends_trick` (Tichu's Dog), and the form then closes
+the trick with **zero follower draws**. The last player to play is
 the `outcome`; the surrounding body routes the pile and the next lead, exactly as
-for a trick.
+for a trick. Like the trick form, the climbing form exposes its terminal state to
+the body (`mech_state` → `last_round_state`, read as `state.x`):
+`state.lead_ended_trick`, and `state.shed_first` / `state.shed_second` — the
+first two players who played their last cards this trick, in play order, from
+which a finishing-order game (Tichu: double victory, first-out routing, call
+payouts) folds its global out-order without any extra chooser draw.
 
 Two decisions distinguish it from the trick and auction forms:
 
@@ -527,11 +536,24 @@ Two decisions distinguish it from the trick and auction forms:
 
 As with the auction form, the round's only decision points are the per-turn
 candidate draws (the lead query, then `[follows…, pass]`); the scoring and routing
-in the surrounding body consume no randomness. So a climbing hand re-expressed on
+in the surrounding body consume no randomness — where a game's *rules* are random
+(Tichu's Dragon trick going to a random opponent, its random-rate call gates at
+the migrated scope), that randomness is a game-local stdlib primitive drawing on
+the shared `rng`, not a chooser decision. So a climbing hand re-expressed on
 this form reproduces a hand-written engine's behaviour byte-for-byte when it
-presents the same per-turn candidate lists — the property Big Two's migration
-([games/big-two.cardlang](games/big-two.cardlang)) is verified against
+presents the same per-turn candidate lists — the property both migrations
+([games/big-two.cardlang](games/big-two.cardlang),
+[games/tichu.cardlang](games/tichu.cardlang)) are verified against
 ([kernel-migration.md](kernel-migration.md), Workstream 3).
+
+For the OpenSpiel action space, a climb play's id comes from the engine's play
+universe — enumerated and golden-pinned when it is small (Big Two: 19,898), or
+**computed by an arithmetic codec** (pure card-set ↔ index functions over a
+fixed per-kind block layout) when enumeration is infeasible (Tichu:
+211,204,694 — straights under free suit assignment dominate). Either way the id
+is a stable function of the card-set, which is what determinized replay needs;
+the codec route is the designed answer for any future engine whose combination
+space explodes ([kernel-migration.md](kernel-migration.md), Workstream 3).
 
 ## No implicit actions
 
@@ -1962,12 +1984,17 @@ reopening it.
 - **`choose` expressions** inside move arguments — player
   decisions feeding move parameters. Standard expression form
   ([decisions.md](decisions.md), "`choose` as expression").
-- **`for each` iteration over fixed collections** — used by
-  Tichu's pushing phase to express "each player passes one card
-  to each other player." The iteration must be over a value known
+- **`for each` iteration over fixed collections** — the shape a
+  "each player passes one card to each other player" push would
+  take inside the block. The iteration must be over a value known
   at block entry (the player set, a fixed list); it cannot
   iterate over a collection whose membership is determined by
-  in-block choices, since reads see pre-block state.
+  in-block choices, since reads see pre-block state. (Tichu's
+  push in fact needs no `simultaneously:` block at all: each
+  player's three picks land in a per-player `gift` pile and are
+  distributed only after every pick, so plain sequential chosen
+  movements are simultaneous by construction —
+  [games/tichu.cardlang](games/tichu.cardlang).)
 - **`transfer` effects** — card and resource movement.
 
 The body does *not* admit:

@@ -48,13 +48,15 @@ Key design notes:
 
 ## The climb: a `round` configuration
 
-A climbing trick (Big Two; Tichu, pending its migration) is the kernel `round`
+A climbing trick (Big Two, Tichu) is the kernel `round`
 construct in its **climbing form** — one trick where each play is a *combination*,
 not a single card. The leader leads a combination drawn from the engine, then each
 participant beats the standing play with a higher one **of the same size** or
 passes; a pass does not drop a player. The trick ends when action returns to the
-last player who played (everyone else passed one full lap), or the `until`
-predicate holds (a player has shed out). The last player to play is bound as
+last player who played (everyone else passed one full lap), when the `until`
+predicate holds (a player has shed out), or at once when the lead itself ends
+the trick (the engine marks the play `ends_trick` — Tichu's Dog — and the
+followers draw nothing). The last player to play is bound as
 `outcome` for the surrounding body, which routes the pile and the next lead.
 
 ```
@@ -81,15 +83,26 @@ Key design notes:
   grammar (cards by count) cannot name, so the construct performs the movement
   itself ([decisions.md](decisions.md) "The climbing form of `round`").
 
-- **`until <predicate>` ends the trick — and the hand.** It is the shed-out gate:
-  Big Two's `any player p: hand[p] is empty` stops the trick the instant a player
-  empties (matching the rule that the hand ends on the first shed). It is checked
-  after each play, so the rest of that trick is not offered.
+- **`until <predicate>` ends the trick — and, when the game wants it, the
+  hand.** It is the shed-out gate: Big Two's `any player p: hand[p] is empty`
+  stops the trick the instant a player empties (matching the rule that the
+  hand ends on the first shed). It is checked after each play, so the rest of
+  that trick is not offered. A game whose tricks always play out (Tichu — the
+  others must still beat or pass after a shed) writes `until false` and ends
+  the *hand* in the surrounding `repeat until` instead.
+
+- **The form exposes its terminal state to the body** (the trick form's
+  `mech_state` → `last_round_state` pattern, read as `state.x`):
+  `state.lead_ended_trick` (did an `ends_trick` lead close it?) and
+  `state.shed_first` / `state.shed_second` (the first two players who played
+  their last cards this trick, in play order — Tichu's finishing order, which
+  double victory and the call payouts key on). Big Two reads none of these.
 
 - **Routing is the surrounding body, not a parameter** (as for the trick). Big Two
   routes the spent pile to the discard (`move all cards from trick_pile to discard`)
-  and passes the lead to the winner (`leader := outcome`); a point-capturing game
-  (Tichu) will route to a team pile instead.
+  and passes the lead to the winner (`leader := outcome`); Tichu routes to a team
+  pile (`captured[team_of(outcome)]`) — or to a random opponent's on a Dragon
+  win, or to the discard with the lead passing to the partner on the Dog.
 
 ## Move types
 
@@ -273,6 +286,19 @@ match) and so must trump if able, a quirk the split preserves precisely.
   The winner, matador count, and overbid arithmetic are the game-local
   primitives below; scoring writes `score[declarer]` directly (no typed
   outcome — the settlement is a plain two-armed statement).
+- **Tichu's hand** runs on the kernel with no mechanic: each climbing trick is
+  the climb `round` (above) over the `tichu_lead_options` / `tichu_follows`
+  queries, with the Dog as the engine-marked `ends_trick` lead and the
+  finishing order folded from the round's terminal `state.shed_first` /
+  `state.shed_second`. The push is one chosen 3-card movement per player into
+  a per-player `gift` pile (simultaneous by construction — gifts land only
+  after every pick), distributed giver-major by draw-free `deal` statements.
+  The two rule-level randomnesses of the migrated scope — the Tichu/Grand-
+  Tichu call gates and the Dragon's trick going to a random opponent — are
+  the `tichu_call_roll` / `tichu_dragon_recipient` rng primitives; the
+  partnership/finishing lookups and card-point table are pure primitives; and
+  `tichu_hand_summary` emits the hand's conservation trace. Scoring writes
+  `score[team]` directly.
 - `ChallengeWindow` (see [games/coup.md](games/coup.md)) — Coup.
   Parameterized over the claimant and the claimed character; resolves
   to `claim_stands | claim_refuted`. Offers each other in-game player a
@@ -628,6 +654,35 @@ contract (`is_grand` / `is_null` / `trump_suit`) from phase state:
 - `skat_effective_loss(game_value: Integer, bid: Integer, base: Integer) →
   Integer` — the loss base under the overbid rule (the smallest multiple of
   the base covering the bid; a ceiling the expression language lacks).
+
+Tichu's hand needs twelve game-local primitives plus the two climb queries,
+all reading `cardlang/runtime/tichu.py` (the combination engine itself stays
+`cardlang/runtime/combinations.py`); the finishing-order readers consume the
+`out_first` / `out_second` phase state:
+
+- `tichu_lead_options` / `tichu_follows` — the climb `round`'s queries: every
+  combination a hand can lead (plus the Dragon/Phoenix/Dog lead singles, the
+  Dog marked `ends_trick`), and the follows that beat the standing play (same
+  kind and length and higher, any bomb, the Dragon/Phoenix single answers).
+- `tichu_call_roll() → Integer` — one player's Tichu/Grand-Tichu gate at the
+  migrated random-play scope (200 at 4%, else 100 at 8%, else 0; rng).
+- `tichu_dragon_recipient(w: Player) → Player` — the opponent given the
+  Dragon's trick (rng at the same site as the reference).
+- `tichu_mahjong_holder() → Player` — leads the first trick (post-push).
+- `tichu_players_holding() → Integer` — non-empty hands (the hand ends ≤ 1).
+- `tichu_double_victory() → Boolean` — the first two finishers are teammates.
+- `tichu_partner(p: Player) → Player`, `tichu_opponent_team(p: Player) →
+  Team`, `tichu_first_out() → Player`, `tichu_next_holder(p: Player) →
+  Player` — partnership and finishing lookups (`next_holder` is the
+  post-trick leader advance, counterclockwise past empty hands).
+- `tichu_dragon_won() → Boolean` — the completed trick's standing play was
+  the lone Dragon, read off the round's terminal state like the `state`
+  pronoun.
+- `tichu_card_points(c: Card) → Integer` — K/10 = 10, 5 = 5, Dragon +25,
+  Phoenix −25 (100 per hand).
+- `tichu_hand_summary() → Integer` — emits the `tichu_hand` trace (double
+  victory, captured card points) the playout harness audits conservation
+  against.
 
 French Tarot's non-uniform 78-card deck (suit×rank card points that vary by
 suit, an effective led suit that isn't the kernel's own, and a settlement the

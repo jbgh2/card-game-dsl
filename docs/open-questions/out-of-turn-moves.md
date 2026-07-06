@@ -34,13 +34,16 @@ this shape. Options:
   `demands:`. Generalizes beyond out-of-turn play but adds a new rule
   category.
 - **Phase-level `out_of_turn_legal:` list** — phases declare which
-  move types are legal out-of-turn. Currently the provisional Tichu
-  draft uses both this and the move-type property; one of the two is
-  redundant.
+  move types are legal out-of-turn (redundant with the move-type
+  property; adopting both would be a mistake).
 
 A second game with out-of-turn moves (Egyptian Ratscrew's slapping,
-some real-time variants) would force the framing decision. Until
-then a Tichu-specific encoding is fine.
+some real-time variants) would force the framing decision. The kernel
+Tichu ([games/tichu.cardlang](../games/tichu.cardlang)) does not
+exercise it: at the migrated scope bombs play on-turn only, as
+follows from the climb round's queries, so no out-of-turn axis exists
+in the kernel ([kernel-migration.md](../kernel-migration.md),
+Workstream 3's interrupt note).
 
 Related: decisions.md "Round configuration vs rules"
 catalogs the distinction between rules (filter legal moves) and

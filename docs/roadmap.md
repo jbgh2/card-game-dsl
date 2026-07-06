@@ -72,10 +72,10 @@ Things we have noted but consciously not designed yet:
   (decisions.md "Interactive decisions: a kernel and an in-DSL standard library")
   is the major in-flight work: the remaining `round` axes (accumulator, order,
   move vocabulary); typed outcomes and definition-composition; and the `auction` /
-  `challenge` / `block` / `climb` standard-library vocabulary. Two games
-  (Tichu, Coup) still
-  hold their decision logic in concrete per-game runtime
-  mechanics; lifting each into the kernel + DSL standard library (promoting a
+  `challenge` / `block` / `climb` standard-library vocabulary. One game
+  (Coup) still
+  holds its decision logic in a concrete per-game runtime
+  mechanic; lifting it into the kernel + DSL standard library (promoting a
   definition at ~3 examples) closes the spec-vs-runtime gap. The bidding
   sub-language, detailed melding, and strict-trick legality noted on this list
   are subsumed by this work. The game-by-game execution order, the per-game
@@ -211,18 +211,15 @@ open-question framing.
 
    Headline recommendations from the pipeline:
 
-   - **The `climb` kernel migration** — the immediate next step.
-     **Big Two** has landed as the **second combination-climbing
-     instance** after Tichu (`cardlang/runtime/bigtwo.py`,
-     `docs/games/big-two.cardlang` — a concrete mechanic, like Tichu's),
-     so the WS3 migration is now unblocked
-     ([kernel-migration.md](kernel-migration.md), "Workstream 3"): the
-     `climb` kernel `round` construct and the combination queries are
-     co-designed against Tichu *and* Big Two (its engine adds flushes,
-     quads, and suit-tie-breaks over `combinations.py`), then both
-     monoliths are deleted. **President**
-     ([games/_candidates.md](games/_candidates.md), "Climbing &
-     shedding") is the simpler third climbing instance after that.
+   - **The `climb` kernel migration — done for both instances.** Big Two
+     and Tichu both run on the `climb` kernel `round` construct with
+     game-local combination queries (`cardlang/runtime/bigtwo.py`,
+     `cardlang/runtime/tichu.py` over the shared `combinations.py`);
+     both monoliths are deleted
+     ([kernel-migration.md](kernel-migration.md), "Workstream 3").
+     **President** ([games/_candidates.md](games/_candidates.md),
+     "Climbing & shedding") is the simpler third climbing instance —
+     the promote-at-the-third trigger for a shared combination model.
    - **Klondike or FreeCell** — first solitaire; tests positional
      zones. Doesn't directly unblock a Tier 2 question but forces a
      deferred design decision.
