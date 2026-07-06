@@ -873,10 +873,15 @@ def test_skat_pickup_and_discard_derive_hidden_observations() -> None:
 
     # A defender's rendered info state: the declarer's hand and the skat are
     # bare counts; the declarer's own rendering shows the hand identities.
+    # And no hidden-derived value reaches the public state rendering: the
+    # matador count (a function of the declarer's hidden hand + the face-down
+    # skat, computed at this point of the hand for the grand contract) must be
+    # a local, never a state variable — state renders public to everyone.
     for d in defenders:
         info = information_state(d, r.rs, r.obs_logs[d])
         assert f"hand[{declarer}]=#10" in info
         assert "skat=#2" in info
+        assert "matadors" not in info, "the matador count leaked into public state"
     own_info = information_state(declarer, r.rs, r.obs_logs[declarer])
     assert f"hand[{declarer}]=#10" not in own_info
     assert f"hand[{declarer}]=[" in own_info

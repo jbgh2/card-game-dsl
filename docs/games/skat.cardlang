@@ -70,7 +70,6 @@ game Skat {
         is_grand        : Boolean = false
         is_null         : Boolean = false
         trump_suit      : Suit?   = none
-        matadors        : Integer = 0
         declarer_tricks : Integer = 0
         leader          : Player? = none
       }
@@ -112,8 +111,12 @@ game Skat {
               until trump_suit is not none
       }
       // Matadors (with/without the top trumps) exist only under a trump
-      // structure; the count reads hand + skat BEFORE play.
-      if not is_null { matadors := skat_matadors(declarer) }
+      // structure; the count reads hand + skat BEFORE play. A `let` local, NOT
+      // a state variable: it derives from the declarer's hidden hand plus the
+      // face-down skat, and state is public (rendered into every player's
+      // information state) — storing it would leak the jack holdings to the
+      // defenders mid-hand.
+      let matadors = if is_null then 0 else skat_matadors(declarer)
 
       // --- Ten tricks: forehand leads; strict follow by class (trump = the
       // jacks + the trump suit; Null: plain suits). The single-actor
