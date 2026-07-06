@@ -29,10 +29,6 @@ folder, and remove the entry from this index. See
 These questions need one more game in the corpus before committing to a
 design. The data point is named in each file.
 
-- [auction-order-axis](auction-order-axis.md) — whether Skat's Reizen
-  call-and-response is a new `order` value on the auction `round`, body
-  composition, or stays in Python; blocked on a second call-and-response
-  game (or a sign-off to add the axis now).
 - [turn-loop-form](turn-loop-form.md) — a `turns` form beneath the three
   round forms (rotation, participant filtering, termination owned by the
   kernel); seven stress-sweep games hand-rolled the same scaffolding;

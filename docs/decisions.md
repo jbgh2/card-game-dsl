@@ -40,16 +40,16 @@ reports unsatisfiable; the enclosing phase interprets that signal in
 context. The phase decides whether unsatisfiable means error, fallback,
 or a typed outcome other than success.
 
-**Mechanics produce typed outcomes the same way.** A mechanic that
-resolves to a tagged value uses the same `outcome` parameter the
-mechanic accepts as a callback. Pinochle's `Auction` takes
-`outcome: (final_bid, last_active_player) → effect`; Skat's
-`Reizen` takes `outcome: (winner, value: Integer | all_pass) → effect`;
-French Tarot's `TarotBidding` takes
-`outcome: (winner, level: BidLevel) | all_pass → effect`; the trick
-`round`'s `outcome` function produces a Player. The enclosing structure
-pattern-matches on the produced value the same way it does for
-phase outcomes:
+**Rounds and mechanics produce typed outcomes the same way.** A `round`
+that resolves to a tagged value names an `outcome` callback over its bid
+history: Bridge's auction produces
+`contract_finalized(declarer, level, strain, doubling) | all_pass`,
+Pinochle's produces `bid_won(declarer, bid)`, Tarot's
+`taken(taker, level) | thrown_in`; the trick `round`'s `outcome` function
+produces a Player. (An auction with nothing to tag — Skat's Reizen, a
+betting round — omits the callback and threads phase state instead.) The
+enclosing structure pattern-matches on the produced value the same way it
+does for phase outcomes:
 
 ```
 bidding produces:
@@ -71,7 +71,7 @@ level. The distinction stays:
 
 - A **mechanic** is a named, parameterized, reusable unit, instantiated
   with arguments. It's the right shape when a chunk of logic appears
-  in multiple games (a still-Python hand engine like Skat's). (The
+  in multiple games (a still-Python hand engine like Tichu's). (The
   trick, the auction, and a betting round are no longer mechanics — they
   are configurations of the kernel `round` construct.)
 - A **phase** is a positional unit in the phase tree, not parameterized
@@ -364,9 +364,10 @@ and an in-DSL standard library"). The continuous ring, its accumulator, and its
 termination are axes **on the `round`**, not a `repeat until` loop wrapped around
 a single-pass round: the loop, the turn-cycling, and the close condition live in
 the kernel so the per-game file supplies only *values* (the move vocabulary, the
-termination predicate, the outcome). This keeps a later call-and-response order
-(Skat's Reizen) a value on the order axis rather than bespoke loop code in each
-game's body.
+termination predicate, the outcome). Even Skat's Reizen call-and-response is a
+*configuration* of this form — role-guarded moves over a two-participant ring
+(the call-and-response bullet below) — not bespoke loop code in the game's
+body.
 
 The surface:
 
@@ -414,6 +415,22 @@ round offering [<move_type>, …] from <seat> over <ring>
   seat, not the next one round the ring. Bridge/Pinochle/Tarot auctions are
   `ring`; Stud's betting is `priority` (a checked player responds to a later raise
   before seats that have not yet acted), and Coup's response windows will be too.
+- **Call-and-response is a configuration, not an order value.** Skat's Reizen —
+  a speaker naming successive ladder values against a responder who holds or
+  passes, twice in sequence with the survivor advancing — runs on the plain
+  ring: `round offering [bid, yes, pass] from <speaker> over players where
+  player == <speaker> or player == <responder> until <someone passed, or the
+  ladder is exhausted>`, with `bid` guarded to the speaker and `yes` to the
+  responder. The seemingly new requirements each map to an existing axis:
+  role-dependent vocabularies are move guards (the speaker's candidates filter
+  to `[bid, pass]`, the responder's to `[yes, pass]`); conditional
+  participation is the `until` predicate, checked before each draw (a pass —
+  or the exhausted bid ladder, the reference's zero-draw auto-pass — ends the
+  contest before the responder is offered a turn); the speaks-before-his-seat
+  reorder is `from <speaker>` (the ring starts at the speaker regardless of
+  seating); and the two sequential contests are two `round` statements
+  threading the survivor through phase state. The order axis stays two values
+  (`ring`, `priority`).
 - **Accumulator.** The decision-relevant running state (Bridge's standing level,
   strain, doubling, high bidder, pass count) is ordinary **phase state**, read and
   written by the move-type effects and read by the termination predicate. No
@@ -610,7 +627,7 @@ the channel.
 
 **Mechanic-internal state lives inside the mechanic.** The trick `round`'s
 per-trick state (`led_suit`, the played cards) lives inside the construct, and a
-still-Python mechanic's locals (Skat's Reizen bookkeeping) live inside
+still-Python mechanic's locals (Coup's challenge bookkeeping) live inside
 its instance. (Schnapsen's talon-closing snapshot, once such a local, is
 ordinary phase state now that its hand runs on the kernel — closes and
 marriages are public declarations at the table, so `closed_by` and the
@@ -2057,13 +2074,14 @@ axis (an `early` predicate — Getaway's tochoo) plus round-state exposure. The
 ring over a heterogeneous move vocabulary, with the accumulator as phase state, a
 termination predicate, and a typed outcome over the bid history — Bridge's,
 Pinochle's, and Tarot's auctions run on it (Tarot as a counterclockwise
-single-pass ring, the ring honouring the game's `direction`). The
+single-pass ring, the ring honouring the game's `direction`), Stud's betting
+runs its `priority` order, and Skat's Reizen call-and-response runs as a
+role-guarded two-participant ring (see the call-and-response bullet under "The
+auction form of `round`"). The
 participant-filter axis is built — the ring is re-evaluated each turn, so it
 shrinks as players drop out (Pinochle's passed bidders and standing high bidder,
-Tarot's seats dropping after one bid). The remaining work (Stud's betting ring; a
-non-trivial *order* axis for Skat's call-and-response, a filed language gap —
-[open-questions/auction-order-axis.md](open-questions/auction-order-axis.md); the
-challenge / block / climbing vocabulary; promoting the shared `auction` definition
+Tarot's seats dropping after one bid). The remaining work (the challenge /
+block vocabulary; promoting the shared `auction` definition
 at its third instance) is the in-flight build (see [roadmap.md](roadmap.md) and
 [kernel-migration.md](kernel-migration.md)).
 

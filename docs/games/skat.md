@@ -28,12 +28,21 @@ Each hand:
    twice it — or, when overbid, twice the smallest multiple of the base that
    meets the bid. Null is a fixed value (23, or 35 played from the hand).
 
-The hand engine — Reizen, the contract choice, the per-contract trump structure,
-and the scoring — runs in the built-in `SkatHand` mechanic (the Reizen's
-call-and-response order is not yet a value on the auction `round` — see
-[open-questions/auction-order-axis.md](../open-questions/auction-order-axis.md) —
-and the three trump structures are not yet expressible in the rule DSL). The
-cardlang holds the deal, hand counting, and termination.
+The hand runs fully on the kernel. The Reizen is two sequential auction
+`round`s over role-guarded two-participant rings — `bid` guarded to the
+speaker, `yes` to the responder, `pass` open, so the candidate lists alternate
+[bid, pass] / [yes, pass]; a pass (or the exhausted 62-value ladder) flips the
+`until` predicate, and the survivor threads into the second contest
+([decisions.md](../decisions.md), "The auction form of `round`", the
+call-and-response bullet). The contract declaration is a pair of `offer`s
+(play-at-18/throw-in on an all-pass; hand vs picking up the skat, with the
+two-card discard in the `pick_up_skat` effect; the three-way game type) plus a
+one-draw `declare_suit(s : Suit)` round. The ten tricks are three single-actor
+filtered movements per trick over the `skat_follow_ok` follow-class predicate
+(the four jacks and the trump suit are one class; Null has no trumps and its
+own rank order), with the winner from the game-local `skat_trick_winner`
+primitive; scoring writes `score[declarer]` directly through `skat_matadors`
+and the overbid-aware `skat_effective_loss`.
 
 ```
 game Skat {
@@ -53,6 +62,7 @@ game Skat {
   }
 
   state {
+    // Game-level: persists across hands.
     score[player] : Integer = 0
     hands_played  : Integer = 0
   }
@@ -65,6 +75,7 @@ game Skat {
     before_each {
       move all cards to deck
       shuffle deck
+      // 3 - 2(skat) - 4 - 3 deal.
       deal 3 cards from deck to each hand
       deal 2 cards from deck to skat
       deal 4 cards from deck to each hand
@@ -73,14 +84,103 @@ game Skat {
     }
 
     phase play {
-      legal_moves: [
-        pass, bid, yes, play_at_eighteen, throw_in,
-        pick_up_skat, declare_hand,
-        declare_suit_diamonds, declare_suit_hearts, declare_suit_spades,
-        declare_suit_clubs, declare_grand, declare_null,
-        play_to_trick
-      ]
-      instantiate SkatHand(forehand = dealer offset_by left)
+      state {
+        speaker         : Player? = none
+        responder       : Player? = none
+        passer          : Player? = none
+        working_bid     : Integer = 0
+        declarer        : Player? = none
+        thrown          : Boolean = false
+        hand_mode       : Boolean = false
+        is_grand        : Boolean = false
+        is_null         : Boolean = false
+        trump_suit      : Suit?   = none
+        declarer_tricks : Integer = 0
+        leader          : Player? = none
+      }
+
+      // --- The Reizen: middlehand speaks against forehand, then rearhand
+      // against the survivor. A speaker bids the next ladder value or passes;
+      // the responder holds (yes) or passes. The exhausted ladder ends the
+      // exchange with no draw, like a pass by the speaker.
+      responder := dealer offset_by left           // forehand answers first
+      speaker := responder offset_by left          // middlehand speaks
+      round offering [bid, yes, pass] from speaker
+            over players where player == speaker or player == responder
+            until passer is not none or skat_next_bid(working_bid) == 0
+      let w1 = if passer is none then responder
+               else the player where (player == speaker or player == responder) and player != passer
+      speaker := speaker offset_by left            // rearhand speaks
+      responder := w1
+      passer := none
+      round offering [bid, yes, pass] from speaker
+            over players where player == speaker or player == responder
+            until passer is not none or skat_next_bid(working_bid) == 0
+      declarer := if passer is none then responder
+                  else the player where (player == speaker or player == responder) and player != passer
+
+      // All passed: forehand may play at 18 or throw the hand in (it still
+      // counts toward the 36).
+      if working_bid == 0 {
+        offer to declarer one of [play_at_eighteen, throw_in]
+        if thrown { skip to next hand }
+      }
+
+      // --- Contract declaration: hand or pick up the skat (discarding two),
+      // then the game type; a Suit game names its trump in a one-draw round.
+      offer to declarer one of [pick_up_skat, declare_hand]
+      offer to declarer one of [choose_suit_game, declare_grand, declare_null]
+      if not is_grand and not is_null {
+        round offering [declare_suit] from declarer
+              over players where player == declarer
+              until trump_suit is not none
+      }
+      // Matadors (with/without the top trumps) exist only under a trump
+      // structure; the count reads hand + skat BEFORE play. A `let` local, NOT
+      // a state variable: it derives from the declarer's hidden hand plus the
+      // face-down skat, and state is public (rendered into every player's
+      // information state) — storing it would leak the jack holdings to the
+      // defenders mid-hand.
+      let matadors = if is_null then 0 else skat_matadors(declarer)
+
+      // --- Ten tricks: forehand leads; strict follow by class (trump = the
+      // jacks + the trump suit; Null: plain suits). The single-actor
+      // `for each player p: if p == X` wrapper binds the acting player for
+      // each chosen movement — the idiom open-questions/single-actor-binding.md
+      // names as a candidate `as <player> { }` block.
+      leader := dealer offset_by left              // forehand leads trick 1
+      repeat until (all player p: hand[p] is empty) {
+        let second = leader offset_by left
+        let third  = second offset_by left
+        for each player p: if p == leader { move chosen one card from hand[p] to trick_pile }
+        for each player p: if p == second { move chosen one card from hand[p] where c => skat_follow_ok(p, c) to trick_pile }
+        for each player p: if p == third  { move chosen one card from hand[p] where c => skat_follow_ok(p, c) to trick_pile }
+        let w = skat_trick_winner(leader)
+        if w == declarer { declarer_tricks += 1 }
+        move all cards from trick_pile to captured[w]
+        leader := w
+      }
+
+      // --- Scoring: the declarer alone wins or loses (opponents' scores
+      // never move). Null is a fixed value; otherwise base x multiplier with
+      // matadors, hand, Schneider, Schwarz — and the overbid rule on a loss.
+      if is_null {
+        let game_value = if hand_mode then 35 else 23
+        if declarer_tricks == 0 and game_value >= working_bid { score[declarer] += game_value }
+        else { score[declarer] -= 2 * skat_effective_loss(game_value, working_bid, game_value) }
+      } else {
+        let pts = (sum over captured[declarer] as c: card_value(c)) + (sum over skat as c: card_value(c))
+        let base = if is_grand then 24
+                   elif trump_suit == diamonds then 9
+                   elif trump_suit == hearts then 10
+                   elif trump_suit == spades then 11
+                   else 12
+        let schneider = if pts >= 90 or pts <= 30 then 1 else 0
+        let schwarz = if declarer_tricks == 10 or declarer_tricks == 0 then 1 else 0
+        let game_value = base * (matadors + 1 + (if hand_mode then 1 else 0) + schneider + schwarz)
+        if pts >= 61 and game_value >= working_bid { score[declarer] += game_value }
+        else { score[declarer] -= 2 * skat_effective_loss(game_value, working_bid, base) }
+      }
     }
 
     after_each {
@@ -89,5 +189,63 @@ game Skat {
   }
 
   winner: highest score
+}
+
+// === The Reizen + declaration vocabulary ===
+//
+// Game-defined move_types (the Stud/Schnapsen shape). The two auction roles
+// are guards over the same vocabulary: the speaker sees [bid, pass], the
+// responder [yes, pass] — the reference's literal candidate lists.
+
+move_type bid {
+  when: actor == speaker and skat_next_bid(working_bid) > 0
+  effect { working_bid := skat_next_bid(working_bid) }
+}
+
+move_type yes {
+  when: actor == responder
+  effect { }
+}
+
+move_type pass {
+  effect { passer := actor }
+}
+
+move_type play_at_eighteen {
+  effect { working_bid := 18 }
+}
+
+move_type throw_in {
+  effect { thrown := true }
+}
+
+move_type pick_up_skat {
+  effect {
+    move all cards from skat to hand[actor]
+    move chosen 2 cards from hand[actor] to skat
+  }
+}
+
+move_type declare_hand {
+  effect { hand_mode := true }
+}
+
+// Selecting "a Suit game" and naming which suit are two decisions in the
+// reference (a three-way draw, then a four-way draw), so the game-type offer
+// carries a selection-only move and the suit round follows.
+move_type choose_suit_game {
+  effect { }
+}
+
+move_type declare_grand {
+  effect { is_grand := true }
+}
+
+move_type declare_null {
+  effect { is_null := true }
+}
+
+move_type declare_suit(s : Suit) {
+  effect { trump_suit := s }
 }
 ```

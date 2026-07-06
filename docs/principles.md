@@ -195,7 +195,7 @@ sequential, with `apply_components:` as the one batched-write
 exception. (See [decisions.md](decisions.md), "State scoping" and
 "Mutation semantics".)
 
-**Mechanics own their internal state.** A still-Python mechanic (Skat's
+**Mechanics own their internal state.** A still-Python mechanic (Tichu's
 hand, Coup's game) carries its own per-instance state; games don't redeclare what
 it tracks. (The trick, auction, and betting forms of the kernel `round` instead
 thread their accumulator through ordinary phase state.) (See

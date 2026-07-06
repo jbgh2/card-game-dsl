@@ -84,6 +84,11 @@ STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
         "tarot_per_opp",  # French Tarot: the zero-sum per-opponent settlement amount
         "tarot_card_points",  # French Tarot: a card's doubled card-point value
         "schnapsen_trick_winner",  # Schnapsen: the two-card trick's winner (leader led first)
+        "skat_next_bid",  # Skat: the next Reizen ladder value (0 = exhausted)
+        "skat_follow_ok",  # Skat: follow-class legality (jacks + trump suit are one class)
+        "skat_trick_winner",  # Skat: the three-card trick's winner under the contract
+        "skat_matadors",  # Skat: the with/without matador count (hand + skat)
+        "skat_effective_loss",  # Skat: the overbid-aware loss base (needs a ceiling)
         "peg_value",  # Cribbage: pegging/fifteens value of a card (A=1, faces 10)
         "peg_pair_points",  # Cribbage: pairs points at the tail of the live pegging count
         "peg_run_points",  # Cribbage: run points at the tail of the live pegging count

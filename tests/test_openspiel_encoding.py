@@ -176,6 +176,30 @@ def test_schnapsen_space_folds_play_card_into_the_card_block() -> None:
     assert space.match(aid, [Card("J", "clubs"), card]) == card
 
 
+def test_skat_space_names_offers_and_reizen_vocabulary() -> None:
+    space = _space("skat.cardlang")
+    # 52 cards (skat32 is a standard-catalogue subset, unused slots) + the
+    # seven offer names (sorted) + the auction vocabulary in walk order: the
+    # Reizen's [bid, yes, pass], then declare_suit over the four suits.
+    assert space.num_distinct_actions == 66
+    assert [space.to_string(a) for a in range(52, 66)] == [
+        "choose_suit_game",
+        "declare_grand",
+        "declare_hand",
+        "declare_null",
+        "pick_up_skat",
+        "play_at_eighteen",
+        "throw_in",
+        "bid",
+        "yes",
+        "pass",
+        "declare_suit(clubs)",
+        "declare_suit(diamonds)",
+        "declare_suit(hearts)",
+        "declare_suit(spades)",
+    ]
+
+
 def test_cribbage_space_is_pure_cards() -> None:
     # No offers, no `choose`, no auction vocabulary, no climb engine — just the
     # standard 52-card block (the first 2-player registered game).

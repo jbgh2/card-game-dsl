@@ -17,7 +17,7 @@ done.
 
 ## The goal, concretely
 
-Three games still hold their decision logic in hand-written Python dispatched by
+Two games still hold their decision logic in hand-written Python dispatched by
 name in `cardlang/runtime/mechanics.py::instantiate`. Bridge's, Pinochle's, and
 Tarot's auctions have been lifted onto the kernel `round` — so `run_bridge_auction`
 is gone, and Pinochle and Tarot are both fully kernel (Pinochle: trump
@@ -30,13 +30,16 @@ is gone as well. Schnapsen's hand — the leader's mixed lead decision on the
 auction form over a single-participant ring (with the Card move-parameter
 domain), the follower's strict-endgame filtered movement, and the
 trick/claim/draw statements — is fully kernel too, so the inline
-`run_schnapsen_hand` is gone:
+`run_schnapsen_hand` is gone. And Skat's hand — the Reizen call-and-response
+as a role-guarded two-participant ring, the contract declaration on offers
+plus a `declare_suit(s : Suit)` round, the ten follow-class tricks, and the
+base × multiplier scoring — is fully kernel, so `run_skat_hand` is gone:
 
-- separate modules: `runtime/coup.py`, `skat.py`, `tichu.py`
+- separate modules: `runtime/coup.py`, `tichu.py`
 
 (`runtime/stud.py`, `runtime/bigtwo.py`, `runtime/pinochle.py`,
-`runtime/tarot.py`, `runtime/cribbage.py`, and `runtime/schnapsen.py` remain,
-but hold no `instantiate`
+`runtime/tarot.py`, `runtime/cribbage.py`, `runtime/schnapsen.py`, and
+`runtime/skat.py` remain, but hold no `instantiate`
 mechanic — only pure stdlib primitives the DSL calls: Stud's poker evaluator,
 seat selectors, and `pot_share`; Big Two's combination engine; Pinochle's meld
 evaluator, `pinochle_meld_value`; Tarot's per-card queries, effective led suit,
@@ -44,7 +47,9 @@ trick outcome, Excuse-player lookup, and the per-opponent settlement arithmetic;
 Cribbage's pegging/show scorers and provenance decoder — `peg_value`,
 `peg_pair_points`, `peg_run_points`, `peg_origin_of`, `cribbage_show_value`,
 `cribbage_crib_value`; Schnapsen's two-card trick resolution,
-`schnapsen_trick_winner`.)
+`schnapsen_trick_winner`; Skat's bid ladder, follow-class legality, trick
+winner, matador count, and overbid arithmetic — `skat_next_bid`,
+`skat_follow_ok`, `skat_trick_winner`, `skat_matadors`, `skat_effective_loss`.)
 
 This violates the two-layer architecture ([principles.md](principles.md): the
 library is *written in the DSL*, not the engine). It also carries **info-set
@@ -211,24 +216,30 @@ consecutive passes), typed outcome = a contract variant. Then per game, supplyin
   derived 78-card action-space block, since atouts/the Excuse fall outside the
   standard 52-card catalogue) with derived info sets — including the hidden
   discard specifically — proven in the readiness harness.
-- **Skat** — *deferred (language gap).* The Reizen call-and-response auction (one
-  player names successive values, the other holds or passes) is **not expressible
-  on the existing order axis**: role-dependent vocabularies (speaker `bid`/`pass`
-  vs responder `yes`/`pass`), conditional participation (the responder is skipped
-  when the speaker passes), and a seat *reorder* in the second contest that a
-  participants filter cannot produce. Per the checkpoint below this is a
-  `language-gap`, filed as
-  [open-questions/auction-order-axis.md](open-questions/auction-order-axis.md) and
-  left in `run_skat_hand` pending a second call-and-response game (or sign-off to
-  add a new `order` value). The contract choice (Suit / Grand / Null, hand vs.
-  picking up the skat) waits on the same.
+- **Skat** — *done.* The Reizen call-and-response auction needed NO new order
+  value: it is a role-guarded two-participant ring — `bid` guarded to the
+  speaker, `yes` to the responder, `pass` open, `until` carrying
+  pass-or-exhausted-ladder (the reference's zero-draw auto-pass), two
+  sequential `round`s threading the survivor ([decisions.md](decisions.md),
+  "The auction form of `round`", the call-and-response bullet). The three
+  once-filed objections (role vocabularies, conditional participation, the
+  seat reorder) each mapped to an existing axis — guards, the `until`
+  predicate, `from <speaker>`. The contract choice is a pair of `offer`s plus
+  a one-draw `declare_suit(s : Suit)` round; the ten tricks run
+  Schnapsen-style (three single-actor filtered movements over
+  `skat_follow_ok` — the trick form's rules-driven candidates are unordered
+  where the reference draws hand-ordered legality); scoring is plain
+  statements over the game-local `skat_matadors`/`skat_effective_loss`
+  primitives.
 
-**Checkpoint (possible new axis) — resolved as a gap.** Skat's call-and-response
-is a different *order* from a simple ascending ring. It was confirmed **not** a
-value on the existing order axis (turn-from-a-seat / priority / simultaneous), so
-per the discipline it was surfaced as an open question rather than special-cased
-with an engine hook — see the Skat bullet above and
-[open-questions/auction-order-axis.md](open-questions/auction-order-axis.md).
+**Checkpoint (possible new axis) — dissolved.** Skat's call-and-response was
+filed as a language gap, then probed against the unmodified kernel at
+migration time: a scripted-chooser fixture reproduced the reference
+`exchange()`'s draw sequence draw-for-draw on the plain ring with role-guarded
+moves. The open question resolved into
+[decisions.md](decisions.md) ("The auction form of `round`") with the order
+axis unchanged — the discipline's happy path: the gap was surfaced, held, and
+closed by configuration rather than an engine hook.
 
 **Dependency surfaced by Bridge — built.** The auction form does not silently skip
 a participant with no legal move — the ring is stated by the participants clause and
@@ -243,16 +254,13 @@ Bridge's `all players` is the invariant case). Built with Pinochle; reused by Wo
 ring). An always-legal `pass` would instead offer passed players and consume RNG
 the monolith does not.
 
-**Scope note.** Skat is still a *monolith* — the auction is fused with play and
-scoring in one Python function ([roadmap.md](roadmap.md)); Pinochle and Tarot
-were too, until each one's trick play and scoring followed its auction onto
-the kernel (above). The auction extraction is the entry point, but the whole
-hand must land in the DSL before the module is deleted: auction here, trick
-play on the Step 0 `round`, scoring in Workstream 4 (Pinochle's own meld and
-Tarot's own per-opponent settlement arithmetic both stayed game-local stdlib
-primitives rather than moving to Workstream 4's shared `scoring_component`
-subsystem — see that workstream's note below). Bridge is already split (play
-is DSL), so it finishes first and validates `auction` end to end.
+**Scope note.** A monolith lands whole: Pinochle, Tarot, and Skat each fused
+auction, play, and scoring in one Python function until the whole hand moved
+in that game's migration (auction on this workstream's form, trick play on the
+Step 0 `round` or hand-ordered filtered movements, scoring as game-local
+stdlib primitives rather than Workstream 4's shared `scoring_component`
+subsystem — see that workstream's note below). Bridge was already split (play
+is DSL), so it finished first and validated `auction` end to end.
 
 ## Workstream 2 — Betting and the pot (Seven-Card Stud)
 

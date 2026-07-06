@@ -21,19 +21,10 @@ LIBRARY_MOVE_TYPES: frozenset[str] = frozenset(
         "declare_trump_suit",
         "double",
         "redouble",
-        # Skat moves (handled by the SkatHand mechanic).
-        "bid",
-        "yes",
-        "pick_up_skat",
-        "declare_hand",
-        "declare_suit_diamonds",
-        "declare_suit_hearts",
-        "declare_suit_spades",
-        "declare_suit_clubs",
-        "declare_grand",
-        "declare_null",
-        "play_at_eighteen",
-        "throw_in",
+        # Skat's Reizen/declaration moves (bid / yes / pass / play_at_eighteen /
+        # throw_in / pick_up_skat / declare_hand / choose_suit_game /
+        # declare_grand / declare_null / declare_suit) are game-defined
+        # `move_type`s in skat.cardlang, not library moves.
         # Seven-Card Stud's betting moves (check/bet/call/raise/fold) are
         # game-defined `move_type`s in seven-card-stud.cardlang, not library moves.
         # Tichu moves (handled by the TichuHand mechanic).
