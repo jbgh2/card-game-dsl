@@ -329,3 +329,33 @@ def test_tichu_combo_codec_index_round_trips_every_block() -> None:
             "dog", "single", "pair", "triple", "bomb",
             "fullhouse", "straight", "pairseq",
         }
+
+
+def test_coup_space_derives_its_own_5_card_block_and_the_action_names() -> None:
+    from cardlang.runtime.values import build_deck
+
+    space = _space("coup.cardlang")
+    # coup15 is not standard-52-expressible (five character ranks of a "court"
+    # suit), so the space derives its own block: 5 DISTINCT cards (the three
+    # copies of each character share one id — identical cards are
+    # interchangeable, so one id is exactly right for determinized replay),
+    # plus the seven offer action names, sorted. No vocab, no integers, no
+    # combos: the response windows are rng at the migrated scope, so the only
+    # decisions are the action pick and card picks.
+    assert space.num_distinct_actions == 5 + 7
+    assert [space.to_string(a) for a in range(5, 12)] == [
+        "assassinate",
+        "coup",
+        "exchange",
+        "foreign_aid",
+        "income",
+        "steal",
+        "tax",
+    ]
+    seen = set()
+    for card in build_deck("coup15"):
+        aid = space.encode(card)
+        assert 0 <= aid < 5
+        seen.add(aid)
+        assert space.decode(aid) == card
+    assert len(seen) == 5
