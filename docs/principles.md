@@ -21,11 +21,13 @@ casino games) in a form that:
   that information sets are *derived* from zone visibility, not hand-authored per
   game (see "Visibility as a first-class property" below); a design that cannot
   compile to OpenSpiel with correct derived info sets is not finished.
-- Provides an escape hatch to a lower-level API for the rough edges, so we can
-  surface and fix the rough edges over time without users being blocked. **The
-  escape hatch has a real cost: a hand-written mechanic bypasses info-set
-  derivation, so it is info-set *debt* against the OpenSpiel target, not a
-  finished solution** (see [design-notes/kernel-extensibility.md](design-notes/kernel-extensibility.md), §6).
+- Keeps no escape hatch to a lower-level API: the corpus proved the kernel
+  can hold every mechanic, and the hand-written ones were retired (the
+  `instantiate` construct is deleted). **The lesson that retired them
+  stands: a hand-written mechanic bypasses info-set derivation, so any
+  future escape hatch would be info-set *debt* against the OpenSpiel
+  target, not a finished solution** (see
+  [design-notes/kernel-extensibility.md](design-notes/kernel-extensibility.md), §6).
 
 **Out of scope (initially):** Collectible card games (Magic, etc.) and
 deck-builders. These need an effects-text sub-language and consciously
@@ -127,11 +129,12 @@ operational. Visibility belongs to the zone, not to operations on the zone.
 **This derivation is the hardest, most load-bearing requirement in the whole
 design.** It is what makes OpenSpiel an achievable target rather than a per-game
 hand-coding exercise, and it is the property that any new mechanic or construct
-must preserve. It is currently only partly realized: the per-game Python
-`instantiate` mechanics run their decision logic outside the observation-event
-stream, so their info sets are not derived — info-set debt against the OpenSpiel
-target, quantified in
-[design-notes/kernel-extensibility.md](design-notes/kernel-extensibility.md), §6.
+must preserve. It is realized across the whole corpus: every game's decisions
+run on kernel sites that emit observation events through the declared zone
+projections, and the readiness proofs cover all fourteen games
+(`tests/test_openspiel_ready.py`; the history of closing this per game is in
+[kernel-migration.md](kernel-migration.md)). Any future construct that runs a
+decision outside the observation-event stream reopens the debt — don't.
 
 ### Explicit over implicit; defaults instead of boilerplate
 
@@ -195,10 +198,11 @@ sequential, with `apply_components:` as the one batched-write
 exception. (See [decisions.md](decisions.md), "State scoping" and
 "Mutation semantics".)
 
-**Mechanics own their internal state.** A still-Python mechanic (Coup's
-game) carries its own per-instance state; games don't redeclare what
-it tracks. (The trick, auction, betting, and climbing forms of the kernel
-`round` instead thread their accumulator through ordinary phase state.) (See
+**Round forms own their internal state.** The trick, auction, betting, and
+climbing forms of the kernel `round` thread their accumulator through the
+round's own state frame (readable as `state.x` during and just after the
+round); games don't redeclare what a form tracks. No Python mechanic
+remains — every game is DSL over the kernel. (See
 [library.md](library.md), "Mechanics".)
 
 **Typed phase outcomes route control flow at the phase boundary.**

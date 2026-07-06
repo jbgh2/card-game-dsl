@@ -8,7 +8,6 @@ the class of error a type checker catches before anything runs:
 - every `active_rules:` entry names a rule defined in the game;
 - every move type referenced by `constrains:`, `legal_moves:`, or a
   transition event is a known library move type;
-- every `instantiate` names a known library mechanic;
 - every `transition_to:` target is a sibling phase.
 
 Deep expression name resolution (state variables, suits, the `action` fields,
@@ -36,7 +35,6 @@ from cardlang.stdlib.functions import (
     STDLIB_VALUE_NAMES,
     ZONE_METHODS,
 )
-from cardlang.stdlib.mechanics import LIBRARY_MECHANICS
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
 from cardlang.stdlib.values import deck_suits, enum_values
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
@@ -205,11 +203,8 @@ def _resolve_phase_item(
 
 def _resolve_stmt(stmt: n.Stmt, bag: DiagnosticBag) -> None:
     """Walk a statement (recursing into compound bodies) for the references this
-    pass checks — currently `instantiate` mechanics."""
-    if isinstance(stmt, n.Instantiate):
-        if stmt.mechanic not in LIBRARY_MECHANICS:
-            bag.error(f"instantiate names unknown mechanic '{stmt.mechanic}'", stmt.span)
-    elif isinstance(stmt, n.RepeatUntil):
+    pass checks."""
+    if isinstance(stmt, n.RepeatUntil):
         for inner in stmt.body:
             _resolve_stmt(inner, bag)
     elif isinstance(stmt, n.EachSimultaneous):

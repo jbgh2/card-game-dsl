@@ -124,12 +124,12 @@ or underspecified, the grammar can't be written or a game won't parse.
 
 ### B. Semantic model and symbol resolution
 
-Resolve names across every block: zones, move types, rules, mechanics,
+Resolve names across every block: zones, move types, rules,
 user-defined types, state variables, players and partnerships, scoring
 components, and stdlib functions. Build scopes following lexical phase
 nesting (see [decisions.md](decisions.md), "State scoping"), including
-mechanic-internal state blocks that rules read by lexical scope (e.g. a
-still-Python `CoupGame`'s influence state).
+the round forms' own state frames that rules read by lexical scope
+(e.g. the trick `round`'s `state.led_suit`).
 
 *Forcing function:* every `constrains: <move_type>`, every
 `active_rules: [...]` entry, every type and zone reference must resolve.

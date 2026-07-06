@@ -127,7 +127,6 @@ move_event: NAME ["where" expr]
           | for_each
           | repeat_until
           | if_stmt
-          | instantiate
           | let_stmt
           | assign_stmt
           | offer
@@ -203,7 +202,6 @@ repeat_until: "repeat" "until" expr "{" statement* "}"
 if_stmt: "if" expr "{" statement* "}" [else_block]
 else_block: "else" "{" statement* "}"
 
-instantiate: "instantiate" NAME "(" [named_arg ("," named_arg)*] ")"
 offer: "offer" "to" expr "one" "of" "[" NAME ("," NAME)* "]"
 round_stmt: "round" NAME "from" expr "over" expr "source" NAME "into" NAME "outcome" NAME ["trump" expr] ["early" NAME]   -> round_stmt
 // The auction/betting form of `round`: a continuous ring over a move vocabulary

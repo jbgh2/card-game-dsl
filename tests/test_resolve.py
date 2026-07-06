@@ -71,13 +71,6 @@ def test_transition_to_real_sibling_resolves() -> None:
     _resolve(dsl)  # no error
 
 
-def test_unknown_mechanic() -> None:
-    dsl = _game("  phase p { instantiate Bogus ( ) }")
-    with pytest.raises(DiagnosticError) as e:
-        _resolve(dsl)
-    assert "unknown mechanic 'Bogus'" in e.value.diagnostic.message
-
-
 def test_rule_constrains_unknown_move_type() -> None:
     dsl = _game("  phase p { }", rules="rule R { constrains: bogus }")
     with pytest.raises(DiagnosticError) as e:

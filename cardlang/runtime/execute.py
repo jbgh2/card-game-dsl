@@ -47,18 +47,14 @@ def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
             elif stmt.else_body is not None:
                 run_body(stmt.else_body, ctx)
             return ctx
-        case n.Instantiate():
-            # The mechanic's result binds `outcome` for the rest of the body
-            # (e.g. `instantiate CoupGame(...)` then reading `outcome`).
-            return ctx.with_outcome(mechanics.instantiate(stmt, ctx))
         case n.Offer():
             _offer(stmt, ctx)
             return ctx
         case n.Round():
             # One interpreter over the form selected by field-presence, dispatched
             # on the returned Outcome union: a winning Player (trick/climb) binds
-            # `outcome`; a typed `(tag, payloads)` variant (auction) raises like an
-            # instantiated mechanic, caught by the enclosing outcome-declaring phase;
+            # `outcome`; a typed `(tag, payloads)` variant (auction) raises a
+            # produce signal, caught by the enclosing outcome-declaring phase;
             # `None` (betting) mutated the shared chip/fold state and just closes.
             outcome = mechanics.run_decision_round(
                 mechanics.build_form(stmt, ctx), {}, ctx

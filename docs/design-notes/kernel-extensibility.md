@@ -2,15 +2,15 @@
 
 *Status: design analysis / proposal — not a settled decision. The committed spec is in [decisions.md](../decisions.md); this note argues a direction and a sequenced, byte-identical plan.*
 
-*Implementation status: §9 steps 1–3 are done, and step 4 is delivered for the
-fully-kernel games (the projection substrate + general adapter; five
-`instantiate` games remain). The runtime is now the single
+*Implementation status: §9 steps 1–4 are done and delivered for the whole
+corpus (the projection substrate + general adapter cover all fourteen games;
+no `instantiate` game remains — the construct is deleted). The runtime is the single
 `run_decision_round` interpreter with the trick, auction/betting, and climb forms
 as six-slot hook bundles (`TrickForm` / `AuctionForm` / `ClimbForm` in
 `cardlang/runtime/mechanics.py`), selected by `build_form` and dispatched once in
 `execute.py`. §§1–8 are the rationale that produced it — where they speak of "the
 three `run_*` loops," read the discovery basis, not the current structure. The
-info-set leak (§6, §9 step 4) is closed for the thirteen fully-kernel games
+info-set leak (§6, §9 step 4) is closed for all fourteen games
 (Seven-Card Stud joined when its showdown left `instantiate`; Pinochle when its
 trump declaration, meld, and trick play did; French Tarot when its chien
 handling, tricks, and scoring did — the last also needing a movement `where`
@@ -19,8 +19,10 @@ hooks; Cribbage when its pegging and show did, reusing the `where` filter with
 ordinary statement control flow and no new axis; Schnapsen and Skat via the
 auction form's Card domain and role-guarded ring; Tichu when its push, climb
 tricks, and scoring did — the climb form gaining the engine-level `ends_trick`
-read and terminal round-state, not grammar); it remains open for the one
-`instantiate` game (Coup), as does the front-end derivation (§5).*
+read and terminal round-state, not grammar; Coup last, its rng-gated windows
+inline over primitives with no new axis, after which the `instantiate`
+construct itself was deleted). The front-end derivation (§5) remains the open
+direction.*
 
 
 ## 1. The question and the short answer
@@ -143,11 +145,11 @@ conflated. On axis (a) — *reusability* — GDL is impoverished: nothing
 is reusable above the primitives and descriptions are unreadable. On
 axis (b) — *information sets* — GDL is the paragon: its `sees`/`random`
 relation *derives* each player's information set from the spec, which
-is precisely the property our OpenSpiel target needs. Our Python
-escape-hatch mechanic (Coup)
-shares GDL's *bad* axis (a) — build-from-primitives, nothing reusable
-above it — while being the **opposite** of GDL on axis (b): its
-info-sets are hand-authored, not derived. So the escape hatch gets
+is precisely the property our OpenSpiel target needs. The Python
+escape-hatch mechanics (since retired by the kernel migration)
+shared GDL's *bad* axis (a) — build-from-primitives, nothing reusable
+above them — while being the **opposite** of GDL on axis (b): their
+info-sets were hand-authored, not derived. So an escape hatch gets
 GDL's worst property without its redeeming one — which is exactly the
 leak §6 is about.
 

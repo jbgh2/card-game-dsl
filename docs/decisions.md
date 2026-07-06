@@ -60,8 +60,8 @@ bidding produces:
   all_pass { skip to next hand }
 ```
 
-A mechanic's or round's result is also available as the bare `outcome` pronoun
-in the enclosing body, immediately after the `instantiate` or `round`: Hearts
+A round's result is also available as the bare `outcome` pronoun
+in the enclosing body, immediately after the `round`: Hearts
 follows its trick `round` with `leader := outcome`, reading the trick's selected
 player. This is the same value a `produces:` block would match; the bare
 `outcome` is the shorthand for a single-payload result that needs no tag.
@@ -69,11 +69,13 @@ player. This is the same value a `produces:` block would match; the bare
 Mechanics and phases are *not* further unified at the construct
 level. The distinction stays:
 
-- A **mechanic** is a named, parameterized, reusable unit, instantiated
-  with arguments. It's the right shape when a chunk of logic appears
-  in multiple games (a still-Python hand engine like Coup's). (The
-  trick, the auction, a betting round, and the climbing trick are no longer
-  mechanics — they are configurations of the kernel `round` construct.)
+- A **mechanic** is a named, parameterized, reusable unit — the shape for
+  a chunk of logic that appears in multiple games. The corpus currently
+  has none: the trick, the auction, a betting round, and the climbing
+  trick are configurations of the kernel `round` construct, and every
+  formerly-Python hand engine is DSL over it. The category remains for
+  future in-DSL definitions promoted corpus-first (an ascending `auction`,
+  a `betting` round, real response windows).
 - A **phase** is a positional unit in the phase tree, not parameterized
   and not reusable across games. It's the right shape when a chunk
   appears at a specific position with semantics tied to where it sits.
@@ -414,7 +416,9 @@ round offering [<move_type>, …] from <seat> over <ring>
   an aggression re-opens earlier seats, action returns to the *earliest* owing
   seat, not the next one round the ring. Bridge/Pinochle/Tarot auctions are
   `ring`; Stud's betting is `priority` (a checked player responds to a later raise
-  before seats that have not yet acted), and Coup's response windows will be too.
+  before seats that have not yet acted), and Coup's *interactive* response
+  windows — the scope upgrade beyond its migrated rng gates
+  ([kernel-migration.md](kernel-migration.md), Workstream 5) — would be too.
 - **Call-and-response is a configuration, not an order value.** Skat's Reizen —
   a speaker naming successive ladder values against a responder who holds or
   passes, twice in sequence with the survivor advancing — runs on the plain
@@ -647,24 +651,27 @@ outcome`); there is no construct for referencing a prior phase's
 outcome across the phase boundary — the shared enclosing variable is
 the channel.
 
-**Mechanic-internal state lives inside the mechanic.** The trick `round`'s
-per-trick state (`led_suit`, the played cards) lives inside the construct, and a
-still-Python mechanic's locals (Coup's challenge bookkeeping) live inside
-its instance. (Schnapsen's talon-closing snapshot, once such a local, is
-ordinary phase state now that its hand runs on the kernel — closes and
-marriages are public declarations at the table, so `closed_by` and the
-closer-snapshot counters are public state per "Hidden information lives
-only in zones; state is public".) Such instances are short-lived; their state vanishes with the
-instance. (An auction's pass state or a betting round's `bet_to_match` is *not*
-mechanic-internal — those forms of `round` thread their accumulator through
+**Round-internal state lives inside the round.** The trick `round`'s
+per-trick state (`led_suit`, the played cards) and the climb's
+(`lead_ended_trick`, the shed order) live inside the construct's own frame,
+readable as `state.x` during the round and, for the just-finished round, in
+the surrounding body. (Schnapsen's talon-closing snapshot, once a Python
+mechanic's local, is ordinary phase state now that its hand runs on the
+kernel — closes and marriages are public declarations at the table, so
+`closed_by` and the closer-snapshot counters are public state per "Hidden
+information lives only in zones; state is public"; Coup's window results are
+public phase-state Booleans the same way.) A round's frame is short-lived;
+its state vanishes when the next round runs. (An auction's pass state or a
+betting round's `bet_to_match` is *not*
+round-internal — those forms of `round` thread their accumulator through
 ordinary **phase state**, declared in the phase's `state { }`.)
 
-**Rules consulted from within a mechanic see the mechanic's state.**
-Lexical scoping puts the active mechanic instance's `state { }`
-declarations into the scope chain at consultation time. A rule
-attached to a phase that has instantiated a mechanic reads
+**Rules consulted from within a round see the round's state.**
+Lexical scoping puts the active round's state frame
+into the scope chain at consultation time. A rule
+attached to a phase whose round is running reads
 `state.foo` and sees whatever `foo` is in scope — game state,
-hand state, phase state, *or* mechanic-internal state — without any
+hand state, phase state, *or* round-internal state — without any
 explicit export step. This is the same scoping rule that applies
 to imperative code in the phase body. Examples in the corpus:
 
@@ -672,15 +679,15 @@ to imperative code in the phase body. Examples in the corpus:
   inside the trick `round`.
 
 (The auction and betting forms of `round` express their legality differently —
-not as `active_rules:` reading mechanic state, but as the move types' own `when:`
+not as `active_rules:` reading round state, but as the move types' own `when:`
 guards over phase state: Pinochle's ascending bid guards `submit_bid` on the
 standing bid; Stud's `check`/`bet`/`call`/`raise`/`fold` guard on `bet_to_match`,
 `bet_by`, and `raises`.)
 
 Rules are reusable across games; what binds them to a particular
-mechanic's state is the call site (where the mechanic is
-instantiated and the rule is attached as an `active_rules` entry).
-Refactoring a mechanic's state shape is a potentially breaking
+round's state is the call site (the phase where the round runs and
+the rule is attached as an `active_rules` entry).
+Refactoring a form's state shape is a potentially breaking
 change for any rule that reads it — same as refactoring any other
 in-scope variable. There's no separate "exposed subset" mechanism;
 visibility is just lexical scoping.
@@ -1454,14 +1461,15 @@ exercises most) and confirms the finite-action-space anchor end to end. The
 adapter is per-game and proof-scoped; the general, all-corpus path remains the
 eventual compilation pass (see [roadmap.md](roadmap.md)).
 
-The per-game Python mechanics dispatched by `instantiate` are the gap in the
-meantime: they run their decision logic outside the observation-event stream, so
-their information sets are **not** derived — info-set debt tracked against the
-[kernel migration](kernel-migration.md) and quantified in
-[design-notes/kernel-extensibility.md](design-notes/kernel-extensibility.md), §6.
-Retiring those mechanics onto the kernel is what makes info-set derivation uniform
-across the corpus, which is the property that keeps OpenSpiel a reachable target
-rather than a per-game hand-coding exercise.
+Info-set derivation is uniform across the corpus: every game's decisions run
+on kernel sites that emit observation events, no Python mechanic exists (the
+`instantiate` construct is deleted), and the readiness proofs cover all
+fourteen games ([kernel-migration.md](kernel-migration.md)). The remaining
+honesty line is scope, not derivation: rules-level randomness kept from the
+monoliths' random-play reductions (Tichu's call gates, Coup's window gates
+and targets) folds into the seed chance node rather than appearing as
+decision nodes — upgrading those to real decisions is recorded future work,
+per-game.
 
 ## Game result: `winner:` and `loser:`
 
@@ -1966,15 +1974,17 @@ real published game. "Any player may challenge" and "the target may
 block" sound like simultaneous group decisions, but the step that
 carries weight is a *conditional commit* — challenge or not, block or
 not — with a branching result (the claim stands or is refuted; the
-action is blocked or proceeds). That is the phase/typed-outcome shape,
-not the atomic-effect block. Coup models each window as a mechanic
-resolving to a typed outcome (`claim_stands | claim_refuted`,
-`blocked | not_blocked`), dispatched with `produces:`, with the
-optional decision offered as `challenge`/`pass` (or `block`/`pass`)
-moves. No `simultaneously:` block appears in Coup, and none of the
+action is blocked or proceeds). That is a sequenced-response shape,
+not the atomic-effect block: serializing responders in priority order is
+faithful, because a response reacts to what is already on the table. No
+`simultaneously:` block appears in Coup, and none of the
 unforced body-grammar extensions below (in-block `if`, nested blocks)
 is needed — the forcing function confirmed the split rather than
-reopening it.
+reopening it. (At the migrated random-play scope the windows carry no
+player decisions at all — the gates are rng and the results are public
+phase-state Booleans, [games/coup.cardlang](games/coup.cardlang); the
+interactive upgrade sequences real `challenge`/`pass` decisions in
+priority order, [kernel-migration.md](kernel-migration.md) Workstream 5.)
 
 **Body grammar.** The body admits:
 
