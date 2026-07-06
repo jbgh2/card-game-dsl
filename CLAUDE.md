@@ -24,10 +24,11 @@ info sets are the *whole reason* this DSL is worth more than hand-coding each ga
 against OpenSpiel directly. For hidden hands, face-down cards, bluffs, and
 concealed bids this is genuinely hard — and it is exactly where the value is.
 
-**Honest status — the substrate exists; the last escape hatch is still debt.**
-The thirteen fully-kernel games (Hearts, Getaway, Spades, Bridge, Oh Hell, Big
+**Honest status — every corpus game is fully kernel with derived info sets;
+scope reductions are the remaining honesty line.**
+All fourteen games (Hearts, Getaway, Spades, Bridge, Oh Hell, Big
 Two, Seven-Card Stud, Pinochle, French Tarot, Cribbage, Schnapsen, Skat,
-Tichu) reach
+Tichu, Coup) reach
 OpenSpiel through
 ONE general adapter with *derived* information sets: per-observer observations are
 emitted from the kernel's decision/movement sites through the declared
@@ -37,16 +38,21 @@ byte-identical), soundness, and perfect recall for each (Bridge's and French
 Tarot's swap/soundness/recall proofs cover only the pass-only line of their
 auctions — the harness's greedy replay never places a bid, let alone reaches
 the chien discard or trick play; French Tarot's hidden discard, Schnapsen's
-lead actions, Skat's pickup/discard, and Tichu's push are instead
+lead actions, Skat's pickup/discard, Tichu's push, and Coup's influence flips
+are instead
 proven derived by dedicated observational tests. Stud's, French Tarot's, and
 Tichu's conformance are bounded random API walks, their full sims being
-quadratic-in-length). No per-game observation rules remain. But the one
-remaining Python escape-hatch mechanic dispatched by `instantiate` (Coup)
-still *bypasses* this derivation — the adapter rejects
-that game loudly, and the leak lands hardest on exactly the
-imperfect-information games the AI target most exists to serve (Coup is pure
-hidden-role bluffing). The gap is
-quantified in `docs/design-notes/kernel-extensibility.md`, §6.
+quadratic-in-length). No per-game observation rules remain, no Python
+escape-hatch mechanic exists (the `instantiate` construct is deleted), and no
+per-game branch survives outside the stdlib primitive registries. What
+remains honest to say: several migrated games carry the monoliths'
+random-play scope reductions as *rules-level randomness* in rng primitives —
+Tichu's call gates and Dragon routing; Coup's challenge/block gates, claimed
+characters, and action targets (real Coup makes every one of those a player
+decision) — so those decisions do not yet appear in the derived information
+sets. Upgrading them to chooser decisions is recorded future work
+(`docs/kernel-migration.md`, Workstream 5's scope note), not silent
+completeness.
 
 **So, for every change, treat info-set derivation as a first-class acceptance
 criterion** — alongside "does it run" and "is it byte-identical":

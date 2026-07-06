@@ -15,84 +15,52 @@ capability it adds, the kernel/standard-library pieces it builds, the
 checkpoints where a genuine language gap might surface, and its definition of
 done.
 
-## The goal, concretely
+## The goal, concretely — REACHED
 
-One game still holds its decision logic in hand-written Python dispatched by
-name in `cardlang/runtime/mechanics.py::instantiate`. Bridge's, Pinochle's, and
-Tarot's auctions have been lifted onto the kernel `round` — so `run_bridge_auction`
-is gone, and Pinochle and Tarot are both fully kernel (Pinochle: trump
-declaration, meld, and the twelve strict tricks; Tarot: the chien handling, the
-eighteen atout-trump tricks, and the bouts-conditional scoring — `run_tarot_hand`
-and its post-auction `run_tarot_rest` are both gone). Cribbage's whole counting
-hand — discard, cut, pegging, and the show — runs on ordinary DSL statements
-(filtered movements, `repeat until`, `skip to next hand`), so `run_cribbage_hand`
-is gone as well. Schnapsen's hand — the leader's mixed lead decision on the
-auction form over a single-participant ring (with the Card move-parameter
-domain), the follower's strict-endgame filtered movement, and the
-trick/claim/draw statements — is fully kernel too, so the inline
-`run_schnapsen_hand` is gone. Skat's hand — the Reizen call-and-response
-as a role-guarded two-participant ring, the contract declaration on offers
-plus a `declare_suit(s : Suit)` round, the ten follow-class tricks, and the
-base × multiplier scoring — is fully kernel, so `run_skat_hand` is gone. And
-Tichu's hand — the push as chosen movements into per-player gift piles, each
-climbing trick one `round climb` (the Dog a trick-ending lead via the
-engine's `ends_trick`, finishing order from the round's terminal
-`state.shed_*`), Dragon routing and call gates as rng primitives — is fully
-kernel, so `run_tichu_hand` is gone:
+No game holds decision logic in hand-written Python. The `instantiate`
+construct is deleted end-to-end (grammar, AST, IR, resolve/typecheck,
+runtime, and the OpenSpiel adapter's rejection — nothing remains to reject);
+every `run_*` monolith is gone (`run_bridge_auction`, `run_pinochle_hand`,
+`run_tarot_hand`/`run_tarot_rest`, `run_stud_game`, `run_bigtwo_hand`,
+`run_cribbage_hand`, `run_schnapsen_hand`, `run_skat_hand`, `run_tichu_hand`,
+`run_coup_game`); and all fourteen games run on the kernel `round` forms plus
+ordinary statements, registered in `cardlang/openspiel/game.py:GAMES` with
+the four readiness proofs green (`tests/test_openspiel_ready.py`).
 
-- separate module: `runtime/coup.py`
+The per-game `runtime/*.py` modules that remain hold no mechanic — only pure
+stdlib primitives the DSL calls: Stud's poker evaluator, seat selectors, and
+`pot_share`; Big Two's combination engine; Pinochle's meld evaluator; Tarot's
+per-card queries and settlement arithmetic; Cribbage's pegging/show scorers
+and provenance decoder; Schnapsen's two-card trick resolution; Skat's bid
+ladder, follow-class legality, trick winner, matador count, and overbid
+arithmetic; Tichu's climb queries over the shared `combinations.py` engine,
+its two rng gates, partnership/finishing lookups, and the OpenSpiel combo
+codec; Coup's window gates and claim picks (rng at the migrated random-play
+scope), in-game scans, and trace emitters.
 
-(`runtime/stud.py`, `runtime/bigtwo.py`, `runtime/pinochle.py`,
-`runtime/tarot.py`, `runtime/cribbage.py`, `runtime/schnapsen.py`,
-`runtime/skat.py`, and `runtime/tichu.py` remain, but hold no `instantiate`
-mechanic — only pure stdlib primitives the DSL calls: Stud's poker evaluator,
-seat selectors, and `pot_share`; Big Two's combination engine; Pinochle's meld
-evaluator, `pinochle_meld_value`; Tarot's per-card queries, effective led suit,
-trick outcome, Excuse-player lookup, and the per-opponent settlement arithmetic;
-Cribbage's pegging/show scorers and provenance decoder — `peg_value`,
-`peg_pair_points`, `peg_run_points`, `peg_origin_of`, `cribbage_show_value`,
-`cribbage_crib_value`; Schnapsen's two-card trick resolution,
-`schnapsen_trick_winner`; Skat's bid ladder, follow-class legality, trick
-winner, matador count, and overbid arithmetic — `skat_next_bid`,
-`skat_follow_ok`, `skat_trick_winner`, `skat_matadors`, `skat_effective_loss`;
-Tichu's climb queries over the shared `combinations.py` engine, the two rng
-gates, partnership/finishing lookups, and the OpenSpiel combo codec.)
+The stage-done checklist holds: no per-game branch anywhere outside the
+stdlib primitive registries; every `tests/test_playout_*.py` green with
+behaviour preserved (byte-identical goldens per migration, sanctioned
+normalizations recorded in `tests/test_migration_characterization.py`); IR
+goldens unchanged (no kernel game ever emitted an `instantiate` node);
+`mypy --strict` clean; docs in lockstep. One latent footgun to watch as the
+language grows: `cardlang/openspiel/infostate.py`'s `_render` sorts
+list/tuple-valued state variables before rendering into the information
+state, so a future *ordered* list-valued state variable (a bid history, a
+play sequence — anything where order itself carries information) must not be
+rendered sorted, or distinct information sets that differ only in order
+would silently collapse into the same string.
 
-This violates the two-layer architecture ([principles.md](principles.md): the
-library is *written in the DSL*, not the engine). It also carries **info-set
-debt**: a Python mechanic runs its decisions outside the observation-event
-stream, so its information sets are not *derived* — the hardest, load-bearing
-requirement for the OpenSpiel target ([CLAUDE.md](../CLAUDE.md), "OpenSpiel is the
-target…"; [decisions.md](decisions.md), "OpenSpiel compilation";
-[design-notes/kernel-extensibility.md](design-notes/kernel-extensibility.md), §6).
-Retiring these mechanics onto the kernel closes that debt as well as the
-architecture violation. Each migration now has a second, concrete payoff: the
-OpenSpiel projection substrate
-([superpowers/specs/2026-07-01-openspiel-projection-substrate-design.md](superpowers/specs/2026-07-01-openspiel-projection-substrate-design.md))
-derives information sets for any fully-kernel game for free, so a game
-leaving its Python mechanic becomes OpenSpiel-ready automatically — register
-it in `cardlang/openspiel/game.py:GAMES` and add it to the proof harness
-(`tests/test_openspiel_ready.py`) — so "migrated" now means "derived info
-sets proven," not just "runs on the kernel." One latent footgun to watch for
-as new mechanics migrate: `cardlang/openspiel/infostate.py`'s `_render`
-sorts list/tuple-valued state variables before rendering into the
-information state, so a future *ordered* list-valued state variable (a bid
-history, a play sequence — anything where order itself carries information)
-must not be rendered sorted, or distinct information sets that differ only
-in order would silently collapse into the same string. The stage is done
-when:
-
-- `instantiate` dispatches only to kernel constructs — no per-game name
-  branches — and the one remaining game-mechanic module (`coup.py`) is deleted
-  (pure stdlib-primitive modules like `stud.py`,
-  `bigtwo.py`, and `tichu.py` stay);
-- all 14 games run on the kernel plus the in-DSL standard library, with every
-  `tests/test_playout_*.py` green and **behaviour preserved**;
-- IR golden snapshots are regenerated and reviewed;
-- `mypy --strict` is clean and no `language-gap` entry is silent (each is zero
-  or a named `open-questions/<slug>.md`);
-- [decisions.md](decisions.md), [library.md](library.md), and this file are
-  updated in lockstep, per the [CLAUDE.md](../CLAUDE.md) operating rules.
+**What remains honest to record — the scope boundary, not debt.** Several
+migrations carry their monoliths' random-play scope reductions as
+*rules-level randomness* in rng primitives (Tichu's call gates and Dragon
+routing; Coup's challenge/block gates, claimed characters, and action
+targets — real Coup makes every one of those a player decision). Those
+choices fold into the root seed chance node rather than appearing as
+decision nodes, so they are absent from the derived information sets by
+construction, consistently. Upgrading them to chooser decisions (real
+response windows, real targets) is the recorded next scope of work — see
+Workstream 5's checkpoint below.
 
 The built-in `Trick` mechanic was also engine code, not DSL. Retiring it —
 moving Hearts, Spades, Getaway, and Bridge's play onto the kernel `round` (Oh
@@ -481,22 +449,40 @@ unit-test coverage as stdlib queries.
 
 The furthest game from cards, and the construct [decisions.md](decisions.md) uses
 to draw the in-scope line (a game that *defines* "challenge" vs. one that mutates
-its own rules). Do it last, once the kernel is proven.
+its own rules). Done last, once the kernel was proven.
 
-- `challenge` and `block` as response-window definitions over `round`: after an
-  actor declares an action, a window in which others may challenge (priority
-  order) → reveal/penalty, or block → a counter-window.
-- Hidden-influence cards, the coin economy (resource), influence loss,
-  elimination, and forced coup at ten coins.
+**Status — done at the monolith's random-play scope; the checkpoint resolved
+with NO new axis.** The anticipated new-axis risk (action → response →
+counter-response nesting, priority windows) dissolved on inspection: at the
+migrated scope the windows contain **no player decisions** — challenging and
+blocking are probability gates and the blocker's claimed character is a
+random pick — so they are inline statements around game-local rng primitives
+at the reference's exact draw sites (`coup_challenger`, `coup_fa_blocker`,
+`coup_block_roll`, the claim picks), and the action targets are likewise rng
+(`coup_random_target`). The only chooser draws in the game land on existing
+kernel sites: the turn's action pick is one `offer` over seven coin-guarded
+game-defined move types (the forced coup at ten coins falls out of the
+guards), every influence loss is a chosen movement by the loser (the
+single-actor `for each player q: if q == X` idiom), and the exchange is a
+deal-n + chosen-n + shuffle. Window results are public phase-state Booleans.
+Setup and every deck draw deal off the top — the monolith was normalized to
+that convention (`pop()` → `pop(0)`) in a sanctioned pre-pin commit, there
+being no prior golden to protect. Byte-identical against the pinned
+reveal-sequence golden (`tests/golden/coup_scores.json`: every influence
+flip in order, final coins, alive, winner, 40 seeds); `run_coup_game` is
+deleted, and with it the whole `instantiate` construct (zero mechanics
+remained).
 
-**Checkpoint (highest new-axis risk).** The action → response → counter-response
-nesting and simultaneous/priority windows are the sharpest test of the closed
-axes. If they cannot be expressed as values on the existing axes, that is an
-explicit signed-off axis addition plus an open question — this is exactly the
-boundary the kernel is meant to make visible.
-
-**Test-depth net.** Add a recompute that a challenge resolves to the correct
-loser before deleting `run_coup_game`.
+**The recorded scope boundary (the real WS5 windows, future work).** Real
+Coup makes challenging, blocking, the blocker's claimed character, and the
+action's target *player decisions*, and shows a proven challenge's card
+publicly. Upgrading to that scope is where the original WS5 design re-enters:
+response windows as decisions in priority order (the auction form's
+`priority` mode is the natural substrate), targets via a Player
+move-parameter domain
+([open-questions/move-parameter-domains.md](open-questions/move-parameter-domains.md)),
+and a `reveal` epistemic op for the public proof. That is a behaviour change
+— new goldens, its own sign-off — not a migration.
 
 ## Cross-cutting build-out
 
@@ -526,7 +512,8 @@ These land inside the workstreams above and are shared on the third use:
    (Pinochle's, Cribbage's, and Schnapsen's scoring all landed as ordinary
    statements plus game-local stdlib primitives; the subsystem itself remains
    unbuilt, corpus-first future work).
-6. **Coup** — challenge / block / influence.
+6. **Coup** — done: challenge / block / influence at the random-play scope
+   (rng windows; the interactive-windows upgrade is recorded in Workstream 5).
 
 This is breadth-first by shape: it reaches `auction`'s third instance early and
 keeps each step small. The alternative is depth-first on a single monolith (Skat
@@ -536,16 +523,19 @@ end-to-end proof sooner at the cost of less reuse upfront; it is a reasonable
 swap for steps 2–5 if a single finished game is more valuable than incremental
 breadth. Step 0 and Coup-last hold either way.
 
-## Stage definition of done
+## Stage definition of done — MET
 
-- No per-game branch remains in `mechanics.py::instantiate`; the seven
-  `runtime/*.py` game modules and the three inline `run_*_hand` functions are
-  gone; the built-in `Trick` mechanic is gone.
+- `instantiate` is deleted outright (no mechanic remained to dispatch); every
+  `run_*` monolith is gone; the built-in `Trick` mechanic is gone.
 - All 14 games run on the kernel + in-DSL standard library; every
-  `test_playout_*` is green; IR goldens regenerated and reviewed; `mypy
-  --strict` clean; conservation invariants and the new recompute nets green.
+  `test_playout_*` is green; IR goldens unchanged (no kernel game ever
+  emitted an `instantiate` node); `mypy
+  --strict` clean; conservation invariants and the recompute nets green.
 - The `language-gap` list is zero or every entry is a named, deferred open
   question.
-- Each promoted definition (`auction`, `betting`, `climb`, `challenge`, `block`,
-  `trick`) is documented in [library.md](library.md), and
-  [decisions.md](decisions.md) reflects any axis decision made along the way.
+- The shipped configurations (`trick`, the auction/betting forms, `climb`)
+  are documented in [library.md](library.md) with every axis decision in
+  [decisions.md](decisions.md); the shared `auction` / `betting` /
+  `challenge` / `block` *named definitions* stay corpus-first promotions at
+  their third instances (the interactive-windows scope, Workstream 5, is the
+  likely forcing function for the last two).

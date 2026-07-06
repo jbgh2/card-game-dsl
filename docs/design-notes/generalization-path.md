@@ -35,8 +35,8 @@ design rather than amending it:
    open a decision over a declared finite domain, emit observations
    through projections). An extension may compute anything but may only
    act through kernel verbs, so information sets derive *no matter
-   what the extension computes*. This is the inverse of the
-   `instantiate` escape hatch, which hands over the world and hopes;
+   what the extension computes*. This is the inverse of the retired
+   `instantiate` escape hatch, which handed over the world and hoped;
    the goal is hooks that **cannot** be careless, not hooks that are
    careful. Two clauses are load-bearing for the OpenSpiel target:
    foreign functions must be deterministic (replay and the swap proofs
@@ -86,8 +86,8 @@ Go-shaped game (forces the fixed-point queries). Dice are mid-game
 chance nodes — a small `roll` primitive; OpenSpiel hosts them natively.
 
 Risk to hold in view: boards arriving as per-game Python mechanics
-before the topology sublanguage exists would recreate the
-`instantiate` info-set debt at ten times the scale.
+before the topology sublanguage exists would recreate the info-set
+debt the retired `instantiate` hatch carried, at ten times the scale.
 
 ## 2. Axis: pose and declared projections
 

@@ -189,7 +189,8 @@ construct.
    proven before any breadth.
 2. **Stage the corpus by construct-count, simplest first.** Roughly: Hearts /
    Getaway → Spades / Oh Hell → Schnapsen / Cribbage → Pinochle / Bridge → Skat /
-   Tarot → Stud → Tichu / Coup (nested typed-outcome mechanics last). Each new
+   Tarot → Stud → Tichu / Coup (the climbing engine and the response windows
+   last). Each new
    game is *expected* to expose new constructs — that is the forcing function,
    not a failure.
 3. **TDD ladder, one construct per step.** A failing fixture (red) → the minimal

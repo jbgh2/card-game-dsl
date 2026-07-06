@@ -442,3 +442,68 @@ def _capture_skat_hands() -> dict[str, Any]:
 def test_skat_migration_preserves_per_hand_scores() -> None:
     expected = json.loads((GOLDEN / "skat_hands.json").read_text())
     assert _capture_skat_hands() == expected
+
+
+# Coup (challenge/block windows + the coin economy) moves its whole game from
+# the last Python monolith onto the kernel. The migration reproduces the
+# monolith's draw sequence exactly: the chooser draws (the turn's action pick,
+# lose-influence picks, exchange picks) land at kernel sites, and the window
+# gates / claimed-character picks / targets stay rng, reproduced by game-local
+# primitives at the monolith's exact sites. We pin the strongest per-seed
+# discriminator the game emits: the full reveal sequence (every influence
+# flip, in order, with its character — where every elimination happens) plus
+# final coins, the alive vector, and the winner. Pinned AFTER the sanctioned
+# deck-draw normalization (pop() -> pop(0): the monolith drew replacements and
+# deals off the BACK of the deck, which the movement vocabulary cannot express
+# — off-the-top is the convention every other game uses; no prior golden
+# existed, so nothing regenerated). The normalized monolith measured
+# hash-invariant (zero divergent seeds, PYTHONHASHSEED {0,1,2,3,7} x 40).
+_COUP_CAPTURE = """
+import json, random, sys
+from pathlib import Path
+from cardlang.pipeline import check_dsl
+from cardlang.runtime.driver import play_game
+
+game = check_dsl(Path("docs/games/coup.cardlang").read_text(), "coup.cardlang")
+out = {}
+for seed in range(40):
+    reveals = []
+    summary = {}
+
+    def tracer(event, data, _r=reveals, _s=summary):
+        if event == "coup_reveal":
+            _r.append([data[0], data[1]])
+        elif event == "coup_game":
+            _s.update(
+                coins={str(k): v for k, v in sorted(data["coins"].items())},
+                alive={str(k): v for k, v in sorted(data["alive"].items())},
+            )
+
+    r = play_game(game, random.Random(seed), tracer)
+    out[str(seed)] = {
+        "reveals": reveals,
+        "coins": summary["coins"],
+        "alive": summary["alive"],
+        "winner": r.winner,
+    }
+print(json.dumps(out))
+"""
+
+
+def _capture_coup() -> dict[str, Any]:
+    env = dict(os.environ, PYTHONHASHSEED="0")
+    proc = subprocess.run(
+        [sys.executable, "-c", _COUP_CAPTURE],
+        cwd=REPO,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    result: dict[str, Any] = json.loads(proc.stdout)
+    return result
+
+
+def test_coup_migration_preserves_per_seed_results() -> None:
+    expected = json.loads((GOLDEN / "coup_scores.json").read_text())
+    assert _capture_coup() == expected

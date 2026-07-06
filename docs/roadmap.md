@@ -56,7 +56,7 @@ Things we have noted but consciously not designed yet:
   (the Hearts adapter's encoder is hand-written), explicit per-deal chance nodes
   (the adapter fixes a deal from a finite seed set), performance (the adapter
   re-simulates per query — O(n²); a real pass or a snapshot/restore path removes
-  it), and adapters for the games whose logic still lives in concrete mechanics.
+  it). Every corpus game is registered — no concrete mechanics remain.
   Enabling the `openspiel` extra in CI to run the adapter tests is a small
   follow-up.
 
@@ -71,16 +71,15 @@ Things we have noted but consciously not designed yet:
   and early-termination (Getaway). The rest of the decision sublanguage
   (decisions.md "Interactive decisions: a kernel and an in-DSL standard library")
   is the major in-flight work: the remaining `round` axes (accumulator, order,
-  move vocabulary); typed outcomes and definition-composition; and the `auction` /
-  `challenge` / `block` / `climb` standard-library vocabulary. One game
-  (Coup) still
-  holds its decision logic in a concrete per-game runtime
-  mechanic; lifting it into the kernel + DSL standard library (promoting a
-  definition at ~3 examples) closes the spec-vs-runtime gap. The bidding
-  sub-language, detailed melding, and strict-trick legality noted on this list
-  are subsumed by this work. The game-by-game execution order, the per-game
-  scope, and the language-gap checkpoints are in
-  [kernel-migration.md](kernel-migration.md).
+  move vocabulary); typed outcomes and definition-composition; and promoting
+  shared `auction` / `betting` / `challenge` / `block` definitions to the
+  standard library at their third instances. The corpus migration itself is
+  COMPLETE: every game runs on the kernel, no per-game runtime mechanic
+  remains, and the `instantiate` construct is deleted. The recorded next
+  scope of work is upgrading the migrated random-play reductions to real
+  decisions (Coup's interactive response windows and targets; Tichu's call
+  windows) — behaviour changes with their own sign-offs, in
+  [kernel-migration.md](kernel-migration.md), Workstream 5.
 
 - **Typed outcomes: Stages 1–3 built; remaining corpus migrations + checker coverage.**
   Stage 1 is built: `cardlang/typecheck.py` is a real type checker (a `Type`
@@ -92,8 +91,8 @@ Things we have noted but consciously not designed yet:
   runtime struct values) and param-light `define` variant outcomes (`TVariant`:
   `produce` / `produces:` with exhaustiveness, payload typing, and scoped
   payload-binder typing), running end to end through the tree-walking runtime.
-  **Stage 3 is built:** phase `→ outcome { … }` + `produces:` on phases and on
-  `instantiate`d mechanics (a mechanic raises the same `_ProduceSignal`, adopted
+  **Stage 3 is built:** phase `→ outcome { … }` + `produces:` on phases (an
+  auction round raises the same `_ProduceSignal`, adopted
   by its enclosing outcome-declaring phase), the imperative arm vocabulary
   `continue to <phase>` / `skip to next hand`, and nullable variant payload types
   (`Suit?`) — reusing the Stage-2 `produces:` consumer and `TVariant`
@@ -134,7 +133,8 @@ Things we have noted but consciously not designed yet:
 
 - **`scoring_component` / triggered components (runtime).** The design is settled
   (decisions.md "Scoring composition" and "Triggered scoring components"), but the
-  runtime folds scoring inline / into per-game mechanics and has not built the
+  corpus scores through inline statements plus game-local stdlib primitives, and
+  the runtime has not built the
   component subsystem. Build it when a game needs cross-hand triggered scoring
   that inline computation can't express.
 
@@ -192,7 +192,7 @@ open-question framing.
    - `triggered-scoring` → "Triggered scoring components"
    - `actor-vs-chooser` → "Delegated play"
    - `mechanic-internal-legality` → folded into "State scoping (lexical)"
-     (a still-Python mechanic's state is in scope for rules via standard
+     (a round form's state frame is in scope for rules via standard
      lexical nesting). Stud's betting legality later moved onto the kernel
      `round`'s move-type `when:` guards over phase state, not rules.
 

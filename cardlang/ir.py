@@ -271,12 +271,6 @@ def _stmt(s: n.Stmt) -> IRDict:
                     else None
                 ),
             }
-        case n.Instantiate():
-            return {
-                "kind": "instantiate",
-                "mechanic": s.mechanic,
-                "args": [_named_arg(a) for a in s.args],
-            }
         case n.LetStmt():
             return {
                 "kind": "let",
