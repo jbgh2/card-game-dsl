@@ -2,7 +2,14 @@ name: ci
 
 on:
   push:
+    branches: [main]
   pull_request:
+
+# A fast follow-up push to the same PR (or to main) starts a new run before
+# the previous one finishes; cancel the stale one instead of paying for both.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check:
@@ -21,4 +28,4 @@ jobs:
       - name: Type check (mypy --strict)
         run: mypy
       - name: Tests (corpus harness + units)
-        run: pytest -q
+        run: pytest -q -n auto
