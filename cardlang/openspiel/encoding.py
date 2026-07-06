@@ -8,8 +8,10 @@ in it, else a per-game block derived from the deck itself; see
 `_derived_card_block`); bare-name actions (offer move-types, the climb "pass");
 the integer block 0..52 (games with `choose`); the auction vocabulary (moves
 flattened over their parameter domains, declared order); and the combination
-universe (the climb engine's `universe()` query, canonically ordered and
-golden-pinned).
+block — the climb engine's enumerated `universe()` query (canonically ordered
+and golden-pinned; Big Two) or, when the universe is too large to enumerate,
+the engine's arithmetic codec (`climb_codec_function`; Tichu's 211,204,694
+plays), whose ids are pure functions of the card-set.
 
 A Card-parameterized vocabulary move (Schnapsen's `play_card`) contributes NO
 vocab ids: its domain is state-dependent (the actor's live hand), and a card
@@ -112,6 +114,7 @@ class ActionSpace:
         vocab: list[tuple[str, Any]],
         has_integers: bool,
         combos: list[Any],
+        combo_codec: Any | None = None,
     ) -> None:
         self._card_block = card_block
         self._card_ids = (
@@ -121,11 +124,18 @@ class ActionSpace:
         self._vocab = vocab
         self._has_integers = has_integers
         self._combos = combos
+        # An arithmetic codec serves the combo block when the engine's universe
+        # is too large to enumerate (`stdlib.climb_codec_function`): ids are
+        # computed from the card-set, never tabled. Exactly one of
+        # (combos, combo_codec) is populated.
+        self._combo_codec = combo_codec
+        assert combo_codec is None or not combos
         self._name_base = NUM_DISTINCT_ACTIONS if card_block is None else len(card_block)
         self._int_base = self._name_base + len(names)
         self._vocab_base = self._int_base + (_MAX_CHOOSE + 1 if has_integers else 0)
         self._combo_base = self._vocab_base + len(vocab)
-        self.num_distinct_actions = self._combo_base + len(combos)
+        combo_count = combo_codec.size if combo_codec is not None else len(combos)
+        self.num_distinct_actions = self._combo_base + combo_count
         self._name_ids = {v: i for i, v in enumerate(names)}
         self._vocab_ids = {v: i for i, v in enumerate(vocab)}
         self._combo_ids = {frozenset(p.cards): i for i, p in enumerate(combos)}
@@ -164,17 +174,22 @@ class ActionSpace:
                         else [(mt.name, v) for v in enumerate_domain(mt.param.type_name)]
                     )
                     vocab.extend(e for e in entries if e not in vocab)
+        combo_codec: Any | None = None
         if climb_engines:
             assert len(climb_engines) == 1, "one climb engine per game for now"
             if "pass" not in names:
                 names.append("pass")
-            universe = stdlib.climb_universe_function(climb_engines[0])()
-            combos = sorted(
-                universe,
-                key=lambda p: (p.size, p.kind, sorted(card_to_action(c) for c in p.cards)),
-            )
+            combo_codec = stdlib.climb_codec_function(climb_engines[0])
+            if combo_codec is None:
+                universe = stdlib.climb_universe_function(climb_engines[0])()
+                combos = sorted(
+                    universe,
+                    key=lambda p: (p.size, p.kind, sorted(card_to_action(c) for c in p.cards)),
+                )
         card_block = _derived_card_block(game.deck)
-        return ActionSpace(card_block, sorted(names), vocab, has_integers, combos)
+        return ActionSpace(
+            card_block, sorted(names), vocab, has_integers, combos, combo_codec
+        )
 
     def encode(self, value: Any) -> int:
         if isinstance(value, Card):
@@ -196,6 +211,8 @@ class ActionSpace:
             return self._vocab_base + self._vocab_ids[value]
         cards = getattr(value, "cards", None)
         if cards is not None:
+            if self._combo_codec is not None:
+                return self._combo_base + int(self._combo_codec.encode_cards(frozenset(cards)))
             return self._combo_base + self._combo_ids[frozenset(cards)]
         raise ValueError(f"cannot encode action value {value!r}")
 
@@ -209,6 +226,8 @@ class ActionSpace:
         if self._vocab_base <= aid < self._combo_base:
             return self._vocab[aid - self._vocab_base]
         if self._combo_base <= aid < self.num_distinct_actions:
+            if self._combo_codec is not None:
+                return ComboAction(frozenset(self._combo_codec.decode(aid - self._combo_base)))
             return ComboAction(frozenset(self._combos[aid - self._combo_base].cards))
         raise ValueError(f"action {aid} out of range 0..{self.num_distinct_actions - 1}")
 
@@ -254,6 +273,9 @@ class ActionSpace:
         if isinstance(value, Card):
             return str(value)
         if isinstance(value, ComboAction):
+            if self._combo_codec is not None:
+                kind = str(self._combo_codec.kind_of(aid - self._combo_base))
+                return f"{kind}[" + ",".join(sorted(str(c) for c in value.cards)) + "]"
             play = self._combos[aid - self._combo_base]
             return f"{play.kind}[" + ",".join(sorted(str(c) for c in play.cards)) + "]"
         if isinstance(value, tuple):

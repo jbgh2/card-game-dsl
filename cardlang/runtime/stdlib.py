@@ -262,7 +262,9 @@ def climb_universe_function(name: str) -> Callable[[], list[Any]]:
     """The engine's full play universe — every combination it can ever emit —
     keyed by the SAME name as its `combinations` lead query. The OpenSpiel
     adapter derives the climb action space from this; the lead query itself
-    cannot serve (its representatives depend on the live hand and game state)."""
+    cannot serve (its representatives depend on the live hand and game state).
+    An engine whose universe is too large to enumerate provides a codec via
+    `climb_codec_function` instead and never reaches this dispatch."""
     match name:
         case "bigtwo_lead_options":
             from cardlang.runtime.bigtwo import bigtwo_universe
@@ -270,6 +272,22 @@ def climb_universe_function(name: str) -> Callable[[], list[Any]]:
             return bigtwo_universe
         case _:
             raise AssertionError(f"no combination universe for climb engine '{name}'")
+
+
+def climb_codec_function(name: str) -> Any | None:
+    """The engine's arithmetic combo codec — pure card-set <-> action-index
+    functions (`size` / `encode_cards` / `decode` / `kind_of`) — keyed by the
+    lead-query name, for engines whose play universe is too large to enumerate
+    (Tichu's is 211,204,694; straights dominate). `None` means the engine
+    enumerates via `climb_universe_function` (Big Two: 19,898, golden-pinned),
+    keeping that path and its pinned ids byte-identical."""
+    match name:
+        case "tichu_lead_options":
+            from cardlang.runtime.tichu import TICHU_COMBO_CODEC
+
+            return TICHU_COMBO_CODEC
+        case _:
+            return None
 
 
 def highest_of_led_suit(
