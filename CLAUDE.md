@@ -24,9 +24,10 @@ info sets are the *whole reason* this DSL is worth more than hand-coding each ga
 against OpenSpiel directly. For hidden hands, face-down cards, bluffs, and
 concealed bids this is genuinely hard — and it is exactly where the value is.
 
-**Honest status — the substrate exists; the escape hatches are still debt.**
-The twelve fully-kernel games (Hearts, Getaway, Spades, Bridge, Oh Hell, Big
-Two, Seven-Card Stud, Pinochle, French Tarot, Cribbage, Schnapsen, Skat) reach
+**Honest status — the substrate exists; the last escape hatch is still debt.**
+The thirteen fully-kernel games (Hearts, Getaway, Spades, Bridge, Oh Hell, Big
+Two, Seven-Card Stud, Pinochle, French Tarot, Cribbage, Schnapsen, Skat,
+Tichu) reach
 OpenSpiel through
 ONE general adapter with *derived* information sets: per-observer observations are
 emitted from the kernel's decision/movement sites through the declared
@@ -36,14 +37,15 @@ byte-identical), soundness, and perfect recall for each (Bridge's and French
 Tarot's swap/soundness/recall proofs cover only the pass-only line of their
 auctions — the harness's greedy replay never places a bid, let alone reaches
 the chien discard or trick play; French Tarot's hidden discard, Schnapsen's
-lead actions, and Skat's pickup/discard are instead
-proven derived by dedicated observational tests. Stud's and French Tarot's
-conformance are bounded random API walks, their full sims being
-quadratic-in-length). No per-game observation rules remain. But every per-game
-Python escape-hatch mechanic dispatched by `instantiate` (Coup,
-Tichu) still *bypasses* this derivation — the adapter rejects
-those two games loudly, and the leak lands hardest on exactly the
-imperfect-information games the AI target most exists to serve. The gap is
+lead actions, Skat's pickup/discard, and Tichu's push are instead
+proven derived by dedicated observational tests. Stud's, French Tarot's, and
+Tichu's conformance are bounded random API walks, their full sims being
+quadratic-in-length). No per-game observation rules remain. But the one
+remaining Python escape-hatch mechanic dispatched by `instantiate` (Coup)
+still *bypasses* this derivation — the adapter rejects
+that game loudly, and the leak lands hardest on exactly the
+imperfect-information games the AI target most exists to serve (Coup is pure
+hidden-role bluffing). The gap is
 quantified in `docs/design-notes/kernel-extensibility.md`, §6.
 
 **So, for every change, treat info-set derivation as a first-class acceptance

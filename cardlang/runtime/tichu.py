@@ -1,217 +1,514 @@
-"""The Tichu hand mechanic (four-player partnership climbing game; concrete).
+"""Tichu's game-local runtime primitives.
 
-The corpus's first climbing game and first with non-(rank,suit) cards. Built as
-one concrete mechanic: the pushing phase, the climbing trick (play a combination
-that matches the led type/length and beats it, or a bomb, or pass; three passes
-end the trick), the four special cards (Mahjong leads and is lowest; the Dog
-hands the lead to partner; the Phoenix is a wild / contextual single worth -25;
-the Dragon is the highest single, worth 25, and its trick goes to an opponent),
-finishing order with the double-victory shortcut, and card-point + Tichu-call
-scoring. First partnership to 1000 wins.
+The hand runs fully on the kernel (tichu.cardlang): the Tichu/Grand-Tichu
+calls and the push are plain statements (a `for each player` of one chosen
+3-card movement, then a draw-free giver-major distribution), each climbing
+trick is one `round climb` over the combination engine's queries, and the
+finishing/scoring flow is statement control flow over the round's terminal
+state (`state.lead_ended_trick`, `state.shed_first` / `state.shed_second`).
+What stays game-local: the combination engine itself (`combinations.py`,
+shared with nothing — Big Two's differs), the two non-chooser RNG sites the
+monolith drew (the call-rate gates and the Dragon's trick going to a random
+opponent — reproduced draw-for-draw at the same sites), partnership lookups,
+and the card-point table.
 
-Card points total 100 every hand (K and 10 score 10, 5 scores 5, Dragon +25,
-Phoenix -25) — the falsifiable conservation invariant.
-
-Scope reductions (random play; see docs/roadmap.md): the Mahjong
-wish, the Phoenix as a wildcard inside straights / consecutive-pairs,
-straight-flush bombs, and out-of-turn bombs are omitted. Tichu / Grand Tichu are
-called at a low random rate so card points (always +100/hand) drive the game to
-1000.
+The state-reading primitives (`tichu_double_victory`, `tichu_first_out`) read
+the finishing order from phase state via `ctx.rs.get` — the Stud/Cribbage/Skat
+precedent for game-local primitives over live state. `tichu_dragon_won` reads
+the completed round's standing play from `last_round_state` (the same terminal
+frame the body reads as `state.x`).
 """
 
 from __future__ import annotations
 
-from typing import Any
-
-from cardlang.ast import nodes as n
 from cardlang.runtime.combinations import Play, _combos, _legal_follows, _points
-from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Card, Player
 
 
-def run_tichu_hand(stmt: n.Instantiate, ctx: Ctx) -> Player:
-    rs = ctx.rs
-    rng = rs.rng
-    choose = ctx.chooser
-    args = {a.name: a.value for a in stmt.args}
-    starting: Player = evaluate(args["starting"], ctx)  # type: ignore[arg-type]
-    players = list(rs.seating.players)
-    npl = len(players)
-    hands = rs.zones.families["hand"]
-    captured = rs.zones.families["captured"]
-    discard = rs.zones.single("discard")
-    team_of = rs.team_of
+# --- the climb queries (the monolith's candidate lists, verbatim) ---
 
-    def ccw(p: Player) -> Player:
-        return (p - 1) % npl
 
-    def partner(p: Player) -> Player:
-        return next(q for q in players if q != p and team_of[q] == team_of[p])
+def tichu_lead_options(hand: list[Card], ctx: Ctx) -> list[Play]:
+    """Every combination the leader may lead: the engine's combos, then the
+    three specials as lead singles in hand order (Dragon highest at 15, the
+    Phoenix at 1.5, the Dog as its own trick-ending kind). `ctx` is unused —
+    Tichu leads depend only on the hand — but the climb round passes it
+    uniformly with the follows query."""
+    leads = _combos(hand)
+    for c in hand:
+        if c.rank == "Dragon":
+            leads.append(Play("single", 1, 15, (c,)))
+        elif c.rank == "Phoenix":
+            leads.append(Play("single", 1, 1.5, (c,)))
+        elif c.rank == "Dog":
+            leads.append(Play("dog", 1, 0, (c,)))
+    return leads
 
-    # Tichu / Grand Tichu calls (low random rate so card points drive the game).
-    called = {p: 0 for p in players}  # 0 none, 100 tichu, 200 grand
-    for p in players:
-        if rng.random() < 0.04:
-            called[p] = 200
-        elif rng.random() < 0.08:
-            called[p] = 100
 
-    # Pushing: each player gives one card to each other player (simultaneously).
-    gifts: dict[Player, list[Card]] = {p: [] for p in players}
-    for p in players:
-        picks = choose(p, list(hands[p].cards), npl - 1)
-        for c in picks:
-            hands[p].remove(c)
-        recipients = [q for q in players if q != p]
-        for q, c in zip(recipients, picks):
-            gifts[q].append(c)
-    for q in players:
-        hands[q].add_all(gifts[q])
+def tichu_follows(hand: list[Card], current: Play, ctx: Ctx) -> list[Play]:
+    """The combinations that legally beat the standing play (same kind and
+    length, higher key; any bomb; the Dragon/Phoenix single answers). `ctx` is
+    unused, passed uniformly with the lead query."""
+    return _legal_follows(hand, current)
 
-    # Mahjong holder leads the first trick.
-    leader = next((p for p in players if any(c.rank == "Mahjong" for c in hands[p].cards)), starting)
-    out_order: list[Player] = []
 
-    def record_out(p: Player) -> None:
-        if not hands[p].cards and p not in out_order:
-            out_order.append(p)
+# --- the two non-chooser RNG sites (the monolith's, draw-for-draw) ---
 
-    def still_in() -> list[Player]:
-        return [p for p in players if hands[p].cards]
 
-    guard = 0
-    while len(still_in()) > 1:
-        guard += 1
-        if guard > 5000:
-            raise RuntimeError(
-                "tichu hand exceeded 5000 tricks without resolving (non-termination?)"
-            )
-        if len(out_order) >= 2 and team_of[out_order[0]] == team_of[out_order[1]]:
-            break  # double victory — stop early
-        leader = _play_trick(  # type: ignore[no-untyped-call]
-            leader, hands, captured, discard, players, ccw, partner,
-            team_of, choose, rng, called, record_out, still_in,
+def tichu_call_roll(ctx: Ctx) -> int:
+    """One player's Tichu/Grand-Tichu gate: 200 at 4%, else 100 at 8%, else 0.
+    The second draw happens only when the first misses (short-circuit), so the
+    rng consumption matches the monolith exactly."""
+    rng = ctx.rs.rng
+    if rng.random() < 0.04:
+        return 200
+    if rng.random() < 0.08:
+        return 100
+    return 0
+
+
+def tichu_dragon_recipient(ctx: Ctx, winner: Player) -> Player:
+    """The opponent the Dragon-winner gives the trick to (a random pick — the
+    migrated scope plays randomly; a real choice would be a chooser draw)."""
+    opponents = [
+        p for p in ctx.rs.seating.players
+        if ctx.rs.team_of[p] != ctx.rs.team_of[winner]
+    ]
+    return ctx.rs.rng.choice(opponents)
+
+
+# --- zone / seating / state reads (pure) ---
+
+
+def tichu_mahjong_holder(ctx: Ctx) -> Player:
+    """Who leads the first trick: the Mahjong holder (post-push hands; the
+    full deal guarantees one exists)."""
+    hands = ctx.rs.zones.families["hand"]
+    return next(
+        p for p in ctx.rs.seating.players
+        if any(c.rank == "Mahjong" for c in hands[p].cards)
+    )
+
+
+def tichu_players_holding(ctx: Ctx) -> int:
+    """How many players still hold cards (the hand ends at <= 1)."""
+    hands = ctx.rs.zones.families["hand"]
+    return sum(1 for p in ctx.rs.seating.players if hands[p].cards)
+
+
+def tichu_double_victory(ctx: Ctx) -> bool:
+    """Both recorded finishers are teammates (ends the hand early, +200)."""
+    first, second = ctx.rs.get("out_first"), ctx.rs.get("out_second")
+    return (
+        first is not None
+        and second is not None
+        and ctx.rs.team_of[first] == ctx.rs.team_of[second]
+    )
+
+
+def tichu_partner(ctx: Ctx, p: Player) -> Player:
+    """The teammate (partners sit across)."""
+    return next(
+        q for q in ctx.rs.seating.players
+        if q != p and ctx.rs.team_of[q] == ctx.rs.team_of[p]
+    )
+
+
+def tichu_next_holder(ctx: Ctx, p: Player) -> Player:
+    """`p` if they still hold cards, else the next holder counterclockwise —
+    the monolith's post-trick leader advance. Returns `p` unchanged when
+    everyone is out (the hand is over; the value is never read)."""
+    hands = ctx.rs.zones.families["hand"]
+    players = list(ctx.rs.seating.players)
+    if not any(hands[q].cards for q in players):
+        return p
+    q = p
+    while not hands[q].cards:
+        q = (q - 1) % len(players)
+    return q
+
+
+def tichu_dragon_won(ctx: Ctx) -> bool:
+    """Did the Dragon capture the trick just completed? Reads the standing
+    play from the round's terminal state: the Dragon appears in a pile only as
+    a played single, and only a bomb can beat it — so the check is exactly the
+    monolith's (the final play is one card and it is the Dragon)."""
+    st = ctx.rs.last_round_state
+    cur = None if st is None else st.get("current")
+    return (
+        cur is not None and len(cur.cards) == 1 and cur.cards[0].rank == "Dragon"
+    )
+
+
+def tichu_opponent_team(ctx: Ctx, p: Player) -> int:
+    """The team `p` does not belong to (two-team game)."""
+    return next(t for t in ctx.rs.teams if t != ctx.rs.team_of[p])
+
+
+def tichu_first_out(ctx: Ctx) -> Player:
+    """The first player to shed out, defaulting to player 0 when nobody is
+    recorded (the monolith's fallback; unreachable in a completed hand)."""
+    first = ctx.rs.get("out_first")
+    return 0 if first is None else int(first)
+
+
+def tichu_card_points(ctx: Ctx, c: Card) -> int:
+    """The card-point table (K and 10 score 10, 5 scores 5, Dragon +25,
+    Phoenix -25; 100 points per hand)."""
+    return _points(c)
+
+
+def tichu_hand_summary(ctx: Ctx) -> int:
+    """Emit the hand's `tichu_hand` trace — the double-victory flag and the
+    card points sitting in the two captured piles after routing — and return
+    the card points. The playout harness asserts every non-double-victory hand
+    distributes exactly 100 (tests/test_playout_tichu.py)."""
+    captured = ctx.rs.zones.families["captured"]
+    pts = sum(_points(c) for t in ctx.rs.teams for c in captured[t].cards)
+    ctx.trace(
+        "tichu_hand",
+        {"double_victory": tichu_double_victory(ctx), "card_points": pts},
+    )
+    return pts
+
+
+# ---------------------------------------------------------------------------
+# The combo codec: card-set <-> action-index, computed, never enumerated
+# ---------------------------------------------------------------------------
+#
+# The OpenSpiel adapter needs one stable global action id per distinct play the
+# engine can ever emit. Big Two enumerates its 19,898-play universe; Tichu's is
+# 211,204,694 (straights of length 5-14 under free suit assignment are 208.8M
+# of it), so its ids are *computed*: a fixed block layout — dog, single, pair,
+# triple, bomb, fullhouse, straight, pairseq — with a mixed-radix ranking
+# inside each block. Every id is a pure function of the card-set (stable across
+# determinized worlds), each card-set has exactly one block decomposition
+# (sizes and rank structures are disjoint), and the blocks are a superset of
+# everything `_combos` + the lead-site specials can produce — including the
+# engine's Mahjong quirk (`by_rank` treats the Mahjong as a normal rank-1 card,
+# so a Phoenix+Mahjong pair and Mahjong-filled phoenix fullhouses are
+# emittable). Pinned by tests/test_openspiel_encoding.py.
+
+from cardlang.runtime.values import SUITS, build_deck  # noqa: E402
+
+_VAL = {"2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9,
+        "10": 10, "J": 11, "Q": 12, "K": 13, "A": 14}
+_RANK_OF_VAL = {v: r for r, v in _VAL.items()}
+
+_DECK = build_deck("tichu56")
+_MAHJONG = next(c for c in _DECK if c.rank == "Mahjong")
+_DOG = next(c for c in _DECK if c.rank == "Dog")
+_PHOENIX = next(c for c in _DECK if c.rank == "Phoenix")
+_DRAGON = next(c for c in _DECK if c.rank == "Dragon")
+
+_PAIR2 = ((0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3))
+_PAIR2_IDX: dict[tuple[int, ...], int] = {p: i for i, p in enumerate(_PAIR2)}
+_COMB3 = ((0, 1, 2), (0, 1, 3), (0, 2, 3), (1, 2, 3))
+_COMB3_IDX: dict[tuple[int, ...], int] = {t: i for i, t in enumerate(_COMB3)}
+
+_N_DOG = 1
+_N_SINGLE = 55
+# naturals, then phoenix pairs: {Phoenix, Mahjong} first, then 13 ranks x 4 suits
+_N_PAIR = 13 * 6 + (1 + 13 * 4)
+_N_TRIPLE = 13 * 4 + 13 * 6
+_N_BOMB = 13
+# naturals, then phoenix fullhouses: per (triple rank, triple suits) the pair
+# filler is the Mahjong (slot 0) or one of 12 other ranks x 4 suits
+_N_FH = 13 * 12 * 4 * 6 + 13 * 4 * (1 + 12 * 4)
+
+# Straight windows in (length, lo) order; each window's size is the product of
+# its per-rank suit choices (the Mahjong slot, value 1, has one).
+_STRAIGHT_WINDOWS: list[tuple[int, int, int]] = []
+for _length in range(5, 15):
+    for _lo in range(1, 16 - _length):
+        _sz = 1
+        for _v in range(_lo, _lo + _length):
+            _sz *= 1 if _v == 1 else 4
+        _STRAIGHT_WINDOWS.append((_length, _lo, _sz))
+_STRAIGHT_OFFSETS: dict[tuple[int, int], int] = {}
+_N_STRAIGHT = 0
+for _length, _lo, _sz in _STRAIGHT_WINDOWS:
+    _STRAIGHT_OFFSETS[(_length, _lo)] = _N_STRAIGHT
+    _N_STRAIGHT += _sz
+
+# Pairseq windows: 2-7 consecutive pair ranks (a 14-card hand holds 7 pairs).
+_PAIRSEQ_WINDOWS: list[tuple[int, int, int]] = []
+for _length in range(2, 8):
+    for _lo in range(2, 16 - _length):
+        _PAIRSEQ_WINDOWS.append((_length, _lo, 6 ** _length))
+_PAIRSEQ_OFFSETS: dict[tuple[int, int], int] = {}
+_N_PAIRSEQ = 0
+for _length, _lo, _sz in _PAIRSEQ_WINDOWS:
+    _PAIRSEQ_OFFSETS[(_length, _lo)] = _N_PAIRSEQ
+    _N_PAIRSEQ += _sz
+
+_BASE_DOG = 0
+_BASE_SINGLE = _BASE_DOG + _N_DOG
+_BASE_PAIR = _BASE_SINGLE + _N_SINGLE
+_BASE_TRIPLE = _BASE_PAIR + _N_PAIR
+_BASE_BOMB = _BASE_TRIPLE + _N_TRIPLE
+_BASE_FH = _BASE_BOMB + _N_BOMB
+_BASE_STRAIGHT = _BASE_FH + _N_FH
+_BASE_PAIRSEQ = _BASE_STRAIGHT + _N_STRAIGHT
+
+
+def _sidx(c: Card) -> int:
+    return SUITS.index(c.suit)
+
+
+def _single_index(c: Card) -> int:
+    if c.rank == "Mahjong":
+        return 0
+    if c.rank == "Dragon":
+        return 53
+    if c.rank == "Phoenix":
+        return 54
+    return 1 + (_VAL[c.rank] - 2) * 4 + _sidx(c)
+
+
+def _single_card(i: int) -> Card:
+    if i == 0:
+        return _MAHJONG
+    if i == 53:
+        return _DRAGON
+    if i == 54:
+        return _PHOENIX
+    v, s = divmod(i - 1, 4)
+    return Card(_RANK_OF_VAL[v + 2], SUITS[s])
+
+
+def _pr_rel(tr: int, pr: int) -> int:
+    """The pair rank's index among the 12 ranks that are not the triple's."""
+    return (pr - 2) if pr < tr else (pr - 3)
+
+
+def _pr_from_rel(tr: int, rel: int) -> int:
+    v = rel + 2
+    return v if v < tr else v + 1
+
+
+class TichuComboCodec:
+    """The climbing form's play universe as arithmetic (see the block comment
+    above). `encode_cards` raises ValueError on a card-set outside the
+    universe — a corrupted history, never a live candidate."""
+
+    size = (
+        _N_DOG + _N_SINGLE + _N_PAIR + _N_TRIPLE + _N_BOMB + _N_FH
+        + _N_STRAIGHT + _N_PAIRSEQ
+    )
+
+    def encode_cards(self, cards: frozenset[Card]) -> int:
+        n = len(cards)
+        phoenix = _PHOENIX in cards
+        mahjong = _MAHJONG in cards
+        normals = sorted(
+            (c for c in cards if c.rank in _VAL),
+            key=lambda c: (_VAL[c.rank], _sidx(c)),
         )
-        if leader is None:  # everyone out
-            break
-        while hands[leader].cards == [] and still_in():
-            leader = ccw(leader)
+        by_val: dict[int, list[Card]] = {}
+        for c in normals:
+            by_val.setdefault(_VAL[c.rank], []).append(c)
 
-    double_victory = _score_hand(
-        rs, hands, captured, players, team_of, out_order, called, partner
-    )
-    card_pts = sum(_points(c) for t in rs.teams for c in captured[t].cards)
-    ctx.trace("tichu_hand", {"double_victory": double_victory, "card_points": card_pts})
-    return out_order[0] if out_order else leader if leader is not None else starting
+        if n == 1:
+            c = next(iter(cards))
+            if c.rank == "Dog":
+                return _BASE_DOG
+            return _BASE_SINGLE + _single_index(c)
+
+        if n == 2:
+            if phoenix:
+                if mahjong:  # the engine pairs the Phoenix with the Mahjong
+                    return _BASE_PAIR + 78
+                if len(normals) == 1:
+                    (c,) = normals
+                    return _BASE_PAIR + 79 + (_VAL[c.rank] - 2) * 4 + _sidx(c)
+            elif len(normals) == 2 and _VAL[normals[0].rank] == _VAL[normals[1].rank]:
+                v = _VAL[normals[0].rank]
+                pair = (_sidx(normals[0]), _sidx(normals[1]))
+                return _BASE_PAIR + (v - 2) * 6 + _PAIR2_IDX[pair]
+
+        if n == 3:
+            if phoenix and len(by_val) == 1:
+                v, cs = next(iter(by_val.items()))
+                if len(cs) == 2:
+                    pair = (_sidx(cs[0]), _sidx(cs[1]))
+                    return _BASE_TRIPLE + 52 + (v - 2) * 6 + _PAIR2_IDX[pair]
+            elif not phoenix and len(by_val) == 1:
+                v, cs = next(iter(by_val.items()))
+                if len(cs) == 3:
+                    suits3 = tuple(sorted(_sidx(c) for c in cs))
+                    return _BASE_TRIPLE + (v - 2) * 4 + _COMB3_IDX[suits3]
+
+        vals = sorted(by_val)
+        counts = {v: len(cs) for v, cs in by_val.items()}
+
+        if n == 4 and not phoenix and not mahjong and len(vals) == 1:
+            return _BASE_BOMB + (vals[0] - 2)
+
+        if n == 5 and phoenix and mahjong and len(vals) == 1 and counts[vals[0]] == 3:
+            tr = vals[0]  # {tr x3, Mahjong, Phoenix}: the Mahjong fills the pair
+            tsuits = tuple(sorted(_sidx(c) for c in by_val[tr]))
+            return _BASE_FH + 3744 + ((tr - 2) * 4 + _COMB3_IDX[tsuits]) * 49
+        if n == 5 and phoenix and not mahjong and len(vals) == 2:
+            trs = [v for v in vals if counts[v] == 3]
+            prs = [v for v in vals if counts[v] == 1]
+            if trs and prs:
+                tr, pr = trs[0], prs[0]
+                tsuits = tuple(sorted(_sidx(c) for c in by_val[tr]))
+                (pc,) = by_val[pr]
+                slot = 1 + _pr_rel(tr, pr) * 4 + _sidx(pc)
+                return _BASE_FH + 3744 + ((tr - 2) * 4 + _COMB3_IDX[tsuits]) * 49 + slot
+        if n == 5 and not phoenix and not mahjong and len(vals) == 2:
+            trs = [v for v in vals if counts[v] == 3]
+            prs = [v for v in vals if counts[v] == 2]
+            if trs and prs:
+                tr, pr = trs[0], prs[0]
+                tsuits = tuple(sorted(_sidx(c) for c in by_val[tr]))
+                psuits = tuple(sorted(_sidx(c) for c in by_val[pr]))
+                idx = (
+                    ((tr - 2) * 12 + _pr_rel(tr, pr)) * 24
+                    + _COMB3_IDX[tsuits] * 6
+                    + _PAIR2_IDX[psuits]
+                )
+                return _BASE_FH + idx
+
+        # straights: one card per value, consecutive; the Mahjong anchors at 1
+        all_vals = ([1] if mahjong else []) + vals
+        if (
+            not phoenix
+            and n >= 5
+            and len(all_vals) == n
+            and all(counts[v] == 1 for v in vals)
+            and all_vals == list(range(all_vals[0], all_vals[0] + n))
+        ):
+            digit = 0
+            for v in all_vals:
+                if v == 1:
+                    continue
+                digit = digit * 4 + _sidx(by_val[v][0])
+            return _BASE_STRAIGHT + _STRAIGHT_OFFSETS[(n, all_vals[0])] + digit
+
+        # pairseq: 2-7 consecutive values, two cards each
+        if (
+            not phoenix
+            and not mahjong
+            and 2 <= len(vals) <= 7
+            and all(counts[v] == 2 for v in vals)
+            and vals == list(range(vals[0], vals[0] + len(vals)))
+        ):
+            digit = 0
+            for v in vals:
+                pair = (_sidx(by_val[v][0]), _sidx(by_val[v][1]))
+                digit = digit * 6 + _PAIR2_IDX[pair]
+            return _BASE_PAIRSEQ + _PAIRSEQ_OFFSETS[(len(vals), vals[0])] + digit
+
+        raise ValueError(
+            f"not an encodable Tichu play card-set: {sorted(map(str, cards))}"
+        )
+
+    def decode(self, index: int) -> frozenset[Card]:
+        if 0 <= index < _BASE_SINGLE:
+            return frozenset({_DOG})
+        if index < _BASE_PAIR:
+            return frozenset({_single_card(index - _BASE_SINGLE)})
+        if index < _BASE_TRIPLE:
+            i = index - _BASE_PAIR
+            if i < 78:
+                v, pi = divmod(i, 6)
+                s1, s2 = _PAIR2[pi]
+                r = _RANK_OF_VAL[v + 2]
+                return frozenset({Card(r, SUITS[s1]), Card(r, SUITS[s2])})
+            i -= 78
+            if i == 0:
+                return frozenset({_MAHJONG, _PHOENIX})
+            v, s = divmod(i - 1, 4)
+            return frozenset({Card(_RANK_OF_VAL[v + 2], SUITS[s]), _PHOENIX})
+        if index < _BASE_BOMB:
+            i = index - _BASE_TRIPLE
+            if i < 52:
+                v, ti = divmod(i, 4)
+                r = _RANK_OF_VAL[v + 2]
+                return frozenset({Card(r, SUITS[s]) for s in _COMB3[ti]})
+            i -= 52
+            v, pi = divmod(i, 6)
+            s1, s2 = _PAIR2[pi]
+            r = _RANK_OF_VAL[v + 2]
+            return frozenset({Card(r, SUITS[s1]), Card(r, SUITS[s2]), _PHOENIX})
+        if index < _BASE_FH:
+            r = _RANK_OF_VAL[index - _BASE_BOMB + 2]
+            return frozenset({Card(r, s) for s in SUITS})
+        if index < _BASE_STRAIGHT:
+            i = index - _BASE_FH
+            if i < 3744:
+                pair_i = i % 6
+                i //= 6
+                trip_i = i % 4
+                i //= 4
+                tr = i // 12 + 2
+                pr = _pr_from_rel(tr, i % 12)
+                trr, prr = _RANK_OF_VAL[tr], _RANK_OF_VAL[pr]
+                s1, s2 = _PAIR2[pair_i]
+                return frozenset(
+                    {Card(trr, SUITS[s]) for s in _COMB3[trip_i]}
+                    | {Card(prr, SUITS[s1]), Card(prr, SUITS[s2])}
+                )
+            i -= 3744
+            group, slot = divmod(i, 49)
+            tr = group // 4 + 2
+            triple = {Card(_RANK_OF_VAL[tr], SUITS[s]) for s in _COMB3[group % 4]}
+            if slot == 0:
+                return frozenset(triple | {_MAHJONG, _PHOENIX})
+            rel, ps = divmod(slot - 1, 4)
+            prr = _RANK_OF_VAL[_pr_from_rel(tr, rel)]
+            return frozenset(triple | {Card(prr, SUITS[ps]), _PHOENIX})
+        if index < _BASE_PAIRSEQ:
+            i = index - _BASE_STRAIGHT
+            for (length, lo, sz) in _STRAIGHT_WINDOWS:
+                off = _STRAIGHT_OFFSETS[(length, lo)]
+                if i < off + sz:
+                    digit = i - off
+                    suit_vals = [v for v in range(lo, lo + length) if v != 1]
+                    digits: list[int] = []
+                    for _ in suit_vals:
+                        digits.append(digit % 4)
+                        digit //= 4
+                    digits.reverse()
+                    cards = {_MAHJONG} if lo == 1 else set()
+                    for v, s in zip(suit_vals, digits):
+                        cards.add(Card(_RANK_OF_VAL[v], SUITS[s]))
+                    return frozenset(cards)
+            raise AssertionError("unreachable straight index")
+        if index < self.size:
+            i = index - _BASE_PAIRSEQ
+            for (length, lo, sz) in _PAIRSEQ_WINDOWS:
+                off = _PAIRSEQ_OFFSETS[(length, lo)]
+                if i < off + sz:
+                    digit = i - off
+                    pdigits: list[int] = []
+                    for _ in range(length):
+                        pdigits.append(digit % 6)
+                        digit //= 6
+                    pdigits.reverse()
+                    cards = set()
+                    for v, pi in zip(range(lo, lo + length), pdigits):
+                        s1, s2 = _PAIR2[pi]
+                        r = _RANK_OF_VAL[v]
+                        cards.add(Card(r, SUITS[s1]))
+                        cards.add(Card(r, SUITS[s2]))
+                    return frozenset(cards)
+            raise AssertionError("unreachable pairseq index")
+        raise ValueError(f"combo index {index} out of range 0..{self.size - 1}")
+
+    def kind_of(self, index: int) -> str:
+        for base, kind in (
+            (_BASE_SINGLE, "dog"), (_BASE_PAIR, "single"), (_BASE_TRIPLE, "pair"),
+            (_BASE_BOMB, "triple"), (_BASE_FH, "bomb"), (_BASE_STRAIGHT, "fullhouse"),
+            (_BASE_PAIRSEQ, "straight"), (self.size, "pairseq"),
+        ):
+            if index < base:
+                return kind
+        raise ValueError(f"combo index {index} out of range 0..{self.size - 1}")
 
 
-def _play_trick(  # type: ignore[no-untyped-def]
-    leader, hands, captured, discard, players, ccw, partner,
-    team_of, choose, rng, called, record_out, still_in,
-):
-    """Play one climbing trick; route its cards; return the next leader (or None
-    if everyone is out)."""
-    current: Play | None = None
-    last_player: Player | None = None
-    pending: set[Player] = set()
-    pile: list[Card] = []
-    dragon_won = False
-    turn = leader
-    guard = 0
-    while True:
-        guard += 1
-        if guard > 5000:
-            raise RuntimeError(
-                "tichu trick exceeded 5000 plays without resolving (non-termination?)"
-            )
-        if current is not None and not pending:
-            break  # everyone else passed — trick over
-        if not hands[turn].cards or (current is not None and turn not in pending):
-            turn = ccw(turn)
-            continue
-        if current is None:  # the leader must lead
-            leads = _combos(hands[turn].cards)
-            for c in hands[turn].cards:  # Dragon / Phoenix / Dog as a lead single
-                if c.rank == "Dragon":
-                    leads.append(Play("single", 1, 15, (c,)))
-                elif c.rank == "Phoenix":
-                    leads.append(Play("single", 1, 1.5, (c,)))
-                elif c.rank == "Dog":
-                    leads.append(Play("dog", 1, 0, (c,)))
-            play = choose(turn, leads, 1)[0]
-            for c in play.cards:
-                hands[turn].remove(c)
-            if play.kind == "dog":  # lead passes to partner, no capture
-                discard.add_all(play.cards)
-                return partner(turn)
-            pile.extend(play.cards)
-            current, last_player = play, turn
-            pending = {p for p in players if p != turn and hands[p].cards}
-            record_out(turn)
-            turn = ccw(turn)
-        else:  # follow or pass
-            opts: list[Any] = [*_legal_follows(hands[turn].cards, current), "pass"]
-            choice = choose(turn, opts, 1)[0]
-            if choice == "pass":
-                pending.discard(turn)
-                turn = ccw(turn)
-            else:
-                for c in choice.cards:
-                    hands[turn].remove(c)
-                pile.extend(choice.cards)
-                current, last_player = choice, turn
-                pending = {p for p in players if p != turn and hands[p].cards}
-                record_out(turn)
-                turn = ccw(turn)
-
-    assert last_player is not None
-    dragon_won = current is not None and len(current.cards) == 1 and current.cards[0].rank == "Dragon"
-    if dragon_won:  # the Dragon's trick is given to an opponent
-        opponents = [p for p in players if team_of[p] != team_of[last_player]]
-        recipient = rng.choice(opponents)
-        captured[team_of[recipient]].add_all(pile)
-    else:
-        captured[team_of[last_player]].add_all(pile)
-
-    if hands[last_player].cards:
-        return last_player
-    nxt = ccw(last_player)
-    while not hands[nxt].cards and still_in():
-        nxt = ccw(nxt)
-    return nxt if still_in() else None
-
-
-def _score_hand(rs, hands, captured, players, team_of, out_order, called, partner) -> bool:  # type: ignore[no-untyped-def]
-    score = rs.get("score")
-    teams = rs.teams
-    delta = {t: 0 for t in teams}
-
-    double_victory = (
-        len(out_order) >= 2 and team_of[out_order[0]] == team_of[out_order[1]]
-    )
-    if double_victory:
-        delta[team_of[out_order[0]]] += 200
-    else:
-        # The lone remaining player: their hand → the opponents, their captured
-        # tricks → the first player out.
-        remaining = [p for p in players if hands[p].cards]
-        first_out = out_order[0] if out_order else players[0]
-        if remaining:
-            last = remaining[0]
-            opp_team = next(t for t in teams if t != team_of[last])
-            captured[opp_team].add_all(hands[last].take_all())
-            captured[team_of[first_out]].add_all(captured[team_of[last]].take_all())
-        for t in teams:
-            delta[t] += sum(_points(c) for c in captured[t].cards)
-
-    for p in players:  # Tichu / Grand Tichu calls
-        if called[p]:
-            if out_order and p == out_order[0]:
-                delta[team_of[p]] += called[p]
-            else:
-                delta[team_of[p]] -= called[p]
-
-    for t in teams:
-        score[t] += delta[t]
-    return double_victory
+TICHU_COMBO_CODEC = TichuComboCodec()

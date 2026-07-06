@@ -17,7 +17,7 @@ done.
 
 ## The goal, concretely
 
-Two games still hold their decision logic in hand-written Python dispatched by
+One game still holds its decision logic in hand-written Python dispatched by
 name in `cardlang/runtime/mechanics.py::instantiate`. Bridge's, Pinochle's, and
 Tarot's auctions have been lifted onto the kernel `round` — so `run_bridge_auction`
 is gone, and Pinochle and Tarot are both fully kernel (Pinochle: trump
@@ -30,16 +30,21 @@ is gone as well. Schnapsen's hand — the leader's mixed lead decision on the
 auction form over a single-participant ring (with the Card move-parameter
 domain), the follower's strict-endgame filtered movement, and the
 trick/claim/draw statements — is fully kernel too, so the inline
-`run_schnapsen_hand` is gone. And Skat's hand — the Reizen call-and-response
+`run_schnapsen_hand` is gone. Skat's hand — the Reizen call-and-response
 as a role-guarded two-participant ring, the contract declaration on offers
 plus a `declare_suit(s : Suit)` round, the ten follow-class tricks, and the
-base × multiplier scoring — is fully kernel, so `run_skat_hand` is gone:
+base × multiplier scoring — is fully kernel, so `run_skat_hand` is gone. And
+Tichu's hand — the push as chosen movements into per-player gift piles, each
+climbing trick one `round climb` (the Dog a trick-ending lead via the
+engine's `ends_trick`, finishing order from the round's terminal
+`state.shed_*`), Dragon routing and call gates as rng primitives — is fully
+kernel, so `run_tichu_hand` is gone:
 
-- separate modules: `runtime/coup.py`, `tichu.py`
+- separate module: `runtime/coup.py`
 
 (`runtime/stud.py`, `runtime/bigtwo.py`, `runtime/pinochle.py`,
-`runtime/tarot.py`, `runtime/cribbage.py`, `runtime/schnapsen.py`, and
-`runtime/skat.py` remain, but hold no `instantiate`
+`runtime/tarot.py`, `runtime/cribbage.py`, `runtime/schnapsen.py`,
+`runtime/skat.py`, and `runtime/tichu.py` remain, but hold no `instantiate`
 mechanic — only pure stdlib primitives the DSL calls: Stud's poker evaluator,
 seat selectors, and `pot_share`; Big Two's combination engine; Pinochle's meld
 evaluator, `pinochle_meld_value`; Tarot's per-card queries, effective led suit,
@@ -49,7 +54,9 @@ Cribbage's pegging/show scorers and provenance decoder — `peg_value`,
 `cribbage_crib_value`; Schnapsen's two-card trick resolution,
 `schnapsen_trick_winner`; Skat's bid ladder, follow-class legality, trick
 winner, matador count, and overbid arithmetic — `skat_next_bid`,
-`skat_follow_ok`, `skat_trick_winner`, `skat_matadors`, `skat_effective_loss`.)
+`skat_follow_ok`, `skat_trick_winner`, `skat_matadors`, `skat_effective_loss`;
+Tichu's climb queries over the shared `combinations.py` engine, the two rng
+gates, partnership/finishing lookups, and the OpenSpiel combo codec.)
 
 This violates the two-layer architecture ([principles.md](principles.md): the
 library is *written in the DSL*, not the engine). It also carries **info-set
@@ -76,9 +83,9 @@ in order would silently collapse into the same string. The stage is done
 when:
 
 - `instantiate` dispatches only to kernel constructs — no per-game name
-  branches — and the three remaining game-mechanic modules are deleted (pure
-  stdlib-primitive modules like `stud.py`,
-  `bigtwo.py`, and `pinochle.py` stay);
+  branches — and the one remaining game-mechanic module (`coup.py`) is deleted
+  (pure stdlib-primitive modules like `stud.py`,
+  `bigtwo.py`, and `tichu.py` stay);
 - all 14 games run on the kernel plus the in-DSL standard library, with every
   `tests/test_playout_*.py` green and **behaviour preserved**;
 - IR golden snapshots are regenerated and reviewed;
@@ -342,21 +349,24 @@ library once a third instance arrives).
   trick to an opponent). Plus pushing (pre-play card passing) and the
   double-victory finish.
 
-**Status — the `climb` construct is built; Big Two runs on it byte-identically;
-Tichu's migration is the remaining step.** The kernel `round climb` construct
+**Status — done for both climbing games.** The kernel `round climb` construct
 (a `ClimbForm` hook bundle over the shared `run_decision_round` interpreter in
 `mechanics.py`, dispatched in `execute.py`, with the grammar / AST / IR / resolve /
 typecheck wiring) plays one combination-climbing trick over a pair of game-local
-engine queries. Its runtime is now one of the three form bundles over the single
+engine queries. Its runtime is one of the three form bundles over the single
 per-step decision loop (`docs/design-notes/kernel-extensibility.md` §4, §9 step 2),
-not a standalone loop. **Big Two** is fully migrated onto it
+not a standalone loop. **Big Two** runs fully on it
 (`docs/games/big-two.cardlang`) — the climbing loop, the 3♦ opening, pile routing,
 the shed-out finish, and penalty scoring are DSL; its engine (`bigtwo.py`) is named
 as the `bigtwo_lead_options` / `bigtwo_follows` queries — and reproduces its pinned
 net (`tests/golden/bigtwo_scores.json`, 50 seeds) byte-for-byte. The `run_bigtwo_hand`
-monolith and the `BigTwoHand` mechanic are deleted. **Tichu** still runs in
-`run_tichu_hand` (`combinations.py` extracted, `tichu_scores.json` pinned); its
-migration onto `climb` is the next step.
+monolith and the `BigTwoHand` mechanic are deleted. **Tichu** runs fully on it
+too (`docs/games/tichu.cardlang`; `run_tichu_hand` deleted, byte-identical
+against `tichu_scores.json` and the 811-hand `tichu_hands.json`): the push is
+chosen movements into per-player gift piles distributed giver-major, each
+trick one `round climb` over `tichu_lead_options` / `tichu_follows`
+(the engine stays `combinations.py`), and the special-card flows ride two
+climb-form facilities plus two rng primitives (below).
 
 The design the construct settled:
 
@@ -381,20 +391,33 @@ The design the construct settled:
   construct (the trick-form discipline): the climb form's `outcome` returns the
   winner (the last player to play, bound as `outcome`), and the body routes the pile
   and the next lead — Big Two: `move trick_pile to discard`, the winner leads.
-- **What Tichu's migration still needs (PR after this).** Tichu's Dog is a
-  *trick-ending lead* (its followers get no chooser draw — an `ends_trick` property
-  on the engine's play that the climb form reads to skip the follow phase); this is a
-  genuine **new axis** to surface and sign off, not an engine hook. Its termination
-  is "≤ 1 player still holds cards" (Big Two's is "any player empty"), an existing
-  value on the termination axis. Plus pushing (pre-play passing), the
-  double-victory finish, and Dragon → opponent routing (a post-trick
-  `dragon_recipient()` draw at the same RNG site). Routing the Dragon's pile to an
-  opponent and the Dog's lead to the partner needs the body to know *what* won, not
-  just *who* — so the climb form will expose the winning play's kind as terminal
-  round-state (the trick form's `mech_state` → `last_round_state` pattern, read as
-  `state.x`), which Big Two does not consult (re-verified byte-identical when added).
-  Then
-  `run_tichu_hand` is deleted, byte-identical against `tichu_scores.json`.
+- **The special-card flows are engine-interface values plus terminal
+  round-state, not grammar.** Tichu's Dog is a *trick-ending lead*: the
+  engine's play carries an `ends_trick` property the climb form reads at
+  apply time, closing the trick with zero follower draws. The form also
+  adopts the trick form's `mech_state` → `last_round_state` pattern, so the
+  body reads `state.lead_ended_trick` (route the Dog: pile to the discard,
+  lead to the partner) and `state.shed_first` / `state.shed_second` (the
+  first two players to play out per trick, in play order — the finishing
+  order double victory and call scoring key on). Big Two consults none of
+  these (re-verified byte-identical). Tichu's trick itself never ends early
+  (`until false` — a shed does not stop the beating); the *hand* ends at
+  "≤ 1 player still holds cards" or double victory, in the surrounding
+  `repeat until`. Dragon → opponent routing is a post-trick
+  `tichu_dragon_recipient()` draw at the monolith's exact RNG site, and the
+  Tichu/Grand-Tichu gates are `tichu_call_roll()` likewise (the migrated
+  scope plays randomly).
+- **The OpenSpiel combo block is computed for Tichu, enumerated for Big
+  Two.** Big Two's play universe (19,898) is enumerated and golden-pinned;
+  Tichu's is 211,204,694 (straights of length 5–14 under free suit
+  assignment are 208.8M of it, and the engine's Mahjong-as-rank-1 quirk adds
+  a Phoenix+Mahjong pair and Mahjong-filled phoenix fullhouses), so
+  enumeration is infeasible: its ids come from an arithmetic codec
+  (`runtime/tichu.py::TichuComboCodec` via `stdlib.climb_codec_function`) —
+  pure card-set ↔ index functions over a fixed per-kind block layout, so ids
+  stay stable across determinized worlds with no table. Pinned by exact-size,
+  spot-id, engine-emission and per-block roundtrip tests
+  (`tests/test_openspiel_encoding.py`).
 - The bomb **interrupt** axis (any player, any time) is moot at the migrated
   scope: the current Tichu omits out-of-turn bombs (bombs play only on-turn, as a
   follow), and Big Two has no bombs, so the kernel needs no interrupt axis to
@@ -497,7 +520,8 @@ These land inside the workstreams above and are shared on the third use:
 2. **Auctions** — Bridge first (already split, proves `auction`), then Pinochle
    bid → Tarot → Skat.
 3. **Stud** — betting + pot.
-4. **Tichu** — climbing + the combination model.
+4. **Tichu** — done: climbing + the combination model (Big Two first, then
+   Tichu's special-card flows on the climb form's terminal state).
 5. **Cribbage + Schnapsen** — done, without the scoring-component subsystem
    (Pinochle's, Cribbage's, and Schnapsen's scoring all landed as ordinary
    statements plus game-local stdlib primitives; the subsystem itself remains

@@ -38,9 +38,13 @@ marriage declaration is a candidate, though it fires at a specific
 moment; Belote's mid-trick declarations are closer) would clarify
 which surface generalizes.
 
-The per-player closing condition is already handled in the Tichu
-draft via a `has_played_yet[player]` boolean and the call_tichu move
-type's preconditions — see decisions.md "The boolean-as-sub-phase
-criterion" (per-player exception). What remains open here is how
-the move is *offered* (off-the-clock, any time during the window),
-which is independent of how its closing condition is encoded.
+The per-player closing condition has a settled encoding — a
+`has_played_yet[player]` boolean plus move-type preconditions — see
+decisions.md "The boolean-as-sub-phase criterion" (per-player
+exception). What remains open here is how the move is *offered*
+(off-the-clock, any time during the window), which is independent of
+how its closing condition is encoded. The kernel Tichu
+([games/tichu.cardlang](../games/tichu.cardlang)) does not exercise
+this: at its migrated random-play scope the calls are rng-gated
+primitives (`tichu_call_roll`) rolled once per player at hand start,
+not player decisions — real call windows stay gated on this question.

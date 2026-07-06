@@ -8,8 +8,7 @@ participant plays a legal card, an outcome function picks the winner), `AuctionF
 the auction and betting forms), and `ClimbForm` (one combination-climbing trick over
 game-local engine queries). `build_form` selects the bundle by field-presence and
 `execute.py` dispatches on the returned Outcome union. `instantiate` dispatches the
-remaining per-game hand engines (Tichu, Coup) not yet lifted
-into the DSL.
+remaining per-game hand engine (Coup) not yet lifted into the DSL.
 """
 
 from __future__ import annotations
@@ -24,10 +23,6 @@ from cardlang.runtime.values import SUITS, Player
 
 
 def instantiate(stmt: n.Instantiate, ctx: Ctx) -> Player:
-    if stmt.mechanic == "TichuHand":
-        from cardlang.runtime.tichu import run_tichu_hand
-
-        return run_tichu_hand(stmt, ctx)
     if stmt.mechanic == "CoupGame":
         from cardlang.runtime.coup import run_coup_game
 
@@ -381,9 +376,19 @@ class ClimbForm:
     player to play is the outcome, bound as `outcome` for the surrounding body,
     which routes the pile and sets the next lead. The combination engine is
     game-local, so this depends only on the queries' interface: each returns a list
-    of plays, and a play exposes the cards it moves as a `.cards` tuple. Players
+    of plays, and a play exposes the cards it moves as a `.cards` tuple — plus,
+    optionally, an `ends_trick` marker (Tichu's Dog): a lead so marked ends the
+    trick at once, its followers drawing nothing. Players
     already shed out (Tichu) are skipped with no chooser draw; Big Two ends the
     trick the instant a player sheds, so its participants all hold cards throughout.
+
+    Like the trick form, the climbing form exposes its state to the surrounding
+    body: `init` pushes the accumulator onto `mech_state` and `outcome` pops it
+    into `last_round_state`, so the body reads `state.lead_ended_trick` (did a
+    trick-ending lead close it?) and `state.shed_first` / `state.shed_second`
+    (the first two players who played their last cards this trick, in play
+    order — finishing order is score-bearing in Tichu). Big Two reads none of
+    these; its goldens gate the no-change.
     """
 
     def __init__(self, stmt: n.Round, ctx: Ctx) -> None:
@@ -416,6 +421,10 @@ class ClimbForm:
         state["last"] = self.leader  # the last player to play
         state["idx"] = 0  # the ring cursor
         state["guard"] = 0
+        state["lead_ended_trick"] = False  # a Dog-style lead closed the trick
+        state["shed_first"] = None  # first two sheds this trick, in play order
+        state["shed_second"] = None
+        ctx.rs.mech_state.append(state)
         return state
 
     def terminated(self, state: State, ctx: Ctx) -> bool:
@@ -424,6 +433,8 @@ class ClimbForm:
         # to lead even if a player is already shed out. Evaluating it at the top of
         # every step (including after passes) is safe — a pass sheds nothing, so the
         # predicate cannot flip, and it draws no card.
+        if state["current"] is not None and state["lead_ended_trick"]:
+            return True  # a trick-ending lead: the followers draw nothing
         return state["current"] is not None and bool(evaluate(self.termination, ctx))
 
     def next_actor(self, state: State, ctx: Ctx) -> Player | None:
@@ -458,10 +469,20 @@ class ClimbForm:
         observe.movement(ctx, (self.source_name, actor), (self.pile_name, None), play.cards)
         state["current"], state["last"] = play, actor
         state["idx"] += 1
+        if not self.hands[actor].cards:  # played their last cards: record the shed
+            if state["shed_first"] is None:
+                state["shed_first"] = actor
+            elif state["shed_second"] is None:
+                state["shed_second"] = actor
+        if getattr(play, "ends_trick", False):
+            state["lead_ended_trick"] = True
         return state
 
     def outcome(self, state: State, ctx: Ctx) -> Outcome:
         last: Player = state["last"]
+        # Stash the terminal state as we pop (the trick form's pattern), so the
+        # body can read `state.lead_ended_trick` / `state.shed_*` afterward.
+        ctx.rs.last_round_state = ctx.rs.mech_state.pop()
         return last
 
 

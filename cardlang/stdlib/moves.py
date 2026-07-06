@@ -27,11 +27,10 @@ LIBRARY_MOVE_TYPES: frozenset[str] = frozenset(
         # `move_type`s in skat.cardlang, not library moves.
         # Seven-Card Stud's betting moves (check/bet/call/raise/fold) are
         # game-defined `move_type`s in seven-card-stud.cardlang, not library moves.
-        # Tichu moves (handled by the TichuHand mechanic).
+        # The climbing games' shared play (Big Two, Tichu): one combination per
+        # `round climb` step. Tichu's push is a chosen movement and its calls
+        # are rng-gated primitives, so neither carries a move type.
         "play_combination",
-        "push_card",
-        "call_tichu",
-        "call_grand_tichu",
         # Coup moves (handled by the CoupGame mechanic).
         "income",
         "foreign_aid",

@@ -184,6 +184,59 @@ def test_tichu_migration_preserves_per_seed_results() -> None:
     assert _capture_tichu() == expected
 
 
+# Tichu's finals accumulate ~100 card points a hand, so a late divergence could
+# in principle be masked by an offsetting one; like Stud/Cribbage/Schnapsen/Skat
+# we also pin the full per-hand vector — the sorted per-team score (the driver's
+# own `hand_end` trace) plus the hand's double-victory flag and card-point total
+# (the game's own `tichu_hand` trace, emitted by the monolith and by the kernel
+# migration's `tichu_hand_summary` alike) — so a divergence surfaces at the hand
+# it first perturbs. The monolith iterates no sets (measured: ZERO divergent
+# seeds across PYTHONHASHSEED {0,1,2,3,7} x 50 seeds), so this golden pinned
+# pre-migration with nothing sanctioned; any diff is a real draw divergence.
+_TICHU_HANDS_CAPTURE = """
+import json, random, sys
+from pathlib import Path
+from cardlang.pipeline import check_dsl
+from cardlang.runtime.driver import play_game
+
+game = check_dsl(Path("docs/games/tichu.cardlang").read_text(), "tichu.cardlang")
+out = {}
+for seed in range(50):
+    hands = []
+    pending = []
+
+    def tracer(event, data, _h=hands, _p=pending):
+        if event == "tichu_hand":
+            _p.append([int(data["double_victory"]), data["card_points"]])
+        elif event == "hand_end":
+            summary = _p.pop() if _p else [None, None]
+            _h.append([data[t] for t in sorted(data)] + summary)
+
+    play_game(game, random.Random(seed), tracer)
+    out[str(seed)] = hands
+print(json.dumps(out))
+"""
+
+
+def _capture_tichu_hands() -> dict[str, Any]:
+    env = dict(os.environ, PYTHONHASHSEED="0")
+    proc = subprocess.run(
+        [sys.executable, "-c", _TICHU_HANDS_CAPTURE],
+        cwd=REPO,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    result: dict[str, Any] = json.loads(proc.stdout)
+    return result
+
+
+def test_tichu_migration_preserves_per_hand_results() -> None:
+    expected = json.loads((GOLDEN / "tichu_hands.json").read_text())
+    assert _capture_tichu_hands() == expected
+
+
 # Big Two (the second climbing instance) moves its whole hand — the climbing
 # trick, the combination model, the 3♦ opening, the shedding finish, and penalty
 # scoring — onto the kernel `climb` construct alongside Tichu. The migration must

@@ -10,14 +10,17 @@ as six-slot hook bundles (`TrickForm` / `AuctionForm` / `ClimbForm` in
 `cardlang/runtime/mechanics.py`), selected by `build_form` and dispatched once in
 `execute.py`. §§1–8 are the rationale that produced it — where they speak of "the
 three `run_*` loops," read the discovery basis, not the current structure. The
-info-set leak (§6, §9 step 4) is closed for the ten fully-kernel games
+info-set leak (§6, §9 step 4) is closed for the thirteen fully-kernel games
 (Seven-Card Stud joined when its showdown left `instantiate`; Pinochle when its
 trump declaration, meld, and trick play did; French Tarot when its chien
 handling, tricks, and scoring did — the last also needing a movement `where`
 filter and a rule `exempts:` clause, two new closed-axis additions, not engine
 hooks; Cribbage when its pegging and show did, reusing the `where` filter with
-ordinary statement control flow and no new axis); it remains open for the four
-`instantiate` games, as does the front-end derivation (§5).*
+ordinary statement control flow and no new axis; Schnapsen and Skat via the
+auction form's Card domain and role-guarded ring; Tichu when its push, climb
+tricks, and scoring did — the climb form gaining the engine-level `ends_trick`
+read and terminal round-state, not grammar); it remains open for the one
+`instantiate` game (Coup), as does the front-end derivation (§5).*
 
 
 ## 1. The question and the short answer
@@ -141,10 +144,10 @@ is reusable above the primitives and descriptions are unreadable. On
 axis (b) — *information sets* — GDL is the paragon: its `sees`/`random`
 relation *derives* each player's information set from the spec, which
 is precisely the property our OpenSpiel target needs. Our Python
-escape-hatch mechanics (Coup, Tichu)
-share GDL's *bad* axis (a) — build-from-primitives, nothing reusable
-above them — while being the **opposite** of GDL on axis (b): their
-info-sets are hand-authored, not derived. So the escape hatches get
+escape-hatch mechanic (Coup)
+shares GDL's *bad* axis (a) — build-from-primitives, nothing reusable
+above it — while being the **opposite** of GDL on axis (b): its
+info-sets are hand-authored, not derived. So the escape hatch gets
 GDL's worst property without its redeeming one — which is exactly the
 leak §6 is about.
 

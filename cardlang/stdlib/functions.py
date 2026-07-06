@@ -55,11 +55,13 @@ STDLIB_EARLY_PREDICATES: frozenset[str] = frozenset(
 STDLIB_CLIMB_LEADS: frozenset[str] = frozenset(
     {
         "bigtwo_lead_options",  # Big Two: every combination (3♦-filtered on the opening lead)
+        "tichu_lead_options",  # Tichu: every combination + the special-card lead singles
     }
 )
 STDLIB_CLIMB_FOLLOWS: frozenset[str] = frozenset(
     {
         "bigtwo_follows",  # Big Two: combinations that beat the standing play (same size)
+        "tichu_follows",  # Tichu: same kind/length and higher, any bomb, Dragon/Phoenix answers
     }
 )
 
@@ -89,6 +91,18 @@ STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
         "skat_trick_winner",  # Skat: the three-card trick's winner under the contract
         "skat_matadors",  # Skat: the with/without matador count (hand + skat)
         "skat_effective_loss",  # Skat: the overbid-aware loss base (needs a ceiling)
+        "tichu_call_roll",  # Tichu: one player's Tichu/Grand-Tichu gate (0/100/200, rng)
+        "tichu_mahjong_holder",  # Tichu: who holds the Mahjong (leads the first trick)
+        "tichu_players_holding",  # Tichu: how many players still hold cards
+        "tichu_double_victory",  # Tichu: are the first two finishers teammates?
+        "tichu_partner",  # Tichu: the teammate (partners sit across)
+        "tichu_next_holder",  # Tichu: the arg if holding, else the next holder ccw
+        "tichu_dragon_won",  # Tichu: did the Dragon capture the trick just completed?
+        "tichu_dragon_recipient",  # Tichu: the opponent given the Dragon's trick (rng)
+        "tichu_opponent_team",  # Tichu: the team a player does not belong to
+        "tichu_first_out",  # Tichu: the first finisher (defaults to player 0)
+        "tichu_card_points",  # Tichu: the card-point table (K/10 = 10, 5 = 5, Dragon +25, Phoenix -25)
+        "tichu_hand_summary",  # Tichu: emit the tichu_hand trace; the captured card points
         "peg_value",  # Cribbage: pegging/fifteens value of a card (A=1, faces 10)
         "peg_pair_points",  # Cribbage: pairs points at the tail of the live pegging count
         "peg_run_points",  # Cribbage: run points at the tail of the live pegging count

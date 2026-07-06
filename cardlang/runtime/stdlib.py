@@ -94,6 +94,54 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.skat import skat_effective_loss
 
             return skat_effective_loss(args[0], args[1], args[2])
+        case "tichu_call_roll":
+            from cardlang.runtime.tichu import tichu_call_roll
+
+            return tichu_call_roll(ctx)
+        case "tichu_mahjong_holder":
+            from cardlang.runtime.tichu import tichu_mahjong_holder
+
+            return tichu_mahjong_holder(ctx)
+        case "tichu_players_holding":
+            from cardlang.runtime.tichu import tichu_players_holding
+
+            return tichu_players_holding(ctx)
+        case "tichu_double_victory":
+            from cardlang.runtime.tichu import tichu_double_victory
+
+            return tichu_double_victory(ctx)
+        case "tichu_partner":
+            from cardlang.runtime.tichu import tichu_partner
+
+            return tichu_partner(ctx, args[0])
+        case "tichu_next_holder":
+            from cardlang.runtime.tichu import tichu_next_holder
+
+            return tichu_next_holder(ctx, args[0])
+        case "tichu_dragon_won":
+            from cardlang.runtime.tichu import tichu_dragon_won
+
+            return tichu_dragon_won(ctx)
+        case "tichu_dragon_recipient":
+            from cardlang.runtime.tichu import tichu_dragon_recipient
+
+            return tichu_dragon_recipient(ctx, args[0])
+        case "tichu_opponent_team":
+            from cardlang.runtime.tichu import tichu_opponent_team
+
+            return tichu_opponent_team(ctx, args[0])
+        case "tichu_first_out":
+            from cardlang.runtime.tichu import tichu_first_out
+
+            return tichu_first_out(ctx)
+        case "tichu_card_points":
+            from cardlang.runtime.tichu import tichu_card_points
+
+            return tichu_card_points(ctx, args[0])
+        case "tichu_hand_summary":
+            from cardlang.runtime.tichu import tichu_hand_summary
+
+            return tichu_hand_summary(ctx)
         case "peg_value":
             from cardlang.runtime.cribbage import value
 
@@ -188,6 +236,10 @@ def climb_lead_function(name: str) -> Callable[[list[Card], Ctx], list[Any]]:
             from cardlang.runtime.bigtwo import bigtwo_lead_options
 
             return bigtwo_lead_options
+        case "tichu_lead_options":
+            from cardlang.runtime.tichu import tichu_lead_options
+
+            return tichu_lead_options
         case _:
             raise AssertionError(f"unknown climb lead query '{name}'")
 
@@ -198,6 +250,10 @@ def climb_follow_function(name: str) -> Callable[[list[Card], Any, Ctx], list[An
             from cardlang.runtime.bigtwo import bigtwo_follows
 
             return bigtwo_follows
+        case "tichu_follows":
+            from cardlang.runtime.tichu import tichu_follows
+
+            return tichu_follows
         case _:
             raise AssertionError(f"unknown climb follows query '{name}'")
 
@@ -206,7 +262,9 @@ def climb_universe_function(name: str) -> Callable[[], list[Any]]:
     """The engine's full play universe — every combination it can ever emit —
     keyed by the SAME name as its `combinations` lead query. The OpenSpiel
     adapter derives the climb action space from this; the lead query itself
-    cannot serve (its representatives depend on the live hand and game state)."""
+    cannot serve (its representatives depend on the live hand and game state).
+    An engine whose universe is too large to enumerate provides a codec via
+    `climb_codec_function` instead and never reaches this dispatch."""
     match name:
         case "bigtwo_lead_options":
             from cardlang.runtime.bigtwo import bigtwo_universe
@@ -214,6 +272,22 @@ def climb_universe_function(name: str) -> Callable[[], list[Any]]:
             return bigtwo_universe
         case _:
             raise AssertionError(f"no combination universe for climb engine '{name}'")
+
+
+def climb_codec_function(name: str) -> Any | None:
+    """The engine's arithmetic combo codec — pure card-set <-> action-index
+    functions (`size` / `encode_cards` / `decode` / `kind_of`) — keyed by the
+    lead-query name, for engines whose play universe is too large to enumerate
+    (Tichu's is 211,204,694; straights dominate). `None` means the engine
+    enumerates via `climb_universe_function` (Big Two: 19,898, golden-pinned),
+    keeping that path and its pinned ids byte-identical."""
+    match name:
+        case "tichu_lead_options":
+            from cardlang.runtime.tichu import TICHU_COMBO_CODEC
+
+            return TICHU_COMBO_CODEC
+        case _:
+            return None
 
 
 def highest_of_led_suit(
