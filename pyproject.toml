@@ -16,8 +16,10 @@ dev = [
     "pytest>=8.0",
     "mypy>=1.8",
 ]
-# The OpenSpiel adapter (cardlang/openspiel). Kept out of `dev` so the core
-# install stays light; the adapter tests skip when pyspiel is absent.
+# The OpenSpiel adapter (cardlang/openspiel). Kept out of `dev` so a local
+# core install stays light; the adapter tests skip when pyspiel is absent.
+# CI installs `.[dev,openspiel]` and fails if pyspiel doesn't import, so the
+# readiness proofs (tests/openspiel_ready/) run on every push — never skip.
 openspiel = [
     "open_spiel>=1.6",
 ]
