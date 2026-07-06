@@ -299,19 +299,22 @@ match) and so must trump if able, a quirk the split preserves precisely.
   partnership/finishing lookups and card-point table are pure primitives; and
   `tichu_hand_summary` emits the hand's conservation trace. Scoring writes
   `score[team]` directly.
-- `ChallengeWindow` (see [games/coup.md](games/coup.md)) — Coup.
-  Parameterized over the claimant and the claimed character; resolves
-  to `claim_stands | claim_refuted`. Offers each other in-game player a
-  `challenge`/`pass` decision in clockwise priority and adjudicates the
-  first challenge: proof → challenger loses influence and the proven
-  card is returned-shuffled-redrawn (a stdlib-op composition, not a
-  custom memory event); bluff → claimant loses influence. The reusable
-  bluff-adjudication unit.
-- `BlockWindow` (see [games/coup.md](games/coup.md)) — Coup.
-  Parameterized over the eligible blockers and the set of blocking
-  characters; resolves to `blocked | not_blocked`. A declared block is
-  itself a character claim, so it opens a nested `ChallengeWindow` on
-  the blocker.
+- **Coup's game** runs on the kernel with no mechanic: each turn is one
+  `offer` over the seven coin-guarded actions (the forced coup at ten coins
+  falls out of the `when:` guards), every influence loss is a chosen
+  movement by the loser (the single-actor `for each player q: if q == X`
+  idiom) flipped publicly into `revealed`, and the exchange is a
+  deal-n + chosen-n + shuffle. At the migrated random-play scope the
+  challenge and block windows carry NO player decisions — the gates,
+  the blocker's claimed character, and the action targets are rng — so
+  they are inline statements around game-local rng primitives at the
+  reference's exact draw sites, with the window results
+  (`challenge_stands` / `block_stands`) as public phase state. A proven
+  challenge returns the claimed card to the deck, reshuffles, and redraws
+  (hidden movements; real Coup shows the proven card — the
+  interactive-windows scope upgrade, [kernel-migration.md](kernel-migration.md)
+  Workstream 5, brings response windows as decisions in priority order, a
+  Player target domain, and a `reveal` epistemic op).
 - `MeldingPhase` — currently a placeholder; real definition deferred.
 
 ## Scoring components
@@ -683,6 +686,27 @@ all reading `cardlang/runtime/tichu.py` (the combination engine itself stays
 - `tichu_hand_summary() → Integer` — emits the `tichu_hand` trace (double
   victory, captured card points) the playout harness audits conservation
   against.
+
+Coup's window randomness and bookkeeping are twelve game-local primitives
+reading `cardlang/runtime/coup.py` (the rng ones consume the reference's
+exact draws; the migrated scope plays randomly — see the Mechanics entry):
+
+- `coup_challenger(claimant: Player) → Player?` — the challenge gate: scan
+  in-game opponents clockwise from the claimant, each challenging at 18%;
+  first hit or none.
+- `coup_fa_blocker(actor: Player) → Player?` — foreign aid's block gate
+  (seat-order scan at 30%); `coup_block_roll() → Boolean` — the
+  single-blocker gate (the assassination/steal target).
+- `coup_duke_claim()` / `coup_contessa_claim()` / `coup_steal_block_claim()
+  → String` — the blocker's claimed character (each consumes the
+  reference's `rng.choice`; steal's is the one real two-way pick).
+- `coup_random_target(actor: Player) → Player` — a random in-game opponent.
+- `coup_players_in() → Integer`, `coup_next_in_game(p: Player) → Player`,
+  `coup_has_char(p: Player, r: String) → Boolean` — in-game scans and the
+  challenge-proof lookup (pure reads).
+- `coup_note_reveal(p: Player) → Integer`, `coup_game_summary() → Integer` —
+  the `coup_reveal` / `coup_game` trace emitters (the reveal-sequence golden
+  and the 50-coin / 15-card conservation invariants).
 
 French Tarot's non-uniform 78-card deck (suit×rank card points that vary by
 suit, an effective led suit that isn't the kernel's own, and a settlement the
