@@ -91,7 +91,7 @@ docs/
     hearts.md, getaway.md, spades.md, pinochle.md, bridge.md, seven-card-stud.md
     _candidates.md       Pipeline of games to consider next — corpus-first dev
   open-questions/        One file per open design question, with a tiered _index.md
-  research/              Two background surveys (verbatim, longer reads)
+  research/              Background surveys (verbatim, longer reads)
   design-notes/          Exploratory design analyses (proposals, not settled spec)
 ```
 
