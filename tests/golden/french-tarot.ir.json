@@ -9,6 +9,7 @@
   },
   "deck": "tarot78",
   "direction": "counterclockwise",
+  "max_length": 15000,
   "ranking": [],
   "trump": "atouts",
   "partnerships": [],

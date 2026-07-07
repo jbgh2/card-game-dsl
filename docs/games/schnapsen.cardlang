@@ -18,6 +18,7 @@ game Schnapsen {
 
   players: 2
   direction: clockwise            // irrelevant with two players; kept for uniformity
+  max_length: 1000
 
   cards: schnapsen20
   ranking: A 10 K Q J

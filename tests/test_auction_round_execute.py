@@ -24,6 +24,7 @@ from cardlang.runtime.driver import play_game
 SHRINKING_RING_SRC = """
 game G {
   players: 3
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }

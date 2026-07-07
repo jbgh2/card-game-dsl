@@ -800,6 +800,7 @@ class Game:
     ranking: tuple[str, ...] = ()
     trump: str | None = None
     partnerships: tuple[tuple[int, ...], ...] = ()
+    max_length: int | None = None
     state: StateBlock | None = None
     phases: tuple[Phase, ...] = ()
     winner: Winner | None = None

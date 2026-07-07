@@ -12,6 +12,7 @@ from cardlang.runtime.driver import play_game
 DEAL_GAME = """
 game DealTest {
   players: 5
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones {

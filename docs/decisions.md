@@ -733,6 +733,71 @@ termination on game-state-free conditions (Getaway's tochoo ends the
 trick the moment a void player plays off-suit). It is not for
 game-ending; game-ending is the `repeats until` clause's job.
 
+## Game length as a declared contract
+
+Every game declares `max_length: <n>` — a positive integer bound on
+decision/loop iterations. It replaces what used to be two disconnected
+magic constants (a hardcoded 10,000-iteration runtime safety cap and the
+OpenSpiel adapter's invented `max_game_length=40000`) with one number the
+game's author reasons about and the checker enforces.
+
+The same declared value is enforced three ways, against two different
+units, because no single check covers every non-termination shape:
+
+- **The decision counter** — the one the corpus's declared values are
+  actually sized against (250-seed measured random-playout lengths).
+  Every chooser pick, of any kind, increments a single per-game counter
+  (`RuntimeState.decisions_made`, wrapped around the chooser once in
+  `play_game`); exceeding `max_length` raises a `RuntimeError` naming the
+  count reached and the declared bound. This is the only one of the three
+  that a structurally-terminating loop making unboundedly many decisions
+  per iteration cannot evade — a loop that completes in very few
+  iterations, each making many picks, would sail past either loop guard
+  below while still making far more decisions than the game's declared
+  bound.
+- **The runtime's two loop guards.** Both loop forms — the phase-level
+  `repeats until` (`docs/model.md`) and the statement-level `repeat
+  until` — separately count their own *iterations* and raise the same
+  kind of `RuntimeError` once that count exceeds `max_length`. Counting
+  iterations (typically hands, not individual actions) against the same
+  number the decision counter uses makes these two guards deliberately
+  far more generous than their own natural unit — they exist to catch the
+  shape the decision counter cannot: a loop whose body makes few or zero
+  decisions per iteration (e.g. `repeat until false {}`), which would
+  otherwise spin forever without ever tripping the decision counter at
+  all.
+- **The OpenSpiel adapter's `max_game_length`.** `cardlang/openspiel/game.py`
+  reads the declared value directly, rather than inventing a blanket
+  number generous enough for the corpus's longest game (which used to
+  make every other game's reported bound meaningless). Because the
+  decision counter enforces the same bound on the same unit
+  `max_game_length` is denominated in (decisions, i.e. actions), a
+  registered game's real trajectory length cannot silently exceed what it
+  advertises to OpenSpiel.
+
+`max_length` is required, not defaulted: the resolver rejects a game with
+no declaration, or with a non-positive one, as a diagnostic error before
+anything runs. A silently-generous default would defeat the point — the
+whole reason for this declaration is to make "how long can this game
+legitimately run?" a question its author answers on purpose, not an
+interpreter implementation detail. (The stress-test corpus's Palace/
+Shithead — a real game whose random playouts legitimately run thousands
+of turns — crashed on 10-15% of random seeds against the old blanket
+10,000 cap, with nothing pointing the author at the actual cause; a
+per-game declared bound converts that into a diagnostic the author can
+act on.)
+
+Corpus values are sized from measured random-playout lengths (250 seeds
+per game), not guessed: a per-game number generous enough that ordinary
+random play — including the long tail of multi-hand, score-race, and
+elimination games — never approaches it, while still being far tighter
+than one blanket constant sized for the corpus's longest game.
+
+Static bounds derived from a game's own structure (e.g. card-conservation
+arguments for trick-taking games) could tighten this further, checked
+against the declared value; that is future work, not required by this
+declaration.
+
 ## Loop lifecycle: `before_each` and `after_each`
 
 A `repeats until` phase runs per-iteration setup and teardown through two

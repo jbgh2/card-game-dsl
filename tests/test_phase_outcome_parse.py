@@ -8,6 +8,7 @@ from cardlang.parse import parse_text
 SRC = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -59,6 +60,7 @@ def test_phase_without_outcome_has_empty_cases() -> None:
 OPTIONAL_SRC = """
 game G {
   players: 4
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -88,6 +90,7 @@ def test_variant_payload_type_can_be_optional() -> None:
 CONTROL_SRC = """
 game G {
   players: 4
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }

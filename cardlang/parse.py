@@ -57,6 +57,11 @@ class _Partnerships:
 
 
 @dataclass(frozen=True, slots=True)
+class _MaxLength:
+    value: int
+
+
+@dataclass(frozen=True, slots=True)
 class _Zones:
     zones: tuple[n.ZoneDecl, ...]
 
@@ -213,6 +218,9 @@ class _Builder(Transformer[Token, n.Game]):
     def partnerships(self, meta: Meta, c: list[object]) -> _Partnerships:
         teams = tuple(t for t in c if isinstance(t, tuple))
         return _Partnerships(teams)
+
+    def max_length(self, meta: Meta, c: list[Token]) -> _MaxLength:
+        return _MaxLength(int(c[0]))
 
     def winner(self, meta: Meta, c: list[Token]) -> n.Winner:
         return n.Winner(rank_dir=str(c[0]), target=str(c[1]), span=self._span(meta))
@@ -812,6 +820,7 @@ class _Builder(Transformer[Token, n.Game]):
         ranking: tuple[str, ...] = ()
         trump: str | None = None
         partnerships: tuple[tuple[int, ...], ...] = ()
+        max_length: int | None = None
         zones: tuple[n.ZoneDecl, ...] = ()
         state: n.StateBlock | None = None
         phases: list[n.Phase] = []
@@ -830,6 +839,8 @@ class _Builder(Transformer[Token, n.Game]):
                 trump = item.suit
             elif isinstance(item, _Partnerships):
                 partnerships = item.teams
+            elif isinstance(item, _MaxLength):
+                max_length = item.value
             elif isinstance(item, _Zones):
                 zones = item.zones
             elif isinstance(item, n.StateBlock):
@@ -863,6 +874,7 @@ class _Builder(Transformer[Token, n.Game]):
             ranking=ranking,
             trump=trump,
             partnerships=partnerships,
+            max_length=max_length,
             state=state,
             phases=tuple(phases),
             winner=winner,

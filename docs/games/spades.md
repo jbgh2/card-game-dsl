@@ -28,6 +28,7 @@ game Spades {
   players: 4
   partnerships: [[0, 2], [1, 3]]   // partners sit across the four-hand ring
   direction: clockwise
+  max_length: 2000
 
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2

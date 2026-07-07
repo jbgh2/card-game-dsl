@@ -133,6 +133,7 @@ def _register(short_name: str, filename: str) -> None:
     path = str(_GAMES_DIR / filename)
     game_ast, space = replay.load(path)
     num_players = game_ast.players.low
+    assert game_ast.max_length is not None, "resolve() must reject a missing max_length"
     game_type = pyspiel.GameType(
         short_name=short_name,
         long_name=f"Cardlang {game_ast.name}",
@@ -156,9 +157,7 @@ def _register(short_name: str, filename: str) -> None:
         min_utility=-100000.0,  # loose static bounds; true scores are far inside
         max_utility=100000.0,
         utility_sum=None,
-        # Loose static bound like the utilities; Stud is the long pole (a whole
-        # chip-migration game runs ~486 hands x ~21 decisions ~ 10k actions).
-        max_game_length=40000,
+        max_game_length=game_ast.max_length,
     )
 
     class _Game(pyspiel.Game):

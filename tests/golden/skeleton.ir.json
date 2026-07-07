@@ -9,6 +9,7 @@
   },
   "deck": "standard52",
   "direction": null,
+  "max_length": 1000,
   "ranking": [],
   "trump": null,
   "partnerships": [],

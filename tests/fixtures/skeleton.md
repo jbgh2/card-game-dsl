@@ -7,6 +7,7 @@ owner-parameterized. It is not a real game; it is the walking skeleton.
 ```
 game Skeleton {
   players: 2
+  max_length: 1000
   cards: standard52
   zones {
     deck         : Deck

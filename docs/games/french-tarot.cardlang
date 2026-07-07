@@ -30,6 +30,7 @@ game FrenchTarot {
 
   players: 4
   direction: counterclockwise        // canonical for French Tarot
+  max_length: 15000
 
   cards: tarot78
   trump: atouts

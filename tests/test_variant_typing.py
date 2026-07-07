@@ -11,6 +11,7 @@ def test_accepts_exhaustive_typed_outcome() -> None:
 define settle -> { won(Integer) | lost } { produce won(7) }
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -32,6 +33,7 @@ def test_rejects_non_exhaustive_match() -> None:
 define settle -> { won(Integer) | lost } { produce lost }
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -54,6 +56,7 @@ def test_rejects_unknown_variant_in_match() -> None:
 define settle -> { won(Integer) | lost } { produce lost }
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -79,6 +82,7 @@ def test_rejects_wrong_payload_type_in_produce() -> None:
 define settle -> { won(Integer) | lost } { produce won(hearts) }
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -105,6 +109,7 @@ def test_rejects_wrong_binder_type_use() -> None:
 define settle -> { won(Integer) | lost } { produce won(7) }
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }

@@ -190,7 +190,7 @@ part of the CCG target.
 Boundary fact that makes scoping non-negotiable: unrestricted Magic is
 proven Turing-complete, so the fully general problem is closed to
 everyone, OpenSpiel included. Deck-scoping plus a declared game-length
-bound ([open-questions/game-length-bounds.md](../open-questions/game-length-bounds.md))
+bound (`max_length:`, decisions.md "Game length as a declared contract")
 is the only coherent target.
 
 Ladder, each rung a real game: rule *selection*

@@ -15,6 +15,7 @@ from cardlang.runtime.driver import play_game
 LOOP_GAME = """
 game L {
   players: 2
+  max_length: 1000
   cards: standard52
   zones { deck : Deck }
   state { score[player] : Integer = 0 }

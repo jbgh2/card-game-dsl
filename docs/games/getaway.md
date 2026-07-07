@@ -13,6 +13,7 @@ game Getaway {
 
   players: 4
   direction: clockwise
+  max_length: 1000
 
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2

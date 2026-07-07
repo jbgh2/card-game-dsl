@@ -16,6 +16,7 @@ def _game(body_state: str, body_play: str) -> str:
     return f"""
 game G {{
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones {{ deck : Deck  hand[player] : Hand<player> }}
@@ -94,6 +95,7 @@ def _typed_game(body_play: str) -> str:
 type Contract = {{ level : Integer  suit : Suit }}
 game G {{
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones {{ deck : Deck  hand[player] : Hand<player> }}
@@ -132,6 +134,7 @@ type HandResult = {
 }
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }

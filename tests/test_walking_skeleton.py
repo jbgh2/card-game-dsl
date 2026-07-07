@@ -35,6 +35,7 @@ def test_unknown_zone_type_is_a_diagnostic() -> None:
     bad = """```
 game Bad {
   players: 2
+  max_length: 1000
   cards: standard52
   zones { x : Nonesuch }
 }
@@ -49,6 +50,7 @@ def test_zero_players_is_a_diagnostic() -> None:
     bad = """```
 game Bad {
   players: 0
+  max_length: 1000
   cards: standard52
   zones { }
 }

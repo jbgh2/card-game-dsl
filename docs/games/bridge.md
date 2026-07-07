@@ -43,6 +43,7 @@ game Bridge {
   players: 4
   partnerships: [[0, 2], [1, 3]]   // partners sit across
   direction: clockwise
+  max_length: 20000
 
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2

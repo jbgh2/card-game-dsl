@@ -25,6 +25,7 @@ def _game(body: str, rules: str = "", extra_game_items: str = "") -> str:
     return f"""
 game Mini {{
   players: 2
+  max_length: 1000
   cards: standard52
   zones {{ deck : Deck  hand[player] : Hand<player>  pile : TrickPile }}
   state {{ score[player] : Integer = 0  ldr : Player = 0 }}

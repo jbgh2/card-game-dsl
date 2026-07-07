@@ -7,6 +7,7 @@ from cardlang.runtime.driver import play_game
 SRC = """
 game G {
   players: 4
+  max_length: 1000
   direction: clockwise
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
@@ -33,6 +34,7 @@ rule MustFollowSuit { constrains: play_to_trick  applies_when: state.led_suit is
 EARLY_SRC = """
 game G {
   players: 4
+  max_length: 1000
   direction: clockwise
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
@@ -101,6 +103,7 @@ def test_round_early_termination_fires_only_on_a_tochoo() -> None:
 NO_ROUND_SRC = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -129,6 +132,7 @@ def test_round_state_read_without_a_round_fails_loudly() -> None:
 STATE_SRC = """
 game G {
   players: 4
+  max_length: 1000
   direction: clockwise
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2

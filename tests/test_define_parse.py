@@ -8,6 +8,7 @@ define declare_trump -> { trump_declared(Suit) | bid_abandoned } {
 }
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }

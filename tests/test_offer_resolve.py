@@ -4,6 +4,7 @@ from cardlang.pipeline import check_dsl
 SRC = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   zones { deck : Deck  hand[player] : Hand<player> }
   state { coins[player] : Integer = 0 }
