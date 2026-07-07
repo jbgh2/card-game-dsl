@@ -26,6 +26,7 @@ game: "game" NAME "{" game_item* "}"
           | ranking
           | trump
           | partnerships
+          | max_length
           | zones
           | state_block
           | phase
@@ -38,6 +39,11 @@ players_spec: INT ".." INT   -> players_range
 
 direction: "direction" ":" NAME
 cards: "cards" ":" NAME
+
+// A per-game bound on decision/loop iterations (docs/decisions.md, "Game
+// length as a declared contract"): the runtime's non-termination backstop
+// and the OpenSpiel adapter's `max_game_length` both read this one number.
+max_length: "max_length" ":" INT
 ranking: "ranking" ":" card_rank+
 
 // The suit (or rank-set) that beats all others in a trick. A single game-level

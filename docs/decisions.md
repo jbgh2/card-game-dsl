@@ -733,6 +733,53 @@ termination on game-state-free conditions (Getaway's tochoo ends the
 trick the moment a void player plays off-suit). It is not for
 game-ending; game-ending is the `repeats until` clause's job.
 
+## Game length as a declared contract
+
+Every game declares `max_length: <n>` — a positive integer bound on
+decision/loop iterations. It replaces what used to be two disconnected
+magic constants (a hardcoded 10,000-iteration runtime safety cap and the
+OpenSpiel adapter's invented `max_game_length=40000`) with one number the
+game's author reasons about and the checker enforces.
+
+The same declared value serves both roles:
+
+- **The runtime's non-termination backstop.** Both loop forms — the
+  phase-level `repeats until` (`docs/model.md`) and the statement-level
+  `repeat until` — count their own iterations and raise a `RuntimeError`
+  once the count exceeds the game's `max_length`, naming the phase, the
+  iteration count reached, and the declared bound. This is deliberately a
+  large, generous ceiling relative to either loop's natural iteration
+  unit (a `repeats until` loop typically counts hands, not individual
+  actions), so it never fires for a legitimately long game — only for a
+  termination predicate that can truly never hold.
+- **The OpenSpiel adapter's `max_game_length`.** `cardlang/openspiel/game.py`
+  reads the declared value directly, rather than inventing a blanket
+  number generous enough for the corpus's longest game (which used to
+  make every other game's reported bound meaningless).
+
+`max_length` is required, not defaulted: the resolver rejects a game with
+no declaration, or with a non-positive one, as a diagnostic error before
+anything runs. A silently-generous default would defeat the point — the
+whole reason for this declaration is to make "how long can this game
+legitimately run?" a question its author answers on purpose, not an
+interpreter implementation detail. (The stress-test corpus's Palace/
+Shithead — a real game whose random playouts legitimately run thousands
+of turns — crashed on 10-15% of random seeds against the old blanket
+10,000 cap, with nothing pointing the author at the actual cause; a
+per-game declared bound converts that into a diagnostic the author can
+act on.)
+
+Corpus values are sized from measured random-playout lengths (250 seeds
+per game), not guessed: a per-game number generous enough that ordinary
+random play — including the long tail of multi-hand, score-race, and
+elimination games — never approaches it, while still being far tighter
+than one blanket constant sized for the corpus's longest game.
+
+Static bounds derived from a game's own structure (e.g. card-conservation
+arguments for trick-taking games) could tighten this further, checked
+against the declared value; that is future work, not required by this
+declaration.
+
 ## Loop lifecycle: `before_each` and `after_each`
 
 A `repeats until` phase runs per-iteration setup and teardown through two

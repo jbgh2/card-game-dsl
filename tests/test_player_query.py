@@ -35,6 +35,7 @@ def test_three_player_query_forms_parse() -> None:
     text = """
     game T {
       players: 4
+      max_length: 1000
       cards: standard52
       ranking: A K Q J 10 9 8 7 6 5 4 3 2
       zones { hand[player] : Hand<player> }
@@ -56,6 +57,7 @@ def test_is_not_empty_parses() -> None:
     text = """
     game T {
       players: 4
+      max_length: 1000
       cards: standard52
       zones { hand[player] : Hand<player> }
       phase p { let a = hand is not empty }
@@ -71,6 +73,7 @@ def test_player_query_zero_ambiguity() -> None:
     text = """
     game T {
       players: 4
+      max_length: 1000
       cards: standard52
       ranking: A K Q J 10 9 8 7 6 5 4 3 2
       zones { hand[player] : Hand<player> }
@@ -95,6 +98,7 @@ def test_player_query_zero_ambiguity() -> None:
 PICK_GAME = """
 game PickTest {
   players: 1
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones {

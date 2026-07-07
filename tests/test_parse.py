@@ -10,6 +10,7 @@ from cardlang.parse import parse_text
 
 SKELETON = """game Skeleton {
   players: 2
+  max_length: 1000
   cards: standard52
   zones {
     deck         : Deck
@@ -46,7 +47,7 @@ def test_parses_zones_with_index_and_type_args() -> None:
 
 
 def test_players_range() -> None:
-    text = "game R { players: 2..8 cards: standard52 zones { } }"
+    text = "game R { players: 2..8 max_length: 1000 cards: standard52 zones { } }"
     game = parse_text(text, "r.dsl")
     assert game.players.low == 2
     assert game.players.high == 8
@@ -57,10 +58,10 @@ def test_spans_point_into_source() -> None:
     game = parse_text(SKELETON, "skeleton.dsl")
     assert game.span is not None
     assert game.span.source_name == "skeleton.dsl"
-    # The hand zone is on line 6 of the source text.
+    # The hand zone is on line 7 of the source text.
     hand_zone = game.zones[1]
     assert hand_zone.span is not None
-    assert hand_zone.span.line == 6
+    assert hand_zone.span.line == 7
 
 
 def test_line_offset_is_applied() -> None:
@@ -73,6 +74,7 @@ def test_line_offset_is_applied() -> None:
 def test_comments_are_ignored() -> None:
     text = """game C {
   players: 2  // two players
+  max_length: 1000
   cards: standard52
   // a comment line
   zones { }

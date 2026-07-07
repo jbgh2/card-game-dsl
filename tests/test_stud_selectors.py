@@ -41,6 +41,7 @@ def test_highest_upcards_compares_sorted_ranks_lexicographically() -> None:
 _FIXTURE = """
 game G {
   players: 4
+  max_length: 1000
   direction: clockwise
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2

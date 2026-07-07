@@ -13,6 +13,7 @@ define settle -> { won(Integer) | lost } {
 }
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -43,6 +44,7 @@ def test_arm_binder_does_not_leak_into_outer_scope() -> None:
 define pick -> { chose(Integer) | nope } { produce chose(5) }
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }

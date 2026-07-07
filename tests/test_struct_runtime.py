@@ -13,6 +13,7 @@ def test_struct_literal_parses_in_expression_position() -> None:
     type Contract = { level : Integer  suit : Suit }
     game G {
       players: 2
+      max_length: 1000
       cards: standard52
       ranking: A K Q J 10 9 8 7 6 5 4 3 2
       zones { deck : Deck  hand[player] : Hand<player> }
@@ -33,6 +34,7 @@ def test_struct_value_field_is_readable_at_runtime() -> None:
     type Contract = { level : Integer  suit : Suit }
     game G {
       players: 2
+      max_length: 1000
       cards: standard52
       ranking: A K Q J 10 9 8 7 6 5 4 3 2
       zones { deck : Deck  hand[player] : Hand<player> }
@@ -59,6 +61,7 @@ def test_derived_field_is_computed_at_runtime() -> None:
     }
     game G {
       players: 2
+      max_length: 1000
       cards: standard52
       ranking: A K Q J 10 9 8 7 6 5 4 3 2
       zones { deck : Deck  hand[player] : Hand<player> }

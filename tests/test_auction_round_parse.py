@@ -21,6 +21,7 @@ from cardlang.pipeline import check_dsl
 SRC = """
 game Mini {
   players: 2
+  max_length: 1000
   cards: standard52
   zones { deck : Deck  hand[player] : Hand<player> }
   state { high : Integer = 0  passes : Integer = 0 }

@@ -28,6 +28,7 @@ def _parse(stmt_src: str) -> tuple[n.Game, n.Movement]:
     src = f"""
 game Mini {{
   players: 1
+  max_length: 1000
   cards: standard52
   zones {{ deck : Deck  hand[player] : Hand<player>  pile : TrickPile }}
   state {{ score[player] : Integer = 0 }}
@@ -140,6 +141,7 @@ def _parse_deal(n_players: int, stmt_src: str) -> tuple[n.Game, n.Movement]:
     src = f"""
 game Mini {{
   players: {n_players}
+  max_length: 1000
   cards: standard52
   zones {{ deck : Deck  hand[player] : Hand<player> }}
   state {{ score[player] : Integer = 0 }}

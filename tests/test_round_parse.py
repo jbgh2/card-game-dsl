@@ -4,6 +4,7 @@ from cardlang.parse import parse_text
 SRC = """
 game G {
   players: 4
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player>  trick_pile : TrickPile  captured[player] : PlayerPile<player> }

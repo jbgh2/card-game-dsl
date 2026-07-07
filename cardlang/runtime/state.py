@@ -169,6 +169,7 @@ class RuntimeState:
         self.team_of: dict[Player, int] = {}  # player -> their team id
         self.rank_index: dict[str, int] = {}  # rank -> strength (higher = stronger)
         self.card_values: dict[str, int] = {}  # rank -> card points (point-trick games)
+        self.max_length: int = 0  # the game's declared non-termination backstop
 
     # --- scope frames ---
 

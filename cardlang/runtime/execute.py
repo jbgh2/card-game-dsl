@@ -430,5 +430,9 @@ def _repeat_until(stmt: n.RepeatUntil, ctx: Ctx) -> None:
     while not evaluate(stmt.cond, ctx):
         run_body(stmt.body, ctx)
         guard += 1
-        if guard > 10_000:
-            raise RuntimeError("repeat-until exceeded 10000 iterations (non-termination?)")
+        if guard > ctx.rs.max_length:
+            raise RuntimeError(
+                f"repeat-until exceeded the game's declared max_length "
+                f"({ctx.rs.max_length}) iterations — non-termination, or raise "
+                "max_length if this game genuinely runs this long"
+            )

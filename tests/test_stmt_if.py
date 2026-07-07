@@ -26,6 +26,7 @@ def test_if_statement_with_else() -> None:
     text = """
     game T {
       players: 4
+      max_length: 1000
       cards: standard52
       phase p {
         if hand is empty { x := 1 } else { x := 2 }
@@ -49,6 +50,7 @@ def test_if_statement_without_else() -> None:
     text = """
     game T {
       players: 4
+      max_length: 1000
       cards: standard52
       phase p {
         if hand is empty { x := 1  y := 2 }
@@ -67,6 +69,7 @@ def test_if_statement_parses_with_zero_ambiguity() -> None:
     text = """
     game T {
       players: 4
+      max_length: 1000
       cards: standard52
       phase p {
         for each player q: if hand is empty { x := 1 } else { x := 2 }

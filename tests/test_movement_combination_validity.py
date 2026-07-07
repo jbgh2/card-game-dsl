@@ -17,6 +17,7 @@ def _game(stmt: str) -> str:
     return f"""
 game Mini {{
   players: 2
+  max_length: 1000
   cards: standard52
   zones {{ deck : Deck  hand[player] : Hand<player>  pile : TrickPile }}
   state {{ score[player] : Integer = 0 }}

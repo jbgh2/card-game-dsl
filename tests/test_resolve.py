@@ -27,12 +27,40 @@ def _game(body: str, rules: str = "") -> str:
     return (
         "game G {\n"
         "  players: 2\n"
+        "  max_length: 1000\n"
         "  cards: standard52\n"
         "  zones { hand[player] : Hand<player> }\n"
         f"{body}\n"
         "}\n"
         f"{rules}\n"
     )
+
+
+def test_missing_max_length_is_a_diagnostic() -> None:
+    dsl = (
+        "game G {\n"
+        "  players: 2\n"
+        "  cards: standard52\n"
+        "  zones { hand[player] : Hand<player> }\n"
+        "}\n"
+    )
+    with pytest.raises(DiagnosticError) as e:
+        _resolve(dsl)
+    assert "must declare `max_length" in e.value.diagnostic.message
+
+
+def test_non_positive_max_length_is_a_diagnostic() -> None:
+    dsl = (
+        "game G {\n"
+        "  players: 2\n"
+        "  max_length: 0\n"
+        "  cards: standard52\n"
+        "  zones { hand[player] : Hand<player> }\n"
+        "}\n"
+    )
+    with pytest.raises(DiagnosticError) as e:
+        _resolve(dsl)
+    assert "must be a positive integer" in e.value.diagnostic.message
 
 
 def test_undefined_rule_in_active_rules() -> None:

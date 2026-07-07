@@ -26,6 +26,7 @@ from cardlang.runtime.driver import play_game
 SRC = """
 game G {
   players: 3
+  max_length: 1000
   direction: clockwise
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
@@ -153,6 +154,7 @@ def test_function_call_in_a_move_guard_is_arity_checked() -> None:
 RULE_SRC = """
 game G {
   players: 2
+  max_length: 1000
   direction: clockwise
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
@@ -181,6 +183,7 @@ def test_function_call_in_a_rule_expression_is_arity_checked() -> None:
 ZONE_FN_SRC = """
 game G {
   players: 2
+  max_length: 1000
   direction: clockwise
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
@@ -237,6 +240,7 @@ def test_function_call_in_a_state_default_is_arity_checked() -> None:
 TRANSITION_SRC = """
 game G {
   players: 2
+  max_length: 1000
   direction: clockwise
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
@@ -268,6 +272,7 @@ type R = {
 }
 game G {
   players: 2
+  max_length: 1000
   direction: clockwise
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2

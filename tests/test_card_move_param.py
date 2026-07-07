@@ -28,6 +28,7 @@ from cardlang.runtime.values import Card
 CARD_PARAM_SRC = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   zones { deck : Deck  hand[player] : Hand<player>  pile : TrickPile }
   state {

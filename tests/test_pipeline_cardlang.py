@@ -26,6 +26,7 @@ def test_cli_reports_structural_error(tmp_path: Path) -> None:
     bad.write_text(
         "game B {\n"
         "  players: 2\n"
+        "  max_length: 1000\n"
         "  cards: standard52\n"
         "  zones { hand[player] : Hand<player> }\n"
         "  phase p { active_rules: [Ghost] }\n"

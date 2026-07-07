@@ -54,6 +54,7 @@ _CALL_SITE_PRONOUNS = frozenset({"actor", "action", "outcome"})
 
 def resolve(game: n.Game) -> n.Game:
     bag = DiagnosticBag()
+    _resolve_max_length(game, bag)
     for zone in game.zones:
         _resolve_zone(zone, bag)
 
@@ -71,6 +72,23 @@ def resolve(game: n.Game) -> n.Game:
 
     _raise_if_errors(bag)
     return game
+
+
+def _resolve_max_length(game: n.Game, bag: DiagnosticBag) -> None:
+    if game.max_length is None:
+        bag.error(
+            f"game '{game.name}' must declare `max_length: <n>` — a bound on "
+            "decision/loop iterations the runtime enforces and the OpenSpiel "
+            "adapter reports (docs/decisions.md, \"Game length as a declared "
+            "contract\")",
+            game.span,
+        )
+    elif game.max_length <= 0:
+        bag.error(
+            f"game '{game.name}' declares `max_length: {game.max_length}` — "
+            "it must be a positive integer",
+            game.span,
+        )
 
 
 def _resolve_zone(zone: n.ZoneDecl, bag: DiagnosticBag) -> None:

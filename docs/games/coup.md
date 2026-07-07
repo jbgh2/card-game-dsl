@@ -53,6 +53,7 @@ game Coup {
 
   players: 4
   direction: clockwise
+  max_length: 500
 
   cards: coup15
 

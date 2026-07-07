@@ -29,6 +29,7 @@ game Tichu {
   players: 4
   partnerships: [[0, 2], [1, 3]]   // partners sit across
   direction: counterclockwise
+  max_length: 20000
 
   cards: tichu56
 

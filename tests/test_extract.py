@@ -19,6 +19,7 @@ Some prose describing the game.
 ```
 game Hearts {
   players: 4
+  max_length: 1000
 }
 ```
 """
@@ -48,7 +49,7 @@ def test_single_block_text_and_start_line() -> None:
     block = extract_single_block(HEARTS_LIKE, "hearts.md")
     assert isinstance(block, FencedBlock)
     assert block.source_name == "hearts.md"
-    assert block.text == "game Hearts {\n  players: 4\n}\n"
+    assert block.text == "game Hearts {\n  players: 4\n  max_length: 1000\n}\n"
     # The opening fence is line 5; content begins on line 6.
     assert block.start_line == 6
 

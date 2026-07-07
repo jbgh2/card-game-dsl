@@ -59,6 +59,8 @@ def play_game(
     rs.trump = game.trump
     rs.teams = teams
     rs.team_of = team_of
+    assert game.max_length is not None, "resolve() must reject a missing max_length"
+    rs.max_length = game.max_length
     # Rank strength is read from the game's `ranking:` (high to low), so every
     # deck ranks correctly without a hardcoded order. Card values come from the
     # deck table (empty for games that score by other means).
@@ -200,13 +202,17 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
                 # A `repeats until` whose condition never holds (e.g. a win
                 # threshold unreachable under random play) would otherwise hang
                 # forever — fail loudly so non-termination surfaces as a test
-                # failure, not a stuck process. The statement-level `repeat
-                # until` has the same backstop.
+                # failure, not a stuck process, against the game's declared
+                # `max_length` (docs/decisions.md, "Game length as a declared
+                # contract"). The statement-level `repeat until` has the same
+                # backstop.
                 guard += 1
-                if guard > 10_000:
+                if guard > ctx.rs.max_length:
                     raise RuntimeError(
-                        f"phase '{phase.name}' repeated 10000 times without its "
-                        "`repeats until` condition holding (non-termination?)"
+                        f"phase '{phase.name}' repeated {guard} times without its "
+                        "`repeats until` condition holding, exceeding the game's "
+                        f"declared max_length ({ctx.rs.max_length}) — non-termination, "
+                        "or raise max_length if this game genuinely runs this long"
                     )
                 ctx.rs.fired_transitions.clear()  # transitions reset each iteration
                 for nm in loop_outcomes:

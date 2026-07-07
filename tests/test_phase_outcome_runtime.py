@@ -14,6 +14,7 @@ def test_phase_outcome_dispatches_to_arm_and_binds_payload() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -37,6 +38,7 @@ def test_continue_to_skips_intermediate_sibling_phase() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -63,6 +65,7 @@ def test_skip_to_next_hand_aborts_hand_but_runs_after_each() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -90,6 +93,7 @@ def test_outcome_survives_an_intervening_repeat_phase() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -116,6 +120,7 @@ def test_top_level_outcome_producer_and_consumer() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -143,6 +148,7 @@ def test_outcome_phase_that_does_not_produce_leaves_no_stale() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -191,6 +197,7 @@ def test_skip_unwind_does_not_leak_a_frame(monkeypatch: pytest.MonkeyPatch) -> N
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -219,6 +226,7 @@ def test_continue_to_unwinds_through_a_nested_phase() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -248,6 +256,7 @@ def test_skip_to_next_hand_unwinds_through_a_nested_phase() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }

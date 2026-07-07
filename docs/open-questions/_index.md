@@ -20,9 +20,6 @@ folder, and remove the entry from this index. See
   parameter domains (Rank/Player/bounded Integer) enumerable by plain
   `offer`, doubling as the OpenSpiel action-space contract; three
   independent stress-sweep games hit the nullary-move-type explosion.
-- [game-length-bounds](game-length-bounds.md) — a per-game `max_length:`
-  declaration replacing the runtime's 10k iteration cap and the adapter's
-  hardcoded `max_game_length=40000`; OpenSpiel requires the number anyway.
 
 ## Tier 2 — High impact, blocked on a data point
 

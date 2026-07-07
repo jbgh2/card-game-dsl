@@ -9,6 +9,7 @@ from cardlang.pipeline import check_dsl
 EXHAUSTIVE = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -34,6 +35,7 @@ def test_rejects_non_exhaustive_phase_match() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -57,6 +59,7 @@ def test_rejects_unknown_variant_in_phase_match() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -83,6 +86,7 @@ def test_rejects_wrong_payload_type_in_phase_produce() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -107,6 +111,7 @@ def test_rejects_continue_to_unknown_phase() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -131,6 +136,7 @@ def test_rejects_skip_to_next_hand_outside_a_hand_loop() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -155,6 +161,7 @@ def test_rejects_backward_continue_to() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -180,6 +187,7 @@ def test_rejects_non_sibling_produces_consumer() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -207,6 +215,7 @@ def test_rejects_continue_to_a_top_level_phase() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -233,6 +242,7 @@ def test_produces_consumer_requires_an_earlier_OUTCOME_sibling() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -260,6 +270,7 @@ def test_rejects_two_consumers_of_one_phase_outcome() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -287,6 +298,7 @@ def test_rejects_non_sibling_consumer_nested_in_an_arm() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -315,6 +327,7 @@ def test_validates_exhaustiveness_of_a_consumer_nested_in_an_arm() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -344,6 +357,7 @@ def test_outer_arm_binder_is_typed_inside_a_nested_consumer() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -371,6 +385,7 @@ def test_rejects_second_consumer_nested_in_an_arm() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -399,6 +414,7 @@ def test_rejects_consumer_of_a_when_guarded_producer() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -422,6 +438,7 @@ def test_rejects_consumer_of_a_repeating_producer() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -448,6 +465,7 @@ def test_rejects_consumer_in_a_loop_of_an_outer_producer() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -472,6 +490,7 @@ def test_rejects_consumer_in_a_statement_repeat_of_a_phase_producer() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -498,6 +517,7 @@ def test_rejects_phase_consumer_inside_a_for_each() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -522,6 +542,7 @@ def test_rejects_phase_consumer_in_before_each_hook() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -548,6 +569,7 @@ def test_rejects_consumer_of_a_producer_a_jump_can_skip() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -576,6 +598,7 @@ def test_accepts_producer_after_a_phase_with_a_locally_handled_jump() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -604,6 +627,7 @@ def test_rejects_after_each_consumer_of_a_producer_after_a_skip() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -640,6 +664,7 @@ def test_accepts_after_each_consuming_its_loop_body_producer() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -665,6 +690,7 @@ def test_rejects_outcome_phase_define_name_collision() -> None:
 define dup -> { x } { produce x }
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -684,6 +710,7 @@ def test_rejects_continue_to_in_a_define_body() -> None:
 define D -> { go } { produce go  continue to p }
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -703,6 +730,7 @@ def test_rejects_skip_to_next_hand_in_a_lifecycle_hook() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
@@ -723,6 +751,7 @@ def test_rejects_produce_inside_a_produces_arm() -> None:
     src = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }

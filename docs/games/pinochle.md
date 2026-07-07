@@ -42,6 +42,7 @@ game Pinochle {
   players: 4
   partnerships: [[0, 2], [1, 3]]   // partners sit across the four-hand ring
   direction: clockwise
+  max_length: 1000
 
   cards: pinochle48
   ranking: A 10 K Q J 9            // 10 sits between K and A

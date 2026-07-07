@@ -24,6 +24,7 @@ from cardlang.runtime.driver import play_game
 SRC_PRIORITY = """
 game G {
   players: 3
+  max_length: 1000
   direction: clockwise
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2

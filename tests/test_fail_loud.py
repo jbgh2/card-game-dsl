@@ -26,6 +26,7 @@ def _run(src: str) -> None:
 OFFER_NO_LEGAL = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   zones { deck : Deck  hand[player] : Hand<player> }
   state { coins[player] : Integer = 0 }
@@ -46,6 +47,7 @@ def test_offer_with_no_legal_move_raises() -> None:
 CHOOSE_EMPTY_RANGE = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   zones { deck : Deck  hand[player] : Hand<player> }
   state { x[player] : Integer = 0 }
@@ -65,6 +67,7 @@ def test_choose_over_empty_range_raises() -> None:
 RULE_WITHOUT_IF_IMPOSSIBLE = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   zones { deck : Deck  hand[player] : Hand<player> }
   state { x[player] : Integer = 0 }
@@ -90,6 +93,7 @@ def test_card_set_demand_without_if_impossible_is_rejected() -> None:
 TRICK_ROUND_WITH_AUCTION_OUTCOME = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player>  trick_pile : TrickPile }
@@ -107,6 +111,7 @@ game G {
 AUCTION_ROUND_WITH_TRICK_OUTCOME = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   zones { deck : Deck  hand[player] : Hand<player> }
   state { passes : Integer = 0 }
@@ -136,6 +141,7 @@ def test_auction_round_rejects_a_trick_outcome() -> None:
 AUCTION_NON_BOOLEAN_UNTIL = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   zones { deck : Deck  hand[player] : Hand<player> }
   state { passes : Integer = 0 }
@@ -160,6 +166,7 @@ def test_auction_until_must_be_boolean() -> None:
 PARAM_NAME_COLLIDES_WITH_STATE = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   zones { deck : Deck  hand[player] : Hand<player> }
   state { strain : Suit? = none  picked[player] : Suit? = none  score[player] : Integer = 0 }
@@ -213,6 +220,7 @@ def test_move_param_scopes_to_its_move_both_directions() -> None:
 AUCTION_NO_LEGAL_MOVE = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   zones { deck : Deck  hand[player] : Hand<player> }
   state { passes : Integer = 0 }
@@ -237,6 +245,7 @@ def test_auction_with_no_legal_move_raises() -> None:
 OFFER_OF_PARAMETERIZED_MOVE = """
 game G {
   players: 2
+  max_length: 1000
   cards: standard52
   zones { deck : Deck  hand[player] : Hand<player> }
   state { picked[player] : Suit? = none }

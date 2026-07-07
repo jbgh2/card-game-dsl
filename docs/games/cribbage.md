@@ -40,6 +40,7 @@ game Cribbage {
 
   players: 2
   direction: clockwise   // irrelevant with two players; kept for uniformity
+  max_length: 1500
 
   cards: standard52
   ranking: A 2 3 4 5 6 7 8 9 10 J Q K   // A low; J/Q/K worth 10 for pegging

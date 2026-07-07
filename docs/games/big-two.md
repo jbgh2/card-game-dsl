@@ -68,6 +68,7 @@ game BigTwo {
 
   players: 4
   direction: clockwise
+  max_length: 25000
 
   cards: standard52
 
