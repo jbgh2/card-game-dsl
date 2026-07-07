@@ -609,3 +609,54 @@ block.
 Included as a thought experiment — when reasoning about how rich
 simultaneous bodies need to be, ask "could this express
 Diplomacy?" as a worst-case bound.
+
+## Long-horizon capstones
+
+### marvel-snap
+
+2 players, 12-card singleton decks drawn from a large closed card pool,
+6 turns, 3 locations (each holding up to 4 cards per player). Both
+players place cards face-down simultaneously each turn, then reveal in
+priority order; power is compared per location; win 2 of 3. Born as a
+physical prototype (Brode's team playtested it on a table), shipped as
+a videogame — it lives in the liminal space between the two, which is
+exactly why it's here.
+
+**Why interesting — a capstone that composes nearly every deferred
+thread at once, and nothing it needs is unrecorded:**
+
+- *Simultaneous commit, ordered resolution.* Cards are committed
+  face-down simultaneously, then resolved in priority order — the
+  commit-then-sequentialize transform the simultaneity gap needs,
+  present as a first-class designer-visible rule rather than an
+  encoding trick. The opponent seeing *that* you played at a location
+  but not *what* is `existence_only` at a position, verbatim.
+- *Location effects are zone-scoped rules-as-values.* Each location
+  carries a rule drawn from a closed pool, hidden and revealed on a
+  schedule (turns 1–3) — a disciplined, well-behaved second witness
+  for the rules-as-selectable-values axis (Fluxx is the wild one).
+- *On Reveal / Ongoing* map one-to-one onto the effect-script
+  requirements in
+  [design-notes/deck-builder-onramp.md](../design-notes/deck-builder-onramp.md):
+  on-play triggers and continuous derived modifiers, over a large but
+  closed pool of small scripts — Innovation-density, below the bounded-
+  MtG ceiling.
+- *Snapping* is backgammon's doubling cube plus retreat-as-concession;
+  bluff-snapping under hidden information is poker-shaped, which makes
+  Snap a prime seat for the LLM-player angle
+  ([design-notes/llm-player-seats.md](../design-notes/llm-player-seats.md)).
+- *Deck construction* is parametrized setup over declared data (the
+  Scrabble-lexicon mechanism), outside the game proper.
+
+**Beyond hosting it, the payoffs are unusual:** a DSL implementation is
+an executable spec to differential-test against the digital game
+(divergent outcomes on identical seeds = a bug in one of them); new-card
+design becomes a data problem (write a script, the totality checker and
+simulation harness exercise it against the pool); and the game's
+tabletop-prototype origins mean re-implementing it *recovers* the
+physical artifact its designers started from.
+
+**Notes.** Long-horizon: gated on the deck-builder effect-script
+on-ramp and the simultaneity form — do not attempt before both exist.
+Mechanics are uncopyrightable but the Marvel IP is not; anything shared
+beyond personal/research use wants a re-theme.
