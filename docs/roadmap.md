@@ -57,8 +57,6 @@ Things we have noted but consciously not designed yet:
   (the adapter fixes a deal from a finite seed set), performance (the adapter
   re-simulates per query — O(n²); a real pass or a snapshot/restore path removes
   it). Every corpus game is registered — no concrete mechanics remain.
-  Enabling the `openspiel` extra in CI to run the adapter tests is a small
-  follow-up.
 
 - **Auto-derivation of `information_state_tensor`.** This is the prize for
   OpenSpiel integration but depends on zone visibility being airtight. The Hearts
