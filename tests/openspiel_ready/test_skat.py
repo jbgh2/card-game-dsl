@@ -1,5 +1,14 @@
-"""Skat (3 players) — OpenSpiel readiness (harness defaults), plus a
-positive confirmation of the Reizen's, pickup's, and discard's shapes."""
+"""Skat (3 players) — OpenSpiel readiness, plus a positive confirmation of
+the Reizen's, pickup's, and discard's shapes.
+
+Bounded conformance walk: the full `pyspiel.random_sim_test` measured 54s
+locally (a Skat rubber plays multiple hands to a target score, hundreds of
+actions — the same O(n^2) re-simulation cost as Stud/French Tarot/Tichu).
+Full-game-to-Terminal coverage through the actual pyspiel `State` wrapper
+(is_terminal/returns, not just this project's own replay engine) moves to
+`test_openspiel_replay.py`'s KERNEL_GAMES list instead, so bounding this
+walk drops no real coverage.
+"""
 
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import Pause, load, run
@@ -8,7 +17,7 @@ from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
 
 class TestReadiness(ReadinessProofs):
-    spec = GameSpec("cardlang_skat", "skat.cardlang")
+    spec = GameSpec("cardlang_skat", "skat.cardlang", conformance_steps=120)
 
 
 def test_pickup_and_discard_derive_hidden_observations() -> None:
