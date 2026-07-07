@@ -37,6 +37,7 @@ def emit(game: n.Game) -> IRDict:
         "players": _players(game.players),
         "deck": game.deck,
         "direction": game.direction,
+        "max_length": game.max_length,
         "ranking": list(game.ranking),
         "trump": game.trump,
         "partnerships": [list(t) for t in game.partnerships],

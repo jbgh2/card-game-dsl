@@ -1,20 +1,28 @@
 """`max_length:` — the per-game declared bound (docs/decisions.md, "Game
 length as a declared contract"). Missing/non-positive declarations are
 covered in test_resolve.py alongside the resolver's other structural
-checks; this file covers the grammar round-trip, the runtime's two
-non-termination guards (statement-level `repeat until`, phase-level
-`repeats until`), and the OpenSpiel adapter's `max_game_length` wiring.
+checks; this file covers the grammar round-trip, all three runtime
+enforcement mechanisms (statement-level `repeat until`, phase-level
+`repeats until`, and the decision counter that bounds actual chooser
+picks — the unit corpus values are sized against, and the only one of
+the three a structurally-terminating loop with many decisions per
+iteration can't evade), and the OpenSpiel adapter's `max_game_length`
+wiring.
 """
 
 from __future__ import annotations
 
+import dataclasses
 import random
+from pathlib import Path
 
 import pytest
 
 from cardlang.parse import parse_text
-from cardlang.pipeline import check_dsl
+from cardlang.pipeline import check_dsl, check_source
 from cardlang.runtime.driver import play_game
+
+HEARTS = Path(__file__).parent.parent / "docs" / "games" / "hearts.cardlang"
 
 
 def test_declares_and_parses() -> None:
@@ -62,6 +70,21 @@ def test_phase_level_repeats_until_respects_declared_max_length() -> None:
     game = check_dsl(dsl, "test.cardlang")
     with pytest.raises(RuntimeError) as e:
         play_game(game, random.Random(0))
+    assert "max_length (5)" in str(e.value)
+
+
+def test_decision_counter_fires_with_zero_loop_iterations() -> None:
+    """A structurally-terminating game (no non-terminating loop at all) can
+    still make more decisions than its declared max_length — the case the
+    two loop guards above cannot see, since neither loop ever completes even
+    one iteration. Real Hearts, with its max_length overridden down to a
+    number its own deal blows past in a handful of picks, proves the
+    decision counter (not either loop guard) is what catches this."""
+    game = check_source(HEARTS)
+    tiny = dataclasses.replace(game, max_length=5)
+    with pytest.raises(RuntimeError) as e:
+        play_game(tiny, random.Random(0))
+    assert "made" in str(e.value) and "decisions" in str(e.value)
     assert "max_length (5)" in str(e.value)
 
 

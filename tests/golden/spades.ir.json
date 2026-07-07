@@ -9,6 +9,7 @@
   },
   "deck": "standard52",
   "direction": "clockwise",
+  "max_length": 2000,
   "ranking": [
     "A",
     "K",

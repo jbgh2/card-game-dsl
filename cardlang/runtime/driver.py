@@ -76,6 +76,28 @@ def play_game(
     if game.winner is not None:
         rs.score_var = game.winner.target  # loser games have no score var
     base_chooser = chooser or random_chooser(rng)
+
+    uncounted = base_chooser
+
+    def _counted(player: Player, candidates: list[Any], n: int) -> list[Any]:
+        # The declared max_length's other half (docs/decisions.md, "Game
+        # length as a declared contract"): the loop guards below only bound
+        # iteration counts, which can be far coarser than decisions (a single
+        # `repeats until` iteration may make many chooser calls) — this counts
+        # every decision itself, the unit max_length's corpus values are
+        # actually sized against (measured per-game random-playout lengths),
+        # so a structurally-terminating loop that makes unboundedly many
+        # decisions per iteration is caught here, not silently under-bounded.
+        rs.decisions_made += n
+        if rs.decisions_made > rs.max_length:
+            raise RuntimeError(
+                f"the game made {rs.decisions_made} decisions, exceeding its "
+                f"declared max_length ({rs.max_length}) — non-termination, or "
+                "raise max_length if this game genuinely runs this long"
+            )
+        return uncounted(player, candidates, n)
+
+    base_chooser = _counted
     if on_first_decision is not None:
         # The deal-injection seam (SP1 proof harness): fire once, inside the
         # first chooser call, before delegating. NOTE: the first decider's

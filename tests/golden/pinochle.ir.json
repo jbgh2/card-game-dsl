@@ -9,6 +9,7 @@
   },
   "deck": "pinochle48",
   "direction": "clockwise",
+  "max_length": 1000,
   "ranking": [
     "A",
     "10",

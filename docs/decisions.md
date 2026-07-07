@@ -741,21 +741,39 @@ magic constants (a hardcoded 10,000-iteration runtime safety cap and the
 OpenSpiel adapter's invented `max_game_length=40000`) with one number the
 game's author reasons about and the checker enforces.
 
-The same declared value serves both roles:
+The same declared value is enforced three ways, against two different
+units, because no single check covers every non-termination shape:
 
-- **The runtime's non-termination backstop.** Both loop forms — the
-  phase-level `repeats until` (`docs/model.md`) and the statement-level
-  `repeat until` — count their own iterations and raise a `RuntimeError`
-  once the count exceeds the game's `max_length`, naming the phase, the
-  iteration count reached, and the declared bound. This is deliberately a
-  large, generous ceiling relative to either loop's natural iteration
-  unit (a `repeats until` loop typically counts hands, not individual
-  actions), so it never fires for a legitimately long game — only for a
-  termination predicate that can truly never hold.
+- **The decision counter** — the one the corpus's declared values are
+  actually sized against (250-seed measured random-playout lengths).
+  Every chooser pick, of any kind, increments a single per-game counter
+  (`RuntimeState.decisions_made`, wrapped around the chooser once in
+  `play_game`); exceeding `max_length` raises a `RuntimeError` naming the
+  count reached and the declared bound. This is the only one of the three
+  that a structurally-terminating loop making unboundedly many decisions
+  per iteration cannot evade — a loop that completes in very few
+  iterations, each making many picks, would sail past either loop guard
+  below while still making far more decisions than the game's declared
+  bound.
+- **The runtime's two loop guards.** Both loop forms — the phase-level
+  `repeats until` (`docs/model.md`) and the statement-level `repeat
+  until` — separately count their own *iterations* and raise the same
+  kind of `RuntimeError` once that count exceeds `max_length`. Counting
+  iterations (typically hands, not individual actions) against the same
+  number the decision counter uses makes these two guards deliberately
+  far more generous than their own natural unit — they exist to catch the
+  shape the decision counter cannot: a loop whose body makes few or zero
+  decisions per iteration (e.g. `repeat until false {}`), which would
+  otherwise spin forever without ever tripping the decision counter at
+  all.
 - **The OpenSpiel adapter's `max_game_length`.** `cardlang/openspiel/game.py`
   reads the declared value directly, rather than inventing a blanket
   number generous enough for the corpus's longest game (which used to
-  make every other game's reported bound meaningless).
+  make every other game's reported bound meaningless). Because the
+  decision counter enforces the same bound on the same unit
+  `max_game_length` is denominated in (decisions, i.e. actions), a
+  registered game's real trajectory length cannot silently exceed what it
+  advertises to OpenSpiel.
 
 `max_length` is required, not defaulted: the resolver rejects a game with
 no declaration, or with a non-positive one, as a diagnostic error before
