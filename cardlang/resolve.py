@@ -480,6 +480,49 @@ def _reaches(start: str, target: str, calls: dict[str, set[str]]) -> bool:
     return False
 
 
+# The closed set of statically enumerable move-parameter domains (decisions.md
+# "Surface totality"), matched by exact string — not by stripping a trailing
+# `?` — because only `Suit?` has a real nullable enumeration (`enumerate_domain`
+# appends `None` in the `Suit` branch only). `Rank?`/`Player?` parse (payload
+# types are generically optional-able) but have no such enumeration, so they
+# fall through to the "unsupported domain" branch below rather than being
+# silently accepted and then ignored at runtime. `Card` is deliberately absent
+# from this set: it is state-dependent (the live hand), allowed only as a
+# move's sole parameter, and checked separately below.
+_FIXED_DOMAINS = frozenset({"Suit", "Suit?", "Rank", "Player"})
+
+
+def _check_move_params(mt: n.MoveTypeDef, bag: DiagnosticBag, span: Span | None) -> None:
+    """Totality gate for a parameterized move offered/enumerated in a decision
+    (an `offer` statement or a `round offering` vocabulary). Fixed-from-type
+    domains (`Suit`/`Suit?`/`Rank`/`Player`) and a single `Card` parameter are
+    allowed; a `Card` parameter combined with any other parameter, and a
+    bounded-`Integer` parameter (deferred), are rejected with a message."""
+    types = [p.type_name for p in mt.params]
+    card_count = types.count("Card")
+    if card_count and len(types) > 1:
+        bag.error(
+            f"move '{mt.name}' combines a Card parameter with another parameter; "
+            f"Card's domain is the live hand and its actions are the card block, "
+            f"so it cannot be crossed with a fixed domain (fold into one parameter)",
+            span,
+        )
+    for t in types:
+        if t.rstrip("?") == "Integer":
+            bag.error(
+                f"move '{mt.name}' has parameter domain '{t}'; bounded-Integer "
+                f"parameter domains are deferred (see "
+                f"open-questions/move-parameter-domains.md)",
+                span,
+            )
+        elif t not in _FIXED_DOMAINS and t != "Card":
+            bag.error(
+                f"move '{mt.name}' has unsupported parameter domain '{t}' "
+                f"(expected Suit, Suit?, Rank, Player, or Card)",
+                span,
+            )
+
+
 def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     move_type_defs = {m.name: m for m in game.move_types}
     defined_move_types = set(move_type_defs)
@@ -526,28 +569,20 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     if name not in defined_move_types:
                         bag.error(f"offer names unknown move type '{name}'", nd.span)
                     else:
-                        params = move_type_defs[name].params
-                        p = params[0] if params else None
-                        if p is not None:
-                            # `offer` picks a move by name and cannot supply a
-                            # parameter; a parameterized move belongs in an
-                            # auction `round offering`, which enumerates the
-                            # parameter's domain.
-                            bag.error(
-                                f"offer names parameterized move type '{name}'; "
-                                f"only an auction `round offering` can "
-                                f"enumerate its parameter",
-                                nd.span,
-                            )
+                        mt = move_type_defs[name]
+                        if mt.params:
+                            _check_move_params(mt, bag, nd.span)
             case n.Round() if nd.move_types is not None:
                 # Auction form: a vocabulary of game-defined move types, no card
                 # zones. The termination predicate's names are checked by the
                 # generic NameRef pass.
                 #
                 # Parameter domains are a closed set (decisions.md "Surface
-                # totality"): the runtime enumerates `Suit`/`Suit?` statically
-                # and `Card` over the actor's live hand — any other type would
-                # crash `enumerate_domain` mid-playout, so reject it here.
+                # totality"): the runtime enumerates `Suit`/`Suit?`/`Rank`/
+                # `Player` statically and `Card` over the actor's live hand —
+                # any other type, or a domain combination `_check_move_params`
+                # rejects, would crash `enumerate_domain`/produce an
+                # indistinguishable action id mid-playout, so reject it here.
                 card_param_moves: list[str] = []
                 for name in nd.move_types:
                     if name not in defined_move_types:
@@ -556,20 +591,12 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                             nd.span,
                         )
                         continue
-                    params = move_type_defs[name].params
-                    param = params[0] if params else None
-                    if param is None:
+                    mt = move_type_defs[name]
+                    if not mt.params:
                         continue
-                    if param.type_name == "Card":
+                    _check_move_params(mt, bag, nd.span)
+                    if len(mt.params) == 1 and mt.params[0].type_name == "Card":
                         card_param_moves.append(name)
-                    elif param.type_name not in ("Suit", "Suit?"):
-                        bag.error(
-                            f"round vocabulary move '{name}' has parameter domain "
-                            f"'{param.type_name}'; an auction round can enumerate "
-                            f"only Suit, Suit? (fixed domains) or Card (the "
-                            f"actor's live hand)",
-                            nd.span,
-                        )
                 if len(card_param_moves) > 1:
                     # A Card-parameterized move's OpenSpiel action id is the card
                     # itself (the shared card block), so a second one in the same

@@ -5,9 +5,11 @@ player's live hand, in hand order — not a static deck-order enumeration
 filtered to the hand, which would reorder the candidate list and shift the
 chooser draw (card plays are offered in hand order, like every other card-play
 form). The domain set is closed at resolve time (decisions.md "Surface
-totality"): `Suit`/`Suit?` (static) and `Card` (the live hand) are enumerable;
-anything else is rejected rather than left to crash `enumerate_domain`
-mid-playout.
+totality"): `Suit`/`Suit?`/`Rank`/`Player` (static) and `Card` (the live hand)
+are enumerable, and `Card` only as a move's sole parameter (`resolve.py`'s
+shared `_check_move_params`, exercised end to end for the closed set in
+tests/test_resolve_param_domains.py); anything else is rejected rather than
+left to crash `enumerate_domain` mid-playout.
 """
 
 from __future__ import annotations
@@ -122,9 +124,11 @@ def _rejects(src: str, *needles: str) -> None:
 
 
 def test_rejects_a_non_enumerable_param_domain_in_a_round_vocabulary() -> None:
+    # Bounded-Integer parameter domains are deferred, not silently ignored —
+    # see tests/test_resolve_param_domains.py for the full closed-set gate.
     _rejects(
         CARD_PARAM_SRC.replace("play_one(c : Card)", "play_one(c : Integer)"),
-        "can enumerate only Suit, Suit?",
+        "bounded-Integer parameter domains are deferred",
     )
 
 
@@ -133,7 +137,7 @@ def test_rejects_an_optional_card_param_domain() -> None:
     # a hand holds cards, never `none`.
     _rejects(
         CARD_PARAM_SRC.replace("play_one(c : Card)", "play_one(c : Card?)"),
-        "can enumerate only Suit, Suit?",
+        "unsupported parameter domain 'Card?'",
     )
 
 

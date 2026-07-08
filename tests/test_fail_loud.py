@@ -256,9 +256,13 @@ move_type pick(strain : Suit?) { effect { picked[actor] := strain } }
 """
 
 
-def test_offer_of_parameterized_move_is_rejected() -> None:
-    # `offer` picks a move by name and can't supply a parameter; a parameterized
-    # move belongs in an auction `round offering`, which enumerates its domain.
-    # Caught at resolve, not as an opaque runtime KeyError on the unbound param.
-    with pytest.raises(DiagnosticError, match="parameterized move type"):
-        check_dsl(OFFER_OF_PARAMETERIZED_MOVE, "t.cardlang")
+def test_offer_of_parameterized_move_is_accepted() -> None:
+    # `offer`'s runtime execution folds a parameterized move's domain through
+    # the same `concrete_moves`/`bind_params` machinery as the auction form
+    # (execute.py `_offer`), so a move whose parameter is a fixed-from-type
+    # domain (here `Suit?`) resolves and runs cleanly rather than being
+    # rejected outright — no opaque runtime KeyError on the bound param. The
+    # combinations still rejected (Card combined with another parameter,
+    # bounded Integer, an unsupported domain) are covered in
+    # tests/test_resolve_param_domains.py.
+    _run(OFFER_OF_PARAMETERIZED_MOVE)
