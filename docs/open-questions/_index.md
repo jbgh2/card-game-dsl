@@ -26,6 +26,13 @@ folder, and remove the entry from this index. See
 These questions need one more game in the corpus before committing to a
 design. The data point is named in each file.
 
+- [structural-infoset-proofs](structural-infoset-proofs.md) — replace the
+  empirical simulate-and-perturb readiness harness with a *structural* proof of
+  the derived info-set properties (construct indistinguishable worlds from the
+  projection lattice + observation-emission sites, not swap-and-replay); two
+  distinct harness misfits already exist (Bridge/Tarot driver-exploration, Go
+  Fish world-generator), so the strategy is whack-a-mole; blocked on the first
+  compound hidden-function probe that defeats any simple swap axis.
 - [turn-loop-form](turn-loop-form.md) — a `turns` form beneath the three
   round forms (rotation, participant filtering, termination owned by the
   kernel); seven stress-sweep games hand-rolled the same scaffolding;
