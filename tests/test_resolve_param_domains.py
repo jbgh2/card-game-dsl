@@ -13,12 +13,16 @@ from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
 
 
-def _diags(move_src: str, offer_or_round: str) -> list[str]:
+def _diags(
+    move_src: str,
+    offer_or_round: str,
+    zones: str = "zones { hand[player] : Hand<player> }",
+) -> list[str]:
     src = (
         "game G {\n"
         "  players: 4\n  max_length: 50\n  cards: standard52\n"
         "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
-        "  zones { hand[player] : Hand<player> }\n"
+        f"  {zones}\n"
         "  state { done : Integer = 0 }\n"
         f"  phase play {{ {offer_or_round} done := 1 }}\n"
         "  winner: highest done\n}\n"
@@ -86,3 +90,30 @@ def test_player_rank_round_offering_accepted() -> None:
         "round offering [ask] from 0 over all players until done == 1",
     )
     assert not any("parameter" in d for d in diags), diags
+
+
+# --- the two Card-vocabulary guards apply to `offer` too, not just `round` --
+# `offer` used to reject every parameterized move outright, so a single Card
+# param via `offer` (accepted as of this change, "as today") never reached
+# these checks before; both are load-bearing (a missing `hand[player]` zone
+# crashes `param_domain` at runtime; two Card-parameterized moves in one
+# vocabulary collapse onto the same OpenSpiel action id, per
+# cardlang/openspiel/encoding.py's handling of `n.Offer`).
+
+
+def test_offer_of_a_card_param_without_a_hand_zone_rejected() -> None:
+    diags = _diags(
+        "move_type play_card(c : Card) { effect { done := 1 } }",
+        "offer to 0 one of [play_card]",
+        zones="zones { stash[player] : Hand<player> }",
+    )
+    assert any("hand[player]" in d for d in diags), diags
+
+
+def test_offer_of_two_card_parameterized_moves_rejected() -> None:
+    diags = _diags(
+        "move_type play_one(c : Card) { effect { done := 1 } }\n"
+        "move_type play_two(c : Card) { effect { done := 1 } }",
+        "offer to 0 one of [play_one, play_two]",
+    )
+    assert any("more than one Card-parameterized move" in d for d in diags), diags

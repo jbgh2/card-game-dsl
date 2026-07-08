@@ -523,6 +523,50 @@ def _check_move_params(mt: n.MoveTypeDef, bag: DiagnosticBag, span: Span | None)
             )
 
 
+def _check_card_vocabulary(
+    names: tuple[str, ...],
+    move_type_defs: dict[str, n.MoveTypeDef],
+    game: n.Game,
+    bag: DiagnosticBag,
+    span: Span | None,
+) -> None:
+    """The Card domain's constraints on a vocabulary of move types, wherever
+    one is enumerated (a plain `offer` or the auction `round offering` — both
+    fold a Card-parameterized move through the same `param_domain`/
+    `card_to_action` machinery, decisions.md "The Card move-parameter
+    domain"): at most one Card-parameterized move (its OpenSpiel action id
+    is the card itself, so a second would be indistinguishable by id — both
+    `offer` and `round offering` would otherwise collapse two card plays onto
+    one action, cardlang/openspiel/encoding.py), and the actor's
+    `hand[player]` zone must exist (`param_domain`'s Card branch enumerates
+    it; without one the decision crashes mid-playout). Unknown move names are
+    skipped — the caller's own loop already reports those."""
+    card_param_moves = [
+        name
+        for name in names
+        if name in move_type_defs
+        and len(move_type_defs[name].params) == 1
+        and move_type_defs[name].params[0].type_name == "Card"
+    ]
+    if len(card_param_moves) > 1:
+        bag.error(
+            f"vocabulary declares more than one Card-parameterized move "
+            f"({', '.join(card_param_moves)}); a card play's action is the "
+            f"card itself, so a second Card-parameterized move would be "
+            f"indistinguishable — fold them into one move type",
+            span,
+        )
+    if card_param_moves and not any(
+        z.name == "hand" and z.index == "player" for z in game.zones
+    ):
+        bag.error(
+            f"vocabulary move '{card_param_moves[0]}' takes a Card parameter, "
+            f"which enumerates the actor's `hand[player]` zone — this game "
+            f"declares none",
+            span,
+        )
+
+
 def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     move_type_defs = {m.name: m for m in game.move_types}
     defined_move_types = set(move_type_defs)
@@ -572,6 +616,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         mt = move_type_defs[name]
                         if mt.params:
                             _check_move_params(mt, bag, nd.span)
+                _check_card_vocabulary(nd.move_types, move_type_defs, game, bag, nd.span)
             case n.Round() if nd.move_types is not None:
                 # Auction form: a vocabulary of game-defined move types, no card
                 # zones. The termination predicate's names are checked by the
@@ -583,7 +628,6 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # any other type, or a domain combination `_check_move_params`
                 # rejects, would crash `enumerate_domain`/produce an
                 # indistinguishable action id mid-playout, so reject it here.
-                card_param_moves: list[str] = []
                 for name in nd.move_types:
                     if name not in defined_move_types:
                         bag.error(
@@ -592,35 +636,9 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         )
                         continue
                     mt = move_type_defs[name]
-                    if not mt.params:
-                        continue
-                    _check_move_params(mt, bag, nd.span)
-                    if len(mt.params) == 1 and mt.params[0].type_name == "Card":
-                        card_param_moves.append(name)
-                if len(card_param_moves) > 1:
-                    # A Card-parameterized move's OpenSpiel action id is the card
-                    # itself (the shared card block), so a second one in the same
-                    # vocabulary would make two moves indistinguishable by id.
-                    bag.error(
-                        f"round vocabulary declares more than one "
-                        f"Card-parameterized move "
-                        f"({', '.join(card_param_moves)}); a card play's action "
-                        f"is the card itself, so a second Card-parameterized "
-                        f"move would be indistinguishable — fold them into one "
-                        f"move type",
-                        nd.span,
-                    )
-                if card_param_moves and not any(
-                    z.name == "hand" and z.index == "player" for z in game.zones
-                ):
-                    # The Card domain enumerates the acting player's `hand`
-                    # instance; without one the round would crash mid-playout.
-                    bag.error(
-                        f"round vocabulary move '{card_param_moves[0]}' takes a "
-                        f"Card parameter, which enumerates the actor's "
-                        f"`hand[player]` zone — this game declares none",
-                        nd.span,
-                    )
+                    if mt.params:
+                        _check_move_params(mt, bag, nd.span)
+                _check_card_vocabulary(nd.move_types, move_type_defs, game, bag, nd.span)
                 # The betting form omits `outcome` (it mutates state directly and
                 # produces no variant); only an auction's outcome fn is validated.
                 if nd.outcome_fn is not None and nd.outcome_fn not in STDLIB_AUCTION_OUTCOMES:

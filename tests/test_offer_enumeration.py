@@ -13,11 +13,10 @@ not needed. The `MoveTypeDef`s under test come from a real `check_dsl` pass
 (not hand-built AST) so their guards carry properly resolved `NameRef`s
 (`actor` as a pronoun, params as scoped locals) exactly as a real game would
 see them — the game below declares `ping`/`bid_or_notrump` standalone,
-referenced by no `offer`/`round`, since resolve.py's move-vocabulary domain
-check (Suit/Suit?/Card only) and its blanket ban on parameterized `offer`
-moves are a separate, not-yet-relaxed gate (docs/kernel-migration.md; Task 6
-in the move-parameter-domains plan) — orthogonal to whether the *runtime fold*
-itself is correct, which is what this file tests directly.
+referenced by no `offer`/`round`, so this file exercises the runtime fold in
+isolation without needing a full vocabulary/round wiring in the game (that
+wiring, and the closed set of accepted/rejected parameter domains it
+enforces, is tests/test_resolve_param_domains.py's concern).
 """
 
 from __future__ import annotations
