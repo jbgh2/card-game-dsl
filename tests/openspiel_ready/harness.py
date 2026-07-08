@@ -81,13 +81,23 @@ class GameSpec:
     # replays legally.
     swap_any_pair: bool = False
 
+    # Which equivalence class a hidden swap must stay within so the swapped
+    # world is genuinely indistinguishable to the observer (the swap must not
+    # change any PUBLIC observation). "suit": follow-suit trick games (default,
+    # today's behavior). "rank": rank-probing games (Go Fish — a public ask's
+    # transfer COUNT is observed, so only same-rank swaps preserve it).
+    # "any": no public card/rank observation (a pure betting vocabulary).
+    swap_axis: str = "suit"
+
     @property
     def path(self) -> str:
         return str(GAMES_DIR / self.filename)
 
     def swap_pairs(self, hand1: list[Any], hand2: list[Any]) -> list[Any]:
-        """Swappable hidden-card pairs between two hidden card lists."""
-        if self.swap_any_pair:
+        """Swappable hidden-card pairs that keep the swapped world indistinguishable."""
+        if self.swap_axis == "rank":
+            return [(x, y) for x in hand1 for y in hand2 if x.rank == y.rank and x.suit != y.suit]
+        if self.swap_axis == "any" or self.swap_any_pair:
             return [(x, y) for x in hand1 for y in hand2 if x != y]
         three_d = ("3", "diamonds")
         return [
