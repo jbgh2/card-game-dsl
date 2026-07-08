@@ -1603,7 +1603,7 @@
     {
       "kind": "move_type",
       "name": "submit_bid",
-      "param": null,
+      "params": [],
       "guard": null,
       "effect": [
         {
@@ -1681,7 +1681,7 @@
     {
       "kind": "move_type",
       "name": "pass",
-      "param": null,
+      "params": [],
       "guard": null,
       "effect": [
         {
@@ -1704,10 +1704,12 @@
     {
       "kind": "move_type",
       "name": "declare_trump_suit",
-      "param": {
-        "name": "s",
-        "type_name": "Suit"
-      },
+      "params": [
+        {
+          "name": "s",
+          "type_name": "Suit"
+        }
+      ],
       "guard": {
         "kind": "call",
         "func": "has_marriage",

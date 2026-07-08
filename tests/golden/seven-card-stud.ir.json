@@ -2706,7 +2706,7 @@
     {
       "kind": "move_type",
       "name": "check",
-      "param": null,
+      "params": [],
       "guard": {
         "kind": "binop",
         "op": "<=",
@@ -2750,7 +2750,7 @@
     {
       "kind": "move_type",
       "name": "bet",
-      "param": null,
+      "params": [],
       "guard": {
         "kind": "binop",
         "op": "==",
@@ -2979,7 +2979,7 @@
     {
       "kind": "move_type",
       "name": "call",
-      "param": null,
+      "params": [],
       "guard": {
         "kind": "binop",
         "op": ">",
@@ -3195,7 +3195,7 @@
     {
       "kind": "move_type",
       "name": "raise",
-      "param": null,
+      "params": [],
       "guard": {
         "kind": "binop",
         "op": "and",
@@ -3536,7 +3536,7 @@
     {
       "kind": "move_type",
       "name": "fold",
-      "param": null,
+      "params": [],
       "guard": {
         "kind": "binop",
         "op": ">",

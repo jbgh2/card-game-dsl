@@ -162,7 +162,8 @@ class ActionSpace:
             elif isinstance(node, n.Round) and node.move_types is not None:
                 for mt_name in node.move_types:
                     mt = mt_index[mt_name]
-                    if mt.param is not None and mt.param.type_name == "Card":
+                    p = mt.params[0] if mt.params else None
+                    if p is not None and p.type_name == "Card":
                         # A Card-parameterized move's concrete actions ARE the
                         # card block (see the module docstring) — minting
                         # per-card vocab ids would give a card play two
@@ -170,8 +171,8 @@ class ActionSpace:
                         continue
                     entries = (
                         [(mt.name, None)]
-                        if mt.param is None
-                        else [(mt.name, v) for v in enumerate_domain(mt.param.type_name)]
+                        if p is None
+                        else [(mt.name, v) for v in enumerate_domain(p.type_name)]
                     )
                     vocab.extend(e for e in entries if e not in vocab)
         combo_codec: Any | None = None

@@ -296,11 +296,12 @@ class AuctionForm:
         pctx = ctx.acting_as(actor)
         candidates: list[tuple[str, Any]] = []
         for mt in self.move_defs:
-            if mt.param is None:
+            p = mt.params[0] if mt.params else None
+            if p is None:
                 if mt.guard is None or bool(evaluate(mt.guard, pctx)):
                     candidates.append((mt.name, None))
             else:
-                if mt.param.type_name == "Card":
+                if p.type_name == "Card":
                     # The Card domain is state-dependent: the actor's LIVE HAND,
                     # in hand order. A static deck-order enumeration filtered to
                     # the hand would reorder the candidates and shift the chooser
@@ -312,9 +313,9 @@ class AuctionForm:
                         pctx.rs.zones.instance("hand", actor).cards
                     )
                 else:
-                    domain = enumerate_domain(mt.param.type_name)
+                    domain = enumerate_domain(p.type_name)
                 for value in domain:
-                    vctx = pctx.with_local(mt.param.name, value)
+                    vctx = pctx.with_local(p.name, value)
                     if mt.guard is None or bool(evaluate(mt.guard, vctx)):
                         candidates.append((mt.name, value))
         if not candidates:
@@ -342,7 +343,8 @@ class AuctionForm:
         name, value = choice
         mt = ctx.rs.move_type_index[name]
         pctx = ctx.acting_as(actor)
-        eff_ctx = pctx.with_local(mt.param.name, value) if mt.param is not None else pctx
+        p = mt.params[0] if mt.params else None
+        eff_ctx = pctx.with_local(p.name, value) if p is not None else pctx
         run_body(mt.effect, eff_ctx)
         state["history"].append((actor, name, value))
         return state

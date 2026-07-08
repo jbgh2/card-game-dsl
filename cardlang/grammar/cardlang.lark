@@ -251,11 +251,11 @@ lvalue: NAME [index_expr]
 // Rules (top-level)
 // ----------------------------------------------------------------------------
 
-move_type_def: "move_type" NAME [move_param] "{" [move_when] move_effect "}"
-// An optional parameter drawn from an enumerable domain (Bridge's
-// `submit_bid(strain : Suit?)`): the move's legal instantiations over the
-// parameter's value-domain flatten into one per-turn candidate list.
-move_param: "(" NAME ":" payload_type ")"
+move_type_def: "move_type" NAME ["(" move_param ("," move_param)* ")"] "{" [move_when] move_effect "}"
+// An optional, comma-separated parameter list; each parameter is drawn from an
+// enumerable domain (Suit/Suit?, Rank, Player) or the state-dependent Card
+// domain. Their value-domains flatten into one per-turn candidate list.
+move_param: NAME ":" payload_type
 
 // A named function: a parameterized expression callable anywhere an expression
 // appears, so a game can factor a predicate it would otherwise repeat. The body

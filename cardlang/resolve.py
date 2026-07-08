@@ -371,13 +371,14 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         arms = tuple(_rewrite_produce_arm(arm, cats, bag) for arm in node.arms)
         return replace(node, arms=arms)
     if isinstance(node, n.MoveTypeDef):
-        # The parameter binds only in this move's guard/effect — scope it here
+        # The parameters bind only in this move's guard/effect — scope them here
         # rather than the game-wide `locals` set (which would shadow a same-named
-        # state var everywhere; mirrors the produce-arm binders above).
+        # state var everywhere; mirrors the produce-arm binders above, and the
+        # function-parameter branch below for the identical params-tuple shape).
         scoped = (
-            cats
-            if node.param is None
-            else replace(cats, locals=cats.locals | {node.param.name})
+            replace(cats, locals=cats.locals | {p.name for p in node.params})
+            if node.params
+            else cats
         )
         guard = _rewrite_value(node.guard, scoped, bag) if node.guard is not None else None
         effect = tuple(_rewrite(s, scoped, bag) for s in node.effect)
@@ -524,15 +525,20 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 for name in nd.move_types:
                     if name not in defined_move_types:
                         bag.error(f"offer names unknown move type '{name}'", nd.span)
-                    elif move_type_defs[name].param is not None:
-                        # `offer` picks a move by name and cannot supply a parameter;
-                        # a parameterized move belongs in an auction `round offering`,
-                        # which enumerates the parameter's domain.
-                        bag.error(
-                            f"offer names parameterized move type '{name}'; only an "
-                            f"auction `round offering` can enumerate its parameter",
-                            nd.span,
-                        )
+                    else:
+                        params = move_type_defs[name].params
+                        p = params[0] if params else None
+                        if p is not None:
+                            # `offer` picks a move by name and cannot supply a
+                            # parameter; a parameterized move belongs in an
+                            # auction `round offering`, which enumerates the
+                            # parameter's domain.
+                            bag.error(
+                                f"offer names parameterized move type '{name}'; "
+                                f"only an auction `round offering` can "
+                                f"enumerate its parameter",
+                                nd.span,
+                            )
             case n.Round() if nd.move_types is not None:
                 # Auction form: a vocabulary of game-defined move types, no card
                 # zones. The termination predicate's names are checked by the
@@ -550,7 +556,8 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                             nd.span,
                         )
                         continue
-                    param = move_type_defs[name].param
+                    params = move_type_defs[name].params
+                    param = params[0] if params else None
                     if param is None:
                         continue
                     if param.type_name == "Card":

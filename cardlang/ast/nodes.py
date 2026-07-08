@@ -679,14 +679,16 @@ class MoveParam:
 
 @dataclass(frozen=True, slots=True)
 class MoveTypeDef:
-    """`move_type NAME [(<param> : <type>)] { when: <pred> effect { <stmt>* } }` —
+    """`move_type NAME [(<param> : <type>, …)] { when: <pred> effect { <stmt>* } }` —
     a named, guarded action. ``guard`` is None when the move is always legal;
-    ``param`` is None for a nullary move (the trick/offer form)."""
+    ``params`` is empty for a nullary move (the trick/offer form). Parameters
+    enumerate in declaration order (leftmost outermost); see decisions.md
+    "The Card move-parameter domain"."""
 
     name: str
     guard: Expr | None
     effect: tuple[Stmt, ...]
-    param: MoveParam | None = None
+    params: tuple[MoveParam, ...] = ()
     span: Span | None = None
 
 
