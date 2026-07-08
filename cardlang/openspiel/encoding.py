@@ -151,6 +151,19 @@ class ActionSpace:
         combos: list[Any] = []
         mt_index = {m.name: m for m in game.move_types}
         climb_engines: list[str] = []
+        # The move-parameter domains, sourced from the game AST: suits/ranks
+        # from the SAME derived card block `card_block` (below) uses — a
+        # non-standard deck's own suits/ranks, never the bare module
+        # constants — falling back to the module's standard set only when the
+        # deck is standard-catalogue-expressible (`card_block is None`).
+        card_block = _derived_card_block(game.deck)
+        if card_block is None:
+            suits: list[Any] = list(SUITS)
+            ranks: list[str] = list(RANKS)
+        else:
+            suits = list(dict.fromkeys(c.suit for c in card_block))
+            ranks = list(dict.fromkeys(c.rank for c in card_block))
+        players = list(range(game.players.low))
         for node in _walk(game):
             if isinstance(node, n.Choose):
                 has_integers = True
@@ -172,7 +185,12 @@ class ActionSpace:
                     entries = (
                         [(mt.name, None)]
                         if p is None
-                        else [(mt.name, v) for v in enumerate_domain(p.type_name)]
+                        else [
+                            (mt.name, v)
+                            for v in enumerate_domain(
+                                p.type_name, suits=suits, ranks=ranks, players=players
+                            )
+                        ]
                     )
                     vocab.extend(e for e in entries if e not in vocab)
         combo_codec: Any | None = None
@@ -187,7 +205,6 @@ class ActionSpace:
                     universe,
                     key=lambda p: (p.size, p.kind, sorted(card_to_action(c) for c in p.cards)),
                 )
-        card_block = _derived_card_block(game.deck)
         return ActionSpace(
             card_block, sorted(names), vocab, has_integers, combos, combo_codec
         )

@@ -12,6 +12,7 @@ game-local engine queries). `build_form` selects the bundle by field-presence an
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any, Protocol
 
 from cardlang.ast import nodes as n
@@ -195,24 +196,33 @@ class TrickForm:
         return outcome
 
 
-def enumerate_domain(type_name: str) -> list[Any]:
+def enumerate_domain(
+    type_name: str,
+    *,
+    suits: "Sequence[Any]",
+    ranks: "Sequence[str]",
+    players: "Sequence[int]",
+) -> list[Any]:
     """The *static* value-domain a parameterized move ranges over, in a fixed
-    order so the flattened candidate list is deterministic. `Suit` is the deck's
-    suits; `Suit?` appends `none` (the no-trump strain), which ranks last.
+    order so the flattened candidate list is deterministic.
 
-    `Card` is deliberately absent: a Card-parameterized move's domain is
-    state-dependent — the actor's live hand, enumerated by
-    `AuctionForm.candidates` — and its OpenSpiel actions are the shared card
-    block (`encoding.ActionSpace`), so no static enumeration exists. The
-    supported domains are closed at resolve time (a round vocabulary rejects any
-    other parameter type), so this dispatch is total over what reaches it."""
+    `Suit`/`Suit?` are the game's suits (`Suit?` appends `none`, the no-trump
+    strain, which ranks last); `Rank` is the game's ranks; `Player` is its
+    seats. `Card` is deliberately absent — its domain is state-dependent (the
+    actor's live hand, enumerated by `candidates`) and its actions are the
+    shared card block. Bounded-`Integer` is rejected at resolve time (deferred),
+    so this dispatch is total over what reaches it."""
     base = type_name.rstrip("?")
     if base == "Suit":
-        values: list[Any] = list(SUITS)
+        values: list[Any] = list(suits)
         if type_name.endswith("?"):
             values.append(None)
         return values
-    raise NotImplementedError(f"move parameter domain '{type_name}' not supported yet")
+    if base == "Rank":
+        return list(ranks)
+    if base == "Player":
+        return list(players)
+    raise NotImplementedError(f"move parameter domain '{type_name}' not supported")
 
 
 class AuctionForm:
@@ -294,6 +304,15 @@ class AuctionForm:
 
     def candidates(self, actor: Player, state: State, ctx: Ctx) -> list[Any]:
         pctx = ctx.acting_as(actor)
+        # The static move-parameter domains, sourced from the live runtime
+        # state: `ranks` ordered strongest-first from the game's own
+        # `ranking:` declaration (`rs.rank_index` maps rank -> strength), and
+        # `players` the seat tuple. Suits are the module's standard four
+        # (`SUITS`) — this call site has always used that fixed set, even
+        # pre-dating declared parameter domains, so this keeps it unchanged.
+        rs = pctx.rs
+        ranks: list[str] = sorted(rs.rank_index, key=lambda r: rs.rank_index[r], reverse=True)
+        players: list[int] = list(rs.seating.players)
         candidates: list[tuple[str, Any]] = []
         for mt in self.move_defs:
             p = mt.params[0] if mt.params else None
@@ -313,7 +332,9 @@ class AuctionForm:
                         pctx.rs.zones.instance("hand", actor).cards
                     )
                 else:
-                    domain = enumerate_domain(p.type_name)
+                    domain = enumerate_domain(
+                        p.type_name, suits=SUITS, ranks=ranks, players=players
+                    )
                 for value in domain:
                     vctx = pctx.with_local(p.name, value)
                     if mt.guard is None or bool(evaluate(mt.guard, vctx)):
