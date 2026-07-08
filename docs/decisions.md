@@ -388,6 +388,9 @@ round offering [<move_type>, …] from <seat> over <ring>
   flat set, never an outer move-type choice followed by an inner parameter choice.
   Bridge's `submit_bid(strain : Suit?)` expands to one bid per strain whose
   cheapest beating level is still legal; `pass`/`double`/`redouble` are nullary.
+  The declared domain set each parameter draws from, the cross-product rule
+  for a multi-parameter move type, and the plain `offer` statement's
+  identical enumeration are "Declared parameter domains," below.
 - **The ring (`over`) is explicit; there is no silent skip.** A participant
   offered a turn always has at least one legal move — the finite-action invariant
   of a decision node. The game states *who is still in the ring* through the
@@ -458,34 +461,67 @@ candidate lists (same length and order) play identically under a random playout 
 the property that lets a hand-written engine be re-expressed in this form without
 changing behaviour.
 
-## The Card move-parameter domain
+## Declared parameter domains
 
-A `move_type` parameter may be typed `Card` — the corpus's first
-**state-dependent** parameter domain (Schnapsen's `play_card(c : Card)`, the
-lead-any-card arm of the leader's mixed vocabulary). The static domains
-(`Suit`, `Suit?`) enumerate a fixed value table; `Card` enumerates the **acting
-player's live hand, in hand order**, then guard-filters like any other
-parameterized move. Hand order is load-bearing: card plays are offered in hand
-order everywhere else in the runtime (the trick form, filtered movements), so a
-deck-order enumeration filtered to the hand would put the same decision under a
-different chooser-draw contract.
+A `move_type` may take any number of parameters (Go Fish's `ask(target :
+Player, rank : Rank)`), each drawn from a declared, enumerable value-domain.
+The parameters enumerate in **declaration order** (leftmost outermost) into a
+**guard-filtered cross-product**: one candidate per combination of the
+parameters' domain values that survives the move's guard, whether the move
+type carries one parameter or several. This cross-product — not any single
+parameter's domain in isolation — is what the OpenSpiel adapter treats as the
+move's action space: a fixed set built from the declared domains, independent
+of any one game state, with the guard evaluated per state as a **mask** over
+that fixed set, never a set that grows or shrinks.
 
-The enumerable domains are a **closed set** — `Suit`, `Suit?`, `Card` —
-enforced at resolve time (see "Surface totality"): any other parameter type in
-a `round offering` vocabulary is rejected with a message, as is a second
-Card-parameterized move in one vocabulary and a Card parameter in a game with
-no `hand[player]` zone. Widening the set (Rank, Player, bounded Integer) is
-[open-questions/move-parameter-domains.md](open-questions/move-parameter-domains.md),
-whose resolution should subsume this case.
+The enumerable domains are a **closed set** — `Suit`, `Suit?`, `Rank`,
+`Player`, `Card` — enforced at resolve time (see "Surface totality"): any
+other parameter type is rejected with a message, and so is a bounded-`Integer`
+parameter (not yet a domain;
+[open-questions/move-parameter-domains.md](open-questions/move-parameter-domains.md)).
 
-**OpenSpiel encoding.** A Card-parameterized move contributes **no vocabulary
-action ids**. A card play already has an id — the card block's — so the adapter
-folds a `(play_card, c)` candidate into `card_to_action(c)`, and a card's
-action id is identical whether it is the leader's `play_card` or the follower's
-plain movement pick; `num_distinct_actions` does not grow with the parameter.
-(Minting per-card vocabulary ids instead would give one card play two
-representations.) This is also why at most one Card-parameterized move may
-appear per vocabulary: the card id alone must name the move.
+- **`Suit` / `Suit?`.** A fixed value table: the four suits, plus `none` for
+  the nullable form (Bridge's `submit_bid(strain : Suit?)`).
+- **`Rank` / `Player`.** Fixed-from-type domains: `Rank` enumerates the
+  game's declared `ranking:`, `Player` enumerates the seats — both closed,
+  finite sets the runtime already knows independent of any one decision, so
+  each enumerates the same way whether its parameter stands alone or is
+  crossed with another in the same move type.
+- **`Card`** — the corpus's first **state-dependent** parameter domain
+  (Schnapsen's `play_card(c : Card)`, the lead-any-card arm of the leader's
+  mixed vocabulary). `Card` enumerates the **acting player's live hand, in
+  hand order**, then guard-filters like any other parameterized move. Hand
+  order is load-bearing: card plays are offered in hand order everywhere
+  else in the runtime (the trick form, filtered movements), so a deck-order
+  enumeration filtered to the hand would put the same decision under a
+  different chooser-draw contract. `Card` may appear only as a move's
+  **sole** parameter: a second Card-parameterized move in one vocabulary, a
+  Card parameter combined with another parameter, and a Card parameter in a
+  game with no `hand[player]` zone are each rejected with a message.
+
+**Enumeration surfaces.** A plain `offer` statement enumerates a
+parameterized move type the same way the auction `round offering` vocabulary
+does ("The auction form of `round`," above): every combination of its
+declared domain(s), guard-filtered, folded into **one flat candidate list**
+resolved by a single decision — one chooser draw, one public announce —
+never an outer move-type choice followed by an inner parameter choice. Go
+Fish's `ask(target : Player, rank : Rank)` is offered this way via a plain
+`offer`: the declared domain is the full 4 × 13 seat-by-rank cross-product,
+and the guards ("not yourself", "a rank you currently hold") mask it down,
+per state, to whichever pairs are actually legal for whoever is on turn
+([games/go-fish.md](games/go-fish.md)).
+
+**OpenSpiel encoding.** `Suit`, `Suit?`, `Rank`, and `Player` parameters each
+mint one vocabulary action id per cross-product combination, fixed for the
+game regardless of how many combinations are ever legal in any one state.
+`Card` is the exception: a Card-parameterized move contributes **no
+vocabulary action ids**. A card play already has an id — the card block's —
+so the adapter folds a `(play_card, c)` candidate into `card_to_action(c)`,
+and a card's action id is identical whether it is the leader's `play_card` or
+the follower's plain movement pick; `num_distinct_actions` does not grow with
+the parameter. (Minting per-card vocabulary ids instead would give one card
+play two representations.) This is also why at most one Card-parameterized
+move may appear per vocabulary: the card id alone must name the move.
 
 ## The climbing form of `round`
 

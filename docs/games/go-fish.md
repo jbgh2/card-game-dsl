@@ -75,7 +75,7 @@ hidden in this language, state never is.
 
 **The information-set point.** Go Fish is the corpus's witness for
 **declared parameter domains**
-([open-questions/move-parameter-domains.md](../open-questions/move-parameter-domains.md)).
+([decisions.md](../decisions.md) "Declared parameter domains").
 `ask(target: Player, rank: Rank)` ranges, statically, over all four seats
 and all 13 ranks — a fixed 4 × 13 = 52-entry cross-product, exactly the
 constant action-space size OpenSpiel needs declared up front. Per decision,

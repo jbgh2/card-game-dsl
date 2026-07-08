@@ -119,7 +119,7 @@ Key design notes:
   `close_talon` — Schnapsen's lead vocabulary, **game-defined** `move_type`s in
   the same shape: one auction-form candidate list per leader turn. `play_card`
   is the corpus's first Card-parameterized move ([decisions.md](decisions.md)
-  "The Card move-parameter domain": candidates are the live hand, in hand order)
+  "Declared parameter domains": candidates are the live hand, in hand order)
 - `bid` / `yes` / `pass` / `play_at_eighteen` / `throw_in` / `pick_up_skat` /
   `declare_hand` / `choose_suit_game` / `declare_grand` / `declare_null` /
   `declare_suit(s : Suit)` — Skat's Reizen and declaration vocabulary,
@@ -266,7 +266,7 @@ match) and so must trump if able, a quirk the split preserves precisely.
   is not empty`. The free actions (exchange/close) leave the predicate false,
   so the ring re-offers the leader; a lead (play or the marriage's queen) flips
   it. `play_card(c : Card)` enumerates the live hand in hand order
-  ([decisions.md](decisions.md) "The Card move-parameter domain"). The
+  ([decisions.md](decisions.md) "Declared parameter domains"). The
   follower's answer is a filtered chosen movement over the in-file `follow_ok`
   cascade (strict follow-and-head once the talon is closed or exhausted,
   anything while open), and the trick, claim-at-66, and paired talon draws are

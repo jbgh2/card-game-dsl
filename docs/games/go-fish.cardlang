@@ -11,7 +11,7 @@
 // Player, rank: Rank)` enumerates the guard-filtered Player x Rank cross-product
 // under a plain `offer`, and the public ask derives every observer's knowledge
 // that the asker holds the named rank
-// (docs/open-questions/move-parameter-domains.md).
+// (decisions.md "Declared parameter domains").
 
 game GoFish {
 

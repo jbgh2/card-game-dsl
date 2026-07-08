@@ -416,7 +416,7 @@ components"), which the runtime has so far folded inline ([roadmap.md](roadmap.m
   single-participant ring** (`until trick_pile is not empty`; the free actions
   leave the predicate false and the ring re-offers the leader), with
   `play_card(c : Card)` the corpus's first state-dependent move-parameter
-  domain ([decisions.md](decisions.md), "The Card move-parameter domain"). The
+  domain ([decisions.md](decisions.md), "Declared parameter domains"). The
   two-phase follow legality is the in-file `follow_ok` predicate filtering the
   follower's chosen movement (no `active_rules` cascade — the follower answers
   outside any trick `round`); marriages score 20/40 into a `pending` counter
@@ -479,9 +479,9 @@ action's target *player decisions*, and shows a proven challenge's card
 publicly. Upgrading to that scope is where the original WS5 design re-enters:
 response windows as decisions in priority order (the auction form's
 `priority` mode is the natural substrate), targets via a Player
-move-parameter domain
-([open-questions/move-parameter-domains.md](open-questions/move-parameter-domains.md)),
-and a `reveal` epistemic op for the public proof. That is a behaviour change
+move-parameter domain — already an available declared domain
+([decisions.md](decisions.md), "Declared parameter domains") — and a
+`reveal` epistemic op for the public proof. That is a behaviour change
 — new goldens, its own sign-off — not a migration.
 
 ## Cross-cutting build-out

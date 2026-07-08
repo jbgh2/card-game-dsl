@@ -3,7 +3,7 @@
 Go Fish is the corpus witness for declared move-parameter domains: `ask(target:
 Player, rank: Rank)` is offered via a plain `offer`, enumerating the
 guard-filtered Player x Rank cross-product
-(docs/open-questions/move-parameter-domains.md) rather than the
+(docs/decisions.md "Declared parameter domains") rather than the
 nullary-move-type explosion an earlier stress-branch skeleton was forced into.
 Its falsifiable invariants are conservation (52 cards, always somewhere across
 deck/hand/book) and termination (every hand empties or the stock runs out, and

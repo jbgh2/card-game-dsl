@@ -683,7 +683,7 @@ class MoveTypeDef:
     a named, guarded action. ``guard`` is None when the move is always legal;
     ``params`` is empty for a nullary move (the trick/offer form). Parameters
     enumerate in declaration order (leftmost outermost); see decisions.md
-    "The Card move-parameter domain"."""
+    "Declared parameter domains"."""
 
     name: str
     guard: Expr | None

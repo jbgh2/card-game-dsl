@@ -94,7 +94,7 @@ Related: the readiness harness (`tests/openspiel_ready/harness.py`);
 [decisions.md](../decisions.md) "Knowledge, visibility, and the projection
 model" and "Hidden information lives only in zones; state is public"; the
 load-bearing section of CLAUDE.md;
-[move-parameter-domains](move-parameter-domains.md) (Go Fish, the game that
-surfaced the world-generator gap); and
+[decisions.md](../decisions.md) "Declared parameter domains" (Go Fish, the
+game that surfaced the world-generator gap); and
 [design-notes/generalization-path.md](../design-notes/generalization-path.md)
 (why whack-a-mole doesn't scale).

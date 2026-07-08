@@ -533,8 +533,8 @@ def _check_card_vocabulary(
     """The Card domain's constraints on a vocabulary of move types, wherever
     one is enumerated (a plain `offer` or the auction `round offering` — both
     fold a Card-parameterized move through the same `param_domain`/
-    `card_to_action` machinery, decisions.md "The Card move-parameter
-    domain"): at most one Card-parameterized move (its OpenSpiel action id
+    `card_to_action` machinery, decisions.md "Declared parameter
+    domains"): at most one Card-parameterized move (its OpenSpiel action id
     is the card itself, so a second would be indistinguishable by id — both
     `offer` and `round offering` would otherwise collapse two card plays onto
     one action, cardlang/openspiel/encoding.py), and the actor's
