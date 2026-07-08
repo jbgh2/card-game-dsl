@@ -198,7 +198,18 @@ asks do not leak; only the chosen ask reveals its rank.
 Go Fish has **no pass** — every turn forces an ask — so the four-proof
 `openspiel_ready` harness (indistinguishability under hidden-card swaps,
 soundness, perfect recall, conformance) is **not vacuous** here, unlike Bridge's
-pass-only greedy-replay line (CLAUDE.md caveat).
+pass-only greedy-replay line (CLAUDE.md caveat). One harness subtlety, load-
+bearing enough to gate the build: the greedy swap-and-replay assumes *legal
+replay ⟹ indistinguishable*, which holds for trick/betting games but **not** for
+Go Fish — a public ask's transfer *count* is observed (`Hand` → `count_only` to
+non-owners), so only a same-**rank** swap (K♠↔K♥) yields a genuinely
+indistinguishable world (it preserves every per-rank count and ask legality; a
+book never leaks suit, being always all four of its rank). The harness gains a
+`swap_axis="rank"` mode for this — the correct indistinguishable-world generator
+for a rank-probing game, keyed to the same-suit constraint it already uses for
+trick games. If that cannot be made to hold, the fallback is a bespoke
+indistinguishability test with a documented greedy-harness misfit (à la
+Bridge/Tarot), never a weakened property.
 
 **Additionally**, a dedicated observational test asserts the exact semantic
 Go Fish was chosen to prove — *after A asks B for R, a third observer C's

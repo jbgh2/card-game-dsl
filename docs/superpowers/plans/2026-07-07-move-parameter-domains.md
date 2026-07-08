@@ -20,6 +20,12 @@
 - Branch: `feat/move-parameter-domains` (already created; the design spec is committed there).
 - Commit trailer on every commit: `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`.
 
+## ⚠ Execution ordering — the info-set gate (READ FIRST)
+
+Task 8's **indistinguishability proof is the load-bearing go/no-go for the whole feature**, not a routine "tune until green" step. The standard greedy-swap harness assumes *legal replay ⟹ indistinguishable to the observer* — **true for trick/betting games, false for Go Fish**: an ask is public and its transfer *count* is observed (`Hand` projects `count_only` to non-owners), so a hidden-card swap that changes how many of the asked rank the target holds produces a world that replays legally but that P can distinguish — a spurious hard failure, not a real leak.
+
+So: **as soon as Tasks 1–4 + 6 (resolve-accept) + 7 (a minimal registered Go Fish) exist, run ONLY `test_indistinguishability_under_hidden_swap` for Go Fish and settle the approach (Task 8) before investing in render polish (Task 5), the dedicated test (Task 9), the `.md` (Task 10), or docs hygiene (Task 11).** Task 5 is cosmetic (a deterministic ugly render still passes every proof) and may run last. The planned fix — restrict swaps to same-**rank**, different-suit pairs — is the correct indistinguishable-world generator here; the fallback (bespoke test + documented caveat, à la Bridge/Tarot) is in Task 8 if that does not hold.
+
 ---
 
 ### Task 1: Migrate `MoveTypeDef.param` → `params` (behavior-preserving)
@@ -902,26 +908,70 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 
 ---
 
-### Task 8: Go Fish OpenSpiel readiness — the four proofs
+### Task 8: Go Fish OpenSpiel readiness — the four proofs (info-set GO/NO-GO)
+
+**This is the load-bearing gate (see "⚠ Execution ordering" above). Run its indistinguishability proof the moment a minimal Go Fish is registered.** The greedy-swap harness needs a same-**rank** swap generator for Go Fish; without it, the proof fails on legally-replayed-but-observably-different worlds.
 
 **Files:**
+- Modify: `tests/openspiel_ready/harness.py` (`GameSpec`: add a `swap_axis` field; `swap_pairs`: honor it)
 - Create: `tests/openspiel_ready/test_go_fish.py`
 
 **Interfaces:**
 - Consumes: `cardlang_go_fish` registration (Task 7); the `ReadinessProofs`/`GameSpec` harness.
-- Produces: `TestReadiness(ReadinessProofs)` with `spec = GameSpec("cardlang_go_fish", "go-fish.cardlang", ...)` — the four proofs green.
+- Produces: `GameSpec.swap_axis: str` (`"suit"` default — today's behavior; `"rank"`; `"any"`); a `TestReadiness(ReadinessProofs)` whose four proofs pass.
 
-- [ ] **Step 1: Write the proof module**
+Why same-rank (the reasoning that makes this a real proof, not a workaround): the harness swaps two cards hidden from observer P and replays the same actions, asserting P's info state is byte-identical. For Go Fish, P publicly observes every ask and every transfer *count* (`Hand` → `count_only` to non-owners). A same-rank, different-suit swap (K♠↔K♥ between two opponents) preserves **every player's per-rank counts and every ask's legality**, so *all* of P's observations are identical — a genuinely indistinguishable world. (Same-suit, the trick-game default, is wrong here: swapping K♠→Q♠ changes a King count P may have seen. Books never leak: a completed book is always all four suits of its rank, so it carries no suit information beyond the already-public rank.) This is the same idea as the existing same-suit constraint, keyed to the axis Go Fish's public observations actually preserve.
+
+- [ ] **Step 1: Extend the harness with a swap axis**
+
+`tests/openspiel_ready/harness.py` — add to `GameSpec` (near `swap_any_pair`):
+
+```python
+    # Which equivalence class a hidden swap must stay within so the swapped
+    # world is genuinely indistinguishable to the observer (the swap must not
+    # change any PUBLIC observation). "suit": follow-suit trick games (default,
+    # today's behavior). "rank": rank-probing games (Go Fish — a public ask's
+    # transfer COUNT is observed, so only same-rank swaps preserve it).
+    # "any": no public card/rank observation (a pure betting vocabulary).
+    swap_axis: str = "suit"
+```
+
+Rewrite `swap_pairs` to honor it (keep the 3♦ carve-out only for the suit axis, where Big Two's opening filter lives):
+
+```python
+    def swap_pairs(self, hand1: list[Any], hand2: list[Any]) -> list[Any]:
+        """Swappable hidden-card pairs that keep the swapped world indistinguishable."""
+        if self.swap_axis == "rank":
+            return [(x, y) for x in hand1 for y in hand2 if x.rank == y.rank and x.suit != y.suit]
+        if self.swap_axis == "any" or self.swap_any_pair:
+            return [(x, y) for x in hand1 for y in hand2 if x != y]
+        three_d = ("3", "diamonds")
+        return [
+            (x, y)
+            for x in hand1
+            for y in hand2
+            if x.suit == y.suit
+            and x != y
+            and (x.rank, x.suit) != three_d
+            and (y.rank, y.suit) != three_d
+        ]
+```
+
+Run: `PYTHONHASHSEED=0 pytest tests/openspiel_ready/ -q` — every existing game still green (default `swap_axis="suit"` is byte-identical to before).
+
+- [ ] **Step 2: Write the proof module**
 
 Create `tests/openspiel_ready/test_go_fish.py`:
 
 ```python
 """Go Fish — OpenSpiel readiness.
 
-Four players, hidden `hand`. Recorded actions are `ask(target, rank)` vocab
-tuples, not cards, so `swap_any_pair=True` (any hidden swap that keeps every
-recorded ask legal replays). Depth is tuned so opponents still hold swappable
-cards at the pause.
+Four players, hidden `hand`. A public ask's transfer COUNT is observed
+(`Hand` -> count_only to non-owners), so an indistinguishable world requires a
+same-RANK swap (K♠↔K♥): it preserves every per-rank count and every ask's
+legality, hence every public observation. Same-suit (the trick-game default)
+would change a rank count the observer saw. Depth tuned so two opponents still
+share a rank at the pause.
 """
 
 from .harness import GameSpec, ReadinessProofs
@@ -933,29 +983,27 @@ class TestReadiness(ReadinessProofs):
         "go-fish.cardlang",
         hidden_zone="hand",
         depth=6,
-        swap_any_pair=True,
+        swap_axis="rank",
     )
 ```
 
-- [ ] **Step 2: Run the four proofs**
+- [ ] **Step 3: Run the indistinguishability proof FIRST — the go/no-go**
 
-Run: `pytest tests/openspiel_ready/test_go_fish.py -v`
-Expected: the four proofs run. Likely tuning:
-- **indistinguishability**: if "no swap pair produced a legal replay", the recorded asks over-constrain the opponents' hands — *lower* `depth` (fewer recorded asks). If "no swap pair available", *raise* `depth` (opponents shed cards as books form). Start at 6; adjust.
-- **conformance**: Go Fish's full `random_sim_test` is fine (short game); leave `conformance_steps=None`. If it is slow, set `conformance_steps` to a few hundred (the sanctioned bounded-walk fallback) and document why.
+Run: `PYTHONHASHSEED=0 pytest tests/openspiel_ready/test_go_fish.py::TestReadiness::test_indistinguishability_under_hidden_swap -v`
+Expected: PASS. With `swap_axis="rank"` every candidate swap is genuinely indistinguishable, so the first legally-replayed pair is byte-identical. If it FAILS:
+- "no swap pair available" → the two probed opponents share no rank at this depth; lower `depth` or try another seed until a same-rank cross-suit pair exists at the pause.
+- byte-identity still breaks on a same-rank swap → a public observation depends on suit somewhere unexpected (investigate which obs-log entry differs). **Fallback:** if same-rank cannot be made to hold, treat Go Fish like Bridge/Tarot — replace this proof with a bespoke indistinguishability test that constructs a known-indistinguishable world pair directly, and document the greedy-harness misfit in the module docstring and CLAUDE.md's honesty note. Do not weaken the property; change how it is exercised.
 
-Iterate `depth`/`swap_any_pair` until all four pass. Record the final rationale in the module docstring (the harness convention).
+- [ ] **Step 4: Run the remaining three proofs + coverage**
 
-- [ ] **Step 3: Run the coverage guard**
+Run: `PYTHONHASHSEED=0 pytest tests/openspiel_ready/test_go_fish.py tests/openspiel_ready/test_coverage.py -v`
+Expected: PASS. Soundness (swapping P's *own* same-rank card changes P's identity view), perfect recall (append-only logs), and conformance (full `random_sim_test`; if slow, set `conformance_steps` to a few hundred and note why) all pass. Coverage confirms the registry ↔ proof-module match.
 
-Run: `pytest tests/openspiel_ready/test_coverage.py -v`
-Expected: PASS — every registered game now has a proof module, none extra.
-
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add tests/openspiel_ready/test_go_fish.py
-git commit -m "test(openspiel): Go Fish readiness proofs (indistinguishability/soundness/recall/conformance)
+git add tests/openspiel_ready/harness.py tests/openspiel_ready/test_go_fish.py
+git commit -m "test(openspiel): Go Fish readiness proofs; same-rank swap generator for rank-probing games
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 ```
@@ -1149,7 +1197,7 @@ EOF
 - §B domains + totality → Tasks 2 (enumerate_domain), 6 (resolve accept/reject).
 - §C enumeration order → Task 3 (`itertools.product` in declaration order; `_pack` keeps arity-1 bare).
 - §D OpenSpiel encoding → Task 4 (cross-product vocab, encode/decode).
-- §E info-set derivation → Tasks 8 (four proofs; no-pass ⇒ non-vacuous) + 9 (dedicated ask-derives test).
+- §E info-set derivation → Tasks 8 (four proofs; the info-set go/no-go, with the same-rank swap generator + bespoke-test fallback) + 9 (dedicated ask-derives test, robust regardless of Task 8's outcome).
 - §F Go Fish corpus game → Tasks 7 (`.cardlang` + register + playout) + 10 (`.md`).
 - §G AST blast radius + docs hygiene → Task 1 (readers + corpus re-run) + 11 (decisions.md/open-question/index/CLAUDE.md).
 
