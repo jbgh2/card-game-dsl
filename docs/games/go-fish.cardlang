@@ -1,0 +1,85 @@
+// Go Fish — four-player, standard 52-card deck. Rules per pagat.com/quartet/gofish.html.
+//
+// On your turn you name another player and a rank you already hold at least one
+// card of; the ask is public. If they hold that rank they give you ALL of it and
+// you go again; otherwise "go fish" — draw the top stock card, and if it is the
+// asked rank show it and go again, else keep it and pass left. Four of a rank is
+// a book, set aside (shown to the table). The game ends the instant any hand
+// empties or the stock runs out; most books wins.
+//
+// This is the corpus witness for declared parameter domains: `ask(target:
+// Player, rank: Rank)` enumerates the guard-filtered Player x Rank cross-product
+// under a plain `offer`, and the public ask derives every observer's knowledge
+// that the asker holds the named rank
+// (docs/open-questions/move-parameter-domains.md).
+
+game GoFish {
+
+  players: 4
+  direction: clockwise
+  max_length: 600
+
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+
+  zones {
+    deck         : Deck                 // face-down stock
+    hand[player] : Hand<player>         // private hand
+    book[player] : PlayerPile<player>   // completed books, shown then set aside
+  }
+
+  state {
+    current_player     : Player  = 0
+    book_count[player] : Integer = 0
+  }
+
+  phase setup {
+    shuffle deck
+    deal 5 cards from deck to each hand
+    for each player p:
+      if (max over hand[p] as c: (sum over hand[p] as c2: if c2.rank == c.rank then 1 else 0)) == 4 {
+        move all cards from hand[p]
+             where c => (sum over hand[p] as c2: if c2.rank == c.rank then 1 else 0) == 4
+             to book[p]
+        book_count[p] += 1
+      }
+    current_player := 0
+  }
+
+  phase play {
+    repeat until (deck is empty) or (any player p: hand[p] is empty) {
+      offer to current_player one of [ask]
+    }
+  }
+
+  winner: highest book_count
+}
+
+// The turn: name a live opponent and a rank you hold; the ask is public.
+move_type ask(target : Player, rank : Rank) {
+  when: target != actor
+        and (sum over hand[actor] as c: if c.rank == rank then 1 else 0) > 0
+  effect {
+    let target_holds = sum over hand[target] as c: if c.rank == rank then 1 else 0
+    if target_holds > 0 {
+      move all cards from hand[target] where c => c.rank == rank to hand[actor]
+      // A hit: current_player unchanged, so the next iteration offers to the same
+      // player — "you go again".
+    } else {
+      let before = sum over hand[actor] as c: if c.rank == rank then 1 else 0
+      draw 1 card from deck to hand[actor]
+      let after = sum over hand[actor] as c: if c.rank == rank then 1 else 0
+      if after == before {                 // drew a non-matching card: pass left
+        current_player := actor offset_by left
+      }
+      // drew the asked rank: go again (current_player unchanged)
+    }
+    // Book completion (from a transfer or a draw): set aside four of a rank.
+    if (max over hand[actor] as c: (sum over hand[actor] as c2: if c2.rank == c.rank then 1 else 0)) == 4 {
+      move all cards from hand[actor]
+           where c => (sum over hand[actor] as c2: if c2.rank == c.rank then 1 else 0) == 4
+           to book[actor]
+      book_count[actor] += 1
+    }
+  }
+}
