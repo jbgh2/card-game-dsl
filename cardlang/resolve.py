@@ -504,7 +504,8 @@ def _check_move_params(mt: n.MoveTypeDef, bag: DiagnosticBag, span: Span | None)
         bag.error(
             f"move '{mt.name}' combines a Card parameter with another parameter; "
             f"Card's domain is the live hand and its actions are the card block, "
-            f"so it cannot be crossed with a fixed domain (fold into one parameter)",
+            f"so a Card parameter cannot be combined with another parameter "
+            f"(fold into one parameter)",
             span,
         )
     for t in types:

@@ -75,3 +75,26 @@ domain would extend to a numeric range) and "No implicit actions" (a
 is already an error — any bounded-Integer resolution must preserve that);
 [phase-legal-moves](phase-legal-moves.md) (what a declared move vocabulary is
 for — the same static-contract instinct at phase level).
+
+## Adjacent cleanups to fold in
+
+Two small gaps surfaced during the declared-parameter-domains final review,
+narrow enough to ride along with whichever option above is picked rather than
+warrant their own question:
+
+- `ActionSpace.encode`'s `(name, None)`-equivalence branch (`encoding.py`
+  ~263) would shadow a move name that appeared in BOTH a plain `offer` and a
+  round vocabulary in the same game — dormant today (no corpus game shares a
+  name across both surfaces), and even if it fired it would only waste one
+  action id, not misroute an existing one.
+- Rank/Player domain-sourcing divergence: `ActionSpace.for_game` sources the
+  Rank domain `_vocab_entries` enumerates from the deck's own ranks, while
+  `mechanics.param_domain` sources the same domain from `game.ranking` at
+  runtime — the two coincide only while `ranking ⊆ deck ranks`, which nothing
+  enforces (`typecheck.py:94` declares each `ranking` value as `Rank` without
+  cross-checking it against the deck). A future game with an unguarded
+  Rank-param move and a ranking that names an off-deck rank could make
+  `encode` raise `KeyError` mid-playout. Whichever bounded-Integer design
+  lands should either unify the two sourcings (have `encoding` read
+  `game.ranking`/seating, the same origin `mechanics` uses) or add a
+  `ranking ⊆ deck` resolve check.

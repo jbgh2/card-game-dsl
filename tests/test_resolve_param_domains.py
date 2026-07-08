@@ -49,7 +49,7 @@ def test_player_rank_offer_accepted() -> None:
         "move_type ask(target : Player, rank : Rank) { when: target != actor effect { done := 1 } }",
         "offer to 0 one of [ask]",
     )
-    assert not any("parameter" in d for d in diags), diags
+    assert diags == []
 
 
 def test_integer_parameter_rejected_as_deferred() -> None:

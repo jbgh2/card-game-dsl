@@ -59,6 +59,47 @@ def test_go_fish_plays_to_completion(seed: int) -> None:
     assert sum(result.scores.values()) <= 13, f"seed {seed}: {result.scores}"
 
 
+def test_setup_phase_sweeps_an_opening_quad_book() -> None:
+    """`phase setup` immediately books any rank a player is dealt all four of
+    within their opening 5-card hand (docs/games/go-fish.cardlang). This is a
+    ~0.1%-per-deal event (13 ranks x 4 players, each needing a specific
+    4-of-a-kind among 5 dealt cards) — no seed in 0..29 (the range this
+    module's other tests sweep) happens to trigger it, so the sweep has had
+    zero coverage.
+
+    The deck's post-shuffle order is a pure function of the `random.Random`
+    seed: `shuffle deck` calls `rng.shuffle` exactly once, and `deal 5 cards
+    ... to each hand` (no `chosen`/`random` selection mode) then slices the
+    top 5 cards to player 0, the next 5 to player 1, and so on — deterministic
+    slicing, no further rng draws. So a plain seed search over
+    `play_game(game, random.Random(seed))` is the direct, honest way to force
+    the deal — there is no need to bypass the DSL's own shuffle/deal
+    statements with a hand-constructed zone. Seed 470 was found by such a
+    search: it deals player 3 all four 7s (plus the 8 of hearts) as their
+    opening hand.
+
+    `on_first_decision` fires inside the FIRST chooser call — the first
+    `offer` in `phase play` — which lands strictly after `phase setup`
+    completes (setup makes no decisions of its own) and strictly before any
+    play-phase mutation. So it is used here purely to INSPECT the post-setup,
+    pre-play state, never to mutate it (unlike its swap use in
+    tests/openspiel_ready/harness.py)."""
+    game = _go_fish()
+    captured: dict[str, Any] = {}
+
+    def _capture(rs: Any) -> None:
+        captured["book_count"] = dict(rs.get("book_count"))
+        captured["hand"] = list(rs.zones.instance("hand", 3).cards)
+        captured["book"] = list(rs.zones.instance("book", 3).cards)
+
+    play_game(game, random.Random(470), on_first_decision=_capture)
+
+    assert captured["book_count"][3] == 1
+    assert len(captured["hand"]) == 1  # 5 dealt - 4 booked = 1 left
+    assert len(captured["book"]) == 4
+    assert {c.rank for c in captured["book"]} == {"7"}
+
+
 def test_asks_actually_complete_books() -> None:
     # Termination and card conservation alone would hold even if `ask`'s
     # give-all-matching / go-fish-and-match branches were both dead (e.g. a

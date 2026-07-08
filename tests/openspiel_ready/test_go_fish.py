@@ -87,7 +87,7 @@ def test_public_ask_derives_asker_holds_rank() -> None:
 
     assert asks(r.obs_logs[0]), "no ask was announced on the greedy line"
     first = asks(r.obs_logs[0])[0]
-    rendered = str(first[2])              # e.g. "ask((1, '6'))"
+    rendered = str(first[2])              # e.g. "ask(1,6)"
 
     # The ask is public: identical announce in every player's log.
     for q in range(4):

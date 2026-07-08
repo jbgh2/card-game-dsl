@@ -183,6 +183,10 @@ class ActionSpace:
         # non-standard deck's own suits/ranks, never the bare module
         # constants — falling back to the module's standard set only when the
         # deck is standard-catalogue-expressible (`card_block is None`).
+        # NOTE: `ranks` here is sourced from the deck, not `game.ranking` (the
+        # source `mechanics.param_domain` uses for this same domain at
+        # runtime) — the two coincide only while `ranking ⊆ deck ranks`,
+        # which nothing enforces; see open-questions/move-parameter-domains.md.
         card_block = _derived_card_block(game.deck)
         if card_block is None:
             suits: list[Any] = list(SUITS)
@@ -351,5 +355,9 @@ class ActionSpace:
             return f"{play.kind}[" + ",".join(sorted(str(c) for c in play.cards)) + "]"
         if isinstance(value, tuple):
             name, param = value
-            return name if param is None else f"{name}({param})"
+            if param is None:
+                return str(name)
+            if isinstance(param, tuple):  # a multi-parameter move: render each value
+                return f"{name}(" + ",".join(str(v) for v in param) + ")"
+            return f"{name}({param})"
         return str(value)
