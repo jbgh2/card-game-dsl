@@ -24,6 +24,7 @@ representation, so a card's id is identical whether it is a leader's
 from __future__ import annotations
 
 import dataclasses
+import itertools
 from dataclasses import dataclass
 from typing import Any, Iterator
 
@@ -104,6 +105,32 @@ def _walk(node: Any) -> Iterator[Any]:
             yield from _walk(item)
 
 
+def _vocab_entries(
+    mt: n.MoveTypeDef,
+    suits: list[Any],
+    ranks: list[str],
+    players: list[int],
+) -> list[tuple[str, Any]]:
+    """One move type's vocab entries — nullary is the empty-product
+    `[(mt.name, None)]`; otherwise the full cross-product of its parameters'
+    *declared* (static) domains, one entry per combination. Packing mirrors
+    `mechanics._pack`/`concrete_moves`'s runtime convention: arity 1 stays a
+    bare value (so an existing single-param vocab key like `("submit_bid",
+    "hearts")` is byte-identical), arity >= 2 packs as a tuple. Callers have
+    already excluded the Card-parameterized case — a card play's action id is
+    the card block's, never a vocab id (see the module docstring)."""
+    if not mt.params:
+        return [(mt.name, None)]
+    domains = [
+        enumerate_domain(p.type_name, suits=suits, ranks=ranks, players=players)
+        for p in mt.params
+    ]
+    return [
+        (mt.name, combo[0] if len(mt.params) == 1 else tuple(combo))
+        for combo in itertools.product(*domains)
+    ]
+
+
 class ActionSpace:
     """The derived global action universe of one game."""
 
@@ -168,30 +195,37 @@ class ActionSpace:
             if isinstance(node, n.Choose):
                 has_integers = True
             elif isinstance(node, n.Offer):
-                names.extend(m for m in node.move_types if m not in names)
+                # Routed by arity, same rule the round vocabulary below uses:
+                # nullary keeps today's bare-name representation in `names`
+                # (every offer-using corpus game today — Coup, Skat — names
+                # only nullary moves, so this is unchanged for them); a
+                # parameterized, non-Card move type now contributes its
+                # cross-product to `vocab` instead of the stray, never-used
+                # bare name it used to get (a parameterized `offer` move, like
+                # Go Fish's `ask`, was silently mis-routed before this).
+                for mt_name in node.move_types:
+                    mt = mt_index[mt_name]
+                    if not mt.params:
+                        if mt.name not in names:
+                            names.append(mt.name)
+                    elif any(p.type_name == "Card" for p in mt.params):
+                        pass  # the card block's id, not a vocab id — see below
+                    else:
+                        entries = _vocab_entries(mt, suits, ranks, players)
+                        vocab.extend(e for e in entries if e not in vocab)
             elif isinstance(node, n.Round) and node.combos_fn is not None:
                 if node.combos_fn not in climb_engines:
                     climb_engines.append(node.combos_fn)
             elif isinstance(node, n.Round) and node.move_types is not None:
                 for mt_name in node.move_types:
                     mt = mt_index[mt_name]
-                    p = mt.params[0] if mt.params else None
-                    if p is not None and p.type_name == "Card":
+                    if any(p.type_name == "Card" for p in mt.params):
                         # A Card-parameterized move's concrete actions ARE the
                         # card block (see the module docstring) — minting
                         # per-card vocab ids would give a card play two
                         # representations and inflate num_distinct_actions.
                         continue
-                    entries = (
-                        [(mt.name, None)]
-                        if p is None
-                        else [
-                            (mt.name, v)
-                            for v in enumerate_domain(
-                                p.type_name, suits=suits, ranks=ranks, players=players
-                            )
-                        ]
-                    )
+                    entries = _vocab_entries(mt, suits, ranks, players)
                     vocab.extend(e for e in entries if e not in vocab)
         combo_codec: Any | None = None
         if climb_engines:
