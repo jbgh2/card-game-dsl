@@ -1,3 +1,5 @@
+import pytest
+
 from cardlang.parse import parse_text
 from cardlang.pipeline import check_dsl
 from cardlang.openspiel.encoding import ActionSpace
@@ -64,3 +66,53 @@ def test_single_card_param_via_plain_offer_encodes_to_the_card_block() -> None:
     aid = space.encode(("play_card", card))
     assert aid == space.encode(card) < 52
     assert space.decode(aid) == card
+
+
+SUBSET_RANKING_GAME = """
+game G3 {
+  players: 4
+  max_length: 50
+  cards: standard52
+  ranking: A K Q
+  zones { hand[player] : Hand<player> }
+  state { done : Integer = 0 }
+  phase play { offer to 0 one of [ask] done := 1 }
+  winner: highest done
+}
+move_type ask(target : Player, rank : Rank) { when: target != actor effect { done := 1 } }
+"""
+
+
+def test_rank_domain_sourced_from_game_ranking_not_deck() -> None:
+    """Regression for the Codex P2 finding (PR #36): `ActionSpace.for_game`
+    must source the `Rank` parameter domain from `game.ranking` — the SAME
+    origin `mechanics.param_domain` reads at runtime (`ctx.rs.rank_index`,
+    which `driver.py` builds from `game.ranking`) — never from the deck's own
+    ranks. Before the fix the two sourcings coincided only by accident
+    (`ranking ⊆ deck ranks`, unenforced); a game whose `ranking:` is a strict
+    SUBSET of its deck's ranks exposes the divergence directly: `ranking: A K
+    Q` under `cards: standard52` (13 ranks) resolves cleanly via `check_dsl`
+    — nothing requires a `ranking:` to cover every deck rank — so this is a
+    legal game, not a hypothetical.
+    """
+    game = check_dsl(SUBSET_RANKING_GAME, "g3.cardlang")
+    assert game.ranking == ("A", "K", "Q")
+    space = ActionSpace.for_game(game)
+
+    # Exactly 4 players x 3 ranks = 12 vocab entries (52 card block + 12).
+    # Deck-sourced (the pre-fix bug), this would instead be 52 + 4*13 = 104:
+    # the deck's full 13 ranks, not the 3 the game actually declared.
+    assert space.num_distinct_actions == 52 + 12
+
+    # Every (target, rank) combination over the DECLARED ranking round-trips.
+    for target in range(4):
+        for rank in ("A", "K", "Q"):
+            aid = space.encode(("ask", (target, rank)))
+            assert space.decode(aid) == ("ask", (target, rank))
+
+    # "J" is a deck rank absent from the declared ranking. Sourced correctly
+    # (from `game.ranking`), it was never enumerated into the vocab, so
+    # encoding it must raise. Deck-sourced (the pre-fix bug), it would
+    # silently succeed with a dead/wrong action id instead.
+    with pytest.raises(KeyError):
+        space.encode(("ask", (0, "J")))

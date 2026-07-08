@@ -178,22 +178,22 @@ class ActionSpace:
         combos: list[Any] = []
         mt_index = {m.name: m for m in game.move_types}
         climb_engines: list[str] = []
-        # The move-parameter domains, sourced from the game AST: suits/ranks
+        # The move-parameter domains, sourced from the game AST. Suits come
         # from the SAME derived card block `card_block` (below) uses — a
-        # non-standard deck's own suits/ranks, never the bare module
-        # constants — falling back to the module's standard set only when the
-        # deck is standard-catalogue-expressible (`card_block is None`).
-        # NOTE: `ranks` here is sourced from the deck, not `game.ranking` (the
-        # source `mechanics.param_domain` uses for this same domain at
-        # runtime) — the two coincide only while `ranking ⊆ deck ranks`,
-        # which nothing enforces; see open-questions/move-parameter-domains.md.
+        # non-standard deck's own suits, never the bare module constant —
+        # falling back to the module's standard set only when the deck is
+        # standard-catalogue-expressible (`card_block is None`). Ranks come
+        # from `game.ranking` directly — the SAME origin `mechanics.
+        # param_domain` reads at runtime (`ctx.rs.rank_index`, which
+        # `driver.py` builds from `game.ranking`) — so the advertised action
+        # space and the live legal-candidate enumeration are identical by
+        # construction, never merely coincident.
         card_block = _derived_card_block(game.deck)
         if card_block is None:
             suits: list[Any] = list(SUITS)
-            ranks: list[str] = list(RANKS)
         else:
             suits = list(dict.fromkeys(c.suit for c in card_block))
-            ranks = list(dict.fromkeys(c.rank for c in card_block))
+        ranks: list[str] = list(game.ranking)
         players = list(range(game.players.low))
         for node in _walk(game):
             if isinstance(node, n.Choose):
