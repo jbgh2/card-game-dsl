@@ -1565,7 +1565,7 @@ eventual compilation pass (see [roadmap.md](roadmap.md)).
 Info-set derivation is uniform across the corpus: every game's decisions run
 on kernel sites that emit observation events, no Python mechanic exists (the
 `instantiate` construct is deleted), and the readiness proofs cover all
-fourteen games ([kernel-migration.md](kernel-migration.md)). The remaining
+fifteen games ([kernel-migration.md](kernel-migration.md)). The remaining
 honesty line is scope, not derivation: rules-level randomness kept from the
 monoliths' random-play reductions (Tichu's call gates, Coup's window gates
 and targets) folds into the seed chance node rather than appearing as

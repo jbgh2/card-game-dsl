@@ -41,8 +41,8 @@ declare a marriage, exchange the trump jack, or close the talon — is one flat
 candidate list on the **auction form of `round`** over a single-participant
 ring: the free actions (exchange/close) leave `until trick_pile is not empty`
 false, so the ring re-offers the leader until a card is led. `play_card(c :
-Card)` enumerates the leader's live hand in hand order — the Card
-move-parameter domain ([decisions.md](../decisions.md) "Declared
+Card)` enumerates the leader's live hand in hand order — the
+state-dependent Card domain ([decisions.md](../decisions.md) "Declared
 parameter domains"). The follower answers with a filtered chosen movement
 over the in-file `follow_ok` cascade (strict follow-and-head once the talon is
 closed or exhausted), and the trick, claim-at-66, and paired talon draws are
