@@ -46,7 +46,12 @@ it's meant to probe — is documented in
 (Go Fish)").
 """
 
-from .harness import GameSpec, ReadinessProofs
+from typing import Any
+
+from cardlang.openspiel.infostate import information_state
+from cardlang.openspiel.replay import Pause, run
+
+from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
 
 class TestReadiness(ReadinessProofs):
@@ -57,3 +62,101 @@ class TestReadiness(ReadinessProofs):
         depth=6,
         swap_axis="rank",
     )
+
+
+def test_public_ask_derives_asker_holds_rank() -> None:
+    """An ask is public: naming (target, rank) reaches EVERY player's observation
+    log and information state. Because a legal ask requires the asker to hold the
+    named rank, that public announce is exactly the evidence from which every
+    observer derives 'the asker holds this rank' — the info-set content Go Fish
+    exists to prove derivable."""
+    path = str(GAMES_DIR / "go-fish.cardlang")
+    history: list[int] = []
+    r = run(path, 5, ())
+    assert isinstance(r, Pause)
+    for _ in range(40):
+        history.append(r.legal[0])
+        nxt = run(path, 5, tuple(history))
+        assert isinstance(nxt, Pause), "greedy line ended before any ask"
+        r = nxt
+        if any(e[0] == "announce" and str(e[2]).startswith("ask(") for e in r.obs_logs[0]):
+            break
+
+    def asks(log: list[tuple[Any, ...]]) -> list[tuple[Any, ...]]:
+        return [e for e in log if e[0] == "announce" and str(e[2]).startswith("ask(")]
+
+    assert asks(r.obs_logs[0]), "no ask was announced on the greedy line"
+    first = asks(r.obs_logs[0])[0]
+    rendered = str(first[2])              # e.g. "ask((1, '6'))"
+
+    # The ask is public: identical announce in every player's log.
+    for q in range(4):
+        assert first in asks(r.obs_logs[q]), f"P{q} did not observe the public ask"
+
+    # And it reaches a bystander's derived information state verbatim.
+    asker = int(first[1])
+    watcher = next(q for q in range(4) if q != asker)
+    info = information_state(watcher, r.rs, r.obs_logs[watcher])
+    assert rendered in info, "the public ask is absent from a bystander's info state"
+
+
+def test_public_ask_hit_transfer_is_a_public_count_not_identity() -> None:
+    """A hit — the named rank's holder actually has it — moves ALL of it from
+    hand[target] to hand[asker]. Every non-participant's Hand<player>
+    projection reduces that transfer to a bare COUNT, never a card identity:
+    combined with the ask's public (target, rank) announce, that public count
+    is the exact evidence a bystander derives 'the asker now holds N more of
+    rank R' from, without ever learning which cards they are. This is the
+    transfer-count channel the four-proof indistinguishability test cannot
+    exercise at its configured depth (see this module's TestReadiness
+    docstring): here it is exercised directly."""
+    path = str(GAMES_DIR / "go-fish.cardlang")
+    history: list[int] = []
+    r = run(path, 5, ())
+    assert isinstance(r, Pause)
+    for _ in range(60):
+        history.append(r.legal[0])
+        nxt = run(path, 5, tuple(history))
+        assert isinstance(nxt, Pause), "greedy line ended before any hit transfer"
+        r = nxt
+        if any(
+            e[0] == "move" and str(e[1]).startswith("hand[") and str(e[3]).startswith("hand[")
+            for e in r.obs_logs[0]
+        ):
+            break
+
+    def hand_moves(log: list[tuple[Any, ...]]) -> list[tuple[Any, ...]]:
+        return [
+            e for e in log
+            if e[0] == "move" and str(e[1]).startswith("hand[") and str(e[3]).startswith("hand[")
+        ]
+
+    assert hand_moves(r.obs_logs[0]), "no hand-to-hand transfer (hit) occurred on the greedy line"
+    first = hand_moves(r.obs_logs[0])[0]
+    target = int(str(first[1]).split("[")[1].rstrip("]"))
+    asker = int(str(first[3]).split("[")[1].rstrip("]"))
+    assert asker != target
+
+    # Ground truth for how many cards actually transferred: the asker's own
+    # log shows the received cards' identities (they own the destination side).
+    identity = hand_moves(r.obs_logs[asker])[0][4]
+    assert isinstance(identity, tuple) and len(identity) >= 1, (
+        "the asker did not see the identity of the cards they received"
+    )
+    n_transferred = len(identity)
+
+    # Every bystander (neither participant) sees ONLY the count, on BOTH
+    # sides of the move — and it reaches their derived information state too.
+    for bystander in (q for q in range(4) if q not in (asker, target)):
+        seen = hand_moves(r.obs_logs[bystander])[0]
+        assert seen[1] == first[1] and seen[3] == first[3]
+        assert isinstance(seen[2], int) and seen[2] == n_transferred, (
+            f"P{bystander} saw hand[{target}]'s card identities, not a count"
+        )
+        assert isinstance(seen[4], int) and seen[4] == n_transferred, (
+            f"P{bystander} saw hand[{asker}]'s card identities, not a count"
+        )
+        info = information_state(bystander, r.rs, r.obs_logs[bystander])
+        assert repr(seen) in info, (
+            f"P{bystander}'s derived information state omits the public transfer count"
+        )
