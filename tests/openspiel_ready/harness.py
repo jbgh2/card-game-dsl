@@ -23,7 +23,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
 import pytest
 
@@ -87,7 +87,7 @@ class GameSpec:
     # today's behavior). "rank": rank-probing games (Go Fish — a public ask's
     # transfer COUNT is observed, so only same-rank swaps preserve it).
     # "any": no public card/rank observation (a pure betting vocabulary).
-    swap_axis: str = "suit"
+    swap_axis: Literal["suit", "rank", "any"] = "suit"
 
     @property
     def path(self) -> str:
@@ -97,19 +97,22 @@ class GameSpec:
         """Swappable hidden-card pairs that keep the swapped world indistinguishable."""
         if self.swap_axis == "rank":
             return [(x, y) for x in hand1 for y in hand2 if x.rank == y.rank and x.suit != y.suit]
-        if self.swap_axis == "any" or self.swap_any_pair:
+        elif self.swap_axis == "any" or self.swap_any_pair:
             return [(x, y) for x in hand1 for y in hand2 if x != y]
-        three_d = ("3", "diamonds")
-        return [
-            (x, y)
-            for x in hand1
-            for y in hand2
-            if x.suit == y.suit
-            and x != y
-            # keep the 3♦ fixed: Big Two's opening filter keys on that exact card
-            and (x.rank, x.suit) != three_d
-            and (y.rank, y.suit) != three_d
-        ]
+        elif self.swap_axis == "suit":
+            three_d = ("3", "diamonds")
+            return [
+                (x, y)
+                for x in hand1
+                for y in hand2
+                if x.suit == y.suit
+                and x != y
+                # keep the 3♦ fixed: Big Two's opening filter keys on that exact card
+                and (x.rank, x.suit) != three_d
+                and (y.rank, y.suit) != three_d
+            ]
+        else:
+            raise ValueError(f"unknown swap_axis {self.swap_axis!r}")
 
 
 def _advance(path: str, seed: int, depth: int) -> tuple[list[int], Pause]:
