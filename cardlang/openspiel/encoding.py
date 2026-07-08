@@ -226,6 +226,14 @@ class ActionSpace:
             name, param = value
             if isinstance(param, Card):
                 return self.encode(param)  # Card-param move: the card block id
+            if param is None and name in self._name_ids:
+                # A nullary `offer` move: the runtime represents it as
+                # `(name, None)` (the same empty-product shape a nullary
+                # round-vocabulary move uses), but this game's action space
+                # names it as a bare string — it was never a round-vocabulary
+                # member, so no `(name, None)` was minted into `vocab`. Same
+                # action either way.
+                return self._name_base + self._name_ids[name]
             return self._vocab_base + self._vocab_ids[value]
         cards = getattr(value, "cards", None)
         if cards is not None:
@@ -279,7 +287,18 @@ class ActionSpace:
                 _missing,
             )
         else:
-            found = next((c for c in pool if c == value), _missing)
+            # A bare-string `value` (an offer move or the climb "pass") may
+            # appear in `pool` as itself or, for an offer's nullary move, as
+            # the runtime's `(name, None)` shape — both denote the same action
+            # (see the mirroring case in `encode`).
+            found = next(
+                (
+                    c
+                    for c in pool
+                    if c == value or (isinstance(value, str) and c == (value, None))
+                ),
+                _missing,
+            )
         if found is _missing:
             raise ValueError(
                 f"recorded action {aid} ({self.to_string(aid)}) is not among the live candidates"

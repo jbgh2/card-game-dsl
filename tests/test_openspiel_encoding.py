@@ -200,6 +200,22 @@ def test_skat_space_names_offers_and_reizen_vocabulary() -> None:
     ]
 
 
+def test_skat_offer_move_encodes_the_same_as_its_runtime_tuple_shape() -> None:
+    """The runtime represents EVERY nullary candidate — whether offered via a
+    plain `offer` (`pick_up_skat`) or a round vocabulary (`pass`) — as a
+    `(name, None)` tuple (mechanics.concrete_moves's empty-product case). This
+    game's action space still names offer moves as bare strings (they were
+    never round-vocabulary members, so no `(name, None)` vocab id was minted
+    for them) — `encode`/`match` must treat the two shapes as the same action,
+    or the OpenSpiel adapter can't encode what `execute._offer` actually
+    offers (this exact gap broke `test_openspiel_replay.py`'s Skat replay and
+    every Coup/Skat `openspiel_ready` proof until `encode`/`match` learned it)."""
+    space = _space("skat.cardlang")
+    aid = space.encode("pick_up_skat")
+    assert space.encode(("pick_up_skat", None)) == aid
+    assert space.match(aid, [("pick_up_skat", None), "throw_in"]) == ("pick_up_skat", None)
+
+
 def test_cribbage_space_is_pure_cards() -> None:
     # No offers, no `choose`, no auction vocabulary, no climb engine — just the
     # standard 52-card block (the first 2-player registered game).

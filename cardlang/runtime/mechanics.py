@@ -12,6 +12,7 @@ game-local engine queries). `build_form` selects the bundle by field-presence an
 
 from __future__ import annotations
 
+import itertools
 from collections.abc import Sequence
 from typing import Any, Protocol
 
@@ -19,7 +20,7 @@ from cardlang.ast import nodes as n
 from cardlang.runtime import observe, phases, rules
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, Move
-from cardlang.runtime.values import SUITS, Player
+from cardlang.runtime.values import Player
 
 
 # ---------------------------------------------------------------------------
@@ -225,6 +226,63 @@ def enumerate_domain(
     raise NotImplementedError(f"move parameter domain '{type_name}' not supported")
 
 
+def param_domain(p: "n.MoveParam", actor: Player, ctx: Ctx) -> list[Any]:
+    """One parameter's value-domain for the acting player. `Card` is the actor's
+    live hand, in hand order (state-dependent); the fixed-from-type domains come
+    from the deck/seating via `enumerate_domain`. `suits` is sourced from the
+    live runtime state (`rs.suits`, set at driver setup from the game's deck) —
+    not the module `SUITS` constant — so a non-standard-suit deck (Coup's
+    `coup15`, whose only suit is `"court"`) enumerates its own suits rather than
+    the French four."""
+    if p.type_name == "Card":
+        return list(ctx.rs.zones.instance("hand", actor).cards)
+    ranks = [r for r, _ in sorted(ctx.rs.rank_index.items(), key=lambda kv: kv[1])]
+    return enumerate_domain(
+        p.type_name,
+        suits=ctx.rs.suits,
+        ranks=ranks,
+        players=list(ctx.rs.seating.players),
+    )
+
+
+def _pack(combo: "tuple[Any, ...]") -> Any:
+    """A candidate's value: None (nullary), the bare value (arity 1), or the
+    tuple (arity >= 2). Arity 1 stays bare so existing vocab keys are unchanged."""
+    if not combo:
+        return None
+    return combo[0] if len(combo) == 1 else combo
+
+
+def bind_params(ctx: Ctx, params: "tuple[n.MoveParam, ...]", value: Any) -> Ctx:
+    """Bind a candidate's value(s) as locals for the guard/effect that reads
+    them. Arity comes from `params`, never guessed from `value`: a `Suit?`
+    domain's `None` (no-trump) is a legitimate arity-1 VALUE, distinct from a
+    nullary candidate's `None` (`_pack` collapses both to bare `None`, so only
+    `params` can disambiguate). Branching on `value is None` instead would
+    silently drop the binding for a `None`-valued arity-1 candidate, and any
+    guard/effect read of that parameter would then raise `KeyError`."""
+    if not params:
+        return ctx
+    combo = (value,) if len(params) == 1 else tuple(value)
+    for p, v in zip(params, combo):
+        ctx = ctx.with_local(p.name, v)
+    return ctx
+
+
+def concrete_moves(mt: "n.MoveTypeDef", actor: Player, ctx: Ctx) -> list[tuple[str, Any]]:
+    """The guard-filtered candidate list for one move type: the cross-product of
+    its parameters' domains, in declaration order, each combo guard-checked with
+    all parameters bound. Nullary is the empty-product case (one empty combo)."""
+    pctx = ctx.acting_as(actor)
+    domains = [param_domain(p, actor, pctx) for p in mt.params]
+    out: list[tuple[str, Any]] = []
+    for combo in itertools.product(*domains):
+        vctx = bind_params(pctx, mt.params, _pack(combo))
+        if mt.guard is None or bool(evaluate(mt.guard, vctx)):
+            out.append((mt.name, _pack(combo)))
+    return out
+
+
 class AuctionForm:
     """The auction/betting form: a continuous ring over a move vocabulary, looping
     until the termination predicate holds.
@@ -303,42 +361,15 @@ class AuctionForm:
             # skip mutates nothing, so the top-of-loop `terminated` cannot flip).
 
     def candidates(self, actor: Player, state: State, ctx: Ctx) -> list[Any]:
-        pctx = ctx.acting_as(actor)
-        # The static move-parameter domains, sourced from the live runtime
-        # state: `ranks` ordered strongest-first from the game's own
-        # `ranking:` declaration (`rs.rank_index` maps rank -> strength), and
-        # `players` the seat tuple. Suits are the module's standard four
-        # (`SUITS`) — this call site has always used that fixed set, even
-        # pre-dating declared parameter domains, so this keeps it unchanged.
-        rs = pctx.rs
-        ranks: list[str] = sorted(rs.rank_index, key=lambda r: rs.rank_index[r], reverse=True)
-        players: list[int] = list(rs.seating.players)
+        # Every move type's guard-filtered cross product (`concrete_moves`),
+        # concatenated in vocabulary order — one flat candidate list, matching
+        # OpenSpiel's one-decision-node-per-turn action set. The Card domain
+        # (state-dependent: the actor's live hand, in hand order) and the
+        # Suit/Suit?/Rank/Player domains (deck/seating-sourced) are both handled
+        # inside `concrete_moves`/`param_domain`.
         candidates: list[tuple[str, Any]] = []
         for mt in self.move_defs:
-            p = mt.params[0] if mt.params else None
-            if p is None:
-                if mt.guard is None or bool(evaluate(mt.guard, pctx)):
-                    candidates.append((mt.name, None))
-            else:
-                if p.type_name == "Card":
-                    # The Card domain is state-dependent: the actor's LIVE HAND,
-                    # in hand order. A static deck-order enumeration filtered to
-                    # the hand would reorder the candidates and shift the chooser
-                    # draw — card plays are offered in hand order, like every
-                    # other card-play form. The OpenSpiel action space never
-                    # enumerates this domain; a Card-parameterized move's actions
-                    # are the shared card block (encoding.ActionSpace).
-                    domain: list[Any] = list(
-                        pctx.rs.zones.instance("hand", actor).cards
-                    )
-                else:
-                    domain = enumerate_domain(
-                        p.type_name, suits=SUITS, ranks=ranks, players=players
-                    )
-                for value in domain:
-                    vctx = pctx.with_local(p.name, value)
-                    if mt.guard is None or bool(evaluate(mt.guard, vctx)):
-                        candidates.append((mt.name, value))
+            candidates.extend(concrete_moves(mt, actor, ctx))
         if not candidates:
             # A participant offered a turn must have a legal move — the
             # finite-action invariant of a decision node. The engine does NOT
@@ -364,8 +395,7 @@ class AuctionForm:
         name, value = choice
         mt = ctx.rs.move_type_index[name]
         pctx = ctx.acting_as(actor)
-        p = mt.params[0] if mt.params else None
-        eff_ctx = pctx.with_local(p.name, value) if p is not None else pctx
+        eff_ctx = bind_params(pctx, mt.params, value)
         run_body(mt.effect, eff_ctx)
         state["history"].append((actor, name, value))
         return state
