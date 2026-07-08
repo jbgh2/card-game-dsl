@@ -177,102 +177,70 @@ Things we have noted but consciously not designed yet:
 
 ## Suggested next steps, in order
 
-The [open-questions/_index.md](open-questions/_index.md) orders open
-questions by impact × actionability; Tier 1 there are the questions ready
-to commit now. This section adds the context the open-questions list
-doesn't carry: which next game would unblock Tier 2, and the meta-level
-work (OpenSpiel compilation, dealer promotion) that lives outside the
-open-question framing.
+[open-questions/_index.md](open-questions/_index.md) orders the open
+questions by impact × actionability and is the authority on question
+priority. This section adds what that list doesn't carry: the cross-cutting
+work that isn't an open question, and which next game unblocks what.
 
-1. **Tier 1 is empty.** All four original Tier 1 questions have
-   been resolved into decisions.md:
-   - `sub-phase-rule-syntax` → "Sub-phase rule and legal-move deltas"
-   - `triggered-scoring` → "Triggered scoring components"
-   - `actor-vs-chooser` → "Delegated play"
-   - `mechanic-internal-legality` → folded into "State scoping (lexical)"
-     (a round form's state frame is in scope for rules via standard
-     lexical nesting). Stud's betting legality later moved onto the kernel
-     `round`'s move-type `when:` guards over phase state, not rules.
+1. **Resolve [move-parameter-domains](open-questions/move-parameter-domains.md)
+   (Tier 1 — ready now).** The bounded-`Integer` parameter/`choose` domain,
+   the remainder after Rank/Player landed in decisions.md ("Declared
+   parameter domains"); retires the `_MAX_CHOOSE` magic constant.
 
-2. **Tier 2 is empty.** All Tier 2 questions resolved. The remaining
-   open questions are Tier 3 (medium impact, narrow scope) and below;
-   each is a small targeted question that can be tackled when its
-   corner of the language gets exercised. The full candidate pipeline
-   lives in [games/_candidates.md](games/_candidates.md).
+2. **Build the actionable-now information-partition checks.** From
+   [open-questions/structural-infoset-proofs.md](open-questions/structural-infoset-proofs.md)
+   ("Actionable now"): legal-action agreement, the seed/rng
+   non-observability assertions, adapter agreement, and the enumerated
+   per-visible-fact soundness perturbations — plus the witness-and-coverage
+   reporting obligations. All buildable against today's swap-and-replay
+   harness; none waits on that question's blocking data point. These close
+   the certification gaps that make partition claims citable.
 
-   Triggered-scoring was unblocked by Cribbage, bidding-meaning by
-   Oh Hell, and structured-score landed in decisions.md after Skat
-   confirmed the per-game pattern (see decisions.md "Scoring
-   composition"). Coup, the second resource-using game, resolved
-   the resource amount and transfer-failure questions (see decisions.md
-   "Resource amount syntax" and "Resource transfer failure").
+3. **The Workstream 5 chooser upgrade**
+   ([kernel-migration.md](kernel-migration.md), Workstream 5's recorded
+   scope boundary): upgrade Tichu's call windows and Coup's response
+   windows, claimed characters, and targets from rng primitives to real
+   player decisions. A behaviour change with new goldens and its own
+   sign-off, not a migration. It changes what the information partition *is*
+   for those two games — so it precedes any external partition claim — and
+   its non-trick-shaped visibility (public challenge outcomes, a publicly
+   revealed proof card, a private replacement draw) is a natural first
+   exercise for step 2's checks.
 
-   Headline recommendations from the pipeline:
+4. **Pick the next game for its unblocks.** The full pipeline is
+   [games/_candidates.md](games/_candidates.md); several candidates each
+   unblock more than one open question:
 
-   - **The `climb` kernel migration — done for both instances.** Big Two
-     and Tichu both run on the `climb` kernel `round` construct with
-     game-local combination queries (`cardlang/runtime/bigtwo.py`,
-     `cardlang/runtime/tichu.py` over the shared `combinations.py`);
-     both monoliths are deleted
-     ([kernel-migration.md](kernel-migration.md), "Workstream 3").
-     **President** ([games/_candidates.md](games/_candidates.md),
-     "Climbing & shedding") is the simpler third climbing instance —
-     the promote-at-the-third trigger for a shared combination model.
-   - **Klondike or FreeCell** — first solitaire; tests positional
-     zones. Doesn't directly unblock a Tier 2 question but forces a
-     deferred design decision.
-   - **Doppelkopf** — the highest-value in-scope candidate: a verified
-     forcing function for *both* `zone-access-syntax` (Fox/Charlie/Re
-     scoring read a multi-hop relational chain over who holds the ♣Q)
-     and `optional-window-moves` (the Re/Kontra/no-90 ladder is an
-     off-the-clock declaration on a personal hand-size threshold). See
-     [games/_candidates.md](games/_candidates.md).
-   - **Klondike** / **Hanabi** — would each force a different deferred
-     design corner (positional zones; the partial-identity hint that
-     `memory-event-syntax` was waiting for). Hanabi is a dedicated-deck
-     game, so it's gated on a scope decision. Both are bigger swings
-     than the trick-and-bidding games we've been doing. (Coup, a former
-     candidate here, is now in the corpus; it exercised the
-     knowledge-event and challenge-mechanism corners and confirmed the
-     simultaneous-body-grammar boundary.)
+   - **500 or Belote** — the unequally-observed phase outcome that
+     [knowledge-events](open-questions/knowledge-events.md) awaits (500's
+     open misère reveal; Belote's in-play declarations), and plausibly also
+     the compound hidden-function probe that blocks
+     [structural-infoset-proofs](open-questions/structural-infoset-proofs.md)'
+     constructive world generator — one game, two unblocks.
+   - **President** — the corpus-quality anchor
+     [turn-loop-form](open-questions/turn-loop-form.md) is blocked on, and
+     the third climbing instance that triggers promoting a shared
+     combination model to the standard library.
+   - **Gin Rummy** — the other turn-loop-form anchor, and the rummy-family
+     game [meld-groups](open-questions/meld-groups.md) is blocked on.
+   - **Doppelkopf** — a verified forcing function for both
+     [zone-access-syntax](open-questions/zone-access-syntax.md) and
+     [optional-window-moves](open-questions/optional-window-moves.md).
+   - **Klondike or FreeCell** — first solitaire; forces the deferred
+     positional-zone design rather than an open question.
 
-3. **Address Tier 3 questions when their corner of the language
-   gets exercised.** Coup, the second resource-using game, resolved
-   the resource amount and transfer-failure questions (now in
-   decisions.md). The remaining resource/visibility refinement,
-   [move-level-visibility](open-questions/move-level-visibility.md),
-   is still open: Coup used only zone-default projections and never
-   needed a move-level override, so the override-replace-vs-merge
-   question awaits a game that does.
-   [zone-access-syntax](open-questions/zone-access-syntax.md) waits for
-   a game whose natural notation puts a complex relational chain in
-   subject position.
+5. **Address Tier 3 questions when their corner gets exercised.**
+   [move-level-visibility](open-questions/move-level-visibility.md) awaits
+   the first game needing a move-level projection override;
+   [zone-access-syntax](open-questions/zone-access-syntax.md) awaits a
+   complex relational chain in subject position (Doppelkopf, above). When
+   these land, the step-2 checks are their acceptance bar: new visibility
+   surface arrives with derived partition coverage, not bespoke tests.
 
-4. **Pin down [memory-event-syntax](open-questions/memory-event-syntax.md)**
-   when three or four examples exist beyond stdlib operations. Stud is
-   the first, Coup the second (its challenge-defense composes stdlib
-   ops rather than declaring a custom event — see the open-question
-   file); one or two more before pinning the syntax.
+6. **Pin down [memory-event-syntax](open-questions/memory-event-syntax.md)**
+   when three or four examples exist beyond stdlib operations (Stud and
+   Coup are the two so far; both composed the closed vocabulary without
+   needing a declaration).
 
-5. **Tier 4 cleanups landed.** Counters and dealer-promotion are
-   both resolved — counters as inline expressions or per-game
-   helpers (see decisions.md "Scoring composition"); dealer as a
-   stdlib state variable (see library.md "Stdlib state").
-
-6. **Defer Tier 5 cosmetic questions** until a real preference
-   emerges from corpus pressure.
-
-7. **Build the parser + static checker first.** Before the
-    OpenSpiel compilation pass, the near-term tooling milestone is a
-    grammar and a static checker that force the spec to be precise,
-    with the corpus as the test suite. See
-    [implementation.md](implementation.md).
-
-8. **Begin sketching the OpenSpiel compilation pass.** The
-    [decisions.md](decisions.md) "Knowledge, visibility, and the
-    projection model" section establishes perfect-recall-by-default;
-    [decisions.md](decisions.md) "State scoping" establishes lexical
-    scoping compiles to standard activation records; the
-    knowledge-projection model gives OpenSpiel's
-    `information_state_tensor` the per-observer event stream it
-    needs. The compilation story has substantial scaffolding now.
+7. **Defer Tier 5 cosmetic questions** until a real preference emerges
+   from corpus pressure.
