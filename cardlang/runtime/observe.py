@@ -37,7 +37,11 @@ def render(value: Any) -> Any:
         return tuple(sorted(str(c) for c in value))
     if isinstance(value, tuple) and len(value) == 2 and isinstance(value[0], str):
         name, param = value  # a (move_type, param) auction/betting candidate
-        return name if param is None else f"{name}({param})"
+        if param is None:
+            return name
+        if isinstance(param, tuple):  # a multi-parameter move: render each value
+            return f"{name}(" + ",".join(str(v) for v in param) + ")"
+        return f"{name}({param})"
     cards = getattr(value, "cards", None)
     if cards is not None:  # a combination play (climb engines)
         kind = getattr(value, "kind", "combo")
