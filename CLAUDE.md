@@ -114,7 +114,7 @@ docs/
 - **"How do we keep info sets derivable / hit the OpenSpiel target?"** → the load-bearing section above, then `docs/design-notes/kernel-extensibility.md`
 - **"How complete must a new construct be?"** → `docs/decisions.md`, "Surface totality"
 - **"What's still being decided?"** → `docs/open-questions/_index.md` then the named file
-- **"What should we build next?"** → `docs/roadmap.md` (and `docs/games/_candidates.md` for the full pipeline)
+- **"What should we build next?" / "In what order?"** → `docs/roadmap.md`, "Suggested next steps, in order" — the authority on cross-cutting task sequence. `docs/open-questions/_index.md` owns question *priority*; `docs/games/_candidates.md` holds the full game pipeline.
 - **"How do we build the tooling (parser/checker)?"** → `docs/implementation.md`, `docs/building.md`
 - **"How do we remove the per-game Python mechanics?"** → `docs/kernel-migration.md`
 - **"Which game uses which state variable?"** → `docs/appendix.md` (corpus catalogue)
@@ -206,4 +206,4 @@ or scrape the site — use it on demand, like any other reference.
 
 CCG-style card effects (Magic, Yu-Gi-Oh!), deck-builders, and solitaire
 positional layouts are deferred. See `docs/roadmap.md` for the full list of
-explicitly deferred work and the recommended next game (Cribbage).
+explicitly deferred work and the ordered next steps.
