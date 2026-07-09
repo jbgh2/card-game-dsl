@@ -1,4 +1,5 @@
-"""A `move_type` may carry one typed parameter drawn from an enumerable domain.
+"""A `move_type` may carry a typed parameter drawn from an enumerable domain,
+stored in ``params`` (a tuple; a single-parameter move has ``len(params) == 1``).
 
 This is the first WS1 (auction) primitive: an auction's move vocabulary is
 parameterized moves (Bridge's `submit_bid(strain)`), whose legal instantiations a
@@ -31,22 +32,22 @@ move_type pick(s : Suit?) { effect { picked[actor] := s } }
 def test_parameterized_move_type_records_param() -> None:
     game = parse_text(SRC, "g.cardlang")
     pick = next(m for m in game.move_types if m.name == "pick")
-    assert pick.param is not None
-    assert pick.param.name == "s"
-    assert pick.param.type_name == "Suit?"
+    assert len(pick.params) == 1
+    assert pick.params[0].name == "s"
+    assert pick.params[0].type_name == "Suit?"
 
 
 def test_nullary_move_type_has_no_param() -> None:
-    # A move_type without parentheses keeps param=None (the existing form).
+    # A move_type without parentheses keeps params=() (the existing form).
     src = SRC.replace("move_type pick(s : Suit?)", "move_type pick").replace(
         "picked[actor] := s", "coins[actor] += 1"
     )
     game = parse_text(src, "g.cardlang")
     pick = next(m for m in game.move_types if m.name == "pick")
-    assert pick.param is None
+    assert pick.params == ()
 
 
 def test_parameterized_move_type_round_trips_to_ir() -> None:
     ir: Any = emit(check_dsl(SRC, "g.cardlang"))
     pick = next(m for m in ir["move_types"] if m["name"] == "pick")
-    assert pick["param"] == {"name": "s", "type_name": "Suit?"}
+    assert pick["params"] == [{"name": "s", "type_name": "Suit?"}]

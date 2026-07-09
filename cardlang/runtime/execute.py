@@ -310,12 +310,20 @@ def _for_each(stmt: n.ForEach, ctx: Ctx) -> None:
 def _offer(stmt: n.Offer, ctx: Ctx) -> None:
     player = evaluate(stmt.player, ctx)
     pctx = ctx.acting_as(player)
-    legal = [
-        name
-        for name in stmt.move_types
-        if _move_legal(ctx.rs.move_type_index[name], pctx)
-    ]
-    if not legal:
+    # Every named move type's guard-filtered cross product (`concrete_moves`),
+    # concatenated in the vocabulary's declared order — one flat candidate
+    # list, exactly like the auction form. A nullary move (every offer-using
+    # game today) contributes at most one `(name, None)` candidate, in the
+    # same order the old bare-name list did, so the chooser draws the same
+    # index; `render()` turns `(name, None)` back into the bare name for
+    # observation, so `observe.announce`/`observe.choice` see identical text.
+    # `pctx` (already bound to `player`) is threaded into `concrete_moves` so
+    # the binding isn't redundantly recomputed for every move type in the
+    # vocabulary.
+    candidates: list[tuple[str, Any]] = []
+    for name in stmt.move_types:
+        candidates.extend(mechanics.concrete_moves(ctx.rs.move_type_index[name], player, pctx))
+    if not candidates:
         # No implicit skip: a decision point must have a legal move. The explicit
         # alternatives are the game's — an always-legal move in the vocabulary (an
         # unguarded `pass`/`decline`), or guarding the offer (`if <able> { offer …
@@ -325,14 +333,12 @@ def _offer(stmt: n.Offer, ctx: Ctx) -> None:
             f"Add an always-legal move (an unguarded `pass`/`decline`) or guard the "
             f"offer so it is only made when the player can act."
         )
-    chosen = ctx.chooser(player, legal, 1)[0]
+    chosen = ctx.chooser(player, candidates, 1)[0]
     observe.choice(ctx, player, chosen)
     observe.announce(ctx, player, chosen)
-    run_body(ctx.rs.move_type_index[chosen].effect, pctx)
-
-
-def _move_legal(mt: n.MoveTypeDef, ctx: Ctx) -> bool:
-    return mt.guard is None or bool(evaluate(mt.guard, ctx))
+    name, value = chosen
+    mt = ctx.rs.move_type_index[name]
+    run_body(mt.effect, mechanics.bind_params(pctx, mt.params, value))
 
 
 def _produces(stmt: n.Produces, ctx: Ctx) -> None:

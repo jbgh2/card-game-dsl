@@ -16,10 +16,11 @@ folder, and remove the entry from this index. See
 
 ## Tier 1 — High impact, enough data to commit now
 
-- [move-parameter-domains](move-parameter-domains.md) — declared finite
-  parameter domains (Rank/Player/bounded Integer) enumerable by plain
-  `offer`, doubling as the OpenSpiel action-space contract; three
-  independent stress-sweep games hit the nullary-move-type explosion.
+- [move-parameter-domains](move-parameter-domains.md) — a bounded-`Integer`
+  parameter/`choose` domain, whose bound can be runtime-computed (Oh Hell's
+  `hand_size`), reconciled against OpenSpiel's fixed action space (retiring
+  the `_MAX_CHOOSE` magic constant); Ninety-Nine's stress-sweep nullary
+  explosion and Oh Hell's `_MAX_CHOOSE` are its data points.
 
 ## Tier 2 — High impact, blocked on a data point
 

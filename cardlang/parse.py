@@ -956,16 +956,18 @@ class _Builder(Transformer[Token, n.Game]):
         name = str(c[0])
         guard: object | None = None
         effect: tuple[object, ...] = ()
-        param: n.MoveParam | None = None
         for item in c[1:]:
-            if isinstance(item, n.MoveParam):
-                param = item
-            elif isinstance(item, _MoveWhen):
+            if isinstance(item, _MoveWhen):
                 guard = None if isinstance(item.pred, _Always) else _as_expr(item.pred)
             elif isinstance(item, _MoveEffect):
                 effect = item.body
+        params = tuple(x for x in c if isinstance(x, n.MoveParam))
         return n.MoveTypeDef(
-            name=name, guard=guard, effect=effect, param=param, span=self._span(meta)  # type: ignore[arg-type]
+            name=name,
+            guard=guard,  # type: ignore[arg-type]
+            effect=effect,  # type: ignore[arg-type]
+            params=params,
+            span=self._span(meta),
         )
 
     def func_param(self, meta: Meta, c: list[object]) -> n.MoveParam:

@@ -3,7 +3,7 @@
 Hidden zone `hole`: Stud's hidden cards live in `hole` (its `upcards` are
 public); everyone else in the corpus hides a `hand`.
 
-`swap_any_pair`: Stud's recorded actions are betting vocabulary — none names
+`swap_axis="any"`: Stud's recorded actions are betting vocabulary — none names
 a card — so ANY hole swap replays legally (and its two-card holes rarely
 share a suit, so the harness's default same-suit filter would starve the
 pool).
@@ -29,7 +29,7 @@ class TestReadiness(ReadinessProofs):
         "seven-card-stud.cardlang",
         hidden_zone="hole",
         conformance_steps=120,
-        swap_any_pair=True,
+        swap_axis="any",
     )
 
 

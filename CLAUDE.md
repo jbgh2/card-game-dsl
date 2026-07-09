@@ -26,9 +26,9 @@ concealed bids this is genuinely hard — and it is exactly where the value is.
 
 **Honest status — every corpus game is fully kernel with derived info sets;
 scope reductions are the remaining honesty line.**
-All fourteen games (Hearts, Getaway, Spades, Bridge, Oh Hell, Big
+All fifteen games (Hearts, Getaway, Spades, Bridge, Oh Hell, Big
 Two, Seven-Card Stud, Pinochle, French Tarot, Cribbage, Schnapsen, Skat,
-Tichu, Coup) reach
+Tichu, Coup, Go Fish) reach
 OpenSpiel through
 ONE general adapter with *derived* information sets: per-observer observations are
 emitted from the kernel's decision/movement sites through the declared
@@ -41,7 +41,16 @@ auctions — the harness's greedy replay never places a bid, let alone reaches
 the chien discard or trick play; French Tarot's hidden discard, Schnapsen's
 lead actions, Skat's pickup/discard, Tichu's push, and Coup's influence flips
 are instead
-proven derived by dedicated observational tests. Stud's, French Tarot's, and
+proven derived by dedicated observational tests. Go Fish's swap proof pairs
+same-rank cards rather than same-suit ones — the harness gained a
+`swap_axis` for rank-probing games, since a same-suit swap can change a
+publicly observed transfer count — and its public-ask / transfer-count
+derivation (that a legal ask itself proves the asker holds the named rank) is
+likewise proven by dedicated observational tests rather than the swap probe
+(the general pattern — the empirical harness accreting a new per-game
+exception with every information structure the corpus adds — is tracked in
+`docs/open-questions/structural-infoset-proofs.md`).
+Stud's, French Tarot's, and
 Tichu's conformance are bounded random API walks, their full sims being
 quadratic-in-length). No per-game observation rules remain, no Python
 escape-hatch mechanic exists (the `instantiate` construct is deleted), and no
@@ -178,7 +187,8 @@ The corpus today: Hearts, Getaway (Bhabhi), Spades, Pinochle, Bridge
 Cribbage
 (six-card, two-player), Oh Hell (four-player), Skat (three-player,
 DSkV rules), French Tarot (four-player, FFT rules), Coup
-(base game, 3–6 players), Big Two (four-player, standard). Each is a
+(base game, 3–6 players), Big Two (four-player, standard), Go Fish
+(four-player, standard). Each is a
 complete description: a non-player should be able to read the file
 cold and play a hand. That's the acceptance test for clarity.
 

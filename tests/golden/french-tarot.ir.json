@@ -1683,7 +1683,7 @@
     {
       "kind": "move_type",
       "name": "pass",
-      "param": null,
+      "params": [],
       "guard": null,
       "effect": [
         {
@@ -1706,7 +1706,7 @@
     {
       "kind": "move_type",
       "name": "bid_petite",
-      "param": null,
+      "params": [],
       "guard": {
         "kind": "binop",
         "op": "<",
@@ -1762,7 +1762,7 @@
     {
       "kind": "move_type",
       "name": "bid_garde",
-      "param": null,
+      "params": [],
       "guard": {
         "kind": "binop",
         "op": "<",
@@ -1818,7 +1818,7 @@
     {
       "kind": "move_type",
       "name": "bid_garde_sans",
-      "param": null,
+      "params": [],
       "guard": {
         "kind": "binop",
         "op": "<",
@@ -1874,7 +1874,7 @@
     {
       "kind": "move_type",
       "name": "bid_garde_contre",
-      "param": null,
+      "params": [],
       "guard": {
         "kind": "binop",
         "op": "<",

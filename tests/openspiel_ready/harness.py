@@ -23,7 +23,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
 import pytest
 
@@ -74,32 +74,38 @@ class GameSpec:
     # terminal handling if reached.
     conformance_steps: int | None = None
 
-    # Swappable hidden-card pairs must keep every recorded action legal in
-    # the swapped world. Games whose recorded actions are cards (or card
-    # combos) need same-suit swaps; a game may set True when NO recorded
-    # action names a card (e.g. a betting vocabulary), so ANY hidden swap
-    # replays legally.
-    swap_any_pair: bool = False
+    # Which equivalence class a hidden swap must stay within so the swapped
+    # world is genuinely indistinguishable to the observer (the swap must not
+    # change any PUBLIC observation). "suit": follow-suit trick games (default,
+    # today's behavior). "rank": rank-probing games (Go Fish — a public ask's
+    # transfer COUNT is observed, so only same-rank swaps preserve it).
+    # "any": no public card/rank observation (a pure betting vocabulary).
+    swap_axis: Literal["suit", "rank", "any"] = "suit"
 
     @property
     def path(self) -> str:
         return str(GAMES_DIR / self.filename)
 
     def swap_pairs(self, hand1: list[Any], hand2: list[Any]) -> list[Any]:
-        """Swappable hidden-card pairs between two hidden card lists."""
-        if self.swap_any_pair:
+        """Swappable hidden-card pairs that keep the swapped world indistinguishable."""
+        if self.swap_axis == "rank":
+            return [(x, y) for x in hand1 for y in hand2 if x.rank == y.rank and x.suit != y.suit]
+        elif self.swap_axis == "any":
             return [(x, y) for x in hand1 for y in hand2 if x != y]
-        three_d = ("3", "diamonds")
-        return [
-            (x, y)
-            for x in hand1
-            for y in hand2
-            if x.suit == y.suit
-            and x != y
-            # keep the 3♦ fixed: Big Two's opening filter keys on that exact card
-            and (x.rank, x.suit) != three_d
-            and (y.rank, y.suit) != three_d
-        ]
+        elif self.swap_axis == "suit":
+            three_d = ("3", "diamonds")
+            return [
+                (x, y)
+                for x in hand1
+                for y in hand2
+                if x.suit == y.suit
+                and x != y
+                # keep the 3♦ fixed: Big Two's opening filter keys on that exact card
+                and (x.rank, x.suit) != three_d
+                and (y.rank, y.suit) != three_d
+            ]
+        else:
+            raise ValueError(f"unknown swap_axis {self.swap_axis!r}")
 
 
 def _advance(path: str, seed: int, depth: int) -> tuple[list[int], Pause]:
@@ -242,7 +248,12 @@ class ReadinessProofs:
         opp = next(q for q in range(len(r0.obs_logs)) if q != p)
         own = r0.rs.zones.instance(hz, p).cards
         theirs = r0.rs.zones.instance(hz, opp).cards
-        x, y = next(iter(spec.swap_pairs(own, theirs)))
+        pairs = spec.swap_pairs(own, theirs)
+        assert pairs, (
+            f"{spec.short_name}: no swap pair for soundness at this seed/depth — "
+            f"adjust the spec"
+        )
+        x, y = pairs[0]
         info_a = information_state(p, r0.rs, r0.obs_logs[p])
         r1 = run(path, 5, (), on_first_decision=_swap_fn((hz, p), (hz, opp), x, y))
         assert isinstance(r1, Pause)

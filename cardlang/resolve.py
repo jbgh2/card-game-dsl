@@ -371,13 +371,14 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         arms = tuple(_rewrite_produce_arm(arm, cats, bag) for arm in node.arms)
         return replace(node, arms=arms)
     if isinstance(node, n.MoveTypeDef):
-        # The parameter binds only in this move's guard/effect — scope it here
+        # The parameters bind only in this move's guard/effect — scope them here
         # rather than the game-wide `locals` set (which would shadow a same-named
-        # state var everywhere; mirrors the produce-arm binders above).
+        # state var everywhere; mirrors the produce-arm binders above, and the
+        # function-parameter branch below for the identical params-tuple shape).
         scoped = (
-            cats
-            if node.param is None
-            else replace(cats, locals=cats.locals | {node.param.name})
+            replace(cats, locals=cats.locals | {p.name for p in node.params})
+            if node.params
+            else cats
         )
         guard = _rewrite_value(node.guard, scoped, bag) if node.guard is not None else None
         effect = tuple(_rewrite(s, scoped, bag) for s in node.effect)
@@ -479,6 +480,154 @@ def _reaches(start: str, target: str, calls: dict[str, set[str]]) -> bool:
     return False
 
 
+# The closed set of statically enumerable move-parameter domains (decisions.md
+# "Surface totality"), matched by exact string — not by stripping a trailing
+# `?` — because only `Suit?` has a real nullable enumeration (`enumerate_domain`
+# appends `None` in the `Suit` branch only). `Rank?`/`Player?` parse (payload
+# types are generically optional-able) but have no such enumeration, so they
+# fall through to the "unsupported domain" branch below rather than being
+# silently accepted and then ignored at runtime. `Card` is deliberately absent
+# from this set: it is state-dependent (the live hand), allowed only as a
+# move's sole parameter, and checked separately below.
+_FIXED_DOMAINS = frozenset({"Suit", "Suit?", "Rank", "Player"})
+
+
+def _check_move_params(
+    mt: n.MoveTypeDef, bag: DiagnosticBag, span: Span | None, has_ranking: bool
+) -> None:
+    """Totality gate for a parameterized move offered/enumerated in a decision
+    (an `offer` statement or a `round offering` vocabulary). Fixed-from-type
+    domains (`Suit`/`Suit?`/`Rank`/`Player`) and a single `Card` parameter are
+    allowed; a `Card` parameter combined with any other parameter, a
+    bounded-`Integer` parameter (deferred), two parameters sharing a name, and
+    a `Rank` parameter in a game with no declared `ranking:` (`has_ranking`)
+    are rejected with a message.
+
+    `has_ranking` gates only `Rank`: `Player`'s domain is the seats, always
+    non-empty for a real game, and `Suit`'s is `deck_suits`, always non-empty
+    for a real deck — neither can be empty the way `game.ranking` (optional,
+    `()` by default) can. Without this gate, a Rank-parameterized move in a
+    no-`ranking:` game would pass resolve clean and only fail at runtime,
+    mid-decision, once `param_domain` enumerates the empty `rank_index` and
+    the move contributes zero candidates — a crash where a compile-time
+    diagnostic belongs (CLAUDE.md "Surface totality")."""
+    types = [p.type_name for p in mt.params]
+    if "Card" in types and len(types) > 1:
+        bag.error(
+            f"move '{mt.name}' combines a Card parameter with another parameter; "
+            f"Card's domain is the live hand and its actions are the card block, "
+            f"so a Card parameter cannot be combined with another parameter "
+            f"(fold into one parameter)",
+            span,
+        )
+    names = [p.name for p in mt.params]
+    dup_names = sorted({name for name in names if names.count(name) > 1})
+    if dup_names:
+        bag.error(
+            f"move '{mt.name}' declares more than one parameter named "
+            f"{', '.join(dup_names)}; `bind_params` binds parameters by name, "
+            f"so a repeated name silently shadows the earlier parameter instead "
+            f"of binding both (rename one)",
+            span,
+        )
+    for t in types:
+        if t.rstrip("?") == "Integer":
+            bag.error(
+                f"move '{mt.name}' has parameter domain '{t}'; bounded-Integer "
+                f"parameter domains are deferred (see "
+                f"open-questions/move-parameter-domains.md)",
+                span,
+            )
+        elif t not in _FIXED_DOMAINS and t != "Card":
+            bag.error(
+                f"move '{mt.name}' has unsupported parameter domain '{t}' "
+                f"(expected Suit, Suit?, Rank, Player, or Card)",
+                span,
+            )
+        # Exact string, matching `_FIXED_DOMAINS`'s own convention (never by
+        # stripping a trailing `?`): `Rank?` is not in `_FIXED_DOMAINS`, so it
+        # is already rejected by the elif above and never reaches this branch
+        # — only bare `Rank` needs the non-empty-`ranking:` gate.
+        elif t == "Rank" and not has_ranking:
+            bag.error(
+                f"move '{mt.name}' has a Rank parameter, but the game declares "
+                f"no ranking: — Rank enumerates the declared ranking, so it "
+                f"needs a non-empty one",
+                span,
+            )
+
+
+def _check_card_vocabulary(
+    names: tuple[str, ...],
+    move_type_defs: dict[str, n.MoveTypeDef],
+    game: n.Game,
+    bag: DiagnosticBag,
+    span: Span | None,
+) -> None:
+    """The Card domain's constraints on a vocabulary of move types, wherever
+    one is enumerated (a plain `offer` or the auction `round offering` — both
+    fold a Card-parameterized move through the same `param_domain`/
+    `card_to_action` machinery, decisions.md "Declared parameter
+    domains"): at most one Card-parameterized move (its OpenSpiel action id
+    is the card itself, so a second would be indistinguishable by id — both
+    `offer` and `round offering` would otherwise collapse two card plays onto
+    one action, cardlang/openspiel/encoding.py), and the actor's
+    `hand[player]` zone must exist (`param_domain`'s Card branch enumerates
+    it; without one the decision crashes mid-playout). Unknown move names are
+    skipped — the caller's own loop already reports those."""
+    card_param_moves = [
+        name
+        for name in names
+        if name in move_type_defs
+        and len(move_type_defs[name].params) == 1
+        and move_type_defs[name].params[0].type_name == "Card"
+    ]
+    if len(card_param_moves) > 1:
+        bag.error(
+            f"vocabulary declares more than one Card-parameterized move "
+            f"({', '.join(card_param_moves)}); a card play's action is the "
+            f"card itself, so a second Card-parameterized move would be "
+            f"indistinguishable — fold them into one move type",
+            span,
+        )
+    if card_param_moves and not any(
+        z.name == "hand" and z.index == "player" for z in game.zones
+    ):
+        bag.error(
+            f"vocabulary move '{card_param_moves[0]}' takes a Card parameter, "
+            f"which enumerates the actor's `hand[player]` zone — this game "
+            f"declares none",
+            span,
+        )
+
+
+def _check_vocabulary_moves(
+    names: tuple[str, ...],
+    move_type_defs: dict[str, n.MoveTypeDef],
+    defined_move_types: set[str],
+    bag: DiagnosticBag,
+    span: Span | None,
+    unknown_msg: str,
+    has_ranking: bool,
+) -> None:
+    """The shared body of a vocabulary's per-name loop, wherever one is
+    enumerated (a plain `offer` or the auction `round offering` —
+    `_check_card_vocabulary`'s docstring has the same "wherever one is
+    enumerated" rationale): every named move type must be defined, and a
+    defined, parameterized one passes `_check_move_params`'s totality gate.
+    `unknown_msg` is the caller-specific wording for an unknown name (the two
+    call sites differ only in this message, "offer ..." vs "round vocabulary
+    ..."). `has_ranking` (`bool(game.ranking)`) is threaded through to
+    `_check_move_params`'s Rank-needs-a-declared-ranking gate."""
+    for name in names:
+        if name not in defined_move_types:
+            bag.error(f"{unknown_msg} '{name}'", span)
+            continue
+        mt = move_type_defs[name]
+        if mt.params:
+            _check_move_params(mt, bag, span, has_ranking)
+
+
 def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     move_type_defs = {m.name: m for m in game.move_types}
     defined_move_types = set(move_type_defs)
@@ -521,72 +670,37 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
             case n.Winner() if nd.target not in cats.state_vars:
                 bag.error(f"winner references unknown variable '{nd.target}'", nd.span)
             case n.Offer():
-                for name in nd.move_types:
-                    if name not in defined_move_types:
-                        bag.error(f"offer names unknown move type '{name}'", nd.span)
-                    elif move_type_defs[name].param is not None:
-                        # `offer` picks a move by name and cannot supply a parameter;
-                        # a parameterized move belongs in an auction `round offering`,
-                        # which enumerates the parameter's domain.
-                        bag.error(
-                            f"offer names parameterized move type '{name}'; only an "
-                            f"auction `round offering` can enumerate its parameter",
-                            nd.span,
-                        )
+                _check_vocabulary_moves(
+                    nd.move_types,
+                    move_type_defs,
+                    defined_move_types,
+                    bag,
+                    nd.span,
+                    "offer names unknown move type",
+                    bool(game.ranking),
+                )
+                _check_card_vocabulary(nd.move_types, move_type_defs, game, bag, nd.span)
             case n.Round() if nd.move_types is not None:
                 # Auction form: a vocabulary of game-defined move types, no card
                 # zones. The termination predicate's names are checked by the
                 # generic NameRef pass.
                 #
                 # Parameter domains are a closed set (decisions.md "Surface
-                # totality"): the runtime enumerates `Suit`/`Suit?` statically
-                # and `Card` over the actor's live hand — any other type would
-                # crash `enumerate_domain` mid-playout, so reject it here.
-                card_param_moves: list[str] = []
-                for name in nd.move_types:
-                    if name not in defined_move_types:
-                        bag.error(
-                            f"round vocabulary names unknown move type '{name}'",
-                            nd.span,
-                        )
-                        continue
-                    param = move_type_defs[name].param
-                    if param is None:
-                        continue
-                    if param.type_name == "Card":
-                        card_param_moves.append(name)
-                    elif param.type_name not in ("Suit", "Suit?"):
-                        bag.error(
-                            f"round vocabulary move '{name}' has parameter domain "
-                            f"'{param.type_name}'; an auction round can enumerate "
-                            f"only Suit, Suit? (fixed domains) or Card (the "
-                            f"actor's live hand)",
-                            nd.span,
-                        )
-                if len(card_param_moves) > 1:
-                    # A Card-parameterized move's OpenSpiel action id is the card
-                    # itself (the shared card block), so a second one in the same
-                    # vocabulary would make two moves indistinguishable by id.
-                    bag.error(
-                        f"round vocabulary declares more than one "
-                        f"Card-parameterized move "
-                        f"({', '.join(card_param_moves)}); a card play's action "
-                        f"is the card itself, so a second Card-parameterized "
-                        f"move would be indistinguishable — fold them into one "
-                        f"move type",
-                        nd.span,
-                    )
-                if card_param_moves and not any(
-                    z.name == "hand" and z.index == "player" for z in game.zones
-                ):
-                    # The Card domain enumerates the acting player's `hand`
-                    # instance; without one the round would crash mid-playout.
-                    bag.error(
-                        f"round vocabulary move '{card_param_moves[0]}' takes a "
-                        f"Card parameter, which enumerates the actor's "
-                        f"`hand[player]` zone — this game declares none",
-                        nd.span,
-                    )
+                # totality"): the runtime enumerates `Suit`/`Suit?`/`Rank`/
+                # `Player` statically and `Card` over the actor's live hand —
+                # any other type, or a domain combination `_check_move_params`
+                # rejects, would crash `enumerate_domain`/produce an
+                # indistinguishable action id mid-playout, so reject it here.
+                _check_vocabulary_moves(
+                    nd.move_types,
+                    move_type_defs,
+                    defined_move_types,
+                    bag,
+                    nd.span,
+                    "round vocabulary names unknown move type",
+                    bool(game.ranking),
+                )
+                _check_card_vocabulary(nd.move_types, move_type_defs, game, bag, nd.span)
                 # The betting form omits `outcome` (it mutates state directly and
                 # produces no variant); only an auction's outcome fn is validated.
                 if nd.outcome_fn is not None and nd.outcome_fn not in STDLIB_AUCTION_OUTCOMES:

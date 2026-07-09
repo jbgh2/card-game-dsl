@@ -137,6 +137,20 @@ def build_deck(deck_name: str) -> list[Card]:
     ]
 
 
+def deck_suits(deck_name: str) -> tuple[str, ...]:
+    """A deck's DISTINCT card suits, in first-appearance order — read from the
+    actual card block (`build_deck`), never the declared `Deck.suits` field.
+    `Deck.suits` alone is wrong for a non-uniform deck: tarot78 and tichu56
+    both declare the French `suits=SUITS`, but their real `cards` carry extra
+    suits `build_deck` iterates too (tarot78's "atouts"/"excuse", tichu56's
+    "special") that `Deck.suits` never lists. This is the ONE source both
+    `driver.py`'s `rs.suits` (the runtime move-parameter domain) and
+    `cardlang.openspiel.encoding.ActionSpace.for_game` (the advertised action
+    space) derive from, so the two can never diverge (mirrors how the Rank
+    domain is unified on `game.ranking`)."""
+    return tuple(dict.fromkeys(c.suit for c in build_deck(deck_name)))
+
+
 # A player is just an identity; the runtime uses small ints P0..P(n-1).
 Player = int
 

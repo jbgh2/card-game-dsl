@@ -42,7 +42,7 @@ design rather than amending it:
    foreign functions must be deterministic (replay and the swap proofs
    depend on it), and anything feeding a decision must have a finite,
    declared domain (see
-   [open-questions/move-parameter-domains.md](../open-questions/move-parameter-domains.md)).
+   [decisions.md](../decisions.md) "Declared parameter domains").
 
 One discipline governs how every axis below lands: **admission obliges
 totality**. Axes stay gated on witness games (corpus-first), but once an

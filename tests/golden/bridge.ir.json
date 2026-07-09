@@ -1609,7 +1609,7 @@
     {
       "kind": "move_type",
       "name": "pass",
-      "param": null,
+      "params": [],
       "guard": null,
       "effect": [
         {
@@ -1627,10 +1627,12 @@
     {
       "kind": "move_type",
       "name": "submit_bid",
-      "param": {
-        "name": "strain",
-        "type_name": "Suit?"
-      },
+      "params": [
+        {
+          "name": "strain",
+          "type_name": "Suit?"
+        }
+      ],
       "guard": {
         "kind": "binop",
         "op": "<=",
@@ -1726,7 +1728,7 @@
     {
       "kind": "move_type",
       "name": "double",
-      "param": null,
+      "params": [],
       "guard": {
         "kind": "binop",
         "op": "and",
@@ -1805,7 +1807,7 @@
     {
       "kind": "move_type",
       "name": "redouble",
-      "param": null,
+      "params": [],
       "guard": {
         "kind": "binop",
         "op": "and",

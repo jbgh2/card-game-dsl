@@ -24,12 +24,14 @@ representation, so a card's id is identical whether it is a leader's
 from __future__ import annotations
 
 import dataclasses
+import itertools
 from dataclasses import dataclass
 from typing import Any, Iterator
 
 from cardlang.ast import nodes as n
-from cardlang.runtime.mechanics import enumerate_domain
-from cardlang.runtime.values import RANKS, SUITS, Card, build_deck
+from cardlang.runtime.mechanics import _pack, enumerate_domain
+from cardlang.runtime.observe import render_candidate
+from cardlang.runtime.values import RANKS, SUITS, Card, build_deck, deck_suits
 
 NUM_DISTINCT_ACTIONS = len(SUITS) * len(RANKS)  # 52 — the standard card block
 
@@ -104,6 +106,29 @@ def _walk(node: Any) -> Iterator[Any]:
             yield from _walk(item)
 
 
+def _vocab_entries(
+    mt: n.MoveTypeDef,
+    suits: list[Any],
+    ranks: list[str],
+    players: list[int],
+) -> list[tuple[str, Any]]:
+    """One move type's vocab entries — nullary is the empty-product
+    `[(mt.name, None)]`; otherwise the full cross-product of its parameters'
+    *declared* (static) domains, one entry per combination, packed by the
+    SAME `mechanics._pack` the runtime's `concrete_moves` uses: arity 1 stays a
+    bare value (so an existing single-param vocab key like `("submit_bid",
+    "hearts")` is byte-identical), arity >= 2 packs as a tuple. Callers have
+    already excluded the Card-parameterized case — a card play's action id is
+    the card block's, never a vocab id (see the module docstring)."""
+    if not mt.params:
+        return [(mt.name, None)]
+    domains = [
+        enumerate_domain(p.type_name, suits=suits, ranks=ranks, players=players)
+        for p in mt.params
+    ]
+    return [(mt.name, _pack(combo)) for combo in itertools.product(*domains)]
+
+
 class ActionSpace:
     """The derived global action universe of one game."""
 
@@ -151,28 +176,55 @@ class ActionSpace:
         combos: list[Any] = []
         mt_index = {m.name: m for m in game.move_types}
         climb_engines: list[str] = []
+        # The move-parameter domains, sourced from the game AST. Suits come
+        # from `runtime.values.deck_suits` — the deck's actual card suits,
+        # never the bare module constant or the declared `Deck.suits` field —
+        # the SAME origin `driver.py` builds `rs.suits` from, so the two can
+        # never diverge (a non-uniform deck like tichu56/tarot78 carries a
+        # suit its declared `Deck.suits` omits). Ranks come from `game.ranking`
+        # directly — the SAME origin `mechanics.param_domain` reads at runtime
+        # (`ctx.rs.rank_index`, which `driver.py` builds from `game.ranking`)
+        # — so the advertised action space and the live legal-candidate
+        # enumeration are identical by construction, never merely coincident.
+        card_block = _derived_card_block(game.deck)
+        suits: list[Any] = list(deck_suits(game.deck))
+        ranks: list[str] = list(game.ranking)
+        players = list(range(game.players.low))
         for node in _walk(game):
             if isinstance(node, n.Choose):
                 has_integers = True
             elif isinstance(node, n.Offer):
-                names.extend(m for m in node.move_types if m not in names)
+                # Routed by arity, same rule the round vocabulary below uses:
+                # nullary keeps today's bare-name representation in `names`
+                # (every offer-using corpus game today — Coup, Skat — names
+                # only nullary moves, so this is unchanged for them); a
+                # parameterized, non-Card move type now contributes its
+                # cross-product to `vocab` instead of the stray, never-used
+                # bare name it used to get (a parameterized `offer` move, like
+                # Go Fish's `ask`, was silently mis-routed before this).
+                for mt_name in node.move_types:
+                    mt = mt_index[mt_name]
+                    if not mt.params:
+                        if mt.name not in names:
+                            names.append(mt.name)
+                    elif any(p.type_name == "Card" for p in mt.params):
+                        pass  # the card block's id, not a vocab id — see below
+                    else:
+                        entries = _vocab_entries(mt, suits, ranks, players)
+                        vocab.extend(e for e in entries if e not in vocab)
             elif isinstance(node, n.Round) and node.combos_fn is not None:
                 if node.combos_fn not in climb_engines:
                     climb_engines.append(node.combos_fn)
             elif isinstance(node, n.Round) and node.move_types is not None:
                 for mt_name in node.move_types:
                     mt = mt_index[mt_name]
-                    if mt.param is not None and mt.param.type_name == "Card":
+                    if any(p.type_name == "Card" for p in mt.params):
                         # A Card-parameterized move's concrete actions ARE the
                         # card block (see the module docstring) — minting
                         # per-card vocab ids would give a card play two
                         # representations and inflate num_distinct_actions.
                         continue
-                    entries = (
-                        [(mt.name, None)]
-                        if mt.param is None
-                        else [(mt.name, v) for v in enumerate_domain(mt.param.type_name)]
-                    )
+                    entries = _vocab_entries(mt, suits, ranks, players)
                     vocab.extend(e for e in entries if e not in vocab)
         combo_codec: Any | None = None
         if climb_engines:
@@ -186,7 +238,6 @@ class ActionSpace:
                     universe,
                     key=lambda p: (p.size, p.kind, sorted(card_to_action(c) for c in p.cards)),
                 )
-        card_block = _derived_card_block(game.deck)
         return ActionSpace(
             card_block, sorted(names), vocab, has_integers, combos, combo_codec
         )
@@ -208,6 +259,14 @@ class ActionSpace:
             name, param = value
             if isinstance(param, Card):
                 return self.encode(param)  # Card-param move: the card block id
+            if param is None and name in self._name_ids:
+                # A nullary `offer` move: the runtime represents it as
+                # `(name, None)` (the same empty-product shape a nullary
+                # round-vocabulary move uses), but this game's action space
+                # names it as a bare string — it was never a round-vocabulary
+                # member, so no `(name, None)` was minted into `vocab`. Same
+                # action either way.
+                return self._name_base + self._name_ids[name]
             return self._vocab_base + self._vocab_ids[value]
         cards = getattr(value, "cards", None)
         if cards is not None:
@@ -261,7 +320,18 @@ class ActionSpace:
                 _missing,
             )
         else:
-            found = next((c for c in pool if c == value), _missing)
+            # A bare-string `value` (an offer move or the climb "pass") may
+            # appear in `pool` as itself or, for an offer's nullary move, as
+            # the runtime's `(name, None)` shape — both denote the same action
+            # (see the mirroring case in `encode`).
+            found = next(
+                (
+                    c
+                    for c in pool
+                    if c == value or (isinstance(value, str) and c == (value, None))
+                ),
+                _missing,
+            )
         if found is _missing:
             raise ValueError(
                 f"recorded action {aid} ({self.to_string(aid)}) is not among the live candidates"
@@ -280,5 +350,5 @@ class ActionSpace:
             return f"{play.kind}[" + ",".join(sorted(str(c) for c in play.cards)) + "]"
         if isinstance(value, tuple):
             name, param = value
-            return name if param is None else f"{name}({param})"
+            return render_candidate(name, param)
         return str(value)

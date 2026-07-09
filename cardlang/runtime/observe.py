@@ -29,6 +29,20 @@ from cardlang.runtime.values import Card, Player
 from cardlang.stdlib.zones import zone_projection
 
 
+def render_candidate(name: str, param: Any) -> str:
+    """Render a `(move_type, param)` candidate: the bare name (nullary), a
+    comma-joined tuple (a multi-parameter move — one rendering per value), or
+    `name(param)` (a single parameter). Shared by `render` (below) and
+    `cardlang.openspiel.encoding.ActionSpace.to_string`, which decode the same
+    `(name, param)` shape from two different value spaces (a live candidate vs.
+    a resolved action id) but render it identically."""
+    if param is None:
+        return name
+    if isinstance(param, tuple):  # a multi-parameter move: render each value
+        return f"{name}(" + ",".join(str(v) for v in param) + ")"
+    return f"{name}({param})"
+
+
 def render(value: Any) -> Any:
     """A deterministic, readable rendering of a decision value."""
     if isinstance(value, Card):
@@ -37,7 +51,7 @@ def render(value: Any) -> Any:
         return tuple(sorted(str(c) for c in value))
     if isinstance(value, tuple) and len(value) == 2 and isinstance(value[0], str):
         name, param = value  # a (move_type, param) auction/betting candidate
-        return name if param is None else f"{name}({param})"
+        return render_candidate(name, param)
     cards = getattr(value, "cards", None)
     if cards is not None:  # a combination play (climb engines)
         kind = getattr(value, "kind", "combo")
