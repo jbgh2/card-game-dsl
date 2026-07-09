@@ -242,11 +242,17 @@ def param_domain(p: "n.MoveParam", actor: Player, ctx: Ctx) -> list[Any]:
     the French four."""
     if p.type_name == "Card":
         return list(ctx.rs.zones.instance("hand", actor).cards)
-    ranks: list[str] = (
-        [r for r, _ in sorted(ctx.rs.rank_index.items(), key=lambda kv: kv[1])]
-        if p.type_name == "Rank"
-        else []
-    )
+    # Plain `list(...)` over the dict, never a sort: `driver.py` builds
+    # `rank_index` by `enumerate(game.ranking)` in order, and a Python dict
+    # preserves insertion order, so `rank_index`'s keys already walk the
+    # declared `ranking:` order. Sorting ascending by strength value (the
+    # dict's values) would walk it BACKWARDS for a high-to-low declaration
+    # (`ranking: A K Q ... 2` maps A to the highest strength number), which
+    # contradicts decisions.md "Declared parameter domains" ("Rank enumerates
+    # the game's declared ranking:") and the encoding.py comment asserting
+    # this runtime source and the static `list(game.ranking)` one are
+    # identical by construction.
+    ranks: list[str] = list(ctx.rs.rank_index) if p.type_name == "Rank" else []
     return enumerate_domain(
         p.type_name,
         suits=ctx.rs.suits,

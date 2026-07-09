@@ -492,13 +492,25 @@ def _reaches(start: str, target: str, calls: dict[str, set[str]]) -> bool:
 _FIXED_DOMAINS = frozenset({"Suit", "Suit?", "Rank", "Player"})
 
 
-def _check_move_params(mt: n.MoveTypeDef, bag: DiagnosticBag, span: Span | None) -> None:
+def _check_move_params(
+    mt: n.MoveTypeDef, bag: DiagnosticBag, span: Span | None, has_ranking: bool
+) -> None:
     """Totality gate for a parameterized move offered/enumerated in a decision
     (an `offer` statement or a `round offering` vocabulary). Fixed-from-type
     domains (`Suit`/`Suit?`/`Rank`/`Player`) and a single `Card` parameter are
     allowed; a `Card` parameter combined with any other parameter, a
-    bounded-`Integer` parameter (deferred), and two parameters sharing a name
-    are rejected with a message."""
+    bounded-`Integer` parameter (deferred), two parameters sharing a name, and
+    a `Rank` parameter in a game with no declared `ranking:` (`has_ranking`)
+    are rejected with a message.
+
+    `has_ranking` gates only `Rank`: `Player`'s domain is the seats, always
+    non-empty for a real game, and `Suit`'s is `deck_suits`, always non-empty
+    for a real deck — neither can be empty the way `game.ranking` (optional,
+    `()` by default) can. Without this gate, a Rank-parameterized move in a
+    no-`ranking:` game would pass resolve clean and only fail at runtime,
+    mid-decision, once `param_domain` enumerates the empty `rank_index` and
+    the move contributes zero candidates — a crash where a compile-time
+    diagnostic belongs (CLAUDE.md "Surface totality")."""
     types = [p.type_name for p in mt.params]
     if "Card" in types and len(types) > 1:
         bag.error(
@@ -530,6 +542,17 @@ def _check_move_params(mt: n.MoveTypeDef, bag: DiagnosticBag, span: Span | None)
             bag.error(
                 f"move '{mt.name}' has unsupported parameter domain '{t}' "
                 f"(expected Suit, Suit?, Rank, Player, or Card)",
+                span,
+            )
+        # Exact string, matching `_FIXED_DOMAINS`'s own convention (never by
+        # stripping a trailing `?`): `Rank?` is not in `_FIXED_DOMAINS`, so it
+        # is already rejected by the elif above and never reaches this branch
+        # — only bare `Rank` needs the non-empty-`ranking:` gate.
+        elif t == "Rank" and not has_ranking:
+            bag.error(
+                f"move '{mt.name}' has a Rank parameter, but the game declares "
+                f"no ranking: — Rank enumerates the declared ranking, so it "
+                f"needs a non-empty one",
                 span,
             )
 
@@ -585,6 +608,7 @@ def _check_vocabulary_moves(
     bag: DiagnosticBag,
     span: Span | None,
     unknown_msg: str,
+    has_ranking: bool,
 ) -> None:
     """The shared body of a vocabulary's per-name loop, wherever one is
     enumerated (a plain `offer` or the auction `round offering` —
@@ -593,14 +617,15 @@ def _check_vocabulary_moves(
     defined, parameterized one passes `_check_move_params`'s totality gate.
     `unknown_msg` is the caller-specific wording for an unknown name (the two
     call sites differ only in this message, "offer ..." vs "round vocabulary
-    ...")."""
+    ..."). `has_ranking` (`bool(game.ranking)`) is threaded through to
+    `_check_move_params`'s Rank-needs-a-declared-ranking gate."""
     for name in names:
         if name not in defined_move_types:
             bag.error(f"{unknown_msg} '{name}'", span)
             continue
         mt = move_type_defs[name]
         if mt.params:
-            _check_move_params(mt, bag, span)
+            _check_move_params(mt, bag, span, has_ranking)
 
 
 def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
@@ -652,6 +677,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bag,
                     nd.span,
                     "offer names unknown move type",
+                    bool(game.ranking),
                 )
                 _check_card_vocabulary(nd.move_types, move_type_defs, game, bag, nd.span)
             case n.Round() if nd.move_types is not None:
@@ -672,6 +698,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bag,
                     nd.span,
                     "round vocabulary names unknown move type",
+                    bool(game.ranking),
                 )
                 _check_card_vocabulary(nd.move_types, move_type_defs, game, bag, nd.span)
                 # The betting form omits `outcome` (it mutates state directly and

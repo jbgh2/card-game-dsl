@@ -17,11 +17,12 @@ def _diags(
     move_src: str,
     offer_or_round: str,
     zones: str = "zones { hand[player] : Hand<player> }",
+    ranking: str = "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n",
 ) -> list[str]:
     src = (
         "game G {\n"
         "  players: 4\n  max_length: 50\n  cards: standard52\n"
-        "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
+        f"{ranking}"
         f"  {zones}\n"
         "  state { done : Integer = 0 }\n"
         f"  phase play {{ {offer_or_round} done := 1 }}\n"
@@ -143,3 +144,50 @@ def test_offer_of_two_card_parameterized_moves_rejected() -> None:
         "offer to 0 one of [play_one, play_two]",
     )
     assert any("more than one Card-parameterized move" in d for d in diags), diags
+
+
+# --- a Rank parameter needs a non-empty declared `ranking:` --------------
+# `ranking:` is optional (`game.ranking: tuple[str, ...] = ()` by default,
+# cardlang/parse.py) but `Rank` is in `_FIXED_DOMAINS`, so a game with no
+# `ranking:` could previously declare a Rank-parameterized move and pass
+# resolve clean. At runtime `ctx.rs.rank_index` is then built from the empty
+# `game.ranking` (driver.py), so `param_domain` returns an empty domain for
+# that parameter, the move contributes zero candidates to the cross-product,
+# and — if it is the only move in the vocabulary — the decision crashes with
+# "none ... is legal": a runtime crash where a compile-time diagnostic
+# belongs (CLAUDE.md "Surface totality").
+
+
+def test_rank_param_without_declared_ranking_rejected() -> None:
+    diags = _diags(
+        "move_type ask(target : Player, rank : Rank) { when: target != actor effect { done := 1 } }",
+        "offer to 0 one of [ask]",
+        ranking="",
+    )
+    assert any("Rank" in d and "ranking" in d for d in diags), diags
+
+
+def test_rank_param_without_declared_ranking_rejected_in_round_offering() -> None:
+    # Mirror of the above for the auction `round offering` vocabulary — the
+    # other enumeration site `_check_vocabulary_moves` shares with `offer`.
+    diags = _diags(
+        "move_type ask(target : Player, rank : Rank) { when: target != actor effect { done := 1 } }",
+        "round offering [ask] from 0 over all players until done == 1",
+        ranking="",
+    )
+    assert any("Rank" in d and "ranking" in d for d in diags), diags
+
+
+def test_no_ranking_and_no_rank_param_still_resolves_clean() -> None:
+    # The critical regression guard: dropping `ranking:` must not reject a
+    # game that never declares a Rank-parameterized move in the first place
+    # (Coup-shaped — no `ranking:`, offer-only vocabularies of nullary/Player/
+    # Suit-parameterized moves). Only Rank needs a non-empty declared domain;
+    # Player (seats always exist) and Suit (sourced from `deck_suits`, always
+    # non-empty for a real deck) must not trip this gate.
+    diags = _diags(
+        "move_type target_someone(target : Player) { when: target != actor effect { done := 1 } }",
+        "offer to 0 one of [target_someone]",
+        ranking="",
+    )
+    assert diags == []

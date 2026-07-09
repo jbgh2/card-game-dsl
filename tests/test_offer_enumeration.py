@@ -92,6 +92,26 @@ def test_concrete_moves_is_the_guard_filtered_cross_product() -> None:
     assert {v[1] for _, v in cands} == set(game.ranking)
 
 
+def test_param_domain_rank_matches_declared_ranking_order() -> None:
+    """`param_domain`'s Rank branch must enumerate in the game's declared
+    `ranking:` order (docs/decisions.md "Declared parameter domains": "`Rank`
+    enumerates the game's declared `ranking:`") — LIST equality, not the set
+    equality `test_concrete_moves_is_the_guard_filtered_cross_product` above
+    checks. A set can't distinguish declared order from its reverse, which is
+    exactly how a stale ascending sort on `rank_index`'s strength values slipped
+    through: for a high-to-low `ranking: A K Q ... 2` declaration, `rank_index`
+    maps A to the highest strength number, so sorting ascending by value walks
+    2..A — the reverse of the declared order."""
+    from cardlang.runtime.mechanics import param_domain
+
+    game = check_dsl(GAME, "g.cardlang")
+    mt_ping = next(m for m in game.move_types if m.name == "ping")
+    rank_param = next(p for p in mt_ping.params if p.type_name == "Rank")
+    ctx = _build_ctx(game, actor=0)
+
+    assert param_domain(rank_param, 0, ctx) == list(game.ranking)
+
+
 def test_concrete_moves_arity_one_stays_bare_including_the_none_value() -> None:
     """The `_pack` arity rule: arity-1 candidates carry the bare value, never a
     1-tuple — existing single-parameter auctions (Bridge's `submit_bid`,
