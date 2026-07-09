@@ -496,16 +496,26 @@ def _check_move_params(mt: n.MoveTypeDef, bag: DiagnosticBag, span: Span | None)
     """Totality gate for a parameterized move offered/enumerated in a decision
     (an `offer` statement or a `round offering` vocabulary). Fixed-from-type
     domains (`Suit`/`Suit?`/`Rank`/`Player`) and a single `Card` parameter are
-    allowed; a `Card` parameter combined with any other parameter, and a
-    bounded-`Integer` parameter (deferred), are rejected with a message."""
+    allowed; a `Card` parameter combined with any other parameter, a
+    bounded-`Integer` parameter (deferred), and two parameters sharing a name
+    are rejected with a message."""
     types = [p.type_name for p in mt.params]
-    card_count = types.count("Card")
-    if card_count and len(types) > 1:
+    if "Card" in types and len(types) > 1:
         bag.error(
             f"move '{mt.name}' combines a Card parameter with another parameter; "
             f"Card's domain is the live hand and its actions are the card block, "
             f"so a Card parameter cannot be combined with another parameter "
             f"(fold into one parameter)",
+            span,
+        )
+    names = [p.name for p in mt.params]
+    dup_names = sorted({name for name in names if names.count(name) > 1})
+    if dup_names:
+        bag.error(
+            f"move '{mt.name}' declares more than one parameter named "
+            f"{', '.join(dup_names)}; `bind_params` binds parameters by name, "
+            f"so a repeated name silently shadows the earlier parameter instead "
+            f"of binding both (rename one)",
             span,
         )
     for t in types:
@@ -568,6 +578,31 @@ def _check_card_vocabulary(
         )
 
 
+def _check_vocabulary_moves(
+    names: tuple[str, ...],
+    move_type_defs: dict[str, n.MoveTypeDef],
+    defined_move_types: set[str],
+    bag: DiagnosticBag,
+    span: Span | None,
+    unknown_msg: str,
+) -> None:
+    """The shared body of a vocabulary's per-name loop, wherever one is
+    enumerated (a plain `offer` or the auction `round offering` —
+    `_check_card_vocabulary`'s docstring has the same "wherever one is
+    enumerated" rationale): every named move type must be defined, and a
+    defined, parameterized one passes `_check_move_params`'s totality gate.
+    `unknown_msg` is the caller-specific wording for an unknown name (the two
+    call sites differ only in this message, "offer ..." vs "round vocabulary
+    ...")."""
+    for name in names:
+        if name not in defined_move_types:
+            bag.error(f"{unknown_msg} '{name}'", span)
+            continue
+        mt = move_type_defs[name]
+        if mt.params:
+            _check_move_params(mt, bag, span)
+
+
 def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     move_type_defs = {m.name: m for m in game.move_types}
     defined_move_types = set(move_type_defs)
@@ -610,13 +645,14 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
             case n.Winner() if nd.target not in cats.state_vars:
                 bag.error(f"winner references unknown variable '{nd.target}'", nd.span)
             case n.Offer():
-                for name in nd.move_types:
-                    if name not in defined_move_types:
-                        bag.error(f"offer names unknown move type '{name}'", nd.span)
-                    else:
-                        mt = move_type_defs[name]
-                        if mt.params:
-                            _check_move_params(mt, bag, nd.span)
+                _check_vocabulary_moves(
+                    nd.move_types,
+                    move_type_defs,
+                    defined_move_types,
+                    bag,
+                    nd.span,
+                    "offer names unknown move type",
+                )
                 _check_card_vocabulary(nd.move_types, move_type_defs, game, bag, nd.span)
             case n.Round() if nd.move_types is not None:
                 # Auction form: a vocabulary of game-defined move types, no card
@@ -629,16 +665,14 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # any other type, or a domain combination `_check_move_params`
                 # rejects, would crash `enumerate_domain`/produce an
                 # indistinguishable action id mid-playout, so reject it here.
-                for name in nd.move_types:
-                    if name not in defined_move_types:
-                        bag.error(
-                            f"round vocabulary names unknown move type '{name}'",
-                            nd.span,
-                        )
-                        continue
-                    mt = move_type_defs[name]
-                    if mt.params:
-                        _check_move_params(mt, bag, nd.span)
+                _check_vocabulary_moves(
+                    nd.move_types,
+                    move_type_defs,
+                    defined_move_types,
+                    bag,
+                    nd.span,
+                    "round vocabulary names unknown move type",
+                )
                 _check_card_vocabulary(nd.move_types, move_type_defs, game, bag, nd.span)
                 # The betting form omits `outcome` (it mutates state directly and
                 # produces no variant); only an auction's outcome fn is validated.

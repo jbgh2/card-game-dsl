@@ -308,8 +308,6 @@ def _for_each(stmt: n.ForEach, ctx: Ctx) -> None:
 
 
 def _offer(stmt: n.Offer, ctx: Ctx) -> None:
-    from cardlang.runtime.mechanics import bind_params, concrete_moves
-
     player = evaluate(stmt.player, ctx)
     pctx = ctx.acting_as(player)
     # Every named move type's guard-filtered cross product (`concrete_moves`),
@@ -319,9 +317,12 @@ def _offer(stmt: n.Offer, ctx: Ctx) -> None:
     # same order the old bare-name list did, so the chooser draws the same
     # index; `render()` turns `(name, None)` back into the bare name for
     # observation, so `observe.announce`/`observe.choice` see identical text.
+    # `pctx` (already bound to `player`) is threaded into `concrete_moves` so
+    # the binding isn't redundantly recomputed for every move type in the
+    # vocabulary.
     candidates: list[tuple[str, Any]] = []
     for name in stmt.move_types:
-        candidates.extend(concrete_moves(ctx.rs.move_type_index[name], player, ctx))
+        candidates.extend(mechanics.concrete_moves(ctx.rs.move_type_index[name], player, pctx))
     if not candidates:
         # No implicit skip: a decision point must have a legal move. The explicit
         # alternatives are the game's — an always-legal move in the vocabulary (an
@@ -337,7 +338,7 @@ def _offer(stmt: n.Offer, ctx: Ctx) -> None:
     observe.announce(ctx, player, chosen)
     name, value = chosen
     mt = ctx.rs.move_type_index[name]
-    run_body(mt.effect, bind_params(pctx, mt.params, value))
+    run_body(mt.effect, mechanics.bind_params(pctx, mt.params, value))
 
 
 def _produces(stmt: n.Produces, ctx: Ctx) -> None:

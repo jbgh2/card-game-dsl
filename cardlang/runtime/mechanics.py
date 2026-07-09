@@ -213,15 +213,21 @@ def enumerate_domain(
     actor's live hand, enumerated by `candidates`) and its actions are the
     shared card block. Bounded-`Integer` is rejected at resolve time (deferred),
     so this dispatch is total over what reaches it."""
-    base = type_name.rstrip("?")
-    if base == "Suit":
+    # Matched by exact string, never by stripping a trailing `?`: only
+    # `Suit?` has a real nullable enumeration (`None`, the no-trump strain).
+    # `Rank?`/`Player?` parse (payload types are generically optional-able)
+    # but have no such enumeration; resolve.py's `_FIXED_DOMAINS` gate already
+    # rejects them at the surface, but this dispatch defends itself too,
+    # rather than silently dropping the `?` and enumerating the plain
+    # `Rank`/`Player` domain instead.
+    if type_name == "Suit" or type_name == "Suit?":
         values: list[Any] = list(suits)
-        if type_name.endswith("?"):
+        if type_name == "Suit?":
             values.append(None)
         return values
-    if base == "Rank":
+    if type_name == "Rank":
         return list(ranks)
-    if base == "Player":
+    if type_name == "Player":
         return list(players)
     raise NotImplementedError(f"move parameter domain '{type_name}' not supported")
 
@@ -236,7 +242,11 @@ def param_domain(p: "n.MoveParam", actor: Player, ctx: Ctx) -> list[Any]:
     the French four."""
     if p.type_name == "Card":
         return list(ctx.rs.zones.instance("hand", actor).cards)
-    ranks = [r for r, _ in sorted(ctx.rs.rank_index.items(), key=lambda kv: kv[1])]
+    ranks: list[str] = (
+        [r for r, _ in sorted(ctx.rs.rank_index.items(), key=lambda kv: kv[1])]
+        if p.type_name == "Rank"
+        else []
+    )
     return enumerate_domain(
         p.type_name,
         suits=ctx.rs.suits,
@@ -272,14 +282,19 @@ def bind_params(ctx: Ctx, params: "tuple[n.MoveParam, ...]", value: Any) -> Ctx:
 def concrete_moves(mt: "n.MoveTypeDef", actor: Player, ctx: Ctx) -> list[tuple[str, Any]]:
     """The guard-filtered candidate list for one move type: the cross-product of
     its parameters' domains, in declaration order, each combo guard-checked with
-    all parameters bound. Nullary is the empty-product case (one empty combo)."""
-    pctx = ctx.acting_as(actor)
-    domains = [param_domain(p, actor, pctx) for p in mt.params]
+    all parameters bound. Nullary is the empty-product case (one empty combo).
+
+    `ctx` must already be bound to `actor` (`ctx.acting_as(actor)`) — a decision
+    offering several move types (`AuctionForm.candidates`, `execute._offer`)
+    hoists that binding once, outside its per-move-type loop, rather than have
+    every move type in the vocabulary redundantly recompute the same rebind."""
+    domains = [param_domain(p, actor, ctx) for p in mt.params]
     out: list[tuple[str, Any]] = []
     for combo in itertools.product(*domains):
-        vctx = bind_params(pctx, mt.params, _pack(combo))
+        value = _pack(combo)
+        vctx = bind_params(ctx, mt.params, value)
         if mt.guard is None or bool(evaluate(mt.guard, vctx)):
-            out.append((mt.name, _pack(combo)))
+            out.append((mt.name, value))
     return out
 
 
@@ -366,10 +381,13 @@ class AuctionForm:
         # OpenSpiel's one-decision-node-per-turn action set. The Card domain
         # (state-dependent: the actor's live hand, in hand order) and the
         # Suit/Suit?/Rank/Player domains (deck/seating-sourced) are both handled
-        # inside `concrete_moves`/`param_domain`.
+        # inside `concrete_moves`/`param_domain`. `acting_as` is bound once here
+        # (not once per move type inside `concrete_moves`) since every move type
+        # in the vocabulary shares the same actor for this decision.
+        pctx = ctx.acting_as(actor)
         candidates: list[tuple[str, Any]] = []
         for mt in self.move_defs:
-            candidates.extend(concrete_moves(mt, actor, ctx))
+            candidates.extend(concrete_moves(mt, actor, pctx))
         if not candidates:
             # A participant offered a turn must have a legal move — the
             # finite-action invariant of a decision node. The engine does NOT

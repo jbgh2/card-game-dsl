@@ -82,6 +82,32 @@ def test_optional_rank_parameter_rejected() -> None:
     assert any("Rank?" in d for d in diags), diags
 
 
+def test_duplicate_param_name_rejected() -> None:
+    # The arity-N grammar accepts two params sharing a name; `bind_params`
+    # (cardlang/runtime/mechanics.py) dict-merges bindings by name, so the
+    # second would silently shadow the first — any guard/effect reading
+    # `target` would only ever see the Rank-typed second binding, never the
+    # Player-typed first. Reject it at resolve time instead of letting the
+    # guard silently degenerate at runtime.
+    diags = _diags(
+        "move_type ask(target : Player, target : Rank) { effect { done := 1 } }",
+        "offer to 0 one of [ask]",
+    )
+    assert any("ask" in d and "target" in d for d in diags), diags
+
+
+def test_optional_player_parameter_rejected() -> None:
+    # Mirror of test_optional_rank_parameter_rejected: `Player?` parses (payload
+    # types are generically optional-able) but has no enumeration either — only
+    # `Suit?` appends the `None` candidate. Reject it exactly like `Rank?`,
+    # rather than stripping the `?` and letting it through as bare `Player`.
+    diags = _diags(
+        "move_type peek(p : Player?) { effect { done := 1 } }",
+        "offer to 0 one of [peek]",
+    )
+    assert any("Player?" in d for d in diags), diags
+
+
 def test_player_rank_round_offering_accepted() -> None:
     # The interface requires acceptance under *either* enumeration site; the
     # auction `round offering` vocabulary is the other one (`offer` above).

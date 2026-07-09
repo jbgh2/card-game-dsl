@@ -1,9 +1,13 @@
+import random
+
 import pytest
 
 from cardlang.parse import parse_text
 from cardlang.pipeline import check_dsl
 from cardlang.openspiel.encoding import ActionSpace
-from cardlang.runtime.values import Card
+from cardlang.runtime.driver import play_game
+from cardlang.runtime.state import RuntimeState
+from cardlang.runtime.values import Card, deck_suits
 
 GAME = """
 game G {
@@ -116,3 +120,53 @@ def test_rank_domain_sourced_from_game_ranking_not_deck() -> None:
     # silently succeed with a dead/wrong action id instead.
     with pytest.raises(KeyError):
         space.encode(("ask", (0, "J")))
+
+
+TICHU_SUIT_GAME = """
+game GTichu {
+  players: 4
+  max_length: 50
+  cards: tichu56
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { done[player] : Integer = 0 }
+  phase play { offer to 0 one of [declare_suit] }
+  winner: highest done
+}
+move_type declare_suit(s : Suit) { effect { done[actor] := 1 } }
+"""
+
+
+def test_suit_domain_sourced_from_deck_cards_not_declared_deck_suits() -> None:
+    """Regression for the Codex P2 finding (PR #36): the Suit parameter domain
+    must be sourced identically at compile time (`ActionSpace.for_game`) and at
+    runtime (`driver.play_game`'s `rs.suits`, read by `mechanics.param_domain`)
+    — both from `runtime.values.deck_suits` (the deck's ACTUAL card suits),
+    never from the declared `Deck.suits` field. `tichu56` exposes the
+    divergence directly: its declared `Deck.suits` is the French four, but its
+    real deck (standard 52 plus the four specials) carries a fifth suit,
+    "special", that only shows up in the card block. No `ranking:` is needed
+    for this game — a Suit-parameterized move never touches `game.ranking`/
+    `rs.rank_index`.
+    """
+    assert deck_suits("tichu56") == ("clubs", "diamonds", "hearts", "spades", "special")
+
+    game = check_dsl(TICHU_SUIT_GAME, "gtichu.cardlang")
+    space = ActionSpace.for_game(game)
+    # The compile-time action space already advertises "special" (it derives
+    # its Suit domain from the deck's card block, never the declared field).
+    aid = space.encode(("declare_suit", "special"))
+    assert space.decode(aid) == ("declare_suit", "special")
+
+    captured: dict[str, tuple[str, ...]] = {}
+
+    def hook(rs: RuntimeState) -> None:
+        captured["suits"] = rs.suits
+
+    play_game(game, random.Random(0), on_first_decision=hook)
+    # The runtime domain (driver.py's `rs.suits`) must be the SAME set the
+    # compile-time action space advertises — before the fix, `rs.suits` was
+    # the deck's declared French-4 `Deck.suits`, missing "special" entirely,
+    # so a legal `declare_suit(special)` decision would never be enumerated
+    # as a live candidate even though `ActionSpace` had already minted it an
+    # action id.
+    assert captured["suits"] == deck_suits("tichu56")

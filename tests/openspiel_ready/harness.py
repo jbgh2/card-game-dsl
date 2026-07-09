@@ -74,13 +74,6 @@ class GameSpec:
     # terminal handling if reached.
     conformance_steps: int | None = None
 
-    # Swappable hidden-card pairs must keep every recorded action legal in
-    # the swapped world. Games whose recorded actions are cards (or card
-    # combos) need same-suit swaps; a game may set True when NO recorded
-    # action names a card (e.g. a betting vocabulary), so ANY hidden swap
-    # replays legally.
-    swap_any_pair: bool = False
-
     # Which equivalence class a hidden swap must stay within so the swapped
     # world is genuinely indistinguishable to the observer (the swap must not
     # change any PUBLIC observation). "suit": follow-suit trick games (default,
@@ -97,7 +90,7 @@ class GameSpec:
         """Swappable hidden-card pairs that keep the swapped world indistinguishable."""
         if self.swap_axis == "rank":
             return [(x, y) for x in hand1 for y in hand2 if x.rank == y.rank and x.suit != y.suit]
-        elif self.swap_axis == "any" or self.swap_any_pair:
+        elif self.swap_axis == "any":
             return [(x, y) for x in hand1 for y in hand2 if x != y]
         elif self.swap_axis == "suit":
             three_d = ("3", "diamonds")
@@ -255,7 +248,12 @@ class ReadinessProofs:
         opp = next(q for q in range(len(r0.obs_logs)) if q != p)
         own = r0.rs.zones.instance(hz, p).cards
         theirs = r0.rs.zones.instance(hz, opp).cards
-        x, y = next(iter(spec.swap_pairs(own, theirs)))
+        pairs = spec.swap_pairs(own, theirs)
+        assert pairs, (
+            f"{spec.short_name}: no swap pair for soundness at this seed/depth — "
+            f"adjust the spec"
+        )
+        x, y = pairs[0]
         info_a = information_state(p, r0.rs, r0.obs_logs[p])
         r1 = run(path, 5, (), on_first_decision=_swap_fn((hz, p), (hz, opp), x, y))
         assert isinstance(r1, Pause)

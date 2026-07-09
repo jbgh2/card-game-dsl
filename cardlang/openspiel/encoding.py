@@ -29,8 +29,9 @@ from dataclasses import dataclass
 from typing import Any, Iterator
 
 from cardlang.ast import nodes as n
-from cardlang.runtime.mechanics import enumerate_domain
-from cardlang.runtime.values import RANKS, SUITS, Card, build_deck
+from cardlang.runtime.mechanics import _pack, enumerate_domain
+from cardlang.runtime.observe import render_candidate
+from cardlang.runtime.values import RANKS, SUITS, Card, build_deck, deck_suits
 
 NUM_DISTINCT_ACTIONS = len(SUITS) * len(RANKS)  # 52 — the standard card block
 
@@ -113,8 +114,8 @@ def _vocab_entries(
 ) -> list[tuple[str, Any]]:
     """One move type's vocab entries — nullary is the empty-product
     `[(mt.name, None)]`; otherwise the full cross-product of its parameters'
-    *declared* (static) domains, one entry per combination. Packing mirrors
-    `mechanics._pack`/`concrete_moves`'s runtime convention: arity 1 stays a
+    *declared* (static) domains, one entry per combination, packed by the
+    SAME `mechanics._pack` the runtime's `concrete_moves` uses: arity 1 stays a
     bare value (so an existing single-param vocab key like `("submit_bid",
     "hearts")` is byte-identical), arity >= 2 packs as a tuple. Callers have
     already excluded the Card-parameterized case — a card play's action id is
@@ -125,10 +126,7 @@ def _vocab_entries(
         enumerate_domain(p.type_name, suits=suits, ranks=ranks, players=players)
         for p in mt.params
     ]
-    return [
-        (mt.name, combo[0] if len(mt.params) == 1 else tuple(combo))
-        for combo in itertools.product(*domains)
-    ]
+    return [(mt.name, _pack(combo)) for combo in itertools.product(*domains)]
 
 
 class ActionSpace:
@@ -179,20 +177,17 @@ class ActionSpace:
         mt_index = {m.name: m for m in game.move_types}
         climb_engines: list[str] = []
         # The move-parameter domains, sourced from the game AST. Suits come
-        # from the SAME derived card block `card_block` (below) uses — a
-        # non-standard deck's own suits, never the bare module constant —
-        # falling back to the module's standard set only when the deck is
-        # standard-catalogue-expressible (`card_block is None`). Ranks come
-        # from `game.ranking` directly — the SAME origin `mechanics.
-        # param_domain` reads at runtime (`ctx.rs.rank_index`, which
-        # `driver.py` builds from `game.ranking`) — so the advertised action
-        # space and the live legal-candidate enumeration are identical by
-        # construction, never merely coincident.
+        # from `runtime.values.deck_suits` — the deck's actual card suits,
+        # never the bare module constant or the declared `Deck.suits` field —
+        # the SAME origin `driver.py` builds `rs.suits` from, so the two can
+        # never diverge (a non-uniform deck like tichu56/tarot78 carries a
+        # suit its declared `Deck.suits` omits). Ranks come from `game.ranking`
+        # directly — the SAME origin `mechanics.param_domain` reads at runtime
+        # (`ctx.rs.rank_index`, which `driver.py` builds from `game.ranking`)
+        # — so the advertised action space and the live legal-candidate
+        # enumeration are identical by construction, never merely coincident.
         card_block = _derived_card_block(game.deck)
-        if card_block is None:
-            suits: list[Any] = list(SUITS)
-        else:
-            suits = list(dict.fromkeys(c.suit for c in card_block))
+        suits: list[Any] = list(deck_suits(game.deck))
         ranks: list[str] = list(game.ranking)
         players = list(range(game.players.low))
         for node in _walk(game):
@@ -355,9 +350,5 @@ class ActionSpace:
             return f"{play.kind}[" + ",".join(sorted(str(c) for c in play.cards)) + "]"
         if isinstance(value, tuple):
             name, param = value
-            if param is None:
-                return str(name)
-            if isinstance(param, tuple):  # a multi-parameter move: render each value
-                return f"{name}(" + ",".join(str(v) for v in param) + ")"
-            return f"{name}({param})"
+            return render_candidate(name, param)
         return str(value)

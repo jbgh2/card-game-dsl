@@ -1,3 +1,5 @@
+import pytest
+
 from cardlang.runtime.mechanics import enumerate_domain
 
 SUITS = ["clubs", "diamonds", "hearts", "spades"]
@@ -19,3 +21,18 @@ def test_rank_domain() -> None:
 
 def test_player_domain() -> None:
     assert enumerate_domain("Player", suits=SUITS, ranks=RANKS, players=PLAYERS) == PLAYERS
+
+
+def test_optional_rank_raises() -> None:
+    # Only `Suit?` has a real nullable enumeration (`Suit`'s branch appends
+    # `None`); `Rank?` must not silently fall through to the plain `Rank`
+    # branch by stripping the `?` (resolve.py's gate already rejects `Rank?`
+    # at the surface, but `enumerate_domain` must defend itself too, rather
+    # than relying solely on that gate).
+    with pytest.raises(NotImplementedError):
+        enumerate_domain("Rank?", suits=SUITS, ranks=RANKS, players=PLAYERS)
+
+
+def test_optional_player_raises() -> None:
+    with pytest.raises(NotImplementedError):
+        enumerate_domain("Player?", suits=SUITS, ranks=RANKS, players=PLAYERS)
