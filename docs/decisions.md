@@ -541,10 +541,14 @@ inferred from the deck or a runtime value:
   declares the ceiling with an **`up to N`** clause
   (`choose integer in 0 .. hand_size up to 10`), `N` a bare integer literal.
 
-A `choose` whose ceiling cannot be determined statically (a non-literal `hi`
-with no `up to`) is a resolve-time error — surface totality, never a silent
-default (`up to N` takes a bare non-negative integer literal, so the ceiling is
-always well-formed). At runtime the *range* is guarded
+`up to` is *only* for a runtime `hi`. On a literal `hi` it is rejected at
+resolve — the literal is already the exact ceiling, so an `up to` there is
+either contradictory (a ceiling below the literal makes the runtime range guard
+fail for every playout) or redundant (a ceiling above it reserves action ids
+legal in no state). A `choose` whose ceiling cannot be determined statically (a
+non-literal `hi` with no `up to`) is likewise a resolve-time error — surface
+totality, never a silent default (`up to N` takes a bare non-negative integer
+literal, so the ceiling is always well-formed). At runtime the *range* is guarded
 where `hi` is evaluated (`lo >= 0` and `hi <= ceiling`): a live range that
 escaped its declared domain would offer a legal value with no action id, and a
 value-only check would pass whenever the chooser happened to draw inside the

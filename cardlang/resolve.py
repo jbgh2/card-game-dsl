@@ -78,10 +78,15 @@ def resolve(game: n.Game) -> n.Game:
 def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
     """Every integer `choose` must have a statically known, non-negative upper
     bound — the width the OpenSpiel action space reserves for it (decisions.md
-    "Declared parameter domains"). The bound comes from a literal upper range
-    (`0 .. 13`) or an explicit `up to N` clause; a runtime upper bound with no
-    `up to` cannot be sized statically and is rejected here rather than papered
-    over with a fixed constant (surface totality)."""
+    "The integer `choose` domain"). The bound comes from a literal upper range
+    (`0 .. 13`) or an explicit `up to N` clause when the upper bound is a runtime
+    expression; a runtime upper bound with no `up to` cannot be sized statically
+    and is rejected here rather than papered over with a fixed constant (surface
+    totality). `up to` on a literal upper bound is likewise rejected: the literal
+    is already the exact ceiling, so an `up to` there is either contradictory (a
+    ceiling below the literal makes the runtime range guard fail for every
+    playout) or redundant (a ceiling above it mints action ids legal in no
+    state) — never silently accepted."""
     for node in _walk(game):
         if not isinstance(node, n.Choose):
             continue
@@ -93,6 +98,14 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
                 "give it a literal upper bound (`0 .. 13`) or declare a ceiling "
                 "with `up to N` (`0 .. hand_size up to 10`) — the OpenSpiel "
                 "action space reserves that many ids up front",
+                node.span,
+            )
+        elif node.ceiling is not None and isinstance(node.hi, n.IntLit):
+            bag.error(
+                f"`choose integer` has a literal upper bound ({node.hi.value}), "
+                f"which is already its static ceiling — remove the `up to "
+                f"{node.ceiling}` clause (it applies only when the upper bound is "
+                f"a runtime expression)",
                 node.span,
             )
 

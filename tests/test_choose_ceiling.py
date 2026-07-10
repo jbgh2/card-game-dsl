@@ -94,6 +94,28 @@ def test_live_range_exceeding_ceiling_raises() -> None:
         play_game(check_dsl(src, "t"), random.Random(0))
 
 
+def test_up_to_below_a_literal_hi_is_rejected() -> None:
+    # `0 .. 13 up to 10`: both bounds static, ceiling below the literal — the
+    # runtime range guard would fail for EVERY playout. A statically doomed
+    # program must be rejected at resolve, not crash at playout (surface totality).
+    with pytest.raises(DiagnosticError, match="already its static ceiling"):
+        check_dsl(
+            _game("x[player] : Integer = 0", "choose integer in 0 .. 13 up to 10"),
+            "t",
+        )
+
+
+def test_up_to_on_a_literal_hi_is_rejected_even_when_it_covers_it() -> None:
+    # `0 .. 5 up to 10`: not contradictory, but redundant — the literal 5 is the
+    # exact ceiling, so ids 6..10 would be legal in no state (dead actions).
+    # `up to` is only for a runtime upper bound; reject it on a literal one.
+    with pytest.raises(DiagnosticError, match="already its static ceiling"):
+        check_dsl(
+            _game("x[player] : Integer = 0", "choose integer in 0 .. 5 up to 10"),
+            "t",
+        )
+
+
 def test_computed_hi_is_not_treated_as_static() -> None:
     # Only a bare literal `hi` (or `up to N`) counts as static — a computed
     # expression, even over literals, yields no ceiling and is rejected. Keeps
