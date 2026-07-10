@@ -69,9 +69,32 @@ def resolve(game: n.Game) -> n.Game:
     game = _classify_names(game, cats, bag)
     _validate_refs(game, cats, bag)
     _check_functions(game, bag)
+    _check_chooses(game, bag)
 
     _raise_if_errors(bag)
     return game
+
+
+def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
+    """Every integer `choose` must have a statically known, non-negative upper
+    bound — the width the OpenSpiel action space reserves for it (decisions.md
+    "Declared parameter domains"). The bound comes from a literal upper range
+    (`0 .. 13`) or an explicit `up to N` clause; a runtime upper bound with no
+    `up to` cannot be sized statically and is rejected here rather than papered
+    over with a fixed constant (surface totality)."""
+    for node in _walk(game):
+        if not isinstance(node, n.Choose):
+            continue
+        # `static_ceiling` is a non-negative int (INT / IntLit) or None; only the
+        # None case — a runtime `hi` with no `up to` — is possible from source.
+        if n.static_ceiling(node) is None:
+            bag.error(
+                "`choose integer` needs a statically known upper bound: either "
+                "give it a literal upper bound (`0 .. 13`) or declare a ceiling "
+                "with `up to N` (`0 .. hand_size up to 10`) — the OpenSpiel "
+                "action space reserves that many ids up front",
+                node.span,
+            )
 
 
 def _resolve_max_length(game: n.Game, bag: DiagnosticBag) -> None:

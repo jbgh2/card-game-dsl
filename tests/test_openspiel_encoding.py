@@ -50,7 +50,10 @@ def test_hearts_space_is_cards_only() -> None:
 
 def test_spades_space_adds_the_integer_block() -> None:
     space = _space("spades.cardlang")
-    assert space.num_distinct_actions == 52 + 53
+    # `choose integer in 0 .. 13`: a literal upper bound is its own static
+    # ceiling, so the integer block reserves ids 0..13 (14), not a deck-sized
+    # constant — decisions.md "The integer `choose` domain".
+    assert space.num_distinct_actions == 52 + 14
     assert space.decode(space.encode(7)) == 7
     assert space.to_string(space.encode(7)) == "7"
 

@@ -396,7 +396,14 @@ call: NAME "(" [arg_list] ")"
 // A decision that yields a value (not a card play): pick one element of a
 // candidate set via the chooser. The one form the corpus needs so far is an
 // integer in an inclusive range (a bid); other domains join corpus-first.
-choose_expr: "choose" "integer" "in" sum ".." sum  -> choose_integer
+//
+// `up to N` declares the static ceiling — the width the OpenSpiel action space
+// reserves — for a range whose upper bound is a runtime expression (Oh Hell's
+// `0 .. hand_size up to 10`). It is a bare INT literal: a non-literal ceiling
+// could never satisfy the static contract. When the upper bound is itself a
+// literal (Spades' `0 .. 13`), the ceiling derives from it and the clause is
+// omitted; the resolver requires it exactly when it cannot.
+choose_expr: "choose" "integer" "in" sum ".." sum ["up" "to" INT]  -> choose_integer
 
 index_expr: "[" expr "]"
 zone_expr: NAME [index_expr]

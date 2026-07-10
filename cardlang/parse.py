@@ -780,10 +780,17 @@ class _Builder(Transformer[Token, n.Game]):
         return n.AllPlayers(span=self._span(meta))
 
     def choose_integer(self, meta: Meta, c: list[object]) -> n.Choose:
+        # `up to N` is optional (maybe_placeholders => c[2] is None when absent);
+        # its operand is a bare INT literal by the grammar.
+        ceiling: int | None = None
+        if len(c) > 2 and c[2] is not None:
+            assert isinstance(c[2], Token)
+            ceiling = int(c[2])
         return n.Choose(
             domain="integer",
             lo=_as_expr(c[0]),
             hi=_as_expr(c[1]),
+            ceiling=ceiling,
             span=self._span(meta),
         )
 

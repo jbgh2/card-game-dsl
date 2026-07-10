@@ -69,6 +69,19 @@ def _choose(e: n.Choose, ctx: Ctx) -> Any:
     assert e.domain == "integer"
     lo = int(evaluate(e.lo, ctx))
     hi = int(evaluate(e.hi, ctx))
+    # Guard the live *range*, not just the drawn value: a range that escapes its
+    # declared `0 .. ceiling` domain would offer a legal action with no OpenSpiel
+    # id, and a value-only check passes whenever the chooser happens to draw
+    # inside the reserved block. `static_ceiling` is non-None (resolve enforced).
+    ceiling = n.static_ceiling(e)
+    assert ceiling is not None
+    if lo < 0 or hi > ceiling:
+        raise RuntimeError(
+            f"`choose integer in {lo} .. {hi}` escaped its declared domain "
+            f"0 .. {ceiling}: every legal value must have an OpenSpiel action id "
+            f"within the ceiling reserved up front (raise the `up to` bound "
+            f"or fix the range)"
+        )
     candidates = list(range(lo, hi + 1))
     if not candidates:
         raise RuntimeError(
