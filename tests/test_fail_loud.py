@@ -44,22 +44,26 @@ def test_offer_with_no_legal_move_raises() -> None:
         _run(OFFER_NO_LEGAL)
 
 
+# `hi` is runtime state (2), below the literal `lo` (5): the range is empty only
+# at playout, so resolve can't reject it (a static inverted range like `5 .. 2`
+# is caught earlier — see test_choose_ceiling.py). This exercises the runtime
+# empty-range guard, which is `_choose`'s backstop for a dynamic bound.
 CHOOSE_EMPTY_RANGE = """
 game G {
   players: 2
   max_length: 1000
   cards: standard52
   zones { deck : Deck  hand[player] : Hand<player> }
-  state { x[player] : Integer = 0 }
-  phase play { for each player p: x[p] := choose integer in 5 .. 2 }
+  state { top : Integer = 2  x[player] : Integer = 0 }
+  phase play { for each player p: x[p] := choose integer in 5 .. top up to 10 }
   winner: highest x
 }
 """
 
 
 def test_choose_over_empty_range_raises() -> None:
-    # An inverted range offers no candidate — `choose` must raise, not pick a
-    # silent default.
+    # A range empty at runtime offers no candidate — `choose` must raise, not
+    # pick a silent default.
     with pytest.raises(RuntimeError, match="empty range"):
         _run(CHOOSE_EMPTY_RANGE)
 

@@ -86,13 +86,19 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
     is already the exact ceiling, so an `up to` there is either contradictory (a
     ceiling below the literal makes the runtime range guard fail for every
     playout) or redundant (a ceiling above it mints action ids legal in no
-    state) — never silently accepted."""
+    state) — never silently accepted. Finally, a literal lower bound above the
+    ceiling (an inverted literal range like `5 .. 3`, or a literal `lo` past an
+    `up to` ceiling) is rejected: the minimum candidate already exceeds every
+    value the action space reserves, so no value can ever be chosen — a
+    statically doomed program the runtime guard would otherwise only catch at
+    playout."""
     for node in _walk(game):
         if not isinstance(node, n.Choose):
             continue
         # `static_ceiling` is a non-negative int (INT / IntLit) or None; only the
         # None case — a runtime `hi` with no `up to` — is possible from source.
-        if n.static_ceiling(node) is None:
+        ceiling = n.static_ceiling(node)
+        if ceiling is None:
             bag.error(
                 "`choose integer` needs a statically known upper bound: either "
                 "give it a literal upper bound (`0 .. 13`) or declare a ceiling "
@@ -100,12 +106,26 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
                 "action space reserves that many ids up front",
                 node.span,
             )
-        elif node.ceiling is not None and isinstance(node.hi, n.IntLit):
+            continue
+        if node.ceiling is not None and isinstance(node.hi, n.IntLit):
             bag.error(
                 f"`choose integer` has a literal upper bound ({node.hi.value}), "
                 f"which is already its static ceiling — remove the `up to "
                 f"{node.ceiling}` clause (it applies only when the upper bound is "
                 f"a runtime expression)",
+                node.span,
+            )
+        # A literal lower bound is the smallest value the choose could ever
+        # offer; if it exceeds the ceiling, every candidate escapes the reserved
+        # `0 .. ceiling` block (or the range is outright empty), so the choose
+        # can never yield a value. `lo` scopes to a literal — a runtime `lo` is
+        # not statically decidable and the runtime range guard covers it.
+        if isinstance(node.lo, n.IntLit) and node.lo.value > ceiling:
+            bag.error(
+                f"`choose integer` lower bound ({node.lo.value}) exceeds its "
+                f"ceiling ({ceiling}): the range is statically empty (or every "
+                f"value would fall outside the reserved action block), so no "
+                f"value can ever be chosen — lower the start or raise the bound",
                 node.span,
             )
 

@@ -780,10 +780,11 @@ class _Builder(Transformer[Token, n.Game]):
         return n.AllPlayers(span=self._span(meta))
 
     def choose_integer(self, meta: Meta, c: list[object]) -> n.Choose:
-        # `up to N` is optional (maybe_placeholders => c[2] is None when absent);
-        # its operand is a bare INT literal by the grammar.
+        # `up to N` is optional; with maybe_placeholders the group always fills
+        # c[2] (the INT token, or None when absent), so a plain None-check does
+        # it — matching the unconditional-index convention at `round_stmt`.
         ceiling: int | None = None
-        if len(c) > 2 and c[2] is not None:
+        if c[2] is not None:
             assert isinstance(c[2], Token)
             ceiling = int(c[2])
         return n.Choose(

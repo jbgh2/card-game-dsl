@@ -548,7 +548,12 @@ fail for every playout) or redundant (a ceiling above it reserves action ids
 legal in no state). A `choose` whose ceiling cannot be determined statically (a
 non-literal `hi` with no `up to`) is likewise a resolve-time error — surface
 totality, never a silent default (`up to N` takes a bare non-negative integer
-literal, so the ceiling is always well-formed). At runtime the *range* is guarded
+literal, so the ceiling is always well-formed). A **literal lower bound above
+the ceiling** — an inverted literal range (`5 .. 3`) or a literal `lo` past an
+`up to` ceiling (`11 .. n up to 10`) — is rejected the same way: the smallest
+value the `choose` could offer already exceeds every id the block reserves, so
+no value can ever be chosen; a runtime `lo` is not statically decidable and is
+left to the runtime guard. At runtime the *range* is guarded
 where `hi` is evaluated (`lo >= 0` and `hi <= ceiling`): a live range that
 escaped its declared domain would offer a legal value with no action id, and a
 value-only check would pass whenever the chooser happened to draw inside the

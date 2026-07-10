@@ -116,6 +116,38 @@ def test_up_to_on_a_literal_hi_is_rejected_even_when_it_covers_it() -> None:
         )
 
 
+def test_inverted_literal_range_is_rejected() -> None:
+    # `5 .. 3`: both bounds literal, statically empty — the minimum candidate (5)
+    # exceeds the ceiling (3). Caught at resolve, not left to crash at playout.
+    with pytest.raises(DiagnosticError, match="lower bound .* exceeds its ceiling"):
+        check_dsl(
+            _game("x[player] : Integer = 0", "choose integer in 5 .. 3"),
+            "t",
+        )
+
+
+def test_literal_lo_above_the_up_to_ceiling_is_rejected() -> None:
+    # `11 .. n up to 10`: the runtime `hi` is legitimately declared, but the
+    # literal lower bound (11) already exceeds the ceiling (10), so every value
+    # the choose could offer escapes the reserved block for every `n`. Statically
+    # doomed — rejected at resolve, like its `up to`-below-hi sibling.
+    with pytest.raises(DiagnosticError, match="lower bound .* exceeds its ceiling"):
+        check_dsl(
+            _game("n : Integer = 3  x[player] : Integer = 0", "choose integer in 11 .. n up to 10"),
+            "t",
+        )
+
+
+def test_literal_lo_within_the_ceiling_is_accepted() -> None:
+    # The mirror: a literal lower bound at or below the ceiling is fine (a
+    # non-empty sub-range), and does not spuriously trip the new check.
+    game = check_dsl(
+        _game("n : Integer = 3  x[player] : Integer = 0", "choose integer in 3 .. n up to 10"),
+        "t",
+    )
+    assert n.static_ceiling(_only_choose(game)) == 10
+
+
 def test_computed_hi_is_not_treated_as_static() -> None:
     # Only a bare literal `hi` (or `up to N`) counts as static — a computed
     # expression, even over literals, yields no ceiling and is rejected. Keeps
