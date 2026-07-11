@@ -55,14 +55,14 @@ Tichu's conformance are bounded random API walks, their full sims being
 quadratic-in-length). No per-game observation rules remain, no Python
 escape-hatch mechanic exists (the `instantiate` construct is deleted), and no
 per-game branch survives outside the stdlib primitive registries. What
-remains honest to say: several migrated games carry the monoliths'
-random-play scope reductions as *rules-level randomness* in rng primitives —
-Tichu's call gates and Dragon routing; Coup's challenge/block gates, claimed
-characters, and action targets (real Coup makes every one of those a player
-decision) — so those decisions do not yet appear in the derived information
-sets. Upgrading them to chooser decisions is recorded future work
-(`docs/kernel-migration.md`, Workstream 5's scope note), not silent
-completeness.
+remains honest to say: Tichu carries its monolith's random-play scope
+reductions as *rules-level randomness* in rng primitives — its call gates
+and Dragon routing (real Tichu makes both player decisions) — so those two
+decisions do not yet appear in the derived information sets. Upgrading them
+is the remaining half of Workstream 5 (`docs/kernel-migration.md`), not
+silent completeness. (Coup's half is done: challenges, blocks, claimed
+characters, and targets are real announced decisions, and a proven
+challenge's card is publicly revealed.)
 
 **So, for every change, treat info-set derivation as a first-class acceptance
 criterion** — alongside "does it run" and "is it byte-identical":

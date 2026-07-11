@@ -51,16 +51,15 @@ play sequence — anything where order itself carries information) must not be
 rendered sorted, or distinct information sets that differ only in order
 would silently collapse into the same string.
 
-**What remains honest to record — the scope boundary, not debt.** Several
-migrations carry their monoliths' random-play scope reductions as
-*rules-level randomness* in rng primitives (Tichu's call gates and Dragon
-routing; Coup's challenge/block gates, claimed characters, and action
-targets — real Coup makes every one of those a player decision). Those
-choices fold into the root seed chance node rather than appearing as
-decision nodes, so they are absent from the derived information sets by
-construction, consistently. Upgrading them to chooser decisions (real
-response windows, real targets) is the recorded next scope of work — see
-Workstream 5's checkpoint below.
+**What remains honest to record — the scope boundary, not debt.** Tichu
+carries its monolith's random-play scope reductions as *rules-level
+randomness* in rng primitives (its call gates and Dragon routing — real
+Tichu makes both player decisions). Those choices fold into the root seed
+chance node rather than appearing as decision nodes, so they are absent
+from the derived information sets by construction, consistently. Upgrading
+them is the remaining half of Workstream 5 (see its checkpoint below);
+Coup's half is done — its challenges, blocks, claimed characters, and
+targets are real announced decisions.
 
 The built-in `Trick` mechanic was also engine code, not DSL. Retiring it —
 moving Hearts, Spades, Getaway, and Bridge's play onto the kernel `round` (Oh
@@ -451,38 +450,47 @@ The furthest game from cards, and the construct [decisions.md](decisions.md) use
 to draw the in-scope line (a game that *defines* "challenge" vs. one that mutates
 its own rules). Done last, once the kernel was proven.
 
-**Status — done at the monolith's random-play scope; the checkpoint resolved
-with NO new axis.** The anticipated new-axis risk (action → response →
-counter-response nesting, priority windows) dissolved on inspection: at the
-migrated scope the windows contain **no player decisions** — challenging and
-blocking are probability gates and the blocker's claimed character is a
-random pick — so they are inline statements around game-local rng primitives
-at the reference's exact draw sites (`coup_challenger`, `coup_fa_blocker`,
-`coup_block_roll`, the claim picks), and the action targets are likewise rng
-(`coup_random_target`). The only chooser draws in the game land on existing
-kernel sites: the turn's action pick is one `offer` over seven coin-guarded
-game-defined move types (the forced coup at ten coins falls out of the
-guards), every influence loss is a chosen movement by the loser (the
-single-actor `for each player q: if q == X` idiom), and the exchange is a
-deal-n + chosen-n + shuffle. Window results are public phase-state Booleans.
-Setup and every deck draw deal off the top — the monolith was normalized to
-that convention (`pop()` → `pop(0)`) in a sanctioned pre-pin commit, there
-being no prior golden to protect. Byte-identical against the pinned
-reveal-sequence golden (`tests/golden/coup_scores.json`: every influence
-flip in order, final coins, alive, winner, 40 seeds); `run_coup_game` is
-deleted, and with it the whole `instantiate` construct (zero mechanics
-remained).
+**Status — done at REAL interactive scope; the checkpoint resolved with NO
+new axis.** The windows are decisions: challenge windows poll each other
+in-game player clockwise from the claimant with `offer to <responder> one of
+[challenge, allow]` (first challenge closes the window — plain `repeat
+until` + `offer` inside the action's effect, a tested-legal combination);
+blocks fold the claimed character into the window vocabulary
+(`block_claiming_*`), so the bluff is the decision itself; `steal` /
+`assassinate` / `coup` carry a declared `target : Player` parameter; and a
+proven challenge `reveal`s the shown card publicly before returning it to
+the deck. The single-pass poll pattern replaced the anticipated auction
+`priority`-mode substrate — a challenge window never loops, so the ring
+machinery buys nothing. One recorded residual: the proven card's *return
+movement* stays count-projected, so a formal observer cannot exclude the
+kept-the-copy world (the runtime's filter guarantees the proven card
+returns; tabletop common knowledge is epsilon finer — the public-transit
+encoding closes it if a consumer ever needs that bit). Interactive Coup
+also surfaced the corpus's first legally unbounded lines
+([open-questions/unbounded-lines-and-max-length.md](open-questions/unbounded-lines-and-max-length.md)).
 
-**The recorded scope boundary (the real WS5 windows, future work).** Real
-Coup makes challenging, blocking, the blocker's claimed character, and the
-action's target *player decisions*, and shows a proven challenge's card
-publicly. Upgrading to that scope is where the original WS5 design re-enters:
-response windows as decisions in priority order (the auction form's
-`priority` mode is the natural substrate), targets via a Player
-move-parameter domain — already an available declared domain
-([decisions.md](decisions.md), "Declared parameter domains") — and a
-`reveal` epistemic op for the public proof. That is a behaviour change
-— new goldens, its own sign-off — not a migration.
+The anticipated new-axis risk (action → response → counter-response
+nesting, priority windows) dissolved on inspection at migration time and
+stayed dissolved through the interactive upgrade: every decision lands on
+existing kernel sites — the turn's action pick and every window response
+are `offer`s, every influence loss is a chosen movement by the loser (the
+single-actor `for each player q: if q == X` idiom), and the exchange is a
+deal-n + chosen-n + shuffle. Setup and every deck draw deal off the top
+(the corpus convention). `run_coup_game` was deleted at migration, and with
+it the whole `instantiate` construct (zero mechanics remained); the
+reveal-sequence golden (`tests/golden/coup_scores.json`: every influence
+flip in order, final coins, alive, winner, 40 seeds) pins the interactive
+scope, re-pinned at the WS5 sign-off
+(`docs/superpowers/specs/2026-07-10-ws5-coup-interactive-windows-design.md`).
+
+**The remaining WS5 scope: Tichu.** Tichu's call gates and Dragon routing
+are still rng primitives (`tichu_call_roll`, `tichu_dragon_recipient`);
+upgrading them to real decisions is the other half of this workstream — a
+behaviour change with new goldens and its own sign-off, with the real call
+rules verified against Pagat before design (grand tichu is a fixed
+first-eight-cards window; small tichu is callable any time before the
+caller's first play, which touches
+[open-questions/optional-window-moves.md](open-questions/optional-window-moves.md)).
 
 ## Cross-cutting build-out
 
@@ -512,8 +520,8 @@ These land inside the workstreams above and are shared on the third use:
    (Pinochle's, Cribbage's, and Schnapsen's scoring all landed as ordinary
    statements plus game-local stdlib primitives; the subsystem itself remains
    unbuilt, corpus-first future work).
-6. **Coup** — done: challenge / block / influence at the random-play scope
-   (rng windows; the interactive-windows upgrade is recorded in Workstream 5).
+6. **Coup** — done at real interactive scope: challenge / block / claim /
+   target are player decisions (Workstream 5; Tichu's call windows remain).
 
 This is breadth-first by shape: it reaches `auction`'s third instance early and
 keeps each step small. The alternative is depth-first on a single monolith (Skat

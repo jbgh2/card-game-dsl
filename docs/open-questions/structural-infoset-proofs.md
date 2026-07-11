@@ -69,10 +69,12 @@ agents are made artificially ignorant, so any measurement built on the
 partition (an equilibrium baseline, a who-knows-what study of belief
 reasoning across seats) quietly measures the wrong game while every test
 reads green. Two standing caveats bound any partition claim made today: the
-Tichu/Coup scope reductions keep several real decisions inside rng
-primitives, so those choices appear in *no one's* information set until the
-chooser upgrade ([kernel-migration.md](../kernel-migration.md), Workstream
-5); and the guarantee covers the *structured* partition only — if the
+Tichu scope reductions keep its call gates and Dragon routing inside rng
+primitives, so those choices appear in *no one's* information set until
+Tichu's chooser upgrade ([kernel-migration.md](../kernel-migration.md),
+Workstream 5 — Coup's upgrade is done: its challenges, blocks, claimed
+characters, and targets are real announced decisions); and the guarantee
+covers the *structured* partition only — if the
 language ever grows free-form communication channels (an LLM seat and
 table-talk), meaning carried in that text lives outside the game state and
 outside this guarantee.

@@ -2123,11 +2123,12 @@ faithful, because a response reacts to what is already on the table. No
 `simultaneously:` block appears in Coup, and none of the
 unforced body-grammar extensions below (in-block `if`, nested blocks)
 is needed — the forcing function confirmed the split rather than
-reopening it. (At the migrated random-play scope the windows carry no
-player decisions at all — the gates are rng and the results are public
-phase-state Booleans, [games/coup.cardlang](games/coup.cardlang); the
-interactive upgrade sequences real `challenge`/`pass` decisions in
-priority order, [kernel-migration.md](kernel-migration.md) Workstream 5.)
+reopening it. (The encoding sequences real `challenge`/`allow` decisions
+clockwise from the claimant — a `repeat until` pointer walk with one
+`offer` per responder, first challenge closing the window,
+[games/coup.cardlang](games/coup.cardlang) — and the blocker's claimed
+character is folded into the block window's vocabulary, so the bluff is
+itself the offered decision.)
 
 **Body grammar.** The body admits:
 

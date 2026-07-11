@@ -299,22 +299,19 @@ match) and so must trump if able, a quirk the split preserves precisely.
   partnership/finishing lookups and card-point table are pure primitives; and
   `tichu_hand_summary` emits the hand's conservation trace. Scoring writes
   `score[team]` directly.
-- **Coup's game** runs on the kernel with no mechanic: each turn is one
-  `offer` over the seven coin-guarded actions (the forced coup at ten coins
-  falls out of the `when:` guards), every influence loss is a chosen
-  movement by the loser (the single-actor `for each player q: if q == X`
-  idiom) flipped publicly into `revealed`, and the exchange is a
-  deal-n + chosen-n + shuffle. At the migrated random-play scope the
-  challenge and block windows carry NO player decisions — the gates,
-  the blocker's claimed character, and the action targets are rng — so
-  they are inline statements around game-local rng primitives at the
-  reference's exact draw sites, with the window results
-  (`challenge_stands` / `block_stands`) as public phase state. A proven
-  challenge returns the claimed card to the deck, reshuffles, and redraws
-  (hidden movements; real Coup shows the proven card — the
-  interactive-windows scope upgrade, [kernel-migration.md](kernel-migration.md)
-  Workstream 5, brings response windows as decisions in priority order, a
-  Player target domain, and a `reveal` epistemic op).
+- **Coup's game** runs on the kernel with no mechanic, at real interactive
+  scope: each turn is one `offer` over the seven coin-guarded actions (the
+  forced coup at ten coins falls out of the `when:` guards; `steal` /
+  `assassinate` / `coup` carry a declared `target : Player` parameter),
+  every response window is a poll of real decisions (`offer to <responder>
+  one of [challenge, allow]` clockwise from the claimant, first challenge
+  closing the window; blocks fold the claimed character into the vocabulary
+  — `block_claiming_*`), every influence loss is a chosen movement by the
+  loser (the single-actor `for each player q: if q == X` idiom) flipped
+  publicly into `revealed`, and the exchange is a deal-n + chosen-n +
+  shuffle. A proven challenge `reveal`s the shown card publicly before
+  returning it to the deck, reshuffling, and redrawing; window results
+  (`challenge_stands` / `block_stands`) are public phase state.
 - `MeldingPhase` — currently a placeholder; real definition deferred.
 
 ## Scoring components
@@ -486,8 +483,17 @@ is for value-returning functions, not operations (see [decisions.md](decisions.m
 "The operation vocabulary"). Full semantics in [decisions.md](decisions.md)
 "Knowledge, visibility, and the projection model".
 
-- `peek(target, observer)` — private look (target is a card or zone)
-- `reveal(target, observers = all)` — show to observers (default: all)
+- `peek(target, observer)` — private look (target is a card or zone).
+  Catalogued, unbuilt; its forcing function is an epistemic event with no
+  physical-zone counterpart (a private look moves nothing, so no projection
+  can carry it).
+- `reveal(target, observers = all)` — show to observers (default: all).
+  BUILT in its public one-card form: `reveal one card from <zone> [where
+  <predicate>]` publicly identifies the first matching card in place,
+  emitting a `("reveal", zone, card)` observation to every player (Coup's
+  proven challenge). The grammar admits only that form — multi-card
+  reveals and observer subsets are not expressible until a game forces
+  them (same forcing function as `peek`).
 - `hide(target, hidden_from = all_except_owner)` — future visibility downgrade; prior knowledge persists under perfect recall
 - `shuffle(zone)` — destroys per-card identity knowledge; preserves count-by-type. No-op on pure-resource zones.
 - `announce(fact, observers = all)` — purely epistemic event; updates observers' candidate sets
@@ -687,20 +693,11 @@ all reading `cardlang/runtime/tichu.py` (the combination engine itself stays
   victory, captured card points) the playout harness audits conservation
   against.
 
-Coup's window randomness and bookkeeping are twelve game-local primitives
-reading `cardlang/runtime/coup.py` (the rng ones consume the reference's
-exact draws; the migrated scope plays randomly — see the Mechanics entry):
+Coup's bookkeeping is five game-local primitives in
+`cardlang/runtime/coup.py`, all pure reads or trace emitters (every window
+response, claim, and target is a chooser decision in the DSL body — see the
+Mechanics entry):
 
-- `coup_challenger(claimant: Player) → Player?` — the challenge gate: scan
-  in-game opponents clockwise from the claimant, each challenging at 18%;
-  first hit or none.
-- `coup_fa_blocker(actor: Player) → Player?` — foreign aid's block gate
-  (seat-order scan at 30%); `coup_block_roll() → Boolean` — the
-  single-blocker gate (the assassination/steal target).
-- `coup_duke_claim()` / `coup_contessa_claim()` / `coup_steal_block_claim()
-  → String` — the blocker's claimed character (each consumes the
-  reference's `rng.choice`; steal's is the one real two-way pick).
-- `coup_random_target(actor: Player) → Player` — a random in-game opponent.
 - `coup_players_in() → Integer`, `coup_next_in_game(p: Player) → Player`,
   `coup_has_char(p: Player, r: String) → Boolean` — in-game scans and the
   challenge-proof lookup (pure reads).
