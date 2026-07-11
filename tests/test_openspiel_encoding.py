@@ -269,9 +269,15 @@ def test_tichu_space_derives_its_own_56_block_and_the_combo_codec() -> None:
     # golden-pinned universe like Big Two's 19,898 is physically infeasible).
     # Every combo id is a pure function of the card-set, so ids stay stable
     # across determinized worlds without a table.
-    assert space.num_distinct_actions == 56 + 1 + 211_204_694
-    assert space.to_string(56) == "pass"
-    # Spot ids: the combo block opens at 57 with the Dog (its own trick-ending
+    # ... plus the six named call/Dragon moves of the WS5 windows
+    # (call_grand_tichu, decline_grand, call_tichu, no_call, dragon_to_left,
+    # dragon_to_right).
+    assert space.num_distinct_actions == 56 + 1 + 6 + 211_204_694
+    # The named-move block follows the cards (declaration order interleaves
+    # the WS5 vocabulary around the climb pass).
+    assert space.to_string(60) == "pass"
+    assert space.to_string(56) == "call_grand_tichu"
+    # Spot ids: the combo block opens at 63 with the Dog (its own trick-ending
     # kind), and the engine's Phoenix+Mahjong pair (the by_rank quirk) sits at
     # a pinned slot inside the pair sub-block.
     from cardlang.runtime.combinations import Play
@@ -282,10 +288,10 @@ def test_tichu_space_derives_its_own_56_block_and_the_combo_codec() -> None:
     mahjong = next(c for c in deck if c.rank == "Mahjong")
     phoenix = next(c for c in deck if c.rank == "Phoenix")
     dog_aid = space.encode(Play("dog", 1, 0, (dog,)))
-    assert dog_aid == 57
+    assert dog_aid == 63
     assert space.to_string(dog_aid) == f"dog[{dog}]"
     pair_aid = space.encode(Play("pair", 2, 1, (mahjong, phoenix)))
-    assert pair_aid == 57 + 56 + 78  # combo base + pair block + the 78 naturals
+    assert pair_aid == 63 + 56 + 78  # combo base + pair block + the 78 naturals
     assert space.to_string(pair_aid).startswith("pair[")
 
 

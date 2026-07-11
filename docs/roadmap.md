@@ -184,24 +184,7 @@ questions by impact × actionability and is the authority on question
 priority. This section adds what that list doesn't carry: the cross-cutting
 work that isn't an open question, and which next game unblocks what.
 
-1. **The Workstream 5 chooser upgrade, Tichu half**
-   ([kernel-migration.md](kernel-migration.md), Workstream 5's remaining
-   scope): upgrade Tichu's call windows and Dragon routing from rng
-   primitives to real player decisions. A behaviour change with new
-   goldens and its own sign-off, not a migration. It changes what the
-   information partition *is* for Tichu — so it precedes any external
-   partition claim — and the call rules must be verified against Pagat
-   before design (grand tichu is a fixed first-eight-cards window; small
-   tichu is callable any time before the caller's first play, which runs
-   on the settled quiescence-lap poll — [decisions.md](decisions.md),
-   "Off-the-clock windows").
-   The partition checks (legal-action agreement, the per-visible-fact
-   soundness matrix, seed/rng non-observability, adapter agreement — see
-   [open-questions/structural-infoset-proofs.md](open-questions/structural-infoset-proofs.md),
-   "Built against the empirical harness") are its acceptance bar, as they
-   were for Coup's half.
-
-2. **Pick the next game for its unblocks.** The full pipeline is
+1. **Pick the next game for its unblocks.** The full pipeline is
    [games/_candidates.md](games/_candidates.md); several candidates each
    unblock more than one open question:
 
@@ -220,16 +203,16 @@ work that isn't an open question, and which next game unblocks what.
    - **Klondike or FreeCell** — first solitaire; forces the deferred
      positional-zone design rather than an open question.
 
-3. **Address Tier 3 questions when their corner gets exercised.**
+2. **Address Tier 3 questions when their corner gets exercised.**
    [move-level-visibility](open-questions/move-level-visibility.md) awaits
    the first game needing a move-level projection override. When these
    land, the partition checks are their acceptance bar: new visibility
    surface arrives with derived partition coverage, not bespoke tests.
 
-4. **Pin down [memory-event-syntax](open-questions/memory-event-syntax.md)**
+3. **Pin down [memory-event-syntax](open-questions/memory-event-syntax.md)**
    when three or four examples exist beyond stdlib operations (Stud and
    Coup are the two so far; both composed the closed vocabulary without
    needing a declaration).
 
-5. **Defer Tier 5 cosmetic questions** until a real preference emerges
+4. **Defer Tier 5 cosmetic questions** until a real preference emerges
    from corpus pressure.

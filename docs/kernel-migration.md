@@ -34,9 +34,8 @@ per-card queries and settlement arithmetic; Cribbage's pegging/show scorers
 and provenance decoder; Schnapsen's two-card trick resolution; Skat's bid
 ladder, follow-class legality, trick winner, matador count, and overbid
 arithmetic; Tichu's climb queries over the shared `combinations.py` engine,
-its two rng gates, partnership/finishing lookups, and the OpenSpiel combo
-codec; Coup's window gates and claim picks (rng at the migrated random-play
-scope), in-game scans, and trace emitters.
+partnership/finishing lookups, and the OpenSpiel combo codec; Coup's
+in-game scans and trace emitters.
 
 The stage-done checklist holds: no per-game branch anywhere outside the
 stdlib primitive registries; every `tests/test_playout_*.py` green with
@@ -51,15 +50,14 @@ play sequence — anything where order itself carries information) must not be
 rendered sorted, or distinct information sets that differ only in order
 would silently collapse into the same string.
 
-**What remains honest to record — the scope boundary, not debt.** Tichu
-carries its monolith's random-play scope reductions as *rules-level
-randomness* in rng primitives (its call gates and Dragon routing — real
-Tichu makes both player decisions). Those choices fold into the root seed
-chance node rather than appearing as decision nodes, so they are absent
-from the derived information sets by construction, consistently. Upgrading
-them is the remaining half of Workstream 5 (see its checkpoint below);
-Coup's half is done — its challenges, blocks, claimed characters, and
-targets are real announced decisions.
+**What remains honest to record — the scope boundary, not debt.** No
+rules-level randomness remains: both Workstream 5 halves are done. Coup's
+challenges, blocks, claimed characters, and targets are real announced
+decisions, and so are Tichu's call windows (grand at the eight-card deal
+window, small on the off-the-clock poll — decisions.md "Off-the-clock
+windows") and its Dragon routing. Each game's remaining scope reductions
+are named in its own game file (Tichu's Mahjong wish and bomb variants,
+and the like) — scope, not hidden randomness.
 
 The built-in `Trick` mechanic was also engine code, not DSL. Retiring it —
 moving Hearts, Spades, Getaway, and Bridge's play onto the kernel `round` (Oh
@@ -370,10 +368,10 @@ The design the construct settled:
   these (re-verified byte-identical). Tichu's trick itself never ends early
   (`until false` — a shed does not stop the beating); the *hand* ends at
   "≤ 1 player still holds cards" or double victory, in the surrounding
-  `repeat until`. Dragon → opponent routing is a post-trick
-  `tichu_dragon_recipient()` draw at the monolith's exact RNG site, and the
-  Tichu/Grand-Tichu gates are `tichu_call_roll()` likewise (the migrated
-  scope plays randomly).
+  `repeat until`. Dragon → opponent routing and the Tichu/Grand-Tichu
+  calls landed at migration as rng draws at the monolith's exact RNG sites;
+  Workstream 5's Tichu half has since upgraded both to real announced
+  decisions (see the WS5 section).
 - **The OpenSpiel combo block is computed for Tichu, enumerated for Big
   Two.** Big Two's play universe (19,898) is enumerated and golden-pinned;
   Tichu's is 211,204,694 (straights of length 5–14 under free suit
@@ -483,15 +481,19 @@ flip in order, final coins, alive, winner, 40 seeds) pins the interactive
 scope, re-pinned at the WS5 sign-off
 (`docs/superpowers/specs/2026-07-10-ws5-coup-interactive-windows-design.md`).
 
-**The remaining WS5 scope: Tichu.** Tichu's call gates and Dragon routing
-are still rng primitives (`tichu_call_roll`, `tichu_dragon_recipient`);
-upgrading them to real decisions is the other half of this workstream — a
-behaviour change with new goldens. Its sign-off is GRANTED (2026-07-11):
-implement at real-rules fidelity, with the call rules verified against
-Pagat before design (grand tichu is a fixed
-first-eight-cards window; small tichu is callable any time before the
-caller's first play, which runs on the settled quiescence-lap poll —
-[decisions.md](decisions.md), "Off-the-clock windows").
+**The Tichu half — done at real-rules fidelity.** The call rules were
+verified against the publisher's English rules (Pagat's commercial-games
+index defers to Fata Morgana for Tichu): grand tichu is a discrete
+first-eight-cards window (offer per player, then the deal completes); small
+tichu is off-the-clock until the caller's first play and runs on the
+quiescence-lap poll (decisions.md "Off-the-clock windows") with publicly
+derivable eligibility (pre-push: nobody has played; post-push: a 14-card
+hand is exactly "unplayed"); the Dragon's trick is given by a real announced
+choice. The rng gates (`tichu_call_roll`, `tichu_dragon_recipient`) are
+deleted from the registries. New goldens pin the behaviour change, captured
+under a reference call policy — the uniform chooser diverges, which is the
+second legally-unbounded-lines witness
+([open-questions/unbounded-lines-and-max-length.md](open-questions/unbounded-lines-and-max-length.md)).
 
 ## Cross-cutting build-out
 

@@ -76,10 +76,11 @@ of the language.
   block for one-player decisions, replacing the `for each player p: if p ==
   X` loop-and-skip idiom that six games now use.
 - [unbounded-lines-and-max-length](unbounded-lines-and-max-length.md) —
-  interactive Coup is the first game with legally unbounded lines (an
-  exchange-forever table never progresses), so the `max_length` backstop can
-  fire on a legal line and raise instead of ending the game; raise-as-bug
-  vs graceful terminal vs per-game opt-in is undecided.
+  two games now have legally unbounded lines (Coup's exchange-forever
+  table; Tichu's always-calling table, which drifts away from 1000
+  forever), so the `max_length` backstop can fire on a legal line and
+  raise instead of ending the game; raise-as-bug vs graceful terminal vs
+  per-game opt-in is undecided.
 
 ## Tier 4 — Low impact, defer until forced
 

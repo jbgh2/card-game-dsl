@@ -7,7 +7,11 @@ partnership to **1000** wins. Rules: Fata Morgana English edition.
 
 Each hand:
 
-1. Deal 14 cards each; every player **pushes** one card to each other player.
+1. Deal 8 cards each; each player may call **Grand Tichu** (±200) before
+   the last six cards are dealt. The deal completes to 14 and every player
+   **pushes** one card to each other player. Any player who has not called
+   may call **Tichu** (±100) at any time before playing their first card —
+   including before or during the push.
 2. The Mahjong holder leads. Players **climb**: each play must be a combination
    of the led *type and length* and **beat** the previous play in rank, or be a
    **bomb** (four of a kind, which beats any non-bomb), or **pass**. Three passes
@@ -18,7 +22,7 @@ Each hand:
    **Dog** is led alone and hands the lead to your partner (no capture); the
    **Phoenix** is a wildcard / a single worth half a rank above the last play
    (and −25 points); the **Dragon** is the highest single, worth +25, and its
-   trick is given to an opponent.
+   trick is given to an opponent of the winner's choice.
 4. As players empty their hands they go out in order. If both partners of a team
    go out first and second — a **double victory** — the hand ends for 200 points
    with no card counting. Otherwise the last player's remaining hand goes to the
@@ -41,12 +45,29 @@ push is one chosen 3-card movement per player into a per-player `gift` pile
 — simultaneous, since gifts land only after every pick — distributed
 giver-major and draw-free (pick *i* to the *i*-th other seat), so each
 receiver learns exactly what landed and from whom, and nobody else learns
-anything but counts. The Tichu/Grand-Tichu call gates and the Dragon's
-random opponent are the two rng primitives (`tichu_call_roll`,
-`tichu_dragon_recipient`). Scope reductions
-(random play): the Mahjong wish, the Phoenix as a wildcard inside
-straights/consecutive-pairs, straight-flush bombs, and out-of-turn bombs are
-omitted; Tichu/Grand Tichu are called at a low random rate.
+anything but counts. The calls and the Dragon are real decisions. Grand
+tichu is a discrete window in the deal (eight cards, each player accepts or
+declines in seat order, then the last six). Small tichu is off-the-clock —
+any time before the caller's first play — encoded as the quiescence-lap poll
+([decisions.md](../decisions.md) "Off-the-clock windows"): before the push,
+after it, and before each climbing trick, an offering round walks the ring
+while the public gate holds (`no_call` laps close it). Eligibility is public
+with no dedicated tracking: before the push nobody has played; after it,
+exactly the players still holding 14 cards haven't. Because the climb round
+owns the decisions inside a trick, within-trick call timing coarsens to
+trick boundaries — no call becomes unreachable, only its fine timing
+relative to plays inside the caller's first trick. A Dragon-won trick is
+given away by a real announced choice (`dragon_to_left` / `dragon_to_right`);
+both opponents bank into the same team pile, so the choice moves no points,
+but the decision itself is public history, as at the table. One honest
+consequence of real calls: under *indiscriminate* calling the 1000-point
+race diverges (a random call is worth about −50 in expectation), so a table
+of maniacs never finishes — the corpus's second legally-unbounded line
+([open-questions/unbounded-lines-and-max-length.md](../open-questions/unbounded-lines-and-max-length.md));
+the playout tests drive the windows through a reference policy instead.
+Scope reductions (unchanged): the Mahjong wish, the Phoenix as a wildcard
+inside straights/consecutive-pairs, straight-flush bombs, and out-of-turn
+bombs are omitted.
 
 ```
 game Tichu {
@@ -76,7 +97,7 @@ game Tichu {
     before_each {
       move all cards to deck
       shuffle deck
-      deal 14 cards from deck to each hand
+      deal 8 cards from deck to each hand
     }
 
     phase play {
@@ -85,19 +106,39 @@ game Tichu {
         out_first  : Player? = none    // finishing order (public), first two only —
         out_second : Player? = none    //   all the scoring ever reads
         leader     : Player? = none
+        poll_anchor : Player = 0       // fixed, public ring anchor for pre-lead polls
+        quiet      : Integer = 0       // consecutive no_call count (poll bookkeeping)
+        push_done  : Boolean = false   // public flip: post-push, hand size 14 = unplayed
       }
 
       legal_moves: [play_combination]
 
-      // Tichu / Grand Tichu calls (random-rate gates so card points drive the
-      // game; the primitive consumes the reference's exact rng draws).
-      for each player p: called[p] := tichu_call_roll()
+      // Grand tichu: on the first eight cards, each player in seat order
+      // accepts or declines the 200-point call, then the deal completes.
+      for each player p: offer to p one of [call_grand_tichu, decline_grand]
+      deal 6 cards from deck to each hand
+
+      // Small tichu before the push ("a call before the cards are pushed can
+      // be useful as a request for partner to hand over his best card").
+      if tichu_window_open() {
+        quiet := 0
+        round offering [call_tichu, no_call] from poll_anchor over all players
+              until quiet >= 4
+      }
 
       // The push: one draw of three from the live hand per player; gifts land
       // only after every pick (simultaneous). Distribution is draw-free and
       // giver-major: pick i goes to the i-th other player in seat order.
       for each player p: move chosen 3 cards from hand[p] to gift[p]
       for each player p: for each player q: if q != p { deal one card from gift[p] to hand[q] }
+      push_done := true
+
+      // Small tichu between the push and the first lead.
+      if tichu_window_open() {
+        quiet := 0
+        round offering [call_tichu, no_call] from poll_anchor over all players
+              until quiet >= 4
+      }
 
       // The Mahjong holder (post-push) leads the first trick.
       leader := tichu_mahjong_holder()
@@ -107,6 +148,13 @@ game Tichu {
       // trick never ends early on a shed (`until false`) — the others must
       // still beat or pass; the DOG ends it via the engine's `ends_trick`.
       repeat until tichu_players_holding() <= 1 or tichu_double_victory() {
+        // Small tichu before each trick (the poll cannot interleave with the
+        // plays inside the climb round; see the header note).
+        if tichu_window_open() {
+          quiet := 0
+          round offering [call_tichu, no_call] from leader over all players
+                until quiet >= 4
+        }
         round climb play_combination from leader
               over players where hand[player] is not empty
               source hand into trick_pile
@@ -128,10 +176,14 @@ game Tichu {
             if out_first is none { out_first := state.shed_second }
             else { if out_second is none { out_second := state.shed_second } }
           }
-          // The Dragon's trick is given to an opponent; otherwise the winner's
-          // team captures the pile.
+          // A Dragon-won trick is given to an opponent of the winner's
+          // choice. Both opponents bank into the same team pile, so the
+          // choice moves no points — but the announced decision is public
+          // history, exactly as at the table. Otherwise the winner's team
+          // captures the pile.
           if tichu_dragon_won() {
-            move all cards from trick_pile to captured[team_of(tichu_dragon_recipient(outcome))]
+            offer to outcome one of [dragon_to_left, dragon_to_right]
+            move all cards from trick_pile to captured[tichu_opponent_team(outcome)]
           } else {
             move all cards from trick_pile to captured[team_of(outcome)]
           }
@@ -166,4 +218,50 @@ game Tichu {
 
   winner: highest score
 }
+
+// === Call and Dragon vocabulary ===
+//
+// Game-defined move_types (the Skat/Doppelkopf shape). Guards read only the
+// actor's public standing (their call flag and hand count); effects write
+// only public state. `no_call` is unguarded, so a poll never offers an empty
+// candidate set, and a forced decline emits the same public event as a
+// chosen one.
+
+move_type call_grand_tichu {
+  when: called[actor] == 0
+  effect { called[actor] := 200 }
+}
+
+move_type decline_grand {
+  effect { }
+}
+
+move_type call_tichu {
+  when: called[actor] == 0 and (not push_done or (sum over hand[actor] as c: 1) == 14)
+  effect {
+    called[actor] := 100
+    quiet := 0
+  }
+}
+
+move_type no_call {
+  effect { quiet += 1 }
+}
+
+// The Dragon's gift: which opponent physically takes the trick. Both bank
+// into the same team pile, so neither move needs an effect — the announced
+// choice is the whole content.
+move_type dragon_to_left {
+  effect { }
+}
+
+move_type dragon_to_right {
+  effect { }
+}
+
+// The public small-tichu gate: someone may still call iff they have not
+// called and have not played (pre-push: nobody has played; post-push: a
+// full 14-card hand is exactly "unplayed", since only plays shrink it).
+function tichu_window_open() =
+  any player p: called[p] == 0 and (not push_done or (sum over hand[p] as c: 1) == 14)
 ```

@@ -293,10 +293,12 @@ match) and so must trump if able, a quirk the split preserves precisely.
   `state.shed_second`. The push is one chosen 3-card movement per player into
   a per-player `gift` pile (simultaneous by construction — gifts land only
   after every pick), distributed giver-major by draw-free `deal` statements.
-  The two rule-level randomnesses of the migrated scope — the Tichu/Grand-
-  Tichu call gates and the Dragon's trick going to a random opponent — are
-  the `tichu_call_roll` / `tichu_dragon_recipient` rng primitives; the
-  partnership/finishing lookups and card-point table are pure primitives; and
+  The calls and the Dragon are real decisions: grand tichu is an
+  offer per player at the eight-card deal window, small tichu runs on the
+  quiescence-lap poll before the push / after it / before each trick, and a
+  Dragon-won trick is given by an announced `dragon_to_left` /
+  `dragon_to_right` choice; the partnership/finishing lookups and card-point
+  table are pure primitives; and
   `tichu_hand_summary` emits the hand's conservation trace. Scoring writes
   `score[team]` directly.
 - **Coup's game** runs on the kernel with no mechanic, at real interactive
@@ -673,10 +675,6 @@ all reading `cardlang/runtime/tichu.py` (the combination engine itself stays
   combination a hand can lead (plus the Dragon/Phoenix/Dog lead singles, the
   Dog marked `ends_trick`), and the follows that beat the standing play (same
   kind and length and higher, any bomb, the Dragon/Phoenix single answers).
-- `tichu_call_roll() → Integer` — one player's Tichu/Grand-Tichu gate at the
-  migrated random-play scope (200 at 4%, else 100 at 8%, else 0; rng).
-- `tichu_dragon_recipient(w: Player) → Player` — the opponent given the
-  Dragon's trick (rng at the same site as the reference).
 - `tichu_mahjong_holder() → Player` — leads the first trick (post-push).
 - `tichu_players_holding() → Integer` — non-empty hands (the hand ends ≤ 1).
 - `tichu_double_victory() → Boolean` — the first two finishers are teammates.

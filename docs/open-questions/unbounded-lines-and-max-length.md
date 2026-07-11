@@ -19,6 +19,16 @@ so an OpenSpiel algorithm following such a line crashes mid-query instead
 of reaching a terminal state, and the adapter's declared `max_game_length`
 is a promise ("the game ends by then") the game cannot keep.
 
+Tichu at real-call scope is the **second witness**, and a sharper one: a
+tichu call is worth about −50 in expectation under indiscriminate play, so
+a table that always calls drifts *away* from the 1000-point finish forever
+(measured: 2,200+ hands with no terminus under the uniform random chooser).
+Unlike Coup's exchange loop, this line IS what the uniform chooser plays —
+random walks hit it immediately, not only adversarial policies — so Tichu's
+playout tests and goldens drive the call windows through a reference policy
+(games/tichu.cardlang, tests/test_playout_tichu.py), and the divergence
+stands recorded here rather than being patched out of the rules.
+
 ## The options
 
 - **Graceful terminal at the bound.** Reaching `max_length` ends the game

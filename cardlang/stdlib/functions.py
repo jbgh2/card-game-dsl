@@ -92,14 +92,12 @@ STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
         "skat_matadors",  # Skat: the with/without matador count (hand + skat)
         "skat_effective_loss",  # Skat: the overbid-aware loss base (needs a ceiling)
         "doko_trick_winner",  # Doppelkopf: the four-card trick's winner (first of equals)
-        "tichu_call_roll",  # Tichu: one player's Tichu/Grand-Tichu gate (0/100/200, rng)
         "tichu_mahjong_holder",  # Tichu: who holds the Mahjong (leads the first trick)
         "tichu_players_holding",  # Tichu: how many players still hold cards
         "tichu_double_victory",  # Tichu: are the first two finishers teammates?
         "tichu_partner",  # Tichu: the teammate (partners sit across)
         "tichu_next_holder",  # Tichu: the arg if holding, else the next holder ccw
         "tichu_dragon_won",  # Tichu: did the Dragon capture the trick just completed?
-        "tichu_dragon_recipient",  # Tichu: the opponent given the Dragon's trick (rng)
         "tichu_opponent_team",  # Tichu: the team a player does not belong to
         "tichu_first_out",  # Tichu: the first finisher (defaults to player 0)
         "tichu_card_points",  # Tichu: the card-point table (K/10 = 10, 5 = 5, Dragon +25, Phoenix -25)

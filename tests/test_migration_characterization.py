@@ -147,6 +147,11 @@ def test_stud_migration_preserves_per_hand_stacks() -> None:
 # one — a structural change, not a draw divergence). Team scores accumulate every
 # hand's card points, so any draw divergence cascades into the finals. Pinned
 # pre-migration.
+# Re-pinned at the WS5 upgrade (real call windows + Dragon choice): captures run
+# under the reference policy from tests/test_playout_tichu.py (grand 4%, small
+# 2% per offer, uniform otherwise) — the uniform chooser diverges (the
+# unbounded-lines witness), and the policy keeps the pinned profile close to
+# the pre-WS5 rng gates.
 _TICHU_CAPTURE = """
 import json, random, sys
 from pathlib import Path
@@ -154,9 +159,23 @@ from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
 
 game = check_dsl(Path("docs/games/tichu.cardlang").read_text(), "tichu.cardlang")
+
+def policy(rng):
+    from cardlang.runtime.chooser import random_chooser
+    base = random_chooser(rng)
+    def chooser(player, candidates, n):
+        names = {c[0]: c for c in candidates if isinstance(c, tuple) and c}
+        if "call_grand_tichu" in names:
+            return [names["call_grand_tichu"] if rng.random() < 0.04 else names["decline_grand"]]
+        if "call_tichu" in names:
+            return [names["call_tichu"] if rng.random() < 0.02 else names["no_call"]]
+        return base(player, candidates, n)
+    return chooser
+
 out = {}
 for seed in range(50):
-    r = play_game(game, random.Random(seed))
+    rng = random.Random(seed)
+    r = play_game(game, rng, None, policy(rng))
     out[str(seed)] = {
         "scores": {str(k): v for k, v in sorted(r.scores.items())},
         "winner": r.winner,
@@ -179,7 +198,7 @@ def _capture_tichu() -> dict[str, Any]:
     return result
 
 
-def test_tichu_migration_preserves_per_seed_results() -> None:
+def test_tichu_ws5_pins_per_seed_results() -> None:
     expected = json.loads((GOLDEN / "tichu_scores.json").read_text())
     assert _capture_tichu() == expected
 
@@ -200,6 +219,19 @@ from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
 
 game = check_dsl(Path("docs/games/tichu.cardlang").read_text(), "tichu.cardlang")
+
+def policy(rng):
+    from cardlang.runtime.chooser import random_chooser
+    base = random_chooser(rng)
+    def chooser(player, candidates, n):
+        names = {c[0]: c for c in candidates if isinstance(c, tuple) and c}
+        if "call_grand_tichu" in names:
+            return [names["call_grand_tichu"] if rng.random() < 0.04 else names["decline_grand"]]
+        if "call_tichu" in names:
+            return [names["call_tichu"] if rng.random() < 0.02 else names["no_call"]]
+        return base(player, candidates, n)
+    return chooser
+
 out = {}
 for seed in range(50):
     hands = []
@@ -212,7 +244,8 @@ for seed in range(50):
             summary = _p.pop() if _p else [None, None]
             _h.append([data[t] for t in sorted(data)] + summary)
 
-    play_game(game, random.Random(seed), tracer)
+    rng = random.Random(seed)
+    play_game(game, rng, tracer, policy(rng))
     out[str(seed)] = hands
 print(json.dumps(out))
 """
@@ -232,7 +265,7 @@ def _capture_tichu_hands() -> dict[str, Any]:
     return result
 
 
-def test_tichu_migration_preserves_per_hand_results() -> None:
+def test_tichu_ws5_pins_per_hand_results() -> None:
     expected = json.loads((GOLDEN / "tichu_hands.json").read_text())
     assert _capture_tichu_hands() == expected
 
