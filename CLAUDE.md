@@ -24,49 +24,23 @@ info sets are the *whole reason* this DSL is worth more than hand-coding each ga
 against OpenSpiel directly. For hidden hands, face-down cards, bluffs, and
 concealed bids this is genuinely hard — and it is exactly where the value is.
 
-**Honest status — every corpus game is fully kernel with derived info sets;
-scope reductions are the remaining honesty line.**
-All fifteen games (Hearts, Getaway, Spades, Bridge, Oh Hell, Big
-Two, Seven-Card Stud, Pinochle, French Tarot, Cribbage, Schnapsen, Skat,
-Tichu, Coup, Go Fish) reach
-OpenSpiel through
-ONE general adapter with *derived* information sets: per-observer observations are
+**Honest status — the stable invariant, and where the evolving line lives.**
+Every corpus game is fully kernel: all games reach OpenSpiel through ONE
+general adapter with *derived* information sets — per-observer observations
 emitted from the kernel's decision/movement sites through the declared
-zone-type projections, and `tests/openspiel_ready/` (one proof module per
-game over a shared proof harness) proves
-indistinguishability (hidden-card swaps leave a player's information state
-byte-identical and the offered legal actions unchanged), soundness (a
-per-visible-fact perturbation matrix enumerated from the zone
-declarations), a structural seed/rng non-observability pin, adapter
-agreement (with terminal-returns agreement on the eight games whose greedy
-line ends), and perfect recall for each (Bridge's and French
-Tarot's swap/soundness/recall proofs cover only the pass-only line of their
-auctions — the harness's greedy replay never places a bid, let alone reaches
-the chien discard or trick play; French Tarot's hidden discard, Schnapsen's
-lead actions, Skat's pickup/discard, Tichu's push, and Coup's influence flips
-are instead
-proven derived by dedicated observational tests. Go Fish's swap proof pairs
-same-rank cards rather than same-suit ones — the harness gained a
-`swap_axis` for rank-probing games, since a same-suit swap can change a
-publicly observed transfer count — and its public-ask / transfer-count
-derivation (that a legal ask itself proves the asker holds the named rank) is
-likewise proven by dedicated observational tests rather than the swap probe
-(the general pattern — the empirical harness accreting a new per-game
-exception with every information structure the corpus adds — is tracked in
-`docs/open-questions/structural-infoset-proofs.md`).
-Stud's, French Tarot's, and
-Tichu's conformance are bounded random API walks, their full sims being
-quadratic-in-length). No per-game observation rules remain, no Python
-escape-hatch mechanic exists (the `instantiate` construct is deleted), and no
-per-game branch survives outside the stdlib primitive registries. What
-remains honest to say: Tichu carries its monolith's random-play scope
-reductions as *rules-level randomness* in rng primitives — its call gates
-and Dragon routing (real Tichu makes both player decisions) — so those two
-decisions do not yet appear in the derived information sets. Upgrading them
-is the remaining half of Workstream 5 (`docs/kernel-migration.md`), not
-silent completeness. (Coup's half is done: challenges, blocks, claimed
-characters, and targets are real announced decisions, and a proven
-challenge's card is publicly revealed.)
+zone-type projections — proven per game by `tests/openspiel_ready/` (one
+proof module per game over a shared harness: indistinguishability with
+legal-action agreement, the per-visible-fact soundness matrix, a seed/rng
+non-observability pin, adapter agreement, perfect recall; per-game caveats
+and rationale live in the proof modules themselves). No per-game
+observation rules, no Python escape-hatch mechanic (the `instantiate`
+construct is deleted), no per-game branch outside the stdlib primitive
+registries. **The evolving honesty line is tracked in two named places,
+not here:** `docs/kernel-migration.md` (workstream status and remaining
+scope reductions) and `docs/open-questions/structural-infoset-proofs.md`
+(proof-coverage caveats and the standing partition caveats). Consult both
+before making any completeness claim, and update them in the same change
+that alters status.
 
 **So, for every change, treat info-set derivation as a first-class acceptance
 criterion** — alongside "does it run" and "is it byte-identical":
@@ -111,7 +85,6 @@ docs/
   maintaining.md         Doc hygiene rules — read before editing docs
   appendix.md            Background research synthesis + corpus state catalogue
   games/                 One file per game in the corpus. Living spec examples.
-    hearts.md, getaway.md, spades.md, pinochle.md, bridge.md, seven-card-stud.md
     _candidates.md       Pipeline of games to consider next — corpus-first dev
   open-questions/        One file per open design question, with a tiered _index.md
   research/              Background surveys (verbatim, longer reads)
@@ -196,13 +169,8 @@ the test bed that drives language evolution. They must be kept in lockstep
 with the current state of the language. When you change the language,
 update every game that exercises the changed construct in the same edit.
 
-The corpus today: Hearts, Getaway (Bhabhi), Spades, Pinochle, Bridge
-(rubber, simplified), Seven-Card Stud, Tichu, Schnapsen (two-player),
-Cribbage
-(six-card, two-player), Oh Hell (four-player), Skat (three-player,
-DSkV rules), French Tarot (four-player, FFT rules), Coup
-(base game, 3–6 players), Big Two (four-player, standard), Go Fish
-(four-player, standard). Each is a
+The corpus is the set of files in `docs/games/` — one game per file, with
+each file's header naming its exact variant and player count. Each is a
 complete description: a non-player should be able to read the file
 cold and play a hand. That's the acceptance test for clarity.
 
