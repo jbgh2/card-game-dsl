@@ -36,7 +36,7 @@ from cardlang.stdlib.functions import (
     ZONE_METHODS,
 )
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
-from cardlang.stdlib.values import deck_suits, enum_values
+from cardlang.stdlib.values import DIRECTION_VALUES, deck_suits, enum_values
 from cardlang.typecheck import KNOWN_TYPE_NAMES
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 
@@ -55,6 +55,7 @@ _CALL_SITE_PRONOUNS = frozenset({"actor", "action", "outcome"})
 
 def resolve(game: n.Game) -> n.Game:
     bag = DiagnosticBag()
+    _resolve_deck(game, bag)
     _resolve_max_length(game, bag)
     for zone in game.zones:
         _resolve_zone(zone, bag)
@@ -351,11 +352,32 @@ def _categories(game: n.Game) -> _Categories:
         locals=frozenset(locals_),
         state_vars=frozenset(state_vars),
         zones=frozenset(z.name for z in game.zones),
-        enums=enum_values(game.deck),
+        enums=enum_values(game.deck) if _deck_known(game.deck) else DIRECTION_VALUES,
         functions=STDLIB_VALUE_NAMES,
         ranks=frozenset(game.ranking),
-        suits=deck_suits(game.deck),
+        suits=deck_suits(game.deck) if _deck_known(game.deck) else frozenset(),
     )
+
+
+def _deck_known(deck: str) -> bool:
+    from cardlang.runtime.values import DECKS
+
+    return deck in DECKS
+
+
+def _resolve_deck(game: n.Game, bag: DiagnosticBag) -> None:
+    """An unknown deck name is a diagnostic, never a raw registry raise from
+    inside category building (the suit registry derives from the runtime deck
+    table, which fails loudly for unknown names — correct at playout time,
+    wrong as a designer-facing check). The categories fall back to an empty
+    suit namespace so the rest of the file's diagnostics still collect."""
+    if not _deck_known(game.deck):
+        from cardlang.runtime.values import DECKS
+
+        bag.error(
+            f"unknown deck '{game.deck}' — known decks: {', '.join(sorted(DECKS))}",
+            None,
+        )
 
 
 def _classify(name: str, cats: _Categories) -> str | None:

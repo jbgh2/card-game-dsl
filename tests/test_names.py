@@ -107,3 +107,14 @@ def test_named_call_arguments_are_rejected() -> None:
     with pytest.raises(DiagnosticError) as e:
         resolve(parse_text(_game("team_of(x = 1)"), "t.cardlang"))
     assert "named call arguments are not supported" in e.value.diagnostic.message
+
+
+def test_unknown_deck_is_a_diagnostic_not_a_crash() -> None:
+    # The suit registry derives from the runtime deck table, which raises
+    # loudly for unknown names — right at playout time, wrong mid-resolve. A
+    # typo'd `cards:` line must surface as a diagnostic naming the known decks.
+    src = _game("0").replace("cards: standard52", "cards: standart52")
+    with pytest.raises(DiagnosticError) as e:
+        resolve(parse_text(src, "t.cardlang"))
+    assert "unknown deck 'standart52'" in e.value.diagnostic.message
+    assert "standard52" in e.value.diagnostic.message  # the known-decks hint
