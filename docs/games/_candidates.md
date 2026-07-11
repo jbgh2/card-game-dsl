@@ -35,6 +35,7 @@ to a real implementation.
 | [move-level-visibility](../open-questions/move-level-visibility.md) | per-observer move-level override (forces replace-vs-merge) | **poker "show one, show all"** — a Stud or [holdem](#holdem) variant, exercisable in the *existing* poker corpus |
 | [memory-event-syntax](../open-questions/memory-event-syntax.md) | an event composition can't express | **[hanabi](#hanabi)** (partial-identity hint over an inverted hand — forces it; _dedicated deck, out of scope_), [cabo](#cabo) (composable from existing ops) |
 | [knowledge-events](../open-questions/knowledge-events.md) | phase outcome observed unequally | **[mascarade](#mascarade)**, [love-letter](#love-letter) (both _dedicated deck, out of scope_) |
+| [structural-infoset-proofs](../open-questions/structural-infoset-proofs.md) | a compound hidden-function probe (public outcome as a non-trivial function of hidden state) | **[cheat](#cheat)** (challenge outcome = boolean function of hidden cards, then a reveal), [500](#500) open misère (corroborates: full reveal, not a function) |
 
 `higher-order-knowledge` is no longer listed: the verified pass found no
 card game whose *rules* read second-order knowledge (Hanabi and
