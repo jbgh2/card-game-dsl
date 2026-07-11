@@ -8,7 +8,11 @@ from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
 
 class TestReadiness(ReadinessProofs):
-    spec = GameSpec("cardlang_pinochle", "pinochle.cardlang")
+    spec = GameSpec(
+        "cardlang_pinochle",
+        "pinochle.cardlang",
+        adapter_terminal_steps=100,  # greedy line measured at 65 steps
+    )
 
 
 def test_declaration_and_lead_derive_observations() -> None:

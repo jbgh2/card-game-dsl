@@ -43,10 +43,10 @@ design. The data point is named in each file.
   Fish world-generator), so the strategy is whack-a-mole. The file also carries
   the certification checklist any resolution must satisfy — both failure
   directions (leak and over-hiding), recall, seed/rng non-observability,
-  legal-action agreement, adapter agreement — with today's coverage per item
-  and the checks buildable now; only the constructive world generator is
-  blocked, on the first compound hidden-function probe that defeats any simple
-  swap axis.
+  legal-action agreement, adapter agreement — with today's coverage per item.
+  The actionable checks are built as per-game proofs over the empirical
+  harness; only the constructive world generator is blocked, on the first
+  compound hidden-function probe that defeats any simple swap axis.
 - [turn-loop-form](turn-loop-form.md) — a `turns` form beneath the three
   round forms (rotation, participant filtering, termination owned by the
   kernel); seven stress-sweep games hand-rolled the same scaffolding;
@@ -89,6 +89,11 @@ or when a game forces the issue.
   custom memory-affecting events.
 - [knowledge-events](knowledge-events.md) — observer-dependent phase
   outcomes.
+- [round-state-in-information-states](round-state-in-information-states.md) —
+  active `round` state (`state.x` mid-round) appears in no information state;
+  harmless while round state stays derivable from the observation log, but
+  nothing enforces that. Data point: the first round state written from
+  hidden contents.
 - [special-cards-declaration](special-cards-declaration.md) — `specials:`
   block and contextual-rank cards (Tichu's Mahjong, Dog, Phoenix, Dragon).
 - [out-of-turn-moves](out-of-turn-moves.md) — `out_of_turn_legal`

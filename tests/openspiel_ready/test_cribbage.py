@@ -32,6 +32,7 @@ class TestReadiness(ReadinessProofs):
         "cribbage.cardlang",
         depth=4,
         stock_swap_skip=1,
+        adapter_terminal_steps=210,  # greedy line measured at 156 steps
     )
 
 
