@@ -444,20 +444,15 @@ def test_skat_migration_preserves_per_hand_scores() -> None:
     assert _capture_skat_hands() == expected
 
 
-# Coup (challenge/block windows + the coin economy) moves its whole game from
-# the last Python monolith onto the kernel. The migration reproduces the
-# monolith's draw sequence exactly: the chooser draws (the turn's action pick,
-# lose-influence picks, exchange picks) land at kernel sites, and the window
-# gates / claimed-character picks / targets stay rng, reproduced by game-local
-# primitives at the monolith's exact sites. We pin the strongest per-seed
+# Coup at real interactive scope (WS5): every challenge, block, claimed
+# character, and action target is a chooser decision, so random play decides
+# them uniformly at the offers. This golden pins the strongest per-seed
 # discriminator the game emits: the full reveal sequence (every influence
 # flip, in order, with its character — where every elimination happens) plus
-# final coins, the alive vector, and the winner. Pinned AFTER the sanctioned
-# deck-draw normalization (pop() -> pop(0): the monolith drew replacements and
-# deals off the BACK of the deck, which the movement vocabulary cannot express
-# — off-the-top is the convention every other game uses; no prior golden
-# existed, so nothing regenerated). The normalized monolith measured
-# hash-invariant (zero divergent seeds, PYTHONHASHSEED {0,1,2,3,7} x 40).
+# final coins, the alive vector, and the winner, over 40 seeds under
+# PYTHONHASHSEED=0 (the WS5 behaviour-change re-pin, signed off in
+# docs/superpowers/specs/2026-07-10-ws5-coup-interactive-windows-design.md).
+# Regenerate by running _COUP_CAPTURE exactly as _capture_coup does.
 _COUP_CAPTURE = """
 import json, random, sys
 from pathlib import Path

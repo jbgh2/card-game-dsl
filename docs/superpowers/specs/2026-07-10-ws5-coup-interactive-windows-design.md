@@ -157,10 +157,16 @@ constants. Surviving primitives are all pure: `coup_players_in`,
 1. **New goldens, re-pinned deliberately** — the rng stream changes
    wholesale (random play now challenges/blocks uniformly at the offers):
    `tests/golden/coup_scores.json` (reveal-sequence, 40 seeds) and the
-   migration-characterization entries. Termination stays guaranteed (forced
-   coup); `max_length: 500` re-measured over ≥250 random seeds and reset
-   with headroom (more decisions per turn, but more influence loss per
-   challenge — likely shorter games).
+   migration-characterization entries. `max_length: 500` re-measured over
+   300 random seeds (measured max 57 decisions — uniform challenges shorten
+   games; the bound keeps ~8x headroom). **Termination finding (recorded at
+   implementation):** the interactive game has legally unbounded lines — an
+   exchange-forever, never-challenge table makes no coin progress, so the
+   greedy lowest-id line loops and hits the backstop. Coup therefore does
+   NOT join the adapter walk-to-terminal set (`adapter_terminal_steps`
+   stays unset; the coverage record says `terminal=False` honestly), and
+   the raise-vs-graceful-terminal question is filed as
+   [open-questions/unbounded-lines-and-max-length.md](../../open-questions/unbounded-lines-and-max-length.md).
 2. **Partition proofs green** (after rebase onto merged #39): the full
    `tests/openspiel_ready/test_coup.py` suite with re-measured `depth` and
    `adapter_terminal_steps`; swap axis stays `"suit"` (court cards share the
