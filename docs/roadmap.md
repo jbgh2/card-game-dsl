@@ -74,10 +74,11 @@ Things we have noted but consciously not designed yet:
   shared `auction` / `betting` / `challenge` / `block` definitions to the
   standard library at their third instances. The corpus migration itself is
   COMPLETE: every game runs on the kernel, no per-game runtime mechanic
-  remains, and the `instantiate` construct is deleted. The recorded next
-  scope of work is upgrading the migrated random-play reductions to real
-  decisions (Coup's interactive response windows and targets; Tichu's call
-  windows) — behaviour changes with their own sign-offs, in
+  remains, and the `instantiate` construct is deleted. Coup runs at real
+  interactive scope (challenges, blocks, claimed characters, and targets
+  are announced player decisions; a proven challenge's card is publicly
+  revealed). The remaining scope of work is Tichu's call windows and
+  Dragon routing — a behaviour change with its own sign-off, in
   [kernel-migration.md](kernel-migration.md), Workstream 5.
 
 - **Typed outcomes: Stages 1–3 built; remaining corpus migrations + checker coverage.**
@@ -183,20 +184,22 @@ questions by impact × actionability and is the authority on question
 priority. This section adds what that list doesn't carry: the cross-cutting
 work that isn't an open question, and which next game unblocks what.
 
-1. **The Workstream 5 chooser upgrade**
-   ([kernel-migration.md](kernel-migration.md), Workstream 5's recorded
-   scope boundary): upgrade Tichu's call windows and Coup's response
-   windows, claimed characters, and targets from rng primitives to real
-   player decisions. A behaviour change with new goldens and its own
-   sign-off, not a migration. It changes what the information partition *is*
-   for those two games — so it precedes any external partition claim — and
-   its non-trick-shaped visibility (public challenge outcomes, a publicly
-   revealed proof card, a private replacement draw) is a natural first
-   exercise for the partition checks (legal-action agreement, the
-   per-visible-fact soundness matrix, seed/rng non-observability, adapter
-   agreement — see
+1. **The Workstream 5 chooser upgrade, Tichu half**
+   ([kernel-migration.md](kernel-migration.md), Workstream 5's remaining
+   scope): upgrade Tichu's call windows and Dragon routing from rng
+   primitives to real player decisions. A behaviour change with new
+   goldens and its own sign-off, not a migration. It changes what the
+   information partition *is* for Tichu — so it precedes any external
+   partition claim — and the call rules must be verified against Pagat
+   before design (grand tichu is a fixed first-eight-cards window; small
+   tichu is callable any time before the caller's first play, which
+   touches
+   [open-questions/optional-window-moves.md](open-questions/optional-window-moves.md)).
+   The partition checks (legal-action agreement, the per-visible-fact
+   soundness matrix, seed/rng non-observability, adapter agreement — see
    [open-questions/structural-infoset-proofs.md](open-questions/structural-infoset-proofs.md),
-   "Built against the empirical harness").
+   "Built against the empirical harness") are its acceptance bar, as they
+   were for Coup's half.
 
 2. **Pick the next game for its unblocks.** The full pipeline is
    [games/_candidates.md](games/_candidates.md); several candidates each
