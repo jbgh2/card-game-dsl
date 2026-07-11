@@ -299,6 +299,35 @@ class ReadinessProofs:
             f"{spec.short_name}: the info-state is insensitive to the player's own hand"
         )
 
+    def test_soundness_every_visible_fact_is_in_the_state(self) -> None:
+        """Soundness, generalized (structural-infoset-proofs, 'nothing
+        over-hidden'): one perturbation per visible fact, for EVERY observer,
+        enumerated from the zone declarations — every zone projection the
+        observer is entitled to, every public state variable, every
+        observation event. The complement is checked too: a perturbation of
+        content the observer is NOT entitled to (a count-preserving swap in a
+        count_only zone, any change in a trivial zone) must NOT move their
+        information state. Perturbations are applied to the paused world
+        snapshot directly (mutate -> recompute -> restore), so no replay
+        legality constraints apply; the replay-level soundness probe above
+        stays as the end-to-end complement."""
+        spec = self.spec
+        _, pause = _advance(spec.path, 5, spec.depth)
+        totals = {"zone_identity": 0, "zone_count_only": 0, "zone_trivial": 0,
+                  "state_vars": 0, "obs_events": 0}
+        for observer in range(len(pause.obs_logs)):
+            failures, counts = check_visible_facts(
+                pause.rs, pause.obs_logs[observer], observer
+            )
+            assert not failures, format_failures(spec.short_name, observer, failures)
+            assert sum(counts.values()) > 0, (
+                f"{spec.short_name}: the fact enumeration for P{observer} was empty"
+            )
+            for k, v in counts.items():
+                totals[k] += v
+        record(spec.short_name, "facts", observers=len(pause.obs_logs),
+               depth=spec.depth, **totals)
+
     def test_perfect_recall_logs_are_append_only(self) -> None:
         spec = self.spec
         path = spec.path
