@@ -327,6 +327,33 @@ Canasta first.
 
 ## Memory, bluff, inference
 
+### cheat
+
+3+ players, standard 52, shedding by claim: each play is face-down cards
+plus a public rank claim ("three 7s"); any player may challenge, flipping
+the played cards — the liar (or the wrong challenger) takes the whole pile.
+
+**Why interesting — two high-leverage unblocks in one small game:**
+
+- *The compound hidden-function probe* that
+  [structural-infoset-proofs](../open-questions/structural-infoset-proofs.md)
+  is blocked on: the challenge outcome is a **public boolean function of
+  hidden content** (were the face-down cards what was claimed?), followed
+  by a public reveal of exactly those cards. No simple swap axis survives
+  that channel — this is the named data point for the constructive world
+  generator.
+- *The second real challenge window* after interactive Coup (and the claim
+  vocabulary is open — any rank — where Coup's is closed), advancing the
+  `challenge` stdlib promotion toward its third instance.
+
+Claim-versus-content is also the modeling rule from decisions.md ("a
+public assertion is a state variable *because* it is public") in its
+purest form. Verified expressible at stress scope (the broad-sweep
+branch hand-rolled it twice).
+
+**Notes.** Known as I Doubt It / Bullshit / Bluff. **Pagat**:
+<https://www.pagat.com/beating/cheat.html>.
+
 ### hanabi
 
 2–5 players, 50-card custom deck (5 suits × 1,1,1,2,2,3,3,4,4,5),
@@ -542,6 +569,27 @@ Rummy). Useful third positional candidate; implementation can wait
 until after Klondike+FreeCell expose the right primitives.
 
 ## Edge-case experiments
+
+### gops
+
+2 players, standard 52: one suit is the prize deck, flipped one card at a
+time; players simultaneously bid one card from their hand of a suit each;
+higher bid takes the prize's value. Sealed bids, revealed together.
+
+**Why interesting.** The *minimal in-scope* witness for sealed
+simultaneous decisions — a genuine simultaneous-move game (not
+sequentialized-by-convention like the corpus's exchange phases), which is
+what the MARL algorithms distinguish. Also the first **differential
+validation** target: OpenSpiel ships a native `goofspiel`, so a DSL
+implementation can be checked game-tree-against-reference — divergence on
+identical lines is a bug in one of them. (The same angle applies to
+[euchre](#euchre), [gin-rummy](#gin-rummy), and Hearts, all of which have
+native OpenSpiel implementations — a compiled game validating against a
+hand-coded reference is the strongest external check the engine's
+correctness story can get.)
+
+**Notes.** Also called Goofspiel / Game of Pure Strategy. **Pagat**:
+<https://www.pagat.com/adders/gops.html>.
 
 ### war
 
