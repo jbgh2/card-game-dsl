@@ -85,6 +85,16 @@ criterion** — alongside "does it run" and "is it byte-identical":
   worst failure mode for a designer tool). Corpus-first gates *which* constructs
   exist, not how completely one works. The rule and the enumeration recipe are in
   `docs/decisions.md`, "Surface totality".
+- The same principle governs the machinery below the grammar: foundational
+  code (proof harness, projections, encodings, invariants) is complete
+  against **its own domain**, never against the corpus — closed enumerable
+  domains get exhaustive coverage derived from their defining registry,
+  pinned by a static test and a runtime refusal; open design spaces stay
+  corpus-first but every deferral is a loud wall. "Vacuously green" — a
+  check presented as a guarantee that cannot fail — is a defect class of
+  equal rank to "accepted-but-ignored". Changes to rigor-critical machinery
+  ship with their completeness argument (property, domain, coverage,
+  residual). The rule is `docs/decisions.md`, "Closed-domain completeness".
 
 ## What's here
 
