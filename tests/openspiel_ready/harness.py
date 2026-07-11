@@ -15,9 +15,12 @@ by `test_coverage.py`):
    from the zone declarations (partition.check_visible_facts).
 4. Perfect recall: each player's observation log is append-only along a game.
 5. Seed/undrawn-randomness non-observability: reseeding the generator and
-   permuting all-hidden stocks leaves every information state byte-identical.
+   permuting all-hidden stocks leaves every information state byte-identical
+   (a structural pin — it bites only if rendering ever couples to the
+   generator or to hidden-stock order).
 6. Adapter agreement: the registered pyspiel game renders the same partition
-   the DSL-level proofs certify.
+   the DSL-level proofs certify; games whose greedy line terminates walk to
+   the end and assert the terminal returns agree too.
 
 Passing runs record their coverage (partition.RECORDS; see conftest.py);
 failing checks report their witness — the perturbed fact and the
@@ -102,6 +105,17 @@ class GameSpec:
     # "any": no public card/rank observation (a pure betting vocabulary).
     swap_axis: Literal["suit", "rank", "any"] = "suit"
 
+    # Total greedy (legal[0]) steps within which this game's line reaches
+    # Terminal — measured, with headroom. Set it and the adapter-agreement
+    # proof walks the line to the end and ASSERTS the DSL and pyspiel terminal
+    # returns agree (it fails loudly if the line stops terminating, rather
+    # than silently skipping). None = the greedy line does not terminate in
+    # affordable steps (the multi-hand score-target games: Bridge, Hearts,
+    # Oh Hell, Seven-Card Stud, Skat, Tichu — all still past 400 greedy
+    # steps), and the walk stops at `depth` with `terminal=False` in the
+    # coverage record.
+    adapter_terminal_steps: int | None = None
+
     @property
     def path(self) -> str:
         return str(GAMES_DIR / self.filename)
@@ -162,7 +176,7 @@ def _swap_fn(side1: tuple[str, "int | None"], side2: tuple[str, "int | None"], x
 
 
 class ReadinessProofs:
-    """The four readiness proofs, run against one game's `spec`. A game's
+    """The readiness proofs, run against one game's `spec`. A game's
     module subclasses this as `class TestReadiness(ReadinessProofs)` with its
     `GameSpec` as the `spec` class attribute."""
 
@@ -403,11 +417,20 @@ class ReadinessProofs:
         """The readiness proofs run at the DSL level; the partition OpenSpiel
         algorithms actually consume is the registered game's. Walk one line
         and assert the two renderings agree at every step — current player,
-        legal actions, and every player's information-state string — and that
-        the terminal returns agree if reached. Because the pyspiel state
-        re-simulates independently of this test's own `run` calls, the
-        comparison doubles as a per-game determinism check: two independent
-        replays of the same (seed, history) must render byte-identically."""
+        legal actions, and every player's information-state string. Because
+        the pyspiel state re-simulates independently of this test's own `run`
+        calls, the comparison doubles as a per-game determinism check: two
+        independent replays of the same (seed, history) must render
+        byte-identically.
+
+        When the spec sets `adapter_terminal_steps` (games whose greedy line
+        terminates — nine of fifteen), the walk then continues cheaply to the
+        end of the game and asserts the DSL and pyspiel TERMINAL RETURNS
+        agree; reaching Terminal within the cap is itself asserted, so the
+        returns comparison cannot rot into dead code. The remaining games
+        (multi-hand score targets whose greedy line exceeds any affordable
+        cap) record `terminal=False` in the coverage record — their returns
+        surface is exercised only by the conformance sim."""
         spec = self.spec
         seed = 5
         game = pyspiel.load_game(spec.short_name)
@@ -439,10 +462,30 @@ class ReadinessProofs:
             history.append(action)
             r = run(spec.path, seed, tuple(history))
             steps += 1
+        cap = spec.adapter_terminal_steps
+        if cap is not None:
+            # Continue the greedy line to the end of the game. Cheap phase: no
+            # per-step pyspiel queries (each would re-simulate), just action
+            # application; the DSL side needs one `run` per step regardless.
+            while isinstance(r, Pause) and steps < cap:
+                action = r.legal[0]
+                state.apply_action(action)
+                history.append(action)
+                r = run(spec.path, seed, tuple(history))
+                steps += 1
+            assert not isinstance(r, Pause), (
+                f"{spec.short_name}: greedy line no longer reaches Terminal "
+                f"within adapter_terminal_steps={cap} — re-measure the line "
+                f"and adjust the spec (do not silently drop the returns check)"
+            )
         if not isinstance(r, Pause):
             assert state.is_terminal(), (
                 f"{spec.short_name}: DSL line terminal but adapter is not"
             )
-            assert state.returns() == r.returns
+            assert state.returns() == r.returns, (
+                f"{spec.short_name}: terminal returns disagree — "
+                f"adapter {state.returns()} != DSL {r.returns}"
+            )
         record(spec.short_name, "adapter", seed=seed, steps=steps,
-               terminal=not isinstance(r, Pause))
+               terminal=not isinstance(r, Pause),
+               returns_compared=not isinstance(r, Pause))

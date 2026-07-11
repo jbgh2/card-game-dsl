@@ -2,7 +2,7 @@
 parametrized its proofs over the adapter's registry, so a newly registered
 game was covered automatically. With one module per game, that guarantee
 must be enforced instead: every registered game has a proof module whose
-`TestReadiness` runs the four proofs against the right spec, and no proof
+`TestReadiness` runs the shared proofs against the right spec, and no proof
 module targets an unregistered game."""
 
 from __future__ import annotations

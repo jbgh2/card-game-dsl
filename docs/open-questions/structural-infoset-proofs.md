@@ -3,8 +3,9 @@
 **Tier 2 — high impact, blocked on a data point.** The load-bearing project
 requirement is that information sets are *derived* (CLAUDE.md;
 [decisions.md](../decisions.md) "Knowledge, visibility, and the projection
-model"). The `openspiel_ready` harness proves the four readiness properties —
-indistinguishability, soundness, perfect recall, conformance — **empirically**:
+model"). The `openspiel_ready` harness proves the readiness properties —
+indistinguishability, soundness, perfect recall, conformance, and the
+fact-level certification checks below — **empirically**:
 it simulates a line, perturbs a hidden card, and checks the derived information
 state. That strategy leans on per-game heuristics, and each new information
 structure the corpus adds breaks a *different* one, forcing a per-game
@@ -36,7 +37,7 @@ coverage is asymmetric between them:
 Two *distinct* kinds of harness misfit already exist, each patched per game:
 
 - **Driver-exploration gap (Bridge, French Tarot).** The greedy replay (always
-  `legal[0]`) never places a bid, so the four proofs cover only the pass-only
+  `legal[0]`) never places a bid, so the per-game proofs cover only the pass-only
   line of the auction; the real bidding / chien discard / trick decisions are
   covered by separate dedicated tests (the CLAUDE.md honesty note).
 - **World-generator gap (Go Fish).** Swap-and-replay assumes a hidden swap that
@@ -138,11 +139,15 @@ checklist for resolving this question.
 - **Seed and undrawn-randomness non-observability.** No information state
   may be sensitive to the root chance seed beyond what dealt-and-observed
   cards already reveal, nor to rng draws not yet made — including the
-  rules-level rng gates carrying the Tichu/Coup scope reductions. *Covered,
-  asserted directly per game:* replacing the live generator outright and
-  reversing every all-hidden stock's order at a paused world leaves every
-  player's information state byte-identical (the gates draw from that same
-  generator).
+  rules-level rng gates carrying the Tichu/Coup scope reductions, which
+  draw from the same generator. *Pinned structurally per game:* replacing
+  the live generator outright and reversing every all-hidden stock's order
+  at a paused world leaves every player's information state byte-identical.
+  On today's renderer this cannot fail — the information state reads only
+  (projected zones, public state, the observation log) — so the assertion
+  is a regression pin that bites the moment rendering couples to the
+  generator or to hidden-stock order, not a discriminating probe;
+  seed-sensitivity through the deal itself is the swap proof's territory.
 - **Legal-action agreement.** Two worlds in the same information set for the
   player to move must offer identical legal actions — otherwise the offered
   moves are themselves a leak channel, one OpenSpiel does not police.
@@ -159,9 +164,13 @@ checklist for resolving this question.
 - **Adapter agreement.** The proofs run at the DSL level; the partition that
   matters is the one OpenSpiel algorithms actually consume. *Covered per
   game:* a replayed line asserts the registered pyspiel game's rendering —
-  current player, legal actions, every player's information-state string,
-  terminal returns — equals the DSL-level rendering at every step, which
-  doubles as a per-game determinism check across independent replays.
+  current player, legal actions, every player's information-state string —
+  equals the DSL-level rendering at every step, which doubles as a per-game
+  determinism check across independent replays. The nine games whose greedy
+  line terminates walk to the end and assert the terminal returns agree
+  (reaching Terminal is itself asserted, so the comparison cannot rot into
+  dead code); the six multi-hand score-target games record
+  `terminal=False`, their returns exercised only by the conformance sim.
 
 Two obligations on the *proof machinery itself*, whatever form it takes,
 both of which the harness meets: a failing check must report its witness —

@@ -26,6 +26,7 @@ class TestReadiness(ReadinessProofs):
         "french-tarot.cardlang",
         depth=3,
         conformance_steps=120,
+        adapter_terminal_steps=200,  # greedy line measured at 144 steps
     )
 
 

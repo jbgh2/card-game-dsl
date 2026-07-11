@@ -12,7 +12,12 @@ from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
 
 class TestReadiness(ReadinessProofs):
-    spec = GameSpec("cardlang_coup", "coup.cardlang", hidden_zone="influence")
+    spec = GameSpec(
+        "cardlang_coup",
+        "coup.cardlang",
+        hidden_zone="influence",
+        adapter_terminal_steps=150,  # greedy line measured at 100 steps
+    )
 
 
 def test_influence_flips_derive_hidden_observations() -> None:

@@ -198,6 +198,11 @@ def check_visible_facts(
         )
 
     # Observation events: each event embedded verbatim; the log is sensitive.
+    # The per-event presence check always passes against a renderer that
+    # embeds the whole log (today's does) — what it guards against is a
+    # future renderer that truncates or summarizes the log, which the
+    # append probe below alone would miss (appending still changes a
+    # truncated rendering; a dropped EARLY event does not).
     for e in obs_log:
         counts["obs_events"] += 1
         if repr(e) not in before:
