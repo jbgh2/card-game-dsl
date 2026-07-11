@@ -66,7 +66,10 @@ game OhHell {
 
     phase bidding {
       legal_moves: [submit_bid]
-      for each player p: bid[p] := choose integer in 0 .. hand_size
+      // Bid up to the tricks in hand. `hand_size` varies per hand, so the range's
+      // upper bound is runtime state; `up to 10` declares the static ceiling (the
+      // largest hand) the OpenSpiel action space reserves for the bid.
+      for each player p: bid[p] := choose integer in 0 .. hand_size up to 10
 
       // Dealer hook: the bids may not total the hand size.
       total_bid := 0

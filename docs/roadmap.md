@@ -182,12 +182,7 @@ questions by impact × actionability and is the authority on question
 priority. This section adds what that list doesn't carry: the cross-cutting
 work that isn't an open question, and which next game unblocks what.
 
-1. **Resolve [move-parameter-domains](open-questions/move-parameter-domains.md)
-   (Tier 1 — ready now).** The bounded-`Integer` parameter/`choose` domain,
-   the remainder after Rank/Player landed in decisions.md ("Declared
-   parameter domains"); retires the `_MAX_CHOOSE` magic constant.
-
-2. **Build the actionable-now information-partition checks.** From
+1. **Build the actionable-now information-partition checks.** From
    [open-questions/structural-infoset-proofs.md](open-questions/structural-infoset-proofs.md)
    ("Actionable now"): legal-action agreement, the seed/rng
    non-observability assertions, adapter agreement, and the enumerated
@@ -196,7 +191,7 @@ work that isn't an open question, and which next game unblocks what.
    harness; none waits on that question's blocking data point. These close
    the certification gaps that make partition claims citable.
 
-3. **The Workstream 5 chooser upgrade**
+2. **The Workstream 5 chooser upgrade**
    ([kernel-migration.md](kernel-migration.md), Workstream 5's recorded
    scope boundary): upgrade Tichu's call windows and Coup's response
    windows, claimed characters, and targets from rng primitives to real
@@ -205,9 +200,9 @@ work that isn't an open question, and which next game unblocks what.
    for those two games — so it precedes any external partition claim — and
    its non-trick-shaped visibility (public challenge outcomes, a publicly
    revealed proof card, a private replacement draw) is a natural first
-   exercise for step 2's checks.
+   exercise for step 1's checks.
 
-4. **Pick the next game for its unblocks.** The full pipeline is
+3. **Pick the next game for its unblocks.** The full pipeline is
    [games/_candidates.md](games/_candidates.md); several candidates each
    unblock more than one open question:
 
@@ -229,18 +224,18 @@ work that isn't an open question, and which next game unblocks what.
    - **Klondike or FreeCell** — first solitaire; forces the deferred
      positional-zone design rather than an open question.
 
-5. **Address Tier 3 questions when their corner gets exercised.**
+4. **Address Tier 3 questions when their corner gets exercised.**
    [move-level-visibility](open-questions/move-level-visibility.md) awaits
    the first game needing a move-level projection override;
    [zone-access-syntax](open-questions/zone-access-syntax.md) awaits a
    complex relational chain in subject position (Doppelkopf, above). When
-   these land, the step-2 checks are their acceptance bar: new visibility
+   these land, the step-1 checks are their acceptance bar: new visibility
    surface arrives with derived partition coverage, not bespoke tests.
 
-6. **Pin down [memory-event-syntax](open-questions/memory-event-syntax.md)**
+5. **Pin down [memory-event-syntax](open-questions/memory-event-syntax.md)**
    when three or four examples exist beyond stdlib operations (Stud and
    Coup are the two so far; both composed the closed vocabulary without
    needing a declaration).
 
-7. **Defer Tier 5 cosmetic questions** until a real preference emerges
+6. **Defer Tier 5 cosmetic questions** until a real preference emerges
    from corpus pressure.

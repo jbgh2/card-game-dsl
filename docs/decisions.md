@@ -474,11 +474,14 @@ move's action space: a fixed set built from the declared domains, independent
 of any one game state, with the guard evaluated per state as a **mask** over
 that fixed set, never a set that grows or shrinks.
 
-The enumerable domains are a **closed set** — `Suit`, `Suit?`, `Rank`,
-`Player`, `Card` — enforced at resolve time (see "Surface totality"): any
-other parameter type is rejected with a message, and so is a bounded-`Integer`
-parameter (not yet a domain;
+The enumerable *move-parameter* domains are a **closed set** — `Suit`, `Suit?`,
+`Rank`, `Player`, `Card` — enforced at resolve time (see "Surface totality"):
+any other parameter type is rejected with a message, and so is a
+bounded-`Integer` parameter (not yet a *parameter* domain — the signed,
+small-integer `play_card(delta : Integer)` case;
 [open-questions/move-parameter-domains.md](open-questions/move-parameter-domains.md)).
+A bounded-`Integer` **`choose`** domain, by contrast, *is* settled — see "The
+integer `choose` domain," below.
 
 - **`Suit` / `Suit?`.** A fixed value table: the four suits, plus `none` for
   the nullable form (Bridge's `submit_bid(strain : Suit?)`).
@@ -522,6 +525,45 @@ the follower's plain movement pick; `num_distinct_actions` does not grow with
 the parameter. (Minting per-card vocabulary ids instead would give one card
 play two representations.) This is also why at most one Card-parameterized
 move may appear per vocabulary: the card id alone must name the move.
+
+**The integer `choose` domain.** `choose integer in <lo> .. <hi>` is the
+numeric decision form (a bid — Spades' `0 .. 13`, Oh Hell's `0 .. hand_size`).
+Its domain is a bounded integer interval, and it satisfies the same
+closed-contract-plus-mask rule as the fixed domains above: the OpenSpiel action
+space reserves a fixed block of ids `0 .. ceiling` up front, and the live
+`lo .. hi` range masks it per state (the runtime already offers exactly
+`range(lo, hi + 1)`). The **ceiling is a declared, checked static bound**, never
+inferred from the deck or a runtime value:
+
+- When `hi` is itself a static integer literal (Spades' `13`), that literal is
+  the ceiling — no extra syntax.
+- When `hi` is a runtime expression (Oh Hell's per-hand `hand_size`), the author
+  declares the ceiling with an **`up to N`** clause
+  (`choose integer in 0 .. hand_size up to 10`), `N` a bare integer literal.
+
+`up to` is *only* for a runtime `hi`. On a literal `hi` it is rejected at
+resolve — the literal is already the exact ceiling, so an `up to` there is
+either contradictory (a ceiling below the literal makes the runtime range guard
+fail for every playout) or redundant (a ceiling above it reserves action ids
+legal in no state). A `choose` whose ceiling cannot be determined statically (a
+non-literal `hi` with no `up to`) is likewise a resolve-time error — surface
+totality, never a silent default (`up to N` takes a bare non-negative integer
+literal, so the ceiling is always well-formed). A **literal lower bound above
+the ceiling** — an inverted literal range (`5 .. 3`) or a literal `lo` past an
+`up to` ceiling (`11 .. n up to 10`) — is rejected the same way: the smallest
+value the `choose` could offer already exceeds every id the block reserves, so
+no value can ever be chosen; a runtime `lo` is not statically decidable and is
+left to the runtime guard. At runtime the *range* is guarded
+where `hi` is evaluated (`lo >= 0` and `hi <= ceiling`): a live range that
+escaped its declared domain would offer a legal value with no action id, and a
+value-only check would pass whenever the chooser happened to draw inside the
+reserved block. The OpenSpiel integer block is sized to the game's **largest**
+declared ceiling (one shared block; a game has at most one `choose` per decision
+point today), so `num_distinct_actions` reflects the declared bounds — not a
+fixed deck-sized constant. The still-open sibling is the bounded-`Integer`
+*parameter* domain (signed `delta`), which fits neither this `0 .. ceiling` id
+scheme nor any corpus game yet
+([open-questions/move-parameter-domains.md](open-questions/move-parameter-domains.md)).
 
 ## The climbing form of `round`
 

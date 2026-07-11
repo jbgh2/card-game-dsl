@@ -458,11 +458,16 @@ def _expr(e: n.Expr) -> IRDict:
         case n.PlayerQuery():
             return {"kind": "player_query", "query": e.kind, "pred": _expr(e.pred)}
         case n.Choose():
+            # `ceiling` is the resolved static upper bound (decisions.md "The
+            # integer `choose` domain") — a concrete int so an IR consumer can
+            # size the integer action block directly, without re-deriving it
+            # from a literal `hi` or re-parsing the `up to N` source.
             return {
                 "kind": "choose",
                 "domain": e.domain,
                 "lo": _expr(e.lo),
                 "hi": _expr(e.hi),
+                "ceiling": n.static_ceiling(e),
             }
         case _ as unreachable:
             assert_never(unreachable)

@@ -6,7 +6,9 @@ replay sound (SP1 spec, Pillar 2). The space is the disjoint union, in a fixed
 layout, of: the card block (always — the standard 52 for any deck expressible
 in it, else a per-game block derived from the deck itself; see
 `_derived_card_block`); bare-name actions (offer move-types, the climb "pass");
-the integer block 0..52 (games with `choose`); the auction vocabulary (moves
+the integer block `0..ceiling` (games with `choose`, sized to the game's
+largest declared `choose` ceiling — decisions.md "Declared parameter domains");
+the auction vocabulary (moves
 flattened over their parameter domains, declared order); and the combination
 block — the climb engine's enumerated `universe()` query (canonically ordered
 and golden-pinned; Big Two) or, when the universe is too large to enumerate,
@@ -82,9 +84,6 @@ def _derived_card_block(deck_name: str) -> list[Card] | None:
     return distinct
 
 
-_MAX_CHOOSE = 52  # integer chooses are bounded by the deck size in a card game
-
-
 @dataclass(frozen=True)
 class ComboAction:
     """A decoded combination action: the card-set it moves. Matched against
@@ -137,7 +136,7 @@ class ActionSpace:
         card_block: list[Card] | None,
         names: list[str],
         vocab: list[tuple[str, Any]],
-        has_integers: bool,
+        int_ceiling: int | None,
         combos: list[Any],
         combo_codec: Any | None = None,
     ) -> None:
@@ -147,7 +146,12 @@ class ActionSpace:
         )
         self._names = names
         self._vocab = vocab
-        self._has_integers = has_integers
+        # The game's largest integer-`choose` ceiling, or None if it has no
+        # integer decision. The shared integer block reserves `ceiling + 1` ids
+        # (values `0 .. ceiling`), sized to the declared per-choose bounds rather
+        # than a fixed deck-sized constant (decisions.md "Declared parameter
+        # domains").
+        self._int_ceiling = int_ceiling
         self._combos = combos
         # An arithmetic codec serves the combo block when the engine's universe
         # is too large to enumerate (`stdlib.climb_codec_function`): ids are
@@ -157,7 +161,9 @@ class ActionSpace:
         assert combo_codec is None or not combos
         self._name_base = NUM_DISTINCT_ACTIONS if card_block is None else len(card_block)
         self._int_base = self._name_base + len(names)
-        self._vocab_base = self._int_base + (_MAX_CHOOSE + 1 if has_integers else 0)
+        self._vocab_base = self._int_base + (
+            int_ceiling + 1 if int_ceiling is not None else 0
+        )
         self._combo_base = self._vocab_base + len(vocab)
         combo_count = combo_codec.size if combo_codec is not None else len(combos)
         self.num_distinct_actions = self._combo_base + combo_count
@@ -172,7 +178,7 @@ class ActionSpace:
 
         names: list[str] = []
         vocab: list[tuple[str, Any]] = []
-        has_integers = False
+        int_ceiling: int | None = None
         combos: list[Any] = []
         mt_index = {m.name: m for m in game.move_types}
         climb_engines: list[str] = []
@@ -192,7 +198,11 @@ class ActionSpace:
         players = list(range(game.players.low))
         for node in _walk(game):
             if isinstance(node, n.Choose):
-                has_integers = True
+                # The shared integer block is sized to the game's largest
+                # declared ceiling (resolve guarantees each is a non-neg int).
+                ceiling = n.static_ceiling(node)
+                assert ceiling is not None
+                int_ceiling = ceiling if int_ceiling is None else max(int_ceiling, ceiling)
             elif isinstance(node, n.Offer):
                 # Routed by arity, same rule the round vocabulary below uses:
                 # nullary keeps today's bare-name representation in `names`
@@ -239,7 +249,7 @@ class ActionSpace:
                     key=lambda p: (p.size, p.kind, sorted(card_to_action(c) for c in p.cards)),
                 )
         return ActionSpace(
-            card_block, sorted(names), vocab, has_integers, combos, combo_codec
+            card_block, sorted(names), vocab, int_ceiling, combos, combo_codec
         )
 
     def encode(self, value: Any) -> int:
@@ -250,8 +260,10 @@ class ActionSpace:
         if isinstance(value, bool):
             raise ValueError("boolean is not an action value")
         if isinstance(value, int):
-            assert self._has_integers, "this game has no integer decisions"
-            assert 0 <= value <= _MAX_CHOOSE, f"choose value {value} out of 0..{_MAX_CHOOSE}"
+            assert self._int_ceiling is not None, "this game has no integer decisions"
+            assert (
+                0 <= value <= self._int_ceiling
+            ), f"choose value {value} out of 0..{self._int_ceiling}"
             return self._int_base + value
         if isinstance(value, str):
             return self._name_base + self._name_ids[value]

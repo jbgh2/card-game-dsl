@@ -1,89 +1,69 @@
-# Bounded-Integer parameter domains and the `choose` reconciliation
+# Bounded-Integer *move-parameter* domains
 
-**Tier 1 — high impact, enough data to commit.** `Suit`, `Suit?`, `Rank`,
-`Player`, and `Card` are settled, closed, enumerable move-parameter domains,
-enumerable by both a plain `offer` and the auction `round offering`
-([decisions.md](../decisions.md) "Declared parameter domains"). The one
-domain still missing is a genuinely numeric one: a parameter (or a `choose`
-expression) ranging over a bounded integer interval, where the bound itself
-can vary by game state.
+**Tier 2 — high impact, blocked on a corpus game.** `Suit`, `Suit?`, `Rank`,
+`Player`, and `Card` are settled, closed, enumerable **move-parameter** domains
+([decisions.md](../decisions.md) "Declared parameter domains"), and the integer
+**`choose`** domain (a bid over a bounded interval, with a declared static
+ceiling) is settled too (same section, "The integer `choose` domain"). The one
+domain still missing is a genuinely numeric **move parameter**: a `move_type`
+parameter ranging over a bounded integer interval, so a single move type can
+carry a small integer argument instead of the author hand-compiling one nullary
+move type per value.
 
-Two data points want this:
+## The data point
 
 - **Ninety-Nine** (stress-sweep branch `stress-test/broad-sweep`,
-  `stress-test/FINDINGS.md`) needed `play_card(delta: Integer)` — a play
-  parameterized by a small signed integer — and was forced into declaring 14
+  `stress-test/FINDINGS.md`) needed `play_card(delta : Integer)` — a play
+  parameterized by a small **signed** integer — and was forced into declaring 14
   separate nullary move types instead, one per delta value: the
-  nullary-move-type explosion, hand-compiling exactly the enumeration a
-  declared domain should own.
-- **Oh Hell** ([games/oh-hell.md](../games/oh-hell.md)) bids `choose integer
-  in 0 .. hand_size`, where `hand_size` is itself per-hand state (10 down to
-  1, back up to 10 across the match). This already runs today — `choose` is
-  a working expression form, not blocked on this question — but its
-  OpenSpiel action space is reconciled by one global constant, `_MAX_CHOOSE
-  = 52` (`cardlang/openspiel/encoding.py`): every game with an integer
-  `choose` anywhere reserves a fixed 53-id block (`0..52`), sized to "the
-  deck," not to any declared or checked per-choose bound. The interpreter
-  itself already narrows correctly at runtime — `_choose` computes
-  `candidates = range(lo, hi + 1)` from the live bound and offers exactly
-  those — so the gap is entirely on the **static** side: nothing declares
-  what `_MAX_CHOOSE` should be, or checks that a game's bounds stay under it.
+  nullary-move-type explosion, hand-compiling exactly the enumeration a declared
+  domain should own.
 
-## Why this is more than ergonomics
+Ninety-Nine is not in the corpus, so per corpus-first this stays deferred until
+a corpus game forces it (or Ninety-Nine itself is promoted).
 
-The OpenSpiel target requires a **fixed, enumerable action space**
-(`num_distinct_actions`) declared up front, with per-state legality as a mask
-over it — the same contract `Suit`/`Rank`/`Player`/`Card` already satisfy
-([decisions.md](../decisions.md) "Declared parameter domains"). A
-runtime-computed bound is hostile to that contract by construction: the
-static universe size can't be read off the declared domain the way it can
-for a closed set. `_MAX_CHOOSE`'s fixed 52 papers over this for every card
-game built so far (no corpus game's bound exceeds it), but it is a magic
-number, not a checked contract — a future game whose natural bound is larger
-would silently violate it, and nothing at resolve time would catch a
-declared bound that could overflow it.
+## Why it is not just the `choose` domain again
+
+The settled integer `choose` domain reserves an OpenSpiel id block `0 .. ceiling`
+and maps a value `v` to `int_base + v` — an **unsigned, origin-at-zero** scheme.
+Ninety-Nine's `delta` is *signed* (a card can raise or lower the running total),
+so it fits neither that id arithmetic (a negative value has no id) nor the
+runtime range guard (`lo >= 0`) the `choose` domain relies on. A move-parameter
+integer domain therefore needs its own design — an offset/signed interval
+`[lo, hi]` minting `hi - lo + 1` ids, plus the enumeration wiring in
+`enumerate_domain` / `param_domain` that `Suit`/`Rank`/`Player` already have and
+that a bounded-Integer parameter is currently rejected before reaching
+(`resolve.py`, `_check_move_params`).
 
 ## The options
 
-- **Reject a runtime-computed bound outright.** Only a `choose`/parameter
-  whose `hi` is a static literal (or resolves to one at compile time) is
-  legal; anything state-dependent is a resolve-time error. Simplest, but
-  rules out exactly Oh Hell's shape, which is a common pattern (bid up to
-  however many cards you hold).
-- **Require a declared static outer bound, masked at runtime.** A parameter
-  or `choose` states its maximum statically (a literal ceiling, or a bound
-  tied to a zone's declared capacity); the OpenSpiel action space reserves
-  exactly that many ids, and runtime legality — already correct today —
-  narrows within it, the same way a move's guard masks a fixed cross-product
-  down to what's legal in one state. This retires `_MAX_CHOOSE` as a global
-  magic constant and replaces it with a per-declaration, checked one.
-- **Infer the bound from context.** Derive the static ceiling automatically
-  (e.g., from a hand zone's maximum size) rather than requiring the author
-  to state it. Less surface, but needs a rule for where the inference comes
-  from in a game with no obviously-bounding zone.
+- **Declared literal interval on the parameter.** `play_card(delta : Integer in
+  -1 .. 1)` — a refinement-typed parameter whose static interval both bounds the
+  enumeration and mints the ids. Mirrors how `Suit`/`Rank` are fixed-from-type,
+  and how the `choose` domain declares its ceiling; connects to the deferred
+  refinement-typed struct fields ([decisions.md](../decisions.md) sibling in
+  roadmap's typed-outcomes entry).
+- **A named integer-domain declaration.** A game-level `domain Delta = -1 .. 1`
+  referenced by the parameter type, if several moves share one interval.
+- **Reject outright** and keep hand-compiled nullary move types. The status quo;
+  rejected as the whole point of the nullary-explosion complaint.
 
-No option is committed. Whichever is chosen should retire `_MAX_CHOOSE` as a
-global magic constant and put a bounded-`Integer` domain on the same footing
-as `Suit`/`Rank`/`Player`/`Card`: a declared, checked, closed contract the
-OpenSpiel adapter reads directly, not one inferred from runtime behavior or
-papered over with a number sized to "the deck."
+No option is committed — the design waits on a corpus game to size it against.
 
 Related: [decisions.md](../decisions.md) "Declared parameter domains" (the
-settled sibling case, whose closed-set-plus-mask contract a bounded-Integer
-domain would extend to a numeric range) and "No implicit actions" (a
-`choose` over an empty domain
-is already an error — any bounded-Integer resolution must preserve that);
+settled move-parameter and `choose` domains this would extend to a signed
+numeric range) and "No implicit actions" (an empty domain is already an error —
+any resolution must preserve that);
 [phase-legal-moves](phase-legal-moves.md) (what a declared move vocabulary is
 for — the same static-contract instinct at phase level).
 
-## Adjacent cleanups to fold in
+## Adjacent cleanup to fold in
 
-One small gap surfaced during the declared-parameter-domains final review,
-narrow enough to ride along with whichever option above is picked rather than
-warrant its own question:
+One small gap surfaced during the declared-parameter-domains review, narrow
+enough to ride along with whichever option above is picked:
 
-- `ActionSpace.encode`'s `(name, None)`-equivalence branch (`encoding.py`
-  ~263) would shadow a move name that appeared in BOTH a plain `offer` and a
-  round vocabulary in the same game — dormant today (no corpus game shares a
-  name across both surfaces), and even if it fired it would only waste one
-  action id, not misroute an existing one.
+- `ActionSpace.encode`'s `(name, None)`-equivalence branch (`encoding.py`)
+  would shadow a move name that appeared in BOTH a plain `offer` and a round
+  vocabulary in the same game — dormant today (no corpus game shares a name
+  across both surfaces), and even if it fired it would only waste one action id,
+  not misroute an existing one.

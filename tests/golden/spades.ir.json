@@ -395,7 +395,8 @@
                   "hi": {
                     "kind": "int",
                     "value": 13
-                  }
+                  },
+                  "ceiling": 13
                 }
               }
             }

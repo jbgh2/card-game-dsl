@@ -71,7 +71,7 @@ game OhHell {
 
     phase bidding {
       legal_moves: [submit_bid]
-      for each player p: bid[p] := choose integer in 0 .. hand_size
+      for each player p: bid[p] := choose integer in 0 .. hand_size up to 10
 
       // Dealer hook: the bids may not total the hand size.
       total_bid := 0

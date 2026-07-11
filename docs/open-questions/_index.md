@@ -16,17 +16,25 @@ folder, and remove the entry from this index. See
 
 ## Tier 1 — High impact, enough data to commit now
 
-- [move-parameter-domains](move-parameter-domains.md) — a bounded-`Integer`
-  parameter/`choose` domain, whose bound can be runtime-computed (Oh Hell's
-  `hand_size`), reconciled against OpenSpiel's fixed action space (retiring
-  the `_MAX_CHOOSE` magic constant); Ninety-Nine's stress-sweep nullary
-  explosion and Oh Hell's `_MAX_CHOOSE` are its data points.
+None commit-ready right now — the last Tier 1 question (the integer `choose`
+domain, half of move-parameter-domains) is settled in
+[decisions.md](../decisions.md) "Declared parameter domains". Its residual (the
+signed bounded-`Integer` *parameter* domain) now waits on a corpus game, so it
+sits in Tier 2.
 
 ## Tier 2 — High impact, blocked on a data point
 
 These questions need one more game in the corpus before committing to a
 design. The data point is named in each file.
 
+- [move-parameter-domains](move-parameter-domains.md) — a bounded-`Integer`
+  *move-parameter* domain (a single move type carrying a small **signed**
+  integer, e.g. Ninety-Nine's `play_card(delta : Integer)`), so authors need
+  not hand-compile one nullary move type per value. The `choose` half — a
+  bounded integer bid with a declared static ceiling — is settled
+  ([decisions.md](../decisions.md) "Declared parameter domains"); the signed
+  parameter case fits neither that id scheme nor any corpus game yet, so it
+  waits on a game to force it.
 - [structural-infoset-proofs](structural-infoset-proofs.md) — replace the
   empirical simulate-and-perturb readiness harness with a *structural* proof of
   the derived info-set properties (construct indistinguishable worlds from the

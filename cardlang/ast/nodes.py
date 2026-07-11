@@ -205,14 +205,34 @@ class Comprehension:
 
 @dataclass(frozen=True, slots=True)
 class Choose:
-    """`choose integer in <lo> .. <hi>` — a decision that resolves to a value
-    via the chooser (e.g. a bid). ``domain`` names the candidate space; the only
-    one so far is ``"integer"``, an inclusive range from ``lo`` to ``hi``."""
+    """`choose integer in <lo> .. <hi> [up to <ceiling>]` — a decision that
+    resolves to a value via the chooser (e.g. a bid). ``domain`` names the
+    candidate space; the only one so far is ``"integer"``, an inclusive range
+    from ``lo`` to ``hi``.
+
+    ``ceiling`` is the declared static upper bound (`up to N`): the width the
+    OpenSpiel action space reserves for this choose, independent of the live
+    ``hi``. It is required when ``hi`` is not itself a static literal, and is
+    ``None`` when the ceiling derives from a literal ``hi`` — see
+    ``static_ceiling`` and decisions.md "Declared parameter domains"."""
 
     domain: str  # "integer"
     lo: Expr
     hi: Expr
+    ceiling: int | None = None
     span: Span | None = None
+
+
+def static_ceiling(choose: "Choose") -> int | None:
+    """The choose's static upper bound: its declared ``up to N`` ceiling if
+    present, else the value of a literal ``hi``. ``None`` when neither yields a
+    static integer — a choose the resolver rejects (surface totality) and that
+    can never be sized into the OpenSpiel action space."""
+    if choose.ceiling is not None:
+        return choose.ceiling
+    if isinstance(choose.hi, IntLit):
+        return choose.hi.value
+    return None
 
 
 @dataclass(frozen=True, slots=True)
