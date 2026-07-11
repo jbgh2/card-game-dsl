@@ -12,11 +12,15 @@ from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
 
 class TestReadiness(ReadinessProofs):
+    # No adapter_terminal_steps: interactive Coup's greedy (lowest-id) line
+    # never terminates — it loops on the coin-neutral exchange and never
+    # challenges, so no forced coup ever fires (the legally-unbounded-lines
+    # finding, open-questions/unbounded-lines-and-max-length.md). The
+    # adapter proof honestly records terminal=False for this game.
     spec = GameSpec(
         "cardlang_coup",
         "coup.cardlang",
         hidden_zone="influence",
-        adapter_terminal_steps=150,  # greedy line measured at 100 steps
     )
 
 

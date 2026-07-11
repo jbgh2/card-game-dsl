@@ -9,6 +9,18 @@ after the round as `state.x` via `last_round_state`). A player decision can
 pause the game *inside* a round, so at some decision nodes there is live
 round state that appears in no one's information state.
 
+The same class extends one layer up: the pause itself is an exception
+unwind, and the unwind pops the *phase-local frames* too — so at a decision
+node, phase state (window flags, working bids, the turn pointer) is neither
+readable from the paused world nor rendered in any information state, for
+every game. The derivability argument is identical (phase state is written
+by announced decisions and projected movements), and so is the exposure: a
+phase variable written from hidden contents would be silently absent rather
+than deliberately projected. Witnessed concretely by Coup's window flags
+(`tests/openspiel_ready/test_coup.py`, the blocked-foreign-aid test, which
+had to assert through the coin economy because `block_stands` is
+unreachable at the pause).
+
 [decisions.md](../decisions.md) "Hidden information lives only in zones;
 state is public" commits every **declared** `state` variable to being public
 and gives the modeling rule ("anything an observer must not know is contents,

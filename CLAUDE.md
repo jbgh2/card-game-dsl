@@ -38,7 +38,7 @@ indistinguishability (hidden-card swaps leave a player's information state
 byte-identical and the offered legal actions unchanged), soundness (a
 per-visible-fact perturbation matrix enumerated from the zone
 declarations), a structural seed/rng non-observability pin, adapter
-agreement (with terminal-returns agreement on the nine games whose greedy
+agreement (with terminal-returns agreement on the eight games whose greedy
 line ends), and perfect recall for each (Bridge's and French
 Tarot's swap/soundness/recall proofs cover only the pass-only line of their
 auctions — the harness's greedy replay never places a bid, let alone reaches

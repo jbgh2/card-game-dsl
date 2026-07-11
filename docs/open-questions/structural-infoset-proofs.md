@@ -173,11 +173,13 @@ checklist for resolving this question.
   game:* a replayed line asserts the registered pyspiel game's rendering —
   current player, legal actions, every player's information-state string —
   equals the DSL-level rendering at every step, which doubles as a per-game
-  determinism check across independent replays. The nine games whose greedy
+  determinism check across independent replays. The eight games whose greedy
   line terminates walk to the end and assert the terminal returns agree
   (reaching Terminal is itself asserted, so the comparison cannot rot into
-  dead code); the six multi-hand score-target games record
-  `terminal=False`, their returns exercised only by the conformance sim.
+  dead code); the seven that do not — six multi-hand score-target games
+  plus Coup, whose greedy line is legally unbounded at interactive scope —
+  record `terminal=False`, their returns exercised only by the conformance
+  sim.
 
 Two obligations on the *proof machinery itself*, whatever form it takes,
 both of which the harness meets: a failing check must report its witness —
