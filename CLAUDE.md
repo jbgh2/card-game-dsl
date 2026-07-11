@@ -99,6 +99,7 @@ docs/
 - **"How does X work?" (knowledge, scoring, mutation, typed outcomes, etc.)** → `docs/decisions.md`
 - **"How is game Y described in the DSL?"** → `docs/games/Y.md`
 - **"How do we keep info sets derivable / hit the OpenSpiel target?"** → the load-bearing section above, then `docs/design-notes/kernel-extensibility.md`
+- **"How do the engine's domains fit together / where does new work dock?"** → `docs/design-notes/domain-map.md`
 - **"How complete must a new construct be?"** → `docs/decisions.md`, "Surface totality" (grammar surface) and "Closed-domain completeness" (the machinery beneath it)
 - **"What's still being decided?"** → `docs/open-questions/_index.md` then the named file
 - **"What should we build next?" / "In what order?"** → `docs/roadmap.md`, "Suggested next steps, in order" — the authority on cross-cutting task sequence. `docs/open-questions/_index.md` owns question *priority*; `docs/games/_candidates.md` holds the full game pipeline.
