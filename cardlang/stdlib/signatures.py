@@ -79,6 +79,7 @@ CALL_SIGS: dict[str, Sig] = {
     "skat_effective_loss": Sig(
         (TInteger(), TInteger(), TInteger()), TInteger()
     ),  # Skat: the overbid-aware loss base
+    "doko_trick_winner": Sig((TPlayer(),), TPlayer()),  # Doppelkopf: the trick's winner
     "tichu_call_roll": Sig((), TInteger()),  # Tichu: one call gate (0/100/200, rng)
     "tichu_mahjong_holder": Sig((), TPlayer()),  # Tichu: leads the first trick
     "tichu_players_holding": Sig((), TInteger()),  # Tichu: players still holding cards

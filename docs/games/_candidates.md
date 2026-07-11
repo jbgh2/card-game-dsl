@@ -29,8 +29,6 @@ to a real implementation.
 
 | Open question | Needs | Top candidates |
 |---|---|---|
-| [zone-access-syntax](../open-questions/zone-access-syntax.md) | multi-hop relational chain in rule-subject position | **[doppelkopf](#doppelkopf)** (forces it — Fox/Charlie/Re scoring read "the partner of the ♣Q holder"), [koenigrufen](#koenigrufen) (2nd witness, runtime-chosen call), [sheepshead](#sheepshead) (corroborates, doesn't force the depth) |
-| [optional-window-moves](../open-questions/optional-window-moves.md) | 2nd off-the-clock declaration beyond Tichu | **[doppelkopf](#doppelkopf)** (Re/Kontra/no-90 ladder; "at any time", personal hand-size threshold) |
 | [special-cards-declaration](../open-questions/special-cards-declaration.md) (contextual rank) | 2nd play-time *relative*-rank card beyond Tichu's Phoenix | **[euchre](#euchre)** (bowers: rank *and effective suit* remap, in the base rules, keyed to a runtime-chosen trump), [president](#president) single-joker variant ("one higher than the card below it") |
 | [move-level-visibility](../open-questions/move-level-visibility.md) | per-observer move-level override (forces replace-vs-merge) | **poker "show one, show all"** — a Stud or [holdem](#holdem) variant, exercisable in the *existing* poker corpus |
 | [memory-event-syntax](../open-questions/memory-event-syntax.md) | an event composition can't express | **[hanabi](#hanabi)** (partial-identity hint over an inverted hand — forces it; _dedicated deck, out of scope_), [cabo](#cabo) (composable from existing ops) |
@@ -125,57 +123,24 @@ notoriously edge-case heavy: <https://www.pagat.com/last/piquet.html>.
 
 ## Trick-taking with partnerships
 
-### doppelkopf
-
-4 players, 48 cards (two Skat packs with the 7s and 8s removed — ranks
-A 10 K Q J 9, two of each per suit; *not* a Pinochle deck, which drops
-the 9s). Trick-taking where partnerships are *not* fixed: each player
-holds private knowledge of which side they're on (based on who holds the
-two Queens of Clubs), and partnerships are revealed through play.
-
-**Why interesting — the highest-value in-scope candidate; forces two
-open questions at once** (both verified against Pagat):
-
-- [zone-access-syntax](../open-questions/zone-access-syntax.md): the
-  Re/Kontra partition is *computed* from who holds the ♣Q, and **scoring
-  rules read a multi-hop relational chain** over it. Catching the Fox
-  (capturing the opponents' ♦A) requires "the partner of the ♦A's
-  player, relative to the trick winner's side"; the rulebook even defers
-  the evaluation — the ♦A "is left face up and turned over … when the
-  partnership becomes clear." Charlie Miller and "gegen die Alten"
-  scoring branch the same way. This is the chain in rule-subject
-  position, not just strategy.
-- [optional-window-moves](../open-questions/optional-window-moves.md):
-  Re/Kontra and the no-90 / no-60 / no-30 / Schwarz ladder are
-  off-the-clock — "announcements can be made **at any time** during the
-  play … not just when it is your turn to play" — bounded by a *personal
-  hand-size threshold* (≥11 cards for Re/Kontra, then 10/9/8/7). The
-  direct analogue of Tichu's "before your Nth card", and harder: the
-  threshold can be *computed* (reduced by tricks taken to settle a
-  marriage).
-
-**Notes.** Heavy house-rule variation; rely on the core DDV-aligned base
-(Re/Kontra timing, ♣Q partnership, Fox/Charlie scoring), not the
-Genscher/Schweinchen variants. **Pagat**:
-<https://www.pagat.com/schafkopf/doko.html>.
-
 ### koenigrufen
 
 4 players, 54-card *Industrie und Glück* Tarock pack (tarot family, like
 French Tarot — within extended corpus scope). The declarer "calls a
 King"; whoever holds it is the secret partner.
 
-**Why interesting.** A second witness for
-[zone-access-syntax](../open-questions/zone-access-syntax.md), with a
-twist Doppelkopf lacks: the queried card is **chosen at runtime** ("names
-a suit, the holder of that king becomes partner"), and the rules name the
-degenerate resolutions — "it is legal to call your own king" (declarer
-ends up solo) and "you also play alone if the called king happens to be
-in the talon" (the holding query resolves to no player). Scoring bonuses
-("called king captured by declarer's opponents", "king ultimo") read the
-call-derived side. The relational chain is shallower than Doppelkopf's
-Fox rule (partner is symmetric, one hop), so it's a confirmation rather
-than the primary driver. **Pagat**: <https://www.pagat.com/tarot/koenig.html>.
+**Why interesting.** The named reopener for the settled access
+discipline ([decisions.md](../decisions.md) "Typed object model"): the
+queried card is **chosen at runtime** ("names a suit, the holder of
+that king becomes partner"), and the rules name the degenerate
+resolutions — "it is legal to call your own king" (declarer ends up
+solo) and "you also play alone if the called king happens to be in the
+talon" (the holding query resolves to no player). Scoring bonuses
+("called king captured by declarer's opponents", "king ultimo") read
+the call-derived side. If its runtime-chosen relational subject resists
+the player-indexed-state flattening Doppelkopf's Fox rule settled on,
+the discipline gets its stress test.
+**Pagat**: <https://www.pagat.com/tarot/koenig.html>.
 
 ### sheepshead
 
@@ -185,12 +150,12 @@ card ("I call the Jack of Diamonds" / a fail-suit ace).
 
 **Why interesting.** *Calling a partner by card identity* creates a
 partnership defined by whoever holds a specific card, and the partner
-*knows* they are the partner before anyone else. It **corroborates**
-[zone-access-syntax](../open-questions/zone-access-syntax.md) — the
-"partner" reference resolves through a card-holding query — but the
-verified pass found it does **not force the multi-hop depth**: no scoring
-rule goes the second hop ("partner of the holder of X"); play-legality
-constraints are one hop ("the holder of the called ace must reserve it").
+*knows* they are the partner before anyone else. It **corroborates** the settled access discipline
+([decisions.md](../decisions.md) "Typed object model") — the "partner"
+reference resolves through a card-holding query — and the verified pass
+found it does **not force multi-hop depth**: no scoring rule goes the
+second hop ("partner of the holder of X"); play-legality constraints
+are one hop ("the holder of the called ace must reserve it").
 It is *not* a higher-order-knowledge case either — the partner's identity
 is first-order hidden information, and no rule reads knowledge-of-
 knowledge (that question is now resolved as not-forced). **Pagat**:
@@ -260,10 +225,9 @@ of table cards whose ranks sum to it.
 **Why interesting.** A fishing mechanic — capture rather than
 trick-take. Cards on the table form an evolving public zone; the
 played card's destination depends on which capture combination is
-selected. Tests
-[zone-access-syntax](../open-questions/zone-access-syntax.md) on
-multi-card target selection and the move type's relation to a
-shared zone.
+selected. Tests the settled access discipline ([decisions.md](../decisions.md)
+"Typed object model") on multi-card target selection and the move
+type's relation to a shared zone.
 
 **Notes.** Correction to flag: in **base** Scopa, when a single-card
 rank match exists you are *forced* to take the single card — the
@@ -469,7 +433,7 @@ and five public cards, four betting rounds.
 **Why interesting.** Second resource-using game after Stud, with one
 critical difference: *shared community cards* are observed by all
 and used by every player in hand evaluation. Tests whether
-[zone-access-syntax](../open-questions/zone-access-syntax.md) and
+the settled access discipline and
 the existing visibility model handle a zone owned by no one but
 used in every player's hand evaluation. Also a third resource-using
 game (after Stud and Coup), confirming the resource-transfer decisions

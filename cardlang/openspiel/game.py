@@ -37,6 +37,7 @@ GAMES: dict[str, str] = {
     "cardlang_tichu": "tichu.cardlang",
     "cardlang_coup": "coup.cardlang",
     "cardlang_go_fish": "go-fish.cardlang",
+    "cardlang_doppelkopf": "doppelkopf.cardlang",
 }
 
 

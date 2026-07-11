@@ -86,6 +86,10 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.skat import skat_trick_winner
 
             return skat_trick_winner(ctx, args[0])
+        case "doko_trick_winner":
+            from cardlang.runtime.doko import doko_trick_winner
+
+            return doko_trick_winner(ctx, args[0])
         case "skat_matadors":
             from cardlang.runtime.skat import skat_matadors
 

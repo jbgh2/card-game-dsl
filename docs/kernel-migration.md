@@ -23,7 +23,7 @@ runtime, and the OpenSpiel adapter's rejection — nothing remains to reject);
 every `run_*` monolith is gone (`run_bridge_auction`, `run_pinochle_hand`,
 `run_tarot_hand`/`run_tarot_rest`, `run_stud_game`, `run_bigtwo_hand`,
 `run_cribbage_hand`, `run_schnapsen_hand`, `run_skat_hand`, `run_tichu_hand`,
-`run_coup_game`); and all fourteen games run on the kernel `round` forms plus
+`run_coup_game`); and every corpus game runs on the kernel `round` forms plus
 ordinary statements, registered in `cardlang/openspiel/game.py:GAMES` with
 the readiness proofs green (`tests/openspiel_ready/`).
 
@@ -490,8 +490,8 @@ behaviour change with new goldens. Its sign-off is GRANTED (2026-07-11):
 implement at real-rules fidelity, with the call rules verified against
 Pagat before design (grand tichu is a fixed
 first-eight-cards window; small tichu is callable any time before the
-caller's first play, which touches
-[open-questions/optional-window-moves.md](open-questions/optional-window-moves.md)).
+caller's first play, which runs on the settled quiescence-lap poll —
+[decisions.md](decisions.md), "Off-the-clock windows").
 
 ## Cross-cutting build-out
 
@@ -536,7 +536,7 @@ breadth. Step 0 and Coup-last hold either way.
 
 - `instantiate` is deleted outright (no mechanic remained to dispatch); every
   `run_*` monolith is gone; the built-in `Trick` mechanic is gone.
-- All 14 games run on the kernel + in-DSL standard library; every
+- Every corpus game runs on the kernel + in-DSL standard library; every
   `test_playout_*` is green; IR goldens unchanged (no kernel game ever
   emitted an `instantiate` node); `mypy
   --strict` clean; conservation invariants and the recompute nets green.

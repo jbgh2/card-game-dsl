@@ -67,10 +67,6 @@ of the language.
   rules constraining non-trick move types are validated but unenforced. Where
   (if anywhere) should declarative rules bind outside a trick round? Data
   point: the first game needing a reusable non-trick constraint.
-- [zone-access-syntax](zone-access-syntax.md) — `zone[chain]` vs
-  `chain.zone` for complex receivers.
-- [optional-window-moves](optional-window-moves.md) — `may submit X`
-  for non-mandatory moves during a window (Tichu calls).
 - [round-config-factoring](round-config-factoring.md) — folding a repeated,
   parameterized `round` block (a list/`for each in [...]` loop over Stud's five
   betting streets) into one body; the within-round predicate duplication is
