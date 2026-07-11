@@ -470,6 +470,13 @@ class _Builder(Transformer[Token, n.Game]):
     def shuffle_op(self, meta: Meta, c: list[object]) -> n.EpistemicOp:
         return n.EpistemicOp(op="shuffle", target=_as_expr(c[0]), span=self._span(meta))
 
+    def reveal_op(self, meta: Meta, c: list[object]) -> n.EpistemicOp:
+        filt = c[1] if len(c) > 1 and c[1] is not None else None
+        assert filt is None or isinstance(filt, n.Lambda)
+        return n.EpistemicOp(
+            op="reveal", target=_as_expr(c[0]), filter=filt, span=self._span(meta)
+        )
+
     def name_list(self, meta: Meta, c: list[Token]) -> tuple[str, ...]:
         return tuple(str(x) for x in c)
 

@@ -110,10 +110,11 @@ class GameSpec:
     # proof walks the line to the end and ASSERTS the DSL and pyspiel terminal
     # returns agree (it fails loudly if the line stops terminating, rather
     # than silently skipping). None = the greedy line does not terminate in
-    # affordable steps (the multi-hand score-target games: Bridge, Hearts,
-    # Oh Hell, Seven-Card Stud, Skat, Tichu — all still past 400 greedy
-    # steps), and the walk stops at `depth` with `terminal=False` in the
-    # coverage record.
+    # affordable steps (the multi-hand score-target games — Bridge, Hearts,
+    # Oh Hell, Seven-Card Stud, Skat, Tichu, all still past 400 greedy
+    # steps — and Coup, whose greedy line is legally unbounded at
+    # interactive scope), and the walk stops at `depth` with
+    # `terminal=False` in the coverage record.
     adapter_terminal_steps: int | None = None
 
     @property

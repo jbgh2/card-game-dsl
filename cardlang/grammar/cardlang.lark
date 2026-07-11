@@ -191,9 +191,12 @@ vis_clause: "," "visibility" "=" expr
 
 // Epistemic operations are prose statements like the rest of the operation
 // vocabulary. A closed family: one alternative per op, added corpus-first as a
-// game needs it (Hearts needs only `shuffle`). reveal/peek/hide/announce/
-// expose_top/forget join here, in prose, as their games are formalized.
-epistemic_op: "shuffle" zone_expr   -> shuffle_op
+// game needs it (Hearts needs `shuffle`, Coup needs `reveal`). peek/hide/
+// announce/expose_top/forget join here, in prose, as their games are
+// formalized. `reveal` publicly identifies one matching card without moving
+// it — the card stays in its zone; see cardlang/runtime/execute.py.
+epistemic_op: "shuffle" zone_expr                                    -> shuffle_op
+            | "reveal" "one" "card" "from" zone_expr ["where" lambda] -> reveal_op
 
 rotate_stmt: "rotate" NAME "through" "[" name_list "]"     // state-cycle (orthogonal)
 name_list: NAME ("," NAME)*

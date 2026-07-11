@@ -304,10 +304,13 @@ class Movement:
 
 @dataclass(frozen=True, slots=True)
 class EpistemicOp:
-    """A prose epistemic operation, currently `shuffle <zone>`."""
+    """A prose epistemic operation: `shuffle <zone>` or `reveal one card from
+    <zone> [where <lambda>]`. `filter` is meaningful only for `reveal` (all
+    cards are eligible when it is `None`); `shuffle` never sets it."""
 
     op: str
     target: Expr
+    filter: Lambda | None = None
     span: Span | None = None
 
 

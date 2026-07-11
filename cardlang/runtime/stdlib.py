@@ -150,34 +150,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.coup import coup_next_in_game
 
             return coup_next_in_game(ctx, args[0])
-        case "coup_random_target":
-            from cardlang.runtime.coup import coup_random_target
-
-            return coup_random_target(ctx, args[0])
-        case "coup_challenger":
-            from cardlang.runtime.coup import coup_challenger
-
-            return coup_challenger(ctx, args[0])
-        case "coup_fa_blocker":
-            from cardlang.runtime.coup import coup_fa_blocker
-
-            return coup_fa_blocker(ctx, args[0])
-        case "coup_block_roll":
-            from cardlang.runtime.coup import coup_block_roll
-
-            return coup_block_roll(ctx)
-        case "coup_duke_claim":
-            from cardlang.runtime.coup import coup_duke_claim
-
-            return coup_duke_claim(ctx)
-        case "coup_contessa_claim":
-            from cardlang.runtime.coup import coup_contessa_claim
-
-            return coup_contessa_claim(ctx)
-        case "coup_steal_block_claim":
-            from cardlang.runtime.coup import coup_steal_block_claim
-
-            return coup_steal_block_claim(ctx)
         case "coup_has_char":
             from cardlang.runtime.coup import coup_has_char
 

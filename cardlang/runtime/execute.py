@@ -249,10 +249,36 @@ def _select_filtered(
 
 
 def _epistemic(stmt: n.EpistemicOp, ctx: Ctx) -> None:
-    assert stmt.op == "shuffle"
     zone = evaluate(stmt.target, ctx)
     assert isinstance(zone, Zone)
-    ctx.rs.rng.shuffle(zone.cards)
+    if stmt.op == "shuffle":
+        ctx.rs.rng.shuffle(zone.cards)
+        return
+    assert stmt.op == "reveal"
+    _reveal(stmt, zone, ctx)
+
+
+def _reveal(stmt: n.EpistemicOp, zone: Zone, ctx: Ctx) -> None:
+    # The revealed card STAYS in its zone — this is an epistemic event, not a
+    # movement. It is public: every player's log gets it, regardless of the
+    # zone's declared visibility (unlike `observe.movement`, which projects
+    # per observer through the zone type).
+    if stmt.filter is not None:
+        pred = evaluate(stmt.filter, ctx)
+        matches = [c for c in zone.cards if pred(c)]
+    else:
+        matches = list(zone.cards)
+    name, key = ctx.rs.zones.locate(zone)
+    label = name if key is None else f"{name}[{key}]"
+    if not matches:
+        raise RuntimeError(
+            f"reveal one card from {label}: no card matches — a "
+            "game-description bug"
+        )
+    card = matches[0]
+    if ctx.observer is not None:
+        for p in ctx.rs.seating.players:
+            ctx.observe(p, ("reveal", label, str(card)))
 
 
 def _rotate(stmt: n.RotateStmt, ctx: Ctx) -> None:

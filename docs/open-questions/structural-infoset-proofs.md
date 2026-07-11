@@ -70,10 +70,12 @@ agents are made artificially ignorant, so any measurement built on the
 partition (an equilibrium baseline, a who-knows-what study of belief
 reasoning across seats) quietly measures the wrong game while every test
 reads green. Two standing caveats bound any partition claim made today: the
-Tichu/Coup scope reductions keep several real decisions inside rng
-primitives, so those choices appear in *no one's* information set until the
-chooser upgrade ([kernel-migration.md](../kernel-migration.md), Workstream
-5); and the guarantee covers the *structured* partition only — if the
+Tichu scope reductions keep its call gates and Dragon routing inside rng
+primitives, so those choices appear in *no one's* information set until
+Tichu's chooser upgrade ([kernel-migration.md](../kernel-migration.md),
+Workstream 5 — Coup's upgrade is done: its challenges, blocks, claimed
+characters, and targets are real announced decisions); and the guarantee
+covers the *structured* partition only — if the
 language ever grows free-form communication channels (an LLM seat and
 table-talk), meaning carried in that text lives outside the game state and
 outside this guarantee.
@@ -171,11 +173,13 @@ checklist for resolving this question.
   game:* a replayed line asserts the registered pyspiel game's rendering —
   current player, legal actions, every player's information-state string —
   equals the DSL-level rendering at every step, which doubles as a per-game
-  determinism check across independent replays. The nine games whose greedy
+  determinism check across independent replays. The eight games whose greedy
   line terminates walk to the end and assert the terminal returns agree
   (reaching Terminal is itself asserted, so the comparison cannot rot into
-  dead code); the six multi-hand score-target games record
-  `terminal=False`, their returns exercised only by the conformance sim.
+  dead code); the seven that do not — six multi-hand score-target games
+  plus Coup, whose greedy line is legally unbounded at interactive scope —
+  record `terminal=False`, their returns exercised only by the conformance
+  sim.
 
 Two obligations on the *proof machinery itself*, whatever form it takes,
 both of which the harness meets: a failing check must report its witness —
