@@ -1,0 +1,271 @@
+"""Fact-level partition proof machinery (structural-infoset-proofs, the
+"actionable now" checks).
+
+The zone declarations and their projections ARE the machine-readable
+visibility specification, so the soundness perturbation set is ENUMERATED from
+them rather than hand-picked: for every zone x observer the declared
+projection says whether a perturbation must change the observer's information
+state (identity: content; count_only: count but not same-count content;
+trivial: nothing), and every public state variable and observation event must
+be sensitive too. Failures carry a witness — the perturbed fact and the
+information-state fragment that wrongly agrees or differs — and passing runs
+record what they covered (the coverage registry; rendered by conftest's
+terminal summary, dumped as JSON via CARDLANG_PARTITION_REPORT).
+
+This module must not import pyspiel: the root-level unit tests
+(tests/test_partition_helpers.py) run without it.
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass, field
+from typing import Any, Protocol
+
+from cardlang.openspiel.infostate import information_state
+from cardlang.runtime.state import RuntimeState, Zone
+from cardlang.runtime.values import Card
+from cardlang.stdlib.zones import ZONE_PROJECTIONS, zone_projection
+
+# A card no deck contains — safe to add to any zone as a perturbation.
+SYNTHETIC = Card("‡", "synthetic")
+
+_SENTINEL = "«perturbed»"
+_SENTINEL_EVENT: tuple[Any, ...] = ("«synthetic-event»",)
+
+
+class InfoFn(Protocol):
+    def __call__(
+        self, player: int, rs: RuntimeState, log: list[tuple[Any, ...]], /
+    ) -> str: ...
+
+
+def _default_info(player: int, rs: RuntimeState, log: list[tuple[Any, ...]]) -> str:
+    return information_state(player, rs, log)
+
+
+def first_divergence(a: str, b: str, context: int = 40) -> str:
+    """The witness fragment: where two information states first differ."""
+    if a == b:
+        return "(identical)"
+    i = next(
+        (k for k, (x, y) in enumerate(zip(a, b)) if x != y),
+        min(len(a), len(b)),
+    )
+    lo = max(0, i - context)
+    return (
+        f"@{i}: ...{a[lo : i + context]!r} != ...{b[lo : i + context]!r}"
+    )
+
+
+def _is_owner(rs: RuntimeState, name: str, key: int | None, observer: int) -> bool:
+    index = rs.zones.zone_index[name]
+    if key is None or index is None:
+        return False
+    if index == "team":
+        return rs.team_of.get(observer) == key
+    return observer == key
+
+
+def projection_for(rs: RuntimeState, name: str, key: int | None, observer: int) -> str:
+    return zone_projection(rs.zones.zone_type[name], _is_owner(rs, name, key, observer))
+
+
+def zone_instances(rs: RuntimeState) -> list[tuple[str, int | None, Zone]]:
+    """Every zone instance, in the deterministic order the info state renders."""
+    singles: list[tuple[str, int | None, Zone]] = [
+        (name, None, rs.zones.single(name)) for name in sorted(rs.zones.singles)
+    ]
+    fams: list[tuple[str, int | None, Zone]] = [
+        (name, key, rs.zones.instance(name, key))
+        for name in sorted(rs.zones.families)
+        for key in sorted(rs.zones.families[name])
+    ]
+    return singles + fams
+
+
+def all_hidden(rs: RuntimeState, name: str) -> bool:
+    """No observer is ever entitled to this zone's card identities — its
+    content order and composition are undrawn randomness."""
+    vis = ZONE_PROJECTIONS[rs.zones.zone_type[name]]
+    return vis.owner != "identity" and vis.others != "identity"
+
+
+@dataclass
+class FactFailure:
+    fact: str      # e.g. "zone hand[2] (identity to P0): removed Q♠"
+    expected: str  # "change" | "no-change"
+    witness: str   # first_divergence fragment (or "(identical)" for a missed change)
+
+
+def _probe(
+    fact: str,
+    expected_change: bool,
+    before: str,
+    after: str,
+    failures: list[FactFailure],
+) -> None:
+    changed = before != after
+    if changed != expected_change:
+        failures.append(
+            FactFailure(
+                fact=fact,
+                expected="change" if expected_change else "no-change",
+                witness=first_divergence(before, after),
+            )
+        )
+
+
+def check_visible_facts(
+    rs: RuntimeState,
+    obs_log: list[tuple[Any, ...]],
+    observer: int,
+    info_fn: InfoFn = _default_info,
+) -> tuple[list[FactFailure], dict[str, int]]:
+    """One perturbation per fact, enumerated from the declarations, for one
+    observer at a paused world. Mutate -> recompute -> restore; the world is
+    byte-identical afterwards. Returns (failures, counts per category)."""
+    failures: list[FactFailure] = []
+    counts = {
+        "zone_identity": 0,
+        "zone_count_only": 0,
+        "zone_trivial": 0,
+        "state_vars": 0,
+        "obs_events": 0,
+    }
+    before = info_fn(observer, rs, obs_log)
+
+    for name, key, zone in zone_instances(rs):
+        proj = projection_for(rs, name, key, observer)
+        label = name if key is None else f"{name}[{key}]"
+        counts[f"zone_{proj}"] += 1
+        if zone.cards:
+            # content/count perturbation: remove the first card
+            removed = zone.cards.pop(0)
+            after = info_fn(observer, rs, obs_log)
+            zone.cards.insert(0, removed)
+            _probe(
+                f"zone {label} ({proj} to P{observer}): removed {removed}",
+                proj != "trivial",
+                before,
+                after,
+                failures,
+            )
+            if proj == "count_only":
+                # count-preserving content swap must NOT be visible
+                original = zone.cards[0]
+                zone.cards[0] = SYNTHETIC
+                after = info_fn(observer, rs, obs_log)
+                zone.cards[0] = original
+                _probe(
+                    f"zone {label} (count_only to P{observer}): swapped content, same count",
+                    False,
+                    before,
+                    after,
+                    failures,
+                )
+        else:
+            # empty zone: emptiness is itself the visible fact
+            zone.cards.append(SYNTHETIC)
+            after = info_fn(observer, rs, obs_log)
+            zone.cards.pop()
+            _probe(
+                f"zone {label} ({proj} to P{observer}): added a card to the empty zone",
+                proj != "trivial",
+                before,
+                after,
+                failures,
+            )
+
+    # Public state variables: perturb the visible (topmost) binding of each.
+    winning: dict[str, int] = {}
+    for i, frame in enumerate(rs.frames):
+        for var in frame:
+            winning[var] = i
+    for var, i in sorted(winning.items()):
+        frame = rs.frames[i]
+        original = frame[var]
+        frame[var] = _SENTINEL
+        after = info_fn(observer, rs, obs_log)
+        frame[var] = original
+        counts["state_vars"] += 1
+        _probe(
+            f"state variable '{var}' (public): replaced with sentinel",
+            True,
+            before,
+            after,
+            failures,
+        )
+
+    # Observation events: each event embedded verbatim; the log is sensitive.
+    for e in obs_log:
+        counts["obs_events"] += 1
+        if repr(e) not in before:
+            failures.append(
+                FactFailure(
+                    fact=f"observation event {e!r} of P{observer}",
+                    expected="change",
+                    witness="event repr absent from the information state",
+                )
+            )
+    obs_log.append(_SENTINEL_EVENT)
+    after = info_fn(observer, rs, obs_log)
+    obs_log.pop()
+    _probe(
+        f"P{observer}'s observation log: appended a synthetic event",
+        True,
+        before,
+        after,
+        failures,
+    )
+
+    return failures, counts
+
+
+def format_failures(game: str, observer: int, failures: list[FactFailure]) -> str:
+    lines = [f"{game}: P{observer}'s information state fails {len(failures)} fact check(s):"]
+    lines += [
+        f"  [{f.expected} expected] {f.fact} -> {f.witness}" for f in failures
+    ]
+    return "\n".join(lines)
+
+
+# --- coverage registry (the citable record of what a passing run covered) ---
+
+
+@dataclass
+class ProofRecord:
+    game: str
+    proof: str
+    detail: dict[str, Any] = field(default_factory=dict)
+
+
+RECORDS: list[ProofRecord] = []
+
+
+def record(game: str, proof: str, **detail: Any) -> None:
+    RECORDS.append(ProofRecord(game=game, proof=proof, detail=detail))
+
+
+def summary_lines() -> list[str]:
+    by_game: dict[str, list[ProofRecord]] = {}
+    for r in RECORDS:
+        by_game.setdefault(r.game, []).append(r)
+    lines: list[str] = []
+    for game in sorted(by_game):
+        parts = []
+        for r in by_game[game]:
+            kv = ",".join(f"{k}={v}" for k, v in r.detail.items())
+            parts.append(f"{r.proof}[{kv}]")
+        lines.append(f"{game}: " + " ".join(parts))
+    return lines
+
+
+def dump_json(path: str) -> None:
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(
+            [{"game": r.game, "proof": r.proof, "detail": r.detail} for r in RECORDS],
+            fh,
+            indent=2,
+            default=str,
+        )
