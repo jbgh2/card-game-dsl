@@ -141,3 +141,37 @@ def test_render_refuses_undeclared_decision_value_shapes() -> None:
         render(Alien())
     with pytest.raises(AssertionError, match="no declared rendering"):
         render((1, 2, 3))  # a tuple that is not a (move_type, param) candidate
+
+
+def test_every_emitted_event_type_is_registered() -> None:
+    """Closed-domain completeness: sweep real observation logs across games
+    with distinct emission profiles (trick play, rank-probing transfers,
+    challenge windows + reveals) and assert every event tag is in the
+    declared EVENT_TYPES vocabulary — a typo at an emission site cannot
+    silently mint a new event kind."""
+    from pathlib import Path as _Path
+
+    from cardlang.openspiel.replay import Pause, run
+    from cardlang.runtime.observe import EVENT_TYPES
+
+    games_dir = _Path(__file__).parent.parent / "docs" / "games"
+    seen: set[str] = set()
+    for fname, depth in (("hearts.cardlang", 12), ("go-fish.cardlang", 10), ("coup.cardlang", 14)):
+        path = str(games_dir / fname)
+        history: list[int] = []
+        r = run(path, 5, ())
+        for _ in range(depth):
+            assert isinstance(r, Pause)
+            for log in r.obs_logs.values():
+                for event in log:
+                    assert event[0] in EVENT_TYPES, (
+                        f"{fname}: unregistered event type {event[0]!r} — "
+                        f"declare it in observe.EVENT_TYPES deliberately"
+                    )
+                    seen.add(str(event[0]))
+            history.append(r.legal[0])
+            r = run(path, 5, tuple(history))
+    # the sweep must exercise the vocabulary, not pass vacuously
+    assert seen == set(EVENT_TYPES) - {"reveal"} or seen == set(EVENT_TYPES), (
+        f"sweep exercised only {sorted(seen)} — extend the game/depth list"
+    )

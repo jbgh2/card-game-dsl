@@ -75,6 +75,34 @@ information sets are why this engine beats hand-coding games. Each domain's
 closed registries carry the
 [closed-domain completeness](../decisions.md) obligations.
 
+## Where each domain lives in code, and its completeness checks
+
+The code is laid out by pipeline stage (front end → runtime → adapter), not
+folder-per-domain — this table is the ownership map. **Placement
+convention:** domain logic lives with its consumer when its output IS the
+boundary contract — which is why the Observation renderer
+(`openspiel/infostate.py`), Valuation's `returns_for`
+(`openspiel/replay.py`), and Decision's `ActionSpace`
+(`openspiel/encoding.py`) sit in the Interop package: their artifacts (the
+info-state string, the returns vector, the action ids) are the OpenSpiel
+contract itself. Do not "fix" their location.
+
+| Domain | Code | Completeness checks (the pins) |
+|---|---|---|
+| Description | `grammar/`, `parse.py`, `ast/nodes.py`, `resolve.py`, `typecheck.py`, `ir.py` | Surface-totality matrices (movement grid, rejection tests); closed AST unions under `mypy --strict` with `assert_never` dispatches; declared-type-name and named-arg rejections |
+| Table | `runtime/values.py`, `runtime/state.py`, `stdlib/zones.py` | `ZONE_PROBES` ↔ `ZONE_PROJECTIONS` pin + probe-time refusal; deck registries derived from `DECKS` (suits) or drift-pinned (sizes); emission-rule raise in `view_of` |
+| Decision | `runtime/mechanics.py`, `runtime/chooser.py`, `runtime/execute.py` (offer), `openspiel/encoding.py` | `enumerate_domain` ↔ `_FIXED_DOMAINS` pin; registry→dispatcher pins (`STDLIB_CALL_FUNCS`, `ZONE_METHODS`); encoder ends in loud errors |
+| Observation | `runtime/observe.py`, `openspiel/infostate.py` | `EVENT_TYPES` vocabulary + corpus-sweep pin; renderer shape walls (undeclared value shapes refuse); the partition proof battery |
+| Control | `runtime/driver.py`, `runtime/phases.py` | Central decision counting vs `max_length` (one wrapper, every chooser site); round-form surface under Description's totality |
+| Valuation | `openspiel/replay.py` (`returns_for`), driver winner handling | Bounded by the `winner:` grammar surface; per-game playout + conservation tests |
+| Chance | seeded in `runtime/driver.py`, carried as `rs.rng` | The seed/rng non-observability pin; replay purity (chooser makes no rng calls) |
+| Interop | `cardlang/openspiel/` (`game.py`, `replay.py`, `encoding.py`, `report.py`) | Per-game conformance; adapter-agreement proof (doubles as per-game determinism) |
+| Certification | `tests/openspiel_ready/` | Self-pinning: `test_coverage.py` (modules ↔ registry, both directions), probe-table completeness pin, coverage records |
+
+When new work touches a domain, its pins are the acceptance floor: extend
+the registry and the pins in the same change, per closed-domain
+completeness.
+
 ## Future domains: anchor and forcing witness
 
 | Domain | Attaches to | What forces it |

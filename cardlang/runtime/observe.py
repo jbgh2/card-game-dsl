@@ -28,6 +28,14 @@ from cardlang.runtime.state import Ctx, RuntimeState
 from cardlang.runtime.values import Card, Player
 from cardlang.stdlib.zones import zone_projection
 
+# The closed observation-event vocabulary (closed-domain completeness,
+# decisions.md): every event any emission site delivers to an observer log
+# carries one of these tags. Emission sites: `choice`/`announce`/`movement`
+# below, the replay chooser's per-draw `chose`, and execute._reveal. Pinned
+# by a corpus sweep (tests/test_observe.py) so a typo'd tag cannot mint a
+# new event kind silently; a NEW deliberate kind is added here first.
+EVENT_TYPES: frozenset[str] = frozenset({"chose", "announce", "move", "reveal"})
+
 
 def render_candidate(name: str, param: Any) -> str:
     """Render a `(move_type, param)` candidate: the bare name (nullary), a
