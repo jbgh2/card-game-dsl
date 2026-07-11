@@ -19,4 +19,10 @@ from .harness import GameSpec, ReadinessProofs
 
 
 class TestReadiness(ReadinessProofs):
-    spec = GameSpec("cardlang_big_two", "big-two.cardlang", depth=6, conformance_steps=120)
+    spec = GameSpec(
+        "cardlang_big_two",
+        "big-two.cardlang",
+        depth=6,
+        conformance_steps=120,
+        adapter_terminal_steps=200,  # greedy line measured at 147 steps
+    )

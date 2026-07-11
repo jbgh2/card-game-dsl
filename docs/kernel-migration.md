@@ -25,7 +25,7 @@ every `run_*` monolith is gone (`run_bridge_auction`, `run_pinochle_hand`,
 `run_cribbage_hand`, `run_schnapsen_hand`, `run_skat_hand`, `run_tichu_hand`,
 `run_coup_game`); and all fourteen games run on the kernel `round` forms plus
 ordinary statements, registered in `cardlang/openspiel/game.py:GAMES` with
-the four readiness proofs green (`tests/openspiel_ready/`).
+the readiness proofs green (`tests/openspiel_ready/`).
 
 The per-game `runtime/*.py` modules that remain hold no mechanic — only pure
 stdlib primitives the DSL calls: Stud's poker evaluator, seat selectors, and

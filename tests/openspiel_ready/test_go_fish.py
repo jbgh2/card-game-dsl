@@ -61,6 +61,7 @@ class TestReadiness(ReadinessProofs):
         hidden_zone="hand",
         depth=6,
         swap_axis="rank",
+        adapter_terminal_steps=80,  # greedy line measured at 39 steps
     )
 
 

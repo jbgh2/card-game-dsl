@@ -1,6 +1,6 @@
 """The OpenSpiel-readiness proof machinery (SP1 spec, "The proof").
 
-Every fully-kernel game gets the same four proofs, one test module per game
+Every fully-kernel game gets the same proofs, one test module per game
 (`test_<game>.py` in this package, kept total against the adapter's registry
 by `test_coverage.py`):
 
@@ -8,9 +8,23 @@ by `test_coverage.py`):
    games whose full sim is prohibitively long — see
    `GameSpec.conformance_steps`).
 2. INDISTINGUISHABILITY: two worlds differing only in cards hidden from P
-   yield byte-identical information states for P (the leak-closure proof).
-3. Soundness converse: perturbing what P CAN see changes P's state.
+   yield byte-identical information states for P — and offer P identical
+   legal actions (legal-action agreement).
+3. Soundness converse: perturbing what P CAN see changes P's state — the
+   replay-level own-hand probe plus the per-visible-fact matrix enumerated
+   from the zone declarations (partition.check_visible_facts).
 4. Perfect recall: each player's observation log is append-only along a game.
+5. Seed/undrawn-randomness non-observability: reseeding the generator and
+   permuting all-hidden stocks leaves every information state byte-identical
+   (a structural pin — it bites only if rendering ever couples to the
+   generator or to hidden-stock order).
+6. Adapter agreement: the registered pyspiel game renders the same partition
+   the DSL-level proofs certify; games whose greedy line terminates walk to
+   the end and assert the terminal returns agree too.
+
+Passing runs record their coverage (partition.RECORDS; see conftest.py);
+failing checks report their witness — the perturbed fact and the
+information-state fragment that wrongly agrees or differs.
 
 A game module declares its harness configuration as a `GameSpec` on a
 `TestReadiness(ReadinessProofs)` subclass. Per-game rationale — depths,
@@ -32,6 +46,15 @@ pyspiel = pytest.importorskip("pyspiel")
 import cardlang.openspiel.game as ogame  # noqa: E402  (registers on import)
 from cardlang.openspiel.infostate import information_state  # noqa: E402
 from cardlang.openspiel.replay import Pause, run  # noqa: E402
+
+from .partition import (  # noqa: E402
+    all_hidden,
+    check_visible_facts,
+    first_divergence,
+    format_failures,
+    record,
+    zone_instances,
+)
 
 GAMES_DIR = Path(__file__).resolve().parent.parent.parent / "docs" / "games"
 
@@ -81,6 +104,17 @@ class GameSpec:
     # transfer COUNT is observed, so only same-rank swaps preserve it).
     # "any": no public card/rank observation (a pure betting vocabulary).
     swap_axis: Literal["suit", "rank", "any"] = "suit"
+
+    # Total greedy (legal[0]) steps within which this game's line reaches
+    # Terminal — measured, with headroom. Set it and the adapter-agreement
+    # proof walks the line to the end and ASSERTS the DSL and pyspiel terminal
+    # returns agree (it fails loudly if the line stops terminating, rather
+    # than silently skipping). None = the greedy line does not terminate in
+    # affordable steps (the multi-hand score-target games: Bridge, Hearts,
+    # Oh Hell, Seven-Card Stud, Skat, Tichu — all still past 400 greedy
+    # steps), and the walk stops at `depth` with `terminal=False` in the
+    # coverage record.
+    adapter_terminal_steps: int | None = None
 
     @property
     def path(self) -> str:
@@ -142,7 +176,7 @@ def _swap_fn(side1: tuple[str, "int | None"], side2: tuple[str, "int | None"], x
 
 
 class ReadinessProofs:
-    """The four readiness proofs, run against one game's `spec`. A game's
+    """The readiness proofs, run against one game's `spec`. A game's
     module subclasses this as `class TestReadiness(ReadinessProofs)` with its
     `GameSpec` as the `spec` class attribute."""
 
@@ -233,7 +267,34 @@ class ReadinessProofs:
             info_b = information_state(p, pause_b.rs, pause_b.obs_logs[p])
             assert info_a == info_b, (
                 f"{spec.short_name}: swapping hidden {x}<->{y} ({who}) "
-                f"CHANGED P{p}'s information state — the info-set leaks"
+                f"CHANGED P{p}'s information state — the info-set leaks.\n"
+                f"worlds: seed={seed} depth={len(history)} swap=({x},{y})\n"
+                f"witness: {first_divergence(info_a, info_b)}"
+            )
+            # Legal-action agreement: two worlds in the same information set
+            # for the player to move must offer identical legal actions —
+            # otherwise the offered moves are themselves a leak channel, one
+            # OpenSpiel does not police.
+            assert pause_b.player == p, (
+                f"{spec.short_name}: the hidden swap moved the turn to "
+                f"P{pause_b.player} — whose turn it is leaks hidden content"
+            )
+            assert pause_b.legal == pause_a.legal, (
+                f"{spec.short_name}: same information set, different legal actions "
+                f"— swap ({x},{y}) changed the offer for P{p}: "
+                f"only-in-A={sorted(set(pause_a.legal) - set(pause_b.legal))} "
+                f"only-in-B={sorted(set(pause_b.legal) - set(pause_a.legal))}"
+            )
+            record(
+                spec.short_name,
+                "swap",
+                seed=seed,
+                depth=len(history),
+                axis=spec.swap_axis,
+                pair=f"{x}<->{y}",
+                pairs_skipped=candidates.index((x, y)),
+                candidates=len(candidates),
+                legal_agreement=True,
             )
             return  # one successful controlled swap proves the property
         pytest.fail(f"{spec.short_name}: no swap pair produced a legal replay; last replay error: {last_err!r}")
@@ -263,6 +324,76 @@ class ReadinessProofs:
             f"{spec.short_name}: the info-state is insensitive to the player's own hand"
         )
 
+    def test_soundness_every_visible_fact_is_in_the_state(self) -> None:
+        """Soundness, generalized (structural-infoset-proofs, 'nothing
+        over-hidden'): one perturbation per visible fact, for EVERY observer,
+        enumerated from the zone declarations — every zone projection the
+        observer is entitled to, every public state variable, every
+        observation event. The complement is checked too: a perturbation of
+        content the observer is NOT entitled to (a count-preserving swap in a
+        count_only zone, any change in a trivial zone) must NOT move their
+        information state. Perturbations are applied to the paused world
+        snapshot directly (mutate -> recompute -> restore), so no replay
+        legality constraints apply; the replay-level soundness probe above
+        stays as the end-to-end complement."""
+        spec = self.spec
+        _, pause = _advance(spec.path, 5, spec.depth)
+        totals = {"zone_identity": 0, "zone_count_only": 0, "zone_trivial": 0,
+                  "state_vars": 0, "obs_events": 0}
+        for observer in range(len(pause.obs_logs)):
+            failures, counts = check_visible_facts(
+                pause.rs, pause.obs_logs[observer], observer
+            )
+            assert not failures, format_failures(spec.short_name, observer, failures)
+            assert sum(counts.values()) > 0, (
+                f"{spec.short_name}: the fact enumeration for P{observer} was empty"
+            )
+            for k, v in counts.items():
+                totals[k] += v
+        record(spec.short_name, "facts", observers=len(pause.obs_logs),
+               depth=spec.depth, **totals)
+
+    def test_seed_and_undrawn_randomness_are_not_observable(self) -> None:
+        """No information state may be sensitive to the root chance seed
+        beyond what dealt-and-observed cards already reveal, nor to rng draws
+        not yet made — including the rules-level rng gates carrying the
+        Tichu/Coup scope reductions, which draw from the same generator
+        (structural-infoset-proofs, 'Seed and undrawn-randomness
+        non-observability'). Two direct perturbations at a paused world:
+        replace the live generator outright (a different seed's entire future
+        stream), and reverse the order of every all-hidden stock (the pending
+        draw order). Every player's information state must be byte-identical
+        under both."""
+        spec = self.spec
+        _, pause = _advance(spec.path, 5, spec.depth)
+        players = range(len(pause.obs_logs))
+        before = {
+            q: information_state(q, pause.rs, pause.obs_logs[q]) for q in players
+        }
+
+        pause.rs.rng = random.Random(0xC0FFEE)
+        stocks: list[str] = []
+        for name, key, zone in zone_instances(pause.rs):
+            if all_hidden(pause.rs, name) and len(zone.cards) >= 2:
+                zone.cards.reverse()
+                stocks.append(name if key is None else f"{name}[{key}]")
+
+        for q in players:
+            after = information_state(q, pause.rs, pause.obs_logs[q])
+            assert after == before[q], (
+                f"{spec.short_name}: P{q}'s information state is sensitive to "
+                f"undrawn randomness (reseeded rng; reversed {stocks})\n"
+                f"witness: {first_divergence(before[q], after)}"
+            )
+        record(
+            spec.short_name,
+            "rng",
+            depth=spec.depth,
+            reseeded=True,
+            stocks_reversed=len(stocks),
+            vacuous_stock=(len(stocks) == 0),
+        )
+
     def test_perfect_recall_logs_are_append_only(self) -> None:
         spec = self.spec
         path = spec.path
@@ -281,3 +412,80 @@ class ReadinessProofs:
             history.append(r.legal[0])
             r = run(path, seed, tuple(history))
             steps += 1
+
+    def test_adapter_agrees_with_the_dsl_information_state(self) -> None:
+        """The readiness proofs run at the DSL level; the partition OpenSpiel
+        algorithms actually consume is the registered game's. Walk one line
+        and assert the two renderings agree at every step — current player,
+        legal actions, and every player's information-state string. Because
+        the pyspiel state re-simulates independently of this test's own `run`
+        calls, the comparison doubles as a per-game determinism check: two
+        independent replays of the same (seed, history) must render
+        byte-identically.
+
+        When the spec sets `adapter_terminal_steps` (games whose greedy line
+        terminates — nine of fifteen), the walk then continues cheaply to the
+        end of the game and asserts the DSL and pyspiel TERMINAL RETURNS
+        agree; reaching Terminal within the cap is itself asserted, so the
+        returns comparison cannot rot into dead code. The remaining games
+        (multi-hand score targets whose greedy line exceeds any affordable
+        cap) record `terminal=False` in the coverage record — their returns
+        surface is exercised only by the conformance sim."""
+        spec = self.spec
+        seed = 5
+        game = pyspiel.load_game(spec.short_name)
+        state = game.new_initial_state()
+        assert state.is_chance_node()
+        state.apply_action(seed)
+
+        history: list[int] = []
+        r = run(spec.path, seed, ())
+        steps = 0
+        while isinstance(r, Pause) and steps < spec.depth:
+            assert not state.is_terminal()
+            assert state.current_player() == r.player, (
+                f"{spec.short_name}: step {steps}: adapter player "
+                f"{state.current_player()} != DSL player {r.player}"
+            )
+            assert state.legal_actions() == r.legal, (
+                f"{spec.short_name}: step {steps}: adapter legal actions disagree"
+            )
+            for q in range(len(r.obs_logs)):
+                expected = information_state(q, r.rs, r.obs_logs[q])
+                got = state.information_state_string(q)
+                assert got == expected, (
+                    f"{spec.short_name}: step {steps}: adapter info state for "
+                    f"P{q} diverged\nwitness: {first_divergence(expected, got)}"
+                )
+            action = r.legal[0]
+            state.apply_action(action)
+            history.append(action)
+            r = run(spec.path, seed, tuple(history))
+            steps += 1
+        cap = spec.adapter_terminal_steps
+        if cap is not None:
+            # Continue the greedy line to the end of the game. Cheap phase: no
+            # per-step pyspiel queries (each would re-simulate), just action
+            # application; the DSL side needs one `run` per step regardless.
+            while isinstance(r, Pause) and steps < cap:
+                action = r.legal[0]
+                state.apply_action(action)
+                history.append(action)
+                r = run(spec.path, seed, tuple(history))
+                steps += 1
+            assert not isinstance(r, Pause), (
+                f"{spec.short_name}: greedy line no longer reaches Terminal "
+                f"within adapter_terminal_steps={cap} — re-measure the line "
+                f"and adjust the spec (do not silently drop the returns check)"
+            )
+        if not isinstance(r, Pause):
+            assert state.is_terminal(), (
+                f"{spec.short_name}: DSL line terminal but adapter is not"
+            )
+            assert state.returns() == r.returns, (
+                f"{spec.short_name}: terminal returns disagree — "
+                f"adapter {state.returns()} != DSL {r.returns}"
+            )
+        record(spec.short_name, "adapter", seed=seed, steps=steps,
+               terminal=not isinstance(r, Pause),
+               returns_compared=not isinstance(r, Pause))
