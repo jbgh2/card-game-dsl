@@ -52,3 +52,31 @@ def test_deterministic_across_dict_insertion_orders() -> None:
     a, b = _rs(), _rs()
     b.set("score", {1: 20, 0: 10})  # same mapping, different insertion order
     assert information_state(0, a, []) == information_state(0, b, [])
+
+
+def test_render_covers_the_declared_value_shapes_and_refuses_the_rest() -> None:
+    """Closed-domain completeness (decisions.md): the information state's
+    value renderer covers exactly the shapes the language can put in state —
+    scalars, None, Card, containers, StructValue (canonically, insertion-order
+    independent) — and refuses anything else loudly rather than embedding an
+    unstable repr in a certified-deterministic string."""
+    import pytest
+
+    from cardlang.openspiel.infostate import _render
+    from cardlang.runtime.state import StructValue
+    from cardlang.runtime.values import Card
+
+    assert _render(3) == "3"
+    assert _render(True) == "True"
+    assert _render("hearts") == "hearts"
+    assert _render(None) == "None"
+    assert _render(Card("Q", "spades")) == "Q♠"
+    a = StructValue("Contract", {"level": 1, "suit": "spades"})
+    b = StructValue("Contract", {"suit": "spades", "level": 1})
+    assert _render(a) == _render(b) == "Contract{level:1,suit:spades}"
+
+    class Alien:
+        pass
+
+    with pytest.raises(AssertionError, match="no declared rendering"):
+        _render(Alien())

@@ -56,7 +56,15 @@ def render(value: Any) -> Any:
     if cards is not None:  # a combination play (climb engines)
         kind = getattr(value, "kind", "combo")
         return f"{kind}[" + ",".join(sorted(str(c) for c in cards)) + "]"
-    return value  # int (a choose), str (a move name / "pass")
+    if isinstance(value, (int, str)) or value is None:
+        return value  # int/bool (a choose, a flag), str (a move name / "pass")
+    # Closed-domain completeness: a decision value outside the declared
+    # shapes has no deterministic rendering — fail loudly rather than pass
+    # an unstable repr into every observer's information state.
+    raise AssertionError(
+        f"decision value of type {type(value).__name__} has no declared "
+        f"rendering in observe.render — add it deliberately"
+    )
 
 
 def choice(ctx: Ctx, actor: Player, value: Any) -> None:

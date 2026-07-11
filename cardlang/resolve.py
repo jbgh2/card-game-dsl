@@ -37,6 +37,7 @@ from cardlang.stdlib.functions import (
 )
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
 from cardlang.stdlib.values import deck_suits, enum_values
+from cardlang.typecheck import KNOWN_TYPE_NAMES
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 
 # Roles a zone may be indexed by or owned by. Grows with the seating model.
@@ -703,6 +704,33 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 bag.error(f"call to unknown function '{nd.func}'", nd.span)
             case n.StructLit() if nd.type_name not in defined_types:
                 bag.error(f"unknown type '{nd.type_name}'", nd.span)
+            case n.NamedArg():
+                # Accepted-but-crashing surface walled off (Surface totality):
+                # the grammar admits `f(x = 1)`, but typecheck skips the value
+                # expression and the runtime raises. Reject until a game needs
+                # named arguments (recorded in roadmap.md).
+                bag.error(
+                    "named call arguments are not supported; pass arguments "
+                    "positionally",
+                    nd.span,
+                )
+            case n.StateDecl() if (
+                nd.type_name not in KNOWN_TYPE_NAMES
+                and nd.type_name not in defined_types
+            ):
+                bag.error(
+                    f"unknown type '{nd.type_name}' in declaration of "
+                    f"'{nd.name}'",
+                    nd.span,
+                )
+            case n.StructField() if (
+                nd.type_name not in KNOWN_TYPE_NAMES
+                and nd.type_name not in defined_types
+            ):
+                bag.error(
+                    f"unknown type '{nd.type_name}' in struct field '{nd.name}'",
+                    nd.span,
+                )
             case n.Produces() if (
                 nd.define not in defined_defines and nd.define not in outcome_phases
             ):

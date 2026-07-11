@@ -120,3 +120,24 @@ def test_team_owner_resolution() -> None:
     assert observe.view_of(ctx.rs, "captured", 0, 2, [Card("2", "clubs")]) == (
         str(Card("2", "clubs")),
     )
+
+
+def test_render_refuses_undeclared_decision_value_shapes() -> None:
+    """Closed-domain completeness: a decision value outside the declared
+    shapes (Card, multi-card list, (move, param) candidate, .cards combo,
+    int/bool, str, None) must fail loudly, never pass through verbatim."""
+    import pytest
+
+    from cardlang.runtime.observe import render
+
+    assert render(7) == 7
+    assert render("pass") == "pass"
+    assert render(None) is None
+
+    class Alien:
+        pass
+
+    with pytest.raises(AssertionError, match="no declared rendering"):
+        render(Alien())
+    with pytest.raises(AssertionError, match="no declared rendering"):
+        render((1, 2, 3))  # a tuple that is not a (move_type, param) candidate

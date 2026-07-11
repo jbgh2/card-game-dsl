@@ -59,6 +59,12 @@ _SCALAR_TYPES: dict[str, type] = {
 }
 _ENUM_TYPES = frozenset({"Suit", "Rank", "Direction"})
 
+# The closed set of built-in declared-type names (scalars + enums). resolve
+# validates every declaration's type_name against this set plus the game's
+# own struct names, so a typo ('Integar') is a diagnostic, never a silent
+# TAny (closed-domain completeness, decisions.md).
+KNOWN_TYPE_NAMES: frozenset[str] = frozenset(_SCALAR_TYPES) | _ENUM_TYPES
+
 
 def type_from_name(
     name: str, optional: bool, structs: Mapping[str, TStruct] | None = None

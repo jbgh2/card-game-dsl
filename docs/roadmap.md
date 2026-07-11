@@ -40,8 +40,9 @@ Things we have noted but consciously not designed yet:
   Integer state; moving resources through zones is undesigned). Elsewhere:
   `override` rule deltas in `active_rules:`, `before_each`/`after_each` on a
   phase with no iteration, transition events other than `play_to_trick`, a
-  trick round naming a move type its form cannot run, and duplicate
-  `state { }` blocks. Rules that the runtime cannot yet enforce at all are a
+  trick round naming a move type its form cannot run, duplicate
+  `state { }` blocks, and named call arguments (`f(x = 1)` — rejected until
+  a game needs the surface; positional arguments are the implemented form). Rules that the runtime cannot yet enforce at all are a
   named open question, not a rejection —
   [open-questions/rule-scope-beyond-trick-play.md](open-questions/rule-scope-beyond-trick-play.md).
 
