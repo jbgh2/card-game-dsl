@@ -68,7 +68,9 @@ criterion** — alongside "does it run" and "is it byte-identical":
   check presented as a guarantee that cannot fail — is a defect class of
   equal rank to "accepted-but-ignored". Changes to rigor-critical machinery
   ship with their completeness argument (property, domain, coverage,
-  residual). The rule is `docs/decisions.md`, "Closed-domain completeness".
+  residual). When a gap is found, sweep its whole class (the other members
+  of the same closed domain) before patching the instance. The rule is
+  `docs/decisions.md`, "Closed-domain completeness".
 
 ## What's here
 

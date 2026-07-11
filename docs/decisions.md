@@ -2363,3 +2363,13 @@ designer-readable message — a raw registry raise mid-resolve is loud in
 the wrong currency and suppresses every other diagnostic in the file);
 the runtime fails as typed exceptions; the proofs fail with a witness.
 Loud-but-wrong-layer is a bug with the same rank as silent.
+
+**When a wall fails or a gap is found, sweep the class before patching
+the instance.** A found defect names a class: identify the closed domain
+the instance belongs to, probe every other member (the other projection
+levels, the other declaration namespaces, the other malformed inputs),
+and close or wall the whole class in one change. A lone patch converts a
+class defect into a recurring one — the corpus's duplicate-name
+shadowing sat for months as exactly this: the duplicate-move-parameter
+instance was fixed while duplicate zones, state variables, move types,
+and struct types kept shadowing silently until the class was swept.
