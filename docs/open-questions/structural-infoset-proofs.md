@@ -105,22 +105,30 @@ checklist for resolving this question.
 
 - **Determinism.** The information state is a pure function of the runtime
   state and the observation log — no map-ordering or rendering
-  nondeterminism. *Partial:* pinned at the unit level
-  (`tests/test_openspiel_infostate.py`, the dict-insertion-order test) and by
-  the replay engine's pure-function-of-`(seed, history)` design; not asserted
-  per game against the registered pyspiel game.
+  nondeterminism. *Covered:* pinned at the unit level
+  (`tests/test_openspiel_infostate.py`, the dict-insertion-order test), by
+  the replay engine's pure-function-of-`(seed, history)` design, and per
+  game by the adapter-agreement proof, whose two independent replays of the
+  same line must render byte-identically.
 - **Indistinguishability — no leak.** Perturbing only hidden content leaves
   the observer's information state byte-identical. *Covered, weakly
   sampled:* one seed, one depth, the first legally-replaying swap pair, the
   greedy `legal[0]` line — plus the accreting exceptions above.
 - **Soundness, generalized — nothing over-hidden.** Perturbing any
   *declared-visible* fact must change the observer's information state.
-  *The biggest gap:* today's proof perturbs only the observer's own hand.
   The general obligation is one perturbation per visible fact — every zone
   projection the observer is entitled to, every public state variable, every
-  observation event. The inputs already exist: the zone declarations and
-  their projections *are* the machine-readable visibility specification, so
-  the perturbation set can be enumerated from them rather than hand-picked.
+  observation event; the zone declarations and their projections *are* the
+  machine-readable visibility specification, so the perturbation set is
+  enumerated from them rather than hand-picked. *Covered at the snapshot
+  level:* the per-visible-fact matrix
+  (`tests/openspiel_ready/partition.py`, run per game and per observer by
+  the shared harness) applies exactly that enumeration at a replayed pause,
+  including the converse — a count-preserving swap in a `count_only` zone
+  and any change in a `trivial` zone must NOT move the state. The
+  replay-level probe still perturbs only the observer's own hand; declared
+  frames only — mid-round mechanic state is
+  [round-state-in-information-states](round-state-in-information-states.md).
 - **Perfect recall over histories.** Information sets are functions of the
   observation *log*, not the current snapshot — true by construction (the
   log is embedded verbatim in the information state) and pinned by the
@@ -130,14 +138,16 @@ checklist for resolving this question.
 - **Seed and undrawn-randomness non-observability.** No information state
   may be sensitive to the root chance seed beyond what dealt-and-observed
   cards already reveal, nor to rng draws not yet made — including the
-  rules-level rng gates carrying the Tichu/Coup scope reductions. *Gap:*
-  never asserted directly; only incidentally exercised where a 2-player swap
-  pairs a hand against the undealt stock.
+  rules-level rng gates carrying the Tichu/Coup scope reductions. *Covered,
+  asserted directly per game:* replacing the live generator outright and
+  reversing every all-hidden stock's order at a paused world leaves every
+  player's information state byte-identical (the gates draw from that same
+  generator).
 - **Legal-action agreement.** Two worlds in the same information set for the
   player to move must offer identical legal actions — otherwise the offered
-  moves are themselves a leak channel, one OpenSpiel does not police. *Gap:*
-  the swap proof already constructs exactly such world pairs and never
-  compares their `legal` lists.
+  moves are themselves a leak channel, one OpenSpiel does not police.
+  *Covered:* the swap proof asserts the paired worlds pause on the same
+  player and offer identical legal actions.
 - **Public means public.** A public observation (an announce, an
   identity-projection move) appears identically in every player's log and
   information state. *Partial:* unit-pinned (`test_announce_reaches_everyone`)
@@ -146,27 +156,34 @@ checklist for resolving this question.
 - **Own view present.** The observer's own zones at their owner projection,
   their own decisions in their log. *Covered:* the per-game soundness proof,
   the own-hand-at-identity unit test, and the `chose` events.
-- **Adapter agreement.** The proofs run at the DSL level; the registered
-  pyspiel game delegates to the same `information_state` function, but
-  nothing asserts the two renderings agree along a replayed line. One
-  assertion closes the door on adapter drift — the partition that matters is
-  the one OpenSpiel algorithms actually consume.
+- **Adapter agreement.** The proofs run at the DSL level; the partition that
+  matters is the one OpenSpiel algorithms actually consume. *Covered per
+  game:* a replayed line asserts the registered pyspiel game's rendering —
+  current player, legal actions, every player's information-state string,
+  terminal returns — equals the DSL-level rendering at every step, which
+  doubles as a per-game determinism check across independent replays.
 
-Two obligations on the *proof machinery itself*, whatever form it takes: a
-failing check must report its witness — the two worlds, the perturbed fact,
-and the information-state fragment that wrongly agrees or differs — because
-a bare boolean cannot debug the compiler; and a passing run must record what
-it covered (exhaustive vs sampled, seeds, pair counts per game), because
-that record is what any external claim about the partition cites.
+Two obligations on the *proof machinery itself*, whatever form it takes,
+both of which the harness meets: a failing check must report its witness —
+the two worlds, the perturbed fact, and the information-state fragment that
+wrongly agrees or differs — because a bare boolean cannot debug the
+compiler (assertion messages carry the perturbed fact and a
+first-divergence fragment); and a passing run must record what it covered
+(exhaustive vs sampled, seeds, pair counts per game), because that record
+is what any external claim about the partition cites (the coverage
+registry in `tests/openspiel_ready/partition.py`, rendered as a pytest
+terminal summary and dumped as JSON via `CARDLANG_PARTITION_REPORT`).
 
-### Actionable now
+### Built against the empirical harness
 
-Legal-action agreement, the seed/rng assertions, adapter agreement, and the
-enumerated per-visible-fact soundness perturbations are all buildable
-against today's swap-and-replay harness; none of them waits on the data
-point below. Only the constructive world generator — building
-indistinguishable worlds from the projection lattice instead of sampling
-swaps — is blocked.
+Legal-action agreement, the seed/rng assertions, adapter agreement, the
+enumerated per-visible-fact soundness perturbations, and the
+witness-and-coverage obligations are built, as per-game proofs over
+today's swap-and-replay harness (`tests/openspiel_ready/harness.py` +
+`partition.py`) — none of them waited on the data point below. Only the
+constructive world generator — building indistinguishable worlds from the
+projection lattice instead of sampling swaps — remains blocked, and it is
+what keeps this question open.
 
 ## The options
 

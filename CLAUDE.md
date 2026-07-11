@@ -33,9 +33,12 @@ OpenSpiel through
 ONE general adapter with *derived* information sets: per-observer observations are
 emitted from the kernel's decision/movement sites through the declared
 zone-type projections, and `tests/openspiel_ready/` (one proof module per
-game over a shared four-proof harness) proves
+game over a shared proof harness) proves
 indistinguishability (hidden-card swaps leave a player's information state
-byte-identical), soundness, and perfect recall for each (Bridge's and French
+byte-identical and the offered legal actions unchanged), soundness (a
+per-visible-fact perturbation matrix enumerated from the zone
+declarations), seed/rng non-observability, adapter agreement, and perfect
+recall for each (Bridge's and French
 Tarot's swap/soundness/recall proofs cover only the pass-only line of their
 auctions — the harness's greedy replay never places a bid, let alone reaches
 the chien discard or trick play; French Tarot's hidden discard, Schnapsen's

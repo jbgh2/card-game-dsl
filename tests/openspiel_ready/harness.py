@@ -1,6 +1,6 @@
 """The OpenSpiel-readiness proof machinery (SP1 spec, "The proof").
 
-Every fully-kernel game gets the same four proofs, one test module per game
+Every fully-kernel game gets the same proofs, one test module per game
 (`test_<game>.py` in this package, kept total against the adapter's registry
 by `test_coverage.py`):
 
