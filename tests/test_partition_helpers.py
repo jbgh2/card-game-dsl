@@ -15,6 +15,7 @@ from cardlang.runtime.values import Card, Seating
 from tests.openspiel_ready.partition import (
     RECORDS,
     SYNTHETIC,
+    ZONE_PROBES,
     all_hidden,
     check_visible_facts,
     dump_json,
@@ -115,6 +116,57 @@ def test_visible_fact_matrix_catches_a_dropped_zone() -> None:
     )
     assert failures, "a constant info state must fail the matrix"
     assert any("hand[0]" in f.fact for f in failures)
+
+
+def test_every_declared_projection_has_a_probe_set() -> None:
+    """The fail-loud pin: every projection level any zone type can declare
+    (cardlang.stdlib.zones.ZONE_PROJECTIONS, owner and others sides) must
+    have declared probe dimensions in ZONE_PROBES. The moment a new emission
+    rule lands (rank_only, count_by_suit, ...), this fails at test time —
+    before any game uses it — instead of the matrix silently under-probing."""
+    from cardlang.stdlib.zones import ZONE_PROJECTIONS
+
+    declared = {vis.owner for vis in ZONE_PROJECTIONS.values()} | {
+        vis.others for vis in ZONE_PROJECTIONS.values()
+    }
+    missing = declared - set(ZONE_PROBES)
+    assert not missing, (
+        f"projection level(s) {sorted(missing)} have no declared probe set in "
+        f"ZONE_PROBES — declare their distinguishing dimensions before the "
+        f"soundness matrix can certify zones that project through them"
+    )
+    for level, dims in ZONE_PROBES.items():
+        assert set(dims) == {"count", "content"}, (
+            f"ZONE_PROBES[{level!r}] must declare exactly the count and "
+            f"content dimensions"
+        )
+
+
+def test_unknown_projection_fails_loudly_at_probe_time() -> None:
+    """The runtime backstop behind the static pin above: if a zone's
+    projection level has no probe entry, the matrix refuses to run rather
+    than passing vacuously over that zone."""
+    import pytest as _pytest
+
+    from cardlang.stdlib import zones as _zones
+
+    rs = _rs()
+    _zones.ZONE_PROJECTIONS["_ProbeTestZone"] = _zones.ZoneVisibility(
+        "rank_only", "rank_only"
+    )
+    rs.zones.zone_type["deck"] = "_ProbeTestZone"
+    try:
+        # A renderer is supplied so the probe layer (not the renderer's own
+        # missing-emission-rule fail-loud in cardlang.runtime.observe, which
+        # fires even earlier) is what this exercises: the risk case is a
+        # projection that renders fine but is silently never probed.
+        with _pytest.raises(AssertionError, match="no declared probe set"):
+            check_visible_facts(
+                rs, [], observer=0,
+                info_fn=lambda player, rs_, log: "rendered fine",
+            )
+    finally:
+        del _zones.ZONE_PROJECTIONS["_ProbeTestZone"]
 
 
 def test_visible_fact_matrix_catches_an_identity_zone_rendered_as_count() -> None:

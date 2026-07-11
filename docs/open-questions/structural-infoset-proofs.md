@@ -126,7 +126,12 @@ checklist for resolving this question.
   (`tests/openspiel_ready/partition.py`, run per game and per observer by
   the shared harness) applies exactly that enumeration at a replayed pause,
   including the converse — a count-preserving swap in a `count_only` zone
-  and any change in a `trivial` zone must NOT move the state. The
+  and any change in a `trivial` zone must NOT move the state. The probe set
+  per projection level is itself a declared table (`ZONE_PROBES`), pinned
+  complete against the projection registry and enforced fail-loud at probe
+  time — a new emission rule cannot be silently under-probed — and the
+  observation log is probed along every sequence dimension (presence,
+  per-index deletion, adjacent order, extension). The
   replay-level probe still perturbs only the observer's own hand; declared
   frames only — mid-round mechanic state is
   [round-state-in-information-states](round-state-in-information-states.md).

@@ -116,6 +116,24 @@ def _probe(
         )
 
 
+# The zone probe table: for every projection level a zone type can declare,
+# the distinctions the information state MUST show (True) and MUST hide
+# (False), per distinguishing dimension. "count" is probed by removing a card
+# (or adding one to an empty zone); "content" by a count-preserving swap of
+# one card for SYNTHETIC. A projection level with no entry here CANNOT be
+# probed, and check_visible_facts fails loudly rather than under-probing —
+# so a new emission rule (rank_only, count_by_suit, ...) forces its probe
+# declaration in the same change (fail-loud: an unprobed projection would
+# otherwise pass the matrix vacuously, the silent failure mode this module
+# exists to kill). test_every_declared_projection_has_a_probe_set pins the
+# table against cardlang.stdlib.zones.ZONE_PROJECTIONS statically.
+ZONE_PROBES: dict[str, dict[str, bool]] = {
+    "identity": {"count": True, "content": True},
+    "count_only": {"count": True, "content": False},
+    "trivial": {"count": False, "content": False},
+}
+
+
 def check_visible_facts(
     rs: RuntimeState,
     obs_log: list[tuple[Any, ...]],
@@ -123,59 +141,65 @@ def check_visible_facts(
     info_fn: InfoFn = _default_info,
 ) -> tuple[list[FactFailure], dict[str, int]]:
     """One perturbation per fact, enumerated from the declarations, for one
-    observer at a paused world. Mutate -> recompute -> restore; the world is
-    byte-identical afterwards. Returns (failures, counts per category)."""
+    observer at a paused world — with the perturbations per zone drawn from
+    the declared ZONE_PROBES table, never hand-chosen at the call site.
+    Mutate -> recompute -> restore; the world is byte-identical afterwards.
+    Returns (failures, counts per category)."""
     failures: list[FactFailure] = []
-    counts = {
-        "zone_identity": 0,
-        "zone_count_only": 0,
-        "zone_trivial": 0,
-        "state_vars": 0,
-        "obs_events": 0,
-    }
+    counts = {f"zone_{p}": 0 for p in ZONE_PROBES}
+    counts["state_vars"] = 0
+    counts["obs_events"] = 0
     before = info_fn(observer, rs, obs_log)
 
     for name, key, zone in zone_instances(rs):
         proj = projection_for(rs, name, key, observer)
         label = name if key is None else f"{name}[{key}]"
+        probes = ZONE_PROBES.get(proj)
+        if probes is None:
+            raise AssertionError(
+                f"zone {label}: projection {proj!r} has no declared probe set — "
+                f"add its distinguishing dimensions to ZONE_PROBES before the "
+                f"matrix can certify it (an unprobed projection passes vacuously)"
+            )
         counts[f"zone_{proj}"] += 1
         if zone.cards:
-            # content/count perturbation: remove the first card
+            # the "count" dimension: one card fewer
             removed = zone.cards.pop(0)
             after = info_fn(observer, rs, obs_log)
             zone.cards.insert(0, removed)
             _probe(
                 f"zone {label} ({proj} to P{observer}): removed {removed}",
-                proj != "trivial",
+                probes["count"],
                 before,
                 after,
                 failures,
             )
-            if proj in ("count_only", "identity"):
-                # count-preserving content swap: invisible through count_only
-                # (the leak direction), REQUIRED to show through identity —
-                # otherwise an identity zone accidentally rendered as a bare
-                # count passes the removal probe above while over-hiding
-                # every card identity.
-                original = zone.cards[0]
-                zone.cards[0] = SYNTHETIC
-                after = info_fn(observer, rs, obs_log)
-                zone.cards[0] = original
-                _probe(
-                    f"zone {label} ({proj} to P{observer}): swapped content, same count",
-                    proj == "identity",
-                    before,
-                    after,
-                    failures,
-                )
+            # the "content" dimension: same count, one card different —
+            # REQUIRED to show through identity (an identity zone rendered as
+            # a bare count would pass the removal probe while over-hiding
+            # every card identity), REQUIRED invisible through count_only and
+            # trivial (the leak direction).
+            original = zone.cards[0]
+            zone.cards[0] = SYNTHETIC
+            after = info_fn(observer, rs, obs_log)
+            zone.cards[0] = original
+            _probe(
+                f"zone {label} ({proj} to P{observer}): swapped content, same count",
+                probes["content"],
+                before,
+                after,
+                failures,
+            )
         else:
-            # empty zone: emptiness is itself the visible fact
+            # empty zone: emptiness itself is the "count" dimension's fact;
+            # the "content" dimension has nothing to vary (a single possible
+            # content), so it is inherently unprobeable here, not skipped.
             zone.cards.append(SYNTHETIC)
             after = info_fn(observer, rs, obs_log)
             zone.cards.pop()
             _probe(
                 f"zone {label} ({proj} to P{observer}): added a card to the empty zone",
-                proj != "trivial",
+                probes["count"],
                 before,
                 after,
                 failures,
