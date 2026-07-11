@@ -387,3 +387,51 @@ class ReadinessProofs:
             history.append(r.legal[0])
             r = run(path, seed, tuple(history))
             steps += 1
+
+    def test_adapter_agrees_with_the_dsl_information_state(self) -> None:
+        """The readiness proofs run at the DSL level; the partition OpenSpiel
+        algorithms actually consume is the registered game's. Walk one line
+        and assert the two renderings agree at every step — current player,
+        legal actions, and every player's information-state string — and that
+        the terminal returns agree if reached. Because the pyspiel state
+        re-simulates independently of this test's own `run` calls, the
+        comparison doubles as a per-game determinism check: two independent
+        replays of the same (seed, history) must render byte-identically."""
+        spec = self.spec
+        seed = 5
+        game = pyspiel.load_game(spec.short_name)
+        state = game.new_initial_state()
+        assert state.is_chance_node()
+        state.apply_action(seed)
+
+        history: list[int] = []
+        r = run(spec.path, seed, ())
+        steps = 0
+        while isinstance(r, Pause) and steps < spec.depth:
+            assert not state.is_terminal()
+            assert state.current_player() == r.player, (
+                f"{spec.short_name}: step {steps}: adapter player "
+                f"{state.current_player()} != DSL player {r.player}"
+            )
+            assert state.legal_actions() == r.legal, (
+                f"{spec.short_name}: step {steps}: adapter legal actions disagree"
+            )
+            for q in range(len(r.obs_logs)):
+                expected = information_state(q, r.rs, r.obs_logs[q])
+                got = state.information_state_string(q)
+                assert got == expected, (
+                    f"{spec.short_name}: step {steps}: adapter info state for "
+                    f"P{q} diverged\nwitness: {first_divergence(expected, got)}"
+                )
+            action = r.legal[0]
+            state.apply_action(action)
+            history.append(action)
+            r = run(spec.path, seed, tuple(history))
+            steps += 1
+        if not isinstance(r, Pause):
+            assert state.is_terminal(), (
+                f"{spec.short_name}: DSL line terminal but adapter is not"
+            )
+            assert state.returns() == r.returns
+        record(spec.short_name, "adapter", seed=seed, steps=steps,
+               terminal=not isinstance(r, Pause))
