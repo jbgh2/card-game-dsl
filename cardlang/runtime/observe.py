@@ -28,6 +28,14 @@ from cardlang.runtime.state import Ctx, RuntimeState
 from cardlang.runtime.values import Card, Player
 from cardlang.stdlib.zones import zone_projection
 
+# The closed observation-event vocabulary (closed-domain completeness,
+# decisions.md): every event any emission site delivers to an observer log
+# carries one of these tags. Emission sites: `choice`/`announce`/`movement`
+# below, the replay chooser's per-draw `chose`, and execute._reveal. Pinned
+# by a corpus sweep (tests/test_observe.py) so a typo'd tag cannot mint a
+# new event kind silently; a NEW deliberate kind is added here first.
+EVENT_TYPES: frozenset[str] = frozenset({"chose", "announce", "move", "reveal"})
+
 
 def render_candidate(name: str, param: Any) -> str:
     """Render a `(move_type, param)` candidate: the bare name (nullary), a
@@ -56,7 +64,15 @@ def render(value: Any) -> Any:
     if cards is not None:  # a combination play (climb engines)
         kind = getattr(value, "kind", "combo")
         return f"{kind}[" + ",".join(sorted(str(c) for c in cards)) + "]"
-    return value  # int (a choose), str (a move name / "pass")
+    if isinstance(value, (int, str)) or value is None:
+        return value  # int/bool (a choose, a flag), str (a move name / "pass")
+    # Closed-domain completeness: a decision value outside the declared
+    # shapes has no deterministic rendering — fail loudly rather than pass
+    # an unstable repr into every observer's information state.
+    raise AssertionError(
+        f"decision value of type {type(value).__name__} has no declared "
+        f"rendering in observe.render — add it deliberately"
+    )
 
 
 def choice(ctx: Ctx, actor: Player, value: Any) -> None:

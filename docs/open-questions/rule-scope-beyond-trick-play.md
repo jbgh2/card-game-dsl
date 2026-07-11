@@ -43,8 +43,3 @@ filtering a chosen movement, which
 suggests guards may be enough and rules may be a trick-form-only device; if
 so, the resolution is to *say that* (narrow the rule grammar's claim), not to
 build the wider machinery.
-
-Adjacent (recorded here, not a design question): `instantiate` argument names
-are not signature-checked — a surplus or misspelled named argument is silently
-dropped. Not worth building against a surface being deleted
-([kernel-migration.md](../kernel-migration.md)); dies with the last mechanic.

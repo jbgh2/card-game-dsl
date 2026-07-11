@@ -15,7 +15,8 @@ from __future__ import annotations
 from typing import Any
 
 from cardlang.runtime.observe import view_of
-from cardlang.runtime.state import RuntimeState
+from cardlang.runtime.state import RuntimeState, StructValue
+from cardlang.runtime.values import Card
 
 
 def _render(value: Any) -> str:
@@ -24,7 +25,19 @@ def _render(value: Any) -> str:
         return "{" + ",".join(f"{k}:{_render(v)}" for k, v in items) + "}"
     if isinstance(value, (list, tuple, set, frozenset)):
         return "[" + ",".join(sorted(_render(v) for v in value)) + "]"
-    return str(value)
+    if isinstance(value, StructValue):  # canonical: sorted declared fields
+        fields = ",".join(f"{k}:{_render(v)}" for k, v in sorted(value.fields.items()))
+        return f"{value.type_name}{{{fields}}}"
+    if isinstance(value, (int, str, Card)) or value is None:
+        return str(value)
+    # Closed-domain completeness: a state value outside the declared shapes
+    # has no deterministic rendering — fail loudly rather than embed an
+    # unstable repr in the information state (determinism is a certified
+    # property; see open-questions/structural-infoset-proofs.md).
+    raise AssertionError(
+        f"state value of type {type(value).__name__} has no declared "
+        f"rendering in information_state — add it deliberately"
+    )
 
 
 def _zone_line(rs: RuntimeState, name: str, key: Any, player: int) -> str:

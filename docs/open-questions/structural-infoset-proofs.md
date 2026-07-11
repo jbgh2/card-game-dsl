@@ -39,7 +39,12 @@ Two *distinct* kinds of harness misfit already exist, each patched per game:
 - **Driver-exploration gap (Bridge, French Tarot).** The greedy replay (always
   `legal[0]`) never places a bid, so the per-game proofs cover only the pass-only
   line of the auction; the real bidding / chien discard / trick decisions are
-  covered by separate dedicated tests (the CLAUDE.md honesty note).
+  covered by separate dedicated observational tests. The same dedicated-test
+  fallback covers every mechanic the greedy line structurally cannot reach:
+  French Tarot's hidden discard, Schnapsen's lead actions, Skat's
+  pickup/discard, Tichu's push, Coup's windows and influence flips, and Go
+  Fish's public-ask / transfer-count derivation — each documented in its
+  game's proof module (`tests/openspiel_ready/test_<game>.py`).
 - **World-generator gap (Go Fish).** Swap-and-replay assumes a hidden swap that
   replays *legally* yields a world *indistinguishable* to the observer. That is
   false when a public observation is a function of hidden content — Go Fish's

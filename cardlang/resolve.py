@@ -36,7 +36,8 @@ from cardlang.stdlib.functions import (
     ZONE_METHODS,
 )
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
-from cardlang.stdlib.values import deck_suits, enum_values
+from cardlang.stdlib.values import DIRECTION_VALUES, deck_suits, enum_values
+from cardlang.typecheck import KNOWN_TYPE_NAMES
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 
 # Roles a zone may be indexed by or owned by. Grows with the seating model.
@@ -54,6 +55,8 @@ _CALL_SITE_PRONOUNS = frozenset({"actor", "action", "outcome"})
 
 def resolve(game: n.Game) -> n.Game:
     bag = DiagnosticBag()
+    _resolve_deck(game, bag)
+    _check_duplicate_names(game, bag)
     _resolve_max_length(game, bag)
     for zone in game.zones:
         _resolve_zone(zone, bag)
@@ -350,11 +353,71 @@ def _categories(game: n.Game) -> _Categories:
         locals=frozenset(locals_),
         state_vars=frozenset(state_vars),
         zones=frozenset(z.name for z in game.zones),
-        enums=enum_values(game.deck),
+        enums=enum_values(game.deck) if _deck_known(game.deck) else DIRECTION_VALUES,
         functions=STDLIB_VALUE_NAMES,
         ranks=frozenset(game.ranking),
-        suits=deck_suits(game.deck),
+        suits=deck_suits(game.deck) if _deck_known(game.deck) else frozenset(),
     )
+
+
+def _check_duplicate_names(game: n.Game, bag: DiagnosticBag) -> None:
+    """Every declaration namespace enforces uniqueness (closed-domain
+    completeness): a duplicated name would otherwise shadow silently,
+    last-wins — accepted-but-ignored at the declaration level. Scopes that
+    legitimately shadow ACROSS levels (a phase-local state var over a game
+    var) are separate namespaces and stay legal; duplication is rejected
+    only WITHIN one declaration list."""
+
+    def check(kind: str, named: "Iterator[object] | tuple[object, ...] | list[object]") -> None:
+        seen: dict[str, object] = {}
+        for decl in named:
+            name = getattr(decl, "name")
+            if name in seen:
+                bag.error(
+                    f"duplicate {kind} '{name}' — the later declaration would "
+                    f"silently shadow the earlier one",
+                    getattr(decl, "span", None),
+                )
+            seen[name] = decl
+
+    check("zone", game.zones)
+    check("move_type", game.move_types)
+    check("type", game.types)
+    check("define", game.defines)
+    check("function", game.functions)
+    check("rule", game.rules)
+    if game.state is not None:
+        check("state variable", game.state.decls)
+    phases: list[object] = []
+    for nd in _walk(game):
+        if isinstance(nd, n.Phase):
+            phases.append(nd)
+        elif isinstance(nd, n.StateBlock) and nd is not game.state:
+            check("state variable", nd.decls)
+        elif isinstance(nd, n.TypeDef):
+            check(f"field in type '{nd.name}'", nd.fields)
+    check("phase", phases)
+
+
+def _deck_known(deck: str) -> bool:
+    from cardlang.runtime.values import DECKS
+
+    return deck in DECKS
+
+
+def _resolve_deck(game: n.Game, bag: DiagnosticBag) -> None:
+    """An unknown deck name is a diagnostic, never a raw registry raise from
+    inside category building (the suit registry derives from the runtime deck
+    table, which fails loudly for unknown names — correct at playout time,
+    wrong as a designer-facing check). The categories fall back to an empty
+    suit namespace so the rest of the file's diagnostics still collect."""
+    if not _deck_known(game.deck):
+        from cardlang.runtime.values import DECKS
+
+        bag.error(
+            f"unknown deck '{game.deck}' — known decks: {', '.join(sorted(DECKS))}",
+            None,
+        )
 
 
 def _classify(name: str, cats: _Categories) -> str | None:
@@ -703,6 +766,33 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 bag.error(f"call to unknown function '{nd.func}'", nd.span)
             case n.StructLit() if nd.type_name not in defined_types:
                 bag.error(f"unknown type '{nd.type_name}'", nd.span)
+            case n.NamedArg():
+                # Accepted-but-crashing surface walled off (Surface totality):
+                # the grammar admits `f(x = 1)`, but typecheck skips the value
+                # expression and the runtime raises. Reject until a game needs
+                # named arguments (recorded in roadmap.md).
+                bag.error(
+                    "named call arguments are not supported; pass arguments "
+                    "positionally",
+                    nd.span,
+                )
+            case n.StateDecl() if (
+                nd.type_name not in KNOWN_TYPE_NAMES
+                and nd.type_name not in defined_types
+            ):
+                bag.error(
+                    f"unknown type '{nd.type_name}' in declaration of "
+                    f"'{nd.name}'",
+                    nd.span,
+                )
+            case n.StructField() if (
+                nd.type_name not in KNOWN_TYPE_NAMES
+                and nd.type_name not in defined_types
+            ):
+                bag.error(
+                    f"unknown type '{nd.type_name}' in struct field '{nd.name}'",
+                    nd.span,
+                )
             case n.Produces() if (
                 nd.define not in defined_defines and nd.define not in outcome_phases
             ):

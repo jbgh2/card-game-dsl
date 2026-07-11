@@ -74,3 +74,82 @@ def test_bad_card_suit_errors() -> None:
 def test_known_enum_value_resolves() -> None:
     # `hearts` is a deck suit; resolves as an enum value, not an error.
     resolve(parse_text(_game("hearts", type_name="Suit"), "t.cardlang"))
+
+
+def test_misspelled_declared_type_errors() -> None:
+    # Closed-domain completeness: a declared type name outside the closed set
+    # (scalars + enums + the game's structs) is a diagnostic, never a silent
+    # TAny that exempts the variable from all further type checking.
+    with pytest.raises(DiagnosticError) as e:
+        resolve(parse_text(_game("0", type_name="Integar"), "t.cardlang"))
+    assert "unknown type 'Integar' in declaration of 'x'" in e.value.diagnostic.message
+
+
+def test_declared_struct_type_is_accepted() -> None:
+    src = (
+        "game G {\n"
+        "  players: 2\n"
+        "  max_length: 1000\n"
+        "  cards: standard52\n"
+        "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
+        "  zones { hand[player] : Hand<player> }\n"
+        "  state { deal : Contract? = none }\n"
+        "}\n"
+        "type Contract = { level : Integer }\n"
+    )
+    resolve(parse_text(src, "t.cardlang"))  # no diagnostics
+
+
+def test_named_call_arguments_are_rejected() -> None:
+    # The grammar admits f(x = 1); typecheck skipped the value expression and
+    # the runtime crashed with NotImplementedError. Statically rejected until
+    # a game needs the surface (Surface totality; recorded in roadmap.md).
+    with pytest.raises(DiagnosticError) as e:
+        resolve(parse_text(_game("team_of(x = 1)"), "t.cardlang"))
+    assert "named call arguments are not supported" in e.value.diagnostic.message
+
+
+def test_unknown_deck_is_a_diagnostic_not_a_crash() -> None:
+    # The suit registry derives from the runtime deck table, which raises
+    # loudly for unknown names — right at playout time, wrong mid-resolve. A
+    # typo'd `cards:` line must surface as a diagnostic naming the known decks.
+    src = _game("0").replace("cards: standard52", "cards: standart52")
+    with pytest.raises(DiagnosticError) as e:
+        resolve(parse_text(src, "t.cardlang"))
+    assert "unknown deck 'standart52'" in e.value.diagnostic.message
+    assert "standard52" in e.value.diagnostic.message  # the known-decks hint
+
+
+@pytest.mark.parametrize(
+    ("kind", "src_tail"),
+    [
+        ("zone", None),  # zones handled via the fixture below
+        ("move_type", "move_type m { effect { } }\nmove_type m { effect { } }"),
+        ("type", "type T = { a : Integer }\ntype T = { b : Integer }"),
+        ("function", "function f(a : Integer) = a\nfunction f(a : Integer) = a"),
+    ],
+)
+def test_duplicate_declarations_are_rejected(kind: str, src_tail: str | None) -> None:
+    # Every declaration namespace enforces uniqueness: a duplicate would
+    # silently shadow, last-wins — accepted-but-ignored at declaration level.
+    if kind == "zone":
+        src = _game("0").replace(
+            "zones { hand[player] : Hand<player> }",
+            "zones { hand[player] : Hand<player>\n    hand[player] : Hand<player> }",
+        )
+    else:
+        src = _game("0") + (src_tail or "")
+    with pytest.raises(DiagnosticError) as e:
+        resolve(parse_text(src, "t.cardlang"))
+    assert "duplicate" in e.value.diagnostic.message
+    assert "silently shadow" in e.value.diagnostic.message
+
+
+def test_duplicate_state_var_is_rejected() -> None:
+    src = _game("0").replace(
+        "x : Integer = 0",
+        "x : Integer = 0\n    x : Integer = 1",
+    )
+    with pytest.raises(DiagnosticError) as e:
+        resolve(parse_text(src, "t.cardlang"))
+    assert "duplicate state variable 'x'" in e.value.diagnostic.message

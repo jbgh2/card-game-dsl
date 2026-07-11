@@ -8,20 +8,7 @@ Seeded for the formalized corpus; extended corpus-first.
 
 from __future__ import annotations
 
-# deck name -> its suits
-_FRENCH = frozenset({"clubs", "diamonds", "hearts", "spades"})
-_SUITS_BY_DECK: dict[str, frozenset[str]] = {
-    "standard52": _FRENCH,
-    "schnapsen20": _FRENCH,  # 20-card Ace-Ten deck, same four suits
-    "pinochle48": _FRENCH,   # 48-card Pinochle pack, same four suits
-    "skat32": _FRENCH,       # 32-card Skat pack, same four suits
-    # Tarot adds the 21-card trump suit (atouts) and the singleton Excuse.
-    "tarot78": _FRENCH | frozenset({"atouts", "excuse"}),
-    # Tichu adds the four special cards under a "special" suit.
-    "tichu56": _FRENCH | frozenset({"special"}),
-    # Coup's characters live under a single "court" suit.
-    "coup15": frozenset({"court"}),
-}
+from cardlang.runtime.values import deck_suits as _runtime_deck_suits
 
 # The stdlib Direction enum (used for passing/seating offsets). `hold` is the
 # no-pass / keep value; `none` is NOT a direction — it is the universal null
@@ -44,7 +31,12 @@ _DECK_SIZE: dict[str, int] = {
 
 
 def deck_suits(deck: str) -> frozenset[str]:
-    return _SUITS_BY_DECK.get(deck, frozenset())
+    """A deck's suits, derived from the runtime deck registry — one source of
+    truth (closed-domain completeness): a deck registered in `DECKS` can
+    never be silently absent here, and an unknown deck name fails loudly in
+    `build_deck` rather than resolving every suit literal to an empty
+    namespace."""
+    return frozenset(_runtime_deck_suits(deck))
 
 
 def deck_size(deck: str) -> int | None:

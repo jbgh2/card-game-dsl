@@ -62,6 +62,68 @@ def test_climb_queries_are_dispatchable() -> None:
         assert callable(climb_follow_function(name))
 
 
+def test_call_funcs_are_dispatchable() -> None:
+    # Each name registered in STDLIB_CALL_FUNCS must reach a real arm of
+    # call()'s match — not fall through to its loud `case _` default. Unlike
+    # value_function/climb_lead_function (which just return a callable
+    # reference), call() dispatches AND executes in the same statement, so
+    # there is no args-free way to "just look up" an arm: invoke each name
+    # with no args and a minimal-but-real Ctx, and treat any exception other
+    # than the default arm's AssertionError as proof the name was dispatched
+    # (wrong arg count, missing runtime state, etc. all reach real code past
+    # the match).
+    import random
+
+    from cardlang.ast import nodes as n
+    from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
+    from cardlang.runtime.stdlib import call
+    from cardlang.runtime.values import Seating
+
+    decls = (n.ZoneDecl(name="probe", index=None, type_ref=n.TypeRef(name="Hand")),)
+    rs = RuntimeState(Seating(2), ZoneStore(decls, (0, 1)), random.Random(0))
+    ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]))
+
+    for name in STDLIB_CALL_FUNCS:
+        try:
+            call(name, [], ctx)
+        except AssertionError as e:
+            assert "unknown stdlib function" not in str(e), (
+                f"{name!r} falls through call()'s default arm: {e}"
+            )
+        except Exception:
+            pass  # dispatched: failed downstream for some other reason
+
+
+def test_zone_methods_are_dispatchable() -> None:
+    # Same pin as test_call_funcs_are_dispatchable, for the zone-method
+    # dispatcher (`_method` in cardlang/runtime/evaluate.py). The receiver
+    # must evaluate to a real Zone so execution actually reaches `match
+    # e.method` — pointing at a nonexistent zone would raise upstream of the
+    # match (KeyError) and vacuously "pass" without ever exercising dispatch.
+    import random
+
+    from cardlang.ast import nodes as n
+    from cardlang.runtime.evaluate import _method
+    from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
+    from cardlang.runtime.values import Seating
+
+    decls = (n.ZoneDecl(name="probe", index=None, type_ref=n.TypeRef(name="Hand")),)
+    rs = RuntimeState(Seating(2), ZoneStore(decls, (0, 1)), random.Random(0))
+    ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]))
+    receiver = n.NameRef(name="probe", ref_kind="zone")
+
+    for name in ZONE_METHODS:
+        call_node = n.MethodCall(obj=receiver, method=name, args=())
+        try:
+            _method(call_node, ctx)
+        except AssertionError as e:
+            assert "unknown zone method" not in str(e), (
+                f"{name!r} falls through _method's default arm: {e}"
+            )
+        except Exception:
+            pass  # dispatched: failed downstream for some other reason
+
+
 def test_known_call_signatures() -> None:
     assert CALL_SIGS["player_holding"] == Sig((TCard(),), TPlayer())
     assert CALL_SIGS["team_of"] == Sig((TPlayer(),), TTeam())

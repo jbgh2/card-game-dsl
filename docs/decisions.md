@@ -2302,3 +2302,74 @@ gather), the `where` filter, the item noun, and the deferred clauses (the `in
 cell is implemented (`tests/test_movement_filter_execute.py`) or statically
 rejected (`tests/test_movement_combination_validity.py`) — see "The operation
 vocabulary" for the enforced combinations.
+
+## Closed-domain completeness
+
+Surface totality's principle, applied below the grammar. The corpus-first
+gate governs which *mechanisms* exist — a proof harness, a projection
+emitter, an action encoder, an invariant — exactly as it governs which
+constructs exist. It does not govern how completely a mechanism covers its
+own domain. Once a mechanism exists, its completeness is measured against
+the domain it quantifies over, never against the corpus: "all fifteen games
+pass" is a witness, not a definition of done, because the games exercise a
+sliver of any semantic domain.
+
+The operative distinction is **closed versus open**, not thorough versus
+lazy:
+
+- A **closed, enumerable domain** — the projection lattice, the observation
+  event vocabulary, the sequence dimensions of a log (content, multiplicity,
+  order, extension), both directions of a biconditional, the arms of a
+  dispatch over a registry — is covered *exhaustively*, derived from the
+  registry that defines it, pinned complete against that registry by a
+  static test, and backstopped by a runtime refusal on anything left over.
+  Hand-enumerating cases where a registry already defines the universe is
+  the tell that this rule is being violated: find the registry, derive from
+  it, refuse on the remainder. The worked example is the soundness matrix's
+  probe table (`tests/openspiel_ready/partition.py`, `ZONE_PROBES`): the
+  distinctions each projection level must show and must hide are a declared
+  table, pinned complete against `ZONE_PROJECTIONS` at test time and
+  enforced by a probe-time refusal, so a new emission rule cannot be
+  silently under-probed.
+- An **open design space** — which round axes exist, the meld model, the
+  constructive world generator — stays corpus-first: generalizing from zero
+  or one instance produces speculative abstractions, and waiting is cheap.
+  But every deferral must be a **loud wall** (a static rejection or a
+  runtime refusal, with a test), never a silent gap. Deferred-and-walled is
+  corpus-first done right; deferred-and-silent is a defect.
+
+**"Vacuously green" is a defect class of equal rank to
+"accepted-but-ignored."** A check presented as a guarantee must be able to
+fail: an assertion no input can reach, a perturbation that cannot alter the
+observed value, a comparison that shares its code path with the thing it
+checks, or coverage that quietly narrowed to nothing all read as proof
+while proving nothing — the proof-layer analogue of a silently ignored
+clause. A check cited as a guarantee states its quantifier (exhaustive over
+what; sampled how); where it cannot cover its domain, it records the gap
+(the coverage-record obligation in
+[open-questions/structural-infoset-proofs.md](open-questions/structural-infoset-proofs.md))
+rather than reading as if it did. The crime is never incompleteness; it is
+*silent* incompleteness.
+
+Acceptance for changes to rigor-critical machinery — anything the
+information-set guarantees, the encodings, or the invariants rest on — is
+therefore a stated completeness argument, not a green suite: the property,
+the domain quantified over, what is covered exhaustively versus sampled
+versus deferred, and the wall standing on everything deferred.
+
+A wall must also speak its **layer's failure currency**: the compile
+stages fail as diagnostics (`DiagnosticBag`, with a span and a
+designer-readable message — a raw registry raise mid-resolve is loud in
+the wrong currency and suppresses every other diagnostic in the file);
+the runtime fails as typed exceptions; the proofs fail with a witness.
+Loud-but-wrong-layer is a bug with the same rank as silent.
+
+**When a wall fails or a gap is found, sweep the class before patching
+the instance.** A found defect names a class: identify the closed domain
+the instance belongs to, probe every other member (the other projection
+levels, the other declaration namespaces, the other malformed inputs),
+and close or wall the whole class in one change. A lone patch converts a
+class defect into a recurring one — the corpus's duplicate-name
+shadowing sat for months as exactly this: the duplicate-move-parameter
+instance was fixed while duplicate zones, state variables, move types,
+and struct types kept shadowing silently until the class was swept.
