@@ -117,6 +117,55 @@ def test_visible_fact_matrix_catches_a_dropped_zone() -> None:
     assert any("hand[0]" in f.fact for f in failures)
 
 
+def test_visible_fact_matrix_catches_an_identity_zone_rendered_as_count() -> None:
+    # Over-hiding an identity zone as a bare count survives the removal probe
+    # (the count changes) — only the count-preserving content swap catches it.
+    rs = _rs()
+
+    def county(player: int, rs_: RuntimeState, log: list[tuple[Any, ...]]) -> str:
+        return ",".join(
+            f"{name}:{len(z.cards)}" for name, _, z in zone_instances(rs_)
+        )
+
+    failures, _ = check_visible_facts(rs, [], observer=0, info_fn=county)
+    assert any(
+        f.expected == "change" and "identity" in f.fact and "same count" in f.fact
+        for f in failures
+    ), "a count-rendering of identity zones must fail the content-swap probe"
+
+
+def test_visible_fact_matrix_catches_log_deduplication() -> None:
+    # A renderer that deduplicates identical events keeps every repr present
+    # (and still changes on a novel append) — only the per-index deletion
+    # probe catches it, because deleting one copy of a duplicate leaves the
+    # deduplicated rendering unchanged.
+    rs = _rs()
+    log: list[tuple[Any, ...]] = [("announce", 1, "ask(0,6)"), ("announce", 1, "ask(0,6)")]
+
+    def deduped(player: int, rs_: RuntimeState, log_: list[tuple[Any, ...]]) -> str:
+        return ";".join(sorted({repr(e) for e in log_}))
+
+    failures, _ = check_visible_facts(rs, log, observer=0, info_fn=deduped)
+    assert any("deleted event" in f.fact for f in failures), (
+        "a deduplicating renderer must fail a deletion probe"
+    )
+
+
+def test_visible_fact_matrix_catches_log_order_canonicalization() -> None:
+    # A renderer that sorts the log keeps presence, multiplicity, and
+    # append-sensitivity — only the adjacent-swap probe catches it.
+    rs = _rs()
+    log: list[tuple[Any, ...]] = [("chose", "Q\u2660"), ("announce", 1, "bid(3)")]
+
+    def sorted_render(player: int, rs_: RuntimeState, log_: list[tuple[Any, ...]]) -> str:
+        return ";".join(sorted(repr(e) for e in log_))
+
+    failures, _ = check_visible_facts(rs, log, observer=0, info_fn=sorted_render)
+    assert any("swapped adjacent events" in f.fact for f in failures), (
+        "an order-canonicalizing renderer must fail a swap probe"
+    )
+
+
 def test_visible_fact_matrix_catches_a_leaking_renderer() -> None:
     # A renderer that shows raw hidden content must fail the no-change facts.
     rs = _rs()

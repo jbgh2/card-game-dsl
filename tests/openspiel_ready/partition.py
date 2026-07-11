@@ -151,15 +151,19 @@ def check_visible_facts(
                 after,
                 failures,
             )
-            if proj == "count_only":
-                # count-preserving content swap must NOT be visible
+            if proj in ("count_only", "identity"):
+                # count-preserving content swap: invisible through count_only
+                # (the leak direction), REQUIRED to show through identity —
+                # otherwise an identity zone accidentally rendered as a bare
+                # count passes the removal probe above while over-hiding
+                # every card identity.
                 original = zone.cards[0]
                 zone.cards[0] = SYNTHETIC
                 after = info_fn(observer, rs, obs_log)
                 zone.cards[0] = original
                 _probe(
-                    f"zone {label} (count_only to P{observer}): swapped content, same count",
-                    False,
+                    f"zone {label} ({proj} to P{observer}): swapped content, same count",
+                    proj == "identity",
                     before,
                     after,
                     failures,
@@ -197,13 +201,16 @@ def check_visible_facts(
             failures,
         )
 
-    # Observation events: each event embedded verbatim; the log is sensitive.
-    # The per-event presence check always passes against a renderer that
-    # embeds the whole log (today's does) — what it guards against is a
-    # future renderer that truncates or summarizes the log, which the
-    # append probe below alone would miss (appending still changes a
-    # truncated rendering; a dropped EARLY event does not).
-    for e in obs_log:
+    # Observation events. Perfect recall is a property of the log's exact
+    # sequence — multiplicity and order included — so presence alone is not
+    # enough: a renderer that deduplicates identical events (repeated asks,
+    # repeated announces) or canonicalizes their order would keep every
+    # repr present while over-hiding the sequence. Three probes per log:
+    # presence (guards truncation/summarization), one DELETION per index
+    # (guards deduplication — removing one copy of a duplicated event must
+    # still change the rendering), and one adjacent SWAP per distinct
+    # neighbor pair (guards order canonicalization).
+    for i, e in enumerate(obs_log):
         counts["obs_events"] += 1
         if repr(e) not in before:
             failures.append(
@@ -212,6 +219,28 @@ def check_visible_facts(
                     expected="change",
                     witness="event repr absent from the information state",
                 )
+            )
+        deleted = obs_log.pop(i)
+        after = info_fn(observer, rs, obs_log)
+        obs_log.insert(i, deleted)
+        _probe(
+            f"P{observer}'s observation log: deleted event #{i} ({e!r})",
+            True,
+            before,
+            after,
+            failures,
+        )
+    for i in range(len(obs_log) - 1):
+        if obs_log[i] != obs_log[i + 1]:
+            obs_log[i], obs_log[i + 1] = obs_log[i + 1], obs_log[i]
+            after = info_fn(observer, rs, obs_log)
+            obs_log[i], obs_log[i + 1] = obs_log[i + 1], obs_log[i]
+            _probe(
+                f"P{observer}'s observation log: swapped adjacent events #{i}/#{i + 1}",
+                True,
+                before,
+                after,
+                failures,
             )
     obs_log.append(_SENTINEL_EVENT)
     after = info_fn(observer, rs, obs_log)
