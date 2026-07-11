@@ -8,9 +8,20 @@ by `test_coverage.py`):
    games whose full sim is prohibitively long — see
    `GameSpec.conformance_steps`).
 2. INDISTINGUISHABILITY: two worlds differing only in cards hidden from P
-   yield byte-identical information states for P (the leak-closure proof).
-3. Soundness converse: perturbing what P CAN see changes P's state.
+   yield byte-identical information states for P — and offer P identical
+   legal actions (legal-action agreement).
+3. Soundness converse: perturbing what P CAN see changes P's state — the
+   replay-level own-hand probe plus the per-visible-fact matrix enumerated
+   from the zone declarations (partition.check_visible_facts).
 4. Perfect recall: each player's observation log is append-only along a game.
+5. Seed/undrawn-randomness non-observability: reseeding the generator and
+   permuting all-hidden stocks leaves every information state byte-identical.
+6. Adapter agreement: the registered pyspiel game renders the same partition
+   the DSL-level proofs certify.
+
+Passing runs record their coverage (partition.RECORDS; see conftest.py);
+failing checks report their witness — the perturbed fact and the
+information-state fragment that wrongly agrees or differs.
 
 A game module declares its harness configuration as a `GameSpec` on a
 `TestReadiness(ReadinessProofs)` subclass. Per-game rationale — depths,
