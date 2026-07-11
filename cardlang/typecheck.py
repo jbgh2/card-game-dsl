@@ -537,7 +537,7 @@ def _stmt_exprs(s: n.Stmt) -> list[n.Expr]:
                 out.append(opt)
         return out
     if isinstance(s, n.EpistemicOp):
-        return [s.target]
+        return [s.target] if s.filter is None else [s.target, s.filter]
     if isinstance(s, n.Offer):
         return [s.player]
     if isinstance(s, n.Round):

@@ -239,7 +239,13 @@ def _stmt(s: n.Stmt) -> IRDict:
                 movement["filter"] = _expr(s.filter)
             return movement
         case n.EpistemicOp():
-            return {"kind": "epistemic_op", "op": s.op, "target": _expr(s.target)}
+            op: IRDict = {"kind": "epistemic_op", "op": s.op, "target": _expr(s.target)}
+            # Emitted ONLY when present, so `shuffle` (which never sets it)
+            # stays byte-identical in its golden — same convention as
+            # Movement.filter above.
+            if s.filter is not None:
+                op["filter"] = _expr(s.filter)
+            return op
         case n.RotateStmt():
             return {"kind": "rotate", "var": s.var, "values": list(s.values)}
         case n.EachSimultaneous():
