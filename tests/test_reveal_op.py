@@ -14,6 +14,7 @@ from typing import Any
 import pytest
 
 from cardlang.ast import nodes as n
+from cardlang.ir import emit
 from cardlang.openspiel.infostate import information_state
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.execute import execute
@@ -37,6 +38,40 @@ game Mini {
 }
 """
 
+# The `where` clause is optional (`["where" lambda]` in the grammar) — every
+# card in the zone is eligible when it is omitted.
+SRC_NO_FILTER = """
+game Mini {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase p {
+    reveal one card from hand[0]
+  }
+  winner: highest score
+}
+"""
+
+# Task 3's Coup usage filters on a state variable (`where c => c.rank ==
+# claim`), not a literal — the same `evaluate(filter, ctx)` closure path as a
+# movement filter, but worth pinning directly since this is the branch that
+# usage depends on.
+SRC_STATE_FILTER = """
+game Mini {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0  claim : String = "Q" }
+  phase p {
+    reveal one card from hand[0] where c => c.rank == claim
+  }
+  winner: highest score
+}
+"""
+
 
 def _reveal_stmt(game: n.Game) -> n.EpistemicOp:
     stmt = game.phases[0].items[-1]
@@ -51,12 +86,23 @@ def test_reveal_parses_to_an_epistemic_op_with_a_filter() -> None:
     assert stmt.filter.param == "c"
 
 
-def _setup(hand0_cards: list[Card]) -> tuple[Ctx, dict[int, list[tuple[Any, ...]]], n.EpistemicOp]:
-    game = check_dsl(SRC, "mini.cardlang")
+def test_reveal_without_a_where_clause_parses_with_no_filter() -> None:
+    stmt = _reveal_stmt(check_dsl(SRC_NO_FILTER, "mini.cardlang"))
+    assert stmt.op == "reveal"
+    assert stmt.filter is None
+
+
+def _setup(
+    hand0_cards: list[Card], src: str = SRC
+) -> tuple[Ctx, dict[int, list[tuple[Any, ...]]], n.EpistemicOp]:
+    game = check_dsl(src, "mini.cardlang")
     stmt = _reveal_stmt(game)
     players = (0, 1)
     rs = RuntimeState(Seating(2), ZoneStore(game.zones, players), random.Random(0))
     rs.zones.instance("hand", 0).add_all(hand0_cards)
+    if src == SRC_STATE_FILTER:
+        rs.push_frame()
+        rs.declare("claim", False, "Q")
     logs: dict[int, list[tuple[Any, ...]]] = {p: [] for p in players}
     ctx = Ctx(
         rs=rs,
@@ -101,3 +147,43 @@ def test_reveal_fails_loudly_on_an_empty_zone() -> None:
     ctx, _logs, stmt = _setup([])
     with pytest.raises(RuntimeError, match="reveal"):
         execute(stmt, ctx)
+
+
+def test_reveal_without_a_filter_takes_the_first_card_and_leaves_the_zone_alone() -> None:
+    ctx, logs, stmt = _setup([KING_CLUBS, QUEEN_SPADES], src=SRC_NO_FILTER)
+    execute(stmt, ctx)
+
+    expected = ("reveal", "hand[0]", "K♣")  # every card eligible: the first in the zone
+    for player in (0, 1):
+        assert expected in logs[player]
+    assert ctx.rs.zones.instance("hand", 0).cards == [KING_CLUBS, QUEEN_SPADES]
+
+
+def test_reveal_without_a_filter_fails_loudly_on_an_empty_zone() -> None:
+    ctx, _logs, stmt = _setup([], src=SRC_NO_FILTER)
+    with pytest.raises(RuntimeError, match="reveal"):
+        execute(stmt, ctx)
+
+
+def test_reveal_filter_can_reference_state() -> None:
+    ctx, logs, stmt = _setup([KING_CLUBS, QUEEN_SPADES], src=SRC_STATE_FILTER)
+    execute(stmt, ctx)
+
+    expected = ("reveal", "hand[0]", "Q♠")
+    for player in (0, 1):
+        assert expected in logs[player]
+
+
+def test_reveal_ir_emits_filter_key_only_when_present() -> None:
+    filtered_ir: Any = emit(check_dsl(SRC, "mini.cardlang"))
+    plain_ir: Any = emit(check_dsl(SRC_NO_FILTER, "mini.cardlang"))
+    filtered_op = filtered_ir["phases"][0]["items"][0]
+    plain_op = plain_ir["phases"][0]["items"][0]
+    assert filtered_op["kind"] == "epistemic_op" and filtered_op["op"] == "reveal"
+    assert plain_op["kind"] == "epistemic_op" and plain_op["op"] == "reveal"
+
+    assert "filter" in filtered_op
+    assert filtered_op["filter"]["kind"] == "lambda"
+    # The whole point (mirrors the movement `where` filter's IR convention):
+    # an unfiltered reveal carries NO "filter" key at all.
+    assert "filter" not in plain_op
