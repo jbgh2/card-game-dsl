@@ -357,19 +357,26 @@ def test_coup_space_derives_its_own_5_card_block_and_the_action_names() -> None:
     # coup15 is not standard-52-expressible (five character ranks of a "court"
     # suit), so the space derives its own block: 5 DISTINCT cards (the three
     # copies of each character share one id — identical cards are
-    # interchangeable, so one id is exactly right for determinized replay),
-    # plus the seven offer action names, sorted. No vocab, no integers, no
-    # combos: the response windows are rng at the migrated scope, so the only
-    # decisions are the action pick and card picks.
-    assert space.num_distinct_actions == 5 + 7
-    assert [space.to_string(a) for a in range(5, 12)] == [
-        "assassinate",
-        "coup",
+    # interchangeable, so one id is exactly right for determinized replay).
+    # Then the ten nullary names sorted (the four un-targeted actions plus the
+    # six window responses — challenge/block/claim decisions are real moves at
+    # the interactive scope), then the three Player-targeted actions flattened
+    # over their declared domain in declaration order: 5 + 10 + 3*4 = 27.
+    assert space.num_distinct_actions == 5 + 10 + 12
+    assert [space.to_string(a) for a in range(5, 15)] == [
+        "allow",
+        "block_claiming_ambassador",
+        "block_claiming_captain",
+        "block_claiming_contessa",
+        "block_claiming_duke",
+        "challenge",
         "exchange",
         "foreign_aid",
         "income",
-        "steal",
         "tax",
+    ]
+    assert [space.to_string(a) for a in range(15, 27)] == [
+        f"{name}({t})" for name in ("steal", "coup", "assassinate") for t in range(4)
     ]
     seen = set()
     for card in build_deck("coup15"):

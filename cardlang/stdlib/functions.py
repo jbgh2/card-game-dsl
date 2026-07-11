@@ -105,13 +105,6 @@ STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
         "tichu_hand_summary",  # Tichu: emit the tichu_hand trace; the captured card points
         "coup_players_in",  # Coup: players still holding influence (game ends at 1)
         "coup_next_in_game",  # Coup: the next in-game player clockwise
-        "coup_random_target",  # Coup: a random in-game opponent (rng; random-play scope)
-        "coup_challenger",  # Coup: the challenge window's gate (rng scan from the claimant)
-        "coup_fa_blocker",  # Coup: foreign aid's block gate (rng scan, seat order)
-        "coup_block_roll",  # Coup: a single-blocker window's gate (rng)
-        "coup_duke_claim",  # Coup: the FA blocker's claimed character (consumes rng.choice)
-        "coup_contessa_claim",  # Coup: the assassination blocker's claim (consumes rng.choice)
-        "coup_steal_block_claim",  # Coup: Captain or Ambassador, at random
         "coup_has_char",  # Coup: does a player hold the claimed character (a proof)?
         "coup_note_reveal",  # Coup: trace the influence flip that just happened
         "coup_game_summary",  # Coup: emit the conservation/finals trace at game end

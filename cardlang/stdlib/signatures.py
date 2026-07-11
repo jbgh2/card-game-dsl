@@ -93,13 +93,6 @@ CALL_SIGS: dict[str, Sig] = {
     "tichu_hand_summary": Sig((), TInteger()),  # Tichu: emit tichu_hand; captured points
     "coup_players_in": Sig((), TInteger()),  # Coup: players still holding influence
     "coup_next_in_game": Sig((TPlayer(),), TPlayer()),  # Coup: next in-game clockwise
-    "coup_random_target": Sig((TPlayer(),), TPlayer()),  # Coup: random opponent (rng)
-    "coup_challenger": Sig((TPlayer(),), TOptional(TPlayer())),  # Coup: who challenges (rng)
-    "coup_fa_blocker": Sig((TPlayer(),), TOptional(TPlayer())),  # Coup: who blocks FA (rng)
-    "coup_block_roll": Sig((), TBoolean()),  # Coup: single-blocker gate (rng)
-    "coup_duke_claim": Sig((), TString()),  # Coup: FA blocker's claim (rng consumption)
-    "coup_contessa_claim": Sig((), TString()),  # Coup: assassination blocker's claim
-    "coup_steal_block_claim": Sig((), TString()),  # Coup: Captain or Ambassador (rng)
     "coup_has_char": Sig((TPlayer(), TString()), TBoolean()),  # Coup: proof lookup
     "coup_note_reveal": Sig((TPlayer(),), TInteger()),  # Coup: trace the flip
     "coup_game_summary": Sig((), TInteger()),  # Coup: conservation/finals trace

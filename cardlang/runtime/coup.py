@@ -1,36 +1,19 @@
-"""Coup's game-local runtime primitives.
+"""Coup's game-local runtime primitives — all pure reads and trace emitters.
 
-The game runs fully on the kernel (coup.cardlang): setup, the turn loop, and
-the seven actions are plain statements — the turn's action pick is an `offer`
-over coin-guarded move types, and every influence loss is a chosen movement
-by the loser (the single-actor `for each player q: if q == <loser>` idiom).
-What stays game-local: the response windows' randomness. At the migrated
-random-play scope, challenging and blocking are probability gates and the
-blocker's claimed character is a random pick — NOT player decisions — so they
-are rng primitives at the reference's exact draw sites (`tichu_call_roll` /
-`tichu_dragon_recipient` precedent), as are the action targets
-(`coup_random_target`: the reference drives targets with `rng.choice`; a real
-target choice is a scope upgrade, gated on the Player move-parameter domain).
-The in-game/seat scans and character lookups are pure reads, and two trace
-primitives keep the `coup_reveal` / `coup_game` events the characterization
-golden and the playout invariants consume.
-
-The windows' *results* are public phase state (`challenge_stands` /
-`block_stands`), as challenges and blocks are in real Coup. One documented
-under-inform at this scope: a proven challenge returns the claimed card to
-the deck as hidden movements (counts to observers), where real Coup shows the
-proven card publicly — the fidelity upgrade (a `reveal` epistemic op plus
-challenge decisions as moves) belongs to the interactive-windows scope
-upgrade, not this migration.
+The game runs fully on the kernel at real interactive scope (coup.cardlang):
+the turn's action pick, every challenge, every block (and WHICH character it
+claims), and every action target are player decisions — `offer`s and declared
+Player move parameters — and a proven challenge `reveal`s the shown card
+publicly before returning it to the deck. Nothing here draws randomness: what
+stays game-local is the in-game/seat scans and the character lookup (pure
+reads) plus two trace primitives that keep the `coup_reveal` / `coup_game`
+events the characterization golden and the playout invariants consume.
 """
 
 from __future__ import annotations
 
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Player
-
-CHALLENGE_PROB = 0.18
-BLOCK_PROB = 0.30
 
 
 def _in_game(ctx: Ctx, p: Player) -> bool:
@@ -51,61 +34,6 @@ def coup_next_in_game(ctx: Ctx, p: Player) -> Player:
         (q % npl for q in (p + 1 + i for i in range(npl)) if _in_game(ctx, q % npl)),
         p,
     )
-
-
-def coup_random_target(ctx: Ctx, actor: Player) -> Player:
-    """The action's target: a random in-game opponent (the migrated scope
-    plays randomly; a chooser-driven target is a scope upgrade)."""
-    opps = [q for q in ctx.rs.seating.players if q != actor and _in_game(ctx, q)]
-    return ctx.rs.rng.choice(opps)
-
-
-def coup_challenger(ctx: Ctx, claimant: Player) -> Player | None:
-    """The challenge window's gate: scan the in-game opponents clockwise from
-    the claimant, each challenging with probability 0.18; the first hit
-    challenges (or nobody does). Consumes one roll per live opponent scanned —
-    the reference's exact sequence."""
-    npl = len(ctx.rs.seating.players)
-    for c in ((claimant + i) % npl for i in range(npl)):
-        if c == claimant or not _in_game(ctx, c):
-            continue
-        if ctx.rs.rng.random() < CHALLENGE_PROB:
-            return c
-    return None
-
-
-def coup_fa_blocker(ctx: Ctx, actor: Player) -> Player | None:
-    """Foreign aid's block gate: any in-game opponent may claim the Duke, in
-    seat order, each blocking with probability 0.30."""
-    for b in ctx.rs.seating.players:
-        if b == actor or not _in_game(ctx, b):
-            continue
-        if ctx.rs.rng.random() < BLOCK_PROB:
-            return b
-    return None
-
-
-def coup_block_roll(ctx: Ctx) -> bool:
-    """A single-blocker window's gate (the assassination/steal target)."""
-    return bool(ctx.rs.rng.random() < BLOCK_PROB)
-
-
-def coup_duke_claim(ctx: Ctx) -> str:
-    """The foreign-aid blocker's claimed character. A one-element pick, but it
-    consumes the reference's `rng.choice` draw, so it stays a primitive."""
-    return str(ctx.rs.rng.choice(["Duke"]))
-
-
-def coup_contessa_claim(ctx: Ctx) -> str:
-    """The assassination blocker's claimed character (same one-element-pick
-    rng consumption as the Duke claim)."""
-    return str(ctx.rs.rng.choice(["Contessa"]))
-
-
-def coup_steal_block_claim(ctx: Ctx) -> str:
-    """The steal blocker's claimed character: Captain or Ambassador, at
-    random (the one multi-way claim pick in the game)."""
-    return str(ctx.rs.rng.choice(["Captain", "Ambassador"]))
 
 
 def coup_has_char(ctx: Ctx, p: Player, rank: str) -> bool:
