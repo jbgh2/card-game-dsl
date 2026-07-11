@@ -328,6 +328,47 @@ class ReadinessProofs:
         record(spec.short_name, "facts", observers=len(pause.obs_logs),
                depth=spec.depth, **totals)
 
+    def test_seed_and_undrawn_randomness_are_not_observable(self) -> None:
+        """No information state may be sensitive to the root chance seed
+        beyond what dealt-and-observed cards already reveal, nor to rng draws
+        not yet made — including the rules-level rng gates carrying the
+        Tichu/Coup scope reductions, which draw from the same generator
+        (structural-infoset-proofs, 'Seed and undrawn-randomness
+        non-observability'). Two direct perturbations at a paused world:
+        replace the live generator outright (a different seed's entire future
+        stream), and reverse the order of every all-hidden stock (the pending
+        draw order). Every player's information state must be byte-identical
+        under both."""
+        spec = self.spec
+        _, pause = _advance(spec.path, 5, spec.depth)
+        players = range(len(pause.obs_logs))
+        before = {
+            q: information_state(q, pause.rs, pause.obs_logs[q]) for q in players
+        }
+
+        pause.rs.rng = random.Random(0xC0FFEE)
+        stocks: list[str] = []
+        for name, key, zone in zone_instances(pause.rs):
+            if all_hidden(pause.rs, name) and len(zone.cards) >= 2:
+                zone.cards.reverse()
+                stocks.append(name if key is None else f"{name}[{key}]")
+
+        for q in players:
+            after = information_state(q, pause.rs, pause.obs_logs[q])
+            assert after == before[q], (
+                f"{spec.short_name}: P{q}'s information state is sensitive to "
+                f"undrawn randomness (reseeded rng; reversed {stocks})\n"
+                f"witness: {first_divergence(before[q], after)}"
+            )
+        record(
+            spec.short_name,
+            "rng",
+            depth=spec.depth,
+            reseeded=True,
+            stocks_reversed=len(stocks),
+            vacuous_stock=(len(stocks) == 0),
+        )
+
     def test_perfect_recall_logs_are_append_only(self) -> None:
         spec = self.spec
         path = spec.path
