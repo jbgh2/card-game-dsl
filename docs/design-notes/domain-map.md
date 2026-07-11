@@ -93,3 +93,41 @@ Every future domain arrives under the closed-domain-completeness bar: with
 its defining registry, its static pins, and its walls on day one —
 topology's adjacency relations, pose's verb set, and the tensorizer's
 feature schema are all closed domains from birth.
+
+## Pressure points and tripwires
+
+Where corpus growth actually lands, and the signal that says stop and
+design rather than accrete:
+
+- **Card games** mostly grow registries inside existing domains (decks,
+  stdlib primitives, round axes) — the drilled, pinned path. The first
+  genuinely new pressure: observer-dependent phase outcomes (500's open
+  misère, Belote's declarations —
+  [knowledge-events](../open-questions/knowledge-events.md)).
+- **Position explosion** (Table): a game file hand-enumerating cells
+  (`square_a1 …`) is the nullary-explosion wall again — boards need
+  position-indexed zones and an adjacency relation *derived* from a board
+  declaration, never hand-written per game.
+- **Connectivity escape hatch** (Description): a game-local Python
+  primitive computing over geometry (captures, regions, longest-road) is
+  the escape-hatch pattern returning; transitive-closure queries hit three
+  instances almost immediately, so they become query surface early.
+- **Per-object visibility** (Observation — the one moat-level risk):
+  a piece whose position is public but identity is hidden (Stratego-class)
+  pushes projections from per-zone to per-object-attribute. Its own
+  workstream with the partition proofs as acceptance, not an extension.
+  Its combat reveals (public functions of hidden state) are likely the
+  compound hidden-function probe that unblocks
+  [structural-infoset-proofs](../open-questions/structural-infoset-proofs.md)
+  — budget both together.
+- **In-play dice** (Chance + Interop): today all randomness folds into the
+  root seed; the first roll-the-dice game forces explicit mid-game chance
+  nodes — a replay-model change, not a registry entry.
+- **Unbounded lines become the norm** (Control): chess-like games make
+  [unbounded-lines-and-max-length](../open-questions/unbounded-lines-and-max-length.md)
+  urgent, and their repetition rules need state *history*, which the
+  engine does not track. Settle before the first open-ended board game.
+- **The stillness test:** the observation substrate, info-state
+  derivation, certification, and Valuation should not move. A design that
+  requires changing how information states derive is a moat-level event —
+  stop and sign it off, never fold it into a game PR.
