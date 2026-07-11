@@ -33,6 +33,15 @@ import cardlang.openspiel.game as ogame  # noqa: E402  (registers on import)
 from cardlang.openspiel.infostate import information_state  # noqa: E402
 from cardlang.openspiel.replay import Pause, run  # noqa: E402
 
+from .partition import (  # noqa: E402
+    all_hidden,
+    check_visible_facts,
+    first_divergence,
+    format_failures,
+    record,
+    zone_instances,
+)
+
 GAMES_DIR = Path(__file__).resolve().parent.parent.parent / "docs" / "games"
 
 # (short_name, filename), deterministic order — the registry the per-game
@@ -233,7 +242,34 @@ class ReadinessProofs:
             info_b = information_state(p, pause_b.rs, pause_b.obs_logs[p])
             assert info_a == info_b, (
                 f"{spec.short_name}: swapping hidden {x}<->{y} ({who}) "
-                f"CHANGED P{p}'s information state — the info-set leaks"
+                f"CHANGED P{p}'s information state — the info-set leaks.\n"
+                f"worlds: seed={seed} depth={len(history)} swap=({x},{y})\n"
+                f"witness: {first_divergence(info_a, info_b)}"
+            )
+            # Legal-action agreement: two worlds in the same information set
+            # for the player to move must offer identical legal actions —
+            # otherwise the offered moves are themselves a leak channel, one
+            # OpenSpiel does not police.
+            assert pause_b.player == p, (
+                f"{spec.short_name}: the hidden swap moved the turn to "
+                f"P{pause_b.player} — whose turn it is leaks hidden content"
+            )
+            assert pause_b.legal == pause_a.legal, (
+                f"{spec.short_name}: same information set, different legal actions "
+                f"— swap ({x},{y}) changed the offer for P{p}: "
+                f"only-in-A={sorted(set(pause_a.legal) - set(pause_b.legal))} "
+                f"only-in-B={sorted(set(pause_b.legal) - set(pause_a.legal))}"
+            )
+            record(
+                spec.short_name,
+                "swap",
+                seed=seed,
+                depth=len(history),
+                axis=spec.swap_axis,
+                pair=f"{x}<->{y}",
+                pairs_skipped=candidates.index((x, y)),
+                candidates=len(candidates),
+                legal_agreement=True,
             )
             return  # one successful controlled swap proves the property
         pytest.fail(f"{spec.short_name}: no swap pair produced a legal replay; last replay error: {last_err!r}")
