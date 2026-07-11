@@ -486,8 +486,9 @@ scope, re-pinned at the WS5 sign-off
 **The remaining WS5 scope: Tichu.** Tichu's call gates and Dragon routing
 are still rng primitives (`tichu_call_roll`, `tichu_dragon_recipient`);
 upgrading them to real decisions is the other half of this workstream — a
-behaviour change with new goldens and its own sign-off, with the real call
-rules verified against Pagat before design (grand tichu is a fixed
+behaviour change with new goldens. Its sign-off is GRANTED (2026-07-11):
+implement at real-rules fidelity, with the call rules verified against
+Pagat before design (grand tichu is a fixed
 first-eight-cards window; small tichu is callable any time before the
 caller's first play, which touches
 [open-questions/optional-window-moves.md](open-questions/optional-window-moves.md)).
