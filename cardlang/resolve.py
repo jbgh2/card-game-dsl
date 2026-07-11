@@ -56,6 +56,7 @@ _CALL_SITE_PRONOUNS = frozenset({"actor", "action", "outcome"})
 def resolve(game: n.Game) -> n.Game:
     bag = DiagnosticBag()
     _resolve_deck(game, bag)
+    _check_duplicate_names(game, bag)
     _resolve_max_length(game, bag)
     for zone in game.zones:
         _resolve_zone(zone, bag)
@@ -357,6 +358,45 @@ def _categories(game: n.Game) -> _Categories:
         ranks=frozenset(game.ranking),
         suits=deck_suits(game.deck) if _deck_known(game.deck) else frozenset(),
     )
+
+
+def _check_duplicate_names(game: n.Game, bag: DiagnosticBag) -> None:
+    """Every declaration namespace enforces uniqueness (closed-domain
+    completeness): a duplicated name would otherwise shadow silently,
+    last-wins — accepted-but-ignored at the declaration level. Scopes that
+    legitimately shadow ACROSS levels (a phase-local state var over a game
+    var) are separate namespaces and stay legal; duplication is rejected
+    only WITHIN one declaration list."""
+
+    def check(kind: str, named: "Iterator[object] | tuple[object, ...] | list[object]") -> None:
+        seen: dict[str, object] = {}
+        for decl in named:
+            name = getattr(decl, "name")
+            if name in seen:
+                bag.error(
+                    f"duplicate {kind} '{name}' — the later declaration would "
+                    f"silently shadow the earlier one",
+                    getattr(decl, "span", None),
+                )
+            seen[name] = decl
+
+    check("zone", game.zones)
+    check("move_type", game.move_types)
+    check("type", game.types)
+    check("define", game.defines)
+    check("function", game.functions)
+    check("rule", game.rules)
+    if game.state is not None:
+        check("state variable", game.state.decls)
+    phases: list[object] = []
+    for nd in _walk(game):
+        if isinstance(nd, n.Phase):
+            phases.append(nd)
+        elif isinstance(nd, n.StateBlock) and nd is not game.state:
+            check("state variable", nd.decls)
+        elif isinstance(nd, n.TypeDef):
+            check(f"field in type '{nd.name}'", nd.fields)
+    check("phase", phases)
 
 
 def _deck_known(deck: str) -> bool:

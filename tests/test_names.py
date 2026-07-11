@@ -118,3 +118,38 @@ def test_unknown_deck_is_a_diagnostic_not_a_crash() -> None:
         resolve(parse_text(src, "t.cardlang"))
     assert "unknown deck 'standart52'" in e.value.diagnostic.message
     assert "standard52" in e.value.diagnostic.message  # the known-decks hint
+
+
+@pytest.mark.parametrize(
+    ("kind", "src_tail"),
+    [
+        ("zone", None),  # zones handled via the fixture below
+        ("move_type", "move_type m { effect { } }\nmove_type m { effect { } }"),
+        ("type", "type T = { a : Integer }\ntype T = { b : Integer }"),
+        ("function", "function f(a : Integer) = a\nfunction f(a : Integer) = a"),
+    ],
+)
+def test_duplicate_declarations_are_rejected(kind: str, src_tail: str | None) -> None:
+    # Every declaration namespace enforces uniqueness: a duplicate would
+    # silently shadow, last-wins — accepted-but-ignored at declaration level.
+    if kind == "zone":
+        src = _game("0").replace(
+            "zones { hand[player] : Hand<player> }",
+            "zones { hand[player] : Hand<player>\n    hand[player] : Hand<player> }",
+        )
+    else:
+        src = _game("0") + (src_tail or "")
+    with pytest.raises(DiagnosticError) as e:
+        resolve(parse_text(src, "t.cardlang"))
+    assert "duplicate" in e.value.diagnostic.message
+    assert "silently shadow" in e.value.diagnostic.message
+
+
+def test_duplicate_state_var_is_rejected() -> None:
+    src = _game("0").replace(
+        "x : Integer = 0",
+        "x : Integer = 0\n    x : Integer = 1",
+    )
+    with pytest.raises(DiagnosticError) as e:
+        resolve(parse_text(src, "t.cardlang"))
+    assert "duplicate state variable 'x'" in e.value.diagnostic.message

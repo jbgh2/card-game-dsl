@@ -2356,3 +2356,10 @@ information-set guarantees, the encodings, or the invariants rest on — is
 therefore a stated completeness argument, not a green suite: the property,
 the domain quantified over, what is covered exhaustively versus sampled
 versus deferred, and the wall standing on everything deferred.
+
+A wall must also speak its **layer's failure currency**: the compile
+stages fail as diagnostics (`DiagnosticBag`, with a span and a
+designer-readable message — a raw registry raise mid-resolve is loud in
+the wrong currency and suppresses every other diagnostic in the file);
+the runtime fails as typed exceptions; the proofs fail with a witness.
+Loud-but-wrong-layer is a bug with the same rank as silent.
