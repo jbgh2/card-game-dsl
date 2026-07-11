@@ -56,12 +56,14 @@ STDLIB_CLIMB_LEADS: frozenset[str] = frozenset(
     {
         "bigtwo_lead_options",  # Big Two: every combination (3♦-filtered on the opening lead)
         "tichu_lead_options",  # Tichu: every combination + the special-card lead singles
+        "president_lead_options",  # President: every equal-rank set of 1-4 cards
     }
 )
 STDLIB_CLIMB_FOLLOWS: frozenset[str] = frozenset(
     {
         "bigtwo_follows",  # Big Two: combinations that beat the standing play (same size)
         "tichu_follows",  # Tichu: same kind/length and higher, any bomb, Dragon/Phoenix answers
+        "president_follows",  # President: same-size higher-rank sets + transparent threes
     }
 )
 
@@ -102,6 +104,8 @@ STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
         "tichu_first_out",  # Tichu: the first finisher (defaults to player 0)
         "tichu_card_points",  # Tichu: the card-point table (K/10 = 10, 5 = 5, Dragon +25, Phoenix -25)
         "tichu_hand_summary",  # Tichu: emit the tichu_hand trace; the captured card points
+        "president_next_holder",  # President: the arg if holding, else the next holder cw
+        "president_is_top_rank",  # President: is the card the player's highest rank (2 high)?
         "coup_players_in",  # Coup: players still holding influence (game ends at 1)
         "coup_next_in_game",  # Coup: the next in-game player clockwise
         "coup_has_char",  # Coup: does a player hold the claimed character (a proof)?

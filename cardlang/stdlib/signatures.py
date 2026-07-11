@@ -90,6 +90,10 @@ CALL_SIGS: dict[str, Sig] = {
     "tichu_first_out": Sig((), TPlayer()),  # Tichu: the first finisher (default 0)
     "tichu_card_points": Sig((TCard(),), TInteger()),  # Tichu: the card-point table
     "tichu_hand_summary": Sig((), TInteger()),  # Tichu: emit tichu_hand; captured points
+    "president_next_holder": Sig((TPlayer(),), TPlayer()),  # President: next holder cw (or arg)
+    "president_is_top_rank": Sig(
+        (TPlayer(), TCard()), TBoolean()
+    ),  # President: is the card the player's highest rank?
     "coup_players_in": Sig((), TInteger()),  # Coup: players still holding influence
     "coup_next_in_game": Sig((TPlayer(),), TPlayer()),  # Coup: next in-game clockwise
     "coup_has_char": Sig((TPlayer(), TString()), TBoolean()),  # Coup: proof lookup
