@@ -77,7 +77,7 @@ game Spades {
       legal_moves:  [play_to_trick]
 
       phase spades_not_broken {
-        active_rules: [+ NoLeadingSpadesUntilBroken]
+        active_rules: [+ NoLeadingSuitUntilBroken(spades)]
         transition_to: spades_broken when play_to_trick where action.card.suit == spades
       }
 
@@ -127,19 +127,9 @@ game Spades {
   winner: highest score
 }
 
-rule NoLeadingSpadesUntilBroken {
-  constrains: play_to_trick
-  applies_when: state.led_suit is none
-  demands: hand.where(c => c.suit != spades)
-  if_impossible: hand   // only spades left: a spade must be led
-}
-
-rule MustFollowSuit {
-  constrains: play_to_trick
-  applies_when: state.led_suit is not none
-  demands: hand.cards_of_suit(state.led_suit)
-  if_impossible: hand   // void in the led suit: play any card
-}
+// MustFollowSuit and NoLeadingSuitUntilBroken(spades) are standard-library
+// rules (library.md "Rules"): activated by name above, defined once in
+// cardlang/stdlib/rules.cardlang.
 
 // Per-team contract aggregates, named so the make and miss branches score the
 // contract from one place: its value (10 per bid) and the overtricks beyond it.

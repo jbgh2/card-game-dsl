@@ -36,6 +36,7 @@ from cardlang.stdlib.functions import (
     ZONE_METHODS,
 )
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
+from cardlang.stdlib.rules import library_rules
 from cardlang.stdlib.values import DIRECTION_VALUES, deck_suits, enum_values
 from cardlang.typecheck import KNOWN_TYPE_NAMES
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
@@ -61,6 +62,11 @@ def resolve(game: n.Game) -> n.Game:
     for zone in game.zones:
         _resolve_zone(zone, bag)
 
+    # Library-rule splice and template instantiation: after this, every rule in
+    # `game.rules` is a concrete (parameter-free) definition the runtime can
+    # index by name.
+    game = _instantiate_rules(game, bag)
+
     defined_rules = {r.name for r in game.rules}
     for rule in game.rules:
         _resolve_rule(rule, bag)
@@ -76,6 +82,194 @@ def resolve(game: n.Game) -> n.Game:
 
     _raise_if_errors(bag)
     return game
+
+
+def _template_binders(rule: n.RuleDef) -> set[str]:
+    """Every binder a rule body introduces — a parameter sharing one of these
+    names would be captured by the binder instead of substituted."""
+    out: set[str] = set()
+    for nd in _walk(rule):
+        match nd:
+            case n.Lambda():
+                out.add(nd.param)
+            case n.Comprehension() | n.Quantifier() | n.ForEach():
+                out.add(nd.binder)
+            case n.EachSimultaneous():
+                out.add(nd.role)
+            case n.LetStmt():
+                out.add(nd.name)
+    return out
+
+
+def _check_template(rule: n.RuleDef, bag: DiagnosticBag) -> bool:
+    """Validate a parameterized rule's declaration (Suit-only domains,
+    corpus-first — recorded in roadmap.md; unique names; no binder capture).
+    Returns False when instantiation cannot proceed."""
+    ok = True
+    names = [p.name for p in rule.params]
+    for dup in sorted({nm for nm in names if names.count(nm) > 1}):
+        bag.error(
+            f"rule '{rule.name}' declares more than one parameter named "
+            f"'{dup}' — substitution binds by name, so one would silently "
+            f"shadow the other",
+            rule.span,
+        )
+        ok = False
+    binders = _template_binders(rule)
+    for p in rule.params:
+        if p.type_name != "Suit":
+            bag.error(
+                f"rule parameter '{p.name}: {p.type_name}' has an unsupported "
+                f"domain — rule parameters support Suit only (corpus-first; "
+                f"extend when a game needs another)",
+                rule.span,
+            )
+            ok = False
+        if p.name in binders:
+            bag.error(
+                f"rule '{rule.name}' introduces a binder named '{p.name}', "
+                f"shadowing its own parameter — rename one",
+                rule.span,
+            )
+            ok = False
+    return ok
+
+
+def _substitute(node: object, mapping: dict[str, n.Expr]) -> object:
+    """Immutably replace every bare reference to a template parameter with its
+    argument expression (runs pre-classification: every NameRef is unresolved)."""
+    if isinstance(node, n.NameRef) and node.name in mapping:
+        return mapping[node.name]
+    if not is_dataclass(node) or isinstance(node, Span):
+        return node
+    changes: dict[str, object] = {}
+    for f in fields(node):
+        value = getattr(node, f.name)
+        rewritten = _substitute_value(value, mapping)
+        if rewritten is not value:
+            changes[f.name] = rewritten
+    return replace(node, **changes) if changes else node  # type: ignore[type-var]
+
+
+def _substitute_value(value: object, mapping: dict[str, n.Expr]) -> object:
+    if is_dataclass(value) and not isinstance(value, Span):
+        return _substitute(value, mapping)
+    if isinstance(value, tuple):
+        return tuple(_substitute_value(item, mapping) for item in value)
+    return value
+
+
+def _instantiate_rules(game: n.Game, bag: DiagnosticBag) -> n.Game:
+    """Resolve `active_rules` references against the game's own rules first,
+    then the standard library (`cardlang/stdlib/rules.cardlang`):
+
+    - a reference to a library rule the game does not define splices the
+      library body into `game.rules` (defining a rule under a library name is
+      rejected — a local copy would drift from the shared body silently);
+    - a reference with arguments instantiates a parameterized rule (library or
+      local) by substituting the arguments into the template body; the local
+      template is replaced by its instance in place, so the runtime's
+      name->rule index only ever sees concrete definitions.
+
+    Every mismatch is a diagnostic, never a silent drop: args on a
+    parameter-free rule, a parameterized rule referenced bare, arity/domain
+    mismatches, two instantiations under one name with different arguments,
+    and a local template no reference ever instantiates."""
+    lib = library_rules()
+    local = {r.name: r for r in game.rules}
+    for r in game.rules:
+        if r.name in lib:
+            bag.error(
+                f"rule '{r.name}' shadows the standard-library rule of the same "
+                f"name — delete the local definition (`active_rules` resolves it "
+                f"from the library), or rename it if the body genuinely differs",
+                r.span,
+            )
+    suits = deck_suits(game.deck) if _deck_known(game.deck) else None
+    # rule name -> (argument key, concrete instance)
+    instances: dict[str, tuple[tuple[str, ...], n.RuleDef]] = {}
+    lib_order: list[str] = []
+    for nd in _walk(game):
+        if not isinstance(nd, n.ActiveRules):
+            continue
+        for ref in nd.refs:
+            template = local.get(ref.name, lib.get(ref.name))
+            if template is None:
+                continue  # undefined name: reported by _resolve_phase_level
+            if not template.params:
+                if ref.args:
+                    bag.error(
+                        f"rule '{ref.name}' takes no parameters — drop the "
+                        f"argument list",
+                        ref.span,
+                    )
+                elif ref.name not in local and ref.name not in instances:
+                    instances[ref.name] = ((), template)
+                    lib_order.append(ref.name)
+                continue
+            if not ref.args:
+                bag.error(
+                    f"rule '{ref.name}' is parameterized "
+                    f"({', '.join(f'{p.name}: {p.type_name}' for p in template.params)}) "
+                    f"— pass arguments: `{ref.name}(…)`",
+                    ref.span,
+                )
+                continue
+            if len(ref.args) != len(template.params):
+                bag.error(
+                    f"rule '{ref.name}' takes {len(template.params)} "
+                    f"argument(s), got {len(ref.args)}",
+                    ref.span,
+                )
+                continue
+            if not _check_template(template, bag):
+                continue
+            args_ok = True
+            for arg, p in zip(ref.args, template.params):
+                if not isinstance(arg, n.NameRef) or (
+                    suits is not None and arg.name not in suits
+                ):
+                    bag.error(
+                        f"argument for rule parameter '{p.name}: Suit' must be "
+                        f"a suit literal (one of the deck's suits)",
+                        ref.span,
+                    )
+                    args_ok = False
+            if not args_ok:
+                continue
+            key = tuple(a.name for a in ref.args if isinstance(a, n.NameRef))
+            if ref.name in instances:
+                if instances[ref.name][0] != key:
+                    bag.error(
+                        f"rule '{ref.name}' is instantiated with different "
+                        f"arguments elsewhere in this game — one instantiation "
+                        f"per rule name (activate under distinct names when a "
+                        f"game needs two)",
+                        ref.span,
+                    )
+                continue
+            mapping = {p.name: a for p, a in zip(template.params, ref.args)}
+            inst = _substitute(replace(template, params=()), mapping)
+            assert isinstance(inst, n.RuleDef)
+            instances[ref.name] = (key, inst)
+            if ref.name not in local:
+                lib_order.append(ref.name)
+    rules: list[n.RuleDef] = []
+    for r in game.rules:
+        if not r.params:
+            rules.append(r)
+        elif r.name in instances:
+            rules.append(instances[r.name][1])  # instance replaces its template
+        else:
+            _check_template(r, bag)  # surface declaration defects even here
+            bag.error(
+                f"rule '{r.name}' is parameterized but never instantiated — "
+                f"reference it from `active_rules` with arguments, or delete it "
+                f"(its body would otherwise go entirely unchecked)",
+                r.span,
+            )
+    rules += [instances[name][1] for name in lib_order]
+    return replace(game, rules=tuple(rules)) if tuple(rules) != game.rules else game
 
 
 def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:

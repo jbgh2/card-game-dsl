@@ -500,7 +500,7 @@
                 },
                 {
                   "kind": "rule_ref",
-                  "name": "MustFollowSuit",
+                  "name": "MustFollowEffectiveSuit",
                   "op": "plain"
                 },
                 {
@@ -1452,7 +1452,7 @@
     },
     {
       "kind": "rule",
-      "name": "MustFollowSuit",
+      "name": "MustFollowEffectiveSuit",
       "constrains": "play_to_trick",
       "applies_when": {
         "kind": "applies_when",

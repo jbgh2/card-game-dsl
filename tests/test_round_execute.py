@@ -27,7 +27,6 @@ game G {
   }
   winner: highest tricks_won
 }
-rule MustFollowSuit { constrains: play_to_trick  applies_when: state.led_suit is not none  demands: hand.cards_of_suit(state.led_suit)  if_impossible: hand }
 """
 
 
@@ -55,7 +54,6 @@ game G {
   }
   winner: highest tricks_won
 }
-rule MustFollowSuit { constrains: play_to_trick  applies_when: state.led_suit is not none  demands: hand.cards_of_suit(state.led_suit)  if_impossible: hand }
 """
 
 
@@ -152,7 +150,6 @@ game G {
   }
   winner: highest tricks_won
 }
-rule MustFollowSuit { constrains: play_to_trick  applies_when: state.led_suit is not none  demands: hand.cards_of_suit(state.led_suit)  if_impossible: hand }
 """
 
 

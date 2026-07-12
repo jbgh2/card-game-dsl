@@ -158,8 +158,7 @@ returning the wrong type, a non-exhaustive outcome match.
 
 A dedicated pass that flags declared-but-undefined constructs and the
 items the docs currently hand-wave — among them `BridgeAuction` and
-`MeldingPhase` (both placeholders in [library.md](library.md)) and the
-`NoLeadingSuitUntilBroken(suit)` generalization candidate. For each,
+`MeldingPhase` (both placeholders in [library.md](library.md)). For each,
 decide: define it now, or mark it an explicit typed stub the checker
 tolerates with a warning. The goal is that hand-waving becomes a
 **visible, enumerated list** rather than silent gaps.

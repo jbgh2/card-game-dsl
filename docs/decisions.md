@@ -95,7 +95,7 @@ similar end-of-phase logic, not by any rule's `applies_when:` or
 
 Examples:
 
-- `hearts_broken` in Hearts: gates the `NoLeadingHeartsUntilBroken`
+- `hearts_broken` in Hearts: gates the `NoLeadingSuitUntilBroken(hearts)`
   rule. Modeled as a sub-phase transition, not a boolean.
 - `spades_broken` in Spades: same shape, same treatment.
 - `is_first_trick`: gates rules unique to the first trick. Modeled
@@ -959,7 +959,7 @@ before, potentially including game termination."
 Hearts' `transition_to: hearts_broken when play_to_trick where
 action.card.suit == hearts` is *phase entry/exit* triggered by the
 move-emitted event.
-The implied state change (the `NoLeadingHeartsUntilBroken` rule
+The implied state change (the `NoLeadingSuitUntilBroken(hearts)` rule
 becomes inactive) happens because the active rule set changes when
 the phase changes, not because a `hearts_broken` boolean was written.
 

@@ -82,14 +82,8 @@ rule MustLeadAceOfSpadesOnFirstPlay {
   if_impossible: error("first lead must be the ace of spades")
 }
 
-// === Standard library rule ===
-
-rule MustFollowSuit {
-  constrains: play_to_trick
-  applies_when: state.led_suit is not none
-  demands: hand.cards_of_suit(state.led_suit)
-  if_impossible: hand   // void in the led suit: play any card
-}
+// MustFollowSuit is a standard-library rule (library.md "Rules"): activated
+// by name above, defined once in cardlang/stdlib/rules.cardlang.
 
 // A player still in the hand holds cards. Named so the survivor count (the
 // `repeat until`) and the loser clause test the same predicate — they must agree

@@ -28,13 +28,6 @@ game Mini {
   winner: highest score
 }
 
-rule MustFollowSuit {
-  constrains: play_to_trick
-  applies_when: state.led_suit is not none
-  demands: hand.cards_of_suit(state.led_suit)
-  if_impossible: hand
-}
-
 rule JokerIsExempt {
   constrains: play_to_trick
   applies_when: state.led_suit is not none
@@ -50,10 +43,11 @@ def _rule(game: n.Game, name: str) -> n.RuleDef:
 def test_exempts_parses_as_an_expr() -> None:
     game = parse_text(SRC, "mini.cardlang")
     exempt_rule = _rule(game, "JokerIsExempt")
-    plain_rule = _rule(game, "MustFollowSuit")
     assert isinstance(exempt_rule.exempts, n.MethodCall)
     assert exempt_rule.exempts.method == "where"
-    assert plain_rule.exempts is None
+    # MustFollowSuit splices in from the library at resolve time; at parse
+    # time only the game's own rule exists.
+    assert [r.name for r in game.rules] == ["JokerIsExempt"]
 
 
 def test_exempts_ir_key_emitted_only_when_present() -> None:

@@ -1,0 +1,22 @@
+// Standard-library rules (library.md "Rules"). A game activates one by name
+// in `active_rules:` without defining it; the resolver splices the body in.
+// A parameterized rule is a template: the reference passes arguments
+// (`NoLeadingSuitUntilBroken(hearts)`) and the resolver substitutes them.
+//
+// Bodies here read the trick round's accumulator (`state.led_suit`) and the
+// actor's `hand` zone — a game that activates one must play tricks from a
+// `hand[player]` zone, which every trick-taking corpus game does.
+
+rule MustFollowSuit {
+  constrains: play_to_trick
+  applies_when: state.led_suit is not none
+  demands: hand.cards_of_suit(state.led_suit)
+  if_impossible: hand   // void in the led suit: play any card
+}
+
+rule NoLeadingSuitUntilBroken(suit: Suit) {
+  constrains: play_to_trick
+  applies_when: state.led_suit is none   // i.e., leading
+  demands: hand.where(c => c.suit != suit)
+  if_impossible: hand   // only cards of that suit left: one must be led
+}

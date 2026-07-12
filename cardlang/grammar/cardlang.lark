@@ -7,6 +7,10 @@
 
 start: top_item+
 
+// Alternate start for the standard-library rules fragment
+// (cardlang/stdlib/rules.cardlang): rule definitions with no enclosing game.
+library_rules: rule_def+
+
 ?top_item: game
          | rule_def
          | move_type_def
@@ -109,10 +113,15 @@ before_each: "before_each" "{" statement* "}"
 after_each: "after_each" "{" statement* "}"
 
 active_rules: "active_rules" ":" "[" [rule_ref ("," rule_ref)*] "]"
-rule_ref: "+" NAME        -> rule_add
-        | "-" NAME        -> rule_remove
-        | "override" NAME -> rule_override
-        | NAME            -> rule_plain
+// A reference may pass arguments to a parameterized rule (library or local):
+// `NoLeadingSuitUntilBroken(hearts)`. The remove/override forms name a rule,
+// never instantiate one, so they take no argument list (grammatically
+// inexpressible rather than rejected).
+rule_ref: "+" NAME [rule_args]   -> rule_add
+        | "-" NAME               -> rule_remove
+        | "override" NAME        -> rule_override
+        | NAME [rule_args]       -> rule_plain
+rule_args: "(" expr ("," expr)* ")"
 
 legal_moves: "legal_moves" ":" "[" [NAME ("," NAME)*] "]"
 
@@ -279,7 +288,12 @@ variant_case: NAME ["(" payload_type ("," payload_type)* ")"]
 payload_type: NAME      -> payload_plain
             | NAME "?"   -> payload_optional
 
-rule_def: "rule" NAME "{" rule_clause* "}"
+// A rule may declare parameters (`rule NoLeadingSuitUntilBroken(suit: Suit)`),
+// making it a template: an `active_rules` reference instantiates it by
+// substituting the arguments into the body at resolve time. Parameter domains
+// are the enumerable payload types; the resolver gates which are supported.
+rule_def: "rule" NAME [rule_params] "{" rule_clause* "}"
+rule_params: "(" move_param ("," move_param)* ")"
 ?rule_clause: constrains
             | applies_when
             | demands

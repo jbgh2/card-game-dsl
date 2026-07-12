@@ -88,8 +88,8 @@ set and add/modify their own. They have their own entry/exit conditions.
 
 Example: Hearts' `play` phase contains the sub-phases `hearts_not_broken` and
 `hearts_broken`. The transition between them fires on the first heart played.
-The active rule set differs (`NoLeadingHeartsUntilBroken` is active only in
-the first sub-phase).
+The active rule set differs (`NoLeadingSuitUntilBroken(hearts)` is active
+only in the first sub-phase).
 
 This replaces the ad-hoc `hearts_broken` boolean flag with structure.
 
@@ -125,7 +125,7 @@ Rules are referenced from phases by name:
 
 ```
 phase play {
-  active_rules: [MustFollowSuit, NoLeadingHeartsUntilBroken, ...]
+  active_rules: [MustFollowSuit, NoLeadingSuitUntilBroken(hearts), ...]
 }
 ```
 

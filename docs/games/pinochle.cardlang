@@ -193,12 +193,8 @@ function has_marriage(p : Player, s : Suit) =
 // hand — i.e. "keep the prior narrowing" — so an inapplicable obligation
 // falls through (rules.legal_cards).
 
-rule MustFollowSuit {
-  constrains: play_to_trick
-  applies_when: state.led_suit is not none
-  demands: hand.cards_of_suit(state.led_suit)
-  if_impossible: hand   // void in the led suit
-}
+// MustFollowSuit is a standard-library rule (library.md "Rules"): activated
+// by name above, defined once in cardlang/stdlib/rules.cardlang.
 
 rule MustHeadTrick {
   constrains: play_to_trick

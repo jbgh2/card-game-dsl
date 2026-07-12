@@ -168,12 +168,8 @@ game Bridge {
   winner: highest total_score
 }
 
-rule MustFollowSuit {
-  constrains: play_to_trick
-  applies_when: state.led_suit is not none
-  demands: hand.cards_of_suit(state.led_suit)
-  if_impossible: hand   // void in the led suit: play any card
-}
+// MustFollowSuit is a standard-library rule (library.md "Rules"): activated
+// by name above, defined once in cardlang/stdlib/rules.cardlang.
 
 // The bid vocabulary. The cheapest beating level in a strain is derived; random
 // bids are capped at level 3 so rubbers stay a realistic length.

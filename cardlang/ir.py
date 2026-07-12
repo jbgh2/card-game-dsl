@@ -188,9 +188,7 @@ def _phase_item(item: n.PhaseItem) -> IRDict:
         case n.ActiveRules():
             return {
                 "kind": "active_rules",
-                "refs": [
-                    {"kind": "rule_ref", "name": r.name, "op": r.op} for r in item.refs
-                ],
+                "refs": [_rule_ref(r) for r in item.refs],
             }
         case n.LegalMoves():
             return {"kind": "legal_moves", "names": list(item.names)}
@@ -351,6 +349,15 @@ def _named_arg(a: n.NamedArg) -> IRDict:
 
 
 # --- rules ---
+
+
+def _rule_ref(r: n.RuleRef) -> IRDict:
+    ref: IRDict = {"kind": "rule_ref", "name": r.name, "op": r.op}
+    # Emitted ONLY when present (like the rule `exempts` key), so every
+    # argument-free reference's golden stays byte-identical.
+    if r.args:
+        ref["args"] = [_expr(a) for a in r.args]
+    return ref
 
 
 def _rule(r: n.RuleDef) -> IRDict:

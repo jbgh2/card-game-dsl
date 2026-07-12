@@ -39,7 +39,7 @@ the printed rules' physical table layout, where the discard sits face down in
 front of the taker but is not itself secret information the opponents lack;
 here it is modelled as hidden because the opponents cannot see which specific
 cards were set aside, only that six were. The eighteen tricks run on the trick
-form of `round`, legality narrowed by the `ExcuseIsExempt`/`MustFollowSuit`/
+form of `round`, legality narrowed by the `ExcuseIsExempt`/`MustFollowEffectiveSuit`/
 `MustTrumpIfVoid`/`MustOverTrump` rule cascade (the Excuse is exempt from
 every obligation via the `exempts:` clause, and never wins the trick). The
 Excuse's special routing — it stays with its own side, repaying the trick
@@ -112,7 +112,7 @@ game FrenchTarot {
       thrown_in     { skip to next hand }
 
     phase play {
-      active_rules: [ExcuseIsExempt, MustFollowSuit, MustTrumpIfVoid, MustOverTrump]
+      active_rules: [ExcuseIsExempt, MustFollowEffectiveSuit, MustTrumpIfVoid, MustOverTrump]
       legal_moves:  [play_to_trick]
       state {
         leader        : Player? = none
@@ -212,7 +212,10 @@ rule ExcuseIsExempt {
   exempts: hand.where(c => c.rank == "Excuse")
 }
 
-rule MustFollowSuit {
+// Not the library MustFollowSuit: the demand reads the EFFECTIVE led suit
+// (`tarot_led_suit()` — the first non-Excuse card), not the raw
+// `state.led_suit`, so the rule is Tarot's own under its own name.
+rule MustFollowEffectiveSuit {
   constrains: play_to_trick
   applies_when: state.led_suit is not none
   demands: hand.cards_of_suit(tarot_led_suit())

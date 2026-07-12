@@ -456,8 +456,15 @@
                   "refs": [
                     {
                       "kind": "rule_ref",
-                      "name": "NoLeadingHeartsUntilBroken",
-                      "op": "add"
+                      "name": "NoLeadingSuitUntilBroken",
+                      "op": "add",
+                      "args": [
+                        {
+                          "kind": "name",
+                          "name": "hearts",
+                          "ref": "enum_value"
+                        }
+                      ]
                     }
                   ]
                 },
@@ -930,70 +937,6 @@
     },
     {
       "kind": "rule",
-      "name": "NoLeadingHeartsUntilBroken",
-      "constrains": "play_to_trick",
-      "applies_when": {
-        "kind": "applies_when",
-        "always": false,
-        "pred": {
-          "kind": "is_check",
-          "check": "none",
-          "operand": {
-            "kind": "member",
-            "obj": {
-              "kind": "name",
-              "name": "state",
-              "ref": "pronoun"
-            },
-            "field": "led_suit"
-          }
-        }
-      },
-      "demands": {
-        "kind": "demands",
-        "form": "cards",
-        "expr": {
-          "kind": "method_call",
-          "obj": {
-            "kind": "name",
-            "name": "hand",
-            "ref": "zone"
-          },
-          "method": "where",
-          "args": [
-            {
-              "kind": "lambda",
-              "param": "c",
-              "body": {
-                "kind": "binop",
-                "op": "!=",
-                "left": {
-                  "kind": "member",
-                  "obj": {
-                    "kind": "name",
-                    "name": "c",
-                    "ref": "local"
-                  },
-                  "field": "suit"
-                },
-                "right": {
-                  "kind": "name",
-                  "name": "hearts",
-                  "ref": "enum_value"
-                }
-              }
-            }
-          ]
-        }
-      },
-      "if_impossible": {
-        "kind": "name",
-        "name": "hand",
-        "ref": "zone"
-      }
-    },
-    {
-      "kind": "rule",
       "name": "PassExactlyThreeCards",
       "constrains": "transfer_between_hands",
       "applies_when": null,
@@ -1061,6 +1004,70 @@
                 "ref": "pronoun"
               },
               "field": "led_suit"
+            }
+          ]
+        }
+      },
+      "if_impossible": {
+        "kind": "name",
+        "name": "hand",
+        "ref": "zone"
+      }
+    },
+    {
+      "kind": "rule",
+      "name": "NoLeadingSuitUntilBroken",
+      "constrains": "play_to_trick",
+      "applies_when": {
+        "kind": "applies_when",
+        "always": false,
+        "pred": {
+          "kind": "is_check",
+          "check": "none",
+          "operand": {
+            "kind": "member",
+            "obj": {
+              "kind": "name",
+              "name": "state",
+              "ref": "pronoun"
+            },
+            "field": "led_suit"
+          }
+        }
+      },
+      "demands": {
+        "kind": "demands",
+        "form": "cards",
+        "expr": {
+          "kind": "method_call",
+          "obj": {
+            "kind": "name",
+            "name": "hand",
+            "ref": "zone"
+          },
+          "method": "where",
+          "args": [
+            {
+              "kind": "lambda",
+              "param": "c",
+              "body": {
+                "kind": "binop",
+                "op": "!=",
+                "left": {
+                  "kind": "member",
+                  "obj": {
+                    "kind": "name",
+                    "name": "c",
+                    "ref": "local"
+                  },
+                  "field": "suit"
+                },
+                "right": {
+                  "kind": "name",
+                  "name": "hearts",
+                  "ref": "enum_value"
+                }
+              }
             }
           ]
         }

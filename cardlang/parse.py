@@ -165,6 +165,9 @@ def _parser() -> Lark:
         parser="earley",
         propagate_positions=True,
         maybe_placeholders=True,
+        # `start` is a game file; `library_rules` is the stdlib rules fragment
+        # (rule definitions with no enclosing game).
+        start=["start", "library_rules"],
     )
 
 
@@ -351,11 +354,16 @@ class _Builder(Transformer[Token, n.Game]):
         refs = tuple(r for r in c if isinstance(r, n.RuleRef))
         return n.ActiveRules(refs=refs, span=self._span(meta))
 
-    def rule_plain(self, meta: Meta, c: list[Token]) -> n.RuleRef:
-        return n.RuleRef(str(c[0]), "plain", span=self._span(meta))
+    def rule_args(self, meta: Meta, c: list[object]) -> tuple[object, ...]:
+        return tuple(_as_expr(x) for x in c)
 
-    def rule_add(self, meta: Meta, c: list[Token]) -> n.RuleRef:
-        return n.RuleRef(str(c[0]), "add", span=self._span(meta))
+    def rule_plain(self, meta: Meta, c: list[object]) -> n.RuleRef:
+        args = c[1] if len(c) > 1 and isinstance(c[1], tuple) else ()
+        return n.RuleRef(str(c[0]), "plain", args=args, span=self._span(meta))
+
+    def rule_add(self, meta: Meta, c: list[object]) -> n.RuleRef:
+        args = c[1] if len(c) > 1 and isinstance(c[1], tuple) else ()
+        return n.RuleRef(str(c[0]), "add", args=args, span=self._span(meta))
 
     def rule_remove(self, meta: Meta, c: list[Token]) -> n.RuleRef:
         return n.RuleRef(str(c[0]), "remove", span=self._span(meta))
@@ -634,14 +642,19 @@ class _Builder(Transformer[Token, n.Game]):
     def exempts(self, meta: Meta, c: list[object]) -> _Exempts:
         return _Exempts(_as_expr(c[0]))
 
+    def rule_params(self, meta: Meta, c: list[n.MoveParam]) -> tuple[n.MoveParam, ...]:
+        return tuple(c)
+
     def rule_def(self, meta: Meta, c: list[object]) -> n.RuleDef:
         name = str(c[0])
+        # The optional rule_params group leaves a None placeholder when absent.
+        params = c[1] if isinstance(c[1], tuple) else ()
         constrains: str | None = None
         applies: n.AppliesWhen | None = None
         demands: n.Demands | None = None
         if_imp: object | None = None
         exempts_expr: object | None = None
-        for clause in c[1:]:
+        for clause in c[2:]:
             if isinstance(clause, _Constrains):
                 constrains = clause.move_type
             elif isinstance(clause, n.AppliesWhen):
@@ -661,8 +674,12 @@ class _Builder(Transformer[Token, n.Game]):
             demands=demands,
             if_impossible=if_imp,  # type: ignore[arg-type]
             exempts=exempts_expr,  # type: ignore[arg-type]
+            params=params,
             span=self._span(meta),
         )
+
+    def library_rules(self, meta: Meta, c: list[object]) -> tuple[n.RuleDef, ...]:
+        return tuple(x for x in c if isinstance(x, n.RuleDef))
 
     # --- expressions ---
 
@@ -1025,11 +1042,13 @@ def _as_stmt(value: object) -> n.Stmt:
     return value  # type: ignore[return-value]
 
 
-def parse_to_tree(text: str, source_name: str, line_offset: int = 0) -> Tree[Token]:
+def parse_to_tree(
+    text: str, source_name: str, line_offset: int = 0, start: str = "start"
+) -> Tree[Token]:
     """Parse DSL ``text`` to a raw Lark tree, raising a span-located diagnostic
     on a syntax error. The grammar-acceptance entry point."""
     try:
-        tree = _parser().parse(text)
+        tree = _parser().parse(text, start=start)
     except UnexpectedInput as exc:
         line = getattr(exc, "line", 1) + line_offset
         column = getattr(exc, "column", 1)
@@ -1039,6 +1058,16 @@ def parse_to_tree(text: str, source_name: str, line_offset: int = 0) -> Tree[Tok
         ) from exc
     assert isinstance(tree, Tree)
     return tree
+
+
+def parse_library_rules(text: str, source_name: str) -> tuple[n.RuleDef, ...]:
+    """Parse a standard-library rules fragment (rule definitions with no
+    enclosing game) into RuleDef nodes, spans mapped to ``source_name``."""
+    tree = parse_to_tree(text, source_name, start="library_rules")
+    result: object = _Builder(source_name, 0).transform(tree)
+    assert isinstance(result, tuple)
+    assert all(isinstance(r, n.RuleDef) for r in result)
+    return result
 
 
 def parse_text(text: str, source_name: str, line_offset: int = 0) -> n.Game:

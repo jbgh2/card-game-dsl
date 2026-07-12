@@ -133,26 +133,44 @@ Key design notes:
 
 ## Rules
 
-- `MustFollowSuit` — constrains `play_to_trick`; the canonical follow-suit rule
-  (Hearts, Getaway, Spades, Bridge, Oh Hell, Pinochle, French Tarot — Tarot's
-  demand reads `tarot_led_suit()`, the effective led suit, not the raw
-  `state.led_suit`; see below)
+**Library rules are shared definitions**, not a prose catalogue: the bodies
+live in `cardlang/stdlib/rules.cardlang`, and a game activates one by naming
+it in `active_rules:` without defining it — the resolver splices the body in.
+Defining a game-local rule under a library name is rejected (a local copy
+would drift from the shared body silently). A parameterized rule is a
+template: the reference passes arguments (`NoLeadingSuitUntilBroken(hearts)`)
+and the resolver substitutes them into the body. Template parameter domains
+are `Suit` only, corpus-first ([roadmap.md](roadmap.md)); games may declare
+their own parameterized rules with the same instantiation semantics.
+
+The library:
+
+- `MustFollowSuit` — constrains `play_to_trick`; the canonical follow-suit
+  rule (Hearts, Getaway, Spades, Bridge, Oh Hell, Pinochle). French Tarot's
+  follow rule is game-local under its own name (`MustFollowEffectiveSuit`):
+  its demand reads `tarot_led_suit()`, the effective led suit, not the raw
+  `state.led_suit` — a genuinely different body, so it does not share this
+  definition (see below).
+- `NoLeadingSuitUntilBroken(suit: Suit)` — constrains `play_to_trick`; no
+  leading the named suit until it has been played to a trick
+  (Hearts activates `(hearts)`, Spades `(spades)`).
+
+Game-local rules that recur as *names* but not as bodies:
+
 - `MustHeadTrick` — constrains `play_to_trick`; must beat the highest card of
   the led suit played so far when following (Pinochle)
 - `MustTrumpIfVoid` — constrains `play_to_trick`; must trump when void in the
-  led suit (Pinochle, French Tarot)
+  led suit (Pinochle, French Tarot — the bodies differ: `trump_suit` vs the
+  `atouts` rank-set)
 - `MustOverTrump` — constrains `play_to_trick`; must beat the highest trump
-  played so far when trumping (Pinochle, French Tarot)
+  played so far when trumping (Pinochle, French Tarot — the bodies differ:
+  `rank_value` within the trump suit vs `tarot_trump_height()`)
 - `ExcuseIsExempt` — constrains `play_to_trick`; `exempts:` the Excuse from
   every obligation in the cascade (French Tarot). The corpus's first use of
   the rule `exempts:` clause ([decisions.md](decisions.md) "Rule exemption");
   see below.
-- `BidExceedsCurrent` — constrains `submit_bid`; ascending auction rule
-- `BidIsLegalIncrement` — constrains `submit_bid`; bid increment validity
-- `NoLeadingHeartsUntilBroken` — Hearts-specific
-- `NoLeadingSpadesUntilBroken` — Spades-specific
-- *Generalization candidate:* `NoLeadingSuitUntilBroken(suit)` — parameterize
-  by suit so Hearts and Spades both use the same rule
+- `MustFollowEffectiveSuit` — French Tarot's follow rule (see
+  `MustFollowSuit` above)
 
 Pinochle's four rules (`MustFollowSuit`/`MustHeadTrick`/`MustTrumpIfVoid`/
 `MustOverTrump`) run as one `active_rules:` cascade, in this order (list order
@@ -164,18 +182,19 @@ per-rule intersection, [decisions.md](decisions.md) "Rule demand forms").
 Strict-trick legality recurs across the corpus, but not always as rules:
 Schnapsen's endgame is the same follow-and-head shape expressed as an in-file
 predicate (`follow_ok`) filtering a chosen movement, because its follower
-answers outside any trick `round` (see "Mechanics" below). Rules are not yet a
-shared/reusable definition the way move types and mechanics are — each game
-declares its own rule bodies — so promoting a common cascade waits on a second
-`active_rules` DSL instance.
+answers outside any trick `round` (see "Mechanics" below). The cascade rules
+above stay game-local because their bodies genuinely diverge between Pinochle
+and Tarot (trump vocabulary and height helper); a shared parameterized
+cascade is a promotion candidate only if a third strict-trick game arrives
+whose bodies match one of the existing pairs.
 
-French Tarot's four-rule cascade (`ExcuseIsExempt`/`MustFollowSuit`/
+French Tarot's four-rule cascade (`ExcuseIsExempt`/`MustFollowEffectiveSuit`/
 `MustTrumpIfVoid`/`MustOverTrump`) is the same running-intersection shape,
 with one addition: `ExcuseIsExempt`'s `exempts:` clause removes the Excuse
 from the cascade before the other three rules run, and appends it after every
 other legal card once they've narrowed the rest — the Excuse is never subject
 to follow-suit/trump/over-trump and never counts toward satisfying them.
-`MustFollowSuit`'s demand reads the stdlib `tarot_led_suit()` (the first
+`MustFollowEffectiveSuit`'s demand reads the stdlib `tarot_led_suit()` (the first
 non-Excuse card played, or "excuse" if only the Excuse has been played so
 far) rather than the kernel's own `state.led_suit` (the literal first card,
 "excuse" included) — the split that reproduces the reference rule exactly:
@@ -216,9 +235,15 @@ match) and so must trump if able, a quirk the split preserves precisely.
   high bidder and Tarot's four levels — and Skat's Reizen call-and-response,
   a role-guarded two-participant ring ([decisions.md](decisions.md), the
   call-and-response bullet under "The auction form of `round`").
-  Each is game-local until the shared `auction` definition — the ascending-bid
-  configuration of this form — is promoted to this catalogue corpus-first at its
-  third instance. Spades and Oh Hell use *inline per-player bidding* instead —
+  Each configuration is game-local, and stays so deliberately: a corpus
+  comparison (Bridge, Pinochle, Tarot, Skat) found the four share only the
+  kernel form itself — the accumulator variables, ring topology (continuous /
+  shrinking / two-seat-twice), bid vocabulary, and outcome mechanism (named
+  function vs inline survivor, and Skat uses the outcome-less betting form)
+  all genuinely diverge — so the shared thing IS this `round` form, and a
+  promoted `auction` configuration would abstract over instances that agree
+  on nothing it could parameterize. Spades and Oh Hell use *inline per-player
+  bidding* instead —
   every player bids exactly once in turn, no ascending constraint — so they do not
   use the auction form. Schnapsen configures the same form differently again: a
   single-participant ring whose free actions loop the leader until a card is led

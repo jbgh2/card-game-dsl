@@ -35,13 +35,15 @@ def _iter_with_parents(tree: TreeNode) -> list[tuple[TreeNode, TreeNode]]:
     return out
 
 
-def test_hearts_parses_into_one_game_and_five_rules() -> None:
+def test_hearts_parses_into_one_game_and_three_rules() -> None:
+    # The Hearts-specific rules only: MustFollowSuit and
+    # NoLeadingSuitUntilBroken live in the standard library, not the file.
     tree = parse_to_tree(HEARTS.read_text(), str(HEARTS))
     top = tree.children
-    assert len(top) == 6
+    assert len(top) == 4
     kinds = [t.data for t in top if isinstance(t, Tree)]
     assert kinds.count("game") == 1
-    assert kinds.count("rule_def") == 5
+    assert kinds.count("rule_def") == 3
 
 
 def test_lambda_only_appears_as_a_call_argument() -> None:

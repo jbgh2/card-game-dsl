@@ -36,13 +36,6 @@ game Mini {
   winner: highest score
 }
 
-rule MustFollowSuit {
-  constrains: play_to_trick
-  applies_when: state.led_suit is not none
-  demands: hand.cards_of_suit(state.led_suit)
-  if_impossible: hand
-}
-
 rule JokerIsExempt {
   constrains: play_to_trick
   applies_when: state.led_suit is not none

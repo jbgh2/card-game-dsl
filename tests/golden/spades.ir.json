@@ -435,8 +435,15 @@
                   "refs": [
                     {
                       "kind": "rule_ref",
-                      "name": "NoLeadingSpadesUntilBroken",
-                      "op": "add"
+                      "name": "NoLeadingSuitUntilBroken",
+                      "op": "add",
+                      "args": [
+                        {
+                          "kind": "name",
+                          "name": "spades",
+                          "ref": "enum_value"
+                        }
+                      ]
                     }
                   ]
                 },
@@ -1046,7 +1053,58 @@
   "rules": [
     {
       "kind": "rule",
-      "name": "NoLeadingSpadesUntilBroken",
+      "name": "MustFollowSuit",
+      "constrains": "play_to_trick",
+      "applies_when": {
+        "kind": "applies_when",
+        "always": false,
+        "pred": {
+          "kind": "is_check",
+          "check": "not_none",
+          "operand": {
+            "kind": "member",
+            "obj": {
+              "kind": "name",
+              "name": "state",
+              "ref": "pronoun"
+            },
+            "field": "led_suit"
+          }
+        }
+      },
+      "demands": {
+        "kind": "demands",
+        "form": "cards",
+        "expr": {
+          "kind": "method_call",
+          "obj": {
+            "kind": "name",
+            "name": "hand",
+            "ref": "zone"
+          },
+          "method": "cards_of_suit",
+          "args": [
+            {
+              "kind": "member",
+              "obj": {
+                "kind": "name",
+                "name": "state",
+                "ref": "pronoun"
+              },
+              "field": "led_suit"
+            }
+          ]
+        }
+      },
+      "if_impossible": {
+        "kind": "name",
+        "name": "hand",
+        "ref": "zone"
+      }
+    },
+    {
+      "kind": "rule",
+      "name": "NoLeadingSuitUntilBroken",
       "constrains": "play_to_trick",
       "applies_when": {
         "kind": "applies_when",
@@ -1098,57 +1156,6 @@
                   "ref": "enum_value"
                 }
               }
-            }
-          ]
-        }
-      },
-      "if_impossible": {
-        "kind": "name",
-        "name": "hand",
-        "ref": "zone"
-      }
-    },
-    {
-      "kind": "rule",
-      "name": "MustFollowSuit",
-      "constrains": "play_to_trick",
-      "applies_when": {
-        "kind": "applies_when",
-        "always": false,
-        "pred": {
-          "kind": "is_check",
-          "check": "not_none",
-          "operand": {
-            "kind": "member",
-            "obj": {
-              "kind": "name",
-              "name": "state",
-              "ref": "pronoun"
-            },
-            "field": "led_suit"
-          }
-        }
-      },
-      "demands": {
-        "kind": "demands",
-        "form": "cards",
-        "expr": {
-          "kind": "method_call",
-          "obj": {
-            "kind": "name",
-            "name": "hand",
-            "ref": "zone"
-          },
-          "method": "cards_of_suit",
-          "args": [
-            {
-              "kind": "member",
-              "obj": {
-                "kind": "name",
-                "name": "state",
-                "ref": "pronoun"
-              },
-              "field": "led_suit"
             }
           ]
         }

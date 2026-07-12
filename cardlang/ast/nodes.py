@@ -568,10 +568,14 @@ class StateBlock:
 
 @dataclass(frozen=True, slots=True)
 class RuleRef:
-    """An entry in an `active_rules:` list, with its delta operator."""
+    """An entry in an `active_rules:` list, with its delta operator. ``args``
+    instantiates a parameterized rule (library or game-local): the resolver
+    substitutes them into the template body and splices the instance into
+    ``game.rules`` under this reference's name."""
 
     name: str
     op: str  # "plain" | "add" | "remove" | "override"
+    args: tuple[Expr, ...] = ()
     span: Span | None = None
 
 
@@ -686,6 +690,11 @@ class RuleDef:
     demands: Demands | None
     if_impossible: Expr | None
     exempts: Expr | None = None
+    # Declared parameters make this a template: never active itself, only
+    # instantiated by an `active_rules` reference with arguments. The resolver
+    # consumes templates — post-resolve, every rule in `game.rules` has
+    # `params == ()`.
+    params: tuple[MoveParam, ...] = ()
     span: Span | None = None
 
 

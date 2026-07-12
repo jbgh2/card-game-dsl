@@ -71,7 +71,7 @@ game Hearts {
       legal_moves:  [play_to_trick]
 
       phase hearts_not_broken {
-        active_rules: [+ NoLeadingHeartsUntilBroken]
+        active_rules: [+ NoLeadingSuitUntilBroken(hearts)]
         transition_to: hearts_broken when play_to_trick where action.card.suit == hearts
       }
 
@@ -124,24 +124,12 @@ rule NoPenaltyCardsOnFirstTrick {
   if_impossible: hand   // only penalty cards in hand: play one
 }
 
-rule NoLeadingHeartsUntilBroken {
-  constrains: play_to_trick
-  applies_when: state.led_suit is none   // i.e., leading
-  demands: hand.where(c ⇒ c.suit != hearts)
-  if_impossible: hand   // only hearts left: a heart must be led
-}
-
 rule PassExactlyThreeCards {
   constrains: transfer_between_hands
   demands: the move must consist of exactly 3 cards
 }
 
-// === Standard library rule ===
-
-rule MustFollowSuit {
-  constrains: play_to_trick
-  applies_when: state.led_suit is not none
-  demands: hand.cards_of_suit(state.led_suit)
-  if_impossible: hand   // void in the led suit: play any card
-}
+// MustFollowSuit and NoLeadingSuitUntilBroken(hearts) are standard-library
+// rules (library.md "Rules"): activated by name above, defined once in
+// cardlang/stdlib/rules.cardlang.
 ```

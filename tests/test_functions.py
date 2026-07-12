@@ -195,7 +195,7 @@ game G {
     leader := 0
   }
   phase play {
-    active_rules: [MustFollowSuit]
+    active_rules: [FollowViaFunction]
     legal_moves: [play_to_trick]
     repeat until (all player p: hand[p] is empty) {
       round play_to_trick from leader over all players source hand into trick_pile
@@ -207,7 +207,7 @@ game G {
   }
   winner: highest tricks
 }
-rule MustFollowSuit {
+rule FollowViaFunction {
   constrains: play_to_trick
   applies_when: state.led_suit is not none
   demands: must_follow()
