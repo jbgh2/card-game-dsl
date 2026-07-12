@@ -1012,8 +1012,9 @@ rewrites to underlying forms.
   indexable as a key into per-partnership state.
 - `Seating` — derived from `players` + `partnerships`; exposes
   `partner_of(p)`, `left_of(p)`, `right_of(p)`, `LHO_of(p)`,
-  `RHO_of(p)`, `opposite_of(p)`. Surface syntax `declarer.partner`
-  is sugar for `seating.partner_of(declarer)`.
+  `RHO_of(p)`, `opposite_of(p)`. Relational queries are function
+  calls (and the `offset_by` operator), never dot chains — see the
+  access discipline below.
 - `Zone<Contents>` — a container parameterized by what it holds.
   Carries a per-observer visibility declaration (see "Knowledge,
   visibility, and the projection model"), ownership, and structural
@@ -1143,28 +1144,34 @@ current corpus uses card attributes.
 
 **Convenience sugar (rewrites that compile away):**
 
-- `player.hand` → `hand[player]`
-- `player.partner` → `seating.partner_of(player)`
-- `player.team` → `team_of(player)`
-- `team.score` → `score[team]`
-- `partnership.games_won` → `games_won[partnership]`
 - `state.foo` → `foo` (just a disambiguating prefix)
 - `card.tapped` → `card.attributes[tapped]`
 
 Sugar is documented; the underlying form is what the compiler
 manipulates.
 
-**Stylistic discipline.** The bracket form is the canonical
-access syntax; the dot form is sugar for the simple-receiver
-case. The corpus uses brackets whenever the index is a computed
-expression (`hand[player]`, `captured[team_of(outcome)]`,
-`hand[player offset_by pass_direction]`) and dots when the
-receiver is a simple identifier (`p.hand`, `outcome.hand`,
-`team.score`). Whether the dot form should admit complex
-receivers, and whether the bracket form should be elevated to
-*the* canonical form rather than a sibling, is an open
-question (see
-[open-questions/zone-access-syntax.md](open-questions/zone-access-syntax.md)).
+**Access discipline.** The bracket form is the only indexed
+access: `hand[player]`, `captured[team_of(outcome)]`,
+`hand[player offset_by pass_direction]`, `score[team]`. The dot
+form is **object-member access and nothing else** — fields of a
+`Card` (`card.suit`, `card.rank`, attribute sugar), fields of a
+`Move` (`action.card`), and declared or derived fields of
+user-defined structs (`result.made`). A dot whose receiver is a
+player, team, integer, or boolean is a static error pointing at
+the bracket form; where the receiver's type is unknown (a loop or
+lambda binder — the flat walk deliberately leaves binders
+untyped), the runtime fails loud rather than guessing. Relational
+chains stay out of subject position: the corpus derives them with
+`offset_by`, functions, and player-indexed public state. The
+predicted forcing case — Doppelkopf's Fox/Charlie scoring, which
+the rulebook phrases as "the partner of the ♦A's player, relative
+to the trick winner's side" — flattened to equalities over
+player-indexed public state
+([games/doppelkopf.cardlang](games/doppelkopf.cardlang)) rather
+than needing `dealer.left.partner.hand`-style chains, so no
+complex-receiver dot form exists. Koenigrufen's runtime-chosen
+called king is the named reopener if a future game's relational
+subject resists this flattening.
 
 ## Resource amount syntax
 
@@ -1606,8 +1613,8 @@ eventual compilation pass (see [roadmap.md](roadmap.md)).
 
 Info-set derivation is uniform across the corpus: every game's decisions run
 on kernel sites that emit observation events, no Python mechanic exists (the
-`instantiate` construct is deleted), and the readiness proofs cover all
-fifteen games ([kernel-migration.md](kernel-migration.md)). The remaining
+`instantiate` construct is deleted), and the readiness proofs cover
+every corpus game ([kernel-migration.md](kernel-migration.md)). The remaining
 honesty line is scope, not derivation: rules-level randomness kept from the
 monoliths' random-play reductions (Tichu's call gates, Coup's window gates
 and targets) folds into the seed chance node rather than appearing as
@@ -2194,6 +2201,62 @@ exactly the same shape as single-move events, just with multiple
 moves coalesced. Perfect-recall guarantees and CFR / IS-MCTS
 applicability are preserved.
 
+## Off-the-clock windows
+
+Some rules offer a move "at any time" rather than on a turn: Tichu's
+tichu call (any time before the caller's first play), Doppelkopf's
+Re/Kontra and level announcements (any time during the play, gated by
+the announcer's own hand size). The language expresses these as a
+**quiescence-lap poll** — an idiom over the existing kernel, not a
+construct:
+
+```
+if <public window gate> {
+  quiet := 0
+  round offering [<window moves>, decline] from <player about to act>
+        over all players until quiet >= <player count>
+}
+```
+
+placed before each decision the enclosing phase offers. Every window
+move's effect resets the `quiet` counter; the decline increments it; a
+full silent lap closes the poll. An announcement re-opens the lap, so
+chains of reactions (Re → no 90 → Kontra) resolve at a single poll
+point in any order the players choose.
+
+Three properties make the serialization faithful and leak-free:
+
+- **The gate reads public state only** (hand counts through their
+  `count_only` projections, announcement flags), so observers can
+  compute exactly when polls are skipped — a closed window emits
+  nothing and reveals nothing.
+- **Private eligibility lives in the move guards.** A player whose
+  guards all fail is offered only the decline and submits the same
+  public decline event a player declining by choice submits, so
+  ineligibility is indistinguishable from silence — the projection of
+  "hasn't announced yet" that real play gives.
+- **A participant's own thresholds change only when the participant
+  acts** (hand sizes decrement on the owner's plays), so polling before
+  each decision offers every window move at exactly the hand sizes the
+  paper rules allow; no legal timing is lost to the serialization.
+
+The poll's decisions are ordinary `offer`-shaped kernel decisions
+emitting ordinary public announce events — no new observation kind, no
+change to how information states derive.
+
+Rejected alternatives: a dedicated `may submit X` phase verb (deferred
+per corpus-first promotion — Tichu and Doppelkopf are two witnesses,
+and constructs are earned at the third instance, e.g. Belote's
+mid-trick declarations); an `optional: true` move-type property
+(optionality belongs to the offer site, not the move); a state write
+outside the move framework (removes the decision from the observation
+stream, breaking derived information sets).
+
+Witnesses: Doppelkopf's announcement ladder at full fidelity
+([games/doppelkopf.cardlang](games/doppelkopf.cardlang)); Tichu's call
+windows (the WS5 upgrade,
+[kernel-migration.md](kernel-migration.md)).
+
 ## Interactive decisions: a kernel and an in-DSL standard library
 
 The structure of a game (zones, phases, dealing), trick-taking, and scoring are
@@ -2310,8 +2373,8 @@ gate governs which *mechanisms* exist — a proof harness, a projection
 emitter, an action encoder, an invariant — exactly as it governs which
 constructs exist. It does not govern how completely a mechanism covers its
 own domain. Once a mechanism exists, its completeness is measured against
-the domain it quantifies over, never against the corpus: "all fifteen games
-pass" is a witness, not a definition of done, because the games exercise a
+the domain it quantifies over, never against the corpus: "every corpus game
+passes" is a witness, not a definition of done, because the games exercise a
 sliver of any semantic domain.
 
 The operative distinction is **closed versus open**, not thorough versus

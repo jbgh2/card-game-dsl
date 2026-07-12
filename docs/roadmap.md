@@ -192,9 +192,9 @@ work that isn't an open question, and which next game unblocks what.
    information partition *is* for Tichu — so it precedes any external
    partition claim — and the call rules must be verified against Pagat
    before design (grand tichu is a fixed first-eight-cards window; small
-   tichu is callable any time before the caller's first play, which
-   touches
-   [open-questions/optional-window-moves.md](open-questions/optional-window-moves.md)).
+   tichu is callable any time before the caller's first play, which runs
+   on the settled quiescence-lap poll — [decisions.md](decisions.md),
+   "Off-the-clock windows").
    The partition checks (legal-action agreement, the per-visible-fact
    soundness matrix, seed/rng non-observability, adapter agreement — see
    [open-questions/structural-infoset-proofs.md](open-questions/structural-infoset-proofs.md),
@@ -217,20 +217,14 @@ work that isn't an open question, and which next game unblocks what.
      combination model to the standard library.
    - **Gin Rummy** — the other turn-loop-form anchor, and the rummy-family
      game [meld-groups](open-questions/meld-groups.md) is blocked on.
-   - **Doppelkopf** — a verified forcing function for both
-     [zone-access-syntax](open-questions/zone-access-syntax.md) and
-     [optional-window-moves](open-questions/optional-window-moves.md).
    - **Klondike or FreeCell** — first solitaire; forces the deferred
      positional-zone design rather than an open question.
 
 3. **Address Tier 3 questions when their corner gets exercised.**
    [move-level-visibility](open-questions/move-level-visibility.md) awaits
-   the first game needing a move-level projection override;
-   [zone-access-syntax](open-questions/zone-access-syntax.md) awaits a
-   complex relational chain in subject position (Doppelkopf, above). When
-   these land, the partition checks are their acceptance bar: new
-   visibility surface arrives with derived partition coverage, not bespoke
-   tests.
+   the first game needing a move-level projection override. When these
+   land, the partition checks are their acceptance bar: new visibility
+   surface arrives with derived partition coverage, not bespoke tests.
 
 4. **Pin down [memory-event-syntax](open-questions/memory-event-syntax.md)**
    when three or four examples exist beyond stdlib operations (Stud and

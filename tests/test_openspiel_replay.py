@@ -28,6 +28,7 @@ KERNEL_GAMES = [
     "french-tarot.cardlang",
     "cribbage.cardlang",
     "skat.cardlang",
+    "doppelkopf.cardlang",
 ]
 
 

@@ -157,3 +157,76 @@ def test_rejects_produce_outside_define() -> None:
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(src, "g.cardlang")
     assert "produce" in str(ei.value) or "define" in str(ei.value)
+
+
+def test_rejects_dot_form_on_a_player_receiver() -> None:
+    # The dot form is object-member access only (Card, Move, struct fields).
+    # `p.hand` — the once-documented zone sugar — was never implemented by the
+    # runtime and no corpus game uses it, so it is statically rejected toward
+    # the bracket form (decisions.md "Typed object model", access discipline;
+    # settled by Doppelkopf, the predicted forcing game, whose relational
+    # chains flattened to player-indexed state instead).
+    src = """
+game G {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0  x : Integer = 0  d : Player = 0 }
+  phase play {
+    x := d.score + 1
+  }
+  winner: highest score
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "object-member" in str(ei.value) and "score[...]" in str(ei.value)
+
+
+def test_rejects_dot_form_on_a_computed_player_receiver() -> None:
+    # The complex-receiver case the settled question named: a relational
+    # chain in subject position is rejected the same way, not silently
+    # deferred — including when rooted at a loop binder the flat walk leaves
+    # untyped (offset_by yields a seat regardless of its operand's type).
+    src = """
+game G {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0  x : Integer = 0 }
+  phase play {
+    for each player p:
+      x := (p offset_by left).score + 1
+  }
+  winner: highest score
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "object-member" in str(ei.value)
+
+
+def test_rejects_dot_form_on_an_optional_player_receiver() -> None:
+    # Optionals reject like their payload: the closed rejection domain
+    # includes the optional wrappers of its members (sweep-the-class).
+    src = """
+game G {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0  x : Integer = 0  d : Player? = none }
+  phase play {
+    x := d.score + 1
+  }
+  winner: highest score
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "object-member" in str(ei.value)

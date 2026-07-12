@@ -114,8 +114,8 @@ genuine new axis to surface and sign off" ([kernel-migration.md](../kernel-migra
 **out-of-turn bombs** — a *mechanism* that *inverts* the model's "rules
 constrain" framing, permitting rather than restricting
 ([open-questions/out-of-turn-moves.md](../open-questions/out-of-turn-moves.md)); **off-the-clock calls** —
-"there is no 'optional move during a window' idiom yet"
-([open-questions/optional-window-moves.md](../open-questions/optional-window-moves.md)); **Phoenix contextual
+the quiescence-lap poll ([decisions.md](../decisions.md),
+"Off-the-clock windows"); **Phoenix contextual
 rank** — "resolved at play time against trick context"
 ([open-questions/special-cards-declaration.md](../open-questions/special-cards-declaration.md)); **Coup
 challenge/block nesting** — "the highest new-axis risk"
@@ -638,8 +638,7 @@ here.
   (auction form incl. the resolved call-and-response bullet, climbing form,
   round-config-vs-rules, order axis /
   simultaneous, projection model), [kernel-migration.md](../kernel-migration.md) (WS1–WS5),
-  [.../out-of-turn-moves.md],
-  [.../optional-window-moves.md], [.../special-cards-declaration.md].
+  [.../out-of-turn-moves.md], [.../special-cards-declaration.md].
 
 ---
 

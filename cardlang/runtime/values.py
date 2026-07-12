@@ -78,6 +78,14 @@ DECKS: dict[str, Deck] = {
         values={"A": 10, "10": 10, "K": 10, "Q": 0, "J": 0, "9": 0},
         copies=2,
     ),
+    # 48-card Doppelkopf pack: the Pinochle composition (two copies of
+    # A 10 K Q J 9 per suit) under Ace-Ten values (240 card points total).
+    "doppelkopf48": Deck(
+        suits=SUITS,
+        ranks=("A", "10", "K", "Q", "J", "9"),
+        values={"A": 11, "10": 10, "K": 4, "Q": 3, "J": 2, "9": 0},
+        copies=2,
+    ),
     # 32-card Skat pack: A 10 K Q J 9 8 7 per suit (Ace-Ten values, 120 total).
     "skat32": Deck(
         suits=SUITS,

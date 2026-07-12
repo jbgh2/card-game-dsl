@@ -207,7 +207,13 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                 return TBoolean()
             if e.op in ("+", "-", "*"):
                 return TInteger()
-            return TAny()  # offset_by and any future operators
+            if e.op == "offset_by":
+                # Seat arithmetic yields a seat, whatever the walk knows about
+                # the operand — a binder-rooted receiver ((p offset_by left),
+                # p untyped by the flat walk) must still hit the dot-form
+                # rejection rather than fall through to a runtime assert.
+                return TPlayer()
+            return TAny()  # any future operators
         case n.Not() | n.IsCheck() | n.Quantifier():
             return TBoolean()
         case n.Choose():
@@ -488,8 +494,23 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         _check_struct_lit(e, env, bag)
     elif isinstance(e, n.Member):
         obj = infer(e.obj, env)
+        # Optionals reject like their payload: `d : Player?` is as much a
+        # non-object receiver as `d : Player` (the closed rejection domain
+        # includes the optional wrappers of its members).
+        bare = obj.inner if isinstance(obj, TOptional) else obj
         if isinstance(obj, TStruct) and e.field not in obj.fields:
             bag.error(f"{obj.name} has no field '{e.field}'", e.span)
+        elif isinstance(bare, (TPlayer, TTeam, TInteger, TBoolean)):
+            # The dot form is object-member access only (Card, Move, and
+            # struct fields). Zone/state indexing is the bracket form, and
+            # relational chains derive through functions and state
+            # (decisions.md "Typed object model", access discipline).
+            bag.error(
+                f"cannot read field '{e.field}' of {_type_name(obj)}: the dot "
+                f"form is object-member access only — index with brackets "
+                f"('{e.field}[...]') instead",
+                e.span,
+            )
 
 
 def _check_struct_lit(e: n.StructLit, env: TypeEnv, bag: DiagnosticBag) -> None:
