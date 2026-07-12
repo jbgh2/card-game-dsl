@@ -230,3 +230,122 @@ game G {
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(src, "g.cardlang")
     assert "object-member" in str(ei.value)
+
+
+def test_rejects_dot_form_on_loop_and_quantifier_binders() -> None:
+    # Binder-introducing constructs type their binders (for-each and
+    # quantifier binders are seats/teams by their role), so the dot-form
+    # rejection fires on binder-rooted receivers too — previously they
+    # inferred TAny and only failed loud at runtime.
+    header = """
+game G {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0  x : Integer = 0  flag : Boolean = false }
+  phase play {
+    %s
+  }
+  winner: highest score
+}
+"""
+    rejected = [
+        "for each player p: x := p.score + 1",
+        "flag := any player p: p.score > 0",
+        "x := (number of players where player.score > 0) + 1",
+    ]
+    for stmt in rejected:
+        with pytest.raises(DiagnosticError) as ei:
+            check_dsl(header % stmt, "g.cardlang")
+        assert "object-member" in str(ei.value), stmt
+
+
+def test_rejects_dot_form_on_a_team_binder() -> None:
+    src = """
+game G {
+  players: 4
+  partnerships: [[0, 2], [1, 3]]
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[team] : Integer = 0  x : Integer = 0 }
+  phase play {
+    for each team t: x := t.score + 1
+  }
+  winner: highest score
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "object-member" in str(ei.value) and "Team" in str(ei.value)
+
+
+def test_rejects_dot_form_on_a_loop_binder_inside_a_produces_arm() -> None:
+    # The produces-arm sub-walk threads loop binders exactly like the main
+    # walk — an arm body is not a TAny loophole for the dot-form rejection.
+    src = """
+game G {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0  x : Integer = 0 }
+  phase round {
+    phase declare -> outcome { done(Player) | skipped } {
+      produce skipped
+    }
+    declare produces:
+      done(w) { for each player q: x := q.score + 1 }
+      skipped { x := 0 }
+  }
+  winner: highest score
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "object-member" in str(ei.value)
+
+
+def test_rejects_dot_form_on_an_each_simultaneously_binder() -> None:
+    src = """
+game G {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0  x : Integer = 0 }
+  phase play {
+    each player simultaneously:
+      x := player.score + 1
+  }
+  winner: highest score
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "object-member" in str(ei.value)
+
+
+def test_comprehension_binder_is_card_typed_over_a_zone() -> None:
+    # Negative control for the binder typing: a comprehension binder over a
+    # card zone is a Card, so its legitimate members stay accepted.
+    src = """
+game G {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0  x : Integer = 0 }
+  phase play {
+    x := sum over deck as c: if c.suit == hearts then 1 else 0
+  }
+  winner: highest score
+}
+"""
+    check_dsl(src, "g.cardlang")  # no raise

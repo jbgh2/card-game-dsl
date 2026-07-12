@@ -322,31 +322,55 @@ def env_from_game(game: Game) -> TypeEnv:
     )
 
 
-def _stmt_tree(s: n.Stmt) -> Iterator[n.Stmt]:
-    yield s
-    if isinstance(s, (n.ForEach, n.EachSimultaneous)):
-        yield from _stmt_tree(s.body)
+# A statement's enclosing loop binders, innermost last: (name, role type).
+_Binders = tuple[tuple[str, "Type"], ...]
+
+
+def _role_type(role: str) -> Type:
+    """The type a `for each <role>` / `any <role>` binder carries. Roles are a
+    closed set from the grammar; an unknown one stays permissive."""
+    if role == "player":
+        return TPlayer()
+    if role == "team":
+        return TTeam()
+    return TAny()
+
+
+def _stmt_tree_scoped(
+    s: n.Stmt, binders: _Binders = ()
+) -> Iterator[tuple[n.Stmt, _Binders]]:
+    """The statement tree, each statement paired with the loop binders in
+    scope at that point — the single traversal every statement walk views."""
+    yield s, binders
+    if isinstance(s, n.ForEach):
+        yield from _stmt_tree_scoped(s.body, binders + ((s.binder, _role_type(s.role)),))
+    elif isinstance(s, n.EachSimultaneous):
+        yield from _stmt_tree_scoped(s.body, binders + ((s.role, _role_type(s.role)),))
     elif isinstance(s, n.RepeatUntil):
         for x in s.body:
-            yield from _stmt_tree(x)
+            yield from _stmt_tree_scoped(x, binders)
     elif isinstance(s, n.IfStmt):
         for x in s.then_body:
-            yield from _stmt_tree(x)
+            yield from _stmt_tree_scoped(x, binders)
         for x in s.else_body or ():
-            yield from _stmt_tree(x)
+            yield from _stmt_tree_scoped(x, binders)
 
 
-def _phase_statements(phase: n.Phase) -> Iterator[n.Stmt]:
+def _stmt_tree(s: n.Stmt) -> Iterator[n.Stmt]:
+    yield from (st for st, _ in _stmt_tree_scoped(s))
+
+
+def _phase_statements_scoped(phase: n.Phase) -> Iterator[tuple[n.Stmt, _Binders]]:
     for item in phase.items:
         if isinstance(item, n.Phase):
-            yield from _phase_statements(item)
+            yield from _phase_statements_scoped(item)
         elif isinstance(item, (n.BeforeEach, n.AfterEach)):
             for s in item.body:
-                yield from _stmt_tree(s)
+                yield from _stmt_tree_scoped(s)
         elif isinstance(item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.TransitionTo)):
             pass
         else:
-            yield from _stmt_tree(item)
+            yield from _stmt_tree_scoped(item)
 
 
 def _non_define_statements(game: Game) -> Iterator[n.Stmt]:
@@ -355,14 +379,22 @@ def _non_define_statements(game: Game) -> Iterator[n.Stmt]:
         for s in move_type.effect:
             yield from _stmt_tree(s)
     for phase in game.phases:
-        yield from _phase_statements(phase)
+        yield from (st for st, _ in _phase_statements_scoped(phase))
+
+
+def _all_statements_scoped(game: Game) -> Iterator[tuple[n.Stmt, _Binders]]:
+    for move_type in game.move_types:
+        for s in move_type.effect:
+            yield from _stmt_tree_scoped(s)
+    for phase in game.phases:
+        yield from _phase_statements_scoped(phase)
+    for define in game.defines:
+        for s in define.body:
+            yield from _stmt_tree_scoped(s)
 
 
 def _all_statements(game: Game) -> Iterator[n.Stmt]:
-    yield from _non_define_statements(game)
-    for define in game.defines:
-        for s in define.body:
-            yield from _stmt_tree(s)
+    yield from (st for st, _ in _all_statements_scoped(game))
 
 
 def _arg_exprs(args: tuple[n.Arg, ...]) -> list[n.Expr]:
@@ -449,7 +481,25 @@ def _function_sigs(game: Game, env: TypeEnv, bag: DiagnosticBag) -> dict[str, Si
 
 def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
     """Recursively validate a single expression: stdlib argument types and
-    subscript legality. Types of unrefined sub-parts are `TAny` (permissive)."""
+    subscript legality. Types of unrefined sub-parts are `TAny` (permissive).
+
+    Binder-introducing expressions extend the environment for their body, so
+    type-directed checks (the dot-form rejection above all) see quantifier,
+    player-query, and comprehension binders at their real types rather than
+    `TAny`. Lambda parameters stay untyped — a lambda's element type belongs
+    to its receiver, which the checker does not model yet."""
+    if isinstance(e, n.Quantifier):
+        _check_expr(e.body, env.with_local(e.binder, _role_type(e.role)), bag)
+        return
+    if isinstance(e, n.PlayerQuery):
+        _check_expr(e.pred, env.with_local("player", TPlayer()), bag)
+        return
+    if isinstance(e, n.Comprehension):
+        _check_expr(e.source, env, bag)
+        src = infer(e.source, env)
+        elem: Type = src.element if isinstance(src, TCollection) else TAny()
+        _check_expr(e.body, env.with_local(e.binder, elem), bag)
+        return
     for child in _child_exprs(e):
         _check_expr(child, env, bag)
     if isinstance(e, n.Call):
@@ -1126,7 +1176,12 @@ def _check_produces(
         for binder, t in zip(arm.binders, payload_types):
             arm_env = arm_env.with_local(binder, t)
         for body_stmt in arm.body:
-            for sub in _stmt_tree(body_stmt):
+            for sub, loop_binders in _stmt_tree_scoped(body_stmt):
+                # Arm bodies carry the same loop-binder typing as the main
+                # walk — a `for each` inside an arm is not a TAny loophole.
+                sub_env = arm_env
+                for name, t in loop_binders:
+                    sub_env = sub_env.with_local(name, t)
                 if isinstance(sub, n.Produce):
                     # `_stmt_tree` does not descend into `produces:` arms, so the
                     # outer misplaced-produce walk never sees this — reject it here.
@@ -1134,10 +1189,10 @@ def _check_produces(
                 if isinstance(sub, n.Produces):
                     # Nested consumer: check it with the enclosing arm binders in
                     # scope (so outer payload binders are typed, not TAny).
-                    _check_produces(sub, variants, arm_env, bag)
+                    _check_produces(sub, variants, sub_env, bag)
                 for expr in _stmt_exprs(sub):
-                    _check_expr(expr, arm_env, bag)
-                _check_stmt_semantics(sub, arm_env, bag)
+                    _check_expr(expr, sub_env, bag)
+                _check_stmt_semantics(sub, sub_env, bag)
     missing = sorted(set(variant.cases) - seen)
     if missing:
         bag.error(
@@ -1162,15 +1217,18 @@ def typecheck(game: Game) -> Game:
     env = env_from_game(game)
     env = replace(env, functions=_function_sigs(game, env, bag))
     variants = variant_registry(game, env.structs)
-    for stmt in _all_statements(game):
+    for stmt, binders in _all_statements_scoped(game):
+        senv = env
+        for name, t in binders:
+            senv = senv.with_local(name, t)
         for expr in _stmt_exprs(stmt):
-            _check_expr(expr, env, bag)
+            _check_expr(expr, senv, bag)
         if isinstance(stmt, n.Produces):
             # `_check_produces` recurses into arm-nested consumers itself, carrying
             # the arm binders into their environment.
-            _check_produces(stmt, variants, env, bag)
+            _check_produces(stmt, variants, senv, bag)
         else:
-            _check_stmt_semantics(stmt, env, bag)
+            _check_stmt_semantics(stmt, senv, bag)
     for define in game.defines:
         variant = variants.get(define.name)
         if variant is not None:
