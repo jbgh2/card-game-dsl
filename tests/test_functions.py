@@ -34,7 +34,7 @@ game G {
   state { score[player] : Integer = 0  done[player] : Boolean = false }
   phase run {
     round offering [step, stop] from 0 over players where ready(player)
-          until (number of players where ready(player)) == 0
+          until (number of players where ready(player)) is 0
   }
   winner: highest score
 }
@@ -166,7 +166,7 @@ game G {
 rule R {
   constrains: play_to_trick
   applies_when: always
-  demands: hand.where(c => owes())
+  demands: cards in hand where owes()
   if_impossible: hand
 }
 function owes(p : Player) = score[p] >= 0
@@ -197,7 +197,7 @@ game G {
   phase play {
     active_rules: [FollowViaFunction]
     legal_moves: [play_to_trick]
-    repeat until (all player p: hand[p] is empty) {
+    repeat until (all players where hand[player] is empty) {
       round play_to_trick from leader over all players source hand into trick_pile
             outcome highest_of_led_suit
       tricks[outcome] += 1
@@ -213,7 +213,7 @@ rule FollowViaFunction {
   demands: must_follow()
   if_impossible: hand
 }
-function must_follow() = hand.cards_of_suit(state.led_suit)
+function must_follow() = cards in hand where card.suit is state.led_suit
 """
 
 
@@ -281,7 +281,7 @@ game G {
   phase p { }
   winner: highest score
 }
-function tag(p : Player) = p == p
+function tag(p : Player) = p is p
 """
 
 

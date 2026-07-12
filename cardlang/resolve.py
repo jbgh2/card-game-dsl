@@ -33,7 +33,6 @@ from cardlang.stdlib.functions import (
     STDLIB_EARLY_PREDICATES,
     STDLIB_TRICK_OUTCOMES,
     STDLIB_VALUE_NAMES,
-    ZONE_METHODS,
 )
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
 from cardlang.stdlib.rules import library_rules
@@ -44,9 +43,10 @@ from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 # Roles a zone may be indexed by or owned by. Grows with the seating model.
 _KNOWN_ROLES = {"player", "team"}
 
-# Roles a quantifier (`any <role> x:`) or `for each <role>` may range over:
-# the seat roles plus the deck's value domains. `each … simultaneously` is
-# seat-only — a value domain has no actor to move simultaneously.
+# Roles `for each <role> <binder>` may range over: the seat roles plus the
+# deck's value domains. (Quantifier roles are fixed by their grammar
+# productions; `each … simultaneously` is seat-only — a value domain has no
+# actor to move simultaneously.)
 _ITERATION_ROLES = frozenset({"player", "team", "suit", "rank"})
 
 # The magic namespaces a bare name may resolve to.
@@ -95,8 +95,6 @@ def _template_binders(rule: n.RuleDef) -> set[str]:
     out: set[str] = set()
     for nd in _walk(rule):
         match nd:
-            case n.Lambda():
-                out.add(nd.param)
             case n.Comprehension() | n.Quantifier() | n.ForEach():
                 out.add(nd.binder)
             case n.EachSimultaneous():
@@ -536,8 +534,6 @@ def _categories(game: n.Game) -> _Categories:
         match nd:
             case n.StateDecl():
                 state_vars.add(nd.name)
-            case n.Lambda():
-                locals_.add(nd.param)
             case n.Comprehension() | n.Quantifier() | n.ForEach():
                 locals_.add(nd.binder)
             case n.EachSimultaneous():
@@ -546,10 +542,8 @@ def _categories(game: n.Game) -> _Categories:
                 locals_.add("player")  # the implicit per-candidate binder
             case n.CardQuery():
                 locals_.add("card")  # the implicit per-candidate binder
-            case n.Movement() if nd.filter is not None and not isinstance(nd.filter, n.Lambda):
-                locals_.add("card")  # the movement filter's implicit binder
-            case n.EpistemicOp() if nd.filter is not None and not isinstance(nd.filter, n.Lambda):
-                locals_.add("card")  # the reveal filter's implicit binder
+            case n.Movement() | n.EpistemicOp() if nd.filter is not None:
+                locals_.add("card")  # the where-filter's implicit binder
             case n.LetStmt():
                 locals_.add(nd.name)
                 if nd.index is not None:
@@ -770,8 +764,6 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
                     allowed.add("player")
                 case n.CardQuery():
                     allowed.add("card")
-                case n.Lambda():
-                    allowed.add(nd.param)
         for nd in _walk(fn.body):
             if not isinstance(nd, n.NameRef):
                 continue
@@ -1011,14 +1003,6 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"produces names unknown define or outcome phase '{nd.define}'",
                     nd.span,
                 )
-            case n.MethodCall() if nd.method not in ZONE_METHODS:
-                bag.error(f"unknown zone method '{nd.method}'", nd.span)
-            case n.Quantifier() if nd.role not in _ITERATION_ROLES:
-                bag.error(
-                    f"unknown quantifier role '{nd.role}' (expected one of "
-                    f"{', '.join(sorted(_ITERATION_ROLES))})",
-                    nd.span,
-                )
             case n.ForEach() if nd.role not in _ITERATION_ROLES:
                 bag.error(
                     f"unknown `for each` role '{nd.role}' (expected one of "
@@ -1029,19 +1013,6 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 bag.error(
                     f"`each {nd.role} simultaneously` is not runnable — "
                     f"simultaneous moves are per player",
-                    nd.span,
-                )
-            case n.Comprehension() if nd.agg == "count" and not (
-                isinstance(nd.body, n.NameRef) and nd.body.name == "true"
-            ):
-                # `count` returns the element count whatever the body evaluates
-                # to — a predicate here parses, runs, and is silently discarded
-                # (the worst defect class, decisions.md "Surface totality").
-                bag.error(
-                    f"`count over` returns the element count and would silently "
-                    f"ignore this body — write the literal `true` (the size "
-                    f"idiom), or count matches with `sum over … as "
-                    f"{nd.binder}: if <pred> then 1 else 0`",
                     nd.span,
                 )
             case n.CardLiteral():

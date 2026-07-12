@@ -1,12 +1,13 @@
-"""Runtime semantics of every comprehension aggregator arm (closed-domain
-completeness, decisions.md): the domain is the grammar's `AGG` terminal —
-`sum | count | max | min` — and every arm is exercised here, including the
-empty-collection behavior of the order aggregators (a loud runtime error, not
-a bare `ValueError` from `max()`/`min()`).
+"""Runtime semantics of every aggregation form (closed-domain completeness,
+decisions.md): the domain is the English register's aggregation surface —
+`sum of … over cards in …`, `highest/lowest … over cards in … or <default>`,
+and the counting card query `number of cards in … [where …]` — each arm
+exercised here, including the empty and filtered-to-empty cases (the order
+aggregators' grammar makes the `or <default>` clause mandatory, so an empty
+zone yields the declared value, never a crash).
 
-`count` accepts only the literal `true` as its body (resolve rejects anything
-else — see `tests/test_construct_combination_validity.py`), so its runtime arm
-is exercised through that one legal shape.
+The retired spellings (`sum/count/max/min over … as x: …`, `==`/`!=`) must
+NOT parse — pinned at the bottom so retirement cannot silently regress.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ import random
 import pytest
 
 from cardlang.ast import nodes as n
+from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
@@ -24,10 +26,6 @@ from cardlang.runtime.values import Card, Seating
 HEARTS_A = Card("A", "hearts")
 HEARTS_2 = Card("2", "hearts")
 CLUBS_K = Card("K", "clubs")
-
-# Every aggregator the grammar admits; pinned so a new AGG token cannot land
-# without extending this module's coverage.
-GRAMMAR_AGGREGATORS = frozenset({"sum", "count", "max", "min"})
 
 
 def _expr(expr_src: str) -> tuple[n.Game, n.Expr]:
@@ -60,47 +58,92 @@ def _ctx(game: n.Game, pile_cards: list[Card]) -> Ctx:
     return Ctx(rs=rs, chooser=_unused_chooser).acting_as(0)
 
 
-def test_grammar_agg_set_is_pinned() -> None:
-    """The grammar's AGG terminal and this module's covered set must agree —
-    a new aggregator arrives with its arm tests or not at all."""
-    from importlib import resources
-
-    grammar = resources.files("cardlang.grammar").joinpath("cardlang.lark").read_text()
-    (line,) = [ln for ln in grammar.splitlines() if ln.startswith("AGG:")]
-    in_grammar = {tok.strip().strip('"') for tok in line.split(":", 1)[1].split("|")}
-    assert in_grammar == GRAMMAR_AGGREGATORS
+# --- sum ---
 
 
-def test_sum_aggregates_the_body_values() -> None:
-    game, e = _expr("sum over pile as c: if c.suit == hearts then 1 else 0")
+def test_sum_aggregates_the_body_over_every_card() -> None:
+    game, e = _expr("sum of (if card.suit is hearts then 1 else 0) over cards in pile")
+    assert evaluate(e, _ctx(game, [HEARTS_A, CLUBS_K, HEARTS_2])) == 2
+
+
+def test_sum_with_a_where_filter_aggregates_the_matching_cards_only() -> None:
+    game, e = _expr("sum of 1 over cards in pile where card.suit is hearts")
     assert evaluate(e, _ctx(game, [HEARTS_A, CLUBS_K, HEARTS_2])) == 2
 
 
 def test_sum_over_an_empty_collection_is_zero() -> None:
-    game, e = _expr("sum over pile as c: if c.suit == hearts then 1 else 0")
+    game, e = _expr("sum of 1 over cards in pile")
     assert evaluate(e, _ctx(game, [])) == 0
 
 
-def test_count_true_returns_the_element_count() -> None:
-    game, e = _expr("count over pile as c: true")
+# --- counting (the card query) ---
+
+
+def test_bare_count_is_the_zone_size() -> None:
+    game, e = _expr("number of cards in pile")
     assert evaluate(e, _ctx(game, [HEARTS_A, CLUBS_K, HEARTS_2])) == 3
     assert evaluate(e, _ctx(game, [])) == 0
 
 
-def test_max_returns_the_largest_body_value() -> None:
-    game, e = _expr("max over pile as c: if c.suit == hearts then 9 else 1")
+def test_filtered_count_counts_the_matches() -> None:
+    game, e = _expr("number of cards in pile where card.suit is hearts")
+    assert evaluate(e, _ctx(game, [HEARTS_A, CLUBS_K, HEARTS_2])) == 2
+
+
+# --- highest / lowest ---
+
+
+def test_highest_returns_the_largest_body_value() -> None:
+    game, e = _expr(
+        "highest (if card.suit is hearts then 9 else 1) over cards in pile or -1"
+    )
     assert evaluate(e, _ctx(game, [CLUBS_K, HEARTS_2])) == 9
 
 
-def test_min_returns_the_smallest_body_value() -> None:
-    game, e = _expr("min over pile as c: if c.suit == hearts then 9 else 1")
+def test_lowest_returns_the_smallest_body_value() -> None:
+    game, e = _expr(
+        "lowest (if card.suit is hearts then 9 else 1) over cards in pile or -1"
+    )
     assert evaluate(e, _ctx(game, [CLUBS_K, HEARTS_2])) == 1
 
 
-@pytest.mark.parametrize("agg", ["max", "min"])
-def test_order_aggregators_fail_loud_on_an_empty_collection(agg: str) -> None:
-    # Not a bare ValueError out of the builtin: the message names the construct
-    # and the guard, in the runtime's failure currency.
-    game, e = _expr(f"{agg} over pile as c: if c.suit == hearts then 9 else 1")
-    with pytest.raises(RuntimeError, match="empty collection has no value"):
-        evaluate(e, _ctx(game, []))
+def test_order_aggregators_respect_the_where_filter() -> None:
+    game, e = _expr("highest 5 over cards in pile where card.suit is hearts or -1")
+    assert evaluate(e, _ctx(game, [CLUBS_K, HEARTS_2])) == 5
+
+
+@pytest.mark.parametrize("agg", ["highest", "lowest"])
+def test_order_aggregators_yield_the_default_on_an_empty_zone(agg: str) -> None:
+    game, e = _expr(f"{agg} 5 over cards in pile or -1")
+    assert evaluate(e, _ctx(game, [])) == -1
+
+
+@pytest.mark.parametrize("agg", ["highest", "lowest"])
+def test_order_aggregators_yield_the_default_when_the_filter_empties(agg: str) -> None:
+    game, e = _expr(f"{agg} 5 over cards in pile where card.suit is spades or 42")
+    assert evaluate(e, _ctx(game, [CLUBS_K, HEARTS_2])) == 42
+
+
+# --- the retired spellings must not come back ---
+
+
+@pytest.mark.parametrize(
+    "src",
+    [
+        "sum over pile as c: 1",
+        "count over pile as c: true",
+        "max over pile as c: 1",
+        "min over pile as c: 1",
+        "any player p: score[p] >= 1",
+    ],
+)
+def test_retired_aggregator_and_binder_spellings_do_not_parse(src: str) -> None:
+    with pytest.raises(DiagnosticError, match="syntax error"):
+        _expr(src)
+
+
+def test_retired_equality_symbols_are_rejected_with_the_word_form() -> None:
+    with pytest.raises(DiagnosticError, match="write `is`"):
+        _expr("1 == 1")
+    with pytest.raises(DiagnosticError, match="write `is not`"):
+        _expr("1 != 1")

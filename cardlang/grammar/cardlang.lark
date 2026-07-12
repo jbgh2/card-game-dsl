@@ -97,7 +97,6 @@ phase_outcome: "->" "outcome" variant_set
 // One lexeme for iteration everywhere: the phase qualifier matches the
 // statement form (`repeat until`), not third-person `repeats`.
 phase_qualifier: "repeat" "until" expr    -> phase_repeats
-               | "repeats" "until" expr   -> phase_repeats_legacy
                | "when" expr              -> phase_when
 
 ?phase_item: state_block
@@ -109,7 +108,7 @@ phase_qualifier: "repeat" "until" expr    -> phase_repeats
            | phase
            | statement
 
-// Loop lifecycle hooks on a `repeats until` phase: before_each runs at the
+// Loop lifecycle hooks on a `repeat until` phase: before_each runs at the
 // start of every iteration, after_each at the end — guaranteed even when the
 // loop terminates mid-iteration (decisions.md "Loop lifecycle").
 before_each: "before_each" "{" statement* "}"
@@ -158,7 +157,7 @@ move_event: NAME ["where" expr]
 
 // Imperative phase control flow, used in `produces:` arms (decisions.md "Typed
 // phase outcomes"): jump forward to a named sibling phase, or abort the rest of
-// this hand and continue the enclosing `repeats until` hand loop.
+// this hand and continue the enclosing `repeat until` hand loop.
 continue_to: "continue" "to" NAME
 skip_stmt: "skip" "to" "next" "hand"
 
@@ -328,11 +327,9 @@ if_impossible: "if_impossible" ":" expr
 
 ?expr: quantifier
      | if_expr
-     | comprehension
      | agg_query
      | player_query
      | card_query
-     | lambda
      | or_expr
 
 // Queries over the player ring. Like the quantifier/comprehension forms, these
@@ -351,16 +348,11 @@ card_query: "cards" "in" zone_expr "where" expr                  -> cq_set
           | "any" "card" "in" zone_expr "where" expr             -> cq_any
           | "all" "cards" "in" zone_expr "where" expr            -> cq_all
 
-// A lambda's body extends as far right as possible, so it sits at the top
-// of the expression grammar rather than among the primaries.
-lambda: NAME "=>" expr   -> lambda_expr
 
 // Boolean quantifiers, binder implicit (`player`/`team`/`suit`/`rank` is
 // bound per candidate, like `player` in the player queries). Card
 // quantification is the card_query `any card in … where` form above.
-quantifier: "any" NAME NAME ":" expr  -> exists
-          | "all" NAME NAME ":" expr  -> forall
-          | "any" "player" "where" expr  -> q_any_player
+quantifier: "any" "player" "where" expr  -> q_any_player
           | "all" "players" "where" expr -> q_all_player
           | "any" "team" "where" expr    -> q_any_team
           | "all" "teams" "where" expr   -> q_all_team
@@ -369,8 +361,6 @@ quantifier: "any" NAME NAME ":" expr  -> exists
           | "any" "rank" "where" expr    -> q_any_rank
           | "all" "ranks" "where" expr   -> q_all_rank
 
-comprehension: AGG "over" zone_expr "as" NAME ":" expr
-AGG: "sum" | "count" | "max" | "min"
 
 // Aggregations in the English register, binder implicitly `card`. The order
 // aggregators carry a MANDATORY empty-set default (`or <default>`), so an
@@ -413,8 +403,7 @@ COMP_OP: "==" | "!=" | ">=" | "<=" | ">" | "<"
 ?factor: factor "*" postfix -> mul
        | postfix
 
-?postfix: postfix "." NAME "(" [arg_list] ")"  -> method_call
-        | postfix "." NAME                     -> member
+?postfix: postfix "." NAME                     -> member
         | postfix index_expr                   -> subscript
         | primary
 

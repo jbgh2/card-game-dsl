@@ -132,7 +132,7 @@ game G {
 
 
 def test_rejects_skip_to_next_hand_outside_a_hand_loop() -> None:
-    # `round` is not a `repeats until` loop, so there is no hand to skip.
+    # `round` is not a `repeat until` loop, so there is no hand to skip.
     src = """
 game G {
   players: 2
@@ -433,7 +433,7 @@ game G {
 
 
 def test_rejects_consumer_of_a_repeating_producer() -> None:
-    # A `repeats until` producer may run zero iterations (or not produce on its
+    # A `repeat until` producer may run zero iterations (or not produce on its
     # last), so a later consumer can't depend on it either.
     src = """
 game G {
@@ -444,7 +444,7 @@ game G {
   zones { deck : Deck  hand[player] : Hand<player> }
   state { score[player] : Integer = 0  k : Integer = 0 }
   phase round {
-    phase decide -> outcome { a } repeats until (k >= 1) {
+    phase decide -> outcome { a } repeat until (k >= 1) {
       before_each { k := k + 1 }
       produce a
     }
@@ -471,7 +471,7 @@ game G {
   zones { deck : Deck  hand[player] : Hand<player> }
   state { score[player] : Integer = 0  k : Integer = 0 }
   phase outer_prod -> outcome { val(Integer) } { produce val(5) }
-  phase loop repeats until (k >= 2) {
+  phase loop repeat until (k >= 2) {
     before_each { k := k + 1 }
     outer_prod produces:
       val(x) { score[0] += x }
@@ -547,7 +547,7 @@ game G {
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
   state { score[player] : Integer = 0  k : Integer = 0 }
-  phase loop repeats until (k >= 2) {
+  phase loop repeat until (k >= 2) {
     phase prod -> outcome { val(Integer) } { produce val(5) }
     before_each {
       k := k + 1
@@ -632,10 +632,10 @@ game G {
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
   state { score[player] : Integer = 0  k : Integer = 0 }
-  phase loop repeats until (k >= 2) {
+  phase loop repeat until (k >= 2) {
     before_each { k := k + 1 }
     phase gate -> outcome { skipnow | go } {
-      if (k == 1) { produce skipnow } else { produce go }
+      if (k is 1) { produce skipnow } else { produce go }
     }
     gate produces:
       skipnow { skip to next hand }
@@ -658,7 +658,7 @@ def test_accepts_after_each_consuming_its_loop_body_producer() -> None:
     # after_each runs after the body on every iteration, so it can consume
     # `prod`, a producer in its own loop body with no skip before it. This is
     # the only place an after_each consumer's producer can live: hooks belong
-    # to `repeats until` phases (on any other phase the runtime never runs
+    # to `repeat until` phases (on any other phase the runtime never runs
     # them, and the checker rejects the combination), and the loop wall keeps
     # outer run-once producers from carrying in.
     src = """
@@ -669,7 +669,7 @@ game G {
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
   state { score[player] : Integer = 0  k : Integer = 0 }
-  phase loop repeats until (k >= 2) {
+  phase loop repeat until (k >= 2) {
     before_each { k := k + 1 }
     phase prod -> outcome { val(Integer) } { produce val(5) }
     after_each {
@@ -735,7 +735,7 @@ game G {
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
   state { score[player] : Integer = 0  n : Integer = 0 }
-  phase loop repeats until (n >= 1) {
+  phase loop repeat until (n >= 1) {
     before_each { n := n + 1  skip to next hand }
   }
   winner: highest score

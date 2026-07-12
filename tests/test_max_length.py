@@ -3,7 +3,7 @@ length as a declared contract"). Missing/non-positive declarations are
 covered in test_resolve.py alongside the resolver's other structural
 checks; this file covers the grammar round-trip, all three runtime
 enforcement mechanisms (statement-level `repeat until`, phase-level
-`repeats until`, and the decision counter that bounds actual chooser
+`repeat until`, and the decision counter that bounds actual chooser
 picks — the unit corpus values are sized against, and the only one of
 the three a structurally-terminating loop with many decisions per
 iteration can't evade), and the OpenSpiel adapter's `max_game_length`
@@ -65,8 +65,8 @@ def test_statement_level_repeat_until_respects_declared_max_length() -> None:
     assert "max_length (5)" in str(e.value)
 
 
-def test_phase_level_repeats_until_respects_declared_max_length() -> None:
-    dsl = _non_terminating_game("  phase p repeats until false {\n  }\n")
+def test_phase_level_repeat_until_respects_declared_max_length() -> None:
+    dsl = _non_terminating_game("  phase p repeat until false {\n  }\n")
     game = check_dsl(dsl, "test.cardlang")
     with pytest.raises(RuntimeError) as e:
         play_game(game, random.Random(0))

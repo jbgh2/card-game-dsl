@@ -122,12 +122,8 @@ def _movement(stmt: n.Movement, ctx: Ctx) -> None:
             )
 
 def _card_pred(filter_expr: n.Expr, ctx: Ctx) -> Callable[[Card], bool]:
-    """A movement/reveal `where` filter as a card predicate. The English form
-    is an ordinary expression with `card` bound per candidate; the legacy
-    lambda form closes over its own parameter."""
-    if isinstance(filter_expr, n.Lambda):
-        closure = evaluate(filter_expr, ctx)
-        return lambda c: bool(closure(c))
+    """A movement/reveal `where` filter as a card predicate: an ordinary
+    expression evaluated with `card` bound per candidate."""
     return lambda c: bool(evaluate(filter_expr, ctx.with_local("card", c)))
 
 

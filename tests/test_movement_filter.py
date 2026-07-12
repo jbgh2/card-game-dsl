@@ -25,7 +25,7 @@ game Mini {
   zones { deck : Deck  hand[player] : Hand<player>  pile : TrickPile }
   state { score[player] : Integer = 0 }
   phase p {
-    move chosen 2 cards from hand[0] where c => c.suit == hearts to pile
+    move chosen 2 cards from hand[0] where card.suit is hearts to pile
   }
   winner: highest score
 }
@@ -52,10 +52,9 @@ def _movement(game: n.Game) -> n.Movement:
     return stmt
 
 
-def test_where_filter_parses_as_a_lambda() -> None:
+def test_where_filter_parses_as_a_card_predicate() -> None:
     mv = _movement(parse_text(FILTERED_SRC, "mini.cardlang"))
-    assert isinstance(mv.filter, n.Lambda)
-    assert mv.filter.param == "c"
+    assert isinstance(mv.filter, n.BinOp) and mv.filter.op == "=="
 
 
 def test_plain_movement_has_no_filter() -> None:
@@ -66,10 +65,9 @@ def test_plain_movement_has_no_filter() -> None:
 def test_typecheck_accepts_the_where_predicate() -> None:
     game = check_dsl(FILTERED_SRC, "mini.cardlang")
     mv = _movement(game)
-    assert isinstance(mv.filter, n.Lambda)
-    # Resolve classified the lambda's own binder as a local, and the deck's
-    # `hearts` suit as an enum value — both readable off the checked AST.
-    body = mv.filter.body
+    # Resolve classified the implicit `card` binder as a local, and the
+    # deck's `hearts` suit as an enum value — both readable off the AST.
+    body = mv.filter
     assert isinstance(body, n.BinOp) and body.op == "=="
 
 
@@ -82,14 +80,10 @@ def test_filter_ir_key_emitted_only_when_present() -> None:
 
     assert "filter" in filtered_mv
     assert filtered_mv["filter"] == {
-        "kind": "lambda",
-        "param": "c",
-        "body": {
-            "kind": "binop",
-            "op": "==",
-            "left": {"kind": "member", "obj": {"kind": "name", "name": "c", "ref": "local"}, "field": "suit"},
-            "right": {"kind": "name", "name": "hearts", "ref": "enum_value"},
-        },
+        "kind": "binop",
+        "op": "==",
+        "left": {"kind": "member", "obj": {"kind": "name", "name": "card", "ref": "local"}, "field": "suit"},
+        "right": {"kind": "name", "name": "hearts", "ref": "enum_value"},
     }
     # The whole point: an unfiltered movement carries NO "filter" key at all
     # (not `"filter": null`) — this is what keeps every pre-existing IR golden

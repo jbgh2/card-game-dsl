@@ -47,7 +47,7 @@ def _diags(
 
 def test_player_rank_offer_accepted() -> None:
     diags = _diags(
-        "move_type ask(target : Player, rank : Rank) { when: target != actor effect { done := 1 } }",
+        "move_type ask(target : Player, rank : Rank) { when: target is not actor effect { done := 1 } }",
         "offer to 0 one of [ask]",
     )
     assert diags == []
@@ -113,8 +113,8 @@ def test_player_rank_round_offering_accepted() -> None:
     # The interface requires acceptance under *either* enumeration site; the
     # auction `round offering` vocabulary is the other one (`offer` above).
     diags = _diags(
-        "move_type ask(target : Player, rank : Rank) { when: target != actor effect { done := 1 } }",
-        "round offering [ask] from 0 over all players until done == 1",
+        "move_type ask(target : Player, rank : Rank) { when: target is not actor effect { done := 1 } }",
+        "round offering [ask] from 0 over all players until done is 1",
     )
     assert not any("parameter" in d for d in diags), diags
 
@@ -160,7 +160,7 @@ def test_offer_of_two_card_parameterized_moves_rejected() -> None:
 
 def test_rank_param_without_declared_ranking_rejected() -> None:
     diags = _diags(
-        "move_type ask(target : Player, rank : Rank) { when: target != actor effect { done := 1 } }",
+        "move_type ask(target : Player, rank : Rank) { when: target is not actor effect { done := 1 } }",
         "offer to 0 one of [ask]",
         ranking="",
     )
@@ -171,8 +171,8 @@ def test_rank_param_without_declared_ranking_rejected_in_round_offering() -> Non
     # Mirror of the above for the auction `round offering` vocabulary — the
     # other enumeration site `_check_vocabulary_moves` shares with `offer`.
     diags = _diags(
-        "move_type ask(target : Player, rank : Rank) { when: target != actor effect { done := 1 } }",
-        "round offering [ask] from 0 over all players until done == 1",
+        "move_type ask(target : Player, rank : Rank) { when: target is not actor effect { done := 1 } }",
+        "round offering [ask] from 0 over all players until done is 1",
         ranking="",
     )
     assert any("Rank" in d and "ranking" in d for d in diags), diags
@@ -186,7 +186,7 @@ def test_no_ranking_and_no_rank_param_still_resolves_clean() -> None:
     # Player (seats always exist) and Suit (sourced from `deck_suits`, always
     # non-empty for a real deck) must not trip this gate.
     diags = _diags(
-        "move_type target_someone(target : Player) { when: target != actor effect { done := 1 } }",
+        "move_type target_someone(target : Player) { when: target is not actor effect { done := 1 } }",
         "offer to 0 one of [target_someone]",
         ranking="",
     )

@@ -426,13 +426,6 @@ def _expr(e: n.Expr) -> IRDict:
             }
         case n.Call():
             return {"kind": "call", "func": e.func, "args": [_arg(a) for a in e.args]}
-        case n.MethodCall():
-            return {
-                "kind": "method_call",
-                "obj": _expr(e.obj),
-                "method": e.method,
-                "args": [_arg(a) for a in e.args],
-            }
         case n.BinOp():
             return {
                 "kind": "binop",
@@ -444,8 +437,6 @@ def _expr(e: n.Expr) -> IRDict:
             return {"kind": "not", "operand": _expr(e.operand)}
         case n.IsCheck():
             return {"kind": "is_check", "check": e.kind, "operand": _expr(e.operand)}
-        case n.Lambda():
-            return {"kind": "lambda", "param": e.param, "body": _expr(e.body)}
         case n.Quantifier():
             return {
                 "kind": "quantifier",

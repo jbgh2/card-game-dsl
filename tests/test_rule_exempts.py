@@ -39,7 +39,7 @@ game Mini {
 rule JokerIsExempt {
   constrains: play_to_trick
   applies_when: state.led_suit is not none
-  exempts: hand.where(c => c.rank == "2")
+  exempts: cards in hand where card.rank is "2"
 }
 """
 

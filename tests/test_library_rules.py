@@ -84,7 +84,7 @@ def test_a_game_local_template_instantiates_too() -> None:
 rule NoTrumpLead(suit: Suit) {
   constrains: play_to_trick
   applies_when: state.led_suit is none
-  demands: hand.where(c => c.suit != suit)
+  demands: cards in hand where card.suit is not suit
   if_impossible: hand
 }
 """
@@ -107,7 +107,7 @@ def test_rejects_a_local_definition_under_a_library_name() -> None:
 rule MustFollowSuit {
   constrains: play_to_trick
   applies_when: state.led_suit is not none
-  demands: hand.cards_of_suit(state.led_suit)
+  demands: cards in hand where card.suit is state.led_suit
   if_impossible: hand
 }
 """
@@ -143,7 +143,7 @@ def test_rejects_a_never_instantiated_local_template() -> None:
     local = """
 rule Unused(suit: Suit) {
   constrains: play_to_trick
-  demands: hand.where(c => c.suit != suit)
+  demands: cards in hand where card.suit is not suit
   if_impossible: hand
 }
 """
@@ -154,7 +154,7 @@ def test_rejects_a_non_suit_template_domain() -> None:
     local = """
 rule ByPlayer(p: Player) {
   constrains: play_to_trick
-  demands: hand.where(c => c.suit != hearts)
+  demands: cards in hand where card.suit is not hearts
   if_impossible: hand
 }
 """
@@ -162,10 +162,13 @@ rule ByPlayer(p: Player) {
 
 
 def test_rejects_a_template_binder_capturing_its_parameter() -> None:
+    # The suit quantifier binds `suit` implicitly, which would capture the
+    # template parameter of the same name instead of substituting it.
     local = """
 rule Capture(suit: Suit) {
   constrains: play_to_trick
-  demands: hand.where(suit => suit.suit != hearts)
+  applies_when: any suit where suit is hearts
+  demands: cards in hand where card.suit is not hearts
   if_impossible: hand
 }
 """

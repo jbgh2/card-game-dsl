@@ -43,16 +43,12 @@ def evaluate(e: n.Expr, ctx: Ctx) -> Any:
             if fn is not None:
                 return _user_function(fn, e.args, ctx)
             return stdlib.call(e.func, [evaluate(_pos(a), ctx) for a in e.args], ctx)
-        case n.MethodCall():
-            return _method(e, ctx)
         case n.BinOp():
             return _binop(e, ctx)
         case n.Not():
             return not evaluate(e.operand, ctx)
         case n.IsCheck():
             return _is_check(e, ctx)
-        case n.Lambda():
-            return _closure(e, ctx)
         case n.Quantifier():
             return _quantifier(e, ctx)
         case n.IfExpr():
@@ -211,21 +207,6 @@ def _subscript(e: n.Subscript, ctx: Ctx) -> Any:
     return evaluate(obj, ctx)[index]
 
 
-def _method(e: n.MethodCall, ctx: Ctx) -> Any:
-    receiver = evaluate(e.obj, ctx)
-    assert isinstance(receiver, Zone), f"method '{e.method}' on non-zone {receiver!r}"
-    cards = receiver.cards
-    match e.method:
-        case "where":
-            pred = evaluate(_pos(e.args[0]), ctx)
-            return [c for c in cards if pred(c)]
-        case "cards_of_suit":
-            suit = evaluate(_pos(e.args[0]), ctx)
-            return [c for c in cards if c.suit == suit]
-        case _:
-            raise AssertionError(f"unknown zone method '{e.method}'")
-
-
 def _binop(e: n.BinOp, ctx: Ctx) -> Any:
     if e.op == "and":
         return bool(evaluate(e.left, ctx)) and bool(evaluate(e.right, ctx))
@@ -276,10 +257,6 @@ def _is_check(e: n.IsCheck, ctx: Ctx) -> bool:
             return not value.empty
         case _:
             raise AssertionError(f"unknown is-check '{e.kind}'")
-
-
-def _closure(e: n.Lambda, ctx: Ctx):  # type: ignore[no-untyped-def]
-    return lambda value: evaluate(e.body, ctx.with_local(e.param, value))
 
 
 def _quantifier(e: n.Quantifier, ctx: Ctx) -> bool:
@@ -362,25 +339,15 @@ def _comprehension(e: n.Comprehension, ctx: Ctx) -> Any:
     match e.agg:
         case "sum":
             return sum(values)
-        case "count":
-            return len(values)
         case "max":
             if not values:
-                if e.default is not None:
-                    return evaluate(e.default, ctx)
-                raise RuntimeError(
-                    "`max over` an empty collection has no value — guard the "
-                    "source (`… is not empty`) before aggregating"
-                )
+                assert e.default is not None, "grammar makes `or <default>` mandatory"
+                return evaluate(e.default, ctx)
             return max(values)
         case "min":
             if not values:
-                if e.default is not None:
-                    return evaluate(e.default, ctx)
-                raise RuntimeError(
-                    "`min over` an empty collection has no value — guard the "
-                    "source (`… is not empty`) before aggregating"
-                )
+                assert e.default is not None, "grammar makes `or <default>` mandatory"
+                return evaluate(e.default, ctx)
             return min(values)
         case _:
             raise AssertionError(f"unknown aggregator '{e.agg}'")

@@ -37,7 +37,7 @@ game G {
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
   state { coins[player] : Integer = 0  rounds : Integer = 0 }
-  phase play repeats until rounds >= 3 {
+  phase play repeat until rounds >= 3 {
     before_each { rounds += 1 }
     for each player p: coins[p] += 1
   }
@@ -45,7 +45,7 @@ game G {
 }
 
 move_type ping(target : Player, rank : Rank) {
-  when: target != actor
+  when: target is not actor
   effect { coins[actor] += 1 }
 }
 
@@ -54,7 +54,7 @@ move_type bid_or_notrump(strain : Suit?) {
   // value is None, the no-trump candidate) without filtering anything out,
   // so a `bind_params` that fails to bind an arity-1 None value raises
   // KeyError here instead of silently passing.
-  when: strain == strain
+  when: strain is strain
   effect { coins[actor] += 1 }
 }
 """
@@ -87,7 +87,7 @@ def test_concrete_moves_is_the_guard_filtered_cross_product() -> None:
     assert len(cands) == 2 * 13  # 2 targets (players 1, 2) x 13 ranks
     assert all(name == "ping" for name, _ in cands)
     assert all(isinstance(v, tuple) and len(v) == 2 for _, v in cands)  # arity-2
-    assert all(v[0] != 0 for _, v in cands)  # target != actor, the guard
+    assert all(v[0] != 0 for _, v in cands)  # target is not actor, the guard
     assert {v[0] for _, v in cands} == {1, 2}
     assert {v[1] for _, v in cands} == set(game.ranking)
 

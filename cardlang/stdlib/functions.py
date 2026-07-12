@@ -119,11 +119,3 @@ STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
         "cribbage_crib_value",  # Cribbage: the dealer's crib show score
     }
 )
-
-# Zone-query methods: `zone.method(...)` (library.md "Types", ZoneContents).
-ZONE_METHODS: frozenset[str] = frozenset(
-    {
-        "where",
-        "cards_of_suit",
-    }
-)

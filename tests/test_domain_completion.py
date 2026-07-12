@@ -85,14 +85,14 @@ def test_binary_minus_is_still_subtraction() -> None:
 
 
 def test_bare_rank_resolves_as_a_rank_value() -> None:
-    game, e = _checked_expr("if 1 == 1 then K else Q")
+    game, e = _checked_expr("if 1 is 1 then K else Q")
     assert evaluate(e, _ctx(game, [])) == "K"
 
 
 def test_ranks_come_from_the_deck_not_the_ranking_declaration() -> None:
     # Coup declares no `ranking:`; its characters are the coup15 deck's ranks.
     assert "Duke" in deck_ranks("coup15")
-    src = _game("let probe = if 1 == 1 then Duke else Contessa", deck="coup15", ranking="")
+    src = _game("let probe = if 1 is 1 then Duke else Contessa", deck="coup15", ranking="")
     check_dsl(src, "mini.cardlang")
 
 
@@ -101,39 +101,39 @@ def test_ranks_come_from_the_deck_not_the_ranking_declaration() -> None:
 
 def test_rejects_rank_compared_with_integer() -> None:
     _rejects(
-        _game("let probe = sum over pile as c: if c.rank == 10 then 1 else 0"),
+        _game("let probe = number of cards in pile where card.rank is 10"),
         "numeric ranks are written as strings",
     )
 
 
 def test_rejects_a_name_form_rank_written_as_a_string() -> None:
     _rejects(
-        _game('let probe = sum over pile as c: if c.rank == "K" then 1 else 0'),
+        _game('let probe = number of cards in pile where card.rank is "K"'),
         "write the Rank value bare",
     )
 
 
 def test_rejects_a_string_that_is_not_a_rank_of_the_deck() -> None:
     _rejects(
-        _game('let probe = sum over pile as c: if c.rank == "Kx" then 1 else 0'),
+        _game('let probe = number of cards in pile where card.rank is "Kx"'),
         "not a Rank value of this deck",
     )
 
 
 def test_accepts_a_numeric_rank_as_a_string() -> None:
-    _checked_expr('sum over pile as c: if c.rank == "10" then 1 else 0')
+    _checked_expr('number of cards in pile where card.rank is "10"')
 
 
 def test_rejects_cross_enum_comparison() -> None:
     _rejects(
-        _game("let probe = sum over pile as c: if c.rank == hearts then 1 else 0"),
+        _game("let probe = number of cards in pile where card.rank is hearts"),
         "comparing Rank with Suit",
     )
 
 
 def test_rejects_an_unknown_card_field() -> None:
     _rejects(
-        _game("let probe = sum over pile as c: if c.value == 3 then 1 else 0"),
+        _game("let probe = number of cards in pile where card.value is 3"),
         "Card has no field 'value'",
     )
 
@@ -143,7 +143,7 @@ def test_rejects_an_unknown_card_field() -> None:
 
 def test_any_suit_quantifier_evaluates_over_the_deck_suits() -> None:
     game, e = _checked_expr(
-        "any suit s: (sum over pile as c: if c.suit == s then 1 else 0) >= 2"
+        "any suit where (number of cards in pile where card.suit is suit) >= 2"
     )
     two_hearts = [Card("A", "hearts"), Card("2", "hearts"), Card("K", "clubs")]
     assert evaluate(e, _ctx(game, two_hearts)) is True
@@ -152,7 +152,7 @@ def test_any_suit_quantifier_evaluates_over_the_deck_suits() -> None:
 
 def test_all_rank_quantifier_evaluates_over_the_ranking() -> None:
     game, e = _checked_expr(
-        "all rank r: (sum over pile as c: if c.rank == r then 1 else 0) <= 1"
+        "all ranks where (number of cards in pile where card.rank is rank) <= 1"
     )
     assert evaluate(e, _ctx(game, [Card("A", "hearts"), Card("A", "clubs")])) is False
     assert evaluate(e, _ctx(game, [Card("A", "hearts"), Card("K", "clubs")])) is True
@@ -171,8 +171,10 @@ def test_for_each_suit_runs_the_body_once_per_deck_suit() -> None:
     assert ctx.rs.get("score")[0] == 4  # one pass per suit of standard52
 
 
-def test_rejects_an_unknown_quantifier_role() -> None:
-    _rejects(_game("let probe = any color x: 1 == 1"), "unknown quantifier role")
+def test_the_explicit_binder_quantifier_spelling_does_not_parse() -> None:
+    # Quantifier roles are fixed by their grammar productions now; the retired
+    # explicit-binder spelling is grammatically inexpressible.
+    _rejects(_game("let probe = any color x: 1 is 1"), "syntax error")
 
 
 def test_rejects_an_unknown_for_each_role() -> None:
@@ -197,7 +199,7 @@ def test_card_membership_in_a_zone() -> None:
 
 def test_value_membership_in_a_list_literal() -> None:
     game, e = _checked_expr(
-        "sum over pile as c: if c.suit in [hearts, spades] then 1 else 0"
+        "number of cards in pile where card.suit in [hearts, spades]"
     )
     cards = [Card("A", "hearts"), Card("K", "clubs"), Card("2", "spades")]
     assert evaluate(e, _ctx(game, cards)) == 2
@@ -205,7 +207,7 @@ def test_value_membership_in_a_list_literal() -> None:
 
 def test_mixed_rank_list_membership_evaluates() -> None:
     # Doppelkopf's fat-trick check: name-form ranks bare, numeric as string.
-    game, e = _checked_expr('sum over pile as c: if c.rank in [A, "10"] then 1 else 0')
+    game, e = _checked_expr('number of cards in pile where card.rank in [A, "10"]')
     cards = [Card("A", "hearts"), Card("10", "clubs"), Card("K", "spades")]
     assert evaluate(e, _ctx(game, cards)) == 2
 
@@ -219,6 +221,6 @@ def test_rejects_membership_in_a_non_collection() -> None:
 
 def test_rejects_a_bogus_rank_string_inside_a_membership_list() -> None:
     _rejects(
-        _game('let probe = sum over pile as c: if c.rank in [A, "Kx"] then 1 else 0'),
+        _game('let probe = number of cards in pile where card.rank in [A, "Kx"]'),
         "not a Rank value of this deck",
     )

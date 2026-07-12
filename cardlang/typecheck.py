@@ -25,7 +25,7 @@ from typing import Iterator, Mapping, assert_never
 from cardlang.ast import nodes as n
 from cardlang.ast.nodes import Game
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError
-from cardlang.stdlib.signatures import CALL_SIGS, METHOD_SIGS, ZONE_CONTENT, Sig
+from cardlang.stdlib.signatures import CALL_SIGS, ZONE_CONTENT, Sig
 from cardlang.stdlib.values import DIRECTION_VALUES, deck_ranks, deck_suits
 from cardlang.types import (
     TAny,
@@ -197,13 +197,6 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
         case n.Call():
             sig = CALL_SIGS.get(e.func) or env.functions.get(e.func)
             return sig.ret if sig is not None else TAny()
-        case n.MethodCall():
-            msig = METHOD_SIGS.get(e.method)
-            if msig is None:
-                return TAny()
-            if msig.returns_receiver:
-                return infer(e.obj, env)
-            return msig.ret if msig.ret is not None else TAny()
         case n.BinOp():
             if e.op in ("==", "!=", "<", ">", "<=", ">=", "and", "or", "in"):
                 return TBoolean()
@@ -221,7 +214,7 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
         case n.Choose():
             return TInteger()
         case n.Comprehension():
-            return TInteger() if e.agg in ("sum", "count") else TAny()
+            return TInteger() if e.agg == "sum" else TAny()
         case n.PlayerQuery():
             match e.kind:
                 case "set":
@@ -254,8 +247,6 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                 if e.field == "suit":
                     return TEnum("Suit")
             return TAny()  # pronoun member access / sugar: deferred
-        case n.Lambda():
-            return TAny()  # lambda values: deferred
         case n.ListLit():
             elem: Type | None = infer(e.elements[0], env)
             for item in e.elements[1:]:
@@ -441,13 +432,11 @@ def _child_exprs(e: n.Expr) -> list[n.Expr]:
         return [e.obj, e.index]
     if isinstance(e, n.Call):
         return _arg_exprs(e.args)
-    if isinstance(e, n.MethodCall):
-        return [e.obj, *_arg_exprs(e.args)]
     if isinstance(e, n.BinOp):
         return [e.left, e.right]
     if isinstance(e, (n.Not, n.IsCheck)):
         return [e.operand]
-    if isinstance(e, (n.Lambda, n.Quantifier)):
+    if isinstance(e, n.Quantifier):
         return [e.body]
     if isinstance(e, n.Comprehension):
         out = [e.source, e.body]
@@ -571,9 +560,8 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
 
     Binder-introducing expressions extend the environment for their body, so
     type-directed checks (the dot-form rejection above all) see quantifier,
-    player-query, and comprehension binders at their real types rather than
-    `TAny`. Lambda parameters stay untyped — a lambda's element type belongs
-    to its receiver, which the checker does not model yet."""
+    player-query, card-query, and aggregation binders at their real types
+    rather than `TAny`."""
     if isinstance(e, n.Quantifier):
         _check_expr(e.body, env.with_local(e.binder, _role_type(e.role)), bag)
         return
@@ -613,23 +601,6 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                     if not assignable(got, param):
                         bag.error(
                             f"{e.func}() expects {_type_name(param)}, got {_type_name(got)}",
-                            e.span,
-                        )
-    elif isinstance(e, n.MethodCall):
-        msig = METHOD_SIGS.get(e.method)
-        if msig is not None and not msig.lambda_arg:
-            args = _arg_exprs(e.args)
-            if len(args) != len(msig.params):
-                bag.error(
-                    f".{e.method}() expects {len(msig.params)} argument(s), got {len(args)}",
-                    e.span,
-                )
-            else:
-                for arg, param in zip(args, msig.params):
-                    got = infer(arg, env)
-                    if not assignable(got, param):
-                        bag.error(
-                            f".{e.method}() expects {_type_name(param)}, got {_type_name(got)}",
                             e.span,
                         )
     elif isinstance(e, n.Subscript):

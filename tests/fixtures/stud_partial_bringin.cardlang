@@ -27,7 +27,7 @@ game StudPartialBringIn {
     stack[player] : Integer = 2
   }
 
-  phase hand_sequence repeats until (number of players where stack[player] > 0) <= 1 {
+  phase hand_sequence repeat until (number of players where stack[player] > 0) <= 1 {
     state {
       dealer : Player = 0
     }
@@ -84,10 +84,10 @@ game StudPartialBringIn {
                                 and (not acted[player] or bet_by[player] < bet_to_match)
               order priority
               until (number of players where not folded[player] and stack[player] > 0
-                       and (not acted[player] or bet_by[player] < bet_to_match)) == 0
+                       and (not acted[player] or bet_by[player] < bet_to_match)) is 0
                  or ((number of players where not folded[player] and stack[player] > 0) <= 1
                      and (number of players where not folded[player] and stack[player] > 0
-                            and bet_by[player] < bet_to_match) == 0)
+                            and bet_by[player] < bet_to_match) is 0)
       }
 
       // 4th–7th streets: burn, deal one card, then a betting round (limits 5/10/10/10;
@@ -111,10 +111,10 @@ game StudPartialBringIn {
                                   and (not acted[player] or bet_by[player] < bet_to_match)
                 order priority
                 until (number of players where not folded[player] and stack[player] > 0
-                         and (not acted[player] or bet_by[player] < bet_to_match)) == 0
+                         and (not acted[player] or bet_by[player] < bet_to_match)) is 0
                    or ((number of players where not folded[player] and stack[player] > 0) <= 1
                        and (number of players where not folded[player] and stack[player] > 0
-                              and bet_by[player] < bet_to_match) == 0)
+                              and bet_by[player] < bet_to_match) is 0)
         }
       }
 
@@ -133,10 +133,10 @@ game StudPartialBringIn {
                                   and (not acted[player] or bet_by[player] < bet_to_match)
                 order priority
                 until (number of players where not folded[player] and stack[player] > 0
-                         and (not acted[player] or bet_by[player] < bet_to_match)) == 0
+                         and (not acted[player] or bet_by[player] < bet_to_match)) is 0
                    or ((number of players where not folded[player] and stack[player] > 0) <= 1
                        and (number of players where not folded[player] and stack[player] > 0
-                              and bet_by[player] < bet_to_match) == 0)
+                              and bet_by[player] < bet_to_match) is 0)
         }
       }
 
@@ -155,10 +155,10 @@ game StudPartialBringIn {
                                   and (not acted[player] or bet_by[player] < bet_to_match)
                 order priority
                 until (number of players where not folded[player] and stack[player] > 0
-                         and (not acted[player] or bet_by[player] < bet_to_match)) == 0
+                         and (not acted[player] or bet_by[player] < bet_to_match)) is 0
                    or ((number of players where not folded[player] and stack[player] > 0) <= 1
                        and (number of players where not folded[player] and stack[player] > 0
-                              and bet_by[player] < bet_to_match) == 0)
+                              and bet_by[player] < bet_to_match) is 0)
         }
       }
 
@@ -177,10 +177,10 @@ game StudPartialBringIn {
                                   and (not acted[player] or bet_by[player] < bet_to_match)
                 order priority
                 until (number of players where not folded[player] and stack[player] > 0
-                         and (not acted[player] or bet_by[player] < bet_to_match)) == 0
+                         and (not acted[player] or bet_by[player] < bet_to_match)) is 0
                    or ((number of players where not folded[player] and stack[player] > 0) <= 1
                        and (number of players where not folded[player] and stack[player] > 0
-                              and bet_by[player] < bet_to_match) == 0)
+                              and bet_by[player] < bet_to_match) is 0)
         }
       }
 
@@ -227,7 +227,7 @@ move_type check {
 }
 
 move_type bet {
-  when: bet_to_match == 0
+  when: bet_to_match is 0
   effect {
     let post = if limit < stack[actor] then limit else stack[actor]
     stack[actor] := stack[actor] - post

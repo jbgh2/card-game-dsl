@@ -1,4 +1,4 @@
-"""Type signatures for the stdlib functions, value-callbacks, and zone methods.
+"""Type signatures for the stdlib functions and value-callbacks.
 
 Companion to :mod:`cardlang.stdlib.functions` (which holds the *names*); these
 tables hold the *types*, consumed by the type checker. The keys reconcile with
@@ -36,19 +36,6 @@ class Sig:
 
     params: tuple[Type, ...]
     ret: Type
-
-
-@dataclass(frozen=True)
-class MethodSig:
-    """A zone-query method. ``lambda_arg`` marks a first argument that is a
-    predicate over the receiver's element type (bound by the checker).
-    ``returns_receiver`` means the method yields the same collection type as its
-    receiver; otherwise ``ret`` is the result type."""
-
-    lambda_arg: bool
-    params: tuple[Type, ...]
-    returns_receiver: bool
-    ret: Type | None = None
 
 
 CALL_SIGS: dict[str, Sig] = {
@@ -121,16 +108,6 @@ VALUE_SIGS: dict[str, Type] = {
 # (card, led_suit) -> Boolean; the table is loose (TAny) like the value callbacks.
 EARLY_SIGS: dict[str, Type] = {
     "on_play_of_tochoo": TAny(),
-}
-
-METHOD_SIGS: dict[str, MethodSig] = {
-    "where": MethodSig(lambda_arg=True, params=(), returns_receiver=True),
-    "cards_of_suit": MethodSig(
-        lambda_arg=False,
-        params=(TEnum("Suit"),),
-        returns_receiver=False,
-        ret=TCollection(TCard()),
-    ),
 }
 
 # Zone type name -> contents. Card containers hold cards; the resource zone holds

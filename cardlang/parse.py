@@ -323,9 +323,6 @@ class _Builder(Transformer[Token, n.Game]):
     def phase_repeats(self, meta: Meta, c: list[object]) -> n.PhaseQualifier:
         return n.PhaseQualifier("repeats", _as_expr(c[0]), span=self._span(meta))
 
-    def phase_repeats_legacy(self, meta: Meta, c: list[object]) -> n.PhaseQualifier:
-        return n.PhaseQualifier("repeats", _as_expr(c[0]), span=self._span(meta))
-
     def phase_when(self, meta: Meta, c: list[object]) -> n.PhaseQualifier:
         return n.PhaseQualifier("when", _as_expr(c[0]), span=self._span(meta))
 
@@ -687,16 +684,6 @@ class _Builder(Transformer[Token, n.Game]):
 
     # --- expressions ---
 
-    def exists(self, meta: Meta, c: list[object]) -> n.Quantifier:
-        return n.Quantifier(
-            "any", str(c[0]), str(c[1]), _as_expr(c[2]), span=self._span(meta)
-        )
-
-    def forall(self, meta: Meta, c: list[object]) -> n.Quantifier:
-        return n.Quantifier(
-            "all", str(c[0]), str(c[1]), _as_expr(c[2]), span=self._span(meta)
-        )
-
     def _implicit_quantifier(self, kind: str, role: str, meta: Meta, c: list[object]) -> n.Quantifier:
         # The implicit-binder spelling: the role noun is also the binder.
         return n.Quantifier(kind, role, role, _as_expr(c[0]), span=self._span(meta))
@@ -771,18 +758,6 @@ class _Builder(Transformer[Token, n.Game]):
             span=self._span(meta),
         )
 
-    def comprehension(self, meta: Meta, c: list[object]) -> n.Comprehension:
-        return n.Comprehension(
-            agg=str(c[0]),
-            source=_as_expr(c[1]),
-            binder=str(c[2]),
-            body=_as_expr(c[3]),
-            span=self._span(meta),
-        )
-
-    def lambda_expr(self, meta: Meta, c: list[object]) -> n.Lambda:
-        return n.Lambda(param=str(c[0]), body=_as_expr(c[1]), span=self._span(meta))
-
     def elif_clause(self, meta: Meta, c: list[object]) -> _Elif:
         return _Elif(_as_expr(c[0]), _as_expr(c[1]))
 
@@ -837,7 +812,20 @@ class _Builder(Transformer[Token, n.Game]):
         return str(c[0])
 
     def compare(self, meta: Meta, c: list[object]) -> n.BinOp:
-        return n.BinOp(str(c[1]), _as_expr(c[0]), _as_expr(c[2]), span=self._span(meta))
+        op = str(c[1])
+        if op in ("==", "!="):
+            # Retired spellings (decisions.md "The expression register"): the
+            # lexer still owns the tokens so the rejection can name the fix.
+            word = "is" if op == "==" else "is not"
+            raise DiagnosticError(
+                Diagnostic(
+                    Severity.ERROR,
+                    f"`{op}` is not an operator in this language — equality "
+                    f"is the word form: write `{word}`",
+                    self._span(meta),
+                )
+            )
+        return n.BinOp(op, _as_expr(c[0]), _as_expr(c[2]), span=self._span(meta))
 
     def membership(self, meta: Meta, c: list[object]) -> n.BinOp:
         return n.BinOp("in", _as_expr(c[0]), _as_expr(c[1]), span=self._span(meta))
@@ -858,13 +846,6 @@ class _Builder(Transformer[Token, n.Game]):
 
     def arg_list(self, meta: Meta, c: list[object]) -> tuple[object, ...]:
         return tuple(c)
-
-    def method_call(self, meta: Meta, c: list[object]) -> n.MethodCall:
-        args = c[2] if len(c) > 2 and c[2] is not None else ()
-        assert isinstance(args, tuple)
-        return n.MethodCall(
-            obj=_as_expr(c[0]), method=str(c[1]), args=args, span=self._span(meta)
-        )
 
     def member(self, meta: Meta, c: list[object]) -> n.Member:
         return n.Member(obj=_as_expr(c[0]), field=str(c[1]), span=self._span(meta))

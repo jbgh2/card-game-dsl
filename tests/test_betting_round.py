@@ -29,7 +29,7 @@ game G {
   state { acted[player] : Boolean = false  bumps[player] : Integer = 0 }
   phase run {
     round offering [bump, stop] from 0 over players where not acted[player]
-          until (number of players where not acted[player]) == 0
+          until (number of players where not acted[player]) is 0
   }
   winner: highest bumps
 }

@@ -120,16 +120,6 @@ class Call:
 
 
 @dataclass(frozen=True, slots=True)
-class MethodCall:
-    """A method call on a value, e.g. `hand.where(c => …)`."""
-
-    obj: Expr
-    method: str
-    args: tuple[Arg, ...]
-    span: Span | None = None
-
-
-@dataclass(frozen=True, slots=True)
 class NamedArg:
     """A `name = value` argument (named call args)."""
 
@@ -144,8 +134,9 @@ Arg: TypeAlias = "Expr | NamedArg"
 
 @dataclass(frozen=True, slots=True)
 class BinOp:
-    """A binary operator: `or`, `and`, comparison (`==`…), `+`, `-`,
-    `offset_by`. The operator is kept as its surface token."""
+    """A binary operator: `or`, `and`, comparisons, membership `in`, `+`,
+    `-`, `*`, `offset_by`. Equality keeps the internal op tokens `==`/`!=`
+    (built by the surface `is` / `is not`)."""
 
     op: str
     left: Expr
@@ -166,15 +157,6 @@ class IsCheck:
 
     operand: Expr
     kind: str  # "none" | "not_none" | "empty" | "not_empty"
-    span: Span | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class Lambda:
-    """`param => body` — a one-argument function value (zone-query filters)."""
-
-    param: str
-    body: Expr
     span: Span | None = None
 
 
@@ -202,17 +184,15 @@ class IfExpr:
 
 @dataclass(frozen=True, slots=True)
 class Comprehension:
-    """An aggregation over a card zone. Two surface forms build it:
-
-    - `<agg> over <source> as <binder>: body` (the legacy spelling);
-    - `sum of <body> over cards in <source> [where <filter>]` and
-      `highest/lowest <body> over cards in <source> [where <filter>]
-      or <default>` (the English register, binder implicitly `card`).
+    """An aggregation over a card zone, binder implicitly `card`:
+    `sum of <body> over cards in <source> [where <filter>]` and
+    `highest/lowest <body> over cards in <source> [where <filter>]
+    or <default>`.
 
     `filter` narrows the elements before `body` is aggregated; `default` is
-    the mandatory empty-set value of the order aggregators' English form."""
+    the order aggregators' empty-set value, mandatory in their grammar."""
 
-    agg: str  # sum | count | max | min
+    agg: str  # sum | max | min
     source: Expr
     binder: str
     body: Expr
@@ -296,11 +276,9 @@ Expr = (
     | Subscript
     | StructLit
     | Call
-    | MethodCall
     | BinOp
     | Not
     | IsCheck
-    | Lambda
     | Quantifier
     | IfExpr
     | Comprehension
@@ -940,11 +918,9 @@ Node = (
     | FieldInit
     | StructLit
     | Call
-    | MethodCall
     | BinOp
     | Not
     | IsCheck
-    | Lambda
     | Quantifier
     | IfExpr
     | Comprehension

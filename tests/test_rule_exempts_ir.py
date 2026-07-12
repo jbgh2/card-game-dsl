@@ -31,7 +31,7 @@ game Mini {
 rule JokerIsExempt {
   constrains: play_to_trick
   applies_when: state.led_suit is not none
-  exempts: hand.where(c => c.rank == "2")
+  exempts: cards in hand where card.rank is "2"
 }
 """
 
@@ -43,8 +43,8 @@ def _rule(game: n.Game, name: str) -> n.RuleDef:
 def test_exempts_parses_as_an_expr() -> None:
     game = parse_text(SRC, "mini.cardlang")
     exempt_rule = _rule(game, "JokerIsExempt")
-    assert isinstance(exempt_rule.exempts, n.MethodCall)
-    assert exempt_rule.exempts.method == "where"
+    assert isinstance(exempt_rule.exempts, n.CardQuery)
+    assert exempt_rule.exempts.kind == "set"
     # MustFollowSuit splices in from the library at resolve time; at parse
     # time only the game's own rule exists.
     assert [r.name for r in game.rules] == ["JokerIsExempt"]
@@ -56,8 +56,8 @@ def test_exempts_ir_key_emitted_only_when_present() -> None:
     plain_rule_ir = next(r for r in ir["rules"] if r["name"] == "MustFollowSuit")
 
     assert "exempts" in exempt_rule_ir
-    assert exempt_rule_ir["exempts"]["kind"] == "method_call"
-    assert exempt_rule_ir["exempts"]["method"] == "where"
+    assert exempt_rule_ir["exempts"]["kind"] == "card_query"
+    assert exempt_rule_ir["exempts"]["query"] == "set"
 
     # The whole point: a rule without `exempts:` carries NO such key at all
     # (not `"exempts": null`) — this is what keeps every pre-existing rule

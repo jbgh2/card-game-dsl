@@ -94,12 +94,12 @@ def test_rejects_gather_to_each() -> None:
 
 
 def test_rejects_the_in_zone_form() -> None:
-    _rejects("muck one cards in deck", "not yet supported")
+    _rejects("muck one card in deck", "not yet supported")
 
 
 def test_rejects_a_visibility_override() -> None:
     _rejects(
-        "move one cards from deck to pile, visibility = 1",
+        "move one card from deck to pile, visibility = 1",
         "not yet honored",
     )
 
@@ -115,7 +115,7 @@ def test_rejects_a_non_card_item_noun() -> None:
     "stmt",
     [
         "deal all cards from deck as-equally-as-possible to each hand",  # Getaway
-        "deal all cards from deck where c => c.suit == hearts as-equally-as-possible to each hand",
+        "deal all cards from deck where card.suit is hearts as-equally-as-possible to each hand",
         "deal 13 cards from deck to each hand",  # the standard deal
         "move all cards to deck",  # the standard gather
         "move one card from deck to pile",  # singular noun (Cribbage's starter cut)

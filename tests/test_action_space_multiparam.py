@@ -20,7 +20,7 @@ game G {
   phase play { offer to 0 one of [ask] done := 1 }
   winner: highest done
 }
-move_type ask(target : Player, rank : Rank) { when: target != actor effect { done := 1 } }
+move_type ask(target : Player, rank : Rank) { when: target is not actor effect { done := 1 } }
 """
 
 
@@ -83,7 +83,7 @@ game G3 {
   phase play { offer to 0 one of [ask] done := 1 }
   winner: highest done
 }
-move_type ask(target : Player, rank : Rank) { when: target != actor effect { done := 1 } }
+move_type ask(target : Player, rank : Rank) { when: target is not actor effect { done := 1 } }
 """
 
 

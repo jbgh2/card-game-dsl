@@ -37,7 +37,7 @@ game G {
   phase hand {
     phase auction -> outcome { contract_finalized(Player, Integer, Suit?, Integer) | all_pass } {
       round offering [bid, pass] from 0
-            over players where (leader is none or player != leader)
+            over players where (leader is none or player is not leader)
             until steps >= 6 outcome bridge_auction_outcome
     }
     auction produces:
