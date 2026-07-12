@@ -1615,11 +1615,12 @@ Info-set derivation is uniform across the corpus: every game's decisions run
 on kernel sites that emit observation events, no Python mechanic exists (the
 `instantiate` construct is deleted), and the readiness proofs cover
 every corpus game ([kernel-migration.md](kernel-migration.md)). The remaining
-honesty line is scope, not derivation: rules-level randomness kept from the
-monoliths' random-play reductions (Tichu's call gates, Coup's window gates
-and targets) folds into the seed chance node rather than appearing as
-decision nodes — upgrading those to real decisions is recorded future work,
-per-game.
+honesty line is scope, not derivation: no rules-level randomness remains —
+every monolith-era rng gate (Coup's windows, claims, and targets; Tichu's
+call windows and Dragon routing) is a real announced decision in the
+observation stream. What stays reduced is named per game in its file
+(Tichu's Mahjong wish and bomb variants, and the like), as scope, not as
+hidden randomness.
 
 ## Game result: `winner:` and `loser:`
 

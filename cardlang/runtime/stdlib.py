@@ -98,10 +98,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.skat import skat_effective_loss
 
             return skat_effective_loss(args[0], args[1], args[2])
-        case "tichu_call_roll":
-            from cardlang.runtime.tichu import tichu_call_roll
-
-            return tichu_call_roll(ctx)
         case "tichu_mahjong_holder":
             from cardlang.runtime.tichu import tichu_mahjong_holder
 
@@ -126,10 +122,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.tichu import tichu_dragon_won
 
             return tichu_dragon_won(ctx)
-        case "tichu_dragon_recipient":
-            from cardlang.runtime.tichu import tichu_dragon_recipient
-
-            return tichu_dragon_recipient(ctx, args[0])
         case "tichu_opponent_team":
             from cardlang.runtime.tichu import tichu_opponent_team
 

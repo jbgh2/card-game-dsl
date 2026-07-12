@@ -1,25 +1,58 @@
-"""Tichu: combination-engine unit tests plus a random playout.
+"""Tichu: combination-engine unit tests plus a policy-driven playout.
 
 The combination engine is the heart of a climbing game, so it gets direct unit
 tests (what a hand can form; which plays legally beat a led combination). The
 playout then checks card conservation (56), that non-double-victory hands always
 distribute exactly 100 card points (Dragon +25 / Phoenix -25 net out against the
 40+40+20 from kings/tens/fives), and termination with the higher team winning.
+
+The playout drives the call windows through a REFERENCE POLICY, not the uniform
+chooser: a uniform chooser calls tichu at ~50% of every offer, a random call is
+worth about -50 in expectation, and the 1000-point race then diverges —
+measured at 2,200+ hands with no terminus. That divergence is real Tichu (a
+table of indiscriminate callers never finishes; recorded as the second witness
+in open-questions/unbounded-lines-and-max-length.md), so the game text stays
+faithful and the play-style assumption lives here: grand tichu gated at 4% per
+offer, small tichu at 2% per poll offer (approximating the pre-WS5 per-hand
+call profile), uniform otherwise.
 """
 
 from __future__ import annotations
 
 import random
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from cardlang.pipeline import check_source
+from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.combinations import Play, _combos, _legal_follows
-from cardlang.runtime.values import Card
+from cardlang.runtime.values import Card, Player
 
 TICHU = Path(__file__).parent.parent / "docs" / "games" / "tichu.cardlang"
 SUITS = ("clubs", "diamonds", "hearts", "spades")
+
+
+def tichu_reference_policy(
+    rng: random.Random, stats: dict[str, int] | None = None
+) -> Callable[[Player, list[Any], int], list[Any]]:
+    """The playout policy: uniform play except at the call windows, which are
+    gated at rates approximating the pre-WS5 per-hand call profile."""
+    base = random_chooser(rng)
+
+    def chooser(player: Player, candidates: list[Any], n: int) -> list[Any]:
+        names = {c[0]: c for c in candidates if isinstance(c, tuple) and c}
+        if "call_grand_tichu" in names:
+            pick = names["call_grand_tichu"] if rng.random() < 0.04 else names["decline_grand"]
+        elif "call_tichu" in names:
+            pick = names["call_tichu"] if rng.random() < 0.02 else names["no_call"]
+        else:
+            return base(player, candidates, n)
+        if stats is not None:
+            stats[str(pick[0])] = stats.get(str(pick[0]), 0) + 1
+        return [pick]
+
+    return chooser
 
 
 def _hand(*specs: str) -> list[Card]:
@@ -61,6 +94,7 @@ def test_climbing_legality() -> None:
 
 def test_30_random_games_satisfy_invariants() -> None:
     game = check_source(TICHU)
+    calls: dict[str, int] = {}
     for seed in range(30):
         bad_points = 0
         census: dict[str, int] = {}
@@ -74,9 +108,15 @@ def test_30_random_games_satisfy_invariants() -> None:
                 census.clear()
                 census.update(data)
 
-        result = play_game(game, random.Random(seed), tracer)
+        rng = random.Random(seed)
+        result = play_game(game, rng, tracer, tichu_reference_policy(rng, calls))
 
         assert bad_points == 0, f"seed {seed}: a hand miscounted card points"
         assert census["total"] == 56, f"seed {seed}: {census}"
         assert result.winner == max(result.scores, key=lambda t: result.scores[t])
         assert max(result.scores.values()) >= 1000
+
+    # The windows are live, not vacuously green: across the suite the policy
+    # actually called (and mostly declined) both call types.
+    assert calls.get("call_tichu", 0) > 0 and calls.get("call_grand_tichu", 0) > 0, calls
+    assert calls.get("no_call", 0) > calls.get("call_tichu", 0), calls

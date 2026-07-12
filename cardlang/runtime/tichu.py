@@ -56,28 +56,6 @@ def tichu_follows(hand: list[Card], current: Play, ctx: Ctx) -> list[Play]:
 # --- the two non-chooser RNG sites (the monolith's, draw-for-draw) ---
 
 
-def tichu_call_roll(ctx: Ctx) -> int:
-    """One player's Tichu/Grand-Tichu gate: 200 at 4%, else 100 at 8%, else 0.
-    The second draw happens only when the first misses (short-circuit), so the
-    rng consumption matches the monolith exactly."""
-    rng = ctx.rs.rng
-    if rng.random() < 0.04:
-        return 200
-    if rng.random() < 0.08:
-        return 100
-    return 0
-
-
-def tichu_dragon_recipient(ctx: Ctx, winner: Player) -> Player:
-    """The opponent the Dragon-winner gives the trick to (a random pick — the
-    migrated scope plays randomly; a real choice would be a chooser draw)."""
-    opponents = [
-        p for p in ctx.rs.seating.players
-        if ctx.rs.team_of[p] != ctx.rs.team_of[winner]
-    ]
-    return ctx.rs.rng.choice(opponents)
-
-
 # --- zone / seating / state reads (pure) ---
 
 
