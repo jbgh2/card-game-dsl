@@ -102,7 +102,7 @@ docs/
 - **"How is game Y described in the DSL?"** → `docs/games/Y.md`
 - **"How do we keep info sets derivable / hit the OpenSpiel target?"** → the load-bearing section above, then `docs/design-notes/kernel-extensibility.md`
 - **"How do the engine's domains fit together / where does new work dock?"** → `docs/design-notes/domain-map.md`
-- **"How complete must a new construct be?"** → `docs/decisions.md`, "Surface totality" (grammar surface) and "Closed-domain completeness" (the machinery beneath it)
+- **"How complete must a new construct be?"** → `docs/decisions.md`, "Surface totality" (grammar surface) and "Closed-domain completeness" (the machinery beneath it); the mechanized gate is the `surface-totality-audit` skill (`.claude/skills/`)
 - **"What's still being decided?"** → `docs/open-questions/_index.md` then the named file
 - **"What should we build next?" / "In what order?"** → `docs/roadmap.md`, "Suggested next steps, in order" — the authority on cross-cutting task sequence. `docs/open-questions/_index.md` owns question *priority*; `docs/games/_candidates.md` holds the full game pipeline.
 - **"How do we build the tooling (parser/checker)?"** → `docs/implementation.md`, `docs/building.md`
@@ -130,6 +130,19 @@ Run them as written. In particular:
 - Run the **full** `pytest -q`, not a subset — the corpus harness and golden/
   characterization tests catch regressions a narrow run misses. Some exact-score
   tests pin `PYTHONHASHSEED=0`; don't assume a passing subset means a green suite.
+
+**These two checks are regression gates, not completeness gates.** A change
+that adds or extends grammar surface, a checker wall or diagnostic, a stdlib
+registry, or any closed-domain mechanism additionally passes the
+**surface-totality audit** — run the `surface-totality-audit` skill
+(`.claude/skills/`), the mechanized form of decisions.md "Surface totality"
+and "Closed-domain completeness". Its two artifacts are mandatory in the
+change: misuse-probe **rejection tests** (the most plausible wrong sentences,
+each proven loud in the right layer's currency) and the **completeness
+ledger** (property / domain / registry / covered / sampled / residual — no
+residual cell without both a wall and a roadmap.md record). A green suite
+must never stand in for this gate: the suite proves nothing about cells no
+test names.
 
 ## Operating rules (load-bearing)
 
