@@ -23,8 +23,9 @@ def test_corpus_is_present() -> None:
     # Two-sided pin: every game file is registered with the OpenSpiel
     # adapter and every registration has a file. Derived, not a literal
     # count — two branches each adding a game used to auto-merge the same
-    # numeric bump and leave main red with no conflict marker.
-    from cardlang.openspiel.game import GAMES as REGISTERED
+    # numeric bump and leave main red with no conflict marker. The registry
+    # module is pure data, so this core test never needs pyspiel.
+    from cardlang.openspiel.registry import GAMES as REGISTERED
 
     assert sorted(p.name for p in CORPUS) == sorted(REGISTERED.values())
 
