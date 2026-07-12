@@ -73,9 +73,9 @@ The front end stops at this seam.
 
 A distinct grammar module, reused everywhere an expression appears: `applies_when`
 predicates, the `demands`/`routing`/`outcome` functions, `let` bindings,
-comprehensions (`sum over captured[p]: if … then … elif … else …`), choice
+comprehensions (`sum of (if … then … elif … else …) over cards in captured[p]`), choice
 expressions (`<actor> chooses <description>`), and zone-query chains
-(`hand.cards_of_suit(state.led_suit)`, `hand.where(c => …)`). This is the hard
+(`cards in hand where card.suit is state.led_suit`). This is the hard
 part of the grammar and where most of the corpus's informal prose hides. It has
 its own node hierarchy, its own fixtures, and its own type rules, checked against
 the stdlib `ZoneContents` query API in [decisions.md](decisions.md).
@@ -140,7 +140,7 @@ feature becomes a `language-gap` open question. The prose-comment algorithm in t
 corpus today is not an acceptable resting state under either outcome.
 
 The stdlib of query primitives grows so prose becomes formal calls. The library
-already names many (`highest_of_suit`, `cards_of_suit`, `next_active_player`); the
+already names many query shapes (`highest … over`, `cards in … where`, `offset_by`); the
 rest are formalized as named, typed stdlib functions defined as data in
 `cardlang/stdlib/`. This is corpus-first: a primitive enters the stdlib because a
 game needs it. Unicode operators (`=>`, `union`, `*` for `⇒`, `∪`, `×`) get ASCII
@@ -165,18 +165,18 @@ construct.
 
 | Construct (prose in hearts.md) | Category | Resolution in hearts.cardlang |
 |--------------------------------|----------|-------------------------------|
-| `repeats until any cumulative_score >= 100` | needs-formalizing | explicit quantifier: `repeats until (any player p: cumulative_score[p] >= 100)` |
+| `repeats until any cumulative_score >= 100` | needs-formalizing | explicit quantifier: `repeat until (any player where cumulative_score[player] >= 100)` |
 | `repeat until all hands empty` | needs-formalizing | `repeat until (all player p: hand[p] is empty)` |
-| `sum over captured[p]: if … then …` | needs-formalizing | named binder: `sum over captured[p] as card: …` |
+| `sum over captured[p]: if … then …` | needs-formalizing | implicit binder: `sum of … over cards in captured[p]` |
 | `queen_of_spades`, `2 of clubs` | needs-formalizing | card literal `RANK of SUIT`: `Q of spades`, `2 of clubs` |
-| shoot-the-moon (`if p shot the moon: 0 else 26`) | needs-formalizing | explicit: shooter (`base[p] == 26`) scores 0, others 26 |
-| `the move must consist of exactly 3 cards` | decision: demand-clause-shape | `demands: moves where move.card_count == 3` — `demands` has two forms: a card-set filter, or `moves where <move-predicate>`. Recurs in Stud/Cribbage/Tichu; promote to decisions.md |
+| shoot-the-moon (`if p shot the moon: 0 else 26`) | needs-formalizing | explicit: shooter (`base[p] is 26`) scores 0, others 26 |
+| `the move must consist of exactly 3 cards` | decision: demand-clause-shape | `demands: actions where action.card_count is 3` — `demands` has two forms: a card-set filter, or `moves where <move-predicate>`. Recurs in Stud/Cribbage/Tichu; promote to decisions.md |
 | `player_holding(2 of clubs)` | runtime-primitive | `player_holding(Card) -> Player` (stdlib query) |
 | `highest_of_led_suit` (round outcome) | runtime-primitive | `(played, state) -> Player` named outcome function |
-| `hand.where(c => …)`, `hand.cards_of_suit(s)` | runtime-primitive | `Zone.where(pred)`, `Zone.cards_of_suit(Suit) -> Set<Card>` |
+| `hand.where(c => …)`, `hand.cards_of_suit(s)` | runtime-primitive | the card queries: `cards in hand where <pred>` (binds `card`) |
 | `move.card_count` | runtime-primitive | `Move.card_count -> Integer` |
 | `play_to_trick`, `transfer_between_hands` | runtime-primitive | move types (library.md); the trick itself is the formal `round` construct |
-| `transition_to: … when any heart_played event fires` | decision (existing) | no ad-hoc events: `transition_to: hearts_broken when play_to_trick where card.suit == hearts` — the move-event + `where` form already used by `triggered_by:` (decisions.md, "Triggered scoring components"; "Event-driven sub-phase transitions") |
+| `transition_to: … when any heart_played event fires` | decision (existing) | no ad-hoc events: `transition_to: hearts_broken when play_to_trick where action.card.suit is hearts` — the move-event + `where` form already used by `triggered_by:` (decisions.md, "Triggered scoring components"; "Event-driven sub-phase transitions") |
 | `outcome of last trick from first_trick` | decision: hoist-to-scope | construct removed; `leader` lives in the enclosing phase state, seeded by `first_trick` and read by `play` via lexical scope. Bare `outcome` (the just-run mechanic) stays. Affects Bridge/Getaway too |
 
 ## Disciplined workflow

@@ -68,7 +68,7 @@ game Getaway {
   // The sole survivor loses. If the last players all shed their final card on
   // one trick (no one holds cards), the winner of that trick — the last
   // `leader` — loses.
-  loser: if (number of players where has_cards(player)) == 1
+  loser: if (number of players where has_cards(player)) is 1
          then the player where has_cards(player)
          else leader
 }
@@ -78,7 +78,7 @@ game Getaway {
 rule MustLeadAceOfSpadesOnFirstPlay {
   constrains: play_to_trick
   applies_when: state.led_suit is none       // i.e., leading
-  demands: hand.where(c => c == A of spades)
+  demands: cards in hand where card is A of spades
   if_impossible: error("first lead must be the ace of spades")
 }
 

@@ -84,7 +84,7 @@ Key design notes:
   itself ([decisions.md](decisions.md) "The climbing form of `round`").
 
 - **`until <predicate>` ends the trick — and, when the game wants it, the
-  hand.** It is the shed-out gate: Big Two's `any player p: hand[p] is empty`
+  hand.** It is the shed-out gate: Big Two's `any player where hand[player] is empty`
   stops the trick the instant a player empties (matching the rule that the
   hand ends on the first shed). It is checked after each play, so the rest of
   that trick is not offered. A game whose tricks always play out (Tichu — the
@@ -287,7 +287,7 @@ match) and so must trump if able, a quirk the split preserves precisely.
   lead decision (play a card / declare a marriage / exchange the trump jack /
   close the talon) is the **auction form over a single-participant ring** —
   `round offering [play_card, declare_marriage, exchange_trump_jack,
-  close_talon] from leader over players where player == leader until trick_pile
+  close_talon] from leader over players where player is leader until trick_pile
   is not empty`. The free actions (exchange/close) leave the predicate false,
   so the ring re-offers the leader; a lead (play or the marriage's queen) flips
   it. `play_card(c : Card)` enumerates the live hand in hand order
@@ -334,7 +334,7 @@ match) and so must trump if able, a quirk the split preserves precisely.
   one of [challenge, allow]` clockwise from the claimant, first challenge
   closing the window; blocks fold the claimed character into the vocabulary
   — `block_claiming_*`), every influence loss is a chosen movement by the
-  loser (the single-actor `for each player q: if q == X` idiom) flipped
+  loser (the single-actor `for each player q: if q is X` idiom) flipped
   publicly into `revealed`, and the exchange is a deal-n + chosen-n +
   shuffle. A proven challenge `reveal`s the shown card publicly before
   returning it to the deck, reshuffling, and redrawing; window results
@@ -403,20 +403,30 @@ visibility, and the projection model".
   header.
 - `Player` — bare identity.
 - `Partnership` (alias: `Team`).
-- `Seating` — derived from `players` + `partnerships`; exposes
-  `partner_of`, `left_of`, `right_of`, `LHO_of`, `RHO_of`, `opposite_of`.
+- `Seating` — derived from `players` + `partnerships`. The surface
+  operator is `offset_by` (`dealer offset_by left` — seat arithmetic in
+  the game's declared direction); partnership lookup is the
+  `team_of(player)` stdlib function. An English replacement for
+  `offset_by` — the clunkiest-reading operator in the language — is a
+  decided direction whose spelling is still open
+  ([design-notes/lexical-cleanup.md](design-notes/lexical-cleanup.md) §7).
 - `Zone<Contents>` — a container parameterized by what it holds.
   Carries a per-observer visibility declaration (see
   [decisions.md](decisions.md) "Knowledge, visibility, and the
   projection model"), ownership, and structural type (set, ordered,
   stack).
-- `ZoneContents` — the query interface on zones and intermediate
-  collections. Common operations across all zone types: `where`,
-  `count`, `non_empty`, `empty`. Card-specific operations (`cards_of_suit`,
-  `highest_of_suit`, `has_card_of_suit`, `highest_by`,
-  `contains_card_of_suit`) apply to `Zone<Card>`. Resource-specific
-  operations (`amount_of(type)`, `total_amount`, `types_present`) apply
-  to `Zone<Resource>`.
+- Zone contents are read through the **English query surface**, never
+  methods — the queries bind `card` per candidate ([decisions.md](decisions.md)
+  "The expression register"):
+  - `cards in <zone> where <pred>` — the matching cards;
+  - `number of cards in <zone> [where <pred>]` — count (bare: zone size);
+  - `any card in <zone> where <pred>` / `all cards in <zone> where <pred>`;
+  - `sum of <expr> over cards in <zone> [where <pred>]`;
+  - `highest/lowest <expr> over cards in <zone> [where <pred>] or <default>`;
+  - emptiness is `<zone> is empty` / `is not empty`.
+  Resource queries (`amount_of(type)`, `total_amount`, `types_present`)
+  are unbuilt — the corpus keeps chips as Integer state
+  ([roadmap.md](roadmap.md), resource movements).
 
 ### Library zone types
 
@@ -502,7 +512,7 @@ The `from <zone> … to <zone>` form additionally takes an optional `where
 order) before the selection draws from it — see [decisions.md](decisions.md)
 "The operation vocabulary" ("Movement `where` filter"). French Tarot's chien
 discard is the corpus's first use (`move chosen 6 cards from hand[p] where
-c => is_pref_discard(c) to discard[p]`).
+is_pref_discard(card) to discard[p]`).
 
 **Epistemic** — prose statements; no relocation. Signatures are shown below,
 but the surface is prose (`shuffle deck`, `reveal proof to all`); call syntax
@@ -637,9 +647,9 @@ Standard helpers available across games.
 - `card_value(card: Card) → Integer` — the card's deck-declared card-point
   value (the `values` table on the `cards:` deck; 0 for ranks the deck scores
   nothing for), general-purpose for any point-trick game. Used by Pinochle
-  (`trick_score[...] += sum over trick_pile as c: card_value(c)`), Schnapsen
-  (`card_points[w] += sum over trick_pile as c: card_value(c)`), and Skat
-  (the declarer's points: `sum over captured[declarer]` plus `sum over skat`).
+  (`trick_score[...] += sum of card_value(card) over cards in trick_pile`), Schnapsen
+  (`card_points[w] += sum of card_value(card) over cards in trick_pile`), and Skat
+  (the declarer's points: a `sum of … over cards in captured[declarer]` plus the skat).
 
 Cribbage's pegging and show scoring, plus the pegging count's card provenance,
 are six game-local primitives reading `cardlang/runtime/cribbage.py` — game-local

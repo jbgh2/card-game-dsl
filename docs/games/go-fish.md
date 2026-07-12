@@ -130,9 +130,9 @@ game GoFish {
     shuffle deck
     deal 5 cards from deck to each hand
     for each player p:
-      if (max over hand[p] as c: (sum over hand[p] as c2: if c2.rank == c.rank then 1 else 0)) == 4 {
+      if any rank where rank_count(p, rank) is 4 {
         move all cards from hand[p]
-             where c => (sum over hand[p] as c2: if c2.rank == c.rank then 1 else 0) == 4
+             where rank_count(p, card.rank) is 4
              to book[p]
         book_count[p] += 1
       }
@@ -140,7 +140,7 @@ game GoFish {
   }
 
   phase play {
-    repeat until (deck is empty) or (any player p: hand[p] is empty) {
+    repeat until (deck is empty) or (any player where hand[player] is empty) {
       offer to current_player one of [ask]
     }
   }
@@ -150,30 +150,37 @@ game GoFish {
 
 // The turn: name a live opponent and a rank you hold; the ask is public.
 move_type ask(target : Player, rank : Rank) {
-  when: target != actor
-        and (sum over hand[actor] as c: if c.rank == rank then 1 else 0) > 0
+  when: target is not actor
+        and (any card in hand[actor] where card.rank is rank)
   effect {
-    let target_holds = sum over hand[target] as c: if c.rank == rank then 1 else 0
+    let target_holds = number of cards in hand[target] where card.rank is rank
     if target_holds > 0 {
-      move all cards from hand[target] where c => c.rank == rank to hand[actor]
+      move all cards from hand[target] where card.rank is rank to hand[actor]
       // A hit: current_player unchanged, so the next iteration offers to the same
       // player — "you go again".
     } else {
-      let before = sum over hand[actor] as c: if c.rank == rank then 1 else 0
+      let before = number of cards in hand[actor] where card.rank is rank
       draw 1 card from deck to hand[actor]
-      let after = sum over hand[actor] as c: if c.rank == rank then 1 else 0
-      if after == before {                 // drew a non-matching card: pass left
+      let after = number of cards in hand[actor] where card.rank is rank
+      if after is before {                 // drew a non-matching card: pass left
         current_player := actor offset_by left
       }
       // drew the asked rank: go again (current_player unchanged)
     }
     // Book completion (from a transfer or a draw): set aside four of a rank.
-    if (max over hand[actor] as c: (sum over hand[actor] as c2: if c2.rank == c.rank then 1 else 0)) == 4 {
+    if any rank where rank_count(actor, rank) is 4 {
       move all cards from hand[actor]
-           where c => (sum over hand[actor] as c2: if c2.rank == c.rank then 1 else 0) == 4
+           where rank_count(actor, card.rank) is 4
            to book[actor]
       book_count[actor] += 1
     }
   }
 }
+
+// How many cards of a rank a hand holds. Factored as a function so the book
+// predicates can count the OUTER card's rank: passing `card.rank` in as an
+// argument avoids nesting two card queries (the inner one would rebind
+// `card` and shadow the outer binder).
+function rank_count(p : Player, r : Rank) = number of cards in hand[p] where card.rank is r
+
 ```

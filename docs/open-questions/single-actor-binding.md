@@ -5,8 +5,8 @@ stress test (branch `stress-test/broad-sweep`) both lean on the same idiom to
 direct a `chosen` decision at one specific player:
 
 ```
-for each player p: if p == taker {
-  move chosen 6 cards from hand[p] where c => is_pref_discard(c) to discard
+for each player p: if p is taker {
+  move chosen 6 cards from hand[p] where is_pref_discard(card) to discard
 }
 ```
 
@@ -31,7 +31,7 @@ reading it. A binder says what is happening:
 
 ```
 as taker {
-  move chosen 6 cards from hand[taker] where c => is_pref_discard(c) to discard
+  move chosen 6 cards from hand[taker] where is_pref_discard(card) to discard
 }
 ```
 

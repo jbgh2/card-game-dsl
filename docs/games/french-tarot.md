@@ -32,7 +32,7 @@ Each hand:
 The whole hand runs in the DSL. The four-level bid runs on the kernel `round`
 (a counterclockwise single-pass ring over the move vocabulary below, settling
 on a taker via `tarot_auction_outcome`). The chien discard is a filtered
-movement (`move chosen 6 cards from hand[p] where c => is_pref_discard(c) to
+movement (`move chosen 6 cards from hand[p] where is_pref_discard(card) to
 discard[p]`, preferring plain non-King cards and falling back to any non-bout)
 into a genuinely hidden `discard[player]` zone — a deliberate departure from
 the printed rules' physical table layout, where the discard sits face down in
@@ -78,7 +78,7 @@ game FrenchTarot {
     hands_played  : Integer = 0
   }
 
-  phase hand_sequence repeats until hands_played >= 36 {
+  phase hand_sequence repeat until hands_played >= 36 {
     state {
       dealer    : Player  = 0
       taker     : Player? = none   // set by the auction's `taken` arm
@@ -104,7 +104,7 @@ game FrenchTarot {
       round offering [pass, bid_petite, bid_garde, bid_garde_sans, bid_garde_contre]
             from opener
             over players where not acted[player]
-            until (number of players where not acted[player]) == 0
+            until (number of players where not acted[player]) is 0
             outcome tarot_auction_outcome
     }
     auction produces:
@@ -126,12 +126,12 @@ game FrenchTarot {
       // is counted at scoring — moving it would reorder the next hand's
       // pre-shuffle gather.
       if bid_level <= 2 {
-        for each player p: if p == taker {
+        for each player p: if p is taker {
           move all cards from chien to hand[p]
-          if (sum over hand[p] as c: if is_pref_discard(c) then 1 else 0) >= 6 {
-            move chosen 6 cards from hand[p] where c => is_pref_discard(c) to discard[p]
+          if (number of cards in hand[p] where is_pref_discard(card)) >= 6 {
+            move chosen 6 cards from hand[p] where is_pref_discard(card) to discard[p]
           } else {
-            move chosen 6 cards from hand[p] where c => not is_bout(c) to discard[p]
+            move chosen 6 cards from hand[p] where not is_bout(card) to discard[p]
           }
         }
       }
@@ -140,19 +140,19 @@ game FrenchTarot {
       // leads the first. The Excuse is exempt from every obligation and never
       // wins (tarot_trick_winner).
       leader := dealer offset_by right
-      repeat until (all player p: hand[p] is empty) {
+      repeat until (all players where hand[player] is empty) {
         round play_to_trick from leader over all players source hand into trick_pile
               outcome tarot_trick_winner
-        petit_in_last := (sum over trick_pile as c:
-                            if c.suit == atouts and c.rank == "1" then 1 else 0) > 0
+        petit_in_last := any card in trick_pile
+                           where card.suit is atouts and card.rank is "1"
         let xp = tarot_excuse_player()
-        if xp is not none and ((xp == taker) != (outcome == taker)) {
+        if xp is not none and ((xp is taker) is not (outcome is taker)) {
           // The Excuse stays with its own side; the winner takes the rest and is
           // repaid the first captured low card, when one is available.
-          move all cards from trick_pile where c => c.suit == excuse to captured[xp]
+          move all cards from trick_pile where card.suit is excuse to captured[xp]
           move all cards from trick_pile to captured[outcome]
-          if (sum over captured[xp] as c: if tarot_card_points(c) == 1 then 1 else 0) > 0 {
-            move one cards from captured[xp] where c => tarot_card_points(c) == 1
+          if any card in captured[xp] where tarot_card_points(card) is 1 {
+            move one card from captured[xp] where tarot_card_points(card) is 1
                  to captured[outcome]
           }
         } else {
@@ -163,9 +163,9 @@ game FrenchTarot {
 
       // Scoring: per-opponent amount (bouts threshold, petit-au-bout, bid
       // multiplier — half-point arithmetic in tarot_per_opp); 3:1 zero-sum.
-      let pb = if petit_in_last then (if leader == taker then 10 else -10) else 0
+      let pb = if petit_in_last then (if leader is taker then 10 else -10) else 0
       let v = tarot_per_opp(pb)
-      for each player p: if p == taker { score[p] += 3 * v } else { score[p] -= v }
+      for each player p: if p is taker { score[p] += 3 * v } else { score[p] -= v }
     }
 
     after_each {
@@ -189,13 +189,13 @@ move_type bid_garde_contre { when: current_level < 4
 
 // A bout (oudler): the Excuse, the 1 of atouts (petit), or the 21.
 function is_bout(c : Card) =
-  c.suit == excuse or (c.suit == atouts and (c.rank == "1" or c.rank == "21"))
+  c.suit is excuse or (c.suit is atouts and (c.rank is "1" or c.rank is "21"))
 
 // Preferred discard: a plain-suit non-King (never a trump, the Excuse, or a
 // bout). Name-form ranks are bare enum values (K); only the numeric ranks
 // ("1", "21") spell as strings, since a bare number is an Integer.
 function is_pref_discard(c : Card) =
-  c.suit != atouts and c.suit != excuse and c.rank != K
+  c.suit is not atouts and c.suit is not excuse and c.rank is not K
 
 // === Tarot strict-trick legality (rule DSL) ===
 //
@@ -209,7 +209,7 @@ function is_pref_discard(c : Card) =
 rule ExcuseIsExempt {
   constrains: play_to_trick
   applies_when: state.led_suit is not none
-  exempts: hand.where(c => c.rank == Excuse)
+  exempts: cards in hand where card.rank is Excuse
 }
 
 // Not the library MustFollowSuit: the demand reads the EFFECTIVE led suit
@@ -218,23 +218,23 @@ rule ExcuseIsExempt {
 rule MustFollowEffectiveSuit {
   constrains: play_to_trick
   applies_when: state.led_suit is not none
-  demands: hand.cards_of_suit(tarot_led_suit())
+  demands: cards in hand where card.suit is tarot_led_suit()
   if_impossible: hand   // void in the effective led suit
 }
 
 rule MustTrumpIfVoid {
   constrains: play_to_trick
   applies_when: state.led_suit is not none
-  demands: hand.cards_of_suit(atouts)
+  demands: cards in hand where card.suit is atouts
   if_impossible: hand   // holds the led suit, or has no trump
 }
 
 rule MustOverTrump {
   constrains: play_to_trick
   applies_when: state.led_suit is not none and
-                (sum over trick_pile as t: if t.suit == atouts then 1 else 0) > 0
-  demands: hand.where(c => tarot_trump_height(c) >
-             (max over trick_pile as t: tarot_trump_height(t)))
+                (any card in trick_pile where card.suit is atouts)
+  demands: cards in hand where tarot_trump_height(card) >
+             (highest tarot_trump_height(card) over cards in trick_pile or 0)
   if_impossible: hand   // cannot over-trump: any trump (or the prior set) stands
 }
 ```

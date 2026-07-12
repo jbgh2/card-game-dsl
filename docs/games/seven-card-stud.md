@@ -62,7 +62,7 @@ game SevenCardStud {
     stack[player] : Integer = 100            // chips; total invariant, winner holds all
   }
 
-  phase hand_sequence repeats until (number of players where stack[player] > 0) <= 1 {
+  phase hand_sequence repeat until (number of players where stack[player] > 0) <= 1 {
     state { dealer : Player = 0 }
     before_each { move all cards to deck  shuffle deck  dealer := dealer offset_by left }
 
@@ -88,9 +88,9 @@ game SevenCardStud {
         round offering [check, bet, call, fold, raise] from bringer offset_by left
               over players where pending(player)
               order priority
-              until (number of players where pending(player)) == 0
+              until (number of players where pending(player)) is 0
                  or ((number of players where can_act(player)) <= 1
-                     and (number of players where can_act(player) and owes(player)) == 0)
+                     and (number of players where can_act(player) and owes(player)) is 0)
       }
       // ... 4th–7th streets: four flat `if (contenders > 1) { ... }` blocks — a burn
       // + a dealt card (upcard on 4th/5th/6th, hole on 7th), then the same betting
@@ -124,7 +124,7 @@ game SevenCardStud {
 // `when:` guards filter to the legal options at each decision.
 move_type check { when: bet_to_match <= bet_by[actor]  effect { acted[actor] := true } }
 move_type bet {
-  when: bet_to_match == 0
+  when: bet_to_match is 0
   effect {
     let post = if limit < stack[actor] then limit else stack[actor]
     stack[actor] := stack[actor] - post   committed[actor] := committed[actor] + post

@@ -43,7 +43,7 @@ game OhHell {
     score[player] : Integer = 0
   }
 
-  phase hand_sequence repeats until hand_index >= 19 {
+  phase hand_sequence repeat until hand_index >= 19 {
     state {
       hand_index         : Integer = 0      // 0..18 across the 19 hands
       hand_size          : Integer = 0      // tricks this hand
@@ -61,7 +61,7 @@ game OhHell {
       // Hand size: 10, 9, ..., 1, 2, ..., 10.
       hand_size := if hand_index <= 9 then 10 - hand_index else hand_index - 8
       deal hand_size cards from deck to each hand
-      deal 1 cards from deck to trump_indicator   // turn up the trump card
+      deal 1 card from deck to trump_indicator    // turn up the trump card
       trump_suit := suit_of(trump_indicator)
       dealer := dealer offset_by left
       leader := dealer offset_by left             // eldest hand leads
@@ -76,7 +76,7 @@ game OhHell {
       // Dealer hook: the bids may not total the hand size.
       total_bid := 0
       for each player p: total_bid += bid[p]
-      if total_bid == hand_size {
+      if total_bid is hand_size {
         if bid[dealer] < hand_size { bid[dealer] := bid[dealer] + 1 }
         else { bid[dealer] := bid[dealer] - 1 }
       }
@@ -86,7 +86,7 @@ game OhHell {
       active_rules: [MustFollowSuit]
       legal_moves:  [play_to_trick]
 
-      repeat until (all player p: hand[p] is empty) {
+      repeat until (all players where hand[player] is empty) {
         round play_to_trick from leader over all players source hand into trick_pile
               outcome highest_trump_or_led_suit trump trump_suit
         move all cards from trick_pile to captured[outcome]
@@ -98,7 +98,7 @@ game OhHell {
     phase scoring {
       // +1 per trick taken, +10 for hitting the bid exactly (never negative).
       for each player p:
-        if tricks_won[p] == bid[p] { score[p] += tricks_won[p] + 10 }
+        if tricks_won[p] is bid[p] { score[p] += tricks_won[p] + 10 }
         else { score[p] += tricks_won[p] }
     }
 

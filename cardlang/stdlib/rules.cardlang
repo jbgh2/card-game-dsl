@@ -10,13 +10,13 @@
 rule MustFollowSuit {
   constrains: play_to_trick
   applies_when: state.led_suit is not none
-  demands: hand.cards_of_suit(state.led_suit)
+  demands: cards in hand where card.suit is state.led_suit
   if_impossible: hand   // void in the led suit: play any card
 }
 
 rule NoLeadingSuitUntilBroken(suit: Suit) {
   constrains: play_to_trick
   applies_when: state.led_suit is none   // i.e., leading
-  demands: hand.where(c => c.suit != suit)
+  demands: cards in hand where card.suit is not suit
   if_impossible: hand   // only cards of that suit left: one must be led
 }

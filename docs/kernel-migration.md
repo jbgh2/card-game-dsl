@@ -137,7 +137,7 @@ consecutive passes), typed outcome = a contract variant. Then per game, supplyin
   nullary `submit_bid`/`pass` vocabulary, and the single-variant
   `bid_won(declarer, bid)` outcome (opener-at-50 fallback when all pass). Trump
   declaration is a second, one-draw round on the same form (`round offering
-  [declare_trump_suit] from high_bidder over players where player ==
+  [declare_trump_suit] from high_bidder over players where player is
   high_bidder until trump_suit is not none`), guarded by a `has_marriage`
   function checked over the four suits; no marriage anywhere is a
   statement-level `if`/`else` with no decision offered at all (abandoning the
@@ -472,7 +472,7 @@ nesting, priority windows) dissolved on inspection at migration time and
 stayed dissolved through the interactive upgrade: every decision lands on
 existing kernel sites — the turn's action pick and every window response
 are `offer`s, every influence loss is a chosen movement by the loser (the
-single-actor `for each player q: if q == X` idiom), and the exchange is a
+single-actor `for each player q: if q is X` idiom), and the exchange is a
 deal-n + chosen-n + shuffle. Setup and every deck draw deal off the top
 (the corpus convention). `run_coup_game` was deleted at migration, and with
 it the whole `instantiate` construct (zero mechanics remained); the

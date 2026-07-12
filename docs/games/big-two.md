@@ -86,7 +86,7 @@ game BigTwo {
     leader        : Player? = none    // who leads the current trick
   }
 
-  phase hand_sequence repeats until (any player p: score[p] >= 100) {
+  phase hand_sequence repeat until (any player where score[player] >= 100) {
     before_each {
       move all cards to deck
       shuffle deck
@@ -96,12 +96,12 @@ game BigTwo {
 
     phase play {
       legal_moves: [play_combination]
-      repeat until (any player p: hand[p] is empty) {
+      repeat until (any player where hand[player] is empty) {
         round climb play_combination from leader
               over players where hand[player] is not empty
               source hand into trick_pile
               combinations bigtwo_lead_options follows bigtwo_follows
-              until (any player p: hand[p] is empty)
+              until (any player where hand[player] is empty)
         opened := true
         move all cards from trick_pile to discard
         leader := outcome
@@ -112,7 +112,7 @@ game BigTwo {
       winner_seat := leader
       for each player p:
         if hand[p] is not empty {
-          score[p] += bigtwo_penalty(count over hand[p] as c: true)
+          score[p] += bigtwo_penalty(number of cards in hand[p])
         }
     }
   }

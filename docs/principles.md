@@ -64,6 +64,31 @@ writes a legal sentence must get the behavior or an error, never a silent
 misread. The normative rule is [decisions.md](decisions.md), "Surface
 totality".
 
+### One spelling per concept
+
+The language has two machine audiences beyond its human designers: OpenSpiel
+(the compilation target) and LLMs, which read game files as player seats and
+write them as authors under a generate–check–repair loop. Reading rewards an
+English-shaped surface (a rulebook-shaped sentence is comprehensible without
+simulating code, and recruits what a reader already knows about card-game
+convention); writing punishes it, because English invites paraphrase — a
+surface that reads like English implies *any* English phrasing works, when
+exactly one does (the AppleScript trap; the success case is SQL: English-ish
+but famously regular).
+
+The resolution is a normative rule for all surface work: **friendliness comes
+from familiar words in regular positions, never from accepting multiple
+phrasings because they all sound right.** When a new form is proposed, the
+test is: does it add a concept, or a second way to say an existing one? A
+second spelling is a defect — it widens the paraphrase surface a model (or a
+designer) can wander into, and it costs corpus-drift risk on top. The same
+rule is why a loud, specific rejection matters doubly: it is the repair
+signal the authoring loop runs on, and the corpus
+([maintaining.md](maintaining.md) rule 2) is the few-shot library that
+teaches the one true phrasing. The register itself — words for logic,
+equality, and quantification; symbols for arithmetic, ordering, and state
+change — is [decisions.md](decisions.md), "The expression register".
+
 ### Composition over inheritance
 
 Games are bags of named mechanics + parameters + phase structure. No game

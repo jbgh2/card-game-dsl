@@ -41,11 +41,11 @@ Things we have noted but consciously not designed yet:
   `override` rule deltas in `active_rules:`, `before_each`/`after_each` on a
   phase with no iteration, transition events other than `play_to_trick`, a
   trick round naming a move type its form cannot run, duplicate
-  `state { }` blocks, named call arguments (`f(x = 1)` — rejected until
-  a game needs the surface; positional arguments are the implemented form),
-  and a `count over` comprehension whose body is not the literal `true`
-  (`count` returns the element count and would silently discard a predicate;
-  filtered counting is the `sum over … if <pred> then 1 else 0` form).
+  `state { }` blocks, and named call arguments (`f(x = 1)` — rejected until
+  a game needs the surface; positional arguments are the implemented form).
+  Counting is the card-query form (`number of cards in … [where <pred>]`);
+  the retired `count over` comprehension (whose body was silently
+  discarded) does not parse.
   Rule-template parameters (`rule X(suit: Suit)`) support the Suit domain
   only, and one instantiation per rule name per game — both rejected loudly,
   lifted when a game needs more. Quantifier / `for each` roles are the closed
@@ -131,7 +131,7 @@ Things we have noted but consciously not designed yet:
   checker and fails only at runtime on field access.
 
   Deferred checker coverage (from Stage 1 review): BinOp operand compatibility
-  (`hearts == 5` currently passes), movement `amount` must be Integer, rule
+  (`hearts is 5` currently passes), movement `amount` must be Integer, rule
   `demands`/`applies_when` conditions, and constraining `loser.selection` to
   `Player`. Stage 2 types `produces:` arm binders (its scoped consumer walk), but
   the other binders — `for each` / lambda / comprehension / quantifier /

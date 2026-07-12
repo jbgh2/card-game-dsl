@@ -93,7 +93,7 @@ game Tichu {
     score[team] : Integer = 0
   }
 
-  phase hand_sequence repeats until (any team t: score[t] >= 1000) {
+  phase hand_sequence repeat until (any team where score[team] >= 1000) {
     before_each {
       move all cards to deck
       shuffle deck
@@ -130,7 +130,7 @@ game Tichu {
       // only after every pick (simultaneous). Distribution is draw-free and
       // giver-major: pick i goes to the i-th other player in seat order.
       for each player p: move chosen 3 cards from hand[p] to gift[p]
-      for each player p: for each player q: if q != p { deal one card from gift[p] to hand[q] }
+      for each player p: for each player q: if q is not p { deal one card from gift[p] to hand[q] }
       push_done := true
 
       // Small tichu between the push and the first lead.
@@ -199,17 +199,17 @@ game Tichu {
       if tichu_double_victory() {
         score[team_of(tichu_first_out())] += 200
       } else {
-        if (any player p: hand[p] is not empty) {
+        if (any player where hand[player] is not empty) {
           let last = the player where hand[player] is not empty
           move all cards from hand[last] to captured[tichu_opponent_team(last)]
           move all cards from captured[team_of(last)] to captured[team_of(tichu_first_out())]
         }
-        for each team t: score[t] += (sum over captured[t] as c: tichu_card_points(c))
+        for each team t: score[t] += (sum of tichu_card_points(card) over cards in captured[t])
       }
       // Tichu / Grand Tichu settle against going out first.
       for each player p:
         if called[p] > 0 {
-          if out_first is not none and p == out_first { score[team_of(p)] += called[p] }
+          if out_first is not none and p is out_first { score[team_of(p)] += called[p] }
           else { score[team_of(p)] -= called[p] }
         }
       let summary = tichu_hand_summary()   // the tichu_hand trace (invariant: 100 card points)
@@ -228,7 +228,7 @@ game Tichu {
 // chosen one.
 
 move_type call_grand_tichu {
-  when: called[actor] == 0
+  when: called[actor] is 0
   effect { called[actor] := 200 }
 }
 
@@ -237,7 +237,7 @@ move_type decline_grand {
 }
 
 move_type call_tichu {
-  when: called[actor] == 0 and (not push_done or (sum over hand[actor] as c: 1) == 14)
+  when: called[actor] is 0 and (not push_done or (number of cards in hand[actor]) is 14)
   effect {
     called[actor] := 100
     quiet := 0
@@ -263,5 +263,5 @@ move_type dragon_to_right {
 // called and have not played (pre-push: nobody has played; post-push: a
 // full 14-card hand is exactly "unplayed", since only plays shrink it).
 function tichu_window_open() =
-  any player p: called[p] == 0 and (not push_done or (sum over hand[p] as c: 1) == 14)
+  any player where called[player] is 0 and (not push_done or (number of cards in hand[player]) is 14)
 ```
