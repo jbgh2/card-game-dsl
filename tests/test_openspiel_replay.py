@@ -29,6 +29,7 @@ KERNEL_GAMES = [
     "cribbage.cardlang",
     "skat.cardlang",
     "doppelkopf.cardlang",
+    "president.cardlang",
 ]
 
 

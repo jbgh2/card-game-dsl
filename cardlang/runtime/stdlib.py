@@ -138,6 +138,14 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.tichu import tichu_hand_summary
 
             return tichu_hand_summary(ctx)
+        case "president_next_holder":
+            from cardlang.runtime.president import president_next_holder
+
+            return president_next_holder(ctx, args[0])
+        case "president_is_top_rank":
+            from cardlang.runtime.president import president_is_top_rank
+
+            return president_is_top_rank(ctx, args[0], args[1])
         case "coup_players_in":
             from cardlang.runtime.coup import coup_players_in
 
@@ -256,6 +264,10 @@ def climb_lead_function(name: str) -> Callable[[list[Card], Ctx], list[Any]]:
             from cardlang.runtime.tichu import tichu_lead_options
 
             return tichu_lead_options
+        case "president_lead_options":
+            from cardlang.runtime.president import president_lead_options
+
+            return president_lead_options
         case _:
             raise AssertionError(f"unknown climb lead query '{name}'")
 
@@ -270,6 +282,10 @@ def climb_follow_function(name: str) -> Callable[[list[Card], Any, Ctx], list[An
             from cardlang.runtime.tichu import tichu_follows
 
             return tichu_follows
+        case "president_follows":
+            from cardlang.runtime.president import president_follows
+
+            return president_follows
         case _:
             raise AssertionError(f"unknown climb follows query '{name}'")
 
@@ -286,6 +302,10 @@ def climb_universe_function(name: str) -> Callable[[], list[Any]]:
             from cardlang.runtime.bigtwo import bigtwo_universe
 
             return bigtwo_universe
+        case "president_lead_options":
+            from cardlang.runtime.president import president_universe
+
+            return president_universe
         case _:
             raise AssertionError(f"no combination universe for climb engine '{name}'")
 

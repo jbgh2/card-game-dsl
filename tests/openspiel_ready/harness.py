@@ -425,7 +425,7 @@ class ReadinessProofs:
         byte-identically.
 
         When the spec sets `adapter_terminal_steps` (games whose greedy line
-        terminates — nine of fifteen), the walk then continues cheaply to the
+        terminates), the walk then continues cheaply to the
         end of the game and asserts the DSL and pyspiel TERMINAL RETURNS
         agree; reaching Terminal within the cap is itself asserted, so the
         returns comparison cannot rot into dead code. The remaining games

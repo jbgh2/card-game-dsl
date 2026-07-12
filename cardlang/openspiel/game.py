@@ -20,25 +20,7 @@ from cardlang.openspiel.infostate import information_state
 _NUM_SEEDS = 4096  # sampled deal space at the root chance node (known limitation)
 _GAMES_DIR = Path(__file__).resolve().parent.parent.parent / "docs" / "games"
 
-# short_name -> game file. Every corpus game (all fully kernel).
-GAMES: dict[str, str] = {
-    "cardlang_hearts": "hearts.cardlang",
-    "cardlang_getaway": "getaway.cardlang",
-    "cardlang_spades": "spades.cardlang",
-    "cardlang_bridge": "bridge.cardlang",
-    "cardlang_oh_hell": "oh-hell.cardlang",
-    "cardlang_big_two": "big-two.cardlang",
-    "cardlang_seven_card_stud": "seven-card-stud.cardlang",
-    "cardlang_pinochle": "pinochle.cardlang",
-    "cardlang_french_tarot": "french-tarot.cardlang",
-    "cardlang_cribbage": "cribbage.cardlang",
-    "cardlang_schnapsen": "schnapsen.cardlang",
-    "cardlang_skat": "skat.cardlang",
-    "cardlang_tichu": "tichu.cardlang",
-    "cardlang_coup": "coup.cardlang",
-    "cardlang_go_fish": "go-fish.cardlang",
-    "cardlang_doppelkopf": "doppelkopf.cardlang",
-}
+from cardlang.openspiel.registry import GAMES as GAMES
 
 
 class _Observer:
