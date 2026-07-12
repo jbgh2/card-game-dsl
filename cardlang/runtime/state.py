@@ -170,6 +170,7 @@ class RuntimeState:
         self.rank_index: dict[str, int] = {}  # rank -> strength (higher = stronger)
         self.card_values: dict[str, int] = {}  # rank -> card points (point-trick games)
         self.suits: tuple[str, ...] = ()  # the deck's actual card suits (move-param domains)
+        self.ranks: tuple[str, ...] = ()  # rank iteration order: ranking: if declared, else deck order
         self.max_length: int = 0  # the game's declared non-termination backstop
         self.decisions_made: int = 0  # every chooser pick, checked against max_length
 

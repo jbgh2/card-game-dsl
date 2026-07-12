@@ -44,6 +44,11 @@ from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 # Roles a zone may be indexed by or owned by. Grows with the seating model.
 _KNOWN_ROLES = {"player", "team"}
 
+# Roles a quantifier (`any <role> x:`) or `for each <role>` may range over:
+# the seat roles plus the deck's value domains. `each … simultaneously` is
+# seat-only — a value domain has no actor to move simultaneously.
+_ITERATION_ROLES = frozenset({"player", "team", "suit", "rank"})
+
 # The magic namespaces a bare name may resolve to.
 _PRONOUNS = frozenset({"state", "action", "outcome", "active_rules", "actor"})
 
@@ -996,6 +1001,24 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 )
             case n.MethodCall() if nd.method not in ZONE_METHODS:
                 bag.error(f"unknown zone method '{nd.method}'", nd.span)
+            case n.Quantifier() if nd.role not in _ITERATION_ROLES:
+                bag.error(
+                    f"unknown quantifier role '{nd.role}' (expected one of "
+                    f"{', '.join(sorted(_ITERATION_ROLES))})",
+                    nd.span,
+                )
+            case n.ForEach() if nd.role not in _ITERATION_ROLES:
+                bag.error(
+                    f"unknown `for each` role '{nd.role}' (expected one of "
+                    f"{', '.join(sorted(_ITERATION_ROLES))})",
+                    nd.span,
+                )
+            case n.EachSimultaneous() if nd.role != "player":
+                bag.error(
+                    f"`each {nd.role} simultaneously` is not runnable — "
+                    f"simultaneous moves are per player",
+                    nd.span,
+                )
             case n.Comprehension() if nd.agg == "count" and not (
                 isinstance(nd.body, n.NameRef) and nd.body.name == "true"
             ):

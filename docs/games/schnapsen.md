@@ -225,7 +225,7 @@ move_type declare_marriage(s : Suit) {
     // declarer has won a trick.
     if tricks_won[actor] > 0 { card_points[actor] += if s == trump_suit then 40 else 20 }
     else { pending[actor] += if s == trump_suit then 40 else 20 }
-    move one card from hand[actor] where x => x.rank == "Q" and x.suit == s to trick_pile
+    move one card from hand[actor] where x => x.rank == Q and x.suit == s to trick_pile
   }
 }
 
@@ -233,10 +233,10 @@ move_type exchange_trump_jack {
   when: not closed
         and not (talon is empty and trump_indicator is empty)
         and trump_indicator is not empty
-        and (sum over hand[actor] as c: if c.rank == "J" and c.suit == trump_suit then 1 else 0) > 0
+        and (sum over hand[actor] as c: if c.rank == J and c.suit == trump_suit then 1 else 0) > 0
   effect {
     move one card from trump_indicator to hand[actor]
-    move one card from hand[actor] where x => x.rank == "J" and x.suit == trump_suit to trump_indicator
+    move one card from hand[actor] where x => x.rank == J and x.suit == trump_suit to trump_indicator
   }
 }
 
@@ -256,8 +256,8 @@ move_type close_talon {
 // Does p hold both the K and the Q of s? (Pinochle's marriage predicate; rank
 // names compare as the literal strings a `Card.rank` holds.)
 function has_marriage(p : Player, s : Suit) =
-  (sum over hand[p] as c: if c.suit == s and c.rank == "K" then 1 else 0) > 0 and
-  (sum over hand[p] as c: if c.suit == s and c.rank == "Q" then 1 else 0) > 0
+  (sum over hand[p] as c: if c.suit == s and c.rank == K then 1 else 0) > 0 and
+  (sum over hand[p] as c: if c.suit == s and c.rank == Q then 1 else 0) > 0
 
 // The led card, read from the single-card trick pile at follow time.
 function led_suit_now() = suit_of(trick_pile)

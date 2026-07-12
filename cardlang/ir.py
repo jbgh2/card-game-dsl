@@ -409,6 +409,8 @@ def _expr(e: n.Expr) -> IRDict:
             return {"kind": "card", "rank": e.rank, "suit": e.suit}
         case n.AllPlayers():
             return {"kind": "all_players"}
+        case n.ListLit():
+            return {"kind": "list", "elements": [_expr(x) for x in e.elements]}
         case n.Member():
             return {"kind": "member", "obj": _expr(e.obj), "field": e.field}
         case n.Subscript():

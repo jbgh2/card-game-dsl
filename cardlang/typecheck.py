@@ -26,7 +26,7 @@ from cardlang.ast import nodes as n
 from cardlang.ast.nodes import Game
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError
 from cardlang.stdlib.signatures import CALL_SIGS, METHOD_SIGS, ZONE_CONTENT, Sig
-from cardlang.stdlib.values import DIRECTION_VALUES, deck_suits
+from cardlang.stdlib.values import DIRECTION_VALUES, deck_ranks, deck_suits
 from cardlang.types import (
     TAny,
     TBoolean,
@@ -97,7 +97,9 @@ def value_enum_map(game: Game) -> dict[str, TEnum]:
     m: dict[str, TEnum] = {}
     for suit in deck_suits(game.deck):
         m[suit] = TEnum("Suit")
-    for rank in game.ranking:
+    # Membership comes from the deck (Coup/Tarot declare no `ranking:`);
+    # a declared ranking adds nothing here beyond order.
+    for rank in deck_ranks(game.deck) | frozenset(game.ranking):
         m[rank] = TEnum("Rank")
     for direction in DIRECTION_VALUES:
         m[direction] = TEnum("Direction")
@@ -203,7 +205,7 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                 return infer(e.obj, env)
             return msig.ret if msig.ret is not None else TAny()
         case n.BinOp():
-            if e.op in ("==", "!=", "<", ">", "<=", ">=", "and", "or"):
+            if e.op in ("==", "!=", "<", ">", "<=", ">=", "and", "or", "in"):
                 return TBoolean()
             if e.op in ("+", "-", "*"):
                 return TInteger()
@@ -236,9 +238,21 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
             obj = infer(e.obj, env)
             if isinstance(obj, TStruct):
                 return obj.fields.get(e.field, TAny())
+            if isinstance(obj, TCard):
+                # A card's fields are a closed pair; `_check_expr` rejects
+                # anything else on a known-Card receiver.
+                if e.field == "rank":
+                    return TEnum("Rank")
+                if e.field == "suit":
+                    return TEnum("Suit")
             return TAny()  # pronoun member access / sugar: deferred
         case n.Lambda():
             return TAny()  # lambda values: deferred
+        case n.ListLit():
+            elem: Type | None = infer(e.elements[0], env)
+            for item in e.elements[1:]:
+                elem = unify(elem, infer(item, env)) if elem is not None else None
+            return TCollection(elem if elem is not None else TAny())
         case _ as unreachable:
             assert_never(unreachable)
 
@@ -327,12 +341,17 @@ _Binders = tuple[tuple[str, "Type"], ...]
 
 
 def _role_type(role: str) -> Type:
-    """The type a `for each <role>` / `any <role>` binder carries. Roles are a
-    closed set from the grammar; an unknown one stays permissive."""
+    """The type a `for each <role>` / `any <role>` binder carries. The role
+    set is closed and resolve rejects anything outside it; the TAny arm is a
+    backstop for the permissive walks that run before that rejection."""
     if role == "player":
         return TPlayer()
     if role == "team":
         return TTeam()
+    if role == "suit":
+        return TEnum("Suit")
+    if role == "rank":
+        return TEnum("Rank")
     return TAny()
 
 
@@ -406,6 +425,8 @@ def _arg_exprs(args: tuple[n.Arg, ...]) -> list[n.Expr]:
 def _child_exprs(e: n.Expr) -> list[n.Expr]:
     if isinstance(e, n.Member):
         return [e.obj]
+    if isinstance(e, n.ListLit):
+        return list(e.elements)
     if isinstance(e, n.StructLit):
         return [fi.value for fi in e.fields]
     if isinstance(e, n.Subscript):
@@ -479,6 +500,56 @@ def _function_sigs(game: Game, env: TypeEnv, bag: DiagnosticBag) -> dict[str, Si
     return sigs
 
 
+def _enum_domain(env: TypeEnv, enum_name: str) -> frozenset[str]:
+    """Every value of a deck/stdlib enum, from the value->enum map."""
+    return frozenset(v for v, t in env.value_enums.items() if t.name == enum_name)
+
+
+def _check_enum_operand(
+    enum: TEnum, other: n.Expr, other_bare: Type, env: TypeEnv, bag: DiagnosticBag
+) -> None:
+    """The enum-comparison wall: an equality (or membership element) against a
+    known enum-typed operand must be able to be true. Cross-enum comparisons,
+    Integer operands (a bare `10` is an Integer, never the rank "10"), and
+    string literals outside the enum's value set are all silently-false traps
+    at run time — reject them here. A name-form value written as a string is
+    a second spelling of the bare literal and is rejected too (one spelling
+    per concept). Non-literal String expressions stay unchecked (gradual)."""
+    if isinstance(other_bare, TEnum):
+        if other_bare.name != enum.name:
+            bag.error(
+                f"comparing {enum.name} with {other_bare.name} can never be "
+                f"equal",
+                other.span,
+            )
+        return
+    if isinstance(other_bare, TInteger):
+        hint = (
+            ' — numeric ranks are written as strings ("10")'
+            if enum.name == "Rank"
+            else ""
+        )
+        bag.error(
+            f"comparing {enum.name} with Integer can never be equal{hint}",
+            other.span,
+        )
+        return
+    if isinstance(other, n.StrLit):
+        domain = _enum_domain(env, enum.name)
+        if other.value not in domain:
+            bag.error(
+                f'"{other.value}" is not a {enum.name} value of this deck',
+                other.span,
+            )
+        elif not other.value.isdigit():
+            bag.error(
+                f"write the {enum.name} value bare — {other.value}, not "
+                f'"{other.value}" (strings spell only the numeric ranks, '
+                f"which would otherwise read as Integers)",
+                other.span,
+            )
+
+
 def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
     """Recursively validate a single expression: stdlib argument types and
     subscript legality. Types of unrefined sub-parts are `TAny` (permissive).
@@ -550,6 +621,14 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         bare = obj.inner if isinstance(obj, TOptional) else obj
         if isinstance(obj, TStruct) and e.field not in obj.fields:
             bag.error(f"{obj.name} has no field '{e.field}'", e.span)
+        elif isinstance(bare, TCard) and e.field not in ("rank", "suit"):
+            # A card's fields are a closed pair — an unknown one would read
+            # as `TAny` and only fail (or worse, not fail) at play time.
+            bag.error(
+                f"Card has no field '{e.field}' (its fields are `rank` and "
+                f"`suit`)",
+                e.span,
+            )
         elif isinstance(bare, (TPlayer, TTeam, TInteger, TBoolean)):
             # The dot form is object-member access only (Card, Move, and
             # struct fields). Zone/state indexing is the bracket form, and
@@ -561,6 +640,42 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 f"('{e.field}[...]') instead",
                 e.span,
             )
+    elif isinstance(e, n.BinOp) and e.op in ("==", "!="):
+        left_t, right_t = infer(e.left, env), infer(e.right, env)
+        lbare = left_t.inner if isinstance(left_t, TOptional) else left_t
+        rbare = right_t.inner if isinstance(right_t, TOptional) else right_t
+        if isinstance(lbare, TEnum):
+            _check_enum_operand(lbare, e.right, rbare, env, bag)
+        elif isinstance(rbare, TEnum):
+            _check_enum_operand(rbare, e.left, lbare, env, bag)
+    elif isinstance(e, n.BinOp) and e.op == "in":
+        right_t = infer(e.right, env)
+        if not isinstance(right_t, (TCollection, TAny)):
+            bag.error(
+                f"the right-hand side of `in` must be a collection (a zone or "
+                f"a `[…]` list), got {_type_name(right_t)}",
+                e.span,
+            )
+            return
+        left_t = infer(e.left, env)
+        lbare = left_t.inner if isinstance(left_t, TOptional) else left_t
+        if isinstance(lbare, TEnum):
+            # Validate each literal element against the member's enum, the
+            # same wall as `==` — `card.rank in ["Kx"]` must not be silently
+            # false.
+            if isinstance(e.right, n.ListLit):
+                for item in e.right.elements:
+                    item_t = infer(item, env)
+                    ibare = item_t.inner if isinstance(item_t, TOptional) else item_t
+                    _check_enum_operand(lbare, item, ibare, env, bag)
+            elif isinstance(right_t, TCollection):
+                ebare = right_t.element
+                if isinstance(ebare, TEnum) and ebare.name != lbare.name:
+                    bag.error(
+                        f"membership compares {lbare.name} with a collection "
+                        f"of {ebare.name} — never true",
+                        e.span,
+                    )
 
 
 def _check_struct_lit(e: n.StructLit, env: TypeEnv, bag: DiagnosticBag) -> None:

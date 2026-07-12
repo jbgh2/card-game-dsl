@@ -243,8 +243,8 @@ move_type tax {
     }
     if challenged {
       if coup_has_char(actor, "Duke") {
-        reveal one card from influence[actor] where c => c.rank == "Duke"
-        move one card from influence[actor] where c => c.rank == "Duke" to court_deck
+        reveal one card from influence[actor] where c => c.rank == Duke
+        move one card from influence[actor] where c => c.rank == Duke to court_deck
         shuffle court_deck
         deal one card from court_deck to influence[actor]
         for each player q:
@@ -293,8 +293,8 @@ move_type steal(target : Player) {
     }
     if challenged {
       if coup_has_char(actor, "Captain") {
-        reveal one card from influence[actor] where c => c.rank == "Captain"
-        move one card from influence[actor] where c => c.rank == "Captain" to court_deck
+        reveal one card from influence[actor] where c => c.rank == Captain
+        move one card from influence[actor] where c => c.rank == Captain to court_deck
         shuffle court_deck
         deal one card from court_deck to influence[actor]
         for each player q:
@@ -391,8 +391,8 @@ move_type exchange {
     }
     if challenged {
       if coup_has_char(actor, "Ambassador") {
-        reveal one card from influence[actor] where c => c.rank == "Ambassador"
-        move one card from influence[actor] where c => c.rank == "Ambassador" to court_deck
+        reveal one card from influence[actor] where c => c.rank == Ambassador
+        move one card from influence[actor] where c => c.rank == Ambassador to court_deck
         shuffle court_deck
         deal one card from court_deck to influence[actor]
         for each player q:
@@ -462,8 +462,8 @@ move_type assassinate(target : Player) {
     }
     if challenged {
       if coup_has_char(actor, "Assassin") {
-        reveal one card from influence[actor] where c => c.rank == "Assassin"
-        move one card from influence[actor] where c => c.rank == "Assassin" to court_deck
+        reveal one card from influence[actor] where c => c.rank == Assassin
+        move one card from influence[actor] where c => c.rank == Assassin to court_deck
         shuffle court_deck
         deal one card from court_deck to influence[actor]
         for each player q:

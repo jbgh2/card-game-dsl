@@ -229,7 +229,7 @@ game Doppelkopf {
         tricks_won[w] += 1
         if fox1_victim is not none and fox1_winner is none { fox1_winner := w }
         if fox2_victim is not none and fox2_winner is none { fox2_winner := w }
-        if (sum over trick_pile as c: if c.rank == "A" or c.rank == "10" then 1 else 0) == 4 {
+        if (sum over trick_pile as c: if c.rank in [A, "10"] then 1 else 0) == 4 {
           dk_tricks[w] += 1
         }
         if trick_no == 12 { last_winner := w }
@@ -465,7 +465,7 @@ function is_re(p : Player) =
 // The trump group of the normal game: both ♥10 (the Dulle), all queens,
 // all jacks, and all diamonds.
 function is_trump(c : Card) =
-  c.rank == "Q" or c.rank == "J" or c.suit == diamonds
+  c.rank == Q or c.rank == J or c.suit == diamonds
   or (c.suit == hearts and c.rank == "10")
 
 function holds_trump(p : Player) =

@@ -99,8 +99,7 @@ game Pinochle {
       // The high bidder names trump — a suit he holds a marriage (K-Q) in. With
       // no marriage anywhere he abandons the bid (no decision is offered) and
       // the hand goes straight to scoring, where his side is set back.
-      if has_marriage(high_bidder, clubs) or has_marriage(high_bidder, diamonds)
-         or has_marriage(high_bidder, hearts) or has_marriage(high_bidder, spades) {
+      if any suit s: has_marriage(high_bidder, s) {
         round offering [declare_trump_suit] from high_bidder
               over players where player == high_bidder
               until trump_suit is not none
@@ -182,8 +181,8 @@ move_type declare_trump_suit(s : Suit) {
 // integers, and there is no bare-name path for `K`/`Q` either — so the rank
 // check compares against the literal string a `Card.rank` actually holds.)
 function has_marriage(p : Player, s : Suit) =
-  (sum over hand[p] as c: if c.suit == s and c.rank == "K" then 1 else 0) > 0 and
-  (sum over hand[p] as c: if c.suit == s and c.rank == "Q" then 1 else 0) > 0
+  (sum over hand[p] as c: if c.suit == s and c.rank == K then 1 else 0) > 0 and
+  (sum over hand[p] as c: if c.suit == s and c.rank == Q then 1 else 0) > 0
 
 // === Pinochle strict-trick legality (rule DSL) ===
 //
@@ -201,7 +200,7 @@ rule MustHeadTrick {
   applies_when: state.led_suit is not none
   demands: hand.where(c => c.suit == state.led_suit and
              rank_value(c) > (max over trick_pile as t:
-               if t.suit == state.led_suit then rank_value(t) else 0 - 1))
+               if t.suit == state.led_suit then rank_value(t) else -1))
   if_impossible: hand   // cannot head (or is void): the prior narrowing stands
 }
 
@@ -218,6 +217,6 @@ rule MustOverTrump {
                 (sum over trick_pile as t: if t.suit == trump_suit then 1 else 0) > 0
   demands: hand.where(c => c.suit == trump_suit and
              rank_value(c) > (max over trick_pile as t:
-               if t.suit == trump_suit then rank_value(t) else 0 - 1))
+               if t.suit == trump_suit then rank_value(t) else -1))
   if_impossible: hand   // cannot over-trump: any trump (or the prior set) stands
 }

@@ -1268,16 +1268,8 @@
                   },
                   "elifs": [],
                   "otherwise": {
-                    "kind": "binop",
-                    "op": "-",
-                    "left": {
-                      "kind": "int",
-                      "value": 0
-                    },
-                    "right": {
-                      "kind": "int",
-                      "value": 10
-                    }
+                    "kind": "int",
+                    "value": -10
                   }
                 },
                 "elifs": [],
@@ -1442,8 +1434,9 @@
                 "field": "rank"
               },
               "right": {
-                "kind": "str",
-                "value": "Excuse"
+                "kind": "name",
+                "name": "Excuse",
+                "ref": "enum_value"
               }
             }
           }
@@ -2088,8 +2081,9 @@
             "field": "rank"
           },
           "right": {
-            "kind": "str",
-            "value": "K"
+            "kind": "name",
+            "name": "K",
+            "ref": "enum_value"
           }
         }
       }

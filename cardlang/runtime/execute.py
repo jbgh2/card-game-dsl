@@ -326,11 +326,26 @@ def _for_each(stmt: n.ForEach, ctx: Ctx) -> None:
         for team in ctx.rs.teams:
             execute(stmt.body, ctx.with_local(stmt.binder, team))
         return
-    assert stmt.role == "player"
+    if stmt.role in ("suit", "rank"):
+        # Value domains carry no actor: the binder is a bare enum value.
+        for value in _enum_role_domain(stmt.role, ctx):
+            execute(stmt.body, ctx.with_local(stmt.binder, value))
+        return
+    assert stmt.role == "player"  # resolve rejects anything else
     # The bound player is also the acting player for the body, so a decision
     # made inside (e.g. `bid[p] := choose …`) knows who is choosing.
     for player in ctx.rs.seating.players:
         execute(stmt.body, ctx.with_local(stmt.binder, player).acting_as(player))
+
+
+def _enum_role_domain(role: str, ctx: Ctx) -> list[str]:
+    """The deterministic iteration order of a value-role domain: suits in
+    deck order; ranks in `ranking:` order (strongest first) when declared,
+    else deck order."""
+    if role == "suit":
+        return list(ctx.rs.suits)
+    assert role == "rank"
+    return list(ctx.rs.ranks)
 
 
 def _offer(stmt: n.Offer, ctx: Ctx) -> None:

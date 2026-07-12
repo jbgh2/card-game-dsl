@@ -66,6 +66,15 @@ class AllPlayers:
 
 
 @dataclass(frozen=True, slots=True)
+class ListLit:
+    """A literal collection, `[hearts, spades]` — the right-hand side of a
+    membership test. Never empty (the grammar requires one element)."""
+
+    elements: tuple[Expr, ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Member:
     """Field access, e.g. `card.suit`, `state.led_suit`, `action.card`."""
 
@@ -256,6 +265,7 @@ Expr = (
     | StrLit
     | CardLiteral
     | AllPlayers
+    | ListLit
     | Member
     | Subscript
     | StructLit

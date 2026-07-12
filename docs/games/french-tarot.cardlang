@@ -139,7 +139,7 @@ game FrenchTarot {
 
       // Scoring: per-opponent amount (bouts threshold, petit-au-bout, bid
       // multiplier — half-point arithmetic in tarot_per_opp); 3:1 zero-sum.
-      let pb = if petit_in_last then (if leader == taker then 10 else 0 - 10) else 0
+      let pb = if petit_in_last then (if leader == taker then 10 else -10) else 0
       let v = tarot_per_opp(pb)
       for each player p: if p == taker { score[p] += 3 * v } else { score[p] -= v }
     }
@@ -174,11 +174,10 @@ function is_bout(c : Card) =
   c.suit == excuse or (c.suit == atouts and (c.rank == "1" or c.rank == "21"))
 
 // Preferred discard: a plain-suit non-King (never a trump, the Excuse, or a
-// bout). Bare rank names are not enum values in this language — only
-// `<rank> of <suit>` card literals resolve a bare rank — so the check
-// compares against the string literal `Card.rank` holds.
+// bout). Name-form ranks are bare enum values (K); only the numeric ranks
+// ("1", "21") spell as strings, since a bare number is an Integer.
 function is_pref_discard(c : Card) =
-  c.suit != atouts and c.suit != excuse and c.rank != "K"
+  c.suit != atouts and c.suit != excuse and c.rank != K
 
 // === Tarot strict-trick legality (rule DSL) ===
 //
@@ -194,7 +193,7 @@ function is_pref_discard(c : Card) =
 rule ExcuseIsExempt {
   constrains: play_to_trick
   applies_when: state.led_suit is not none
-  exempts: hand.where(c => c.rank == "Excuse")
+  exempts: hand.where(c => c.rank == Excuse)
 }
 
 // Not the library MustFollowSuit: the demand reads the EFFECTIVE led suit

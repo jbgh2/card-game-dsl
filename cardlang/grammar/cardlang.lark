@@ -363,6 +363,7 @@ elif_clause: "elif" expr "then" expr
            | sum "is" "empty"        -> is_empty
            | sum "is" "not" "empty"  -> is_not_empty
            | sum comp_op sum         -> compare
+           | sum "in" sum            -> membership
            | sum
 comp_op: COMP_OP
 COMP_OP: "==" | "!=" | ">=" | "<=" | ">" | "<"
@@ -389,10 +390,16 @@ arg_list: arg ("," arg)*
         | choose_expr
         | call
         | struct_lit
+        | list_lit
         | INT               -> int_lit
+        | "-" INT           -> neg_int_lit
         | STRING            -> str_lit
         | NAME              -> name_ref
         | "(" expr ")"
+
+// A literal collection, for membership tests (`card.suit in [hearts, spades]`).
+// At least one element: an empty literal has no use and no element type.
+list_lit: "[" expr ("," expr)* "]"
 
 // `TypeName { field: expr, … }` — constructs a user-defined struct value. At
 // least one field is required, keeping it distinct from a statement block in

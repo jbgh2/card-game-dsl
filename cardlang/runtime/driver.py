@@ -27,7 +27,7 @@ from cardlang.runtime.state import (
     _ProduceSignal,
     _SkipHand,
 )
-from cardlang.runtime.values import DECKS, Player, Seating, build_deck, deck_suits
+from cardlang.runtime.values import DECKS, Player, Seating, build_deck, deck_ranks, deck_suits
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +67,9 @@ def play_game(
     rs.rank_index = {r: len(game.ranking) - 1 - i for i, r in enumerate(game.ranking)}
     rs.card_values = dict(DECKS[game.deck].values)
     rs.suits = deck_suits(game.deck)
+    # Rank iteration order for `for each rank` / `any rank`: the declared
+    # ranking when present, else the deck's first-appearance order.
+    rs.ranks = game.ranking if game.ranking else deck_ranks(game.deck)
     rs.rule_index = {r.name: r for r in game.rules}
     rs.move_type_index = {m.name: m for m in game.move_types}
     rs.type_index = {t.name: t for t in game.types}

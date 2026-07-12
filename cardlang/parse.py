@@ -755,6 +755,9 @@ class _Builder(Transformer[Token, n.Game]):
     def compare(self, meta: Meta, c: list[object]) -> n.BinOp:
         return n.BinOp(str(c[1]), _as_expr(c[0]), _as_expr(c[2]), span=self._span(meta))
 
+    def membership(self, meta: Meta, c: list[object]) -> n.BinOp:
+        return n.BinOp("in", _as_expr(c[0]), _as_expr(c[1]), span=self._span(meta))
+
     def add(self, meta: Meta, c: list[object]) -> n.BinOp:
         return n.BinOp("+", _as_expr(c[0]), _as_expr(c[1]), span=self._span(meta))
 
@@ -826,6 +829,14 @@ class _Builder(Transformer[Token, n.Game]):
 
     def int_lit(self, meta: Meta, c: list[Token]) -> n.IntLit:
         return n.IntLit(int(c[0]), span=self._span(meta))
+
+    def neg_int_lit(self, meta: Meta, c: list[Token]) -> n.IntLit:
+        return n.IntLit(-int(c[0]), span=self._span(meta))
+
+    def list_lit(self, meta: Meta, c: list[object]) -> n.ListLit:
+        return n.ListLit(
+            elements=tuple(_as_expr(x) for x in c), span=self._span(meta)
+        )
 
     def str_lit(self, meta: Meta, c: list[Token]) -> n.StrLit:
         return n.StrLit(str(c[0])[1:-1], span=self._span(meta))

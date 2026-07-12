@@ -658,65 +658,11 @@
             {
               "kind": "if",
               "cond": {
-                "kind": "binop",
-                "op": "or",
-                "left": {
-                  "kind": "binop",
-                  "op": "or",
-                  "left": {
-                    "kind": "binop",
-                    "op": "or",
-                    "left": {
-                      "kind": "call",
-                      "func": "has_marriage",
-                      "args": [
-                        {
-                          "kind": "name",
-                          "name": "high_bidder",
-                          "ref": "state_var"
-                        },
-                        {
-                          "kind": "name",
-                          "name": "clubs",
-                          "ref": "enum_value"
-                        }
-                      ]
-                    },
-                    "right": {
-                      "kind": "call",
-                      "func": "has_marriage",
-                      "args": [
-                        {
-                          "kind": "name",
-                          "name": "high_bidder",
-                          "ref": "state_var"
-                        },
-                        {
-                          "kind": "name",
-                          "name": "diamonds",
-                          "ref": "enum_value"
-                        }
-                      ]
-                    }
-                  },
-                  "right": {
-                    "kind": "call",
-                    "func": "has_marriage",
-                    "args": [
-                      {
-                        "kind": "name",
-                        "name": "high_bidder",
-                        "ref": "state_var"
-                      },
-                      {
-                        "kind": "name",
-                        "name": "hearts",
-                        "ref": "enum_value"
-                      }
-                    ]
-                  }
-                },
-                "right": {
+                "kind": "quantifier",
+                "quant": "any",
+                "role": "suit",
+                "binder": "s",
+                "body": {
                   "kind": "call",
                   "func": "has_marriage",
                   "args": [
@@ -727,8 +673,8 @@
                     },
                     {
                       "kind": "name",
-                      "name": "spades",
-                      "ref": "enum_value"
+                      "name": "s",
+                      "ref": "local"
                     }
                   ]
                 }
@@ -1285,16 +1231,8 @@
                       },
                       "elifs": [],
                       "otherwise": {
-                        "kind": "binop",
-                        "op": "-",
-                        "left": {
-                          "kind": "int",
-                          "value": 0
-                        },
-                        "right": {
-                          "kind": "int",
-                          "value": 1
-                        }
+                        "kind": "int",
+                        "value": -1
                       }
                     }
                   }
@@ -1522,16 +1460,8 @@
                       },
                       "elifs": [],
                       "otherwise": {
-                        "kind": "binop",
-                        "op": "-",
-                        "left": {
-                          "kind": "int",
-                          "value": 0
-                        },
-                        "right": {
-                          "kind": "int",
-                          "value": 1
-                        }
+                        "kind": "int",
+                        "value": -1
                       }
                     }
                   }
@@ -1856,8 +1786,9 @@
                     "field": "rank"
                   },
                   "right": {
-                    "kind": "str",
-                    "value": "K"
+                    "kind": "name",
+                    "name": "K",
+                    "ref": "enum_value"
                   }
                 }
               },
@@ -1933,8 +1864,9 @@
                     "field": "rank"
                   },
                   "right": {
-                    "kind": "str",
-                    "value": "Q"
+                    "kind": "name",
+                    "name": "Q",
+                    "ref": "enum_value"
                   }
                 }
               },

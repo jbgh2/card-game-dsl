@@ -45,7 +45,11 @@ Things we have noted but consciously not designed yet:
   a game needs the surface; positional arguments are the implemented form),
   and a `count over` comprehension whose body is not the literal `true`
   (`count` returns the element count and would silently discard a predicate;
-  filtered counting is the `sum over … if <pred> then 1 else 0` form). Rules that the runtime cannot yet enforce at all are a
+  filtered counting is the `sum over … if <pred> then 1 else 0` form).
+  Rule-template parameters (`rule X(suit: Suit)`) support the Suit domain
+  only, and one instantiation per rule name per game — both rejected loudly,
+  lifted when a game needs more. Quantifier / `for each` roles are the closed
+  set player/team/suit/rank; `each … simultaneously` is player-only. Rules that the runtime cannot yet enforce at all are a
   named open question, not a rejection —
   [open-questions/rule-scope-beyond-trick-play.md](open-questions/rule-scope-beyond-trick-play.md).
 

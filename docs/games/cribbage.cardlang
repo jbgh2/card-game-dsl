@@ -71,7 +71,7 @@ game Cribbage {
 
       // Cut the starter (top of the shuffled deck). His heels: a Jack scores the dealer 2.
       move one card from deck to starter
-      if (sum over starter as c: if c.rank == "J" then 1 else 0) > 0 {
+      if (sum over starter as c: if c.rank == J then 1 else 0) > 0 {
         score[dealer] += 2
       }
       if game_over() { skip to next hand }

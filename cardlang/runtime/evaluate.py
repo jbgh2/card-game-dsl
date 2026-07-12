@@ -28,6 +28,8 @@ def evaluate(e: n.Expr, ctx: Ctx) -> Any:
             return Card(e.rank, e.suit)
         case n.AllPlayers():
             return list(ctx.rs.seating.players)
+        case n.ListLit():
+            return [evaluate(item, ctx) for item in e.elements]
         case n.Member():
             return _member_eval(e, ctx)
         case n.StructLit():
@@ -250,6 +252,9 @@ def _binop(e: n.BinOp, ctx: Ctx) -> Any:
             return left < right
         case "offset_by":
             return ctx.rs.seating.offset_by(left, right)
+        case "in":
+            container = right.cards if isinstance(right, Zone) else right
+            return left in container
         case _:
             raise AssertionError(f"unknown operator '{e.op}'")
 
@@ -286,7 +291,11 @@ def _role_domain(role: str, ctx: Ctx) -> list[Any]:
         return list(ctx.rs.seating.players)
     if role == "team":
         return list(ctx.rs.teams)
-    raise NotImplementedError(f"quantifier role '{role}' not supported yet")
+    if role == "suit":
+        return list(ctx.rs.suits)
+    if role == "rank":
+        return list(ctx.rs.ranks)
+    raise AssertionError(f"unknown quantifier role '{role}' (resolve rejects these)")
 
 
 def _player_query(e: n.PlayerQuery, ctx: Ctx) -> Any:
