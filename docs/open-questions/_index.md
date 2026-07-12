@@ -54,6 +54,12 @@ design. The data point is named in each file.
 - [meld-groups](meld-groups.md) — a card-group construct with joint
   validity predicates; Pinochle + Gin + Canasta are the three data points;
   blocked on a rummy-family game entering the corpus properly.
+- [family-libraries](family-libraries.md) — an import tier between
+  game-local and stdlib, so game families (poker first: Kuhn, Leduc, and
+  Hold'em are all OpenSpiel targets) share betting machinery, rules, and
+  primitives without pasting them per game or promoting them to the
+  stdlib; blocked on the second poker-family game, and sequenced behind
+  shared rule definitions and named procedures, which it presupposes.
 
 ## Tier 3 — Medium impact, narrow scope
 
