@@ -2363,6 +2363,33 @@ get either the behavior or an error, never a silent misread. When a cell is not
 worth implementing, prefer static rejection over a runtime error, and never
 silence.
 
+**An accounted outcome is not enough: the outcome must be the one the surface
+plainly says.** A combination that parses to *defined but unintended*
+semantics — an omitted mandatory clause silently reinterpreting an adjacent
+token, a wrong-typed operand comparing as always-false — is the same defect
+class as accepted-but-ignored, reached through a misread instead of a
+silence. Totality is therefore checked adversarially as well as
+enumeratively: every new or extended form ships with **misuse probes** — the
+most plausible wrong sentences an author would write (omitted mandatory
+clauses, retired spellings, wrong-typed operands in every predicate context,
+out-of-scope or shadowed binders, boundary-token slips) — each proven to
+produce a diagnostic, and pinned as rejection tests. Grammar work carries a
+specific probe: wherever an optional clause shares a boundary token with a
+mandatory one, the omitted-clause and doubled-token variants must fail to
+parse or parse to the same meaning, never to a different one.
+
+**Composition points enumerate at every consuming pass, and pairwise.** A
+combination made inexpressible at the grammar layer can still reach a
+semantic pass that treats all forms uniformly (a resolver loop over
+references, a typechecker branch over operators, a runtime arm over value
+shapes) — each pass has its own cell matrix. And a new construct's cells
+compose with the *existing* constructs its values can meet: every value shape
+the construct produces is enumerated against every operation that consumes
+that shape. Per-construct enumeration alone misses the defects that live in
+the products of constructs. The mechanized recipe for all of the above is the
+`surface-totality-audit` skill (`.claude/skills/`), a mandatory gate beside
+the regression checks (CLAUDE.md, "Verifying changes").
+
 The movement production is the worked example of the matrix: the selection
 modes (dealt / `chosen` / `random` / `all`), the destination forms (`to
 <zone>`, `to each`, the round-robin `as-equally-as-possible to each` deal, the
@@ -2422,9 +2449,28 @@ rather than reading as if it did. The crime is never incompleteness; it is
 
 Acceptance for changes to rigor-critical machinery — anything the
 information-set guarantees, the encodings, or the invariants rest on — is
-therefore a stated completeness argument, not a green suite: the property,
-the domain quantified over, what is covered exhaustively versus sampled
-versus deferred, and the wall standing on everything deferred.
+therefore a stated completeness argument, not a green suite. The argument
+has a fixed shape, the **completeness ledger**, shipped in the change itself
+(the commit message, or the covering test module's docstring — somewhere a
+reviewer sees without asking):
+
+```
+property:   <the guarantee, one line>
+domain:     <what is quantified over>
+registry:   <where that domain is defined in code>
+covered:    <cells exhaustively handled, and by which layer>
+sampled:    <cells covered by example only, and why that suffices>
+residual:   <cells NOT covered — each with its wall and its roadmap.md line>
+```
+
+A residual row without both a wall and a record fails the gate; "no corpus
+witness" is never by itself a reason to leave a residual cell silent, because
+corpus-first governs which mechanisms exist, not how completely a mechanism
+covers its own domain. A wall guards its whole class at the layer that owns
+the class: an operand-compatibility rule lives in the type layer consulted by
+every comparison-shaped context, not at the first site that motivated it.
+The `surface-totality-audit` skill (`.claude/skills/`) operationalizes this
+section and "Surface totality" as a pre-commit gate.
 
 A wall must also speak its **layer's failure currency**: the compile
 stages fail as diagnostics (`DiagnosticBag`, with a span and a
