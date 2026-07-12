@@ -208,7 +208,11 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
             if e.op in ("+", "-", "*"):
                 return TInteger()
             if e.op == "offset_by":
-                return infer(e.left, env)  # a seat offset stays what it was
+                # Seat arithmetic yields a seat, whatever the walk knows about
+                # the operand — a binder-rooted receiver ((p offset_by left),
+                # p untyped by the flat walk) must still hit the dot-form
+                # rejection rather than fall through to a runtime assert.
+                return TPlayer()
             return TAny()  # any future operators
         case n.Not() | n.IsCheck() | n.Quantifier():
             return TBoolean()

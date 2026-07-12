@@ -187,8 +187,9 @@ game G {
 
 def test_rejects_dot_form_on_a_computed_player_receiver() -> None:
     # The complex-receiver case the settled question named: a relational
-    # chain in subject position ((p offset_by left).hand) is rejected the
-    # same way, not silently deferred.
+    # chain in subject position is rejected the same way, not silently
+    # deferred — including when rooted at a loop binder the flat walk leaves
+    # untyped (offset_by yields a seat regardless of its operand's type).
     src = """
 game G {
   players: 2
@@ -196,9 +197,10 @@ game G {
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
-  state { score[player] : Integer = 0  x : Integer = 0  d : Player = 0 }
+  state { score[player] : Integer = 0  x : Integer = 0 }
   phase play {
-    x := (d offset_by left).score + 1
+    for each player p:
+      x := (p offset_by left).score + 1
   }
   winner: highest score
 }
