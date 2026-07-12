@@ -122,6 +122,31 @@ def test_rejects_a_trick_round_naming_another_move_type() -> None:
     _rejects(_game(body), "is not runnable on it")
 
 
+# --- `count over` ignores its body: only the literal `true` is honest ---
+
+
+def test_rejects_a_count_comprehension_with_a_predicate_body() -> None:
+    # The evaluator's `count` arm returns the element count and discards the
+    # body — a predicate here would be silently misread as the zone size.
+    _rejects(
+        _game(
+            "let n = count over pile as c: c.suit == hearts\n"
+            "    for each player q: score[q] := n"
+        ),
+        "would silently ignore this body",
+    )
+
+
+def test_accepts_the_count_true_size_idiom() -> None:
+    check_dsl(
+        _game(
+            "let n = count over pile as c: true\n"
+            "    for each player q: score[q] := n"
+        ),
+        "mini.cardlang",
+    )
+
+
 # --- the accepted shapes stay accepted ---
 
 

@@ -328,8 +328,18 @@ def _comprehension(e: n.Comprehension, ctx: Ctx) -> Any:
         case "count":
             return len(values)
         case "max":
+            if not values:
+                raise RuntimeError(
+                    "`max over` an empty collection has no value — guard the "
+                    "source (`… is not empty`) before aggregating"
+                )
             return max(values)
         case "min":
+            if not values:
+                raise RuntimeError(
+                    "`min over` an empty collection has no value — guard the "
+                    "source (`… is not empty`) before aggregating"
+                )
             return min(values)
         case _:
             raise AssertionError(f"unknown aggregator '{e.agg}'")

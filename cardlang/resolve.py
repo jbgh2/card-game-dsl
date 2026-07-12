@@ -802,6 +802,19 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 )
             case n.MethodCall() if nd.method not in ZONE_METHODS:
                 bag.error(f"unknown zone method '{nd.method}'", nd.span)
+            case n.Comprehension() if nd.agg == "count" and not (
+                isinstance(nd.body, n.NameRef) and nd.body.name == "true"
+            ):
+                # `count` returns the element count whatever the body evaluates
+                # to — a predicate here parses, runs, and is silently discarded
+                # (the worst defect class, decisions.md "Surface totality").
+                bag.error(
+                    f"`count over` returns the element count and would silently "
+                    f"ignore this body — write the literal `true` (the size "
+                    f"idiom), or count matches with `sum over … as "
+                    f"{nd.binder}: if <pred> then 1 else 0`",
+                    nd.span,
+                )
             case n.CardLiteral():
                 if nd.rank not in cats.ranks:
                     bag.error(f"unknown rank '{nd.rank}' in card literal", nd.span)
