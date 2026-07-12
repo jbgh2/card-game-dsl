@@ -61,6 +61,8 @@ def evaluate(e: n.Expr, ctx: Ctx) -> Any:
             return _comprehension(e, ctx)
         case n.PlayerQuery():
             return _player_query(e, ctx)
+        case n.CardQuery():
+            return _card_query(e, ctx)
         case n.Choose():
             return _choose(e, ctx)
         case _ as unreachable:
@@ -318,6 +320,26 @@ def _player_query(e: n.PlayerQuery, ctx: Ctx) -> Any:
             raise AssertionError(f"unknown player-query kind '{e.kind}'")
 
 
+def _card_query(e: n.CardQuery, ctx: Ctx) -> Any:
+    source = evaluate(e.source, ctx)
+    cards = source.cards if isinstance(source, Zone) else list(source)
+    if e.pred is None:  # the bare `number of cards in <zone>` size idiom
+        assert e.kind == "count"
+        return len(cards)
+    results = [bool(evaluate(e.pred, ctx.with_local("card", c))) for c in cards]
+    match e.kind:
+        case "set":
+            return [c for c, ok in zip(cards, results) if ok]
+        case "count":
+            return sum(results)
+        case "any":
+            return any(results)
+        case "all":
+            return all(results)
+        case _:
+            raise AssertionError(f"unknown card-query kind '{e.kind}'")
+
+
 def _if_expr(e: n.IfExpr, ctx: Ctx) -> Any:
     if evaluate(e.cond, ctx):
         return evaluate(e.then, ctx)
@@ -330,6 +352,12 @@ def _if_expr(e: n.IfExpr, ctx: Ctx) -> Any:
 def _comprehension(e: n.Comprehension, ctx: Ctx) -> Any:
     source = evaluate(e.source, ctx)
     elements = source.cards if isinstance(source, Zone) else list(source)
+    if e.filter is not None:
+        elements = [
+            x
+            for x in elements
+            if evaluate(e.filter, ctx.with_local(e.binder, x))
+        ]
     values = [evaluate(e.body, ctx.with_local(e.binder, x)) for x in elements]
     match e.agg:
         case "sum":
@@ -338,6 +366,8 @@ def _comprehension(e: n.Comprehension, ctx: Ctx) -> Any:
             return len(values)
         case "max":
             if not values:
+                if e.default is not None:
+                    return evaluate(e.default, ctx)
                 raise RuntimeError(
                     "`max over` an empty collection has no value — guard the "
                     "source (`… is not empty`) before aggregating"
@@ -345,6 +375,8 @@ def _comprehension(e: n.Comprehension, ctx: Ctx) -> Any:
             return max(values)
         case "min":
             if not values:
+                if e.default is not None:
+                    return evaluate(e.default, ctx)
                 raise RuntimeError(
                     "`min over` an empty collection has no value — guard the "
                     "source (`… is not empty`) before aggregating"

@@ -323,6 +323,9 @@ class _Builder(Transformer[Token, n.Game]):
     def phase_repeats(self, meta: Meta, c: list[object]) -> n.PhaseQualifier:
         return n.PhaseQualifier("repeats", _as_expr(c[0]), span=self._span(meta))
 
+    def phase_repeats_legacy(self, meta: Meta, c: list[object]) -> n.PhaseQualifier:
+        return n.PhaseQualifier("repeats", _as_expr(c[0]), span=self._span(meta))
+
     def phase_when(self, meta: Meta, c: list[object]) -> n.PhaseQualifier:
         return n.PhaseQualifier("when", _as_expr(c[0]), span=self._span(meta))
 
@@ -479,8 +482,9 @@ class _Builder(Transformer[Token, n.Game]):
         return n.EpistemicOp(op="shuffle", target=_as_expr(c[0]), span=self._span(meta))
 
     def reveal_op(self, meta: Meta, c: list[object]) -> n.EpistemicOp:
-        filt = c[1] if len(c) > 1 and c[1] is not None else None
-        assert filt is None or isinstance(filt, n.Lambda)
+        # The filter is an ordinary predicate with `card` bound per candidate
+        # (a lambda during the register transition).
+        filt = _as_expr(c[1]) if len(c) > 1 and c[1] is not None else None
         return n.EpistemicOp(
             op="reveal", target=_as_expr(c[0]), filter=filt, span=self._span(meta)
         )
@@ -693,6 +697,80 @@ class _Builder(Transformer[Token, n.Game]):
             "all", str(c[0]), str(c[1]), _as_expr(c[2]), span=self._span(meta)
         )
 
+    def _implicit_quantifier(self, kind: str, role: str, meta: Meta, c: list[object]) -> n.Quantifier:
+        # The implicit-binder spelling: the role noun is also the binder.
+        return n.Quantifier(kind, role, role, _as_expr(c[0]), span=self._span(meta))
+
+    def q_any_player(self, meta: Meta, c: list[object]) -> n.Quantifier:
+        return self._implicit_quantifier("any", "player", meta, c)
+
+    def q_all_player(self, meta: Meta, c: list[object]) -> n.Quantifier:
+        return self._implicit_quantifier("all", "player", meta, c)
+
+    def q_any_team(self, meta: Meta, c: list[object]) -> n.Quantifier:
+        return self._implicit_quantifier("any", "team", meta, c)
+
+    def q_all_team(self, meta: Meta, c: list[object]) -> n.Quantifier:
+        return self._implicit_quantifier("all", "team", meta, c)
+
+    def q_any_suit(self, meta: Meta, c: list[object]) -> n.Quantifier:
+        return self._implicit_quantifier("any", "suit", meta, c)
+
+    def q_all_suit(self, meta: Meta, c: list[object]) -> n.Quantifier:
+        return self._implicit_quantifier("all", "suit", meta, c)
+
+    def q_any_rank(self, meta: Meta, c: list[object]) -> n.Quantifier:
+        return self._implicit_quantifier("any", "rank", meta, c)
+
+    def q_all_rank(self, meta: Meta, c: list[object]) -> n.Quantifier:
+        return self._implicit_quantifier("all", "rank", meta, c)
+
+    def cq_set(self, meta: Meta, c: list[object]) -> n.CardQuery:
+        return n.CardQuery(
+            kind="set", source=_as_expr(c[0]), pred=_as_expr(c[1]), span=self._span(meta)
+        )
+
+    def cq_count(self, meta: Meta, c: list[object]) -> n.CardQuery:
+        pred = _as_expr(c[1]) if len(c) > 1 and c[1] is not None else None
+        return n.CardQuery(
+            kind="count", source=_as_expr(c[0]), pred=pred, span=self._span(meta)
+        )
+
+    def cq_any(self, meta: Meta, c: list[object]) -> n.CardQuery:
+        return n.CardQuery(
+            kind="any", source=_as_expr(c[0]), pred=_as_expr(c[1]), span=self._span(meta)
+        )
+
+    def cq_all(self, meta: Meta, c: list[object]) -> n.CardQuery:
+        return n.CardQuery(
+            kind="all", source=_as_expr(c[0]), pred=_as_expr(c[1]), span=self._span(meta)
+        )
+
+    def agg_sum(self, meta: Meta, c: list[object]) -> n.Comprehension:
+        # c: [body, zone_expr, where?]
+        filt = _as_expr(c[2]) if len(c) > 2 and c[2] is not None else None
+        return n.Comprehension(
+            agg="sum",
+            source=_as_expr(c[1]),
+            binder="card",
+            body=_as_expr(c[0]),
+            filter=filt,
+            span=self._span(meta),
+        )
+
+    def agg_order(self, meta: Meta, c: list[object]) -> n.Comprehension:
+        # c: [RANK_DIR, body, zone_expr, where?, default]
+        filt = _as_expr(c[3]) if c[3] is not None else None
+        return n.Comprehension(
+            agg="max" if str(c[0]) == "highest" else "min",
+            source=_as_expr(c[2]),
+            binder="card",
+            body=_as_expr(c[1]),
+            filter=filt,
+            default=_as_expr(c[4]),
+            span=self._span(meta),
+        )
+
     def comprehension(self, meta: Meta, c: list[object]) -> n.Comprehension:
         return n.Comprehension(
             agg=str(c[0]),
@@ -728,17 +806,23 @@ class _Builder(Transformer[Token, n.Game]):
     def logical_not(self, meta: Meta, c: list[object]) -> n.Not:
         return n.Not(_as_expr(c[0]), span=self._span(meta))
 
-    def is_none(self, meta: Meta, c: list[object]) -> n.IsCheck:
-        return n.IsCheck(_as_expr(c[0]), "none", span=self._span(meta))
+    # The right-hand keywords of `is` / `is not` are a closed set: `none` and
+    # `empty` dispatch to the absence/emptiness checks; anything else is
+    # ordinary equality (BinOp, the same node `==` used to build).
 
-    def is_not_none(self, meta: Meta, c: list[object]) -> n.IsCheck:
-        return n.IsCheck(_as_expr(c[0]), "not_none", span=self._span(meta))
+    def compare_is(self, meta: Meta, c: list[object]) -> n.IsCheck | n.BinOp:
+        rhs = c[1]
+        if isinstance(rhs, n.NameRef) and rhs.name in ("none", "empty"):
+            kind = "none" if rhs.name == "none" else "empty"
+            return n.IsCheck(_as_expr(c[0]), kind, span=self._span(meta))
+        return n.BinOp("==", _as_expr(c[0]), _as_expr(rhs), span=self._span(meta))
 
-    def is_empty(self, meta: Meta, c: list[object]) -> n.IsCheck:
-        return n.IsCheck(_as_expr(c[0]), "empty", span=self._span(meta))
-
-    def is_not_empty(self, meta: Meta, c: list[object]) -> n.IsCheck:
-        return n.IsCheck(_as_expr(c[0]), "not_empty", span=self._span(meta))
+    def compare_is_not(self, meta: Meta, c: list[object]) -> n.IsCheck | n.BinOp:
+        rhs = c[1]
+        if isinstance(rhs, n.NameRef) and rhs.name in ("none", "empty"):
+            kind = "not_none" if rhs.name == "none" else "not_empty"
+            return n.IsCheck(_as_expr(c[0]), kind, span=self._span(meta))
+        return n.BinOp("!=", _as_expr(c[0]), _as_expr(rhs), span=self._span(meta))
 
     def players_where(self, meta: Meta, c: list[object]) -> n.PlayerQuery:
         return n.PlayerQuery(kind="set", pred=_as_expr(c[0]), span=self._span(meta))

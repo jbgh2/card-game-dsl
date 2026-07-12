@@ -103,6 +103,10 @@ def _template_binders(rule: n.RuleDef) -> set[str]:
                 out.add(nd.role)
             case n.LetStmt():
                 out.add(nd.name)
+            case n.PlayerQuery():
+                out.add("player")
+            case n.CardQuery():
+                out.add("card")
     return out
 
 
@@ -540,6 +544,12 @@ def _categories(game: n.Game) -> _Categories:
                 locals_.add(nd.role)
             case n.PlayerQuery():
                 locals_.add("player")  # the implicit per-candidate binder
+            case n.CardQuery():
+                locals_.add("card")  # the implicit per-candidate binder
+            case n.Movement() if nd.filter is not None and not isinstance(nd.filter, n.Lambda):
+                locals_.add("card")  # the movement filter's implicit binder
+            case n.EpistemicOp() if nd.filter is not None and not isinstance(nd.filter, n.Lambda):
+                locals_.add("card")  # the reveal filter's implicit binder
             case n.LetStmt():
                 locals_.add(nd.name)
                 if nd.index is not None:
@@ -758,6 +768,8 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
                     allowed.add(nd.role)
                 case n.PlayerQuery():
                     allowed.add("player")
+                case n.CardQuery():
+                    allowed.add("card")
                 case n.Lambda():
                     allowed.add(nd.param)
         for nd in _walk(fn.body):

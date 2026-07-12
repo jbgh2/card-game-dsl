@@ -94,7 +94,10 @@ phase: "phase" NAME [phase_outcome] [phase_qualifier] "{" phase_item* "}"
 // A phase that can resolve more than one way declares its variant outcome type
 // here; the enclosing structure pattern-matches on it with `produces:`.
 phase_outcome: "->" "outcome" variant_set
-phase_qualifier: "repeats" "until" expr   -> phase_repeats
+// One lexeme for iteration everywhere: the phase qualifier matches the
+// statement form (`repeat until`), not third-person `repeats`.
+phase_qualifier: "repeat" "until" expr    -> phase_repeats
+               | "repeats" "until" expr   -> phase_repeats_legacy
                | "when" expr              -> phase_when
 
 ?phase_item: state_block
@@ -205,7 +208,7 @@ vis_clause: "," "visibility" "=" expr
 // formalized. `reveal` publicly identifies one matching card without moving
 // it — the card stays in its zone; see cardlang/runtime/execute.py.
 epistemic_op: "shuffle" zone_expr                                    -> shuffle_op
-            | "reveal" "one" "card" "from" zone_expr ["where" lambda] -> reveal_op
+            | "reveal" "one" "card" "from" zone_expr ["where" expr]   -> reveal_op
 
 rotate_stmt: "rotate" NAME "through" "[" name_list "]"     // state-cycle (orthogonal)
 name_list: NAME ("," NAME)*
@@ -326,7 +329,9 @@ if_impossible: "if_impossible" ":" expr
 ?expr: quantifier
      | if_expr
      | comprehension
+     | agg_query
      | player_query
+     | card_query
      | lambda
      | or_expr
 
@@ -338,15 +343,42 @@ player_query: "players" "where" expr              -> players_where
             | "the" "player" "where" expr         -> the_player_where
             | "number" "of" "players" "where" expr -> number_players_where
 
+// Queries over a card zone, the card mirror of the player queries: the
+// predicate is evaluated per card with `card` bound to the candidate. The
+// bare count form (`number of cards in <zone>`) is the zone-size idiom.
+card_query: "cards" "in" zone_expr "where" expr                  -> cq_set
+          | "number" "of" "cards" "in" zone_expr ["where" expr]  -> cq_count
+          | "any" "card" "in" zone_expr "where" expr             -> cq_any
+          | "all" "cards" "in" zone_expr "where" expr            -> cq_all
+
 // A lambda's body extends as far right as possible, so it sits at the top
 // of the expression grammar rather than among the primaries.
 lambda: NAME "=>" expr   -> lambda_expr
 
+// Boolean quantifiers, binder implicit (`player`/`team`/`suit`/`rank` is
+// bound per candidate, like `player` in the player queries). Card
+// quantification is the card_query `any card in … where` form above.
 quantifier: "any" NAME NAME ":" expr  -> exists
           | "all" NAME NAME ":" expr  -> forall
+          | "any" "player" "where" expr  -> q_any_player
+          | "all" "players" "where" expr -> q_all_player
+          | "any" "team" "where" expr    -> q_any_team
+          | "all" "teams" "where" expr   -> q_all_team
+          | "any" "suit" "where" expr    -> q_any_suit
+          | "all" "suits" "where" expr   -> q_all_suit
+          | "any" "rank" "where" expr    -> q_any_rank
+          | "all" "ranks" "where" expr   -> q_all_rank
 
 comprehension: AGG "over" zone_expr "as" NAME ":" expr
 AGG: "sum" | "count" | "max" | "min"
+
+// Aggregations in the English register, binder implicitly `card`. The order
+// aggregators carry a MANDATORY empty-set default (`or <default>`), so an
+// empty (or emptied-by-`where`) zone can never crash the aggregation; the
+// default sits below `or_expr` so the `or` unambiguously ends the predicate
+// (parenthesize a compound default).
+agg_query: "sum" "of" expr "over" "cards" "in" zone_expr ["where" expr]                 -> agg_sum
+         | RANK_DIR expr "over" "cards" "in" zone_expr ["where" expr] "or" and_expr     -> agg_order
 
 if_expr: "if" expr "then" expr elif_clause* "else" expr
 elif_clause: "elif" expr "then" expr
@@ -358,12 +390,16 @@ elif_clause: "elif" expr "then" expr
 ?not_expr: "not" not_expr  -> logical_not
          | comparison
 
-?comparison: sum "is" "none"         -> is_none
-           | sum "is" "not" "none"   -> is_not_none
-           | sum "is" "empty"        -> is_empty
-           | sum "is" "not" "empty"  -> is_not_empty
-           | sum comp_op sum         -> compare
-           | sum "in" sum            -> membership
+// Equality is the word `is` / `is not` (one operator — `a is not b` never
+// parses as `a is (not b)`, since `not` sits above the sum level). The
+// right-hand keywords `none` and `empty` stay a closed set, dispatched by
+// the builder to the absence/emptiness checks; any other operand is plain
+// equality. `==`/`!=` are retired: the builder rejects them with the
+// replacement spelling.
+?comparison: sum "is" "not" sum      -> compare_is_not
+           | sum "is" sum           -> compare_is
+           | sum comp_op sum        -> compare
+           | sum "in" sum           -> membership
            | sum
 comp_op: COMP_OP
 COMP_OP: "==" | "!=" | ">=" | "<=" | ">" | "<"

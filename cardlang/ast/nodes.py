@@ -202,13 +202,39 @@ class IfExpr:
 
 @dataclass(frozen=True, slots=True)
 class Comprehension:
-    """`<agg> over <source> as <binder>: body`, e.g. `sum over captured[p] as
-    card: …`."""
+    """An aggregation over a card zone. Two surface forms build it:
+
+    - `<agg> over <source> as <binder>: body` (the legacy spelling);
+    - `sum of <body> over cards in <source> [where <filter>]` and
+      `highest/lowest <body> over cards in <source> [where <filter>]
+      or <default>` (the English register, binder implicitly `card`).
+
+    `filter` narrows the elements before `body` is aggregated; `default` is
+    the mandatory empty-set value of the order aggregators' English form."""
 
     agg: str  # sum | count | max | min
     source: Expr
     binder: str
     body: Expr
+    filter: Expr | None = None
+    default: Expr | None = None
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CardQuery:
+    """A query over a card zone, `pred` evaluated per card with `card` bound
+    to the candidate (the card mirror of `PlayerQuery`):
+
+    - `cards in <zone> where <pred>`             -> the matching cards (`set`)
+    - `number of cards in <zone> [where <pred>]` -> how many match (`count`)
+    - `any card in <zone> where <pred>`          -> does one match (`any`)
+    - `all cards in <zone> where <pred>`         -> do all match (`all`)
+    """
+
+    kind: str  # "set" | "count" | "any" | "all"
+    source: Expr
+    pred: Expr | None  # None only for the bare `count` (zone size)
     span: Span | None = None
 
 
@@ -280,6 +306,7 @@ Expr = (
     | Comprehension
     | Choose
     | PlayerQuery
+    | CardQuery
 )
 
 
@@ -315,12 +342,13 @@ class Movement:
 @dataclass(frozen=True, slots=True)
 class EpistemicOp:
     """A prose epistemic operation: `shuffle <zone>` or `reveal one card from
-    <zone> [where <lambda>]`. `filter` is meaningful only for `reveal` (all
-    cards are eligible when it is `None`); `shuffle` never sets it."""
+    <zone> [where <pred>]`. `filter` is meaningful only for `reveal` (all
+    cards are eligible when it is `None`; the predicate binds `card` per
+    candidate); `shuffle` never sets it."""
 
     op: str
     target: Expr
-    filter: Lambda | None = None
+    filter: Expr | None = None
     span: Span | None = None
 
 
@@ -922,4 +950,5 @@ Node = (
     | Comprehension
     | Choose
     | PlayerQuery
+    | CardQuery
 )

@@ -463,15 +463,31 @@ def _expr(e: n.Expr) -> IRDict:
                 "otherwise": _expr(e.otherwise),
             }
         case n.Comprehension():
-            return {
+            comp: IRDict = {
                 "kind": "comprehension",
                 "agg": e.agg,
                 "source": _expr(e.source),
                 "binder": e.binder,
                 "body": _expr(e.body),
             }
+            # Emitted ONLY when present (like the rule `exempts` key), so
+            # every unfiltered comprehension's golden stays byte-identical.
+            if e.filter is not None:
+                comp["filter"] = _expr(e.filter)
+            if e.default is not None:
+                comp["default"] = _expr(e.default)
+            return comp
         case n.PlayerQuery():
             return {"kind": "player_query", "query": e.kind, "pred": _expr(e.pred)}
+        case n.CardQuery():
+            cq: IRDict = {
+                "kind": "card_query",
+                "query": e.kind,
+                "source": _expr(e.source),
+            }
+            if e.pred is not None:
+                cq["pred"] = _expr(e.pred)
+            return cq
         case n.Choose():
             # `ceiling` is the resolved static upper bound (decisions.md "The
             # integer `choose` domain") — a concrete int so an IR consumer can

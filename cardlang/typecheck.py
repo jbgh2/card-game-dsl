@@ -230,6 +230,14 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                     return TInteger()
                 case _:  # "pick"
                     return TPlayer()
+        case n.CardQuery():
+            match e.kind:
+                case "set":
+                    return TCollection(TCard())
+                case "count":
+                    return TInteger()
+                case _:  # "any" | "all"
+                    return TBoolean()
         case n.IfExpr():
             return _ifexpr_type(e, env)
         case n.StructLit():
@@ -442,11 +450,18 @@ def _child_exprs(e: n.Expr) -> list[n.Expr]:
     if isinstance(e, (n.Lambda, n.Quantifier)):
         return [e.body]
     if isinstance(e, n.Comprehension):
-        return [e.source, e.body]
+        out = [e.source, e.body]
+        if e.filter is not None:
+            out.append(e.filter)
+        if e.default is not None:
+            out.append(e.default)
+        return out
     if isinstance(e, n.Choose):
         return [e.lo, e.hi]
     if isinstance(e, n.PlayerQuery):
         return [e.pred]
+    if isinstance(e, n.CardQuery):
+        return [e.source, e.pred] if e.pred is not None else [e.source]
     if isinstance(e, n.IfExpr):
         out = [e.cond, e.then]
         for cond, branch in e.elifs:
@@ -565,11 +580,21 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
     if isinstance(e, n.PlayerQuery):
         _check_expr(e.pred, env.with_local("player", TPlayer()), bag)
         return
+    if isinstance(e, n.CardQuery):
+        _check_expr(e.source, env, bag)
+        if e.pred is not None:
+            _check_expr(e.pred, env.with_local("card", TCard()), bag)
+        return
     if isinstance(e, n.Comprehension):
         _check_expr(e.source, env, bag)
         src = infer(e.source, env)
         elem: Type = src.element if isinstance(src, TCollection) else TAny()
-        _check_expr(e.body, env.with_local(e.binder, elem), bag)
+        scoped = env.with_local(e.binder, elem)
+        if e.filter is not None:
+            _check_expr(e.filter, scoped, bag)
+        _check_expr(e.body, scoped, bag)
+        if e.default is not None:
+            _check_expr(e.default, env, bag)
         return
     for child in _child_exprs(e):
         _check_expr(child, env, bag)
