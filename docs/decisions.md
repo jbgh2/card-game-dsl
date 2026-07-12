@@ -1158,9 +1158,14 @@ form is **object-member access and nothing else** — fields of a
 `Move` (`action.card`), and declared or derived fields of
 user-defined structs (`result.made`). A dot whose receiver is a
 player, team, integer, or boolean is a static error pointing at
-the bracket form; where the receiver's type is unknown (a loop or
-lambda binder — the flat walk deliberately leaves binders
-untyped), the runtime fails loud rather than guessing. Relational
+the bracket form — including receivers rooted at loop, quantifier,
+player-query, and comprehension binders, which the checker types
+by their roles (a `for each player p` / `any player p` binder is a
+`Player`, a `for each team t` binder a `Team`, a comprehension
+binder its source's element type). The one receiver the checker
+still cannot type is a lambda parameter (a lambda's element type
+belongs to its receiver, which the checker does not model); there
+the runtime fails loud rather than guessing. Relational
 chains stay out of subject position: the corpus derives them with
 `offset_by`, functions, and player-indexed public state. The
 predicted forcing case — Doppelkopf's Fox/Charlie scoring, which
