@@ -209,6 +209,14 @@ class TypeEnv:
     locals: Mapping[str, Type] = field(default_factory=dict)
     structs: Mapping[str, TStruct] = field(default_factory=dict)
     functions: Mapping[str, Sig] = field(default_factory=dict)  # user functions
+    # User procedures, name -> declared parameter types (`Sig.ret` is unused: a
+    # procedure is a statement, not an expression). This is what makes a
+    # procedure's parameter annotations load-bearing rather than decorative —
+    # `run` sites check their arguments against them exactly as a call checks its
+    # arguments against a function signature. It is also why expansion runs AFTER
+    # typecheck (cardlang/expand.py): once a body is spliced inline there is no
+    # call site left to check.
+    procedures: Mapping[str, Sig] = field(default_factory=dict)
     has_ranking: bool = False  # bool(game.ranking) — gates RANKING_GATED_FUNCS
 
     def with_local(self, name: str, t: Type) -> "TypeEnv":
@@ -472,6 +480,16 @@ def _all_statements_scoped(game: Game) -> Iterator[tuple[n.Stmt, _Binders]]:
     for define in game.defines:
         for s in define.body:
             yield from _stmt_tree_scoped(s)
+    # A procedure body is checked ONCE, here, at its declaration — with its
+    # parameters bound to their declared types, which is what gives those
+    # annotations force. It is not re-checked after expansion, because expansion
+    # runs after this pass; the `run` sites check their arguments against the same
+    # declared types, so the spliced result is covered from both ends.
+    env = TypeEnv()
+    for proc in game.procedures:
+        binders: _Binders = tuple((p.name, _param_type(p, env)) for p in proc.params)
+        for s in proc.body:
+            yield from _stmt_tree_scoped(s, binders)
 
 
 def _all_statements(game: Game) -> Iterator[n.Stmt]:
@@ -565,6 +583,25 @@ def _function_sigs(game: Game, env: TypeEnv, bag: DiagnosticBag) -> dict[str, Si
     for fname in func_defs:
         visit(fname, frozenset())
     return sigs
+
+
+def _param_type(p: n.MoveParam, env: TypeEnv) -> Type:
+    optional = p.type_name.endswith("?")
+    base = p.type_name[:-1] if optional else p.type_name
+    return type_from_name(base, optional, env.structs)
+
+
+def _procedure_sigs(game: Game) -> dict[str, Sig]:
+    """Each user procedure's parameter types. No dependency order is needed (a
+    procedure may not run another — resolve rejects it) and there is no return
+    type: `Sig.ret` is `TAny` and never read. The bodies themselves are checked by
+    the statement walk, which binds these same parameter types as locals."""
+    env = TypeEnv()  # `type_from_name` needs structs only for struct params, which
+    # the procedure param domain does not admit (resolve gates it to Player).
+    return {
+        p.name: Sig(tuple(_param_type(x, env) for x in p.params), TAny())
+        for p in game.procedures
+    }
 
 
 def _enum_domain(env: TypeEnv, enum_name: str) -> frozenset[str]:
@@ -1171,6 +1208,8 @@ def _stmt_exprs(s: n.Stmt) -> list[n.Expr]:
         return [s.cond]
     if isinstance(s, n.Produce):
         return list(s.payloads)
+    if isinstance(s, n.RunStmt):
+        return list(s.args)
     return []  # ForEach / EachSimultaneous / RotateStmt: no direct value expressions
 
 
@@ -1200,6 +1239,28 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
             if expr is not s.filter:
                 _check_expr(expr, env, bag)
         return
+    if isinstance(s, n.RunStmt):
+        # Arity and argument types against the declared parameters — the same
+        # check a `Call` gets against a function signature, and the only place a
+        # procedure's parameter annotations can bite (after expansion, the call
+        # site is gone). Resolve has already established that the procedure exists.
+        sig = env.procedures.get(s.name)
+        if sig is not None:
+            if len(s.args) != len(sig.params):
+                bag.error(
+                    f"procedure '{s.name}' expects {len(sig.params)} argument(s), "
+                    f"got {len(s.args)}",
+                    s.span,
+                )
+            else:
+                for arg, param in zip(s.args, sig.params):
+                    got = infer(arg, env)
+                    if not assignable(got, param):
+                        bag.error(
+                            f"procedure '{s.name}' expects {_type_name(param)}, got "
+                            f"{_type_name(got)}",
+                            arg.span,
+                        )
     for expr in _stmt_exprs(s):
         _check_expr(expr, env, bag)
 
@@ -1788,6 +1849,7 @@ def typecheck(game: Game) -> Game:
 
     env = env_from_game(game)
     env = replace(env, functions=_function_sigs(game, env, bag))
+    env = replace(env, procedures=_procedure_sigs(game))
     variants = variant_registry(game, env.structs)
     for stmt, binders in _all_statements_scoped(game):
         senv = env

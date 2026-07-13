@@ -143,6 +143,7 @@ def resolve(game: n.Game) -> n.Game:
     game = _classify_names(game, cats, bag)
     _validate_refs(game, cats, bag)
     _check_functions(game, bag)
+    _check_procedures(game, bag)
     _check_chooses(game, bag)
 
     _raise_if_errors(bag)
@@ -226,7 +227,7 @@ def _check_template(rule: n.RuleDef, bag: DiagnosticBag) -> bool:
 
 def _traverse(node: object, step: Callable[[str, object], object]) -> object:
     """The immutable one-level descent shared by every default-arm traversal
-    in this module (`_substitute`'s default arm, `_rewrite`'s default arm, and
+    in this module (`substitute`'s default arm, `_rewrite`'s default arm, and
     `_rewrite`'s per-field binder-scoping dispatch below): every dataclass
     field — guarded against `Span`, a leaf the walk must not open — is handed
     to `step` along with its field name, and replaced only where `step`
@@ -236,7 +237,7 @@ def _traverse(node: object, step: Callable[[str, object], object]) -> object:
     mapping and leaf handling are the callers' job (`_substitute_value` /
     `_rewrite_value`), since the two differ there: `_rewrite_value`'s tuple
     arm folds `let` bindings sequentially into later siblings, which
-    `_substitute` (fixed-mapping template substitution, not scope-sensitive)
+    `substitute` (fixed-mapping template substitution, not scope-sensitive)
     has no need of."""
     if not is_dataclass(node) or isinstance(node, Span):
         return node
@@ -249,19 +250,36 @@ def _traverse(node: object, step: Callable[[str, object], object]) -> object:
     return replace(node, **changes) if changes else node  # type: ignore[type-var]
 
 
-def _substitute(node: object, mapping: dict[str, n.Expr]) -> object:
-    """Immutably replace every bare reference to a template parameter with its
-    argument expression (runs pre-classification: every NameRef is unresolved)."""
-    if isinstance(node, n.NameRef) and node.name in mapping:
+def substitute(
+    node: object, mapping: dict[str, n.Expr], ref_kind: str | None = None
+) -> object:
+    """Immutably replace every reference to a parameter with its argument
+    expression — the ONE substitution mechanism, shared by the two constructs that
+    splice a body into a site: rule-template instantiation (`_instantiate_rules`,
+    below) and procedure expansion (`cardlang/expand.py`).
+
+    The two differ only in when they run, which `ref_kind` expresses. Rule
+    templates instantiate PRE-classification, where every `NameRef` is unresolved
+    and a bare name match is all there is (`ref_kind=None`). Procedures expand
+    POST-classification, so a parameter reference in the body carries
+    `ref_kind == "local"` and the match can be exact — pass `ref_kind="local"` and
+    a same-named zone or state variable can never be mistaken for the parameter."""
+    if (
+        isinstance(node, n.NameRef)
+        and node.name in mapping
+        and (ref_kind is None or node.ref_kind == ref_kind)
+    ):
         return mapping[node.name]
-    return _traverse(node, lambda _field, v: _substitute_value(v, mapping))
+    return _traverse(node, lambda _field, v: _substitute_value(v, mapping, ref_kind))
 
 
-def _substitute_value(value: object, mapping: dict[str, n.Expr]) -> object:
+def _substitute_value(
+    value: object, mapping: dict[str, n.Expr], ref_kind: str | None = None
+) -> object:
     if is_dataclass(value) and not isinstance(value, Span):
-        return _substitute(value, mapping)
+        return substitute(value, mapping, ref_kind)
     if isinstance(value, tuple):
-        return tuple(_substitute_value(item, mapping) for item in value)
+        return tuple(_substitute_value(item, mapping, ref_kind) for item in value)
     return value
 
 
@@ -383,7 +401,7 @@ def _instantiate_rules(game: n.Game, bag: DiagnosticBag) -> n.Game:
                     )
                 continue
             mapping = {p.name: a for p, a in zip(template.params, ref.args)}
-            inst = _substitute(replace(template, params=()), mapping)
+            inst = substitute(replace(template, params=()), mapping)
             assert isinstance(inst, n.RuleDef)
             instances[ref.name] = (key, inst)
             if ref.name not in local:
@@ -790,6 +808,7 @@ def _check_duplicate_names(game: n.Game, bag: DiagnosticBag) -> None:
     check("type", game.types, reserved=True)
     check("define", game.defines)
     check("function", game.functions, reserved=True)
+    check("procedure", game.procedures)
     check("rule", game.rules)
     if game.state is not None:
         check("state variable", game.state.decls, reserved=True)
@@ -826,6 +845,11 @@ def _check_reserved_params(game: n.Game, bag: DiagnosticBag) -> None:
     reserved for their parameters."""
     for coll, kind, reserved in (
         (game.functions, "function parameter", RESERVED_VALUE_NAMES - _CALL_SITE_PRONOUNS),
+        # Procedure bodies are forbidden from READING the call-site pronouns for the
+        # same reason function bodies are (`_check_procedures`), so a parameter named
+        # after one is that error's prescribed fix, not a hijack — the identical
+        # carve-out, for the identical reason.
+        (game.procedures, "procedure parameter", RESERVED_VALUE_NAMES - _CALL_SITE_PRONOUNS),
         (game.move_types, "move-type parameter", RESERVED_VALUE_NAMES),
         (game.rules, "rule parameter", RESERVED_VALUE_NAMES),
     ):
@@ -1039,6 +1063,15 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         scoped = replace(cats, locals=cats.locals | {p.name for p in node.params})
         body = _rewrite_value(node.body, scoped, bag)
         return replace(node, body=body)  # type: ignore[arg-type]
+    if isinstance(node, n.ProcedureDef):
+        # Same isolation as a function: the parameters bind only in this body, and
+        # a bare name that is neither a parameter nor a binding the body introduces
+        # stays un-shadowed so `_check_procedures` can catch it. `_rewrite_value`
+        # (not a per-item map) so a `let` in the body scopes to the statements after
+        # it, exactly as it will once the body is spliced inline.
+        scoped = replace(cats, locals=cats.locals | {p.name for p in node.params})
+        body = _rewrite_value(node.body, scoped, bag)
+        return replace(node, body=body)  # type: ignore[arg-type]
     if isinstance(node, n.LetStmt):
         # `index` (the indexed form's per-key binder, `let base[p] = …`) scopes
         # only to this let's own `value` — evaluated once per key and gone
@@ -1128,6 +1161,175 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
             bag.error(
                 f"function '{fn.name}' is recursive; functions must be non-recursive",
                 fn.span,
+            )
+
+
+# The closed set of procedure-parameter domains (decisions.md "Named
+# procedures"), corpus-first. Unlike a move parameter, a procedure argument is
+# an arbitrary expression rather than a value the action space must enumerate,
+# so this set gates what an argument may *denote*, not what can be enumerated —
+# which is why it is a separate registry from `_FIXED_DOMAINS` below and not a
+# slice of it. `Zone` is deliberately absent: the design note guessed the corpus
+# would need it, and the corpus disagreed (Coup's blocks reach their zones by
+# indexing a zone family with the player parameter — `influence[victim]` — so a
+# Player parameter already carries the zone). Recorded in roadmap.md; extend
+# when a game forces it.
+_PROCEDURE_PARAM_DOMAINS = frozenset({"Player"})
+
+
+def _rebinds_actor(node: object) -> bool:
+    """Whether this node's body runs with a REBOUND acting player. These are the
+    `Ctx.acting_as` sites in runtime/execute.py: the `for each player` arm of
+    `_for_each` and `_each_simultaneous`. A value-domain `for each` (suit/rank)
+    does not rebind — its binder is a bare enum value and carries no actor — and
+    neither does the team arm."""
+    if isinstance(node, n.ForEach):
+        return node.role == "player"
+    return isinstance(node, n.EachSimultaneous)
+
+
+# Statements that unwind past the site they are written at: `produce` terminates
+# the enclosing `define` body, `continue to` jumps to a sibling phase, and `skip
+# to next hand` aborts the hand. Inline text targets exactly one enclosing
+# construct; a procedure body could be spliced into two different ones, so "reads
+# as inline text" would stop being true. Rejected until a corpus case forces a
+# design (procedures.md).
+_NON_LOCAL_STMTS = (n.Produce, n.ContinueTo, n.SkipToNextHand)
+
+
+def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
+    """A procedure body must read as the inline text it becomes. That makes it
+    hermetic in the same sense a function body is — it may reference only its own
+    parameters, binders it introduces, and game/phase state — and adds one wall a
+    function does not need, because a function takes *values* while a procedure
+    takes *unevaluated expressions*:
+
+    **Actor capture.** An argument may be a call-site pronoun (`run
+    lose_influence(actor)` is the whole point). Substitution splices that
+    expression into the body, where it is evaluated — so if the body reads the
+    parameter underneath a construct that rebinds the acting player, `actor`
+    silently stops meaning the caller's actor and starts meaning the bound one.
+    That is not hypothetical: `for each player q: if q is actor` is true for
+    EVERY q, because `_for_each` binds `ctx.acting_as(q)` and `actor` reads
+    `ctx.current_player`. Rule templates only ever face *name* capture (a body
+    binder shadowing a parameter, checked in `_check_template`); a procedure
+    faces *context* capture too, and this is its wall. The fix the message
+    prescribes — bind the parameter to a `let` outside the loop — pins the value
+    in the caller's context, which is what inline text would have done."""
+    known = {p.name: p for p in game.procedures}
+    for proc in game.procedures:
+        params = {p.name for p in proc.params}
+
+        names = [p.name for p in proc.params]
+        for dup in sorted({nm for nm in names if names.count(nm) > 1}):
+            bag.error(
+                f"procedure '{proc.name}' declares more than one parameter named "
+                f"'{dup}' — substitution binds by name, so one would silently "
+                f"shadow the other",
+                proc.span,
+            )
+        for p in proc.params:
+            if p.type_name not in _PROCEDURE_PARAM_DOMAINS:
+                bag.error(
+                    f"procedure parameter '{p.name}: {p.type_name}' has an "
+                    f"unsupported domain — procedure parameters support "
+                    f"{', '.join(sorted(_PROCEDURE_PARAM_DOMAINS))} only "
+                    f"(corpus-first; extend when a game needs another)",
+                    p.span,
+                )
+
+        # Binders the body introduces, and the name-capture wall: a binder
+        # sharing a parameter's name would capture it instead of substituting.
+        binders: set[str] = set()
+        for nd in _walk(proc):
+            binders.update(_introduced_binders(nd))
+        for p in proc.params:
+            if p.name in binders:
+                bag.error(
+                    f"procedure '{proc.name}' introduces a binder named "
+                    f"'{p.name}', shadowing its own parameter — rename one",
+                    proc.span,
+                )
+
+        allowed = params | binders
+        for stmt in proc.body:
+            for nd in _walk(stmt):
+                if isinstance(nd, _NON_LOCAL_STMTS):
+                    what = {
+                        n.Produce: "`produce`",
+                        n.ContinueTo: "`continue to`",
+                        n.SkipToNextHand: "`skip to next hand`",
+                    }[type(nd)]
+                    bag.error(
+                        f"procedure '{proc.name}' uses {what}, which unwinds past "
+                        f"the statement it is written at; a procedure body is "
+                        f"spliced into its call sites, which may sit in different "
+                        f"enclosing constructs, so it may not contain non-local "
+                        f"control flow",
+                        nd.span,
+                    )
+                elif isinstance(nd, n.RunStmt):
+                    bag.error(
+                        f"procedure '{proc.name}' runs procedure '{nd.name}'; a "
+                        f"procedure may not invoke another (v1 — expansion is a "
+                        f"single splice, not a call graph)",
+                        nd.span,
+                    )
+                elif isinstance(nd, n.NameRef):
+                    if nd.ref_kind == "local" and nd.name not in allowed:
+                        bag.error(
+                            f"procedure '{proc.name}' references '{nd.name}', which "
+                            f"is not one of its parameters or a binding in its body",
+                            nd.span,
+                        )
+                    elif nd.ref_kind == "pronoun" and nd.name in _CALL_SITE_PRONOUNS:
+                        bag.error(
+                            f"procedure '{proc.name}' reads the call-site pronoun "
+                            f"'{nd.name}'; a procedure body is spliced into call "
+                            f"sites that need not share a call-site context — pass "
+                            f"the value in as a parameter (`run {proc.name}"
+                            f"({nd.name})`)",
+                            nd.span,
+                        )
+
+        # The actor-capture wall (see the docstring).
+        for nd in _walk(proc):
+            if not _rebinds_actor(nd):
+                continue
+            bound = "`for each player`" if isinstance(nd, n.ForEach) else "`each … simultaneously`"
+            for inner in _walk(nd):
+                if (
+                    isinstance(inner, n.NameRef)
+                    and inner.ref_kind == "local"
+                    and inner.name in params
+                ):
+                    bag.error(
+                        f"procedure '{proc.name}' reads parameter '{inner.name}' "
+                        f"inside {bound}, which rebinds the acting player — an "
+                        f"argument that names the call-site actor would be "
+                        f"captured and silently mean the bound player instead. "
+                        f"Bind it first (`let <name> = {inner.name}`) outside the "
+                        f"loop and read that",
+                        inner.span,
+                    )
+
+    # Call sites: the procedure must exist, and every declared procedure must be
+    # invoked — an uninvoked body is spliced nowhere, so nothing downstream ever
+    # sees it (the same reasoning `_instantiate_rules` gives an uninstantiated
+    # rule template).
+    invoked: set[str] = set()
+    for nd in _walk(game):
+        if isinstance(nd, n.RunStmt):
+            invoked.add(nd.name)
+            if nd.name not in known:
+                bag.error(f"run of unknown procedure '{nd.name}'", nd.span)
+    for proc in game.procedures:
+        if proc.name not in invoked:
+            bag.error(
+                f"procedure '{proc.name}' is never run — invoke it with `run "
+                f"{proc.name}(…)`, or delete it (its body would otherwise be "
+                f"spliced nowhere, and go entirely unchecked downstream)",
+                proc.span,
             )
 
 

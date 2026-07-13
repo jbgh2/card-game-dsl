@@ -74,6 +74,15 @@ def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
             raise _ContinueTo(stmt.target)
         case n.SkipToNextHand():
             raise _SkipHand()
+        case n.RunStmt():
+            # `expand` splices every procedure body into its `run` sites and drops
+            # the node, so the runtime never sees one. Reaching here means the
+            # expansion pass was skipped or missed a site — a compiler bug, and one
+            # that would otherwise present as a statement silently doing nothing.
+            raise AssertionError(
+                f"`run {stmt.name}(…)` reached the runtime; procedure expansion "
+                f"(cardlang/expand.py) must run before execution"
+            )
         case _ as unreachable:
             assert_never(unreachable)
 

@@ -334,6 +334,16 @@ def _stmt(s: n.Stmt) -> IRDict:
             return {"kind": "continue_to", "target": s.target}
         case n.SkipToNextHand():
             return {"kind": "skip_to_next_hand"}
+        case n.RunStmt():
+            # There is no IR for a procedure invocation, by design: `expand` has
+            # already replaced it with the statements it stands for, so the IR
+            # records what runs, not how it was spelled. A `run` here is a compiler
+            # bug — emitting a placeholder node would silently teach every IR
+            # consumer that procedures survive the front end.
+            raise AssertionError(
+                f"`run {s.name}(…)` reached IR emission; procedure expansion "
+                f"(cardlang/expand.py) must run before `emit`"
+            )
         case _ as unreachable:
             assert_never(unreachable)
 

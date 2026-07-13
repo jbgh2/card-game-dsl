@@ -516,6 +516,19 @@ ROUND_ORDER_PRIORITY = "priority"
 ROUND_ORDER_MODES = frozenset({ROUND_ORDER_RING, ROUND_ORDER_PRIORITY})
 
 
+@dataclass(frozen=True, slots=True)
+class RunStmt:
+    """`run NAME(<arg>, …)` — invoke a named procedure. A resolve-time construct
+    only: `expand` splices the procedure's body in at this site (arguments
+    substituted for parameters) and drops the node, so no `RunStmt` ever reaches
+    the IR or the runtime. The consumers below it therefore carry loud walls, not
+    silent passes — a `RunStmt` surviving expansion is a compiler bug."""
+
+    name: str
+    args: tuple[Expr, ...]
+    span: Span | None = None
+
+
 Stmt = (
     Movement
     | EpistemicOp
@@ -532,6 +545,7 @@ Stmt = (
     | Produces
     | ContinueTo
     | SkipToNextHand
+    | RunStmt
 )
 
 
@@ -754,6 +768,25 @@ class FunctionDef:
 
 
 @dataclass(frozen=True, slots=True)
+class ProcedureDef:
+    """`procedure NAME(<param> : <type>, …) { <stmt>* }` — a named, parameterized
+    statement block. Reuse is *textual*: `expand` splices the body in at each
+    `run` site after substituting arguments for parameters, so the statements a
+    procedure contributes — and therefore the observation events they emit, and
+    therefore the derived information sets — are exactly what inline text would
+    emit. The body is hermetic: it reads only its parameters and game/phase state,
+    never the caller's binders, and never the call-site pronouns (`actor` /
+    `action` / `outcome`), which would make its meaning depend on where it is
+    called from. The resolver consumes procedures — post-expansion,
+    `Game.procedures` is empty."""
+
+    name: str
+    params: tuple[MoveParam, ...]
+    body: tuple[Stmt, ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class VariantCase:
     """One case of a variant outcome: a tag with zero or more typed payloads."""
 
@@ -860,6 +893,13 @@ class Game:
     types: tuple[TypeDef, ...] = ()
     defines: tuple[DefineDef, ...] = ()
     functions: tuple[FunctionDef, ...] = ()
+    # Consumed by `expand`, which runs after typecheck: every `run` site is
+    # replaced by the substituted body and this tuple is emptied. It must be
+    # empty downstream — `openspiel.encoding` walks every dataclass field of the
+    # `Game`, so a surviving procedure body would count its `offer`/`round`
+    # decision sites a second time, on top of the copies spliced at the call
+    # sites, and size the action space wrong.
+    procedures: tuple[ProcedureDef, ...] = ()
     span: Span | None = None
 
 
@@ -907,6 +947,8 @@ Node = (
     | Produce
     | ProduceArm
     | Produces
+    | RunStmt
+    | ProcedureDef
     | NamedArg
     | NameRef
     | IntLit
