@@ -1,10 +1,12 @@
 # Named procedures: nameable, parameterized statement blocks
 
-*Status: design analysis / proposal — not a settled decision, and not yet
-implemented. Called for by
-[lexical-cleanup.md](lexical-cleanup.md) §6 (the one definition-form gap with
-a forcing corpus case); this note is the design conversation that must settle
-before any grammar lands. The committed spec is [../decisions.md](../decisions.md).*
+*Status: settled and implemented — kept for the forcing evidence and for the
+questions §5 left open, each of which is answered below with what decided it. The
+ruling itself is spec: [../decisions.md](../decisions.md) "Named procedures"
+(the surface, the textual-reuse guarantee, hermeticity, the three hygiene walls,
+the closed parameter domain). The deferred cells are in
+[../roadmap.md](../roadmap.md); the completeness ledger is
+`tests/test_procedures.py`.*
 
 ## 1. The forcing evidence
 
@@ -85,25 +87,67 @@ phase challenge_window {
   contexts could target different variants). Reject until a corpus case
   forces a design.
 
-## 5. Open questions before implementation
+## 5. The open questions, and what answered them
 
-1. The invocation keyword (one spelling).
-2. Whether expansion happens in `resolve` (like library rules — favored:
-   one mechanism, one place where `game` is rewritten) or a separate pass.
-3. Whether a procedure may invoke another (acyclic) — Coup does not need
-   it; simplest v1: reject nested invocation, lift with evidence.
-4. Per-expansion `let` names: two expansions in one body scope introduce
-   the same `let` names — the existing scoping rules treat inline repeats
-   fine (each `let` rebinding shadows forward), so likely a non-issue;
-   verify with the Coup rewrite.
+1. **The invocation keyword** — `run X(a)`. A keyword, not a bare call: the
+   statement layer has no expression-statement form, and that absence is worth
+   preserving.
+2. **Where expansion happens** — a separate pass, AFTER typecheck; *not* in
+   `resolve` beside `_instantiate_rules`, which this note favored. The note's
+   argument was "one mechanism, one place where `game` is rewritten", and it did
+   not work out the consequence for §4's parameter types: a `victim : Player`
+   can only bite while the `run` site still exists to check its arguments
+   against. Expanding in resolve would leave every annotation parsed and ignored
+   — the accepted-but-ignored class the whole surface-totality rule exists to
+   prevent. The substitution *mechanism* is still shared with rule templates
+   (`resolve.substitute`); only the timing differs, and it differs for a reason.
+3. **Nested invocation** — rejected, as proposed. Coup does not need it.
+4. **Per-expansion `let` names** — a non-issue, as suspected: two expansions in
+   one block rebind the same `let` name and each shadows forward, exactly as two
+   inline pastes would. The Coup rewrite confirms it.
 
-## 6. Acceptance
+## 5a. The wall this note did not anticipate
 
-- Coup's three pasted blocks become three procedures; the file shrinks by
-  roughly half; trace goldens stay **byte-identical** (expansion is textual
-  equivalence, so this is a hard check, not an aspiration).
-- Surface totality: every parameter-kind/arity/control-flow mismatch above
-  is a rejection with a test.
-- The lockstep rule: Tichu / go-fish / Skat adopt in the same change if
-  their shapes fit the v1 parameter kinds; otherwise their deferral is
-  recorded here.
+A procedure takes **unevaluated expressions** where a function takes **values**,
+and that is a hygiene problem §4 named only half of. §4 got the easy half (a body
+binder may not shadow a parameter — the same *name* capture a rule template
+faces). Two more members of the class turned up in implementation, and both are
+silent-wrong-answer defects:
+
+- **Context capture.** An argument may be `actor` — `run lose_influence(actor)`
+  is the whole point. If the body then reads that parameter underneath a `for
+  each player q:`, the loop has rebound the acting player, `actor` reads the
+  acting player, and `if q is actor` is true for **every** q. Probed: all three
+  players "matched". Coup's own pasted text dodged this by hand-writing a
+  separate un-looped variant for the actor case — the workaround was in the
+  corpus, unnamed. The wall rejects reading a parameter under an actor-rebinding
+  construct and prescribes the `let` that pins the seat in the caller's context.
+  The underlying trap is the language's, not the construct's:
+  [../open-questions/single-actor-binding.md](../open-questions/single-actor-binding.md).
+- **Argument capture** — the classic macro-hygiene bug, and the one the fix above
+  walks an author straight into. A body's `let step = 0` would swallow a caller's
+  `run f(step)`, so the meaning of a call would depend on the caller's private
+  choice of local variable name. Also walled.
+
+## 6. Acceptance — what landed
+
+- Coup's three pasted blocks are three procedures. **521 -> 375 lines**; 29
+  pasted blocks -> 3 named ones. (Not "roughly half": the remaining bulk is the
+  seven action bodies and the two block windows, which are genuinely distinct.)
+  The trace golden was **byte-identical** across the procedure rewrite — the hard
+  check, and it held. It moved only later, and deliberately, when `alive` became
+  a Boolean, with the diff proven representation-only.
+- Surface totality: every rejection cell has a test, and the parameter-domain
+  sweep is derived from `KNOWN_TYPE_NAMES x {plain, optional}` rather than
+  hand-listed. Ledger: `tests/test_procedures.py`.
+- **Parameter kinds: `Player`, `Rank`, `Rank?` — not `Zone`.** §4 guessed the
+  corpus would need a `Zone` parameter; it does not. A `Player` parameter already
+  carries its zone (`influence[victim]`), which is a small instance of the same
+  finding the auction promotion produced (lexical-cleanup.md §3): the shared
+  thing was not what the note predicted.
+- **The lockstep adopters are deferred, and here is why.** Tichu's grand-call
+  poll, go-fish's book completion and Skat's Reizen shape all sit around a
+  `round`, and a `round` may not appear in a procedure body: it binds its own
+  `outcome`, which the body's pronoun wall cannot yet distinguish from the
+  caller's. Rejected whole rather than shipped half-usable. Recorded in
+  [../roadmap.md](../roadmap.md); lifting it is what those three games need.

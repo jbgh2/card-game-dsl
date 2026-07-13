@@ -22,14 +22,14 @@ game Hearts {
     cumulative_score[player] : Integer = 0
   }
 
-  // === Top-level phase sequence ===
-
-  phase hand_sequence repeat until any cumulative_score >= 100 {
+  phase hand_sequence repeat until (any player where cumulative_score[player] >= 100) {
     state {
       // Loop state: persists across hands; before_each rotates it each hand,
       // so starting at `hold` makes hand 1 pass left.
       pass_direction : Direction = hold
-      // Trick leader, threaded from first_trick into play by lexical scope.
+      // The trick leader, threaded from first_trick into play by lexical
+      // scope: first_trick seeds it (2 of clubs holder) and updates it to the
+      // winner; play continues from there.
       leader         : Player?   = none
     }
 
@@ -66,7 +66,8 @@ game Hearts {
     }
 
     phase play {
-      // Continues from the enclosing `leader`, set by first_trick.
+      // Continues from the enclosing `leader`, already set to the winner of
+      // the first trick.
       active_rules: [MustFollowSuit]
       legal_moves:  [play_to_trick]
 
@@ -80,7 +81,7 @@ game Hearts {
       }
 
       // Body: loop tricks until hands empty.
-      repeat until all hands empty {
+      repeat until (all players where hand[player] is empty) {
         round play_to_trick from leader over all players source hand into trick_pile
               outcome highest_of_led_suit
         move all cards from trick_pile to captured[outcome]
@@ -90,18 +91,19 @@ game Hearts {
 
     phase scoring {
       // base and hand_score are phase-local lets, not declared state.
-      let base[p] = sum of (if card.suit is hearts          then 1
-                            elif card is queen_of_spades    then 13
+      let base[p] = sum of (if card.suit is hearts       then 1
+                            elif card is Q of spades     then 13
                             else 0)
                     over cards in captured[p]
 
       let hand_score[p] =
-        if any player where base[player] is 26:           // shoot the moon
-          if p shot the moon: 0 else: 26
-        else:
+        if (any player where base[player] is 26) then   // someone shot the moon
+          (if base[p] is 26 then 0 else 26)             // the shooter scores 0
+        else
           base[p]
 
-      for each player p: cumulative_score[p] += hand_score[p]
+      for each player p:
+        cumulative_score[p] += hand_score[p]
     }
   }
 
@@ -120,13 +122,13 @@ rule MustLeadTwoOfClubsOnFirstPlay {
 rule NoPenaltyCardsOnFirstTrick {
   constrains: play_to_trick
   applies_when: always   // already scoped to the first_trick sub-phase
-  demands: cards in hand where card.suit is not hearts and card is not queen_of_spades
+  demands: cards in hand where card.suit is not hearts and card is not Q of spades
   if_impossible: hand   // only penalty cards in hand: play one
 }
 
 rule PassExactlyThreeCards {
   constrains: transfer_between_hands
-  demands: the move must consist of exactly 3 cards
+  demands: actions where action.card_count is 3
 }
 
 // MustFollowSuit and NoLeadingSuitUntilBroken(hearts) are standard-library

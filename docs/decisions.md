@@ -744,6 +744,22 @@ betting round's `bet_to_match` is *not*
 round-internal — those forms of `round` thread their accumulator through
 ordinary **phase state**, declared in the phase's `state { }`.)
 
+**A round PUBLISHES a closed, typed set of fields, and `state.` names only
+those.** A form's frame is also its working memory — the trick form drives its
+turn order off a ring cursor and a materialized order list — and the two are not
+the same thing. The published fields are declared once, with their types
+(`cardlang/stdlib/round_state.py`): the trick form publishes `led_suit : Suit?`
+and `trick_terminated_early : Boolean`; the climb form publishes
+`lead_ended_trick : Boolean`, `shed_first : Player?` and `shed_second : Player?`;
+the auction and betting forms publish **nothing** (their accumulator is ordinary
+phase state, above — and that empty row is load-bearing, not an omission: it is
+what makes "the auction form has no `state.`" a checkable fact). Naming anything
+else — a misspelling, or one of the form's internals — is a compile error that
+lists what *is* published. Without that wall a round's private cursor was part of
+the language's surface: it type-checked, it ran, and it silently changed the
+game. The types matter for the same reason: an untyped `state.x` is contagiously
+`Any`, and every comparison wall is dark behind it.
+
 **Rules consulted from within a round see the round's state.**
 Lexical scoping puts the active round's state frame
 into the scope chain at consultation time. A rule
@@ -1442,6 +1458,71 @@ resolves the *named-predicate* half of
 [open-questions/round-config-factoring.md](open-questions/round-config-factoring.md);
 the *street-loop* half (folding a repeated parameterized `round` block into one
 loop) remains open.
+
+## Named procedures
+
+A game factors a *statement sequence* it would otherwise repeat with a **named
+procedure** — the statement layer's sibling of the named function above:
+
+```
+procedure <name>(<param> : <type>, …) { <statement>* }
+```
+
+declared at the top level, and invoked as a statement: `run <name>(<arg>, …)`.
+A keyword leads the invocation, because the statement layer has no
+expression-statement form and that absence is worth keeping — statement-hood
+stays visible.
+
+Reuse is **textual**. The expander splices the body in at each `run` site with
+the arguments substituted for the parameters, and consumes the procedure: no
+`run` and no `procedure` survives the front end. This is what makes the construct
+safe against the invariant that governs everything here — *the observation events
+a procedure contributes, and therefore the information sets derived from them,
+are exactly what the pasted text emitted*, because a procedure does not exist at
+the layer where observations are emitted. It is the opposite of the retired
+`instantiate` escape hatch, which injected Python the kernel could not see; a
+procedure injects only DSL the kernel already interprets. Coup is the forcing
+case: three blocks pasted 29 times, most of a 521-line file, now written once
+(the file is 375 lines, and its trace golden did not move).
+
+Expansion runs **after typecheck**, not beside rule-template instantiation in
+resolve. That is forced by the parameter types: they can only bite while the
+`run` site still exists to check its arguments against, and expanding earlier
+would leave them parsed and ignored — the accepted-but-ignored class.
+
+The body is **hermetic**, in the same sense a function body is: it reads only its
+parameters, the binders it introduces, and game/phase state — never the caller's
+locals, and never the call-site pronouns `actor` / `action` / `outcome`, so its
+meaning cannot depend on where it is called from. A procedure that needs the actor
+takes it as a parameter.
+
+Because a procedure takes *unevaluated expressions* where a function takes
+*values*, it faces a hygiene problem a function does not, and three walls close
+it. Two are shared with rule templates and one is its own:
+
+- a binder in the body may not **shadow a parameter's name**;
+- a binder in the body may not **capture a free local in an argument** — without
+  this, a body's `let step = …` would swallow a caller's `run f(step)`, and the
+  meaning of a call would depend on the caller's private choice of variable name;
+- a parameter may not be **read underneath a construct that rebinds the acting
+  player** (`for each player`, `each … simultaneously`). This is the subtle one.
+  `for each player q:` rebinds the actor context — that is how the bound player
+  becomes the chooser of a decision in the body — but `actor` *reads* that
+  context, so `if q is actor` inside such a loop is true for **every** q. An
+  argument of `actor` substituted into that position would be silently captured.
+  The wall prescribes the fix: bind the parameter to a `let` outside the loop,
+  which pins the value in the caller's context, exactly as inline text would.
+  (The underlying trap is the language's, not the construct's, and is the
+  correctness motive in
+  [open-questions/single-actor-binding.md](open-questions/single-actor-binding.md).)
+
+Parameter domains are a closed set — `Player`, `Rank`, `Rank?` — and any other
+domain is rejected. A procedure may not run another procedure, hold a `round`
+(which binds its own `outcome`), or contain non-local control flow (`produce`,
+`continue to`, `skip to next hand`), and one that is never run is an error, since
+its body would be spliced nowhere and checked by nothing. Every one of those is a
+loud wall with a recorded deferral ([roadmap.md](roadmap.md)); none is silently
+accepted.
 
 ## Knowledge, visibility, and the projection model
 

@@ -101,23 +101,45 @@ direction rather than picking a new one.
   spelling is still open — `offset_by` remains the surface operator,
   documented as such in [library.md](../library.md) "Types" (`Seating`).
 
-## 4. Remaining work this analysis motivates
+## 4. The work this analysis motivated — all four landed
 
-1. **Named procedures** — the one definition-form gap with a forcing corpus
-   case (Coup ×29). Design conversation in
-   [procedures.md](procedures.md); not yet implemented.
-2. **The `state.` pronoun split** (round-owned `state.led_suit` vs bare
-   phase state) — a real semantic distinction with no surface cue; either a
-   friendlier owner-name (`trick.led_suit`) or a documented, guessable rule.
-   Not blocking anything.
-3. **Coup's integer-valued flags** (`alive[q] is 1` where the value is a
-   Boolean in spirit) — corpus hygiene; converting them changes observation
-   payloads, so it wants its own trace-golden sign-off.
-4. **The quantifiable-domain registry** — the forward-looking version of the
-   domain-completion audit: define the quantifier/query/counting forms once
-   over *any enumerable domain*, so a new domain (piece, space, tile,
-   resource — the board-game expansion) registers itself and arrives with
-   its full column green by construction. Suit and Rank are not really
-   first-class kinds but declared attribute enums on the card type (Tichu's
-   specials and Tarot's atouts already strain them); the registry framing is
-   where that generalization would land.
+1. **Named procedures.** The one definition-form gap with a forcing corpus case
+   (Coup ×29). Spec: [../decisions.md](../decisions.md) "Named procedures";
+   the design conversation and the two hygiene walls it did not anticipate are in
+   [procedures.md](procedures.md). Coup: 521 → 375 lines, 29 pasted blocks → 3.
+2. **The `state.` pronoun split.** This was mis-triaged here as ergonomics ("a
+   real semantic distinction with no surface cue... not blocking anything"). It
+   was a correctness hole. A round's frame is *also* its working memory, and
+   nothing separated the two or checked the field name — so `state.idx`, the
+   trick form's private ring cursor, type-checked, ran, and silently changed the
+   game (in Hearts it moved the winner), while a typo reached the runtime as a
+   bare `KeyError`. The resolution was neither of the two this note offered: not
+   a rename (there are *two* owners, trick and climb, so `trick.led_suit` alone
+   was wrong) and not a documented convention, but a declared, typed **published
+   set** per form, with the checker rejecting everything else. Spec:
+   [../decisions.md](../decisions.md), "Round-internal state lives inside the
+   round".
+3. **Coup's integer-valued flags.** `alive[p]` is a Boolean; `block_claim`, a
+   `String` that held a rank name all along, is a `Rank?`. The trace-golden
+   sign-off found that the goldens *could not have caught this*: they compared
+   parsed JSON, and in Python `False == 0`. They compare types now.
+4. **The quantifiable-domain registry.** `cardlang/domains.py` — one row per
+   domain, replacing two half-tables that used different key namespaces
+   (`player` vs `Player`) and did not know about each other. The seat/value
+   asymmetry (`for each player` rebinds the acting player; `for each suit` does
+   not) is now a `binds_actor` column rather than an if-chain, so a new domain
+   arrives with its semantic column green. The *grammar* does not yet follow —
+   the quantifier productions are still hardcoded nouns — which is the recorded
+   residual in [../roadmap.md](../roadmap.md), and the thing the board-game
+   expansion would need.
+
+Two findings from that work are worth keeping, because both are cases where the
+plan was wrong in the same direction — it predicted a shared abstraction that the
+evidence did not support:
+
+- The **`Zone` procedure parameter** [procedures.md](procedures.md) §4 expected
+  the corpus to need never appeared: a `Player` parameter already carries its
+  zone (`influence[victim]`).
+- The **`trick.` rename** item 2 proposed would not have fixed anything —
+  `trick.idx` would still have been readable. The surface cue was never the
+  problem; the missing wall was.
