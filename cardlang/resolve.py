@@ -21,10 +21,11 @@ every diagnostic collected, not just the first.
 from __future__ import annotations
 
 from dataclasses import dataclass, fields, is_dataclass, replace
-from typing import Iterator
+from typing import Callable, Iterator
 
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
+from cardlang.roles import ROLES as _ITERATION_ROLES
 from cardlang.stdlib.functions import (
     STDLIB_AUCTION_OUTCOMES,
     STDLIB_CALL_FUNCS,
@@ -33,15 +34,23 @@ from cardlang.stdlib.functions import (
     STDLIB_EARLY_PREDICATES,
     STDLIB_TRICK_OUTCOMES,
     STDLIB_VALUE_NAMES,
-    ZONE_METHODS,
 )
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
-from cardlang.stdlib.values import DIRECTION_VALUES, deck_suits, enum_values
+from cardlang.stdlib.rules import library_rules
+from cardlang.stdlib.values import DIRECTION_VALUES, deck_ranks, deck_suits, enum_values
 from cardlang.typecheck import KNOWN_TYPE_NAMES
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 
 # Roles a zone may be indexed by or owned by. Grows with the seating model.
 _KNOWN_ROLES = {"player", "team"}
+
+# Roles `for each <role> <binder>` may range over: the seat roles plus the
+# deck's value domains. (Quantifier roles are fixed by their grammar
+# productions; `each … simultaneously` is seat-only — a value domain has no
+# actor to move simultaneously.) Sourced from `cardlang.roles.ROLES`, the one
+# registry also consumed by typecheck's binder typing and the runtime's
+# per-role domain accessor, so the four sites can't drift (imported above as
+# `_ITERATION_ROLES` to keep this module's call sites unchanged).
 
 # The magic namespaces a bare name may resolve to.
 _PRONOUNS = frozenset({"state", "action", "outcome", "active_rules", "actor"})
@@ -52,19 +61,81 @@ _PRONOUNS = frozenset({"state", "action", "outcome", "active_rules", "actor"})
 # context and remain readable.
 _CALL_SITE_PRONOUNS = frozenset({"actor", "action", "outcome"})
 
+# Value-words a DECLARATION may never take, because a bare NameRef spelling
+# the same word can never mean "the declaration" — some other fixed reading
+# always wins, silently: `none`/`true`/`false` are literals `_classify` (below)
+# intercepts before any declaration namespace even runs; `empty` is intercepted
+# earlier still, at PARSE time (`x is empty` always builds an `IsCheck`, never a
+# `NameRef`, no matter what `empty` is declared as — parse.py's `compare_is`/
+# `compare_is_not`); and each `_PRONOUNS` word is a fixed context namespace
+# (`state.led_suit`, bare `actor`, …) a same-named declaration would instead
+# shadow — silently changing what `state.foo` means rather than erroring.
+# `card`/`player` are deliberately absent: both are established, corpus-wide
+# LEXICAL shadow idioms (a card-query/quantifier binder, always scoped strictly
+# narrower than a same-named outer declaration — see `_BINDER_SCOPE_FIELDS`),
+# which is the intended shadowing `_check_duplicate_names`'s docstring already
+# carves out, not a defect this reservation needs to close.
+RESERVED_VALUE_NAMES: frozenset[str] = frozenset({"none", "empty", "true", "false"}) | _PRONOUNS
+
+_RESERVED_WHY: dict[str, str] = {
+    "none": "`x is none` always reads it as the null check",
+    "empty": "`x is empty` always reads it as the emptiness check",
+    "true": "it is the boolean literal",
+    "false": "it is the boolean literal",
+    "state": "it is the phase/game state pronoun (`state.foo`)",
+    "action": "it is the call-site action pronoun",
+    "outcome": "it is the call-site outcome pronoun",
+    "active_rules": "it is the active-rules pronoun",
+    "actor": "it is the call-site actor pronoun",
+}
+
+
+def _check_reserved(
+    name: str,
+    kind: str,
+    span: Span | None,
+    bag: DiagnosticBag,
+    reserved: frozenset[str] = RESERVED_VALUE_NAMES,
+) -> None:
+    if name in reserved:
+        bag.error(
+            f"{kind} '{name}' is a reserved word — {_RESERVED_WHY[name]} — "
+            f"pick another name",
+            span,
+        )
+
 
 def resolve(game: n.Game) -> n.Game:
     bag = DiagnosticBag()
     _resolve_deck(game, bag)
+    _resolve_ranking(game, bag)
     _check_duplicate_names(game, bag)
+    _check_reserved_params(game, bag)
+    _check_reserved_binders(game, bag)
     _resolve_max_length(game, bag)
     for zone in game.zones:
         _resolve_zone(zone, bag)
 
-    defined_rules = {r.name for r in game.rules}
+    # Names that resolve to SOME rule template (local or library), independent
+    # of whether that template ever successfully instantiates — the set
+    # `active_rules names undefined rule` gates on below. Captured from the
+    # ORIGINAL `game.rules` (before instantiation, which drops a local
+    # template that fails to instantiate): a name is "undefined" only when no
+    # template exists for it anywhere, never merely because its own
+    # instantiation attempt hit some OTHER, already-separately-reported
+    # mismatch (arity, missing arguments, …) — that conflation used to pile a
+    # spurious "undefined rule" note onto every such mismatch.
+    known_rule_names = {r.name for r in game.rules} | set(library_rules())
+
+    # Library-rule splice and template instantiation: after this, every rule in
+    # `game.rules` is a concrete (parameter-free) definition the runtime can
+    # index by name.
+    game = _instantiate_rules(game, bag)
+
     for rule in game.rules:
         _resolve_rule(rule, bag)
-    _resolve_phase_level(game.phases, defined_rules, bag)
+    _resolve_phase_level(game.phases, known_rule_names, bag)
+    _check_remove_reachability(game.phases, bag)
 
     # Deep name resolution: classify every bare name and validate calls,
     # methods, card literals, and the rotate/winner targets.
@@ -76,6 +147,331 @@ def resolve(game: n.Game) -> n.Game:
 
     _raise_if_errors(bag)
     return game
+
+
+def _introduced_binders(node: object) -> tuple[str, ...]:
+    """The single registry of "which node kinds bind names, and which names":
+    every other place that needs to know (`_template_binders`'s collision
+    check, `_check_functions`'s allowed-reference set, `_rewrite`'s lexical
+    scoping via `_BINDER_SCOPE_FIELDS`) reads this instead of re-enumerating
+    the node-kind match itself — three copies of that match previously drifted
+    out of sync (missing the `Movement`/`EpistemicOp` filter arm in two of
+    them). A node kind not listed here introduces no binder.
+
+    `LetStmt` returns both `name` and `index` (when present) — every name it
+    binds *somewhere*, which is what a collision check needs. The two differ
+    in WHERE they're visible (`index` scopes only its own `value`; `name`
+    scopes to later statements in the same tuple), which is a lexical-scoping
+    fact `_rewrite` must handle itself, not this registry (see the `LetStmt`
+    branch in `_rewrite` and the sequential fold in `_rewrite_value`)."""
+    match node:
+        case n.Comprehension() | n.Quantifier() | n.ForEach():
+            return (node.binder,)
+        case n.EachSimultaneous():
+            return (node.role,)
+        case n.PlayerQuery():
+            return ("player",)
+        case n.CardQuery():
+            return ("card",)
+        case n.Movement() | n.EpistemicOp() if node.filter is not None:
+            return ("card",)
+        case n.LetStmt():
+            return (node.name, node.index) if node.index is not None else (node.name,)
+        case _:
+            return ()
+
+
+def _template_binders(rule: n.RuleDef) -> set[str]:
+    """Every binder a rule body introduces — a parameter sharing one of these
+    names would be captured by the binder instead of substituted."""
+    out: set[str] = set()
+    for nd in _walk(rule):
+        out.update(_introduced_binders(nd))
+    return out
+
+
+def _check_template(rule: n.RuleDef, bag: DiagnosticBag) -> bool:
+    """Validate a parameterized rule's declaration (Suit-only domains,
+    corpus-first — recorded in roadmap.md; unique names; no binder capture).
+    Returns False when instantiation cannot proceed."""
+    ok = True
+    names = [p.name for p in rule.params]
+    for dup in sorted({nm for nm in names if names.count(nm) > 1}):
+        bag.error(
+            f"rule '{rule.name}' declares more than one parameter named "
+            f"'{dup}' — substitution binds by name, so one would silently "
+            f"shadow the other",
+            rule.span,
+        )
+        ok = False
+    binders = _template_binders(rule)
+    for p in rule.params:
+        if p.type_name != "Suit":
+            bag.error(
+                f"rule parameter '{p.name}: {p.type_name}' has an unsupported "
+                f"domain — rule parameters support Suit only (corpus-first; "
+                f"extend when a game needs another)",
+                rule.span,
+            )
+            ok = False
+        if p.name in binders:
+            bag.error(
+                f"rule '{rule.name}' introduces a binder named '{p.name}', "
+                f"shadowing its own parameter — rename one",
+                rule.span,
+            )
+            ok = False
+    return ok
+
+
+def _traverse(node: object, step: Callable[[str, object], object]) -> object:
+    """The immutable one-level descent shared by every default-arm traversal
+    in this module (`_substitute`'s default arm, `_rewrite`'s default arm, and
+    `_rewrite`'s per-field binder-scoping dispatch below): every dataclass
+    field — guarded against `Span`, a leaf the walk must not open — is handed
+    to `step` along with its field name, and replaced only where `step`
+    actually returns something different. `dataclasses.replace` is skipped
+    entirely when nothing changed, so an untouched subtree keeps its identity.
+    Non-dataclass nodes (a tuple, a leaf) pass through unchanged — tuple
+    mapping and leaf handling are the callers' job (`_substitute_value` /
+    `_rewrite_value`), since the two differ there: `_rewrite_value`'s tuple
+    arm folds `let` bindings sequentially into later siblings, which
+    `_substitute` (fixed-mapping template substitution, not scope-sensitive)
+    has no need of."""
+    if not is_dataclass(node) or isinstance(node, Span):
+        return node
+    changes: dict[str, object] = {}
+    for f in fields(node):
+        value = getattr(node, f.name)
+        rewritten = step(f.name, value)
+        if rewritten is not value:
+            changes[f.name] = rewritten
+    return replace(node, **changes) if changes else node  # type: ignore[type-var]
+
+
+def _substitute(node: object, mapping: dict[str, n.Expr]) -> object:
+    """Immutably replace every bare reference to a template parameter with its
+    argument expression (runs pre-classification: every NameRef is unresolved)."""
+    if isinstance(node, n.NameRef) and node.name in mapping:
+        return mapping[node.name]
+    return _traverse(node, lambda _field, v: _substitute_value(v, mapping))
+
+
+def _substitute_value(value: object, mapping: dict[str, n.Expr]) -> object:
+    if is_dataclass(value) and not isinstance(value, Span):
+        return _substitute(value, mapping)
+    if isinstance(value, tuple):
+        return tuple(_substitute_value(item, mapping) for item in value)
+    return value
+
+
+def _instantiate_rules(game: n.Game, bag: DiagnosticBag) -> n.Game:
+    """Resolve `active_rules` references against the game's own rules first,
+    then the standard library (`cardlang/stdlib/rules.cardlang`):
+
+    - a reference to a library rule the game does not define splices the
+      library body into `game.rules` (defining a rule under a library name is
+      rejected — a local copy would drift from the shared body silently);
+    - a reference with arguments instantiates a parameterized rule (library or
+      local) by substituting the arguments into the template body; the local
+      template is replaced by its instance in place, so the runtime's
+      name->rule index only ever sees concrete definitions.
+
+    Every mismatch is a diagnostic, never a silent drop: args on a
+    parameter-free rule, a parameterized rule referenced bare, arity/domain
+    mismatches, two instantiations under one name with different arguments,
+    and a local template no reference ever instantiates.
+
+    Only `plain`/`add` refs reach any of that: the grammar gives `-NAME`
+    (remove) and `override NAME` no argument list at all (cardlang.lark's
+    `rule_remove`/`rule_override` productions), so neither can ever
+    instantiate a template — asking one for "arguments" would be an
+    unsatisfiable diagnostic (no source text repairs it). Both resolve by
+    NAME alone: `remove` targets a rule a `plain`/`add` reference already
+    activated in the same runtime-consulted scope (validated structurally by
+    `_check_remove_reachability`, since `compute_active_rules` only ever
+    removes a name it finds already present); `override` has no runtime
+    support yet at all and is rejected unconditionally, once, by
+    `_resolve_phase_item` — this loop skips it so that is the only diagnostic
+    a game ever sees for it, not a second, unsatisfiable "pass arguments"
+    alongside "not yet supported"."""
+    lib = library_rules()
+    local = {r.name: r for r in game.rules}
+    for r in game.rules:
+        if r.name in lib:
+            bag.error(
+                f"rule '{r.name}' shadows the standard-library rule of the same "
+                f"name — delete the local definition (`active_rules` resolves it "
+                f"from the library), or rename it if the body genuinely differs",
+                r.span,
+            )
+    suits = deck_suits(game.deck) if _deck_known(game.deck) else None
+    # rule name -> (argument key, concrete instance)
+    instances: dict[str, tuple[tuple[str, ...], n.RuleDef]] = {}
+    lib_order: list[str] = []
+    # Each DISTINCT template's declaration validates once total, however many
+    # refs instantiate it (or attempt to) — never once per activating phase
+    # (a defective template referenced from two phases previously repeated its
+    # diagnostics; `_check_template` is also the bottom loop's "never
+    # instantiated" fallback below, so the cache spans both call sites).
+    template_checked: dict[str, bool] = {}
+
+    def check_template_once(name: str, template: n.RuleDef) -> bool:
+        if name not in template_checked:
+            template_checked[name] = _check_template(template, bag)
+        return template_checked[name]
+
+    for nd in _walk(game):
+        if not isinstance(nd, n.ActiveRules):
+            continue
+        for ref in nd.refs:
+            if ref.op in ("remove", "override"):
+                continue
+            template = local.get(ref.name, lib.get(ref.name))
+            if template is None:
+                continue  # undefined name: reported by _resolve_phase_level
+            if not template.params:
+                if ref.args:
+                    bag.error(
+                        f"rule '{ref.name}' takes no parameters — drop the "
+                        f"argument list",
+                        ref.span,
+                    )
+                elif ref.name not in local and ref.name not in instances:
+                    instances[ref.name] = ((), template)
+                    lib_order.append(ref.name)
+                continue
+            if not ref.args:
+                bag.error(
+                    f"rule '{ref.name}' is parameterized "
+                    f"({', '.join(f'{p.name}: {p.type_name}' for p in template.params)}) "
+                    f"— pass arguments: `{ref.name}(…)`",
+                    ref.span,
+                )
+                continue
+            if len(ref.args) != len(template.params):
+                bag.error(
+                    f"rule '{ref.name}' takes {len(template.params)} "
+                    f"argument(s), got {len(ref.args)}",
+                    ref.span,
+                )
+                continue
+            if not check_template_once(ref.name, template):
+                continue
+            args_ok = True
+            for arg, p in zip(ref.args, template.params):
+                if not isinstance(arg, n.NameRef) or (
+                    suits is not None and arg.name not in suits
+                ):
+                    bag.error(
+                        f"argument for rule parameter '{p.name}: Suit' must be "
+                        f"a suit literal (one of the deck's suits)",
+                        ref.span,
+                    )
+                    args_ok = False
+            if not args_ok:
+                continue
+            key = tuple(a.name for a in ref.args if isinstance(a, n.NameRef))
+            if ref.name in instances:
+                if instances[ref.name][0] != key:
+                    bag.error(
+                        f"rule '{ref.name}' is instantiated with different "
+                        f"arguments elsewhere in this game — one instantiation "
+                        f"per rule name (activate under distinct names when a "
+                        f"game needs two)",
+                        ref.span,
+                    )
+                continue
+            mapping = {p.name: a for p, a in zip(template.params, ref.args)}
+            inst = _substitute(replace(template, params=()), mapping)
+            assert isinstance(inst, n.RuleDef)
+            instances[ref.name] = (key, inst)
+            if ref.name not in local:
+                lib_order.append(ref.name)
+    rules: list[n.RuleDef] = []
+    for r in game.rules:
+        if not r.params:
+            rules.append(r)
+        elif r.name in instances:
+            rules.append(instances[r.name][1])  # instance replaces its template
+        else:
+            check_template_once(r.name, r)  # surface declaration defects even here
+            bag.error(
+                f"rule '{r.name}' is parameterized but never instantiated — "
+                f"reference it from `active_rules` with arguments, or delete it "
+                f"(its body would otherwise go entirely unchecked)",
+                r.span,
+            )
+    rules += [instances[name][1] for name in lib_order]
+    return replace(game, rules=tuple(rules)) if tuple(rules) != game.rules else game
+
+
+def _check_remove_reachability(phases: tuple[n.Phase, ...], bag: DiagnosticBag) -> None:
+    """`-X` and (unsupported today) `override X` can never instantiate a rule
+    (`_instantiate_rules`'s docstring) — they only resolve X by NAME against a
+    rule a `plain`/`add` reference already activated. A reference to a name no
+    `plain`/`add` ever activates in the scope the runtime actually consults is
+    a structural no-op forever: `runtime/phases.py`'s `compute_active_rules`
+    computes one phase's active set from exactly two sources — that phase's
+    OWN `active_rules:` entries (applied unconditionally, in the list's own
+    order), and, layered on top, each of its DIRECT rule-delta sub-phases
+    (`_is_rule_delta` — a child phase with nothing but `active_rules:` /
+    `legal_moves:` / `transition_to:` items, imported from there so the two
+    can never drift) that is currently active — never a grandparent, and never
+    a SIBLING delta sub-phase's own list alone (only one of a "before"/"after"
+    pair is ever active at a time, so a name that pair's other branch alone
+    added was never in `names` on this call either). This check mirrors that
+    exact two-source shape: a `remove` inside a phase's own list validates
+    against that same list; a `remove` inside a rule-delta sub-phase validates
+    against its parent's list UNION its own. It does not model order WITHIN
+    one list (an add-then-remove of the same name earlier in a parent's own
+    list still counts as "added" for a child's cluster check below) — an
+    accepted imprecision for a construct the corpus does not use at all
+    (docs/roadmap.md records the residual)."""
+    from cardlang.runtime.phases import _is_rule_delta
+
+    for phase in phases:
+        own_refs = [
+            ref for item in phase.items if isinstance(item, n.ActiveRules) for ref in item.refs
+        ]
+        own_added = {r.name for r in own_refs if r.op in ("plain", "add")}
+        _validate_removes(own_refs, own_added, bag)
+
+        delta_children = [
+            item for item in phase.items if isinstance(item, n.Phase) and _is_rule_delta(item)
+        ]
+        for child in delta_children:
+            child_refs = [
+                ref
+                for item in child.items
+                if isinstance(item, n.ActiveRules)
+                for ref in item.refs
+            ]
+            cluster_added = own_added | {r.name for r in child_refs if r.op in ("plain", "add")}
+            _validate_removes(child_refs, cluster_added, bag)
+
+        # Recurse into every child phase EXCEPT the rule-delta ones just
+        # handled above (against their parent's cluster) — revisiting them
+        # generically here would re-check them against only their own narrow
+        # list, which is not the scope the runtime actually consults for them.
+        non_delta_children = tuple(
+            item
+            for item in phase.items
+            if isinstance(item, n.Phase) and not any(item is d for d in delta_children)
+        )
+        _check_remove_reachability(non_delta_children, bag)
+
+
+def _validate_removes(refs: list[n.RuleRef], added: set[str], bag: DiagnosticBag) -> None:
+    for ref in refs:
+        if ref.op == "remove" and ref.name not in added:
+            bag.error(
+                f"`-{ref.name}` removes a rule that is never added in scope "
+                f"here (this phase's own `active_rules:`, or a sibling "
+                f"rule-delta phase's) — add `{ref.name}` or `+{ref.name}` "
+                f"there, or delete this removal",
+                ref.span,
+            )
 
 
 def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
@@ -195,7 +591,7 @@ def _resolve_rule(rule: n.RuleDef, bag: DiagnosticBag) -> None:
 
 
 def _resolve_phase_level(
-    phases: tuple[n.Phase, ...], defined_rules: set[str], bag: DiagnosticBag
+    phases: tuple[n.Phase, ...], known_rule_names: set[str], bag: DiagnosticBag
 ) -> None:
     """Resolve a set of sibling phases, then recurse into each one's children.
 
@@ -206,7 +602,7 @@ def _resolve_phase_level(
     for phase in phases:
         # Combination validity (decisions.md "Surface totality"): the runtime
         # declares only a phase's FIRST state block and runs the lifecycle
-        # hooks only on a `repeats until` phase — reject what it would
+        # hooks only on a `repeat until` phase — reject what it would
         # silently drop.
         state_blocks = [i for i in phase.items if isinstance(i, n.StateBlock)]
         if len(state_blocks) > 1:
@@ -220,26 +616,26 @@ def _resolve_phase_level(
                 if isinstance(hook, (n.BeforeEach, n.AfterEach)):
                     kw = "before_each" if isinstance(hook, n.BeforeEach) else "after_each"
                     bag.error(
-                        f"`{kw}` runs per iteration of a `repeats until` phase; "
+                        f"`{kw}` runs per iteration of a `repeat until` phase; "
                         f"phase '{phase.name}' has no iteration — put the "
                         f"statements in the phase body",
                         hook.span,
                     )
         for item in phase.items:
-            _resolve_phase_item(item, sibling_names, defined_rules, bag)
+            _resolve_phase_item(item, sibling_names, known_rule_names, bag)
         children = tuple(i for i in phase.items if isinstance(i, n.Phase))
-        _resolve_phase_level(children, defined_rules, bag)
+        _resolve_phase_level(children, known_rule_names, bag)
 
 
 def _resolve_phase_item(
     item: n.PhaseItem,
     sibling_names: set[str],
-    defined_rules: set[str],
+    known_rule_names: set[str],
     bag: DiagnosticBag,
 ) -> None:
     if isinstance(item, n.ActiveRules):
         for ref in item.refs:
-            if ref.name not in defined_rules:
+            if ref.name not in known_rule_names:
                 bag.error(f"active_rules names undefined rule '{ref.name}'", ref.span)
             if ref.op == "override":
                 bag.error(
@@ -297,7 +693,15 @@ def _resolve_stmt(stmt: n.Stmt, bag: DiagnosticBag) -> None:
 
 @dataclass(frozen=True)
 class _Categories:
-    """The namespaces a bare name resolves against, collected once per game."""
+    """The namespaces a bare name resolves against, collected once per game.
+
+    Every field but `locals` is game-wide and fixed by `_categories` below.
+    `locals` is lexical, not game-wide: it starts empty (a bare binder name
+    resolves nowhere until something scopes it in) and `_rewrite` extends it
+    with `replace(cats, locals=cats.locals | {...})` for exactly the sub-fields
+    of a binder-introducing node (`_BINDER_SCOPE_FIELDS`, keyed by
+    `_introduced_binders`) or the tail of a statement tuple after a `let`
+    (the sequential fold in `_rewrite_value`) — never wider than that subtree."""
 
     locals: frozenset[str]
     state_vars: frozenset[str]
@@ -327,35 +731,27 @@ def _child_nodes(value: object) -> Iterator[object]:
 
 
 def _categories(game: n.Game) -> _Categories:
-    state_vars: set[str] = set()
-    locals_: set[str] = set()
-    for nd in _walk(game):
-        match nd:
-            case n.StateDecl():
-                state_vars.add(nd.name)
-            case n.Lambda():
-                locals_.add(nd.param)
-            case n.Comprehension() | n.Quantifier() | n.ForEach():
-                locals_.add(nd.binder)
-            case n.EachSimultaneous():
-                locals_.add(nd.role)
-            case n.PlayerQuery():
-                locals_.add("player")  # the implicit per-candidate binder
-            case n.LetStmt():
-                locals_.add(nd.name)
-                if nd.index is not None:
-                    locals_.add(nd.index)
-            # A function's parameters are NOT added here: they scope to that
-            # function's body only (rewritten in `_rewrite`), like move-type and
-            # produce-arm binders. Adding them globally would let a parameter named
-            # like a state var, zone, or pronoun win everywhere in the file.
+    # `locals` starts empty here: binders (comprehension/quantifier/query/
+    # for-each/each-simultaneous/movement-filter/let) are lexically scoped by
+    # `_rewrite`, not collected game-wide — see the `_Categories` docstring.
+    # State vars remain game-wide: `state { }` (top-level or phase-local) is a
+    # single flat declaration namespace (`_check_duplicate_names` enforces
+    # uniqueness across it), not a binder any construct introduces.
+    state_vars = {nd.name for nd in _walk(game) if isinstance(nd, n.StateDecl)}
     return _Categories(
-        locals=frozenset(locals_),
+        locals=frozenset(),
         state_vars=frozenset(state_vars),
         zones=frozenset(z.name for z in game.zones),
         enums=enum_values(game.deck) if _deck_known(game.deck) else DIRECTION_VALUES,
         functions=STDLIB_VALUE_NAMES,
-        ranks=frozenset(game.ranking),
+        # Card-literal validation asks "does this card EXIST in the deck",
+        # so ranks derive from the deck like `suits` below — never from
+        # `ranking:`, which is an ORDERING (optional, and legitimately
+        # partial: it narrows the Rank move-param domain, not which cards
+        # can be named). Deck-vs-ranking is the same two-source divergence
+        # `_resolve_ranking` walls from the other side (Codex review of
+        # PR #48, round 2).
+        ranks=deck_ranks(game.deck) if _deck_known(game.deck) else frozenset(),
         suits=deck_suits(game.deck) if _deck_known(game.deck) else frozenset(),
     )
 
@@ -366,9 +762,23 @@ def _check_duplicate_names(game: n.Game, bag: DiagnosticBag) -> None:
     last-wins — accepted-but-ignored at the declaration level. Scopes that
     legitimately shadow ACROSS levels (a phase-local state var over a game
     var) are separate namespaces and stay legal; duplication is rejected
-    only WITHIN one declaration list."""
+    only WITHIN one declaration list.
 
-    def check(kind: str, named: "Iterator[object] | tuple[object, ...] | list[object]") -> None:
+    The same sweep also rejects `RESERVED_VALUE_NAMES` (`reserved=True`
+    namespaces only): zones, functions, user type names, and state variables
+    are all reachable as a bare `NameRef` in general expression position,
+    where a reserved word never means "the declaration" (see
+    `RESERVED_VALUE_NAMES`'s docstring). Move-type/rule NAMES, `define`
+    names, type FIELD names, and phase names are exempt — none is ever
+    referenced as a bare NameRef (each lives in its own fixed syntactic slot:
+    `constrains:`, `active_rules:`/`legal_moves:`, `produces:`, `x.field`,
+    `transition_to:`), so no reserved word can hijack one."""
+
+    def check(
+        kind: str,
+        named: "Iterator[object] | tuple[object, ...] | list[object]",
+        reserved: bool = False,
+    ) -> None:
         seen: dict[str, object] = {}
         for decl in named:
             name = getattr(decl, "name")
@@ -379,24 +789,71 @@ def _check_duplicate_names(game: n.Game, bag: DiagnosticBag) -> None:
                     getattr(decl, "span", None),
                 )
             seen[name] = decl
+            if reserved:
+                _check_reserved(name, kind, getattr(decl, "span", None), bag)
 
-    check("zone", game.zones)
+    check("zone", game.zones, reserved=True)
     check("move_type", game.move_types)
-    check("type", game.types)
+    check("type", game.types, reserved=True)
     check("define", game.defines)
-    check("function", game.functions)
+    check("function", game.functions, reserved=True)
     check("rule", game.rules)
     if game.state is not None:
-        check("state variable", game.state.decls)
+        check("state variable", game.state.decls, reserved=True)
     phases: list[object] = []
     for nd in _walk(game):
         if isinstance(nd, n.Phase):
             phases.append(nd)
         elif isinstance(nd, n.StateBlock) and nd is not game.state:
-            check("state variable", nd.decls)
+            check("state variable", nd.decls, reserved=True)
         elif isinstance(nd, n.TypeDef):
             check(f"field in type '{nd.name}'", nd.fields)
     check("phase", phases)
+
+
+def _check_reserved_params(game: n.Game, bag: DiagnosticBag) -> None:
+    """Function/move-type/rule parameters are declarations `_check_duplicate_names`
+    never reaches (they live on `.params`, not one of its top-level lists) but
+    are reachable as a bare `NameRef` inside the body exactly like a state
+    variable — a parameter named `empty` is just as unreferenceable via
+    `x is empty` as a state variable of the same name would be.
+
+    Function parameters are the ONE exception to `RESERVED_VALUE_NAMES` in
+    full: `_CALL_SITE_PRONOUNS` (`actor`/`action`/`outcome`) is exactly the
+    set a function body is already forbidden from READING (the runtime
+    clears them before a hermetic call — `_check_functions`'s "pass the
+    value in as a parameter instead"), so naming a parameter after one is
+    not a hijack, it is that error message's own prescribed fix — pinned by
+    `tests/test_functions.py::test_function_param_does_not_leak_into_pronoun_sites`
+    (`function lead(actor : Player) = score[actor]`). `state`/`active_rules`
+    stay reserved for function parameters too: those two remain READABLE
+    inside a function body, so a same-named parameter would still shadow
+    them. Move-type/rule bodies are not hermetic — they read
+    `actor`/`action`/`outcome` directly as live pronouns — so all five stay
+    reserved for their parameters."""
+    for coll, kind, reserved in (
+        (game.functions, "function parameter", RESERVED_VALUE_NAMES - _CALL_SITE_PRONOUNS),
+        (game.move_types, "move-type parameter", RESERVED_VALUE_NAMES),
+        (game.rules, "rule parameter", RESERVED_VALUE_NAMES),
+    ):
+        for decl in coll:
+            for p in decl.params:
+                _check_reserved(p.name, kind, p.span, bag, reserved)
+
+
+def _check_reserved_binders(game: n.Game, bag: DiagnosticBag) -> None:
+    """Sweep every binder-introducing node via `_introduced_binders` — the one
+    registry of which node kinds bind names — rather than re-enumerating the
+    user-choosing ones by hand. This reserved-word check is safe to apply
+    uniformly to EVERY name `_introduced_binders` returns, including the FIXED
+    ones (`card`/`player`/the quantifier role noun): none of those spellings is
+    ever in `RESERVED_VALUE_NAMES` (deliberately — see its docstring), so the
+    check is a no-op for them and only ever fires for the genuinely
+    user-chosen binders: `for each <role> <binder>:`, `each <role>
+    simultaneously:`, and `let <name>[<index>]`."""
+    for nd in _walk(game):
+        for name in _introduced_binders(nd):
+            _check_reserved(name, "binder", getattr(nd, "span", None), bag)
 
 
 def _deck_known(deck: str) -> bool:
@@ -418,6 +875,49 @@ def _resolve_deck(game: n.Game, bag: DiagnosticBag) -> None:
             f"unknown deck '{game.deck}' — known decks: {', '.join(sorted(DECKS))}",
             None,
         )
+
+
+def _resolve_ranking(game: n.Game, bag: DiagnosticBag) -> None:
+    """`ranking:` entries must name real ranks of the declared deck. Unchecked,
+    a typo (`11` for `10`) silently widens typecheck's Rank enum domain
+    (`value_enum_map` unions `game.ranking` into it) rather than erroring: the
+    mistyped literal then type-checks fine and every comparison against it is
+    simply False forever, at runtime, with no diagnostic anywhere (Surface
+    totality). A repeated entry is rejected too — `driver.py` builds
+    `rs.rank_index` from `enumerate(game.ranking)`, so a duplicate would
+    silently give one rank two strengths and shift the intended strength of
+    every rank after it, last-wins, with no error.
+
+    Coverage is NOT required: `ranking:` may legitimately be a PARTIAL
+    permutation of the deck's ranks. Every `docs/games/*.cardlang` ranking
+    happens to be a full permutation of its deck, but
+    `tests/test_action_space_multiparam.py`'s subset-ranking regression
+    (`test_rank_domain_sourced_from_game_ranking_not_deck`) pins a partial
+    `ranking:` as a deliberate, supported feature — it narrows the `Rank`
+    move-parameter domain to fewer than the deck's ranks. A card whose rank
+    falls outside a partial ranking still crashes `rank_value`'s
+    `ctx.rs.rank_index[...]` lookup at runtime instead of erroring here — an
+    accepted residual (docs/roadmap.md), walled only by that runtime
+    KeyError, not by this check."""
+    if not game.ranking or not _deck_known(game.deck):
+        return
+    known = deck_ranks(game.deck)
+    seen: dict[str, None] = {}
+    for rank in game.ranking:
+        if rank in seen:
+            bag.error(
+                f"ranking: repeats rank '{rank}' — each rank may appear at "
+                f"most once (a duplicate would silently give it two "
+                f"strengths and shift every rank after it down by one)",
+                game.span,
+            )
+        seen[rank] = None
+        if rank not in known:
+            bag.error(
+                f"ranking: names unknown rank '{rank}' — not a rank of deck "
+                f"'{game.deck}' (known ranks: {', '.join(sorted(known))})",
+                game.span,
+            )
 
 
 def _classify(name: str, cats: _Categories) -> str | None:
@@ -471,15 +971,49 @@ def _rewrite_produce_arm(
     scope — so bare binder references resolve, without leaking into other arms or
     the enclosing game (mirrors `_classify_type_derived` for struct fields)."""
     scoped = replace(cats, locals=cats.locals | frozenset(arm.binders))
-    body = tuple(_rewrite(s, scoped, bag) for s in arm.body)
+    # Route through `_rewrite_value` (not a bare per-item `_rewrite` map) so a
+    # `let` inside the arm body scopes to the arm's later statements too — the
+    # same sequential fold every other statement tuple gets.
+    body = _rewrite_value(arm.body, scoped, bag)
     return replace(arm, body=body)  # type: ignore[arg-type]
+
+
+# Binder-introducing node kinds `_rewrite` scopes to specific sub-fields only
+# (lexical scoping): each maps to the field name(s) whose subtree sees the
+# node's own binder(s) (from `_introduced_binders`) added to `cats.locals` —
+# every other field of the node keeps the enclosing scope. A source/default
+# field is deliberately absent from a comprehension's/card-query's entry: the
+# source zone and the empty-set default are evaluated outside the element
+# scope (mirrors typecheck.py `_check_expr`'s identical split). `LetStmt` is
+# handled separately in `_rewrite` (its `index` scopes only its own `value`;
+# its `name` scopes forward to later statements, not to any field of its own
+# node — see the sequential fold in `_rewrite_value`'s tuple arm) and so has
+# no entry here.
+_BINDER_SCOPE_FIELDS: dict[type, tuple[str, ...]] = {
+    n.Quantifier: ("body",),
+    n.Comprehension: ("filter", "body"),
+    n.CardQuery: ("pred",),
+    n.PlayerQuery: ("pred",),
+    n.Movement: ("filter",),
+    n.EpistemicOp: ("filter",),
+    n.ForEach: ("body",),
+    n.EachSimultaneous: ("body",),
+}
 
 
 def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
     if isinstance(node, n.NameRef):
         kind = _classify(node.name, cats)
         if kind is None:
-            bag.error(f"unresolved name '{node.name}'", node.span)
+            hint = ""
+            if node.name == "card":
+                hint = (
+                    " (`card` is bound only inside a card query, an "
+                    "aggregation, or a `where` filter)"
+                )
+            elif node.name == "player":
+                hint = " (`player` is bound only inside a player query or quantifier)"
+            bag.error(f"unresolved name '{node.name}'{hint}", node.span)
         return replace(node, ref_kind=kind)
     if isinstance(node, n.TypeDef):
         return node  # derived bodies are rewritten by _classify_type_derived
@@ -500,7 +1034,9 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
             else cats
         )
         guard = _rewrite_value(node.guard, scoped, bag) if node.guard is not None else None
-        effect = tuple(_rewrite(s, scoped, bag) for s in node.effect)
+        # `_rewrite_value` (not a bare per-item `_rewrite` map): a `let` in a
+        # move's effect scopes to the statements after it, like everywhere else.
+        effect = _rewrite_value(node.effect, scoped, bag)
         return replace(node, guard=guard, effect=effect)  # type: ignore[arg-type]
     if isinstance(node, n.FunctionDef):
         # The parameters bind only in this function's body — scope them here rather
@@ -510,22 +1046,48 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         scoped = replace(cats, locals=cats.locals | {p.name for p in node.params})
         body = _rewrite_value(node.body, scoped, bag)
         return replace(node, body=body)  # type: ignore[arg-type]
-    if not is_dataclass(node) or isinstance(node, Span):
-        return node
-    changes: dict[str, object] = {}
-    for f in fields(node):
-        value = getattr(node, f.name)
-        rewritten = _rewrite_value(value, cats, bag)
-        if rewritten is not value:
-            changes[f.name] = rewritten
-    return replace(node, **changes) if changes else node  # type: ignore[type-var]
+    if isinstance(node, n.LetStmt):
+        # `index` (the indexed form's per-key binder, `let base[p] = …`) scopes
+        # only to this let's own `value` — evaluated once per key and gone
+        # afterward (`runtime/execute.py:_let`), unlike `name`. `name` is NOT
+        # scoped here: it becomes visible to statements after this one in the
+        # same tuple, folded by `_rewrite_value`'s tuple arm below.
+        scoped = replace(cats, locals=cats.locals | {node.index}) if node.index is not None else cats
+        value = _rewrite_value(node.value, scoped, bag)
+        return replace(node, value=value)  # type: ignore[arg-type]
+    scope_fields = _BINDER_SCOPE_FIELDS.get(type(node))
+    if scope_fields is not None:
+        binders = _introduced_binders(node)
+        if binders:  # a filter-less Movement/EpistemicOp introduces nothing
+            scoped = replace(cats, locals=cats.locals | frozenset(binders))
+            return _traverse(
+                node,
+                lambda f, v: _rewrite_value(v, scoped if f in scope_fields else cats, bag),
+            )
+    return _traverse(node, lambda _field, v: _rewrite_value(v, cats, bag))
 
 
 def _rewrite_value(value: object, cats: _Categories, bag: DiagnosticBag) -> object:
     if is_dataclass(value) and not isinstance(value, Span):
         return _rewrite(value, cats, bag)
     if isinstance(value, tuple):
-        return tuple(_rewrite_value(item, cats, bag) for item in value)
+        # A `let` binds its name for the REST of this tuple (the sequential-`let`
+        # idiom every statement-sequence site shares — Phase.items, if/else
+        # bodies, repeat/lifecycle-hook bodies, move-type effects, produce-arm
+        # bodies: every tuple a `Stmt`/`PhaseItem` sequence can occur in). This
+        # fold is safe to apply to EVERY tuple field generically, not just
+        # statement sequences: a `LetStmt` node can only ever appear inside one
+        # of those Stmt-typed tuples (the grammar has no other production that
+        # embeds a statement), so the `isinstance` check below is a no-op on
+        # every other kind of tuple (zones, rule params, call args, …).
+        out: list[object] = []
+        current = cats
+        for item in value:
+            rewritten = _rewrite_value(item, current, bag)
+            out.append(rewritten)
+            if isinstance(rewritten, n.LetStmt):
+                current = replace(current, locals=current.locals | {rewritten.name})
+        return tuple(out)
     return value
 
 
@@ -552,15 +1114,7 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
             )
         allowed = {p.name for p in fn.params}
         for nd in _walk(fn.body):  # binders the body itself introduces are in scope
-            match nd:
-                case n.Comprehension() | n.Quantifier() | n.ForEach():
-                    allowed.add(nd.binder)
-                case n.EachSimultaneous():
-                    allowed.add(nd.role)
-                case n.PlayerQuery():
-                    allowed.add("player")
-                case n.Lambda():
-                    allowed.add(nd.param)
+            allowed.update(_introduced_binders(nd))
         for nd in _walk(fn.body):
             if not isinstance(nd, n.NameRef):
                 continue
@@ -800,15 +1354,30 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"produces names unknown define or outcome phase '{nd.define}'",
                     nd.span,
                 )
-            case n.MethodCall() if nd.method not in ZONE_METHODS:
-                bag.error(f"unknown zone method '{nd.method}'", nd.span)
+            case n.ForEach() if nd.role not in _ITERATION_ROLES:
+                bag.error(
+                    f"unknown `for each` role '{nd.role}' (expected one of "
+                    f"{', '.join(sorted(_ITERATION_ROLES))})",
+                    nd.span,
+                )
+            case n.EachSimultaneous() if nd.role != "player":
+                bag.error(
+                    f"`each {nd.role} simultaneously` is not runnable — "
+                    f"simultaneous moves are per player",
+                    nd.span,
+                )
             case n.CardLiteral():
                 if nd.rank not in cats.ranks:
                     bag.error(f"unknown rank '{nd.rank}' in card literal", nd.span)
                 if nd.suit not in cats.suits:
                     bag.error(f"unknown suit '{nd.suit}' in card literal", nd.span)
             case n.RotateStmt():
-                if nd.var not in cats.state_vars and nd.var not in cats.locals:
+                # `rotate` reads/writes `ctx.rs` (persistent state) at runtime
+                # (runtime/execute.py `_rotate`), never `ctx.locals` — so its
+                # target can only be a declared state variable, never a lexical
+                # binder (a `let`, a query/comprehension/loop binder), whatever
+                # is in scope at this point in the tree.
+                if nd.var not in cats.state_vars:
                     bag.error(f"rotate of unknown variable '{nd.var}'", nd.span)
                 for value in nd.values:
                     if value not in cats.enums:

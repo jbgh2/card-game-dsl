@@ -7,11 +7,11 @@ the (possibly extended) context the caller threads into subsequent statements.
 
 from __future__ import annotations
 
-from typing import Any, assert_never
+from typing import Any, Callable, assert_never
 
 from cardlang.ast import nodes as n
 from cardlang.runtime import mechanics, observe
-from cardlang.runtime.evaluate import evaluate
+from cardlang.runtime.evaluate import _role_domain, evaluate
 from cardlang.runtime.state import Ctx, Zone, _ContinueTo, _ProduceSignal, _SkipHand
 from cardlang.runtime.values import Card, Player
 
@@ -121,6 +121,11 @@ def _movement(stmt: n.Movement, ctx: Ctx) -> None:
                 ctx, ctx.rs.zones.locate(source), ctx.rs.zones.locate(dest), selected
             )
 
+def _card_pred(filter_expr: n.Expr, ctx: Ctx) -> Callable[[Card], bool]:
+    """A movement/reveal `where` filter as a card predicate: an ordinary
+    expression evaluated with `card` bound per candidate."""
+    return lambda c: bool(evaluate(filter_expr, ctx.with_local("card", c)))
+
 
 def _deal_round_robin(
     source: Zone, dest_family: str, ctx: Ctx, stmt: n.Movement
@@ -140,7 +145,7 @@ def _deal_round_robin(
             dealt[players[i % len(players)]].append(card)
             i += 1
     else:
-        pred = evaluate(stmt.filter, ctx)
+        pred = _card_pred(stmt.filter, ctx)
         pool = [c for c in source.cards if pred(c)]
         for i, card in enumerate(pool):
             source.remove(card)
@@ -216,7 +221,7 @@ def _select_filtered(
     form takes the pool's first `count` — first match in source order, not
     top-of-source, since the pool has already skipped non-matching cards."""
     assert stmt.filter is not None
-    pred = evaluate(stmt.filter, ctx)
+    pred = _card_pred(stmt.filter, ctx)
     pool = [c for c in source.cards if pred(c)]
     amount = stmt.amount
     if amount == "all":
@@ -264,7 +269,7 @@ def _reveal(stmt: n.EpistemicOp, zone: Zone, ctx: Ctx) -> None:
     # zone's declared visibility (unlike `observe.movement`, which projects
     # per observer through the zone type).
     if stmt.filter is not None:
-        pred = evaluate(stmt.filter, ctx)
+        pred = _card_pred(stmt.filter, ctx)
         matches = [c for c in zone.cards if pred(c)]
     else:
         matches = list(zone.cards)
@@ -326,7 +331,14 @@ def _for_each(stmt: n.ForEach, ctx: Ctx) -> None:
         for team in ctx.rs.teams:
             execute(stmt.body, ctx.with_local(stmt.binder, team))
         return
-    assert stmt.role == "player"
+    if stmt.role in ("suit", "rank"):
+        # Value domains carry no actor: the binder is a bare enum value.
+        # `_role_domain` (runtime/evaluate.py) is the one runtime accessor
+        # for the closed iteration-role registry (`cardlang.roles.ROLES`).
+        for value in _role_domain(stmt.role, ctx):
+            execute(stmt.body, ctx.with_local(stmt.binder, value))
+        return
+    assert stmt.role == "player"  # resolve rejects anything else
     # The bound player is also the acting player for the body, so a decision
     # made inside (e.g. `bid[p] := choose …`) knows who is choosing.
     for player in ctx.rs.seating.players:

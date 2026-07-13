@@ -20,7 +20,7 @@ game DealTest {
     hand[player] : Hand<player>
   }
   phase setup { deal all cards from deck as-equally-as-possible to each hand }
-  loser: the player where (number of players where hand[player] is not empty) == 0
+  loser: the player where (number of players where hand[player] is not empty) is 0
 }
 """
 

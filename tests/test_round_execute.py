@@ -18,7 +18,7 @@ game G {
   phase play {
     active_rules: [MustFollowSuit]
     legal_moves: [play_to_trick]
-    repeat until (all player p: hand[p] is empty) {
+    repeat until (all players where hand[player] is empty) {
       round play_to_trick from leader over all players source hand into trick_pile outcome highest_trump_or_led_suit
       move all cards from trick_pile to captured[outcome]
       tricks_won[outcome] += 1
@@ -27,7 +27,6 @@ game G {
   }
   winner: highest tricks_won
 }
-rule MustFollowSuit { constrains: play_to_trick  applies_when: state.led_suit is not none  demands: hand.cards_of_suit(state.led_suit)  if_impossible: hand }
 """
 
 
@@ -55,7 +54,6 @@ game G {
   }
   winner: highest tricks_won
 }
-rule MustFollowSuit { constrains: play_to_trick  applies_when: state.led_suit is not none  demands: hand.cards_of_suit(state.led_suit)  if_impossible: hand }
 """
 
 
@@ -110,7 +108,7 @@ game G {
   state { score[player] : Integer = 0 }
   phase setup {
     shuffle deck
-    deal 1 cards from deck to each hand
+    deal 1 card from deck to each hand
     // Reading `state.x` with no round having run is a bug; it must fail loudly,
     // not silently return a stale or empty frame.
     if state.trick_terminated_early { score[0] := 1 }
@@ -152,7 +150,6 @@ game G {
   }
   winner: highest tricks_won
 }
-rule MustFollowSuit { constrains: play_to_trick  applies_when: state.led_suit is not none  demands: hand.cards_of_suit(state.led_suit)  if_impossible: hand }
 """
 
 

@@ -165,7 +165,19 @@ def _parser() -> Lark:
         parser="earley",
         propagate_positions=True,
         maybe_placeholders=True,
+        # `start` is a game file; `library_rules` is the stdlib rules fragment
+        # (rule definitions with no enclosing game).
+        start=["start", "library_rules"],
     )
+
+
+# The grammar's RANK_DIR terminal (`cardlang.lark`, "lowest" | "highest"),
+# mapped to the Comprehension `agg` spelling it lowers to. Exhaustive by
+# construction: `agg_order` below raises loudly on any key not present here,
+# and `test_rank_dir_set_is_pinned` (test_comprehension_aggregators.py)
+# reconciles this set against the grammar terminal so a new RANK_DIR token
+# cannot land uncovered.
+RANK_DIR_TO_AGG: dict[str, str] = {"highest": "max", "lowest": "min"}
 
 
 @v_args(meta=True)
@@ -351,11 +363,16 @@ class _Builder(Transformer[Token, n.Game]):
         refs = tuple(r for r in c if isinstance(r, n.RuleRef))
         return n.ActiveRules(refs=refs, span=self._span(meta))
 
-    def rule_plain(self, meta: Meta, c: list[Token]) -> n.RuleRef:
-        return n.RuleRef(str(c[0]), "plain", span=self._span(meta))
+    def rule_args(self, meta: Meta, c: list[object]) -> tuple[object, ...]:
+        return tuple(_as_expr(x) for x in c)
 
-    def rule_add(self, meta: Meta, c: list[Token]) -> n.RuleRef:
-        return n.RuleRef(str(c[0]), "add", span=self._span(meta))
+    def rule_plain(self, meta: Meta, c: list[object]) -> n.RuleRef:
+        args = c[1] if len(c) > 1 and isinstance(c[1], tuple) else ()
+        return n.RuleRef(str(c[0]), "plain", args=args, span=self._span(meta))
+
+    def rule_add(self, meta: Meta, c: list[object]) -> n.RuleRef:
+        args = c[1] if len(c) > 1 and isinstance(c[1], tuple) else ()
+        return n.RuleRef(str(c[0]), "add", args=args, span=self._span(meta))
 
     def rule_remove(self, meta: Meta, c: list[Token]) -> n.RuleRef:
         return n.RuleRef(str(c[0]), "remove", span=self._span(meta))
@@ -471,8 +488,9 @@ class _Builder(Transformer[Token, n.Game]):
         return n.EpistemicOp(op="shuffle", target=_as_expr(c[0]), span=self._span(meta))
 
     def reveal_op(self, meta: Meta, c: list[object]) -> n.EpistemicOp:
-        filt = c[1] if len(c) > 1 and c[1] is not None else None
-        assert filt is None or isinstance(filt, n.Lambda)
+        # The filter is an ordinary predicate with `card` bound per candidate
+        # (a lambda during the register transition).
+        filt = _as_expr(c[1]) if len(c) > 1 and c[1] is not None else None
         return n.EpistemicOp(
             op="reveal", target=_as_expr(c[0]), filter=filt, span=self._span(meta)
         )
@@ -634,14 +652,19 @@ class _Builder(Transformer[Token, n.Game]):
     def exempts(self, meta: Meta, c: list[object]) -> _Exempts:
         return _Exempts(_as_expr(c[0]))
 
+    def rule_params(self, meta: Meta, c: list[n.MoveParam]) -> tuple[n.MoveParam, ...]:
+        return tuple(c)
+
     def rule_def(self, meta: Meta, c: list[object]) -> n.RuleDef:
         name = str(c[0])
+        # The optional rule_params group leaves a None placeholder when absent.
+        params = c[1] if isinstance(c[1], tuple) else ()
         constrains: str | None = None
         applies: n.AppliesWhen | None = None
         demands: n.Demands | None = None
         if_imp: object | None = None
         exempts_expr: object | None = None
-        for clause in c[1:]:
+        for clause in c[2:]:
             if isinstance(clause, _Constrains):
                 constrains = clause.move_type
             elif isinstance(clause, n.AppliesWhen):
@@ -661,32 +684,96 @@ class _Builder(Transformer[Token, n.Game]):
             demands=demands,
             if_impossible=if_imp,  # type: ignore[arg-type]
             exempts=exempts_expr,  # type: ignore[arg-type]
+            params=params,
             span=self._span(meta),
         )
+
+    def library_rules(self, meta: Meta, c: list[object]) -> tuple[n.RuleDef, ...]:
+        return tuple(x for x in c if isinstance(x, n.RuleDef))
 
     # --- expressions ---
 
-    def exists(self, meta: Meta, c: list[object]) -> n.Quantifier:
-        return n.Quantifier(
-            "any", str(c[0]), str(c[1]), _as_expr(c[2]), span=self._span(meta)
+    def _implicit_quantifier(self, kind: str, role: str, meta: Meta, c: list[object]) -> n.Quantifier:
+        # The implicit-binder spelling: the role noun is also the binder.
+        return n.Quantifier(kind, role, role, _as_expr(c[0]), span=self._span(meta))
+
+    def q_any_player(self, meta: Meta, c: list[object]) -> n.Quantifier:
+        return self._implicit_quantifier("any", "player", meta, c)
+
+    def q_all_player(self, meta: Meta, c: list[object]) -> n.Quantifier:
+        return self._implicit_quantifier("all", "player", meta, c)
+
+    def q_any_team(self, meta: Meta, c: list[object]) -> n.Quantifier:
+        return self._implicit_quantifier("any", "team", meta, c)
+
+    def q_all_team(self, meta: Meta, c: list[object]) -> n.Quantifier:
+        return self._implicit_quantifier("all", "team", meta, c)
+
+    def q_any_suit(self, meta: Meta, c: list[object]) -> n.Quantifier:
+        return self._implicit_quantifier("any", "suit", meta, c)
+
+    def q_all_suit(self, meta: Meta, c: list[object]) -> n.Quantifier:
+        return self._implicit_quantifier("all", "suit", meta, c)
+
+    def q_any_rank(self, meta: Meta, c: list[object]) -> n.Quantifier:
+        return self._implicit_quantifier("any", "rank", meta, c)
+
+    def q_all_rank(self, meta: Meta, c: list[object]) -> n.Quantifier:
+        return self._implicit_quantifier("all", "rank", meta, c)
+
+    def cq_set(self, meta: Meta, c: list[object]) -> n.CardQuery:
+        return n.CardQuery(
+            kind="set", source=_as_expr(c[0]), pred=_as_expr(c[1]), span=self._span(meta)
         )
 
-    def forall(self, meta: Meta, c: list[object]) -> n.Quantifier:
-        return n.Quantifier(
-            "all", str(c[0]), str(c[1]), _as_expr(c[2]), span=self._span(meta)
+    def cq_count(self, meta: Meta, c: list[object]) -> n.CardQuery:
+        pred = _as_expr(c[1]) if len(c) > 1 and c[1] is not None else None
+        return n.CardQuery(
+            kind="count", source=_as_expr(c[0]), pred=pred, span=self._span(meta)
         )
 
-    def comprehension(self, meta: Meta, c: list[object]) -> n.Comprehension:
+    def cq_any(self, meta: Meta, c: list[object]) -> n.CardQuery:
+        return n.CardQuery(
+            kind="any", source=_as_expr(c[0]), pred=_as_expr(c[1]), span=self._span(meta)
+        )
+
+    def cq_all(self, meta: Meta, c: list[object]) -> n.CardQuery:
+        return n.CardQuery(
+            kind="all", source=_as_expr(c[0]), pred=_as_expr(c[1]), span=self._span(meta)
+        )
+
+    def agg_sum(self, meta: Meta, c: list[object]) -> n.Comprehension:
+        # c: [body, zone_expr, where?]
+        filt = _as_expr(c[2]) if len(c) > 2 and c[2] is not None else None
         return n.Comprehension(
-            agg=str(c[0]),
+            agg="sum",
             source=_as_expr(c[1]),
-            binder=str(c[2]),
-            body=_as_expr(c[3]),
+            binder="card",
+            body=_as_expr(c[0]),
+            filter=filt,
             span=self._span(meta),
         )
 
-    def lambda_expr(self, meta: Meta, c: list[object]) -> n.Lambda:
-        return n.Lambda(param=str(c[0]), body=_as_expr(c[1]), span=self._span(meta))
+    def agg_order(self, meta: Meta, c: list[object]) -> n.Comprehension:
+        # c: [RANK_DIR, body, zone_expr, where?, default]
+        filt = _as_expr(c[3]) if c[3] is not None else None
+        direction = str(c[0])
+        if direction not in RANK_DIR_TO_AGG:
+            # Internal invariant, not a user diagnostic: the grammar's
+            # RANK_DIR terminal and this mapping are out of sync.
+            raise AssertionError(
+                f"agg_order: unhandled RANK_DIR token {direction!r} — add it to "
+                "RANK_DIR_TO_AGG"
+            )
+        return n.Comprehension(
+            agg=RANK_DIR_TO_AGG[direction],
+            source=_as_expr(c[2]),
+            binder="card",
+            body=_as_expr(c[1]),
+            filter=filt,
+            default=_as_expr(c[4]),
+            span=self._span(meta),
+        )
 
     def elif_clause(self, meta: Meta, c: list[object]) -> _Elif:
         return _Elif(_as_expr(c[0]), _as_expr(c[1]))
@@ -711,17 +798,23 @@ class _Builder(Transformer[Token, n.Game]):
     def logical_not(self, meta: Meta, c: list[object]) -> n.Not:
         return n.Not(_as_expr(c[0]), span=self._span(meta))
 
-    def is_none(self, meta: Meta, c: list[object]) -> n.IsCheck:
-        return n.IsCheck(_as_expr(c[0]), "none", span=self._span(meta))
+    # The right-hand keywords of `is` / `is not` are a closed set: `none` and
+    # `empty` dispatch to the absence/emptiness checks; anything else is
+    # ordinary equality (BinOp, the same node `==` used to build).
 
-    def is_not_none(self, meta: Meta, c: list[object]) -> n.IsCheck:
-        return n.IsCheck(_as_expr(c[0]), "not_none", span=self._span(meta))
+    def compare_is(self, meta: Meta, c: list[object]) -> n.IsCheck | n.BinOp:
+        rhs = c[1]
+        if isinstance(rhs, n.NameRef) and rhs.name in ("none", "empty"):
+            kind = "none" if rhs.name == "none" else "empty"
+            return n.IsCheck(_as_expr(c[0]), kind, span=self._span(meta))
+        return n.BinOp("==", _as_expr(c[0]), _as_expr(rhs), span=self._span(meta))
 
-    def is_empty(self, meta: Meta, c: list[object]) -> n.IsCheck:
-        return n.IsCheck(_as_expr(c[0]), "empty", span=self._span(meta))
-
-    def is_not_empty(self, meta: Meta, c: list[object]) -> n.IsCheck:
-        return n.IsCheck(_as_expr(c[0]), "not_empty", span=self._span(meta))
+    def compare_is_not(self, meta: Meta, c: list[object]) -> n.IsCheck | n.BinOp:
+        rhs = c[1]
+        if isinstance(rhs, n.NameRef) and rhs.name in ("none", "empty"):
+            kind = "not_none" if rhs.name == "none" else "not_empty"
+            return n.IsCheck(_as_expr(c[0]), kind, span=self._span(meta))
+        return n.BinOp("!=", _as_expr(c[0]), _as_expr(rhs), span=self._span(meta))
 
     def players_where(self, meta: Meta, c: list[object]) -> n.PlayerQuery:
         return n.PlayerQuery(kind="set", pred=_as_expr(c[0]), span=self._span(meta))
@@ -736,7 +829,23 @@ class _Builder(Transformer[Token, n.Game]):
         return str(c[0])
 
     def compare(self, meta: Meta, c: list[object]) -> n.BinOp:
-        return n.BinOp(str(c[1]), _as_expr(c[0]), _as_expr(c[2]), span=self._span(meta))
+        op = str(c[1])
+        if op in ("==", "!="):
+            # Retired spellings (decisions.md "The expression register"): the
+            # lexer still owns the tokens so the rejection can name the fix.
+            word = "is" if op == "==" else "is not"
+            raise DiagnosticError(
+                Diagnostic(
+                    Severity.ERROR,
+                    f"`{op}` is not an operator in this language — equality "
+                    f"is the word form: write `{word}`",
+                    self._span(meta),
+                )
+            )
+        return n.BinOp(op, _as_expr(c[0]), _as_expr(c[2]), span=self._span(meta))
+
+    def membership(self, meta: Meta, c: list[object]) -> n.BinOp:
+        return n.BinOp("in", _as_expr(c[0]), _as_expr(c[1]), span=self._span(meta))
 
     def add(self, meta: Meta, c: list[object]) -> n.BinOp:
         return n.BinOp("+", _as_expr(c[0]), _as_expr(c[1]), span=self._span(meta))
@@ -754,13 +863,6 @@ class _Builder(Transformer[Token, n.Game]):
 
     def arg_list(self, meta: Meta, c: list[object]) -> tuple[object, ...]:
         return tuple(c)
-
-    def method_call(self, meta: Meta, c: list[object]) -> n.MethodCall:
-        args = c[2] if len(c) > 2 and c[2] is not None else ()
-        assert isinstance(args, tuple)
-        return n.MethodCall(
-            obj=_as_expr(c[0]), method=str(c[1]), args=args, span=self._span(meta)
-        )
 
     def member(self, meta: Meta, c: list[object]) -> n.Member:
         return n.Member(obj=_as_expr(c[0]), field=str(c[1]), span=self._span(meta))
@@ -809,6 +911,14 @@ class _Builder(Transformer[Token, n.Game]):
 
     def int_lit(self, meta: Meta, c: list[Token]) -> n.IntLit:
         return n.IntLit(int(c[0]), span=self._span(meta))
+
+    def neg_int_lit(self, meta: Meta, c: list[Token]) -> n.IntLit:
+        return n.IntLit(-int(c[0]), span=self._span(meta))
+
+    def list_lit(self, meta: Meta, c: list[object]) -> n.ListLit:
+        return n.ListLit(
+            elements=tuple(_as_expr(x) for x in c), span=self._span(meta)
+        )
 
     def str_lit(self, meta: Meta, c: list[Token]) -> n.StrLit:
         return n.StrLit(str(c[0])[1:-1], span=self._span(meta))
@@ -1025,11 +1135,13 @@ def _as_stmt(value: object) -> n.Stmt:
     return value  # type: ignore[return-value]
 
 
-def parse_to_tree(text: str, source_name: str, line_offset: int = 0) -> Tree[Token]:
+def parse_to_tree(
+    text: str, source_name: str, line_offset: int = 0, start: str = "start"
+) -> Tree[Token]:
     """Parse DSL ``text`` to a raw Lark tree, raising a span-located diagnostic
     on a syntax error. The grammar-acceptance entry point."""
     try:
-        tree = _parser().parse(text)
+        tree = _parser().parse(text, start=start)
     except UnexpectedInput as exc:
         line = getattr(exc, "line", 1) + line_offset
         column = getattr(exc, "column", 1)
@@ -1041,17 +1153,34 @@ def parse_to_tree(text: str, source_name: str, line_offset: int = 0) -> Tree[Tok
     return tree
 
 
-def parse_text(text: str, source_name: str, line_offset: int = 0) -> n.Game:
-    """Parse DSL ``text`` into a :class:`~cardlang.ast.nodes.Game` AST."""
-    tree = parse_to_tree(text, source_name, line_offset)
+def _transform(builder: _Builder, tree: Tree[Token]) -> object:
+    """Run ``builder`` over ``tree``, unwrapping Lark's ``VisitError`` so a
+    builder-raised diagnostic (e.g. a duplicate `state { }` block, or the
+    `==`-rejection) surfaces as itself rather than as an opaque wrapper."""
     try:
-        return _Builder(source_name, line_offset).transform(tree)
+        return builder.transform(tree)
     except VisitError as exc:
-        # Lark wraps transformer exceptions; surface a builder-raised
-        # diagnostic (e.g. a duplicate `state { }` block) as itself.
         if isinstance(exc.orig_exc, DiagnosticError):
             raise exc.orig_exc from None
         raise
+
+
+def parse_library_rules(text: str, source_name: str) -> tuple[n.RuleDef, ...]:
+    """Parse a standard-library rules fragment (rule definitions with no
+    enclosing game) into RuleDef nodes, spans mapped to ``source_name``."""
+    tree = parse_to_tree(text, source_name, start="library_rules")
+    result = _transform(_Builder(source_name, 0), tree)
+    assert isinstance(result, tuple)
+    assert all(isinstance(r, n.RuleDef) for r in result)
+    return result
+
+
+def parse_text(text: str, source_name: str, line_offset: int = 0) -> n.Game:
+    """Parse DSL ``text`` into a :class:`~cardlang.ast.nodes.Game` AST."""
+    tree = parse_to_tree(text, source_name, line_offset)
+    result = _transform(_Builder(source_name, line_offset), tree)
+    assert isinstance(result, n.Game)
+    return result
 
 
 def parse_block(block: FencedBlock) -> n.Game:

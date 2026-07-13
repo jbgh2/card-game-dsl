@@ -159,6 +159,15 @@ def deck_suits(deck_name: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(c.suit for c in build_deck(deck_name)))
 
 
+def deck_ranks(deck_name: str) -> tuple[str, ...]:
+    """A deck's DISTINCT card ranks, in first-appearance order — read from the
+    actual card block like `deck_suits` (the declared `Deck.ranks` field is
+    empty for the explicit-card decks, tarot78/tichu56). This is the rank
+    namespace for games with no `ranking:` (Coup's characters, Tarot's
+    atouts); a declared `ranking:` refines the *order*, never the membership."""
+    return tuple(dict.fromkeys(c.rank for c in build_deck(deck_name)))
+
+
 # A player is just an identity; the runtime uses small ints P0..P(n-1).
 Player = int
 
@@ -182,7 +191,7 @@ class Seating:
 
     def offset_by(self, player: Player, direction: str) -> Player:
         delta = {
-            "none": 0,
+            "hold": 0,
             "left": 1,
             "right": -1,
             "across": self.count // 2,

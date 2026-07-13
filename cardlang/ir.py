@@ -188,9 +188,7 @@ def _phase_item(item: n.PhaseItem) -> IRDict:
         case n.ActiveRules():
             return {
                 "kind": "active_rules",
-                "refs": [
-                    {"kind": "rule_ref", "name": r.name, "op": r.op} for r in item.refs
-                ],
+                "refs": [_rule_ref(r) for r in item.refs],
             }
         case n.LegalMoves():
             return {"kind": "legal_moves", "names": list(item.names)}
@@ -353,6 +351,15 @@ def _named_arg(a: n.NamedArg) -> IRDict:
 # --- rules ---
 
 
+def _rule_ref(r: n.RuleRef) -> IRDict:
+    ref: IRDict = {"kind": "rule_ref", "name": r.name, "op": r.op}
+    # Emitted ONLY when present (like the rule `exempts` key), so every
+    # argument-free reference's golden stays byte-identical.
+    if r.args:
+        ref["args"] = [_expr(a) for a in r.args]
+    return ref
+
+
 def _rule(r: n.RuleDef) -> IRDict:
     applies: IRValue = None
     if r.applies_when is not None:
@@ -402,6 +409,8 @@ def _expr(e: n.Expr) -> IRDict:
             return {"kind": "card", "rank": e.rank, "suit": e.suit}
         case n.AllPlayers():
             return {"kind": "all_players"}
+        case n.ListLit():
+            return {"kind": "list", "elements": [_expr(x) for x in e.elements]}
         case n.Member():
             return {"kind": "member", "obj": _expr(e.obj), "field": e.field}
         case n.Subscript():
@@ -417,13 +426,6 @@ def _expr(e: n.Expr) -> IRDict:
             }
         case n.Call():
             return {"kind": "call", "func": e.func, "args": [_arg(a) for a in e.args]}
-        case n.MethodCall():
-            return {
-                "kind": "method_call",
-                "obj": _expr(e.obj),
-                "method": e.method,
-                "args": [_arg(a) for a in e.args],
-            }
         case n.BinOp():
             return {
                 "kind": "binop",
@@ -435,8 +437,6 @@ def _expr(e: n.Expr) -> IRDict:
             return {"kind": "not", "operand": _expr(e.operand)}
         case n.IsCheck():
             return {"kind": "is_check", "check": e.kind, "operand": _expr(e.operand)}
-        case n.Lambda():
-            return {"kind": "lambda", "param": e.param, "body": _expr(e.body)}
         case n.Quantifier():
             return {
                 "kind": "quantifier",
@@ -454,15 +454,31 @@ def _expr(e: n.Expr) -> IRDict:
                 "otherwise": _expr(e.otherwise),
             }
         case n.Comprehension():
-            return {
+            comp: IRDict = {
                 "kind": "comprehension",
                 "agg": e.agg,
                 "source": _expr(e.source),
                 "binder": e.binder,
                 "body": _expr(e.body),
             }
+            # Emitted ONLY when present (like the rule `exempts` key), so
+            # every unfiltered comprehension's golden stays byte-identical.
+            if e.filter is not None:
+                comp["filter"] = _expr(e.filter)
+            if e.default is not None:
+                comp["default"] = _expr(e.default)
+            return comp
         case n.PlayerQuery():
             return {"kind": "player_query", "query": e.kind, "pred": _expr(e.pred)}
+        case n.CardQuery():
+            cq: IRDict = {
+                "kind": "card_query",
+                "query": e.kind,
+                "source": _expr(e.source),
+            }
+            if e.pred is not None:
+                cq["pred"] = _expr(e.pred)
+            return cq
         case n.Choose():
             # `ceiling` is the resolved static upper bound (decisions.md "The
             # integer `choose` domain") — a concrete int so an IR consumer can

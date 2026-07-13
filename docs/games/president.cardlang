@@ -51,7 +51,7 @@ game President {
     score[player] : Integer = 0       // President +2, Vice-President +1 per hand
   }
 
-  phase hand_sequence repeats until (any player p: score[p] >= 11) {
+  phase hand_sequence repeat until (any player where score[player] >= 11) {
     state {
       // Last hand's offices, carried into the next hand's exchange and lead.
       president : Player? = none      // first out last hand; leads the next hand
@@ -78,8 +78,8 @@ game President {
       // (their highest card — a draw-free filtered movement), the President's
       // return is any card they choose.
       if president is not none {
-        move one card from hand[scum] where c => president_is_top_rank(scum, c) to hand[president]
-        for each player p: if p == president { move chosen one card from hand[p] to hand[scum] }
+        move one card from hand[scum] where president_is_top_rank(scum, card) to hand[president]
+        for each player p: if p is president { move chosen one card from hand[p] to hand[scum] }
       }
 
       // Hand 1: seat 0 leads (the player to the implicit dealer's left, the

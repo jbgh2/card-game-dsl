@@ -100,7 +100,7 @@
           "kind": "quantifier",
           "quant": "any",
           "role": "player",
-          "binder": "p",
+          "binder": "player",
           "body": {
             "kind": "binop",
             "op": ">=",
@@ -113,7 +113,7 @@
               },
               "index": {
                 "kind": "name",
-                "name": "p",
+                "name": "player",
                 "ref": "local"
               }
             },
@@ -456,8 +456,15 @@
                   "refs": [
                     {
                       "kind": "rule_ref",
-                      "name": "NoLeadingHeartsUntilBroken",
-                      "op": "add"
+                      "name": "NoLeadingSuitUntilBroken",
+                      "op": "add",
+                      "args": [
+                        {
+                          "kind": "name",
+                          "name": "hearts",
+                          "ref": "enum_value"
+                        }
+                      ]
                     }
                   ]
                 },
@@ -506,7 +513,7 @@
                 "kind": "quantifier",
                 "quant": "all",
                 "role": "player",
-                "binder": "p",
+                "binder": "player",
                 "body": {
                   "kind": "is_check",
                   "check": "empty",
@@ -519,7 +526,7 @@
                     },
                     "index": {
                       "kind": "name",
-                      "name": "p",
+                      "name": "player",
                       "ref": "local"
                     }
                   }
@@ -681,7 +688,7 @@
                   "kind": "quantifier",
                   "quant": "any",
                   "role": "player",
-                  "binder": "q",
+                  "binder": "player",
                   "body": {
                     "kind": "binop",
                     "op": "==",
@@ -694,7 +701,7 @@
                       },
                       "index": {
                         "kind": "name",
-                        "name": "q",
+                        "name": "player",
                         "ref": "local"
                       }
                     },
@@ -818,33 +825,27 @@
         "kind": "demands",
         "form": "cards",
         "expr": {
-          "kind": "method_call",
-          "obj": {
+          "kind": "card_query",
+          "query": "set",
+          "source": {
             "kind": "name",
             "name": "hand",
             "ref": "zone"
           },
-          "method": "where",
-          "args": [
-            {
-              "kind": "lambda",
-              "param": "c",
-              "body": {
-                "kind": "binop",
-                "op": "==",
-                "left": {
-                  "kind": "name",
-                  "name": "c",
-                  "ref": "local"
-                },
-                "right": {
-                  "kind": "card",
-                  "rank": "2",
-                  "suit": "clubs"
-                }
-              }
+          "pred": {
+            "kind": "binop",
+            "op": "==",
+            "left": {
+              "kind": "name",
+              "name": "card",
+              "ref": "local"
+            },
+            "right": {
+              "kind": "card",
+              "rank": "2",
+              "suit": "clubs"
             }
-          ]
+          }
         }
       },
       "if_impossible": {
@@ -871,119 +872,49 @@
         "kind": "demands",
         "form": "cards",
         "expr": {
-          "kind": "method_call",
-          "obj": {
+          "kind": "card_query",
+          "query": "set",
+          "source": {
             "kind": "name",
             "name": "hand",
             "ref": "zone"
           },
-          "method": "where",
-          "args": [
-            {
-              "kind": "lambda",
-              "param": "c",
-              "body": {
-                "kind": "binop",
-                "op": "and",
-                "left": {
-                  "kind": "binop",
-                  "op": "!=",
-                  "left": {
-                    "kind": "member",
-                    "obj": {
-                      "kind": "name",
-                      "name": "c",
-                      "ref": "local"
-                    },
-                    "field": "suit"
-                  },
-                  "right": {
-                    "kind": "name",
-                    "name": "hearts",
-                    "ref": "enum_value"
-                  }
-                },
-                "right": {
-                  "kind": "binop",
-                  "op": "!=",
-                  "left": {
-                    "kind": "name",
-                    "name": "c",
-                    "ref": "local"
-                  },
-                  "right": {
-                    "kind": "card",
-                    "rank": "Q",
-                    "suit": "spades"
-                  }
-                }
-              }
-            }
-          ]
-        }
-      },
-      "if_impossible": {
-        "kind": "name",
-        "name": "hand",
-        "ref": "zone"
-      }
-    },
-    {
-      "kind": "rule",
-      "name": "NoLeadingHeartsUntilBroken",
-      "constrains": "play_to_trick",
-      "applies_when": {
-        "kind": "applies_when",
-        "always": false,
-        "pred": {
-          "kind": "is_check",
-          "check": "none",
-          "operand": {
-            "kind": "member",
-            "obj": {
-              "kind": "name",
-              "name": "state",
-              "ref": "pronoun"
-            },
-            "field": "led_suit"
-          }
-        }
-      },
-      "demands": {
-        "kind": "demands",
-        "form": "cards",
-        "expr": {
-          "kind": "method_call",
-          "obj": {
-            "kind": "name",
-            "name": "hand",
-            "ref": "zone"
-          },
-          "method": "where",
-          "args": [
-            {
-              "kind": "lambda",
-              "param": "c",
-              "body": {
-                "kind": "binop",
-                "op": "!=",
-                "left": {
-                  "kind": "member",
-                  "obj": {
-                    "kind": "name",
-                    "name": "c",
-                    "ref": "local"
-                  },
-                  "field": "suit"
-                },
-                "right": {
+          "pred": {
+            "kind": "binop",
+            "op": "and",
+            "left": {
+              "kind": "binop",
+              "op": "!=",
+              "left": {
+                "kind": "member",
+                "obj": {
                   "kind": "name",
-                  "name": "hearts",
-                  "ref": "enum_value"
-                }
+                  "name": "card",
+                  "ref": "local"
+                },
+                "field": "suit"
+              },
+              "right": {
+                "kind": "name",
+                "name": "hearts",
+                "ref": "enum_value"
+              }
+            },
+            "right": {
+              "kind": "binop",
+              "op": "!=",
+              "left": {
+                "kind": "name",
+                "name": "card",
+                "ref": "local"
+              },
+              "right": {
+                "kind": "card",
+                "rank": "Q",
+                "suit": "spades"
               }
             }
-          ]
+          }
         }
       },
       "if_impossible": {
@@ -1045,15 +976,26 @@
         "kind": "demands",
         "form": "cards",
         "expr": {
-          "kind": "method_call",
-          "obj": {
+          "kind": "card_query",
+          "query": "set",
+          "source": {
             "kind": "name",
             "name": "hand",
             "ref": "zone"
           },
-          "method": "cards_of_suit",
-          "args": [
-            {
+          "pred": {
+            "kind": "binop",
+            "op": "==",
+            "left": {
+              "kind": "member",
+              "obj": {
+                "kind": "name",
+                "name": "card",
+                "ref": "local"
+              },
+              "field": "suit"
+            },
+            "right": {
               "kind": "member",
               "obj": {
                 "kind": "name",
@@ -1062,7 +1004,65 @@
               },
               "field": "led_suit"
             }
-          ]
+          }
+        }
+      },
+      "if_impossible": {
+        "kind": "name",
+        "name": "hand",
+        "ref": "zone"
+      }
+    },
+    {
+      "kind": "rule",
+      "name": "NoLeadingSuitUntilBroken",
+      "constrains": "play_to_trick",
+      "applies_when": {
+        "kind": "applies_when",
+        "always": false,
+        "pred": {
+          "kind": "is_check",
+          "check": "none",
+          "operand": {
+            "kind": "member",
+            "obj": {
+              "kind": "name",
+              "name": "state",
+              "ref": "pronoun"
+            },
+            "field": "led_suit"
+          }
+        }
+      },
+      "demands": {
+        "kind": "demands",
+        "form": "cards",
+        "expr": {
+          "kind": "card_query",
+          "query": "set",
+          "source": {
+            "kind": "name",
+            "name": "hand",
+            "ref": "zone"
+          },
+          "pred": {
+            "kind": "binop",
+            "op": "!=",
+            "left": {
+              "kind": "member",
+              "obj": {
+                "kind": "name",
+                "name": "card",
+                "ref": "local"
+              },
+              "field": "suit"
+            },
+            "right": {
+              "kind": "name",
+              "name": "hearts",
+              "ref": "enum_value"
+            }
+          }
         }
       },
       "if_impossible": {

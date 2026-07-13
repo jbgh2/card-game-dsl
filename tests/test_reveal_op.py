@@ -32,7 +32,7 @@ game Mini {
   zones { deck : Deck  hand[player] : Hand<player> }
   state { score[player] : Integer = 0 }
   phase p {
-    reveal one card from hand[0] where c => c.rank == "Q"
+    reveal one card from hand[0] where card.rank is Q
   }
   winner: highest score
 }
@@ -54,7 +54,7 @@ game Mini {
 }
 """
 
-# Task 3's Coup usage filters on a state variable (`where c => c.rank ==
+# Task 3's Coup usage filters on a state variable (`where card.rank is
 # claim`), not a literal — the same `evaluate(filter, ctx)` closure path as a
 # movement filter, but worth pinning directly since this is the branch that
 # usage depends on.
@@ -66,7 +66,7 @@ game Mini {
   zones { deck : Deck  hand[player] : Hand<player> }
   state { score[player] : Integer = 0  claim : String = "Q" }
   phase p {
-    reveal one card from hand[0] where c => c.rank == claim
+    reveal one card from hand[0] where card.rank is claim
   }
   winner: highest score
 }
@@ -82,8 +82,7 @@ def _reveal_stmt(game: n.Game) -> n.EpistemicOp:
 def test_reveal_parses_to_an_epistemic_op_with_a_filter() -> None:
     stmt = _reveal_stmt(check_dsl(SRC, "mini.cardlang"))
     assert stmt.op == "reveal"
-    assert isinstance(stmt.filter, n.Lambda)
-    assert stmt.filter.param == "c"
+    assert isinstance(stmt.filter, n.BinOp) and stmt.filter.op == "=="
 
 
 def test_reveal_without_a_where_clause_parses_with_no_filter() -> None:
@@ -183,7 +182,7 @@ def test_reveal_ir_emits_filter_key_only_when_present() -> None:
     assert plain_op["kind"] == "epistemic_op" and plain_op["op"] == "reveal"
 
     assert "filter" in filtered_op
-    assert filtered_op["filter"]["kind"] == "lambda"
+    assert filtered_op["filter"]["kind"] == "binop"
     # The whole point (mirrors the movement `where` filter's IR convention):
     # an unfiltered reveal carries NO "filter" key at all.
     assert "filter" not in plain_op

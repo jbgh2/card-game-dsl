@@ -38,12 +38,13 @@ def test_header_blocks() -> None:
     assert g.state is not None and g.state.decls[0].name == "cumulative_score"
     assert g.winner is not None
     assert (g.winner.rank_dir, g.winner.target) == ("lowest", "cumulative_score")
+    # The file defines only the Hearts-specific rules; MustFollowSuit and
+    # NoLeadingSuitUntilBroken(hearts) splice in from the standard library at
+    # resolve time (see test_demands_two_forms).
     assert {r.name for r in g.rules} == {
         "MustLeadTwoOfClubsOnFirstPlay",
         "NoPenaltyCardsOnFirstTrick",
-        "NoLeadingHeartsUntilBroken",
         "PassExactlyThreeCards",
-        "MustFollowSuit",
     }
 
 
@@ -73,7 +74,10 @@ def test_transition_predicate_binds_action() -> None:
 
 
 def test_demands_two_forms() -> None:
-    g = _game()
+    # MustFollowSuit is a library rule, present only after resolve splices it.
+    from cardlang.resolve import resolve
+
+    g = resolve(_game())
     rules = {r.name: r for r in g.rules}
 
     pass_three = rules["PassExactlyThreeCards"]

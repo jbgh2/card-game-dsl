@@ -9,12 +9,10 @@ from cardlang.stdlib.functions import (
     STDLIB_EARLY_PREDICATES,
     STDLIB_TRICK_OUTCOMES,
     STDLIB_VALUE_NAMES,
-    ZONE_METHODS,
 )
 from cardlang.stdlib.signatures import (
     CALL_SIGS,
     EARLY_SIGS,
-    METHOD_SIGS,
     VALUE_SIGS,
     ZONE_CONTENT,
     Sig,
@@ -28,7 +26,6 @@ def test_tables_reconcile_with_name_sets() -> None:
     assert set(CALL_SIGS) == set(STDLIB_CALL_FUNCS)
     assert set(VALUE_SIGS) == set(STDLIB_VALUE_NAMES)
     assert set(EARLY_SIGS) == set(STDLIB_EARLY_PREDICATES)
-    assert set(METHOD_SIGS) == set(ZONE_METHODS)
     assert set(ZONE_CONTENT) == set(LIBRARY_ZONE_TYPES)
     # The two outcome namespaces partition the value-name set (the resolver
     # validates each round form against its own; the union is the bare-name space).
@@ -93,35 +90,6 @@ def test_call_funcs_are_dispatchable() -> None:
         except Exception:
             pass  # dispatched: failed downstream for some other reason
 
-
-def test_zone_methods_are_dispatchable() -> None:
-    # Same pin as test_call_funcs_are_dispatchable, for the zone-method
-    # dispatcher (`_method` in cardlang/runtime/evaluate.py). The receiver
-    # must evaluate to a real Zone so execution actually reaches `match
-    # e.method` — pointing at a nonexistent zone would raise upstream of the
-    # match (KeyError) and vacuously "pass" without ever exercising dispatch.
-    import random
-
-    from cardlang.ast import nodes as n
-    from cardlang.runtime.evaluate import _method
-    from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
-    from cardlang.runtime.values import Seating
-
-    decls = (n.ZoneDecl(name="probe", index=None, type_ref=n.TypeRef(name="Hand")),)
-    rs = RuntimeState(Seating(2), ZoneStore(decls, (0, 1)), random.Random(0))
-    ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]))
-    receiver = n.NameRef(name="probe", ref_kind="zone")
-
-    for name in ZONE_METHODS:
-        call_node = n.MethodCall(obj=receiver, method=name, args=())
-        try:
-            _method(call_node, ctx)
-        except AssertionError as e:
-            assert "unknown zone method" not in str(e), (
-                f"{name!r} falls through _method's default arm: {e}"
-            )
-        except Exception:
-            pass  # dispatched: failed downstream for some other reason
 
 
 def test_known_call_signatures() -> None:

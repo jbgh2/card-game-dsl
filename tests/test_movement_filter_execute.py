@@ -52,7 +52,7 @@ def _ctx(game: n.Game, hand_cards: list[Card], chooser: Any) -> Ctx:
 
 def test_chosen_draws_from_the_filtered_pool_only() -> None:
     game, stmt = _parse(
-        "move chosen 2 cards from hand[0] where c => c.suit == hearts to pile"
+        "move chosen 2 cards from hand[0] where card.suit is hearts to pile"
     )
     seen_candidates: list[Any] = []
 
@@ -72,7 +72,7 @@ def test_chosen_draws_from_the_filtered_pool_only() -> None:
 
 def test_default_form_takes_the_pools_first_match_not_top_of_source() -> None:
     game, stmt = _parse(
-        "move one cards from hand[0] where c => c.suit == hearts to pile"
+        "move one cards from hand[0] where card.suit is hearts to pile"
     )
     # The club sits first in the hand; the filter must skip it and take the
     # first HEART, not the first card of the unfiltered source.
@@ -85,7 +85,7 @@ def test_default_form_takes_the_pools_first_match_not_top_of_source() -> None:
 
 def test_all_takes_every_match_and_leaves_the_rest() -> None:
     game, stmt = _parse(
-        "move all cards from hand[0] where c => c.suit == hearts to pile"
+        "move all cards from hand[0] where card.suit is hearts to pile"
     )
     ctx = _ctx(game, [HEARTS_A, CLUBS_K, HEARTS_2], chooser=None)
     execute(stmt, ctx)
@@ -96,7 +96,7 @@ def test_all_takes_every_match_and_leaves_the_rest() -> None:
 
 def test_random_draws_from_the_filtered_pool_only() -> None:
     game, stmt = _parse(
-        "move random 1 cards from hand[0] where c => c.suit == hearts to pile"
+        "move random 1 cards from hand[0] where card.suit is hearts to pile"
     )
     ctx = _ctx(game, [CLUBS_K, HEARTS_A, HEARTS_2], chooser=None)
     execute(stmt, ctx)
@@ -109,7 +109,7 @@ def test_random_draws_from_the_filtered_pool_only() -> None:
 
 def test_fail_loud_when_the_filtered_pool_is_too_small() -> None:
     game, stmt = _parse(
-        "move 2 cards from hand[0] where c => c.suit == hearts to pile"
+        "move 2 cards from hand[0] where card.suit is hearts to pile"
     )
     ctx = _ctx(game, [HEARTS_A, CLUBS_K], chooser=None)  # only one heart available
     with pytest.raises(ValueError):
@@ -170,7 +170,7 @@ def _deal_ctx(game: n.Game, n_players: int, deck_cards: list[Card]) -> Ctx:
 def test_filtered_round_robin_deals_only_the_matching_subset() -> None:
     game, stmt = _parse_deal(
         2,
-        "deal all cards from deck where c => c.suit == hearts "
+        "deal all cards from deck where card.suit is hearts "
         "as-equally-as-possible to each hand",
     )
     ctx = _deal_ctx(game, 2, [HEARTS_A, CLUBS_K, HEARTS_2, SPADES_3])
@@ -189,7 +189,7 @@ def test_filtered_to_each_draws_each_players_pick_from_the_pool() -> None:
     # earlier players take from it.
     game, stmt = _parse_deal(
         2,
-        "deal chosen 1 cards from deck where c => c.suit == hearts to each hand",
+        "deal chosen 1 cards from deck where card.suit is hearts to each hand",
     )
     seen: list[tuple[int, int, int]] = []
 

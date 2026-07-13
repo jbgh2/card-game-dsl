@@ -253,7 +253,7 @@ game G {
 """
     rejected = [
         "for each player p: x := p.score + 1",
-        "flag := any player p: p.score > 0",
+        "flag := any player where player.score > 0",
         "x := (number of players where player.score > 0) + 1",
     ]
     for stmt in rejected:
@@ -343,7 +343,7 @@ game G {
   zones { deck : Deck  hand[player] : Hand<player> }
   state { score[player] : Integer = 0  x : Integer = 0 }
   phase play {
-    x := sum over deck as c: if c.suit == hearts then 1 else 0
+    x := sum of (if card.suit is hearts then 1 else 0) over cards in deck
   }
   winner: highest score
 }

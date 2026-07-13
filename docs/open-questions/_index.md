@@ -79,7 +79,7 @@ of the language.
   already resolved with named functions, so this is the residual block-level
   repetition, and the second-instance data point is Hold'em.
 - [single-actor-binding](single-actor-binding.md) — an `as <player> { ... }`
-  block for one-player decisions, replacing the `for each player p: if p ==
+  block for one-player decisions, replacing the `for each player p: if p is
   X` loop-and-skip idiom that six games now use.
 - [unbounded-lines-and-max-length](unbounded-lines-and-max-length.md) —
   two games now have legally unbounded lines (Coup's exchange-forever

@@ -1,9 +1,9 @@
 """Runtime implementations of the stdlib functions Hearts names.
 
 These are the deferred runtime-primitives the front end only signatured
-(library.md "Stdlib functions" / "Outcome functions"). Zone-query methods
-(`where`, `cards_of_suit`) live in the evaluator; this module holds the bare
-`f(...)` calls and the value-callbacks.
+(library.md "Stdlib functions" / "Outcome functions"). The card query
+(`cards in <zone> where <pred>`) lives in the evaluator; this module holds the
+bare `f(...)` calls and the value-callbacks.
 """
 
 from __future__ import annotations

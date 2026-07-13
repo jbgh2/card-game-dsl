@@ -84,7 +84,7 @@ Key design notes:
   itself ([decisions.md](decisions.md) "The climbing form of `round`").
 
 - **`until <predicate>` ends the trick — and, when the game wants it, the
-  hand.** It is the shed-out gate: Big Two's `any player p: hand[p] is empty`
+  hand.** It is the shed-out gate: Big Two's `any player where hand[player] is empty`
   stops the trick the instant a player empties (matching the rule that the
   hand ends on the first shed). It is checked after each play, so the rest of
   that trick is not offered. A game whose tricks always play out (Tichu — the
@@ -133,26 +133,44 @@ Key design notes:
 
 ## Rules
 
-- `MustFollowSuit` — constrains `play_to_trick`; the canonical follow-suit rule
-  (Hearts, Getaway, Spades, Bridge, Oh Hell, Pinochle, French Tarot — Tarot's
-  demand reads `tarot_led_suit()`, the effective led suit, not the raw
-  `state.led_suit`; see below)
+**Library rules are shared definitions**, not a prose catalogue: the bodies
+live in `cardlang/stdlib/rules.cardlang`, and a game activates one by naming
+it in `active_rules:` without defining it — the resolver splices the body in.
+Defining a game-local rule under a library name is rejected (a local copy
+would drift from the shared body silently). A parameterized rule is a
+template: the reference passes arguments (`NoLeadingSuitUntilBroken(hearts)`)
+and the resolver substitutes them into the body. Template parameter domains
+are `Suit` only, corpus-first ([roadmap.md](roadmap.md)); games may declare
+their own parameterized rules with the same instantiation semantics.
+
+The library:
+
+- `MustFollowSuit` — constrains `play_to_trick`; the canonical follow-suit
+  rule (Hearts, Getaway, Spades, Bridge, Oh Hell, Pinochle). French Tarot's
+  follow rule is game-local under its own name (`MustFollowEffectiveSuit`):
+  its demand reads `tarot_led_suit()`, the effective led suit, not the raw
+  `state.led_suit` — a genuinely different body, so it does not share this
+  definition (see below).
+- `NoLeadingSuitUntilBroken(suit: Suit)` — constrains `play_to_trick`; no
+  leading the named suit until it has been played to a trick
+  (Hearts activates `(hearts)`, Spades `(spades)`).
+
+Game-local rules that recur as *names* but not as bodies:
+
 - `MustHeadTrick` — constrains `play_to_trick`; must beat the highest card of
   the led suit played so far when following (Pinochle)
 - `MustTrumpIfVoid` — constrains `play_to_trick`; must trump when void in the
-  led suit (Pinochle, French Tarot)
+  led suit (Pinochle, French Tarot — the bodies differ: `trump_suit` vs the
+  `atouts` rank-set)
 - `MustOverTrump` — constrains `play_to_trick`; must beat the highest trump
-  played so far when trumping (Pinochle, French Tarot)
+  played so far when trumping (Pinochle, French Tarot — the bodies differ:
+  `rank_value` within the trump suit vs `tarot_trump_height()`)
 - `ExcuseIsExempt` — constrains `play_to_trick`; `exempts:` the Excuse from
   every obligation in the cascade (French Tarot). The corpus's first use of
   the rule `exempts:` clause ([decisions.md](decisions.md) "Rule exemption");
   see below.
-- `BidExceedsCurrent` — constrains `submit_bid`; ascending auction rule
-- `BidIsLegalIncrement` — constrains `submit_bid`; bid increment validity
-- `NoLeadingHeartsUntilBroken` — Hearts-specific
-- `NoLeadingSpadesUntilBroken` — Spades-specific
-- *Generalization candidate:* `NoLeadingSuitUntilBroken(suit)` — parameterize
-  by suit so Hearts and Spades both use the same rule
+- `MustFollowEffectiveSuit` — French Tarot's follow rule (see
+  `MustFollowSuit` above)
 
 Pinochle's four rules (`MustFollowSuit`/`MustHeadTrick`/`MustTrumpIfVoid`/
 `MustOverTrump`) run as one `active_rules:` cascade, in this order (list order
@@ -164,18 +182,19 @@ per-rule intersection, [decisions.md](decisions.md) "Rule demand forms").
 Strict-trick legality recurs across the corpus, but not always as rules:
 Schnapsen's endgame is the same follow-and-head shape expressed as an in-file
 predicate (`follow_ok`) filtering a chosen movement, because its follower
-answers outside any trick `round` (see "Mechanics" below). Rules are not yet a
-shared/reusable definition the way move types and mechanics are — each game
-declares its own rule bodies — so promoting a common cascade waits on a second
-`active_rules` DSL instance.
+answers outside any trick `round` (see "Mechanics" below). The cascade rules
+above stay game-local because their bodies genuinely diverge between Pinochle
+and Tarot (trump vocabulary and height helper); a shared parameterized
+cascade is a promotion candidate only if a third strict-trick game arrives
+whose bodies match one of the existing pairs.
 
-French Tarot's four-rule cascade (`ExcuseIsExempt`/`MustFollowSuit`/
+French Tarot's four-rule cascade (`ExcuseIsExempt`/`MustFollowEffectiveSuit`/
 `MustTrumpIfVoid`/`MustOverTrump`) is the same running-intersection shape,
 with one addition: `ExcuseIsExempt`'s `exempts:` clause removes the Excuse
 from the cascade before the other three rules run, and appends it after every
 other legal card once they've narrowed the rest — the Excuse is never subject
 to follow-suit/trump/over-trump and never counts toward satisfying them.
-`MustFollowSuit`'s demand reads the stdlib `tarot_led_suit()` (the first
+`MustFollowEffectiveSuit`'s demand reads the stdlib `tarot_led_suit()` (the first
 non-Excuse card played, or "excuse" if only the Excuse has been played so
 far) rather than the kernel's own `state.led_suit` (the literal first card,
 "excuse" included) — the split that reproduces the reference rule exactly:
@@ -216,9 +235,15 @@ match) and so must trump if able, a quirk the split preserves precisely.
   high bidder and Tarot's four levels — and Skat's Reizen call-and-response,
   a role-guarded two-participant ring ([decisions.md](decisions.md), the
   call-and-response bullet under "The auction form of `round`").
-  Each is game-local until the shared `auction` definition — the ascending-bid
-  configuration of this form — is promoted to this catalogue corpus-first at its
-  third instance. Spades and Oh Hell use *inline per-player bidding* instead —
+  Each configuration is game-local, and stays so deliberately: a corpus
+  comparison (Bridge, Pinochle, Tarot, Skat) found the four share only the
+  kernel form itself — the accumulator variables, ring topology (continuous /
+  shrinking / two-seat-twice), bid vocabulary, and outcome mechanism (named
+  function vs inline survivor, and Skat uses the outcome-less betting form)
+  all genuinely diverge — so the shared thing IS this `round` form, and a
+  promoted `auction` configuration would abstract over instances that agree
+  on nothing it could parameterize. Spades and Oh Hell use *inline per-player
+  bidding* instead —
   every player bids exactly once in turn, no ascending constraint — so they do not
   use the auction form. Schnapsen configures the same form differently again: a
   single-participant ring whose free actions loop the leader until a card is led
@@ -262,7 +287,7 @@ match) and so must trump if able, a quirk the split preserves precisely.
   lead decision (play a card / declare a marriage / exchange the trump jack /
   close the talon) is the **auction form over a single-participant ring** —
   `round offering [play_card, declare_marriage, exchange_trump_jack,
-  close_talon] from leader over players where player == leader until trick_pile
+  close_talon] from leader over players where player is leader until trick_pile
   is not empty`. The free actions (exchange/close) leave the predicate false,
   so the ring re-offers the leader; a lead (play or the marriage's queen) flips
   it. `play_card(c : Card)` enumerates the live hand in hand order
@@ -309,7 +334,7 @@ match) and so must trump if able, a quirk the split preserves precisely.
   one of [challenge, allow]` clockwise from the claimant, first challenge
   closing the window; blocks fold the claimed character into the vocabulary
   — `block_claiming_*`), every influence loss is a chosen movement by the
-  loser (the single-actor `for each player q: if q == X` idiom) flipped
+  loser (the single-actor `for each player q: if q is X` idiom) flipped
   publicly into `revealed`, and the exchange is a deal-n + chosen-n +
   shuffle. A proven challenge `reveal`s the shown card publicly before
   returning it to the deck, reshuffling, and redrawing; window results
@@ -378,20 +403,30 @@ visibility, and the projection model".
   header.
 - `Player` — bare identity.
 - `Partnership` (alias: `Team`).
-- `Seating` — derived from `players` + `partnerships`; exposes
-  `partner_of`, `left_of`, `right_of`, `LHO_of`, `RHO_of`, `opposite_of`.
+- `Seating` — derived from `players` + `partnerships`. The surface
+  operator is `offset_by` (`dealer offset_by left` — seat arithmetic in
+  the game's declared direction); partnership lookup is the
+  `team_of(player)` stdlib function. An English replacement for
+  `offset_by` — the clunkiest-reading operator in the language — is a
+  decided direction whose spelling is still open
+  ([design-notes/lexical-cleanup.md](design-notes/lexical-cleanup.md) §7).
 - `Zone<Contents>` — a container parameterized by what it holds.
   Carries a per-observer visibility declaration (see
   [decisions.md](decisions.md) "Knowledge, visibility, and the
   projection model"), ownership, and structural type (set, ordered,
   stack).
-- `ZoneContents` — the query interface on zones and intermediate
-  collections. Common operations across all zone types: `where`,
-  `count`, `non_empty`, `empty`. Card-specific operations (`cards_of_suit`,
-  `highest_of_suit`, `has_card_of_suit`, `highest_by`,
-  `contains_card_of_suit`) apply to `Zone<Card>`. Resource-specific
-  operations (`amount_of(type)`, `total_amount`, `types_present`) apply
-  to `Zone<Resource>`.
+- Zone contents are read through the **English query surface**, never
+  methods — the queries bind `card` per candidate ([decisions.md](decisions.md)
+  "The expression register"):
+  - `cards in <zone> where <pred>` — the matching cards;
+  - `number of cards in <zone> [where <pred>]` — count (bare: zone size);
+  - `any card in <zone> where <pred>` / `all cards in <zone> where <pred>`;
+  - `sum of <expr> over cards in <zone> [where <pred>]`;
+  - `highest/lowest <expr> over cards in <zone> [where <pred>] or <default>`;
+  - emptiness is `<zone> is empty` / `is not empty`.
+  Resource queries (`amount_of(type)`, `total_amount`, `types_present`)
+  are unbuilt — the corpus keeps chips as Integer state
+  ([roadmap.md](roadmap.md), resource movements).
 
 ### Library zone types
 
@@ -477,7 +512,7 @@ The `from <zone> … to <zone>` form additionally takes an optional `where
 order) before the selection draws from it — see [decisions.md](decisions.md)
 "The operation vocabulary" ("Movement `where` filter"). French Tarot's chien
 discard is the corpus's first use (`move chosen 6 cards from hand[p] where
-c => is_pref_discard(c) to discard[p]`).
+is_pref_discard(card) to discard[p]`).
 
 **Epistemic** — prose statements; no relocation. Signatures are shown below,
 but the surface is prose (`shuffle deck`, `reveal proof to all`); call syntax
@@ -612,9 +647,9 @@ Standard helpers available across games.
 - `card_value(card: Card) → Integer` — the card's deck-declared card-point
   value (the `values` table on the `cards:` deck; 0 for ranks the deck scores
   nothing for), general-purpose for any point-trick game. Used by Pinochle
-  (`trick_score[...] += sum over trick_pile as c: card_value(c)`), Schnapsen
-  (`card_points[w] += sum over trick_pile as c: card_value(c)`), and Skat
-  (the declarer's points: `sum over captured[declarer]` plus `sum over skat`).
+  (`trick_score[...] += sum of card_value(card) over cards in trick_pile`), Schnapsen
+  (`card_points[w] += sum of card_value(card) over cards in trick_pile`), and Skat
+  (the declarer's points: a `sum of … over cards in captured[declarer]` plus the skat).
 
 Cribbage's pegging and show scoring, plus the pegging count's card provenance,
 are six game-local primitives reading `cardlang/runtime/cribbage.py` — game-local

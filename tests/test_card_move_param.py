@@ -40,14 +40,14 @@ game G {
   phase root {
     deal 5 cards from deck to each hand
     round offering [play_one, stop] from 0
-          over players where player == 0
+          over players where player is 0
           until done
   }
   winner: highest marker
 }
 move_type play_one(c : Card) {
   effect {
-    move one card from hand[actor] where x => x == c to pile
+    move one card from hand[actor] where card is c to pile
     done := true
   }
 }
@@ -95,7 +95,7 @@ def test_card_param_effect_moves_the_chosen_card() -> None:
 
 GUARDED_SRC = CARD_PARAM_SRC.replace(
     "move_type play_one(c : Card) {\n  effect {",
-    'move_type play_one(c : Card) {\n  when: c.rank == "4"\n  effect {',
+    'move_type play_one(c : Card) {\n  when: c.rank is "4"\n  effect {',
 )
 
 
@@ -159,6 +159,6 @@ def test_rejects_a_card_param_without_a_hand_zone() -> None:
     ).replace(
         "deal 5 cards from deck to each hand", "deal 5 cards from deck to each stash"
     ).replace(
-        "move one card from hand[actor] where x => x == c to pile", "done := true"
+        "move one card from hand[actor] where card is c to pile", "done := true"
     )
     _rejects(src, "enumerates the actor's `hand[player]` zone")

@@ -38,7 +38,7 @@ game Schnapsen {
     game_score[player] : Integer = 7
   }
 
-  phase hand_sequence repeats until (any player p: game_score[p] <= 0) {
+  phase hand_sequence repeat until (any player where game_score[player] <= 0) {
     state {
       dealer                 : Player  = 0
       leader                 : Player? = none
@@ -51,12 +51,12 @@ game Schnapsen {
       move all cards to deck
       shuffle deck
       deal 3 cards from deck to each hand
-      deal 1 cards from deck to trump_indicator   // turn up the trump card
+      deal 1 card from deck to trump_indicator    // turn up the trump card
       trump_suit := suit_of(trump_indicator)
       deal 2 cards from deck to each hand
       move all cards from deck to talon            // the rest is the stock
       dealer := dealer offset_by left              // alternates each hand
-      leader := the player where player != dealer  // non-dealer leads
+      leader := the player where player is not dealer  // non-dealer leads
       for each player p: card_points[p] := 0
       for each player p: tricks_won[p] := 0
     }
@@ -81,33 +81,33 @@ game Schnapsen {
 
       last_winner := leader
 
-      repeat until (any player p: hand[p] is empty) {
+      repeat until (any player where hand[player] is empty) {
         // Strict follow applies from the trick AFTER the close/exhaustion.
         let endgame = closed or (talon is empty and trump_indicator is empty)
 
         // The leader takes free actions (exchange / close), then leads a card.
         round offering [play_card, declare_marriage, exchange_trump_jack, close_talon]
-              from leader over players where player == leader
+              from leader over players where player is leader
               until trick_pile is not empty
 
         // The follower answers; strict follow-and-head in the endgame. The
-        // `for each player p: if p == fol` wrapper binds the single acting
+        // `for each player p: if p is fol` wrapper binds the single acting
         // player for the chosen movement — the idiom
         // open-questions/single-actor-binding.md names as a candidate
         // `as <player> { }` block.
-        let fol = the player where player != leader
+        let fol = the player where player is not leader
         if endgame {
-          for each player p: if p == fol {
-            move chosen one card from hand[p] where c => follow_ok(p, c) to trick_pile
+          for each player p: if p is fol {
+            move chosen one card from hand[p] where follow_ok(p, card) to trick_pile
           }
         } else {
-          for each player p: if p == fol {
+          for each player p: if p is fol {
             move chosen one card from hand[p] to trick_pile
           }
         }
 
         let w = schnapsen_trick_winner(leader, trump_suit)
-        card_points[w] += sum over trick_pile as c: card_value(c)
+        card_points[w] += sum of card_value(card) over cards in trick_pile
         tricks_won[w] += 1
         if pending[w] > 0 {
           card_points[w] += pending[w]
@@ -117,16 +117,16 @@ game Schnapsen {
         last_winner := w
 
         // Claim the instant a player reaches 66 (the trick winner checked first).
-        let lo = the player where player != w
+        let lo = the player where player is not w
         if card_points[w] >= 66 {
           produce claimed(w,
-                          if closed_by is not none and closed_by == w then closer_opp_cp else card_points[lo],
-                          if closed_by is not none and closed_by == w then closer_opp_tr else tricks_won[lo])
+                          if closed_by is not none and closed_by is w then closer_opp_cp else card_points[lo],
+                          if closed_by is not none and closed_by is w then closer_opp_tr else tricks_won[lo])
         }
         if card_points[lo] >= 66 {
           produce claimed(lo,
-                          if closed_by is not none and closed_by == lo then closer_opp_cp else card_points[w],
-                          if closed_by is not none and closed_by == lo then closer_opp_tr else tricks_won[w])
+                          if closed_by is not none and closed_by is lo then closer_opp_cp else card_points[w],
+                          if closed_by is not none and closed_by is lo then closer_opp_tr else tricks_won[w])
         }
 
         // The winner draws first, then the loser (talon first, then the indicator).
@@ -149,13 +149,13 @@ game Schnapsen {
       // Settle the hand in game points, deducted from the loser-facing score.
       play produces:
         claimed(claimer, opp_card_points, opp_tricks) {
-          let game_pts = if opp_tricks == 0 then 3 elif opp_card_points < 33 then 2 else 1
+          let game_pts = if opp_tricks is 0 then 3 elif opp_card_points < 33 then 2 else 1
           game_score[claimer] -= game_pts
         }
         talon_closed(closer, closer_opp_tricks) {
           // Closer never reached 66: the opponent scores 2 (3 if shut out at the close).
-          let opp = the player where player != closer
-          let game_pts = if closer_opp_tricks == 0 then 3 else 2
+          let opp = the player where player is not closer
+          let game_pts = if closer_opp_tricks is 0 then 3 else 2
           game_score[opp] -= game_pts
         }
         open_play(last_trick_winner) {
@@ -177,7 +177,7 @@ game Schnapsen {
 // the leader.
 
 move_type play_card(c : Card) {
-  effect { move one card from hand[actor] where x => x == c to trick_pile }
+  effect { move one card from hand[actor] where card is c to trick_pile }
 }
 
 move_type declare_marriage(s : Suit) {
@@ -185,9 +185,9 @@ move_type declare_marriage(s : Suit) {
   effect {
     // 40 for the royal (trump) marriage, 20 otherwise — banked until the
     // declarer has won a trick.
-    if tricks_won[actor] > 0 { card_points[actor] += if s == trump_suit then 40 else 20 }
-    else { pending[actor] += if s == trump_suit then 40 else 20 }
-    move one card from hand[actor] where x => x.rank == "Q" and x.suit == s to trick_pile
+    if tricks_won[actor] > 0 { card_points[actor] += if s is trump_suit then 40 else 20 }
+    else { pending[actor] += if s is trump_suit then 40 else 20 }
+    move one card from hand[actor] where card.rank is Q and card.suit is s to trick_pile
   }
 }
 
@@ -195,10 +195,10 @@ move_type exchange_trump_jack {
   when: not closed
         and not (talon is empty and trump_indicator is empty)
         and trump_indicator is not empty
-        and (sum over hand[actor] as c: if c.rank == "J" and c.suit == trump_suit then 1 else 0) > 0
+        and (any card in hand[actor] where card.rank is J and card.suit is trump_suit)
   effect {
     move one card from trump_indicator to hand[actor]
-    move one card from hand[actor] where x => x.rank == "J" and x.suit == trump_suit to trump_indicator
+    move one card from hand[actor] where card.rank is J and card.suit is trump_suit to trump_indicator
   }
 }
 
@@ -209,7 +209,7 @@ move_type close_talon {
   effect {
     closed := true
     closed_by := actor
-    let opp = the player where player != actor
+    let opp = the player where player is not actor
     closer_opp_cp := card_points[opp]
     closer_opp_tr := tricks_won[opp]
   }
@@ -218,22 +218,22 @@ move_type close_talon {
 // Does p hold both the K and the Q of s? (Pinochle's marriage predicate; rank
 // names compare as the literal strings a `Card.rank` holds.)
 function has_marriage(p : Player, s : Suit) =
-  (sum over hand[p] as c: if c.suit == s and c.rank == "K" then 1 else 0) > 0 and
-  (sum over hand[p] as c: if c.suit == s and c.rank == "Q" then 1 else 0) > 0
+  (any card in hand[p] where card.suit is s and card.rank is K) and
+  (any card in hand[p] where card.suit is s and card.rank is Q)
 
 // The led card, read from the single-card trick pile at follow time.
 function led_suit_now() = suit_of(trick_pile)
-function led_rank_now() = sum over trick_pile as c: rank_value(c)
+function led_rank_now() = sum of rank_value(card) over cards in trick_pile
 
 function holds_suit(p : Player, s : Suit) =
-  (sum over hand[p] as c: if c.suit == s then 1 else 0) > 0
+  any card in hand[p] where card.suit is s
 
 // Endgame legality (strict follow): follow suit and head if you can; else
 // follow; else trump; else anything. Schnapsen has no over-trump obligation.
 function follow_ok(p : Player, c : Card) =
   if holds_suit(p, led_suit_now())
-  then (if (sum over hand[p] as x: if x.suit == led_suit_now() and rank_value(x) > led_rank_now() then 1 else 0) > 0
-        then c.suit == led_suit_now() and rank_value(c) > led_rank_now()
-        else c.suit == led_suit_now())
-  elif holds_suit(p, trump_suit) then c.suit == trump_suit
+  then (if (any card in hand[p] where card.suit is led_suit_now() and rank_value(card) > led_rank_now())
+        then c.suit is led_suit_now() and rank_value(c) > led_rank_now()
+        else c.suit is led_suit_now())
+  elif holds_suit(p, trump_suit) then c.suit is trump_suit
   else true

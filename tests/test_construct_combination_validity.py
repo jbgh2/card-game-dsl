@@ -15,7 +15,7 @@ from cardlang.pipeline import check_dsl
 _RULE = """
   rule PassRule {
     constrains: transfer_between_hands
-    demands: actions where action.card_count == 3
+    demands: actions where action.card_count is 3
   }
 """
 
@@ -70,7 +70,7 @@ def test_rejects_a_second_phase_level_state_block() -> None:
     )
 
 
-# --- lifecycle hooks belong to `repeats until` phases ---
+# --- lifecycle hooks belong to `repeat until` phases ---
 
 
 def test_rejects_before_each_on_a_non_repeating_phase() -> None:
@@ -104,7 +104,7 @@ def test_rejects_a_transition_on_a_non_trick_event() -> None:
     body = """
     phase a {
       for each player q: score[q] := 1
-      transition_to: b when transfer_between_hands where action.card_count == 3
+      transition_to: b when transfer_between_hands where action.card_count is 3
     }
     phase b { for each player q: score[q] := 2 }
     """
@@ -127,7 +127,7 @@ def test_rejects_a_trick_round_naming_another_move_type() -> None:
 
 def test_accepts_hooks_on_a_repeats_until_phase() -> None:
     body = """
-    phase loop repeats until (any player p: score[p] >= 1) {
+    phase loop repeat until (any player where score[player] >= 1) {
       before_each { shuffle deck }
       after_each { shuffle deck }
       phase inner { for each player q: score[q] := 1 }
@@ -141,7 +141,7 @@ def test_accepts_a_play_to_trick_transition_and_plain_rule_refs() -> None:
     phase a {
       active_rules: [PassRule]
       for each player q: score[q] := 1
-      transition_to: b when play_to_trick where action.card_count == 3
+      transition_to: b when play_to_trick where action.card_count is 3
     }
     phase b { for each player q: score[q] := 2 }
     """

@@ -68,7 +68,7 @@ game Getaway {
   // The sole survivor loses. If the last players all shed their final card on
   // one trick (no one holds cards), the winner of that trick — the last
   // `leader` — loses.
-  loser: if (number of players where has_cards(player)) == 1
+  loser: if (number of players where has_cards(player)) is 1
          then the player where has_cards(player)
          else leader
 }
@@ -78,18 +78,12 @@ game Getaway {
 rule MustLeadAceOfSpadesOnFirstPlay {
   constrains: play_to_trick
   applies_when: state.led_suit is none       // i.e., leading
-  demands: hand.where(c => c == A of spades)
+  demands: cards in hand where card is A of spades
   if_impossible: error("first lead must be the ace of spades")
 }
 
-// === Standard library rule ===
-
-rule MustFollowSuit {
-  constrains: play_to_trick
-  applies_when: state.led_suit is not none
-  demands: hand.cards_of_suit(state.led_suit)
-  if_impossible: hand   // void in the led suit: play any card
-}
+// MustFollowSuit is a standard-library rule (library.md "Rules"): activated
+// by name above, defined once in cardlang/stdlib/rules.cardlang.
 
 // A player still in the hand holds cards. Named so the survivor count (the
 // `repeat until`) and the loser clause test the same predicate — they must agree

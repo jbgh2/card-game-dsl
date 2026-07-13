@@ -120,7 +120,7 @@
           "kind": "quantifier",
           "quant": "any",
           "role": "team",
-          "binder": "t",
+          "binder": "team",
           "body": {
             "kind": "binop",
             "op": "or",
@@ -136,7 +136,7 @@
                 },
                 "index": {
                   "kind": "name",
-                  "name": "t",
+                  "name": "team",
                   "ref": "local"
                 }
               },
@@ -157,7 +157,7 @@
                 },
                 "index": {
                   "kind": "name",
-                  "name": "t",
+                  "name": "team",
                   "ref": "local"
                 }
               },
@@ -435,8 +435,15 @@
                   "refs": [
                     {
                       "kind": "rule_ref",
-                      "name": "NoLeadingSpadesUntilBroken",
-                      "op": "add"
+                      "name": "NoLeadingSuitUntilBroken",
+                      "op": "add",
+                      "args": [
+                        {
+                          "kind": "name",
+                          "name": "spades",
+                          "ref": "enum_value"
+                        }
+                      ]
                     }
                   ]
                 },
@@ -485,7 +492,7 @@
                 "kind": "quantifier",
                 "quant": "all",
                 "role": "player",
-                "binder": "p",
+                "binder": "player",
                 "body": {
                   "kind": "is_check",
                   "check": "empty",
@@ -498,7 +505,7 @@
                     },
                     "index": {
                       "kind": "name",
-                      "name": "p",
+                      "name": "player",
                       "ref": "local"
                     }
                   }
@@ -946,7 +953,7 @@
                 "kind": "quantifier",
                 "quant": "all",
                 "role": "team",
-                "binder": "t",
+                "binder": "team",
                 "body": {
                   "kind": "binop",
                   "op": "<",
@@ -959,7 +966,7 @@
                     },
                     "index": {
                       "kind": "name",
-                      "name": "t",
+                      "name": "team",
                       "ref": "local"
                     }
                   },
@@ -1046,70 +1053,6 @@
   "rules": [
     {
       "kind": "rule",
-      "name": "NoLeadingSpadesUntilBroken",
-      "constrains": "play_to_trick",
-      "applies_when": {
-        "kind": "applies_when",
-        "always": false,
-        "pred": {
-          "kind": "is_check",
-          "check": "none",
-          "operand": {
-            "kind": "member",
-            "obj": {
-              "kind": "name",
-              "name": "state",
-              "ref": "pronoun"
-            },
-            "field": "led_suit"
-          }
-        }
-      },
-      "demands": {
-        "kind": "demands",
-        "form": "cards",
-        "expr": {
-          "kind": "method_call",
-          "obj": {
-            "kind": "name",
-            "name": "hand",
-            "ref": "zone"
-          },
-          "method": "where",
-          "args": [
-            {
-              "kind": "lambda",
-              "param": "c",
-              "body": {
-                "kind": "binop",
-                "op": "!=",
-                "left": {
-                  "kind": "member",
-                  "obj": {
-                    "kind": "name",
-                    "name": "c",
-                    "ref": "local"
-                  },
-                  "field": "suit"
-                },
-                "right": {
-                  "kind": "name",
-                  "name": "spades",
-                  "ref": "enum_value"
-                }
-              }
-            }
-          ]
-        }
-      },
-      "if_impossible": {
-        "kind": "name",
-        "name": "hand",
-        "ref": "zone"
-      }
-    },
-    {
-      "kind": "rule",
       "name": "MustFollowSuit",
       "constrains": "play_to_trick",
       "applies_when": {
@@ -1133,15 +1076,26 @@
         "kind": "demands",
         "form": "cards",
         "expr": {
-          "kind": "method_call",
-          "obj": {
+          "kind": "card_query",
+          "query": "set",
+          "source": {
             "kind": "name",
             "name": "hand",
             "ref": "zone"
           },
-          "method": "cards_of_suit",
-          "args": [
-            {
+          "pred": {
+            "kind": "binop",
+            "op": "==",
+            "left": {
+              "kind": "member",
+              "obj": {
+                "kind": "name",
+                "name": "card",
+                "ref": "local"
+              },
+              "field": "suit"
+            },
+            "right": {
               "kind": "member",
               "obj": {
                 "kind": "name",
@@ -1150,7 +1104,65 @@
               },
               "field": "led_suit"
             }
-          ]
+          }
+        }
+      },
+      "if_impossible": {
+        "kind": "name",
+        "name": "hand",
+        "ref": "zone"
+      }
+    },
+    {
+      "kind": "rule",
+      "name": "NoLeadingSuitUntilBroken",
+      "constrains": "play_to_trick",
+      "applies_when": {
+        "kind": "applies_when",
+        "always": false,
+        "pred": {
+          "kind": "is_check",
+          "check": "none",
+          "operand": {
+            "kind": "member",
+            "obj": {
+              "kind": "name",
+              "name": "state",
+              "ref": "pronoun"
+            },
+            "field": "led_suit"
+          }
+        }
+      },
+      "demands": {
+        "kind": "demands",
+        "form": "cards",
+        "expr": {
+          "kind": "card_query",
+          "query": "set",
+          "source": {
+            "kind": "name",
+            "name": "hand",
+            "ref": "zone"
+          },
+          "pred": {
+            "kind": "binop",
+            "op": "!=",
+            "left": {
+              "kind": "member",
+              "obj": {
+                "kind": "name",
+                "name": "card",
+                "ref": "local"
+              },
+              "field": "suit"
+            },
+            "right": {
+              "kind": "name",
+              "name": "spades",
+              "ref": "enum_value"
+            }
+          }
         }
       },
       "if_impossible": {

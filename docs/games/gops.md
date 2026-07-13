@@ -98,9 +98,9 @@ game GOPS {
   }
 
   phase setup {
-    move all cards from deck where c => c.suit == clubs to hand[0]
-    move all cards from deck where c => c.suit == spades to hand[1]
-    move all cards from deck where c => c.suit == diamonds to prize_deck
+    move all cards from deck where card.suit is clubs to hand[0]
+    move all cards from deck where card.suit is spades to hand[1]
+    move all cards from deck where card.suit is diamonds to prize_deck
     move all cards from deck to dead          // the hearts take no part
     shuffle prize_deck
   }
@@ -118,9 +118,9 @@ game GOPS {
       reveal one card from bid[0]
       reveal one card from bid[1]
 
-      let b0 = sum over bid[0] as c: rank_value(c)
-      let b1 = sum over bid[1] as c: rank_value(c)
-      let pv = (sum over prize as c: rank_value(c)) + 1   // A=1 .. K=13
+      let b0 = sum of rank_value(card) over cards in bid[0]
+      let b1 = sum of rank_value(card) over cards in bid[1]
+      let pv = (sum of rank_value(card) over cards in prize) + 1   // A=1 .. K=13
 
       if b0 > b1 {
         prize_points[0] += pv

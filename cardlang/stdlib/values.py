@@ -8,6 +8,7 @@ Seeded for the formalized corpus; extended corpus-first.
 
 from __future__ import annotations
 
+from cardlang.runtime.values import deck_ranks as _runtime_deck_ranks
 from cardlang.runtime.values import deck_suits as _runtime_deck_suits
 
 # The stdlib Direction enum (used for passing/seating offsets). `hold` is the
@@ -46,6 +47,17 @@ def deck_size(deck: str) -> int | None:
     return _DECK_SIZE.get(deck)
 
 
+def deck_ranks(deck: str) -> frozenset[str]:
+    """A deck's ranks, derived from the runtime deck registry — the same
+    single-source rule as `deck_suits`. The rank namespace comes from the
+    deck, not `ranking:` (Coup and Tarot declare no ranking but their rank
+    values must still resolve); `ranking:` only orders it."""
+    return frozenset(_runtime_deck_ranks(deck))
+
+
 def enum_values(deck: str) -> frozenset[str]:
-    """All bare-name enum values visible in a game with the given deck."""
-    return deck_suits(deck) | DIRECTION_VALUES
+    """All bare-name enum values visible in a game with the given deck.
+    Name-form ranks resolve bare (`card.rank == Duke`); numeric ranks can
+    never appear here (a bare `10` lexes as an Integer literal) and keep the
+    string spelling, validated by the type checker's comparison wall."""
+    return deck_suits(deck) | deck_ranks(deck) | DIRECTION_VALUES

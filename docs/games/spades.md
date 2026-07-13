@@ -47,7 +47,7 @@ game Spades {
     bags[team]  : Integer = 0
   }
 
-  phase hand_sequence repeats until (any team t: score[t] >= 500 or score[t] <= 0 - 200) {
+  phase hand_sequence repeat until (any team where score[team] >= 500 or score[team] <= 0 - 200) {
     state {
       // Per-hand, reset each hand by before_each.
       dealer             : Player  = 0
@@ -77,15 +77,15 @@ game Spades {
       legal_moves:  [play_to_trick]
 
       phase spades_not_broken {
-        active_rules: [+ NoLeadingSpadesUntilBroken]
-        transition_to: spades_broken when play_to_trick where action.card.suit == spades
+        active_rules: [+ NoLeadingSuitUntilBroken(spades)]
+        transition_to: spades_broken when play_to_trick where action.card.suit is spades
       }
 
       phase spades_broken {
         // inherits the parent's MustFollowSuit only
       }
 
-      repeat until (all player p: hand[p] is empty) {
+      repeat until (all players where hand[player] is empty) {
         round play_to_trick from leader over all players source hand into trick_pile
               outcome highest_trump_or_led_suit
         move all cards from trick_pile to captured[team_of(outcome)]
@@ -100,7 +100,7 @@ game Spades {
         team_tricks[team] : Integer = 0
       }
 
-      for each player p: team_bid[team_of(p)] += (if bid[p] == 0 then 0 else bid[p])
+      for each player p: team_bid[team_of(p)] += (if bid[p] is 0 then 0 else bid[p])
       for each player p: team_tricks[team_of(p)] += tricks_won[p]
 
       for each team t:
@@ -112,12 +112,12 @@ game Spades {
         }
 
       for each player p:
-        if bid[p] == 0 {
-          if tricks_won[p] == 0 { score[team_of(p)] += 100 }
+        if bid[p] is 0 {
+          if tricks_won[p] is 0 { score[team_of(p)] += 100 }
           else { score[team_of(p)] -= 100 }
         }
 
-      repeat until (all team t: bags[t] < 10) {
+      repeat until (all teams where bags[team] < 10) {
         for each team t:
           if bags[t] >= 10 { score[t] -= 100  bags[t] -= 10 }
       }
@@ -127,19 +127,9 @@ game Spades {
   winner: highest score
 }
 
-rule NoLeadingSpadesUntilBroken {
-  constrains: play_to_trick
-  applies_when: state.led_suit is none
-  demands: hand.where(c => c.suit != spades)
-  if_impossible: hand   // only spades left: a spade must be led
-}
-
-rule MustFollowSuit {
-  constrains: play_to_trick
-  applies_when: state.led_suit is not none
-  demands: hand.cards_of_suit(state.led_suit)
-  if_impossible: hand   // void in the led suit: play any card
-}
+// MustFollowSuit and NoLeadingSuitUntilBroken(spades) are standard-library
+// rules (library.md "Rules"): activated by name above, defined once in
+// cardlang/stdlib/rules.cardlang.
 
 // Per-team contract aggregates, named so the make and miss branches score the
 // contract from one place: its value (10 per bid) and the overtricks beyond it.

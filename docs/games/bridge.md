@@ -62,7 +62,7 @@ game Bridge {
     below_current[team] : Integer = 0    // below-the-line toward the current game
   }
 
-  phase rubber repeats until (any team t: games_won[t] >= 2) {
+  phase rubber repeat until (any team where games_won[team] >= 2) {
     state {
       dealer            : Player  = 0
       contract_level    : Integer = 0
@@ -111,7 +111,7 @@ game Bridge {
       legal_moves:  [play_to_trick]
 
       leader := declarer offset_by left
-      repeat until (all player p: hand[p] is empty) {
+      repeat until (all players where hand[player] is empty) {
         round play_to_trick from leader over all players source hand into trick_pile
               outcome highest_trump_or_led_suit trump trump_suit
         move all cards from trick_pile to captured[team_of(outcome)]
@@ -127,8 +127,8 @@ game Bridge {
       let actual   = tricks_taken[dteam]
       let vuln     = games_won[dteam] >= 1
       let per_trick = if trump_suit is none then 30
-                      elif trump_suit == clubs then 20
-                      elif trump_suit == diamonds then 20
+                      elif trump_suit is clubs then 20
+                      elif trump_suit is diamonds then 20
                       else 30
 
       if actual >= required {
@@ -138,13 +138,13 @@ game Bridge {
         below_current[dteam] += below
 
         let over = actual - required
-        let ov_each = if doubled_mult == 1 then per_trick
-                      elif doubled_mult == 2 then (if vuln then 200 else 100)
+        let ov_each = if doubled_mult is 1 then per_trick
+                      elif doubled_mult is 2 then (if vuln then 200 else 100)
                       else (if vuln then 400 else 200)
         total_score[dteam] += ov_each * over
 
-        if contract_level == 6 { total_score[dteam] += if vuln then 750 else 500 }
-        if contract_level == 7 { total_score[dteam] += if vuln then 1500 else 1000 }
+        if contract_level is 6 { total_score[dteam] += if vuln then 750 else 500 }
+        if contract_level is 7 { total_score[dteam] += if vuln then 1500 else 1000 }
 
         if below_current[dteam] >= 100 {
           total_score[dteam] += if vuln then 500 else 300   // game bonus
@@ -152,13 +152,13 @@ game Bridge {
           below_current[dteam] := 0
           below_current[oteam] := 0
           if games_won[dteam] >= 2 {
-            total_score[dteam] += if games_won[oteam] == 0 then 700 else 500   // rubber bonus
+            total_score[dteam] += if games_won[oteam] is 0 then 700 else 500   // rubber bonus
           }
         }
       } else {
         let under = required - actual
-        let per_under = if doubled_mult == 1 then (if vuln then 100 else 50)
-                        elif doubled_mult == 2 then (if vuln then 200 else 100)
+        let per_under = if doubled_mult is 1 then (if vuln then 100 else 50)
+                        elif doubled_mult is 2 then (if vuln then 200 else 100)
                         else (if vuln then 400 else 200)            // redoubled
         total_score[oteam] += per_under * under
       }
@@ -168,12 +168,8 @@ game Bridge {
   winner: highest total_score
 }
 
-rule MustFollowSuit {
-  constrains: play_to_trick
-  applies_when: state.led_suit is not none
-  demands: hand.cards_of_suit(state.led_suit)
-  if_impossible: hand   // void in the led suit: play any card
-}
+// MustFollowSuit is a standard-library rule (library.md "Rules"): activated
+// by name above, defined once in cardlang/stdlib/rules.cardlang.
 
 // The bid vocabulary. The cheapest beating level in a strain is derived; random
 // bids are capped at level 3 so rubbers stay a realistic length.
@@ -192,19 +188,19 @@ move_type submit_bid(strain : Suit?) {
 }
 
 move_type double {
-  when: made_bid and team_of(actor) != team_of(high_bidder) and doubled == 1
+  when: made_bid and team_of(actor) is not team_of(high_bidder) and doubled is 1
   effect { doubled := 2  passes := 0 }
 }
 
 move_type redouble {
-  when: made_bid and team_of(actor) == team_of(high_bidder) and doubled == 2
+  when: made_bid and team_of(actor) is team_of(high_bidder) and doubled is 2
   effect { doubled := 4  passes := 0 }
 }
 
 // The cheapest level that beats the standing bid in a strain, named once so the
 // `submit_bid` guard and effect agree by construction (the level the guard
 // admits is the level the effect writes).
-function next_level(s : Suit?) = if cur_level == 0 then 1
+function next_level(s : Suit?) = if cur_level is 0 then 1
                                  elif strain_index(s) > strain_index(cur_strain) then cur_level
                                  else cur_level + 1
 ```

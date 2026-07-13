@@ -2,7 +2,7 @@
 
 `play_game` sets up the world, runs the top-level phases, and reads the winner.
 `run_phase` handles a phase's state block and its qualifier (`when` guard /
-`repeats until` loop); `run_body` runs the items, skipping rule-delta sub-phases
+`repeat until` loop); `run_body` runs the items, skipping rule-delta sub-phases
 (handled by phases.compute_active_rules) and threading `let` bindings.
 """
 
@@ -27,7 +27,7 @@ from cardlang.runtime.state import (
     _ProduceSignal,
     _SkipHand,
 )
-from cardlang.runtime.values import DECKS, Player, Seating, build_deck, deck_suits
+from cardlang.runtime.values import DECKS, Player, Seating, build_deck, deck_ranks, deck_suits
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,6 +36,15 @@ class GameResult:
     winner: Player | None
     loser: Player | None
     hands_played: int
+
+
+# The grammar's RANK_DIR terminal (`cardlang.lark`, "lowest" | "highest"),
+# mapped to the builtin it picks the winner with. Exhaustive by construction:
+# `play_game` below raises loudly on any key not present here, and
+# `test_rank_dir_set_is_pinned` (tests/test_comprehension_aggregators.py)
+# reconciles this set against the grammar terminal so a new RANK_DIR token
+# cannot land uncovered here.
+RANK_DIR_TO_PICK: dict[str, Callable[..., Player]] = {"highest": max, "lowest": min}
 
 
 def play_game(
@@ -67,6 +76,9 @@ def play_game(
     rs.rank_index = {r: len(game.ranking) - 1 - i for i, r in enumerate(game.ranking)}
     rs.card_values = dict(DECKS[game.deck].values)
     rs.suits = deck_suits(game.deck)
+    # Rank iteration order for `for each rank` / `any rank`: the declared
+    # ranking when present, else the deck's first-appearance order.
+    rs.ranks = game.ranking if game.ranking else deck_ranks(game.deck)
     rs.rule_index = {r.name: r for r in game.rules}
     rs.move_type_index = {m.name: m for m in game.move_types}
     rs.type_index = {t.name: t for t in game.types}
@@ -84,7 +96,7 @@ def play_game(
         # The declared max_length's other half (docs/decisions.md, "Game
         # length as a declared contract"): the loop guards below only bound
         # iteration counts, which can be far coarser than decisions (a single
-        # `repeats until` iteration may make many chooser calls) — this counts
+        # `repeat until` iteration may make many chooser calls) — this counts
         # every decision itself, the unit max_length's corpus values are
         # actually sized against (measured per-game random-playout lengths),
         # so a structurally-terminating loop that makes unboundedly many
@@ -143,7 +155,14 @@ def play_game(
     loser: Player | None = None
     if game.winner is not None:
         scores = dict(rs.get(game.winner.target))
-        pick = min if game.winner.rank_dir == "lowest" else max
+        if game.winner.rank_dir not in RANK_DIR_TO_PICK:
+            # Internal invariant, not a user diagnostic: the grammar's
+            # RANK_DIR terminal and this mapping are out of sync.
+            raise AssertionError(
+                f"winner: unhandled RANK_DIR value {game.winner.rank_dir!r} — add "
+                "it to RANK_DIR_TO_PICK"
+            )
+        pick = RANK_DIR_TO_PICK[game.winner.rank_dir]
         winner = pick(scores, key=lambda p: scores[p])
     else:
         assert game.loser is not None
@@ -222,7 +241,7 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
             loop_outcomes = _subtree_outcome_names(phase)
             guard = 0
             while not evaluate(q.expr, ctx):
-                # A `repeats until` whose condition never holds (e.g. a win
+                # A `repeat until` whose condition never holds (e.g. a win
                 # threshold unreachable under random play) would otherwise hang
                 # forever — fail loudly so non-termination surfaces as a test
                 # failure, not a stuck process, against the game's declared
@@ -233,7 +252,7 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
                 if guard > ctx.rs.max_length:
                     raise RuntimeError(
                         f"phase '{phase.name}' repeated {guard} times without its "
-                        "`repeats until` condition holding, exceeding the game's "
+                        "`repeat until` condition holding, exceeding the game's "
                         f"declared max_length ({ctx.rs.max_length}) — non-termination, "
                         "or raise max_length if this game genuinely runs this long"
                     )

@@ -70,7 +70,7 @@ game G {
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
   state { points[player] : Integer = 0 }
-  phase rubber repeats until (any player p: points[p] >= 3) {
+  phase rubber repeat until (any player where points[player] >= 3) {
     after_each { for each player p: points[p] += 1 }
     phase decide -> outcome { skipit | keep } { produce skipit }
     decide produces:
@@ -87,7 +87,7 @@ game G {
 
 
 def test_outcome_survives_an_intervening_repeat_phase() -> None:
-    # A producer's outcome must persist across an intervening `repeats until`
+    # A producer's outcome must persist across an intervening `repeat until`
     # sibling phase before its consumer runs (regression: an over-eager per-hand
     # clear of phase_outcomes would erase it).
     src = """
@@ -100,7 +100,7 @@ game G {
   state { points[player] : Integer = 0  loops : Integer = 0 }
   phase round {
     phase decide -> outcome { val(Integer) } { produce val(7) }
-    phase spin repeats until (loops >= 1) {
+    phase spin repeat until (loops >= 1) {
       before_each { loops := loops + 1 }
     }
     decide produces:
@@ -153,11 +153,11 @@ game G {
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
   state { k : Integer = 0  points[player] : Integer = 0 }
-  phase loop repeats until (k >= 2) {
+  phase loop repeat until (k >= 2) {
     before_each { k := k + 1 }
-    phase prod -> outcome { val(Integer) } { if (k == 1) { produce val(99) } }
+    phase prod -> outcome { val(Integer) } { if (k is 1) { produce val(99) } }
     phase gate -> outcome { skip_consumer | keep } {
-      if (k == 1) { produce skip_consumer } else { produce keep }
+      if (k is 1) { produce skip_consumer } else { produce keep }
     }
     gate produces:
       skip_consumer { continue to tail }
@@ -202,7 +202,7 @@ game G {
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
   state { points[player] : Integer = 0 }
-  phase rubber repeats until (any player p: points[p] >= 3) {
+  phase rubber repeat until (any player where points[player] >= 3) {
     after_each { for each player p: points[p] += 1 }
     phase outer {
       phase decide -> outcome { skipit | keep } { produce skipit }
@@ -261,7 +261,7 @@ game G {
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
   state { points[player] : Integer = 0 }
-  phase rubber repeats until (any player p: points[p] >= 3) {
+  phase rubber repeat until (any player where points[player] >= 3) {
     after_each { for each player p: points[p] += 1 }
     phase outer {
       phase decide -> outcome { skipit | keep } { produce skipit }

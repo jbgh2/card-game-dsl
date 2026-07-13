@@ -78,10 +78,10 @@ game G {
   phase play { }
   winner: highest x
 }
-rule MustFollowSuit {
+rule FollowWithoutFallback {
   constrains: play_to_trick
   applies_when: state.led_suit is not none
-  demands: hand.cards_of_suit(state.led_suit)
+  demands: cards in hand where card.suit is state.led_suit
 }
 """
 

@@ -24,7 +24,7 @@ game Hearts {
 
   // === Top-level phase sequence ===
 
-  phase hand_sequence repeats until any cumulative_score >= 100 {
+  phase hand_sequence repeat until any cumulative_score >= 100 {
     state {
       // Loop state: persists across hands; before_each rotates it each hand,
       // so starting at `hold` makes hand 1 pass left.
@@ -40,7 +40,7 @@ game Hearts {
       rotate pass_direction through [left, right, across, hold]
     }
 
-    phase passing when pass_direction != hold {
+    phase passing when pass_direction is not hold {
       active_rules: [PassExactlyThreeCards]
       legal_moves:  [transfer_between_hands]
 
@@ -71,8 +71,8 @@ game Hearts {
       legal_moves:  [play_to_trick]
 
       phase hearts_not_broken {
-        active_rules: [+ NoLeadingHeartsUntilBroken]
-        transition_to: hearts_broken when play_to_trick where action.card.suit == hearts
+        active_rules: [+ NoLeadingSuitUntilBroken(hearts)]
+        transition_to: hearts_broken when play_to_trick where action.card.suit is hearts
       }
 
       phase hearts_broken {
@@ -90,13 +90,13 @@ game Hearts {
 
     phase scoring {
       // base and hand_score are phase-local lets, not declared state.
-      let base[p] = sum over captured[p]:
-                      if card.suit == hearts          then 1
-                      elif card == queen_of_spades    then 13
-                      else 0
+      let base[p] = sum of (if card.suit is hearts          then 1
+                            elif card is queen_of_spades    then 13
+                            else 0)
+                    over cards in captured[p]
 
       let hand_score[p] =
-        if any player p has base[p] == 26:                // shoot the moon
+        if any player where base[player] is 26:           // shoot the moon
           if p shot the moon: 0 else: 26
         else:
           base[p]
@@ -113,22 +113,15 @@ game Hearts {
 rule MustLeadTwoOfClubsOnFirstPlay {
   constrains: play_to_trick
   applies_when: state.led_suit is none      // i.e., leading
-  demands: hand.where(c ⇒ c == 2 of clubs)
+  demands: cards in hand where card is 2 of clubs
   if_impossible: error("first lead must be 2 of clubs; only the holder can lead")
 }
 
 rule NoPenaltyCardsOnFirstTrick {
   constrains: play_to_trick
   applies_when: always   // already scoped to the first_trick sub-phase
-  demands: hand.where(c ⇒ c.suit != hearts and c != queen_of_spades)
+  demands: cards in hand where card.suit is not hearts and card is not queen_of_spades
   if_impossible: hand   // only penalty cards in hand: play one
-}
-
-rule NoLeadingHeartsUntilBroken {
-  constrains: play_to_trick
-  applies_when: state.led_suit is none   // i.e., leading
-  demands: hand.where(c ⇒ c.suit != hearts)
-  if_impossible: hand   // only hearts left: a heart must be led
 }
 
 rule PassExactlyThreeCards {
@@ -136,12 +129,7 @@ rule PassExactlyThreeCards {
   demands: the move must consist of exactly 3 cards
 }
 
-// === Standard library rule ===
-
-rule MustFollowSuit {
-  constrains: play_to_trick
-  applies_when: state.led_suit is not none
-  demands: hand.cards_of_suit(state.led_suit)
-  if_impossible: hand   // void in the led suit: play any card
-}
+// MustFollowSuit and NoLeadingSuitUntilBroken(hearts) are standard-library
+// rules (library.md "Rules"): activated by name above, defined once in
+// cardlang/stdlib/rules.cardlang.
 ```

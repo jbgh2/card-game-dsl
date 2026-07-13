@@ -6,8 +6,8 @@ test_pinochle_meld.py precedent for a migrated game's pure-primitive module.
 (`seq_bits`/`seq_len`, packed MSB-first, 1 = dealer — see cribbage.py's module
 docstring and docs/kernel-migration.md WS4). `peg_origin_of` is its ctx-adapter
 over the live `play_pile`; a routing round-trip test confirms that applying its
-predicate through the two split "close" movements (`... where c =>
-peg_origin_of(c) == dealer ...` then the unfiltered remainder) reproduces the
+predicate through the two split "close" movements (`... where
+peg_origin_of(card) is dealer ...` then the unfiltered remainder) reproduces the
 per-player partition of a synthetic play sequence, in order — the property the
 DSL's close-routing statements actually rely on.
 """

@@ -54,7 +54,7 @@ does for phase outcomes:
 ```
 bidding produces:
   taker_chosen(_, level) {
-    if level == Petite or level == Garde { continue to chien_visible }
+    if level is Petite or level is Garde { continue to chien_visible }
     else { continue to play }
   }
   all_pass { skip to next hand }
@@ -95,7 +95,7 @@ similar end-of-phase logic, not by any rule's `applies_when:` or
 
 Examples:
 
-- `hearts_broken` in Hearts: gates the `NoLeadingHeartsUntilBroken`
+- `hearts_broken` in Hearts: gates the `NoLeadingSuitUntilBroken(hearts)`
   rule. Modeled as a sub-phase transition, not a boolean.
 - `spades_broken` in Spades: same shape, same treatment.
 - `is_first_trick`: gates rules unique to the first trick. Modeled
@@ -135,7 +135,7 @@ ends. Used for setup → bidding → play → scoring pipelines.
 active *exactly when* the predicate holds. The phase is entered the
 first time the predicate becomes true and exited as soon as it
 becomes false. Hearts' `passing` sub-phase uses this for the case
-when `pass_direction != hold`; Tichu's `wish_active` sub-phase uses
+when `pass_direction is not hold`; Tichu's `wish_active` sub-phase uses
 this for the case when a Mahjong wish stands. No explicit
 `transition_to:` is needed — the predicate is the entry guard *and*
 the exit condition.
@@ -146,12 +146,12 @@ The `<event>` is the same reference form triggered scoring components
 use — a move-type event with an optional `where <predicate>` (see
 "Triggered scoring components"); there are no ad-hoc event names.
 Hearts breaks hearts with `transition_to: hearts_broken when
-play_to_trick where action.card.suit == hearts`; Spades breaks spades with
-`transition_to: spades_broken when play_to_trick where action.card.suit ==
+play_to_trick where action.card.suit is hearts`; Spades breaks spades with
+`transition_to: spades_broken when play_to_trick where action.card.suit is
 spades` (the move under inspection is bound as `action` — see "Rule demand
 forms"). The transition is one-shot — once Y is entered, X is not
 re-entered. It is scoped to the enclosing phase instance: when a
-`repeats until` loop begins a new iteration and re-enters the phase, the
+`repeat until` loop begins a new iteration and re-enters the phase, the
 transition resets (Hearts re-breaks hearts each hand), per the
 activation-record semantics in "Loop lifecycle".
 
@@ -215,8 +215,8 @@ what it constrains:
 
 - **A candidate-card set** — an expression returning the cards a legal
   move may use, filtering a zone. `MustFollowSuit`'s `demands:
-  hand.cards_of_suit(state.led_suit)` and Hearts' `demands:
-  hand.where(c => c.suit != hearts)` are this form. The legal move set
+  cards in hand where card.suit is state.led_suit` and Hearts' `demands:
+  cards in hand where card.suit is not hearts` are this form. The legal move set
   is the intersection of every active rule's candidate set. Because that
   intersection can empty — a void player cannot follow suit — a card-set
   `demands` **must** declare an `if_impossible:` fallback: `hand` to play any
@@ -227,8 +227,8 @@ what it constrains:
 - **A predicate on the move** — `demands: actions where <predicate>`,
   constraining the shape of the move itself rather than which cards it
   draws from a zone. Hearts' `PassExactlyThreeCards` is `demands: actions
-  where action.card_count == 3`; Stud's `BringInMandatory` is `demands:
-  actions where action.amount == bring_in_amount`. Cribbage's two-card
+  where action.card_count is 3`; Stud's `BringInMandatory` is `demands:
+  actions where action.amount is bring_in_amount`. Cribbage's two-card
   discard and Tichu's one-card-per-opponent push are the same form.
 
 The two are not interchangeable: the first names *which cards*, the
@@ -352,7 +352,7 @@ card's intrinsic fields. Skat's jacks are trumps regardless of
 printed suit; in Doppelkopf, both queens and jacks would be trumps.
 The pattern: a per-game `same_suit_class(c1, c2)` predicate that
 the standard `MustFollowSuit` rule consults instead of comparing
-`c1.suit == c2.suit` directly. Most games keep the default
+`c1.suit is c2.suit` directly. Most games keep the default
 (printed-suit equality); games with contextual suits override.
 Same shape as a `round`'s `outcome` or `early` function — a per-game or
 stdlib function referenced by name, not a new language construct.
@@ -426,7 +426,7 @@ round offering [<move_type>, …] from <seat> over <ring>
   a speaker naming successive ladder values against a responder who holds or
   passes, twice in sequence with the survivor advancing — runs on the plain
   ring: `round offering [bid, yes, pass] from <speaker> over players where
-  player == <speaker> or player == <responder> until <someone passed, or the
+  player is <speaker> or player is <responder> until <someone passed, or the
   ladder is exhausted>`, with `bid` guarded to the speaker and `yes` to the
   responder. The seemingly new requirements each map to an existing axis:
   role-dependent vocabularies are move guards (the speaker's candidates filter
@@ -695,7 +695,7 @@ may not be active. This is statically checkable.
 game Bridge {
   // No game-level state in Bridge.
 
-  phase rubber repeats until any partnership.games_won >= 2 {
+  phase rubber repeat until any partnership.games_won >= 2 {
     state {
       games_won[partnership]              : Integer = 0
       above_line[partnership]             : Integer = 0
@@ -783,7 +783,7 @@ activation-record semantics.
 
 ## Loop termination semantics
 
-A `repeats until <pred>` clause on a phase (or `repeat until <pred>`
+A `repeat until <pred>` clause on a phase (or `repeat until <pred>`
 on a phase-body block) is **continuously evaluated**: the loop
 terminates as soon as the predicate becomes true, including
 mid-iteration. When the loop terminates mid-iteration, every nested
@@ -797,7 +797,7 @@ peg-out can occur mid-hand, during pegging or during the show, and the
 game stops the instant either score reaches 121 — expressed by an
 `if game_over() { skip to next hand }` guard at each scoring point,
 which unwinds the active pegging loop and show statements to the
-enclosing `phase hand_sequence repeats until (any player p: score[p]
+enclosing `phase hand_sequence repeat until (any player where score[player]
 >= 121)`, whose predicate then ends the game at the hand boundary.
 
 Games where the termination predicate can change only at iteration
@@ -809,7 +809,7 @@ predicate could flip.
 A `round`'s optional `early` predicate does provide *trick-level*
 termination on game-state-free conditions (Getaway's tochoo ends the
 trick the moment a void player plays off-suit). It is not for
-game-ending; game-ending is the `repeats until` clause's job.
+game-ending; game-ending is the `repeat until` clause's job.
 
 ## Game length as a declared contract
 
@@ -834,7 +834,7 @@ units, because no single check covers every non-termination shape:
   below while still making far more decisions than the game's declared
   bound.
 - **The runtime's two loop guards.** Both loop forms — the phase-level
-  `repeats until` (`docs/model.md`) and the statement-level `repeat
+  `repeat until` (`docs/model.md`) and the statement-level `repeat
   until` — separately count their own *iterations* and raise the same
   kind of `RuntimeError` once that count exceeds `max_length`. Counting
   iterations (typically hands, not individual actions) against the same
@@ -878,7 +878,7 @@ declaration.
 
 ## Loop lifecycle: `before_each` and `after_each`
 
-A `repeats until` phase runs per-iteration setup and teardown through two
+A `repeat until` phase runs per-iteration setup and teardown through two
 optional hooks, siblings of its `state` block and distinct from its
 sub-phases:
 
@@ -957,9 +957,9 @@ before, potentially including game termination."
 
 **Event-driven sub-phase transitions are not a third mutation mode.**
 Hearts' `transition_to: hearts_broken when play_to_trick where
-action.card.suit == hearts` is *phase entry/exit* triggered by the
+action.card.suit is hearts` is *phase entry/exit* triggered by the
 move-emitted event.
-The implied state change (the `NoLeadingHeartsUntilBroken` rule
+The implied state change (the `NoLeadingSuitUntilBroken(hearts)` rule
 becomes inactive) happens because the active rule set changes when
 the phase changes, not because a `hearts_broken` boolean was written.
 
@@ -1019,12 +1019,12 @@ rewrites to underlying forms.
   Carries a per-observer visibility declaration (see "Knowledge,
   visibility, and the projection model"), ownership, and structural
   type (set, ordered, stack).
-- `ZoneContents` — the query API on zones and intermediate
-  collections. Common operations: `where`, `count`, `non_empty`,
-  `empty`. Card-specific: `cards_of_suit`, `highest_of_suit`,
-  `has_card_of_suit`, `highest_by`, `contains_card_of_suit`.
-  Resource-specific: `amount_of(type)`, `total_amount`,
-  `types_present`.
+- Zone contents are read through the English query surface (see "The
+  expression register"): `cards in … where`, `number of cards in …`,
+  `any/all card(s) in … where`, `sum of … over cards in …`,
+  `highest/lowest … over cards in … or <default>`, and the emptiness
+  checks `is empty` / `is not empty`. Resource queries are unbuilt
+  ([roadmap.md](roadmap.md)).
 - Phase outcomes — tagged-union values; pattern-matched, not
   dot-accessed.
 
@@ -1277,7 +1277,7 @@ deferred ([roadmap.md](roadmap.md)).
 **Movement `where` filter.** The `from` form of a movement (any destination
 shape) takes an optional `where <lambda>` clause, narrowing the *source pool*
 to the cards matching the predicate — in source order — before the selection
-draws from it: `move chosen 6 cards from hand[p] where c => is_pref_discard(c)
+draws from it: `move chosen 6 cards from hand[p] where is_pref_discard(card)
 to discard[p]`. The four selection modes read the narrowed pool exactly as
 they would read the whole source: `chosen`/`random` draw `count` from the pool
 via the chooser/RNG; the default (dealt) form takes the pool's first `count` —
@@ -1295,8 +1295,8 @@ added.
 
 French Tarot's chien discard is the corpus's first use: the taker's kept
 chien cards must exclude every bout while preferring plain non-King cards
-when six exist (`hand.where(c => is_pref_discard(c))`, falling back to
-`hand.where(c => not is_bout(c))` when fewer than six such cards remain) — a
+when six exist (`cards in hand where is_pref_discard(card)`, falling back to
+`cards in hand where not is_bout(card)` when fewer than six such cards remain) — a
 per-card predicate over which cards a decision may even draw from, distinct
 from the *count* a plain `chosen N cards` movement already expressed.
 
@@ -1315,7 +1315,7 @@ the other two (it touches no zone): a single small construct.
 **Surface: actions are prose, queries are calls.** Every operation above is a
 prose statement — the built-in vocabulary reads as rulebook commands, one
 surface for "what the game does." Call syntax (`player_holding(2 of clubs)`,
-`cards_of_suit(s)`) is reserved for value-returning functions and named
+`rank_value(card)`) is reserved for value-returning functions and named
 user-defined operations, which appear in expression position. The dividing
 line is *do* versus *answer*: an operation acts (a statement with effects), a
 function answers (a value in an expression). The families above are a
@@ -1327,6 +1327,86 @@ A new rulebook verb is presumed an instance of an existing family — movement
 sugar or an epistemic op — until a game proves it is genuinely none of them.
 Adding a fourth family is a deliberate act, not the default response to a new
 word.
+
+## The expression register
+
+The expression layer speaks the same English register as the statement layer:
+queries and predicates are rulebook sentences, and their binders are
+implicit. There is no method register (`zone.method(…)`) and no lambda
+syntax; a query names its domain noun and binds the corresponding pronoun per
+candidate — `player` in the player queries, `card` in the card queries,
+`team`/`suit`/`rank` in the quantifiers. One spelling per concept governs
+every form here ([principles.md](principles.md)).
+
+**The word/symbol line.** Words spell logic, equality, membership, and
+quantification: `is`, `is not`, `in`, `not`, `and`, `or`, `any`, `all`,
+`number of … where`. Symbols spell arithmetic, ordering, and state change:
+`+` `-` `*`, `<` `<=` `>` `>=`, `:=` `+=` `-=`. This is one sentence a
+designer can internalize — and it is Python's line, so the surface stays
+familiar. English forms for assignment were considered and rejected: the
+symbols carry no confusion cost, there is no compact English word for `>=`,
+and the per-line verbosity cost would be the largest in the language. `is`,
+`not`, and `number` are reserved words — no state variable, zone, function,
+or binder may take one of these names.
+
+**Equality is `is` / `is not`** — plain equality, with no identity/equality
+split to trip over. `a is not b` is a single operator, never `a is (not b)`.
+The right-hand keywords `none` and `empty` are a closed set dispatching to
+the absence and emptiness checks (`led_suit is none`, `hand[p] is not
+empty`); every other operand is ordinary equality. `==`/`!=` are not part of
+the language; the checker rejects them with the replacement spelling.
+
+**Card queries** mirror the player queries ("Player-collection queries"
+below), binding `card` per candidate over a named zone:
+
+- `cards in <zone> where <pred>` — the matching cards;
+- `number of cards in <zone> [where <pred>]` — how many match (bare: the
+  zone's size);
+- `any card in <zone> where <pred>` / `all cards in <zone> where <pred>`.
+
+**Aggregations** name their operation and bind `card` implicitly:
+
+- `sum of <expr> over cards in <zone> [where <pred>]`;
+- `highest <expr> over cards in <zone> [where <pred>] or <default>` and
+  `lowest …` — the empty-set default is mandatory (the `or` clause), so an
+  emptied zone yields the declared value instead of a crash; the default
+  sits below `or`-precedence (parenthesize a compound default).
+
+**Quantifiers bind their role noun implicitly**: `any player where <pred>`,
+`all players where <pred>`, and the `team`/`suit`/`rank` forms (`any suit
+where …` ranges over the deck's suits; `any rank where …` over the declared
+`ranking:`, else the deck's ranks). The iteration-role set is closed
+(player/team/suit/rank); card quantification is the card-query form above.
+`for each <role> <binder>:` keeps its explicit binder — it is a statement
+loop, not a predicate, and its binder is genuinely chosen (`for each player
+p:`).
+
+**Membership is `in`**: `Q of spades in captured[p]` (zone membership),
+`card.suit in [hearts, spades]` (a `[…]` list literal, never empty). The
+grammar owns `in`'s three uses — range (`choose integer in 0 .. 13`), query
+source (`cards in hand`), and membership — explicitly.
+
+**Rank and suit values.** Suits and name-form ranks are bare enum values
+(`card.suit is hearts`, `card.rank is K`, `card.rank is Duke`); the rank
+namespace comes from the deck, not `ranking:` (Coup and Tarot declare no
+ranking). Numeric ranks spell as validated strings (`card.rank is "10"`) —
+a bare `10` is an Integer literal — and the checker rejects every
+silently-false comparison shape: Rank vs Integer, a name-form rank written
+as a string, a string outside the deck's rank set, and cross-enum
+comparisons.
+
+**Movement and reveal filters** are ordinary predicates with `card` bound
+per candidate (`move chosen 6 cards from hand[p] where is_pref_discard(card)
+to …`), the same `where` the card queries use.
+
+**`repeat until` is the one iteration lexeme**, as a statement and as the
+phase qualifier (`phase hand_sequence repeat until …`) — one lexeme is worth
+more than the third-person `s`.
+
+The rulings here were produced by the corpus-wide register analysis in
+[design-notes/lexical-cleanup.md](design-notes/lexical-cleanup.md), which
+records the rejected alternatives (explicit binders, the `count`/`max`/`min`
+comprehension spellings, noun sugar for counting) and the evidence.
 
 ## Named functions
 
@@ -1674,7 +1754,7 @@ binder is the fixed name `player` (the canonical seating role), not a
 user-chosen variable — these are filters over a single known ring, not
 general comprehensions, so there is nothing to name.
 
-Like the quantifier (`any/all player p: …`) and comprehension (`sum over
+Like the quantifiers (`any player where …`) and aggregations (`sum of … over
 … as …`) forms, a player query sits at the top of the expression grammar:
 its `where <pred>` body extends as far right as possible, giving one
 canonical parse. To compare a count, parenthesize it: `(number of players
@@ -1745,8 +1825,8 @@ mechanics need (one integer, two channels, a list of pots, etc.);
 no shared `ScoreStructure` type.
 
 **Per-card point values are inline expressions or per-game
-helpers.** Hearts scores `if card.suit == hearts then 1 elif
-card == queen_of_spades then 13 else 0` inline; Pinochle scores
+helpers.** Hearts scores `if card.suit is hearts then 1 elif
+card is Q of spades then 13 else 0` inline; Pinochle scores
 `if card.rank in [A, 10, K] then 10 else 0` inline; Tichu mixes
 specials and ranks. A declarative rank-keyed `counters: { ... }`
 block on the card definition was considered but only cleanly
@@ -1804,7 +1884,7 @@ moment the event fires. Common idioms:
   something < 100." A value already above the threshold doesn't
   re-fire on every event; the predicate is true only on the
   transition.
-- State equality: `running_total == 31 after the play`.
+- State equality: `running_total is 31 after the play`.
 - Derived properties: `play_pile.suffix_same_rank_count >= 2`.
 
 Triggered components are independent of `apply_components:`. They
@@ -1814,7 +1894,7 @@ batched components and its triggered components; both contribute
 to the same accumulated score.
 
 When a triggered component would cause a game-ending threshold
-(Cribbage's 121, or any termination predicate), the `repeats until`
+(Cribbage's 121, or any termination predicate), the `repeat until`
 clause on the enclosing loop fires immediately upon the
 triggered-component delta being applied. See "Loop termination
 semantics" above.
@@ -1888,7 +1968,7 @@ if result.tricks_won[t] >= non_nil_bid:           // threshold
 
 ```
 // Oh Hell (TricksAndExactBonus):
-if result.tricks_won[p] == result.bid[p]:         // exact
+if result.tricks_won[p] is result.bid[p]:         // exact
   delta[p] += 10
 ```
 
@@ -1928,13 +2008,13 @@ zone-level or move-level constructs:
 
 ```
 play_source_for(actor) =                // which zone the move comes from
-  if actor == declarer.partner and dummy_revealed:
+  if actor is declarer.partner and dummy_revealed:
     dummy_hand[actor]
   else:
     private_hand[actor]
 
 chooser_for(actor) =                    // who decides what move it is
-  if actor == declarer.partner and dummy_revealed:
+  if actor is declarer.partner and dummy_revealed:
     declarer
   else:
     actor
@@ -2079,7 +2159,7 @@ the commit step; the choice of whether to commit is elsewhere.
 **Hearts passing.** The passing phase reads as:
 
 ```
-phase passing when pass_direction != hold {
+phase passing when pass_direction is not hold {
   active_rules: [PassExactlyThreeCards]
   legal_moves:  [transfer_between_hands]
 
@@ -2175,7 +2255,7 @@ The body does *not* admit:
   imply otherwise). Reserved until a real game forces it.
 - **`if` branches** — same shape: branching effects in a batched
   context raise "which branch participates" questions. Hearts'
-  passing skips passing entirely when `pass_direction == hold`
+  passing skips passing entirely when `pass_direction is hold`
   via a phase-level `when:` guard rather than an in-block
   branch. Reserved until forced.
 - **`let` bindings** — the body's expressions are short enough

@@ -7,6 +7,10 @@
 
 start: top_item+
 
+// Alternate start for the standard-library rules fragment
+// (cardlang/stdlib/rules.cardlang): rule definitions with no enclosing game.
+library_rules: rule_def+
+
 ?top_item: game
          | rule_def
          | move_type_def
@@ -90,7 +94,9 @@ phase: "phase" NAME [phase_outcome] [phase_qualifier] "{" phase_item* "}"
 // A phase that can resolve more than one way declares its variant outcome type
 // here; the enclosing structure pattern-matches on it with `produces:`.
 phase_outcome: "->" "outcome" variant_set
-phase_qualifier: "repeats" "until" expr   -> phase_repeats
+// One lexeme for iteration everywhere: the phase qualifier matches the
+// statement form (`repeat until`), not third-person `repeats`.
+phase_qualifier: "repeat" "until" expr    -> phase_repeats
                | "when" expr              -> phase_when
 
 ?phase_item: state_block
@@ -102,17 +108,22 @@ phase_qualifier: "repeats" "until" expr   -> phase_repeats
            | phase
            | statement
 
-// Loop lifecycle hooks on a `repeats until` phase: before_each runs at the
+// Loop lifecycle hooks on a `repeat until` phase: before_each runs at the
 // start of every iteration, after_each at the end — guaranteed even when the
 // loop terminates mid-iteration (decisions.md "Loop lifecycle").
 before_each: "before_each" "{" statement* "}"
 after_each: "after_each" "{" statement* "}"
 
 active_rules: "active_rules" ":" "[" [rule_ref ("," rule_ref)*] "]"
-rule_ref: "+" NAME        -> rule_add
-        | "-" NAME        -> rule_remove
-        | "override" NAME -> rule_override
-        | NAME            -> rule_plain
+// A reference may pass arguments to a parameterized rule (library or local):
+// `NoLeadingSuitUntilBroken(hearts)`. The remove/override forms name a rule,
+// never instantiate one, so they take no argument list (grammatically
+// inexpressible rather than rejected).
+rule_ref: "+" NAME [rule_args]   -> rule_add
+        | "-" NAME               -> rule_remove
+        | "override" NAME        -> rule_override
+        | NAME [rule_args]       -> rule_plain
+rule_args: "(" expr ("," expr)* ")"
 
 legal_moves: "legal_moves" ":" "[" [NAME ("," NAME)*] "]"
 
@@ -146,7 +157,7 @@ move_event: NAME ["where" expr]
 
 // Imperative phase control flow, used in `produces:` arms (decisions.md "Typed
 // phase outcomes"): jump forward to a named sibling phase, or abort the rest of
-// this hand and continue the enclosing `repeats until` hand loop.
+// this hand and continue the enclosing `repeat until` hand loop.
 continue_to: "continue" "to" NAME
 skip_stmt: "skip" "to" "next" "hand"
 
@@ -176,8 +187,9 @@ MOVE_VERB: "deal" | "transfer" | "move" | "burn" | "muck" | "draw"
 // remainder is spread (Getaway deals the whole deck across 3–8 hands).
 dist_clause: "as-equally-as-possible"  -> dist_equally
 // Narrows the source pool to the cards matching a predicate before the
-// selection draws from it (a lambda, like `.where` — the source-order subset,
-// not a reordering). Only the `from` form takes it (any destination shape).
+// selection draws from it (an ordinary expr with `card` bound per candidate,
+// like the card query's `where` — the source-order subset, not a
+// reordering). Only the `from` form takes it (any destination shape).
 where_clause: "where" expr
 selection: [select_mode] amount NAME
 select_mode: "chosen" -> sel_chosen
@@ -196,7 +208,7 @@ vis_clause: "," "visibility" "=" expr
 // formalized. `reveal` publicly identifies one matching card without moving
 // it — the card stays in its zone; see cardlang/runtime/execute.py.
 epistemic_op: "shuffle" zone_expr                                    -> shuffle_op
-            | "reveal" "one" "card" "from" zone_expr ["where" lambda] -> reveal_op
+            | "reveal" "one" "card" "from" zone_expr ["where" expr]   -> reveal_op
 
 rotate_stmt: "rotate" NAME "through" "[" name_list "]"     // state-cycle (orthogonal)
 name_list: NAME ("," NAME)*
@@ -279,7 +291,12 @@ variant_case: NAME ["(" payload_type ("," payload_type)* ")"]
 payload_type: NAME      -> payload_plain
             | NAME "?"   -> payload_optional
 
-rule_def: "rule" NAME "{" rule_clause* "}"
+// A rule may declare parameters (`rule NoLeadingSuitUntilBroken(suit: Suit)`),
+// making it a template: an `active_rules` reference instantiates it by
+// substituting the arguments into the body at resolve time. Parameter domains
+// are the enumerable payload types; the resolver gates which are supported.
+rule_def: "rule" NAME [rule_params] "{" rule_clause* "}"
+rule_params: "(" move_param ("," move_param)* ")"
 ?rule_clause: constrains
             | applies_when
             | demands
@@ -311,9 +328,9 @@ if_impossible: "if_impossible" ":" expr
 
 ?expr: quantifier
      | if_expr
-     | comprehension
+     | agg_query
      | player_query
-     | lambda
+     | card_query
      | or_expr
 
 // Queries over the player ring. Like the quantifier/comprehension forms, these
@@ -324,15 +341,35 @@ player_query: "players" "where" expr              -> players_where
             | "the" "player" "where" expr         -> the_player_where
             | "number" "of" "players" "where" expr -> number_players_where
 
-// A lambda's body extends as far right as possible, so it sits at the top
-// of the expression grammar rather than among the primaries.
-lambda: NAME "=>" expr   -> lambda_expr
+// Queries over a card zone, the card mirror of the player queries: the
+// predicate is evaluated per card with `card` bound to the candidate. The
+// bare count form (`number of cards in <zone>`) is the zone-size idiom.
+card_query: "cards" "in" zone_expr "where" expr                  -> cq_set
+          | "number" "of" "cards" "in" zone_expr ["where" expr]  -> cq_count
+          | "any" "card" "in" zone_expr "where" expr             -> cq_any
+          | "all" "cards" "in" zone_expr "where" expr            -> cq_all
 
-quantifier: "any" NAME NAME ":" expr  -> exists
-          | "all" NAME NAME ":" expr  -> forall
 
-comprehension: AGG "over" zone_expr "as" NAME ":" expr
-AGG: "sum" | "count" | "max" | "min"
+// Boolean quantifiers, binder implicit (`player`/`team`/`suit`/`rank` is
+// bound per candidate, like `player` in the player queries). Card
+// quantification is the card_query `any card in … where` form above.
+quantifier: "any" "player" "where" expr  -> q_any_player
+          | "all" "players" "where" expr -> q_all_player
+          | "any" "team" "where" expr    -> q_any_team
+          | "all" "teams" "where" expr   -> q_all_team
+          | "any" "suit" "where" expr    -> q_any_suit
+          | "all" "suits" "where" expr   -> q_all_suit
+          | "any" "rank" "where" expr    -> q_any_rank
+          | "all" "ranks" "where" expr   -> q_all_rank
+
+
+// Aggregations in the English register, binder implicitly `card`. The order
+// aggregators carry a MANDATORY empty-set default (`or <default>`), so an
+// empty (or emptied-by-`where`) zone can never crash the aggregation; the
+// default sits below `or_expr` so the `or` unambiguously ends the predicate
+// (parenthesize a compound default).
+agg_query: "sum" "of" expr "over" "cards" "in" zone_expr ["where" expr]                 -> agg_sum
+         | RANK_DIR expr "over" "cards" "in" zone_expr ["where" expr] "or" and_expr     -> agg_order
 
 if_expr: "if" expr "then" expr elif_clause* "else" expr
 elif_clause: "elif" expr "then" expr
@@ -341,14 +378,19 @@ elif_clause: "elif" expr "then" expr
         | and_expr
 ?and_expr: and_expr "and" not_expr -> and_op
          | not_expr
-?not_expr: "not" not_expr  -> logical_not
+?not_expr: _NOT_KW not_expr  -> logical_not
          | comparison
 
-?comparison: sum "is" "none"         -> is_none
-           | sum "is" "not" "none"   -> is_not_none
-           | sum "is" "empty"        -> is_empty
-           | sum "is" "not" "empty"  -> is_not_empty
-           | sum comp_op sum         -> compare
+// Equality is the word `is` / `is not` (one operator — `a is not b` never
+// parses as `a is (not b)`, since `not` sits above the sum level). The
+// right-hand keywords `none` and `empty` stay a closed set, dispatched by
+// the builder to the absence/emptiness checks; any other operand is plain
+// equality. `==`/`!=` are retired: the builder rejects them with the
+// replacement spelling.
+?comparison: sum _IS_KW _NOT_KW sum    -> compare_is_not
+           | sum _IS_KW sum           -> compare_is
+           | sum comp_op sum        -> compare
+           | sum "in" sum           -> membership
            | sum
 comp_op: COMP_OP
 COMP_OP: "==" | "!=" | ">=" | "<=" | ">" | "<"
@@ -362,8 +404,7 @@ COMP_OP: "==" | "!=" | ">=" | "<=" | ">" | "<"
 ?factor: factor "*" postfix -> mul
        | postfix
 
-?postfix: postfix "." NAME "(" [arg_list] ")"  -> method_call
-        | postfix "." NAME                     -> member
+?postfix: postfix "." NAME                     -> member
         | postfix index_expr                   -> subscript
         | primary
 
@@ -375,10 +416,16 @@ arg_list: arg ("," arg)*
         | choose_expr
         | call
         | struct_lit
+        | list_lit
         | INT               -> int_lit
+        | "-" INT           -> neg_int_lit
         | STRING            -> str_lit
         | NAME              -> name_ref
         | "(" expr ")"
+
+// A literal collection, for membership tests (`card.suit in [hearts, spades]`).
+// At least one element: an empty literal has no use and no element type.
+list_lit: "[" expr ("," expr)* "]"
 
 // `TypeName { field: expr, … }` — constructs a user-defined struct value. At
 // least one field is required, keeping it distinct from a statement block in
@@ -417,12 +464,30 @@ zone_expr: NAME [index_expr]
 
 // Keywords that sit where a NAME is also grammatical, and never name a value,
 // are excluded from NAME to keep them unambiguous: `always` (applies_when
-// wildcard) and the quantity words `all` / `one`. `none`, by contrast, is a
-// domain value (the no-pass Direction, an optional's null) and stays an
-// ordinary name_ref the resolver interprets. Extend this guard only for
-// keywords that never name a value; statement-leading keywords (game, phase, …)
-// need no guard.
-NAME: /(?!(?:always|all|one)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+// wildcard), the quantity words `all` / `one`, and `not` / `is` / `number`
+// (the equality and card-query keywords below — without the exclusion, e.g.
+// `number of cards in <zone>` is also derivable as the card literal `number
+// of cards` followed by membership). `none`, by contrast, is a domain value
+// (the no-pass Direction, an optional's null) and stays an ordinary name_ref
+// the resolver interprets. Extend this guard only for keywords that never
+// name a value; statement-leading keywords (game, phase, …) need no guard.
+//
+// `is` and `not` additionally get their own anchored terminals rather than
+// staying inline string literals in the productions above: an inline "is"
+// can also match as a prefix of a longer identifier (`is_re` lexing as `is`
+// + `_re`), which is ambiguous under Earley even with `is` excluded from
+// NAME. The negative lookahead `(?![A-Za-z0-9_])` pins the match to a whole
+// word, so `is_re` and `not_yet` still lex as single NAMEs. The leading
+// underscore keeps Lark's auto-filtering of inline literals from the tree.
+// Every inline occurrence of "not"/"is" in the productions above must use
+// these terminals, not the bare string literal — `compare_is_not`'s "not"
+// sits in exactly the same identifier-split trap (`sum is not_ready` was
+// ambiguous between `not` + name_ref `_ready` and a single name_ref
+// `not_ready`) even though it is a second word inside an existing keyword
+// pair, not a standalone token.
+_IS_KW: "is" /(?![A-Za-z0-9_])/
+_NOT_KW: "not" /(?![A-Za-z0-9_])/
+NAME: /(?!(?:always|all|one|not|is|number)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 STRING: /"[^"]*"/
 
 LINE_COMMENT: /\/\/[^\n]*/

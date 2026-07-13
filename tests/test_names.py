@@ -34,8 +34,9 @@ def test_hearts_name_classifications() -> None:
     assert kinds["outcome"] == "pronoun"
     # (Outcome functions like highest_of_led_suit are now `round` string fields,
     # not bare-name NameRefs, so Hearts no longer carries a "function" ref_kind.)
-    assert kinds["c"] == "local"
-    assert kinds["card"] == "local"
+    assert kinds["p"] == "local"  # the `let base[p]` / `for each player p` binder
+    assert kinds["card"] == "local"  # the card-query/comprehension binder
+    assert kinds["player"] == "local"  # the `any player where ...` binder
 
 
 def _game(state_default: str, type_name: str = "Integer") -> str:
@@ -59,10 +60,10 @@ def test_unresolved_name_errors() -> None:
     assert "unresolved name 'bogusname'" in e.value.diagnostic.message
 
 
-def test_unknown_zone_method_errors() -> None:
+def test_unknown_function_call_errors() -> None:
     with pytest.raises(DiagnosticError) as e:
-        resolve(parse_text(_game("hand.bogus(hand)"), "t.cardlang"))
-    assert "unknown zone method 'bogus'" in e.value.diagnostic.message
+        resolve(parse_text(_game("bogus(hand)"), "t.cardlang"))
+    assert "call to unknown function 'bogus'" in e.value.diagnostic.message
 
 
 def test_bad_card_suit_errors() -> None:

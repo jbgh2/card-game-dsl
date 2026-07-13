@@ -28,6 +28,8 @@ def evaluate(e: n.Expr, ctx: Ctx) -> Any:
             return Card(e.rank, e.suit)
         case n.AllPlayers():
             return list(ctx.rs.seating.players)
+        case n.ListLit():
+            return [evaluate(item, ctx) for item in e.elements]
         case n.Member():
             return _member_eval(e, ctx)
         case n.StructLit():
@@ -41,16 +43,12 @@ def evaluate(e: n.Expr, ctx: Ctx) -> Any:
             if fn is not None:
                 return _user_function(fn, e.args, ctx)
             return stdlib.call(e.func, [evaluate(_pos(a), ctx) for a in e.args], ctx)
-        case n.MethodCall():
-            return _method(e, ctx)
         case n.BinOp():
             return _binop(e, ctx)
         case n.Not():
             return not evaluate(e.operand, ctx)
         case n.IsCheck():
             return _is_check(e, ctx)
-        case n.Lambda():
-            return _closure(e, ctx)
         case n.Quantifier():
             return _quantifier(e, ctx)
         case n.IfExpr():
@@ -59,6 +57,8 @@ def evaluate(e: n.Expr, ctx: Ctx) -> Any:
             return _comprehension(e, ctx)
         case n.PlayerQuery():
             return _player_query(e, ctx)
+        case n.CardQuery():
+            return _card_query(e, ctx)
         case n.Choose():
             return _choose(e, ctx)
         case _ as unreachable:
@@ -108,8 +108,8 @@ def _user_function(fn: n.FunctionDef, args: tuple[n.Arg, ...], ctx: Ctx) -> Any:
     enforced at compile time (resolve rejects those pronouns in a body), so the
     `outcome`/`action` clears here are belt-and-suspenders. `current_player` is
     *inherited*, not cleared: a body may read a bare per-player zone (e.g.
-    `hand.cards_of_suit(...)`), whose family instance resolves through the acting
-    player the caller set."""
+    `cards in hand where card.suit is spades`), whose family instance resolves
+    through the acting player the caller set."""
     values = [evaluate(_pos(a), ctx) for a in args]
     body_ctx = replace(
         ctx,
@@ -207,19 +207,19 @@ def _subscript(e: n.Subscript, ctx: Ctx) -> Any:
     return evaluate(obj, ctx)[index]
 
 
-def _method(e: n.MethodCall, ctx: Ctx) -> Any:
-    receiver = evaluate(e.obj, ctx)
-    assert isinstance(receiver, Zone), f"method '{e.method}' on non-zone {receiver!r}"
-    cards = receiver.cards
-    match e.method:
-        case "where":
-            pred = evaluate(_pos(e.args[0]), ctx)
-            return [c for c in cards if pred(c)]
-        case "cards_of_suit":
-            suit = evaluate(_pos(e.args[0]), ctx)
-            return [c for c in cards if c.suit == suit]
-        case _:
-            raise AssertionError(f"unknown zone method '{e.method}'")
+def _elements(value: Any) -> Any:
+    """The Zone -> ordered-elements coercion shared by every site that
+    accepts either a Zone or an already-evaluated collection: the card-query
+    and comprehension sources, and the right-hand side of `in` (which may
+    hold generic values — suits, ranks — not just cards). A Zone yields its
+    `.cards` list (already a materialized, multi-pass `list`); anything else
+    passes through unchanged, since a `[...]` literal, a nested query or
+    comprehension result, and every other collection-typed expression here
+    already evaluate to a concrete `list`. Callers that need a fresh,
+    independent list (card-query, comprehension) wrap the result in
+    `list(...)` themselves; `in` only needs single-pass membership and uses
+    it as-is."""
+    return value.cards if isinstance(value, Zone) else value
 
 
 def _binop(e: n.BinOp, ctx: Ctx) -> Any:
@@ -250,6 +250,8 @@ def _binop(e: n.BinOp, ctx: Ctx) -> Any:
             return left < right
         case "offset_by":
             return ctx.rs.seating.offset_by(left, right)
+        case "in":
+            return left in _elements(right)
         case _:
             raise AssertionError(f"unknown operator '{e.op}'")
 
@@ -261,18 +263,26 @@ def _is_check(e: n.IsCheck, ctx: Ctx) -> bool:
             return value is None
         case "not_none":
             return value is not None
-        case "empty":
-            assert isinstance(value, Zone)
-            return value.empty
-        case "not_empty":
-            assert isinstance(value, Zone)
-            return not value.empty
+        case "empty" | "not_empty":
+            # typecheck's `_check_is_check` rejects a concrete non-collection
+            # operand statically, but a `TAny`-typed operand (a pronoun
+            # member, an unrefined query result) reaches here unchecked — a
+            # Zone (a singleton/family instance) and a plain `list` (a
+            # CardQuery/PlayerQuery `set` result, a `[...]` literal) are both
+            # legitimate sized collections, so fold `len()` over any of them
+            # rather than assert one shape. A genuinely non-collection value
+            # is a typed runtime error, never a bare assert.
+            if not hasattr(value, "__len__"):
+                neg = "not " if e.kind == "not_empty" else ""
+                raise RuntimeError(
+                    f"`is {neg}empty` expects a zone or collection, got "
+                    f"{value!r} — typecheck should have rejected this "
+                    "statically (a checker gap, not a game bug)"
+                )
+            empty = len(value) == 0
+            return not empty if e.kind == "not_empty" else empty
         case _:
             raise AssertionError(f"unknown is-check '{e.kind}'")
-
-
-def _closure(e: n.Lambda, ctx: Ctx):  # type: ignore[no-untyped-def]
-    return lambda value: evaluate(e.body, ctx.with_local(e.param, value))
 
 
 def _quantifier(e: n.Quantifier, ctx: Ctx) -> bool:
@@ -282,11 +292,22 @@ def _quantifier(e: n.Quantifier, ctx: Ctx) -> bool:
 
 
 def _role_domain(role: str, ctx: Ctx) -> list[Any]:
+    """The runtime domain for one of the closed iteration roles
+    (`cardlang.roles.ROLES`): the players/teams/suits/ranks a `for each
+    <role>`/quantifier binds over. Suits come out in deck order; ranks in
+    `ranking:` order (strongest first) when declared, else deck order
+    (`ctx.rs.suits`/`ctx.rs.ranks`). The one runtime accessor for this
+    registry — `runtime/execute.py`'s `_for_each` imports it rather than
+    re-deriving the suit/rank domains itself."""
     if role == "player":
         return list(ctx.rs.seating.players)
     if role == "team":
         return list(ctx.rs.teams)
-    raise NotImplementedError(f"quantifier role '{role}' not supported yet")
+    if role == "suit":
+        return list(ctx.rs.suits)
+    if role == "rank":
+        return list(ctx.rs.ranks)
+    raise AssertionError(f"unknown quantifier role '{role}' (resolve rejects these)")
 
 
 def _player_query(e: n.PlayerQuery, ctx: Ctx) -> Any:
@@ -309,6 +330,31 @@ def _player_query(e: n.PlayerQuery, ctx: Ctx) -> Any:
             raise AssertionError(f"unknown player-query kind '{e.kind}'")
 
 
+def _card_query(e: n.CardQuery, ctx: Ctx) -> Any:
+    source = evaluate(e.source, ctx)
+    cards = list(_elements(source))
+    if e.pred is None:  # the bare `number of cards in <zone>` size idiom
+        assert e.kind == "count"
+        return len(cards)
+    # `any`/`all` short-circuit over the same card order the eager `set`/
+    # `count` kinds use — predicates are side-effect-free, so stopping early
+    # is semantics-preserving and matters a lot here: library rules like
+    # MustFollowSuit route `any card in hand[p] where …` through this on
+    # every `legal_cards` call.
+    if e.kind == "any":
+        return any(evaluate(e.pred, ctx.with_local("card", c)) for c in cards)
+    if e.kind == "all":
+        return all(evaluate(e.pred, ctx.with_local("card", c)) for c in cards)
+    results = [bool(evaluate(e.pred, ctx.with_local("card", c))) for c in cards]
+    match e.kind:
+        case "set":
+            return [c for c, ok in zip(cards, results) if ok]
+        case "count":
+            return sum(results)
+        case _:
+            raise AssertionError(f"unknown card-query kind '{e.kind}'")
+
+
 def _if_expr(e: n.IfExpr, ctx: Ctx) -> Any:
     if evaluate(e.cond, ctx):
         return evaluate(e.then, ctx)
@@ -320,16 +366,26 @@ def _if_expr(e: n.IfExpr, ctx: Ctx) -> Any:
 
 def _comprehension(e: n.Comprehension, ctx: Ctx) -> Any:
     source = evaluate(e.source, ctx)
-    elements = source.cards if isinstance(source, Zone) else list(source)
+    elements = list(_elements(source))
+    if e.filter is not None:
+        elements = [
+            x
+            for x in elements
+            if evaluate(e.filter, ctx.with_local(e.binder, x))
+        ]
     values = [evaluate(e.body, ctx.with_local(e.binder, x)) for x in elements]
     match e.agg:
         case "sum":
             return sum(values)
-        case "count":
-            return len(values)
         case "max":
+            if not values:
+                assert e.default is not None, "grammar makes `or <default>` mandatory"
+                return evaluate(e.default, ctx)
             return max(values)
         case "min":
+            if not values:
+                assert e.default is not None, "grammar makes `or <default>` mandatory"
+                return evaluate(e.default, ctx)
             return min(values)
         case _:
             raise AssertionError(f"unknown aggregator '{e.agg}'")

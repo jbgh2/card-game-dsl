@@ -131,7 +131,7 @@
           "kind": "quantifier",
           "quant": "any",
           "role": "team",
-          "binder": "t",
+          "binder": "team",
           "body": {
             "kind": "binop",
             "op": ">=",
@@ -144,7 +144,7 @@
               },
               "index": {
                 "kind": "name",
-                "name": "t",
+                "name": "team",
                 "ref": "local"
               }
             },
@@ -633,7 +633,7 @@
                 "kind": "quantifier",
                 "quant": "all",
                 "role": "player",
-                "binder": "p",
+                "binder": "player",
                 "body": {
                   "kind": "is_check",
                   "check": "empty",
@@ -646,7 +646,7 @@
                     },
                     "index": {
                       "kind": "name",
-                      "name": "p",
+                      "name": "player",
                       "ref": "local"
                     }
                   }
@@ -1578,15 +1578,26 @@
         "kind": "demands",
         "form": "cards",
         "expr": {
-          "kind": "method_call",
-          "obj": {
+          "kind": "card_query",
+          "query": "set",
+          "source": {
             "kind": "name",
             "name": "hand",
             "ref": "zone"
           },
-          "method": "cards_of_suit",
-          "args": [
-            {
+          "pred": {
+            "kind": "binop",
+            "op": "==",
+            "left": {
+              "kind": "member",
+              "obj": {
+                "kind": "name",
+                "name": "card",
+                "ref": "local"
+              },
+              "field": "suit"
+            },
+            "right": {
               "kind": "member",
               "obj": {
                 "kind": "name",
@@ -1595,7 +1606,7 @@
               },
               "field": "led_suit"
             }
-          ]
+          }
         }
       },
       "if_impossible": {

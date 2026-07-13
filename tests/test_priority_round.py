@@ -33,7 +33,7 @@ game G {
   phase run {
     round offering [step] from 0 over players where acted_count[player] < 2
           order priority
-          until (number of players where acted_count[player] < 2) == 0
+          until (number of players where acted_count[player] < 2) is 0
   }
   winner: highest acted_count
 }

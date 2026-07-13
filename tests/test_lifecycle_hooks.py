@@ -19,7 +19,7 @@ game L {
   cards: standard52
   zones { deck : Deck }
   state { score[player] : Integer = 0 }
-  phase loop repeats until (any player p: score[p] >= 3) {
+  phase loop repeat until (any player where score[player] >= 3) {
     before_each { }
     after_each {
       for each player p: score[p] += 1

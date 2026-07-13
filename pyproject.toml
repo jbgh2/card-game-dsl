@@ -31,7 +31,7 @@ cardlang = "cardlang.cli:main"
 include = ["cardlang*"]
 
 [tool.setuptools.package-data]
-cardlang = ["grammar/*.lark"]
+cardlang = ["grammar/*.lark", "stdlib/*.cardlang"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

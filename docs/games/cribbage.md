@@ -59,7 +59,7 @@ game Cribbage {
     score[player] : Integer = 0
   }
 
-  phase hand_sequence repeats until (any player p: score[p] >= 121) {
+  phase hand_sequence repeat until (any player where score[player] >= 121) {
     state {
       dealer : Player = 0
     }
@@ -68,7 +68,7 @@ game Cribbage {
       move all cards to deck
       shuffle deck
       deal 6 cards from deck to each hand
-      dealer := the player where player != dealer   // the deal alternates
+      dealer := the player where player is not dealer   // the deal alternates
     }
 
     phase play {
@@ -86,53 +86,53 @@ game Cribbage {
 
       // Cut the starter (top of the shuffled deck). His heels: a Jack scores the dealer 2.
       move one card from deck to starter
-      if (sum over starter as c: if c.rank == "J" then 1 else 0) > 0 {
+      if any card in starter where card.rank is J {
         score[dealer] += 2
       }
       if game_over() { skip to next hand }
 
       // Pegging: the non-dealer leads; forced play while able; a go is silent (no decision).
-      active := the player where player != dealer
-      repeat until (all player p: hand[p] is empty) {
-        for each player p: if p == active {
+      active := the player where player is not dealer
+      repeat until (all players where hand[player] is empty) {
+        for each player p: if p is active {
           if hand[active] is empty {
-            active := the player where player != active
+            active := the player where player is not active
           } else {
-            if (sum over hand[active] as c: if total + peg_value(c) <= 31 then 1 else 0) > 0 {
-              move chosen one card from hand[active] where c => total + peg_value(c) <= 31 to play_pile
-              seq_bits := seq_bits * 2 + (if active == dealer then 1 else 0)
+            if any card in hand[active] where total + peg_value(card) <= 31 {
+              move chosen one card from hand[active] where total + peg_value(card) <= 31 to play_pile
+              seq_bits := seq_bits * 2 + (if active is dealer then 1 else 0)
               seq_len := seq_len + 1
-              total := sum over play_pile as c: peg_value(c)
+              total := sum of peg_value(card) over cards in play_pile
               last_played := active
               gos := 0
-              if total == 15 or total == 31 { score[active] += 2 }
+              if total is 15 or total is 31 { score[active] += 2 }
               if game_over() { skip to next hand }
               score[active] += peg_pair_points()
               if game_over() { skip to next hand }
               score[active] += peg_run_points()
               if game_over() { skip to next hand }
-              if total == 31 {
-                move all cards from play_pile where c => peg_origin_of(c) == dealer to played[dealer]
-                move all cards from play_pile to played[the player where player != dealer]
+              if total is 31 {
+                move all cards from play_pile where peg_origin_of(card) is dealer to played[dealer]
+                move all cards from play_pile to played[the player where player is not dealer]
                 total := 0
                 seq_bits := 0
                 seq_len := 0
               }
-              active := the player where player != active
+              active := the player where player is not active
             } else {
               gos := gos + 1
               if gos >= 2 {
                 score[last_played] += 1          // the go point for the sub-round's last card
-                move all cards from play_pile where c => peg_origin_of(c) == dealer to played[dealer]
-                move all cards from play_pile to played[the player where player != dealer]
+                move all cards from play_pile where peg_origin_of(card) is dealer to played[dealer]
+                move all cards from play_pile to played[the player where player is not dealer]
                 total := 0
                 seq_bits := 0
                 seq_len := 0
                 gos := 0
                 if game_over() { skip to next hand }
-                active := the player where player != last_played
+                active := the player where player is not last_played
               } else {
-                active := the player where player != active
+                active := the player where player is not active
               }
             }
           }
@@ -142,14 +142,14 @@ game Cribbage {
       // loop, clearing the pile, so this close is never the scored-31 case).
       if play_pile is not empty {
         score[last_played] += 1
-        move all cards from play_pile where c => peg_origin_of(c) == dealer to played[dealer]
-        move all cards from play_pile to played[the player where player != dealer]
+        move all cards from play_pile where peg_origin_of(card) is dealer to played[dealer]
+        move all cards from play_pile to played[the player where player is not dealer]
         if game_over() { skip to next hand }
       }
 
       // The show: non-dealer's hand, dealer's hand, then the crib (to the
       // dealer), stopping the instant a player crosses 121.
-      let nondealer = the player where player != dealer
+      let nondealer = the player where player is not dealer
       score[nondealer] += cribbage_show_value(nondealer)
       if game_over() { skip to next hand }
       score[dealer] += cribbage_show_value(dealer)
@@ -165,5 +165,5 @@ game Cribbage {
 // every scoring point inside `phase play` (mirroring the monolith's `add()`
 // gate: once a component crosses 121, no later component in the same hand may
 // score, and no further chooser draw may occur).
-function game_over() = any player p: score[p] >= 121
+function game_over() = any player where score[player] >= 121
 ```

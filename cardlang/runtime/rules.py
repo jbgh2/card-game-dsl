@@ -13,8 +13,8 @@ always playable, never bound by an obligation, offered last).
 from __future__ import annotations
 
 from cardlang.ast import nodes as n
-from cardlang.runtime.evaluate import evaluate
-from cardlang.runtime.state import Ctx, Zone
+from cardlang.runtime.evaluate import _elements, evaluate
+from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Card, Player
 
 
@@ -59,9 +59,10 @@ def legal_cards(player: Player, move_type: str, ctx: Ctx) -> list[Card]:
                 f"'{move_type}' and declares no `if_impossible` fallback"
             )
         else:
-            fallback = evaluate(rule.if_impossible, pctx)  # error(...) raises here
-            if isinstance(fallback, Zone):
-                fallback = fallback.cards  # `if_impossible: hand` — play any card
+            # error(...) raises here; `_elements` is the same Zone -> .cards
+            # coercion evaluate.py centralizes for every Zone-or-collection
+            # site (e.g. `if_impossible: hand` — play any card).
+            fallback = _elements(evaluate(rule.if_impossible, pctx))
             if isinstance(fallback, (list, set, tuple)):
                 result &= set(fallback)
     return [c for c in working if c in result] + [c for c in hand if c in exempt]

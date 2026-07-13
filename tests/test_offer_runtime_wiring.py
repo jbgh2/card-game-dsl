@@ -11,7 +11,7 @@ game G {
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
   state { coins[player] : Integer = 0  rounds : Integer = 0 }
-  phase play repeats until rounds >= 3 {
+  phase play repeat until rounds >= 3 {
     before_each { rounds += 1 }
     for each player p: coins[p] += 1
   }

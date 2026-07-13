@@ -66,6 +66,15 @@ class AllPlayers:
 
 
 @dataclass(frozen=True, slots=True)
+class ListLit:
+    """A literal collection, `[hearts, spades]` — the right-hand side of a
+    membership test. Never empty (the grammar requires one element)."""
+
+    elements: tuple[Expr, ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Member:
     """Field access, e.g. `card.suit`, `state.led_suit`, `action.card`."""
 
@@ -111,16 +120,6 @@ class Call:
 
 
 @dataclass(frozen=True, slots=True)
-class MethodCall:
-    """A method call on a value, e.g. `hand.where(c => …)`."""
-
-    obj: Expr
-    method: str
-    args: tuple[Arg, ...]
-    span: Span | None = None
-
-
-@dataclass(frozen=True, slots=True)
 class NamedArg:
     """A `name = value` argument (named call args)."""
 
@@ -135,8 +134,9 @@ Arg: TypeAlias = "Expr | NamedArg"
 
 @dataclass(frozen=True, slots=True)
 class BinOp:
-    """A binary operator: `or`, `and`, comparison (`==`…), `+`, `-`,
-    `offset_by`. The operator is kept as its surface token."""
+    """A binary operator: `or`, `and`, comparisons, membership `in`, `+`,
+    `-`, `*`, `offset_by`. Equality keeps the internal op tokens `==`/`!=`
+    (built by the surface `is` / `is not`)."""
 
     op: str
     left: Expr
@@ -157,15 +157,6 @@ class IsCheck:
 
     operand: Expr
     kind: str  # "none" | "not_none" | "empty" | "not_empty"
-    span: Span | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class Lambda:
-    """`param => body` — a one-argument function value (zone-query filters)."""
-
-    param: str
-    body: Expr
     span: Span | None = None
 
 
@@ -193,13 +184,37 @@ class IfExpr:
 
 @dataclass(frozen=True, slots=True)
 class Comprehension:
-    """`<agg> over <source> as <binder>: body`, e.g. `sum over captured[p] as
-    card: …`."""
+    """An aggregation over a card zone, binder implicitly `card`:
+    `sum of <body> over cards in <source> [where <filter>]` and
+    `highest/lowest <body> over cards in <source> [where <filter>]
+    or <default>`.
 
-    agg: str  # sum | count | max | min
+    `filter` narrows the elements before `body` is aggregated; `default` is
+    the order aggregators' empty-set value, mandatory in their grammar."""
+
+    agg: str  # sum | max | min
     source: Expr
     binder: str
     body: Expr
+    filter: Expr | None = None
+    default: Expr | None = None
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CardQuery:
+    """A query over a card zone, `pred` evaluated per card with `card` bound
+    to the candidate (the card mirror of `PlayerQuery`):
+
+    - `cards in <zone> where <pred>`             -> the matching cards (`set`)
+    - `number of cards in <zone> [where <pred>]` -> how many match (`count`)
+    - `any card in <zone> where <pred>`          -> does one match (`any`)
+    - `all cards in <zone> where <pred>`         -> do all match (`all`)
+    """
+
+    kind: str  # "set" | "count" | "any" | "all"
+    source: Expr
+    pred: Expr | None  # None only for the bare `count` (zone size)
     span: Span | None = None
 
 
@@ -256,20 +271,20 @@ Expr = (
     | StrLit
     | CardLiteral
     | AllPlayers
+    | ListLit
     | Member
     | Subscript
     | StructLit
     | Call
-    | MethodCall
     | BinOp
     | Not
     | IsCheck
-    | Lambda
     | Quantifier
     | IfExpr
     | Comprehension
     | Choose
     | PlayerQuery
+    | CardQuery
 )
 
 
@@ -305,12 +320,13 @@ class Movement:
 @dataclass(frozen=True, slots=True)
 class EpistemicOp:
     """A prose epistemic operation: `shuffle <zone>` or `reveal one card from
-    <zone> [where <lambda>]`. `filter` is meaningful only for `reveal` (all
-    cards are eligible when it is `None`); `shuffle` never sets it."""
+    <zone> [where <pred>]`. `filter` is meaningful only for `reveal` (all
+    cards are eligible when it is `None`; the predicate binds `card` per
+    candidate); `shuffle` never sets it."""
 
     op: str
     target: Expr
-    filter: Lambda | None = None
+    filter: Expr | None = None
     span: Span | None = None
 
 
@@ -424,7 +440,7 @@ class ContinueTo:
 @dataclass(frozen=True, slots=True)
 class SkipToNextHand:
     """`skip to next hand` — in a `produces:` arm, abort the rest of this hand and
-    continue the enclosing `repeats until` hand loop's next iteration."""
+    continue the enclosing `repeat until` hand loop's next iteration."""
 
     span: Span | None = None
 
@@ -568,10 +584,14 @@ class StateBlock:
 
 @dataclass(frozen=True, slots=True)
 class RuleRef:
-    """An entry in an `active_rules:` list, with its delta operator."""
+    """An entry in an `active_rules:` list, with its delta operator. ``args``
+    instantiates a parameterized rule (library or game-local): the resolver
+    substitutes them into the template body and splices the instance into
+    ``game.rules`` under this reference's name."""
 
     name: str
     op: str  # "plain" | "add" | "remove" | "override"
+    args: tuple[Expr, ...] = ()
     span: Span | None = None
 
 
@@ -622,7 +642,7 @@ class AfterEach:
 
 @dataclass(frozen=True, slots=True)
 class PhaseQualifier:
-    """`repeats until <expr>` or `when <expr>` on a phase header."""
+    """`repeat until <expr>` or `when <expr>` on a phase header."""
 
     kind: str  # "repeats" | "when"
     expr: Expr
@@ -686,6 +706,11 @@ class RuleDef:
     demands: Demands | None
     if_impossible: Expr | None
     exempts: Expr | None = None
+    # Declared parameters make this a template: never active itself, only
+    # instantiated by an `active_rules` reference with arguments. The resolver
+    # consumes templates — post-resolve, every rule in `game.rules` has
+    # `params == ()`.
+    params: tuple[MoveParam, ...] = ()
     span: Span | None = None
 
 
@@ -893,14 +918,13 @@ Node = (
     | FieldInit
     | StructLit
     | Call
-    | MethodCall
     | BinOp
     | Not
     | IsCheck
-    | Lambda
     | Quantifier
     | IfExpr
     | Comprehension
     | Choose
     | PlayerQuery
+    | CardQuery
 )
