@@ -25,7 +25,9 @@ from typing import Callable, Iterator
 
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
-from cardlang.roles import ROLES as _ITERATION_ROLES
+from cardlang.domains import ITERABLE_ROLES as _ITERATION_ROLES
+from cardlang.domains import PARAM_DOMAIN_ORDER, PARAM_DOMAINS as _FIXED_DOMAINS
+from cardlang.domains import SIMULTANEOUS_ROLES
 from cardlang.stdlib.functions import (
     STDLIB_AUCTION_OUTCOMES,
     STDLIB_CALL_FUNCS,
@@ -44,13 +46,19 @@ from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 # Roles a zone may be indexed by or owned by. Grows with the seating model.
 _KNOWN_ROLES = {"player", "team"}
 
-# Roles `for each <role> <binder>` may range over: the seat roles plus the
-# deck's value domains. (Quantifier roles are fixed by their grammar
-# productions; `each … simultaneously` is seat-only — a value domain has no
-# actor to move simultaneously.) Sourced from `cardlang.roles.ROLES`, the one
-# registry also consumed by typecheck's binder typing and the runtime's
-# per-role domain accessor, so the four sites can't drift (imported above as
-# `_ITERATION_ROLES` to keep this module's call sites unchanged).
+# The three domain-registry views this module gates on, all derived from the one
+# table in `cardlang.domains` (which also owns typecheck's binder typing and the
+# runtime's member enumerators, so the sites can't drift):
+#
+# - `_ITERATION_ROLES` — the roles `for each <role> <binder>` may range over
+#   (the registry's `iterable` column). Quantifier roles are fixed by their
+#   grammar productions instead, so they need no set here.
+# - `SIMULTANEOUS_ROLES` — the roles `each <role> simultaneously:` may range
+#   over (the `simultaneous` column): seat domains only, since a value domain
+#   has no actor to move simultaneously.
+# - `_FIXED_DOMAINS` / `PARAM_DOMAIN_ORDER` — the statically enumerable
+#   move-parameter domains (the union of the rows' `param_domains`), as a set
+#   for the membership gate and as a sequence for the diagnostic that lists them.
 
 # The magic namespaces a bare name may resolve to.
 _PRONOUNS = frozenset({"state", "action", "outcome", "active_rules", "actor"})
@@ -1447,15 +1455,19 @@ def _reaches(start: str, target: str, calls: dict[str, set[str]]) -> bool:
 
 
 # The closed set of statically enumerable move-parameter domains (decisions.md
-# "Surface totality"), matched by exact string — not by stripping a trailing
-# `?` — because only `Suit?` has a real nullable enumeration (`enumerate_domain`
-# appends `None` in the `Suit` branch only). `Rank?`/`Player?` parse (payload
-# types are generically optional-able) but have no such enumeration, so they
-# fall through to the "unsupported domain" branch below rather than being
-# silently accepted and then ignored at runtime. `Card` is deliberately absent
-# from this set: it is state-dependent (the live hand), allowed only as a
-# move's sole parameter, and checked separately below.
-_FIXED_DOMAINS = frozenset({"Suit", "Suit?", "Rank", "Player"})
+# "Surface totality") is `cardlang.domains.PARAM_DOMAINS` — the union of the
+# registry rows' `param_domains`, imported above as `_FIXED_DOMAINS`. It is
+# matched by exact string, not by stripping a trailing `?`: only `Suit?` is
+# listed by a row, so only it has a real nullable enumeration. `Rank?`/`Player?`
+# parse (payload types are generically optional-able) but no row admits them, so
+# they fall through to the "unsupported domain" branch below rather than being
+# silently accepted and then ignored at runtime. `Card` is deliberately not a
+# registry row at all (state-dependent — the live hand), so it is absent from
+# this set and checked separately below.
+#
+# The one list of legal spellings the diagnostic names, derived from the same
+# rows in enumeration order so a new domain row cannot leave the message stale.
+_LEGAL_PARAM_DOMAINS = f"{', '.join(PARAM_DOMAIN_ORDER)}, or Card"
 
 
 def _check_move_params(
@@ -1507,7 +1519,7 @@ def _check_move_params(
         elif t not in _FIXED_DOMAINS and t != "Card":
             bag.error(
                 f"move '{mt.name}' has unsupported parameter domain '{t}' "
-                f"(expected Suit, Suit?, Rank, Player, or Card)",
+                f"(expected {_LEGAL_PARAM_DOMAINS})",
                 span,
             )
         # Exact string, matching `_FIXED_DOMAINS`'s own convention (never by
@@ -1653,10 +1665,15 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"{', '.join(sorted(_ITERATION_ROLES))})",
                     nd.span,
                 )
-            case n.EachSimultaneous() if nd.role != "player":
+            case n.EachSimultaneous() if nd.role not in SIMULTANEOUS_ROLES:
+                # The registry's `simultaneous` column, not a bare `!= "player"`:
+                # the roles that admit a simultaneous block are exactly the seat
+                # domains (a value domain has no actor to move simultaneously),
+                # and both the gate and the message it prints come from the rows.
                 bag.error(
                     f"`each {nd.role} simultaneously` is not runnable — "
-                    f"simultaneous moves are per player",
+                    f"simultaneous moves are per "
+                    f"{' or '.join(sorted(SIMULTANEOUS_ROLES))}",
                     nd.span,
                 )
             case n.CardLiteral():

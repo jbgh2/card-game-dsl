@@ -281,6 +281,31 @@ Things we have noted but consciously not designed yet:
   it implicitly (a variant adds/removes rules and phases from a base game)
   but doesn't have explicit syntax for it. Worth revisiting after Pinochle.
 
+- **Quantifier productions are not registry-derived.** The quantifiable-domain
+  registry (`cardlang/domains.py`) is the one table behind binder typing,
+  iteration, actorhood, member enumeration, and the move-parameter/action-space
+  domains: a new domain row arrives with every one of those *semantic* columns
+  already green. The **grammar surface does not follow**. `cardlang.lark` still
+  hardcodes the 8 quantifier productions (`any player where` / `all suits where`
+  / …) and the player/card query families as literal nouns, so a 5th row would
+  type, iterate, bind and enumerate correctly and still have no `any <noun>
+  where` production. The wall is loud (a syntax error on the unknown noun, not a
+  silent acceptance), so this is a scope limit rather than a defect — but until
+  the productions are generated from the registry, "a new domain registers
+  itself" is true of the semantics and false of the syntax. Ledger:
+  tests/test_domain_registry.py.
+
+- **`each … simultaneously` body shape is unchecked.** The *domain* gate on
+  `each <role> simultaneously:` is total (the registry's `simultaneous` column;
+  a value domain is rejected with a diagnostic). The *body* gate is missing:
+  `each player simultaneously: marker[0] += 1`, or a body that is a plain `move
+  one card …` rather than a `move chosen …`, passes resolve and typecheck and
+  then dies on a bare `assert` in `runtime/execute.py::_pass_selection`. Wrong
+  failure currency — a checker diagnostic belongs where a bare assert is today
+  (decisions.md "Surface totality"). The form's runtime only implements the
+  chosen-movement body (decisions.md "Simultaneous moves"), so the fix is a
+  resolve wall naming the one legal body shape, not new runtime behaviour.
+
 ## Suggested next steps, in order
 
 [open-questions/_index.md](open-questions/_index.md) orders the open

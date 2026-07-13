@@ -10,8 +10,9 @@ from __future__ import annotations
 from typing import Any, Callable, assert_never
 
 from cardlang.ast import nodes as n
+from cardlang.domains import binds_actor, role_members
 from cardlang.runtime import mechanics, observe
-from cardlang.runtime.evaluate import _role_domain, evaluate
+from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, Zone, _ContinueTo, _ProduceSignal, _SkipHand
 from cardlang.runtime.values import Card, Player
 
@@ -336,22 +337,20 @@ def _apply(op: str, current: Any, rhs: Any) -> Any:
 
 
 def _for_each(stmt: n.ForEach, ctx: Ctx) -> None:
-    if stmt.role == "team":
-        for team in ctx.rs.teams:
-            execute(stmt.body, ctx.with_local(stmt.binder, team))
-        return
-    if stmt.role in ("suit", "rank"):
-        # Value domains carry no actor: the binder is a bare enum value.
-        # `_role_domain` (runtime/evaluate.py) is the one runtime accessor
-        # for the closed iteration-role registry (`cardlang.roles.ROLES`).
-        for value in _role_domain(stmt.role, ctx):
-            execute(stmt.body, ctx.with_local(stmt.binder, value))
-        return
-    assert stmt.role == "player"  # resolve rejects anything else
-    # The bound player is also the acting player for the body, so a decision
-    # made inside (e.g. `bid[p] := choose …`) knows who is choosing.
-    for player in ctx.rs.seating.players:
-        execute(stmt.body, ctx.with_local(stmt.binder, player).acting_as(player))
+    """Run the body once per member of the role's domain — a walk of the
+    quantifiable-domain registry (`cardlang/domains.py`), not a per-role
+    if-chain. `role_members` gives the members in the registry's iteration
+    order, and the seat/value asymmetry is the `binds_actor` column: a SEAT
+    domain's member IS an actor, so the body also runs `acting_as(member)` and a
+    decision inside it (`bid[p] := choose …`) knows who is choosing; a VALUE
+    domain's member is a bare enum value and carries no actor. A new domain row
+    therefore arrives here already implemented."""
+    actor_bound = binds_actor(stmt.role)  # resolve rejects roles outside the registry
+    for member in role_members(stmt.role, ctx):
+        body_ctx = ctx.with_local(stmt.binder, member)
+        if actor_bound:
+            body_ctx = body_ctx.acting_as(member)
+        execute(stmt.body, body_ctx)
 
 
 def _offer(stmt: n.Offer, ctx: Ctx) -> None:
