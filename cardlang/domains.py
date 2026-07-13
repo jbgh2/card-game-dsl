@@ -90,16 +90,7 @@ class DomainSources:
     suits: Sequence[Any]
     ranks: Sequence[str]
     players: Sequence[int]
-
-
-def _no_static_domain(_: DomainSources) -> list[Any]:
-    """The `static_members` of a domain with no move-parameter spelling: a wall,
-    not an empty list. `team` is quantifiable and iterable but is not a declarable
-    parameter domain (its `param_domains` is empty, so resolve rejects `t: Team`
-    before this could be reached) — returning `[]` here would let a future
-    `Team`-parameterized move enumerate zero candidates and die mid-decision
-    instead of failing at the table."""
-    raise NotImplementedError("this domain has no statically enumerable move-parameter spelling")
+    teams: Sequence[Any] = ()
 
 
 @dataclass(frozen=True)
@@ -155,7 +146,7 @@ DOMAINS: tuple[Domain, ...] = (
         simultaneous=False,
         param_domains=(),
         members=lambda ctx: list(ctx.rs.teams),
-        static_members=_no_static_domain,
+        static_members=lambda src: list(src.teams),
     ),
     Domain(
         id="suit",
@@ -228,6 +219,19 @@ def role_members(role: str, ctx: "Ctx") -> list[Any]:
     if row is None:
         raise AssertionError(f"unknown quantifier role '{role}' (resolve rejects these)")
     return row.members(ctx)
+
+
+def role_static_members(role: str, sources: DomainSources) -> list[Any]:
+    """A role's members at DECLARATION time — what a static analysis can know about
+    `for each <role>` without running the game. The deck-capacity gate is the
+    consumer: it must know how many times a loop body runs, and it used to assume
+    "players, or once" — so `for each suit s: deal 15 cards …` counted as ONE
+    iteration, demanded 4x what the gate checked, passed, and died mid-deal on a
+    bare ValueError. Reading the row instead makes that count a fact of the table."""
+    row = BY_ID.get(role)
+    if row is None:
+        raise AssertionError(f"unknown role '{role}' (resolve rejects these)")
+    return row.static_members(sources)
 
 
 def enumerate_domain(type_name: str, sources: DomainSources) -> list[Any]:

@@ -12,6 +12,7 @@ from typing import Any, assert_never
 
 from cardlang.ast import nodes as n
 from cardlang.domains import role_members
+from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
 from cardlang.runtime import observe, stdlib
 from cardlang.runtime.state import Ctx, Move, StructValue, Zone
 from cardlang.runtime.values import Card
@@ -197,14 +198,24 @@ def _member(obj: Any, field: str) -> Any:
         return obj.fields[field]
     if isinstance(obj, dict):
         if field not in obj:
-            # The round-state accumulator. Typecheck rejects any field a round does
-            # not publish (stdlib/round_state.py), so this is unreachable from
-            # checked DSL — but a bare KeyError is the wrong failure currency for
-            # the one path that could still reach it (a form whose `init` drifted
-            # from the registry), and it was how a typo used to present.
-            known = ", ".join(sorted(obj)) or "nothing"
-            raise AssertionError(
-                f"round state has no field '{field}' (this round published: {known})"
+            # REACHABLE from checked DSL, and deliberately so: the checker validates
+            # `state.<field>` against the UNION of every form's published set, because
+            # a reference is not statically attached to a form (a library rule is
+            # activated in context). So a trick game CAN name a climb-published field
+            # and reach here. That makes this a game-description error — the currency
+            # the runtime uses for "the description asked for something impossible at
+            # play time" — not a compiler bug, and not a bare KeyError.
+            #
+            # The message lists only what this form PUBLISHES, never the raw
+            # accumulator: the accumulator also holds the form's working memory
+            # (`idx`, `order`, …), and naming those here would advertise, in the
+            # engine's own voice, the exact spellings the checker rejects.
+            published = sorted(k for k in obj if k in ROUND_STATE_FIELDS)
+            raise RuntimeError(
+                f"this round publishes no `{field}` — it publishes "
+                f"{', '.join(f'`{k}`' for k in published) or 'nothing'}. "
+                f"`state.` reads the round that is actually running, and the checker "
+                f"can only validate the field against every form's published set"
             )
         return obj[field]
     raise AssertionError(f"cannot read field '{field}' of {obj!r}")

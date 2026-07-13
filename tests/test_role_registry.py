@@ -172,3 +172,30 @@ def test_the_two_namespaces_are_one_table() -> None:
         assert len(owner) == 1, f"{spelling!r} is claimed by {len(owner)} rows"
         assert spelling.rstrip("?") == owner[0].type_name
         assert owner[0].type_name.lower() == owner[0].id
+
+
+def test_a_rows_type_name_is_a_declarable_type_with_the_same_type() -> None:
+    """The last unjoined axis of the "two namespaces are one table" refactor.
+
+    `role_type(row.id)` gives a binder its type from the registry; a MOVE PARAMETER
+    of the same domain is typed independently, by `type_from_name(row.type_name)`
+    against typecheck's own `_SCALAR_TYPES`/`_ENUM_TYPES`. Two maps of one fact. They
+    agree today, and nothing said they had to — and `type_from_name` falls back to
+    `TAny` for an unknown name, so a fifth row whose `type_name` was not also a
+    declarable type would make `move_type m(x : Color)` pass resolve (the domain is
+    in the table) and then type as `Any`, taking every equality and ordering wall
+    dark on that parameter. Silently.
+
+    Two sites, no pin, is the finding — even while they agree."""
+    from cardlang.typecheck import KNOWN_TYPE_NAMES, type_from_name
+
+    for row in DOMAINS:
+        assert row.type_name in KNOWN_TYPE_NAMES, (
+            f"domain row '{row.id}' declares type_name '{row.type_name}', which is "
+            f"not a declarable type — a move parameter of it would type as Any"
+        )
+        assert type_from_name(row.type_name, False, {}) == row.binder_type, (
+            f"domain row '{row.id}': the binder types as {row.binder_type} but a "
+            f"parameter of '{row.type_name}' types as "
+            f"{type_from_name(row.type_name, False, {})}"
+        )

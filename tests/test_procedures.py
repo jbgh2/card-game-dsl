@@ -37,10 +37,15 @@ procedures", "Surface totality", "Closed-domain completeness").
                 C — exhaustive: all 10 sequence sites and both single-statement
                     slots are exercised; the slots are probed at body length 1
                     (splices) and >1 (walled).
-                Capture — all three members walled and tested: a body binder
-                    shadowing a parameter NAME; a parameter read under a construct
-                    that rebinds the actor CONTEXT; a body binder capturing a free
-                    local in an ARGUMENT.
+                Hygiene — closed BY CONSTRUCTION, not by walls, and each former
+                    defect is pinned as a behaviour: an argument is evaluated once
+                    in the caller's context (so one written decision stays one
+                    decision; an unused parameter still evaluates its argument; an
+                    argument is not re-read after the body mutates it; an argument
+                    naming the actor survives an actor-rebinding body), and the body
+                    runs in a block (so its bindings do not leak into the caller).
+                    The single remaining wall — a body binder shadowing a PARAMETER
+                    name, which classification cannot disambiguate — is tested.
                 Downstream — `game.procedures` empty after the pipeline; no
                     `RunStmt` in the IR; a body's `offer` is not double-counted in
                     the OpenSpiel action space.
@@ -71,10 +76,18 @@ procedures", "Surface totality", "Closed-domain completeness").
                   - `actor` / `action` in a body: rejected unconditionally, even
                     where a `for each player` in the body would bind one, because
                     it would silently mean the loop's player.
+                  - An argument whose TYPE the checker cannot see. `let`-bound names
+                    are not threaded into the type environment (a pre-existing gap,
+                    recorded in roadmap.md), so they infer `TAny` and the `run`-site
+                    argument-type check passes them. `run bump(hearts)` is rejected;
+                    `let z = hearts` then `run bump(z)` is not, and fails at runtime.
+                    The wall is the pre-existing one; the residual is that this
+                    axis's coverage is bounded by it.
 """
 
 from __future__ import annotations
 
+import random
 import typing
 
 import pytest
@@ -83,6 +96,7 @@ import cardlang.ast.nodes as n
 from cardlang.diagnostics import DiagnosticError
 from cardlang.ir import emit
 from cardlang.pipeline import check_dsl
+from cardlang.runtime.driver import play_game
 from cardlang.resolve import _PROCEDURE_PARAM_DOMAINS
 from cardlang.typecheck import KNOWN_TYPE_NAMES
 
@@ -95,7 +109,7 @@ game P {{
   max_length: 30
   cards: standard52
   zones {{ deck : Deck  hand[player] : Hand<player>  pile : Discard }}
-  state {{ score[player] : Integer = 0  turn : Player = 0 }}
+  state {{ score[player] : Integer = 0  turn : Player = 0  pass_dir : Direction = left }}
   phase p {{
     deal 3 cards from deck to each hand
 {body}
@@ -132,8 +146,15 @@ def test_expansion_splices_the_body_and_consumes_the_procedure() -> None:
     # every dataclass field of the Game, so a surviving body would be counted on
     # top of the copies spliced at the call sites.
     assert game.procedures == ()
+    # One `run` becomes exactly one statement: a block holding the argument
+    # bindings and then the body. One shape serves every statement position.
     stmts = [type(s).__name__ for s in game.phases[0].items]
-    assert stmts == ["Movement", "AssignStmt", "AssignStmt"]
+    assert stmts == ["Movement", "IfStmt"]
+    block = game.phases[0].items[1]
+    assert isinstance(block, n.IfStmt)
+    assert [type(s).__name__ for s in block.then_body] == [
+        "LetStmt", "AssignStmt", "AssignStmt",
+    ]
     assert not any(isinstance(nd, n.RunStmt) for nd in _walk(game))
 
 
@@ -146,34 +167,39 @@ def test_ir_holds_no_trace_of_the_procedure() -> None:
     assert "run" not in repr(ir)
 
 
-def test_a_procedure_run_twice_expands_twice_and_the_lets_shadow_forward() -> None:
-    """Two expansions in one block introduce the same `let` name twice. That is
-    exactly what two inline pastes would do, and the sequential-`let` fold handles
-    it: each rebinding shadows forward."""
+def test_a_procedure_run_twice_expands_twice_and_neither_leaks() -> None:
+    """Two expansions in one block are two independent blocks. Each binds its own
+    arguments and its own `let`s, and neither can see the other's — which is what a
+    procedure means, and what a paste would NOT have given."""
     game = check(
         body="    run bump(0)\n    run bump(1)",
         procs="procedure bump(who : Player) { let step = 1  score[who] += step }",
     )
     assert [type(s).__name__ for s in game.phases[0].items] == [
-        "Movement", "LetStmt", "AssignStmt", "LetStmt", "AssignStmt",
+        "Movement", "IfStmt", "IfStmt",
     ]
 
 
-def test_a_body_offer_is_not_double_counted_in_the_action_space() -> None:
-    """The pairwise cell that matters: a procedure body holding a decision site,
-    run at N places, must contribute N offers — not N+1. It is `game.procedures`
-    being emptied that makes this true."""
-    from cardlang.openspiel.encoding import ActionSpace
+def test_a_body_decision_site_is_not_counted_twice() -> None:
+    """The pairwise cell that matters: a procedure body holding a decision site, run
+    at N places, must contribute N decision sites — not N+1. It is `game.procedures`
+    being emptied that makes this true: `openspiel.encoding` walks every dataclass
+    field of the `Game`, so a surviving body would be counted on top of the copies
+    spliced at the call sites.
 
+    Counting `num_distinct_actions` does NOT test this — the encoder dedupes move
+    names and vocab entries, so the width is invariant under duplication and the
+    assertion could not fail. Count the decision NODES the walk actually sees."""
     procs = "procedure poll(who : Player) { offer to who one of [pass_move] }"
     viaproc = check("    run poll(0)\n    run poll(1)", procs)
     inline = check(
         "    offer to 0 one of [pass_move]\n    offer to 1 one of [pass_move]", ""
     )
-    assert (
-        ActionSpace.for_game(viaproc).num_distinct_actions
-        == ActionSpace.for_game(inline).num_distinct_actions
-    )
+    def offers(g: n.Game) -> int:
+        return sum(1 for nd in _walk(g) if isinstance(nd, n.Offer))
+
+    assert offers(viaproc) == offers(inline) == 2
+    assert viaproc.procedures == ()
 
 
 def test_a_zero_parameter_procedure_runs() -> None:
@@ -335,9 +361,13 @@ procedure one_trick(lead : Player) {
     assert "contains a `round`" in str(excinfo.value)
 
 
-def test_body_may_hold_an_offer_a_loop_and_a_movement() -> None:
-    """The accepted side of Axis B, in one body — the shapes Coup actually uses."""
-    check(
+def test_every_accepted_body_statement_kind_is_exercised() -> None:
+    """The accepted side of Axis B, ALL of it. `test_stmt_union_is_fully_classified`
+    proves the two sets partition the union; this proves the accepted set is really
+    accepted. Without it the 11 "accepted" rows were a whitelist read off the
+    implementation, with only 7 of them ever executed — the pattern the audit skill
+    names explicitly (a domain measured against the wall that implements it)."""
+    game = check(
         body="    run window(0)",
         procs="""
 procedure window(who : Player) {
@@ -346,9 +376,31 @@ procedure window(who : Player) {
     offer to seat one of [pass_move]
     score[seat] += 1
   }
+  if score[seat] > 0 { score[seat] += 0 } else { score[seat] += 1 }
   for each player q: if q is seat { move chosen one card from hand[q] to pile }
   for each suit s: score[0] += 0
+  each player simultaneously: score[player] += 0
+  rotate pass_dir through [left, across, right, hold]
+  reveal one card from hand[seat]
   shuffle deck
+}
+""",
+    )
+    exercised = {type(nd).__name__ for nd in _walk(game) if isinstance(nd, typing.get_args(n.Stmt))}
+    # Produces needs a `define`, so it gets its own body below; everything else here.
+    assert _BODY_ACCEPTED - {"Produces"} <= exercised, _BODY_ACCEPTED - {"Produces"} - exercised
+
+
+def test_a_produces_block_is_accepted_in_a_body() -> None:
+    """The 11th accepted kind. It needs a `define`, so it does not fit the body above."""
+    check(
+        body="    run pick(0)",
+        procs="""
+define d -> { Won(Player) | Lost } { produce Won(0) }
+procedure pick(who : Player) {
+  d produces:
+    Won(w) { score[w] += 1 }
+    Lost { score[who] += 0 }
 }
 """,
     )
@@ -381,106 +433,146 @@ def test_run_expands_in_a_move_type_effect() -> None:
         "probe",
     )
     assert game.procedures == ()
-    assert [type(s).__name__ for s in game.move_types[0].effect] == [
-        "AssignStmt", "AssignStmt",
-    ]
+    assert [type(s).__name__ for s in game.move_types[0].effect] == ["IfStmt"]
 
 
-def test_a_one_statement_procedure_fits_a_single_statement_slot() -> None:
-    """`for each <role> <b>: <stmt>` holds ONE statement, not a braced block. A
-    one-statement body splices straight in."""
-    check(
+def test_any_procedure_fits_a_single_statement_slot() -> None:
+    """`for each <role> <b>: <stmt>` holds ONE statement, not a braced block. That
+    used to constrain what could be run there; it no longer does, because an
+    expansion IS one statement — a block. A procedure of any length fits any
+    statement position, with no special case and no wall."""
+    for body in (
         "    for each player q: run bump(q)",
-        "procedure bump(who : Player) { score[who] += 1 }",
-    )
-
-
-def test_a_multi_statement_procedure_cannot_be_a_single_statement_slot_body() -> None:
-    """...and a longer one is a loud wall, not a silent drop of the extra
-    statements."""
-    rejects(
-        "    for each player q: run bump(q)",
-        "procedure bump(who : Player) { score[who] += 1  score[who] += 2 }",
-        "cannot be the whole body of `for each player q:`",
-    )
-
-
-def test_a_multi_statement_procedure_cannot_be_an_each_simultaneously_body() -> None:
-    rejects(
         "    each player simultaneously: run bump(player)",
+    ):
+        game = check(body, "procedure bump(who : Player) { score[who] += 1  score[who] += 2 }")
+        assert game.procedures == ()
+
+
+def test_a_run_in_a_single_statement_slot_still_runs_the_whole_body() -> None:
+    """...and every statement of it. A slot that silently kept only the first would
+    be the accepted-but-ignored class."""
+    game = check(
+        "    for each player q: run bump(q)",
         "procedure bump(who : Player) { score[who] += 1  score[who] += 2 }",
-        "cannot be the whole body of `each player simultaneously:`",
     )
+    result = play_game(game, random.Random(0), None)
+    assert result.scores == {0: 3, 1: 3, 2: 3}
 
 
 # ---------------------------------------------------------------------------
-# The capture class — all three members
+# Hygiene — by construction, not by wall
+#
+# Arguments are bound by VALUE, once, in the caller's context, and the body runs
+# in a block. Between them those two facts close a class of silent-wrong-answer
+# defects that a by-name splice has and that no set of walls covers cleanly. Each
+# test below is a defect that WAS reachable and is now impossible.
 # ---------------------------------------------------------------------------
+
+
+def _choose_nodes(game: n.Game) -> int:
+    return sum(1 for nd in _walk(game) if isinstance(nd, n.Choose))
+
+
+def test_one_written_decision_stays_one_decision() -> None:
+    """The load-bearing one. A by-name splice copies the argument EXPRESSION to
+    every place the body reads its parameter — so one written `choose` became one
+    decision PER READ, polled independently, with answers that could differ. The
+    author wrote "pick a player"; the runtime asked twice and credited two.
+
+    This is not a style point: it silently changes the game's decision count
+    relative to the written text, which is the one thing CLAUDE.md says bounds
+    every design choice here."""
+    game = check_dsl(
+        GAME.format(body="    offer to 0 one of [donate]", procs="")
+        .replace(
+            "move_type pass_move { effect { } }",
+            "move_type donate { effect { run bump(choose integer in 0 .. 1) } }\n"
+            "procedure bump(p : Player) { score[p] += 1  score[p] += 2 }",
+        ),
+        "probe",
+    )
+    assert _choose_nodes(game) == 1
+    # ...and the whole 3 points land on ONE player, every seed.
+    for seed in range(6):
+        scores = play_game(game, random.Random(seed), None).scores
+        assert sorted(scores.values()) == [0, 0, 3], scores
+
+
+def test_an_unused_parameter_still_evaluates_its_argument() -> None:
+    """The mirror of the above: a parameter read ZERO times dropped the argument,
+    and its decision, entirely — a written decision that never happened."""
+    game = check_dsl(
+        GAME.format(body="    offer to 0 one of [donate]", procs="")
+        .replace(
+            "move_type pass_move { effect { } }",
+            "move_type donate { effect { run bump(choose integer in 0 .. 1) } }\n"
+            "procedure bump(p : Player) { score[0] += 1 }",
+        ),
+        "probe",
+    )
+    assert _choose_nodes(game) == 1
+
+
+def test_an_argument_is_not_re_read_after_the_body_mutates_it() -> None:
+    """By-name substitution re-evaluates the argument at each read, so an argument
+    naming state the body then assigns denoted a DIFFERENT player on its second
+    read than its first — one argument, two players, inside one call."""
+    game = check(
+        "    turn := 1\n    run award(turn)",
+        "procedure award(p : Player) { score[p] += 10  turn := 0  score[p] += 1 }",
+    )
+    scores = play_game(game, random.Random(0), None).scores
+    assert scores[1] == 11 and scores[0] == 0
+
+
+def test_a_body_binding_does_not_leak_into_the_caller() -> None:
+    """The body runs in a block, so its `let`s scope to it. A bare splice put them
+    into the caller's statement sequence, where they shadow forward — a procedure
+    binding `target` would silently capture the caller's own `target`, read AFTER
+    the `run` site. (State assignments and card movements still persist, of course;
+    only the bindings are scoped. That is the difference between a procedure and a
+    paste.)"""
+    game = check(
+        "    let target = 0\n    run bump(1)\n    score[target] += 100",
+        "procedure bump(p : Player) { let target = p  score[target] += 1 }",
+    )
+    scores = play_game(game, random.Random(0), None).scores
+    assert scores == {0: 100, 1: 1, 2: 0}
+
+
+def test_an_argument_naming_the_actor_survives_an_actor_rebinding_body() -> None:
+    """`for each player q:` rebinds the acting player — that is how the bound player
+    becomes the chooser of a decision in the body — and `actor` READS the acting
+    player, so `if q is actor` inside such a loop is true for EVERY q. That trap is
+    real and still live for inline text (open-questions/single-actor-binding.md).
+
+    A procedure is immune, and not because of a wall: the argument is evaluated in
+    the CALLER's context, before the loop exists, so `run mark(actor)` passes the
+    move's actor and the loop cannot shadow it. Coup depends on this at four
+    sites."""
+    game = check_dsl(
+        GAME.format(body="    offer to 0 one of [go]", procs="")
+        .replace(
+            "move_type pass_move { effect { } }",
+            "move_type go { effect { run mark(actor) } }\n"
+            "procedure mark(who : Player) "
+            "{ for each player q: if q is who { score[q] += 1 } }",
+        ),
+        "probe",
+    )
+    scores = play_game(game, random.Random(0), None).scores
+    assert scores == {0: 1, 1: 0, 2: 0}  # the actor alone, not all three
 
 
 def test_a_body_binder_may_not_shadow_a_parameter_name() -> None:
-    """Capture member 1: name capture, the one rule templates also face."""
+    """The one hygiene wall expansion cannot replace. A body binder sharing a
+    PARAMETER's name is ambiguous at classification time — both are `local` — so
+    substitution cannot tell them apart. Rejected outright."""
     rejects(
         "    run f(0)",
         "procedure f(who : Player) { let who = 1  score[0] += who }",
         "shadowing its own parameter",
-    )
-
-
-def test_a_parameter_may_not_be_read_under_a_construct_that_rebinds_the_actor() -> None:
-    """Capture member 2: CONTEXT capture, the one a procedure faces and a rule
-    template does not, because a procedure takes unevaluated expressions.
-
-    `for each player q:` binds `ctx.acting_as(q)`, and `actor` reads
-    `ctx.current_player` — so `if q is actor` inside the loop is true for EVERY q.
-    A caller writing `run lose_influence(actor)` against a body that reads the
-    parameter inside such a loop would silently hit every player. This is a live
-    trap in the language (see open-questions/single-actor-binding.md); the wall
-    keeps procedures out of it and prescribes the `let` that pins the seat in the
-    caller's context."""
-    rejects(
-        "    run f(0)",
-        "procedure f(who : Player) { for each player q: if q is who { score[q] += 1 } }",
-        "which rebinds the acting player",
-    )
-    # ...and the prescribed fix is accepted.
-    check(
-        "    run f(0)",
-        "procedure f(who : Player) { let seat = who\n"
-        "  for each player q: if q is seat { score[q] += 1 } }",
-    )
-
-
-def test_a_body_binder_may_not_capture_a_free_local_in_an_argument() -> None:
-    """Capture member 3: ARGUMENT capture — the classic macro-hygiene bug, and the
-    one the other two walls' prescribed fix ("bind it first with a `let`") walks an
-    author straight into. Without this wall the call's meaning depends on the
-    caller's private choice of local variable name."""
-    rejects(
-        "    let step = 2\n    run f(step)",
-        "procedure f(who : Player) { let step = 0  score[who] += step }",
-        "would be captured",
-    )
-
-
-def test_argument_capture_is_caught_through_a_value_loop_binder_too() -> None:
-    """The same class, via a binder no actor-rebinding check would ever look at:
-    a `for each suit s` binder capturing an argument named `s`. Before the wall
-    this reached the runtime as a bare KeyError."""
-    rejects(
-        "    let s = 2\n    run f(s)",
-        "procedure f(who : Player) { for each suit s: score[who] += 1 }",
-        "would be captured",
-    )
-
-
-def test_a_binder_inside_the_argument_itself_is_not_a_capture() -> None:
-    """A name bound *within* an argument expression never escapes it, so it cannot
-    be captured by the body — the wall must not over-reject here."""
-    check(
-        "    run f(the player where score[player] is 0)",
-        "procedure f(who : Player) "
-        "{ score[who] += number of players where score[player] is 0 }",
     )
 
 

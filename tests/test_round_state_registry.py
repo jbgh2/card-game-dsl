@@ -10,11 +10,13 @@
                 (a) The SURFACE side: every field name a `state.<field>` expression
                     can spell — unbounded, so the registry is the whitelist and
                     everything else must be rejected.
-                (b) The IMPLEMENTATION side: every key each round form's `init()`
-                    actually writes into the accumulator. Each such key is either
-                    published (nameable) or internal (not) — there is no third
-                    category, and that is what `test_every_form_key_is_classified`
-                    pins.
+                (b) The IMPLEMENTATION side: every key each round form actually
+                    writes into its accumulator, ANYWHERE (`init` seeds it, but
+                    `next_actor` / `on_move` / `outcome` all write during play). Each
+                    such key is either published (nameable) or internal (not) — there
+                    is no third category, and that is what
+                    `test_every_form_key_is_classified` pins, by watching the real
+                    accumulator through a real playout.
 
     registry:   `cardlang.stdlib.round_state` — TRICK_PUBLISHED / TRICK_INTERNAL,
                 CLIMB_PUBLISHED / CLIMB_INTERNAL, AUCTION_PUBLISHED /
@@ -25,10 +27,11 @@
     covered:    Surface — exhaustive by construction: the whitelist is the
                 registry, and `test_rejects_every_internal_field` sweeps every
                 internal of every form (derived from the registry, not hand-listed).
-                Implementation — exhaustive: `test_every_form_key_is_classified`
-                reads the keys each `init()` writes and asserts they partition into
-                published + internal, so a form that starts writing a new key fails
-                until it is classified.
+                Implementation — exhaustive over what actually runs:
+                `test_every_form_key_is_classified` instruments the accumulator and
+                plays a trick game (hearts) and a climb game (president), asserting
+                every key written partitions into published + internal. A form that
+                starts writing a new key fails until it is classified.
                 Typing — the five published fields each assert their declared type,
                 and `test_a_typed_member_reaches_the_enum_wall` pins the
                 consequence: `TAny` used to be contagious, and the enum-comparison
@@ -169,7 +172,7 @@ def test_a_typed_member_reaches_the_enum_wall() -> None:
     """`state.led_suit` used to infer `TAny`, and `TAny` is contagious: comparing it
     to anything slipped past the enum-comparison wall. Now that it is `Suit?`, that
     wall reaches through it."""
-    rejects("state.led_suit is 10", "")  # any diagnostic: the comparison is ill-typed
+    rejects("state.led_suit is 10", "comparing Suit with Integer can never be equal")
 
 
 def test_led_suit_still_compares_against_a_suit_and_none() -> None:
@@ -183,29 +186,58 @@ def test_led_suit_still_compares_against_a_suit_and_none() -> None:
 
 
 def test_every_form_key_is_classified() -> None:
-    """The two-sided pin. Each key a form's `init()` writes must be either published
-    (nameable from the DSL) or internal (not) — there is no third category. A form
-    that starts writing a new key fails here until someone decides which it is,
-    which is what stops the surface from widening by accident again."""
-    import inspect
+    """The two-sided pin. Every key a round form actually writes into its accumulator
+    must be either published (nameable from the DSL) or internal (not) — there is no
+    third category, and a form that starts writing a new key fails here until someone
+    decides which it is. That is what stops the surface from widening by accident.
 
+    It watches the REAL accumulator through a real playout rather than grepping
+    `init`'s source for `state["…"]` literals, which was the first attempt and was
+    narrower than the domain it claimed: it saw only `init`, and only literal
+    subscripts, so a key written during play (`next_actor`, `on_move`, `outcome` all
+    write), or through a variable, or as the second target of a tuple-unpack, was
+    invisible to it — the pin would stay green while the language quietly grew."""
+    import random
+    from pathlib import Path
+    from typing import Any, Callable
+
+    from cardlang.pipeline import check_source
     from cardlang.runtime import mechanics
+    from cardlang.runtime.driver import play_game
 
-    for form, published, internal in (
-        (mechanics.TrickForm, TRICK_PUBLISHED, TRICK_INTERNAL),
-        (mechanics.ClimbForm, CLIMB_PUBLISHED, CLIMB_INTERNAL),
-        (mechanics.AuctionForm, AUCTION_PUBLISHED, AUCTION_INTERNAL),
-    ):
-        src = inspect.getsource(form.init)
-        written = {
-            line.split('state["')[1].split('"]')[0]
-            for line in src.splitlines()
-            if 'state["' in line
-        }
-        assert written == set(published) | internal, (
-            f"{form.__name__}.init writes {sorted(written)}, but the registry "
-            f"classifies {sorted(set(published) | internal)} — classify the "
-            f"difference in stdlib/round_state.py as published or internal"
+    seen: set[str] = set()
+
+    class _Watched(dict[str, Any]):
+        def __setitem__(self, key: str, value: Any) -> None:
+            seen.add(key)
+            super().__setitem__(key, value)
+
+    original: Callable[..., Any] = mechanics.run_decision_round
+
+    def watched(form_obj: Any, _state: Any, ctx: Any) -> Any:
+        # The executor seeds each round with a fresh `{}`; hand the form a dict that
+        # records every key it is ever given, wherever in the form that happens.
+        return original(form_obj, _Watched(), ctx)
+
+    root = Path(__file__).parent.parent / "docs" / "games"
+    forms = (
+        ("trick", "hearts", set(TRICK_PUBLISHED) | TRICK_INTERNAL),
+        ("climb", "president", set(CLIMB_PUBLISHED) | CLIMB_INTERNAL),
+    )
+    for form, game_name, classified in forms:
+        seen.clear()
+        game = check_source(root / f"{game_name}.cardlang")
+        setattr(mechanics, "run_decision_round", watched)
+        try:
+            play_game(game, random.Random(0), None)
+        finally:
+            setattr(mechanics, "run_decision_round", original)
+
+        assert seen, f"no {form} round ran in {game_name}"
+        unclassified = seen - classified
+        assert not unclassified, (
+            f"the {form} form writes {sorted(unclassified)}, which "
+            f"stdlib/round_state.py classifies as neither published nor internal"
         )
 
 

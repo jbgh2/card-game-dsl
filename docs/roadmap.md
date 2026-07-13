@@ -23,9 +23,19 @@ Things we have noted but consciously not designed yet:
   next hand`): inline text targets exactly one enclosing construct, and a body may
   be spliced into two different ones.
 
+- **A `let`-bound name has no static type, so any wall reading it is blind.**
+  `let` binders are scoped correctly at resolve and at runtime but are never
+  threaded into the type environment, so they infer `Any`. Every type wall is dark
+  behind one: `run bump(hearts)` is rejected against a `Player` parameter while
+  `let z = hearts` / `run bump(z)` is not, and the same holds for the equality and
+  ordering walls. This is the widest single hole left in the checker and it is not
+  procedure-specific — it is the reason several ledgers carry a bounded-coverage
+  residual. Fixing it means typing `let` at declaration and threading the binder
+  into `TypeEnv.locals`, which is a checker change, not a surface one.
+
 - **Which round FRAME a `state.` read sees.** The *name* axis is closed — a round
   publishes a declared, typed set of fields and the checker rejects everything
-  else, so a form's private working memory is no longer reachable
+  else, so a form's private working memory is not reachable from the DSL
   (`cardlang/stdlib/round_state.py`, ledger `tests/test_round_state_registry.py`).
   The *frame* axis is not: a reference is not statically attached to a form —
   `MustFollowSuit` lives once in `stdlib/rules.cardlang` and games activate it in

@@ -122,11 +122,20 @@ def test_enumerate_domain_rejects_card() -> None:
         enumerate_domain("Card", SOURCES)
 
 
-def test_a_domain_with_no_param_spelling_walls_its_static_enumerator() -> None:
-    # `team` is a registry row with `param_domains=()` — quantifiable and
-    # iterable, but not a declarable parameter domain. Its `static_members` must
-    # be a WALL, not an empty list: an empty list would let a future
-    # `Team`-parameterized move enumerate zero candidates and die mid-decision
-    # (an offer with no legal move) instead of failing at the table.
+def test_a_domain_with_no_param_spelling_is_walled_at_the_param_column() -> None:
+    """`team` is a registry row with `param_domains=()` — quantifiable and iterable,
+    but not a declarable parameter domain. The wall lives in that column, and it is
+    the right place for it: `enumerate_domain` refuses the spelling outright, so a
+    `Team`-parameterized move can never enumerate zero candidates and die mid-decision
+    (an offer with no legal move).
+
+    Its `static_members`, by contrast, must be REAL — the deck-capacity gate reads it
+    to know how many times a `for each team` body runs. It used to be a wall too, on
+    the theory that a domain with no parameter spelling had no static domain at all.
+    That conflated two different questions ("can a move range over this?" and "how big
+    is this?"), and the gate paid for it: it assumed every non-player loop ran once, so
+    a loop over a value domain demanded more cards than it checked."""
     with pytest.raises(NotImplementedError):
-        BY_ID["team"].static_members(SOURCES)
+        enumerate_domain("Team", SOURCES)
+    # ...but its size is a fact the table knows.
+    assert BY_ID["team"].static_members(SOURCES) == list(SOURCES.teams)

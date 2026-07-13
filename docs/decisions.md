@@ -755,10 +755,11 @@ the auction and betting forms publish **nothing** (their accumulator is ordinary
 phase state, above — and that empty row is load-bearing, not an omission: it is
 what makes "the auction form has no `state.`" a checkable fact). Naming anything
 else — a misspelling, or one of the form's internals — is a compile error that
-lists what *is* published. Without that wall a round's private cursor was part of
-the language's surface: it type-checked, it ran, and it silently changed the
-game. The types matter for the same reason: an untyped `state.x` is contagiously
-`Any`, and every comparison wall is dark behind it.
+lists what *is* published. The wall is what keeps a form's working memory out of
+the language: without it, a round's private ring cursor is nameable, type-checks,
+runs, and silently changes the game. The declared types carry the same weight — an
+untyped `state.x` is contagiously `Any`, and every comparison wall is dark behind
+it.
 
 **Rules consulted from within a round see the round's state.**
 Lexical scoping puts the active round's state frame

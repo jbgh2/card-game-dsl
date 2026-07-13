@@ -189,13 +189,23 @@ def _introduced_binders(node: object) -> tuple[str, ...]:
         case n.ProduceArm():
             # A `produces:` arm's payload binders (`Doubled(by, level) { … }`) are
             # user-chosen names bound in the arm body, and `_rewrite_produce_arm`
-            # scopes them exactly like any other binder. They were missing here —
-            # which meant `_check_reserved_binders` never swept them, so an arm
-            # binder named `actor` silently hijacked the pronoun (the body's bare
-            # `actor` classified as that `local` instead), and `_check_functions`/
+            # scopes them exactly like any other binder. Without this arm,
+            # `_check_reserved_binders` never swept them, so an arm binder named
+            # `actor` silently hijacked the pronoun (the body's bare `actor`
+            # classified as that `local` instead), and `_check_functions` /
             # `_check_procedures` mistook a legitimately-bound arm name for an
             # unbound reference. Both fall out of the registry being complete.
             return node.binders
+        case n.TypeDef():
+            # A struct's declared field names, which `_classify_type_derived` scopes
+            # as locals inside the type's derived-field bodies (`derived { seat =
+            # actor }` reads sibling fields by bare name). The same mechanism as the
+            # arm binders above, and so the same hazard: a field named `actor` is a
+            # user-chosen name that shadows the call-site pronoun inside every
+            # derived body. `_rewrite` returns early for `TypeDef` and scopes the
+            # fields itself, so listing them here changes no scoping — it only makes
+            # them visible to the sweeps that read this registry, which is the point.
+            return tuple(f.name for f in node.fields)
         case _:
             return ()
 
@@ -1204,17 +1214,6 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
 _PROCEDURE_PARAM_DOMAINS = frozenset({"Player", "Rank", "Rank?"})
 
 
-def _rebinds_actor(node: object) -> bool:
-    """Whether this node's body runs with a REBOUND acting player. These are the
-    `Ctx.acting_as` sites in runtime/execute.py: the `for each player` arm of
-    `_for_each` and `_each_simultaneous`. A value-domain `for each` (suit/rank)
-    does not rebind — its binder is a bare enum value and carries no actor — and
-    neither does the team arm."""
-    if isinstance(node, n.ForEach):
-        return node.role == "player"
-    return isinstance(node, n.EachSimultaneous)
-
-
 # Statements that unwind past the site they are written at: `produce` terminates
 # the enclosing `define` body, `continue to` jumps to a sibling phase, and `skip
 # to next hand` aborts the hand. Inline text targets exactly one enclosing
@@ -1235,24 +1234,20 @@ _OUTCOME_BINDING_STMTS = (n.Round,)
 
 
 def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
-    """A procedure body must read as the inline text it becomes. That makes it
-    hermetic in the same sense a function body is — it may reference only its own
-    parameters, binders it introduces, and game/phase state — and adds one wall a
-    function does not need, because a function takes *values* while a procedure
-    takes *unevaluated expressions*:
+    """A procedure body must read as the statements it becomes. Hermeticity is the
+    same as a function's — a body references only its own parameters, the binders
+    it introduces, and game/phase state, never the caller's locals and never the
+    call-site pronouns, so its meaning cannot depend on where it is run from.
 
-    **Actor capture.** An argument may be a call-site pronoun (`run
-    lose_influence(actor)` is the whole point). Substitution splices that
-    expression into the body, where it is evaluated — so if the body reads the
-    parameter underneath a construct that rebinds the acting player, `actor`
-    silently stops meaning the caller's actor and starts meaning the bound one.
-    That is not hypothetical: `for each player q: if q is actor` is true for
-    EVERY q, because `_for_each` binds `ctx.acting_as(q)` and `actor` reads
-    `ctx.current_player`. Rule templates only ever face *name* capture (a body
-    binder shadowing a parameter, checked in `_check_template`); a procedure
-    faces *context* capture too, and this is its wall. The fix the message
-    prescribes — bind the parameter to a `let` outside the loop — pins the value
-    in the caller's context, which is what inline text would have done."""
+    Only ONE hygiene wall lives here, because `expand` makes the rest unnecessary
+    by construction: it binds each argument to a `let` in the CALLER's context
+    before the body runs (so nothing in the body can capture an argument, and an
+    argument naming the actor cannot be re-read under a construct that rebinds it),
+    and it wraps the body in a block (so the body's own bindings cannot leak into
+    the caller). What expansion cannot fix is a body binder sharing a PARAMETER's
+    name: classification tags both `local`, so substitution cannot tell them apart.
+    That one is rejected outright.
+    """
     known = {p.name: p for p in game.procedures}
     for proc in game.procedures:
         params = {p.name for p in proc.params}
@@ -1345,27 +1340,6 @@ def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
                             nd.span,
                         )
 
-        # The actor-capture wall (see the docstring).
-        for nd in _walk(proc):
-            if not _rebinds_actor(nd):
-                continue
-            bound = "`for each player`" if isinstance(nd, n.ForEach) else "`each … simultaneously`"
-            for inner in _walk(nd):
-                if (
-                    isinstance(inner, n.NameRef)
-                    and inner.ref_kind == "local"
-                    and inner.name in params
-                ):
-                    bag.error(
-                        f"procedure '{proc.name}' reads parameter '{inner.name}' "
-                        f"inside {bound}, which rebinds the acting player — an "
-                        f"argument that names the call-site actor would be "
-                        f"captured and silently mean the bound player instead. "
-                        f"Bind it first (`let <name> = {inner.name}`) outside the "
-                        f"loop and read that",
-                        inner.span,
-                    )
-
     # Call sites: the procedure must exist, every declared procedure must be
     # invoked — an uninvoked body is spliced nowhere, so nothing downstream ever
     # sees it (the same reasoning `_instantiate_rules` gives an uninstantiated
@@ -1376,8 +1350,6 @@ def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
             invoked.add(nd.name)
             if nd.name not in known:
                 bag.error(f"run of unknown procedure '{nd.name}'", nd.span)
-            else:
-                _check_argument_capture(known[nd.name], nd, bag)
     for proc in game.procedures:
         if proc.name not in invoked:
             bag.error(
@@ -1386,57 +1358,6 @@ def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
                 f"spliced nowhere, and go entirely unchecked downstream)",
                 proc.span,
             )
-
-
-def _check_argument_capture(
-    proc: n.ProcedureDef, run: n.RunStmt, bag: DiagnosticBag
-) -> None:
-    """The other half of the hygiene story, and the one a macro system classically
-    gets wrong: a binder in the BODY capturing a free name in the ARGUMENT.
-
-    An argument is spliced in unevaluated, so its free names are read where the
-    body reads the parameter — underneath every binder the body introduces. If the
-    body says `let loser = …` and the caller writes `run lose_influence(loser)`
-    against a local of their own, the splice puts the caller's `loser` inside the
-    body's binding of the same name, and it silently reads the body's value. The
-    call's meaning would then depend on the caller's private choice of local
-    variable name.
-
-    Only `local` names can be captured: `_name` in runtime/evaluate.py dispatches
-    on `ref_kind`, and a state variable, zone, or pronoun is looked up in a scope
-    a body binder cannot shadow. Names bound *inside the argument itself* (a
-    query's own `player`, a comprehension's binder) are likewise safe — they never
-    escape it — so they are subtracted before the comparison.
-
-    This is the same class as `_check_procedures`'s two other capture walls (a
-    binder shadowing a parameter's NAME; a parameter read under a construct that
-    rebinds the actor CONTEXT); it is the third member, and the one the other two's
-    prescribed fix — "bind it first with a `let`" — walks the author straight into."""
-    binders: set[str] = set()
-    for nd in _walk(proc):
-        binders.update(_introduced_binders(nd))
-    if not binders:
-        return
-    for arg in run.args:
-        internal: set[str] = set()
-        for nd in _walk(arg):
-            internal.update(_introduced_binders(nd))
-        for nd in _walk(arg):
-            if (
-                isinstance(nd, n.NameRef)
-                and nd.ref_kind == "local"
-                and nd.name in binders
-                and nd.name not in internal
-            ):
-                bag.error(
-                    f"argument '{nd.name}' would be captured: procedure "
-                    f"'{proc.name}' binds a name '{nd.name}' in its body, and "
-                    f"splicing that body in here would put this reference inside "
-                    f"that binding — it would silently read the procedure's value, "
-                    f"not yours. Rename your local, or rename the binder in "
-                    f"'{proc.name}'",
-                    nd.span,
-                )
 
 
 def _reaches(start: str, target: str, calls: dict[str, set[str]]) -> bool:

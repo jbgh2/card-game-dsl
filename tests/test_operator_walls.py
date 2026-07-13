@@ -90,6 +90,7 @@ import pytest
 
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
+from cardlang.typecheck import KNOWN_TYPE_NAMES
 from cardlang.typecheck import OP_CLASSES, infer
 
 # --- shared minimal-game builder (mirrors test_zone_family_typing.py) ---
@@ -404,52 +405,63 @@ def test_offset_by_accepts_gradual_any_on_either_side() -> None:
 
 _EQ_GAME = """
 game G {{
-  players: 2
+  players: 4
   direction: clockwise
   max_length: 10
   cards: standard52
   zones {{ deck : Deck  hand[player] : Hand<player> }}
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  partnerships: [[0, 2], [1, 3]]
   state {{
     score[player] : Integer = 0
     flag  : Boolean = true
     n     : Integer = 0
     who   : Player  = 0
     s     : String  = ""
+    rk    : Rank    = A
+    d     : Direction = left
   }}
   phase p {{
     deal 2 cards from deck to each hand
+    let the_card = 2 of clubs
     if {pred} {{ score[0] += 1 }}
   }}
   winner: highest score
 }}
 """
 
-# One named operand per concrete scalar type in the type registry, plus the two
-# enum literal forms. The matrix below is every unordered pair of these.
-_OPERANDS = {
+# One named operand per name in the type registry. DERIVED from KNOWN_TYPE_NAMES,
+# not hand-listed: a new declarable type lands here as a KeyError until someone
+# gives it an operand and classifies its row, which is the whole point of a
+# registry-derived matrix (the ledger used to claim this while the list was a
+# literal, which is the "measuring the wall against itself" trap).
+_OPERAND_FOR = {
     "Boolean": "flag",
     "Integer": "n",
     "Player": "who",
     "String": "s",
-    "Suit": "hearts",
+    "Suit": "hearts",        # a bare enum value of the deck
+    "Rank": "rk",
+    "Team": "team_of(who)",
+    "Card": "(2 of clubs)",  # a card literal — NOT a `let`, which would type TAny
+    "Direction": "left",     # the stdlib constant enum (left/right/across/hold)
 }
 
-# The pairs that CAN be equal, and why. Everything else in the cross-product must
-# be rejected — the pairs are derived, not enumerated, so a new scalar type in the
-# registry lands here as a failure until it is classified.
-_COMPARABLE = {
-    frozenset({"Boolean"}),
-    frozenset({"Integer"}),
-    frozenset({"Player"}),
-    frozenset({"String"}),
-    frozenset({"Suit"}),
-    # A player IS an integer seat in this language (`assignable(TInteger, TPlayer)`),
-    # so `turn is 0` and `responder is actor` must keep working.
+assert set(_OPERAND_FOR) == KNOWN_TYPE_NAMES, (
+    "the equality matrix must cover every declarable type: "
+    f"{sorted(KNOWN_TYPE_NAMES ^ set(_OPERAND_FOR))} unclassified"
+)
+_OPERANDS = _OPERAND_FOR
+
+# The pairs that CAN be equal, and why. Everything else in the cross-product must be
+# rejected.
+_COMPARABLE = {frozenset({t}) for t in _OPERAND_FOR}  # every type equals itself
+_COMPARABLE |= {
+    # A player IS an integer seat in this language, and a team IS an integer index:
+    # `assignable(TInteger, TPlayer)` and `assignable(TInteger, TTeam)` both hold, so
+    # `turn is 0` and `responder is actor` must keep working.
     frozenset({"Integer", "Player"}),
-    # A String-typed variable can hold a rank/suit NAME — the one shape that can
-    # genuinely equal an enum value (Coup's `card.rank is block_claim`). Deliberately
-    # gradual; a String LITERAL against an enum is checked against the deck's values.
-    frozenset({"String", "Suit"}),
+    frozenset({"Integer", "Team"}),
 }
 
 

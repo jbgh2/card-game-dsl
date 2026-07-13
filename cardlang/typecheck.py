@@ -381,6 +381,11 @@ def _type_name(t: Type) -> str:
         return f"Collection<{_type_name(t.element)}>"
     if isinstance(t, TEnum):
         return t.name
+    if isinstance(t, (TStruct, TVariant)):
+        # These carry their declared name. Before the general disjointness rule
+        # below, no wall ever printed one, so both rendered as the bare kind — which
+        # made "comparing Struct with Struct can never be equal" read as nonsense.
+        return t.name
     return type(t).__name__[1:]  # TInteger -> "Integer", TPlayer -> "Player", …
 
 
@@ -666,13 +671,18 @@ def _check_enum_operand(
                 other.span,
             )
         return
-    if not isinstance(other_bare, (TAny, TString)):
-        # Every OTHER concrete type — Boolean, Player, Team, Card, a collection —
-        # is just as impossible to equal an enum value as an Integer is. This wall
-        # used to name Integer and stop, so `state.trick_terminated_early is hearts`
-        # (Boolean vs Suit) read clean. `TAny` passes (gradual), and a non-literal
-        # `TString` passes deliberately: a String-typed variable holding a rank name
-        # is the one shape that CAN be equal (Coup's `card.rank is block_claim`).
+    if not isinstance(other_bare, TAny):
+        # Every OTHER concrete type — Boolean, Player, Team, Card, String, a
+        # collection — is just as impossible to equal an enum value as an Integer is.
+        # This wall named Integer and stopped, so `state.trick_terminated_early is
+        # hearts` (Boolean vs Suit) read clean, and so did a String-typed variable
+        # holding a rank NAME. That last shape used to be Coup's (`card.rank is
+        # block_claim`, where block_claim was a `String`), and it was the reason for
+        # a carve-out here — but it was always a silently-false comparison dressed up
+        # as a feature, and the cure was to give the variable its real type (`Rank?`),
+        # which Coup now has. A string LITERAL is still checked against the deck's
+        # values by the branch above (`card.rank is "10"`, the numeric-rank spelling);
+        # `TAny` still passes, because gradual typing must not manufacture errors.
         bag.error(
             f"comparing {enum.name} with {_type_name(other_bare)} can never be equal",
             other.span,
@@ -792,7 +802,20 @@ def _check_equality_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> No
         return
     if isinstance(lbare, TAny) or isinstance(rbare, TAny):
         return
-    if not assignable(lbare, rbare) and not assignable(rbare, lbare):
+    compatible = (
+        assignable(lbare, rbare)
+        or assignable(rbare, lbare)
+        # `unify` as well as `assignable`, because `assignable` honours `TAny` only at
+        # the TOP level: a deliberately-unrefined element type (a chip stack is
+        # `Collection<Any>` precisely because that part of the object model is
+        # unrefined) would be judged disjoint from `Collection<Card>`, and this wall
+        # would MANUFACTURE an error — the exact thing its own gradual-typing promise
+        # forbids. `assignable` alone is also not enough in the other direction, so
+        # both are consulted: `Player`/`Integer` must stay comparable (a player IS an
+        # integer seat), and only `assignable` says so.
+        or unify(lbare, rbare) is not None
+    )
+    if not compatible:
         bag.error(
             f"comparing {_type_name(lbare)} with {_type_name(rbare)} can never be "
             f"equal",
