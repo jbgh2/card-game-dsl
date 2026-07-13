@@ -317,11 +317,13 @@ game G {
   max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
-  zones { deck : Deck  hand[player] : Hand<player> }
+  zones { deck : Deck  hand[player] : Hand<player>  pile : Discard }
   state { score[player] : Integer = 0  x : Integer = 0 }
   phase play {
+    // The body is a chosen movement (the only shape this form runs); the point
+    // under test is the dot-form on the binder, in its `where` filter.
     each player simultaneously:
-      x := player.score + 1
+      move chosen 1 cards from hand[player] where player.score > 0 to pile
   }
   winner: highest score
 }

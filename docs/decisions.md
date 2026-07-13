@@ -2197,6 +2197,16 @@ Hearts case, and the iteration sugar matches that reading.
 starting from dealer.left:`; the language has a parallel pair
 of constructs for the two timing modes.)
 
+**The iteration form's body is one chosen movement.** That is not an
+implementation limit dressed up as a rule — it falls out of the pre-block read
+semantics below. The form must snapshot *every* player's selection against the
+state as it was at block entry, and only then apply them all; that is what makes
+the pass atomic, and it is why nobody sees a passed card before choosing their
+own. A snapshot is only defined for a chosen movement out of a zone, so anything
+else in that slot — an assignment, a plain (unchosen) movement, a block — is
+rejected. The runtime has always required this; the checker now says so, instead
+of letting it through to a crash.
+
 **Read semantics: pre-block state.** Every operation inside the
 block reads state as it was at block entry. No operation
 observes another's effects, including its own writes. This is

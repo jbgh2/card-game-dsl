@@ -379,7 +379,7 @@ procedure window(who : Player) {
   if score[seat] > 0 { score[seat] += 0 } else { score[seat] += 1 }
   for each player q: if q is seat { move chosen one card from hand[q] to pile }
   for each suit s: score[0] += 0
-  each player simultaneously: score[player] += 0
+  each player simultaneously: move chosen one card from hand[player] to pile
   rotate pass_dir through [left, across, right, hold]
   reveal one card from hand[seat]
   shuffle deck
@@ -436,17 +436,49 @@ def test_run_expands_in_a_move_type_effect() -> None:
     assert [type(s).__name__ for s in game.move_types[0].effect] == ["IfStmt"]
 
 
-def test_any_procedure_fits_a_single_statement_slot() -> None:
+def test_any_procedure_fits_a_for_each_slot() -> None:
     """`for each <role> <b>: <stmt>` holds ONE statement, not a braced block. That
     used to constrain what could be run there; it no longer does, because an
-    expansion IS one statement — a block. A procedure of any length fits any
-    statement position, with no special case and no wall."""
-    for body in (
+    expansion IS one statement — a block. A procedure of any length fits, with no
+    special case and no wall."""
+    game = check(
         "    for each player q: run bump(q)",
+        "procedure bump(who : Player) { score[who] += 1  score[who] += 2 }",
+    )
+    assert game.procedures == ()
+
+
+def test_a_run_may_not_be_an_each_simultaneously_body() -> None:
+    """...but NOT `each <role> simultaneously:`, and that is not a special case for
+    procedures — it is the form's own body rule, which nothing had ever enforced.
+
+    The form runs exactly one chosen movement per player: it must snapshot every
+    player's selection against the state BEFORE the block and apply them together
+    (that is what makes a Hearts pass atomic — nobody sees a passed card before
+    choosing their own), and a snapshot is only defined for a chosen movement. The
+    executor asserted that and nothing checked it, so any other body compiled and
+    died on a bare assert. An expansion is a block, never a bare movement, so `run`
+    made that reachable from a program that looks entirely reasonable:
+    `each player simultaneously: run pass_card(player)`.
+
+    The earlier version of this test asserted that exact line COMPILED — and never
+    ran it. A test that pins the bug is worse than no test."""
+    rejects(
         "    each player simultaneously: run bump(player)",
-    ):
-        game = check(body, "procedure bump(who : Player) { score[who] += 1  score[who] += 2 }")
-        assert game.procedures == ()
+        "procedure bump(who : Player) { score[who] += 1 }",
+        "runs one chosen movement per player and nothing else",
+    )
+
+
+def test_a_non_movement_each_simultaneously_body_is_rejected_at_all() -> None:
+    """The wall is the form's, not the procedure's: a plain statement in that slot
+    was equally broken, and equally accepted, long before `run` existed."""
+    rejects("    each player simultaneously: score[player] += 1", "", "runs one chosen movement")
+    rejects(
+        "    each player simultaneously: move one card from deck to pile",
+        "",
+        "runs one chosen movement",
+    )
 
 
 def test_a_run_in_a_single_statement_slot_still_runs_the_whole_body() -> None:

@@ -30,7 +30,11 @@ covered:   Quantifier.body (Boolean-checked, both roles reachable via
            `any`/`all` x `player`/`team`/`suit`/`rank` share one code path —
            `player` sampled); PlayerQuery.pred (Boolean-checked);
            CardQuery.source (the shared `_check_card_source` wall, probed
-           on a non-collection state var and reused by Comprehension);
+           on a wrong-element collection AND on a non-collection bare-Card
+           source — the latter cell was a hole until the Codex review of
+           PR #48: a card-typed non-collection unified with TCard and
+           passed, then crashed at runtime iteration; reused by
+           Comprehension);
            CardQuery.pred (Boolean-checked); Comprehension.source (shared
            wall, reused); Comprehension.filter (Boolean-checked);
            Comprehension.body (Integer-checked for all three `agg` values;
@@ -226,6 +230,29 @@ def test_card_query_source_rejects_a_non_card_collection() -> None:
         _game("let probe = number of cards in score"),
         "'cards in ...' expects a zone or collection of cards, got "
         "Collection<Integer>",
+    )
+
+
+def test_card_query_source_rejects_a_bare_card() -> None:
+    # A card-TYPED source is still not a collection: before this wall it
+    # unified with TCard, passed, and `list(_elements(card))` crashed at
+    # runtime (Codex review, PR #48).
+    _rejects(
+        _game(
+            "let probe = number of cards in lead",
+            extra_state=" lead : Card? = none",
+        ),
+        "a single Card is not a collection of cards",
+    )
+
+
+def test_aggregation_source_rejects_a_bare_card() -> None:
+    _rejects(
+        _game(
+            "let probe = sum of 1 over cards in lead",
+            extra_state=" lead : Card? = none",
+        ),
+        "a single Card is not a collection of cards",
     )
 
 

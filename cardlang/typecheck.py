@@ -636,7 +636,11 @@ def _check_enum_operand(
     string literals outside the enum's value set are all silently-false traps
     at run time — reject them here. A name-form value written as a string is
     a second spelling of the bare literal and is rejected too (one spelling
-    per concept). Non-literal String expressions stay unchecked (gradual)."""
+    per concept). Non-literal String expressions stay unchecked (gradual);
+    every OTHER concrete type (Card, Player, Boolean, a collection, …) is
+    rejected by the default arm — an enum value equals only a value of its
+    own enum, so the wall is total over the operand-type axis, not just the
+    three shapes that motivated it."""
     if isinstance(other_bare, TEnum):
         if other_bare.name != enum.name:
             bag.error(
@@ -671,22 +675,31 @@ def _check_enum_operand(
                 other.span,
             )
         return
-    if not isinstance(other_bare, TAny):
-        # Every OTHER concrete type — Boolean, Player, Team, Card, String, a
-        # collection — is just as impossible to equal an enum value as an Integer is.
-        # This wall named Integer and stopped, so `state.trick_terminated_early is
-        # hearts` (Boolean vs Suit) read clean, and so did a String-typed variable
-        # holding a rank NAME. That last shape used to be Coup's (`card.rank is
-        # block_claim`, where block_claim was a `String`), and it was the reason for
-        # a carve-out here — but it was always a silently-false comparison dressed up
-        # as a feature, and the cure was to give the variable its real type (`Rank?`),
-        # which Coup now has. A string LITERAL is still checked against the deck's
-        # values by the branch above (`card.rank is "10"`, the numeric-rank spelling);
-        # `TAny` still passes, because gradual typing must not manufacture errors.
-        bag.error(
-            f"comparing {enum.name} with {_type_name(other_bare)} can never be equal",
-            other.span,
-        )
+    if isinstance(other_bare, TAny):
+        # Gradual: an unrefined `infer` arm must not manufacture errors.
+        #
+        # `TString` used to return here too, on the grounds that a String-typed
+        # variable holding a rank NAME was the one shape that could genuinely equal
+        # an enum value — which was Coup's `card.rank is block_claim`, where
+        # `block_claim` was a `String`. That was never a feature; it was a
+        # silently-false comparison with a carve-out around it, and the cure was to
+        # give the variable its real type (`block_claim : Rank?`), which Coup now
+        # has. No corpus game declares a String at all. So String is walled like any
+        # other disjoint type, and a string LITERAL is still checked against the
+        # deck's values by the branch above (`card.rank is "10"`, the numeric-rank
+        # spelling).
+        return
+    hint = (
+        " — compare the whole card (`x is Q of spades`) or a field against "
+        "its own kind (`x.suit is spades`)"
+        if isinstance(other_bare, TCard)
+        else ""
+    )
+    bag.error(
+        f"comparing {enum.name} with {_type_name(other_bare)} can never be "
+        f"equal{hint}",
+        other.span,
+    )
 
 
 # --- BinOp operand walls: one dispatcher over the operator-class registry ---
@@ -970,10 +983,25 @@ def _check_card_source(source: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None
     type both fail the same way: `unify` against `TCard` finds nothing in
     common."""
     src_t = infer(source, env)
-    if isinstance(src_t, TAny):
+    bare_src = _bare(src_t)
+    if isinstance(bare_src, TAny):
         return
-    elem = src_t.element if isinstance(src_t, TCollection) else src_t
-    ebare = _bare(elem)
+    if not isinstance(bare_src, TCollection):
+        # A non-collection source is wrong even when it is card-TYPED: a
+        # single Card unifies with TCard, but iterating it at runtime is a
+        # crash, not a one-card query.
+        hint = (
+            " — a single Card is not a collection of cards"
+            if isinstance(bare_src, TCard)
+            else ""
+        )
+        bag.error(
+            f"'cards in ...' expects a zone or collection of cards, got "
+            f"{_type_name(src_t)}{hint}",
+            source.span,
+        )
+        return
+    ebare = _bare(bare_src.element)
     if isinstance(ebare, TAny):
         return
     if unify(ebare, TCard()) is None:

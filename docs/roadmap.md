@@ -341,17 +341,6 @@ Things we have noted but consciously not designed yet:
   itself" is true of the semantics and false of the syntax. Ledger:
   tests/test_domain_registry.py.
 
-- **`each … simultaneously` body shape is unchecked.** The *domain* gate on
-  `each <role> simultaneously:` is total (the registry's `simultaneous` column;
-  a value domain is rejected with a diagnostic). The *body* gate is missing:
-  `each player simultaneously: marker[0] += 1`, or a body that is a plain `move
-  one card …` rather than a `move chosen …`, passes resolve and typecheck and
-  then dies on a bare `assert` in `runtime/execute.py::_pass_selection`. Wrong
-  failure currency — a checker diagnostic belongs where a bare assert is today
-  (decisions.md "Surface totality"). The form's runtime only implements the
-  chosen-movement body (decisions.md "Simultaneous moves"), so the fix is a
-  resolve wall naming the one legal body shape, not new runtime behaviour.
-
 ## Suggested next steps, in order
 
 [open-questions/_index.md](open-questions/_index.md) orders the open

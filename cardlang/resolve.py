@@ -790,7 +790,14 @@ def _categories(game: n.Game) -> _Categories:
         zones=frozenset(z.name for z in game.zones),
         enums=enum_values(game.deck) if _deck_known(game.deck) else DIRECTION_VALUES,
         functions=STDLIB_VALUE_NAMES,
-        ranks=frozenset(game.ranking),
+        # Card-literal validation asks "does this card EXIST in the deck",
+        # so ranks derive from the deck like `suits` below — never from
+        # `ranking:`, which is an ORDERING (optional, and legitimately
+        # partial: it narrows the Rank move-param domain, not which cards
+        # can be named). Deck-vs-ranking is the same two-source divergence
+        # `_resolve_ranking` walls from the other side (Codex review of
+        # PR #48, round 2).
+        ranks=deck_ranks(game.deck) if _deck_known(game.deck) else frozenset(),
         suits=deck_suits(game.deck) if _deck_known(game.deck) else frozenset(),
     )
 
@@ -1233,6 +1240,16 @@ _NON_LOCAL_STMTS = (n.Produce, n.ContinueTo, n.SkipToNextHand)
 _OUTCOME_BINDING_STMTS = (n.Round,)
 
 
+def _is_simultaneous_body(body: n.Stmt) -> bool:
+    """The one body shape `each <role> simultaneously:` can run. `runtime/execute.py`'s
+    `_pass_selection` implements exactly this — it must snapshot every player's chosen
+    cards against the PRE-block state before applying any of them, which is what makes
+    the pass atomic (Hearts: nobody sees a passed card before choosing their own), and
+    a snapshot is only defined for a chosen movement out of a zone. Any other body
+    reached that code and died on a bare assert."""
+    return isinstance(body, n.Movement) and body.mode == "chosen"
+
+
 def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
     """A procedure body must read as the statements it becomes. Hermeticity is the
     same as a function's — a body references only its own parameters, the binders
@@ -1595,6 +1612,24 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"`each {nd.role} simultaneously` is not runnable — "
                     f"simultaneous moves are per "
                     f"{' or '.join(sorted(SIMULTANEOUS_ROLES))}",
+                    nd.span,
+                )
+            case n.EachSimultaneous() if not _is_simultaneous_body(nd.body):
+                # The form gated its DOMAIN (above) and not its BODY. The executor
+                # implements exactly one body shape, so everything else compiled and
+                # then died on a bare assert — a runtime crash for a statically
+                # checkable error, in the wrong currency. `run` made it reachable
+                # from an entirely natural-looking program (`each player
+                # simultaneously: run pass_card(player)`), since an expansion is a
+                # block, never a bare movement.
+                bag.error(
+                    f"`each {nd.role} simultaneously` runs one chosen movement per "
+                    f"{nd.role} and nothing else — its body must be a `move chosen "
+                    f"<n> cards from <zone> to <zone>`. The form snapshots every "
+                    f"{nd.role}'s selection against the state BEFORE the block and "
+                    f"applies them together (that is what makes the pass atomic — "
+                    f"nobody sees a passed card before choosing their own), and a "
+                    f"snapshot is only defined for a chosen movement",
                     nd.span,
                 )
             case n.CardLiteral():
