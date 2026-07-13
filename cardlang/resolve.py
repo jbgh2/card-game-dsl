@@ -1221,22 +1221,34 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
 _PROCEDURE_PARAM_DOMAINS = frozenset({"Player", "Rank", "Rank?"})
 
 
-# Statements that unwind past the site they are written at: `produce` terminates
-# the enclosing `define` body, `continue to` jumps to a sibling phase, and `skip
-# to next hand` aborts the hand. Inline text targets exactly one enclosing
-# construct; a procedure body could be spliced into two different ones, so "reads
-# as inline text" would stop being true. Rejected until a corpus case forces a
-# design (procedures.md).
+# POSITION-DEPENDENT STATEMENTS: the closed class a procedure body may not hold.
+#
+# A procedure body is written once and spliced into many sites. Any statement whose
+# VALIDITY depends on where it sits is therefore unsound in one — the checker sees
+# it once, at the declaration, where the surrounding context does not exist yet, and
+# the copies it is checked as are never checked again (expansion runs after
+# typecheck, which is what makes the parameter types enforceable).
+#
+# The class is closed by enumerating the checks that are themselves
+# position-dependent, not by intuition:
+#
+#   `_check_outcome_scope`         a `produces:` consumer must name an EARLIER-executed
+#                                  sibling phase; `continue to` a LATER one; `skip to
+#                                  next hand` must sit inside a hand loop
+#   `_check_single_outcome_consumer`  a phase outcome has exactly ONE consumer — a
+#                                  count, which a second `run` changes
+#   `_check_misplaced_produce`     `produce` terminates the enclosing `define`
+#   outcome binding                a `round` binds its own `outcome` for the statements
+#                                  after it, which the body's pronoun wall cannot tell
+#                                  from the caller's call-site `outcome`
+#
+# Every statement those checks govern is rejected in a body. The two remaining
+# position-sensitive passes — `deckcheck.check_capacity` and the OpenSpiel action
+# space — both run AFTER expansion and so see the real, spliced tree.
+#
+# A `produces:` over a DEFINE is not in the class: a define is invoked fresh at each
+# site and has no ordering or uniqueness rule, which is why it stays allowed.
 _NON_LOCAL_STMTS = (n.Produce, n.ContinueTo, n.SkipToNextHand)
-
-# Statements a procedure body may not contain because they BIND `outcome` for the
-# statements after them. The pronoun wall below rejects `outcome` in a body — it
-# is call-site context — but a `round` binds its own, round-local `outcome` (the
-# trick winner), and telling the two apart needs forward scope tracking through
-# the body that is not yet designed. Rather than accept the form and leave half
-# of it unusable (a `round` you may run but whose winner you may not route is the
-# accepted-but-ignored class), the form is rejected whole. No corpus procedure
-# holds a round; the deferral is recorded in roadmap.md and procedures.md.
 _OUTCOME_BINDING_STMTS = (n.Round,)
 
 
@@ -1266,6 +1278,9 @@ def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
     That one is rejected outright.
     """
     known = {p.name: p for p in game.procedures}
+    outcome_phases = {
+        nd.name for nd in _walk(game) if isinstance(nd, n.Phase) and nd.outcome_cases
+    }
     for proc in game.procedures:
         params = {p.name for p in proc.params}
 
@@ -1331,6 +1346,20 @@ def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
                         f"procedure body may not yet hold one, because the body's "
                         f"`outcome` wall cannot distinguish a round-local binding "
                         f"from the caller's call-site pronoun (procedures.md)",
+                        nd.span,
+                    )
+                elif isinstance(nd, n.Produces) and nd.define in outcome_phases:
+                    bag.error(
+                        f"procedure '{proc.name}' consumes the phase outcome of "
+                        f"'{nd.define}'. A phase outcome's consumer must be an "
+                        f"EARLIER-executed sibling of the producing phase, and there "
+                        f"must be exactly ONE of them — both are facts about where "
+                        f"the statement sits, and a procedure body is spliced into "
+                        f"sites the checker cannot see when it checks the body. "
+                        f"Running it before '{nd.define}', or running it twice, would "
+                        f"pass here and then fail at play time. Consume the outcome "
+                        f"at the site (a `produces:` over a `define` is fine in a "
+                        f"body — a define has no ordering or uniqueness rule)",
                         nd.span,
                     )
                 elif isinstance(nd, n.RunStmt):

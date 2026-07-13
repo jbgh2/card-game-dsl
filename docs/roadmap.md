@@ -17,11 +17,25 @@ Things we have noted but consciously not designed yet:
   `outcome`, and the body's pronoun wall cannot yet tell that from the caller's
   call-site `outcome`; rather than accept a `round` you may run but whose winner
   you may not route, the form is rejected whole. This is what Tichu's and Skat's
-  round shapes would need before they could adopt procedures. (c) **A procedure
-  running another procedure** — expansion is a single splice, not a call graph.
-  (d) **Non-local control flow in a body** (`produce`, `continue to`, `skip to
+  round shapes would need before they could adopt procedures. (c) **A `produces:`
+  over a PHASE OUTCOME in a body** — its consumer must be an earlier-executed sibling
+  of the producing phase, and must be the only one; both are facts about *where the
+  statement sits*, and a splice moves it. (A `produces:` over a `define` is fine: a
+  define is invoked fresh at each site, with no ordering or uniqueness rule.)
+  (d) **A procedure running another procedure** — expansion is a single splice, not a
+  call graph.
+  (e) **Non-local control flow in a body** (`produce`, `continue to`, `skip to
   next hand`): inline text targets exactly one enclosing construct, and a body may
   be spliced into two different ones.
+
+  These are one class, not five accidents: a procedure body may not hold a statement
+  whose VALIDITY depends on where it sits, because the checker sees the body once, at
+  its declaration, and the spliced copies are never re-checked (expansion runs after
+  typecheck, which is what makes the parameter types enforceable). The class is closed
+  by enumerating the position-dependent CHECKS — `_check_outcome_scope`,
+  `_check_single_outcome_consumer`, `_check_misplaced_produce`, and outcome binding —
+  rather than by intuition. The two other position-sensitive passes, deck-capacity and
+  the OpenSpiel action space, both run after expansion and see the real tree.
 
   Note what is NOT on this list: argument capture, actor capture, and a body
   binding leaking into the caller. Those were walled in the first implementation

@@ -32,8 +32,11 @@ procedures", "Surface totality", "Closed-domain completeness").
                     15 (plus an unknown name) are rejected at resolve. A new entry
                     in KNOWN_TYPE_NAMES fails this test until it is classified.
                 B — exhaustive, pinned by `test_stmt_union_is_fully_classified`:
-                    11 accepted, 5 rejected, 16 total. A new `Stmt` member fails
-                    that test until it is classified.
+                    11 accepted, 5 rejected, 16 total, and every accepted kind is
+                    actually exercised in a body. A new `Stmt` member fails that test
+                    until it is classified. `Produces` is accepted with a SPLIT: over
+                    a `define` (safe — invoked fresh at each site) but not over a
+                    phase outcome (see residual).
                 C — exhaustive: all 10 sequence sites and both single-statement
                     slots are exercised; the slots are probed at body length 1
                     (splices) and >1 (walled).
@@ -70,6 +73,11 @@ procedures", "Surface totality", "Closed-domain completeness").
                     reject `block_claim` at the very sites that must pass it.
                   - a `round` in a body. It binds its own `outcome`, which the
                     body's pronoun wall cannot yet tell from the caller's.
+                  - a `produces:` over a PHASE OUTCOME in a body. Its consumer must be
+                    an earlier-executed sibling of the producing phase, and must be the
+                    only one — both are facts about where the statement sits, which a
+                    splice moves. Same class as the `round` cell: a construct whose
+                    validity is positional. (A `produces:` over a `define` is fine.)
                   - a procedure running another procedure (no call graph in v1).
                   - `produce` / `continue to` / `skip to next hand` in a body
                     (non-local control flow out of a spliced block).
@@ -391,8 +399,10 @@ procedure window(who : Player) {
     assert _BODY_ACCEPTED - {"Produces"} <= exercised, _BODY_ACCEPTED - {"Produces"} - exercised
 
 
-def test_a_produces_block_is_accepted_in_a_body() -> None:
-    """The 11th accepted kind. It needs a `define`, so it does not fit the body above."""
+def test_a_produces_over_a_define_is_accepted_in_a_body() -> None:
+    """The 11th accepted kind — but only over a DEFINE. A define is invoked fresh at
+    each site and carries no ordering or uniqueness rule, so a splice cannot break it.
+    A `produces:` over a PHASE OUTCOME is a different animal; see the test below."""
     check(
         body="    run pick(0)",
         procs="""
@@ -700,3 +710,47 @@ def test_a_procedure_that_is_never_run_is_rejected() -> None:
         "procedure f(w : Player) { score[w] += 1 }",
         "is never run",
     )
+
+
+def test_a_produces_over_a_phase_outcome_is_rejected_in_a_body() -> None:
+    """The member of the position-dependent class I missed (Codex found it).
+
+    A phase outcome's consumer must be an EARLIER-executed sibling of the producing
+    phase, and there must be exactly ONE of them. Both are facts about *where the
+    statement sits* — and a procedure body is spliced into sites the checker cannot
+    see when it checks the body, because expansion runs after typecheck.
+
+    Inline, both rules are enforced and both shapes are correctly rejected. Inside a
+    procedure they were accepted and then died on a bare assert at play time: run the
+    consumer before its producer, or run it twice, and the outcome is missing or
+    already popped. Same class as the `round` wall above (a construct whose validity
+    depends on position, which a splice moves) — I wrote that wall and classified
+    `Produces` as plainly accepted, which was the miss."""
+    src = """
+game G {
+  players: 2
+  direction: clockwise
+  max_length: 20
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase top {
+    deal 2 cards from deck to each hand
+    phase decide -> outcome {
+      Won(Player) | Lost
+    } {
+      produce Won(0)
+    }
+    run consume()
+  }
+  winner: highest score
+}
+procedure consume() {
+  decide produces:
+    Won(w) { score[w] += 1 }
+    Lost { score[0] += 0 }
+}
+"""
+    with pytest.raises(DiagnosticError) as excinfo:
+        check_dsl(src, "probe")
+    assert "consumes the phase outcome of 'decide'" in str(excinfo.value)
