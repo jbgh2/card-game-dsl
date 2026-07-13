@@ -178,6 +178,16 @@ def _introduced_binders(node: object) -> tuple[str, ...]:
             return ("card",)
         case n.LetStmt():
             return (node.name, node.index) if node.index is not None else (node.name,)
+        case n.ProduceArm():
+            # A `produces:` arm's payload binders (`Doubled(by, level) { … }`) are
+            # user-chosen names bound in the arm body, and `_rewrite_produce_arm`
+            # scopes them exactly like any other binder. They were missing here —
+            # which meant `_check_reserved_binders` never swept them, so an arm
+            # binder named `actor` silently hijacked the pronoun (the body's bare
+            # `actor` classified as that `local` instead), and `_check_functions`/
+            # `_check_procedures` mistook a legitimately-bound arm name for an
+            # unbound reference. Both fall out of the registry being complete.
+            return node.binders
         case _:
             return ()
 
@@ -1196,6 +1206,16 @@ def _rebinds_actor(node: object) -> bool:
 # design (procedures.md).
 _NON_LOCAL_STMTS = (n.Produce, n.ContinueTo, n.SkipToNextHand)
 
+# Statements a procedure body may not contain because they BIND `outcome` for the
+# statements after them. The pronoun wall below rejects `outcome` in a body — it
+# is call-site context — but a `round` binds its own, round-local `outcome` (the
+# trick winner), and telling the two apart needs forward scope tracking through
+# the body that is not yet designed. Rather than accept the form and leave half
+# of it unusable (a `round` you may run but whose winner you may not route is the
+# accepted-but-ignored class), the form is rejected whole. No corpus procedure
+# holds a round; the deferral is recorded in roadmap.md and procedures.md.
+_OUTCOME_BINDING_STMTS = (n.Round,)
+
 
 def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
     """A procedure body must read as the inline text it becomes. That makes it
@@ -1251,6 +1271,13 @@ def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
                     proc.span,
                 )
 
+        if not proc.body:
+            bag.error(
+                f"procedure '{proc.name}' has an empty body — it would splice "
+                f"nothing at every site that runs it; give it statements or delete it",
+                proc.span,
+            )
+
         allowed = params | binders
         for stmt in proc.body:
             for nd in _walk(stmt):
@@ -1266,6 +1293,15 @@ def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
                         f"spliced into its call sites, which may sit in different "
                         f"enclosing constructs, so it may not contain non-local "
                         f"control flow",
+                        nd.span,
+                    )
+                elif isinstance(nd, _OUTCOME_BINDING_STMTS):
+                    bag.error(
+                        f"procedure '{proc.name}' contains a `round`, which binds "
+                        f"its own `outcome` for the statements after it; a "
+                        f"procedure body may not yet hold one, because the body's "
+                        f"`outcome` wall cannot distinguish a round-local binding "
+                        f"from the caller's call-site pronoun (procedures.md)",
                         nd.span,
                     )
                 elif isinstance(nd, n.RunStmt):
@@ -1313,16 +1349,18 @@ def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
                         inner.span,
                     )
 
-    # Call sites: the procedure must exist, and every declared procedure must be
+    # Call sites: the procedure must exist, every declared procedure must be
     # invoked — an uninvoked body is spliced nowhere, so nothing downstream ever
     # sees it (the same reasoning `_instantiate_rules` gives an uninstantiated
-    # rule template).
+    # rule template) — and no argument may be captured by a binder in the body.
     invoked: set[str] = set()
     for nd in _walk(game):
         if isinstance(nd, n.RunStmt):
             invoked.add(nd.name)
             if nd.name not in known:
                 bag.error(f"run of unknown procedure '{nd.name}'", nd.span)
+            else:
+                _check_argument_capture(known[nd.name], nd, bag)
     for proc in game.procedures:
         if proc.name not in invoked:
             bag.error(
@@ -1331,6 +1369,57 @@ def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
                 f"spliced nowhere, and go entirely unchecked downstream)",
                 proc.span,
             )
+
+
+def _check_argument_capture(
+    proc: n.ProcedureDef, run: n.RunStmt, bag: DiagnosticBag
+) -> None:
+    """The other half of the hygiene story, and the one a macro system classically
+    gets wrong: a binder in the BODY capturing a free name in the ARGUMENT.
+
+    An argument is spliced in unevaluated, so its free names are read where the
+    body reads the parameter — underneath every binder the body introduces. If the
+    body says `let loser = …` and the caller writes `run lose_influence(loser)`
+    against a local of their own, the splice puts the caller's `loser` inside the
+    body's binding of the same name, and it silently reads the body's value. The
+    call's meaning would then depend on the caller's private choice of local
+    variable name.
+
+    Only `local` names can be captured: `_name` in runtime/evaluate.py dispatches
+    on `ref_kind`, and a state variable, zone, or pronoun is looked up in a scope
+    a body binder cannot shadow. Names bound *inside the argument itself* (a
+    query's own `player`, a comprehension's binder) are likewise safe — they never
+    escape it — so they are subtracted before the comparison.
+
+    This is the same class as `_check_procedures`'s two other capture walls (a
+    binder shadowing a parameter's NAME; a parameter read under a construct that
+    rebinds the actor CONTEXT); it is the third member, and the one the other two's
+    prescribed fix — "bind it first with a `let`" — walks the author straight into."""
+    binders: set[str] = set()
+    for nd in _walk(proc):
+        binders.update(_introduced_binders(nd))
+    if not binders:
+        return
+    for arg in run.args:
+        internal: set[str] = set()
+        for nd in _walk(arg):
+            internal.update(_introduced_binders(nd))
+        for nd in _walk(arg):
+            if (
+                isinstance(nd, n.NameRef)
+                and nd.ref_kind == "local"
+                and nd.name in binders
+                and nd.name not in internal
+            ):
+                bag.error(
+                    f"argument '{nd.name}' would be captured: procedure "
+                    f"'{proc.name}' binds a name '{nd.name}' in its body, and "
+                    f"splicing that body in here would put this reference inside "
+                    f"that binding — it would silently read the procedure's value, "
+                    f"not yours. Rename your local, or rename the binder in "
+                    f"'{proc.name}'",
+                    nd.span,
+                )
 
 
 def _reaches(start: str, target: str, calls: dict[str, set[str]]) -> bool:
