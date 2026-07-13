@@ -171,6 +171,15 @@ def _parser() -> Lark:
     )
 
 
+# The grammar's RANK_DIR terminal (`cardlang.lark`, "lowest" | "highest"),
+# mapped to the Comprehension `agg` spelling it lowers to. Exhaustive by
+# construction: `agg_order` below raises loudly on any key not present here,
+# and `test_rank_dir_set_is_pinned` (test_comprehension_aggregators.py)
+# reconciles this set against the grammar terminal so a new RANK_DIR token
+# cannot land uncovered.
+RANK_DIR_TO_AGG: dict[str, str] = {"highest": "max", "lowest": "min"}
+
+
 @v_args(meta=True)
 class _Builder(Transformer[Token, n.Game]):
     """Turns the Lark tree into AST nodes, threading source location through."""
@@ -748,8 +757,16 @@ class _Builder(Transformer[Token, n.Game]):
     def agg_order(self, meta: Meta, c: list[object]) -> n.Comprehension:
         # c: [RANK_DIR, body, zone_expr, where?, default]
         filt = _as_expr(c[3]) if c[3] is not None else None
+        direction = str(c[0])
+        if direction not in RANK_DIR_TO_AGG:
+            # Internal invariant, not a user diagnostic: the grammar's
+            # RANK_DIR terminal and this mapping are out of sync.
+            raise AssertionError(
+                f"agg_order: unhandled RANK_DIR token {direction!r} — add it to "
+                "RANK_DIR_TO_AGG"
+            )
         return n.Comprehension(
-            agg="max" if str(c[0]) == "highest" else "min",
+            agg=RANK_DIR_TO_AGG[direction],
             source=_as_expr(c[2]),
             binder="card",
             body=_as_expr(c[1]),
@@ -1136,11 +1153,23 @@ def parse_to_tree(
     return tree
 
 
+def _transform(builder: _Builder, tree: Tree[Token]) -> object:
+    """Run ``builder`` over ``tree``, unwrapping Lark's ``VisitError`` so a
+    builder-raised diagnostic (e.g. a duplicate `state { }` block, or the
+    `==`-rejection) surfaces as itself rather than as an opaque wrapper."""
+    try:
+        return builder.transform(tree)
+    except VisitError as exc:
+        if isinstance(exc.orig_exc, DiagnosticError):
+            raise exc.orig_exc from None
+        raise
+
+
 def parse_library_rules(text: str, source_name: str) -> tuple[n.RuleDef, ...]:
     """Parse a standard-library rules fragment (rule definitions with no
     enclosing game) into RuleDef nodes, spans mapped to ``source_name``."""
     tree = parse_to_tree(text, source_name, start="library_rules")
-    result: object = _Builder(source_name, 0).transform(tree)
+    result = _transform(_Builder(source_name, 0), tree)
     assert isinstance(result, tuple)
     assert all(isinstance(r, n.RuleDef) for r in result)
     return result
@@ -1149,14 +1178,9 @@ def parse_library_rules(text: str, source_name: str) -> tuple[n.RuleDef, ...]:
 def parse_text(text: str, source_name: str, line_offset: int = 0) -> n.Game:
     """Parse DSL ``text`` into a :class:`~cardlang.ast.nodes.Game` AST."""
     tree = parse_to_tree(text, source_name, line_offset)
-    try:
-        return _Builder(source_name, line_offset).transform(tree)
-    except VisitError as exc:
-        # Lark wraps transformer exceptions; surface a builder-raised
-        # diagnostic (e.g. a duplicate `state { }` block) as itself.
-        if isinstance(exc.orig_exc, DiagnosticError):
-            raise exc.orig_exc from None
-        raise
+    result = _transform(_Builder(source_name, line_offset), tree)
+    assert isinstance(result, n.Game)
+    return result
 
 
 def parse_block(block: FencedBlock) -> n.Game:

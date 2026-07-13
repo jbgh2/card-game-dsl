@@ -1345,7 +1345,9 @@ quantification: `is`, `is not`, `in`, `not`, `and`, `or`, `any`, `all`,
 designer can internalize — and it is Python's line, so the surface stays
 familiar. English forms for assignment were considered and rejected: the
 symbols carry no confusion cost, there is no compact English word for `>=`,
-and the per-line verbosity cost would be the largest in the language.
+and the per-line verbosity cost would be the largest in the language. `is`,
+`not`, and `number` are reserved words — no state variable, zone, function,
+or binder may take one of these names.
 
 **Equality is `is` / `is not`** — plain equality, with no identity/equality
 split to trip over. `a is not b` is a single operator, never `a is (not b)`.

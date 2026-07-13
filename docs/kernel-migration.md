@@ -133,7 +133,7 @@ consecutive passes), typed outcome = a contract variant. Then per game, supplyin
   history. `run_bridge_auction` and its `instantiate` branch are deleted.
 - **Pinochle** — *done — fully kernel.* The ascending bid runs on the auction
   form of `round` over a **shrinking participants ring** (`over players where
-  not passed[player] and (lead_bidder is none or player != lead_bidder)`), the
+  not passed[player] and (lead_bidder is none or player is not lead_bidder)`), the
   nullary `submit_bid`/`pass` vocabulary, and the single-variant
   `bid_won(declarer, bid)` outcome (opener-at-50 fallback when all pass). Trump
   declaration is a second, one-draw round on the same form (`round offering

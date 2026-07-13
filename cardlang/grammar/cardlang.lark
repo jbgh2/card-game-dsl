@@ -187,8 +187,9 @@ MOVE_VERB: "deal" | "transfer" | "move" | "burn" | "muck" | "draw"
 // remainder is spread (Getaway deals the whole deck across 3–8 hands).
 dist_clause: "as-equally-as-possible"  -> dist_equally
 // Narrows the source pool to the cards matching a predicate before the
-// selection draws from it (a lambda, like `.where` — the source-order subset,
-// not a reordering). Only the `from` form takes it (any destination shape).
+// selection draws from it (an ordinary expr with `card` bound per candidate,
+// like the card query's `where` — the source-order subset, not a
+// reordering). Only the `from` form takes it (any destination shape).
 where_clause: "where" expr
 selection: [select_mode] amount NAME
 select_mode: "chosen" -> sel_chosen
@@ -377,7 +378,7 @@ elif_clause: "elif" expr "then" expr
         | and_expr
 ?and_expr: and_expr "and" not_expr -> and_op
          | not_expr
-?not_expr: "not" not_expr  -> logical_not
+?not_expr: _NOT_KW not_expr  -> logical_not
          | comparison
 
 // Equality is the word `is` / `is not` (one operator — `a is not b` never
@@ -386,8 +387,8 @@ elif_clause: "elif" expr "then" expr
 // the builder to the absence/emptiness checks; any other operand is plain
 // equality. `==`/`!=` are retired: the builder rejects them with the
 // replacement spelling.
-?comparison: sum "is" "not" sum      -> compare_is_not
-           | sum "is" sum           -> compare_is
+?comparison: sum _IS_KW _NOT_KW sum    -> compare_is_not
+           | sum _IS_KW sum           -> compare_is
            | sum comp_op sum        -> compare
            | sum "in" sum           -> membership
            | sum
@@ -463,12 +464,30 @@ zone_expr: NAME [index_expr]
 
 // Keywords that sit where a NAME is also grammatical, and never name a value,
 // are excluded from NAME to keep them unambiguous: `always` (applies_when
-// wildcard) and the quantity words `all` / `one`. `none`, by contrast, is a
-// domain value (the no-pass Direction, an optional's null) and stays an
-// ordinary name_ref the resolver interprets. Extend this guard only for
-// keywords that never name a value; statement-leading keywords (game, phase, …)
-// need no guard.
-NAME: /(?!(?:always|all|one)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+// wildcard), the quantity words `all` / `one`, and `not` / `is` / `number`
+// (the equality and card-query keywords below — without the exclusion, e.g.
+// `number of cards in <zone>` is also derivable as the card literal `number
+// of cards` followed by membership). `none`, by contrast, is a domain value
+// (the no-pass Direction, an optional's null) and stays an ordinary name_ref
+// the resolver interprets. Extend this guard only for keywords that never
+// name a value; statement-leading keywords (game, phase, …) need no guard.
+//
+// `is` and `not` additionally get their own anchored terminals rather than
+// staying inline string literals in the productions above: an inline "is"
+// can also match as a prefix of a longer identifier (`is_re` lexing as `is`
+// + `_re`), which is ambiguous under Earley even with `is` excluded from
+// NAME. The negative lookahead `(?![A-Za-z0-9_])` pins the match to a whole
+// word, so `is_re` and `not_yet` still lex as single NAMEs. The leading
+// underscore keeps Lark's auto-filtering of inline literals from the tree.
+// Every inline occurrence of "not"/"is" in the productions above must use
+// these terminals, not the bare string literal — `compare_is_not`'s "not"
+// sits in exactly the same identifier-split trap (`sum is not_ready` was
+// ambiguous between `not` + name_ref `_ready` and a single name_ref
+// `not_ready`) even though it is a second word inside an existing keyword
+// pair, not a standalone token.
+_IS_KW: "is" /(?![A-Za-z0-9_])/
+_NOT_KW: "not" /(?![A-Za-z0-9_])/
+NAME: /(?!(?:always|all|one|not|is|number)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 STRING: /"[^"]*"/
 
 LINE_COMMENT: /\/\/[^\n]*/

@@ -166,11 +166,11 @@ construct.
 | Construct (prose in hearts.md) | Category | Resolution in hearts.cardlang |
 |--------------------------------|----------|-------------------------------|
 | `repeats until any cumulative_score >= 100` | needs-formalizing | explicit quantifier: `repeat until (any player where cumulative_score[player] >= 100)` |
-| `repeat until all hands empty` | needs-formalizing | `repeat until (all player p: hand[p] is empty)` |
+| `repeat until all hands empty` | needs-formalizing | `repeat until (all players where hand[player] is empty)` |
 | `sum over captured[p]: if … then …` | needs-formalizing | implicit binder: `sum of … over cards in captured[p]` |
 | `queen_of_spades`, `2 of clubs` | needs-formalizing | card literal `RANK of SUIT`: `Q of spades`, `2 of clubs` |
 | shoot-the-moon (`if p shot the moon: 0 else 26`) | needs-formalizing | explicit: shooter (`base[p] is 26`) scores 0, others 26 |
-| `the move must consist of exactly 3 cards` | decision: demand-clause-shape | `demands: actions where action.card_count is 3` — `demands` has two forms: a card-set filter, or `moves where <move-predicate>`. Recurs in Stud/Cribbage/Tichu; promote to decisions.md |
+| `the move must consist of exactly 3 cards` | decision: demand-clause-shape | `demands: actions where action.card_count is 3` — `demands` has two forms: a card-set filter, or `actions where <move-predicate>`. Recurs in Stud/Cribbage/Tichu; promote to decisions.md |
 | `player_holding(2 of clubs)` | runtime-primitive | `player_holding(Card) -> Player` (stdlib query) |
 | `highest_of_led_suit` (round outcome) | runtime-primitive | `(played, state) -> Player` named outcome function |
 | `hand.where(c => …)`, `hand.cards_of_suit(s)` | runtime-primitive | the card queries: `cards in hand where <pred>` (binds `card`) |

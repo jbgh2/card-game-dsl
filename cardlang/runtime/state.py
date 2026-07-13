@@ -41,7 +41,7 @@ class _ContinueTo(Exception):
 
 
 class _SkipHand(Exception):
-    """`skip to next hand` — unwinds to the enclosing `repeats until` hand loop,
+    """`skip to next hand` — unwinds to the enclosing `repeat until` hand loop,
     which proceeds to its next iteration (after_each still runs)."""
 
 

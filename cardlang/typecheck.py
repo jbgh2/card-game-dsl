@@ -20,11 +20,13 @@ Like :mod:`cardlang.resolve`, this annotates rather than rewrites: the
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
+from enum import Enum
 from typing import Iterator, Mapping, assert_never
 
 from cardlang.ast import nodes as n
 from cardlang.ast.nodes import Game
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError
+from cardlang.roles import role_type as _role_type
 from cardlang.stdlib.signatures import CALL_SIGS, ZONE_CONTENT, Sig
 from cardlang.stdlib.values import DIRECTION_VALUES, deck_ranks, deck_suits
 from cardlang.types import (
@@ -65,6 +67,31 @@ _ENUM_TYPES = frozenset({"Suit", "Rank", "Direction"})
 # TAny (closed-domain completeness, decisions.md).
 KNOWN_TYPE_NAMES: frozenset[str] = frozenset(_SCALAR_TYPES) | _ENUM_TYPES
 
+# A card's fields are a closed pair. One registry, shared by `infer` (typing
+# a known-Card member access) and `_check_expr` (rejecting anything else) —
+# a third field can be added to this dict and both sites see it; before this
+# was two hand-enumerated pairs that could (and did) drift.
+CARD_FIELDS: dict[str, Type] = {"rank": TEnum("Rank"), "suit": TEnum("Suit")}
+
+# `action` fields whose type is the same for every move type: the runtime
+# `Move` payload (cardlang/runtime/state.py) carries exactly `card: Card` and
+# `actor: Player`, always both present, for every move type. This is the
+# sound subset of `action`'s shape — full move-type-aware typing (the
+# per-move-type params reachable only as `action.<param name>`, e.g. an
+# auction bid's `action.amount`) is out of scope; a field not in this
+# registry stays `TAny` (residual — see the ledger in
+# tests/test_zone_family_typing.py and roadmap.md).
+ACTION_FIELDS: dict[str, Type] = {"card": TCard(), "actor": TPlayer()}
+
+# stdlib functions whose result depends on a declared `ranking:` (they index
+# `ctx.rs.rank_index`, empty when the game declares none — runtime/stdlib.py
+# `rank_value` reads it unguarded and would KeyError). resolve.py already
+# gates a bare `Rank` move-parameter domain on the same `has_ranking`
+# condition (`_check_move_params`); this is the analogous compile-time gate
+# for a *call*. A registry, not an `if`, so the next ranking-dependent
+# function joins a set instead of a new branch.
+RANKING_GATED_FUNCS: frozenset[str] = frozenset({"rank_value"})
+
 
 def type_from_name(
     name: str, optional: bool, structs: Mapping[str, TStruct] | None = None
@@ -97,9 +124,12 @@ def value_enum_map(game: Game) -> dict[str, TEnum]:
     m: dict[str, TEnum] = {}
     for suit in deck_suits(game.deck):
         m[suit] = TEnum("Suit")
-    # Membership comes from the deck (Coup/Tarot declare no `ranking:`);
-    # a declared ranking adds nothing here beyond order.
-    for rank in deck_ranks(game.deck) | frozenset(game.ranking):
+    # Membership comes from the deck alone (Coup/Tarot declare no
+    # `ranking:`). resolve's `_resolve_ranking` guarantees ranking ⊆ deck
+    # ranks (an unknown rank is a resolve-time error), and resolve always
+    # runs before typecheck (cardlang/pipeline.py's `_check`), so unioning
+    # `game.ranking` in here would add nothing beyond order.
+    for rank in deck_ranks(game.deck):
         m[rank] = TEnum("Rank")
     for direction in DIRECTION_VALUES:
         m[direction] = TEnum("Direction")
@@ -168,10 +198,18 @@ class TypeEnv:
 
     state_vars: Mapping[str, Type] = field(default_factory=dict)
     zones: Mapping[str, Type] = field(default_factory=dict)
+    # Zone FAMILIES (`hand[player]`, `captured[team]`) only, name -> the type
+    # a subscript's index expression must be `assignable` to. A family zone's
+    # bare name (no subscript) still resolves through `zones` above to its
+    # content type — unaffected; this map exists so `Subscript` can tell a
+    # family instance (`hand[p]`, itself a collection) apart from the generic
+    # collection-element indexing every other subscript does.
+    zone_families: Mapping[str, Type] = field(default_factory=dict)
     value_enums: Mapping[str, TEnum] = field(default_factory=dict)
     locals: Mapping[str, Type] = field(default_factory=dict)
     structs: Mapping[str, TStruct] = field(default_factory=dict)
     functions: Mapping[str, Sig] = field(default_factory=dict)  # user functions
+    has_ranking: bool = False  # bool(game.ranking) — gates RANKING_GATED_FUNCS
 
     def with_local(self, name: str, t: Type) -> "TypeEnv":
         return replace(self, locals={**self.locals, name: t})
@@ -192,6 +230,18 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
         case n.NameRef():
             return _name_type(e, env)
         case n.Subscript():
+            # A zone-FAMILY subscript (`hand[p]`) denotes one zone instance —
+            # its type is the zone's *content* type (a collection), never the
+            # element a generic collection subscript yields (Finding 1: the
+            # old flat `element`-of-collection read `hand[p]` as a single
+            # Card, degrading every aggregation/membership use downstream to
+            # TAny or a spurious rejection). A non-family subscript (a state
+            # var, a `[…]` list, a query result) keeps the generic behavior.
+            obj_ref = e.obj
+            if isinstance(obj_ref, n.NameRef) and obj_ref.ref_kind == "zone":
+                family = env.zone_families.get(obj_ref.name)
+                if family is not None:
+                    return env.zones.get(obj_ref.name, TCollection(TAny()))
             obj = infer(e.obj, env)
             return obj.element if isinstance(obj, TCollection) else TAny()
         case n.Call():
@@ -236,16 +286,25 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
         case n.StructLit():
             return env.structs.get(e.type_name, TAny())
         case n.Member():
+            # `action.card` / `action.actor`: the sound subset of the `action`
+            # pronoun's shape (Finding 3) — typed directly off the pronoun,
+            # not off `infer(e.obj, env)` (which stays TAny for `action`
+            # itself, since most of its shape is move-type-specific).
+            obj_ref = e.obj
+            if (
+                isinstance(obj_ref, n.NameRef)
+                and obj_ref.ref_kind == "pronoun"
+                and obj_ref.name == "action"
+                and e.field in ACTION_FIELDS
+            ):
+                return ACTION_FIELDS[e.field]
             obj = infer(e.obj, env)
             if isinstance(obj, TStruct):
                 return obj.fields.get(e.field, TAny())
             if isinstance(obj, TCard):
                 # A card's fields are a closed pair; `_check_expr` rejects
                 # anything else on a known-Card receiver.
-                if e.field == "rank":
-                    return TEnum("Rank")
-                if e.field == "suit":
-                    return TEnum("Suit")
+                return CARD_FIELDS.get(e.field, TAny())
             return TAny()  # pronoun member access / sugar: deferred
         case n.ListLit():
             elem: Type | None = infer(e.elements[0], env)
@@ -279,8 +338,17 @@ def _name_type(e: n.NameRef, env: TypeEnv) -> Type:
             return TBoolean()
         case "null":
             return TNull()  # the `none` literal — assignable only to optionals
+        case "pronoun":
+            # `actor` is universally the acting player at runtime
+            # (evaluate._pronoun -> ctx.current_player, and the `Move`
+            # payload's own `actor` field is a bare `Player`, never
+            # optional) — the other pronouns (`action`, `outcome`,
+            # `state`, `active_rules`) stay TAny; their shape is
+            # move-type/mechanic-specific (see ACTION_FIELDS for the
+            # sound subset of `action` typed via Member access).
+            return TPlayer() if e.name == "actor" else TAny()
         case _:
-            return TAny()  # pronoun / function / unresolved
+            return TAny()  # function / unresolved
 
 
 def _type_name(t: Type) -> str:
@@ -327,31 +395,26 @@ def env_from_game(game: Game) -> TypeEnv:
         z.name: ZONE_CONTENT.get(z.type_ref.name, TCollection(TAny()))
         for z in game.zones
     }
+    # `ZoneDecl.index` is `None` (a singleton zone) or one of the closed
+    # index roles resolve.py validates (`_KNOWN_ROLES = {"player", "team"}`);
+    # a family's subscript index must be `assignable` to the matching type.
+    zone_families: dict[str, Type] = {
+        z.name: (TTeam() if z.index == "team" else TPlayer())
+        for z in game.zones
+        if z.index is not None
+    }
     return TypeEnv(
         state_vars=state_vars,
         zones=zones,
+        zone_families=zone_families,
         value_enums=value_enum_map(game),
         structs=structs,
+        has_ranking=bool(game.ranking),
     )
 
 
 # A statement's enclosing loop binders, innermost last: (name, role type).
 _Binders = tuple[tuple[str, "Type"], ...]
-
-
-def _role_type(role: str) -> Type:
-    """The type a `for each <role>` / `any <role>` binder carries. The role
-    set is closed and resolve rejects anything outside it; the TAny arm is a
-    backstop for the permissive walks that run before that rejection."""
-    if role == "player":
-        return TPlayer()
-    if role == "team":
-        return TTeam()
-    if role == "suit":
-        return TEnum("Suit")
-    if role == "rank":
-        return TEnum("Rank")
-    return TAny()
 
 
 def _stmt_tree_scoped(
@@ -554,6 +617,355 @@ def _check_enum_operand(
             )
 
 
+# --- BinOp operand walls: one dispatcher over the operator-class registry ---
+#
+# `infer`'s BinOp arm (above) is the operator registry: every op string a
+# `BinOp` node can carry. `OP_CLASSES` classifies each into the operand-shape
+# family that determines what a *sound* operand looks like — this is a
+# second, independent read of the same registry (not derived from
+# `infer`'s tuples in code, since their grouping is by *result* type, not
+# operand legality), so `tests/test_operator_walls.py` pins the two against
+# each other: a new operator landing in `infer` without a matching
+# `OP_CLASSES` entry fails that test instead of silently reaching runtime
+# unwalled.
+
+
+class OpClass(Enum):
+    EQUALITY = "equality"
+    ORDERING = "ordering"
+    ARITHMETIC = "arithmetic"
+    LOGICAL = "logical"
+    MEMBERSHIP = "membership"
+    OFFSET_BY = "offset_by"
+
+
+OP_CLASSES: dict[str, OpClass] = {
+    "==": OpClass.EQUALITY,
+    "!=": OpClass.EQUALITY,
+    "<": OpClass.ORDERING,
+    ">": OpClass.ORDERING,
+    "<=": OpClass.ORDERING,
+    ">=": OpClass.ORDERING,
+    "+": OpClass.ARITHMETIC,
+    "-": OpClass.ARITHMETIC,
+    "*": OpClass.ARITHMETIC,
+    "and": OpClass.LOGICAL,
+    "or": OpClass.LOGICAL,
+    "in": OpClass.MEMBERSHIP,
+    "offset_by": OpClass.OFFSET_BY,
+}
+
+
+def _op_class(op: str) -> OpClass:
+    cls = OP_CLASSES.get(op)
+    if cls is None:
+        # A future operator reached `infer`'s BinOp arm without an entry
+        # here — loud, not a silent unwalled pass-through.
+        raise AssertionError(
+            f"operator '{op}' has no entry in OP_CLASSES — every BinOp "
+            "operator the parser builds must be classified (surface "
+            "totality, decisions.md); add it to the registry"
+        )
+    return cls
+
+
+def _bare(t: Type) -> Type:
+    """Unwrap a `T?` to `T` for operand-shape checks — an optional operand
+    rejects/accepts exactly like its payload (sweep-the-class: every operand
+    wall in this module applies to the optional wrapper of its rejection
+    domain, not just the bare form)."""
+    return t.inner if isinstance(t, TOptional) else t
+
+
+def _check_binop(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
+    cls = _op_class(e.op)
+    match cls:
+        case OpClass.EQUALITY:
+            _check_equality_operands(e, env, bag)
+        case OpClass.ORDERING:
+            _check_ordering_operands(e, env, bag)
+        case OpClass.ARITHMETIC:
+            _check_arithmetic_operands(e, env, bag)
+        case OpClass.LOGICAL:
+            _check_logical_operands(e, env, bag)
+        case OpClass.MEMBERSHIP:
+            _check_membership_operands(e, env, bag)
+        case OpClass.OFFSET_BY:
+            _check_offset_by_operands(e, env, bag)
+        case _ as unreachable:
+            assert_never(unreachable)
+
+
+def _check_equality_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """`==`/`!=` (surface `is`/`is not`): unchanged from before the operator
+    dispatcher existed — the enum-comparison wall, `_check_enum_operand`."""
+    lbare, rbare = _bare(infer(e.left, env)), _bare(infer(e.right, env))
+    if isinstance(lbare, TEnum):
+        _check_enum_operand(lbare, e.right, rbare, env, bag)
+    elif isinstance(rbare, TEnum):
+        _check_enum_operand(rbare, e.left, lbare, env, bag)
+
+
+def _check_ordering_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """`< > <= >=`: only Integers have an order in this language. A concrete
+    Rank operand is the plausible mistake (its declared order lives in
+    `ranking:`, not code-point order — Python would compare the rank
+    *strings*, e.g. "10" < "9"), so it gets a named fix; every other
+    concrete non-Integer operand (another enum, Boolean, Card, Player, Team,
+    a collection) is equally nonsensical and rejected the same way.
+    TAny/TInteger pass (gradual)."""
+    for operand in (e.left, e.right):
+        bare = _bare(infer(operand, env))
+        if isinstance(bare, (TAny, TInteger)):
+            continue
+        if isinstance(bare, TEnum) and bare.name == "Rank":
+            bag.error(
+                f"'{e.op}' compares Integers — enum values have no "
+                "arithmetic order — compare strength via rank_value(...)",
+                operand.span,
+            )
+        elif isinstance(bare, TEnum):
+            bag.error(
+                f"'{e.op}' compares Integers — {bare.name} enum values have "
+                "no arithmetic order",
+                operand.span,
+            )
+        else:
+            bag.error(
+                f"'{e.op}' compares Integers, got {_type_name(bare)}",
+                operand.span,
+            )
+
+
+def _check_arithmetic_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """`+ - *`: only Integers are numeric in this language. A concrete enum
+    operand is the worst case here — `+` string-concatenates it at runtime
+    instead of raising, so a bug like `card.rank + 1` reads as legal and is
+    silently wrong every time it runs. Every other concrete non-Integer
+    operand rejects the same way as ordering. TAny/TInteger pass."""
+    for operand in (e.left, e.right):
+        bare = _bare(infer(operand, env))
+        if isinstance(bare, (TAny, TInteger)):
+            continue
+        if isinstance(bare, TEnum) and bare.name == "Rank":
+            bag.error(
+                f"'{e.op}' expects Integer operands — enum values have no "
+                "numeric value — compare strength via rank_value(...)",
+                operand.span,
+            )
+        elif isinstance(bare, TEnum):
+            bag.error(
+                f"'{e.op}' expects Integer operands, got {bare.name} — an "
+                "enum value concatenates as a string at runtime, not adds",
+                operand.span,
+            )
+        else:
+            bag.error(
+                f"'{e.op}' expects Integer operands, got {_type_name(bare)}",
+                operand.span,
+            )
+
+
+def _check_logical_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """`and or`: both operands must be Boolean. This walls the operator's own
+    operands, independent of `_check_bool` on whatever *contains* the
+    expression — `if (a and 3) { … }` is Boolean overall (`and`'s `infer()`
+    arm is a fixed `TBoolean`, regardless of its operands), so a top-level
+    Boolean check on the whole `if` condition never sees the smuggled
+    Integer. TAny passes (gradual)."""
+    for operand in (e.left, e.right):
+        bare = _bare(infer(operand, env))
+        if not isinstance(bare, (TAny, TBoolean)):
+            bag.error(
+                f"'{e.op}' expects Boolean operands, got {_type_name(bare)}",
+                operand.span,
+            )
+
+
+def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """`in`: the right-hand side must be a collection (unchanged wall); the
+    left operand must be a plausible element of it. A `[...]` literal against
+    a known enum-typed left operand keeps the existing per-element literal
+    validation (`card.rank in [A, "10"]` — doppelkopf), since that catches
+    misspelled/mistyped *literals* `unify` cannot see (a bad numeral, a
+    cross-enum literal). Every other combination is walled generally: when
+    both the left type and the collection's element type are concrete and
+    `unify` finds them incompatible, the membership can never be true."""
+    right_t = infer(e.right, env)
+    if not isinstance(right_t, (TCollection, TAny)):
+        bag.error(
+            "the right-hand side of `in` must be a collection (a zone or "
+            f"a `[…]` list), got {_type_name(right_t)}",
+            e.span,
+        )
+        return
+    lbare = _bare(infer(e.left, env))
+    if isinstance(lbare, TEnum) and isinstance(e.right, n.ListLit):
+        for item in e.right.elements:
+            ibare = _bare(infer(item, env))
+            _check_enum_operand(lbare, item, ibare, env, bag)
+        return
+    if not isinstance(right_t, TCollection):
+        return  # a TAny collection: nothing more `unify` can say
+    ebare = _bare(right_t.element)
+    if isinstance(lbare, TAny) or isinstance(ebare, TAny):
+        return
+    if unify(lbare, ebare) is None:
+        bag.error(
+            f"membership compares {_type_name(lbare)} with a collection of "
+            f"{_type_name(ebare)} — never true",
+            e.span,
+        )
+
+
+def _check_offset_by_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """`offset_by`: rotates a Player around the seating ring by a Direction
+    (`runtime.values.Seating.offset_by`) — the left operand must be a Player,
+    the right a Direction-enum value (`hand[player offset_by pass_direction]`
+    in hearts.cardlang reads the direction off a declared `Direction` state
+    var, not only a bare `left`/`right`/`across`/`hold` literal, so this
+    checks the *type*, not the ref-kind)."""
+    lbare = _bare(infer(e.left, env))
+    if not isinstance(lbare, (TAny, TPlayer)):
+        bag.error(
+            "'offset_by' rotates a Player around the seating ring — the "
+            f"left operand must be a Player, got {_type_name(lbare)}",
+            e.left.span,
+        )
+    rbare = _bare(infer(e.right, env))
+    if isinstance(rbare, TAny):
+        return
+    if not (isinstance(rbare, TEnum) and rbare.name == "Direction"):
+        bag.error(
+            "'offset_by' expects a Direction (left/right/across/hold) on "
+            f"the right, got {_type_name(rbare)}",
+            e.right.span,
+        )
+
+
+def _check_card_source(source: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """Both `cards in <source>` (CardQuery) and `over cards in <source>` (an
+    aggregation) expect a zone or a collection of cards — the shared source
+    wall, since a wrong source degrades every downstream Card wall to `TAny`
+    (the `card` binder types off this same inference — Finding 1 in
+    tests/test_zone_family_typing.py was exactly this failure mode for zone
+    families). A non-collection source and a collection of the wrong element
+    type both fail the same way: `unify` against `TCard` finds nothing in
+    common."""
+    src_t = infer(source, env)
+    if isinstance(src_t, TAny):
+        return
+    elem = src_t.element if isinstance(src_t, TCollection) else src_t
+    ebare = _bare(elem)
+    if isinstance(ebare, TAny):
+        return
+    if unify(ebare, TCard()) is None:
+        bag.error(
+            f"'cards in ...' expects a zone or collection of cards, got "
+            f"{_type_name(src_t)}",
+            source.span,
+        )
+
+
+def _check_agg_body(e: n.Comprehension, scoped: TypeEnv, bag: DiagnosticBag) -> None:
+    """`sum`/`max`/`min` all fold Integers, and an enum-typed body (most
+    plausibly a bare `card.rank`/`card.suit` where the author meant its
+    strength) is the plausible-mistake case, so it gets the rank_value hint
+    — but the two aggregators diverge at runtime (evaluate._comprehension),
+    so the message names what actually happens: `sum` folds Python's
+    `sum()`, whose zero-valued start makes `0 + "hearts"` a `TypeError` —
+    loud, but only at play time, arbitrarily deep into a game; `max`/`min`
+    fold Python's `max()`/`min()`, which silently compare the enum values
+    *lexicographically as strings* — no crash, just the wrong card, forever.
+    Every other concrete non-Integer body is equally nonsensical and gets
+    the generic message. TAny/TInteger pass (gradual)."""
+    bare = _bare(infer(e.body, scoped))
+    if isinstance(bare, (TAny, TInteger)):
+        return
+    if isinstance(bare, TEnum):
+        runtime_note = (
+            "summing enum values type-errors at runtime (adding a string "
+            "to an integer)"
+            if e.agg == "sum"
+            else "comparing enum values folds the underlying strings "
+            "lexicographically at runtime, not the card's actual strength"
+        )
+        bag.error(
+            f"'{e.agg}' aggregates a numeric strength — rank_value(card) — "
+            f"not the enum value itself ({runtime_note})",
+            e.body.span,
+        )
+        return
+    bag.error(
+        f"'{e.agg}' expects an Integer body, got {_type_name(bare)}",
+        e.body.span,
+    )
+
+
+def _check_agg_default(
+    e: n.Comprehension, env: TypeEnv, scoped: TypeEnv, bag: DiagnosticBag
+) -> None:
+    """The order aggregators' mandatory `or <default>` clause shares its
+    leading `or` with a compound `where` predicate — `where A or B` reads as
+    filter=A, default=B, the headline misparse this wall exists to catch. A
+    Boolean default is the tell (a real default is body-shaped, e.g. an
+    Integer for a `rank_value(card)` body; a leftover predicate is not) —
+    flagged whenever there IS a `where` clause for the `or` to have been
+    split from (no `where`, no ambiguity: a Boolean default there is an
+    ordinary type mismatch, handled by the generic check below). Otherwise, a
+    concrete body/default type mismatch `unify` can't reconcile is rejected
+    generically."""
+    assert e.default is not None
+    dbare = _bare(infer(e.default, env))
+    if isinstance(dbare, TBoolean) and e.filter is not None:
+        bag.error(
+            "the aggregation default is Boolean — this is almost always the "
+            "last disjunct of the `where` predicate, absorbed by the "
+            "mandatory `or <default>` clause: parenthesize the whole `where` "
+            "predicate, or supply a real default after `or`",
+            e.default.span,
+        )
+        return
+    bbare = _bare(infer(e.body, scoped))
+    if isinstance(bbare, TAny) or isinstance(dbare, TAny):
+        return
+    if unify(bbare, dbare) is None:
+        bag.error(
+            f"'{e.agg}' aggregation default type mismatch: the body is "
+            f"{_type_name(bbare)}, the default is {_type_name(dbare)}",
+            e.default.span,
+        )
+
+
+def _check_is_check(e: n.IsCheck, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """`is empty`/`is not empty` ask a zone or collection; `is none`/`is not
+    none` ask an optional. A concrete operand outside that domain isn't
+    merely wrong, it's dead: both checks then have a fixed truth value
+    regardless of the game's live state — never a check worth writing.
+    TAny passes (gradual); TOptional/TNull pass the none-checks (their whole
+    point)."""
+    t = infer(e.operand, env)
+    bare = _bare(t)
+    if e.kind in ("empty", "not_empty"):
+        if isinstance(bare, (TAny, TCollection)):
+            return
+        surface = "is empty" if e.kind == "empty" else "is not empty"
+        bag.error(
+            f"`{surface}` asks a zone or collection — got {_type_name(bare)}",
+            e.operand.span,
+        )
+    else:  # "none" | "not_none"
+        if isinstance(t, (TAny, TOptional, TNull)):
+            return
+        surface = "is none" if e.kind == "none" else "is not none"
+        always = "always false" if e.kind == "none" else "always true"
+        bag.error(
+            f"`{surface}` on a non-optional {_type_name(bare)} is {always} "
+            "— never a check worth writing",
+            e.operand.span,
+        )
+
+
 def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
     """Recursively validate a single expression: stdlib argument types and
     subscript legality. Types of unrefined sub-parts are `TAny` (permissive).
@@ -563,26 +975,37 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
     player-query, card-query, and aggregation binders at their real types
     rather than `TAny`."""
     if isinstance(e, n.Quantifier):
-        _check_expr(e.body, env.with_local(e.binder, _role_type(e.role)), bag)
+        scoped = env.with_local(e.binder, _role_type(e.role))
+        _check_expr(e.body, scoped, bag)
+        _check_bool(e.body, scoped, bag, f"'{e.kind} {e.role}' quantifier body")
         return
     if isinstance(e, n.PlayerQuery):
-        _check_expr(e.pred, env.with_local("player", TPlayer()), bag)
+        scoped = env.with_local("player", TPlayer())
+        _check_expr(e.pred, scoped, bag)
+        _check_bool(e.pred, scoped, bag, "player-query predicate")
         return
     if isinstance(e, n.CardQuery):
         _check_expr(e.source, env, bag)
+        _check_card_source(e.source, env, bag)
         if e.pred is not None:
-            _check_expr(e.pred, env.with_local("card", TCard()), bag)
+            scoped = env.with_local("card", TCard())
+            _check_expr(e.pred, scoped, bag)
+            _check_bool(e.pred, scoped, bag, "card-query predicate")
         return
     if isinstance(e, n.Comprehension):
         _check_expr(e.source, env, bag)
+        _check_card_source(e.source, env, bag)
         src = infer(e.source, env)
         elem: Type = src.element if isinstance(src, TCollection) else TAny()
         scoped = env.with_local(e.binder, elem)
         if e.filter is not None:
             _check_expr(e.filter, scoped, bag)
+            _check_bool(e.filter, scoped, bag, "aggregation `where` filter")
         _check_expr(e.body, scoped, bag)
+        _check_agg_body(e, scoped, bag)
         if e.default is not None:
             _check_expr(e.default, env, bag)
+            _check_agg_default(e, env, scoped, bag)
         return
     for child in _child_exprs(e):
         _check_expr(child, env, bag)
@@ -603,10 +1026,40 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                             f"{e.func}() expects {_type_name(param)}, got {_type_name(got)}",
                             e.span,
                         )
+        if e.func in RANKING_GATED_FUNCS and not env.has_ranking:
+            bag.error(
+                f"{e.func}() reads a card's rank strength from ranking:, "
+                f"but the game declares no ranking: — declare one, or use a "
+                f"game-specific rank function",
+                e.span,
+            )
     elif isinstance(e, n.Subscript):
-        obj = infer(e.obj, env)
-        if not subscriptable(obj):
-            bag.error(f"cannot index {_type_name(obj)} (not a collection)", e.span)
+        obj_ref = e.obj
+        if isinstance(obj_ref, n.NameRef) and obj_ref.ref_kind == "zone":
+            # A zone-family subscript (`hand[p]`) is checked against the
+            # zone's declared index role (Finding 1), not the generic
+            # subscriptable-collection check below — a family isn't a
+            # collection being indexed, it's ONE zone instance among many
+            # selected by key.
+            family = env.zone_families.get(obj_ref.name)
+            if family is None:
+                bag.error(
+                    f"zone '{obj_ref.name}' is not indexed — drop the "
+                    f"brackets",
+                    e.span,
+                )
+            else:
+                idx_t = infer(e.index, env)
+                if not assignable(idx_t, family):
+                    bag.error(
+                        f"`{obj_ref.name}` is indexed by {_type_name(family)}"
+                        f" — got {_type_name(idx_t)}",
+                        e.span,
+                    )
+        else:
+            obj = infer(e.obj, env)
+            if not subscriptable(obj):
+                bag.error(f"cannot index {_type_name(obj)} (not a collection)", e.span)
     elif isinstance(e, n.StructLit):
         _check_struct_lit(e, env, bag)
     elif isinstance(e, n.Member):
@@ -617,12 +1070,23 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         bare = obj.inner if isinstance(obj, TOptional) else obj
         if isinstance(obj, TStruct) and e.field not in obj.fields:
             bag.error(f"{obj.name} has no field '{e.field}'", e.span)
-        elif isinstance(bare, TCard) and e.field not in ("rank", "suit"):
+        elif isinstance(bare, TCard) and e.field not in CARD_FIELDS:
             # A card's fields are a closed pair — an unknown one would read
             # as `TAny` and only fail (or worse, not fail) at play time.
+            field_list = " and ".join(f"`{f}`" for f in sorted(CARD_FIELDS))
             bag.error(
-                f"Card has no field '{e.field}' (its fields are `rank` and "
-                f"`suit`)",
+                f"Card has no field '{e.field}' (its fields are {field_list})",
+                e.span,
+            )
+        elif isinstance(bare, TCollection):
+            # A zone-family subscript (`hand[p]`) is now correctly typed as
+            # the zone's content collection (Finding 1) rather than a single
+            # Card, so a dot-form access on it (`hand[p].rank`) needs its own
+            # wall — previously this silently read as TAny and only crashed
+            # at play time (`_member` has no case for a `Zone`/list).
+            bag.error(
+                "a collection has no fields — aggregate over it ('sum of … "
+                "over cards in …') or take a specific card",
                 e.span,
             )
         elif isinstance(bare, (TPlayer, TTeam, TInteger, TBoolean)):
@@ -636,42 +1100,10 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 f"('{e.field}[...]') instead",
                 e.span,
             )
-    elif isinstance(e, n.BinOp) and e.op in ("==", "!="):
-        left_t, right_t = infer(e.left, env), infer(e.right, env)
-        lbare = left_t.inner if isinstance(left_t, TOptional) else left_t
-        rbare = right_t.inner if isinstance(right_t, TOptional) else right_t
-        if isinstance(lbare, TEnum):
-            _check_enum_operand(lbare, e.right, rbare, env, bag)
-        elif isinstance(rbare, TEnum):
-            _check_enum_operand(rbare, e.left, lbare, env, bag)
-    elif isinstance(e, n.BinOp) and e.op == "in":
-        right_t = infer(e.right, env)
-        if not isinstance(right_t, (TCollection, TAny)):
-            bag.error(
-                f"the right-hand side of `in` must be a collection (a zone or "
-                f"a `[…]` list), got {_type_name(right_t)}",
-                e.span,
-            )
-            return
-        left_t = infer(e.left, env)
-        lbare = left_t.inner if isinstance(left_t, TOptional) else left_t
-        if isinstance(lbare, TEnum):
-            # Validate each literal element against the member's enum, the
-            # same wall as `==` — `card.rank in ["Kx"]` must not be silently
-            # false.
-            if isinstance(e.right, n.ListLit):
-                for item in e.right.elements:
-                    item_t = infer(item, env)
-                    ibare = item_t.inner if isinstance(item_t, TOptional) else item_t
-                    _check_enum_operand(lbare, item, ibare, env, bag)
-            elif isinstance(right_t, TCollection):
-                ebare = right_t.element
-                if isinstance(ebare, TEnum) and ebare.name != lbare.name:
-                    bag.error(
-                        f"membership compares {lbare.name} with a collection "
-                        f"of {ebare.name} — never true",
-                        e.span,
-                    )
+    elif isinstance(e, n.BinOp):
+        _check_binop(e, env, bag)
+    elif isinstance(e, n.IsCheck):
+        _check_is_check(e, env, bag)
 
 
 def _check_struct_lit(e: n.StructLit, env: TypeEnv, bag: DiagnosticBag) -> None:
@@ -740,6 +1172,36 @@ def _stmt_exprs(s: n.Stmt) -> list[n.Expr]:
     if isinstance(s, n.Produce):
         return list(s.payloads)
     return []  # ForEach / EachSimultaneous / RotateStmt: no direct value expressions
+
+
+def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """Check every expression `_stmt_exprs` holds directly, binding an
+    implicit name where the construct's own runtime semantics require one.
+
+    `Movement.filter` and `EpistemicOp.filter` are evaluated with `card`
+    bound per candidate (runtime/execute.py's shared `_card_pred`:
+    `ctx.with_local("card", c)`, used by both the movement selection and
+    `reveal`) — the *only* two `_stmt_exprs` members whose
+    predicate binds an implicit name (every other branch — AssignStmt,
+    LetStmt, Offer, Round, IfStmt/RepeatUntil, Produce — holds plain value
+    expressions in the ambient environment, no binder). Before this, both
+    filters ran through the flat, unbound `env`, so `card.<field>` inside a
+    `deal`/`move`/`reveal` filter typed as `TAny` (Member on an untyped
+    `card` local) and every Card wall — the closed CARD_FIELDS pair among
+    them — was dark there. The filter must also itself be Boolean; the
+    other direct expressions on these two node kinds (source/dest/amount/
+    visibility, target) carry no binder and stay in the ambient `env`."""
+    if isinstance(s, (n.Movement, n.EpistemicOp)) and s.filter is not None:
+        scoped = env.with_local("card", TCard())
+        _check_expr(s.filter, scoped, bag)
+        verb = s.verb if isinstance(s, n.Movement) else s.op
+        _check_bool(s.filter, scoped, bag, f"'{verb}' filter")
+        for expr in _stmt_exprs(s):
+            if expr is not s.filter:
+                _check_expr(expr, env, bag)
+        return
+    for expr in _stmt_exprs(s):
+        _check_expr(expr, env, bag)
 
 
 def _all_phases(game: Game) -> Iterator[n.Phase]:
@@ -943,7 +1405,7 @@ def _continue_targets_in_item(item: "n.PhaseItem") -> set[str]:
 
 def _item_can_skip(item: "n.PhaseItem") -> bool:
     """Whether executing one phase-body item can `skip to next hand` against *this*
-    body's hand loop. A nested `repeats until` catches its own skips, so they don't
+    body's hand loop. A nested `repeat until` catches its own skips, so they don't
     unwind here."""
     if isinstance(item, n.Phase):
         if item.qualifier is not None and item.qualifier.kind == "repeats":
@@ -1034,7 +1496,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
       producer ran first in the same pass;
     - `continue to <phase>` resolves to a *later* sibling in this or an enclosing
       body (it is forward-only and unwinds outward to a body that holds the target);
-    - `skip to next hand` sits inside a phase-level `repeats until` hand loop (a
+    - `skip to next hand` sits inside a phase-level `repeat until` hand loop (a
       statement-level trick `repeat until` does not count).
 
     `before`/`after` carry the sibling phase names that execute before/after the
@@ -1122,7 +1584,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
             ) - skippable
             later = after_phases | {nm for j, nm in child_at.items() if j > idx}
             if isinstance(item, n.Phase):
-                # A consumer inside a `repeats until` body can only rely on a
+                # A consumer inside a `repeat until` body can only rely on a
                 # producer that reruns each pass — i.e. one inside the same loop —
                 # so outer producers don't carry in (continue-to targets still do).
                 child_before = (
@@ -1177,7 +1639,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                             )
                         elif isinstance(node, n.SkipToNextHand) and not here_loop:
                             bag.error(
-                                "'skip to next hand' must be inside a `repeats until` "
+                                "'skip to next hand' must be inside a `repeat until` "
                                 "hand loop",
                                 node.span,
                             )
@@ -1195,7 +1657,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
         if p.outcome_cases and p.qualifier is None
     }
     for idx, phase in enumerate(game.phases):
-        # Same rule as the recursion: a top-level `repeats until` body can't rely
+        # Same rule as the recursion: a top-level `repeat until` body can't rely
         # on an earlier top-level producer (it ran once, the loop reruns).
         is_repeat = phase.qualifier is not None and phase.qualifier.kind == "repeats"
         before = (
@@ -1301,8 +1763,7 @@ def _check_produces(
                     # Nested consumer: check it with the enclosing arm binders in
                     # scope (so outer payload binders are typed, not TAny).
                     _check_produces(sub, variants, sub_env, bag)
-                for expr in _stmt_exprs(sub):
-                    _check_expr(expr, sub_env, bag)
+                _check_stmt_exprs(sub, sub_env, bag)
                 _check_stmt_semantics(sub, sub_env, bag)
     missing = sorted(set(variant.cases) - seen)
     if missing:
@@ -1332,8 +1793,7 @@ def typecheck(game: Game) -> Game:
         senv = env
         for name, t in binders:
             senv = senv.with_local(name, t)
-        for expr in _stmt_exprs(stmt):
-            _check_expr(expr, senv, bag)
+        _check_stmt_exprs(stmt, senv, bag)
         if isinstance(stmt, n.Produces):
             # `_check_produces` recurses into arm-nested consumers itself, carrying
             # the arm binders into their environment.

@@ -97,10 +97,9 @@ direction rather than picking a new one.
 - **A noun-sugar counting tier** (`count hearts in hand`, `number of Kings
   in hand[p]`) was considered and **deferred**: it needs suit/rank plural
   nouns, and it can only ever be sugar over the query form.
-- **The English `offset_by` replacement** (§7 of the original analysis) is a
-  decided *direction* whose spelling is still open — `offset_by` remains the
-  surface operator, documented as such in [library.md](../library.md)
-  "Types" (`Seating`).
+- **The English `offset_by` replacement** is a decided *direction* whose
+  spelling is still open — `offset_by` remains the surface operator,
+  documented as such in [library.md](../library.md) "Types" (`Seating`).
 
 ## 4. Remaining work this analysis motivates
 

@@ -11,7 +11,7 @@ from typing import Any, Callable, assert_never
 
 from cardlang.ast import nodes as n
 from cardlang.runtime import mechanics, observe
-from cardlang.runtime.evaluate import evaluate
+from cardlang.runtime.evaluate import _role_domain, evaluate
 from cardlang.runtime.state import Ctx, Zone, _ContinueTo, _ProduceSignal, _SkipHand
 from cardlang.runtime.values import Card, Player
 
@@ -333,7 +333,9 @@ def _for_each(stmt: n.ForEach, ctx: Ctx) -> None:
         return
     if stmt.role in ("suit", "rank"):
         # Value domains carry no actor: the binder is a bare enum value.
-        for value in _enum_role_domain(stmt.role, ctx):
+        # `_role_domain` (runtime/evaluate.py) is the one runtime accessor
+        # for the closed iteration-role registry (`cardlang.roles.ROLES`).
+        for value in _role_domain(stmt.role, ctx):
             execute(stmt.body, ctx.with_local(stmt.binder, value))
         return
     assert stmt.role == "player"  # resolve rejects anything else
@@ -341,16 +343,6 @@ def _for_each(stmt: n.ForEach, ctx: Ctx) -> None:
     # made inside (e.g. `bid[p] := choose …`) knows who is choosing.
     for player in ctx.rs.seating.players:
         execute(stmt.body, ctx.with_local(stmt.binder, player).acting_as(player))
-
-
-def _enum_role_domain(role: str, ctx: Ctx) -> list[str]:
-    """The deterministic iteration order of a value-role domain: suits in
-    deck order; ranks in `ranking:` order (strongest first) when declared,
-    else deck order."""
-    if role == "suit":
-        return list(ctx.rs.suits)
-    assert role == "rank"
-    return list(ctx.rs.ranks)
 
 
 def _offer(stmt: n.Offer, ctx: Ctx) -> None:

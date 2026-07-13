@@ -440,7 +440,7 @@ class ContinueTo:
 @dataclass(frozen=True, slots=True)
 class SkipToNextHand:
     """`skip to next hand` — in a `produces:` arm, abort the rest of this hand and
-    continue the enclosing `repeats until` hand loop's next iteration."""
+    continue the enclosing `repeat until` hand loop's next iteration."""
 
     span: Span | None = None
 
@@ -642,7 +642,7 @@ class AfterEach:
 
 @dataclass(frozen=True, slots=True)
 class PhaseQualifier:
-    """`repeats until <expr>` or `when <expr>` on a phase header."""
+    """`repeat until <expr>` or `when <expr>` on a phase header."""
 
     kind: str  # "repeats" | "when"
     expr: Expr

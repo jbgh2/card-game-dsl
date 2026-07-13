@@ -10,6 +10,7 @@ players. `offset_by left`/`right` stay absolute (+1 / -1) regardless.
 from __future__ import annotations
 
 from cardlang.runtime.values import Seating
+from cardlang.stdlib.values import DIRECTION_VALUES
 
 
 def test_turn_order_clockwise_is_increasing_index() -> None:
@@ -29,3 +30,19 @@ def test_offset_by_is_absolute_regardless_of_direction() -> None:
     for s in (Seating(4), Seating(4, clockwise=False)):
         assert s.offset_by(0, "left") == 1
         assert s.offset_by(0, "right") == 3
+
+
+def test_offset_by_covers_every_registered_direction() -> None:
+    # Closed-domain completeness: every spelling `stdlib.values.DIRECTION_VALUES`
+    # advertises must resolve in `offset_by`'s delta map, so a future direction
+    # added to the registry cannot silently miss a case here (the map once had a
+    # stale "none" key instead of "hold" and neither the registry nor a passing
+    # suite caught it — this loops over the registry itself, not a hardcoded list).
+    s = Seating(4)
+    for direction in DIRECTION_VALUES:
+        assert s.offset_by(0, direction) in s.players
+
+
+def test_offset_by_hold_is_a_no_op() -> None:
+    s = Seating(4)
+    assert s.offset_by(2, "hold") == 2

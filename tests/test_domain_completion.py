@@ -1,5 +1,5 @@
 """Domain completion: the audited gaps in admitted constructs, each cell total
-(docs/design-notes/lexical-cleanup.md §5).
+(docs/design-notes/lexical-cleanup.md §2, "What landed, and where it lives").
 
 - negative Integer literals (`-200`, retiring the `0 - 200` workaround);
 - name-form rank literals resolving bare (`card.rank == K`, `Duke`), with the

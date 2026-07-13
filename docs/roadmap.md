@@ -53,6 +53,37 @@ Things we have noted but consciously not designed yet:
   named open question, not a rejection —
   [open-questions/rule-scope-beyond-trick-play.md](open-questions/rule-scope-beyond-trick-play.md).
 
+- **`active_rules:` remove-reachability is cluster-precise, not fully
+  runtime-precise.** `-X` is walled (`_check_remove_reachability`,
+  cardlang/resolve.py) to require `X` added by a `plain`/`add` reference in
+  the same runtime-consulted scope: a phase's own `active_rules:`, or that
+  list unioned with one direct rule-delta sub-phase's own list —
+  `runtime/phases.py`'s `compute_active_rules` shape. Two narrower gaps are
+  accepted, both unexercised by the corpus (no game uses `-X` at all): the
+  check does not model order WITHIN one list (an add-then-remove of the same
+  name earlier in a parent's own list still counts as "added" for a later
+  delta-child cluster check, even though the runtime would have already
+  removed it before any delta child runs), and it does not distinguish two
+  SIBLING rule-delta sub-phases (a remove in one referencing a name added
+  only by the other passes this check, even though only one of a
+  "before"/"after" pair is ever active at a time, so the reference is a
+  runtime no-op regardless of what this check says). Tighten if a game ever
+  needs the precision.
+
+- **`ranking:` coverage is unchecked.** Wall: `_resolve_ranking`
+  (cardlang/resolve.py) rejects a `ranking:` entry that names no rank of the
+  declared deck, and a repeated entry, but does not require every deck rank
+  to be present — a game's `ranking:` may legitimately be a PARTIAL
+  permutation, pinned as a deliberate feature by
+  `tests/test_action_space_multiparam.py::test_rank_domain_sourced_from_game_ranking_not_deck`,
+  which narrows the `Rank` move-parameter domain this way on purpose.
+  A card whose rank falls outside a partial `ranking:` still crashes
+  `rank_value`'s `ctx.rs.rank_index[...]` lookup at runtime
+  (`cardlang/runtime/stdlib.py`) instead of erroring at resolve time — this
+  residual half has no pinning test (no corpus game exercises it: every
+  `docs/games/*.cardlang` ranking today happens to be a full permutation of
+  its deck).
+
 - **Solitaire and positional zones.** CardStock excludes spatially-dependent
   layouts. We don't, but we haven't implemented one yet. Klondike or FreeCell
   will be the test case.
@@ -130,13 +161,79 @@ Things we have noted but consciously not designed yet:
   `deal : Contract = Contract { level: 1 }` (omitting a field) is accepted by the
   checker and fails only at runtime on field access.
 
-  Deferred checker coverage (from Stage 1 review): BinOp operand compatibility
-  (`hearts is 5` currently passes), movement `amount` must be Integer, rule
-  `demands`/`applies_when` conditions, and constraining `loser.selection` to
-  `Player`. Stage 2 types `produces:` arm binders (its scoped consumer walk), but
-  the other binders — `for each` / lambda / comprehension / quantifier /
-  player-query — still infer `TAny` today (deliberately, to avoid false
-  positives), so binder-typed mistakes there are missed.
+  Deferred checker coverage: movement `amount`, when an expression rather than
+  `all`/`one`, is walled structurally (call arity, subscript legality, every
+  BinOp/aggregation/IsCheck operand wall recurses into it) but nothing pins
+  its own type to Integer. Rule `applies_when` predicates are walled the same
+  structural way but not top-level Boolean-asserted (a whole predicate that
+  is itself non-Boolean, e.g. a bare Integer, would pass); rule `demands` is
+  a card-*set* expression (`cards in hand where …`), not a Boolean predicate,
+  so a Boolean wall does not apply to it at all — a category, not a gap.
+  Constraining `loser.selection` to `Player` is unwalled. Every binder — `for
+  each`/quantifier/player-query/card-query/comprehension roles, and the
+  Movement/EpistemicOp `where`-filter's implicit `card` — is typed by role or
+  source (`_role_type`, the aggregation source's element type,
+  `_check_stmt_exprs`'s `card: Card` binding), and the operator/predicate-
+  context walls over those typed positions (`OP_CLASSES`'s `_check_binop`
+  dispatcher, `_check_bool` on every predicate/filter/body position,
+  `_check_card_source`) are in `tests/test_operator_walls.py`,
+  `tests/test_aggregation_walls.py`, and `tests/test_context_walls.py`.
+
+  **Let-bound local typing across statements.** No wall: `let x = <expr>`
+  does not extend `TypeEnv.locals` for the statements that follow it in the
+  flat statement walk (`_all_statements_scoped`/`_stmt_tree_scoped` track
+  ForEach/EachSimultaneous loop binders and function params, not `LetStmt`
+  bindings) — a `let`-bound name therefore infers `TAny` everywhere it is
+  read later in the same body, regardless of what its initializer actually
+  computed. This predates the operator/predicate-context walls above and
+  affects all of them equally (an enum-comparison, an ordering/arithmetic/
+  membership mistake, an `is none`/`is empty` mistake — any wall in
+  `typecheck.py` — goes dark on a `let`-derived operand). Function bodies
+  are unaffected (params are typed via `_function_sigs`'s `func_env.
+  with_local`); this is specific to the phase/move-type/define statement
+  walk. Pinned as a live (not yet closed) residual by
+  `tests/test_operator_walls.py::test_offset_by_accepts_gradual_any_on_either_side`.
+  Threading `let` bindings through that walk (sequentially, since a
+  `let` scopes to the statements after it, not a nested body) is its own
+  design/implementation exercise, not attempted alongside the operator-axis
+  work above.
+
+  **Action-field typing beyond the universal card/actor pair.** Wall:
+  `ACTION_FIELDS` (cardlang/typecheck.py) types `action.card` (Card) and
+  `action.actor` (Player) — the two fields the runtime `Move` payload
+  (cardlang/runtime/state.py) carries for every move type — and nothing
+  else; it is a closed registry by design, not an oversight. Move-type-
+  specific params reachable only as `action.<param name>` (`action.amount`,
+  `action.card_count` — named in the grammar comment at
+  cardlang/grammar/cardlang.lark:320) stay `TAny`, pinned by
+  `tests/test_zone_family_typing.py::test_unknown_action_field_stays_permissive`
+  and `tests/test_operator_walls.py::test_ordering_accepts_gradual_any`
+  (the statement shape itself is exercised more broadly in
+  tests/test_construct_combination_validity.py). Full move-type-aware
+  typing of `action` (a per-move-type field registry, keyed off the move's
+  declared params) is its own design exercise, deferred until a `demands:
+  actions where` clause with a non-card field actually gates a move at
+  runtime — today `runtime/rules.py` skips move-shape demands entirely
+  (`if rule.demands is None or rule.demands.kind != "cards"`), so the
+  surface typechecks but nothing yet consumes it.
+
+  **Zone-family index strictness (deferred re-audit).** Wall (leaky by
+  design): a zone-family subscript's index (`hand[p]`, `captured[t]`) is
+  checked with `types.assignable` against the zone's declared role
+  (Player/Team), which — by the same pre-existing rule that lets
+  `dealer : Player = 0` default a state var — accepts a literal Integer
+  standing for the identity. This means `hand[0]` typechecks, pinned by
+  `tests/test_zone_family_typing.py::test_accepts_an_integer_literal_zone_family_index`.
+  gops.md's asymmetric two-hand setup
+  (`move ... to hand[0]` / `hand[1]`, `reveal one card from bid[0]` /
+  `bid[1]`, `captured[0]` / `captured[1]` routing) is the corpus's one user
+  of this shape and has no symbolic alternative in a setup phase (no `for
+  each` binder to name "the clubs player" by role). A stricter rule —
+  zone-family indices must be exactly Player/Team-typed, never a bare
+  Integer — was considered and rejected for this pass because it would make
+  gops.md inexpressible without a rewrite; revisit if a future game's needs
+  (or a deliberate decision to rewrite gops.md's setup) make the stricter
+  rule worth its corpus cost.
 
 - **`scoring_component` / triggered components (runtime).** The design is settled
   (decisions.md "Scoring composition" and "Triggered scoring components"), but the

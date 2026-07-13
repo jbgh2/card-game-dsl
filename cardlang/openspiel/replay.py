@@ -89,6 +89,15 @@ class ReplayChooser:
         return picked
 
 
+# The grammar's RANK_DIR terminal (`cardlang.lark`, "lowest" | "highest"),
+# mapped to the sign that makes a higher return the better outcome.
+# Exhaustive by construction: `returns_for` below raises loudly on any key
+# not present here, and `test_rank_dir_set_is_pinned`
+# (tests/test_comprehension_aggregators.py) reconciles this set against the
+# grammar terminal so a new RANK_DIR token cannot land uncovered here.
+RANK_DIR_TO_SIGN: dict[str, float] = {"highest": 1.0, "lowest": -1.0}
+
+
 def returns_for(game: n.Game, result: GameResult) -> list[float]:
     """General-sum returns from the game's own result (SP1 spec, component 6):
     true scores, sign-adjusted so higher is better (negated for `lowest`
@@ -102,7 +111,14 @@ def returns_for(game: n.Game, result: GameResult) -> list[float]:
             float(-(n_players - 1)) if p == result.loser else 1.0
             for p in range(n_players)
         ]
-    sign = -1.0 if game.winner.rank_dir == "lowest" else 1.0
+    if game.winner.rank_dir not in RANK_DIR_TO_SIGN:
+        # Internal invariant, not a user diagnostic: the grammar's RANK_DIR
+        # terminal and this mapping are out of sync.
+        raise AssertionError(
+            f"returns_for: unhandled RANK_DIR value {game.winner.rank_dir!r} — add "
+            "it to RANK_DIR_TO_SIGN"
+        )
+    sign = RANK_DIR_TO_SIGN[game.winner.rank_dir]
     scores = result.scores
     if set(scores) == set(range(n_players)):
         return [sign * scores[p] for p in range(n_players)]

@@ -18,7 +18,10 @@ import pytest
 
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticError
+from cardlang.openspiel.replay import RANK_DIR_TO_SIGN
+from cardlang.parse import RANK_DIR_TO_AGG
 from cardlang.pipeline import check_dsl
+from cardlang.runtime.driver import RANK_DIR_TO_PICK
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating
@@ -56,6 +59,54 @@ def _ctx(game: n.Game, pile_cards: list[Card]) -> Ctx:
     rs = RuntimeState(Seating(1), ZoneStore(game.zones, (0,)), random.Random(0))
     rs.zones.single("pile").add_all(pile_cards)
     return Ctx(rs=rs, chooser=_unused_chooser).acting_as(0)
+
+
+# --- the RANK_DIR terminal is pinned against every consumer's mapping ---
+
+
+def test_rank_dir_set_is_pinned() -> None:
+    """The grammar's RANK_DIR terminal has three consumers that each collapse
+    it to an order-fold with an exhaustive mapping: the `agg_order` builder
+    (parse.RANK_DIR_TO_AGG, `highest`/`lowest … over cards in …`), the
+    driver's winner determination (runtime.driver.RANK_DIR_TO_PICK, `winner:
+    highest/lowest <score>`), and the OpenSpiel adapter's return sign
+    (openspiel.replay.RANK_DIR_TO_SIGN). All three key sets must agree with
+    the grammar terminal — a new direction token arrives with its mapping in
+    every place and arm tests, or not at all (closed-domain completeness,
+    decisions.md)."""
+    from importlib import resources
+
+    grammar = resources.files("cardlang.grammar").joinpath("cardlang.lark").read_text()
+    (line,) = [ln for ln in grammar.splitlines() if ln.strip().startswith("RANK_DIR:")]
+    in_grammar = {tok.strip().strip('"') for tok in line.split(":", 1)[1].split("|")}
+    assert in_grammar == set(RANK_DIR_TO_AGG)
+    assert in_grammar == set(RANK_DIR_TO_PICK)
+    assert in_grammar == set(RANK_DIR_TO_SIGN)
+
+
+def test_an_unrecognized_direction_word_is_a_syntax_error_not_a_silent_default() -> None:
+    # RANK_DIR is a closed two-token set (`highest`/`lowest`); a plausible
+    # third direction word must never reach the exhaustive mappings above by
+    # silently misparsing as something else — it is rejected at the grammar
+    # layer, the same layer that owns the RANK_DIR terminal, before any
+    # builder or runtime code sees it.
+    with pytest.raises(DiagnosticError, match="syntax error"):
+        _expr("median 5 over cards in pile or -1")
+    with pytest.raises(DiagnosticError, match="syntax error"):
+        check_dsl(
+            """
+game MedianWinner {
+  players: 1
+  max_length: 1000
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase p { }
+  winner: median score
+}
+""",
+            "median.cardlang",
+        )
 
 
 # --- sum ---

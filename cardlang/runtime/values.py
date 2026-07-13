@@ -191,7 +191,7 @@ class Seating:
 
     def offset_by(self, player: Player, direction: str) -> Player:
         delta = {
-            "none": 0,
+            "hold": 0,
             "left": 1,
             "right": -1,
             "across": self.count // 2,

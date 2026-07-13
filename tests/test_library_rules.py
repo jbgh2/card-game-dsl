@@ -13,6 +13,7 @@ from __future__ import annotations
 import pytest
 
 from cardlang.diagnostics import DiagnosticError
+from cardlang.parse import parse_library_rules
 from cardlang.pipeline import check_dsl
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
 from cardlang.stdlib.rules import library_rules
@@ -59,6 +60,27 @@ def test_library_rules_parse_and_constrain_known_move_types() -> None:
             assert rule.if_impossible is not None
         for p in rule.params:
             assert p.type_name == "Suit"  # the one supported template domain
+
+
+def test_parse_library_rules_surfaces_a_builder_diagnostic_not_a_visit_error() -> None:
+    # A rules fragment is transformed by the same _Builder as a full game; a
+    # builder-raised diagnostic (here, the `==`-rejection) must surface as a
+    # located DiagnosticError, not leak as lark's opaque VisitError wrapper.
+    src = """
+rule BadRule {
+  constrains: play_to_trick
+  applies_when: state.led_suit == none
+  demands: cards in hand where card.suit is state.led_suit
+  if_impossible: hand
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        parse_library_rules(src, "frag.cardlang")
+    message = str(ei.value)
+    assert "write `is`" in message
+    diag = ei.value.diagnostic
+    assert diag.span is not None
+    assert diag.span.source_name == "frag.cardlang"
 
 
 # --- splice and instantiation ---
