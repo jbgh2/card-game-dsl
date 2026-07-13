@@ -26,11 +26,11 @@ procedures", "Surface totality", "Closed-domain completeness").
                 C. `cardlang/grammar/cardlang.lark` — the `statement*` sites and
                    the two `":" statement` single-statement slots
 
-    covered:    A — exhaustive, derived from KNOWN_TYPE_NAMES by
-                    `test_every_known_type_name_as_a_parameter`: `Player` accepted,
-                    all 8 others + every optional form + an unknown name rejected
-                    (resolve). A new entry in KNOWN_TYPE_NAMES fails this test
-                    until it is classified.
+    covered:    A — exhaustive, derived from KNOWN_TYPE_NAMES x {plain, optional}
+                    by `test_every_declarable_type_name_as_a_parameter`: 18 cells,
+                    of which `Player`, `Rank` and `Rank?` are accepted and the other
+                    15 (plus an unknown name) are rejected at resolve. A new entry
+                    in KNOWN_TYPE_NAMES fails this test until it is classified.
                 B — exhaustive, pinned by `test_stmt_union_is_fully_classified`:
                     11 accepted, 5 rejected, 16 total. A new `Stmt` member fails
                     that test until it is classified.
@@ -58,6 +58,11 @@ procedures", "Surface totality", "Closed-domain completeness").
                   - `Zone` parameters. The design note guessed the corpus would
                     need them; it does not (a Player parameter already carries its
                     zone: `influence[victim]`). Wall: unsupported-domain error.
+                  - Every other domain (Suit, Card, Integer, Boolean, String, Team,
+                    Direction, and the optional form of each bar `Rank?`). Same
+                    wall. `Rank?` rather than `Rank` is what the corpus forces:
+                    there is no flow narrowing, so a bare `Rank` parameter would
+                    reject `block_claim` at the very sites that must pass it.
                   - a `round` in a body. It binds its own `outcome`, which the
                     body's pronoun wall cannot yet tell from the caller's.
                   - a procedure running another procedure (no call graph in v1).
@@ -193,30 +198,35 @@ def _walk(node: object) -> typing.Iterator[object]:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("type_name", sorted(KNOWN_TYPE_NAMES))
-def test_every_known_type_name_as_a_parameter(type_name: str) -> None:
+# A well-typed argument for each supported domain, so the domain sweep below tests
+# the DOMAIN cell and not, accidentally, the argument-type cell.
+_SAMPLE_ARG = {"Player": "0", "Rank": "A", "Rank?": "A"}
+
+
+@pytest.mark.parametrize(
+    "type_name", sorted({f"{t}{o}" for t in KNOWN_TYPE_NAMES for o in ("", "?")})
+)
+def test_every_declarable_type_name_as_a_parameter(type_name: str) -> None:
     """The closed-domain sweep, derived from the registry that defines the universe
-    of declarable type names — NOT from the domains the wall happens to handle. A
-    new entry in KNOWN_TYPE_NAMES lands here as a failure until it is classified as
-    supported or walled."""
-    src_body, src_procs = "    run f(0)", f"procedure f(p : {type_name}) {{ score[0] += 1 }}"
+    of declarable type names — NOT from the domains the wall happens to handle.
+    `payload_type` makes every name generically optional-able, so the domain is
+    KNOWN_TYPE_NAMES x {plain, optional}: 18 cells, of which exactly three are
+    supported. A new entry in KNOWN_TYPE_NAMES lands here as a failure until it is
+    classified as supported or walled."""
+    procs = f"procedure f(p : {type_name}) {{ score[0] += 1 }}"
     if type_name in _PROCEDURE_PARAM_DOMAINS:
-        check(src_body, src_procs)  # accepted
+        check(f"    run f({_SAMPLE_ARG[type_name]})", procs)  # accepted
     else:
-        rejects(src_body, src_procs, "has an unsupported domain")
+        rejects("    run f(0)", procs, "has an unsupported domain")
 
 
-@pytest.mark.parametrize("type_name", sorted(KNOWN_TYPE_NAMES))
-def test_no_optional_parameter_domain_is_supported(type_name: str) -> None:
-    """`payload_type` makes every type generically optional-able (`Suit?`), so the
-    optional form of each name is its own cell. None is supported: an optional
-    Player has no meaning a procedure could act on, and accepting the spelling
-    while ignoring the `?` is the accepted-but-ignored class."""
-    rejects(
-        "    run f(0)",
-        f"procedure f(p : {type_name}?) {{ score[0] += 1 }}",
-        "has an unsupported domain",
-    )
+def test_the_supported_domains_are_exactly_player_and_rank() -> None:
+    """`Rank?` is the form the corpus forces, not `Rank`: Coup's proven-claim swap
+    takes both a literal character (`run prove_claim(actor, Duke)`) and the block
+    claim, which is `Rank?` because "no block" is a real state. The call sites sit
+    inside `if block_claim is not none`, but there is no flow narrowing, so a bare
+    `Rank` parameter would reject the very argument the block sites must pass."""
+    assert _PROCEDURE_PARAM_DOMAINS == {"Player", "Rank", "Rank?"}
 
 
 def test_an_unknown_parameter_type_is_rejected() -> None:

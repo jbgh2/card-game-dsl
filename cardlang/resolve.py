@@ -1184,7 +1184,16 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
 # indexing a zone family with the player parameter — `influence[victim]` — so a
 # Player parameter already carries the zone). Recorded in roadmap.md; extend
 # when a game forces it.
-_PROCEDURE_PARAM_DOMAINS = frozenset({"Player"})
+#
+# `Rank?` and not `Rank`: Coup's proven-claim swap is called both with a literal
+# character (`run prove_claim(actor, Duke)`) and with the block claim, which is a
+# `Rank?` because "no block" is a real state. The call sites all sit inside `if
+# block_claim is not none`, but the language has no flow narrowing, so a bare
+# `Rank` parameter would reject the very argument the block sites must pass. A
+# `Rank?` parameter accepts both (`assignable(Rank, Rank?)`), which is why the
+# optional form is the one the corpus forces. Bare `Rank` rides along: it is the
+# same domain minus the null, meaningful on its own, and free to support.
+_PROCEDURE_PARAM_DOMAINS = frozenset({"Player", "Rank", "Rank?"})
 
 
 def _rebinds_actor(node: object) -> bool:

@@ -24,15 +24,15 @@
 // influence loss is a chosen movement by the loser, flipped publicly into
 // `revealed`. Window results (`challenge_stands` / `block_stands`) are public
 // phase state. Coins are integers (total always 50, the treasury clamping
-// every gain) and influence cards conserve to 15. `alive[p]` is 1 while a
-// player holds influence and 0 once exiled, so `winner: highest alive` names
-// the sole survivor.
+// every gain) and influence cards conserve to 15. `alive[p]` is a Boolean —
+// true while a player holds influence, false once exiled — so `winner: highest
+// alive` names the sole survivor.
 //
-// The two blocks the game repeats — the challenge window (×8) and the influence
-// loss (×14) — are named `procedure`s, written once and `run` at each site. A
-// procedure is textual reuse: its body is spliced in at the call site, so what
-// runs, what is observed, and what a player can infer are exactly what the
-// pasted text gave.
+// The three blocks the game repeats — the challenge window (×8), the influence
+// loss (×14), and the proven-claim swap (×7) — are named `procedure`s, written
+// once and `run` at each site. A procedure is textual reuse: its body is spliced
+// in at the call site, so what runs, what is observed, and what a player can
+// infer are exactly what the pasted text gave.
 game Coup {
 
   players: 4
@@ -50,7 +50,7 @@ game Coup {
   state {
     coins[player]  : Integer = 0
     treasury       : Integer = 50
-    alive[player]  : Integer = 1
+    alive[player]  : Boolean = true
   }
 
   phase play {
@@ -60,7 +60,7 @@ game Coup {
       block_stands     : Boolean = false
       challenged       : Boolean = false
       challenger       : Player  = 0
-      block_claim      : String  = ""
+      block_claim      : Rank?   = none
       blocker          : Player  = 0
       responder        : Player  = 0
       window_open      : Boolean = false
@@ -72,7 +72,7 @@ game Coup {
     treasury -= 8
 
     repeat until coup_players_in() <= 1 {
-      if alive[turn] is 1 and influence[turn] is not empty {
+      if alive[turn] and influence[turn] is not empty {
         offer to turn one of [income, foreign_aid, tax, steal, exchange, coup, assassinate]
       }
       turn := coup_next_in_game(turn)
@@ -103,6 +103,19 @@ procedure challenge_window(claimant : Player) {
   }
 }
 
+// A challenge answered by proof: show the claimed card, return it to the deck,
+// reshuffle, and draw a replacement (real Coup shows the proven card). `claim` is
+// `Rank?` because the caller cannot prove to the checker that a block claim is
+// set — the call sites all sit inside `if block_claim is not none`, but the
+// language has no flow narrowing, and a `Rank` parameter would reject the very
+// argument the block sites need to pass.
+procedure prove_claim(claimant : Player, claim : Rank?) {
+  reveal one card from influence[claimant] where card.rank is claim
+  move one card from influence[claimant] where card.rank is claim to court_deck
+  shuffle court_deck
+  deal one card from court_deck to influence[claimant]
+}
+
 // One influence lost: the victim chooses which of their own cards to flip face
 // up, and is exiled (coins to the treasury) once they hold none.
 //
@@ -117,10 +130,10 @@ procedure challenge_window(claimant : Player) {
 procedure lose_influence(victim : Player) {
   let loser = victim
   for each player q:
-    if q is loser and alive[q] is 1 and influence[q] is not empty {
+    if q is loser and alive[q] and influence[q] is not empty {
       move chosen one card from influence[q] to revealed[q]
       let noted = coup_note_reveal(q)
-      if influence[q] is empty { alive[q] := 0
+      if influence[q] is empty { alive[q] := false
         treasury += coins[q]
         coins[q] := 0 }
     }
@@ -142,28 +155,28 @@ move_type allow {
 
 move_type block_claiming_duke {
   effect {
-    block_claim := "Duke"
+    block_claim := Duke
     blocker := actor
   }
 }
 
 move_type block_claiming_captain {
   effect {
-    block_claim := "Captain"
+    block_claim := Captain
     blocker := actor
   }
 }
 
 move_type block_claiming_ambassador {
   effect {
-    block_claim := "Ambassador"
+    block_claim := Ambassador
     blocker := actor
   }
 }
 
 move_type block_claiming_contessa {
   effect {
-    block_claim := "Contessa"
+    block_claim := Contessa
     blocker := actor
   }
 }
@@ -185,7 +198,7 @@ move_type foreign_aid {
     // block window: every other in-game player, clockwise from the actor,
     // may claim the Duke; the first block closes the window.
     block_stands := false
-    block_claim := ""
+    block_claim := none
     window_open := true
     responder := actor
     repeat until not window_open {
@@ -193,18 +206,15 @@ move_type foreign_aid {
       if responder is actor { window_open := false }
       if window_open {
         offer to responder one of [block_claiming_duke, allow]
-        if block_claim is not "" { window_open := false }
+        if block_claim is not none { window_open := false }
       }
     }
-    if block_claim is not "" {
+    if block_claim is not none {
       block_stands := true
       run challenge_window(blocker)
       if challenged {
         if coup_has_char(blocker, block_claim) {
-          reveal one card from influence[blocker] where card.rank is block_claim
-          move one card from influence[blocker] where card.rank is block_claim to court_deck
-          shuffle court_deck
-          deal one card from court_deck to influence[blocker]
+          run prove_claim(blocker, block_claim)
           run lose_influence(challenger)
         } else {
           run lose_influence(blocker)
@@ -226,11 +236,8 @@ move_type tax {
     challenge_stands := true
     run challenge_window(actor)
     if challenged {
-      if coup_has_char(actor, "Duke") {
-        reveal one card from influence[actor] where card.rank is Duke
-        move one card from influence[actor] where card.rank is Duke to court_deck
-        shuffle court_deck
-        deal one card from court_deck to influence[actor]
+      if coup_has_char(actor, Duke) {
+        run prove_claim(actor, Duke)
         run lose_influence(challenger)
       } else {
         run lose_influence(actor)
@@ -247,16 +254,13 @@ move_type tax {
 
 move_type steal(target : Player) {
   when: coins[actor] < 10 and target is not actor
-        and alive[target] is 1 and influence[target] is not empty
+        and alive[target] and influence[target] is not empty
   effect {
     challenge_stands := true
     run challenge_window(actor)
     if challenged {
-      if coup_has_char(actor, "Captain") {
-        reveal one card from influence[actor] where card.rank is Captain
-        move one card from influence[actor] where card.rank is Captain to court_deck
-        shuffle court_deck
-        deal one card from court_deck to influence[actor]
+      if coup_has_char(actor, Captain) {
+        run prove_claim(actor, Captain)
         run lose_influence(challenger)
       } else {
         run lose_influence(actor)
@@ -266,19 +270,16 @@ move_type steal(target : Player) {
     if challenge_stands {
       // block window: the target alone chooses WHICH character to claim, or allows.
       block_stands := false
-      block_claim := ""
-      if alive[target] is 1 and influence[target] is not empty {
+      block_claim := none
+      if alive[target] and influence[target] is not empty {
         offer to target one of [block_claiming_captain, block_claiming_ambassador, allow]
       }
-      if block_claim is not "" {
+      if block_claim is not none {
         block_stands := true
         run challenge_window(target)
         if challenged {
           if coup_has_char(target, block_claim) {
-            reveal one card from influence[target] where card.rank is block_claim
-            move one card from influence[target] where card.rank is block_claim to court_deck
-            shuffle court_deck
-            deal one card from court_deck to influence[target]
+            run prove_claim(target, block_claim)
             run lose_influence(challenger)
           } else {
             run lose_influence(target)
@@ -301,11 +302,8 @@ move_type exchange {
     challenge_stands := true
     run challenge_window(actor)
     if challenged {
-      if coup_has_char(actor, "Ambassador") {
-        reveal one card from influence[actor] where card.rank is Ambassador
-        move one card from influence[actor] where card.rank is Ambassador to court_deck
-        shuffle court_deck
-        deal one card from court_deck to influence[actor]
+      if coup_has_char(actor, Ambassador) {
+        run prove_claim(actor, Ambassador)
         run lose_influence(challenger)
       } else {
         run lose_influence(actor)
@@ -324,7 +322,7 @@ move_type exchange {
 
 move_type coup(target : Player) {
   when: coins[actor] >= 7 and target is not actor
-        and alive[target] is 1 and influence[target] is not empty
+        and alive[target] and influence[target] is not empty
   effect {
     coins[actor] -= 7
     treasury += 7
@@ -334,18 +332,15 @@ move_type coup(target : Player) {
 
 move_type assassinate(target : Player) {
   when: coins[actor] >= 3 and coins[actor] < 10 and target is not actor
-        and alive[target] is 1 and influence[target] is not empty
+        and alive[target] and influence[target] is not empty
   effect {
     coins[actor] -= 3
     treasury += 3
     challenge_stands := true
     run challenge_window(actor)
     if challenged {
-      if coup_has_char(actor, "Assassin") {
-        reveal one card from influence[actor] where card.rank is Assassin
-        move one card from influence[actor] where card.rank is Assassin to court_deck
-        shuffle court_deck
-        deal one card from court_deck to influence[actor]
+      if coup_has_char(actor, Assassin) {
+        run prove_claim(actor, Assassin)
         run lose_influence(challenger)
       } else {
         run lose_influence(actor)
@@ -355,19 +350,16 @@ move_type assassinate(target : Player) {
     if challenge_stands {
       // block window: the target alone may claim the Contessa.
       block_stands := false
-      block_claim := ""
-      if alive[target] is 1 and influence[target] is not empty {
+      block_claim := none
+      if alive[target] and influence[target] is not empty {
         offer to target one of [block_claiming_contessa, allow]
       }
-      if block_claim is not "" {
+      if block_claim is not none {
         block_stands := true
         run challenge_window(target)
         if challenged {
           if coup_has_char(target, block_claim) {
-            reveal one card from influence[target] where card.rank is block_claim
-            move one card from influence[target] where card.rank is block_claim to court_deck
-            shuffle court_deck
-            deal one card from court_deck to influence[target]
+            run prove_claim(target, block_claim)
             run lose_influence(challenger)
           } else {
             run lose_influence(target)
