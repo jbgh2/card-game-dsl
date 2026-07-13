@@ -22,7 +22,13 @@ registry:  `OP_CLASSES` (operator -> class) pinned against `infer`'s BinOp
 covered:   (class, operand-type) cells with an executed probe in this
            module:
              equality    x TEnum(cross-enum), TEnum-vs-Integer  [pre-existing
-                          wall, re-probed here for the dispatcher wiring]
+                          wall, re-probed here for the dispatcher wiring],
+                          TEnum-vs-TCard (reject + whole-card hint),
+                          TEnum-vs-TBoolean (reject) — the default arm that
+                          makes `_check_enum_operand` total over concrete
+                          operand types (Codex review of PR #48; the same
+                          arm closes the literal-list membership hole,
+                          `card.suit in [Q of spades]`, probed below)
              ordering    x TInteger (accept), TEnum(Rank) (hint), TEnum(Suit)
                           (enum-message), TCard (generic message), TAny
                           (accept, gradual)
@@ -179,6 +185,33 @@ def test_equality_integer_vs_enum_still_rejected() -> None:
 
 def test_equality_matching_suits_still_accepted() -> None:
     _accepts(_game("let probe = (Q of spades).suit is hearts"))
+
+
+def test_equality_enum_vs_card_rejected_with_the_whole_card_hint() -> None:
+    # The plausible slip: comparing a card FIELD against a card LITERAL.
+    # Before the default arm, `_check_enum_operand` fell through silently for
+    # every concrete type it didn't name — accepted, always false at runtime.
+    _rejects(
+        _game("let probe = any card in pile where card.suit is (Q of spades)"),
+        "comparing Suit with Card can never be equal — compare the whole card",
+    )
+
+
+def test_equality_enum_vs_boolean_rejected_by_the_default_arm() -> None:
+    _rejects(
+        _game("let probe = any card in pile where card.suit is (1 < 2)"),
+        "comparing Suit with Boolean can never be equal",
+    )
+
+
+def test_membership_literal_list_rejects_a_card_element() -> None:
+    # The literal-list path routes through the same per-element enum wall, so
+    # the default arm closes it too: a Card in a Suit-compared list is never
+    # true, and previously slipped past the early return.
+    _rejects(
+        _game("let probe = any card in pile where card.suit in [Q of spades]"),
+        "comparing Suit with Card can never be equal",
+    )
 
 
 # =============================================================================
