@@ -195,6 +195,16 @@ def _member(obj: Any, field: str) -> Any:
     if isinstance(obj, StructValue):
         return obj.fields[field]
     if isinstance(obj, dict):
+        if field not in obj:
+            # The round-state accumulator. Typecheck rejects any field a round does
+            # not publish (stdlib/round_state.py), so this is unreachable from
+            # checked DSL — but a bare KeyError is the wrong failure currency for
+            # the one path that could still reach it (a form whose `init` drifted
+            # from the registry), and it was how a typo used to present.
+            known = ", ".join(sorted(obj)) or "nothing"
+            raise AssertionError(
+                f"round state has no field '{field}' (this round published: {known})"
+            )
         return obj[field]
     raise AssertionError(f"cannot read field '{field}' of {obj!r}")
 

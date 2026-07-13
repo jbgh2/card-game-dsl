@@ -27,6 +27,7 @@ from cardlang.ast import nodes as n
 from cardlang.ast.nodes import Game
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError
 from cardlang.roles import role_type as _role_type
+from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
 from cardlang.stdlib.signatures import CALL_SIGS, ZONE_CONTENT, Sig
 from cardlang.stdlib.values import DIRECTION_VALUES, deck_ranks, deck_suits
 from cardlang.types import (
@@ -306,6 +307,18 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                 and e.field in ACTION_FIELDS
             ):
                 return ACTION_FIELDS[e.field]
+            if (
+                isinstance(obj_ref, n.NameRef)
+                and obj_ref.ref_kind == "pronoun"
+                and obj_ref.name == "state"
+                and e.field in ROUND_STATE_FIELDS
+            ):
+                # The round's published state, typed off the registry rather than
+                # left `TAny`. `TAny` was contagious here: `card.suit is state.idx`
+                # compared a Suit to an Integer and slipped past the enum wall
+                # because the right side was untyped. An unpublished field never
+                # reaches this branch — `_check_expr` rejects it.
+                return ROUND_STATE_FIELDS[e.field]
             obj = infer(e.obj, env)
             if isinstance(obj, TStruct):
                 return obj.fields.get(e.field, TAny())
@@ -652,6 +665,18 @@ def _check_enum_operand(
                 f"which would otherwise read as Integers)",
                 other.span,
             )
+        return
+    if not isinstance(other_bare, (TAny, TString)):
+        # Every OTHER concrete type — Boolean, Player, Team, Card, a collection —
+        # is just as impossible to equal an enum value as an Integer is. This wall
+        # used to name Integer and stop, so `state.trick_terminated_early is hearts`
+        # (Boolean vs Suit) read clean. `TAny` passes (gradual), and a non-literal
+        # `TString` passes deliberately: a String-typed variable holding a rank name
+        # is the one shape that CAN be equal (Coup's `card.rank is block_claim`).
+        bag.error(
+            f"comparing {enum.name} with {_type_name(other_bare)} can never be equal",
+            other.span,
+        )
 
 
 # --- BinOp operand walls: one dispatcher over the operator-class registry ---
@@ -734,13 +759,45 @@ def _check_binop(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
 
 
 def _check_equality_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
-    """`==`/`!=` (surface `is`/`is not`): unchanged from before the operator
-    dispatcher existed — the enum-comparison wall, `_check_enum_operand`."""
+    """`==`/`!=` (surface `is`/`is not`): two operands can only be equal if one's
+    type is assignable to the other's. Anything else is a comparison that is
+    *always false* — the silently-wrong shape this wall exists to catch.
+
+    The enum rows come first and keep their own nuanced diagnostics
+    (`_check_enum_operand`: the name-form-vs-string spelling, the not-a-value-of-
+    this-deck message, the Rank-vs-Integer hint). Every other pair falls to the
+    general disjointness rule below.
+
+    That general rule is new, and it closes a hole the enum-centric wall left wide:
+    the wall only ever fired when one side was a `TEnum`, so `Boolean` had no row
+    at all (`flag is hearts`, `flag is 1`, `flag is "x"` all passed), and neither
+    did `Integer is "x"` or `Player is "x"`. It was found by typing the round-state
+    pronoun (stdlib/round_state.py): `state.trick_terminated_early` became a real
+    `Boolean` and immediately exposed that comparing one to a suit was accepted.
+    Per decisions.md "Closed-domain completeness", the fix sweeps the class rather
+    than patching the instance — the class being "equality between disjoint
+    concrete types", and the layer that owns it being the type layer every
+    comparison consults.
+
+    `TAny` passes on either side (gradual typing — an unrefined `infer` arm must
+    not manufacture errors). `Player`/`Integer` stay comparable in BOTH directions
+    because a player IS an integer seat here (`assignable(TInteger, TPlayer)`), so
+    `turn is 0` and `responder is actor` keep working."""
     lbare, rbare = _bare(infer(e.left, env)), _bare(infer(e.right, env))
     if isinstance(lbare, TEnum):
         _check_enum_operand(lbare, e.right, rbare, env, bag)
-    elif isinstance(rbare, TEnum):
+        return
+    if isinstance(rbare, TEnum):
         _check_enum_operand(rbare, e.left, lbare, env, bag)
+        return
+    if isinstance(lbare, TAny) or isinstance(rbare, TAny):
+        return
+    if not assignable(lbare, rbare) and not assignable(rbare, lbare):
+        bag.error(
+            f"comparing {_type_name(lbare)} with {_type_name(rbare)} can never be "
+            f"equal",
+            e.span,
+        )
 
 
 def _check_ordering_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
@@ -1100,6 +1157,26 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
     elif isinstance(e, n.StructLit):
         _check_struct_lit(e, env, bag)
     elif isinstance(e, n.Member):
+        obj_ref = e.obj
+        if (
+            isinstance(obj_ref, n.NameRef)
+            and obj_ref.ref_kind == "pronoun"
+            and obj_ref.name == "state"
+            and e.field not in ROUND_STATE_FIELDS
+        ):
+            # `state.` names a round's PUBLISHED state, and that is a closed set.
+            # Without this wall the receiver inferred `TAny`, every arm below
+            # missed, and the read went through: a typo (`state.lead_suit`)
+            # surfaced as a bare KeyError at play time, and — far worse — a form's
+            # private working memory (`state.idx`, the trick's ring cursor) read
+            # clean, ran, and silently changed the game. See stdlib/round_state.py.
+            field_list = ", ".join(f"`{f}`" for f in sorted(ROUND_STATE_FIELDS))
+            bag.error(
+                f"a round publishes no `{e.field}` — `state.` names a round's "
+                f"published state, which is {field_list}",
+                e.span,
+            )
+            return
         obj = infer(e.obj, env)
         # Optionals reject like their payload: `d : Player?` is as much a
         # non-object receiver as `d : Player` (the closed rejection domain

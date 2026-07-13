@@ -342,6 +342,14 @@ class AuctionForm:
         self.move_defs = [ctx.rs.move_type_index[name] for name in stmt.move_types]
 
     def init(self, state: State, ctx: Ctx) -> State:
+        # This form publishes nothing to `state.` — it never pushes onto
+        # `mech_state` (AUCTION_PUBLISHED is empty, and deliberately so). Clearing
+        # `last_round_state` is what makes that honest: without it, `state.led_suit`
+        # read during or after an auction found `mech_state` empty, fell through to
+        # the fallback, and silently returned the state of whatever trick ran LAST
+        # — a stale frame from a different form. `_pronoun`'s "fail loudly, don't
+        # return a stale or empty frame" is only true because of this line.
+        ctx.rs.last_round_state = None
         state["i"] = 0  # the ring pointer (ring mode)
         state["guard"] = 0
         state["history"] = []

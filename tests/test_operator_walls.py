@@ -396,3 +396,79 @@ def test_offset_by_accepts_gradual_any_on_either_side() -> None:
             "    for each player p: let probe = (second offset_by left is p)"
         )
     )
+
+
+# ---------------------------------------------------------------------------
+# The equality wall's operand matrix — swept over the type registry
+# ---------------------------------------------------------------------------
+
+_EQ_GAME = """
+game G {{
+  players: 2
+  direction: clockwise
+  max_length: 10
+  cards: standard52
+  zones {{ deck : Deck  hand[player] : Hand<player> }}
+  state {{
+    score[player] : Integer = 0
+    flag  : Boolean = true
+    n     : Integer = 0
+    who   : Player  = 0
+    s     : String  = ""
+  }}
+  phase p {{
+    deal 2 cards from deck to each hand
+    if {pred} {{ score[0] += 1 }}
+  }}
+  winner: highest score
+}}
+"""
+
+# One named operand per concrete scalar type in the type registry, plus the two
+# enum literal forms. The matrix below is every unordered pair of these.
+_OPERANDS = {
+    "Boolean": "flag",
+    "Integer": "n",
+    "Player": "who",
+    "String": "s",
+    "Suit": "hearts",
+}
+
+# The pairs that CAN be equal, and why. Everything else in the cross-product must
+# be rejected — the pairs are derived, not enumerated, so a new scalar type in the
+# registry lands here as a failure until it is classified.
+_COMPARABLE = {
+    frozenset({"Boolean"}),
+    frozenset({"Integer"}),
+    frozenset({"Player"}),
+    frozenset({"String"}),
+    frozenset({"Suit"}),
+    # A player IS an integer seat in this language (`assignable(TInteger, TPlayer)`),
+    # so `turn is 0` and `responder is actor` must keep working.
+    frozenset({"Integer", "Player"}),
+    # A String-typed variable can hold a rank/suit NAME — the one shape that can
+    # genuinely equal an enum value (Coup's `card.rank is block_claim`). Deliberately
+    # gradual; a String LITERAL against an enum is checked against the deck's values.
+    frozenset({"String", "Suit"}),
+}
+
+
+@pytest.mark.parametrize("left", sorted(_OPERANDS))
+@pytest.mark.parametrize("right", sorted(_OPERANDS))
+def test_equality_operand_matrix(left: str, right: str) -> None:
+    """The full cross-product of the scalar type registry under `is`.
+
+    Before the sweep this wall only fired when one side was an enum, so an entire
+    row was dark: `flag is hearts`, `flag is 1`, `flag is "x"`, `n is "x"`, `who is
+    "x"` were all accepted — comparisons that are ALWAYS FALSE. The hole surfaced
+    when the round-state pronoun got real types (stdlib/round_state.py) and
+    `state.trick_terminated_early` became a Boolean. Per decisions.md "Closed-domain
+    completeness" the fix swept the class, and this matrix is what keeps it swept."""
+    pred = f"{_OPERANDS[left]} is {_OPERANDS[right]}"
+    src = _EQ_GAME.format(pred=pred)
+    if frozenset({left, right}) in _COMPARABLE:
+        check_dsl(src, "probe")  # must remain accepted
+    else:
+        with pytest.raises(DiagnosticError) as excinfo:
+            check_dsl(src, "probe")
+        assert "can never be equal" in str(excinfo.value)
