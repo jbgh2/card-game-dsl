@@ -106,28 +106,43 @@ phase challenge_window {
    one block rebind the same `let` name and each shadows forward, exactly as two
    inline pastes would. The Coup rewrite confirms it.
 
-## 5a. The wall this note did not anticipate
+## 5a. What this note got wrong: substitution is not the primitive
 
-A procedure takes **unevaluated expressions** where a function takes **values**,
-and that is a hygiene problem §4 named only half of. §4 got the easy half (a body
-binder may not shadow a parameter — the same *name* capture a rule template
-faces). Two more members of the class turned up in implementation, and both are
-silent-wrong-answer defects:
+§2's "textual-equivalent reuse — calling one behaves exactly as if its body were
+written inline, after parameter substitution" reads like a definition. It is
+actually a *choice*, and it is the wrong one, because a procedure takes
+**unevaluated expressions** where a function takes **values**. Substituting an
+expression into every place the body reads its parameter is silently wrong in ways
+this note never considered, and all of them are reachable:
 
-- **Context capture.** An argument may be `actor` — `run lose_influence(actor)`
-  is the whole point. If the body then reads that parameter underneath a `for
-  each player q:`, the loop has rebound the acting player, `actor` reads the
-  acting player, and `if q is actor` is true for **every** q. Probed: all three
-  players "matched". Coup's own pasted text dodged this by hand-writing a
-  separate un-looped variant for the actor case — the workaround was in the
-  corpus, unnamed. The wall rejects reading a parameter under an actor-rebinding
-  construct and prescribes the `let` that pins the seat in the caller's context.
-  The underlying trap is the language's, not the construct's:
-  [../open-questions/single-actor-binding.md](../open-questions/single-actor-binding.md).
-- **Argument capture** — the classic macro-hygiene bug, and the one the fix above
-  walks an author straight into. A body's `let step = 0` would swallow a caller's
-  `run f(step)`, so the meaning of a call would depend on the caller's private
-  choice of local variable name. Also walled.
+- **One written decision becomes N.** `run bump(choose integer in 0 .. 1)` is one
+  decision in the text. By name it is copied to every read, polled independently,
+  and two reads can return two different answers — crediting two different players
+  from a single written choice. This is the serious one: it changes the game's
+  decision count relative to what the designer wrote, on the exact path CLAUDE.md
+  says bounds every design choice.
+- **Zero reads drop the decision entirely.**
+- **An argument naming state the body mutates** denotes a different value on its
+  second read than its first.
+- **A body binder captures a caller's local**, inbound (through an argument) or
+  outbound (a body `let` leaking forward into the caller's sequence).
+
+The first implementation walled the capture cases and shipped the rest. That was
+wrong twice over: it left the decision-duplication defects live, and the walls it
+did build were the kind that teach an author to work around a bug rather than fix
+it. Coup's `lose_influence` carried a `let loser = victim` line whose only job was
+to defeat by-name substitution.
+
+The fix is to stop treating substitution as the primitive. Expansion binds each
+argument to a `let` in the caller's context — once, by value — and wraps the body
+in a block. Every defect above becomes impossible instead of walled, the two
+capture walls become vacuous and are deleted, and Coup's workaround line goes with
+them. The one wall that survives is the one expansion cannot fix: a body binder
+sharing a *parameter's* name is ambiguous at classification time.
+
+The lesson generalizes past this construct: "behaves as if pasted" is not a safety
+property. What a paste does is not the acceptance criterion — what the author wrote
+is.
 
 ## 6. Acceptance — what landed
 

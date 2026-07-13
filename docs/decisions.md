@@ -1474,48 +1474,65 @@ A keyword leads the invocation, because the statement layer has no
 expression-statement form and that absence is worth keeping — statement-hood
 stays visible.
 
-Reuse is **textual**. The expander splices the body in at each `run` site with
-the arguments substituted for the parameters, and consumes the procedure: no
-`run` and no `procedure` survives the front end. This is what makes the construct
-safe against the invariant that governs everything here — *the observation events
-a procedure contributes, and therefore the information sets derived from them,
-are exactly what the pasted text emitted*, because a procedure does not exist at
-the layer where observations are emitted. It is the opposite of the retired
-`instantiate` escape hatch, which injected Python the kernel could not see; a
-procedure injects only DSL the kernel already interprets. Coup is the forcing
-case: three blocks pasted 29 times, most of a 521-line file, now written once
-(the file is 375 lines, and its trace golden did not move).
+Reuse is a **splice**: the expander replaces each `run` with the procedure's body
+and consumes the procedure, so no `run` and no `procedure` survives the front end.
+This is what makes the construct safe against the invariant that governs everything
+here — *the observation events a procedure contributes, and therefore the
+information sets derived from them, are exactly what the written text emits*,
+because a procedure does not exist at the layer where observations are emitted. It
+is the opposite of the retired `instantiate` escape hatch, which injected Python
+the kernel could not see; a procedure injects only DSL the kernel already
+interprets. Coup is the forcing case: three blocks pasted 29 times, most of a
+521-line file, now written once.
+
+A `run f(a, b)` becomes one block:
+
+```
+if true {                 // a block; the statement layer has no other
+  let @f.p = a            // each argument evaluated ONCE, in the caller's context
+  let @f.q = b
+  <the body, reading @f.p and @f.q>
+}
+```
+
+Two properties, and each is load-bearing rather than cosmetic:
+
+**Arguments are evaluated once, by value, before the body runs.** A by-name splice
+— copying the argument *expression* to every place the body reads its parameter —
+is silently wrong in three ways, and all three are reachable. `run
+bump(choose integer in 0 .. 1)` is ONE decision in the written text; by name it
+becomes one decision *per read*, polled independently, so two reads can get two
+different answers and credit two different players. A parameter read zero times
+drops the argument, and its decision, entirely. And an argument naming state the
+body then assigns denotes a different value on its second read than its first. The
+first of those changes the game's *decision count* relative to what the designer
+wrote, which is exactly the thing the OpenSpiel target cannot tolerate. Binding
+each argument up front makes a call read the way it looks.
+
+**The body's bindings scope to the body.** That is what the block is for. State
+assignments and card movements persist, of course — a procedure acts on the game.
+Only its `let`s are local, which is the whole difference between a procedure and a
+paste: without it, a body that binds `target` would silently capture a caller's own
+`target`, read *after* the `run` site.
+
+Together these mean the caller cannot corrupt the body and the body cannot corrupt
+the caller, *by construction* — so there is no capture wall to remember, and none
+to get wrong. One wall does remain, because expansion cannot fix it: a body binder
+sharing a **parameter's name** is ambiguous at classification time (both are local
+binders), so substitution cannot tell them apart. That is rejected.
 
 Expansion runs **after typecheck**, not beside rule-template instantiation in
-resolve. That is forced by the parameter types: they can only bite while the
-`run` site still exists to check its arguments against, and expanding earlier
-would leave them parsed and ignored — the accepted-but-ignored class.
+resolve. That is forced by the parameter types: they can only bite while the `run`
+site still exists to check its arguments against, and expanding earlier would leave
+them parsed and ignored — the accepted-but-ignored class.
 
 The body is **hermetic**, in the same sense a function body is: it reads only its
 parameters, the binders it introduces, and game/phase state — never the caller's
 locals, and never the call-site pronouns `actor` / `action` / `outcome`, so its
-meaning cannot depend on where it is called from. A procedure that needs the actor
-takes it as a parameter.
-
-Because a procedure takes *unevaluated expressions* where a function takes
-*values*, it faces a hygiene problem a function does not, and three walls close
-it. Two are shared with rule templates and one is its own:
-
-- a binder in the body may not **shadow a parameter's name**;
-- a binder in the body may not **capture a free local in an argument** — without
-  this, a body's `let step = …` would swallow a caller's `run f(step)`, and the
-  meaning of a call would depend on the caller's private choice of variable name;
-- a parameter may not be **read underneath a construct that rebinds the acting
-  player** (`for each player`, `each … simultaneously`). This is the subtle one.
-  `for each player q:` rebinds the actor context — that is how the bound player
-  becomes the chooser of a decision in the body — but `actor` *reads* that
-  context, so `if q is actor` inside such a loop is true for **every** q. An
-  argument of `actor` substituted into that position would be silently captured.
-  The wall prescribes the fix: bind the parameter to a `let` outside the loop,
-  which pins the value in the caller's context, exactly as inline text would.
-  (The underlying trap is the language's, not the construct's, and is the
-  correctness motive in
-  [open-questions/single-actor-binding.md](open-questions/single-actor-binding.md).)
+meaning cannot depend on where it is run from. A procedure that needs the actor
+takes it as a parameter, and because arguments are evaluated in the caller's
+context, `run lose_influence(actor)` passes the *move's* actor even into a body
+that rebinds the acting player. Coup depends on that at four sites.
 
 Parameter domains are a closed set — `Player`, `Rank`, `Rank?` — and any other
 domain is rejected. A procedure may not run another procedure, hold a `round`

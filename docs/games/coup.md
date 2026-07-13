@@ -49,8 +49,8 @@ every gain) and influence cards conserve to 15. `alive[p]` is a Boolean —
 true while a player is in, false once exiled — so `winner: highest alive`
 names the survivor. The three blocks the game repeats — the challenge window
 (×8), the influence loss (×14) and the proven-claim swap (×7) — are named
-`procedure`s, written once and `run` at each site
-([decisions.md](../decisions.md) "Named procedures"). The forced Coup at 10 coins drives every aggressive line to an
+`procedure`s, written once and `run` at each site, with each argument bound once
+at the call ([decisions.md](../decisions.md) "Named procedures"). The forced Coup at 10 coins drives every aggressive line to an
 end; a table that only ever exchanges makes no coin progress, so the
 declared `max_length` backstop is Coup's real termination bound on
 maximally passive lines
@@ -108,7 +108,7 @@ game Coup {
   winner: highest alive
 }
 
-// --- the two repeated blocks, named ---
+// --- the three repeated blocks, named ---
 
 // The challenge window on a claim: everyone else, clockwise from the claimant,
 // is offered [challenge, allow]; the first challenge closes the window. Leaves
@@ -143,18 +143,15 @@ procedure prove_claim(claimant : Player, claim : Rank?) {
 // One influence lost: the victim chooses which of their own cards to flip face
 // up, and is exiled (coins to the treasury) once they hold none.
 //
-// `let loser = victim` is load-bearing, not a flourish. The `for each player q`
-// below rebinds the acting player — that is how the VICTIM, not the caller,
-// becomes the chooser of the flipped card. But it also rebinds what `actor`
-// means inside it, and the caller passes `actor` at four of these sites. Binding
-// the parameter to a local here, in the caller's context, pins the seat before
-// the loop can shadow it. Reading `victim` inside the loop instead would make
-// `q is victim` true for EVERY q — every player would flip a card. The checker
-// rejects that shape outright (resolve.py, `_check_procedures`).
+// The `for each player q` is what makes the VICTIM, not the caller, the chooser of
+// the flipped card: binding a player also binds the acting player, and a `chosen`
+// movement asks whoever is acting. Reading `victim` inside that loop is safe
+// because a procedure argument is evaluated ONCE, in the caller's context, before
+// the body runs (decisions.md "Named procedures") — so the `actor` passed at four
+// of these sites is the move's actor, not the loop's q.
 procedure lose_influence(victim : Player) {
-  let loser = victim
   for each player q:
-    if q is loser and alive[q] and influence[q] is not empty {
+    if q is victim and alive[q] and influence[q] is not empty {
       move chosen one card from influence[q] to revealed[q]
       let noted = coup_note_reveal(q)
       if influence[q] is empty { alive[q] := false

@@ -30,9 +30,9 @@
 //
 // The three blocks the game repeats — the challenge window (×8), the influence
 // loss (×14), and the proven-claim swap (×7) — are named `procedure`s, written
-// once and `run` at each site. A procedure is textual reuse: its body is spliced
-// in at the call site, so what runs, what is observed, and what a player can
-// infer are exactly what the pasted text gave.
+// once and `run` at each site. A procedure's body is spliced in at the call site
+// with its arguments bound once, up front, so what runs, what is observed, and
+// what a player can infer are exactly what the written text says.
 game Coup {
 
   players: 4
@@ -84,7 +84,7 @@ game Coup {
   winner: highest alive
 }
 
-// --- the two repeated blocks, named ---
+// --- the three repeated blocks, named ---
 
 // The challenge window on a claim: everyone else, clockwise from the claimant,
 // is offered [challenge, allow]; the first challenge closes the window. Leaves

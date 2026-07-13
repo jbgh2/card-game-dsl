@@ -23,6 +23,12 @@ Things we have noted but consciously not designed yet:
   next hand`): inline text targets exactly one enclosing construct, and a body may
   be spliced into two different ones.
 
+  Note what is NOT on this list: argument capture, actor capture, and a body
+  binding leaking into the caller. Those were walled in the first implementation
+  and are now impossible by construction — arguments are evaluated once, by value,
+  in the caller's context, and the body runs in a block (decisions.md "Named
+  procedures").
+
 - **A `let`-bound name has no static type, so any wall reading it is blind.**
   `let` binders are scoped correctly at resolve and at runtime but are never
   threaded into the type environment, so they infer `Any`. Every type wall is dark
