@@ -744,7 +744,14 @@ def _categories(game: n.Game) -> _Categories:
         zones=frozenset(z.name for z in game.zones),
         enums=enum_values(game.deck) if _deck_known(game.deck) else DIRECTION_VALUES,
         functions=STDLIB_VALUE_NAMES,
-        ranks=frozenset(game.ranking),
+        # Card-literal validation asks "does this card EXIST in the deck",
+        # so ranks derive from the deck like `suits` below — never from
+        # `ranking:`, which is an ORDERING (optional, and legitimately
+        # partial: it narrows the Rank move-param domain, not which cards
+        # can be named). Deck-vs-ranking is the same two-source divergence
+        # `_resolve_ranking` walls from the other side (Codex review of
+        # PR #48, round 2).
+        ranks=deck_ranks(game.deck) if _deck_known(game.deck) else frozenset(),
         suits=deck_suits(game.deck) if _deck_known(game.deck) else frozenset(),
     )
 

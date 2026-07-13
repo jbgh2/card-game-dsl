@@ -46,6 +46,13 @@ outside a partial ranking still crashes `rank_value`'s
 `ctx.rs.rank_index[...]` lookup at runtime instead of erroring at resolve
 time — recorded in docs/roadmap.md ("`ranking:` coverage is unchecked"),
 walled only by that runtime KeyError, not by this check.
+
+Adjacent cell closed here (same two-source domain, opposite direction):
+card-LITERAL rank validation (`resolve._categories.ranks`, consumed by the
+`CardLiteral` arm of `_validate_refs`) derives from `deck_ranks(deck)` —
+never from `ranking:` — because a literal asks "does this card exist",
+not "where does it sort". Probed: no-`ranking:` literal accepts, a
+partial-ranking-excluded literal accepts, a non-deck rank still rejects.
 """
 
 from __future__ import annotations
@@ -165,3 +172,45 @@ def test_every_declared_corpus_ranking_is_a_full_permutation_of_its_deck() -> No
         assert set(game.ranking) == set(deck_ranks(game.deck)), path
         assert len(game.ranking) == len(set(game.ranking)), path
     assert checked_any  # the sweep isn't vacuous
+
+
+# --- card literals validate against the DECK, not the ranking ----------
+# (Codex review of PR #48, round 2: `cats.ranks` read `game.ranking`, so a
+# no-`ranking:` game rejected every card literal, and a partial ranking
+# rejected literals naming real deck cards outside it — while the bare
+# enum spelling `card.rank is Q` resolved via the deck. Existence is the
+# deck's domain; `ranking:` is an ordering.)
+
+
+def _literal_game(ranking_line: str, lit: str) -> str:
+    return f"""
+game Mini {{
+  players: 4
+  max_length: 1000
+  cards: standard52
+  {ranking_line}
+  zones {{ deck : Deck  pile : TrickPile }}
+  state {{ score[player] : Integer = 0 }}
+  phase play {{
+    let x = any card in pile where card is ({lit})
+  }}
+  winner: highest score
+}}
+"""
+
+
+def test_card_literal_accepted_without_a_ranking_header() -> None:
+    check_dsl(_literal_game("", "Q of spades"), "mini.cardlang")
+
+
+def test_card_literal_outside_a_partial_ranking_accepted() -> None:
+    # `J of spades` EXISTS in standard52; the partial ranking narrows the
+    # Rank move-param domain, not which cards can be named.
+    check_dsl(_literal_game("ranking: A K Q", "J of spades"), "mini.cardlang")
+
+
+def test_card_literal_with_a_nondeck_rank_still_rejected() -> None:
+    _rejects(
+        _literal_game("", "X of spades"),
+        "unknown rank 'X' in card literal",
+    )
