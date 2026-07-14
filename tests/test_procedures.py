@@ -865,53 +865,46 @@ procedure consume() {
 # ---------------------------------------------------------------------------
 
 
-def test_an_assignment_target_must_be_a_declared_state_variable() -> None:
-    """`AssignStmt.name` was the ONE name-bearing field in the AST with no wall, and it
-    escaped for a structural reason: it is a bare `str`, not a `NameRef`. Every name
-    check in resolve walks `NameRef`s, so an assignment target was invisible to all of
-    them — a plain typo compiled and reached the runtime as a bare `KeyError`.
+def test_a_write_target_must_classify_as_a_state_variable() -> None:
+    """One rule, where there used to be three bespoke walls — and one of the three
+    nobody had written.
 
-    Derived, not guessed: enumerating every `str`-typed field on every `Stmt`/`Expr`
-    that names a declared thing shows `RotateStmt.var`, `Offer.move_types`, `Round`'s
-    zones and functions, `Produces.define`, `ContinueTo.target` and `Call.func` were
-    all already walled. This was the only gap."""
-    rejects("    totaly_score := 1", "", "assignment to unknown variable 'totaly_score'")
-    rejects("    let x = 1\n    x := 2", "", "assignment to unknown variable 'x'")
-    # ...and a `let` is not assignable even though it is a name in scope: a binder is
-    # a bound value, not a variable.
-    rejects(
-        "    run f(0)",
-        "procedure f(p : Player) { p := 1 }",
-        "assignment to unknown variable 'p'",
-    )
-    check("    turn := 1", "")  # the legal shape still is
+    `:=` / `+=` / `rotate` write persistent state, and that is the only thing they can
+    write. Since `AssignStmt.target` is now a `NameRef`, it is classified like every
+    read, so the question "what is this name?" is already answered: a binder, a zone, a
+    deck value or an unknown name is simply not a state variable, and each is rejected
+    by the same rule with the same words.
 
+    Each row below was its own defect before the target was an ordinary name:
 
-def test_a_write_target_may_not_be_shadowed_by_a_binder() -> None:
-    """The silent half, and the deeper defect. A READ resolves lexical binders BEFORE
-    state variables; a WRITE always goes to state. So a binder shadowing a state
-    variable splits one name into two things.
+    - the TYPO reached the runtime as a bare `KeyError`, because `AssignStmt.name` was
+      a bare `str` that no name check in resolve ever walked — it was the only
+      name-bearing field in the AST with no wall at all;
+    - a binder SHADOWING a state variable made one name mean two things: a read of `x`
+      found the binder while `x := 1` wrote the state variable, silently. Classifying
+      the target makes that impossible rather than merely detected — the target
+      resolves to the binder, and a binder is not assignable;
+    - and inside a procedure the split was starker still, because expansion rewrites
+      `NameRef`s: it rewrote every READ of a parameter and left the WRITE pointing at a
+      global of the same name."""
+    check("    turn := 1", "")  # the legal shape
+    check("    score[0] += 1", "")  # ...and the indexed one
 
-    Through a procedure the split is stark: reads of the parameter are substituted to
-    the argument's binding while the assignment is left pointing at the state variable,
-    so a body reads its parameter and writes a global of the same name in one line.
-    Probed before the wall: `procedure f(turn : Player) { turn := 1  score[turn] += 10 }`
-    credited player 0 (the parameter) while setting the state variable `turn` to 1, so
-    the caller's next `score[turn]` hit player 1. Nothing said a word.
-
-    But the defect is NOT the procedure's — it is the read/write asymmetry, and it is
-    reachable through a `let`, a loop binder, and a move-type parameter just the same.
-    So the wall is lexical and sits where the scope is known, not in the procedure
-    checks."""
-    for body, procs in (
-        ("    run f(0)", "procedure f(turn : Player) { turn := 1 }"),
-        ("    let turn = 1\n    turn := 2", ""),
-        ("    for each player turn: turn := 1", ""),
+    rejects("    totaly_score := 1", "", "unresolved name 'totaly_score'")
+    for body, procs, what in (
+        ("    let x = 1\n    x := 2", "", "it is a binder"),
+        ("    let turn = 1\n    turn := 2", "", "it is a binder"),  # shadows a state var
+        ("    for each player turn: turn := 1", "", "it is a binder"),
+        ("    run f(0)", "procedure f(p : Player) { p := 1 }", "it is a binder"),
+        # ...and the one that started this: a parameter shadowing a state variable.
+        ("    run f(0)", "procedure f(turn : Player) { turn := 1 }", "it is a binder"),
         (
-            "    offer to 0 one of [shadow]",
-            "move_type shadow(turn : Player) { effect { turn := 1 } }",
+            "    offer to 0 one of [m]",
+            "move_type m(turn : Player) { effect { turn := 1 } }",
+            "it is a binder",
         ),
+        ("    deck := 1", "", "it is a zone"),  # a cell nobody had considered
     ):
         with pytest.raises(DiagnosticError) as excinfo:
             check(body, procs)
-        assert "shadowed by a binder in scope" in str(excinfo.value)
+        assert what in str(excinfo.value), body

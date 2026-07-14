@@ -936,22 +936,25 @@ zone is initialized at game start holding the deck's cards, so the first
 
 ## Mutation semantics
 
-**Only a declared state variable can be assigned.** `x := …`, `x += …`, and
-`rotate x through […]` all write persistent state, and persistent state is the only
-thing they can write. A `let`, a loop or query binder, and a `move_type` or
-`procedure` parameter are all **bound values, not variables** — they can be read and
-they can be passed, but they cannot be assigned. An assignment naming anything else
-is an error, and that includes the ordinary typo: `totaly_score := 1` is a compile
-error, not a runtime one.
+**Only a declared state variable can be written.** `x := …`, `x += …`, and `rotate x
+through […]` all write persistent state, and persistent state is the only thing they
+can write. A write target is an ordinary name, resolved exactly like a name in any
+other position — so "what may I write to?" is not a separate rule with its own
+vocabulary, it is the ordinary answer to "what is this name?", filtered to one
+kind. A binder (a `let`, a loop or query binder, a `move_type` or `procedure`
+parameter), a zone, a deck value and a pronoun are all *values*, not variables:
+readable, passable, not writable. A name that resolves to none of them is unresolved,
+which makes the ordinary typo — `totaly_score := 1` — a compile error like any other
+misspelling, rather than a runtime one.
 
-The rule has a sharp corner worth stating outright, because a name can otherwise
-mean two things at once. A **read** resolves lexical binders *before* state
-variables; a **write** always goes to state. So if a binder shadows a state variable
-of the same name, `x := 1` writes the state variable while every `x` around it means
-the binder — one name, two things, and no complaint from anyone. That shape is
-rejected: a write target may not be shadowed by a binder in scope. It bites hardest
-through a procedure, whose parameter reads are substituted while an assignment is
-not, but the asymmetry belongs to the language and the wall is lexical.
+That uniformity is the point, and it is worth saying why. A **read** resolves lexical
+binders *before* state variables. If a write target were not resolved the same way,
+a binder shadowing a state variable would make one name mean two things — a read of
+`x` finding the binder while `x := 1` wrote the state variable, with nothing to
+notice. Resolving the target makes that shape *impossible* rather than merely
+detected: the target resolves to the binder, and a binder is not writable. (This is
+one seam of a larger question about what a bare name may denote —
+[open-questions/name-namespaces.md](open-questions/name-namespaces.md).)
 
 **Sequential mutation within a phase body.** `:=` (assign) and `+=` /
 `-=` (accumulate) statements execute in order. A statement sees the

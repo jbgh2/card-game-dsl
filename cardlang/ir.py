@@ -245,7 +245,12 @@ def _stmt(s: n.Stmt) -> IRDict:
                 op["filter"] = _expr(s.filter)
             return op
         case n.RotateStmt():
-            return {"kind": "rotate", "var": s.var, "values": list(s.values)}
+            # The target is a `NameRef` in the AST (it is a write target and must be
+            # classified like any other name), but the IR emits just its name: post-
+            # resolve a write target is ALWAYS a state variable — every other
+            # classification is rejected — so the `ref_kind` carries no information,
+            # and flattening keeps the IR (and its goldens) exactly as it was.
+            return {"kind": "rotate", "var": s.target.name, "values": list(s.values)}
         case n.EachSimultaneous():
             return {"kind": "each_simultaneous", "role": s.role, "body": _stmt(s.body)}
         case n.ForEach():
@@ -282,7 +287,7 @@ def _stmt(s: n.Stmt) -> IRDict:
         case n.AssignStmt():
             return {
                 "kind": "assign",
-                "name": s.name,
+                "name": s.target.name,  # always a state variable post-resolve; see above
                 "index": _expr(s.index) if s.index else None,
                 "op": s.op,
                 "value": _expr(s.value),

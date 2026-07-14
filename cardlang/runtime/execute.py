@@ -307,10 +307,10 @@ def _rotate(stmt: n.RotateStmt, ctx: Ctx) -> None:
     # Advance the variable to the next value in the cycle. Loop state persists
     # across iterations and `before_each` rotates each hand, so the cycle
     # advances hand to hand (see decisions.md "Loop lifecycle").
-    current = ctx.rs.get(stmt.var)
+    current = ctx.rs.get(stmt.target.name)
     values = list(stmt.values)
     idx = values.index(current) if current in values else -1
-    ctx.rs.set(stmt.var, values[(idx + 1) % len(values)])
+    ctx.rs.set(stmt.target.name, values[(idx + 1) % len(values)])
 
 
 def _let(stmt: n.LetStmt, ctx: Ctx) -> Ctx:
@@ -327,11 +327,12 @@ def _let(stmt: n.LetStmt, ctx: Ctx) -> Ctx:
 def _assign(stmt: n.AssignStmt, ctx: Ctx) -> None:
     rhs = evaluate(stmt.value, ctx)
     if stmt.index is None:
-        new = rhs if stmt.op == ":=" else _apply(stmt.op, ctx.rs.get(stmt.name), rhs)
-        ctx.rs.set(stmt.name, new)
+        name = stmt.target.name
+        new = rhs if stmt.op == ":=" else _apply(stmt.op, ctx.rs.get(name), rhs)
+        ctx.rs.set(name, new)
     else:
         key = evaluate(stmt.index, ctx)
-        target = ctx.rs.get(stmt.name)  # the per-player map
+        target = ctx.rs.get(stmt.target.name)  # the per-player map
         target[key] = rhs if stmt.op == ":=" else _apply(stmt.op, target[key], rhs)
 
 

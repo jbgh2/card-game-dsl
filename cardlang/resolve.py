@@ -1107,35 +1107,6 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         scoped = replace(cats, locals=cats.locals | {p.name for p in node.params})
         body = _rewrite_value(node.body, scoped, bag)
         return replace(node, body=body)  # type: ignore[arg-type]
-    if isinstance(node, (n.AssignStmt, n.RotateStmt)):
-        # A WRITE TARGET may not be shadowed by a binder in scope here.
-        #
-        # Reads and writes of the same name resolve in different namespaces: a read
-        # goes through `_classify`, which checks lexical binders BEFORE state
-        # variables, while a write goes to `rs.set` — persistent state, always. So if
-        # a `let`, a loop binder, or a move-type/procedure parameter shadows a state
-        # variable, `x := 1` writes the state variable while every `x` around it means
-        # the binder. One name, two things, silently.
-        #
-        # It bites hardest through a procedure, because expansion makes the split
-        # visible: reads of a parameter are substituted to the argument's binding and
-        # the assignment is left pointing at the state variable — so a body can read
-        # its parameter and write a global of the same name in the same line. But the
-        # defect is not the procedure's; it is here, in the read/write asymmetry, and
-        # `_rewrite` is the one place that knows the lexical scope at the statement.
-        target = node.name if isinstance(node, n.AssignStmt) else node.var
-        verb = "assignment to" if isinstance(node, n.AssignStmt) else "rotate of"
-        # Only when the name genuinely denotes TWO things. A target that is not a state
-        # variable at all is not a split — it is simply unknown, and the "unknown
-        # variable" wall says so more clearly (a `let` is not assignable, full stop).
-        if target in cats.locals and target in cats.state_vars:
-            bag.error(
-                f"{verb} '{target}', which is shadowed by a binder in scope — a read "
-                f"of '{target}' here means that binder (a `let`, a loop binder, or a "
-                f"parameter), but a write always goes to the state variable, so the "
-                f"two would not agree. Rename one",
-                node.span,
-            )
     if isinstance(node, n.LetStmt):
         # `index` (the indexed form's per-key binder, `let base[p] = …`) scopes
         # only to this let's own `value` — evaluated once per key and gone
@@ -1279,6 +1250,52 @@ _PROCEDURE_PARAM_DOMAINS = frozenset({"Player", "Rank", "Rank?"})
 # site and has no ordering or uniqueness rule, which is why it stays allowed.
 _NON_LOCAL_STMTS = (n.Produce, n.ContinueTo, n.SkipToNextHand)
 _OUTCOME_BINDING_STMTS = (n.Round,)
+
+
+# What a write target may be. `:=`, `+=`, `-=` and `rotate` all write persistent
+# state (`runtime/execute.py`'s `_assign` -> `rs.set`, `_rotate`), and persistent state
+# is the only thing they can write — so a write target must classify as a state
+# variable, full stop.
+#
+# This is one rule and not three walls because the target is a `NameRef`: it goes
+# through `_classify` like every read, so "what is this name?" is already answered by
+# the time we get here. Before, it was a bare `str` that no name check ever saw, and
+# the three ways it could go wrong needed three separate hand-written checks — one of
+# which (the plain typo) nobody had written, so `totaly_score := 1` reached the runtime
+# as a bare KeyError.
+#
+# The subtle one is a binder shadowing a state variable. A READ resolves binders BEFORE
+# state variables; a write goes to state regardless. So `let turn = …` followed by
+# `turn := 1` used to write the state variable while every `turn` around it meant the
+# binder — one name, two things, silently. Classifying the target makes that impossible
+# rather than merely detected: the target resolves to the binder, and a binder is not
+# assignable.
+_WRITE_TARGET_KINDS: dict[str, str] = {
+    "local": "a binder (a `let`, a loop binder, or a parameter)",
+    "zone": "a zone",
+    "enum_value": "a value of the deck",
+    "null": "the literal `none`",
+    "bool": "a boolean literal",
+    "pronoun": "a pronoun",
+    "function": "a function",
+}
+
+
+def _bad_write_target(node: n.AssignStmt | n.RotateStmt) -> str | None:
+    """Why this write target is illegal, or None if it is a state variable."""
+    verb = "assign to" if isinstance(node, n.AssignStmt) else "rotate"
+    kind = node.target.ref_kind
+    if kind == "state_var":
+        return None
+    if kind is None:
+        return None  # unresolved: `_classify` has already reported it, by name
+    what = _WRITE_TARGET_KINDS.get(kind, f"a {kind}")
+    return (
+        f"cannot {verb} '{node.target.name}': it is {what}, and only a declared state "
+        f"variable can be written. A binder is a bound value, not a variable — and if "
+        f"a state variable of the same name exists, the two would not agree anyway "
+        f"(a read here means the binder; a write always goes to state)"
+    )
 
 
 def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
@@ -1691,39 +1708,19 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 if nd.suit not in cats.suits:
                     bag.error(f"unknown suit '{nd.suit}' in card literal", nd.span)
             case n.RotateStmt():
-                # `rotate` reads/writes `ctx.rs` (persistent state) at runtime
-                # (runtime/execute.py `_rotate`), never `ctx.locals` — so its
-                # target can only be a declared state variable, never a lexical
-                # binder (a `let`, a query/comprehension/loop binder), whatever
-                # is in scope at this point in the tree.
-                if nd.var not in cats.state_vars:
-                    bag.error(f"rotate of unknown variable '{nd.var}'", nd.span)
+                # Both checks in ONE arm: a bare `case n.RotateStmt():` above a guarded
+                # one consumes the node, so the guarded arm never runs. (It did exactly
+                # that, and `tests/test_binder_scoping.py` caught it.)
+                bad = _bad_write_target(nd)
+                if bad is not None:
+                    bag.error(bad, nd.span)
                 for value in nd.values:
                     if value not in cats.enums:
                         bag.error(f"rotate through unknown value '{value}'", nd.span)
-            case n.AssignStmt() if nd.name not in cats.state_vars:
-                # The same rule as `rotate` above, and for the same reason: an
-                # assignment writes `ctx.rs` (persistent state) at runtime
-                # (runtime/execute.py `_assign` -> `rs.set`), never `ctx.locals`. So
-                # its target can only be a declared state variable — never a `let`, a
-                # loop binder, or a move-type/procedure parameter.
-                #
-                # This was the ONE name-bearing field in the whole AST with no wall,
-                # and it went unnoticed because it is a bare `str` rather than a
-                # `NameRef`: every name check in this module walks `NameRef`s, so an
-                # assignment target was invisible to all of them. A plain typo
-                # (`totaly_score := 1`) compiled and reached the runtime as a bare
-                # `KeyError`, and so did an assignment to a parameter or a `let`.
-                # (Derived, not guessed: every other bare-string name reference —
-                # `RotateStmt.var`, `Offer.move_types`, `Round`'s zones and functions,
-                # `Produces.define`, `ContinueTo.target`, `Call.func` — was already
-                # walled. This was the gap.)
-                bag.error(
-                    f"assignment to unknown variable '{nd.name}' — only a declared "
-                    f"state variable can be assigned (a `let`, a loop binder and a "
-                    f"parameter are all bound values, not variables)",
-                    nd.span,
-                )
+            case n.AssignStmt():
+                bad = _bad_write_target(nd)
+                if bad is not None:
+                    bag.error(bad, nd.span)
             case n.Winner() if nd.target not in cats.state_vars:
                 bag.error(f"winner references unknown variable '{nd.target}'", nd.span)
             case n.Offer():

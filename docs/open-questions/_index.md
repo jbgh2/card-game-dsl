@@ -40,6 +40,20 @@ domain, waits on a corpus game and sits in Tier 2.)
 These questions need one more game in the corpus before committing to a
 design. The data point is named in each file.
 
+- [name-namespaces](name-namespaces.md) — a bare name can denote any of six
+  things (a binder, a state variable, a zone, a deck value, a pronoun, a
+  function), and `_classify` picks by PRECEDENCE, so shadowing is silent by
+  construction. This is the shared root of several defects that each looked local
+  when found: reads resolved binders before state variables while writes went to
+  state regardless (one name, two things); the round's frame was a second store
+  under the same spelling, through which a form's private working memory was
+  reachable; and substitution could only see half the names. Each is now walled —
+  but the walls are around the *consequences*, and the thing producing them is
+  unchanged. The question is whether cross-namespace shadowing should be legal at
+  all, and whether the surface should say which namespace a name is in. Blocked on
+  a game that genuinely *wants* to shadow; none of the 18 does, and every shadow
+  found so far has been a defect.
+
 - [move-parameter-domains](move-parameter-domains.md) — a bounded-`Integer`
   *move-parameter* domain (a single move type carrying a small **signed**
   integer, e.g. Ninety-Nine's `play_card(delta : Integer)`), so authors need

@@ -1412,21 +1412,26 @@ def _all_phases(game: Game) -> Iterator[n.Phase]:
 
 
 def _check_assign(stmt: n.AssignStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
-    target = env.state_vars.get(stmt.name)
+    name = stmt.target.name
+    target = env.state_vars.get(name)
     if target is None:
-        return  # not a typed state var (a let-local, or unknown — left permissive)
+        # Resolve guarantees a write target classifies as a state variable — a binder,
+        # a zone and an unknown name are all rejected there — so this is unreachable
+        # for a checked game. It used to be the permissive escape for exactly those
+        # cases, which is why an assignment to a `let` or a typo sailed through here.
+        return
     if stmt.index is not None and isinstance(target, TCollection):
         target = target.element  # an indexed assignment writes one element
     rhs = infer(stmt.value, env)
     if stmt.op in ("+=", "-="):
         if not assignable(rhs, TInteger()):
             bag.error(
-                f"'{stmt.name}' {stmt.op} expects an Integer, got {_type_name(rhs)}",
+                f"'{name}' {stmt.op} expects an Integer, got {_type_name(rhs)}",
                 stmt.span,
             )
     elif not assignable(rhs, target):
         bag.error(
-            f"cannot assign {_type_name(rhs)} to '{stmt.name}' ({_type_name(target)})",
+            f"cannot assign {_type_name(rhs)} to '{name}' ({_type_name(target)})",
             stmt.span,
         )
 

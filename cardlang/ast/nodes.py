@@ -365,9 +365,15 @@ class EpistemicOp:
 
 @dataclass(frozen=True, slots=True)
 class RotateStmt:
-    """`rotate <var> through [<values>]` — a state-cycle."""
+    """`rotate <target> through [<values>]` — a state-cycle.
 
-    var: str
+    `target` is a `NameRef` for the same reason `AssignStmt.target` is: `rotate` writes
+    persistent state, so it is a write target and must be classified like one. `values`
+    stays a tuple of strings — those are deck/stdlib enum values validated against a
+    registry, and they are not scope participants (nothing can shadow them into meaning
+    something else)."""
+
+    target: NameRef
     values: tuple[str, ...]
     span: Span | None = None
 
@@ -423,9 +429,28 @@ class LetStmt:
 
 @dataclass(frozen=True, slots=True)
 class AssignStmt:
-    """`<name>[<index>]? := / += / -= <expr>`."""
+    """`<target>[<index>]? := / += / -= <expr>`.
 
-    name: str
+    `target` is a `NameRef`, not a bare string, and that is load-bearing. A name in
+    this language can denote a lexical binder, a state variable, a zone, a deck
+    value, a pronoun or a function, and `resolve._classify` decides which — by a
+    fixed precedence, binders first. Every READ goes through that. A write target
+    used to be a bare `str`, so it went through NOTHING: it was invisible to name
+    classification, to validation, and to `substitute`.
+
+    Three defects followed, and all three dissolve once the target is an ordinary
+    name. A typo (`totaly_score := 1`) reached the runtime as a bare `KeyError`,
+    because nothing ever checked the name existed. A binder shadowing a state
+    variable made one name mean two things — a read of `x` found the binder while `x
+    := 1` wrote the state variable, silently. And procedure expansion, which rewrites
+    `NameRef`s, rewrote every read of a parameter and left the write pointing at a
+    global of the same name.
+
+    With a `NameRef` the target is classified like any other name, so "you cannot
+    assign to a binder" is one uniform rule instead of three bespoke walls, and
+    substitution can see write positions."""
+
+    target: NameRef
     index: Expr | None
     op: str
     value: Expr

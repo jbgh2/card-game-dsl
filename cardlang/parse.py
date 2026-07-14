@@ -500,7 +500,11 @@ class _Builder(Transformer[Token, n.Game]):
 
     def rotate_stmt(self, meta: Meta, c: list[object]) -> n.RotateStmt:
         assert isinstance(c[1], tuple)
-        return n.RotateStmt(var=str(c[0]), values=c[1], span=self._span(meta))
+        return n.RotateStmt(
+            target=n.NameRef(name=str(c[0]), span=self._span(meta)),
+            values=c[1],
+            span=self._span(meta),
+        )
 
     def each_simultaneous(self, meta: Meta, c: list[object]) -> n.EachSimultaneous:
         return n.EachSimultaneous(
@@ -618,7 +622,7 @@ class _Builder(Transformer[Token, n.Game]):
     def assign_stmt(self, meta: Meta, c: list[object]) -> n.AssignStmt:
         assert isinstance(c[0], _Lvalue)
         return n.AssignStmt(
-            name=c[0].name,
+            target=n.NameRef(name=c[0].name, span=self._span(meta)),
             index=c[0].index,  # type: ignore[arg-type]
             op=str(c[1]),
             value=_as_expr(c[2]),

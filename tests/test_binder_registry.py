@@ -49,7 +49,7 @@ from cardlang.resolve import _introduced_binders
 
 _CARD = n.NameRef(name="card")
 _ZONE = n.NameRef(name="zone")
-_FILLER_STMT = n.RotateStmt(var="v", values=())
+_FILLER_STMT = n.RotateStmt(target=n.NameRef(name="v"), values=())
 
 
 def test_quantifier_binds_its_binder() -> None:
@@ -161,7 +161,7 @@ def test_repeat_until_introduces_nothing() -> None:
 
 
 def test_rotate_stmt_introduces_nothing() -> None:
-    assert _introduced_binders(n.RotateStmt(var="v", values=())) == ()
+    assert _introduced_binders(n.RotateStmt(target=n.NameRef(name="v"), values=())) == ()
 
 
 def test_state_decl_introduces_nothing() -> None:
@@ -175,7 +175,9 @@ def test_state_decl_introduces_nothing() -> None:
 
 
 def test_assign_stmt_introduces_nothing() -> None:
-    node = n.AssignStmt(name="x", index=None, op=":=", value=n.NameRef(name="v"))
+    node = n.AssignStmt(
+        target=n.NameRef(name="x"), index=None, op=":=", value=n.NameRef(name="v")
+    )
     assert _introduced_binders(node) == ()
 
 
