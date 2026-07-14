@@ -14,6 +14,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Iterable
 
 from cardlang.ast import nodes as n
+from cardlang.domains import DomainSources, role_static_members
 from cardlang.runtime.values import Card, Player, Seating
 
 
@@ -112,7 +113,15 @@ class ZoneStore:
             if decl.index is None:
                 self.singles[decl.name] = Zone()
             else:
-                keys = teams if decl.index == "team" else players
+                # The family's key set is the index domain's member set, read
+                # from the domain table. The old `teams if index == "team" else
+                # players` silently keyed ANY other role by players; the table
+                # raises for a role no row covers (resolve rejects those, so
+                # reaching it means a row and this site disagree).
+                keys = role_static_members(
+                    decl.index,
+                    DomainSources(suits=(), ranks=(), players=players, teams=teams),
+                )
                 self.families[decl.name] = {k: Zone() for k in keys}
 
     def is_family(self, name: str) -> bool:
@@ -141,7 +150,11 @@ class RuntimeState:
     """The live world: zones plus a stack of variable scope frames."""
 
     def __init__(self, seating: Seating, zones: ZoneStore, rng: random.Random) -> None:
-        self.seating = seating
+        # Annotated explicitly: `state` and `domains` are now a module cycle
+        # (domains TYPE_CHECKING-imports RuntimeState; ZoneStore reads the
+        # domain table), and mypy's within-SCC inference needs the type stated
+        # rather than inferred from the parameter.
+        self.seating: Seating = seating
         self.zones = zones
         self.rng = rng
         self.frames: list[dict[str, Any]] = []

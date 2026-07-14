@@ -421,13 +421,15 @@ def env_from_game(game: Game) -> TypeEnv:
         z.name: ZONE_CONTENT.get(z.type_ref.name, TCollection(TAny()))
         for z in game.zones
     }
-    # `ZoneDecl.index` is `None` (a singleton zone) or one of the closed
-    # index roles resolve.py validates (`_KNOWN_ROLES = {"player", "team"}`);
-    # a family's subscript index must be `assignable` to the matching type.
+    # `ZoneDecl.index` is `None` (a singleton zone) or one of the closed index
+    # roles resolve.py validates (the domain table's `ZONE_INDEX_ROLES`); a
+    # family's subscript key types as the index domain's binder type — the same
+    # table cell `for each <role>` reads, so `hand[p]` and `captured[t]` key by
+    # TPlayer/TTeam without this site re-spelling the role list. (`role_type`'s
+    # TAny fallback covers the unresolved-role case, whose diagnostic resolve
+    # already owns.)
     zone_families: dict[str, Type] = {
-        z.name: (TTeam() if z.index == "team" else TPlayer())
-        for z in game.zones
-        if z.index is not None
+        z.name: _role_type(z.index) for z in game.zones if z.index is not None
     }
     return TypeEnv(
         state_vars=state_vars,

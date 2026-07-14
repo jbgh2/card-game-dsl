@@ -54,6 +54,36 @@ def test_node_union_is_exactly_the_modules_dataclasses() -> None:
     )
 
 
+def test_every_param_bearing_node_kind_is_reserved_swept() -> None:
+    """`resolve._PARAM_BEARING` — the table `_check_reserved_params` walks — must
+    cover exactly the node kinds that carry a `params` field, derived from the
+    Node union rather than remembered. Before this pin the four collections were
+    a hand-written tuple inside the function: a new parameterized declaration
+    form (procedures were one, once) joins the reserved-word sweep only if
+    someone remembers it exists."""
+    from cardlang.resolve import _PARAM_BEARING
+
+    with_params = {
+        cls
+        for cls in typing.get_args(n.Node)
+        if any(f.name == "params" for f in dataclasses.fields(cls))
+    }
+    assert with_params == set(_PARAM_BEARING), (
+        f"node kinds with a `params` field: {sorted(c.__name__ for c in with_params)}; "
+        f"kinds the reserved-word sweep covers: "
+        f"{sorted(c.__name__ for c in _PARAM_BEARING)} — every parameterized "
+        "declaration form must have a _PARAM_BEARING row"
+    )
+    # And each row's `Game` collection must actually hold that node kind, so a
+    # row cannot point the sweep at the wrong list.
+    for cls, (attr, _kind, _reserved) in _PARAM_BEARING.items():
+        game_field = next(f for f in dataclasses.fields(n.Game) if f.name == attr)
+        assert cls.__name__ in str(game_field.type), (
+            f"_PARAM_BEARING maps {cls.__name__} to Game.{attr}, "
+            f"which is typed {game_field.type}"
+        )
+
+
 def test_every_node_kind_is_frozen() -> None:
     """The module docstring's other structural claim: nodes are immutable, which
     is what lets passes rebuild trees with `dataclasses.replace` and share

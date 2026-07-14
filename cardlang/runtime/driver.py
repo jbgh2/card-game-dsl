@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from cardlang.ast import nodes as n
+from cardlang.domains import role_members
 from cardlang.runtime import phases
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.evaluate import evaluate
@@ -345,6 +346,11 @@ def _declare_state(block: n.StateBlock, ctx: Ctx) -> None:
         if decl.index is None:
             ctx.rs.declare(decl.name, False, evaluate(decl.default, ctx))
         else:
-            keys = ctx.rs.teams if decl.index == "team" else ctx.rs.seating.players
+            # The indexed var's key set is the index domain's runtime member
+            # set — the same table cell `for each <role>` iterates. The old
+            # `teams if index == "team" else players` silently keyed every
+            # other role by players, which is exactly how `state { x[suit] }`
+            # ran as a per-player store until resolve walled it.
+            keys = role_members(decl.index, ctx)
             value: dict[int, Any] = {k: evaluate(decl.default, ctx) for k in keys}
             ctx.rs.declare(decl.name, True, value)

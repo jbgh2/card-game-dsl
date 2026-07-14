@@ -27,7 +27,7 @@ from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
 from cardlang.domains import ITERABLE_ROLES as _ITERATION_ROLES
 from cardlang.domains import PARAM_DOMAIN_ORDER, PARAM_DOMAINS as _FIXED_DOMAINS
-from cardlang.domains import SIMULTANEOUS_ROLES
+from cardlang.domains import SIMULTANEOUS_ROLES, ZONE_INDEX_ROLES
 from cardlang.stdlib.functions import (
     STDLIB_AUCTION_OUTCOMES,
     STDLIB_CALL_FUNCS,
@@ -43,8 +43,10 @@ from cardlang.stdlib.values import DIRECTION_VALUES, deck_ranks, deck_suits, enu
 from cardlang.typecheck import KNOWN_TYPE_NAMES
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 
-# Roles a zone may be indexed by or owned by. Grows with the seating model.
-_KNOWN_ROLES = {"player", "team"}
+# Roles a zone may be indexed by or owned by — the `zone_key_of` column of the
+# domain table, not a local list (it used to be a hand-written {player, team}
+# here, re-spelled as `== "team"` at four more sites downstream).
+_KNOWN_ROLES = ZONE_INDEX_ROLES
 
 # The three domain-registry views this module gates on, all derived from the one
 # table in `cardlang.domains` (which also owns typecheck's binder typing and the
@@ -910,6 +912,32 @@ def _check_duplicate_names(game: n.Game, bag: DiagnosticBag) -> None:
     check("phase", phases)
 
 
+# The param-bearing declaration kinds: node type -> (the `Game` collection that
+# holds them, the diagnostic noun, the reserved set their parameters check
+# against). This table is pinned to the AST by tests/test_node_registry.py —
+# every `Node` member with a `params` field must have a row — so a new
+# parameterized declaration form cannot ship with its parameters silently
+# exempt from the reserved-word sweep. (The pronoun carve-out below: function
+# and procedure bodies are hermetic — forbidden from READING the call-site
+# pronouns — so naming a parameter after one is that error message's own
+# prescribed fix, not a hijack. Move-type/rule bodies read the pronouns live,
+# so all five stay reserved there. See `_check_reserved_params`.)
+_PARAM_BEARING: dict[type, tuple[str, str, frozenset[str]]] = {
+    n.FunctionDef: (
+        "functions",
+        "function parameter",
+        RESERVED_VALUE_NAMES - _CALL_SITE_PRONOUNS,
+    ),
+    n.ProcedureDef: (
+        "procedures",
+        "procedure parameter",
+        RESERVED_VALUE_NAMES - _CALL_SITE_PRONOUNS,
+    ),
+    n.MoveTypeDef: ("move_types", "move-type parameter", RESERVED_VALUE_NAMES),
+    n.RuleDef: ("rules", "rule parameter", RESERVED_VALUE_NAMES),
+}
+
+
 def _check_reserved_params(game: n.Game, bag: DiagnosticBag) -> None:
     """Function/move-type/rule parameters are declarations `_check_duplicate_names`
     never reaches (they live on `.params`, not one of its top-level lists) but
@@ -930,17 +958,8 @@ def _check_reserved_params(game: n.Game, bag: DiagnosticBag) -> None:
     them. Move-type/rule bodies are not hermetic — they read
     `actor`/`action`/`outcome` directly as live pronouns — so all five stay
     reserved for their parameters."""
-    for coll, kind, reserved in (
-        (game.functions, "function parameter", RESERVED_VALUE_NAMES - _CALL_SITE_PRONOUNS),
-        # Procedure bodies are forbidden from READING the call-site pronouns for the
-        # same reason function bodies are (`_check_procedures`), so a parameter named
-        # after one is that error's prescribed fix, not a hijack — the identical
-        # carve-out, for the identical reason.
-        (game.procedures, "procedure parameter", RESERVED_VALUE_NAMES - _CALL_SITE_PRONOUNS),
-        (game.move_types, "move-type parameter", RESERVED_VALUE_NAMES),
-        (game.rules, "rule parameter", RESERVED_VALUE_NAMES),
-    ):
-        for decl in coll:
+    for attr, kind, reserved in _PARAM_BEARING.values():
+        for decl in getattr(game, attr):
             for p in decl.params:
                 _check_reserved(p.name, kind, p.span, bag, reserved)
 
@@ -1690,15 +1709,33 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     "positionally",
                     nd.span,
                 )
-            case n.StateDecl() if (
-                nd.type_name not in KNOWN_TYPE_NAMES
-                and nd.type_name not in defined_types
-            ):
-                bag.error(
-                    f"unknown type '{nd.type_name}' in declaration of "
-                    f"'{nd.name}'",
-                    nd.span,
-                )
+            case n.StateDecl():
+                # One arm, both checks: a match runs its first matching arm
+                # only, so two guarded StateDecl arms would report at most one
+                # of two independent errors on the same declaration.
+                if (
+                    nd.type_name not in KNOWN_TYPE_NAMES
+                    and nd.type_name not in defined_types
+                ):
+                    bag.error(
+                        f"unknown type '{nd.type_name}' in declaration of "
+                        f"'{nd.name}'",
+                        nd.span,
+                    )
+                if nd.index is not None and nd.index not in ZONE_INDEX_ROLES:
+                    # Same wall as a zone's index role, same registry. Before
+                    # it existed, `state { x[suit] : Integer = 0 }` checked
+                    # clean and the runtime silently keyed it BY PLAYERS (the
+                    # driver's key-set dispatch defaulted every non-team role
+                    # to seats) — the declared index was accepted and ignored.
+                    roles = ", ".join(sorted(ZONE_INDEX_ROLES))
+                    bag.error(
+                        f"state variable '{nd.name}' is indexed by "
+                        f"'{nd.index}', which is not an indexable role "
+                        f"({roles}) — a value domain has no per-member store "
+                        f"(roadmap.md records the extension)",
+                        nd.span,
+                    )
             case n.StructField() if (
                 nd.type_name not in KNOWN_TYPE_NAMES
                 and nd.type_name not in defined_types
