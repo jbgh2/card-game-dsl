@@ -63,6 +63,31 @@ The temporary's name (`@f.p`) is deliberately unspellable — `@` and `.` are no
 the NAME terminal — so it can never collide with a user's binder, and two runs of
 the same procedure in one block simply rebind it before each body, which the
 sequential-`let` fold already handles.
+
+Who sees a `Block`, and why each is safe
+----------------------------------------
+A procedure body is written once and spliced many times, so every pass that reasons
+about a statement's CONTEXT or SHAPE — rather than its contents — is a place this
+construct can lie. That is the class three separate defects came from, so the list is
+enumerated rather than trusted:
+
+- `ir.py`, `runtime/execute.py` — exhaustive `match` ending in `assert_never`. mypy
+  FORCES an arm for a new `Stmt` member; a hole here is a type error, not a silence.
+- `deckcheck.check_capacity` — an isinstance chain with a silent default, and the one
+  that bit. It has an explicit `Block` arm now. Both failure directions are real: no
+  arm at all makes the gate blind to every deal inside a body (undercount), and the
+  old `if true { … }` encoding made it treat the body as skippable (overcount, and a
+  program accepted inline but rejected as a `run`).
+- `runtime/phases.py`, `runtime/driver.py` — dispatch on PHASE ITEMS (`ActiveRules`,
+  `Phase`), never on statement kinds. A `Block` is a `Stmt` and cannot appear there.
+- `runtime/execute.py::_pass_selection` — asserts its body is a chosen movement. A
+  `Block` cannot reach it: resolve now rejects any other body for `each <role>
+  simultaneously`, so that assert is a backstop rather than a user-reachable path.
+- `typecheck`, `resolve`, `parse` — all run BEFORE this pass and can never see a
+  block. (`typecheck._stmt_tree_scoped` carries an arm anyway, because it falls
+  through silently and a future pass ordering would otherwise skip a whole body.)
+- `openspiel/encoding.py` — walks every dataclass field generically, so a block's
+  body is reached like any other tuple.
 """
 
 from dataclasses import fields, is_dataclass, replace
