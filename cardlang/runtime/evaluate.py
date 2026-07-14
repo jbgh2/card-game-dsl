@@ -331,9 +331,17 @@ def _player_query(e: n.PlayerQuery, ctx: Ctx) -> Any:
         case "count":
             return len(matches)
         case "pick":
-            assert len(matches) == 1, (
-                f"`the player where …` matched {len(matches)} players, expected 1"
-            )
+            if len(matches) != 1:
+                # A runtime DATA condition, not a compiler invariant: whether
+                # the predicate picks out exactly one player depends on live
+                # state the checker cannot see. Typed error, not an assert —
+                # the game author wrote a `the player where …` whose premise
+                # failed, and they should hear that in the runtime's failure
+                # currency.
+                raise RuntimeError(
+                    f"`the player where …` matched {len(matches)} players, "
+                    f"expected exactly 1"
+                )
             return matches[0]
         case _:
             raise AssertionError(f"unknown player-query kind '{e.kind}'")

@@ -1369,6 +1369,36 @@ def _bad_write_target(node: n.AssignStmt | n.RotateStmt) -> str | None:
     )
 
 
+def _bad_zone_endpoint(expr: n.Expr | None, what: str) -> str | None:
+    """Why this movement endpoint (`from <here>` / `to <here>`) is illegal, or
+    None. The same move as `_bad_write_target`, one grammar position over: an
+    endpoint is name-shaped (the grammar rejects literals there), so its ROOT
+    name has a classification, and most classifications cannot possibly be a
+    zone. `deal 1 cards from turn to each hand` (with `turn : Integer`) used to
+    check clean and die mid-playout on a bare AssertionError in the executor —
+    a statically nameable error in the wrong currency at the wrong time.
+
+    A `local` root stays accepted: a binder may legitimately hold a zone value
+    (`for each player p: move all cards from hand[p] …` subscripts one), and
+    locals are untyped until the scoped-typing work lands (roadmap.md, "Locals
+    are typed") — the executor's Zone check remains the loud backstop for that
+    residual."""
+    root = expr
+    while isinstance(root, (n.Subscript, n.Member)):
+        root = root.obj
+    if not isinstance(root, n.NameRef):
+        return None  # not name-rooted: nothing to classify here
+    kind = root.ref_kind
+    if kind is None or kind in ("zone", "local"):
+        return None  # None: unresolved, already reported by the classifier
+    what_it_is = _WRITE_TARGET_KINDS.get(kind, f"a {kind}")
+    if kind == "state_var":
+        what_it_is = "a state variable"
+    return (
+        f"cannot move cards {what} '{root.name}': it is {what_it_is}, not a zone"
+    )
+
+
 def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
     """A procedure body must read as the statements it becomes. Hermeticity is the
     same as a function's — a body references only its own parameters, the binders
@@ -1810,6 +1840,11 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 bad = _bad_write_target(nd)
                 if bad is not None:
                     bag.error(bad, nd.span)
+            case n.Movement():
+                for endpoint, direction in ((nd.source, "from"), (nd.dest, "to")):
+                    bad = _bad_zone_endpoint(endpoint, direction)
+                    if bad is not None:
+                        bag.error(bad, nd.span)
             case n.Winner() if nd.target not in cats.state_vars:
                 bag.error(f"winner references unknown variable '{nd.target}'", nd.span)
             case n.Offer():

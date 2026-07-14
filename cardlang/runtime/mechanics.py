@@ -463,7 +463,16 @@ class ClimbForm:
         self.ring: list[Player] = [
             p for p in ctx.rs.seating.turn_order_from(self.leader) if p in participants
         ]
-        assert self.ring and self.ring[0] == self.leader, "the leader must lead"
+        if not self.ring or self.ring[0] != self.leader:
+            # Runtime DATA, not a compiler invariant: `from <leader>` and
+            # `over <participants>` are game expressions, and a game can
+            # compute a leader who is not among the participants (a player
+            # who has already shed out). The construct requires the leader to
+            # lead; tell the author so in the runtime's failure currency.
+            raise RuntimeError(
+                f"round climb: leader {self.leader} is not among the "
+                f"participants — the `from` player must be in `over`"
+            )
 
     def init(self, state: State, ctx: Ctx) -> State:
         state["current"] = None  # the standing play; None until the leader leads
