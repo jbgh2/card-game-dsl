@@ -936,6 +936,23 @@ zone is initialized at game start holding the deck's cards, so the first
 
 ## Mutation semantics
 
+**Only a declared state variable can be assigned.** `x := …`, `x += …`, and
+`rotate x through […]` all write persistent state, and persistent state is the only
+thing they can write. A `let`, a loop or query binder, and a `move_type` or
+`procedure` parameter are all **bound values, not variables** — they can be read and
+they can be passed, but they cannot be assigned. An assignment naming anything else
+is an error, and that includes the ordinary typo: `totaly_score := 1` is a compile
+error, not a runtime one.
+
+The rule has a sharp corner worth stating outright, because a name can otherwise
+mean two things at once. A **read** resolves lexical binders *before* state
+variables; a **write** always goes to state. So if a binder shadows a state variable
+of the same name, `x := 1` writes the state variable while every `x` around it means
+the binder — one name, two things, and no complaint from anyone. That shape is
+rejected: a write target may not be shadowed by a binder in scope. It bites hardest
+through a procedure, whose parameter reads are substituted while an assignment is
+not, but the asymmetry belongs to the language and the wall is lexical.
+
 **Sequential mutation within a phase body.** `:=` (assign) and `+=` /
 `-=` (accumulate) statements execute in order. A statement sees the
 writes of all earlier statements in the same body. A rule's
