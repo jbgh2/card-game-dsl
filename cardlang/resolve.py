@@ -1107,6 +1107,35 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         scoped = replace(cats, locals=cats.locals | {p.name for p in node.params})
         body = _rewrite_value(node.body, scoped, bag)
         return replace(node, body=body)  # type: ignore[arg-type]
+    if isinstance(node, (n.AssignStmt, n.RotateStmt)):
+        # A WRITE TARGET may not be shadowed by a binder in scope here.
+        #
+        # Reads and writes of the same name resolve in different namespaces: a read
+        # goes through `_classify`, which checks lexical binders BEFORE state
+        # variables, while a write goes to `rs.set` — persistent state, always. So if
+        # a `let`, a loop binder, or a move-type/procedure parameter shadows a state
+        # variable, `x := 1` writes the state variable while every `x` around it means
+        # the binder. One name, two things, silently.
+        #
+        # It bites hardest through a procedure, because expansion makes the split
+        # visible: reads of a parameter are substituted to the argument's binding and
+        # the assignment is left pointing at the state variable — so a body can read
+        # its parameter and write a global of the same name in the same line. But the
+        # defect is not the procedure's; it is here, in the read/write asymmetry, and
+        # `_rewrite` is the one place that knows the lexical scope at the statement.
+        target = node.name if isinstance(node, n.AssignStmt) else node.var
+        verb = "assignment to" if isinstance(node, n.AssignStmt) else "rotate of"
+        # Only when the name genuinely denotes TWO things. A target that is not a state
+        # variable at all is not a split — it is simply unknown, and the "unknown
+        # variable" wall says so more clearly (a `let` is not assignable, full stop).
+        if target in cats.locals and target in cats.state_vars:
+            bag.error(
+                f"{verb} '{target}', which is shadowed by a binder in scope — a read "
+                f"of '{target}' here means that binder (a `let`, a loop binder, or a "
+                f"parameter), but a write always goes to the state variable, so the "
+                f"two would not agree. Rename one",
+                node.span,
+            )
     if isinstance(node, n.LetStmt):
         # `index` (the indexed form's per-key binder, `let base[p] = …`) scopes
         # only to this let's own `value` — evaluated once per key and gone
@@ -1672,6 +1701,29 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 for value in nd.values:
                     if value not in cats.enums:
                         bag.error(f"rotate through unknown value '{value}'", nd.span)
+            case n.AssignStmt() if nd.name not in cats.state_vars:
+                # The same rule as `rotate` above, and for the same reason: an
+                # assignment writes `ctx.rs` (persistent state) at runtime
+                # (runtime/execute.py `_assign` -> `rs.set`), never `ctx.locals`. So
+                # its target can only be a declared state variable — never a `let`, a
+                # loop binder, or a move-type/procedure parameter.
+                #
+                # This was the ONE name-bearing field in the whole AST with no wall,
+                # and it went unnoticed because it is a bare `str` rather than a
+                # `NameRef`: every name check in this module walks `NameRef`s, so an
+                # assignment target was invisible to all of them. A plain typo
+                # (`totaly_score := 1`) compiled and reached the runtime as a bare
+                # `KeyError`, and so did an assignment to a parameter or a `let`.
+                # (Derived, not guessed: every other bare-string name reference —
+                # `RotateStmt.var`, `Offer.move_types`, `Round`'s zones and functions,
+                # `Produces.define`, `ContinueTo.target`, `Call.func` — was already
+                # walled. This was the gap.)
+                bag.error(
+                    f"assignment to unknown variable '{nd.name}' — only a declared "
+                    f"state variable can be assigned (a `let`, a loop binder and a "
+                    f"parameter are all bound values, not variables)",
+                    nd.span,
+                )
             case n.Winner() if nd.target not in cats.state_vars:
                 bag.error(f"winner references unknown variable '{nd.target}'", nd.span)
             case n.Offer():

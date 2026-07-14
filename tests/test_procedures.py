@@ -858,3 +858,60 @@ procedure consume() {
     with pytest.raises(DiagnosticError) as excinfo:
         check_dsl(src, "probe")
     assert "consumes the phase outcome of 'decide'" in str(excinfo.value)
+
+
+# ---------------------------------------------------------------------------
+# Write targets — the last name-bearing field with no wall
+# ---------------------------------------------------------------------------
+
+
+def test_an_assignment_target_must_be_a_declared_state_variable() -> None:
+    """`AssignStmt.name` was the ONE name-bearing field in the AST with no wall, and it
+    escaped for a structural reason: it is a bare `str`, not a `NameRef`. Every name
+    check in resolve walks `NameRef`s, so an assignment target was invisible to all of
+    them — a plain typo compiled and reached the runtime as a bare `KeyError`.
+
+    Derived, not guessed: enumerating every `str`-typed field on every `Stmt`/`Expr`
+    that names a declared thing shows `RotateStmt.var`, `Offer.move_types`, `Round`'s
+    zones and functions, `Produces.define`, `ContinueTo.target` and `Call.func` were
+    all already walled. This was the only gap."""
+    rejects("    totaly_score := 1", "", "assignment to unknown variable 'totaly_score'")
+    rejects("    let x = 1\n    x := 2", "", "assignment to unknown variable 'x'")
+    # ...and a `let` is not assignable even though it is a name in scope: a binder is
+    # a bound value, not a variable.
+    rejects(
+        "    run f(0)",
+        "procedure f(p : Player) { p := 1 }",
+        "assignment to unknown variable 'p'",
+    )
+    check("    turn := 1", "")  # the legal shape still is
+
+
+def test_a_write_target_may_not_be_shadowed_by_a_binder() -> None:
+    """The silent half, and the deeper defect. A READ resolves lexical binders BEFORE
+    state variables; a WRITE always goes to state. So a binder shadowing a state
+    variable splits one name into two things.
+
+    Through a procedure the split is stark: reads of the parameter are substituted to
+    the argument's binding while the assignment is left pointing at the state variable,
+    so a body reads its parameter and writes a global of the same name in one line.
+    Probed before the wall: `procedure f(turn : Player) { turn := 1  score[turn] += 10 }`
+    credited player 0 (the parameter) while setting the state variable `turn` to 1, so
+    the caller's next `score[turn]` hit player 1. Nothing said a word.
+
+    But the defect is NOT the procedure's — it is the read/write asymmetry, and it is
+    reachable through a `let`, a loop binder, and a move-type parameter just the same.
+    So the wall is lexical and sits where the scope is known, not in the procedure
+    checks."""
+    for body, procs in (
+        ("    run f(0)", "procedure f(turn : Player) { turn := 1 }"),
+        ("    let turn = 1\n    turn := 2", ""),
+        ("    for each player turn: turn := 1", ""),
+        (
+            "    offer to 0 one of [shadow]",
+            "move_type shadow(turn : Player) { effect { turn := 1 } }",
+        ),
+    ):
+        with pytest.raises(DiagnosticError) as excinfo:
+            check(body, procs)
+        assert "shadowed by a binder in scope" in str(excinfo.value)
