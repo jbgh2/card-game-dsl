@@ -428,5 +428,5 @@ def test_rotate_of_a_let_bound_local_is_rejected() -> None:
     rotate x through [left, right]
   }
 """,
-        "rotate of unknown variable 'x'",
+        "cannot rotate 'x': it is a binder",
     )

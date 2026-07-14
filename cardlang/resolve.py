@@ -25,7 +25,9 @@ from typing import Callable, Iterator
 
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
-from cardlang.roles import ROLES as _ITERATION_ROLES
+from cardlang.domains import ITERABLE_ROLES as _ITERATION_ROLES
+from cardlang.domains import PARAM_DOMAIN_ORDER, PARAM_DOMAINS as _FIXED_DOMAINS
+from cardlang.domains import SIMULTANEOUS_ROLES
 from cardlang.stdlib.functions import (
     STDLIB_AUCTION_OUTCOMES,
     STDLIB_CALL_FUNCS,
@@ -44,13 +46,19 @@ from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 # Roles a zone may be indexed by or owned by. Grows with the seating model.
 _KNOWN_ROLES = {"player", "team"}
 
-# Roles `for each <role> <binder>` may range over: the seat roles plus the
-# deck's value domains. (Quantifier roles are fixed by their grammar
-# productions; `each … simultaneously` is seat-only — a value domain has no
-# actor to move simultaneously.) Sourced from `cardlang.roles.ROLES`, the one
-# registry also consumed by typecheck's binder typing and the runtime's
-# per-role domain accessor, so the four sites can't drift (imported above as
-# `_ITERATION_ROLES` to keep this module's call sites unchanged).
+# The three domain-registry views this module gates on, all derived from the one
+# table in `cardlang.domains` (which also owns typecheck's binder typing and the
+# runtime's member enumerators, so the sites can't drift):
+#
+# - `_ITERATION_ROLES` — the roles `for each <role> <binder>` may range over
+#   (the registry's `iterable` column). Quantifier roles are fixed by their
+#   grammar productions instead, so they need no set here.
+# - `SIMULTANEOUS_ROLES` — the roles `each <role> simultaneously:` may range
+#   over (the `simultaneous` column): seat domains only, since a value domain
+#   has no actor to move simultaneously.
+# - `_FIXED_DOMAINS` / `PARAM_DOMAIN_ORDER` — the statically enumerable
+#   move-parameter domains (the union of the rows' `param_domains`), as a set
+#   for the membership gate and as a sequence for the diagnostic that lists them.
 
 # The magic namespaces a bare name may resolve to.
 _PRONOUNS = frozenset({"state", "action", "outcome", "active_rules", "actor"})
@@ -143,6 +151,7 @@ def resolve(game: n.Game) -> n.Game:
     game = _classify_names(game, cats, bag)
     _validate_refs(game, cats, bag)
     _check_functions(game, bag)
+    _check_procedures(game, bag)
     _check_chooses(game, bag)
 
     _raise_if_errors(bag)
@@ -177,6 +186,26 @@ def _introduced_binders(node: object) -> tuple[str, ...]:
             return ("card",)
         case n.LetStmt():
             return (node.name, node.index) if node.index is not None else (node.name,)
+        case n.ProduceArm():
+            # A `produces:` arm's payload binders (`Doubled(by, level) { … }`) are
+            # user-chosen names bound in the arm body, and `_rewrite_produce_arm`
+            # scopes them exactly like any other binder. Without this arm,
+            # `_check_reserved_binders` never swept them, so an arm binder named
+            # `actor` silently hijacked the pronoun (the body's bare `actor`
+            # classified as that `local` instead), and `_check_functions` /
+            # `_check_procedures` mistook a legitimately-bound arm name for an
+            # unbound reference. Both fall out of the registry being complete.
+            return node.binders
+        case n.TypeDef():
+            # A struct's declared field names, which `_classify_type_derived` scopes
+            # as locals inside the type's derived-field bodies (`derived { seat =
+            # actor }` reads sibling fields by bare name). The same mechanism as the
+            # arm binders above, and so the same hazard: a field named `actor` is a
+            # user-chosen name that shadows the call-site pronoun inside every
+            # derived body. `_rewrite` returns early for `TypeDef` and scopes the
+            # fields itself, so listing them here changes no scoping — it only makes
+            # them visible to the sweeps that read this registry, which is the point.
+            return tuple(f.name for f in node.fields)
         case _:
             return ()
 
@@ -226,7 +255,7 @@ def _check_template(rule: n.RuleDef, bag: DiagnosticBag) -> bool:
 
 def _traverse(node: object, step: Callable[[str, object], object]) -> object:
     """The immutable one-level descent shared by every default-arm traversal
-    in this module (`_substitute`'s default arm, `_rewrite`'s default arm, and
+    in this module (`substitute`'s default arm, `_rewrite`'s default arm, and
     `_rewrite`'s per-field binder-scoping dispatch below): every dataclass
     field — guarded against `Span`, a leaf the walk must not open — is handed
     to `step` along with its field name, and replaced only where `step`
@@ -236,7 +265,7 @@ def _traverse(node: object, step: Callable[[str, object], object]) -> object:
     mapping and leaf handling are the callers' job (`_substitute_value` /
     `_rewrite_value`), since the two differ there: `_rewrite_value`'s tuple
     arm folds `let` bindings sequentially into later siblings, which
-    `_substitute` (fixed-mapping template substitution, not scope-sensitive)
+    `substitute` (fixed-mapping template substitution, not scope-sensitive)
     has no need of."""
     if not is_dataclass(node) or isinstance(node, Span):
         return node
@@ -249,19 +278,36 @@ def _traverse(node: object, step: Callable[[str, object], object]) -> object:
     return replace(node, **changes) if changes else node  # type: ignore[type-var]
 
 
-def _substitute(node: object, mapping: dict[str, n.Expr]) -> object:
-    """Immutably replace every bare reference to a template parameter with its
-    argument expression (runs pre-classification: every NameRef is unresolved)."""
-    if isinstance(node, n.NameRef) and node.name in mapping:
+def substitute(
+    node: object, mapping: dict[str, n.Expr], ref_kind: str | None = None
+) -> object:
+    """Immutably replace every reference to a parameter with its argument
+    expression — the ONE substitution mechanism, shared by the two constructs that
+    splice a body into a site: rule-template instantiation (`_instantiate_rules`,
+    below) and procedure expansion (`cardlang/expand.py`).
+
+    The two differ only in when they run, which `ref_kind` expresses. Rule
+    templates instantiate PRE-classification, where every `NameRef` is unresolved
+    and a bare name match is all there is (`ref_kind=None`). Procedures expand
+    POST-classification, so a parameter reference in the body carries
+    `ref_kind == "local"` and the match can be exact — pass `ref_kind="local"` and
+    a same-named zone or state variable can never be mistaken for the parameter."""
+    if (
+        isinstance(node, n.NameRef)
+        and node.name in mapping
+        and (ref_kind is None or node.ref_kind == ref_kind)
+    ):
         return mapping[node.name]
-    return _traverse(node, lambda _field, v: _substitute_value(v, mapping))
+    return _traverse(node, lambda _field, v: _substitute_value(v, mapping, ref_kind))
 
 
-def _substitute_value(value: object, mapping: dict[str, n.Expr]) -> object:
+def _substitute_value(
+    value: object, mapping: dict[str, n.Expr], ref_kind: str | None = None
+) -> object:
     if is_dataclass(value) and not isinstance(value, Span):
-        return _substitute(value, mapping)
+        return substitute(value, mapping, ref_kind)
     if isinstance(value, tuple):
-        return tuple(_substitute_value(item, mapping) for item in value)
+        return tuple(_substitute_value(item, mapping, ref_kind) for item in value)
     return value
 
 
@@ -383,7 +429,7 @@ def _instantiate_rules(game: n.Game, bag: DiagnosticBag) -> n.Game:
                     )
                 continue
             mapping = {p.name: a for p, a in zip(template.params, ref.args)}
-            inst = _substitute(replace(template, params=()), mapping)
+            inst = substitute(replace(template, params=()), mapping)
             assert isinstance(inst, n.RuleDef)
             instances[ref.name] = (key, inst)
             if ref.name not in local:
@@ -797,6 +843,7 @@ def _check_duplicate_names(game: n.Game, bag: DiagnosticBag) -> None:
     check("type", game.types, reserved=True)
     check("define", game.defines)
     check("function", game.functions, reserved=True)
+    check("procedure", game.procedures)
     check("rule", game.rules)
     if game.state is not None:
         check("state variable", game.state.decls, reserved=True)
@@ -833,6 +880,11 @@ def _check_reserved_params(game: n.Game, bag: DiagnosticBag) -> None:
     reserved for their parameters."""
     for coll, kind, reserved in (
         (game.functions, "function parameter", RESERVED_VALUE_NAMES - _CALL_SITE_PRONOUNS),
+        # Procedure bodies are forbidden from READING the call-site pronouns for the
+        # same reason function bodies are (`_check_procedures`), so a parameter named
+        # after one is that error's prescribed fix, not a hijack — the identical
+        # carve-out, for the identical reason.
+        (game.procedures, "procedure parameter", RESERVED_VALUE_NAMES - _CALL_SITE_PRONOUNS),
         (game.move_types, "move-type parameter", RESERVED_VALUE_NAMES),
         (game.rules, "rule parameter", RESERVED_VALUE_NAMES),
     ):
@@ -1046,6 +1098,15 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         scoped = replace(cats, locals=cats.locals | {p.name for p in node.params})
         body = _rewrite_value(node.body, scoped, bag)
         return replace(node, body=body)  # type: ignore[arg-type]
+    if isinstance(node, n.ProcedureDef):
+        # Same isolation as a function: the parameters bind only in this body, and
+        # a bare name that is neither a parameter nor a binding the body introduces
+        # stays un-shadowed so `_check_procedures` can catch it. `_rewrite_value`
+        # (not a per-item map) so a `let` in the body scopes to the statements after
+        # it, exactly as it will once the body is spliced inline.
+        scoped = replace(cats, locals=cats.locals | {p.name for p in node.params})
+        body = _rewrite_value(node.body, scoped, bag)
+        return replace(node, body=body)  # type: ignore[arg-type]
     if isinstance(node, n.LetStmt):
         # `index` (the indexed form's per-key binder, `let base[p] = …`) scopes
         # only to this let's own `value` — evaluated once per key and gone
@@ -1138,6 +1199,249 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
             )
 
 
+# The closed set of procedure-parameter domains (decisions.md "Named
+# procedures"), corpus-first. Unlike a move parameter, a procedure argument is
+# an arbitrary expression rather than a value the action space must enumerate,
+# so this set gates what an argument may *denote*, not what can be enumerated —
+# which is why it is a separate registry from `_FIXED_DOMAINS` below and not a
+# slice of it. `Zone` is deliberately absent: the design note guessed the corpus
+# would need it, and the corpus disagreed (Coup's blocks reach their zones by
+# indexing a zone family with the player parameter — `influence[victim]` — so a
+# Player parameter already carries the zone). Recorded in roadmap.md; extend
+# when a game forces it.
+#
+# `Rank?` and not `Rank`: Coup's proven-claim swap is called both with a literal
+# character (`run prove_claim(actor, Duke)`) and with the block claim, which is a
+# `Rank?` because "no block" is a real state. The call sites all sit inside `if
+# block_claim is not none`, but the language has no flow narrowing, so a bare
+# `Rank` parameter would reject the very argument the block sites must pass. A
+# `Rank?` parameter accepts both (`assignable(Rank, Rank?)`), which is why the
+# optional form is the one the corpus forces. Bare `Rank` rides along: it is the
+# same domain minus the null, meaningful on its own, and free to support.
+_PROCEDURE_PARAM_DOMAINS = frozenset({"Player", "Rank", "Rank?"})
+
+
+# POSITION-DEPENDENT STATEMENTS: the closed class a procedure body may not hold.
+#
+# A procedure body is written once and spliced into many sites. Any statement whose
+# VALIDITY depends on where it sits is therefore unsound in one — the checker sees
+# it once, at the declaration, where the surrounding context does not exist yet, and
+# the copies it is checked as are never checked again (expansion runs after
+# typecheck, which is what makes the parameter types enforceable).
+#
+# The class is closed by enumerating the checks that are themselves
+# position-dependent, not by intuition:
+#
+#   `_check_outcome_scope`         a `produces:` consumer must name an EARLIER-executed
+#                                  sibling phase; `continue to` a LATER one; `skip to
+#                                  next hand` must sit inside a hand loop
+#   `_check_single_outcome_consumer`  a phase outcome has exactly ONE consumer — a
+#                                  count, which a second `run` changes
+#   `_check_misplaced_produce`     `produce` terminates the enclosing `define`
+#   outcome binding                a `round` binds its own `outcome` for the statements
+#                                  after it, which the body's pronoun wall cannot tell
+#                                  from the caller's call-site `outcome`
+#
+# Every statement those checks govern is rejected in a body. The two remaining
+# position-sensitive passes — `deckcheck.check_capacity` and the OpenSpiel action
+# space — both run AFTER expansion and so see the real, spliced tree.
+#
+# A `produces:` over a DEFINE is not in the class: a define is invoked fresh at each
+# site and has no ordering or uniqueness rule, which is why it stays allowed.
+_NON_LOCAL_STMTS = (n.Produce, n.ContinueTo, n.SkipToNextHand)
+_OUTCOME_BINDING_STMTS = (n.Round,)
+
+
+# What a write target may be. `:=`, `+=`, `-=` and `rotate` all write persistent
+# state (`runtime/execute.py`'s `_assign` -> `rs.set`, `_rotate`), and persistent state
+# is the only thing they can write — so a write target must classify as a state
+# variable, full stop.
+#
+# This is one rule and not three walls because the target is a `NameRef`: it goes
+# through `_classify` like every read, so "what is this name?" is already answered by
+# the time we get here. Before, it was a bare `str` that no name check ever saw, and
+# the three ways it could go wrong needed three separate hand-written checks — one of
+# which (the plain typo) nobody had written, so `totaly_score := 1` reached the runtime
+# as a bare KeyError.
+#
+# The subtle one is a binder shadowing a state variable. A READ resolves binders BEFORE
+# state variables; a write goes to state regardless. So `let turn = …` followed by
+# `turn := 1` used to write the state variable while every `turn` around it meant the
+# binder — one name, two things, silently. Classifying the target makes that impossible
+# rather than merely detected: the target resolves to the binder, and a binder is not
+# assignable.
+_WRITE_TARGET_KINDS: dict[str, str] = {
+    "local": "a binder (a `let`, a loop binder, or a parameter)",
+    "zone": "a zone",
+    "enum_value": "a value of the deck",
+    "null": "the literal `none`",
+    "bool": "a boolean literal",
+    "pronoun": "a pronoun",
+    "function": "a function",
+}
+
+
+def _bad_write_target(node: n.AssignStmt | n.RotateStmt) -> str | None:
+    """Why this write target is illegal, or None if it is a state variable."""
+    verb = "assign to" if isinstance(node, n.AssignStmt) else "rotate"
+    kind = node.target.ref_kind
+    if kind == "state_var":
+        return None
+    if kind is None:
+        return None  # unresolved: `_classify` has already reported it, by name
+    what = _WRITE_TARGET_KINDS.get(kind, f"a {kind}")
+    return (
+        f"cannot {verb} '{node.target.name}': it is {what}, and only a declared state "
+        f"variable can be written. A binder is a bound value, not a variable — and if "
+        f"a state variable of the same name exists, the two would not agree anyway "
+        f"(a read here means the binder; a write always goes to state)"
+    )
+
+
+def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
+    """A procedure body must read as the statements it becomes. Hermeticity is the
+    same as a function's — a body references only its own parameters, the binders
+    it introduces, and game/phase state, never the caller's locals and never the
+    call-site pronouns, so its meaning cannot depend on where it is run from.
+
+    Only ONE hygiene wall lives here, because `expand` makes the rest unnecessary
+    by construction: it binds each argument to a `let` in the CALLER's context
+    before the body runs (so nothing in the body can capture an argument, and an
+    argument naming the actor cannot be re-read under a construct that rebinds it),
+    and it wraps the body in a block (so the body's own bindings cannot leak into
+    the caller). What expansion cannot fix is a body binder sharing a PARAMETER's
+    name: classification tags both `local`, so substitution cannot tell them apart.
+    That one is rejected outright.
+    """
+    known = {p.name: p for p in game.procedures}
+    outcome_phases = {
+        nd.name for nd in _walk(game) if isinstance(nd, n.Phase) and nd.outcome_cases
+    }
+    for proc in game.procedures:
+        params = {p.name for p in proc.params}
+
+        names = [p.name for p in proc.params]
+        for dup in sorted({nm for nm in names if names.count(nm) > 1}):
+            bag.error(
+                f"procedure '{proc.name}' declares more than one parameter named "
+                f"'{dup}' — substitution binds by name, so one would silently "
+                f"shadow the other",
+                proc.span,
+            )
+        for p in proc.params:
+            if p.type_name not in _PROCEDURE_PARAM_DOMAINS:
+                bag.error(
+                    f"procedure parameter '{p.name}: {p.type_name}' has an "
+                    f"unsupported domain — procedure parameters support "
+                    f"{', '.join(sorted(_PROCEDURE_PARAM_DOMAINS))} only "
+                    f"(corpus-first; extend when a game needs another)",
+                    p.span,
+                )
+
+        # Binders the body introduces, and the name-capture wall: a binder
+        # sharing a parameter's name would capture it instead of substituting.
+        binders: set[str] = set()
+        for nd in _walk(proc):
+            binders.update(_introduced_binders(nd))
+        for p in proc.params:
+            if p.name in binders:
+                bag.error(
+                    f"procedure '{proc.name}' introduces a binder named "
+                    f"'{p.name}', shadowing its own parameter — rename one",
+                    proc.span,
+                )
+
+        if not proc.body:
+            bag.error(
+                f"procedure '{proc.name}' has an empty body — it would splice "
+                f"nothing at every site that runs it; give it statements or delete it",
+                proc.span,
+            )
+
+        allowed = params | binders
+        for stmt in proc.body:
+            for nd in _walk(stmt):
+                if isinstance(nd, _NON_LOCAL_STMTS):
+                    what = {
+                        n.Produce: "`produce`",
+                        n.ContinueTo: "`continue to`",
+                        n.SkipToNextHand: "`skip to next hand`",
+                    }[type(nd)]
+                    bag.error(
+                        f"procedure '{proc.name}' uses {what}, which unwinds past "
+                        f"the statement it is written at; a procedure body is "
+                        f"spliced into its call sites, which may sit in different "
+                        f"enclosing constructs, so it may not contain non-local "
+                        f"control flow",
+                        nd.span,
+                    )
+                elif isinstance(nd, _OUTCOME_BINDING_STMTS):
+                    bag.error(
+                        f"procedure '{proc.name}' contains a `round`, which binds "
+                        f"its own `outcome` for the statements after it; a "
+                        f"procedure body may not yet hold one, because the body's "
+                        f"`outcome` wall cannot distinguish a round-local binding "
+                        f"from the caller's call-site pronoun (procedures.md)",
+                        nd.span,
+                    )
+                elif isinstance(nd, n.Produces) and nd.define in outcome_phases:
+                    bag.error(
+                        f"procedure '{proc.name}' consumes the phase outcome of "
+                        f"'{nd.define}'. A phase outcome's consumer must be an "
+                        f"EARLIER-executed sibling of the producing phase, and there "
+                        f"must be exactly ONE of them — both are facts about where "
+                        f"the statement sits, and a procedure body is spliced into "
+                        f"sites the checker cannot see when it checks the body. "
+                        f"Running it before '{nd.define}', or running it twice, would "
+                        f"pass here and then fail at play time. Consume the outcome "
+                        f"at the site (a `produces:` over a `define` is fine in a "
+                        f"body — a define has no ordering or uniqueness rule)",
+                        nd.span,
+                    )
+                elif isinstance(nd, n.RunStmt):
+                    bag.error(
+                        f"procedure '{proc.name}' runs procedure '{nd.name}'; a "
+                        f"procedure may not invoke another (v1 — expansion is a "
+                        f"single splice, not a call graph)",
+                        nd.span,
+                    )
+                elif isinstance(nd, n.NameRef):
+                    if nd.ref_kind == "local" and nd.name not in allowed:
+                        bag.error(
+                            f"procedure '{proc.name}' references '{nd.name}', which "
+                            f"is not one of its parameters or a binding in its body",
+                            nd.span,
+                        )
+                    elif nd.ref_kind == "pronoun" and nd.name in _CALL_SITE_PRONOUNS:
+                        bag.error(
+                            f"procedure '{proc.name}' reads the call-site pronoun "
+                            f"'{nd.name}'; a procedure body is spliced into call "
+                            f"sites that need not share a call-site context — pass "
+                            f"the value in as a parameter (`run {proc.name}"
+                            f"({nd.name})`)",
+                            nd.span,
+                        )
+
+    # Call sites: the procedure must exist, every declared procedure must be
+    # invoked — an uninvoked body is spliced nowhere, so nothing downstream ever
+    # sees it (the same reasoning `_instantiate_rules` gives an uninstantiated
+    # rule template) — and no argument may be captured by a binder in the body.
+    invoked: set[str] = set()
+    for nd in _walk(game):
+        if isinstance(nd, n.RunStmt):
+            invoked.add(nd.name)
+            if nd.name not in known:
+                bag.error(f"run of unknown procedure '{nd.name}'", nd.span)
+    for proc in game.procedures:
+        if proc.name not in invoked:
+            bag.error(
+                f"procedure '{proc.name}' is never run — invoke it with `run "
+                f"{proc.name}(…)`, or delete it (its body would otherwise be "
+                f"spliced nowhere, and go entirely unchecked downstream)",
+                proc.span,
+            )
+
+
 def _reaches(start: str, target: str, calls: dict[str, set[str]]) -> bool:
     """Whether `target` is reachable from `start` through the call graph."""
     seen: set[str] = set()
@@ -1154,15 +1458,19 @@ def _reaches(start: str, target: str, calls: dict[str, set[str]]) -> bool:
 
 
 # The closed set of statically enumerable move-parameter domains (decisions.md
-# "Surface totality"), matched by exact string — not by stripping a trailing
-# `?` — because only `Suit?` has a real nullable enumeration (`enumerate_domain`
-# appends `None` in the `Suit` branch only). `Rank?`/`Player?` parse (payload
-# types are generically optional-able) but have no such enumeration, so they
-# fall through to the "unsupported domain" branch below rather than being
-# silently accepted and then ignored at runtime. `Card` is deliberately absent
-# from this set: it is state-dependent (the live hand), allowed only as a
-# move's sole parameter, and checked separately below.
-_FIXED_DOMAINS = frozenset({"Suit", "Suit?", "Rank", "Player"})
+# "Surface totality") is `cardlang.domains.PARAM_DOMAINS` — the union of the
+# registry rows' `param_domains`, imported above as `_FIXED_DOMAINS`. It is
+# matched by exact string, not by stripping a trailing `?`: only `Suit?` is
+# listed by a row, so only it has a real nullable enumeration. `Rank?`/`Player?`
+# parse (payload types are generically optional-able) but no row admits them, so
+# they fall through to the "unsupported domain" branch below rather than being
+# silently accepted and then ignored at runtime. `Card` is deliberately not a
+# registry row at all (state-dependent — the live hand), so it is absent from
+# this set and checked separately below.
+#
+# The one list of legal spellings the diagnostic names, derived from the same
+# rows in enumeration order so a new domain row cannot leave the message stale.
+_LEGAL_PARAM_DOMAINS = f"{', '.join(PARAM_DOMAIN_ORDER)}, or Card"
 
 
 def _check_move_params(
@@ -1214,7 +1522,7 @@ def _check_move_params(
         elif t not in _FIXED_DOMAINS and t != "Card":
             bag.error(
                 f"move '{mt.name}' has unsupported parameter domain '{t}' "
-                f"(expected Suit, Suit?, Rank, Player, or Card)",
+                f"(expected {_LEGAL_PARAM_DOMAINS})",
                 span,
             )
         # Exact string, matching `_FIXED_DOMAINS`'s own convention (never by
@@ -1360,10 +1668,38 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"{', '.join(sorted(_ITERATION_ROLES))})",
                     nd.span,
                 )
-            case n.EachSimultaneous() if nd.role != "player":
+            case n.EachSimultaneous() if nd.role not in SIMULTANEOUS_ROLES:
+                # The registry's `simultaneous` column, not a bare `!= "player"`:
+                # the roles that admit a simultaneous block are exactly the seat
+                # domains (a value domain has no actor to move simultaneously),
+                # and both the gate and the message it prints come from the rows.
                 bag.error(
                     f"`each {nd.role} simultaneously` is not runnable — "
-                    f"simultaneous moves are per player",
+                    f"simultaneous moves are per "
+                    f"{' or '.join(sorted(SIMULTANEOUS_ROLES))}",
+                    nd.span,
+                )
+            case n.EachSimultaneous() if n.simultaneous_body_error(nd.body) is not None:
+                # The form gated its DOMAIN (above) and not its BODY. The executor
+                # implements exactly one body shape, so everything else compiled and
+                # then died on a bare assert — a runtime crash for a statically
+                # checkable error, in the wrong currency. `run` made it reachable
+                # from an entirely natural-looking program (`each player
+                # simultaneously: run pass_card(player)`), since an expansion is a
+                # block and never a bare movement.
+                #
+                # The reason comes FROM the executor's own requirement
+                # (`n.simultaneous_body_error`), not from a hand-written copy of it:
+                # the first version of this wall mirrored only the first of five
+                # requirements, so `move chosen one card …` still reached the assert.
+                bag.error(
+                    f"`each {nd.role} simultaneously` runs one chosen movement per "
+                    f"{nd.role} and nothing else — "
+                    f"{n.simultaneous_body_error(nd.body)}. The form snapshots every "
+                    f"{nd.role}'s selection against the state BEFORE the block and "
+                    f"applies them together (that is what makes the pass atomic — "
+                    f"nobody sees a passed card before choosing their own), and a "
+                    f"snapshot is only defined for that one shape",
                     nd.span,
                 )
             case n.CardLiteral():
@@ -1372,16 +1708,19 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 if nd.suit not in cats.suits:
                     bag.error(f"unknown suit '{nd.suit}' in card literal", nd.span)
             case n.RotateStmt():
-                # `rotate` reads/writes `ctx.rs` (persistent state) at runtime
-                # (runtime/execute.py `_rotate`), never `ctx.locals` — so its
-                # target can only be a declared state variable, never a lexical
-                # binder (a `let`, a query/comprehension/loop binder), whatever
-                # is in scope at this point in the tree.
-                if nd.var not in cats.state_vars:
-                    bag.error(f"rotate of unknown variable '{nd.var}'", nd.span)
+                # Both checks in ONE arm: a bare `case n.RotateStmt():` above a guarded
+                # one consumes the node, so the guarded arm never runs. (It did exactly
+                # that, and `tests/test_binder_scoping.py` caught it.)
+                bad = _bad_write_target(nd)
+                if bad is not None:
+                    bag.error(bad, nd.span)
                 for value in nd.values:
                     if value not in cats.enums:
                         bag.error(f"rotate through unknown value '{value}'", nd.span)
+            case n.AssignStmt():
+                bad = _bad_write_target(nd)
+                if bad is not None:
+                    bag.error(bad, nd.span)
             case n.Winner() if nd.target not in cats.state_vars:
                 bag.error(f"winner references unknown variable '{nd.target}'", nd.span)
             case n.Offer():

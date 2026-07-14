@@ -13,10 +13,10 @@ game-local engine queries). `build_form` selects the bundle by field-presence an
 from __future__ import annotations
 
 import itertools
-from collections.abc import Sequence
 from typing import Any, Protocol
 
 from cardlang.ast import nodes as n
+from cardlang.domains import DomainSources, enumerate_domain
 from cardlang.runtime import observe, phases, rules
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, Move
@@ -197,67 +197,40 @@ class TrickForm:
         return outcome
 
 
-def enumerate_domain(
-    type_name: str,
-    *,
-    suits: "Sequence[Any]",
-    ranks: "Sequence[str]",
-    players: "Sequence[int]",
-) -> list[Any]:
-    """The *static* value-domain a parameterized move ranges over, in a fixed
-    order so the flattened candidate list is deterministic.
-
-    `Suit`/`Suit?` are the game's suits (`Suit?` appends `none`, the no-trump
-    strain, which ranks last); `Rank` is the game's ranks; `Player` is its
-    seats. `Card` is deliberately absent — its domain is state-dependent (the
-    actor's live hand, enumerated by `candidates`) and its actions are the
-    shared card block. Bounded-`Integer` is rejected at resolve time (deferred),
-    so this dispatch is total over what reaches it."""
-    # Matched by exact string, never by stripping a trailing `?`: only
-    # `Suit?` has a real nullable enumeration (`None`, the no-trump strain).
-    # `Rank?`/`Player?` parse (payload types are generically optional-able)
-    # but have no such enumeration; resolve.py's `_FIXED_DOMAINS` gate already
-    # rejects them at the surface, but this dispatch defends itself too,
-    # rather than silently dropping the `?` and enumerating the plain
-    # `Rank`/`Player` domain instead.
-    if type_name == "Suit" or type_name == "Suit?":
-        values: list[Any] = list(suits)
-        if type_name == "Suit?":
-            values.append(None)
-        return values
-    if type_name == "Rank":
-        return list(ranks)
-    if type_name == "Player":
-        return list(players)
-    raise NotImplementedError(f"move parameter domain '{type_name}' not supported")
-
-
 def param_domain(p: "n.MoveParam", actor: Player, ctx: Ctx) -> list[Any]:
     """One parameter's value-domain for the acting player. `Card` is the actor's
-    live hand, in hand order (state-dependent); the fixed-from-type domains come
-    from the deck/seating via `enumerate_domain`. `suits` is sourced from the
-    live runtime state (`rs.suits`, set at driver setup from the game's deck) —
-    not the module `SUITS` constant — so a non-standard-suit deck (Coup's
-    `coup15`, whose only suit is `"court"`) enumerates its own suits rather than
-    the French four."""
+    live hand, in hand order — the state-dependent outlier, handled here ahead of
+    the domain table (cardlang/domains.py) rather than as a row in it. Every
+    other admitted spelling is a table lookup: `enumerate_domain` reads the
+    registry row for the declared type and enumerates it from the runtime
+    `DomainSources` built below.
+
+    The sources are the LIVE runtime state, never module constants: `rs.suits`
+    (set at driver setup from the game's deck) so a non-standard-suit deck
+    (Coup's `coup15`, whose only suit is `"court"`) enumerates its own suits
+    rather than the French four, and `rs.rank_index` for the declared ranking.
+
+    `rank_index` is passed as a plain `list(...)` over the dict, never a sort:
+    `driver.py` builds it by `enumerate(game.ranking)` in order, and a Python
+    dict preserves insertion order, so its keys already walk the declared
+    `ranking:` order. Sorting ascending by strength value (the dict's values)
+    would walk it BACKWARDS for a high-to-low declaration (`ranking: A K Q ... 2`
+    maps A to the highest strength number), which contradicts decisions.md
+    "Declared parameter domains" ("Rank enumerates the game's declared
+    ranking:") and the encoding.py comment asserting this runtime source and the
+    static `list(game.ranking)` one are identical by construction. Note this is
+    a DIFFERENT source from the `rank` role's runtime members (`rs.ranks`, which
+    falls back to deck order when no `ranking:` is declared) — the deliberate
+    divergence the domains module documents."""
     if p.type_name == "Card":
         return list(ctx.rs.zones.instance("hand", actor).cards)
-    # Plain `list(...)` over the dict, never a sort: `driver.py` builds
-    # `rank_index` by `enumerate(game.ranking)` in order, and a Python dict
-    # preserves insertion order, so `rank_index`'s keys already walk the
-    # declared `ranking:` order. Sorting ascending by strength value (the
-    # dict's values) would walk it BACKWARDS for a high-to-low declaration
-    # (`ranking: A K Q ... 2` maps A to the highest strength number), which
-    # contradicts decisions.md "Declared parameter domains" ("Rank enumerates
-    # the game's declared ranking:") and the encoding.py comment asserting
-    # this runtime source and the static `list(game.ranking)` one are
-    # identical by construction.
-    ranks: list[str] = list(ctx.rs.rank_index) if p.type_name == "Rank" else []
     return enumerate_domain(
         p.type_name,
-        suits=ctx.rs.suits,
-        ranks=ranks,
-        players=list(ctx.rs.seating.players),
+        DomainSources(
+            suits=ctx.rs.suits,
+            ranks=list(ctx.rs.rank_index),
+            players=list(ctx.rs.seating.players),
+        ),
     )
 
 
@@ -342,6 +315,14 @@ class AuctionForm:
         self.move_defs = [ctx.rs.move_type_index[name] for name in stmt.move_types]
 
     def init(self, state: State, ctx: Ctx) -> State:
+        # This form publishes nothing to `state.` — it never pushes onto
+        # `mech_state` (AUCTION_PUBLISHED is empty, and deliberately so). Clearing
+        # `last_round_state` is what makes that honest: without it, `state.led_suit`
+        # read during or after an auction found `mech_state` empty, fell through to
+        # the fallback, and silently returned the state of whatever trick ran LAST
+        # — a stale frame from a different form. `_pronoun`'s "fail loudly, don't
+        # return a stale or empty frame" is only true because of this line.
+        ctx.rs.last_round_state = None
         state["i"] = 0  # the ring pointer (ring mode)
         state["guard"] = 0
         state["history"] = []

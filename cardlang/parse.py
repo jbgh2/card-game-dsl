@@ -500,7 +500,11 @@ class _Builder(Transformer[Token, n.Game]):
 
     def rotate_stmt(self, meta: Meta, c: list[object]) -> n.RotateStmt:
         assert isinstance(c[1], tuple)
-        return n.RotateStmt(var=str(c[0]), values=c[1], span=self._span(meta))
+        return n.RotateStmt(
+            target=n.NameRef(name=str(c[0]), span=self._span(meta)),
+            values=c[1],
+            span=self._span(meta),
+        )
 
     def each_simultaneous(self, meta: Meta, c: list[object]) -> n.EachSimultaneous:
         return n.EachSimultaneous(
@@ -618,7 +622,7 @@ class _Builder(Transformer[Token, n.Game]):
     def assign_stmt(self, meta: Meta, c: list[object]) -> n.AssignStmt:
         assert isinstance(c[0], _Lvalue)
         return n.AssignStmt(
-            name=c[0].name,
+            target=n.NameRef(name=c[0].name, span=self._span(meta)),
             index=c[0].index,  # type: ignore[arg-type]
             op=str(c[1]),
             value=_as_expr(c[2]),
@@ -1106,6 +1110,26 @@ class _Builder(Transformer[Token, n.Game]):
             name=name, params=params, body=_as_expr(c[-1]), span=self._span(meta)
         )
 
+    def procedure_def(self, meta: Meta, c: list[object]) -> n.ProcedureDef:
+        # c: NAME, move_param* (n.MoveParam), statement*. `maybe_placeholders`
+        # leaves a None for an absent optional group; `_as_stmt` never sees it
+        # because the params filter is by type and the body filter drops it.
+        name = str(c[0])
+        params = tuple(x for x in c if isinstance(x, n.MoveParam))
+        body = tuple(
+            _as_stmt(s)
+            for s in c[1:]
+            if s is not None and not isinstance(s, n.MoveParam)
+        )
+        return n.ProcedureDef(
+            name=name, params=params, body=body, span=self._span(meta)
+        )
+
+    def run_stmt(self, meta: Meta, c: list[object]) -> n.RunStmt:
+        name = str(c[0])
+        args = tuple(_as_expr(a) for a in c[1:] if a is not None)
+        return n.RunStmt(name=name, args=args, span=self._span(meta))
+
     def start(self, meta: Meta, c: list[object]) -> n.Game:
         game = next(x for x in c if isinstance(x, n.Game))
         rules = tuple(x for x in c if isinstance(x, n.RuleDef))
@@ -1113,6 +1137,7 @@ class _Builder(Transformer[Token, n.Game]):
         types = tuple(x for x in c if isinstance(x, n.TypeDef))
         defines = tuple(x for x in c if isinstance(x, n.DefineDef))
         functions = tuple(x for x in c if isinstance(x, n.FunctionDef))
+        procedures = tuple(x for x in c if isinstance(x, n.ProcedureDef))
         return replace(
             game,
             rules=rules,
@@ -1120,6 +1145,7 @@ class _Builder(Transformer[Token, n.Game]):
             types=types,
             defines=defines,
             functions=functions,
+            procedures=procedures,
         )
 
 

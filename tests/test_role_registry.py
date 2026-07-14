@@ -1,41 +1,39 @@
-"""Pin test for the unified iteration-role registry (`cardlang/roles.py`).
+"""Pin test: every consumer of the quantifiable-domain registry reads the ONE
+table (`cardlang/domains.py`), rather than keeping a copy of it.
 
-Before this module existed, the closed role set `{player, team, suit, rank}`
-that `for each <role>`/quantifier constructs range over was hand-duplicated
-across four sites — resolve.py's `_ITERATION_ROLES`, typecheck.py's
-`_role_type`, runtime/evaluate.py's `_role_domain`, and a verbatim-duplicate
-`_enum_role_domain` in runtime/execute.py — with nothing pinning them equal.
-`cardlang.roles` is now the one place the set and the per-role binder type
-are spelled; resolve and typecheck import from it directly, and
-runtime/execute.py imports runtime/evaluate.py's `_role_domain` (the single
-runtime accessor) instead of re-deriving suit/rank domains itself.
+The role set `{player, team, suit, rank}` that `for each <role>` and the
+quantifiers range over was once hand-duplicated across four sites — resolve's
+`_ITERATION_ROLES`, typecheck's `_role_type`, evaluate's `_role_domain`, and a
+verbatim-duplicate `_enum_role_domain` in execute — with nothing pinning them
+equal. Worse, the same domains had a SECOND registry under a second namespace:
+`enumerate_domain`'s capitalised move-parameter spellings (`Player`, `Suit`,
+`Suit?`, `Rank`), gated by resolve's `_FIXED_DOMAINS`, with nothing relating
+`player` to `Player`. `cardlang.domains` is now the one table both namespaces
+are columns of.
 
-This module pins three things staying true:
-
-1. resolve's accepted iteration-role set IS `cardlang.roles.ROLES` (same
-   object, not just an equal copy that could re-drift).
-2. typecheck's per-role binder-type mapping covers `ROLES` exactly — every
-   registry member maps to a concrete `Type`, and nothing outside the
-   registry does (the closed-domain completeness argument, decisions.md).
-3. the runtime accessor (`runtime.evaluate._role_domain`, imported — not
-   re-implemented — by `runtime.execute`) returns a non-empty domain for
-   every registry member, on a built game exercising all four (a 4-player
-   partnership game covers `team` too, not just `player`/`suit`/`rank`).
+This module pins the *identity* of each consumer's view (that it IS the
+registry's, not an equal copy that could re-drift). The domain x form MATRIX —
+what each row is actually legal in, and whether iterating it binds the actor —
+is tests/test_domain_registry.py.
 
 Completeness ledger
 --------------------
-property:  the four call sites agree on both membership (`ROLES`) and, where
-           applicable, the per-role type/domain they derive from a role name
-           — no site can silently drift from the other three.
-domain:    `cardlang.roles.ROLES` (the closed 4-name set) crossed with each
-           of the three consuming sites (resolve membership check, typecheck
-           binder typing, runtime domain accessor).
-registry:  `cardlang.roles.ROLES` / `cardlang.roles.ROLE_TYPES`.
-covered:   all 4 roles at both typecheck (`role_type`) and runtime
-           (`_role_domain`); resolve's set-identity is checked once (it is
-           the same frozenset object, not a per-role property).
-sampled:   none — the domain is 4 elements, fully enumerated below.
-residual:  none.
+property:  every consuming site derives its view from `cardlang.domains`, so no
+           site can silently drift from the others — the identity half of the
+           closed-domain completeness argument (decisions.md).
+domain:    the registry's derived views (`ITERABLE_ROLES`, `SIMULTANEOUS_ROLES`,
+           `PARAM_DOMAINS`, `role_type`, `role_members`) crossed with their
+           consuming sites (resolve's two gates, typecheck's binder typing, the
+           runtime's member enumeration).
+registry:  `cardlang.domains.DOMAINS`.
+covered:   all 4 rows at typecheck (`role_type`) and at runtime (`role_members`),
+           on a built game exercising all four (a 4-player partnership game, so
+           `team` is populated too); resolve's two set-views are pinned by
+           object identity (a set-level property, not a per-row one).
+sampled:   none — the domain is 4 rows, fully enumerated below.
+residual:  none for identity. Which FORMS each row is legal in is
+           test_domain_registry.py's ledger, including the grammar-surface
+           residual recorded there.
 """
 
 from __future__ import annotations
@@ -44,10 +42,17 @@ import random
 from typing import Any
 
 from cardlang import resolve, typecheck
+from cardlang.domains import (
+    DOMAINS,
+    ITERABLE_ROLES,
+    PARAM_DOMAINS,
+    SIMULTANEOUS_ROLES,
+    role_members,
+    role_type,
+)
 from cardlang.pipeline import check_dsl
-from cardlang.roles import ROLE_TYPES, ROLES, role_type
-from cardlang.runtime import execute as execute_mod
 from cardlang.runtime import evaluate as evaluate_mod
+from cardlang.runtime import execute as execute_mod
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.state import Ctx
 from cardlang.types import TAny
@@ -79,43 +84,7 @@ move_type stop { effect { done := true } }
 """
 
 
-def test_resolve_iteration_roles_is_the_shared_registry() -> None:
-    # Not just equal — the SAME object, so resolve can never quietly diverge
-    # by reassigning its own local copy. `getattr` (rather than dotted
-    # attribute access) sidesteps mypy strict's `--no-implicit-reexport`:
-    # `_ITERATION_ROLES` is an imported alias, not defined in resolve.py, so
-    # it is deliberately not part of the module's typed public interface —
-    # this test still reaches the real runtime binding.
-    assert getattr(resolve, "_ITERATION_ROLES") is ROLES
-
-
-def test_typecheck_role_type_is_the_shared_registry_function() -> None:
-    assert getattr(typecheck, "_role_type") is role_type
-
-
-def test_role_types_mapping_covers_roles_exactly() -> None:
-    assert set(ROLE_TYPES) == ROLES
-
-
-def test_role_type_is_concrete_for_every_registry_member() -> None:
-    for role in ROLES:
-        t = role_type(role)
-        assert not isinstance(t, TAny), f"role {role!r} maps to TAny, expected a concrete Type"
-
-
-def test_role_type_falls_back_to_any_outside_the_registry() -> None:
-    assert isinstance(role_type("bogus"), TAny)
-
-
-def test_execute_imports_evaluates_role_domain_accessor() -> None:
-    # runtime/execute.py must import evaluate's `_role_domain` rather than
-    # re-implement it — the defect this task removes (`_enum_role_domain`
-    # was a verbatim duplicate of the suit/rank arms).
-    assert getattr(execute_mod, "_role_domain") is evaluate_mod._role_domain
-    assert not hasattr(execute_mod, "_enum_role_domain")
-
-
-def test_role_domain_is_non_empty_for_every_registry_member() -> None:
+def _rs() -> Any:
     game = check_dsl(ROLE_DOMAIN_SRC, "g.cardlang")
     captured: dict[str, Any] = {}
 
@@ -123,10 +92,110 @@ def test_role_domain_is_non_empty_for_every_registry_member() -> None:
         captured["rs"] = rs
 
     play_game(game, random.Random(0), on_first_decision=snapshot)
+    return captured["rs"]
 
-    rs = captured["rs"]
-    ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k])).acting_as(0)
 
-    for role in ROLES:
-        domain = evaluate_mod._role_domain(role, ctx)
-        assert domain, f"role {role!r} produced an empty runtime domain"
+# --- resolve's two gates ARE the registry's two views -----------------------
+
+
+def test_resolve_iteration_roles_is_the_registrys_iterable_column() -> None:
+    # Not just equal — the SAME object, so resolve can never quietly diverge by
+    # reassigning its own local copy. `getattr` (rather than dotted attribute
+    # access) sidesteps mypy strict's `--no-implicit-reexport`: `_ITERATION_ROLES`
+    # is an imported alias, not defined in resolve.py, so it is deliberately not
+    # part of the module's typed public interface — this test still reaches the
+    # real runtime binding.
+    assert getattr(resolve, "_ITERATION_ROLES") is ITERABLE_ROLES
+
+
+def test_resolve_fixed_domains_is_the_registrys_param_domain_union() -> None:
+    assert getattr(resolve, "_FIXED_DOMAINS") is PARAM_DOMAINS
+
+
+def test_resolve_reads_the_simultaneous_column_not_a_hardcoded_player() -> None:
+    # The `each … simultaneously` gate was a bare `!= "player"`. It must now be
+    # the registry's `simultaneous` column, so a future seat domain lights the
+    # form up (and a future value domain stays walled) from the table alone.
+    assert getattr(resolve, "SIMULTANEOUS_ROLES") is SIMULTANEOUS_ROLES
+
+
+# --- typecheck's binder typing IS the registry's binder_type column ----------
+
+
+def test_typecheck_role_type_is_the_registry_function() -> None:
+    assert getattr(typecheck, "_role_type") is role_type
+
+
+def test_role_type_is_the_binder_type_column_for_every_row() -> None:
+    for row in DOMAINS:
+        assert role_type(row.id) is row.binder_type
+
+
+def test_role_type_is_concrete_for_every_registry_member() -> None:
+    for row in DOMAINS:
+        t = role_type(row.id)
+        assert not isinstance(t, TAny), f"role {row.id!r} maps to TAny, expected a concrete Type"
+
+
+def test_role_type_falls_back_to_any_outside_the_registry() -> None:
+    assert isinstance(role_type("bogus"), TAny)
+
+
+# --- the runtime has exactly ONE member enumerator ---------------------------
+
+
+def test_the_runtime_has_no_private_role_domain_accessors() -> None:
+    # Both runtime consumers (evaluate's quantifier, execute's `for each`) call
+    # `domains.role_members`. The private per-module accessors this refactor
+    # removed — evaluate's `_role_domain` and execute's older `_enum_role_domain`
+    # — must not come back: a second accessor is a second place the domain order
+    # can drift.
+    assert not hasattr(evaluate_mod, "_role_domain")
+    assert not hasattr(execute_mod, "_role_domain")
+    assert not hasattr(execute_mod, "_enum_role_domain")
+    assert getattr(execute_mod, "role_members") is role_members
+    assert getattr(evaluate_mod, "role_members") is role_members
+
+
+def test_role_members_is_non_empty_for_every_registry_member() -> None:
+    ctx = Ctx(rs=_rs(), chooser=lambda p, c, k: list(c[:k])).acting_as(0)
+    for row in DOMAINS:
+        assert role_members(row.id, ctx), f"role {row.id!r} produced an empty runtime domain"
+
+
+def test_the_two_namespaces_are_one_table() -> None:
+    # The defect this registry closes: `player` and `Player` were two names for
+    # one domain, held in two tables. Every capitalised move-parameter spelling
+    # must now belong to a row that also owns the lowercase role noun.
+    for spelling in PARAM_DOMAINS:
+        owner = [row for row in DOMAINS if spelling in row.param_domains]
+        assert len(owner) == 1, f"{spelling!r} is claimed by {len(owner)} rows"
+        assert spelling.rstrip("?") == owner[0].type_name
+        assert owner[0].type_name.lower() == owner[0].id
+
+
+def test_a_rows_type_name_is_a_declarable_type_with_the_same_type() -> None:
+    """The last unjoined axis of the "two namespaces are one table" refactor.
+
+    `role_type(row.id)` gives a binder its type from the registry; a MOVE PARAMETER
+    of the same domain is typed independently, by `type_from_name(row.type_name)`
+    against typecheck's own `_SCALAR_TYPES`/`_ENUM_TYPES`. Two maps of one fact. They
+    agree today, and nothing said they had to — and `type_from_name` falls back to
+    `TAny` for an unknown name, so a fifth row whose `type_name` was not also a
+    declarable type would make `move_type m(x : Color)` pass resolve (the domain is
+    in the table) and then type as `Any`, taking every equality and ordering wall
+    dark on that parameter. Silently.
+
+    Two sites, no pin, is the finding — even while they agree."""
+    from cardlang.typecheck import KNOWN_TYPE_NAMES, type_from_name
+
+    for row in DOMAINS:
+        assert row.type_name in KNOWN_TYPE_NAMES, (
+            f"domain row '{row.id}' declares type_name '{row.type_name}', which is "
+            f"not a declarable type — a move parameter of it would type as Any"
+        )
+        assert type_from_name(row.type_name, False, {}) == row.binder_type, (
+            f"domain row '{row.id}': the binder types as {row.binder_type} but a "
+            f"parameter of '{row.type_name}' types as "
+            f"{type_from_name(row.type_name, False, {})}"
+        )

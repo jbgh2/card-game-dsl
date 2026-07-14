@@ -6,6 +6,66 @@ What's explicitly deferred, and the suggested order of next steps.
 
 Things we have noted but consciously not designed yet:
 
+- **Named procedures — deferred cells.** Every one is a loud wall today, never a
+  silent acceptance; the ledger is `tests/test_procedures.py`. (a) **`Zone`
+  parameters.** The design note expected the corpus to need them; it does not — a
+  `Player` parameter already carries its zone (`influence[victim]`), so the domain
+  is `Player` / `Rank` / `Rank?` and every other spelling is rejected. `Rank?`
+  rather than `Rank` is the form the corpus forces: there is no flow narrowing, so
+  a bare `Rank` parameter would reject `block_claim` at the very sites that must
+  pass it. (b) **A `round` in a procedure body.** It binds its own, round-local
+  `outcome`, and the body's pronoun wall cannot yet tell that from the caller's
+  call-site `outcome`; rather than accept a `round` you may run but whose winner
+  you may not route, the form is rejected whole. This is what Tichu's and Skat's
+  round shapes would need before they could adopt procedures. (c) **A `produces:`
+  over a PHASE OUTCOME in a body** — its consumer must be an earlier-executed sibling
+  of the producing phase, and must be the only one; both are facts about *where the
+  statement sits*, and a splice moves it. (A `produces:` over a `define` is fine: a
+  define is invoked fresh at each site, with no ordering or uniqueness rule.)
+  (d) **A procedure running another procedure** — expansion is a single splice, not a
+  call graph.
+  (e) **Non-local control flow in a body** (`produce`, `continue to`, `skip to
+  next hand`): inline text targets exactly one enclosing construct, and a body may
+  be spliced into two different ones.
+
+  These are one class, not five accidents: a procedure body may not hold a statement
+  whose VALIDITY depends on where it sits, because the checker sees the body once, at
+  its declaration, and the spliced copies are never re-checked (expansion runs after
+  typecheck, which is what makes the parameter types enforceable). The class is closed
+  by enumerating the position-dependent CHECKS — `_check_outcome_scope`,
+  `_check_single_outcome_consumer`, `_check_misplaced_produce`, and outcome binding —
+  rather than by intuition. The two other position-sensitive passes, deck-capacity and
+  the OpenSpiel action space, both run after expansion and see the real tree.
+
+  Note what is NOT on this list: argument capture, actor capture, and a body
+  binding leaking into the caller. Those were walled in the first implementation
+  and are now impossible by construction — arguments are evaluated once, by value,
+  in the caller's context, and the body runs in a block (decisions.md "Named
+  procedures").
+
+- **A `let`-bound name has no static type, so any wall reading it is blind.**
+  `let` binders are scoped correctly at resolve and at runtime but are never
+  threaded into the type environment, so they infer `Any`. Every type wall is dark
+  behind one: `run bump(hearts)` is rejected against a `Player` parameter while
+  `let z = hearts` / `run bump(z)` is not, and the same holds for the equality and
+  ordering walls. This is the widest single hole left in the checker and it is not
+  procedure-specific — it is the reason several ledgers carry a bounded-coverage
+  residual. Fixing it means typing `let` at declaration and threading the binder
+  into `TypeEnv.locals`, which is a checker change, not a surface one.
+
+- **Which round FRAME a `state.` read sees.** The *name* axis is closed — a round
+  publishes a declared, typed set of fields and the checker rejects everything
+  else, so a form's private working memory is not reachable from the DSL
+  (`cardlang/stdlib/round_state.py`, ledger `tests/test_round_state_registry.py`).
+  The *frame* axis is not: a reference is not statically attached to a form —
+  `MustFollowSuit` lives once in `stdlib/rules.cardlang` and games activate it in
+  context — so the checker validates against the UNION of the forms' published
+  sets and cannot prove that the round actually running publishes the field read.
+  `state.shed_first` (a climb field) inside a trick phase type-checks. The runtime
+  wall is that a read with no live or just-completed frame now fails loudly rather
+  than returning a stale one from a different form. The design seam is
+  [open-questions/round-state-in-information-states.md](open-questions/round-state-in-information-states.md).
+
 - **Packaging the corpus for distribution.** The whole project runs from a
   checkout: every `.cardlang` is loaded from `docs/games/` by repo-relative path
   (tests, CLI, and the OpenSpiel adapter's `hearts_game()` loader), and the
@@ -281,6 +341,20 @@ Things we have noted but consciously not designed yet:
   it implicitly (a variant adds/removes rules and phases from a base game)
   but doesn't have explicit syntax for it. Worth revisiting after Pinochle.
 
+- **Quantifier productions are not registry-derived.** The quantifiable-domain
+  registry (`cardlang/domains.py`) is the one table behind binder typing,
+  iteration, actorhood, member enumeration, and the move-parameter/action-space
+  domains: a new domain row arrives with every one of those *semantic* columns
+  already green. The **grammar surface does not follow**. `cardlang.lark` still
+  hardcodes the 8 quantifier productions (`any player where` / `all suits where`
+  / …) and the player/card query families as literal nouns, so a 5th row would
+  type, iterate, bind and enumerate correctly and still have no `any <noun>
+  where` production. The wall is loud (a syntax error on the unknown noun, not a
+  silent acceptance), so this is a scope limit rather than a defect — but until
+  the productions are generated from the registry, "a new domain registers
+  itself" is true of the semantics and false of the syntax. Ledger:
+  tests/test_domain_registry.py.
+
 ## Suggested next steps, in order
 
 [open-questions/_index.md](open-questions/_index.md) orders the open
@@ -288,7 +362,19 @@ questions by impact × actionability and is the authority on question
 priority. This section adds what that list doesn't carry: the cross-cutting
 work that isn't an open question, and which next game unblocks what.
 
-1. **Pick the next game for its unblocks.** The full pipeline is
+1. **Add the `as <player> { … }` block**
+   ([open-questions/single-actor-binding.md](open-questions/single-actor-binding.md),
+   now Tier 1). It is the one outstanding item that fixes a *silently wrong*
+   program rather than an awkward one: `for each player p: if p is actor` — the
+   only way the language can say "one named player decides" — is true for every
+   `p`, because the loop rebinds the acting player and `actor` reads it. Named
+   procedures walled the trap at their own boundary and, in doing so, proved it
+   exists; the idiom written inline is still unguarded, and six games use it. The
+   runtime plumbing (`ctx.acting_as`) is already there. Rewrite the corpus uses in
+   the same change (French Tarot's chien, Cribbage's crib, Schnapsen's answer,
+   Coup's influence loss), per the lockstep rule.
+
+2. **Pick the next game for its unblocks.** The full pipeline is
    [games/_candidates.md](games/_candidates.md); several candidates each
    unblock more than one open question:
 
@@ -307,16 +393,16 @@ work that isn't an open question, and which next game unblocks what.
    - **Klondike or FreeCell** — first solitaire; forces the deferred
      positional-zone design rather than an open question.
 
-2. **Address Tier 3 questions when their corner gets exercised.**
+3. **Address Tier 3 questions when their corner gets exercised.**
    [move-level-visibility](open-questions/move-level-visibility.md) awaits
    the first game needing a move-level projection override. When these
    land, the partition checks are their acceptance bar: new visibility
    surface arrives with derived partition coverage, not bespoke tests.
 
-3. **Pin down [memory-event-syntax](open-questions/memory-event-syntax.md)**
+4. **Pin down [memory-event-syntax](open-questions/memory-event-syntax.md)**
    when three or four examples exist beyond stdlib operations (Stud and
    Coup are the two so far; both composed the closed vocabulary without
    needing a declaration).
 
-4. **Defer Tier 5 cosmetic questions** until a real preference emerges
+5. **Defer Tier 5 cosmetic questions** until a real preference emerges
    from corpus pressure.

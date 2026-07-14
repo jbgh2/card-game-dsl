@@ -744,6 +744,23 @@ betting round's `bet_to_match` is *not*
 round-internal — those forms of `round` thread their accumulator through
 ordinary **phase state**, declared in the phase's `state { }`.)
 
+**A round PUBLISHES a closed, typed set of fields, and `state.` names only
+those.** A form's frame is also its working memory — the trick form drives its
+turn order off a ring cursor and a materialized order list — and the two are not
+the same thing. The published fields are declared once, with their types
+(`cardlang/stdlib/round_state.py`): the trick form publishes `led_suit : Suit?`
+and `trick_terminated_early : Boolean`; the climb form publishes
+`lead_ended_trick : Boolean`, `shed_first : Player?` and `shed_second : Player?`;
+the auction and betting forms publish **nothing** (their accumulator is ordinary
+phase state, above — and that empty row is load-bearing, not an omission: it is
+what makes "the auction form has no `state.`" a checkable fact). Naming anything
+else — a misspelling, or one of the form's internals — is a compile error that
+lists what *is* published. The wall is what keeps a form's working memory out of
+the language: without it, a round's private ring cursor is nameable, type-checks,
+runs, and silently changes the game. The declared types carry the same weight — an
+untyped `state.x` is contagiously `Any`, and every comparison wall is dark behind
+it.
+
 **Rules consulted from within a round see the round's state.**
 Lexical scoping puts the active round's state frame
 into the scope chain at consultation time. A rule
@@ -918,6 +935,26 @@ zone is initialized at game start holding the deck's cards, so the first
 `before_each` gather is a no-op and the deal is well-defined.
 
 ## Mutation semantics
+
+**Only a declared state variable can be written.** `x := …`, `x += …`, and `rotate x
+through […]` all write persistent state, and persistent state is the only thing they
+can write. A write target is an ordinary name, resolved exactly like a name in any
+other position — so "what may I write to?" is not a separate rule with its own
+vocabulary, it is the ordinary answer to "what is this name?", filtered to one
+kind. A binder (a `let`, a loop or query binder, a `move_type` or `procedure`
+parameter), a zone, a deck value and a pronoun are all *values*, not variables:
+readable, passable, not writable. A name that resolves to none of them is unresolved,
+which makes the ordinary typo — `totaly_score := 1` — a compile error like any other
+misspelling, rather than a runtime one.
+
+That uniformity is the point, and it is worth saying why. A **read** resolves lexical
+binders *before* state variables. If a write target were not resolved the same way,
+a binder shadowing a state variable would make one name mean two things — a read of
+`x` finding the binder while `x := 1` wrote the state variable, with nothing to
+notice. Resolving the target makes that shape *impossible* rather than merely
+detected: the target resolves to the binder, and a binder is not writable. (This is
+one seam of a larger question about what a bare name may denote —
+[open-questions/name-namespaces.md](open-questions/name-namespaces.md).)
 
 **Sequential mutation within a phase body.** `:=` (assign) and `+=` /
 `-=` (accumulate) statements execute in order. A statement sees the
@@ -1442,6 +1479,97 @@ resolves the *named-predicate* half of
 [open-questions/round-config-factoring.md](open-questions/round-config-factoring.md);
 the *street-loop* half (folding a repeated parameterized `round` block into one
 loop) remains open.
+
+## Named procedures
+
+A game factors a *statement sequence* it would otherwise repeat with a **named
+procedure** — the statement layer's sibling of the named function above:
+
+```
+procedure <name>(<param> : <type>, …) { <statement>* }
+```
+
+declared at the top level, and invoked as a statement: `run <name>(<arg>, …)`.
+A keyword leads the invocation, because the statement layer has no
+expression-statement form and that absence is worth keeping — statement-hood
+stays visible.
+
+Reuse is a **splice**: the expander replaces each `run` with the procedure's body
+and consumes the procedure, so no `run` and no `procedure` survives the front end.
+This is what makes the construct safe against the invariant that governs everything
+here — *the observation events a procedure contributes, and therefore the
+information sets derived from them, are exactly what the written text emits*,
+because a procedure does not exist at the layer where observations are emitted. It
+is the opposite of the retired `instantiate` escape hatch, which injected Python
+the kernel could not see; a procedure injects only DSL the kernel already
+interprets. Coup is the forcing case: three blocks pasted 29 times, most of a
+521-line file, now written once.
+
+A `run f(a, b)` becomes one block:
+
+```
+block {
+  let @f.p = a            // each argument evaluated ONCE, in the caller's context
+  let @f.q = b
+  <the body, reading @f.p and @f.q>
+}
+```
+
+The block is a real construct in the tree, not an `if true { … }` standing in for
+one, and the difference is not cosmetic: an `if` tells every downstream pass that
+the body *may be skipped*. The deck-capacity gate believed it — it carries the worst
+case across a conditional — so a procedure that refilled the deck failed to reset the
+gate's running total, and the very same program was accepted written inline and
+rejected written as a `run`. That is precisely the property a procedure exists to
+guarantee, so the tree has to say what is true. (The statement layer has no block
+form and needs none: nothing but expansion creates one.)
+
+Two properties, and each is load-bearing rather than cosmetic:
+
+**Arguments are evaluated once, by value, before the body runs.** A by-name splice
+— copying the argument *expression* to every place the body reads its parameter —
+is silently wrong in three ways, and all three are reachable. `run
+bump(choose integer in 0 .. 1)` is ONE decision in the written text; by name it
+becomes one decision *per read*, polled independently, so two reads can get two
+different answers and credit two different players. A parameter read zero times
+drops the argument, and its decision, entirely. And an argument naming state the
+body then assigns denotes a different value on its second read than its first. The
+first of those changes the game's *decision count* relative to what the designer
+wrote, which is exactly the thing the OpenSpiel target cannot tolerate. Binding
+each argument up front makes a call read the way it looks.
+
+**The body's bindings scope to the body.** That is what the block is for. State
+assignments and card movements persist, of course — a procedure acts on the game.
+Only its `let`s are local, which is the whole difference between a procedure and a
+paste: without it, a body that binds `target` would silently capture a caller's own
+`target`, read *after* the `run` site.
+
+Together these mean the caller cannot corrupt the body and the body cannot corrupt
+the caller, *by construction* — so there is no capture wall to remember, and none
+to get wrong. One wall does remain, because expansion cannot fix it: a body binder
+sharing a **parameter's name** is ambiguous at classification time (both are local
+binders), so substitution cannot tell them apart. That is rejected.
+
+Expansion runs **after typecheck**, not beside rule-template instantiation in
+resolve. That is forced by the parameter types: they can only bite while the `run`
+site still exists to check its arguments against, and expanding earlier would leave
+them parsed and ignored — the accepted-but-ignored class.
+
+The body is **hermetic**, in the same sense a function body is: it reads only its
+parameters, the binders it introduces, and game/phase state — never the caller's
+locals, and never the call-site pronouns `actor` / `action` / `outcome`, so its
+meaning cannot depend on where it is run from. A procedure that needs the actor
+takes it as a parameter, and because arguments are evaluated in the caller's
+context, `run lose_influence(actor)` passes the *move's* actor even into a body
+that rebinds the acting player. Coup depends on that at four sites.
+
+Parameter domains are a closed set — `Player`, `Rank`, `Rank?` — and any other
+domain is rejected. A procedure may not run another procedure, hold a `round`
+(which binds its own `outcome`), or contain non-local control flow (`produce`,
+`continue to`, `skip to next hand`), and one that is never run is an error, since
+its body would be spliced nowhere and checked by nothing. Every one of those is a
+loud wall with a recorded deferral ([roadmap.md](roadmap.md)); none is silently
+accepted.
 
 ## Knowledge, visibility, and the projection model
 
@@ -2097,6 +2225,16 @@ Hearts case, and the iteration sugar matches that reading.
 (Compare Getaway's sequential sibling `each player in turn
 starting from dealer.left:`; the language has a parallel pair
 of constructs for the two timing modes.)
+
+**The iteration form's body is one chosen movement.** That is not an
+implementation limit dressed up as a rule — it falls out of the pre-block read
+semantics below. The form must snapshot *every* player's selection against the
+state as it was at block entry, and only then apply them all; that is what makes
+the pass atomic, and it is why nobody sees a passed card before choosing their
+own. A snapshot is only defined for a chosen movement out of a zone, so anything
+else in that slot — an assignment, a plain (unchosen) movement, a block — is
+rejected. The runtime has always required this; the checker now says so, instead
+of letting it through to a crash.
 
 **Read semantics: pre-block state.** Every operation inside the
 block reads state as it was at block entry. No operation

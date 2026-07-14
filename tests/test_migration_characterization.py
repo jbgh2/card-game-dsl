@@ -44,6 +44,32 @@ import pytest
 REPO = Path(__file__).parent.parent
 GOLDEN = Path(__file__).parent / "golden"
 
+
+def assert_golden(captured: Any, expected: Any) -> None:
+    """Compare a capture against its golden — including the TYPE of every scalar.
+
+    A plain `captured == expected` on parsed JSON is blind to exactly the change
+    these goldens exist to catch. In Python `False == 0` and `True == 1`, so a state
+    variable converted from Integer to Boolean emits `false` where the golden holds
+    `0`, and the assertion passes anyway. Coup's `alive[p]` made that concrete: the
+    int -> bool conversion changed the observation payload of every seed and the
+    golden did not notice.
+
+    These files pin payloads. A payload whose type changed IS a changed payload, so
+    the comparison checks types too — and a conversion like that now has to be
+    signed off with a regenerated golden rather than sliding through green.
+    """
+    assert _typed_equal(captured, expected), "golden mismatch (values or types)"
+
+
+def _typed_equal(a: Any, b: Any) -> bool:
+    if isinstance(a, dict) and isinstance(b, dict):
+        return a.keys() == b.keys() and all(_typed_equal(a[k], b[k]) for k in a)
+    if isinstance(a, list) and isinstance(b, list):
+        return len(a) == len(b) and all(_typed_equal(x, y) for x, y in zip(a, b))
+    return type(a) is type(b) and a == b
+
+
 _CAPTURE = """
 import json, random, sys
 from pathlib import Path
@@ -81,7 +107,7 @@ def _capture_pinned(name: str) -> dict[str, Any]:
 @pytest.mark.parametrize("name", ["bridge", "schnapsen", "pinochle", "french-tarot", "skat"])
 def test_migration_preserves_per_seed_results(name: str) -> None:
     expected = json.loads((GOLDEN / f"{name}_scores.json").read_text())
-    assert _capture_pinned(name) == expected
+    assert_golden(_capture_pinned(name), expected)
 
 
 # Stud's end-of-game scores are degenerate — the winner always holds all 400
@@ -134,7 +160,7 @@ def _capture_stud_hands() -> dict[str, Any]:
 
 def test_stud_migration_preserves_per_hand_stacks() -> None:
     expected = json.loads((GOLDEN / "seven-card-stud_hands.json").read_text())
-    assert _capture_stud_hands() == expected
+    assert_golden(_capture_stud_hands(), expected)
 
 
 # Tichu (climbing + the combination model) moves its whole hand — pushing, the
@@ -200,7 +226,7 @@ def _capture_tichu() -> dict[str, Any]:
 
 def test_tichu_ws5_pins_per_seed_results() -> None:
     expected = json.loads((GOLDEN / "tichu_scores.json").read_text())
-    assert _capture_tichu() == expected
+    assert_golden(_capture_tichu(), expected)
 
 
 # Tichu's finals accumulate ~100 card points a hand, so a late divergence could
@@ -267,7 +293,7 @@ def _capture_tichu_hands() -> dict[str, Any]:
 
 def test_tichu_ws5_pins_per_hand_results() -> None:
     expected = json.loads((GOLDEN / "tichu_hands.json").read_text())
-    assert _capture_tichu_hands() == expected
+    assert_golden(_capture_tichu_hands(), expected)
 
 
 # Big Two (the second climbing instance) moves its whole hand — the climbing
@@ -312,7 +338,7 @@ def _capture_bigtwo() -> dict[str, Any]:
 
 def test_bigtwo_migration_preserves_per_seed_results() -> None:
     expected = json.loads((GOLDEN / "bigtwo_scores.json").read_text())
-    assert _capture_bigtwo() == expected
+    assert_golden(_capture_bigtwo(), expected)
 
 
 # Cribbage moves the whole hand — crib discards, the starter cut and his heels,
@@ -371,7 +397,7 @@ def _capture_cribbage_hands() -> dict[str, Any]:
 
 def test_cribbage_migration_preserves_per_hand_scores() -> None:
     expected = json.loads((GOLDEN / "cribbage_hands.json").read_text())
-    assert _capture_cribbage_hands() == expected
+    assert_golden(_capture_cribbage_hands(), expected)
 
 
 # Schnapsen moves the whole hand — the leader's mixed lead decision (play a
@@ -423,7 +449,7 @@ def _capture_schnapsen_hands() -> dict[str, Any]:
 
 def test_schnapsen_migration_preserves_per_hand_scores() -> None:
     expected = json.loads((GOLDEN / "schnapsen_hands.json").read_text())
-    assert _capture_schnapsen_hands() == expected
+    assert_golden(_capture_schnapsen_hands(), expected)
 
 
 # Skat moves the whole hand — the Reizen call-and-response (a role-guarded
@@ -474,7 +500,7 @@ def _capture_skat_hands() -> dict[str, Any]:
 
 def test_skat_migration_preserves_per_hand_scores() -> None:
     expected = json.loads((GOLDEN / "skat_hands.json").read_text())
-    assert _capture_skat_hands() == expected
+    assert_golden(_capture_skat_hands(), expected)
 
 
 # Coup at real interactive scope (WS5): every challenge, block, claimed
@@ -534,4 +560,4 @@ def _capture_coup() -> dict[str, Any]:
 
 def test_coup_migration_preserves_per_seed_results() -> None:
     expected = json.loads((GOLDEN / "coup_scores.json").read_text())
-    assert _capture_coup() == expected
+    assert_golden(_capture_coup(), expected)

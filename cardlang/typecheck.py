@@ -26,7 +26,8 @@ from typing import Iterator, Mapping, assert_never
 from cardlang.ast import nodes as n
 from cardlang.ast.nodes import Game
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError
-from cardlang.roles import role_type as _role_type
+from cardlang.domains import role_type as _role_type
+from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
 from cardlang.stdlib.signatures import CALL_SIGS, ZONE_CONTENT, Sig
 from cardlang.stdlib.values import DIRECTION_VALUES, deck_ranks, deck_suits
 from cardlang.types import (
@@ -209,6 +210,14 @@ class TypeEnv:
     locals: Mapping[str, Type] = field(default_factory=dict)
     structs: Mapping[str, TStruct] = field(default_factory=dict)
     functions: Mapping[str, Sig] = field(default_factory=dict)  # user functions
+    # User procedures, name -> declared parameter types (`Sig.ret` is unused: a
+    # procedure is a statement, not an expression). This is what makes a
+    # procedure's parameter annotations load-bearing rather than decorative —
+    # `run` sites check their arguments against them exactly as a call checks its
+    # arguments against a function signature. It is also why expansion runs AFTER
+    # typecheck (cardlang/expand.py): once a body is spliced inline there is no
+    # call site left to check.
+    procedures: Mapping[str, Sig] = field(default_factory=dict)
     has_ranking: bool = False  # bool(game.ranking) — gates RANKING_GATED_FUNCS
 
     def with_local(self, name: str, t: Type) -> "TypeEnv":
@@ -298,6 +307,18 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                 and e.field in ACTION_FIELDS
             ):
                 return ACTION_FIELDS[e.field]
+            if (
+                isinstance(obj_ref, n.NameRef)
+                and obj_ref.ref_kind == "pronoun"
+                and obj_ref.name == "state"
+                and e.field in ROUND_STATE_FIELDS
+            ):
+                # The round's published state, typed off the registry rather than
+                # left `TAny`. `TAny` was contagious here: `card.suit is state.idx`
+                # compared a Suit to an Integer and slipped past the enum wall
+                # because the right side was untyped. An unpublished field never
+                # reaches this branch — `_check_expr` rejects it.
+                return ROUND_STATE_FIELDS[e.field]
             obj = infer(e.obj, env)
             if isinstance(obj, TStruct):
                 return obj.fields.get(e.field, TAny())
@@ -359,6 +380,11 @@ def _type_name(t: Type) -> str:
     if isinstance(t, TCollection):
         return f"Collection<{_type_name(t.element)}>"
     if isinstance(t, TEnum):
+        return t.name
+    if isinstance(t, (TStruct, TVariant)):
+        # These carry their declared name. Before the general disjointness rule
+        # below, no wall ever printed one, so both rendered as the bare kind — which
+        # made "comparing Struct with Struct can never be equal" read as nonsense.
         return t.name
     return type(t).__name__[1:]  # TInteger -> "Integer", TPlayer -> "Player", …
 
@@ -435,6 +461,13 @@ def _stmt_tree_scoped(
             yield from _stmt_tree_scoped(x, binders)
         for x in s.else_body or ():
             yield from _stmt_tree_scoped(x, binders)
+    elif isinstance(s, n.Block):
+        # Synthetic, and created only by `expand`, which runs AFTER this pass — so
+        # nothing here ever sees one today. The arm exists anyway: this walk falls
+        # through silently rather than failing, so a future pass ordering that did
+        # reach a block would skip its whole body without a word.
+        for x in s.body:
+            yield from _stmt_tree_scoped(x, binders)
 
 
 def _stmt_tree(s: n.Stmt) -> Iterator[n.Stmt]:
@@ -472,6 +505,16 @@ def _all_statements_scoped(game: Game) -> Iterator[tuple[n.Stmt, _Binders]]:
     for define in game.defines:
         for s in define.body:
             yield from _stmt_tree_scoped(s)
+    # A procedure body is checked ONCE, here, at its declaration — with its
+    # parameters bound to their declared types, which is what gives those
+    # annotations force. It is not re-checked after expansion, because expansion
+    # runs after this pass; the `run` sites check their arguments against the same
+    # declared types, so the spliced result is covered from both ends.
+    env = TypeEnv()
+    for proc in game.procedures:
+        binders: _Binders = tuple((p.name, _param_type(p, env)) for p in proc.params)
+        for s in proc.body:
+            yield from _stmt_tree_scoped(s, binders)
 
 
 def _all_statements(game: Game) -> Iterator[n.Stmt]:
@@ -567,6 +610,25 @@ def _function_sigs(game: Game, env: TypeEnv, bag: DiagnosticBag) -> dict[str, Si
     return sigs
 
 
+def _param_type(p: n.MoveParam, env: TypeEnv) -> Type:
+    optional = p.type_name.endswith("?")
+    base = p.type_name[:-1] if optional else p.type_name
+    return type_from_name(base, optional, env.structs)
+
+
+def _procedure_sigs(game: Game) -> dict[str, Sig]:
+    """Each user procedure's parameter types. No dependency order is needed (a
+    procedure may not run another — resolve rejects it) and there is no return
+    type: `Sig.ret` is `TAny` and never read. The bodies themselves are checked by
+    the statement walk, which binds these same parameter types as locals."""
+    env = TypeEnv()  # `type_from_name` needs structs only for struct params, which
+    # the procedure param domain does not admit (resolve gates it to Player).
+    return {
+        p.name: Sig(tuple(_param_type(x, env) for x in p.params), TAny())
+        for p in game.procedures
+    }
+
+
 def _enum_domain(env: TypeEnv, enum_name: str) -> frozenset[str]:
     """Every value of a deck/stdlib enum, from the value->enum map."""
     return frozenset(v for v, t in env.value_enums.items() if t.name == enum_name)
@@ -620,8 +682,20 @@ def _check_enum_operand(
                 other.span,
             )
         return
-    if isinstance(other_bare, (TAny, TString)):
-        return  # gradual: unknowns and non-literal Strings stay unchecked
+    if isinstance(other_bare, TAny):
+        # Gradual: an unrefined `infer` arm must not manufacture errors.
+        #
+        # `TString` used to return here too, on the grounds that a String-typed
+        # variable holding a rank NAME was the one shape that could genuinely equal
+        # an enum value — which was Coup's `card.rank is block_claim`, where
+        # `block_claim` was a `String`. That was never a feature; it was a
+        # silently-false comparison with a carve-out around it, and the cure was to
+        # give the variable its real type (`block_claim : Rank?`), which Coup now
+        # has. No corpus game declares a String at all. So String is walled like any
+        # other disjoint type, and a string LITERAL is still checked against the
+        # deck's values by the branch above (`card.rank is "10"`, the numeric-rank
+        # spelling).
+        return
     hint = (
         " — compare the whole card (`x is Q of spades`) or a field against "
         "its own kind (`x.suit is spades`)"
@@ -715,13 +789,58 @@ def _check_binop(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
 
 
 def _check_equality_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
-    """`==`/`!=` (surface `is`/`is not`): unchanged from before the operator
-    dispatcher existed — the enum-comparison wall, `_check_enum_operand`."""
+    """`==`/`!=` (surface `is`/`is not`): two operands can only be equal if one's
+    type is assignable to the other's. Anything else is a comparison that is
+    *always false* — the silently-wrong shape this wall exists to catch.
+
+    The enum rows come first and keep their own nuanced diagnostics
+    (`_check_enum_operand`: the name-form-vs-string spelling, the not-a-value-of-
+    this-deck message, the Rank-vs-Integer hint). Every other pair falls to the
+    general disjointness rule below.
+
+    That general rule is new, and it closes a hole the enum-centric wall left wide:
+    the wall only ever fired when one side was a `TEnum`, so `Boolean` had no row
+    at all (`flag is hearts`, `flag is 1`, `flag is "x"` all passed), and neither
+    did `Integer is "x"` or `Player is "x"`. It was found by typing the round-state
+    pronoun (stdlib/round_state.py): `state.trick_terminated_early` became a real
+    `Boolean` and immediately exposed that comparing one to a suit was accepted.
+    Per decisions.md "Closed-domain completeness", the fix sweeps the class rather
+    than patching the instance — the class being "equality between disjoint
+    concrete types", and the layer that owns it being the type layer every
+    comparison consults.
+
+    `TAny` passes on either side (gradual typing — an unrefined `infer` arm must
+    not manufacture errors). `Player`/`Integer` stay comparable in BOTH directions
+    because a player IS an integer seat here (`assignable(TInteger, TPlayer)`), so
+    `turn is 0` and `responder is actor` keep working."""
     lbare, rbare = _bare(infer(e.left, env)), _bare(infer(e.right, env))
     if isinstance(lbare, TEnum):
         _check_enum_operand(lbare, e.right, rbare, env, bag)
-    elif isinstance(rbare, TEnum):
+        return
+    if isinstance(rbare, TEnum):
         _check_enum_operand(rbare, e.left, lbare, env, bag)
+        return
+    if isinstance(lbare, TAny) or isinstance(rbare, TAny):
+        return
+    compatible = (
+        assignable(lbare, rbare)
+        or assignable(rbare, lbare)
+        # `unify` as well as `assignable`, because `assignable` honours `TAny` only at
+        # the TOP level: a deliberately-unrefined element type (a chip stack is
+        # `Collection<Any>` precisely because that part of the object model is
+        # unrefined) would be judged disjoint from `Collection<Card>`, and this wall
+        # would MANUFACTURE an error — the exact thing its own gradual-typing promise
+        # forbids. `assignable` alone is also not enough in the other direction, so
+        # both are consulted: `Player`/`Integer` must stay comparable (a player IS an
+        # integer seat), and only `assignable` says so.
+        or unify(lbare, rbare) is not None
+    )
+    if not compatible:
+        bag.error(
+            f"comparing {_type_name(lbare)} with {_type_name(rbare)} can never be "
+            f"equal",
+            e.span,
+        )
 
 
 def _check_ordering_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
@@ -1096,6 +1215,26 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
     elif isinstance(e, n.StructLit):
         _check_struct_lit(e, env, bag)
     elif isinstance(e, n.Member):
+        obj_ref = e.obj
+        if (
+            isinstance(obj_ref, n.NameRef)
+            and obj_ref.ref_kind == "pronoun"
+            and obj_ref.name == "state"
+            and e.field not in ROUND_STATE_FIELDS
+        ):
+            # `state.` names a round's PUBLISHED state, and that is a closed set.
+            # Without this wall the receiver inferred `TAny`, every arm below
+            # missed, and the read went through: a typo (`state.lead_suit`)
+            # surfaced as a bare KeyError at play time, and — far worse — a form's
+            # private working memory (`state.idx`, the trick's ring cursor) read
+            # clean, ran, and silently changed the game. See stdlib/round_state.py.
+            field_list = ", ".join(f"`{f}`" for f in sorted(ROUND_STATE_FIELDS))
+            bag.error(
+                f"a round publishes no `{e.field}` — `state.` names a round's "
+                f"published state, which is {field_list}",
+                e.span,
+            )
+            return
         obj = infer(e.obj, env)
         # Optionals reject like their payload: `d : Player?` is as much a
         # non-object receiver as `d : Player` (the closed rejection domain
@@ -1204,6 +1343,8 @@ def _stmt_exprs(s: n.Stmt) -> list[n.Expr]:
         return [s.cond]
     if isinstance(s, n.Produce):
         return list(s.payloads)
+    if isinstance(s, n.RunStmt):
+        return list(s.args)
     return []  # ForEach / EachSimultaneous / RotateStmt: no direct value expressions
 
 
@@ -1233,6 +1374,28 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
             if expr is not s.filter:
                 _check_expr(expr, env, bag)
         return
+    if isinstance(s, n.RunStmt):
+        # Arity and argument types against the declared parameters — the same
+        # check a `Call` gets against a function signature, and the only place a
+        # procedure's parameter annotations can bite (after expansion, the call
+        # site is gone). Resolve has already established that the procedure exists.
+        sig = env.procedures.get(s.name)
+        if sig is not None:
+            if len(s.args) != len(sig.params):
+                bag.error(
+                    f"procedure '{s.name}' expects {len(sig.params)} argument(s), "
+                    f"got {len(s.args)}",
+                    s.span,
+                )
+            else:
+                for arg, param in zip(s.args, sig.params):
+                    got = infer(arg, env)
+                    if not assignable(got, param):
+                        bag.error(
+                            f"procedure '{s.name}' expects {_type_name(param)}, got "
+                            f"{_type_name(got)}",
+                            arg.span,
+                        )
     for expr in _stmt_exprs(s):
         _check_expr(expr, env, bag)
 
@@ -1249,21 +1412,26 @@ def _all_phases(game: Game) -> Iterator[n.Phase]:
 
 
 def _check_assign(stmt: n.AssignStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
-    target = env.state_vars.get(stmt.name)
+    name = stmt.target.name
+    target = env.state_vars.get(name)
     if target is None:
-        return  # not a typed state var (a let-local, or unknown — left permissive)
+        # Resolve guarantees a write target classifies as a state variable — a binder,
+        # a zone and an unknown name are all rejected there — so this is unreachable
+        # for a checked game. It used to be the permissive escape for exactly those
+        # cases, which is why an assignment to a `let` or a typo sailed through here.
+        return
     if stmt.index is not None and isinstance(target, TCollection):
         target = target.element  # an indexed assignment writes one element
     rhs = infer(stmt.value, env)
     if stmt.op in ("+=", "-="):
         if not assignable(rhs, TInteger()):
             bag.error(
-                f"'{stmt.name}' {stmt.op} expects an Integer, got {_type_name(rhs)}",
+                f"'{name}' {stmt.op} expects an Integer, got {_type_name(rhs)}",
                 stmt.span,
             )
     elif not assignable(rhs, target):
         bag.error(
-            f"cannot assign {_type_name(rhs)} to '{stmt.name}' ({_type_name(target)})",
+            f"cannot assign {_type_name(rhs)} to '{name}' ({_type_name(target)})",
             stmt.span,
         )
 
@@ -1821,6 +1989,7 @@ def typecheck(game: Game) -> Game:
 
     env = env_from_game(game)
     env = replace(env, functions=_function_sigs(game, env, bag))
+    env = replace(env, procedures=_procedure_sigs(game))
     variants = variant_registry(game, env.structs)
     for stmt, binders in _all_statements_scoped(game):
         senv = env

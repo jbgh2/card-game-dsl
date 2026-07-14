@@ -11,6 +11,8 @@ from dataclasses import replace
 from typing import Any, assert_never
 
 from cardlang.ast import nodes as n
+from cardlang.domains import role_members
+from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
 from cardlang.runtime import observe, stdlib
 from cardlang.runtime.state import Ctx, Move, StructValue, Zone
 from cardlang.runtime.values import Card
@@ -195,6 +197,26 @@ def _member(obj: Any, field: str) -> Any:
     if isinstance(obj, StructValue):
         return obj.fields[field]
     if isinstance(obj, dict):
+        if field not in obj:
+            # REACHABLE from checked DSL, and deliberately so: the checker validates
+            # `state.<field>` against the UNION of every form's published set, because
+            # a reference is not statically attached to a form (a library rule is
+            # activated in context). So a trick game CAN name a climb-published field
+            # and reach here. That makes this a game-description error — the currency
+            # the runtime uses for "the description asked for something impossible at
+            # play time" — not a compiler bug, and not a bare KeyError.
+            #
+            # The message lists only what this form PUBLISHES, never the raw
+            # accumulator: the accumulator also holds the form's working memory
+            # (`idx`, `order`, …), and naming those here would advertise, in the
+            # engine's own voice, the exact spellings the checker rejects.
+            published = sorted(k for k in obj if k in ROUND_STATE_FIELDS)
+            raise RuntimeError(
+                f"this round publishes no `{field}` — it publishes "
+                f"{', '.join(f'`{k}`' for k in published) or 'nothing'}. "
+                f"`state.` reads the round that is actually running, and the checker "
+                f"can only validate the field against every form's published set"
+            )
         return obj[field]
     raise AssertionError(f"cannot read field '{field}' of {obj!r}")
 
@@ -286,28 +308,15 @@ def _is_check(e: n.IsCheck, ctx: Ctx) -> bool:
 
 
 def _quantifier(e: n.Quantifier, ctx: Ctx) -> bool:
-    domain = _role_domain(e.role, ctx)
+    # `role_members` (cardlang/domains.py) is the ONE runtime member enumerator
+    # for the quantifiable-domain registry: the players/teams/suits/ranks a
+    # quantifier binds over, in the registry's iteration order. A quantifier
+    # never rebinds the actor (the `binds_actor` column is `for each`'s
+    # concern) — `any player where …` asks a question about each seat, it does
+    # not make a decision as that seat.
+    domain = role_members(e.role, ctx)
     results = (evaluate(e.body, ctx.with_local(e.binder, x)) for x in domain)
     return any(results) if e.kind == "any" else all(results)
-
-
-def _role_domain(role: str, ctx: Ctx) -> list[Any]:
-    """The runtime domain for one of the closed iteration roles
-    (`cardlang.roles.ROLES`): the players/teams/suits/ranks a `for each
-    <role>`/quantifier binds over. Suits come out in deck order; ranks in
-    `ranking:` order (strongest first) when declared, else deck order
-    (`ctx.rs.suits`/`ctx.rs.ranks`). The one runtime accessor for this
-    registry — `runtime/execute.py`'s `_for_each` imports it rather than
-    re-deriving the suit/rank domains itself."""
-    if role == "player":
-        return list(ctx.rs.seating.players)
-    if role == "team":
-        return list(ctx.rs.teams)
-    if role == "suit":
-        return list(ctx.rs.suits)
-    if role == "rank":
-        return list(ctx.rs.ranks)
-    raise AssertionError(f"unknown quantifier role '{role}' (resolve rejects these)")
 
 
 def _player_query(e: n.PlayerQuery, ctx: Ctx) -> Any:

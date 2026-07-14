@@ -238,6 +238,39 @@ class Choose:
     span: Span | None = None
 
 
+def simultaneous_body_error(body: "Stmt") -> str | None:
+    """Why `body` cannot be the body of `each <role> simultaneously:`, or None if it
+    can. THE single statement of that requirement.
+
+    The form runs one chosen movement per player: it must snapshot every player's
+    selection against the state as it was at block entry, and only then apply them
+    all — that is what makes the pass atomic (in Hearts, nobody sees a passed card
+    before choosing their own). A snapshot is only defined for a chosen movement with
+    a source to draw from, a destination to deliver to, and a countable amount.
+
+    This exists as one function, and not as a check in the resolver mirroring a set of
+    asserts in the executor, because the mirroring is exactly what went wrong: the
+    resolver's wall was written by hand against the FIRST of the executor's five
+    requirements, so `move chosen one card …` (a keyword amount, not a countable
+    expression) passed the checker and then hit a bare assert at play time. One
+    predicate cannot drift from itself — `runtime/execute.py`'s `_pass_selection`
+    asserts against this, and `resolve` rejects with it."""
+    if not isinstance(body, Movement):
+        return "it must be a movement"
+    if body.mode != "chosen":
+        return "the movement must be `chosen` — each player picks their own cards"
+    if body.source is None:
+        return "the movement needs a source zone to draw from (`from <zone>`)"
+    if body.dest is None:
+        return "the movement needs a destination zone (`to <zone>`)"
+    if isinstance(body.amount, str):
+        return (
+            f"the amount must be a countable number, not `{body.amount}` — every "
+            f"player's selection is drawn at the same size before any is applied"
+        )
+    return None
+
+
 def static_ceiling(choose: "Choose") -> int | None:
     """The choose's static upper bound: its declared ``up to N`` ceiling if
     present, else the value of a literal ``hi``. ``None`` when neither yields a
@@ -332,9 +365,15 @@ class EpistemicOp:
 
 @dataclass(frozen=True, slots=True)
 class RotateStmt:
-    """`rotate <var> through [<values>]` — a state-cycle."""
+    """`rotate <target> through [<values>]` — a state-cycle.
 
-    var: str
+    `target` is a `NameRef` for the same reason `AssignStmt.target` is: `rotate` writes
+    persistent state, so it is a write target and must be classified like one. `values`
+    stays a tuple of strings — those are deck/stdlib enum values validated against a
+    registry, and they are not scope participants (nothing can shadow them into meaning
+    something else)."""
+
+    target: NameRef
     values: tuple[str, ...]
     span: Span | None = None
 
@@ -390,9 +429,28 @@ class LetStmt:
 
 @dataclass(frozen=True, slots=True)
 class AssignStmt:
-    """`<name>[<index>]? := / += / -= <expr>`."""
+    """`<target>[<index>]? := / += / -= <expr>`.
 
-    name: str
+    `target` is a `NameRef`, not a bare string, and that is load-bearing. A name in
+    this language can denote a lexical binder, a state variable, a zone, a deck
+    value, a pronoun or a function, and `resolve._classify` decides which — by a
+    fixed precedence, binders first. Every READ goes through that. A write target
+    used to be a bare `str`, so it went through NOTHING: it was invisible to name
+    classification, to validation, and to `substitute`.
+
+    Three defects followed, and all three dissolve once the target is an ordinary
+    name. A typo (`totaly_score := 1`) reached the runtime as a bare `KeyError`,
+    because nothing ever checked the name existed. A binder shadowing a state
+    variable made one name mean two things — a read of `x` found the binder while `x
+    := 1` wrote the state variable, silently. And procedure expansion, which rewrites
+    `NameRef`s, rewrote every read of a parameter and left the write pointing at a
+    global of the same name.
+
+    With a `NameRef` the target is classified like any other name, so "you cannot
+    assign to a binder" is one uniform rule instead of three bespoke walls, and
+    substitution can see write positions."""
+
+    target: NameRef
     index: Expr | None
     op: str
     value: Expr
@@ -516,6 +574,40 @@ ROUND_ORDER_PRIORITY = "priority"
 ROUND_ORDER_MODES = frozenset({ROUND_ORDER_RING, ROUND_ORDER_PRIORITY})
 
 
+@dataclass(frozen=True, slots=True)
+class Block:
+    """A statement sequence with its own binding scope, and nothing else — no
+    condition, no iteration. SYNTHETIC: the grammar has no block form, so no source
+    program can write one. `expand` creates them, as the shape a `run` becomes.
+
+    It exists because an expansion needs both halves of what a block is: the body's
+    `let`s must not leak into the caller's sequence, and the whole thing must be ONE
+    statement so it fits a single-statement slot (`for each <role> <b>: <stmt>`).
+
+    It is a real node rather than an `if true { … }`, and the difference is not
+    cosmetic: an `IfStmt` tells every downstream pass that the body is CONDITIONAL.
+    The deck-capacity gate believed it — it carries `max(then, else)` across a
+    conditional — so a procedure that refilled the deck did not reset the gate's
+    running total, and the very same program was accepted written inline and rejected
+    written as a `run`. That is the one property the construct exists to guarantee."""
+
+    body: tuple["Stmt", ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RunStmt:
+    """`run NAME(<arg>, …)` — invoke a named procedure. A resolve-time construct
+    only: `expand` splices the procedure's body in at this site (arguments
+    substituted for parameters) and drops the node, so no `RunStmt` ever reaches
+    the IR or the runtime. The consumers below it therefore carry loud walls, not
+    silent passes — a `RunStmt` surviving expansion is a compiler bug."""
+
+    name: str
+    args: tuple[Expr, ...]
+    span: Span | None = None
+
+
 Stmt = (
     Movement
     | EpistemicOp
@@ -532,6 +624,8 @@ Stmt = (
     | Produces
     | ContinueTo
     | SkipToNextHand
+    | RunStmt
+    | Block
 )
 
 
@@ -754,6 +848,25 @@ class FunctionDef:
 
 
 @dataclass(frozen=True, slots=True)
+class ProcedureDef:
+    """`procedure NAME(<param> : <type>, …) { <stmt>* }` — a named, parameterized
+    statement block. Reuse is *textual*: `expand` splices the body in at each
+    `run` site after substituting arguments for parameters, so the statements a
+    procedure contributes — and therefore the observation events they emit, and
+    therefore the derived information sets — are exactly what inline text would
+    emit. The body is hermetic: it reads only its parameters and game/phase state,
+    never the caller's binders, and never the call-site pronouns (`actor` /
+    `action` / `outcome`), which would make its meaning depend on where it is
+    called from. The resolver consumes procedures — post-expansion,
+    `Game.procedures` is empty."""
+
+    name: str
+    params: tuple[MoveParam, ...]
+    body: tuple[Stmt, ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class VariantCase:
     """One case of a variant outcome: a tag with zero or more typed payloads."""
 
@@ -860,6 +973,13 @@ class Game:
     types: tuple[TypeDef, ...] = ()
     defines: tuple[DefineDef, ...] = ()
     functions: tuple[FunctionDef, ...] = ()
+    # Consumed by `expand`, which runs after typecheck: every `run` site is
+    # replaced by the substituted body and this tuple is emptied. It must be
+    # empty downstream — `openspiel.encoding` walks every dataclass field of the
+    # `Game`, so a surviving procedure body would count its `offer`/`round`
+    # decision sites a second time, on top of the copies spliced at the call
+    # sites, and size the action space wrong.
+    procedures: tuple[ProcedureDef, ...] = ()
     span: Span | None = None
 
 
@@ -907,6 +1027,9 @@ Node = (
     | Produce
     | ProduceArm
     | Produces
+    | RunStmt
+    | Block
+    | ProcedureDef
     | NamedArg
     | NameRef
     | IntLit

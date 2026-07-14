@@ -18,7 +18,7 @@ from cardlang.runtime.values import Player
 
 def _in_game(ctx: Ctx, p: Player) -> bool:
     return bool(
-        ctx.rs.get("alive")[p] == 1 and ctx.rs.zones.families["influence"][p].cards
+        ctx.rs.get("alive")[p] and ctx.rs.zones.families["influence"][p].cards
     )
 
 

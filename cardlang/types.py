@@ -126,11 +126,23 @@ Type: TypeAlias = (
 def unify(a: Type, b: Type) -> Type | None:
     """The common type of ``a`` and ``b``, or ``None`` if incompatible.
 
-    Equal types unify to themselves; ``TAny`` absorbs anything; a bare ``T`` and
-    ``T?`` unify to ``T?``. Anything else is a mismatch.
+    Equal types unify to themselves; ``TAny`` absorbs anything, at ANY depth; a
+    bare ``T`` and ``T?`` unify to ``T?``. Anything else is a mismatch.
+
+    The depth matters. `TAny` used to absorb only at the top level, so two
+    collections were compared by plain equality — and a deliberately-unrefined
+    element type (a chip stack is `Collection<Any>` precisely because that part of
+    the object model is unrefined) was judged disjoint from `Collection<Card>`. Every
+    caller that asks "are these compatible?" inherited that: the equality wall would
+    MANUFACTURE a `can never be equal` diagnostic for a comparison whose only
+    uncertainty was in the element. Gradual typing has to be gradual all the way
+    down, or it is just a top-level special case.
     """
     if isinstance(a, TAny) or isinstance(b, TAny):
         return TAny()
+    if isinstance(a, TCollection) and isinstance(b, TCollection):
+        element = unify(a.element, b.element)
+        return TCollection(element) if element is not None else None
     if isinstance(a, TNull):
         return b if isinstance(b, TOptional) else TOptional(b)
     if isinstance(b, TNull):

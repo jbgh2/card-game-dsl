@@ -1,10 +1,12 @@
 # Named procedures: nameable, parameterized statement blocks
 
-*Status: design analysis / proposal — not a settled decision, and not yet
-implemented. Called for by
-[lexical-cleanup.md](lexical-cleanup.md) §6 (the one definition-form gap with
-a forcing corpus case); this note is the design conversation that must settle
-before any grammar lands. The committed spec is [../decisions.md](../decisions.md).*
+*Status: settled and implemented — kept for the forcing evidence and for the
+questions §5 left open, each of which is answered below with what decided it. The
+ruling itself is spec: [../decisions.md](../decisions.md) "Named procedures"
+(the surface, the textual-reuse guarantee, hermeticity, the three hygiene walls,
+the closed parameter domain). The deferred cells are in
+[../roadmap.md](../roadmap.md); the completeness ledger is
+`tests/test_procedures.py`.*
 
 ## 1. The forcing evidence
 
@@ -85,25 +87,82 @@ phase challenge_window {
   contexts could target different variants). Reject until a corpus case
   forces a design.
 
-## 5. Open questions before implementation
+## 5. The open questions, and what answered them
 
-1. The invocation keyword (one spelling).
-2. Whether expansion happens in `resolve` (like library rules — favored:
-   one mechanism, one place where `game` is rewritten) or a separate pass.
-3. Whether a procedure may invoke another (acyclic) — Coup does not need
-   it; simplest v1: reject nested invocation, lift with evidence.
-4. Per-expansion `let` names: two expansions in one body scope introduce
-   the same `let` names — the existing scoping rules treat inline repeats
-   fine (each `let` rebinding shadows forward), so likely a non-issue;
-   verify with the Coup rewrite.
+1. **The invocation keyword** — `run X(a)`. A keyword, not a bare call: the
+   statement layer has no expression-statement form, and that absence is worth
+   preserving.
+2. **Where expansion happens** — a separate pass, AFTER typecheck; *not* in
+   `resolve` beside `_instantiate_rules`, which this note favored. The note's
+   argument was "one mechanism, one place where `game` is rewritten", and it did
+   not work out the consequence for §4's parameter types: a `victim : Player`
+   can only bite while the `run` site still exists to check its arguments
+   against. Expanding in resolve would leave every annotation parsed and ignored
+   — the accepted-but-ignored class the whole surface-totality rule exists to
+   prevent. The substitution *mechanism* is still shared with rule templates
+   (`resolve.substitute`); only the timing differs, and it differs for a reason.
+3. **Nested invocation** — rejected, as proposed. Coup does not need it.
+4. **Per-expansion `let` names** — a non-issue, as suspected: two expansions in
+   one block rebind the same `let` name and each shadows forward, exactly as two
+   inline pastes would. The Coup rewrite confirms it.
 
-## 6. Acceptance
+## 5a. What this note got wrong: substitution is not the primitive
 
-- Coup's three pasted blocks become three procedures; the file shrinks by
-  roughly half; trace goldens stay **byte-identical** (expansion is textual
-  equivalence, so this is a hard check, not an aspiration).
-- Surface totality: every parameter-kind/arity/control-flow mismatch above
-  is a rejection with a test.
-- The lockstep rule: Tichu / go-fish / Skat adopt in the same change if
-  their shapes fit the v1 parameter kinds; otherwise their deferral is
-  recorded here.
+§2's "textual-equivalent reuse — calling one behaves exactly as if its body were
+written inline, after parameter substitution" reads like a definition. It is
+actually a *choice*, and it is the wrong one, because a procedure takes
+**unevaluated expressions** where a function takes **values**. Substituting an
+expression into every place the body reads its parameter is silently wrong in ways
+this note never considered, and all of them are reachable:
+
+- **One written decision becomes N.** `run bump(choose integer in 0 .. 1)` is one
+  decision in the text. By name it is copied to every read, polled independently,
+  and two reads can return two different answers — crediting two different players
+  from a single written choice. This is the serious one: it changes the game's
+  decision count relative to what the designer wrote, on the exact path CLAUDE.md
+  says bounds every design choice.
+- **Zero reads drop the decision entirely.**
+- **An argument naming state the body mutates** denotes a different value on its
+  second read than its first.
+- **A body binder captures a caller's local**, inbound (through an argument) or
+  outbound (a body `let` leaking forward into the caller's sequence).
+
+The first implementation walled the capture cases and shipped the rest. That was
+wrong twice over: it left the decision-duplication defects live, and the walls it
+did build were the kind that teach an author to work around a bug rather than fix
+it. Coup's `lose_influence` carried a `let loser = victim` line whose only job was
+to defeat by-name substitution.
+
+The fix is to stop treating substitution as the primitive. Expansion binds each
+argument to a `let` in the caller's context — once, by value — and wraps the body
+in a block. Every defect above becomes impossible instead of walled, the two
+capture walls become vacuous and are deleted, and Coup's workaround line goes with
+them. The one wall that survives is the one expansion cannot fix: a body binder
+sharing a *parameter's* name is ambiguous at classification time.
+
+The lesson generalizes past this construct: "behaves as if pasted" is not a safety
+property. What a paste does is not the acceptance criterion — what the author wrote
+is.
+
+## 6. Acceptance — what landed
+
+- Coup's three pasted blocks are three procedures. **521 -> 375 lines**; 29
+  pasted blocks -> 3 named ones. (Not "roughly half": the remaining bulk is the
+  seven action bodies and the two block windows, which are genuinely distinct.)
+  The trace golden was **byte-identical** across the procedure rewrite — the hard
+  check, and it held. It moved only later, and deliberately, when `alive` became
+  a Boolean, with the diff proven representation-only.
+- Surface totality: every rejection cell has a test, and the parameter-domain
+  sweep is derived from `KNOWN_TYPE_NAMES x {plain, optional}` rather than
+  hand-listed. Ledger: `tests/test_procedures.py`.
+- **Parameter kinds: `Player`, `Rank`, `Rank?` — not `Zone`.** §4 guessed the
+  corpus would need a `Zone` parameter; it does not. A `Player` parameter already
+  carries its zone (`influence[victim]`), which is a small instance of the same
+  finding the auction promotion produced (lexical-cleanup.md §3): the shared
+  thing was not what the note predicted.
+- **The lockstep adopters are deferred, and here is why.** Tichu's grand-call
+  poll, go-fish's book completion and Skat's Reizen shape all sit around a
+  `round`, and a `round` may not appear in a procedure body: it binds its own
+  `outcome`, which the body's pronoun wall cannot yet distinguish from the
+  caller's. Rejected whole rather than shipped half-usable. Recorded in
+  [../roadmap.md](../roadmap.md); lifting it is what those three games need.

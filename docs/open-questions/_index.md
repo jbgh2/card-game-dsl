@@ -16,16 +16,43 @@ folder, and remove the entry from this index. See
 
 ## Tier 1 — High impact, enough data to commit now
 
-None commit-ready right now — the last Tier 1 question (the integer `choose`
-domain, half of move-parameter-domains) is settled in
-[decisions.md](../decisions.md) "Declared parameter domains". Its residual (the
-signed bounded-`Integer` *parameter* domain) now waits on a corpus game, so it
-sits in Tier 2.
+- [single-actor-binding](single-actor-binding.md) — an `as <player> { ... }`
+  block for one-player decisions, replacing the `for each player p: if p is X`
+  loop-and-skip idiom that six games now use. **Promoted from Tier 3: it is a
+  correctness fix.** The loop binds the acting player for its body — that is how
+  it aims the decision — but `actor` READS the acting player, so `if p is actor`
+  inside one is true for *every* p (probed: all three players matched). Coup pays
+  for this in paste, carrying two hand-written variants of its influence-loss
+  block for no stated reason other than that the loop form does not work with
+  `actor`. Naming procedures forced it into the open and walled it there
+  ([decisions.md](../decisions.md) "Named procedures"), but the idiom written
+  inline is still silently wrong, and it is still the only way to say "one named
+  player decides". The `as` block fixes it at the root: it evaluates its player
+  expression in the outer context and *then* rebinds, so it cannot capture.
+
+(The previous Tier 1 question — the integer `choose` domain, half of
+move-parameter-domains — is settled in [decisions.md](../decisions.md) "Declared
+parameter domains". Its residual, the signed bounded-`Integer` *parameter*
+domain, waits on a corpus game and sits in Tier 2.)
 
 ## Tier 2 — High impact, blocked on a data point
 
 These questions need one more game in the corpus before committing to a
 design. The data point is named in each file.
+
+- [name-namespaces](name-namespaces.md) — a bare name can denote any of six
+  things (a binder, a state variable, a zone, a deck value, a pronoun, a
+  function), and `_classify` picks by PRECEDENCE, so shadowing is silent by
+  construction. This is the shared root of several defects that each looked local
+  when found: reads resolved binders before state variables while writes went to
+  state regardless (one name, two things); the round's frame was a second store
+  under the same spelling, through which a form's private working memory was
+  reachable; and substitution could only see half the names. Each is now walled —
+  but the walls are around the *consequences*, and the thing producing them is
+  unchanged. The question is whether cross-namespace shadowing should be legal at
+  all, and whether the surface should say which namespace a name is in. Blocked on
+  a game that genuinely *wants* to shadow; none of the 18 does, and every shadow
+  found so far has been a defect.
 
 - [move-parameter-domains](move-parameter-domains.md) — a bounded-`Integer`
   *move-parameter* domain (a single move type carrying a small **signed**
@@ -78,9 +105,6 @@ of the language.
   betting streets) into one body; the within-round predicate duplication is
   already resolved with named functions, so this is the residual block-level
   repetition, and the second-instance data point is Hold'em.
-- [single-actor-binding](single-actor-binding.md) — an `as <player> { ... }`
-  block for one-player decisions, replacing the `for each player p: if p is
-  X` loop-and-skip idiom that six games now use.
 - [unbounded-lines-and-max-length](unbounded-lines-and-max-length.md) —
   two games now have legally unbounded lines (Coup's exchange-forever
   table; Tichu's always-calling table, which drifts away from 1000

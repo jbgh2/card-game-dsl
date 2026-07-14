@@ -96,6 +96,7 @@ import pytest
 
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
+from cardlang.typecheck import KNOWN_TYPE_NAMES
 from cardlang.typecheck import OP_CLASSES, infer
 
 # --- shared minimal-game builder (mirrors test_zone_family_typing.py) ---
@@ -429,3 +430,90 @@ def test_offset_by_accepts_gradual_any_on_either_side() -> None:
             "    for each player p: let probe = (second offset_by left is p)"
         )
     )
+
+
+# ---------------------------------------------------------------------------
+# The equality wall's operand matrix — swept over the type registry
+# ---------------------------------------------------------------------------
+
+_EQ_GAME = """
+game G {{
+  players: 4
+  direction: clockwise
+  max_length: 10
+  cards: standard52
+  zones {{ deck : Deck  hand[player] : Hand<player> }}
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  partnerships: [[0, 2], [1, 3]]
+  state {{
+    score[player] : Integer = 0
+    flag  : Boolean = true
+    n     : Integer = 0
+    who   : Player  = 0
+    s     : String  = ""
+    rk    : Rank    = A
+    d     : Direction = left
+  }}
+  phase p {{
+    deal 2 cards from deck to each hand
+    let the_card = 2 of clubs
+    if {pred} {{ score[0] += 1 }}
+  }}
+  winner: highest score
+}}
+"""
+
+# One named operand per name in the type registry. DERIVED from KNOWN_TYPE_NAMES,
+# not hand-listed: a new declarable type lands here as a KeyError until someone
+# gives it an operand and classifies its row, which is the whole point of a
+# registry-derived matrix (the ledger used to claim this while the list was a
+# literal, which is the "measuring the wall against itself" trap).
+_OPERAND_FOR = {
+    "Boolean": "flag",
+    "Integer": "n",
+    "Player": "who",
+    "String": "s",
+    "Suit": "hearts",        # a bare enum value of the deck
+    "Rank": "rk",
+    "Team": "team_of(who)",
+    "Card": "(2 of clubs)",  # a card literal — NOT a `let`, which would type TAny
+    "Direction": "left",     # the stdlib constant enum (left/right/across/hold)
+}
+
+assert set(_OPERAND_FOR) == KNOWN_TYPE_NAMES, (
+    "the equality matrix must cover every declarable type: "
+    f"{sorted(KNOWN_TYPE_NAMES ^ set(_OPERAND_FOR))} unclassified"
+)
+_OPERANDS = _OPERAND_FOR
+
+# The pairs that CAN be equal, and why. Everything else in the cross-product must be
+# rejected.
+_COMPARABLE = {frozenset({t}) for t in _OPERAND_FOR}  # every type equals itself
+_COMPARABLE |= {
+    # A player IS an integer seat in this language, and a team IS an integer index:
+    # `assignable(TInteger, TPlayer)` and `assignable(TInteger, TTeam)` both hold, so
+    # `turn is 0` and `responder is actor` must keep working.
+    frozenset({"Integer", "Player"}),
+    frozenset({"Integer", "Team"}),
+}
+
+
+@pytest.mark.parametrize("left", sorted(_OPERANDS))
+@pytest.mark.parametrize("right", sorted(_OPERANDS))
+def test_equality_operand_matrix(left: str, right: str) -> None:
+    """The full cross-product of the scalar type registry under `is`.
+
+    Before the sweep this wall only fired when one side was an enum, so an entire
+    row was dark: `flag is hearts`, `flag is 1`, `flag is "x"`, `n is "x"`, `who is
+    "x"` were all accepted — comparisons that are ALWAYS FALSE. The hole surfaced
+    when the round-state pronoun got real types (stdlib/round_state.py) and
+    `state.trick_terminated_early` became a Boolean. Per decisions.md "Closed-domain
+    completeness" the fix swept the class, and this matrix is what keeps it swept."""
+    pred = f"{_OPERANDS[left]} is {_OPERANDS[right]}"
+    src = _EQ_GAME.format(pred=pred)
+    if frozenset({left, right}) in _COMPARABLE:
+        check_dsl(src, "probe")  # must remain accepted
+    else:
+        with pytest.raises(DiagnosticError) as excinfo:
+            check_dsl(src, "probe")
+        assert "can never be equal" in str(excinfo.value)

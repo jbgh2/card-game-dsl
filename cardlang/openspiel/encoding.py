@@ -31,7 +31,8 @@ from dataclasses import dataclass
 from typing import Any, Iterator
 
 from cardlang.ast import nodes as n
-from cardlang.runtime.mechanics import _pack, enumerate_domain
+from cardlang.domains import DomainSources, enumerate_domain
+from cardlang.runtime.mechanics import _pack
 from cardlang.runtime.observe import render_candidate
 from cardlang.runtime.values import RANKS, SUITS, Card, build_deck, deck_suits
 
@@ -107,9 +108,7 @@ def _walk(node: Any) -> Iterator[Any]:
 
 def _vocab_entries(
     mt: n.MoveTypeDef,
-    suits: list[Any],
-    ranks: list[str],
-    players: list[int],
+    sources: DomainSources,
 ) -> list[tuple[str, Any]]:
     """One move type's vocab entries — nullary is the empty-product
     `[(mt.name, None)]`; otherwise the full cross-product of its parameters'
@@ -121,10 +120,7 @@ def _vocab_entries(
     the card block's, never a vocab id (see the module docstring)."""
     if not mt.params:
         return [(mt.name, None)]
-    domains = [
-        enumerate_domain(p.type_name, suits=suits, ranks=ranks, players=players)
-        for p in mt.params
-    ]
+    domains = [enumerate_domain(p.type_name, sources) for p in mt.params]
     return [(mt.name, _pack(combo)) for combo in itertools.product(*domains)]
 
 
@@ -193,9 +189,11 @@ class ActionSpace:
         # — so the advertised action space and the live legal-candidate
         # enumeration are identical by construction, never merely coincident.
         card_block = _derived_card_block(game.deck)
-        suits: list[Any] = list(deck_suits(game.deck))
-        ranks: list[str] = list(game.ranking)
-        players = list(range(game.players.low))
+        sources = DomainSources(
+            suits=list(deck_suits(game.deck)),
+            ranks=list(game.ranking),
+            players=list(range(game.players.low)),
+        )
         for node in _walk(game):
             if isinstance(node, n.Choose):
                 # The shared integer block is sized to the game's largest
@@ -220,7 +218,7 @@ class ActionSpace:
                     elif any(p.type_name == "Card" for p in mt.params):
                         pass  # the card block's id, not a vocab id — see below
                     else:
-                        entries = _vocab_entries(mt, suits, ranks, players)
+                        entries = _vocab_entries(mt, sources)
                         vocab.extend(e for e in entries if e not in vocab)
             elif isinstance(node, n.Round) and node.combos_fn is not None:
                 if node.combos_fn not in climb_engines:
@@ -234,7 +232,7 @@ class ActionSpace:
                         # per-card vocab ids would give a card play two
                         # representations and inflate num_distinct_actions.
                         continue
-                    entries = _vocab_entries(mt, suits, ranks, players)
+                    entries = _vocab_entries(mt, sources)
                     vocab.extend(e for e in entries if e not in vocab)
         combo_codec: Any | None = None
         if climb_engines:

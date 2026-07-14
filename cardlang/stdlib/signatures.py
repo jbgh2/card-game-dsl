@@ -83,7 +83,9 @@ CALL_SIGS: dict[str, Sig] = {
     ),  # President: is the card the player's highest rank?
     "coup_players_in": Sig((), TInteger()),  # Coup: players still holding influence
     "coup_next_in_game": Sig((TPlayer(),), TPlayer()),  # Coup: next in-game clockwise
-    "coup_has_char": Sig((TPlayer(), TString()), TBoolean()),  # Coup: proof lookup
+    "coup_has_char": Sig(
+        (TPlayer(), TOptional(TEnum("Rank"))), TBoolean()
+    ),  # Coup: proof lookup (an unset claim matches no card)
     "coup_note_reveal": Sig((TPlayer(),), TInteger()),  # Coup: trace the flip
     "coup_game_summary": Sig((), TInteger()),  # Coup: conservation/finals trace
     "peg_value": Sig((TCard(),), TInteger()),  # Cribbage: pegging/fifteens value

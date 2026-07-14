@@ -17,6 +17,7 @@ library_rules: rule_def+
          | type_def
          | define_def
          | function_def
+         | procedure_def
 
 // ----------------------------------------------------------------------------
 // Game structure
@@ -154,6 +155,13 @@ move_event: NAME ["where" expr]
           | produces_stmt
           | continue_to
           | skip_stmt
+          | run_stmt
+
+// Invoke a named procedure: its body is spliced in at this site, after the
+// arguments substitute for the parameters (decisions.md "Named procedures").
+// A keyword leads, so statement-hood stays visible — the statement layer has
+// no expression-statement form, and that absence is worth preserving.
+run_stmt: "run" NAME "(" [expr ("," expr)*] ")"
 
 // Imperative phase control flow, used in `produces:` arms (decisions.md "Typed
 // phase outcomes"): jump forward to a named sibling phase, or abort the rest of
@@ -278,6 +286,14 @@ move_param: NAME ":" payload_type
 // caller's binders — and non-recursive.
 function_def: "function" NAME "(" [func_param ("," func_param)*] ")" "=" expr
 func_param: NAME ":" payload_type
+
+// A named procedure: a parameterized *statement* block, the definition form the
+// expression layer has had all along. Calling one behaves exactly as if the body
+// were written inline at the call site, after the arguments substitute for the
+// parameters — the expander splices it away before the runtime ever sees it, so
+// a procedure can never create an information-set gap. Parameter domains are the
+// enumerable payload types; the resolver gates which are supported.
+procedure_def: "procedure" NAME "(" [move_param ("," move_param)*] ")" "{" statement* "}"
 move_when: "when" ":" applies_pred
 move_effect: "effect" "{" statement* "}"
 

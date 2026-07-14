@@ -28,8 +28,9 @@ plus the deals in its (non-repeating) sub-phases.
 from __future__ import annotations
 
 from cardlang.ast import nodes as n
+from cardlang.domains import DomainSources, ITERABLE_ROLES, role_static_members
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError
-from cardlang.stdlib.values import deck_size
+from cardlang.stdlib.values import deck_ranks, deck_size, deck_suits
 
 # (peak usage reached, deck usage carried out) for a walked fragment, given the
 # usage carried in. "Usage" is cards drawn from the deck since its last refill.
@@ -46,10 +47,25 @@ def check_capacity(game: n.Game) -> n.Game:
     if not deck_zones:
         return game
     players = game.players.high if game.players.high is not None else game.players.low
+    # How many times each `for each <role>` body runs, read from the quantifiable-
+    # domain registry rather than assumed. The old rule was "players, or once", so a
+    # loop over a VALUE domain (`for each suit s: deal 15 cards …`) counted as one
+    # iteration: it demanded four times what this gate checked, passed, and died
+    # mid-deal on a bare ValueError — the exact failure currency the gate exists to
+    # replace. A new domain row now arrives here already counted.
+    sources = DomainSources(
+        suits=sorted(deck_suits(game.deck)),
+        ranks=list(game.ranking) or sorted(deck_ranks(game.deck)),
+        players=range(players),
+        teams=game.partnerships,
+    )
+    counts = {
+        role: len(role_static_members(role, sources)) for role in ITERABLE_ROLES
+    }
 
     bag = DiagnosticBag()
     for phase in game.phases:
-        _check_windows(phase, players, deck_zones, capacity, game, bag)
+        _check_windows(phase, players, counts, deck_zones, capacity, game, bag)
     if bag.has_errors:
         error = DiagnosticError(bag.items[0])
         if len(bag.items) > 1:
@@ -61,6 +77,7 @@ def check_capacity(game: n.Game) -> n.Game:
 def _check_windows(
     phase: n.Phase,
     players: int,
+    counts: dict[str, int],
     deck_zones: set[str],
     capacity: int,
     game: n.Game,
@@ -68,7 +85,7 @@ def _check_windows(
 ) -> None:
     """Check `phase` as one window (deck full at entry), then recurse into nested
     `repeats` phases (each its own reset boundary, hence its own window)."""
-    peak, _ = _window_usage(phase, 0, players, deck_zones)
+    peak, _ = _window_usage(phase, 0, players, counts, deck_zones)
     if peak > capacity:
         span = phase.span if phase.span is not None else game.players.span
         bag.error(
@@ -77,23 +94,25 @@ def _check_windows(
             span,
         )
     for sub in _nested_repeating_phases(phase):
-        _check_windows(sub, players, deck_zones, capacity, game, bag)
+        _check_windows(sub, players, counts, deck_zones, capacity, game, bag)
 
 
-def _window_usage(phase: n.Phase, carry: int, players: int, deck_zones: set[str]) -> _Usage:
+def _window_usage(
+    phase: n.Phase, carry: int, players: int, counts: dict[str, int], deck_zones: set[str]
+) -> _Usage:
     """Peak deck usage over one iteration of `phase`: its lifecycle hooks plus its
     statements and folded non-repeating sub-phases, threaded left to right. Nested
     `repeats` phases are excluded — they are their own windows."""
     peak = carry
     for item in phase.items:
         if isinstance(item, (n.BeforeEach, n.AfterEach)):
-            p, carry = _seq_usage(item.body, carry, players, deck_zones)
+            p, carry = _seq_usage(item.body, carry, players, counts, deck_zones)
         elif isinstance(item, n.Phase):
             if _repeats(item):
                 continue  # separate window
-            p, carry = _window_usage(item, carry, players, deck_zones)
+            p, carry = _window_usage(item, carry, players, counts, deck_zones)
         elif isinstance(item, n.Stmt):
-            p, carry = _stmt_usage(item, carry, players, deck_zones)
+            p, carry = _stmt_usage(item, carry, players, counts, deck_zones)
         else:
             continue  # StateBlock, ActiveRules, LegalMoves, TransitionTo, …
         peak = max(peak, p)
@@ -118,35 +137,56 @@ def _repeats(phase: n.Phase) -> bool:
 
 
 def _seq_usage(
-    stmts: tuple[n.Stmt, ...] | list[n.Stmt], carry: int, players: int, deck_zones: set[str]
+    stmts: tuple[n.Stmt, ...] | list[n.Stmt],
+    carry: int,
+    players: int,
+    counts: dict[str, int],
+    deck_zones: set[str],
 ) -> _Usage:
     peak = carry
     for s in stmts:
-        p, carry = _stmt_usage(s, carry, players, deck_zones)
+        p, carry = _stmt_usage(s, carry, players, counts, deck_zones)
         peak = max(peak, p)
     return peak, carry
 
 
-def _stmt_usage(stmt: n.Stmt, carry: int, players: int, deck_zones: set[str]) -> _Usage:
+def _stmt_usage(
+    stmt: n.Stmt, carry: int, players: int, counts: dict[str, int], deck_zones: set[str]
+) -> _Usage:
     if isinstance(stmt, n.Movement):
         return _movement_usage(stmt, carry, players, deck_zones)
     if isinstance(stmt, (n.ForEach, n.EachSimultaneous)):
-        # The body runs once per player (or once for a non-player ring); thread the
-        # carry across iterations so a refilling body resets each pass.
-        iters = players if stmt.role == "player" else 1
+        # The body runs once per member of the role's domain, read from the registry
+        # (`counts`) — never assumed. Thread the carry across iterations so a
+        # refilling body resets each pass.
+        iters = counts.get(stmt.role, 1)
         peak = carry
         for _ in range(iters):
-            p, carry = _stmt_usage(stmt.body, carry, players, deck_zones)
+            p, carry = _stmt_usage(stmt.body, carry, players, counts, deck_zones)
             peak = max(peak, p)
         return peak, carry
     if isinstance(stmt, n.IfStmt):
-        then_peak, then_carry = _seq_usage(stmt.then_body, carry, players, deck_zones)
+        then_peak, then_carry = _seq_usage(stmt.then_body, carry, players, counts, deck_zones)
         else_peak, else_carry = (
-            _seq_usage(stmt.else_body, carry, players, deck_zones)
+            _seq_usage(stmt.else_body, carry, players, counts, deck_zones)
             if stmt.else_body
             else (carry, carry)
         )
         return max(then_peak, else_peak), max(then_carry, else_carry)
+    if isinstance(stmt, n.Block):
+        # A block (what `expand` turns a `run` into) is an UNCONDITIONAL sequence:
+        # thread it exactly as if its statements were written here, which is the
+        # whole point of the construct. It must have its own arm, and not fall to the
+        # default below, for two independent reasons — and the default is wrong in
+        # BOTH directions. Falling through would return `carry, carry`, so the gate
+        # would be blind to every deal inside a procedure body (an undercount, and a
+        # real soundness hole). Encoding the block as `if true { … }` instead — which
+        # is what this used to do — sends it through the IfStmt arm above, which
+        # carries `max(then, else)` because a conditional MAY be skipped; a procedure
+        # that refilled the deck then failed to reset the gate's running total, and
+        # the same program was accepted written inline and rejected written as a
+        # `run` (an overcount, and a false rejection).
+        return _seq_usage(stmt.body, carry, players, counts, deck_zones)
     # RepeatUntil (runtime iteration count) and everything else draw nothing
     # statically boundable from the deck; usage is unchanged.
     return carry, carry

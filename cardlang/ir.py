@@ -245,7 +245,12 @@ def _stmt(s: n.Stmt) -> IRDict:
                 op["filter"] = _expr(s.filter)
             return op
         case n.RotateStmt():
-            return {"kind": "rotate", "var": s.var, "values": list(s.values)}
+            # The target is a `NameRef` in the AST (it is a write target and must be
+            # classified like any other name), but the IR emits just its name: post-
+            # resolve a write target is ALWAYS a state variable — every other
+            # classification is rejected — so the `ref_kind` carries no information,
+            # and flattening keeps the IR (and its goldens) exactly as it was.
+            return {"kind": "rotate", "var": s.target.name, "values": list(s.values)}
         case n.EachSimultaneous():
             return {"kind": "each_simultaneous", "role": s.role, "body": _stmt(s.body)}
         case n.ForEach():
@@ -282,7 +287,7 @@ def _stmt(s: n.Stmt) -> IRDict:
         case n.AssignStmt():
             return {
                 "kind": "assign",
-                "name": s.name,
+                "name": s.target.name,  # always a state variable post-resolve; see above
                 "index": _expr(s.index) if s.index else None,
                 "op": s.op,
                 "value": _expr(s.value),
@@ -334,6 +339,18 @@ def _stmt(s: n.Stmt) -> IRDict:
             return {"kind": "continue_to", "target": s.target}
         case n.SkipToNextHand():
             return {"kind": "skip_to_next_hand"}
+        case n.Block():
+            return {"kind": "block", "body": [_stmt(x) for x in s.body]}
+        case n.RunStmt():
+            # There is no IR for a procedure invocation, by design: `expand` has
+            # already replaced it with the statements it stands for, so the IR
+            # records what runs, not how it was spelled. A `run` here is a compiler
+            # bug — emitting a placeholder node would silently teach every IR
+            # consumer that procedures survive the front end.
+            raise AssertionError(
+                f"`run {s.name}(…)` reached IR emission; procedure expansion "
+                f"(cardlang/expand.py) must run before `emit`"
+            )
         case _ as unreachable:
             assert_never(unreachable)
 

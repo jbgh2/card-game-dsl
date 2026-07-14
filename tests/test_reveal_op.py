@@ -64,7 +64,10 @@ game Mini {
   max_length: 1000
   cards: standard52
   zones { deck : Deck  hand[player] : Hand<player> }
-  state { score[player] : Integer = 0  claim : String = "Q" }
+  // `claim` is a Rank, not a String holding a rank name: comparing `card.rank`
+  // to a String is always false, and the checker rejects it (the same fix Coup
+  // needed for its `block_claim`).
+  state { score[player] : Integer = 0  claim : Rank = Q }
   phase p {
     reveal one card from hand[0] where card.rank is claim
   }
