@@ -461,6 +461,13 @@ def _stmt_tree_scoped(
             yield from _stmt_tree_scoped(x, binders)
         for x in s.else_body or ():
             yield from _stmt_tree_scoped(x, binders)
+    elif isinstance(s, n.Block):
+        # Synthetic, and created only by `expand`, which runs AFTER this pass — so
+        # nothing here ever sees one today. The arm exists anyway: this walk falls
+        # through silently rather than failing, so a future pass ordering that did
+        # reach a block would skip its whole body without a word.
+        for x in s.body:
+            yield from _stmt_tree_scoped(x, binders)
 
 
 def _stmt_tree(s: n.Stmt) -> Iterator[n.Stmt]:

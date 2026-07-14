@@ -1488,12 +1488,21 @@ interprets. Coup is the forcing case: three blocks pasted 29 times, most of a
 A `run f(a, b)` becomes one block:
 
 ```
-if true {                 // a block; the statement layer has no other
+block {
   let @f.p = a            // each argument evaluated ONCE, in the caller's context
   let @f.q = b
   <the body, reading @f.p and @f.q>
 }
 ```
+
+The block is a real construct in the tree, not an `if true { … }` standing in for
+one, and the difference is not cosmetic: an `if` tells every downstream pass that
+the body *may be skipped*. The deck-capacity gate believed it — it carries the worst
+case across a conditional — so a procedure that refilled the deck failed to reset the
+gate's running total, and the very same program was accepted written inline and
+rejected written as a `run`. That is precisely the property a procedure exists to
+guarantee, so the tree has to say what is true. (The statement layer has no block
+form and needs none: nothing but expansion creates one.)
 
 Two properties, and each is load-bearing rather than cosmetic:
 

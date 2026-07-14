@@ -173,6 +173,20 @@ def _stmt_usage(
             else (carry, carry)
         )
         return max(then_peak, else_peak), max(then_carry, else_carry)
+    if isinstance(stmt, n.Block):
+        # A block (what `expand` turns a `run` into) is an UNCONDITIONAL sequence:
+        # thread it exactly as if its statements were written here, which is the
+        # whole point of the construct. It must have its own arm, and not fall to the
+        # default below, for two independent reasons — and the default is wrong in
+        # BOTH directions. Falling through would return `carry, carry`, so the gate
+        # would be blind to every deal inside a procedure body (an undercount, and a
+        # real soundness hole). Encoding the block as `if true { … }` instead — which
+        # is what this used to do — sends it through the IfStmt arm above, which
+        # carries `max(then, else)` because a conditional MAY be skipped; a procedure
+        # that refilled the deck then failed to reset the gate's running total, and
+        # the same program was accepted written inline and rejected written as a
+        # `run` (an overcount, and a false rejection).
+        return _seq_usage(stmt.body, carry, players, counts, deck_zones)
     # RepeatUntil (runtime iteration count) and everything else draw nothing
     # statically boundable from the deck; usage is unchanged.
     return carry, carry

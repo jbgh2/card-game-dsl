@@ -17,13 +17,21 @@ leave those annotations parsed and ignored — the accepted-but-ignored defect c
 
 Expansion is by VALUE, and it is hygienic
 -----------------------------------------
-A `run f(a, b)` becomes one block:
+A `run f(a, b)` becomes one `Block` — a synthetic node, since the grammar has no
+block form:
 
-    if true {                  // a block: the DSL has no block statement, and
-      let @f.p = a             // `if true` is the well-defined encoding of one
+    block {
+      let @f.p = a             // each argument evaluated ONCE, in the caller's context
       let @f.q = b
       <body, with p -> @f.p and q -> @f.q>
     }
+
+It is a real node rather than an `if true { … }`, and that is not cosmetic: an
+`IfStmt` tells every downstream pass the body is CONDITIONAL, and the deck-capacity
+gate believed it — it carries `max(then, else)` across a conditional, so a procedure
+that refilled the deck did not reset the gate's running total, and the SAME program
+was accepted inline and rejected as a `run`. That is the one property this construct
+exists to guarantee.
 
 Two properties, each of which a naive by-name splice gets wrong, silently:
 
@@ -95,12 +103,7 @@ def _expansion(run: n.RunStmt, procs: dict[str, n.ProcedureDef]) -> n.Stmt:
     body = tuple(
         cast(n.Stmt, substitute(stmt, mapping, ref_kind="local")) for stmt in proc.body
     )
-    return n.IfStmt(
-        cond=n.NameRef(name="true", ref_kind="bool", span=span),
-        then_body=tuple(prologue) + body,
-        else_body=None,
-        span=span,
-    )
+    return n.Block(body=tuple(prologue) + body, span=span)
 
 
 def _rewrite(node: object, procs: dict[str, n.ProcedureDef]) -> object:

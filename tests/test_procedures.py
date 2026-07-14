@@ -157,10 +157,10 @@ def test_expansion_splices_the_body_and_consumes_the_procedure() -> None:
     # One `run` becomes exactly one statement: a block holding the argument
     # bindings and then the body. One shape serves every statement position.
     stmts = [type(s).__name__ for s in game.phases[0].items]
-    assert stmts == ["Movement", "IfStmt"]
+    assert stmts == ["Movement", "Block"]
     block = game.phases[0].items[1]
-    assert isinstance(block, n.IfStmt)
-    assert [type(s).__name__ for s in block.then_body] == [
+    assert isinstance(block, n.Block)
+    assert [type(s).__name__ for s in block.body] == [
         "LetStmt", "AssignStmt", "AssignStmt",
     ]
     assert not any(isinstance(nd, n.RunStmt) for nd in _walk(game))
@@ -184,7 +184,7 @@ def test_a_procedure_run_twice_expands_twice_and_neither_leaks() -> None:
         procs="procedure bump(who : Player) { let step = 1  score[who] += step }",
     )
     assert [type(s).__name__ for s in game.phases[0].items] == [
-        "Movement", "IfStmt", "IfStmt",
+        "Movement", "Block", "Block",
     ]
 
 
@@ -293,14 +293,83 @@ _BODY_ACCEPTED = {
 }
 _BODY_REJECTED = {"Produce", "ContinueTo", "SkipToNextHand", "RunStmt", "Round"}
 
+# Synthetic: no grammar production builds these, so no source program — and no
+# procedure body — can contain one. `Block` is what `expand` turns a `run` INTO.
+_BODY_SYNTHETIC = {"Block"}
+
 
 def test_stmt_union_is_fully_classified() -> None:
     """The static pin that makes Axis B exhaustive rather than a sample: every
-    statement kind the grammar can put in a procedure body is either known-good or
-    known-walled. A new `Stmt` member fails here until someone decides which."""
+    statement kind is accepted in a body, walled out of one, or synthetic (not
+    writable at all). A new `Stmt` member fails here until someone decides which.
+
+    The three-way split matters. `Block` is a real `Stmt` the runtime and the IR must
+    handle, but it is unreachable from source — folding it into "accepted" would
+    claim a body-content cell that no test could ever exercise, and folding it into
+    "rejected" would claim a wall that can never fire. Both are the vacuous-ledger
+    trap this file exists to avoid."""
     union = {t.__name__ for t in typing.get_args(n.Stmt)}
-    assert _BODY_ACCEPTED | _BODY_REJECTED == union
+    assert _BODY_ACCEPTED | _BODY_REJECTED | _BODY_SYNTHETIC == union
     assert not (_BODY_ACCEPTED & _BODY_REJECTED)
+    assert not (_BODY_SYNTHETIC & (_BODY_ACCEPTED | _BODY_REJECTED))
+
+
+def test_a_synthetic_block_is_not_writable_from_source() -> None:
+    """The claim `_BODY_SYNTHETIC` makes, checked rather than asserted."""
+    from cardlang.parse import parse_text
+
+    for spelling in ("block { score[0] += 1 }", "{ score[0] += 1 }"):
+        with pytest.raises(DiagnosticError):
+            parse_text(GAME.format(body=f"    {spelling}", procs=""), "probe")
+
+
+def test_a_run_is_capacity_checked_exactly_as_the_inline_text() -> None:
+    """The property this whole file names, at the one gate that reasons about the
+    SHAPE of a statement rather than its contents.
+
+    An expansion used to be encoded as `if true { … }`, which told the deck-capacity
+    gate the body was CONDITIONAL — it carries `max(then, else)` across a conditional,
+    because one may be skipped. So a procedure that refilled the deck did not reset
+    the gate's running total, and the same program was ACCEPTED written inline and
+    REJECTED written as a `run`. A real `Block` node says what is true: an
+    unconditional sequence."""
+    game = """
+game G {{
+  players: 4
+  direction: clockwise
+  max_length: 20
+  cards: standard52
+  zones {{ deck : Deck  hand[player] : Hand<player>  pile : Discard }}
+  state {{ score[player] : Integer = 0 }}
+  phase p {{
+    deal 13 cards from deck to each hand
+{reset}
+    deal 13 cards from deck to each hand
+  }}
+  winner: highest score
+}}
+{procs}
+"""
+    # A deck refill resets usage — inline, and identically through a `run`.
+    check_dsl(game.format(reset="    move all cards to deck", procs=""), "probe")
+    check_dsl(
+        game.format(
+            reset="    run reset_deck()",
+            procs="procedure reset_deck() { move all cards to deck }",
+        ),
+        "probe",
+    )
+    # ...and the gate still SEES the deals inside a body: falling through to the
+    # default would have made it blind to them, which is the same defect pointing the
+    # other way.
+    with pytest.raises(DiagnosticError):
+        check_dsl(
+            game.format(
+                reset="    run greedy()",
+                procs="procedure greedy() { deal 13 cards from deck to each hand }",
+            ),
+            "probe",
+        )
 
 
 def test_body_may_not_run_another_procedure() -> None:
@@ -443,7 +512,7 @@ def test_run_expands_in_a_move_type_effect() -> None:
         "probe",
     )
     assert game.procedures == ()
-    assert [type(s).__name__ for s in game.move_types[0].effect] == ["IfStmt"]
+    assert [type(s).__name__ for s in game.move_types[0].effect] == ["Block"]
 
 
 def test_any_procedure_fits_a_for_each_slot() -> None:

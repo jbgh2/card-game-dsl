@@ -334,6 +334,8 @@ def _stmt(s: n.Stmt) -> IRDict:
             return {"kind": "continue_to", "target": s.target}
         case n.SkipToNextHand():
             return {"kind": "skip_to_next_hand"}
+        case n.Block():
+            return {"kind": "block", "body": [_stmt(x) for x in s.body]}
         case n.RunStmt():
             # There is no IR for a procedure invocation, by design: `expand` has
             # already replaced it with the statements it stands for, so the IR

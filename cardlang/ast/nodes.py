@@ -517,6 +517,27 @@ ROUND_ORDER_MODES = frozenset({ROUND_ORDER_RING, ROUND_ORDER_PRIORITY})
 
 
 @dataclass(frozen=True, slots=True)
+class Block:
+    """A statement sequence with its own binding scope, and nothing else — no
+    condition, no iteration. SYNTHETIC: the grammar has no block form, so no source
+    program can write one. `expand` creates them, as the shape a `run` becomes.
+
+    It exists because an expansion needs both halves of what a block is: the body's
+    `let`s must not leak into the caller's sequence, and the whole thing must be ONE
+    statement so it fits a single-statement slot (`for each <role> <b>: <stmt>`).
+
+    It is a real node rather than an `if true { … }`, and the difference is not
+    cosmetic: an `IfStmt` tells every downstream pass that the body is CONDITIONAL.
+    The deck-capacity gate believed it — it carries `max(then, else)` across a
+    conditional — so a procedure that refilled the deck did not reset the gate's
+    running total, and the very same program was accepted written inline and rejected
+    written as a `run`. That is the one property the construct exists to guarantee."""
+
+    body: tuple["Stmt", ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class RunStmt:
     """`run NAME(<arg>, …)` — invoke a named procedure. A resolve-time construct
     only: `expand` splices the procedure's body in at this site (arguments
@@ -546,6 +567,7 @@ Stmt = (
     | ContinueTo
     | SkipToNextHand
     | RunStmt
+    | Block
 )
 
 
@@ -948,6 +970,7 @@ Node = (
     | ProduceArm
     | Produces
     | RunStmt
+    | Block
     | ProcedureDef
     | NamedArg
     | NameRef

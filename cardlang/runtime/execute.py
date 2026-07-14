@@ -75,6 +75,13 @@ def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
             raise _ContinueTo(stmt.target)
         case n.SkipToNextHand():
             raise _SkipHand()
+        case n.Block():
+            # Its own binding scope: `run_body` threads `let`s forward INSIDE the
+            # block, and the caller's ctx is returned unchanged, so nothing the body
+            # binds escapes. State writes and card movements persist, of course —
+            # only the bindings are scoped.
+            run_body(stmt.body, ctx)
+            return ctx
         case n.RunStmt():
             # `expand` splices every procedure body into its `run` sites and drops
             # the node, so the runtime never sees one. Reaching here means the
