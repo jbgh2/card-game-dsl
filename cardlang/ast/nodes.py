@@ -238,6 +238,39 @@ class Choose:
     span: Span | None = None
 
 
+def simultaneous_body_error(body: "Stmt") -> str | None:
+    """Why `body` cannot be the body of `each <role> simultaneously:`, or None if it
+    can. THE single statement of that requirement.
+
+    The form runs one chosen movement per player: it must snapshot every player's
+    selection against the state as it was at block entry, and only then apply them
+    all — that is what makes the pass atomic (in Hearts, nobody sees a passed card
+    before choosing their own). A snapshot is only defined for a chosen movement with
+    a source to draw from, a destination to deliver to, and a countable amount.
+
+    This exists as one function, and not as a check in the resolver mirroring a set of
+    asserts in the executor, because the mirroring is exactly what went wrong: the
+    resolver's wall was written by hand against the FIRST of the executor's five
+    requirements, so `move chosen one card …` (a keyword amount, not a countable
+    expression) passed the checker and then hit a bare assert at play time. One
+    predicate cannot drift from itself — `runtime/execute.py`'s `_pass_selection`
+    asserts against this, and `resolve` rejects with it."""
+    if not isinstance(body, Movement):
+        return "it must be a movement"
+    if body.mode != "chosen":
+        return "the movement must be `chosen` — each player picks their own cards"
+    if body.source is None:
+        return "the movement needs a source zone to draw from (`from <zone>`)"
+    if body.dest is None:
+        return "the movement needs a destination zone (`to <zone>`)"
+    if isinstance(body.amount, str):
+        return (
+            f"the amount must be a countable number, not `{body.amount}` — every "
+            f"player's selection is drawn at the same size before any is applied"
+        )
+    return None
+
+
 def static_ceiling(choose: "Choose") -> int | None:
     """The choose's static upper bound: its declared ``up to N`` ceiling if
     present, else the value of a literal ``hi``. ``None`` when neither yields a

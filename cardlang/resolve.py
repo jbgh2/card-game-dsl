@@ -1252,16 +1252,6 @@ _NON_LOCAL_STMTS = (n.Produce, n.ContinueTo, n.SkipToNextHand)
 _OUTCOME_BINDING_STMTS = (n.Round,)
 
 
-def _is_simultaneous_body(body: n.Stmt) -> bool:
-    """The one body shape `each <role> simultaneously:` can run. `runtime/execute.py`'s
-    `_pass_selection` implements exactly this — it must snapshot every player's chosen
-    cards against the PRE-block state before applying any of them, which is what makes
-    the pass atomic (Hearts: nobody sees a passed card before choosing their own), and
-    a snapshot is only defined for a chosen movement out of a zone. Any other body
-    reached that code and died on a bare assert."""
-    return isinstance(body, n.Movement) and body.mode == "chosen"
-
-
 def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
     """A procedure body must read as the statements it becomes. Hermeticity is the
     same as a function's — a body references only its own parameters, the binders
@@ -1643,22 +1633,27 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"{' or '.join(sorted(SIMULTANEOUS_ROLES))}",
                     nd.span,
                 )
-            case n.EachSimultaneous() if not _is_simultaneous_body(nd.body):
+            case n.EachSimultaneous() if n.simultaneous_body_error(nd.body) is not None:
                 # The form gated its DOMAIN (above) and not its BODY. The executor
                 # implements exactly one body shape, so everything else compiled and
                 # then died on a bare assert — a runtime crash for a statically
                 # checkable error, in the wrong currency. `run` made it reachable
                 # from an entirely natural-looking program (`each player
                 # simultaneously: run pass_card(player)`), since an expansion is a
-                # block, never a bare movement.
+                # block and never a bare movement.
+                #
+                # The reason comes FROM the executor's own requirement
+                # (`n.simultaneous_body_error`), not from a hand-written copy of it:
+                # the first version of this wall mirrored only the first of five
+                # requirements, so `move chosen one card …` still reached the assert.
                 bag.error(
                     f"`each {nd.role} simultaneously` runs one chosen movement per "
-                    f"{nd.role} and nothing else — its body must be a `move chosen "
-                    f"<n> cards from <zone> to <zone>`. The form snapshots every "
+                    f"{nd.role} and nothing else — "
+                    f"{n.simultaneous_body_error(nd.body)}. The form snapshots every "
                     f"{nd.role}'s selection against the state BEFORE the block and "
                     f"applies them together (that is what makes the pass atomic — "
                     f"nobody sees a passed card before choosing their own), and a "
-                    f"snapshot is only defined for a chosen movement",
+                    f"snapshot is only defined for that one shape",
                     nd.span,
                 )
             case n.CardLiteral():

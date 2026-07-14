@@ -105,6 +105,7 @@ from cardlang.diagnostics import DiagnosticError
 from cardlang.ir import emit
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
+import cardlang.resolve as resolve_module
 from cardlang.resolve import _PROCEDURE_PARAM_DOMAINS
 from cardlang.typecheck import KNOWN_TYPE_NAMES
 
@@ -456,7 +457,7 @@ procedure window(who : Player) {
   if score[seat] > 0 { score[seat] += 0 } else { score[seat] += 1 }
   for each player q: if q is seat { move chosen one card from hand[q] to pile }
   for each suit s: score[0] += 0
-  each player simultaneously: move chosen one card from hand[player] to pile
+  each player simultaneously: move chosen 1 cards from hand[player] to pile
   rotate pass_dir through [left, across, right, hold]
   reveal one card from hand[seat]
   shuffle deck
@@ -549,15 +550,49 @@ def test_a_run_may_not_be_an_each_simultaneously_body() -> None:
     )
 
 
-def test_a_non_movement_each_simultaneously_body_is_rejected_at_all() -> None:
-    """The wall is the form's, not the procedure's: a plain statement in that slot
-    was equally broken, and equally accepted, long before `run` existed."""
-    rejects("    each player simultaneously: score[player] += 1", "", "runs one chosen movement")
-    rejects(
-        "    each player simultaneously: move one card from deck to pile",
-        "",
-        "runs one chosen movement",
-    )
+# Every body shape `each <role> simultaneously:` can be given, and what must happen.
+# The legal one is Hearts'; the rest are the executor's five requirements, one per
+# row, each naming the requirement it violates.
+_SIMULTANEOUS_BODIES = [
+    ("move chosen 3 cards from hand[player] to pile", None),
+    ("score[player] += 1", "it must be a movement"),
+    ("move 3 cards from hand[player] to pile", "must be `chosen`"),
+    ("move chosen one card from hand[player] to pile", "countable number"),
+    ("move chosen all cards from hand[player] to pile", "countable number"),
+]
+
+
+@pytest.mark.parametrize("body,why", _SIMULTANEOUS_BODIES)
+def test_each_simultaneously_body_shapes(body: str, why: str | None) -> None:
+    """The wall is the FORM's, not the procedure's: `each player simultaneously:
+    score[player] += 1` was equally broken, and equally accepted, long before `run`
+    existed — it just died on a bare assert instead of getting a diagnostic.
+
+    The keyword-amount rows are why this table exists. The first version of this wall
+    was hand-written against the FIRST of the executor's five requirements
+    (`isinstance(Movement) and mode == "chosen"`), so `move chosen one card …` sailed
+    through the checker and hit the assert anyway. The requirement now lives in ONE
+    place — `nodes.simultaneous_body_error` — which resolve rejects with and the
+    executor asserts against, so the two cannot drift. A checker that mirrors an
+    executor's asserts by hand will always mirror some of them."""
+    src = GAME.format(body=f"    each player simultaneously: {body}", procs="")
+    if why is None:
+        check_dsl(src, "probe")
+    else:
+        with pytest.raises(DiagnosticError) as excinfo:
+            check_dsl(src, "probe")
+        assert why in str(excinfo.value)
+
+
+def test_the_wall_and_the_executor_read_the_same_requirement() -> None:
+    """The pin that keeps them from drifting apart again: both consult the one
+    predicate, and neither restates it."""
+    import inspect
+
+    from cardlang.runtime import execute
+
+    assert "simultaneous_body_error" in inspect.getsource(execute._pass_selection)
+    assert "simultaneous_body_error" in inspect.getsource(resolve_module._validate_refs)
 
 
 def test_a_run_in_a_single_statement_slot_still_runs_the_whole_body() -> None:

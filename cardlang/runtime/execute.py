@@ -454,8 +454,14 @@ def _each_simultaneous(stmt: n.EachSimultaneous, ctx: Ctx) -> None:
 
 
 def _pass_selection(body: n.Stmt, ctx: Ctx) -> list[Card]:
-    assert isinstance(body, n.Movement) and body.mode == "chosen"
-    assert body.source is not None
+    # One backstop against the SAME predicate resolve rejects with, rather than a
+    # hand-written set of asserts that the checker then has to mirror — the mirroring
+    # is what let `move chosen one card …` through the wall and into a bare assert.
+    assert n.simultaneous_body_error(body) is None, (
+        f"`each … simultaneously` reached the executor with an illegal body: "
+        f"{n.simultaneous_body_error(body)} (resolve should have rejected this)"
+    )
+    assert isinstance(body, n.Movement) and body.source is not None
     source = evaluate(body.source, ctx)
     assert isinstance(source, Zone)
     assert not isinstance(body.amount, str)
