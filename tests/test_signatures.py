@@ -1,5 +1,24 @@
 """Stdlib type signatures stay in sync with the name sets, and known signatures
-are correct (cardlang/stdlib/signatures.py)."""
+are correct (cardlang/stdlib/signatures.py).
+
+property:   CALL_SIGS and the runtime `call()` dispatch are one interface:
+            same name set, same per-name arity, and — where an arm plainly
+            forwards to a named helper — Python annotations that agree with
+            the declared DSL types
+domain:     every CALL_SIGS entry × {name, arity, param annotations, return
+            annotation}
+registry:   CALL_SIGS itself for names; the dispatch's own AST for what each
+            arm consumes (derived by parsing, never hand-listed)
+covered:    names (set equality both ways), arity (all arms), annotations for
+            every plain-forward arm and its return
+sampled:    none
+residual:   inline arms (an expression instead of a helper call — team_of,
+            rank_value, card_value, error, peg_pair/run_points) get
+            arity-only coverage: there is no annotation to introspect, and
+            the expression is its own statement of the types. TAny positions
+            are deliberately loose (polymorphic suit_of argument; the typed
+            object model's deferred edges) and skipped by the mapping.
+"""
 
 from __future__ import annotations
 

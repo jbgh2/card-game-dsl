@@ -26,9 +26,9 @@ covered:    every rejected classification at both positions (parametrized);
 sampled:    none
 residual:   a `local` root is accepted unclassified — a binder may hold a
             zone (`let h = hand[0]`), and locals are untyped until the
-            scoped-typing work lands (roadmap.md, "Locals are typed"); the
-            executor's Zone check remains the loud backstop for a local
-            holding a non-zone
+            scoped-typing work lands (design-notes/scope-once.md; roadmap.md,
+            "A `let`-bound name has no static type"); the executor's Zone
+            check remains the loud backstop for a local holding a non-zone
 """
 
 from __future__ import annotations

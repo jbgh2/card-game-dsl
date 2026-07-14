@@ -51,7 +51,21 @@ Things we have noted but consciously not designed yet:
   ordering walls. This is the widest single hole left in the checker and it is not
   procedure-specific — it is the reason several ledgers carry a bounded-coverage
   residual. Fixing it means typing `let` at declaration and threading the binder
-  into `TypeEnv.locals`, which is a checker change, not a surface one.
+  into `TypeEnv.locals`, which is a checker change, not a surface one. The
+  implementation plan — the sequential fold in the statement walk, the parked
+  deeper alternatives, and the acceptance criteria (which ledger residuals must
+  close) — is [design-notes/scope-once.md](design-notes/scope-once.md).
+
+- **The deck-capacity gate does not see move-driven draws.** Its domain is the
+  scripted deals in phase bodies (`cardlang/deckcheck.py`, module docstring):
+  a draw inside a MOVE effect — reached through `offer` or a `round` — is not
+  counted, because a move can fire arbitrarily many times per hand, which is
+  the same not-statically-boundable currency as a deal inside `repeat until`.
+  The gate stays sound for its contract (it never rejects a valid game); the
+  limit matters only for a future draw-heavy game (Rummy-style stock draws),
+  where the honest options are a declared per-hand draw bound on the move
+  type or a runtime refusal with a designer-facing message rather than an
+  exhausted-deck crash. Revisit when such a game enters the corpus.
 
 - **Which round FRAME a `state.` read sees.** The *name* axis is closed — a round
   publishes a declared, typed set of fields and the checker rejects everything
@@ -109,7 +123,15 @@ Things we have noted but consciously not designed yet:
   Rule-template parameters (`rule X(suit: Suit)`) support the Suit domain
   only, and one instantiation per rule name per game — both rejected loudly,
   lifted when a game needs more. Quantifier / `for each` roles are the closed
-  set player/team/suit/rank; `each … simultaneously` is player-only. Rules that the runtime cannot yet enforce at all are a
+  set player/team/suit/rank; `each … simultaneously` is player-only.
+  Value-domain-indexed state (`state { seen[rank] : Integer = 0 }` as a
+  per-rank tally) is rejected: a zone or state index must be a
+  `zone_key_of` domain (player/team — `cardlang/domains.py`), because the
+  runtime keys those stores by an observer-anchored member set. A per-value
+  tally is expressible today as per-player state plus a query; lift the wall
+  when a game genuinely wants the store (the runtime's key-set plumbing
+  already reads the domain table, so the extension is a table row plus an
+  observation-encoding decision, not a rewrite). Rules that the runtime cannot yet enforce at all are a
   named open question, not a rejection —
   [open-questions/rule-scope-beyond-trick-play.md](open-questions/rule-scope-beyond-trick-play.md).
 

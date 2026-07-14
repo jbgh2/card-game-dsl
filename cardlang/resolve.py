@@ -1379,10 +1379,10 @@ def _bad_zone_endpoint(expr: n.Expr | None, what: str) -> str | None:
     a statically nameable error in the wrong currency at the wrong time.
 
     A `local` root stays accepted: a binder may legitimately hold a zone value
-    (`for each player p: move all cards from hand[p] …` subscripts one), and
-    locals are untyped until the scoped-typing work lands (roadmap.md, "Locals
-    are typed") — the executor's Zone check remains the loud backstop for that
-    residual."""
+    (`let h = hand[0]`), and locals are untyped until the scoped-typing work
+    lands (docs/design-notes/scope-once.md; roadmap.md, "A `let`-bound name
+    has no static type") — the executor's Zone check remains the loud backstop
+    for that residual."""
     root = expr
     while isinstance(root, (n.Subscript, n.Member)):
         root = root.obj

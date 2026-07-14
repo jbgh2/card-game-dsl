@@ -4,7 +4,30 @@ A too-large player count is a compile error, not a runtime crash on an exhausted
 deck. The check is conservative — it bounds what it can and skips what it can't
 (`all`, non-literal amounts, deals inside `repeat until`), so it must never reject
 a valid corpus game. These tests pin both directions: over-capacity games fail,
-all 14 corpus games pass, and the skip rules hold.
+all corpus games pass, and the skip rules hold.
+
+property:   every statement kind states its deck behaviour in `_stmt_usage`
+            (count / branch / skip / inert), and the gate never rejects a
+            valid game
+domain:     the `Stmt` union (statement kinds) × deck effect {draw, refill,
+            branch, repeat, inert}
+registry:   `cardlang.ast.nodes.Stmt` — the walk is an exhaustive match
+            (mypy-enforced), so a new statement kind cannot fall to a silent
+            "draws nothing" default (that default is how deals inside a
+            `Block`, and then inside a `produces:` arm, were invisible)
+covered:    Movement (count/refill, both pinned), IfStmt (max-of-branches),
+            ForEach/EachSimultaneous (per-role iteration counts from the
+            domain table), Block (unconditional sequence — both failure
+            directions pinned in test_procedures' capacity-parity test),
+            Produces (max over arms, both directions pinned below),
+            RepeatUntil (skip — sound because the runtime checks the
+            condition first, so the zero-iteration path is always possible)
+sampled:    the inert group (let/assign/rotate/offer/round/produce/jumps) is
+            asserted inert by the match arms' own comments; no per-kind probe,
+            since inertness is "no Movement reachable", a structural fact
+residual:   draws inside MOVE effects (via `offer`/rounds) are outside the
+            gate's domain — not statically boundable; recorded in roadmap.md
+            ("The deck-capacity gate does not see move-driven draws")
 """
 
 from __future__ import annotations
