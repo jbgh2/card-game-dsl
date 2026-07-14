@@ -250,7 +250,21 @@ def _movement_usage(m: n.Movement, carry: int, players: int, deck_zones: set[str
     """Deck usage after a single movement. A move *into* the deck refills it (usage
     resets to 0); a deal *from* the deck adds to usage; anything else is inert."""
     if m.dest is not None and _base_name(m.dest) in deck_zones:
-        return carry, 0  # refill: cards go back to the deck
+        # Cards go back to the deck. A full gather (`all`) or an unbounded
+        # amount refills it — usage resets. A LITERAL return puts back exactly
+        # k, and modeling that as a full refill made the gate blind to the
+        # difference between returning one card and returning the pack:
+        # deal 40, `move 1 cards from hand[0] to deck`, deal 16 was ACCEPTED
+        # (carry reset to 0) and died mid-deal on the runtime's exhausted-deck
+        # error — the crash this gate exists to convert into a compile error.
+        # Subtracting k is exact for a valid game: the runtime errors when a
+        # source holds fewer than a literal demand, so k cards genuinely
+        # return.
+        if m.amount == "one":
+            return carry, max(0, carry - 1)
+        if isinstance(m.amount, n.IntLit):
+            return carry, max(0, carry - m.amount.value)
+        return carry, 0  # `all` / non-literal: a refill
     if m.source is None or _base_name(m.source) not in deck_zones:
         return carry, carry  # not a deck draw
     if m.amount == "all":

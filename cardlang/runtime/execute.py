@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any, Callable, assert_never
 
 from cardlang.ast import nodes as n
-from cardlang.domains import binds_actor, role_members
+from cardlang.domains import SIMULTANEOUS_ROLES, binds_actor, role_members
 from cardlang.runtime import mechanics, observe
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, Zone, _ContinueTo, _ProduceSignal, _SkipHand
@@ -109,7 +109,14 @@ def _movement(stmt: n.Movement, ctx: Ctx) -> None:
         _gather(stmt, ctx)  # `move all cards to <zone>` — collect from everywhere
         return
     source = evaluate(stmt.source, ctx)
-    assert isinstance(source, Zone)
+    if not isinstance(source, Zone):
+        # User-reachable through the one recorded gap in the endpoint wall: a
+        # `let`-bound endpoint reaches the runtime untyped (resolve accepts a
+        # `local` root; design-notes/scope-once.md). Typed error, not assert.
+        raise RuntimeError(
+            f"movement source is not a zone (got {type(source).__name__}) — a "
+            f"`let`-bound endpoint is only checked at runtime until locals are typed"
+        )
     if stmt.dest_each:
         assert isinstance(stmt.dest, n.NameRef)
         if stmt.distribution == "as_equally_as_possible":
@@ -125,7 +132,11 @@ def _movement(stmt: n.Movement, ctx: Ctx) -> None:
     else:
         assert stmt.dest is not None
         dest = evaluate(stmt.dest, ctx)
-        assert isinstance(dest, Zone)
+        if not isinstance(dest, Zone):
+            raise RuntimeError(
+                f"movement destination is not a zone (got {type(dest).__name__}) — a "
+                f"`let`-bound endpoint is only checked at runtime until locals are typed"
+            )
         player = (
             ctx.require_actor("a chosen movement")
             if stmt.mode == "chosen"
@@ -178,7 +189,11 @@ def _gather(stmt: n.Movement, ctx: Ctx) -> None:
     """`move all cards to <zone>`: collect every card from all other zones."""
     assert stmt.amount == "all" and isinstance(stmt.dest, n.NameRef)
     dest = evaluate(stmt.dest, ctx)
-    assert isinstance(dest, Zone)
+    if not isinstance(dest, Zone):
+        raise RuntimeError(
+            f"gather destination is not a zone (got {type(dest).__name__}) — a "
+            f"`let`-bound endpoint is only checked at runtime until locals are typed"
+        )
     zones = ctx.rs.zones
     for name, zone in zones.singles.items():
         if zone is not dest:
@@ -272,7 +287,11 @@ def _select_filtered(
 
 def _epistemic(stmt: n.EpistemicOp, ctx: Ctx) -> None:
     zone = evaluate(stmt.target, ctx)
-    assert isinstance(zone, Zone)
+    if not isinstance(zone, Zone):
+        raise RuntimeError(
+            f"'{stmt.op}' target is not a zone (got {type(zone).__name__}) — a "
+            f"`let`-bound target is only checked at runtime until locals are typed"
+        )
     if stmt.op == "shuffle":
         ctx.rs.rng.shuffle(zone.cards)
         return
@@ -332,7 +351,19 @@ def _assign(stmt: n.AssignStmt, ctx: Ctx) -> None:
         ctx.rs.set(name, new)
     else:
         key = evaluate(stmt.index, ctx)
-        target = ctx.rs.get(stmt.target.name)  # the per-player map
+        target = ctx.rs.get(stmt.target.name)  # the per-key map
+        if key not in target:
+            # The store's key set IS the index domain's member set (the driver
+            # declares it from the domain table), and a write outside it used
+            # to mint a phantom key silently: `n[9] := 1` in a 4-player game
+            # ran clean and `winner: highest n` crowned player 9. An index
+            # expression is runtime data (an off-by-one at the ring's edge
+            # lands here), so the wall is a typed runtime error at the write.
+            raise RuntimeError(
+                f"'{stmt.target.name}[{key!r}]' is outside the variable's "
+                f"declared domain (keys: {sorted(target)}) — the index "
+                f"expression computed a member of no declared seat/team"
+            )
         target[key] = rhs if stmt.op == ":=" else _apply(stmt.op, target[key], rhs)
 
 
@@ -443,7 +474,16 @@ def _each_simultaneous(stmt: n.EachSimultaneous, ctx: Ctx) -> None:
     # player's source hand isn't read by another's body, so sequential
     # execution with the chooser reading current hands is equivalent (see
     # decisions.md "Simultaneous moves").
-    assert stmt.role == "player"
+    # This executor IMPLEMENTS only the player row (it iterates seats and
+    # rebinds `acting_as`), so it pins the registry's whole simultaneous column
+    # to that fact: widening SIMULTANEOUS_ROLES in the domain table without
+    # extending this loop must fail here by name, not silently iterate players
+    # for some other role.
+    assert SIMULTANEOUS_ROLES == {"player"} and stmt.role == "player", (
+        f"_each_simultaneous implements the player row only; SIMULTANEOUS_ROLES "
+        f"is {sorted(SIMULTANEOUS_ROLES)} and this block names '{stmt.role}' — "
+        f"extend the executor before widening the registry"
+    )
     # Snapshot every player's chosen cards against pre-block hands, then apply.
     selections: dict[Player, list[Card]] = {}
     for player in ctx.rs.seating.players:

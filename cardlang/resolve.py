@@ -48,6 +48,15 @@ from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 # here, re-spelled as `== "team"` at four more sites downstream).
 _KNOWN_ROLES = ZONE_INDEX_ROLES
 
+# Domain nouns that mislead as an indexed-`let` binder. `let x[i] = …` builds a
+# per-PLAYER map — the index is a binder bound to each player in turn, whatever
+# it is named — so a binder named after a NON-player domain reads as a
+# per-suit/per-team store the form does not build (`let x[suit] = 1` keyed by
+# players, then `x[hearts]` key-errors; a team read silently lands on a seat).
+# Derived from the iteration-role column, minus the domain the form actually
+# ranges over.
+_MISLEADING_LET_INDEXES = _ITERATION_ROLES - {"player"}
+
 # The three domain-registry views this module gates on, all derived from the one
 # table in `cardlang.domains` (which also owns typecheck's binder typing and the
 # runtime's member enumerators, so the sites can't drift):
@@ -1370,13 +1379,15 @@ def _bad_write_target(node: n.AssignStmt | n.RotateStmt) -> str | None:
 
 
 def _bad_zone_endpoint(expr: n.Expr | None, what: str) -> str | None:
-    """Why this movement endpoint (`from <here>` / `to <here>`) is illegal, or
-    None. The same move as `_bad_write_target`, one grammar position over: an
-    endpoint is name-shaped (the grammar rejects literals there), so its ROOT
-    name has a classification, and most classifications cannot possibly be a
-    zone. `deal 1 cards from turn to each hand` (with `turn : Integer`) used to
-    check clean and die mid-playout on a bare AssertionError in the executor —
-    a statically nameable error in the wrong currency at the wrong time.
+    """Why this zone-position expression (a movement's `from <here>` /
+    `to <here>`, an epistemic op's target) is illegal, or None. The same move
+    as `_bad_write_target`, one grammar position over: the position is
+    name-shaped (the grammar rejects literals there), so its ROOT name has a
+    classification, and most classifications cannot possibly be a zone.
+    `deal 1 cards from turn to each hand` and `shuffle turn` (with
+    `turn : Integer`) both used to check clean and die mid-playout on a bare
+    AssertionError in the executor — a statically nameable error in the wrong
+    currency at the wrong time.
 
     A `local` root stays accepted: a binder may legitimately hold a zone value
     (`let h = hand[0]`), and locals are untyped until the scoped-typing work
@@ -1394,9 +1405,7 @@ def _bad_zone_endpoint(expr: n.Expr | None, what: str) -> str | None:
     what_it_is = _WRITE_TARGET_KINDS.get(kind, f"a {kind}")
     if kind == "state_var":
         what_it_is = "a state variable"
-    return (
-        f"cannot move cards {what} '{root.name}': it is {what_it_is}, not a zone"
-    )
+    return f"cannot {what} '{root.name}': it is {what_it_is}, not a zone"
 
 
 def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
@@ -1716,6 +1725,9 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     defined_types = {t.name for t in game.types}
     defined_defines = {d.name for d in game.defines}
     defined_functions = {f.name for f in game.functions}
+    # Which role (if any) each declared zone family is keyed by — the fact the
+    # `to each <family>` wall needs (the executor keys parcels per PLAYER).
+    zone_index = {z.name: z.index for z in game.zones}
     # A `produces:` consumer may also name an outcome-declaring phase (its outcome
     # is produced as the phase runs, then dispatched by a sibling consumer).
     outcome_phases = {
@@ -1766,6 +1778,36 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         f"(roadmap.md records the extension)",
                         nd.span,
                     )
+                elif nd.index == "team" and not game.partnerships:
+                    # A team-indexed store in a game with no partnerships has
+                    # an EMPTY key set: it declares fine, holds nothing, and
+                    # every later `x[…] := …` hits the runtime key wall far
+                    # from the real mistake (the missing `partnerships:`).
+                    bag.error(
+                        f"state variable '{nd.name}' is indexed by 'team' but "
+                        f"the game declares no `partnerships:` — there are no "
+                        f"teams to key it by",
+                        nd.span,
+                    )
+            case n.ZoneDecl() if nd.index == "team" and not game.partnerships:
+                bag.error(
+                    f"zone '{nd.name}' is indexed by 'team' but the game "
+                    f"declares no `partnerships:` — there are no teams to key "
+                    f"it by",
+                    nd.span,
+                )
+            case n.LetStmt() if (
+                nd.index is not None and nd.index in _MISLEADING_LET_INDEXES
+            ):
+                bag.error(
+                    f"`let {nd.name}[{nd.index}]` builds a per-PLAYER map — "
+                    f"the index is a binder bound to each player in turn, "
+                    f"whatever its name — so a binder named '{nd.index}' "
+                    f"reads as a per-{nd.index} store this form does not "
+                    f"build. Rename the binder; per-value stores are recorded "
+                    f"in roadmap.md",
+                    nd.span,
+                )
             case n.StructField() if (
                 nd.type_name not in KNOWN_TYPE_NAMES
                 and nd.type_name not in defined_types
@@ -1841,10 +1883,50 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 if bad is not None:
                     bag.error(bad, nd.span)
             case n.Movement():
-                for endpoint, direction in ((nd.source, "from"), (nd.dest, "to")):
+                # The `in <zone>` form has no `from` clause (its zone parses
+                # into `source`) — say `in`, not `from`, when rejecting it.
+                source_phrase = (
+                    f"{nd.verb} cards in"
+                    if nd.dest is None and nd.source is not None
+                    else "move cards from"
+                )
+                for endpoint, direction in (
+                    (nd.source, source_phrase),
+                    (nd.dest, "move cards to"),
+                ):
                     bad = _bad_zone_endpoint(endpoint, direction)
                     if bad is not None:
                         bag.error(bad, nd.span)
+                if nd.dest_each and isinstance(nd.dest, n.NameRef):
+                    # `to each X` deals one parcel per PLAYER (the executor
+                    # iterates seats and keys `X[player]`), so X must be a
+                    # player-indexed family. Before this wall, `to each deck`
+                    # (a singleton) checked clean and died on a raw KeyError,
+                    # and `to each captured` (a TEAM family) silently dealt
+                    # into team slots AS IF team ids were seats before crashing
+                    # — player keying was assumed, not checked, the same class
+                    # as the `== "team"` defaults the domain table replaced.
+                    idx = zone_index.get(nd.dest.name)
+                    if nd.dest.ref_kind == "zone" and idx != "player":
+                        what_z = (
+                            "a singleton zone"
+                            if idx is None
+                            else f"a family keyed by {idx}"
+                        )
+                        bag.error(
+                            f"`to each {nd.dest.name}` deals one parcel per "
+                            f"player, but '{nd.dest.name}' is {what_z} — name "
+                            f"a player-indexed family (like hand[player]), or "
+                            f"target one instance directly",
+                            nd.span,
+                        )
+            case n.EpistemicOp():
+                # The other member of the zone-position class: `shuffle turn` /
+                # `reveal one card from turn` checked clean and died on the
+                # executor's Zone assert, exactly like the movement endpoints.
+                bad = _bad_zone_endpoint(nd.target, nd.op)
+                if bad is not None:
+                    bag.error(bad, nd.span)
             case n.Winner() if nd.target not in cats.state_vars:
                 bag.error(f"winner references unknown variable '{nd.target}'", nd.span)
             case n.Offer():

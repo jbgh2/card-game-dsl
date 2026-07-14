@@ -130,7 +130,21 @@ def _name(e: n.NameRef, ctx: Ctx) -> Any:
             return ctx.rs.get(e.name)
         case "zone":
             if ctx.rs.zones.is_family(e.name):
-                assert ctx.current_player is not None
+                if ctx.current_player is None:
+                    # The bare-family actor sugar (`hand` = the acting
+                    # player's hand) read outside any acting context — a phase
+                    # body has no actor. User-reachable (`shuffle hand` in a
+                    # phase body checks clean today), so it fails in the
+                    # runtime's currency with the fix named, not a bare
+                    # assert. A static wall needs statement-position context
+                    # resolve does not thread yet (design-notes/scope-once.md
+                    # is the same missing plumbing, seen from types).
+                    raise RuntimeError(
+                        f"'{e.name}' is a per-player zone family read with no "
+                        f"acting player — subscript it (`{e.name}[p]`) or use "
+                        f"it where an actor is bound (a move effect, a `for "
+                        f"each player` body)"
+                    )
                 return ctx.rs.zones.instance(e.name, ctx.current_player)
             return ctx.rs.zones.single(e.name)
         case "null":

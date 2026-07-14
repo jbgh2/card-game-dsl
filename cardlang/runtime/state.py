@@ -14,7 +14,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Iterable
 
 from cardlang.ast import nodes as n
-from cardlang.domains import DomainSources, role_static_members
+from cardlang.domains import ZONE_INDEX_ROLES, DomainSources, role_static_members
 from cardlang.runtime.values import Card, Player, Seating
 
 
@@ -115,9 +115,20 @@ class ZoneStore:
             else:
                 # The family's key set is the index domain's member set, read
                 # from the domain table. The old `teams if index == "team" else
-                # players` silently keyed ANY other role by players; the table
-                # raises for a role no row covers (resolve rejects those, so
-                # reaching it means a row and this site disagree).
+                # players` silently keyed ANY other role by players. The gate
+                # below is what makes the backstop REAL: an unknown role
+                # raises inside `role_static_members`, but a known
+                # non-indexable row (suit/rank) would quietly enumerate the
+                # deliberately-empty () sources and build a zero-instance
+                # family whose every access key-errors far from the cause.
+                # Resolve walls these declarations; reaching this raise means
+                # a construction path bypassed it.
+                if decl.index not in ZONE_INDEX_ROLES:
+                    raise AssertionError(
+                        f"zone family '{decl.name}' is indexed by "
+                        f"'{decl.index}', which is not a zone-index role "
+                        f"(resolve rejects this declaration)"
+                    )
                 keys = role_static_members(
                     decl.index,
                     DomainSources(suits=(), ranks=(), players=players, teams=teams),

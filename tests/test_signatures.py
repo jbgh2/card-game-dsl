@@ -242,6 +242,25 @@ def _python_type(t: object) -> object | None:
             return None  # TAny and collection shapes: deliberately loose
 
 
+def test_the_dispatch_parse_actually_resolves_helpers() -> None:
+    """The annotation reconciliation silently skips arms whose helper it cannot
+    resolve, so a mechanical dispatch refactor (a helpers dict, attribute
+    calls, keyword arguments) could decay it to checking nothing while staying
+    green. Pin the residual exactly: the only arms without an introspectable
+    helper are the four inline expressions the module ledger names."""
+    facts = _call_dispatch_facts()
+    inline = sorted(
+        name
+        for name, fact in facts.items()
+        if fact.helper is None or not callable(fact.helper)
+    )
+    assert inline == ["card_value", "error", "rank_value", "team_of"], (
+        f"arms with no introspectable helper: {inline} — if the dispatch shape "
+        "changed, teach _call_dispatch_facts the new shape rather than letting "
+        "the annotation check silently skip these"
+    )
+
+
 def test_call_sigs_arity_matches_the_dispatch() -> None:
     """Every CALL_SIGS entry consumes exactly its declared parameter count in
     the runtime match — an arm reading args[2] for a two-parameter signature

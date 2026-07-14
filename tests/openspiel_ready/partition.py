@@ -22,6 +22,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from cardlang.domains import zone_observer_key
 from cardlang.openspiel.infostate import information_state
 from cardlang.runtime.state import RuntimeState, Zone
 from cardlang.runtime.values import Card
@@ -59,12 +60,17 @@ def first_divergence(a: str, b: str, context: int = 40) -> str:
 
 
 def _is_owner(rs: RuntimeState, name: str, key: int | None, observer: int) -> bool:
+    """Mirrors runtime/observe.py::_is_owner — and reads the SAME domain-table
+    column (`zone_key_of`) it does, so the proof oracle cannot drift from the
+    thing it proves. This used to be a private `== "team"` copy of the
+    ownership rule with a silent default-to-player else branch: a third
+    indexable role would have been projected by the runtime through the table
+    while the proofs silently player-keyed it — the corpus checked against a
+    stale oracle."""
     index = rs.zones.zone_index[name]
     if key is None or index is None:
         return False
-    if index == "team":
-        return rs.team_of.get(observer) == key
-    return observer == key
+    return zone_observer_key(index, rs, observer) == key
 
 
 def projection_for(rs: RuntimeState, name: str, key: int | None, observer: int) -> str:
