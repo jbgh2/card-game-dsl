@@ -21,7 +21,7 @@ every diagnostic collected, not just the first.
 from __future__ import annotations
 
 from dataclasses import dataclass, fields, is_dataclass, replace
-from typing import Callable, Iterator
+from typing import Callable, Iterator, assert_never, cast, get_args
 
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
@@ -158,6 +158,12 @@ def resolve(game: n.Game) -> n.Game:
     return game
 
 
+# The Node union's members, for the runtime gate below. `get_args` reads the
+# union itself, and tests/test_node_registry.py pins that union to the module's
+# actual dataclasses — so this tuple cannot silently miss a node kind.
+_NODE_KINDS: tuple[type, ...] = get_args(n.Node)
+
+
 def _introduced_binders(node: object) -> tuple[str, ...]:
     """The single registry of "which node kinds bind names, and which names":
     every other place that needs to know (`_template_binders`'s collision
@@ -165,14 +171,36 @@ def _introduced_binders(node: object) -> tuple[str, ...]:
     scoping via `_BINDER_SCOPE_FIELDS`) reads this instead of re-enumerating
     the node-kind match itself — three copies of that match previously drifted
     out of sync (missing the `Movement`/`EpistemicOp` filter arm in two of
-    them). A node kind not listed here introduces no binder.
+    them).
+
+    Walks feed this every field value they meet, so non-node values (a `str`
+    name, a `Span`, an `int`) answer "nothing" here; every actual node kind is
+    dispatched exhaustively in `_node_binders`."""
+    if not isinstance(node, _NODE_KINDS):
+        return ()
+    return _node_binders(cast(n.Node, node))
+
+
+def _node_binders(node: n.Node) -> tuple[str, ...]:
+    """Exhaustive over `Node` — deliberately. This registry's only two known
+    escapes (`ProduceArm`, then `TypeDef`) both lived in a `case _: return ()`
+    catch-all: a node kind nobody had thought about answered "no binders"
+    without anyone having decided that. Now a new node kind is a mypy error
+    here until someone files it under binding or non-binding by hand.
 
     `LetStmt` returns both `name` and `index` (when present) — every name it
     binds *somewhere*, which is what a collision check needs. The two differ
     in WHERE they're visible (`index` scopes only its own `value`; `name`
     scopes to later statements in the same tuple), which is a lexical-scoping
     fact `_rewrite` must handle itself, not this registry (see the `LetStmt`
-    branch in `_rewrite` and the sequential fold in `_rewrite_value`)."""
+    branch in `_rewrite` and the sequential fold in `_rewrite_value`).
+
+    Parameter-bearing declarations (`MoveTypeDef`, `RuleDef`, `FunctionDef`,
+    `ProcedureDef`) are non-binding HERE by design, not by omission: their
+    parameters scope to their own guard/effect/body only, which `_rewrite`
+    implements in per-declaration arms, and `_check_reserved_params` sweeps
+    them for reserved words. This registry answers for nodes a body walk can
+    encounter, where the binder scopes within the walked tree itself."""
     match node:
         case n.Comprehension() | n.Quantifier() | n.ForEach():
             return (node.binder,)
@@ -206,8 +234,44 @@ def _introduced_binders(node: object) -> tuple[str, ...]:
             # fields itself, so listing them here changes no scoping — it only makes
             # them visible to the sweeps that read this registry, which is the point.
             return tuple(f.name for f in node.fields)
-        case _:
+        # A filter-less Movement/EpistemicOp falls through its guarded arm above:
+        # no candidate set, so no `card` binder.
+        case n.Movement() | n.EpistemicOp():
             return ()
+        # Declarations and game/phase structure. (The parameter-bearing ones are
+        # covered by `_rewrite` + `_check_reserved_params` — see the docstring.)
+        case (
+            n.Game() | n.PlayersSpec() | n.Winner() | n.Loser()
+            | n.MoveTypeDef() | n.MoveParam() | n.RuleDef() | n.RuleRef()
+            | n.AppliesWhen() | n.Demands()
+            | n.DefineDef() | n.FunctionDef() | n.ProcedureDef()
+            | n.VariantCase() | n.StructField() | n.DerivedField()
+            | n.ZoneDecl() | n.TypeRef() | n.TypeArg()
+            | n.StateBlock() | n.StateDecl()
+            | n.Phase() | n.PhaseQualifier() | n.BeforeEach() | n.AfterEach()
+            | n.ActiveRules() | n.LegalMoves() | n.TransitionTo() | n.MoveEvent()
+        ):
+            # `StateDecl` in particular: state variables are a flat, game-wide
+            # declaration namespace (`_categories`'s `state_vars`), not a binder
+            # any construct introduces.
+            return ()
+        # Statements that bind nothing.
+        case (
+            n.RotateStmt() | n.RepeatUntil() | n.IfStmt() | n.AssignStmt()
+            | n.Offer() | n.Round() | n.Produce() | n.Produces()
+            | n.ContinueTo() | n.SkipToNextHand() | n.RunStmt() | n.Block()
+        ):
+            return ()
+        # Expressions that bind nothing.
+        case (
+            n.NameRef() | n.IntLit() | n.StrLit() | n.ListLit() | n.CardLiteral()
+            | n.AllPlayers() | n.Member() | n.Subscript() | n.FieldInit()
+            | n.StructLit() | n.Call() | n.NamedArg() | n.BinOp() | n.Not()
+            | n.IsCheck() | n.IfExpr() | n.Choose()
+        ):
+            return ()
+        case _:
+            assert_never(node)
 
 
 def _template_binders(rule: n.RuleDef) -> set[str]:
@@ -711,30 +775,18 @@ def _resolve_phase_item(
                 f"'{item.event.move_type}' (roadmap.md)",
                 item.event.span,
             )
-    elif isinstance(item, (n.BeforeEach, n.AfterEach)):
-        for stmt in item.body:
-            _resolve_stmt(stmt, bag)
-    elif isinstance(item, (n.Phase, n.StateBlock)):
-        pass  # phases recurse via the level walk; state blocks resolve later
+    elif isinstance(item, (n.Phase, n.StateBlock, n.BeforeEach, n.AfterEach)):
+        # Phases recurse via the level walk; state blocks resolve later; hook
+        # bodies are plain statement sequences with nothing item-level to check.
+        pass
     else:
-        _resolve_stmt(item, bag)
-
-
-def _resolve_stmt(stmt: n.Stmt, bag: DiagnosticBag) -> None:
-    """Walk a statement (recursing into compound bodies) for the references this
-    pass checks."""
-    if isinstance(stmt, n.RepeatUntil):
-        for inner in stmt.body:
-            _resolve_stmt(inner, bag)
-    elif isinstance(stmt, n.EachSimultaneous):
-        _resolve_stmt(stmt.body, bag)
-    elif isinstance(stmt, n.ForEach):
-        _resolve_stmt(stmt.body, bag)
-    elif isinstance(stmt, n.IfStmt):
-        for inner in stmt.then_body:
-            _resolve_stmt(inner, bag)
-        for inner in stmt.else_body or ():
-            _resolve_stmt(inner, bag)
+        # `item` is a statement — nothing to resolve at phase-item level. The
+        # annotated assignment is the exhaustiveness pin: a new PhaseItem block
+        # kind falls here and fails mypy until this function decides what to do
+        # with it. (A statement walk used to hang off this arm; its one leaf
+        # check died with the `instantiate` construct and the walk sat vacuous —
+        # recursing into every body, checking nothing. Deleted, not kept.)
+        _only_statements_reach_here: n.Stmt = item
 
 
 @dataclass(frozen=True)

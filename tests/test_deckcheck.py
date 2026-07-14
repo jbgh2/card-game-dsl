@@ -122,6 +122,48 @@ def test_deal_inside_repeat_until_is_skipped() -> None:
     check_dsl(_game("5", body), "repeat.cardlang")
 
 
+def _produces_game(arm_a: str, arm_b: str) -> str:
+    """A game whose only deals sit inside `produces:` arm bodies — the statement
+    position the gate's old silent default never saw."""
+    return f"""game G {{
+  players: 4
+  max_length: 1000
+  direction: clockwise
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones {{ deck : Deck  hand[player] : Hand<player> }}
+  state {{ n[player] : Integer = 0 }}
+  phase deal {{
+    d produces:
+      A {{ {arm_a} }}
+      B {{ {arm_b} }}
+  }}
+  winner: highest n
+}}
+define d -> {{ A | B }} {{ produce A }}"""
+
+
+def test_deal_inside_a_produces_arm_is_counted() -> None:
+    # 4 * 14 = 56 > 52, written inside an arm body. Before `_stmt_usage` was
+    # exhaustive, `Produces` fell to its silent default and this overflow sailed
+    # through to a runtime ValueError on an exhausted deck.
+    src = _produces_game("deal 14 cards from deck to each hand", "n[0] := 1")
+    with pytest.raises(DiagnosticError) as exc:
+        check_dsl(src, "arm-over.cardlang")
+    assert "56" in str(exc.value)
+
+
+def test_produces_arms_bound_by_max_not_sum() -> None:
+    # Exactly one arm runs, so two 52-card arms bound to 52, not 104. Summing
+    # them would falsely reject this valid game — the arm treatment is max, the
+    # same shape as if/else.
+    src = _produces_game(
+        "deal 13 cards from deck to each hand",
+        "deal 13 cards from deck to each hand",
+    )
+    check_dsl(src, "arm-max.cardlang")
+
+
 # --- the corpus must all pass (no false positive) -----------------------------
 
 

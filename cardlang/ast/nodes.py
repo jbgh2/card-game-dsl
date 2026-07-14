@@ -983,7 +983,11 @@ class Game:
     span: Span | None = None
 
 
-# The closed union. Consumers should match exhaustively over this.
+# The closed union of EVERY dataclass in this module. Consumers dispatch over it
+# exhaustively (`match` + `assert_never`), so membership is what makes a new node
+# kind loud everywhere. The list is pinned to the module's actual contents by
+# tests/test_node_registry.py — it drifted silently once (four members missing,
+# nothing noticed, because the only consumer was a docstring).
 Node = (
     Game
     | PlayersSpec
@@ -993,6 +997,7 @@ Node = (
     | MoveParam
     | VariantCase
     | DefineDef
+    | FunctionDef
     | StructField
     | DerivedField
     | TypeDef
@@ -1027,6 +1032,8 @@ Node = (
     | Produce
     | ProduceArm
     | Produces
+    | ContinueTo
+    | SkipToNextHand
     | RunStmt
     | Block
     | ProcedureDef
@@ -1034,6 +1041,7 @@ Node = (
     | NameRef
     | IntLit
     | StrLit
+    | ListLit
     | CardLiteral
     | AllPlayers
     | Member
