@@ -43,19 +43,6 @@ Things we have noted but consciously not designed yet:
   in the caller's context, and the body runs in a block (decisions.md "Named
   procedures").
 
-- **A `let`-bound name has no static type, so any wall reading it is blind.**
-  `let` binders are scoped correctly at resolve and at runtime but are never
-  threaded into the type environment, so they infer `Any`. Every type wall is dark
-  behind one: `run bump(hearts)` is rejected against a `Player` parameter while
-  `let z = hearts` / `run bump(z)` is not, and the same holds for the equality and
-  ordering walls. This is the widest single hole left in the checker and it is not
-  procedure-specific — it is the reason several ledgers carry a bounded-coverage
-  residual. Fixing it means typing `let` at declaration and threading the binder
-  into `TypeEnv.locals`, which is a checker change, not a surface one. The
-  implementation plan — the sequential fold in the statement walk, the parked
-  deeper alternatives, and the acceptance criteria (which ledger residuals must
-  close) — is [design-notes/scope-once.md](design-notes/scope-once.md).
-
 - **The deck-capacity gate does not see move-driven draws.** Its domain is the
   scripted deals in phase bodies (`cardlang/deckcheck.py`, module docstring):
   a draw inside a MOVE effect — reached through `offer` or a `round` — is not
@@ -260,25 +247,6 @@ Things we have noted but consciously not designed yet:
   dispatcher, `_check_bool` on every predicate/filter/body position,
   `_check_card_source`) are in `tests/test_operator_walls.py`,
   `tests/test_aggregation_walls.py`, and `tests/test_context_walls.py`.
-
-  **Let-bound local typing across statements.** No wall: `let x = <expr>`
-  does not extend `TypeEnv.locals` for the statements that follow it in the
-  flat statement walk (`_all_statements_scoped`/`_stmt_tree_scoped` track
-  ForEach/EachSimultaneous loop binders and function params, not `LetStmt`
-  bindings) — a `let`-bound name therefore infers `TAny` everywhere it is
-  read later in the same body, regardless of what its initializer actually
-  computed. This predates the operator/predicate-context walls above and
-  affects all of them equally (an enum-comparison, an ordering/arithmetic/
-  membership mistake, an `is none`/`is empty` mistake — any wall in
-  `typecheck.py` — goes dark on a `let`-derived operand). Function bodies
-  are unaffected (params are typed via `_function_sigs`'s `func_env.
-  with_local`); this is specific to the phase/move-type/define statement
-  walk. Pinned as a live (not yet closed) residual by
-  `tests/test_operator_walls.py::test_offset_by_accepts_gradual_any_on_either_side`.
-  Threading `let` bindings through that walk (sequentially, since a
-  `let` scopes to the statements after it, not a nested body) is its own
-  design/implementation exercise, not attempted alongside the operator-axis
-  work above.
 
   **Action-field typing beyond the universal card/actor pair.** Wall:
   `ACTION_FIELDS` (cardlang/typecheck.py) types `action.card` (Card) and

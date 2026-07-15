@@ -68,9 +68,18 @@ class TOptional:
 class TCollection:
     """An ordered/keyed collection of ``element`` (a zone's contents, a query
     result, a player set). Structural distinctions (set/ordered/stack) and the
-    full query API are deferred."""
+    full query API are deferred.
+
+    ``key`` is the subscript's domain when the collection is a KEYED map — a
+    per-player/per-team state variable, an indexed `let` — and ``None`` for
+    positional collections and untracked shapes. It participates in the
+    subscript/indexed-assignment key checks only, never in assignability or
+    unification (`_bare_collection` strips it there): the value space of
+    `score[player]` IS `Collection<Integer>`; the key is a fact about how you
+    may ADDRESS it, not about what it holds."""
 
     element: "Type"
+    key: "Type | None" = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -183,4 +192,9 @@ def assignable(src: Type, dst: Type) -> bool:
         return assignable(src.inner, dst)
     if isinstance(src, TInteger) and isinstance(dst, (TPlayer, TTeam)):
         return True
+    if isinstance(src, TCollection) and isinstance(dst, TCollection):
+        # The key is how a map is ADDRESSED, not part of its value space —
+        # strip it and compare elements exactly as the old whole-type equality
+        # did for keyless collections.
+        return src.element == dst.element
     return False

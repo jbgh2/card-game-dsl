@@ -84,13 +84,12 @@ procedures", "Surface totality", "Closed-domain completeness").
                   - `actor` / `action` in a body: rejected unconditionally, even
                     where a `for each player` in the body would bind one, because
                     it would silently mean the loop's player.
-                  - An argument whose TYPE the checker cannot see. `let`-bound names
-                    are not threaded into the type environment (a pre-existing gap,
-                    recorded in roadmap.md), so they infer `TAny` and the `run`-site
-                    argument-type check passes them. `run bump(hearts)` is rejected;
-                    `let z = hearts` then `run bump(z)` is not, and fails at runtime.
-                    The wall is the pre-existing one; the residual is that this
-                    axis's coverage is bounded by it.
+                  (The former residual here — a `let`-laundered argument type,
+                  `let z = hearts` then `run bump(z)` passing a `Player`
+                  parameter — is CLOSED: lets are typed at declaration and the
+                  `run`-site check fires through them, pinned by
+                  `test_a_run_argument_is_typed_through_a_let` below and the
+                  ledger in tests/test_let_typing.py.)
 """
 
 from __future__ import annotations
@@ -779,6 +778,18 @@ def test_wrong_argument_type_is_rejected() -> None:
     once the body is spliced inline there is no call site left to check."""
     rejects(
         "    run f(hearts)",
+        "procedure f(who : Player) { score[who] += 1 }",
+        "procedure 'f' expects Player, got Suit",
+    )
+
+
+def test_a_run_argument_is_typed_through_a_let() -> None:
+    """The ledger's former residual, closed: `let z = hearts` used to launder
+    the argument to `TAny` and the `run`-site check passed it — the same wall
+    that had just rejected the inline spelling. Lets are typed at declaration
+    now, so the two spellings agree."""
+    rejects(
+        "    let z = hearts\n    run f(z)",
         "procedure f(who : Player) { score[who] += 1 }",
         "procedure 'f' expects Player, got Suit",
     )
