@@ -74,7 +74,7 @@ corpus users of its own.
 
 Related: [decisions.md](../decisions.md) "Round configuration vs rules" (the
 existing forms' knob philosophy this form should follow);
-[single-actor-binding](single-actor-binding.md) (the companion binder for
-one-player decisions inside and outside loops);
+[decisions.md](../decisions.md) "Single-actor decisions: the `as` block" (the
+companion binder for one-player decisions inside and outside loops);
 [games/_candidates.md](../games/_candidates.md) (president, gin-rummy — the
 anchor candidates).

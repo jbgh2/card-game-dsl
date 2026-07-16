@@ -48,6 +48,9 @@ def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
             elif stmt.else_body is not None:
                 run_body(stmt.else_body, ctx)
             return ctx
+        case n.AsBlock():
+            _as_block(stmt, ctx)
+            return ctx
         case n.Offer():
             _offer(stmt, ctx)
             return ctx
@@ -391,6 +394,18 @@ def _for_each(stmt: n.ForEach, ctx: Ctx) -> None:
         if actor_bound:
             body_ctx = body_ctx.acting_as(member)
         execute(stmt.body, body_ctx)
+
+
+def _as_block(stmt: n.AsBlock, ctx: Ctx) -> None:
+    """`as <p> { … }` — evaluate the player in the OUTER context, bind it as the
+    acting player, and run the body ONCE as a block scope (its `let`s do not
+    escape, like `Block`). The first-class single-actor binder: the identical
+    `acting_as` path `for each player p: if p is <p>` reaches, so a `chosen`
+    movement in the body is attributed to this one player — but the player
+    expression is evaluated once, outside the rebind, so it cannot be captured
+    (`as actor { … }` is idempotent) and no other player's turn can slip in."""
+    player = evaluate(stmt.player, ctx)
+    run_body(stmt.body, ctx.acting_as(player))
 
 
 def _offer(stmt: n.Offer, ctx: Ctx) -> None:

@@ -523,6 +523,12 @@ def _stmt_tree_scoped(
         case n.IfStmt():
             yield from _seq_tree_scoped(s.then_body, binders)
             yield from _seq_tree_scoped(s.else_body or (), binders)
+        case n.AsBlock():
+            # Rebinds the acting player, not a loop binder — its body sees the
+            # same binders as the block, and its player expression is an
+            # expression (walled by `_check_stmt_exprs`, typed to Player in
+            # `_check_stmt`), so nothing new enters scope here.
+            yield from _seq_tree_scoped(s.body, binders)
         case n.Block():
             # Synthetic, and created only by `expand`, which runs AFTER this
             # pass — so nothing here ever sees one today. The arm exists anyway:
@@ -1505,6 +1511,8 @@ def _stmt_exprs(s: n.Stmt) -> list[n.Expr]:
             return exprs
         case n.IfStmt() | n.RepeatUntil():
             return [s.cond]
+        case n.AsBlock():
+            return [s.player]
         case n.Produce():
             return list(s.payloads)
         case n.RunStmt():
@@ -1661,6 +1669,17 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
                 )
         case n.Round():
             pass  # a round without `until` has no Boolean position to check
+        case n.AsBlock():
+            # The block binds the acting player to one player, so its expression
+            # must BE a player. Integer stands for player (`assignable`), like
+            # `dealer : Player = 0` and a zone-family index.
+            t = infer(stmt.player, env)
+            if not assignable(t, TPlayer()):
+                bag.error(
+                    f"`as` binds one player — its expression must be a Player, "
+                    f"got {_type_name(t)}",
+                    stmt.span,
+                )
         case (
             n.RotateStmt() | n.EachSimultaneous() | n.ForEach()
             | n.LetStmt() | n.Offer() | n.Produce() | n.Produces()
@@ -1922,6 +1941,12 @@ def _control_flow_nodes(stmt: n.Stmt) -> Iterator[n.Stmt]:
                 yield from _control_flow_nodes(s)
             for s in stmt.else_body or ():
                 yield from _control_flow_nodes(s)
+        case n.AsBlock():
+            # Transparent to control flow, like `IfStmt`/`Block`: a jump written
+            # inside `as <p> { … }` unwinds past the actor rebind exactly as it
+            # would inline.
+            for s in stmt.body:
+                yield from _control_flow_nodes(s)
         case n.Block():
             # A block is transparent to control flow: a jump written in a
             # procedure body unwinds exactly as it would inline. Unreachable
@@ -2035,6 +2060,11 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
             for s in stmt.then_body:
                 check_produces_scope(s, avail)
             for s in stmt.else_body or ():
+                check_produces_scope(s, avail)
+        elif isinstance(stmt, n.AsBlock):
+            # Runs once at this position (not a loop), like `IfStmt` — producers
+            # available here stay available inside the block.
+            for s in stmt.body:
                 check_produces_scope(s, avail)
 
     def walk(

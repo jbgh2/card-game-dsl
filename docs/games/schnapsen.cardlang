@@ -91,18 +91,16 @@ game Schnapsen {
               until trick_pile is not empty
 
         // The follower answers; strict follow-and-head in the endgame. The
-        // `for each player p: if p is fol` wrapper binds the single acting
-        // player for the chosen movement — the idiom
-        // open-questions/single-actor-binding.md names as a candidate
-        // `as <player> { }` block.
+        // `as fol` block binds the single acting player for the chosen movement
+        // (decisions.md "Single-actor decisions: the `as` block").
         let fol = the player where player is not leader
         if endgame {
-          for each player p: if p is fol {
-            move chosen one card from hand[p] where follow_ok(p, card) to trick_pile
+          as fol {
+            move chosen one card from hand[fol] where follow_ok(fol, card) to trick_pile
           }
         } else {
-          for each player p: if p is fol {
-            move chosen one card from hand[p] to trick_pile
+          as fol {
+            move chosen one card from hand[fol] to trick_pile
           }
         }
 

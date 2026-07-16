@@ -334,7 +334,7 @@ match) and so must trump if able, a quirk the split preserves precisely.
   one of [challenge, allow]` clockwise from the claimant, first challenge
   closing the window; blocks fold the claimed character into the vocabulary
   — `block_claiming_*`), every influence loss is a chosen movement by the
-  loser (the single-actor `for each player q: if q is X` idiom) flipped
+  loser (the single-actor `as victim` block) flipped
   publicly into `revealed`, and the exchange is a deal-n + chosen-n +
   shuffle. A proven challenge `reveal`s the shown card publicly before
   returning it to the deck, reshuffling, and redrawing; window results

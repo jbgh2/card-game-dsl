@@ -119,21 +119,22 @@ procedure prove_claim(claimant : Player, claim : Rank?) {
 // One influence lost: the victim chooses which of their own cards to flip face
 // up, and is exiled (coins to the treasury) once they hold none.
 //
-// The `for each player q` is what makes the VICTIM, not the caller, the chooser of
+// The `as victim` block is what makes the VICTIM, not the caller, the chooser of
 // the flipped card: binding a player also binds the acting player, and a `chosen`
-// movement asks whoever is acting. Reading `victim` inside that loop is safe
+// movement asks whoever is acting. Reading `victim` inside the block is safe
 // because a procedure argument is evaluated ONCE, in the caller's context, before
 // the body runs (decisions.md "Named procedures") — so the `actor` passed at four
-// of these sites is the move's actor, not the loop's q.
+// of these sites is the move's actor.
 procedure lose_influence(victim : Player) {
-  for each player q:
-    if q is victim and alive[q] and influence[q] is not empty {
-      move chosen one card from influence[q] to revealed[q]
-      let noted = coup_note_reveal(q)
-      if influence[q] is empty { alive[q] := false
-        treasury += coins[q]
-        coins[q] := 0 }
+  as victim {
+    if alive[victim] and influence[victim] is not empty {
+      move chosen one card from influence[victim] to revealed[victim]
+      let noted = coup_note_reveal(victim)
+      if influence[victim] is empty { alive[victim] := false
+        treasury += coins[victim]
+        coins[victim] := 0 }
     }
+  }
 }
 
 // --- response vocabulary (window decisions; always legal when offered) ---

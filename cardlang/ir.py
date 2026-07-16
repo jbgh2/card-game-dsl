@@ -291,6 +291,12 @@ def _stmt(s: n.Stmt) -> IRDict:
                     else None
                 ),
             }
+        case n.AsBlock():
+            return {
+                "kind": "as",
+                "player": _expr(s.player),
+                "body": [_stmt(x) for x in s.body],
+            }
         case n.LetStmt():
             return {
                 "kind": "let",

@@ -102,12 +102,12 @@ game FrenchTarot {
       // NOT moved: it stays in its zone and is counted at scoring — moving it
       // would reorder the next hand's pre-shuffle gather.
       if bid_level <= 2 {
-        for each player p: if p is taker {
-          move all cards from chien to hand[p]
-          if (number of cards in hand[p] where is_pref_discard(card)) >= 6 {
-            move chosen 6 cards from hand[p] where is_pref_discard(card) to discard[p]
+        as taker {
+          move all cards from chien to hand[taker]
+          if (number of cards in hand[taker] where is_pref_discard(card)) >= 6 {
+            move chosen 6 cards from hand[taker] where is_pref_discard(card) to discard[taker]
           } else {
-            move chosen 6 cards from hand[p] where not is_bout(card) to discard[p]
+            move chosen 6 cards from hand[taker] where not is_bout(card) to discard[taker]
           }
         }
       }

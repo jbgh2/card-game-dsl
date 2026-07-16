@@ -156,6 +156,7 @@ move_event: NAME ["where" expr]
           | continue_to
           | skip_stmt
           | run_stmt
+          | as_block
 
 // Invoke a named procedure: its body is spliced in at this site, after the
 // arguments substitute for the parameters (decisions.md "Named procedures").
@@ -230,6 +231,14 @@ repeat_until: "repeat" "until" expr "{" statement* "}"
 // need no indentation and the `:` colon-body forms stay unambiguous.
 if_stmt: "if" expr "{" statement* "}" [else_block]
 else_block: "else" "{" statement* "}"
+
+// Bind the acting player to one named player for a braced body (decisions.md
+// "Single-actor decisions: the `as` block"). The player expression is evaluated
+// in the OUTER context, then the body runs once with the actor rebound — the
+// first-class form of the `for each player p: if p is <who>` idiom, which
+// captures `actor` and re-reads its guard mid-pass. Braced block like
+// `if_stmt`/`repeat_until`, so multi-statement bodies need no colon-body.
+as_block: _AS_KW expr "{" statement* "}"
 
 offer: "offer" "to" expr "one" "of" "[" NAME ("," NAME)* "]"
 round_stmt: "round" NAME "from" expr "over" expr "source" NAME "into" NAME "outcome" NAME ["trump" expr] ["early" NAME]   -> round_stmt
@@ -503,6 +512,13 @@ zone_expr: NAME [index_expr]
 // pair, not a standalone token.
 _IS_KW: "is" /(?![A-Za-z0-9_])/
 _NOT_KW: "not" /(?![A-Za-z0-9_])/
+// `as` (the single-actor block, `as_block`) needs the same anchoring as `is`/`not`
+// so it does not lex as a prefix of a longer token. The lookahead additionally
+// excludes `-`, which the others need not: without it, the `as` in
+// `as-equally-as-possible` (dist_clause) would match this keyword. `as` is
+// statement-leading, so — unlike the value-position keywords — it stays out of
+// the NAME exclusion below; the anchoring alone keeps `assets := …` a NAME.
+_AS_KW: "as" /(?![A-Za-z0-9_-])/
 NAME: /(?!(?:always|all|one|not|is|number)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 STRING: /"[^"]*"/
 

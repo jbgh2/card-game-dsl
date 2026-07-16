@@ -16,24 +16,11 @@ folder, and remove the entry from this index. See
 
 ## Tier 1 — High impact, enough data to commit now
 
-- [single-actor-binding](single-actor-binding.md) — an `as <player> { ... }`
-  block for one-player decisions, replacing the `for each player p: if p is X`
-  loop-and-skip idiom that six games now use. **Promoted from Tier 3: it is a
-  correctness fix.** The loop binds the acting player for its body — that is how
-  it aims the decision — but `actor` READS the acting player, so `if p is actor`
-  inside one is true for *every* p (probed: all three players matched). Coup pays
-  for this in paste, carrying two hand-written variants of its influence-loss
-  block for no stated reason other than that the loop form does not work with
-  `actor`. Naming procedures forced it into the open and walled it there
-  ([decisions.md](../decisions.md) "Named procedures"), but the idiom written
-  inline is still silently wrong, and it is still the only way to say "one named
-  player decides". The `as` block fixes it at the root: it evaluates its player
-  expression in the outer context and *then* rebinds, so it cannot capture.
-
-(The previous Tier 1 question — the integer `choose` domain, half of
-move-parameter-domains — is settled in [decisions.md](../decisions.md) "Declared
-parameter domains". Its residual, the signed bounded-`Integer` *parameter*
-domain, waits on a corpus game and sits in Tier 2.)
+(Empty — both questions that sat here are settled in
+[decisions.md](../decisions.md): single-actor-binding → "Single-actor decisions:
+the `as` block"; the integer `choose` domain (half of move-parameter-domains) →
+"Declared parameter domains". The latter's residual, the signed bounded-`Integer`
+*parameter* domain, waits on a corpus game and sits in Tier 2.)
 
 ## Tier 2 — High impact, blocked on a data point
 

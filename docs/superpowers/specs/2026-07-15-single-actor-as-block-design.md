@@ -1,10 +1,10 @@
 # The `as <player> { … }` block — design
 
-**Settles [open-questions/single-actor-binding.md](../../open-questions/single-actor-binding.md)
-(Tier 1) and roadmap "next steps" item #1.** Adds the first-class binder for a
-single named player's decision, and rewrites the corpus idiom it replaces. On
-sign-off the open question is promoted into [decisions.md](../../decisions.md)
-(maintaining.md rule 3) and its file deleted.
+**Settles the single-actor-binding question (formerly Tier 1) and roadmap
+"next steps" item #1.** Adds the first-class binder for a single named player's
+decision, and rewrites the corpus idiom it replaces. On sign-off the open
+question was promoted into [decisions.md](../../decisions.md) "Single-actor
+decisions: the `as` block" (maintaining.md rule 3) and its file deleted.
 
 ## The problem this fixes
 
@@ -80,12 +80,14 @@ except Cribbage (below).
 | Skat | 3 trick plays | `as leader / second / third { … }` |
 | Coup | `lose_influence` procedure | `as victim { if alive[victim] and influence[victim] is not empty { … } }` |
 
-**Cribbage** (pegging, line 82) is included as a **correctness fix, not a
-byte-identical swap.** Its body already reads the `active` state var throughout
-(not the loop binder), so the rewrite swaps only the wrapper line; but running the
-body once per repeat-iteration — instead of the loop's mid-pass double-match —
-changes the pegging sequence and its golden. The change is justified (one turn per
-iteration is correct cribbage) and verified against the pegging structure.
+**Cribbage** (pegging, line 82) is also byte-identical, and instructively so. Its
+body reassigns the guard variable `active` on every path, so the old loop
+double-executed — a `for each` pass starting at `active = 0` ran *both* players'
+turns (measured: 2494 of 4159 passes ran two decisions). But because `active`
+alternates identically either way, the loop's two-turns-per-pass and `as active`'s
+one-turn-per-pass produce the **same flat decision-and-score sequence** — verified
+0 diffs over 300 seeds. So the rewrite is a pure clarity win: it removes a
+confusing benign double-execution without changing observable play.
 
 **Left alone** (genuine iteration, not single-actor): French Tarot's scoring loop
 (`if p is taker { + } else { − }`), Cribbage's all-players crib discard,

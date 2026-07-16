@@ -79,7 +79,7 @@ game President {
       // return is any card they choose.
       if president is not none {
         move one card from hand[scum] where president_is_top_rank(scum, card) to hand[president]
-        for each player p: if p is president { move chosen one card from hand[p] to hand[scum] }
+        as president { move chosen one card from hand[president] to hand[scum] }
       }
 
       // Hand 1: seat 0 leads (the player to the implicit dealer's left, the

@@ -140,8 +140,9 @@ language surface.
 - **Forced coup at 10 coins** falls out of the `when:` guards (already
   encoded; the guards extend to the new `target` parameters).
 - The **influence-loss idiom** (`for each player q: if q == X { move chosen
-  one card ... }`) stays as-is; migrating it to an `as` block waits on
-  [open-questions/single-actor-binding.md](../../open-questions/single-actor-binding.md).
+  one card ... }`) stayed as-is for this change; it has since been migrated to
+  the `as` block ([decisions.md](../../decisions.md) "Single-actor decisions:
+  the `as` block").
 
 ## Deletions
 

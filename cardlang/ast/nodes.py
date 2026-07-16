@@ -418,6 +418,19 @@ class IfStmt:
 
 
 @dataclass(frozen=True, slots=True)
+class AsBlock:
+    """`as <player> { <stmt>* }` — bind the acting player to one evaluated
+    player for a braced body. The player expression is evaluated in the OUTER
+    context (before the rebind), so it cannot be captured; the body runs once as
+    a block scope. The first-class single-actor binder (decisions.md
+    "Single-actor decisions: the `as` block")."""
+
+    player: Expr
+    body: tuple[Stmt, ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class LetStmt:
     """`let <name>[<index>]? = <expr>`."""
 
@@ -616,6 +629,7 @@ Stmt = (
     | ForEach
     | RepeatUntil
     | IfStmt
+    | AsBlock
     | LetStmt
     | AssignStmt
     | Offer
@@ -1025,6 +1039,7 @@ Node = (
     | ForEach
     | RepeatUntil
     | IfStmt
+    | AsBlock
     | LetStmt
     | AssignStmt
     | Offer

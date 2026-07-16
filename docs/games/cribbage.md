@@ -94,7 +94,7 @@ game Cribbage {
       // Pegging: the non-dealer leads; forced play while able; a go is silent (no decision).
       active := the player where player is not dealer
       repeat until (all players where hand[player] is empty) {
-        for each player p: if p is active {
+        as active {
           if hand[active] is empty {
             active := the player where player is not active
           } else {
