@@ -12,7 +12,7 @@ lead sets the led suit; an optional early-termination predicate may end the pass
 before everyone has played; then an outcome function selects a player, bound as
 `outcome` for the surrounding body, which does the routing.
 
-```
+```text
 round <move_type> from <leader> over <participants>
       source <zone> into <zone> outcome <fn> [trump <expr>] [early <predicate>]
 ```
@@ -59,7 +59,7 @@ the trick (the engine marks the play `ends_trick` — Tichu's Dog — and the
 followers draw nothing). The last player to play is bound as
 `outcome` for the surrounding body, which routes the pile and the next lead.
 
-```
+```text
 round climb <move_type> from <leader> over <participants>
       source <zone> into <zone>
       combinations <lead_query> follows <follows_query>
@@ -436,7 +436,7 @@ brackets for type parameters (per standard language conventions);
 parameters with type `Player`, `Team`, etc. are domain-value
 parameters that bind into the visibility declaration.
 
-```
+```text
 type Hand<Owner: Player>             = Zone<Card>             { composition: identity to Owner, count_only to others }
 type SharedHand<Group: Team>         = Zone<Card>             { composition: identity to Group.members, count_only to others }
 type PublicHand<Owner: Player>       = Zone<Card>             { composition: identity to all }      // ownership without privacy (e.g. Bridge dummy)
@@ -463,12 +463,12 @@ These get the corpus's zone declarations down to one line each, with
 no loss of meaning. A game's `zones { }` block reads like the rulebook
 would describe it:
 
-```
+```cardlang-fragment
 zones {
   deck             : Deck
   hand[player]     : Hand<player>
   trick_pile       : TrickPile
-  captured[player] : Captured<player>
+  captured[player] : PlayerPile<player>
 }
 ```
 
@@ -482,7 +482,7 @@ relevant game files in [games/](games/).
 
 User-defined types can themselves be parameterized:
 
-```
+```text
 type DiscardLayer<Layer: Integer> = Zone<Card> { composition: identity to all }
 ```
 
@@ -554,7 +554,7 @@ form. Games either use one of these directly (`cards: standard52`)
 or compose with extras (`cards: standard52 + { specials: [...] }`).
 
 - `standard52` = the 52-card Anglo-American deck.
-  ```
+  ```text
   { suits: { [S, H, D, C]: [2, 3, 4, 5, 6, 7, 8, 9, 10, J, Q, K, A] } }
   ```
   Used by Hearts, Getaway, Spades, Bridge, Seven-Card Stud, Cribbage,
@@ -563,25 +563,25 @@ or compose with extras (`cards: standard52 + { specials: [...] }`).
 
 - `pinochle48` = double Pinochle deck, 6 ranks × 4 suits × 2 copies
   with 10 ranking above K.
-  ```
+  ```text
   { suits: { [S, H, D, C]: [9, J, Q, K, 10, A] }, copies_per_card: 2 }
   ```
   Used by Pinochle.
 
 - `skat32` = 32-card German Skat deck, ace-ten order.
-  ```
+  ```text
   { suits: { [S, H, D, C]: [7, 8, 9, J, Q, K, 10, A] } }
   ```
   Used by Skat.
 
 - `schnapsen20` = 20-card Schnapsen deck.
-  ```
+  ```text
   { suits: { [S, H, D, C]: [J, Q, K, 10, A] } }
   ```
   Used by Schnapsen.
 
 - `tarot78` = 78-card Tarot deck.
-  ```
+  ```text
   { suits: { [S, H, D, C]: [1..10, J, Cavalier, Q, K], atouts: [1..21] },
     specials: [Excuse] }
   ```

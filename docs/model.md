@@ -58,7 +58,7 @@ informational are just variables.
 
 ### The relationship between concepts
 
-```
+```text
        Phases organize game time and scope active rules
                      |
                      v
@@ -98,7 +98,7 @@ This replaces the ad-hoc `hearts_broken` boolean flag with structure.
 A rule is **a named, reusable constraint on a move type, optionally with an
 applicability condition**. Four clauses:
 
-```
+```text
 rule <Name> {
   constrains: <move_type>
   applies_when: <predicate on state>     // default: always
@@ -123,7 +123,7 @@ always playable last; see [decisions.md](decisions.md) "Rule exemption").
 
 Rules are referenced from phases by name:
 
-```
+```text
 phase play {
   active_rules: [MustFollowSuit, NoLeadingSuitUntilBroken(hearts), ...]
 }
@@ -133,7 +133,7 @@ phase play {
 
 A move type names a pattern of card movement:
 
-```
+```text
 move_type play_to_trick {
   source: hand[actor]
   destination: trick_pile

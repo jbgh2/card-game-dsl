@@ -157,6 +157,32 @@ Things we have noted but consciously not designed yet:
   layouts. We don't, but we haven't implemented one yet. Klondike or FreeCell
   will be the test case.
 
+- **Doc-snippet fragment kinds with no cheap wrapping harness.**
+  `tests/test_doc_snippets.py` pipeline-checks every `cardlang`/
+  `cardlang-fragment` block in decisions.md/library.md/model.md, but a
+  `cardlang-fragment` block needs a registered recipe embedding it in a
+  minimal game; some fragment shapes have none and are tagged `text`
+  instead (residual, not silently skipped — see that module's docstring
+  ledger for the full list and why each is uncheckable today):
+  phase-outcome pattern matches (`produces:`/`continue to`, which need a
+  sibling phase's declared variant set plus game-specific tag vocabulary);
+  `legal_moves:` with `+`/`-`/`override` deltas (the grammar has no such
+  production — only `active_rules:` does); user-facing
+  `Zone<ContentType> { composition: ... }` declarations (no such
+  production exists — projection is the closed `ZONE_PROJECTIONS` Python
+  registry, cardlang/stdlib/zones.py); `type` fields with a range, union,
+  or type-parameter shape (`Integer in 1..7`, `Suit | NT`,
+  `type X<Layer: Integer> = ...` — `struct_field`/`type_def` only support a
+  bare, optionally-`?`, type name); the retired `choose <Type> with
+  <constraint>` statement and `<actor> chooses <description>` expression
+  forms (superseded by `round offering [...]` and plain function calls);
+  and the old `move_type X { source: ... destination: ... emits: ... }`
+  shape (superseded by `when:`/`effect {}`). Resource-zone movements and
+  the `override` rule-delta are the same residual class but already
+  recorded above under "Grammar surface deferred by the checker"; `apply_components`
+  the same but already recorded under "`scoring_component` / triggered
+  components (runtime)".
+
 - **OpenSpiel compilation (general pass).** A per-game *runtime adapter* now
   validates the target: Hearts is a registered `pyspiel.Game` passing OpenSpiel's
   consistency tester (see decisions.md "OpenSpiel compilation"). What remains is

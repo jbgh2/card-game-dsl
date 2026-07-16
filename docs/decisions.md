@@ -14,13 +14,13 @@ four players passed without bidding."
 
 A phase declares its outcome type in its signature:
 
-```
+```text
 phase declare_trump → outcome { trump_declared(Suit) | bid_abandoned }
 ```
 
 The enclosing structure pattern-matches on the outcome:
 
-```
+```text
 declare_trump produces:
   trump_declared(t) { continue to melding }
   bid_abandoned {
@@ -51,7 +51,7 @@ betting round — omits the callback and threads phase state instead.) The
 enclosing structure pattern-matches on the produced value the same way it
 does for phase outcomes:
 
-```
+```text
 bidding produces:
   taker_chosen(_, level) {
     if level is Petite or level is Garde { continue to chien_visible }
@@ -168,7 +168,7 @@ A sub-phase inherits its parent's `active_rules` and `legal_moves`. To
 modify the inherited sets, the sub-phase uses three operators inside
 the slot:
 
-```
+```text
 phase parent { active_rules: [A, B, C] }
 
 phase child_extend   { active_rules: [+ D] }            // adds D       → A, B, C, D
@@ -182,7 +182,7 @@ target, it's a compile error — there's nothing to override.
 
 The same operators apply identically to `legal_moves`:
 
-```
+```text
 phase parent { legal_moves: [play_to_trick] }
 phase child  { legal_moves: [+ declare_marriage] }
 ```
@@ -190,7 +190,7 @@ phase child  { legal_moves: [+ declare_marriage] }
 A slot may mix operators and plain entries — a sub-phase that lists
 a bare rule is shadowing inheritance with its own complete set:
 
-```
+```cardlang-fragment
 phase parent { active_rules: [A, B, C] }
 phase child  { active_rules: [X, Y] }                   // X, Y only — parent set discarded
 ```
@@ -312,7 +312,7 @@ Getaway's first-trick-to-waste behaviour is the canonical mistake: written as a
 rule (`rule FirstTrickAlwaysGoesToWaste`) it has nothing to constrain — its
 effect is *where the cards go*, an ordinary body movement after the round:
 
-```
+```cardlang-fragment
 phase first_trick {
   active_rules: [MustLeadAceOfSpadesOnFirstPlay]
   round play_to_trick from leader over all players source hand into trick_pile
@@ -332,7 +332,7 @@ routing is a single unconditional movement, it is one statement after the round
 it branches — Getaway routes the pile to the trick winner on a tochoo (pickup)
 but to the waste otherwise — it is an `if` over the round's terminal state:
 
-```
+```cardlang-fragment
 phase play {
   round play_to_trick from leader over players where not eliminated[player]
         source hand into trick_pile outcome highest_of_led_suit early on_play_of_tochoo
@@ -373,7 +373,7 @@ body.
 
 The surface:
 
-```
+```text
 round offering [<move_type>, …] from <seat> over <ring>
       [order <ring | priority>] until <predicate> [outcome <fn>]
 ```
@@ -571,7 +571,7 @@ Combination-climbing games (Big Two, Tichu) run on a third
 configuration of the kernel `round`. A climbing trick plays like a trick, but each
 play is a *combination* (a computed set of cards), not a single card:
 
-```
+```text
 round climb <move_type> from <leader> over <participants>
       source <zone> into <zone>
       combinations <lead_query> follows <follows_query>
@@ -691,7 +691,7 @@ may not be active. This is statically checkable.
 
 **Example: Bridge state declarations.**
 
-```
+```text
 game Bridge {
   // No game-level state in Bridge.
 
@@ -957,7 +957,7 @@ deliberately *not* provided until a game requires them.
 Hearts uses `before_each` to gather the previous hand's cards, shuffle, and
 deal:
 
-```
+```cardlang-fragment
 before_each {
   move all cards to deck
   shuffle deck
@@ -1105,7 +1105,7 @@ rewrites to underlying forms.
 **User-definable types.** Games declare struct-like types that the
 language treats as first-class values:
 
-```
+```text
 type Contract = {
   level         : Integer in 1..7
   suit          : Suit | NT
@@ -1154,7 +1154,7 @@ exist in the deck. The canonical form is a per-suit map: each suit
 names its own rank sequence. A list of suits as a key is shorthand
 for "these suits share this rank list."
 
-```
+```text
 cards: {
   suits: {
     [S, H, D, C]: [2, 3, 4, 5, 6, 7, 8, 9, 10, J, Q, K, A]
@@ -1165,7 +1165,7 @@ cards: {
 Tarot decks need this generality — the trump suit has a different
 rank set from the standard suits:
 
-```
+```text
 cards: {
   suits: {
     [S, H, D, C]: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, J, Cavalier, Q, K]
@@ -1179,13 +1179,13 @@ cards: {
 see [library.md](library.md) "Stdlib decks". A game with a standard
 deck writes one line:
 
-```
+```cardlang-fragment
 cards: standard52
 ```
 
 Games that extend a stdlib deck compose with `+`:
 
-```
+```text
 cards: standard52 + { specials: [Mahjong, Dog, Phoenix, Dragon] }
 ```
 
@@ -1199,7 +1199,7 @@ how the deck composes; see
 Boolean/enum/integer attributes attached to every card in their
 `cards { ... }` block:
 
-```
+```text
 cards: {
   suits: { [S, H, D, C]: [2..10, J, Q, K, A] }
   attributes: {
@@ -1258,7 +1258,7 @@ A resource quantity in a `transfer` is written `<count> <type>` — the
 count (an integer expression, or `all`) followed by the resource type
 name:
 
-```
+```text
 transfer 1 coin       from treasury to coins[player]
 transfer 7 coins      from coins[actor] to treasury
 transfer amount coins from coins[target] to coins[actor]
@@ -1274,7 +1274,7 @@ canonical surface for that case.
 For a transfer that moves *several* resource types at once, the
 generalization is a map literal `{ type: count, … }`:
 
-```
+```text
 transfer { wood: 2, brick: 1 } from bank to hand[player]
 ```
 
@@ -1291,13 +1291,13 @@ the move is illegal. The language provides no partial-fulfillment
 primitive. A game that wants partial behaviour writes it explicitly,
 with `min` or a conditional amount:
 
-```
+```text
 // Coup steal — take 2, or 1 if that's all the target has:
 let amount = min(2, coins[target].amount_of(coin))
 transfer amount coins from coins[target] to coins[actor]
 ```
 
-```
+```text
 // Stud all-in call — match the bet, or commit the whole stack:
 let amount = min(bet_to_match - bet_by[actor], stack[actor].count)
 transfer amount chips from stack[actor] to pots[0].contents
@@ -1487,7 +1487,7 @@ comprehension spellings, noun sugar for counting) and the evidence.
 A game factors an expression it would otherwise repeat with a **named function** —
 a parameterized expression callable wherever an expression appears:
 
-```
+```text
 function <name>(<param> : <type>, …) = <expr>
 ```
 
@@ -1522,7 +1522,7 @@ loop) remains open.
 A game factors a *statement sequence* it would otherwise repeat with a **named
 procedure** — the statement layer's sibling of the named function above:
 
-```
+```text
 procedure <name>(<param> : <type>, …) { <statement>* }
 ```
 
@@ -1544,7 +1544,7 @@ interprets. Coup is the forcing case: three blocks pasted 29 times, most of a
 
 A `run f(a, b)` becomes one block:
 
-```
+```text
 block {
   let @f.p = a            // each argument evaluated ONCE, in the caller's context
   let @f.q = b
@@ -1680,7 +1680,7 @@ Six projections, ordered by informativeness:
 
 These form a lattice ordered by informativeness:
 
-```
+```text
 identity ⊐ identity_set ⊐ count_by_type ⊐ count_only ⊐ existence_only ⊐ trivial
 ```
 
@@ -1702,7 +1702,7 @@ contents' type.
 
 A zone's visibility declaration assigns each observer a projection:
 
-```
+```text
 zone_name : Zone<ContentType> {
   composition : <projection> to <observer-set>, <projection> to <observer-set>, ...
 }
@@ -1710,7 +1710,7 @@ zone_name : Zone<ContentType> {
 
 Three common shapes:
 
-```
+```text
 public_zone   : Zone<Card>     { composition: identity to all }
 private_hand  : Zone<Card>     { composition: identity to owner, count_only to others }
 hidden_deck   : Zone<Card>     { composition: count_only to all }
@@ -1727,7 +1727,7 @@ observers. When a move's effect on knowledge differs from what the
 zone declaration alone would imply, the move carries a `visibility:`
 clause:
 
-```
+```text
 transfer 1 random Resource from hand[victim] to hand[thief],
   visibility: {
     thief  : identity,
@@ -1877,7 +1877,7 @@ hidden randomness.
 A game declares its terminal result with exactly one top-level clause,
 evaluated against the final state when the phase tree finishes:
 
-```
+```cardlang-fragment
 winner: lowest cumulative_score      // Hearts — rank a score variable
 loser:  the player where hand[player] is not empty   // Getaway — select directly
 ```
@@ -1905,7 +1905,7 @@ name.
 
 Three expression forms query the player ring by a predicate:
 
-```
+```text
 players where <pred>              // the set of matching players
 the player where <pred>           // the unique matching player (errors if not exactly one)
 number of players where <pred>    // how many match
@@ -1945,7 +1945,7 @@ for elimination games that select the player who *still* holds cards.
 Scoring composes from named components. The scoring phase of a game
 declares which components apply:
 
-```
+```text
 phase scoring {
   let result = HandResult(contract, declarer_side, ...)
   apply_components: [
@@ -2018,7 +2018,7 @@ fire on an event, evaluate a predicate, contribute a `ScoreDelta`.
 A scoring component declares the trigger with a `triggered_by:`
 clause analogous to a rule's `applies_when:`:
 
-```
+```text
 scoring_component <name> {
   triggered_by: <event> [where <predicate>]
   ScoreDelta { ... }
@@ -2073,7 +2073,7 @@ Spades (BagOverflow). All fit the shape above.
 `choose` is a primitive that elicits a player decision. It is used
 in two forms in the corpus:
 
-```
+```text
 // Statement form (Pinochle Auction, declare_trump):
 offer action to active_player:
   submit_bid:
@@ -2081,7 +2081,7 @@ offer action to active_player:
     current_bid := bid
 ```
 
-```
+```text
 // Expression form (Tichu Dragon routing):
 all cards from trick_pile to captured[team of (winner chooses one opponent)]
 ```
@@ -2125,19 +2125,19 @@ use the Auction mechanic.
 Bid interpretation is therefore a per-game scoring concern. Each
 game's `scoring_component`s declare what counts as making the bid:
 
-```
+```text
 // Spades (ContractScoring):
 if result.tricks_won[t] >= non_nil_bid:           // threshold
   delta_score[t] += 10 * non_nil_bid
 ```
 
-```
+```text
 // Oh Hell (TricksAndExactBonus):
 if result.tricks_won[p] is result.bid[p]:         // exact
   delta[p] += 10
 ```
 
-```
+```text
 // Pinochle (inline):
 if bidder_team_total >= current_bid:              // total-points threshold
   score[bidder_team] += bidder_team_total
@@ -2171,7 +2171,7 @@ normally.
 The language handles this with per-game helper functions, not new
 zone-level or move-level constructs:
 
-```
+```text
 play_source_for(actor) =                // which zone the move comes from
   if actor is declarer.partner and dummy_revealed:
     dummy_hand[actor]
@@ -2240,7 +2240,7 @@ source zone's projection, not by the block itself.
 general case and a player-iteration form for the common Hearts
 pattern:
 
-```
+```text
 // Wrapper form.
 simultaneously: {
   <move1>
@@ -2333,7 +2333,7 @@ the commit step; the choice of whether to commit is elsewhere.
 
 **Hearts passing.** The passing phase reads as:
 
-```
+```cardlang-fragment
 phase passing when pass_direction is not hold {
   active_rules: [PassExactlyThreeCards]
   legal_moves:  [transfer_between_hands]
@@ -2357,7 +2357,7 @@ to non-owners.
 **Catan-style trade (sketch).** A two-player resource trade
 that may or may not be agreed:
 
-```
+```text
 phase trade_negotiation → outcome { agreed(Trade) | declined } {
   // ... players negotiate, propose, accept/reject ...
 }
@@ -2471,7 +2471,7 @@ the announcer's own hand size). The language expresses these as a
 **quiescence-lap poll** — an idiom over the existing kernel, not a
 construct:
 
-```
+```text
 if <public window gate> {
   quiet := 0
   round offering [<window moves>, decline] from <player about to act>
@@ -2709,7 +2709,7 @@ has a fixed shape, the **completeness ledger**, shipped in the change itself
 (the commit message, or the covering test module's docstring — somewhere a
 reviewer sees without asking):
 
-```
+```text
 property:   <the guarantee, one line>
 domain:     <what is quantified over>
 registry:   <where that domain is defined in code>
