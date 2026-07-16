@@ -24,6 +24,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from cardlang.domains import zone_observer_key
 from cardlang.runtime.state import Ctx, RuntimeState
 from cardlang.runtime.values import Card, Player
 from cardlang.stdlib.zones import zone_projection
@@ -92,9 +93,12 @@ def _is_owner(rs: RuntimeState, zone_name: str, key: Player | None, observer: Pl
     index = rs.zones.zone_index[zone_name]
     if key is None or index is None:
         return False
-    if index == "team":
-        return rs.team_of.get(observer) == key
-    return observer == key
+    # The observer owns the family instance whose key is their own member in
+    # the index domain — their seat, their team — read from the domain table's
+    # `zone_key_of` column rather than an `== "team"` re-spelling (which
+    # treated every other role as player-keyed, silently). Ownership drives
+    # per-observer projection, so this cell is info-set load-bearing.
+    return zone_observer_key(index, rs, observer) == key
 
 
 def view_of(

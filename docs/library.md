@@ -633,7 +633,10 @@ Standard helpers available across games.
   folded[player] and stack[player] > 0 …`) advances the ring and
   skips folded/all-in seats without a draw.
 - `player_holding(card) → Player` — returns the player whose hand
-  contains the named card (or none if no player holds it).
+  contains the named card. Asking for a card in nobody's hand is a
+  game-logic error and fails loudly at the call (every corpus use runs
+  right after a full deal, when the card is guaranteed held — a silent
+  absence value here would surface later as an unrelated failure).
   Used by Hearts (`player_holding(2 of clubs)`), Getaway
   (`player_holding(ace of spades)`).
 - `team_of(player) → Team` — derived from the game's `partnerships`

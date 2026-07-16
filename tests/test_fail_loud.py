@@ -270,3 +270,190 @@ def test_offer_of_parameterized_move_is_accepted() -> None:
     # bounded Integer, an unsupported domain) are covered in
     # tests/test_resolve_param_domains.py.
     _run(OFFER_OF_PARAMETERIZED_MOVE)
+
+
+# --- runtime DATA conditions fail in the runtime's currency --------------------
+#
+# The runtime-assert census (walls-at-the-right-level) converted these from bare
+# asserts / silent absences into typed RuntimeErrors: each is a condition only
+# live state can decide, so it cannot be walled statically — but it CAN fail in
+# the right currency, at the cause. These pins keep a later edit from quietly
+# restoring the silent form (player_holding's old body returned None, which
+# key-errored some unrelated subscript later).
+
+PICK_WITH_NO_MATCH = """
+game G {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { x[player] : Integer = 0  who : Player = 0 }
+  phase play { who := the player where x[player] > 0 }
+  winner: highest x
+}
+"""
+
+
+def test_pick_query_without_a_unique_match_raises() -> None:
+    # Nobody satisfies the predicate, so `the player where …` has no referent.
+    with pytest.raises(RuntimeError, match="expected exactly 1"):
+        _run(PICK_WITH_NO_MATCH)
+
+
+HOLDING_A_CARD_NOBODY_HOLDS = """
+game G {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { x[player] : Integer = 0  leader : Player = 0 }
+  phase play { leader := player_holding(2 of clubs) }
+  winner: highest x
+}
+"""
+
+
+def test_player_holding_with_no_holder_raises() -> None:
+    # Nothing was dealt: the two of clubs is in the deck, in nobody's hand.
+    # CALL_SIGS declares Player, not Player?, so the absence is an error at the
+    # call — not a silent None.
+    with pytest.raises(RuntimeError, match="no hand contains"):
+        _run(HOLDING_A_CARD_NOBODY_HOLDS)
+
+
+SUIT_OF_AN_EMPTY_ZONE = """
+game G {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player>  pile : Discard }
+  state { x[player] : Integer = 0  trump : Suit? = none }
+  phase play { trump := suit_of(pile) }
+  winner: highest x
+}
+"""
+
+
+def test_suit_of_an_empty_zone_raises() -> None:
+    # The return signature is a plain Suit; an empty zone has no card to read a
+    # suit from, and that is a game-logic error at the cause — never a silent
+    # `none` into the Suit? target.
+    with pytest.raises(RuntimeError, match="zone is empty"):
+        _run(SUIT_OF_AN_EMPTY_ZONE)
+
+
+SUIT_OF_A_NON_CARD = """
+game G {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { x[player] : Integer = 0  trump : Suit? = none }
+  phase play { trump := suit_of(x[0]) }
+  winner: highest x
+}
+"""
+
+
+def test_suit_of_a_non_card_raises_a_typed_error() -> None:
+    # suit_of's argument is TAny (deliberately polymorphic: card or zone), so a
+    # wrong-typed value is user-reachable and must get a typed error, not the
+    # bare assert that used to sit here.
+    with pytest.raises(RuntimeError, match="expects a card or a zone"):
+        _run(SUIT_OF_A_NON_CARD)
+
+
+CLIMB_LEADER_NOT_A_PARTICIPANT = """
+game G {
+  players: 3
+  max_length: 1000
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player>  trick_pile : TrickPile }
+  state { x[player] : Integer = 0 }
+  phase play {
+    deal 5 cards from deck to each hand
+    round climb play_combination from 2
+          over players where player is not 2
+          source hand into trick_pile
+          combinations president_lead_options follows president_follows
+          until false
+  }
+  winner: highest x
+}
+"""
+
+
+def test_climb_round_with_leader_outside_participants_raises() -> None:
+    # `from` and `over` are game expressions; a game can compute a leader who
+    # already shed out. The construct requires the leader to lead.
+    with pytest.raises(RuntimeError, match="round climb: leader"):
+        _run(CLIMB_LEADER_NOT_A_PARTICIPANT)
+
+
+BARE_FAMILY_WITHOUT_AN_ACTOR = """
+game G {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { x[player] : Integer = 0 }
+  phase play { shuffle hand }
+  winner: highest x
+}
+"""
+
+
+def test_bare_family_read_without_an_actor_raises() -> None:
+    # `hand` bare is the acting player's hand — sugar with no referent in a
+    # phase body, where nobody is acting. It used to be a bare AssertionError;
+    # the static wall needs statement-position context resolve does not thread
+    # yet, so the runtime error carries the fix instead.
+    with pytest.raises(RuntimeError, match="no acting player"):
+        _run(BARE_FAMILY_WITHOUT_AN_ACTOR)
+
+
+PHANTOM_KEY_WRITE = """
+game G {
+  players: 4
+  max_length: 1000
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { n[player] : Integer = 0 }
+  phase play { n[9] := 1 }
+  winner: highest n
+}
+"""
+
+
+def test_a_write_outside_the_declared_key_set_raises() -> None:
+    # `n[9] := 1` in a 4-player game used to mint a phantom seat silently —
+    # and `winner: highest n` then crowned player 9. The store's key set is
+    # the index domain's member set; a write outside it is a runtime error at
+    # the write.
+    with pytest.raises(RuntimeError, match="outside the variable's declared domain"):
+        _run(PHANTOM_KEY_WRITE)
+
+
+LET_BOUND_NON_ZONE_ENDPOINT = """
+game G {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { x[player] : Integer = 0 }
+  phase play {
+    let h = 5
+    move all cards from h to deck
+  }
+  winner: highest x
+}
+"""
+
+
+def test_a_let_bound_non_zone_endpoint_raises_a_typed_error() -> None:
+    # The endpoint wall's one recorded residual (a `local` root is accepted —
+    # a binder may hold a zone, and locals are untyped until
+    # design-notes/scope-once.md lands). The backstop is a typed RuntimeError,
+    # not the bare assert that used to sit there.
+    with pytest.raises(RuntimeError, match="movement source is not a zone"):
+        _run(LET_BOUND_NON_ZONE_ENDPOINT)

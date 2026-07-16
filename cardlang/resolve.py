@@ -21,13 +21,13 @@ every diagnostic collected, not just the first.
 from __future__ import annotations
 
 from dataclasses import dataclass, fields, is_dataclass, replace
-from typing import Callable, Iterator
+from typing import Callable, Iterator, assert_never, cast, get_args
 
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
 from cardlang.domains import ITERABLE_ROLES as _ITERATION_ROLES
 from cardlang.domains import PARAM_DOMAIN_ORDER, PARAM_DOMAINS as _FIXED_DOMAINS
-from cardlang.domains import SIMULTANEOUS_ROLES
+from cardlang.domains import SIMULTANEOUS_ROLES, ZONE_INDEX_ROLES
 from cardlang.stdlib.functions import (
     STDLIB_AUCTION_OUTCOMES,
     STDLIB_CALL_FUNCS,
@@ -43,8 +43,19 @@ from cardlang.stdlib.values import DIRECTION_VALUES, deck_ranks, deck_suits, enu
 from cardlang.typecheck import KNOWN_TYPE_NAMES
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 
-# Roles a zone may be indexed by or owned by. Grows with the seating model.
-_KNOWN_ROLES = {"player", "team"}
+# Roles a zone may be indexed by or owned by — the `zone_key_of` column of the
+# domain table, not a local list (it used to be a hand-written {player, team}
+# here, re-spelled as `== "team"` at four more sites downstream).
+_KNOWN_ROLES = ZONE_INDEX_ROLES
+
+# Domain nouns that mislead as an indexed-`let` binder. `let x[i] = …` builds a
+# per-PLAYER map — the index is a binder bound to each player in turn, whatever
+# it is named — so a binder named after a NON-player domain reads as a
+# per-suit/per-team store the form does not build (`let x[suit] = 1` keyed by
+# players, then `x[hearts]` key-errors; a team read silently lands on a seat).
+# Derived from the iteration-role column, minus the domain the form actually
+# ranges over.
+_MISLEADING_LET_INDEXES = _ITERATION_ROLES - {"player"}
 
 # The three domain-registry views this module gates on, all derived from the one
 # table in `cardlang.domains` (which also owns typecheck's binder typing and the
@@ -158,6 +169,12 @@ def resolve(game: n.Game) -> n.Game:
     return game
 
 
+# The Node union's members, for the runtime gate below. `get_args` reads the
+# union itself, and tests/test_node_registry.py pins that union to the module's
+# actual dataclasses — so this tuple cannot silently miss a node kind.
+_NODE_KINDS: tuple[type, ...] = get_args(n.Node)
+
+
 def _introduced_binders(node: object) -> tuple[str, ...]:
     """The single registry of "which node kinds bind names, and which names":
     every other place that needs to know (`_template_binders`'s collision
@@ -165,14 +182,36 @@ def _introduced_binders(node: object) -> tuple[str, ...]:
     scoping via `_BINDER_SCOPE_FIELDS`) reads this instead of re-enumerating
     the node-kind match itself — three copies of that match previously drifted
     out of sync (missing the `Movement`/`EpistemicOp` filter arm in two of
-    them). A node kind not listed here introduces no binder.
+    them).
+
+    Walks feed this every field value they meet, so non-node values (a `str`
+    name, a `Span`, an `int`) answer "nothing" here; every actual node kind is
+    dispatched exhaustively in `_node_binders`."""
+    if not isinstance(node, _NODE_KINDS):
+        return ()
+    return _node_binders(cast(n.Node, node))
+
+
+def _node_binders(node: n.Node) -> tuple[str, ...]:
+    """Exhaustive over `Node` — deliberately. This registry's only two known
+    escapes (`ProduceArm`, then `TypeDef`) both lived in a `case _: return ()`
+    catch-all: a node kind nobody had thought about answered "no binders"
+    without anyone having decided that. Now a new node kind is a mypy error
+    here until someone files it under binding or non-binding by hand.
 
     `LetStmt` returns both `name` and `index` (when present) — every name it
     binds *somewhere*, which is what a collision check needs. The two differ
     in WHERE they're visible (`index` scopes only its own `value`; `name`
     scopes to later statements in the same tuple), which is a lexical-scoping
     fact `_rewrite` must handle itself, not this registry (see the `LetStmt`
-    branch in `_rewrite` and the sequential fold in `_rewrite_value`)."""
+    branch in `_rewrite` and the sequential fold in `_rewrite_value`).
+
+    Parameter-bearing declarations (`MoveTypeDef`, `RuleDef`, `FunctionDef`,
+    `ProcedureDef`) are non-binding HERE by design, not by omission: their
+    parameters scope to their own guard/effect/body only, which `_rewrite`
+    implements in per-declaration arms, and `_check_reserved_params` sweeps
+    them for reserved words. This registry answers for nodes a body walk can
+    encounter, where the binder scopes within the walked tree itself."""
     match node:
         case n.Comprehension() | n.Quantifier() | n.ForEach():
             return (node.binder,)
@@ -206,8 +245,44 @@ def _introduced_binders(node: object) -> tuple[str, ...]:
             # fields itself, so listing them here changes no scoping — it only makes
             # them visible to the sweeps that read this registry, which is the point.
             return tuple(f.name for f in node.fields)
-        case _:
+        # A filter-less Movement/EpistemicOp falls through its guarded arm above:
+        # no candidate set, so no `card` binder.
+        case n.Movement() | n.EpistemicOp():
             return ()
+        # Declarations and game/phase structure. (The parameter-bearing ones are
+        # covered by `_rewrite` + `_check_reserved_params` — see the docstring.)
+        case (
+            n.Game() | n.PlayersSpec() | n.Winner() | n.Loser()
+            | n.MoveTypeDef() | n.MoveParam() | n.RuleDef() | n.RuleRef()
+            | n.AppliesWhen() | n.Demands()
+            | n.DefineDef() | n.FunctionDef() | n.ProcedureDef()
+            | n.VariantCase() | n.StructField() | n.DerivedField()
+            | n.ZoneDecl() | n.TypeRef() | n.TypeArg()
+            | n.StateBlock() | n.StateDecl()
+            | n.Phase() | n.PhaseQualifier() | n.BeforeEach() | n.AfterEach()
+            | n.ActiveRules() | n.LegalMoves() | n.TransitionTo() | n.MoveEvent()
+        ):
+            # `StateDecl` in particular: state variables are a flat, game-wide
+            # declaration namespace (`_categories`'s `state_vars`), not a binder
+            # any construct introduces.
+            return ()
+        # Statements that bind nothing.
+        case (
+            n.RotateStmt() | n.RepeatUntil() | n.IfStmt() | n.AssignStmt()
+            | n.Offer() | n.Round() | n.Produce() | n.Produces()
+            | n.ContinueTo() | n.SkipToNextHand() | n.RunStmt() | n.Block()
+        ):
+            return ()
+        # Expressions that bind nothing.
+        case (
+            n.NameRef() | n.IntLit() | n.StrLit() | n.ListLit() | n.CardLiteral()
+            | n.AllPlayers() | n.Member() | n.Subscript() | n.FieldInit()
+            | n.StructLit() | n.Call() | n.NamedArg() | n.BinOp() | n.Not()
+            | n.IsCheck() | n.IfExpr() | n.Choose()
+        ):
+            return ()
+        case _:
+            assert_never(node)
 
 
 def _template_binders(rule: n.RuleDef) -> set[str]:
@@ -711,30 +786,18 @@ def _resolve_phase_item(
                 f"'{item.event.move_type}' (roadmap.md)",
                 item.event.span,
             )
-    elif isinstance(item, (n.BeforeEach, n.AfterEach)):
-        for stmt in item.body:
-            _resolve_stmt(stmt, bag)
-    elif isinstance(item, (n.Phase, n.StateBlock)):
-        pass  # phases recurse via the level walk; state blocks resolve later
+    elif isinstance(item, (n.Phase, n.StateBlock, n.BeforeEach, n.AfterEach)):
+        # Phases recurse via the level walk; state blocks resolve later; hook
+        # bodies are plain statement sequences with nothing item-level to check.
+        pass
     else:
-        _resolve_stmt(item, bag)
-
-
-def _resolve_stmt(stmt: n.Stmt, bag: DiagnosticBag) -> None:
-    """Walk a statement (recursing into compound bodies) for the references this
-    pass checks."""
-    if isinstance(stmt, n.RepeatUntil):
-        for inner in stmt.body:
-            _resolve_stmt(inner, bag)
-    elif isinstance(stmt, n.EachSimultaneous):
-        _resolve_stmt(stmt.body, bag)
-    elif isinstance(stmt, n.ForEach):
-        _resolve_stmt(stmt.body, bag)
-    elif isinstance(stmt, n.IfStmt):
-        for inner in stmt.then_body:
-            _resolve_stmt(inner, bag)
-        for inner in stmt.else_body or ():
-            _resolve_stmt(inner, bag)
+        # `item` is a statement — nothing to resolve at phase-item level. The
+        # annotated assignment is the exhaustiveness pin: a new PhaseItem block
+        # kind falls here and fails mypy until this function decides what to do
+        # with it. (A statement walk used to hang off this arm; its one leaf
+        # check died with the `instantiate` construct and the walk sat vacuous —
+        # recursing into every body, checking nothing. Deleted, not kept.)
+        _only_statements_reach_here: n.Stmt = item
 
 
 @dataclass(frozen=True)
@@ -858,6 +921,32 @@ def _check_duplicate_names(game: n.Game, bag: DiagnosticBag) -> None:
     check("phase", phases)
 
 
+# The param-bearing declaration kinds: node type -> (the `Game` collection that
+# holds them, the diagnostic noun, the reserved set their parameters check
+# against). This table is pinned to the AST by tests/test_node_registry.py —
+# every `Node` member with a `params` field must have a row — so a new
+# parameterized declaration form cannot ship with its parameters silently
+# exempt from the reserved-word sweep. (The pronoun carve-out below: function
+# and procedure bodies are hermetic — forbidden from READING the call-site
+# pronouns — so naming a parameter after one is that error message's own
+# prescribed fix, not a hijack. Move-type/rule bodies read the pronouns live,
+# so all five stay reserved there. See `_check_reserved_params`.)
+_PARAM_BEARING: dict[type, tuple[str, str, frozenset[str]]] = {
+    n.FunctionDef: (
+        "functions",
+        "function parameter",
+        RESERVED_VALUE_NAMES - _CALL_SITE_PRONOUNS,
+    ),
+    n.ProcedureDef: (
+        "procedures",
+        "procedure parameter",
+        RESERVED_VALUE_NAMES - _CALL_SITE_PRONOUNS,
+    ),
+    n.MoveTypeDef: ("move_types", "move-type parameter", RESERVED_VALUE_NAMES),
+    n.RuleDef: ("rules", "rule parameter", RESERVED_VALUE_NAMES),
+}
+
+
 def _check_reserved_params(game: n.Game, bag: DiagnosticBag) -> None:
     """Function/move-type/rule parameters are declarations `_check_duplicate_names`
     never reaches (they live on `.params`, not one of its top-level lists) but
@@ -878,17 +967,8 @@ def _check_reserved_params(game: n.Game, bag: DiagnosticBag) -> None:
     them. Move-type/rule bodies are not hermetic — they read
     `actor`/`action`/`outcome` directly as live pronouns — so all five stay
     reserved for their parameters."""
-    for coll, kind, reserved in (
-        (game.functions, "function parameter", RESERVED_VALUE_NAMES - _CALL_SITE_PRONOUNS),
-        # Procedure bodies are forbidden from READING the call-site pronouns for the
-        # same reason function bodies are (`_check_procedures`), so a parameter named
-        # after one is that error's prescribed fix, not a hijack — the identical
-        # carve-out, for the identical reason.
-        (game.procedures, "procedure parameter", RESERVED_VALUE_NAMES - _CALL_SITE_PRONOUNS),
-        (game.move_types, "move-type parameter", RESERVED_VALUE_NAMES),
-        (game.rules, "rule parameter", RESERVED_VALUE_NAMES),
-    ):
-        for decl in coll:
+    for attr, kind, reserved in _PARAM_BEARING.values():
+        for decl in getattr(game, attr):
             for p in decl.params:
                 _check_reserved(p.name, kind, p.span, bag, reserved)
 
@@ -1298,6 +1378,36 @@ def _bad_write_target(node: n.AssignStmt | n.RotateStmt) -> str | None:
     )
 
 
+def _bad_zone_endpoint(expr: n.Expr | None, what: str) -> str | None:
+    """Why this zone-position expression (a movement's `from <here>` /
+    `to <here>`, an epistemic op's target) is illegal, or None. The same move
+    as `_bad_write_target`, one grammar position over: the position is
+    name-shaped (the grammar rejects literals there), so its ROOT name has a
+    classification, and most classifications cannot possibly be a zone.
+    `deal 1 cards from turn to each hand` and `shuffle turn` (with
+    `turn : Integer`) both used to check clean and die mid-playout on a bare
+    AssertionError in the executor — a statically nameable error in the wrong
+    currency at the wrong time.
+
+    A `local` root stays accepted: a binder may legitimately hold a zone value
+    (`let h = hand[0]`), and locals are untyped until the scoped-typing work
+    lands (docs/design-notes/scope-once.md; roadmap.md, "A `let`-bound name
+    has no static type") — the executor's Zone check remains the loud backstop
+    for that residual."""
+    root = expr
+    while isinstance(root, (n.Subscript, n.Member)):
+        root = root.obj
+    if not isinstance(root, n.NameRef):
+        return None  # not name-rooted: nothing to classify here
+    kind = root.ref_kind
+    if kind is None or kind in ("zone", "local"):
+        return None  # None: unresolved, already reported by the classifier
+    what_it_is = _WRITE_TARGET_KINDS.get(kind, f"a {kind}")
+    if kind == "state_var":
+        what_it_is = "a state variable"
+    return f"cannot {what} '{root.name}': it is {what_it_is}, not a zone"
+
+
 def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
     """A procedure body must read as the statements it becomes. Hermeticity is the
     same as a function's — a body references only its own parameters, the binders
@@ -1615,6 +1725,9 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     defined_types = {t.name for t in game.types}
     defined_defines = {d.name for d in game.defines}
     defined_functions = {f.name for f in game.functions}
+    # Which role (if any) each declared zone family is keyed by — the fact the
+    # `to each <family>` wall needs (the executor keys parcels per PLAYER).
+    zone_index = {z.name: z.index for z in game.zones}
     # A `produces:` consumer may also name an outcome-declaring phase (its outcome
     # is produced as the phase runs, then dispatched by a sibling consumer).
     outcome_phases = {
@@ -1638,13 +1751,61 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     "positionally",
                     nd.span,
                 )
-            case n.StateDecl() if (
-                nd.type_name not in KNOWN_TYPE_NAMES
-                and nd.type_name not in defined_types
+            case n.StateDecl():
+                # One arm, both checks: a match runs its first matching arm
+                # only, so two guarded StateDecl arms would report at most one
+                # of two independent errors on the same declaration.
+                if (
+                    nd.type_name not in KNOWN_TYPE_NAMES
+                    and nd.type_name not in defined_types
+                ):
+                    bag.error(
+                        f"unknown type '{nd.type_name}' in declaration of "
+                        f"'{nd.name}'",
+                        nd.span,
+                    )
+                if nd.index is not None and nd.index not in ZONE_INDEX_ROLES:
+                    # Same wall as a zone's index role, same registry. Before
+                    # it existed, `state { x[suit] : Integer = 0 }` checked
+                    # clean and the runtime silently keyed it BY PLAYERS (the
+                    # driver's key-set dispatch defaulted every non-team role
+                    # to seats) — the declared index was accepted and ignored.
+                    roles = ", ".join(sorted(ZONE_INDEX_ROLES))
+                    bag.error(
+                        f"state variable '{nd.name}' is indexed by "
+                        f"'{nd.index}', which is not an indexable role "
+                        f"({roles}) — a value domain has no per-member store "
+                        f"(roadmap.md records the extension)",
+                        nd.span,
+                    )
+                elif nd.index == "team" and not game.partnerships:
+                    # A team-indexed store in a game with no partnerships has
+                    # an EMPTY key set: it declares fine, holds nothing, and
+                    # every later `x[…] := …` hits the runtime key wall far
+                    # from the real mistake (the missing `partnerships:`).
+                    bag.error(
+                        f"state variable '{nd.name}' is indexed by 'team' but "
+                        f"the game declares no `partnerships:` — there are no "
+                        f"teams to key it by",
+                        nd.span,
+                    )
+            case n.ZoneDecl() if nd.index == "team" and not game.partnerships:
+                bag.error(
+                    f"zone '{nd.name}' is indexed by 'team' but the game "
+                    f"declares no `partnerships:` — there are no teams to key "
+                    f"it by",
+                    nd.span,
+                )
+            case n.LetStmt() if (
+                nd.index is not None and nd.index in _MISLEADING_LET_INDEXES
             ):
                 bag.error(
-                    f"unknown type '{nd.type_name}' in declaration of "
-                    f"'{nd.name}'",
+                    f"`let {nd.name}[{nd.index}]` builds a per-PLAYER map — "
+                    f"the index is a binder bound to each player in turn, "
+                    f"whatever its name — so a binder named '{nd.index}' "
+                    f"reads as a per-{nd.index} store this form does not "
+                    f"build. Rename the binder; per-value stores are recorded "
+                    f"in roadmap.md",
                     nd.span,
                 )
             case n.StructField() if (
@@ -1719,6 +1880,51 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         bag.error(f"rotate through unknown value '{value}'", nd.span)
             case n.AssignStmt():
                 bad = _bad_write_target(nd)
+                if bad is not None:
+                    bag.error(bad, nd.span)
+            case n.Movement():
+                # The `in <zone>` form has no `from` clause (its zone parses
+                # into `source`) — say `in`, not `from`, when rejecting it.
+                source_phrase = (
+                    f"{nd.verb} cards in"
+                    if nd.dest is None and nd.source is not None
+                    else "move cards from"
+                )
+                for endpoint, direction in (
+                    (nd.source, source_phrase),
+                    (nd.dest, "move cards to"),
+                ):
+                    bad = _bad_zone_endpoint(endpoint, direction)
+                    if bad is not None:
+                        bag.error(bad, nd.span)
+                if nd.dest_each and isinstance(nd.dest, n.NameRef):
+                    # `to each X` deals one parcel per PLAYER (the executor
+                    # iterates seats and keys `X[player]`), so X must be a
+                    # player-indexed family. Before this wall, `to each deck`
+                    # (a singleton) checked clean and died on a raw KeyError,
+                    # and `to each captured` (a TEAM family) silently dealt
+                    # into team slots AS IF team ids were seats before crashing
+                    # — player keying was assumed, not checked, the same class
+                    # as the `== "team"` defaults the domain table replaced.
+                    idx = zone_index.get(nd.dest.name)
+                    if nd.dest.ref_kind == "zone" and idx != "player":
+                        what_z = (
+                            "a singleton zone"
+                            if idx is None
+                            else f"a family keyed by {idx}"
+                        )
+                        bag.error(
+                            f"`to each {nd.dest.name}` deals one parcel per "
+                            f"player, but '{nd.dest.name}' is {what_z} — name "
+                            f"a player-indexed family (like hand[player]), or "
+                            f"target one instance directly",
+                            nd.span,
+                        )
+            case n.EpistemicOp():
+                # The other member of the zone-position class: `shuffle turn` /
+                # `reveal one card from turn` checked clean and died on the
+                # executor's Zone assert, exactly like the movement endpoints.
+                bad = _bad_zone_endpoint(nd.target, nd.op)
                 if bad is not None:
                     bag.error(bad, nd.span)
             case n.Winner() if nd.target not in cats.state_vars:

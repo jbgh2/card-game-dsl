@@ -17,6 +17,9 @@ adds nothing. Specifically it SKIPS
 - `deal all …` (takes only what remains — can't overflow by construction),
 - a non-literal amount (`deal hand_size …`, a state var or any expression),
 - deals inside a `repeat until` (the iteration count is a runtime value),
+- draws inside a MOVE effect (`offer`/rounds run moves, and a move can fire
+  arbitrarily many times per hand — not statically boundable; the gate's
+  domain is the scripted deals in phase bodies, recorded in roadmap.md),
 
 and counts the bounded forms at their worst case: an `if` contributes the larger
 of its branches (a guarded deal is *taken*), and a `for each player` /
@@ -26,6 +29,8 @@ plus the deals in its (non-repeating) sub-phases.
 """
 
 from __future__ import annotations
+
+from typing import assert_never
 
 from cardlang.ast import nodes as n
 from cardlang.domains import DomainSources, ITERABLE_ROLES, role_static_members
@@ -105,16 +110,21 @@ def _window_usage(
     `repeats` phases are excluded — they are their own windows."""
     peak = carry
     for item in phase.items:
-        if isinstance(item, (n.BeforeEach, n.AfterEach)):
-            p, carry = _seq_usage(item.body, carry, players, counts, deck_zones)
-        elif isinstance(item, n.Phase):
-            if _repeats(item):
-                continue  # separate window
-            p, carry = _window_usage(item, carry, players, counts, deck_zones)
-        elif isinstance(item, n.Stmt):
-            p, carry = _stmt_usage(item, carry, players, counts, deck_zones)
-        else:
-            continue  # StateBlock, ActiveRules, LegalMoves, TransitionTo, …
+        match item:
+            case n.BeforeEach() | n.AfterEach():
+                p, carry = _seq_usage(item.body, carry, players, counts, deck_zones)
+            case n.Phase():
+                if _repeats(item):
+                    continue  # separate window
+                p, carry = _window_usage(item, carry, players, counts, deck_zones)
+            case n.StateBlock() | n.ActiveRules() | n.LegalMoves() | n.TransitionTo():
+                continue  # configuration blocks move no cards
+            case _:
+                # The residue of PhaseItem is exactly Stmt — mypy checks that on
+                # this call, so a new phase-item block kind fails here loudly
+                # instead of being silently skipped as the old `else: continue`
+                # would have done.
+                p, carry = _stmt_usage(item, carry, players, counts, deck_zones)
         peak = max(peak, p)
     return peak, carry
 
@@ -153,50 +163,108 @@ def _seq_usage(
 def _stmt_usage(
     stmt: n.Stmt, carry: int, players: int, counts: dict[str, int], deck_zones: set[str]
 ) -> _Usage:
-    if isinstance(stmt, n.Movement):
-        return _movement_usage(stmt, carry, players, deck_zones)
-    if isinstance(stmt, (n.ForEach, n.EachSimultaneous)):
-        # The body runs once per member of the role's domain, read from the registry
-        # (`counts`) — never assumed. Thread the carry across iterations so a
-        # refilling body resets each pass.
-        iters = counts.get(stmt.role, 1)
-        peak = carry
-        for _ in range(iters):
-            p, carry = _stmt_usage(stmt.body, carry, players, counts, deck_zones)
-            peak = max(peak, p)
-        return peak, carry
-    if isinstance(stmt, n.IfStmt):
-        then_peak, then_carry = _seq_usage(stmt.then_body, carry, players, counts, deck_zones)
-        else_peak, else_carry = (
-            _seq_usage(stmt.else_body, carry, players, counts, deck_zones)
-            if stmt.else_body
-            else (carry, carry)
-        )
-        return max(then_peak, else_peak), max(then_carry, else_carry)
-    if isinstance(stmt, n.Block):
-        # A block (what `expand` turns a `run` into) is an UNCONDITIONAL sequence:
-        # thread it exactly as if its statements were written here, which is the
-        # whole point of the construct. It must have its own arm, and not fall to the
-        # default below, for two independent reasons — and the default is wrong in
-        # BOTH directions. Falling through would return `carry, carry`, so the gate
-        # would be blind to every deal inside a procedure body (an undercount, and a
-        # real soundness hole). Encoding the block as `if true { … }` instead — which
-        # is what this used to do — sends it through the IfStmt arm above, which
-        # carries `max(then, else)` because a conditional MAY be skipped; a procedure
-        # that refilled the deck then failed to reset the gate's running total, and
-        # the same program was accepted written inline and rejected written as a
-        # `run` (an overcount, and a false rejection).
-        return _seq_usage(stmt.body, carry, players, counts, deck_zones)
-    # RepeatUntil (runtime iteration count) and everything else draw nothing
-    # statically boundable from the deck; usage is unchanged.
-    return carry, carry
+    """Exhaustive over `Stmt`. This function had the silent default that bit:
+    a `Block` fell through it and the gate went blind to every deal inside a
+    procedure body. Now each statement kind states its deck behaviour by name,
+    and a new kind is a mypy error here until it does."""
+    match stmt:
+        case n.Movement():
+            return _movement_usage(stmt, carry, players, deck_zones)
+        case n.ForEach() | n.EachSimultaneous():
+            # The body runs once per member of the role's domain, read from the
+            # registry (`counts`) — never assumed. Thread the carry across
+            # iterations so a refilling body resets each pass.
+            iters = counts.get(stmt.role, 1)
+            peak = carry
+            for _ in range(iters):
+                p, carry = _stmt_usage(stmt.body, carry, players, counts, deck_zones)
+                peak = max(peak, p)
+            return peak, carry
+        case n.IfStmt():
+            then_peak, then_carry = _seq_usage(
+                stmt.then_body, carry, players, counts, deck_zones
+            )
+            else_peak, else_carry = (
+                _seq_usage(stmt.else_body, carry, players, counts, deck_zones)
+                if stmt.else_body
+                else (carry, carry)
+            )
+            return max(then_peak, else_peak), max(then_carry, else_carry)
+        case n.Block():
+            # A block (what `expand` turns a `run` into) is an UNCONDITIONAL
+            # sequence: thread it exactly as if its statements were written
+            # here, which is the whole point of the construct. The old silent
+            # default was wrong in BOTH directions here: falling through
+            # returned `carry, carry`, blinding the gate to every deal inside a
+            # procedure body (undercount), while the earlier `if true { … }`
+            # encoding routed it through the IfStmt arm, whose max-of-branches
+            # carry treats the body as skippable — a refill inside a procedure
+            # didn't reset the running total, and the same program was accepted
+            # written inline but rejected written as a `run` (overcount).
+            return _seq_usage(stmt.body, carry, players, counts, deck_zones)
+        case n.Produces():
+            # Exactly one arm runs (typecheck enforces arm exhaustiveness over
+            # the variant's cases), so this is an if with one branch per arm:
+            # worst case over arms, for both peak and carry. This kind used to
+            # fall to the silent default, making the gate blind to every deal
+            # written inside a `produces:` arm — the same hole the Block arm
+            # closes, one construct over.
+            if not stmt.arms:
+                return carry, carry
+            usages = [
+                _seq_usage(arm.body, carry, players, counts, deck_zones)
+                for arm in stmt.arms
+            ]
+            return max(p for p, _ in usages), max(c for _, c in usages)
+        case n.RepeatUntil():
+            # The iteration count is a runtime value, so deals inside are not
+            # statically boundable — skipped by design (module docstring). And
+            # carrying `carry` straight across is SOUND, not lazy: `repeat
+            # until` checks its condition first (runtime `_repeat_until`), so
+            # the zero-iteration execution is always statically possible, and
+            # "usage unchanged" is exactly that execution. A refill inside the
+            # body helps only the executions that enter the body; the gate must
+            # still account for the one that never does.
+            return carry, carry
+        case n.Round():
+            # A round moves cards between hands and the play zone — never a
+            # draw from the deck — so it is inert to deck usage.
+            return carry, carry
+        case n.Offer():
+            # An offered move's EFFECT can draw from the deck, but move effects
+            # are outside this gate's domain entirely (it walks phase bodies,
+            # and a move can be offered arbitrarily many times, so its draws
+            # are not statically boundable — same currency as repeat-until).
+            # Recorded as a domain limit in the module docstring and roadmap.md.
+            return carry, carry
+        case (
+            n.EpistemicOp() | n.RotateStmt() | n.LetStmt() | n.AssignStmt()
+            | n.Produce() | n.ContinueTo() | n.SkipToNextHand() | n.RunStmt()
+        ):
+            return carry, carry  # no card movement at all
+        case _:
+            assert_never(stmt)
 
 
 def _movement_usage(m: n.Movement, carry: int, players: int, deck_zones: set[str]) -> _Usage:
     """Deck usage after a single movement. A move *into* the deck refills it (usage
     resets to 0); a deal *from* the deck adds to usage; anything else is inert."""
     if m.dest is not None and _base_name(m.dest) in deck_zones:
-        return carry, 0  # refill: cards go back to the deck
+        # Cards go back to the deck. A full gather (`all`) or an unbounded
+        # amount refills it — usage resets. A LITERAL return puts back exactly
+        # k, and modeling that as a full refill made the gate blind to the
+        # difference between returning one card and returning the pack:
+        # deal 40, `move 1 cards from hand[0] to deck`, deal 16 was ACCEPTED
+        # (carry reset to 0) and died mid-deal on the runtime's exhausted-deck
+        # error — the crash this gate exists to convert into a compile error.
+        # Subtracting k is exact for a valid game: the runtime errors when a
+        # source holds fewer than a literal demand, so k cards genuinely
+        # return.
+        if m.amount == "one":
+            return carry, max(0, carry - 1)
+        if isinstance(m.amount, n.IntLit):
+            return carry, max(0, carry - m.amount.value)
+        return carry, 0  # `all` / non-literal: a refill
     if m.source is None or _base_name(m.source) not in deck_zones:
         return carry, carry  # not a deck draw
     if m.amount == "all":

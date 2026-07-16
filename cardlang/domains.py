@@ -71,7 +71,7 @@ from typing import TYPE_CHECKING, Any, Callable, Sequence
 from cardlang.types import TAny, TEnum, TPlayer, TTeam, Type
 
 if TYPE_CHECKING:  # pragma: no cover - typing only, no runtime import cycle
-    from cardlang.runtime.state import Ctx
+    from cardlang.runtime.state import Ctx, RuntimeState
 
 
 @dataclass(frozen=True)
@@ -123,6 +123,17 @@ class Domain:
     members: Callable[["Ctx"], list[Any]]
     # The domain's members at declaration time, for the static action space.
     static_members: Callable[[DomainSources], list[Any]]
+    # The observer's own key in a zone family indexed by this domain — their seat
+    # for `player`, their team for `team`. `None` means the domain cannot index
+    # or own a zone at all: a suit has no member an observer IS, so `hand[suit]`
+    # is meaningless. This one column is therefore BOTH facts the zone layer
+    # needs: `ZONE_INDEX_ROLES` (which roles `hand[<role>]` / `Hand<role>` may
+    # name) derives from it being non-None, and ownership visibility (does this
+    # observer see the family instance at `key`?) is the function itself. It
+    # replaces an `== "team"` re-spelling at five consumer sites (resolve,
+    # typecheck, state, driver, observe), each of which silently defaulted every
+    # non-team role to player keying.
+    zone_key_of: Callable[["RuntimeState", int], int | None] | None = None
 
 
 DOMAINS: tuple[Domain, ...] = (
@@ -136,6 +147,7 @@ DOMAINS: tuple[Domain, ...] = (
         param_domains=("Player",),
         members=lambda ctx: list(ctx.rs.seating.players),
         static_members=lambda src: list(src.players),
+        zone_key_of=lambda rs, observer: observer,
     ),
     Domain(
         id="team",
@@ -147,6 +159,7 @@ DOMAINS: tuple[Domain, ...] = (
         param_domains=(),
         members=lambda ctx: list(ctx.rs.teams),
         static_members=lambda src: list(src.teams),
+        zone_key_of=lambda rs, observer: rs.team_of.get(observer),
     ),
     Domain(
         id="suit",
@@ -185,6 +198,28 @@ ITERABLE_ROLES: frozenset[str] = frozenset(d.id for d in DOMAINS if d.iterable)
 
 # Roles `each <role> simultaneously:` may range over — seat domains only.
 SIMULTANEOUS_ROLES: frozenset[str] = frozenset(d.id for d in DOMAINS if d.simultaneous)
+
+# Roles a zone family may be indexed by / a zone type owned by (`hand[player]`,
+# `Hand<player>`, `captured[team]`): exactly the domains in which an observer
+# has a key of their own. Resolve's wall, typecheck's subscript typing, the
+# zone store's key sets, and the observation layer's ownership test all read
+# this table rather than re-spelling {player, team}.
+ZONE_INDEX_ROLES: frozenset[str] = frozenset(
+    d.id for d in DOMAINS if d.zone_key_of is not None
+)
+
+
+def zone_observer_key(role: str, rs: "RuntimeState", observer: int) -> int | None:
+    """The observer's own key in a zone family indexed by `role` — their seat,
+    their team. The ownership half of `zone_key_of`; raises (rather than
+    guessing player keying, as the old `== "team"` sites did) for a role no row
+    marks zone-indexable, because resolve rejects those before a game runs."""
+    row = BY_ID.get(role)
+    if row is None or row.zone_key_of is None:
+        raise AssertionError(
+            f"'{role}' is not a zone-index role (resolve rejects these)"
+        )
+    return row.zone_key_of(rs, observer)
 
 # The closed set of statically enumerable move-parameter domains (resolve's
 # `_FIXED_DOMAINS`), matched by exact string — never by stripping a trailing

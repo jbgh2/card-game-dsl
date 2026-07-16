@@ -41,7 +41,12 @@ class Sig:
 CALL_SIGS: dict[str, Sig] = {
     "player_holding": Sig((TCard(),), TPlayer()),
     "team_of": Sig((TPlayer(),), TTeam()),
-    "suit_of": Sig((TAny(),), TOptional(TEnum("Suit"))),  # card or single-card zone
+    # `suit_of` accepts a card or a single-card zone (polymorphic arg -> TAny)
+    # and always yields a suit: an empty zone is a loud runtime error at the
+    # cause, never a silent `none` (the return was once `Suit?`, which promised
+    # an absence the runtime never produced). Plain `Suit` still assigns into
+    # every corpus target (`trump_suit : Suit? = none`).
+    "suit_of": Sig((TAny(),), TEnum("Suit")),
     "strain_index": Sig((TOptional(TEnum("Suit")),), TInteger()),  # strain bidding rank
     "error": Sig((TString(),), TAny()),  # the if_impossible fallback
     "bring_in_seat": Sig((), TPlayer()),  # Stud: lowest-door seat (no args; reads upcards)

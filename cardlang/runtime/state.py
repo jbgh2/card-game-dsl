@@ -14,6 +14,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Iterable
 
 from cardlang.ast import nodes as n
+from cardlang.domains import ZONE_INDEX_ROLES, DomainSources, role_static_members
 from cardlang.runtime.values import Card, Player, Seating
 
 
@@ -112,7 +113,26 @@ class ZoneStore:
             if decl.index is None:
                 self.singles[decl.name] = Zone()
             else:
-                keys = teams if decl.index == "team" else players
+                # The family's key set is the index domain's member set, read
+                # from the domain table. The old `teams if index == "team" else
+                # players` silently keyed ANY other role by players. The gate
+                # below is what makes the backstop REAL: an unknown role
+                # raises inside `role_static_members`, but a known
+                # non-indexable row (suit/rank) would quietly enumerate the
+                # deliberately-empty () sources and build a zero-instance
+                # family whose every access key-errors far from the cause.
+                # Resolve walls these declarations; reaching this raise means
+                # a construction path bypassed it.
+                if decl.index not in ZONE_INDEX_ROLES:
+                    raise AssertionError(
+                        f"zone family '{decl.name}' is indexed by "
+                        f"'{decl.index}', which is not a zone-index role "
+                        f"(resolve rejects this declaration)"
+                    )
+                keys = role_static_members(
+                    decl.index,
+                    DomainSources(suits=(), ranks=(), players=players, teams=teams),
+                )
                 self.families[decl.name] = {k: Zone() for k in keys}
 
     def is_family(self, name: str) -> bool:
@@ -141,7 +161,11 @@ class RuntimeState:
     """The live world: zones plus a stack of variable scope frames."""
 
     def __init__(self, seating: Seating, zones: ZoneStore, rng: random.Random) -> None:
-        self.seating = seating
+        # Annotated explicitly: `state` and `domains` are now a module cycle
+        # (domains TYPE_CHECKING-imports RuntimeState; ZoneStore reads the
+        # domain table), and mypy's within-SCC inference needs the type stated
+        # rather than inferred from the parameter.
+        self.seating: Seating = seating
         self.zones = zones
         self.rng = rng
         self.frames: list[dict[str, Any]] = []

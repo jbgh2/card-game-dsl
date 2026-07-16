@@ -421,13 +421,15 @@ def env_from_game(game: Game) -> TypeEnv:
         z.name: ZONE_CONTENT.get(z.type_ref.name, TCollection(TAny()))
         for z in game.zones
     }
-    # `ZoneDecl.index` is `None` (a singleton zone) or one of the closed
-    # index roles resolve.py validates (`_KNOWN_ROLES = {"player", "team"}`);
-    # a family's subscript index must be `assignable` to the matching type.
+    # `ZoneDecl.index` is `None` (a singleton zone) or one of the closed index
+    # roles resolve.py validates (the domain table's `ZONE_INDEX_ROLES`); a
+    # family's subscript key types as the index domain's binder type — the same
+    # table cell `for each <role>` reads, so `hand[p]` and `captured[t]` key by
+    # TPlayer/TTeam without this site re-spelling the role list. (`role_type`'s
+    # TAny fallback covers the unresolved-role case, whose diagnostic resolve
+    # already owns.)
     zone_families: dict[str, Type] = {
-        z.name: (TTeam() if z.index == "team" else TPlayer())
-        for z in game.zones
-        if z.index is not None
+        z.name: _role_type(z.index) for z in game.zones if z.index is not None
     }
     return TypeEnv(
         state_vars=state_vars,
@@ -447,27 +449,53 @@ def _stmt_tree_scoped(
     s: n.Stmt, binders: _Binders = ()
 ) -> Iterator[tuple[n.Stmt, _Binders]]:
     """The statement tree, each statement paired with the loop binders in
-    scope at that point — the single traversal every statement walk views."""
+    scope at that point — the single traversal every statement walk views.
+
+    Exhaustive over `Stmt`: a compound statement whose body this walk missed
+    would leave that whole body unchecked (no expression walls, no semantic
+    checks — accepted-but-ignored at subtree scale), so "descends nothing" is
+    a decision each leaf kind states by name, never a default."""
     yield s, binders
-    if isinstance(s, n.ForEach):
-        yield from _stmt_tree_scoped(s.body, binders + ((s.binder, _role_type(s.role)),))
-    elif isinstance(s, n.EachSimultaneous):
-        yield from _stmt_tree_scoped(s.body, binders + ((s.role, _role_type(s.role)),))
-    elif isinstance(s, n.RepeatUntil):
-        for x in s.body:
-            yield from _stmt_tree_scoped(x, binders)
-    elif isinstance(s, n.IfStmt):
-        for x in s.then_body:
-            yield from _stmt_tree_scoped(x, binders)
-        for x in s.else_body or ():
-            yield from _stmt_tree_scoped(x, binders)
-    elif isinstance(s, n.Block):
-        # Synthetic, and created only by `expand`, which runs AFTER this pass — so
-        # nothing here ever sees one today. The arm exists anyway: this walk falls
-        # through silently rather than failing, so a future pass ordering that did
-        # reach a block would skip its whole body without a word.
-        for x in s.body:
-            yield from _stmt_tree_scoped(x, binders)
+    match s:
+        case n.ForEach():
+            yield from _stmt_tree_scoped(
+                s.body, binders + ((s.binder, _role_type(s.role)),)
+            )
+        case n.EachSimultaneous():
+            yield from _stmt_tree_scoped(
+                s.body, binders + ((s.role, _role_type(s.role)),)
+            )
+        case n.RepeatUntil():
+            for x in s.body:
+                yield from _stmt_tree_scoped(x, binders)
+        case n.IfStmt():
+            for x in s.then_body:
+                yield from _stmt_tree_scoped(x, binders)
+            for x in s.else_body or ():
+                yield from _stmt_tree_scoped(x, binders)
+        case n.Block():
+            # Synthetic, and created only by `expand`, which runs AFTER this
+            # pass — so nothing here ever sees one today. The arm exists anyway:
+            # a future pass ordering that did reach a block must not skip its
+            # whole body without a word.
+            for x in s.body:
+                yield from _stmt_tree_scoped(x, binders)
+        case n.Produces():
+            # A deliberate leaf, not an oversight: arm bodies bind the arm's
+            # payload binders, which this walk cannot know (they come from the
+            # variant registry). `_check_produces` runs the scoped sub-walk over
+            # each arm body with those binders typed, and the outcome-plumbing
+            # walks (`_produces_in`, `_control_flow_nodes`) descend arms
+            # themselves.
+            pass
+        case (
+            n.Movement() | n.EpistemicOp() | n.RotateStmt() | n.LetStmt()
+            | n.AssignStmt() | n.Offer() | n.Round() | n.Produce()
+            | n.ContinueTo() | n.SkipToNextHand() | n.RunStmt()
+        ):
+            pass  # no child statements
+        case _:
+            assert_never(s)
 
 
 def _stmt_tree(s: n.Stmt) -> Iterator[n.Stmt]:
@@ -476,15 +504,19 @@ def _stmt_tree(s: n.Stmt) -> Iterator[n.Stmt]:
 
 def _phase_statements_scoped(phase: n.Phase) -> Iterator[tuple[n.Stmt, _Binders]]:
     for item in phase.items:
-        if isinstance(item, n.Phase):
-            yield from _phase_statements_scoped(item)
-        elif isinstance(item, (n.BeforeEach, n.AfterEach)):
-            for s in item.body:
-                yield from _stmt_tree_scoped(s)
-        elif isinstance(item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.TransitionTo)):
-            pass
-        else:
-            yield from _stmt_tree_scoped(item)
+        match item:
+            case n.Phase():
+                yield from _phase_statements_scoped(item)
+            case n.BeforeEach() | n.AfterEach():
+                for s in item.body:
+                    yield from _stmt_tree_scoped(s)
+            case n.StateBlock() | n.ActiveRules() | n.LegalMoves() | n.TransitionTo():
+                pass  # configuration blocks hold no statements
+            case _:
+                # The residue of PhaseItem is exactly Stmt — mypy checks that on
+                # this call, so a new phase-item block kind fails here loudly
+                # instead of being walked as a statement.
+                yield from _stmt_tree_scoped(item)
 
 
 def _non_define_statements(game: Game) -> Iterator[n.Stmt]:
@@ -528,42 +560,50 @@ def _arg_exprs(args: tuple[n.Arg, ...]) -> list[n.Expr]:
 
 
 def _child_exprs(e: n.Expr) -> list[n.Expr]:
-    if isinstance(e, n.Member):
-        return [e.obj]
-    if isinstance(e, n.ListLit):
-        return list(e.elements)
-    if isinstance(e, n.StructLit):
-        return [fi.value for fi in e.fields]
-    if isinstance(e, n.Subscript):
-        return [e.obj, e.index]
-    if isinstance(e, n.Call):
-        return _arg_exprs(e.args)
-    if isinstance(e, n.BinOp):
-        return [e.left, e.right]
-    if isinstance(e, (n.Not, n.IsCheck)):
-        return [e.operand]
-    if isinstance(e, n.Quantifier):
-        return [e.body]
-    if isinstance(e, n.Comprehension):
-        out = [e.source, e.body]
-        if e.filter is not None:
-            out.append(e.filter)
-        if e.default is not None:
-            out.append(e.default)
-        return out
-    if isinstance(e, n.Choose):
-        return [e.lo, e.hi]
-    if isinstance(e, n.PlayerQuery):
-        return [e.pred]
-    if isinstance(e, n.CardQuery):
-        return [e.source, e.pred] if e.pred is not None else [e.source]
-    if isinstance(e, n.IfExpr):
-        out = [e.cond, e.then]
-        for cond, branch in e.elifs:
-            out += [cond, branch]
-        out.append(e.otherwise)
-        return out
-    return []  # leaves: NameRef, IntLit, StrLit, CardLiteral, AllPlayers
+    """Every expression's direct sub-expressions — exhaustive over `Expr`, so a
+    new expression kind must declare its children (or its leafhood) here before
+    anything compiles. A missed kind wouldn't crash anything; its children
+    would simply never be walked, and every wall inside them would go dark."""
+    match e:
+        case n.Member():
+            return [e.obj]
+        case n.ListLit():
+            return list(e.elements)
+        case n.StructLit():
+            return [fi.value for fi in e.fields]
+        case n.Subscript():
+            return [e.obj, e.index]
+        case n.Call():
+            return _arg_exprs(e.args)
+        case n.BinOp():
+            return [e.left, e.right]
+        case n.Not() | n.IsCheck():
+            return [e.operand]
+        case n.Quantifier():
+            return [e.body]
+        case n.Comprehension():
+            out = [e.source, e.body]
+            if e.filter is not None:
+                out.append(e.filter)
+            if e.default is not None:
+                out.append(e.default)
+            return out
+        case n.Choose():
+            return [e.lo, e.hi]
+        case n.PlayerQuery():
+            return [e.pred]
+        case n.CardQuery():
+            return [e.source, e.pred] if e.pred is not None else [e.source]
+        case n.IfExpr():
+            out = [e.cond, e.then]
+            for cond, branch in e.elifs:
+                out += [cond, branch]
+            out.append(e.otherwise)
+            return out
+        case n.NameRef() | n.IntLit() | n.StrLit() | n.CardLiteral() | n.AllPlayers():
+            return []  # leaves
+        case _:
+            assert_never(e)
 
 
 def _called_functions(e: n.Expr, fn_names: set[str]) -> set[str]:
@@ -1315,37 +1355,54 @@ def _check_bool(e: n.Expr, env: TypeEnv, bag: DiagnosticBag, where: str) -> None
 
 def _stmt_exprs(s: n.Stmt) -> list[n.Expr]:
     """The expressions held directly by a statement (its child *statements* are
-    visited separately by the statement walk)."""
-    if isinstance(s, n.AssignStmt):
-        return [s.value] + ([s.index] if s.index is not None else [])
-    if isinstance(s, n.LetStmt):
-        return [s.value]
-    if isinstance(s, n.Movement):
-        out: list[n.Expr] = []
-        if not isinstance(s.amount, str):
-            out.append(s.amount)
-        for opt in (s.source, s.dest, s.visibility, s.filter):
-            if opt is not None:
-                out.append(opt)
-        return out
-    if isinstance(s, n.EpistemicOp):
-        return [s.target] if s.filter is None else [s.target, s.filter]
-    if isinstance(s, n.Offer):
-        return [s.player]
-    if isinstance(s, n.Round):
-        exprs = [s.leader, s.participants]
-        if s.trump is not None:
-            exprs.append(s.trump)
-        if s.termination is not None:
-            exprs.append(s.termination)
-        return exprs
-    if isinstance(s, (n.IfStmt, n.RepeatUntil)):
-        return [s.cond]
-    if isinstance(s, n.Produce):
-        return list(s.payloads)
-    if isinstance(s, n.RunStmt):
-        return list(s.args)
-    return []  # ForEach / EachSimultaneous / RotateStmt: no direct value expressions
+    visited separately by the statement walk). Exhaustive over `Stmt`: a kind
+    missed here has its expressions silently skipped by every check downstream
+    of the walk, so "holds no expressions" is stated per kind, not defaulted."""
+    match s:
+        case n.AssignStmt():
+            # `s.target` is deliberately absent: a write target is validated by
+            # resolve (`_bad_write_target`) and typed by `_check_assign`, not
+            # walked as a value read.
+            return [s.value] + ([s.index] if s.index is not None else [])
+        case n.LetStmt():
+            return [s.value]
+        case n.Movement():
+            out: list[n.Expr] = []
+            if not isinstance(s.amount, str):
+                out.append(s.amount)
+            for opt in (s.source, s.dest, s.visibility, s.filter):
+                if opt is not None:
+                    out.append(opt)
+            return out
+        case n.EpistemicOp():
+            return [s.target] if s.filter is None else [s.target, s.filter]
+        case n.Offer():
+            return [s.player]
+        case n.Round():
+            exprs = [s.leader, s.participants]
+            if s.trump is not None:
+                exprs.append(s.trump)
+            if s.termination is not None:
+                exprs.append(s.termination)
+            return exprs
+        case n.IfStmt() | n.RepeatUntil():
+            return [s.cond]
+        case n.Produce():
+            return list(s.payloads)
+        case n.RunStmt():
+            return list(s.args)
+        case n.ForEach() | n.EachSimultaneous() | n.RotateStmt():
+            # ForEach/EachSimultaneous hold a role name and a binder (strings,
+            # not expressions); RotateStmt's target is a write target, validated
+            # by resolve like AssignStmt's.
+            return []
+        case n.Produces() | n.ContinueTo() | n.SkipToNextHand() | n.Block():
+            # Produces holds statements only (its arms' bodies are walked by
+            # `_check_produces` with the arm binders in scope); the control-flow
+            # pair hold a phase name / nothing; Block holds child statements.
+            return []
+        case _:
+            assert_never(s)
 
 
 def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
@@ -1437,18 +1494,37 @@ def _check_assign(stmt: n.AssignStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
 
 
 def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
-    """The non-expression checks a statement carries: assignment compatibility
-    and Boolean conditions. Used by the flat walk and the scoped produces walk."""
-    if isinstance(stmt, n.AssignStmt):
-        _check_assign(stmt, env, bag)
-    elif isinstance(stmt, n.IfStmt):
-        _check_bool(stmt.cond, env, bag, "if condition")
-    elif isinstance(stmt, n.RepeatUntil):
-        _check_bool(stmt.cond, env, bag, "repeat-until condition")
-    elif isinstance(stmt, n.Round) and stmt.termination is not None:
-        _check_bool(stmt.termination, env, bag, "round `until` condition")
-    elif isinstance(stmt, n.Movement):
-        _check_movement(stmt, bag)
+    """The non-expression checks a statement carries: assignment compatibility,
+    Boolean conditions, and movement-combination validity. Used by the flat walk
+    and the scoped produces walk.
+
+    Exhaustive over `Stmt` so that "this kind needs no semantic check" is a
+    recorded decision per kind. A silent default here is how a new statement
+    ships with its expressions typed but its own rules unenforced."""
+    match stmt:
+        case n.AssignStmt():
+            _check_assign(stmt, env, bag)
+        case n.IfStmt():
+            _check_bool(stmt.cond, env, bag, "if condition")
+        case n.RepeatUntil():
+            _check_bool(stmt.cond, env, bag, "repeat-until condition")
+        case n.Round() if stmt.termination is not None:
+            _check_bool(stmt.termination, env, bag, "round `until` condition")
+        case n.Movement():
+            _check_movement(stmt, bag)
+        case n.Round():
+            pass  # a round without `until` has no Boolean position to check
+        case (
+            n.EpistemicOp() | n.RotateStmt() | n.EachSimultaneous() | n.ForEach()
+            | n.LetStmt() | n.Offer() | n.Produce() | n.Produces()
+            | n.ContinueTo() | n.SkipToNextHand() | n.RunStmt() | n.Block()
+        ):
+            # No statement-level semantics beyond what resolve walls (write
+            # targets, rotate enum values, simultaneous bodies, run arity is
+            # `_check_stmt_exprs`'s RunStmt arm) and the expression walk covers.
+            pass
+        case _:
+            assert_never(stmt)
 
 
 def _check_movement(stmt: n.Movement, bag: DiagnosticBag) -> None:
@@ -1622,23 +1698,42 @@ def _item_can_skip(item: "n.PhaseItem") -> bool:
 
 def _control_flow_nodes(stmt: n.Stmt) -> Iterator[n.Stmt]:
     """Yield ContinueTo/SkipToNextHand within a statement, descending through
-    if/repeat/for-each and `produces:` arm bodies."""
-    if isinstance(stmt, (n.ContinueTo, n.SkipToNextHand)):
-        yield stmt
-    elif isinstance(stmt, n.Produces):
-        for arm in stmt.arms:
-            for s in arm.body:
+    if/repeat/for-each, `produces:` arm bodies, and blocks. Exhaustive over
+    `Stmt`: a compound kind missed here hides its jumps from `_check_outcome_
+    scope`, which then under-reports skippable producers — a wrong info-set-
+    adjacent conclusion, not just a missed diagnostic."""
+    match stmt:
+        case n.ContinueTo() | n.SkipToNextHand():
+            yield stmt
+        case n.Produces():
+            for arm in stmt.arms:
+                for s in arm.body:
+                    yield from _control_flow_nodes(s)
+        case n.ForEach() | n.EachSimultaneous():
+            yield from _control_flow_nodes(stmt.body)
+        case n.RepeatUntil():
+            for s in stmt.body:
                 yield from _control_flow_nodes(s)
-    elif isinstance(stmt, (n.ForEach, n.EachSimultaneous)):
-        yield from _control_flow_nodes(stmt.body)
-    elif isinstance(stmt, n.RepeatUntil):
-        for s in stmt.body:
-            yield from _control_flow_nodes(s)
-    elif isinstance(stmt, n.IfStmt):
-        for s in stmt.then_body:
-            yield from _control_flow_nodes(s)
-        for s in stmt.else_body or ():
-            yield from _control_flow_nodes(s)
+        case n.IfStmt():
+            for s in stmt.then_body:
+                yield from _control_flow_nodes(s)
+            for s in stmt.else_body or ():
+                yield from _control_flow_nodes(s)
+        case n.Block():
+            # A block is transparent to control flow: a jump written in a
+            # procedure body unwinds exactly as it would inline. Unreachable
+            # today (resolve rejects non-local control flow in procedure bodies,
+            # and expansion runs after this pass) — but "unreachable today" is
+            # what silent defaults always say right before they bite.
+            for s in stmt.body:
+                yield from _control_flow_nodes(s)
+        case (
+            n.Movement() | n.EpistemicOp() | n.RotateStmt() | n.LetStmt()
+            | n.AssignStmt() | n.Offer() | n.Round() | n.Produce() | n.RunStmt()
+        ):
+            pass  # no jumps, no child statements to hold any
+        case _:
+            assert_never(stmt)
 
 
 def _check_single_outcome_consumer(game: Game, bag: DiagnosticBag) -> None:

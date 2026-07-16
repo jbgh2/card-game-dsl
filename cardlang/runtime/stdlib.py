@@ -203,21 +203,34 @@ def _strain_index(strain: str | None) -> int:
 
 def _suit_of(value: Any) -> str:
     """The suit of a card, or of the single card in a zone (a face-up trump
-    indicator)."""
+    indicator). Asking for the suit of an EMPTY zone is a game-logic error and
+    fails loudly here, at the cause — returning `none` instead would propagate
+    silently into a `Suit?` variable and surface later as a wrong trick. The
+    argument types `TAny` (polymorphic: card or zone), so a non-card value is
+    user-reachable and gets a typed error, not a bare assert."""
     from cardlang.runtime.state import Zone
 
     if isinstance(value, Zone):
+        if not value.cards:
+            raise RuntimeError("suit_of: the zone is empty — no card to read a suit from")
         return value.cards[0].suit
-    assert isinstance(value, Card)
+    if not isinstance(value, Card):
+        raise RuntimeError(
+            f"suit_of expects a card or a zone, got {type(value).__name__}"
+        )
     return value.suit
 
 
-def _player_holding(card: Card, ctx: Ctx) -> Player | None:
-    """The player whose hand contains `card`, or None."""
+def _player_holding(card: Card, ctx: Ctx) -> Player:
+    """The player whose hand contains `card`. CALL_SIGS declares the result
+    `Player`, not `Player?`, and every corpus call site relies on that (`leader
+    := player_holding(2 of clubs)` right after the full deal) — so a card in
+    nobody's hand is a game-logic error reported here, at the cause, rather
+    than a silent `None` that key-errors some later subscript."""
     for player, zone in ctx.rs.zones.families["hand"].items():
         if card in zone.cards:
             return player
-    return None
+    raise RuntimeError(f"player_holding: no hand contains {card}")
 
 
 # --- value-callbacks (mechanic functions passed by name) ---
