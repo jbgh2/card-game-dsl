@@ -345,6 +345,33 @@ Things we have noted but consciously not designed yet:
   itself" is true of the semantics and false of the syntax. Ledger:
   tests/test_domain_registry.py.
 
+- **Collection facets vs nominal kinds — the promotion tripwire.**
+  `TCollection` stands in for several runtime kinds (a `Zone`, a computed
+  card list, a keyed map, a player set), distinguished by two facets
+  (`key`, `zone` — `cardlang/types.py`) that the walls consume: zone
+  positions require the `zone` marker, keyed maps check their key domain on
+  read/write and reject `in` as ambiguous. The walls are the right shape —
+  one predicate/fact each, several consumers — but the facet *mechanism*
+  carries a wrong-level smell: the facts ride ON a structural type, so every
+  site that constructs or rebuilds a `TCollection` must remember to preserve
+  them. That obligation already produced one regression (`unify` rebuilt
+  collections bare and dropped both facets; fixed and pinned in
+  tests/test_let_typing.py). The higher-level form is nominal kinds in the
+  closed `Type` union (`TZone`, `TMap<K,V>`), where preservation is free by
+  construction and new consumers are forced by exhaustiveness — but the
+  split hides a real design question: a zone must stay readable AS a card
+  collection (`card in hand[p]`, aggregation sources), so `TZone` needs a
+  subtype relation to `Collection<Card>`, and this type system deliberately
+  has coercions, not subtyping. Deferred until any ONE of three named
+  triggers fires, at which point the subtyping question must be answered
+  anyway and the refactor pays for itself:
+  (1) a third facet is proposed for `TCollection`;
+  (2) a second facet-preservation bug appears (a construction site
+  forgetting `key`/`zone`);
+  (3) a surface operation lands that needs per-kind RESULT semantics, not
+  just per-kind legality (sort/filter/take as expressions over
+  zone-vs-list-vs-map).
+
 ## Suggested next steps, in order
 
 [open-questions/_index.md](open-questions/_index.md) orders the open

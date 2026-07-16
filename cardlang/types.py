@@ -80,7 +80,14 @@ class TCollection:
     elements with full equality, so a facet mismatch one level down does
     distinguish — no current value shape nests a flag-bearing collection.)
     The value space of `score[player]` IS `Collection<Integer>`; the key is a
-    fact about how you may ADDRESS it, not about what it holds."""
+    fact about how you may ADDRESS it, not about what it holds.
+
+    Facets are bookkeeping, and bookkeeping riding on a structural type must
+    be PRESERVED by every site that rebuilds one — an obligation that already
+    bit once (`unify` dropped both facets; see its docstring). The promotion
+    path to real nominal kinds (`TZone`, `TMap`), and the three named
+    triggers that would fire it, are recorded in roadmap.md, "Collection
+    facets vs nominal kinds"."""
 
     element: "Type"
     key: "Type | None" = None
