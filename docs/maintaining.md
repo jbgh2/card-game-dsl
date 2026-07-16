@@ -107,6 +107,45 @@ raised a new question), not in the game file.
 The game file's job is to be a usable reference for the game.
 Findings have their own homes.
 
+## Doc snippet tagging
+
+Every fenced code block in the settled-spec docs — [decisions.md](decisions.md),
+[library.md](library.md), [model.md](model.md) — carries an info-string tag on
+its opening fence, so `tests/test_doc_snippets.py` can tell DSL from prose and
+keep the DSL in lockstep with the language:
+
+- ` ```cardlang ` — a complete game: pipeline-checked verbatim
+  (`cardlang.pipeline.check_dsl`).
+- ` ```cardlang-fragment ` — a snippet (a rule, a phase, statements, a
+  `zones {}` block) that isn't a whole game. Checked by embedding it in a
+  minimal game via a registered wrapper recipe (`tests/test_doc_snippets.py`,
+  `WRAPPER_RECIPES`); every `cardlang-fragment` block must have one.
+- ` ```cardlang-bad ` — a complete game the prose shows as a counterexample:
+  proven to be *rejected*, verbatim, by the pipeline. Use this only when the
+  counterexample is already whole-game shaped, exactly like `cardlang` — a
+  fragment checked raw here would "reject" merely for lacking an enclosing
+  `game {}`, proving nothing about the mistake it's meant to demonstrate.
+- ` ```cardlang-bad-fragment ` — a snippet-shaped counterexample: the
+  `cardlang-fragment` treatment for `cardlang-bad`. Wrapped through the same
+  registered recipe (`WRAPPER_RECIPES`, keyed identically by
+  `(doc_name, start_line)`), then proven *rejected*. Because a rejection
+  through a broken wrapper — or through a fragment that merely isn't a whole
+  game — would prove nothing about the snippet's own content, every
+  `cardlang-bad-fragment` block also has a benign filler of the same shape
+  in `BAD_FRAGMENT_SMOKE`, proven to *pass* through the identical wrapper
+  before the block's own (bad) text is checked against it.
+- ` ```text ` (or another accurate non-DSL tag, e.g. ` ```ebnf `) — not DSL;
+  the test skips it. Use this for grammar sketches with `<placeholder>`
+  tokens, diagrams, and any snippet that describes a proposed or
+  not-yet-implemented surface rather than the current one.
+
+A bare fence (no tag) or an unrecognized tag fails the test loudly, naming
+the doc file and line — that wall is what keeps a future edit from adding
+an unclassified block by accident. `cardlang.extract.extract_blocks` itself
+ignores the info string (it always did — Markdown parsing stays the only
+thing that module knows about), so tagging every block does not change how
+`docs/games/` or any other consumer of `extract_blocks` behaves.
+
 ## The corpus state catalogue (appendix.md)
 
 The state catalogue in [appendix.md](appendix.md) is a stable

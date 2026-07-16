@@ -14,13 +14,13 @@ four players passed without bidding."
 
 A phase declares its outcome type in its signature:
 
-```
+```text
 phase declare_trump → outcome { trump_declared(Suit) | bid_abandoned }
 ```
 
 The enclosing structure pattern-matches on the outcome:
 
-```
+```text
 declare_trump produces:
   trump_declared(t) { continue to melding }
   bid_abandoned {
@@ -51,7 +51,7 @@ betting round — omits the callback and threads phase state instead.) The
 enclosing structure pattern-matches on the produced value the same way it
 does for phase outcomes:
 
-```
+```text
 bidding produces:
   taker_chosen(_, level) {
     if level is Petite or level is Garde { continue to chien_visible }
@@ -164,11 +164,10 @@ predicate guard.
 
 ## Sub-phase rule and legal-move deltas
 
-A sub-phase inherits its parent's `active_rules` and `legal_moves`. To
-modify the inherited sets, the sub-phase uses three operators inside
-the slot:
+A sub-phase inherits its parent's `active_rules`. To modify the
+inherited set, the sub-phase uses three operators inside the slot:
 
-```
+```text
 phase parent { active_rules: [A, B, C] }
 
 phase child_extend   { active_rules: [+ D] }            // adds D       → A, B, C, D
@@ -180,26 +179,29 @@ phase child_override { active_rules: [override A2] }    // replaces A   → A2, 
 as `X` is replaced by `X`. If no parent rule matches the override
 target, it's a compile error — there's nothing to override.
 
-The same operators apply identically to `legal_moves`:
+The delta operators are `active_rules`-only. `legal_moves` takes a
+plain list of move-type names, stated directly in each phase that
+sets it:
 
-```
+```text
 phase parent { legal_moves: [play_to_trick] }
-phase child  { legal_moves: [+ declare_marriage] }
 ```
 
 A slot may mix operators and plain entries — a sub-phase that lists
 a bare rule is shadowing inheritance with its own complete set:
 
-```
+```cardlang-fragment
 phase parent { active_rules: [A, B, C] }
 phase child  { active_rules: [X, Y] }                   // X, Y only — parent set discarded
 ```
 
-**Corpus usage.** Every existing use is `+ X`. Hearts and Spades add
-follow-restriction rules; Pinochle and Spades add
-first-trick constraints; Tichu adds the Mahjong-wish rule; Tichu adds
-legal moves (call_tichu, call_grand_tichu) during its window. `- X`
-and `override X` are reserved for cases where the rulebook itself
+**Corpus usage.** Every existing `active_rules` delta is `+ X`. Hearts
+and Spades add follow-restriction rules; Pinochle and Spades add
+first-trick constraints; Tichu adds the Mahjong-wish rule. (Tichu's
+`call_tichu`/`call_grand_tichu` decisions are not rule deltas — they
+are `round`/`offer` moves in a poll window; see "Interactive
+decisions".) `- X` and `override X` are reserved for cases where the
+rulebook itself
 describes a rule being struck out or replaced. The rulebook-natural
 reading of every game in the current corpus uses `+ X` even when the
 mechanical effect could be expressed as a removal.
@@ -312,7 +314,7 @@ Getaway's first-trick-to-waste behaviour is the canonical mistake: written as a
 rule (`rule FirstTrickAlwaysGoesToWaste`) it has nothing to constrain — its
 effect is *where the cards go*, an ordinary body movement after the round:
 
-```
+```cardlang-fragment
 phase first_trick {
   active_rules: [MustLeadAceOfSpadesOnFirstPlay]
   round play_to_trick from leader over all players source hand into trick_pile
@@ -332,7 +334,7 @@ routing is a single unconditional movement, it is one statement after the round
 it branches — Getaway routes the pile to the trick winner on a tochoo (pickup)
 but to the waste otherwise — it is an `if` over the round's terminal state:
 
-```
+```cardlang-fragment
 phase play {
   round play_to_trick from leader over players where not eliminated[player]
         source hand into trick_pile outcome highest_of_led_suit early on_play_of_tochoo
@@ -373,7 +375,7 @@ body.
 
 The surface:
 
-```
+```text
 round offering [<move_type>, …] from <seat> over <ring>
       [order <ring | priority>] until <predicate> [outcome <fn>]
 ```
@@ -571,7 +573,7 @@ Combination-climbing games (Big Two, Tichu) run on a third
 configuration of the kernel `round`. A climbing trick plays like a trick, but each
 play is a *combination* (a computed set of cards), not a single card:
 
-```
+```text
 round climb <move_type> from <leader> over <participants>
       source <zone> into <zone>
       combinations <lead_query> follows <follows_query>
@@ -691,7 +693,7 @@ may not be active. This is statically checkable.
 
 **Example: Bridge state declarations.**
 
-```
+```text
 game Bridge {
   // No game-level state in Bridge.
 
@@ -957,7 +959,7 @@ deliberately *not* provided until a game requires them.
 Hearts uses `before_each` to gather the previous hand's cards, shuffle, and
 deal:
 
-```
+```cardlang-fragment
 before_each {
   move all cards to deck
   shuffle deck
@@ -1105,34 +1107,36 @@ rewrites to underlying forms.
 **User-definable types.** Games declare struct-like types that the
 language treats as first-class values:
 
-```
+```text
 type Contract = {
-  level         : Integer in 1..7
-  suit          : Suit | NT
-  doubled_state : Doubled | Redoubled | Undoubled
+  level        : Integer
+  strain       : Suit?
+  doubled_mult : Integer
 }
 
 type HandResult = {
-  contract        : Contract
-  declarer_side   : Partnership
-  defender_side   : Partnership
   tricks_actual   : Integer
   tricks_required : Integer
-}
-derived {
+} derived {
   made = tricks_actual >= tricks_required
 }
 ```
 
+A field's type is a single type name (`Integer`, `Suit?`, another
+declared type); a field is not a place for range or union constraints.
 Derived fields are computable functions of declared fields. They're
 accessed identically to declared fields (`result.made`) but are
 stored nowhere; the compiler inlines them.
 
 User-defined types may be parameterized with the same angle-bracket
 convention as stdlib generics. They are the language's extension
-point: games introduce concepts (Contract, HandResult, Meld, Pot) by
-declaring them. The DSL doesn't ship a vocabulary covering every
-possible game.
+point for genuine record types. The current corpus models its
+structured values with flat state variables and functions instead —
+Bridge's contract is `contract_level : Integer`, `trump_suit : Suit?`,
+`doubled_mult : Integer`; a poker pot is a chip zone plus an
+eligibility set — so no corpus game declares a `type` yet. The surface
+exists for the game that needs a true record, and the DSL doesn't ship
+a vocabulary covering every possible game.
 
 **Optional types and the `none` literal.** A type written `T?` is optional: it
 holds a `T` or the absence value `none`. `none` is the language's single
@@ -1149,72 +1153,30 @@ takes (`eliminated[player] : Boolean = false`, `eliminated[p] := true`). Like
 `none`, they are language literals rather than enum members, so a game never
 declares them.
 
-**Deck declaration.** The `cards { }` block declares which cards
-exist in the deck. The canonical form is a per-suit map: each suit
-names its own rank sequence. A list of suits as a key is shorthand
-for "these suits share this rank list."
+**Deck declaration.** The `cards:` line names the deck a game uses.
+The deck is a constant from the closed stdlib registry (`DECKS` in
+`cardlang/runtime/values.py`): a game selects one by name and does not
+spell out its cards.
 
-```
-cards: {
-  suits: {
-    [S, H, D, C]: [2, 3, 4, 5, 6, 7, 8, 9, 10, J, Q, K, A]
-  }
-}
-```
-
-Tarot decks need this generality — the trump suit has a different
-rank set from the standard suits:
-
-```
-cards: {
-  suits: {
-    [S, H, D, C]: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, J, Cavalier, Q, K]
-    atouts:      [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]
-  }
-  specials: [Excuse]
-}
-```
-
-**Stdlib decks.** Common deck compositions are stdlib constants —
-see [library.md](library.md) "Stdlib decks". A game with a standard
-deck writes one line:
-
-```
+```cardlang-fragment
 cards: standard52
 ```
 
-Games that extend a stdlib deck compose with `+`:
+Each registered deck defines its own card set — the standard 52-card
+deck, Pinochle's doubled 48, Skat's 32, and the decks whose suits do
+not share a single rank list: French Tarot's 78 (four 14-card suits, a
+21-card trump suit, and the Excuse) and Tichu's 56 (the standard 52
+plus the four special cards Mahjong, Dog, Phoenix, Dragon). Those
+compositions live in the registry, not in per-game syntax;
+[library.md](library.md) "Stdlib decks" catalogues them, and adding a
+deck is a stdlib registry addition. Tichu's non-(suit, rank) specials
+are a separate question from the registry itself; see
+[open-questions/special-cards-declaration.md](open-questions/special-cards-declaration.md).
 
-```
-cards: standard52 + { specials: [Mahjong, Dog, Phoenix, Dragon] }
-```
-
-The composition adds the right-side clauses to the stdlib base. Used
-by Tichu, which is standard52 plus four named singletons. (Tichu's
-specials being non-(suit, rank) cards is a separate question from
-how the deck composes; see
-[open-questions/special-cards-declaration.md](open-questions/special-cards-declaration.md).)
-
-**Per-card attributes.** Games can declare additional
-Boolean/enum/integer attributes attached to every card in their
-`cards { ... }` block:
-
-```
-cards: {
-  suits: { [S, H, D, C]: [2..10, J, Q, K, A] }
-  attributes: {
-    tapped         : Boolean              = false
-    counters       : Map<Name, Integer>   = {}
-    summoning_sick : Boolean              = true
-  }
-}
-```
-
-Attributes are accessed via dot notation (`card.tapped`,
-`card.counters`) and sugared over the underlying attributes map.
-The mechanism is in place for CCGs and oriented-card games
-(face-up/down piles, tapping, status effects) but no game in the
-current corpus uses card attributes.
+Per-card mutable attributes (tapping, counters, status effects) are
+not part of the surface — the oriented- and CCG-style card state they
+would serve is deferred ([roadmap.md](roadmap.md), out of scope for
+the current phase).
 
 **Convenience sugar (rewrites that compile away):**
 
@@ -1258,7 +1220,7 @@ A resource quantity in a `transfer` is written `<count> <type>` — the
 count (an integer expression, or `all`) followed by the resource type
 name:
 
-```
+```text
 transfer 1 coin       from treasury to coins[player]
 transfer 7 coins      from coins[actor] to treasury
 transfer amount coins from coins[target] to coins[actor]
@@ -1274,7 +1236,7 @@ canonical surface for that case.
 For a transfer that moves *several* resource types at once, the
 generalization is a map literal `{ type: count, … }`:
 
-```
+```text
 transfer { wood: 2, brick: 1 } from bank to hand[player]
 ```
 
@@ -1291,13 +1253,13 @@ the move is illegal. The language provides no partial-fulfillment
 primitive. A game that wants partial behaviour writes it explicitly,
 with `min` or a conditional amount:
 
-```
+```text
 // Coup steal — take 2, or 1 if that's all the target has:
 let amount = min(2, coins[target].amount_of(coin))
 transfer amount coins from coins[target] to coins[actor]
 ```
 
-```
+```text
 // Stud all-in call — match the bet, or commit the whole stack:
 let amount = min(bet_to_match - bet_by[actor], stack[actor].count)
 transfer amount chips from stack[actor] to pots[0].contents
@@ -1487,7 +1449,7 @@ comprehension spellings, noun sugar for counting) and the evidence.
 A game factors an expression it would otherwise repeat with a **named function** —
 a parameterized expression callable wherever an expression appears:
 
-```
+```text
 function <name>(<param> : <type>, …) = <expr>
 ```
 
@@ -1522,7 +1484,7 @@ loop) remains open.
 A game factors a *statement sequence* it would otherwise repeat with a **named
 procedure** — the statement layer's sibling of the named function above:
 
-```
+```text
 procedure <name>(<param> : <type>, …) { <statement>* }
 ```
 
@@ -1544,7 +1506,7 @@ interprets. Coup is the forcing case: three blocks pasted 29 times, most of a
 
 A `run f(a, b)` becomes one block:
 
-```
+```text
 block {
   let @f.p = a            // each argument evaluated ONCE, in the caller's context
   let @f.q = b
@@ -1680,7 +1642,7 @@ Six projections, ordered by informativeness:
 
 These form a lattice ordered by informativeness:
 
-```
+```text
 identity ⊐ identity_set ⊐ count_by_type ⊐ count_only ⊐ existence_only ⊐ trivial
 ```
 
@@ -1700,46 +1662,36 @@ contents' type.
 
 ### Per-observer visibility on zones
 
-A zone's visibility declaration assigns each observer a projection:
+Each zone type fixes a per-observer projection — a mapping from
+observer to the level at which it sees the zone's contents. This is
+the model a zone type encodes:
 
-```
-zone_name : Zone<ContentType> {
-  composition : <projection> to <observer-set>, <projection> to <observer-set>, ...
-}
-```
-
-Three common shapes:
-
-```
+```text
 public_zone   : Zone<Card>     { composition: identity to all }
 private_hand  : Zone<Card>     { composition: identity to owner, count_only to others }
 hidden_deck   : Zone<Card>     { composition: count_only to all }
 catan_hand    : Zone<Resource> { composition: count_by_type to owner, count_only to others }
 ```
 
-Library types in [library.md](library.md) wrap common combinations
-under named aliases.
+The set of zone types is a closed stdlib registry (`ZONE_PROJECTIONS`
+in `cardlang/stdlib/zones.py`, wrapped as the named aliases in
+[library.md](library.md), "Library zone types"). A game does not write
+a `composition` block or declare a new zone type — it selects a named
+type in its `zones {}` block, and the type carries the projection
+(`hand[player] : Hand<player>`). Adding a projection profile is a
+stdlib registry addition, not a surface a game reaches.
 
 ### Per-observer visibility on moves
 
-Moves can override the zone's default projection for specific
-observers. When a move's effect on knowledge differs from what the
-zone declaration alone would imply, the move carries a `visibility:`
-clause:
-
-```
-transfer 1 random Resource from hand[victim] to hand[thief],
-  visibility: {
-    thief  : identity,
-    victim : identity,
-    others : count_only
-  }
-```
-
-Without the override, observers see the move through their existing
-zone projections. With it, the move emits per-observer events at the
-declared projection level. Zone declaration is the default; the move
-clause is the override.
+Visibility derives from the declared zone types: a move is observed
+through each endpoint's projection (below), and the current language
+has no per-move override. The grammar admits a `visibility:` clause on
+a movement, but the type checker rejects it — "visibility derives from
+the declared zone types" — reserving the design for
+[open-questions/move-level-visibility.md](open-questions/move-level-visibility.md),
+which asks when a move's epistemic effect must differ from what its
+zones imply (a card passed face-down, a resource stolen and shown only
+to the pair). No corpus game needs it yet.
 
 ### Observation events
 
@@ -1877,7 +1829,7 @@ hidden randomness.
 A game declares its terminal result with exactly one top-level clause,
 evaluated against the final state when the phase tree finishes:
 
-```
+```cardlang-fragment
 winner: lowest cumulative_score      // Hearts — rank a score variable
 loser:  the player where hand[player] is not empty   // Getaway — select directly
 ```
@@ -1905,7 +1857,7 @@ name.
 
 Three expression forms query the player ring by a predicate:
 
-```
+```text
 players where <pred>              // the set of matching players
 the player where <pred>           // the unique matching player (errors if not exactly one)
 number of players where <pred>    // how many match
@@ -1945,7 +1897,7 @@ for elimination games that select the player who *still* holds cards.
 Scoring composes from named components. The scoring phase of a game
 declares which components apply:
 
-```
+```text
 phase scoring {
   let result = HandResult(contract, declarer_side, ...)
   apply_components: [
@@ -2018,7 +1970,7 @@ fire on an event, evaluate a predicate, contribute a `ScoreDelta`.
 A scoring component declares the trigger with a `triggered_by:`
 clause analogous to a rule's `applies_when:`:
 
-```
+```text
 scoring_component <name> {
   triggered_by: <event> [where <predicate>]
   ScoreDelta { ... }
@@ -2070,37 +2022,31 @@ Spades (BagOverflow). All fit the shape above.
 
 ## `choose` as expression
 
-`choose` is a primitive that elicits a player decision. It is used
-in two forms in the corpus:
+`choose` elicits an integer decision from the acting player. Its one
+form names an inclusive range, optionally capped:
 
-```
-// Statement form (Pinochle Auction, declare_trump):
-offer action to active_player:
-  submit_bid:
-    choose Integer with bid > current_bid ...
-    current_bid := bid
+```text
+bid[p] := choose integer in 0 .. 13
 ```
 
-```
-// Expression form (Tichu Dragon routing):
-all cards from trick_pile to captured[team of (winner chooses one opponent)]
-```
+Oh Hell caps the range — `choose integer in 0 .. hand_size up to 10` —
+so the action space stays bounded when `hand_size` is large. `choose`
+is an expression: it appears wherever an `Integer` is expected — the
+right-hand side of an assignment, a move argument. It emits a public
+observation of the chosen value, and the chooser is the acting player
+of the surrounding decision.
 
-The statement form is a binding: `choose <Type> with <constraint>`
-names the chosen value and introduces it into the surrounding
-scope. The expression form `<actor> chooses <description>` returns
-the chosen value as an inline subexpression.
-
-Both forms emit a public observation event of the choice. The
-chooser is the named `actor` (explicit in the expression form;
-implicit from the enclosing `offer action to` in the statement
-form). The candidate set is determined by the type or description.
-
-`choose` may appear inside routing functions, outcome functions,
-phase bodies, mechanic bodies — anywhere an expression of the
-chosen type is expected. There is no separate "choice-embedded
-routing" mechanism; routing functions are ordinary expressions and
-ordinary expressions may include `choose`.
+`choose` covers integer decisions only. The other decisions a game
+elicits are not `choose`. Selecting which move to make is
+`offer to <player> one of [move, …]`; the structured interactive forms
+(an auction, a poll, trick play) are the `round` construct — see
+"Interactive decisions: a kernel and an in-DSL standard library". A
+decision that routes cards to a chosen recipient runs as one of those
+move selections and reads its result through an ordinary function:
+Pinochle's trump declaration is `round offering [declare_trump_suit]`,
+and Tichu's Dragon gift is
+`offer to outcome one of [dragon_to_left, dragon_to_right]`, not an
+inline "chooses" subexpression.
 
 ## Bidding patterns
 
@@ -2125,19 +2071,19 @@ use the Auction mechanic.
 Bid interpretation is therefore a per-game scoring concern. Each
 game's `scoring_component`s declare what counts as making the bid:
 
-```
+```text
 // Spades (ContractScoring):
 if result.tricks_won[t] >= non_nil_bid:           // threshold
   delta_score[t] += 10 * non_nil_bid
 ```
 
-```
+```text
 // Oh Hell (TricksAndExactBonus):
 if result.tricks_won[p] is result.bid[p]:         // exact
   delta[p] += 10
 ```
 
-```
+```text
 // Pinochle (inline):
 if bidder_team_total >= current_bid:              // total-points threshold
   score[bidder_team] += bidder_team_total
@@ -2171,7 +2117,7 @@ normally.
 The language handles this with per-game helper functions, not new
 zone-level or move-level constructs:
 
-```
+```text
 play_source_for(actor) =                // which zone the move comes from
   if actor is declarer.partner and dummy_revealed:
     dummy_hand[actor]
@@ -2240,7 +2186,7 @@ source zone's projection, not by the block itself.
 general case and a player-iteration form for the common Hearts
 pattern:
 
-```
+```text
 // Wrapper form.
 simultaneously: {
   <move1>
@@ -2333,7 +2279,7 @@ the commit step; the choice of whether to commit is elsewhere.
 
 **Hearts passing.** The passing phase reads as:
 
-```
+```cardlang-fragment
 phase passing when pass_direction is not hold {
   active_rules: [PassExactlyThreeCards]
   legal_moves:  [transfer_between_hands]
@@ -2357,7 +2303,7 @@ to non-owners.
 **Catan-style trade (sketch).** A two-player resource trade
 that may or may not be agreed:
 
-```
+```text
 phase trade_negotiation → outcome { agreed(Trade) | declined } {
   // ... players negotiate, propose, accept/reject ...
 }
@@ -2471,7 +2417,7 @@ the announcer's own hand size). The language expresses these as a
 **quiescence-lap poll** — an idiom over the existing kernel, not a
 construct:
 
-```
+```text
 if <public window gate> {
   quiet := 0
   round offering [<window moves>, decline] from <player about to act>
@@ -2709,7 +2655,7 @@ has a fixed shape, the **completeness ledger**, shipped in the change itself
 (the commit message, or the covering test module's docstring — somewhere a
 reviewer sees without asking):
 
-```
+```text
 property:   <the guarantee, one line>
 domain:     <what is quantified over>
 registry:   <where that domain is defined in code>
