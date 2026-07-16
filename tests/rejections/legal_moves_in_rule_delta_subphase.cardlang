@@ -1,0 +1,26 @@
+// Wall: resolve.py's `_check_rule_delta_subphases`. `window` is a rule-delta
+// sub-phase (config-only: active_rules/transition_to only), so its
+// `legal_moves:` is consulted by no runtime consumer and would be silently
+// ignored. The move menu is set by the enclosing phase, never toggled by an
+// invisible config sub-phase — so the `legal_moves:` here is rejected, not
+// dropped.
+game LegalMovesInRuleDeltaSubphase {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+    trick_pile : TrickPile
+  }
+  state { score[player] : Integer = 0 }
+  phase play {
+    legal_moves: [play_to_trick]
+    phase window {
+      active_rules: [+ MustFollowSuit]
+      legal_moves: [play_to_trick]
+    }
+  }
+  winner: highest score
+}

@@ -1,0 +1,1 @@
+legal_moves_in_rule_delta_subphase.cardlang:22:7: error: `legal_moves:` in a rule-delta sub-phase has no effect — a config-only sub-phase (active_rules/transition_to) toggles rules, not the move menu, and nothing consults it. Set `legal_moves:` on the phase itself, or restrict the move with a rule.
