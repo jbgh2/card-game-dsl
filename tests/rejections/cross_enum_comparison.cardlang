@@ -1,0 +1,15 @@
+// Wall: typecheck.py's enum-equality operand check. `hearts` is a Suit and
+// `left` is a Direction; the two enums can never compare equal, so `is` is
+// rejected rather than silently always-false at runtime.
+game CrossEnumComparison {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase play {
+    let probe = hearts is left
+  }
+  winner: highest score
+}

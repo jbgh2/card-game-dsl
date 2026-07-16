@@ -1,0 +1,1 @@
+cross_enum_comparison.cardlang:12:27: error: comparing Suit with Direction can never be equal

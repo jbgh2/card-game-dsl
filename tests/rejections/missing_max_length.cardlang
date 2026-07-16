@@ -1,0 +1,15 @@
+// Wall: resolve.py's `_resolve_max_length`. Every game must declare
+// `max_length: <n>` — the bound the runtime enforces and the OpenSpiel
+// adapter reports (docs/decisions.md, "Game length as a declared contract").
+// This game omits it entirely.
+game MissingMaxLength {
+  players: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase play {
+    deal 3 cards from deck to each hand
+  }
+  winner: highest score
+}

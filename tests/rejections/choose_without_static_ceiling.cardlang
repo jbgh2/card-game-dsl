@@ -1,0 +1,17 @@
+// Wall: resolve.py's integer-`choose` ceiling check (docs/decisions.md, "The
+// integer `choose` domain"). `n` is a runtime state variable, not a literal,
+// and no `up to N` clause declares a static ceiling — so the OpenSpiel
+// action space cannot be sized up front.
+game ChooseWithoutStaticCeiling {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { n : Integer = 3  x[player] : Integer = 0 }
+  phase play {
+    for each player p:
+      x[p] := choose integer in 0 .. n
+  }
+  winner: highest x
+}

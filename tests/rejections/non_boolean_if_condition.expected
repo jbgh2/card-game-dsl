@@ -1,0 +1,1 @@
+non_boolean_if_condition.cardlang:11:8: error: if condition must be Boolean, got Integer

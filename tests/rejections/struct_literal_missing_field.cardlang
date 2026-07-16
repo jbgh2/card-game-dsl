@@ -1,0 +1,16 @@
+// Wall: typecheck.py's struct-literal field check. `Contract` declares two
+// fields (`level`, `suit`); the literal supplies only `level`, so the
+// missing field is rejected rather than left implicitly zero-valued.
+type Contract = { level : Integer  suit : Suit }
+game StructLiteralMissingField {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0  deal : Contract = none }
+  phase play {
+    deal := Contract { level: 1 }
+  }
+  winner: highest score
+}

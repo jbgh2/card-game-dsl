@@ -1,0 +1,1 @@
+movement_visibility_override.cardlang:14:5: error: per-movement visibility overrides are not yet honored by the runtime — visibility derives from the declared zone types (roadmap.md)
