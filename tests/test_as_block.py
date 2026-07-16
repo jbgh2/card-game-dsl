@@ -12,17 +12,30 @@ property:   `as <p> { … }` binds the acting player to exactly one evaluated
             escape; every grammar-accepted combination executes or is
             statically rejected.
 domain:     (player-expr ∈ Expr union) × (body ∈ Stmt* — every statement kind)
-registry:   the Expr and Stmt unions (cardlang/ast/nodes.py); the statement
-            dispatch is pinned exhaustively by `assert_never` in resolve,
-            typecheck (×4), ir, deckcheck, and runtime/execute.
+registry:   the Expr and Stmt unions (cardlang/ast/nodes.py). The statement
+            dispatch is consumed at every layer for a new `Stmt` (the list
+            `expand.py`'s Contract enumerates): the exhaustive `assert_never`
+            matches in resolve, typecheck (×4), ir, deckcheck, and
+            runtime/execute (a missing arm is a mypy error), AND the two
+            reflection-based generic walkers — `expand._rewrite_value` and
+            `openspiel/encoding._walk` — whose wall is genericity over every
+            dataclass field, so `AsBlock.body` is reached without either
+            knowing `AsBlock` exists.
 covered:    - omitted player-expr / malformed → parse error [grammar]
             - unresolved name in player position → resolve reject
             - non-Player player-expr → typecheck reject (assignable(_, Player),
               keeping the Integer-stands-for-player leniency of
               `dealer : Player = 0`) [typecheck]
+            - a player-expr that is a valid TYPE but binds a non-seat VALUE at
+              runtime (`as 5` in a 2-player game; a TAny pronoun like
+              `as active_rules`) → loud RuntimeError at `acting_as` — the
+              acting-player analogue of the phantom-key write wall, so `as` is
+              never more dangerous than the guarded loop it replaces [runtime]
             - body `let` does not escape the block [resolve + runtime]
             - the acting player reaches a `chosen` movement in the body via
               `acting_as`, byte-identical to the loop idiom [runtime]
+            - a `choose`/`offer`/`round` nested in an `as` body is visible to
+              the OpenSpiel action-space encoder (generic `_walk`) [encoding]
             - `as` lexes distinctly from `as-equally-as-possible` and from a
               statement-leading `as…` identifier (anchored `_AS_KW`) [grammar]
 sampled:    - the remaining body statement kinds (rotate, epistemic, round,
@@ -131,6 +144,59 @@ def test_body_let_does_not_escape_the_block() -> None:
             ),
             "test.cardlang",
         )
+
+
+def test_out_of_range_player_is_a_loud_runtime_error() -> None:
+    # The regression the `as` block must NOT introduce: the guarded loop it
+    # replaces (`for each p: if p is 5`) never matches a non-seat and drops the
+    # decision; `as` binds unconditionally, so a phantom seat must fail loudly at
+    # bind time rather than reach the chooser as a bogus decider.
+    game = _decision_game(
+        "as 5 { move chosen 1 cards from hand[dealer] to discard }"
+    )
+    with pytest.raises(RuntimeError, match="not a seat"):
+        _run_capturing(game)
+
+
+def test_tany_non_player_bound_as_actor_is_a_loud_runtime_error() -> None:
+    # A pronoun the checker leaves TAny (`active_rules`) passes the static Player
+    # wall, but binding its non-seat value (an empty tuple) as the actor is
+    # walled at `acting_as`, not silently handed to the chooser.
+    game = _decision_game(
+        "as active_rules { move chosen 1 cards from hand[dealer] to discard }"
+    )
+    with pytest.raises(RuntimeError, match="not a seat"):
+        _run_capturing(game)
+
+
+def test_encoder_descends_into_as_body() -> None:
+    # The OpenSpiel action-space encoder must see decisions nested in an `as`
+    # body. It uses a generic `_walk`, so a `choose` inside `as` sets the same
+    # int-ceiling as one written bare — if the encoder ever stopped descending,
+    # this ceiling would drop to the default and the test would fail.
+    from cardlang.openspiel.encoding import ActionSpace
+
+    def _choose_game(body: str) -> n.Game:
+        return check_dsl(
+            "game G {\n"
+            "  players: 2\n"
+            "  max_length: 1000\n"
+            "  cards: standard52\n"
+            "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
+            "  zones { hand[player] : Hand<player> }\n"
+            "  state { dealer : Player = 0  bid[player] : Integer = 0 }\n"
+            "  winner: highest bid\n"
+            f"  phase p {{ {body} }}\n"
+            "}\n",
+            "test.cardlang",
+        )
+
+    bare = ActionSpace.for_game(_choose_game("bid[dealer] := choose integer in 0 .. 7"))
+    in_as = ActionSpace.for_game(
+        _choose_game("as dealer { bid[dealer] := choose integer in 0 .. 7 }")
+    )
+    assert in_as._int_ceiling == 7  # the choose inside `as` was found
+    assert in_as._int_ceiling == bare._int_ceiling
 
 
 def test_as_equally_as_possible_still_parses() -> None:

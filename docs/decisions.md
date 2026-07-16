@@ -684,8 +684,10 @@ a `Player`; anything else is a type error.
 
 It exists because a `chosen` movement needs an acting player, and binding one
 belongs in the construct that says *who decides*, not in a loop that iterates
-everyone. The idiom it replaces — `for each player p: if p is <who> { … }` — is
-wrong in two ways that `as` fixes at the root:
+everyone. Pressed into service for a single decider, `for each player p: if p
+is <who> { … }` carries two latent failures `as` forecloses (the same `for
+each` stays correct — and stays in the language — for genuine per-player work,
+a scoring pass or a deal to everyone):
 
 - **It captures `actor`.** `for each player p:` rebinds the acting player for its
   body, and `actor` *reads* the acting player, so `if p is actor { … }` is true for

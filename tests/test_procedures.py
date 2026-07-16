@@ -691,7 +691,8 @@ def test_an_argument_naming_the_actor_survives_an_actor_rebinding_body() -> None
     """`for each player q:` rebinds the acting player — that is how the bound player
     becomes the chooser of a decision in the body — and `actor` READS the acting
     player, so `if q is actor` inside such a loop is true for EVERY q. That trap is
-    real and still live for inline text (open-questions/single-actor-binding.md).
+    real and still live for inline text (decisions.md "Single-actor decisions:
+    the `as` block", which gives the first-class binder that forecloses it).
 
     A procedure is immune, and not because of a wall: the argument is evaluated in
     the CALLER's context, before the loop exists, so `run mark(actor)` passes the

@@ -276,16 +276,38 @@ class Ctx:
         return replace(self, locals={**self.locals, name: value})
 
     def acting_as(self, player: Player) -> "Ctx":
+        """Bind the acting player for a body. The player MUST be a real seat.
+        `as <expr>` and `offer to <expr>` evaluate an arbitrary expression here,
+        and a player expression is runtime data: an off-by-one at a ring's edge,
+        or a non-player value the checker leaves deliberately loose (`TAny` —
+        `as active_rules`, `as outcome` before a round has produced one, `as 5`
+        in a two-player game), would otherwise reach the chooser as a phantom
+        decider and silently corrupt the decision node's information set. This is
+        the acting-player analogue of the phantom-key write wall in
+        `RuntimeState.set`, and it is what keeps `as` from being *more* dangerous
+        than the guarded loop it replaces (a `for each player p: if p is <who>`
+        guard never matches a non-seat, so it drops the decision; `as` binds
+        unconditionally, so the seat check moves here). The trusted callers
+        (`for each`, the simultaneous pass, move effects) always pass a real
+        seat, so this never fires for them."""
+        if player not in self.rs.seating.players:
+            raise RuntimeError(
+                f"cannot act as {player!r}: not a seat of this "
+                f"{len(self.rs.seating.players)}-player game — the player "
+                f"expression bound a non-player value"
+            )
         return replace(self, current_player=player)
 
     def require_actor(self, what: str) -> Player:
         """The acting player at a decision point — never an implicit default. A
         choice with no acting player is a malformed game (who is choosing?), so
-        fail loudly rather than silently attributing it to player 0."""
+        fail loudly rather than silently attributing it to player 0. (Seat
+        validity is enforced upstream, when the player is bound — `acting_as`.)"""
         if self.current_player is None:
             raise RuntimeError(
                 f"{what} with no acting player; make it part of a per-player "
-                f"context (e.g. `for each player p`) so the chooser knows who decides"
+                f"context (`as <player>` for one decider, `for each player p` "
+                f"for all) so the chooser knows who decides"
             )
         return self.current_player
 
