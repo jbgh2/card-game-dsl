@@ -94,6 +94,11 @@ dominant cause of misses.
   exceptions; no bare `assert` on a user-reachable path; no raw
   lark/Python exception escaping (the `VisitError`-unwrap class — check
   every `transform` call site, not just the one that motivated the unwrap).
+  Every new guard passes the write-time triage (decisions.md
+  "Closed-domain completeness"): it is a wall at the owning layer, or a
+  backstop whose comment names the wall it shadows — a guard that names
+  neither is a finding (class 5 or 6) even if the condition it checks is
+  true.
   Grep each new diagnostic's quoted syntax against the grammar: a message
   that names a retired spelling, or directs the user to a sentence the
   grammar rejects, is a finding.
@@ -124,7 +129,11 @@ dominant cause of misses.
   equal — the defect is the missing pin, not the current values. A change
   that gives an existing domain a second definition source (a derived
   namespace beside a declared list) must show its reconciliation check;
-  absence is a finding.
+  absence is a finding. The same class covers re-derivation: a downstream
+  site that recomputes a fact an earlier pass established (re-classifying
+  a name instead of reading `ref_kind`, re-inferring a type, re-computing
+  a zone projection) is a finding even while its answer is currently
+  correct — the two computations will drift.
 - **G. Test-integrity auditor** *(test, golden, or construct-retiring
   changes)*. Hunt vacuous tests: assertion loops whose trigger condition a
   retired construct can no longer produce, guards over deleted grammar,

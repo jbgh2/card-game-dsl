@@ -71,6 +71,19 @@ criterion** — alongside "does it run" and "is it byte-identical":
   residual). When a gap is found, sweep its whole class (the other members
   of the same closed domain) before patching the instance. The rule is
   `docs/decisions.md`, "Closed-domain completeness".
+- **Stop-and-fix at write time.** Two tells mean you are losing information,
+  not defending it: (a) you are re-deriving a fact an earlier pass already
+  established (a `ref_kind` the resolver stamped, a type the checker
+  validated, a projection `ZONE_PROJECTIONS` declares), or (b) you are adding
+  a guard for a condition already checked in another file. On either tell,
+  STOP — the fix is upstream, never the local edit. Triage the check as
+  **wall / backstop / missing wall** before it lands, per `docs/decisions.md`,
+  "Closed-domain completeness" (write-time triage): a wall moves to the layer
+  that owns the class; a backstop's comment names the wall it shadows; a
+  guard that can't say which it is doesn't land. Every pass states what it
+  assumes, what it establishes, and what becomes illegal after it in the
+  `Contract` block of its module docstring — read the owning pass's contract
+  before placing a check.
 
 ## What's here
 

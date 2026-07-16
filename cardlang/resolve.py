@@ -14,8 +14,24 @@ Deep expression name resolution (state variables, suits, the `action` fields,
 stdlib functions) needs the typed object model and lands with the type
 checker; this pass is the structural net.
 
-On success the (unchanged) :class:`Game` flows on. On any error it raises with
-every diagnostic collected, not just the first.
+On success an immutably rewritten :class:`Game` flows on (rule templates
+instantiated, every name classified). On any error it raises with every
+diagnostic collected, not just the first.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Assumes:      a parsed AST (spans present, ``NameRef.ref_kind`` still
+              ``None``).
+Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
+              rule templates are instantiated into concrete rules; every
+              structural reference names a real declaration. This is the
+              ONLY pass that classifies names — downstream dispatches on
+              ``ref_kind``, never re-derives it.
+Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
+              zone/rule/move-type/phase reference reaching a later pass;
+              the runtime hard-fails on an unclassified name
+              (``runtime/evaluate.py``, ``_name``) as its backstop.
+Verified by:  the per-wall diagnostic tests; the runtime backstop above.
 """
 
 from __future__ import annotations

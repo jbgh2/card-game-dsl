@@ -1,4 +1,4 @@
-"""Emit stage: type-annotated AST -> validated IR.
+"""Emit stage: checked AST -> validated IR.
 
 The IR is the resolved AST rendered as a plain JSON-able dict — not desugared
 (docs/building.md, "The AST↔IR seam"). Library constructs (phases, the `round`
@@ -6,13 +6,27 @@ construct, rules) are preserved as tagged nodes. Spans are a front-end
 diagnostic concern and are deliberately omitted, so the IR is stable under
 reformatting of the source and suitable for golden-file snapshots.
 
-Every node carries a ``kind`` tag so downstream consumers (the future
-interpreter, the OpenSpiel adapter) can dispatch without re-deriving shape.
-This emitter is the first consumer to walk the whole node set, so its `match`
-statements are checked exhaustively (`assert_never`) under ``mypy --strict``.
+Every node carries a ``kind`` tag so an IR consumer can dispatch without
+re-deriving shape. This emitter is the first consumer to walk the whole node
+set, so its `match` statements are checked exhaustively (`assert_never`)
+under ``mypy --strict``.
 
 The IR is currently the *resolved* AST; type annotations are layered on when
 the type checker grows.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Assumes:      the fully checked, procedure-free AST (post deck-capacity).
+Establishes:  a JSON-able rendering that carries resolve's facts forward —
+              ``ref_kind`` on every name, the resolved choose ceiling —
+              never re-derives them.
+Consumed by:  the CLI and the golden-file snapshots. The runtime and the
+              OpenSpiel adapter do NOT run off this rendering: they consume
+              the checked AST directly (``pipeline.check_source`` ->
+              ``runtime/driver.play_game``). This emitter is a sidecar
+              serialization, kept in lockstep by the goldens.
+Verified by:  golden IR snapshots (tests/golden/) and the per-construct IR
+              tests.
 """
 
 from __future__ import annotations

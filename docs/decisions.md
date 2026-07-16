@@ -2697,6 +2697,25 @@ the wrong currency and suppresses every other diagnostic in the file);
 the runtime fails as typed exceptions; the proofs fail with a witness.
 Loud-but-wrong-layer is a bug with the same rank as silent.
 
+**A check lands only after naming its owner (write-time triage).** Two
+tells at edit time mean information is being lost rather than defended:
+*re-deriving* a fact an earlier pass already established (re-classifying
+a name instead of reading the `ref_kind` the resolver stamped, re-inferring
+a type the checker validated, re-computing visibility the zone-type table
+declares), and *guarding* a condition that is already checked somewhere
+else. Either tell stops the edit — the fix is upstream, not local. Before
+it lands, the check is classified as exactly one of three things: a
+**wall** (it moves to the layer that owns the class, in that layer's
+currency, with a test), a **backstop** (it stays, and its comment names
+the wall it shadows — and the recorded residual that makes it reachable,
+if one exists), or a **missing wall** (the wall is built at the owning
+layer, and the local site becomes a backstop citing it). A guard that
+cannot say which of the three it is does not land. Each pass states its
+contract — what it assumes, what it establishes, and what becomes illegal
+after it — in a `Contract` block in its module docstring
+(`cardlang/parse.py` through `cardlang/ir.py`); the owning pass's contract
+decides where a check belongs.
+
 **When a wall fails or a gap is found, sweep the class before patching
 the instance.** A found defect names a class: identify the closed domain
 the instance belongs to, probe every other member (the other projection

@@ -26,6 +26,15 @@ of its branches (a guarded deal is *taken*), and a `for each player` /
 `to each <family>` deals once per player (the high end of a range). One window =
 one iteration of a `repeats` phase: its `before_each` (which refills then deals)
 plus the deals in its (non-repeating) sub-phases.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Assumes:      a resolved, typechecked, procedure-free AST.
+Establishes:  deck-capacity soundness over its stated domain (the scripted
+              deals in phase bodies — the SKIPS list above). A pure
+              validator: the (unchanged) :class:`Game` flows on.
+Now illegal:  a statically-boundable deal plan exceeding deck capacity.
+Verified by:  tests/test_deckcheck.py.
 """
 
 from __future__ import annotations
