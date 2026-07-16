@@ -250,7 +250,7 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
             if isinstance(obj_ref, n.NameRef) and obj_ref.ref_kind == "zone":
                 family = env.zone_families.get(obj_ref.name)
                 if family is not None:
-                    return env.zones.get(obj_ref.name, TCollection(TAny()))
+                    return env.zones.get(obj_ref.name, TCollection(TAny(), zone=True))
             obj = infer(e.obj, env)
             return obj.element if isinstance(obj, TCollection) else TAny()
         case n.Call():
@@ -1604,7 +1604,8 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
             t = infer(stmt.target, env)
             if not _is_zone_type(t):
                 bag.error(
-                    f"'{stmt.op}' target must be a zone, got {_type_name(t)}",
+                    f"'{stmt.op}' target must be a zone, got "
+                    f"{_type_name(t)}{_zone_hint(t)}",
                     stmt.span,
                 )
         case n.Round():
@@ -1623,14 +1624,28 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
 
 
 def _is_zone_type(t: "Type") -> bool:
-    """Whether a value of this type can BE a zone at runtime: a collection of
-    cards (`ZONE_CONTENT`'s shape — TCollection(TAny) covers the ChipStack
-    resource zone), or TAny (a deliberately-loose value the runtime backstop
-    owns). The element check matters: `all players` and a `let`-map of zones
-    are collections too, and only the runtime could tell them apart before."""
+    """Whether a value of this type IS a zone at runtime: the `zone` marker
+    (`ZONE_CONTENT`, a zone-family subscript), or TAny (a deliberately-loose
+    value the runtime backstop owns). The marker matters twice over: `all
+    players` is a collection of the wrong element, and a card QUERY is a
+    collection of the RIGHT element that still evaluates to a plain list —
+    only the marker separates `hand[0]` from `cards in hand[0] where …`."""
     if isinstance(t, TAny):
         return True
-    return isinstance(t, TCollection) and isinstance(t.element, (TCard, TAny))
+    return isinstance(t, TCollection) and t.zone
+
+
+def _zone_hint(t: "Type") -> str:
+    """A computed card collection fails the zone check with the RIGHT element,
+    which reads as a contradiction without this: say why it is still not a
+    zone, and what to write instead."""
+    if isinstance(t, TCollection) and isinstance(t.element, TCard) and not t.zone:
+        return (
+            " (a computed card collection — a query result or list — is not a"
+            " zone; name the zone itself, or narrow the movement with a"
+            " `where` filter)"
+        )
+    return ""
 
 
 def _check_movement(stmt: n.Movement, env: TypeEnv, bag: DiagnosticBag) -> None:
@@ -1652,7 +1667,8 @@ def _check_movement(stmt: n.Movement, env: TypeEnv, bag: DiagnosticBag) -> None:
         t = infer(endpoint, env)
         if not _is_zone_type(t):
             bag.error(
-                f"movement {what} must be a zone, got {_type_name(t)}",
+                f"movement {what} must be a zone, got "
+                f"{_type_name(t)}{_zone_hint(t)}",
                 stmt.span,
             )
     if stmt.item not in ("card", "cards"):
@@ -1744,11 +1760,15 @@ def _check_define_outcomes(
     define: n.DefineDef, variant: TVariant, env: TypeEnv, bag: DiagnosticBag
 ) -> None:
     """Every `produce` in a define's body names a declared variant and supplies
-    payloads of the declared arity and types."""
-    for stmt in define.body:
-        for sub in _stmt_tree(stmt):
-            if isinstance(sub, n.Produce):
-                _check_produce_stmt(sub, variant, f"define '{define.name}'", env, bag)
+    payloads of the declared arity and types — checked in the SCOPED
+    environment, so a payload routed through a `let` types like its inline
+    twin (`let z = hearts / produce Won(z)` used to pass a `Player` payload
+    the inline spelling had just been rejected for)."""
+    for sub, binders in _seq_tree_scoped(define.body, ()):
+        if isinstance(sub, n.Produce):
+            _check_produce_stmt(
+                sub, variant, f"define '{define.name}'", _scoped_env(env, binders), bag
+            )
 
 
 def _check_misplaced_produce(
@@ -2109,12 +2129,16 @@ def _check_phase_produces(
     variants: Mapping[str, TVariant],
     env: TypeEnv,
     bag: DiagnosticBag,
+    binders: _Binders = (),
 ) -> None:
-    # The nearest outcome-declaring phase owns the produces in this body.
+    # The nearest outcome-declaring phase owns the produces in this body. The
+    # binder fold mirrors `_phase_statements_scoped`, so a payload routed
+    # through a preceding `let` types exactly like its inline twin.
     owner = phase if phase.outcome_cases else enclosing
+    current = binders
     for item in phase.items:
         if isinstance(item, n.Phase):
-            _check_phase_produces(item, owner, variants, env, bag)
+            _check_phase_produces(item, owner, variants, env, bag, current)
         elif isinstance(item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.TransitionTo)):
             pass
         elif isinstance(item, (n.BeforeEach, n.AfterEach)):
@@ -2123,13 +2147,21 @@ def _check_phase_produces(
                     if isinstance(sub, n.Produce):
                         bag.error("'produce' may not appear in a before_each/after_each hook", sub.span)
         else:
-            for sub in _stmt_tree(item):
+            for sub, sub_binders in _stmt_tree_scoped(item, current):
                 if not isinstance(sub, n.Produce):
                     continue
                 if owner is None:
                     bag.error("'produce' may only appear in a define or outcome-phase body", sub.span)
                 else:
-                    _check_produce_stmt(sub, variants[owner.name], f"phase '{owner.name}'", env, bag)
+                    _check_produce_stmt(
+                        sub,
+                        variants[owner.name],
+                        f"phase '{owner.name}'",
+                        _scoped_env(env, sub_binders),
+                        bag,
+                    )
+            if isinstance(item, n.LetStmt):
+                current = current + ((item.name, item),)
 
 
 def _check_produces(

@@ -282,6 +282,52 @@ def test_a_non_card_collection_is_not_a_zone() -> None:
     )
 
 
+def test_a_computed_card_collection_is_not_a_zone() -> None:
+    # The RIGHT element is not enough either (Codex review of #51): a card
+    # query and a list literal both type Collection<Card> but evaluate to
+    # plain lists, not zones — only ZONE_CONTENT's `zone` marker separates
+    # `hand[0]` from `cards in hand[0] where …`. The message says why the
+    # rejection isn't a contradiction.
+    _rejects(
+        _game(
+            "let cs = cards in deck where card.suit is hearts\n"
+            "    move all cards from cs to hand[0]"
+        ),
+        "a computed card collection",
+    )
+    _rejects(
+        _game("let cs = [2 of clubs]\n    shuffle cs"),
+        "a computed card collection",
+    )
+
+
+def test_a_produce_payload_is_typed_through_a_let() -> None:
+    # The payload-vs-variant check runs in its own pass (`_check_define_
+    # outcomes` / `_check_phase_produces`), which read the bare env (Codex
+    # review of #51): `produce Won(z)` with `let z = hearts` passed a Player
+    # payload the inline spelling had just been rejected for. Both owners now
+    # fold binders like the main walk.
+    _rejects(
+        _game(
+            "d produces:\n      Won(w) { n[w] := 1 }",
+            tail=(
+                "define d -> { Won(Player) } { let z = hearts\n  produce Won(z) }"
+            ),
+        ),
+        "variant 'Won' expects Player, got Suit",
+    )
+    _rejects(
+        _game(
+            "phase q -> outcome { Won(Player) } {\n"
+            "      let z = hearts\n"
+            "      produce Won(z)\n"
+            "    }\n"
+            "    q produces:\n      Won(w) { n[w] := 1 }"
+        ),
+        "variant 'Won' expects Player, got Suit",
+    )
+
+
 def test_a_keyed_map_rejects_a_wrong_domain_key() -> None:
     # Keyed collections carry their key domain: an indexed let is
     # player-keyed, and a per-player state var is keyed by its declared index

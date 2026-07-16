@@ -820,7 +820,11 @@ types as `Player` inside `E` only, and `base` as a collection of `E`'s
 type, keyed by `Player`. Keyed collections — indexed lets and indexed
 state variables — carry their key domain, and subscript reads and
 indexed writes are checked against it (`n[hearts]` on a player-keyed
-store is a compile error). An initializer the checker deliberately
+store is a compile error). A zone VALUE is likewise distinguished from
+a computed card collection: a query result or list literal types
+`Collection<Card>` too, but only a zone (or a binder holding one) may
+stand in a movement endpoint or an epistemic target — narrowing a
+movement is the `where` filter's job, not a laundered query's. An initializer the checker deliberately
 leaves loose (`outcome`, an unregistered `action` field) carries that
 looseness forward — ordinary gradual typing, with the runtime's typed
 errors behind it. A `let` is a bound value, not a variable: it is not
