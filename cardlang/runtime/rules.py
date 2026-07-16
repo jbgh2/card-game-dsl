@@ -72,5 +72,5 @@ def _applies(rule: n.RuleDef, ctx: Ctx) -> bool:
     aw = rule.applies_when
     if aw is None or aw.always:
         return True
-    assert aw.pred is not None
+    assert aw.pred is not None  # parse builds `applies_when` as `always` or a predicate
     return bool(evaluate(aw.pred, ctx))

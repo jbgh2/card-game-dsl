@@ -331,6 +331,25 @@ Things we have noted but consciously not designed yet:
   it implicitly (a variant adds/removes rules and phases from a base game)
   but doesn't have explicit syntax for it. Worth revisiting after Pinochle.
 
+- **The runtime-assert triage scrape stops at the runtime packages.** The
+  mechanized write-time-triage gate (`tests/test_assert_triage.py`) enumerates
+  every `assert`/`raise AssertionError` in `cardlang/runtime/` and
+  `cardlang/stdlib/` and requires each to name its triage class. The compile
+  passes (`cardlang/parse.py` … `ir.py`, `openspiel/`) are outside its domain:
+  their failure currency for game-description defects is the bag-collected
+  diagnostic, and their internal asserts are pass invariants governed by the
+  `Contract` blocks in their module docstrings — a blanket scrape would
+  mis-rank those sites. Extending the gate there needs its own convention
+  (which comment tags mark a pass invariant) before it can be mechanical.
+
+- **`loser:` player-ness is checked at the driver, not statically.** The
+  wall for a non-player `loser:` selection is a typed RuntimeError at the
+  driver (`cardlang/runtime/driver.py`; pinned by
+  `tests/test_fail_loud.py::test_a_non_player_loser_selection_raises_a_typed_error`),
+  because the expression's type is often gradually `TAny`. When the checker
+  can infer a concrete non-player type for the selection, it could reject at
+  compile time; today it only validates the expression's names.
+
 - **Quantifier productions are not registry-derived.** The quantifiable-domain
   registry (`cardlang/domains.py`) is the one table behind binder typing,
   iteration, actorhood, member enumeration, and the move-parameter/action-space

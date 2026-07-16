@@ -172,7 +172,9 @@ game G {
 }
 """
     game = check_dsl(src, "g.cardlang")
-    with pytest.raises(AssertionError, match="did not produce"):
+    # A conditional non-production is the description's error, so the raise is
+    # a typed RuntimeError — the runtime's currency — not an assert.
+    with pytest.raises(RuntimeError, match="did not produce"):
         play_game(game, random.Random(0))
 
 

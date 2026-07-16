@@ -1,8 +1,9 @@
 # Skeleton
 
 A minimal synthetic game that exercises every pipeline stage end to end:
-the game header, a player count, a deck, and two zones — one singleton, one
-owner-parameterized. It is not a real game; it is the walking skeleton.
+the game header, a player count, a deck, two zones — one singleton, one
+owner-parameterized — and a result clause. It is not a real game; it is the
+walking skeleton.
 
 ```
 game Skeleton {
@@ -13,5 +14,7 @@ game Skeleton {
     deck         : Deck
     hand[player] : Hand<player>
   }
+  state { score[player] : Integer = 0 }
+  winner: highest score
 }
 ```

@@ -21,7 +21,13 @@ def schnapsen_trick_winner(ctx: Ctx, leader: Player, trump: str | None) -> Playe
     """The completed trick's winner: the highest trump if any was played, else
     the highest card of the led suit (no over-trump obligation)."""
     cards = ctx.rs.zones.single("trick_pile").cards
-    assert len(cards) == 2, f"schnapsen trick pile holds {len(cards)} cards, expected 2"
+    if len(cards) != 2:
+        # The pile's live size is the hosting game's runtime data, so a wrong
+        # call site is the description's error, in the runtime's currency.
+        raise RuntimeError(
+            f"schnapsen_trick_winner: trick pile holds {len(cards)} cards, "
+            f"expected a completed 2-card trick"
+        )
     led, fcard = cards
     players = list(ctx.rs.seating.players)
     follower = players[1] if leader == players[0] else players[0]

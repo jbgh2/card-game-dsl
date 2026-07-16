@@ -50,6 +50,7 @@ def _game(state_default: str, type_name: str = "Integer") -> str:
         "  state {\n"
         f"    x : {type_name} = {state_default}\n"
         "  }\n"
+        "  loser: 0\n"
         "}\n"
     )
 
@@ -95,6 +96,7 @@ def test_declared_struct_type_is_accepted() -> None:
         "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
         "  zones { hand[player] : Hand<player> }\n"
         "  state { deal : Contract? = none }\n"
+        "  loser: 0\n"
         "}\n"
         "type Contract = { level : Integer }\n"
     )

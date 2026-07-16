@@ -87,7 +87,15 @@ def _trump_order(game_type: str, trump_suit: str | None) -> list[tuple[str, str]
     jacks = [("J", "clubs"), ("J", "spades"), ("J", "hearts"), ("J", "diamonds")]
     if game_type == "grand":
         return jacks
-    assert trump_suit is not None
+    if trump_suit is None:
+        # The contract is live game state (Null names no trump suit, and the
+        # docstrings of the consumers say the game guards for it), so being
+        # called without one is the description's error, in the runtime's
+        # currency.
+        raise RuntimeError(
+            f"skat trump order consulted for a {game_type!r} contract with no "
+            f"trump suit declared"
+        )
     return jacks + [(r, trump_suit) for r in ("A", "10", "K", "Q", "9", "8", "7")]
 
 
@@ -123,7 +131,13 @@ def skat_trick_winner(ctx: Ctx, leader: Player) -> Player:
     recomputes winners from."""
     game_type, trump_suit = _contract(ctx)
     cards = ctx.rs.zones.single("trick_pile").cards
-    assert len(cards) == 3, f"skat trick pile holds {len(cards)} cards, expected 3"
+    if len(cards) != 3:
+        # The pile's live size is the hosting game's runtime data, so a wrong
+        # call site is the description's error, in the runtime's currency.
+        raise RuntimeError(
+            f"skat_trick_winner: trick pile holds {len(cards)} cards, expected "
+            f"a completed 3-card trick"
+        )
     played = list(zip(ctx.rs.seating.turn_order_from(leader), cards))
     for q, c in played:
         ctx.trace("play", (q, c))

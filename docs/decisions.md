@@ -2751,7 +2751,11 @@ cannot say which of the three it is does not land. Each pass states its
 contract — what it assumes, what it establishes, and what becomes illegal
 after it — in a `Contract` block in its module docstring
 (`cardlang/parse.py` through `cardlang/ir.py`); the owning pass's contract
-decides where a check belongs.
+decides where a check belongs. For the runtime packages the triage is
+mechanized: `tests/test_assert_triage.py` scrapes every assert-currency
+site in `cardlang/runtime/` and `cardlang/stdlib/` and fails the build on
+any site whose attached text names neither a dispatch fallthrough nor the
+wall it backstops.
 
 **When a wall fails or a gap is found, sweep the class before patching
 the instance.** A found defect names a class: identify the closed domain

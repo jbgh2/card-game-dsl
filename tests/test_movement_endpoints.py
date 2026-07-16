@@ -132,6 +132,13 @@ def test_a_non_zone_endpoint_is_rejected_at_resolve(body: str, expected: str) ->
             "`to each captured` deals one parcel per player, but 'captured' "
             "is a family keyed by team",
         ),
+        (
+            # The non-NameRef cell of the same wall: a subscripted destination
+            # under `each` used to slip past (the wall guarded only bare
+            # names) and die on the executor's NameRef assert.
+            "deal 1 cards from deck to each hand[0]",
+            "`to each` deals into a player-indexed family named bare",
+        ),
     ],
 )
 def test_to_each_requires_a_player_indexed_family(body: str, expected: str) -> None:

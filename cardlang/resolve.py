@@ -180,6 +180,9 @@ def resolve(game: n.Game) -> n.Game:
     _check_functions(game, bag)
     _check_procedures(game, bag)
     _check_chooses(game, bag)
+    # Last, so a fixture missing its result clause still surfaces the
+    # sharper diagnostic it was aimed at first (bag order is report order).
+    _resolve_winner_loser(game, bag)
 
     _raise_if_errors(bag)
     return game
@@ -664,6 +667,19 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
                 f"value can ever be chosen — lower the start or raise the bound",
                 node.span,
             )
+
+
+def _resolve_winner_loser(game: n.Game, bag: DiagnosticBag) -> None:
+    """A game names its result. `winner:` and `loser:` are each optional
+    grammar positions, so their joint absence is checked here; before this
+    wall a game with neither compiled clean and died on a driver assert
+    before its first decision."""
+    if game.winner is None and game.loser is None:
+        bag.error(
+            f"game '{game.name}' must declare `winner: <rank-dir> <var>` or "
+            "`loser: <player-expr>` — without one the playout has no result",
+            game.span,
+        )
 
 
 def _resolve_max_length(game: n.Game, bag: DiagnosticBag) -> None:
@@ -1960,6 +1976,18 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bad = _bad_zone_endpoint(endpoint, direction)
                     if bad is not None:
                         bag.error(bad, nd.span)
+                if nd.dest_each and not isinstance(nd.dest, n.NameRef):
+                    # The executor keys the family by BARE name per seat, so a
+                    # subscripted or computed destination has no meaning under
+                    # `each`. Before this wall, `to each hand[0]` checked
+                    # clean and died on the executor's NameRef assert.
+                    bag.error(
+                        "`to each` deals into a player-indexed family named "
+                        "bare (like `to each hand`) — a subscripted or "
+                        "computed destination targets one zone, so drop "
+                        "`each` or name the family",
+                        nd.span,
+                    )
                 if nd.dest_each and isinstance(nd.dest, n.NameRef):
                     # `to each X` deals one parcel per PLAYER (the executor
                     # iterates seats and keys `X[player]`), so X must be a
