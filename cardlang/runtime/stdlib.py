@@ -320,7 +320,10 @@ def climb_universe_function(name: str) -> Callable[[], list[Any]]:
 
             return president_universe
         case _:
-            raise AssertionError(f"no combination universe for climb engine '{name}'")
+            raise AssertionError(
+                f"no declared combination universe for climb engine '{name}' — "
+                f"register one here or provide a codec (climb_codec_function)"
+            )
 
 
 def climb_codec_function(name: str) -> Any | None:
@@ -416,11 +419,15 @@ def bridge_auction_outcome(
         ),
         None,
     )
-    assert declarer is not None, (
-        f"bridge auction: made_bid is set but no submit_bid in the history names "
-        f"the final strain {strain!r} for the high team {high_team} "
-        f"(high_bidder={rs.get('high_bidder')})"
-    )
+    if declarer is None:
+        # Whether the history holds the bid that set `made_bid` is runtime
+        # data (both come from the hosting game's own moves and state), so a
+        # mismatch is the game description's error, in the runtime's currency.
+        raise RuntimeError(
+            f"bridge auction: made_bid is set but no submit_bid in the history "
+            f"names the final strain {strain!r} for the high team {high_team} "
+            f"(high_bidder={rs.get('high_bidder')})"
+        )
     ctx.trace(
         "bridge_contract",
         {
@@ -445,10 +452,15 @@ def pinochle_auction_outcome(
     lead_bidder = rs.get("lead_bidder")
     if lead_bidder is None:
         declarer, bid = rs.get("opener"), 50
-        assert declarer is not None, (
-            "pinochle auction: all-pass fallback has no opener — the `auction` "
-            "phase must set `opener := dealer offset_by left` before the round"
-        )
+        if declarer is None:
+            # Whether `opener` was set before the round is runtime data — the
+            # hosting game's own setup — so its absence is the description's
+            # error, in the runtime's currency.
+            raise RuntimeError(
+                "pinochle auction: all-pass fallback has no opener — the "
+                "`auction` phase must set `opener := dealer offset_by left` "
+                "before the round"
+            )
         ctx.trace("pinochle_contract", {"all_pass": True, "declarer": declarer, "bid": bid})
         return ("bid_won", [declarer, bid])
     bid = rs.get("working_bid")

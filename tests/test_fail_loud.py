@@ -462,3 +462,23 @@ def test_a_non_zone_value_at_a_movement_endpoint_raises_a_typed_error() -> None:
     )
     with pytest.raises(RuntimeError, match="movement source is not a zone"):
         execute(stmt, ctx)
+
+
+LOSER_NOT_A_PLAYER = """
+game G {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player> }
+  phase play { shuffle deck }
+  loser: "oops"
+}
+"""
+
+
+def test_a_non_player_loser_selection_raises_a_typed_error() -> None:
+    # `loser:` takes any expression and the checker leaves its type open, so
+    # the player-ness of the selected value is checked at the driver, in the
+    # runtime's currency — this used to be a bare assert.
+    with pytest.raises(RuntimeError, match="not a player"):
+        _run(LOSER_NOT_A_PLAYER)

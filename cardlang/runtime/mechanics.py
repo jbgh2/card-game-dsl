@@ -107,7 +107,8 @@ class TrickForm:
         # the Round node (validated at resolve time). Only the betting form omits
         # `outcome_fn`, and it never selects this bundle.
         assert stmt.outcome_fn is not None, "the trick form requires an outcome function"
-        # The trick form carries card zones; the auction form has none.
+        # The grammar's trick production makes the card zones mandatory; the
+        # auction form has none.
         assert (
             stmt.source_zone is not None and stmt.play_zone is not None
         ), "the trick form of `round` carries source/into card zones"
@@ -189,6 +190,7 @@ class TrickForm:
         outcome = self.outcome_fn(
             state["played"], state["led_suit"], self.trump, ctx.rs.rank_index
         )
+        # every function in the stdlib trick-outcome registry returns a seat
         assert isinstance(outcome, int)
         ctx.trace("trick", (outcome, [c for _, c in state["played"]]))
         # Stash the terminal state as we pop, so the surrounding body (which does
@@ -306,6 +308,7 @@ class AuctionForm:
     """
 
     def __init__(self, stmt: n.Round, ctx: Ctx) -> None:
+        # the grammar's auction production makes the vocabulary and `until` mandatory
         assert stmt.move_types is not None and stmt.termination is not None
         self.stmt = stmt
         self.termination: n.Expr = stmt.termination
@@ -443,6 +446,7 @@ class ClimbForm:
     def __init__(self, stmt: n.Round, ctx: Ctx) -> None:
         from cardlang.runtime import stdlib
 
+        # the grammar's climb production makes every one of these clauses mandatory
         assert (
             stmt.combos_fn is not None
             and stmt.follows_fn is not None

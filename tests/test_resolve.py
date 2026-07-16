@@ -31,6 +31,7 @@ def _game(body: str, rules: str = "") -> str:
         "  cards: standard52\n"
         "  zones { hand[player] : Hand<player> }\n"
         f"{body}\n"
+        "  loser: 0\n"
         "}\n"
         f"{rules}\n"
     )
@@ -47,6 +48,23 @@ def test_missing_max_length_is_a_diagnostic() -> None:
     with pytest.raises(DiagnosticError) as e:
         _resolve(dsl)
     assert "must declare `max_length" in e.value.diagnostic.message
+
+
+def test_missing_winner_and_loser_is_a_diagnostic() -> None:
+    # Before this wall a game with neither compiled clean and died on a
+    # driver assert before its first decision (write-time triage: the assert
+    # is now the wall's recorded backstop).
+    dsl = (
+        "game G {\n"
+        "  players: 2\n"
+        "  max_length: 1000\n"
+        "  cards: standard52\n"
+        "  zones { hand[player] : Hand<player> }\n"
+        "}\n"
+    )
+    with pytest.raises(DiagnosticError) as e:
+        _resolve(dsl)
+    assert "must declare `winner:" in e.value.diagnostic.message
 
 
 def test_non_positive_max_length_is_a_diagnostic() -> None:

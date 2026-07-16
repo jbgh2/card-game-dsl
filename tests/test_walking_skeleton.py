@@ -53,6 +53,7 @@ game Bad {
   max_length: 1000
   cards: standard52
   zones { }
+  loser: 0
 }
 ```
 """

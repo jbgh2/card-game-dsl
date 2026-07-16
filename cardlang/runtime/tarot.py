@@ -112,7 +112,14 @@ def tarot_excuse_player(ctx: Ctx) -> Player | None:
     else `last_round_state`) — the DSL calls this right after `round
     play_to_trick` returns, when the round is no longer active."""
     state = ctx.rs.mech_state[-1] if ctx.rs.mech_state else ctx.rs.last_round_state
-    assert state is not None, "tarot_excuse_player() read with no completed round"
+    if state is None:
+        # Same contract as the `state` pronoun: whether a round has run is
+        # live game flow, so a premature call is the description's error, in
+        # the runtime's currency.
+        raise RuntimeError(
+            "tarot_excuse_player() called with no active or just-completed "
+            "round"
+        )
     played: list[tuple[Player, Card]] = state["played"]
     return next((p for p, c in played if c.suit == "excuse"), None)
 

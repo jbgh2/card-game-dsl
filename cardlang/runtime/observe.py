@@ -118,7 +118,9 @@ def view_of(
         return len(cards)
     if proj == "trivial":
         return None
-    raise AssertionError(f"projection '{proj}' has no emission rule yet")
+    # Exhaustive over the projection names ZONE_PROJECTIONS can emit — a new
+    # projection must be implemented here deliberately, never rendered ad hoc.
+    raise AssertionError(f"projection '{proj}' has no declared emission rule")
 
 
 def _label(zone_name: str, key: Player | None) -> str:

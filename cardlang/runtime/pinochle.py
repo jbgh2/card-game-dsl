@@ -58,5 +58,11 @@ def pinochle_meld_value(ctx: Ctx, player: Player) -> int:
     pinochle_meld_value(p)` is what actually credits it to the team."""
     hand = ctx.rs.zones.instance("hand", player).cards
     trump = ctx.rs.get("trump_suit")
-    assert isinstance(trump, str), "meld is scored only after trump is declared"
+    if not isinstance(trump, str):
+        # Whether trump has been declared yet is live game state, so scoring
+        # meld before it is the description's error, in the runtime's currency.
+        raise RuntimeError(
+            "pinochle_meld_value: meld is scored only after `trump_suit` is "
+            "declared"
+        )
     return pinochle_meld(list(hand), trump)

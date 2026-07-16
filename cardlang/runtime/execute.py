@@ -119,7 +119,7 @@ def _movement(stmt: n.Movement, ctx: Ctx) -> None:
             f"the checker leaves this value's type open, so it is checked here"
         )
     if stmt.dest_each:
-        assert isinstance(stmt.dest, n.NameRef)
+        assert isinstance(stmt.dest, n.NameRef)  # resolve's `to each` wall admits only a bare family name
         if stmt.distribution == "as_equally_as_possible":
             _deal_round_robin(source, stmt.dest.name, ctx, stmt)
         else:
@@ -131,7 +131,7 @@ def _movement(stmt: n.Movement, ctx: Ctx) -> None:
                         ctx, ctx.rs.zones.locate(source), (stmt.dest.name, player), cards
                     )
     else:
-        assert stmt.dest is not None
+        assert stmt.dest is not None  # typecheck rejects the dest-less `in <zone>` form
         dest = evaluate(stmt.dest, ctx)
         if not isinstance(dest, Zone):
             raise RuntimeError(
@@ -188,6 +188,8 @@ def _deal_round_robin(
 
 def _gather(stmt: n.Movement, ctx: Ctx) -> None:
     """`move all cards to <zone>`: collect every card from all other zones."""
+    # typecheck admits no other source-less movement combination, and
+    # resolve's `to each` wall keeps a gather destination a bare name.
     assert stmt.amount == "all" and isinstance(stmt.dest, n.NameRef)
     dest = evaluate(stmt.dest, ctx)
     if not isinstance(dest, Zone):
@@ -223,7 +225,7 @@ def _select(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> list[Ca
     if amount == "one":
         count = 1
     else:
-        assert not isinstance(amount, str)
+        assert not isinstance(amount, str)  # parse admits "all" | "one" | Expr; both literals handled above
         count = int(evaluate(amount, ctx))
     if stmt.mode == "chosen":
         chosen = ctx.chooser(player, list(source.cards), count)
@@ -253,7 +255,7 @@ def _select_filtered(
     like the unfiltered form does from the whole source; the default (dealt)
     form takes the pool's first `count` — first match in source order, not
     top-of-source, since the pool has already skipped non-matching cards."""
-    assert stmt.filter is not None
+    assert stmt.filter is not None  # backstop of _select's dispatch: only the filtered branch lands here
     pred = _card_pred(stmt.filter, ctx)
     pool = [c for c in source.cards if pred(c)]
     amount = stmt.amount
@@ -264,7 +266,7 @@ def _select_filtered(
     if amount == "one":
         count = 1
     else:
-        assert not isinstance(amount, str)
+        assert not isinstance(amount, str)  # parse admits "all" | "one" | Expr; both literals handled above
         count = int(evaluate(amount, ctx))
     if stmt.mode == "chosen":
         chosen = ctx.chooser(player, pool, count)
@@ -296,7 +298,7 @@ def _epistemic(stmt: n.EpistemicOp, ctx: Ctx) -> None:
     if stmt.op == "shuffle":
         ctx.rs.rng.shuffle(zone.cards)
         return
-    assert stmt.op == "reveal"
+    assert stmt.op == "reveal"  # the grammar's whole epistemic-op domain: shuffle returned above
     _reveal(stmt, zone, ctx)
 
 
@@ -438,16 +440,24 @@ def _produces(stmt: n.Produces, ctx: Ctx) -> None:
     elif stmt.define in ctx.rs.define_index:
         tag, payloads = _run_define(stmt.define, ctx)
     else:
-        raise AssertionError(
-            f"phase '{stmt.define}' did not produce an outcome before its consumer"
+        # Whether the producing phase actually produced is runtime DATA
+        # (resolve's outcome-scope rule orders producer before consumer, but a
+        # conditional body can still complete without producing), so the wall
+        # is a typed error in the runtime's failure currency.
+        raise RuntimeError(
+            f"phase '{stmt.define}' did not produce an outcome before its "
+            f"consumer — every path through an outcome phase must `produce`"
         )
     arm = next((a for a in stmt.arms if a.tag == tag), None)
     if arm is None:
+        # typecheck requires the arms to be exhaustive over the variant
+        # registry and every `produce` to name a declared variant.
         raise AssertionError(
             f"'{stmt.define}' produced '{tag}', which no produces: arm matches"
         )
     # The arm's binders and the produced payloads must match in arity — `zip`
     # would otherwise silently drop extra payloads (or leave binders unbound).
+    # typecheck checks both arities against the variant registry.
     if len(arm.binders) != len(payloads):
         raise AssertionError(
             f"'{stmt.define}' produced '{tag}' with {len(payloads)} payload(s), but "
@@ -466,7 +476,13 @@ def _run_define(name: str, ctx: Ctx) -> tuple[str, list[Any]]:
         run_body(define.body, ctx)
     except _ProduceSignal as produced:
         return produced.tag, produced.payloads
-    raise AssertionError(f"define '{name}' completed without producing")
+    # Which path a define's body takes is runtime data — a conditional body
+    # can complete without reaching a `produce` — so this is the game
+    # author's error in the runtime's failure currency, not an assert.
+    raise RuntimeError(
+        f"define '{name}' completed without producing — every path through "
+        f"a define body must reach a `produce`"
+    )
 
 
 def _each_simultaneous(stmt: n.EachSimultaneous, ctx: Ctx) -> None:
@@ -503,10 +519,18 @@ def _pass_selection(body: n.Stmt, ctx: Ctx) -> list[Card]:
         f"`each … simultaneously` reached the executor with an illegal body: "
         f"{n.simultaneous_body_error(body)} (resolve should have rejected this)"
     )
+    # These three narrowings restate what that resolve predicate guarantees.
     assert isinstance(body, n.Movement) and body.source is not None
     source = evaluate(body.source, ctx)
-    assert isinstance(source, Zone)
-    assert not isinstance(body.amount, str)
+    assert not isinstance(body.amount, str)  # per the same resolve predicate
+    if not isinstance(source, Zone):
+        # Same class as _movement's endpoint check: a value the checker
+        # deliberately leaves loose reaches the runtime as TAny. Typed
+        # error, not assert.
+        raise RuntimeError(
+            f"simultaneous-pass source is not a zone (got {type(source).__name__}) — "
+            f"the checker leaves this value's type open, so it is checked here"
+        )
     count = int(evaluate(body.amount, ctx))
     actor = ctx.require_actor("a simultaneous-pass selection")
     chosen = ctx.chooser(actor, list(source.cards), count)
@@ -517,12 +541,26 @@ def _pass_selection(body: n.Stmt, ctx: Ctx) -> list[Card]:
 def _apply_pass(
     body: n.Stmt, ctx: Ctx, selections: dict[Player, list[Card]]
 ) -> None:
+    # Narrowings only: _pass_selection already ran resolve's simultaneous-body
+    # predicate over this same body, and the caller bound the actor.
     assert isinstance(body, n.Movement)
     player = ctx.current_player
+    # actor bound by the caller; endpoints per resolve's simultaneous-body predicate
     assert player is not None and body.source is not None and body.dest is not None
     source = evaluate(body.source, ctx)
     dest = evaluate(body.dest, ctx)
-    assert isinstance(source, Zone) and isinstance(dest, Zone)
+    # Same class as _movement's endpoint checks: values the checker leaves
+    # loose reach the runtime as TAny. Typed errors, not asserts.
+    if not isinstance(source, Zone):
+        raise RuntimeError(
+            f"simultaneous-pass source is not a zone (got {type(source).__name__}) — "
+            f"the checker leaves this value's type open, so it is checked here"
+        )
+    if not isinstance(dest, Zone):
+        raise RuntimeError(
+            f"simultaneous-pass destination is not a zone (got {type(dest).__name__}) — "
+            f"the checker leaves this value's type open, so it is checked here"
+        )
     for card in selections[player]:
         source.remove(card)
         dest.add(card)

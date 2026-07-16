@@ -1,6 +1,8 @@
 import random
 from typing import Any
 
+import pytest
+
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
 
@@ -119,12 +121,12 @@ game G {
 
 
 def test_round_state_read_without_a_round_fails_loudly() -> None:
+    # A premature `state.` read is the game description's error (the checker
+    # validates the field, not the read's position in game flow), so the loud
+    # failure is a typed RuntimeError — the runtime's currency — not an assert.
     game = check_dsl(NO_ROUND_SRC, "g.cardlang")
-    try:
+    with pytest.raises(RuntimeError, match="no active or just-completed round"):
         play_game(game, random.Random(0))
-        assert False, "expected a loud failure reading state with no round"
-    except AssertionError as exc:
-        assert "no active or just-completed round" in str(exc)
 
 
 STATE_SRC = """
