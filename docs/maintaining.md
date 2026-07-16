@@ -120,9 +120,20 @@ keep the DSL in lockstep with the language:
   `zones {}` block) that isn't a whole game. Checked by embedding it in a
   minimal game via a registered wrapper recipe (`tests/test_doc_snippets.py`,
   `WRAPPER_RECIPES`); every `cardlang-fragment` block must have one.
-- ` ```cardlang-bad ` — a snippet the prose shows as a counterexample:
-  proven to be *rejected* by the pipeline (wrapped the same way as a
-  fragment first, if needed).
+- ` ```cardlang-bad ` — a complete game the prose shows as a counterexample:
+  proven to be *rejected*, verbatim, by the pipeline. Use this only when the
+  counterexample is already whole-game shaped, exactly like `cardlang` — a
+  fragment checked raw here would "reject" merely for lacking an enclosing
+  `game {}`, proving nothing about the mistake it's meant to demonstrate.
+- ` ```cardlang-bad-fragment ` — a snippet-shaped counterexample: the
+  `cardlang-fragment` treatment for `cardlang-bad`. Wrapped through the same
+  registered recipe (`WRAPPER_RECIPES`, keyed identically by
+  `(doc_name, start_line)`), then proven *rejected*. Because a rejection
+  through a broken wrapper — or through a fragment that merely isn't a whole
+  game — would prove nothing about the snippet's own content, every
+  `cardlang-bad-fragment` block also has a benign filler of the same shape
+  in `BAD_FRAGMENT_SMOKE`, proven to *pass* through the identical wrapper
+  before the block's own (bad) text is checked against it.
 - ` ```text ` (or another accurate non-DSL tag, e.g. ` ```ebnf `) — not DSL;
   the test skips it. Use this for grammar sketches with `<placeholder>`
   tokens, diagrams, and any snippet that describes a proposed or

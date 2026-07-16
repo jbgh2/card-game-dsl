@@ -20,24 +20,43 @@ Establishes:  every fenced block in the three docs carries a tag in
               `cardlang.pipeline.check_dsl` verbatim; every
               `cardlang-fragment` block passes `check_dsl` once embedded in
               its registered WRAPPER_RECIPES entry; every `cardlang-bad`
-              block is rejected by `check_dsl` (DiagnosticError). `text` /
-              `ebnf` blocks are not executed.
+              block (a whole game, like `cardlang`) is rejected by
+              `check_dsl` verbatim; every `cardlang-bad-fragment` block (a
+              snippet, like `cardlang-fragment`) is rejected by `check_dsl`
+              once embedded in its registered WRAPPER_RECIPES entry —
+              *after* that same wrapper is proven to PASS on the block's
+              paired BAD_FRAGMENT_SMOKE filler, so the rejection can only
+              come from the bad content itself, never from the wrapper
+              skeleton or from the snippet simply not being a whole game.
+              `text` / `ebnf` blocks are not executed.
 Now illegal:  a bare or unrecognized-tag fenced block in these three docs —
               `test_every_block_is_classified` fails loud, naming the doc
-              file and line, before any tag-specific check runs.
+              file and line, before any tag-specific check runs. Also now
+              illegal: a `cardlang-bad`/`cardlang-bad-fragment` block
+              "passing" its rejection check only because the pipeline
+              crashed instead of cleanly rejecting — `_run_pipeline` turns
+              the one known crash path (lark's `VisitError` wrapping the
+              `StopIteration` that `cardlang.parse._Builder.start` raises on
+              game-less input) into a named `pytest.fail`, not a bare
+              traceback a reader has to reverse-engineer.
 Verified by:  this module's own parametrized tests over the live docs, plus
               `test_self_*` synthetic-fixture tests that prove each of the
-              four code paths (classified/unclassified,
-              cardlang-pass/cardlang-bad-reject/fragment-pass) independently
-              of what the corpus of real doc blocks happens to contain.
+              five code paths (classified/unclassified,
+              cardlang-pass/cardlang-bad-reject/fragment-pass/
+              bad-fragment-reject) independently of what the corpus of real
+              doc blocks happens to contain — including a test that a
+              *benign* fragment mistagged `cardlang-bad-fragment` is NOT
+              reported as a valid rejection.
 
 Completeness ledger
 --------------------
 property:   every fenced block in docs/{decisions,library,model}.md carries
             a recognized classification tag, and every block tagged
-            cardlang / cardlang-fragment / cardlang-bad is PROVEN, by
-            execution, to pass or reject the front-end pipeline as its tag
-            claims — not merely assumed from its tag.
+            cardlang / cardlang-fragment / cardlang-bad / cardlang-bad-
+            fragment is PROVEN, by execution, to pass or reject the
+            front-end pipeline as its tag claims — not merely assumed from
+            its tag, and not merely "rejected" as an artifact of not being
+            a whole game or of the pipeline crashing.
 domain:     the fenced blocks `cardlang.extract.extract_blocks` finds in
             docs/decisions.md, docs/library.md, docs/model.md — 44 + 10 + 4
             = 58 blocks as of this change. (An earlier plan for this task
@@ -47,26 +66,41 @@ domain:     the fenced blocks `cardlang.extract.extract_blocks` finds in
             inside list items and a column-anchored grep misses them.
             `extract_blocks` is the authority; block counts, not fence-line
             counts, are what this module classifies.)
-registry:   KNOWN_TAGS (below) is the closed tag vocabulary. The three docs
-            are the block source. WRAPPER_RECIPES (below) is the closed set
-            of fragment shapes with a cheap wrapping harness.
+registry:   KNOWN_TAGS (below) is the closed tag vocabulary — six tags:
+            cardlang, cardlang-fragment, cardlang-bad, cardlang-bad-
+            fragment, text, ebnf. The three docs are the block source.
+            WRAPPER_RECIPES (below) is the closed set of fragment shapes
+            with a cheap wrapping harness, shared verbatim by
+            cardlang-fragment and cardlang-bad-fragment blocks (same
+            (doc, start_line) key space). BAD_FRAGMENT_SMOKE is the closed
+            set of benign fillers paired 1:1 with cardlang-bad-fragment
+            blocks, each proven to PASS through that block's wrapper before
+            the block's own (bad) text is checked against it.
 covered:    all 58 blocks carry a recognized tag
             (test_every_block_is_classified, parametrized over every
             block). All 8 `cardlang-fragment` blocks execute through their
             registered wrapper and are proven to pass
             (test_fragment_blocks_pass_when_wrapped). The
-            classify/cardlang/cardlang-bad/fragment code paths are each
-            independently proven with synthetic fixtures (test_self_*),
-            since the real docs currently contain zero `cardlang` and zero
-            `cardlang-bad` blocks — the wall still has to have teeth on
-            that day one of those tags is used for the first time.
+            classify/cardlang/cardlang-bad/fragment/bad-fragment code paths
+            are each independently proven with synthetic fixtures
+            (test_self_*), since the real docs currently contain zero
+            `cardlang`, zero `cardlang-bad`, and zero `cardlang-bad-
+            fragment` blocks — the wall still has to have teeth on the day
+            one of those tags is used for the first time. For
+            cardlang-bad-fragment specifically, the synthetic fixtures also
+            prove the negative: a *benign* fragment mistagged
+            cardlang-bad-fragment does NOT read as a valid rejection
+            (test_self_cardlang_bad_fragment_mistagged_benign_is_not_rejected),
+            which is the exact failure mode PR #56 review flagged.
 sampled:    n/a — every block this module classifies as executable is
             executed, not sampled.
 residual:   fragment KINDS with no cheap wrapping harness. These are never
-            tagged `cardlang-fragment` in the docs (they are `text`
-            instead, so `test_every_block_is_classified` still covers
-            them as a tag, just not as an execution) — each kind is listed
-            here and recorded in roadmap.md "Explicitly deferred":
+            tagged `cardlang-fragment` (or, symmetrically, `cardlang-bad-
+            fragment` — the same WRAPPER_RECIPES ceiling applies to both)
+            in the docs (they are `text` instead, so
+            `test_every_block_is_classified` still covers them as a tag,
+            just not as an execution) — each kind is listed here and
+            recorded in roadmap.md "Explicitly deferred":
               - phase-outcome pattern matches (`<phase> produces:` /
                 `continue to <phase>`) — need a sibling phase declaring a
                 matching `-> outcome {...}` variant set plus the variant's
@@ -118,6 +152,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
+from lark.exceptions import VisitError
 
 from cardlang.diagnostics import DiagnosticError
 from cardlang.extract import FencedBlock, extract_blocks
@@ -131,11 +166,13 @@ DOC_NAMES = ("decisions.md", "library.md", "model.md")
 # string (a bare fence) and a near-miss typo — is unclassified, and
 # `test_every_block_is_classified` fails loud rather than defaulting it to
 # either "skip" (accepted-but-ignored) or "check" (a guess that may crash).
-KNOWN_TAGS = frozenset({"cardlang", "cardlang-fragment", "cardlang-bad", "text", "ebnf"})
+KNOWN_TAGS = frozenset(
+    {"cardlang", "cardlang-fragment", "cardlang-bad", "cardlang-bad-fragment", "text", "ebnf"}
+)
 
 
 # ---------------------------------------------------------------------------
-# Wrapper recipes for `cardlang-fragment` blocks.
+# Wrapper recipes for `cardlang-fragment` AND `cardlang-bad-fragment` blocks.
 #
 # Each recipe embeds one doc block's raw text into a minimal but plausible
 # game so the front-end pipeline (parse -> resolve -> typecheck -> expand ->
@@ -145,8 +182,19 @@ KNOWN_TAGS = frozenset({"cardlang", "cardlang-fragment", "cardlang-bad", "text",
 # names its own fragment actually references (a stdlib rule/move-type name,
 # never an invented game-specific one). Fragments that need genuinely
 # game-specific vocabulary (a bid-level enum, an undeclared rule with no
-# stdlib analog) have no recipe and are not tagged `cardlang-fragment` in
-# the docs — see the module docstring's ledger "residual" section.
+# stdlib analog) have no recipe and are not tagged `cardlang-fragment` or
+# `cardlang-bad-fragment` in the docs — see the module docstring's ledger
+# "residual" section.
+#
+# `WRAPPER_RECIPES` is keyed by (doc_name, FencedBlock.start_line) regardless
+# of whether the block at that location is a `cardlang-fragment` (proven to
+# PASS once wrapped) or a `cardlang-bad-fragment` (proven to be REJECTED once
+# wrapped). A `cardlang-bad-fragment` block additionally needs an entry in
+# `BAD_FRAGMENT_SMOKE`, keyed the same way: a benign filler of the same shape
+# as the bad fragment, proven to PASS through the identical wrapper before
+# the bad text is checked — otherwise a rejection could come from the
+# wrapper itself, or from the fragment simply lacking an enclosing `game {}`,
+# rather than from the mistake the doc is illustrating.
 # ---------------------------------------------------------------------------
 
 _SHARED_ZONES = """\
@@ -293,6 +341,17 @@ WRAPPER_RECIPES: dict[tuple[str, int], Callable[[str], str]] = {
 }
 
 
+# (doc file name, FencedBlock.start_line) -> a benign filler of the same
+# shape as the `cardlang-bad-fragment` block at that key, wrapped through the
+# *same* WRAPPER_RECIPES entry and required to PASS
+# (test_bad_fragment_blocks_are_rejected_when_wrapped). Every
+# `cardlang-bad-fragment` block must have one, in addition to its
+# WRAPPER_RECIPES entry. Empty today: the docs currently tag zero blocks
+# `cardlang-bad-fragment` (see the module docstring's ledger "covered"
+# section — the code path is proven with synthetic fixtures instead).
+BAD_FRAGMENT_SMOKE: dict[tuple[str, int], str] = {}
+
+
 # ---------------------------------------------------------------------------
 # Block discovery over the live docs.
 # ---------------------------------------------------------------------------
@@ -315,16 +374,61 @@ def _block_id(block: FencedBlock) -> str:
 
 def _run_pipeline(text: str, location: str) -> DiagnosticError | None:
     """Run `check_dsl`, returning the DiagnosticError if one was raised, or
-    None on success. Any *other* exception (e.g. the bare `StopIteration`
-    `cardlang.parse._Builder.start` raises when a fragment has no enclosing
-    `game`) is NOT swallowed here — it propagates and fails the test with a
-    Python traceback pointing at `location`, rather than being silently
-    misread as a pass or a clean rejection."""
+    None on success.
+
+    One specific non-DiagnosticError crash is intercepted and converted to a
+    named `pytest.fail`: lark's `VisitError` wrapping the `StopIteration`
+    that `cardlang.parse._Builder.start` raises when `text` has no enclosing
+    `game { ... }` block (i.e. `text` is fragment-shaped but was checked
+    raw). Left alone, that crash would still fail the test, but as an opaque
+    traceback a reader has to reverse-engineer — and for a `cardlang-bad`
+    block specifically, a *different* uncaught exception there would read as
+    "rejected, as the tag claims" for the wrong reason (not a whole game,
+    rather than the mistake the doc means to demonstrate). Converting it to
+    `pytest.fail` keeps that path loud without being either kind of
+    vacuous-green.
+
+    Any *other* exception is NOT swallowed — it propagates and fails the
+    test with a Python traceback pointing at `location`, rather than being
+    silently misread as a pass or a clean rejection."""
     try:
         check_dsl(text, location)
     except DiagnosticError as exc:
         return exc
+    except VisitError as exc:
+        if isinstance(exc.orig_exc, StopIteration):
+            pytest.fail(
+                f"{location}: the pipeline crashed (lark VisitError wrapping "
+                "StopIteration) instead of raising DiagnosticError — this "
+                "snippet has no enclosing `game {...}` block "
+                "(cardlang.parse._Builder.start found none among the parsed "
+                "top-level items). It is fragment-shaped and must be tagged "
+                "`cardlang-fragment` / `cardlang-bad-fragment` and checked "
+                "via WRAPPER_RECIPES, not raw as `cardlang` / `cardlang-bad`."
+            )
+        raise
     return None
+
+
+def _rejected_when_wrapped(
+    wrapper: Callable[[str], str], smoke: str, bad_text: str, location: str
+) -> DiagnosticError | None:
+    """The `cardlang-bad-fragment` check. `smoke` is a benign filler of the
+    same shape as `bad_text`; wrapping it through `wrapper` must PASS before
+    `bad_text` wrapped through the same `wrapper` is even checked. This is
+    the guard against the trivial-rejection failure mode: without it, a
+    broken wrapper (or a fragment that merely isn't a whole game) would make
+    *anything* passed through it "reject", proving nothing about `bad_text`
+    specifically. Returns whatever DiagnosticError (if any) the pipeline
+    raises for the wrapped `bad_text`."""
+    smoke_err = _run_pipeline(wrapper(smoke), f"{location} (wrapper smoke test)")
+    assert smoke_err is None, (
+        f"{location}: wrapper {wrapper.__name__} rejects its own benign "
+        f"smoke fragment ({smoke_err}) — fix the wrapper or the smoke text; "
+        "a rejection through a wrapper that can't even pass benign input "
+        "proves nothing about the bad content."
+    )
+    return _run_pipeline(wrapper(bad_text), location)
 
 
 # ---------------------------------------------------------------------------
@@ -349,6 +453,7 @@ def test_every_block_is_classified(block: FencedBlock) -> None:
 _CARDLANG_BLOCKS = [b for b in _BLOCKS if b.info == "cardlang"]
 _BAD_BLOCKS = [b for b in _BLOCKS if b.info == "cardlang-bad"]
 _FRAGMENT_BLOCKS = [b for b in _BLOCKS if b.info == "cardlang-fragment"]
+_BAD_FRAGMENT_BLOCKS = [b for b in _BLOCKS if b.info == "cardlang-bad-fragment"]
 
 
 @pytest.mark.parametrize(
@@ -361,6 +466,13 @@ def test_cardlang_blocks_are_full_valid_games(block: FencedBlock) -> None:
 
 @pytest.mark.parametrize("block", _BAD_BLOCKS, ids=[_block_id(b) for b in _BAD_BLOCKS])
 def test_cardlang_bad_blocks_are_rejected(block: FencedBlock) -> None:
+    # `cardlang-bad` is the whole-game counterpart of `cardlang-bad-fragment`
+    # (below), just as `cardlang` is the whole-game counterpart of
+    # `cardlang-fragment`: checked raw, verbatim, no wrapper. A snippet that
+    # isn't already whole-game shaped belongs under `cardlang-bad-fragment`
+    # instead — checking a fragment raw here would let it "reject" merely
+    # for lacking an enclosing `game {}`, proving nothing about the mistake
+    # it's meant to demonstrate (the P2 this module's docstring records).
     err = _run_pipeline(block.text, _block_id(block))
     assert err is not None, (
         f"{_block_id(block)}: tagged `cardlang-bad` but the pipeline accepted "
@@ -389,10 +501,40 @@ def test_fragment_blocks_pass_when_wrapped(block: FencedBlock) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "block", _BAD_FRAGMENT_BLOCKS, ids=[_block_id(b) for b in _BAD_FRAGMENT_BLOCKS]
+)
+def test_bad_fragment_blocks_are_rejected_when_wrapped(block: FencedBlock) -> None:
+    key = (block.source_name, block.start_line)
+    wrapper = WRAPPER_RECIPES.get(key)
+    assert wrapper is not None, (
+        f"{_block_id(block)}: tagged `cardlang-bad-fragment` but has no "
+        "entry in WRAPPER_RECIPES — every cardlang-bad-fragment block must "
+        "be either wrapped and checked here, or retagged `text` and added "
+        "to the residual list in this module's docstring."
+    )
+    smoke = BAD_FRAGMENT_SMOKE.get(key)
+    assert smoke is not None, (
+        f"{_block_id(block)}: tagged `cardlang-bad-fragment` but has no "
+        "entry in BAD_FRAGMENT_SMOKE — every cardlang-bad-fragment block "
+        "needs a benign filler of the same shape, proven to pass through "
+        "the same wrapper, so a rejection of the block's own text can only "
+        "be coming from the mistake it demonstrates."
+    )
+    err = _rejected_when_wrapped(wrapper, smoke, block.text, _block_id(block))
+    assert err is not None, (
+        f"{_block_id(block)}: tagged `cardlang-bad-fragment`, wrapped via "
+        f"{wrapper.__name__}, but the pipeline accepted it — either the "
+        "counterexample no longer demonstrates the mistake, or it should be "
+        "retagged."
+    )
+
+
 # ---------------------------------------------------------------------------
 # Self-tests: prove each code path with synthetic fixtures, independent of
-# what the real docs currently contain (today they hold zero `cardlang` and
-# zero `cardlang-bad` blocks — the wall must still have teeth).
+# what the real docs currently contain (today they hold zero `cardlang`,
+# zero `cardlang-bad`, and zero `cardlang-bad-fragment` blocks — the wall
+# must still have teeth).
 # ---------------------------------------------------------------------------
 
 _TINY_GOOD_GAME = """\
@@ -458,6 +600,46 @@ def test_self_cardlang_fragment_block_passes_when_wrapped() -> None:
     assert _run_pipeline(wrapped, "synthetic.md") is None
 
 
+def _self_frag_wrapper(frag: str) -> str:
+    """The wrapper the `cardlang-bad-fragment` self-tests below use — same
+    shape as `test_self_cardlang_fragment_block_passes_when_wrapped`'s inline
+    wrap, given a name so `_rejected_when_wrapped`'s error messages (which
+    reference `wrapper.__name__`) read sensibly."""
+    return _game(f"  phase main {{\n{frag}  }}\n  winner: highest score")
+
+
+_SELF_BAD_FRAGMENT_SMOKE = "move all cards to deck\n"  # benign filler: passes
+_SELF_BAD_FRAGMENT_BAD = "move all cards to nonexistent_zone\n"  # unresolved zone
+
+
+def test_self_cardlang_bad_fragment_block_is_rejected_when_wrapped() -> None:
+    md = f"```cardlang-bad-fragment\n{_SELF_BAD_FRAGMENT_BAD}```\n"
+    [block] = extract_blocks(md, "synthetic.md")
+    assert block.info == "cardlang-bad-fragment"
+    err = _rejected_when_wrapped(
+        _self_frag_wrapper, _SELF_BAD_FRAGMENT_SMOKE, block.text, "synthetic.md"
+    )
+    assert err is not None
+    assert "unresolved name" in err.diagnostic.message
+
+
+def test_self_cardlang_bad_fragment_mistagged_benign_is_not_rejected() -> None:
+    # The negative half of the proof above: a *benign* (valid) fragment
+    # mistagged `cardlang-bad-fragment` must NOT be reported as a valid
+    # rejection. `_rejected_when_wrapped` returns None here (the wrapped
+    # benign text passes) — which is exactly what would make
+    # `test_bad_fragment_blocks_are_rejected_when_wrapped`'s
+    # `assert err is not None` fail loudly on a real block in this
+    # situation, rather than the mistagging silently reading as proven.
+    md = f"```cardlang-bad-fragment\n{_SELF_BAD_FRAGMENT_SMOKE}```\n"
+    [block] = extract_blocks(md, "synthetic.md")
+    assert block.info == "cardlang-bad-fragment"
+    err = _rejected_when_wrapped(
+        _self_frag_wrapper, _SELF_BAD_FRAGMENT_SMOKE, block.text, "synthetic.md"
+    )
+    assert err is None
+
+
 def test_self_text_block_is_not_executed() -> None:
     # A `text` block need not even be valid DSL — proving that requires it
     # NOT be run. Executing it would raise; the assertion is just that this
@@ -466,10 +648,22 @@ def test_self_text_block_is_not_executed() -> None:
     # calls _run_pipeline for cardlang/cardlang-fragment/cardlang-bad).
     [block] = extract_blocks("```text\nnot ( valid at all\n```\n", "synthetic.md")
     assert block.info == "text"
-    assert block.info not in ("cardlang", "cardlang-fragment", "cardlang-bad")
+    assert block.info not in (
+        "cardlang",
+        "cardlang-fragment",
+        "cardlang-bad",
+        "cardlang-bad-fragment",
+    )
 
 
 def test_known_tags_is_the_documented_closed_set() -> None:
     # Pins the vocabulary named in docs/maintaining.md "Doc snippet tagging"
     # so a silent addition here is caught by review of that doc too.
-    assert KNOWN_TAGS == {"cardlang", "cardlang-fragment", "cardlang-bad", "text", "ebnf"}
+    assert KNOWN_TAGS == {
+        "cardlang",
+        "cardlang-fragment",
+        "cardlang-bad",
+        "cardlang-bad-fragment",
+        "text",
+        "ebnf",
+    }
