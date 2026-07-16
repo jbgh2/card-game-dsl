@@ -79,11 +79,13 @@ The IR is the **resolved AST — not desugared**. Library
 constructs (`Hand<Owner>`, the `round` construct — including its betting form —
 and `ChallengeWindow`) are preserved as first-class IR nodes carrying their
 resolved bindings. They are not lowered to primitives: `round`
-and the challenge mechanic are control-flow units whose desugaring needs runtime
-semantics, and
-the runtime is the next milestone, not this one. Keeping the IR at the resolved-AST
-level is what lets the runtime adapter's language stay an independent choice
-(see [implementation.md](implementation.md), "The validated IR is the contract").
+and the challenge mechanic are control-flow units whose semantics live in the
+runtime's interpreters (`cardlang/runtime/mechanics.py`) — lowering them in the
+IR would state that meaning a second time, and the two would drift. Keeping the
+IR at the resolved-AST level keeps it in lockstep with the checked AST the
+runtime and OpenSpiel adapter consume, and keeps a non-Python runtime an open
+choice: the serialized IR is the boundary such a runtime would read (see
+[implementation.md](implementation.md), "The validated IR is the contract").
 The front end stops at this seam.
 
 ## The expression sublanguage
@@ -286,6 +288,6 @@ v1 is done when the grammar parses every corpus game, the checker resolves every
 name and type, the `runtime-primitive` surface is fully signatured, and
 `language-gap` is empty (or every remaining gap is a named, deferred open
 question) — nothing silent, and deferred implementation never confused with a
-language gap. The next milestone is the runtime net (an interpreter plus
-random-playout invariants), reached through the IR; see
-[implementation.md](implementation.md), "Milestone boundary".
+language gap. Past this boundary sits the runtime net (the interpreter in
+`cardlang/runtime/` plus random-playout invariants), which consumes the
+checked AST; see [implementation.md](implementation.md), "Milestone boundary".
