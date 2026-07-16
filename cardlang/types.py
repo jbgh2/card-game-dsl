@@ -72,11 +72,15 @@ class TCollection:
 
     ``key`` is the subscript's domain when the collection is a KEYED map — a
     per-player/per-team state variable, an indexed `let` — and ``None`` for
-    positional collections and untracked shapes. It participates in the
-    subscript/indexed-assignment key checks only, never in assignability or
-    unification (`_bare_collection` strips it there): the value space of
-    `score[player]` IS `Collection<Integer>`; the key is a fact about how you
-    may ADDRESS it, not about what it holds."""
+    positional collections and untracked shapes. It drives the
+    subscript/indexed-assignment key checks and the keyed-membership wall.
+    Facets do not decide TOP-LEVEL compatibility: `assignable`'s collection
+    arm compares elements only, and `unify` preserves facets the two sides
+    agree on rather than judging by them. (Nested collections compare
+    elements with full equality, so a facet mismatch one level down does
+    distinguish — no current value shape nests a flag-bearing collection.)
+    The value space of `score[player]` IS `Collection<Integer>`; the key is a
+    fact about how you may ADDRESS it, not about what it holds."""
 
     element: "Type"
     key: "Type | None" = None
@@ -157,7 +161,18 @@ def unify(a: Type, b: Type) -> Type | None:
         return TAny()
     if isinstance(a, TCollection) and isinstance(b, TCollection):
         element = unify(a.element, b.element)
-        return TCollection(element) if element is not None else None
+        if element is None:
+            return None
+        # PRESERVE the facets the branches agree on. Rebuilding bare
+        # TCollection(element) here erased them: `if c then hand[0] else
+        # hand[1]` — two genuine zones — unified to a non-zone and was falsely
+        # rejected at every endpoint, and two same-keyed maps unified to an
+        # unkeyed one, sending the keyed-map wall dark through any IfExpr.
+        return TCollection(
+            element,
+            key=a.key if a.key == b.key else None,
+            zone=a.zone and b.zone,
+        )
     if isinstance(a, TNull):
         return b if isinstance(b, TOptional) else TOptional(b)
     if isinstance(b, TNull):

@@ -1197,21 +1197,33 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         value = _rewrite_value(node.value, scoped, bag)
         return replace(node, value=value)  # type: ignore[arg-type]
     if isinstance(node, n.Phase):
-        # The items fold with the lifecycle carve-out. A body `let` scopes over
-        # later statements, nested phases (their qualifiers included), and
-        # transitions — everything the driver evaluates mid-body with the
-        # threaded context — but NOT over this phase's own hooks or state
-        # defaults, which run at entry / iteration boundaries BEFORE any body
+        # The items fold with the configuration carve-out. A body `let` scopes
+        # over later statements and nested phases (their qualifiers included) —
+        # what the driver evaluates mid-body with the threaded context — but
+        # NOT over this phase's own hooks, state defaults, or TRANSITION
+        # predicates. Hooks and state declare/run at entry, before any body
         # `let` has executed (`run_phase` declares state and captures hooks
-        # first). The generic tuple fold used to scope them anyway, so
-        # `let z = 5` followed by `before_each { n[1] := z }` resolved,
-        # type-checked, and died mid-playout on a raw KeyError for a binding
-        # that could not exist yet.
+        # first); a transition predicate is CONFIGURATION collected
+        # position-independently and evaluated with the context captured at
+        # whichever round fires it — which may run before the `let`. The
+        # generic tuple fold used to scope all three anyway, so `let z = 5`
+        # followed by `before_each { n[1] := z }` (or a transition reading a
+        # body let, fired by an earlier round) resolved, type-checked, and
+        # died mid-playout on a raw KeyError for a binding that did not exist.
         entry = cats
         current = cats
         out_items: list[object] = []
         for item in node.items:
-            if isinstance(item, (n.BeforeEach, n.AfterEach, n.StateBlock)):
+            if isinstance(item, n.TransitionTo):
+                # A transition predicate reads NO `let` at all — not even an
+                # enclosing one. It is fired by whichever round matches its
+                # event, and rounds both before and after any given `let` can
+                # be in scope, so no lexical position makes a binding reliably
+                # live at evaluation time. Configuration reads state and the
+                # action; body bindings are the body's.
+                no_locals = replace(entry, locals=frozenset())
+                out_items.append(_rewrite_value(item, no_locals, bag))
+            elif isinstance(item, (n.BeforeEach, n.AfterEach, n.StateBlock)):
                 out_items.append(_rewrite_value(item, entry, bag))
             else:
                 rewritten = _rewrite_value(item, current, bag)

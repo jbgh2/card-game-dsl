@@ -806,14 +806,19 @@ is its initializer's inferred type in the environment at that point, so
 every wall answers the same for the bound name as for the inline
 expression (`let z = hearts` followed by `z is 3` is rejected exactly
 as `hearts is 3` is). In a phase body the fold runs across the items:
-a preceding `let` scopes over later statements, nested phases (their
-`when`/`repeat until` qualifiers included) and transition predicates —
-everything the driver evaluates mid-body with the threaded context. It
-does NOT scope over the phase's own `before_each`/`after_each` hooks or
-its state-block defaults, which run at entry, before any body `let` has
-executed: a hook reading a body `let` is an unresolved name, not a
-runtime surprise. (An ENCLOSING body's `let` is visible to a nested
-phase's hooks — the nested phase receives the threaded context.)
+a preceding `let` scopes over later statements and nested phases (their
+`when`/`repeat until` qualifiers included) — what the driver evaluates
+mid-body with the threaded context. It does NOT scope over the phase's
+own `before_each`/`after_each` hooks or its state-block defaults, which
+run at entry, before any body `let` has executed — reading a body `let`
+from either is an unresolved name, not a runtime surprise. (An
+ENCLOSING body's `let` is visible to both — the nested phase receives
+the threaded context.) A transition predicate is stricter still: it may
+read no `let` at all, enclosing or not. It is fired by whichever round
+matches its event, and rounds both before and after any given `let` can
+be in scope, so no lexical position makes a binding reliably live at
+evaluation time — configuration reads state and the action, not body
+bindings.
 
 The indexed form `let base[p] = E` is a per-player map: the key binder
 types as `Player` inside `E` only, and `base` as a collection of `E`'s

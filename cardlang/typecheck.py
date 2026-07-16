@@ -424,8 +424,13 @@ def env_from_game(game: Game) -> TypeEnv:
                 if decl.index is not None
                 else t
             )
+    # The fallback carries zone=True like its twin in `infer`'s zone-family
+    # subscript arm: it describes an (unknown-typed) ZONE's contents, and an
+    # unflagged default would falsely reject every use of that zone at the
+    # endpoint walls. Unreachable today only by pass ordering (resolve raises
+    # on unknown zone types first) — kept truthful, not load-bearing.
     zones: dict[str, Type] = {
-        z.name: ZONE_CONTENT.get(z.type_ref.name, TCollection(TAny()))
+        z.name: ZONE_CONTENT.get(z.type_ref.name, TCollection(TAny(), zone=True))
         for z in game.zones
     }
     # `ZoneDecl.index` is `None` (a singleton zone) or one of the closed index
@@ -581,9 +586,19 @@ def _non_define_statements(game: Game) -> Iterator[n.Stmt]:
         yield from (st for st, _ in _phase_statements_scoped(phase))
 
 
+def _move_param_binders(move_type: n.MoveTypeDef) -> _Binders:
+    """A move type's parameters, typed from their declarations — bound in its
+    guard and effect exactly as procedure parameters are bound in their body.
+    They used to be bound by resolve and NEVER typed, so `move_type m(s :
+    Suit) { when: s is 3 … }` passed both positions while the inline spelling
+    was rejected — the let-laundering shape, one binder kind over."""
+    env = TypeEnv()
+    return tuple((p.name, _param_type(p, env)) for p in move_type.params)
+
+
 def _all_statements_scoped(game: Game) -> Iterator[tuple[n.Stmt, _Binders]]:
     for move_type in game.move_types:
-        yield from _seq_tree_scoped(move_type.effect, ())
+        yield from _seq_tree_scoped(move_type.effect, _move_param_binders(move_type))
     for phase in game.phases:
         yield from _phase_statements_scoped(phase)
     for define in game.defines:
@@ -1026,6 +1041,19 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
             e.span,
         )
         return
+    if isinstance(right_t, TCollection) and right_t.key is not None:
+        # A keyed map is ambiguous under `in`: the sentence reads as a VALUE
+        # test, but the runtime store is a dict, whose `in` asks about KEYS —
+        # `2 in m` with every value 99 answered True because seat 2 exists.
+        # Reject rather than pick a side silently; both meanings have direct
+        # spellings.
+        bag.error(
+            f"`in` on a map keyed by {_type_name(right_t.key)} is ambiguous "
+            f"(keys or values?) — test a specific entry (`m[k] is …`) or "
+            f"quantify over the key domain instead",
+            e.span,
+        )
+        return
     lbare = _bare(infer(e.left, env))
     if isinstance(lbare, TEnum) and isinstance(e.right, n.ListLit):
         for item in e.right.elements:
@@ -1294,7 +1322,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 idx_t = infer(e.index, env)
                 if not assignable(idx_t, family):
                     bag.error(
-                        f"`{obj_ref.name}` is indexed by {_type_name(family)}"
+                        f"`{obj_ref.name}` is keyed by {_type_name(family)}"
                         f" — got {_type_name(idx_t)}",
                         e.span,
                     )
@@ -1559,7 +1587,7 @@ def _check_assign(stmt: n.AssignStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
             idx_t = infer(stmt.index, env)
             if not assignable(idx_t, target.key):
                 bag.error(
-                    f"'{name}' is keyed by {_type_name(target.key)} — got "
+                    f"`{name}` is keyed by {_type_name(target.key)} — got "
                     f"{_type_name(idx_t)}",
                     stmt.span,
                 )
@@ -1605,7 +1633,7 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
             if not _is_zone_type(t):
                 bag.error(
                     f"'{stmt.op}' target must be a zone, got "
-                    f"{_type_name(t)}{_zone_hint(t)}",
+                    f"{_type_name(t)}{_zone_hint(t, filterable=False)}",
                     stmt.span,
                 )
         case n.Round():
@@ -1635,16 +1663,20 @@ def _is_zone_type(t: "Type") -> bool:
     return isinstance(t, TCollection) and t.zone
 
 
-def _zone_hint(t: "Type") -> str:
+def _zone_hint(t: "Type", filterable: bool) -> str:
     """A computed card collection fails the zone check with the RIGHT element,
     which reads as a contradiction without this: say why it is still not a
-    zone, and what to write instead."""
+    zone, and what to write instead. The `where`-filter suggestion is offered
+    only where the grammar can actually take one (`filterable` — a movement's
+    FROM position); destinations, the gather form, and epistemic targets have
+    no filter slot, and a hint naming unwritable syntax is worse than none."""
     if isinstance(t, TCollection) and isinstance(t.element, TCard) and not t.zone:
-        return (
-            " (a computed card collection — a query result or list — is not a"
-            " zone; name the zone itself, or narrow the movement with a"
-            " `where` filter)"
+        fix = (
+            "name the zone itself, or narrow the movement with a `where` filter"
+            if filterable
+            else "name the zone itself"
         )
+        return f" (a computed card collection — a query result or list — is not a zone; {fix})"
     return ""
 
 
@@ -1661,14 +1693,19 @@ def _check_movement(stmt: n.Movement, env: TypeEnv, bag: DiagnosticBag) -> None:
     # `let z = all players` is a collection too, and waving it through on the
     # container shape alone sent it to the runtime's backstop with a message
     # claiming the checker couldn't know — it knew Collection<Player> exactly.
-    for endpoint, what in ((stmt.source, "source"), (stmt.dest, "destination")):
+    for endpoint, what, filterable in (
+        # Only the from-position takes a `where` filter; the in-form's zone
+        # parses into `source` but has no dest, hence no filter slot either.
+        (stmt.source, "source", stmt.dest is not None),
+        (stmt.dest, "destination", False),
+    ):
         if endpoint is None:
             continue
         t = infer(endpoint, env)
         if not _is_zone_type(t):
             bag.error(
                 f"movement {what} must be a zone, got "
-                f"{_type_name(t)}{_zone_hint(t)}",
+                f"{_type_name(t)}{_zone_hint(t, filterable)}",
                 stmt.span,
             )
     if stmt.item not in ("card", "cards"):
@@ -2279,7 +2316,12 @@ def typecheck(game: Game) -> Game:
                         )
                     check_phase_positions(item, current)
                 case n.TransitionTo() if item.event.where is not None:
-                    _check_expr(item.event.where, _scoped_env(env, current), bag)
+                    # NO binders at all: a transition predicate may not read
+                    # any `let` (resolve rejects the reference — it is fired
+                    # by whichever round matches its event, and no lexical
+                    # position makes a binding reliably live then), so the
+                    # bare env is exactly its scope.
+                    _check_expr(item.event.where, env, bag)
                 case n.StateBlock():
                     entry_env = _scoped_env(env, binders)
                     for decl in item.decls:
@@ -2309,7 +2351,11 @@ def typecheck(game: Game) -> Game:
     # and derived type-field bodies.
     for move_type in game.move_types:
         if move_type.guard is not None:
-            _check_expr(move_type.guard, env, bag)
+            _check_expr(
+                move_type.guard,
+                _scoped_env(env, _move_param_binders(move_type)),
+                bag,
+            )
     for rule in game.rules:
         if rule.applies_when is not None and rule.applies_when.pred is not None:
             _check_expr(rule.applies_when.pred, env, bag)
@@ -2326,8 +2372,17 @@ def typecheck(game: Game) -> Game:
         for decl in game.state.decls:
             _check_expr(decl.default, env, bag)
     for tdef in game.types:
+        # A derived body reads sibling fields by bare name (resolve scopes
+        # them); their declared types are in the struct registry, so bind
+        # them — `derived { bad = seat is hearts }` on a Player field used to
+        # type `seat` as TAny and accept the always-false comparison.
+        struct = env.structs.get(tdef.name)
+        denv = env
+        if struct is not None:
+            for fname, ftype in struct.fields.items():
+                denv = denv.with_local(fname, ftype)
         for derived in tdef.derived:
-            _check_expr(derived.value, env, bag)
+            _check_expr(derived.value, denv, bag)
 
     if bag.has_errors:
         error = DiagnosticError(bag.items[0])

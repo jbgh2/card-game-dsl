@@ -24,14 +24,18 @@ domain:     statement context {phase body, nested phase via items fold, hook
             plus the form axis {plain let, chained let-of-let, indexed let}
 covered:    every context below with an executed laundering probe; the
             chained and indexed forms; the scope boundary (a nested body's
-            let does not leak — enforced by resolve, exercised here); the
-            positions the runtime evaluates with a DIFFERENT context (a
-            nested phase's qualifier and a transition predicate see preceding
-            lets — typed with them; same-phase hooks and state defaults run
-            at entry and are REJECTED at resolve if they read a body let);
-            the element axis (a non-card collection is not a zone) and the
-            key axis (keyed maps check their key domain on read and write);
-            the gradual case (a TAny initializer stays permissive, by rule)
+            let does not leak — pinned below); the positions the runtime
+            evaluates with a DIFFERENT context (a nested phase's qualifier
+            sees preceding lets — typed with them; same-phase hooks and state
+            defaults get ENTRY scope; a transition predicate reads NO let at
+            all, enclosing or not — it is fired by whichever round matches
+            its event, so no lexical position makes a binding reliably live —
+            all pinned below with contrast pairs); the facet axes (a non-card
+            collection is not a zone; unify preserves agreeing facets so a
+            conditional choice of zones/keyed maps keeps them; keyed maps
+            check their key domain on read and write, and reject `in`
+            outright — keys-or-values ambiguity); the gradual case (a TAny
+            initializer stays permissive, by rule)
 sampled:    each context is probed with ONE wall (cross-enum equality),
             because `_scoped_env` is the single resolution point every wall
             reads — per-wall coverage lives in each wall's own matrix, which
@@ -255,6 +259,60 @@ def test_a_same_phase_state_default_cannot_read_a_body_let() -> None:
     )
 
 
+def test_a_transition_predicate_cannot_read_a_same_phase_body_let() -> None:
+    # A transition is CONFIGURATION: collected position-independently and
+    # evaluated with the context captured at whichever round fires it — which
+    # may run before the `let`. Entry scope, like hooks and state defaults.
+    # This cell was in the ledger with no pin; probing it found the gap
+    # (resolve scoped the let over it, typecheck typed it, the playout raised
+    # a raw KeyError from a round that ran before the binding existed).
+    _rejects(
+        _game(
+            "legal_moves: [play_to_trick]\n"
+            "    let z = hearts\n"
+            "    phase gate {\n"
+            "      transition_to: opened when play_to_trick where "
+            "action.card.suit is z\n"
+            "    }\n"
+            "    phase opened { }"
+        ),
+        "unresolved name 'z'",
+    )
+
+
+def test_a_transition_predicate_reads_no_let_even_an_enclosing_one() -> None:
+    # Stricter than the hooks: an ENCLOSING let is rejected too, because the
+    # firing round is chosen by the event, not by lexical position — a round
+    # lexically before the let can fire a transition declared after it, and
+    # the binding is not live in that round's captured context. The
+    # well-typed no-let spelling stays accepted.
+    src = _game(
+        "let z = hearts\n"
+        "    phase inner {\n"
+        "      legal_moves: [play_to_trick]\n"
+        "      phase gate {\n"
+        "        transition_to: opened when play_to_trick where "
+        "action.card.suit is z\n"
+        "      }\n"
+        "      phase opened { }\n"
+        "    }"
+    )
+    _rejects(src, "unresolved name 'z'")
+    check_dsl(
+        src.replace("action.card.suit is z", "action.card.suit is hearts"),
+        "probe.cardlang",
+    )
+
+
+def test_a_let_does_not_leak_out_of_a_nested_body() -> None:
+    # The scope boundary the module ledger claimed without a pin: a let inside
+    # an if-body binds for the REST OF THAT TUPLE only.
+    _rejects(
+        _game("if n[0] is 0 { let z = 5 }\n    n[0] := z"),
+        "unresolved name 'z'",
+    )
+
+
 def test_an_enclosing_let_is_visible_to_a_nested_phases_hook() -> None:
     # The contrast that keeps the rule honest: a nested phase receives the
     # THREADED context, so an enclosing-body let is genuinely bound when its
@@ -338,7 +396,7 @@ def test_a_keyed_map_rejects_a_wrong_domain_key() -> None:
         _game("let k = hearts\n    if n[k] > 0 { n[0] := 1 }"),
         "`n` is keyed by Player — got Suit",
     )
-    _rejects(_game("n[hearts] := 1"), "'n' is keyed by Player — got Suit")
+    _rejects(_game("n[hearts] := 1"), "`n` is keyed by Player — got Suit")
 
 
 def test_a_zone_valued_let_map_still_works() -> None:
@@ -350,6 +408,107 @@ def test_a_zone_valued_let_map_still_works() -> None:
             "    for each player w: move all cards from m[w] to deck"
         ),
         "probe.cardlang",
+    )
+
+
+# --- facets through unify, and the walls the review round added ----------------
+
+
+def test_a_conditional_choice_of_zones_is_still_a_zone() -> None:
+    # unify() used to rebuild TCollection(element) BARE, stripping zone=True
+    # even from unify(zone, zone) — so this legal program (accepted and
+    # running on main) was falsely rejected with a hint calling two named
+    # zones 'a query result or list'. Facets the branches agree on survive.
+    check_dsl(
+        _game(
+            "let h = if n[0] is 0 then hand[0] else hand[1]\n"
+            "    move all cards from h to deck\n"
+            "    shuffle h"
+        ),
+        "probe.cardlang",
+    )
+
+
+def test_a_conditional_choice_of_keyed_maps_keeps_the_key() -> None:
+    # The key facet's twin: two same-keyed maps unify to a keyed map, so the
+    # key wall fires through the conditional instead of the runtime KeyError.
+    _rejects(
+        _game(
+            "let m = if n[0] is 0 then n else n\n"
+            "    if m[hearts] > 0 { n[0] := 1 }"
+        ),
+        "keyed by Player — got Suit",
+    )
+
+
+def test_membership_on_a_keyed_map_is_rejected_as_ambiguous() -> None:
+    # `2 in m` reads as a VALUE test and typechecked as one, but the runtime
+    # store is a dict whose `in` asks about KEYS: with every value 99, `2 in
+    # m` answered True because seat 2 exists — a silent misreading. Both
+    # meanings have direct spellings; `in` on a keyed map is walled.
+    _rejects(
+        _game("let m[q] = 99\n    if 2 in m { n[0] := 1 }"),
+        "keys or values?",
+    )
+    _rejects(  # the indexed-state-var twin, same seam
+        _game("if 2 in n { n[0] := 1 }"),
+        "keys or values?",
+    )
+
+
+def test_move_type_params_are_typed_in_guard_and_effect() -> None:
+    # The let-laundering shape, one binder kind over: move params were scoped
+    # by resolve and never typed, so both positions passed what the inline
+    # spelling rejects. Function and procedure params were already typed;
+    # this was the one _PARAM_BEARING row without teeth.
+    _rejects(
+        _game(
+            "for each player q: offer to q one of [m]",
+            tail="move_type m(s : Suit) { effect { if s is 3 { n[actor] := 1 } } }",
+        ),
+        _LAUNDER,
+    )
+    _rejects(
+        _game(
+            "for each player q: offer to q one of [m]",
+            tail="move_type m(s : Suit) { when: s is 3  effect { n[actor] := 1 } }",
+        ),
+        _LAUNDER,
+    )
+
+
+def test_derived_fields_type_their_siblings() -> None:
+    # A derived body reads sibling fields by bare name; their declared types
+    # are in the struct registry and are now bound — `seat is hearts` on a
+    # Player field used to be accepted as TAny.
+    _rejects(
+        _game("n[0] := 1").replace(
+            "game G {",
+            "type T = {\n  seat : Player\n} derived {\n  bad = seat is hearts\n}\ngame G {",
+        ),
+        "comparing Suit with Player can never be equal",
+    )
+
+
+def test_the_zone_hint_names_the_filter_only_where_one_can_be_written() -> None:
+    # The hint used to suggest `where` filters on destinations, gathers and
+    # shuffle targets — positions whose grammar has no filter slot, sending
+    # the designer to a syntax error.
+    _rejects(
+        _game("let cs = [2 of clubs]\n    shuffle cs"),
+        "name the zone itself)",
+    )
+    _rejects(
+        _game(
+            "let cs = [2 of clubs]\n    move 1 cards from deck to cs"
+        ),
+        "name the zone itself)",
+    )
+    _rejects(
+        _game(
+            "let cs = [2 of clubs]\n    move all cards from cs to deck"
+        ),
+        "narrow the movement with a `where` filter)",
     )
 
 
