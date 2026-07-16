@@ -1967,6 +1967,23 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                             f"target one instance directly",
                             nd.span,
                         )
+                    elif nd.dest.ref_kind is not None and nd.dest.ref_kind != "zone":
+                        # The executor consumes the NAME (`zones.instance(X,
+                        # player)`), not a zone value — so unlike the generic
+                        # endpoints, a binder can never stand here even when it
+                        # HOLDS a zone: `let h = hand[0]` / `to each h` typed
+                        # clean (h is a zone) and died on `KeyError: 'h'`
+                        # hunting a family by that name (Codex review of #51).
+                        what_k = _WRITE_TARGET_KINDS.get(
+                            nd.dest.ref_kind, f"a {nd.dest.ref_kind}"
+                        )
+                        bag.error(
+                            f"`to each {nd.dest.name}` deals into "
+                            f"{nd.dest.name}[player] BY NAME, so it must name "
+                            f"a player-indexed zone family declared in "
+                            f"`zones {{ }}` — '{nd.dest.name}' is {what_k}",
+                            nd.span,
+                        )
             case n.EpistemicOp():
                 # The other member of the zone-position class: `shuffle turn` /
                 # `reveal one card from turn` checked clean and died on the

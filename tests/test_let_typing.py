@@ -31,11 +31,13 @@ covered:    every context below with an executed laundering probe; the
             all, enclosing or not — it is fired by whichever round matches
             its event, so no lexical position makes a binding reliably live —
             all pinned below with contrast pairs); the facet axes (a non-card
-            collection is not a zone; unify preserves agreeing facets so a
-            conditional choice of zones/keyed maps keeps them; keyed maps
-            check their key domain on read and write, and reject `in`
-            outright — keys-or-values ambiguity); the gradual case (a TAny
-            initializer stays permissive, by rule)
+            collection is not a zone; unify merges each facet in its wall's
+            polarity — `zone` PERMITS so it ANDs, a maybe-zone is not an
+            endpoint; `key` PROHIBITS so it is STICKY, a maybe-map still
+            rejects `in`; keyed maps check their key domain on read and
+            write; `to each` consumes the family NAME, so even a zone-valued
+            binder is rejected there); the gradual case (a TAny initializer
+            stays permissive, by rule)
 sampled:    each context is probed with ONE wall (cross-enum equality),
             because `_scoped_env` is the single resolution point every wall
             reads — per-wall coverage lives in each wall's own matrix, which
@@ -438,6 +440,55 @@ def test_a_conditional_choice_of_keyed_maps_keeps_the_key() -> None:
             "    if m[hearts] > 0 { n[0] := 1 }"
         ),
         "keyed by Player — got Suit",
+    )
+
+
+def test_a_map_merged_with_a_non_map_stays_keyed() -> None:
+    # The key facet is STICKY through unify (Codex review of #51): `if c then
+    # n else [99]` may be a dict at runtime, so `2 in m` is exactly as
+    # ambiguous as on the map itself — it ran the keys-vs-values misread on
+    # the map branch while typing as a plain list. The domain becomes
+    # unknowable (TAny), so a subscript read stays permissive.
+    _rejects(
+        _game(
+            "let m = if n[0] is 0 then n else [99]\n"
+            "    if 2 in m { n[0] := 1 }"
+        ),
+        "may be a keyed map",
+    )
+    check_dsl(  # the permissive contrast: reading the merge by index is fine
+        _game(
+            "let m = if n[0] is 0 then n else [99]\n"
+            "    n[0] := m[0]"
+        ),
+        "probe.cardlang",
+    )
+
+
+def test_a_zone_merged_with_a_non_zone_is_not_a_zone() -> None:
+    # The zone facet merges the OPPOSITE way (AND): an endpoint requires a
+    # DEFINITE zone, because the list branch would crash the executor. The
+    # facets' merge directions follow their walls' polarities — zone permits,
+    # key prohibits.
+    _rejects(
+        _game(
+            "let h = if n[0] is 0 then hand[0] else [2 of clubs]\n"
+            "    move all cards from h to deck"
+        ),
+        "movement source must be a zone",
+    )
+
+
+def test_to_each_requires_the_family_name_not_a_zone_value() -> None:
+    # `to each X` deals into X[player] BY NAME — the executor never evaluates
+    # the destination — so a binder can never stand there even when it holds
+    # a zone: `let h = hand[0]` / `to each h` typed clean (h IS a zone) and
+    # died on KeyError: 'h' hunting a family by that name (Codex review of
+    # #51). The generic endpoint rule admits zone-valued binders; this
+    # position is stricter because it consumes the name, not the value.
+    _rejects(
+        _game("let h = hand[0]\n    deal 1 cards from deck to each h"),
+        "BY NAME, so it must name a player-indexed zone family",
     )
 
 

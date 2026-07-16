@@ -1046,11 +1046,18 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
         # test, but the runtime store is a dict, whose `in` asks about KEYS —
         # `2 in m` with every value 99 answered True because seat 2 exists.
         # Reject rather than pick a side silently; both meanings have direct
-        # spellings.
+        # spellings. A TAny key means SOME branch of a merge is a map (the
+        # sticky rule in `types.unify`), which is exactly as ambiguous.
+        what_map = (
+            f"a map keyed by {_type_name(right_t.key)}"
+            if not isinstance(right_t.key, TAny)
+            else "a value that may be a keyed map (one branch of its "
+            "conditional is)"
+        )
         bag.error(
-            f"`in` on a map keyed by {_type_name(right_t.key)} is ambiguous "
-            f"(keys or values?) — test a specific entry (`m[k] is …`) or "
-            f"quantify over the key domain instead",
+            f"`in` on {what_map} is ambiguous (keys or values?) — test a "
+            f"specific entry (`m[k] is …`) or quantify over the key domain "
+            f"instead",
             e.span,
         )
         return

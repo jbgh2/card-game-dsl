@@ -170,16 +170,24 @@ def unify(a: Type, b: Type) -> Type | None:
         element = unify(a.element, b.element)
         if element is None:
             return None
-        # PRESERVE the facets the branches agree on. Rebuilding bare
-        # TCollection(element) here erased them: `if c then hand[0] else
-        # hand[1]` — two genuine zones — unified to a non-zone and was falsely
-        # rejected at every endpoint, and two same-keyed maps unified to an
-        # unkeyed one, sending the keyed-map wall dark through any IfExpr.
-        return TCollection(
-            element,
-            key=a.key if a.key == b.key else None,
-            zone=a.zone and b.zone,
-        )
+        # PRESERVE the facets. Rebuilding bare TCollection(element) here
+        # erased them: `if c then hand[0] else hand[1]` — two genuine zones —
+        # unified to a non-zone and was falsely rejected at every endpoint,
+        # and two same-keyed maps unified to an unkeyed one, sending the
+        # keyed-map wall dark through any IfExpr. The two facets merge in
+        # OPPOSITE directions because they feed opposite wall polarities:
+        # `zone` PERMITS (an endpoint requires a definite zone, so a maybe-
+        # zone must not qualify — AND), while `key` PROHIBITS (membership on
+        # a maybe-map is still ambiguous at runtime, so keyedness must be
+        # STICKY: agreeing keys keep their domain; a map merged with a
+        # non-map, or a differently-keyed map, stays keyed with the domain
+        # unknowable — TAny, which the subscript check accepts and the
+        # membership wall still fires on).
+        if a.key == b.key:
+            key: Type | None = a.key
+        else:
+            key = TAny()
+        return TCollection(element, key=key, zone=a.zone and b.zone)
     if isinstance(a, TNull):
         return b if isinstance(b, TOptional) else TOptional(b)
     if isinstance(b, TNull):
