@@ -25,13 +25,18 @@ this suite first.
 
 ## Shape
 
-Transforms are pure `Game -> Game` functions over the *checked* AST (the
+Transforms are pure `Game -> Game` functions over the *parsed* AST (the
 `dataclasses.replace` walk idiom of `cardlang/resolve.py` and
-`cardlang/expand.py`), applied after `pipeline.check_source` so both variants
-start known-valid — and the transformed tree is re-checked
-(`resolve`/`typecheck` again) before playout, so a transform that produces an
-unresolvable tree fails as a harness bug, loudly, rather than corrupting the
-comparison. Playout runs through the existing seams:
+`cardlang/expand.py`), applied before resolve; each variant then runs the
+ordinary pipeline once (parse → resolve → typecheck → expand →
+deck-capacity). Re-running the checkers on an already-checked tree is not an
+option — `resolve._instantiate_rules` splices stdlib rules into `game.rules`
+and is not idempotent (a second pass treats the spliced rules as local
+definitions shadowing the stdlib) — and single-passing each variant is also
+the stronger test: the transform exercises the full pipeline, not just the
+runtime. A transform whose output fails the pipeline is a harness bug and
+fails loudly rather than corrupting the comparison. Playout runs through the
+existing seams:
 `runtime/driver.play_game` with a fixed seed and the deterministic
 greedy-first chooser the readiness harness already uses, captured through the
 one `Ctx.observer`/tracer choke point. Comparison is trace-level — the
