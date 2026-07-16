@@ -372,6 +372,27 @@ Things we have noted but consciously not designed yet:
   just per-kind legality (sort/filter/take as expressions over
   zone-vs-list-vs-map).
 
+- **Semantic invariance is pinned per instance, not in general.** The engine
+  must not attach meaning to things the spec says are meaningless — a name's
+  spelling, declaration order, a suit's identity, the `run`/inline
+  distinction — but today only single witnesses pin this (the by-value
+  expansion regression test; the goldens' byte-stability). The general form
+  is a metamorphic suite: transform every corpus game in a spec-meaningless
+  way, replay both variants, require trace agreement. The implementation
+  plan — the four transforms, the pairing harness over the existing
+  driver/trace seams, and the acceptance criteria — is
+  [design-notes/metamorphic-suite.md](design-notes/metamorphic-suite.md).
+
+- **Surface totality is probed by hand, not mechanized.** Misuse-probe
+  rejection tests cover the wrong sentences someone thought of; nothing
+  sweeps the sentences nobody did. The general form is fuzzing behind one
+  oracle — every input passes the pipeline or fails as a located diagnostic;
+  anything else is a wrong-currency finding — over corpus mutants first,
+  then grammar-directed generation, with shrunken findings feeding the
+  rejection corpus. Sequenced after the metamorphic suite. The
+  implementation plan is
+  [design-notes/grammar-fuzzing.md](design-notes/grammar-fuzzing.md).
+
 ## Suggested next steps, in order
 
 [open-questions/_index.md](open-questions/_index.md) orders the open
