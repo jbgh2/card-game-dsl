@@ -131,19 +131,21 @@ phase play {
 
 ### Move types
 
-A move type names a pattern of card movement:
+A move type names a kind of move a player can make. Some are stdlib
+names shared across games (`play_to_trick`, `submit_bid`); a game also
+defines its own with a `move_type` block — an optional `when:` guard
+and an `effect` that carries out the move:
 
 ```text
-move_type play_to_trick {
-  source: hand[actor]
-  destination: trick_pile
-  emits: card_played event
+move_type play_card(c : Card) {
+  effect { move one card from hand[actor] where card is c to trick_pile }
 }
 ```
 
-Once defined, the move type is reusable across games. Hearts, Spades, and
-Pinochle all use `play_to_trick`. Rules attach to move types via their
-`constrains:` clause.
+Rules attach to move types via their `constrains:` clause. A game
+references a move type by name in a phase's `legal_moves:` or an
+`offer`; the stdlib move types are shared, so Hearts, Spades, and
+Pinochle all use `play_to_trick`.
 
 The set of legal move types in a phase is derivable from the phase's active
 rules: each rule constrains a move type, so the legal move types are the union
