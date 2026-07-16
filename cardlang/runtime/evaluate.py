@@ -137,8 +137,8 @@ def _name(e: n.NameRef, ctx: Ctx) -> Any:
                     # phase body checks clean today), so it fails in the
                     # runtime's currency with the fix named, not a bare
                     # assert. A static wall needs statement-position context
-                    # resolve does not thread yet (design-notes/scope-once.md
-                    # is the same missing plumbing, seen from types).
+                    # (which construct encloses this read) that no pass
+                    # threads today.
                     raise RuntimeError(
                         f"'{e.name}' is a per-player zone family read with no "
                         f"acting player — subscript it (`{e.name}[p]`) or use "

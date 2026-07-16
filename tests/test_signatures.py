@@ -316,6 +316,12 @@ def test_helper_annotations_agree_with_call_sigs() -> None:
 
 
 def test_zone_contents() -> None:
-    assert ZONE_CONTENT["Hand"] == TCollection(TCard())
-    assert ZONE_CONTENT["TeamPile"] == TCollection(TCard())
-    assert ZONE_CONTENT["ChipStack"] == TCollection(TAny())  # resource zone, loose
+    # `zone=True` throughout: these types describe values that ARE zones at
+    # runtime, which is what the movement/epistemic zone-position checks key
+    # on — a card query types Collection<Card> too but evaluates to a list.
+    assert ZONE_CONTENT["Hand"] == TCollection(TCard(), zone=True)
+    assert ZONE_CONTENT["TeamPile"] == TCollection(TCard(), zone=True)
+    assert ZONE_CONTENT["ChipStack"] == TCollection(TAny(), zone=True)  # resource zone, loose
+    assert all(
+        isinstance(t, TCollection) and t.zone for t in ZONE_CONTENT.values()
+    )

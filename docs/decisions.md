@@ -798,6 +798,43 @@ documentation, not declaration.
 the State object, with lifetime tied to phase entry/exit. Standard
 activation-record semantics.
 
+**`let` bindings scope forward and carry their type.** A `let` binds
+its name for the rest of the statement tuple it appears in — the same
+sequential fold at all three layers: the resolver scopes the name, the
+checker types it, the runtime binds the value. The binder's static type
+is its initializer's inferred type in the environment at that point, so
+every wall answers the same for the bound name as for the inline
+expression (`let z = hearts` followed by `z is 3` is rejected exactly
+as `hearts is 3` is). In a phase body the fold runs across the items:
+a preceding `let` scopes over later statements and nested phases (their
+`when`/`repeat until` qualifiers included) — what the driver evaluates
+mid-body with the threaded context. It does NOT scope over the phase's
+own `before_each`/`after_each` hooks or its state-block defaults, which
+run at entry, before any body `let` has executed — reading a body `let`
+from either is an unresolved name, not a runtime surprise. (An
+ENCLOSING body's `let` is visible to both — the nested phase receives
+the threaded context.) A transition predicate is stricter still: it may
+read no `let` at all, enclosing or not. It is fired by whichever round
+matches its event, and rounds both before and after any given `let` can
+be in scope, so no lexical position makes a binding reliably live at
+evaluation time — configuration reads state and the action, not body
+bindings.
+
+The indexed form `let base[p] = E` is a per-player map: the key binder
+types as `Player` inside `E` only, and `base` as a collection of `E`'s
+type, keyed by `Player`. Keyed collections — indexed lets and indexed
+state variables — carry their key domain, and subscript reads and
+indexed writes are checked against it (`n[hearts]` on a player-keyed
+store is a compile error). A zone VALUE is likewise distinguished from
+a computed card collection: a query result or list literal types
+`Collection<Card>` too, but only a zone (or a binder holding one) may
+stand in a movement endpoint or an epistemic target — narrowing a
+movement is the `where` filter's job, not a laundered query's. An initializer the checker deliberately
+leaves loose (`outcome`, an unregistered `action` field) carries that
+looseness forward — ordinary gradual typing, with the runtime's typed
+errors behind it. A `let` is a bound value, not a variable: it is not
+assignable (see "Mutation semantics").
+
 ## Loop termination semantics
 
 A `repeat until <pred>` clause on a phase (or `repeat until <pred>`

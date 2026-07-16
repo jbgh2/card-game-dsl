@@ -108,7 +108,7 @@ game Bridge {
 
     phase scoring {
       let dteam    = team_of(declarer)
-      let oteam    = 1 - dteam
+      let oteam    = team_of(declarer offset_by left)   // partners sit across: the left neighbor is always an opponent
       let required = 6 + contract_level
       let actual   = tricks_taken[dteam]
       let vuln     = games_won[dteam] >= 1

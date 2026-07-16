@@ -1212,6 +1212,52 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         scoped = replace(cats, locals=cats.locals | {node.index}) if node.index is not None else cats
         value = _rewrite_value(node.value, scoped, bag)
         return replace(node, value=value)  # type: ignore[arg-type]
+    if isinstance(node, n.Phase):
+        # The items fold with the configuration carve-out. A body `let` scopes
+        # over later statements and nested phases (their qualifiers included) —
+        # what the driver evaluates mid-body with the threaded context — but
+        # NOT over this phase's own hooks, state defaults, or TRANSITION
+        # predicates. Hooks and state declare/run at entry, before any body
+        # `let` has executed (`run_phase` declares state and captures hooks
+        # first); a transition predicate is CONFIGURATION collected
+        # position-independently and evaluated with the context captured at
+        # whichever round fires it — which may run before the `let`. The
+        # generic tuple fold used to scope all three anyway, so `let z = 5`
+        # followed by `before_each { n[1] := z }` (or a transition reading a
+        # body let, fired by an earlier round) resolved, type-checked, and
+        # died mid-playout on a raw KeyError for a binding that did not exist.
+        entry = cats
+        current = cats
+        out_items: list[object] = []
+        for item in node.items:
+            if isinstance(item, n.TransitionTo):
+                # A transition predicate reads NO `let` at all — not even an
+                # enclosing one. It is fired by whichever round matches its
+                # event, and rounds both before and after any given `let` can
+                # be in scope, so no lexical position makes a binding reliably
+                # live at evaluation time. Configuration reads state and the
+                # action; body bindings are the body's.
+                no_locals = replace(entry, locals=frozenset())
+                out_items.append(_rewrite_value(item, no_locals, bag))
+            elif isinstance(item, (n.BeforeEach, n.AfterEach, n.StateBlock)):
+                out_items.append(_rewrite_value(item, entry, bag))
+            else:
+                rewritten = _rewrite_value(item, current, bag)
+                out_items.append(rewritten)
+                if isinstance(rewritten, n.LetStmt):
+                    current = replace(
+                        current, locals=current.locals | {rewritten.name}
+                    )
+        qualifier = (
+            _rewrite_value(node.qualifier, entry, bag)
+            if node.qualifier is not None
+            else None
+        )
+        return replace(
+            node,
+            qualifier=qualifier,  # type: ignore[arg-type]
+            items=tuple(out_items),  # type: ignore[arg-type]
+        )
     scope_fields = _BINDER_SCOPE_FIELDS.get(type(node))
     if scope_fields is not None:
         binders = _introduced_binders(node)
@@ -1405,11 +1451,12 @@ def _bad_zone_endpoint(expr: n.Expr | None, what: str) -> str | None:
     AssertionError in the executor — a statically nameable error in the wrong
     currency at the wrong time.
 
-    A `local` root stays accepted: a binder may legitimately hold a zone value
-    (`let h = hand[0]`), and locals are untyped until the scoped-typing work
-    lands (docs/design-notes/scope-once.md; roadmap.md, "A `let`-bound name
-    has no static type") — the executor's Zone check remains the loud backstop
-    for that residual."""
+    A `local` root stays accepted HERE: a binder may legitimately hold a zone
+    value (`let h = hand[0]`), and which one it holds is a TYPE question —
+    typecheck's `_check_movement`/EpistemicOp arms decide it from the binder's
+    inferred type (decisions.md, "`let` bindings scope forward and carry
+    their type"). The executor's typed error remains the backstop for the
+    deliberately-loose initializers (`outcome`, unregistered action fields)."""
     root = expr
     while isinstance(root, (n.Subscript, n.Member)):
         root = root.obj
@@ -1934,6 +1981,23 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                             f"player, but '{nd.dest.name}' is {what_z} — name "
                             f"a player-indexed family (like hand[player]), or "
                             f"target one instance directly",
+                            nd.span,
+                        )
+                    elif nd.dest.ref_kind is not None and nd.dest.ref_kind != "zone":
+                        # The executor consumes the NAME (`zones.instance(X,
+                        # player)`), not a zone value — so unlike the generic
+                        # endpoints, a binder can never stand here even when it
+                        # HOLDS a zone: `let h = hand[0]` / `to each h` typed
+                        # clean (h is a zone) and died on `KeyError: 'h'`
+                        # hunting a family by that name (Codex review of #51).
+                        what_k = _WRITE_TARGET_KINDS.get(
+                            nd.dest.ref_kind, f"a {nd.dest.ref_kind}"
+                        )
+                        bag.error(
+                            f"`to each {nd.dest.name}` deals into "
+                            f"{nd.dest.name}[player] BY NAME, so it must name "
+                            f"a player-indexed zone family declared in "
+                            f"`zones {{ }}` — '{nd.dest.name}' is {what_k}",
                             nd.span,
                         )
             case n.EpistemicOp():

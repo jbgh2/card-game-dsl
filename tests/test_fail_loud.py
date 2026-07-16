@@ -434,26 +434,31 @@ def test_a_write_outside_the_declared_key_set_raises() -> None:
         _run(PHANTOM_KEY_WRITE)
 
 
-LET_BOUND_NON_ZONE_ENDPOINT = """
-game G {
-  players: 2
-  max_length: 1000
-  cards: standard52
-  zones { deck : Deck  hand[player] : Hand<player> }
-  state { x[player] : Integer = 0 }
-  phase play {
-    let h = 5
-    move all cards from h to deck
-  }
-  winner: highest x
-}
-"""
+def test_a_non_zone_value_at_a_movement_endpoint_raises_a_typed_error() -> None:
+    # The runtime backstop behind the typed-endpoint wall. `let h = 5` then
+    # `move all cards from h to deck` is REJECTED statically now (lets are
+    # typed), so reaching this branch from a checked program needs a value
+    # the checker deliberately leaves loose (`outcome`, an unregistered
+    # action field) — hence a constructed statement: the backstop is not a
+    # dead branch, and it must answer in the runtime's currency, not the
+    # bare assert that used to sit here.
+    import random
 
+    from cardlang.runtime.execute import execute
+    from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
+    from cardlang.runtime.values import Seating
 
-def test_a_let_bound_non_zone_endpoint_raises_a_typed_error() -> None:
-    # The endpoint wall's one recorded residual (a `local` root is accepted —
-    # a binder may hold a zone, and locals are untyped until
-    # design-notes/scope-once.md lands). The backstop is a typed RuntimeError,
-    # not the bare assert that used to sit there.
+    decls = (n.ZoneDecl(name="deck", index=None, type_ref=n.TypeRef(name="Deck")),)
+    rs = RuntimeState(Seating(2), ZoneStore(decls, (0, 1)), random.Random(0))
+    ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k])).with_local("h", 5)
+    stmt = n.Movement(
+        verb="move",
+        mode=None,
+        amount="all",
+        item="cards",
+        source=n.NameRef(name="h", ref_kind="local"),
+        dest=n.NameRef(name="deck", ref_kind="zone"),
+        dest_each=False,
+    )
     with pytest.raises(RuntimeError, match="movement source is not a zone"):
-        _run(LET_BOUND_NON_ZONE_ENDPOINT)
+        execute(stmt, ctx)

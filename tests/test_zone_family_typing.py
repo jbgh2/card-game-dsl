@@ -193,7 +193,7 @@ def test_rejects_dot_access_on_a_zone_family_subscript() -> None:
 def test_rejects_a_zone_family_index_of_the_wrong_type() -> None:
     _rejects(
         _game("let probe = number of cards in hand[hearts]"),
-        "`hand` is indexed by Player — got Suit",
+        "`hand` is keyed by Player — got Suit",
     )
 
 
@@ -220,7 +220,7 @@ def test_zone_family_index_wall_fires_in_a_movement_source() -> None:
     # `Movement.source`/`.dest` too.
     _rejects(
         _game("move all cards from hand[hearts] to pile"),
-        "`hand` is indexed by Player — got Suit",
+        "`hand` is keyed by Player — got Suit",
     )
 
 
@@ -229,7 +229,7 @@ def test_zone_family_index_wall_fires_in_a_reveal_target() -> None:
     # is a Subscript too.
     _rejects(
         _game("reveal one card from bid[hearts]"),
-        "`bid` is indexed by Player — got Suit",
+        "`bid` is keyed by Player — got Suit",
     )
 
 
@@ -257,7 +257,7 @@ def test_rejects_a_player_index_on_a_team_family() -> None:
         _team_game(
             "for each player q: score[0] := (number of cards in captured[q])"
         ),
-        "`captured` is indexed by Team — got Player",
+        "`captured` is keyed by Team — got Player",
     )
 
 

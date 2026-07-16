@@ -68,9 +68,35 @@ class TOptional:
 class TCollection:
     """An ordered/keyed collection of ``element`` (a zone's contents, a query
     result, a player set). Structural distinctions (set/ordered/stack) and the
-    full query API are deferred."""
+    full query API are deferred.
+
+    ``key`` is the subscript's domain when the collection is a KEYED map — a
+    per-player/per-team state variable, an indexed `let` — and ``None`` for
+    positional collections and untracked shapes. It drives the
+    subscript/indexed-assignment key checks and the keyed-membership wall.
+    Facets do not decide TOP-LEVEL compatibility: `assignable`'s collection
+    arm compares elements only, and `unify` preserves facets the two sides
+    agree on rather than judging by them. (Nested collections compare
+    elements with full equality, so a facet mismatch one level down does
+    distinguish — no current value shape nests a flag-bearing collection.)
+    The value space of `score[player]` IS `Collection<Integer>`; the key is a
+    fact about how you may ADDRESS it, not about what it holds.
+
+    Facets are bookkeeping, and bookkeeping riding on a structural type must
+    be PRESERVED by every site that rebuilds one — an obligation that already
+    bit once (`unify` dropped both facets; see its docstring). The promotion
+    path to real nominal kinds (`TZone`, `TMap`), and the three named
+    triggers that would fire it, are recorded in roadmap.md, "Collection
+    facets vs nominal kinds"."""
 
     element: "Type"
+    key: "Type | None" = None
+    # True for a value that IS a zone at runtime (`ZONE_CONTENT`'s types, a
+    # zone-family subscript) — as opposed to a COMPUTED card collection (a
+    # query result, a list literal), which types identically by element but
+    # evaluates to a plain list. Movement/epistemic zone positions require it;
+    # like `key`, it never participates in assignability or unification.
+    zone: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,7 +168,26 @@ def unify(a: Type, b: Type) -> Type | None:
         return TAny()
     if isinstance(a, TCollection) and isinstance(b, TCollection):
         element = unify(a.element, b.element)
-        return TCollection(element) if element is not None else None
+        if element is None:
+            return None
+        # PRESERVE the facets. Rebuilding bare TCollection(element) here
+        # erased them: `if c then hand[0] else hand[1]` — two genuine zones —
+        # unified to a non-zone and was falsely rejected at every endpoint,
+        # and two same-keyed maps unified to an unkeyed one, sending the
+        # keyed-map wall dark through any IfExpr. The two facets merge in
+        # OPPOSITE directions because they feed opposite wall polarities:
+        # `zone` PERMITS (an endpoint requires a definite zone, so a maybe-
+        # zone must not qualify — AND), while `key` PROHIBITS (membership on
+        # a maybe-map is still ambiguous at runtime, so keyedness must be
+        # STICKY: agreeing keys keep their domain; a map merged with a
+        # non-map, or a differently-keyed map, stays keyed with the domain
+        # unknowable — TAny, which the subscript check accepts and the
+        # membership wall still fires on).
+        if a.key == b.key:
+            key: Type | None = a.key
+        else:
+            key = TAny()
+        return TCollection(element, key=key, zone=a.zone and b.zone)
     if isinstance(a, TNull):
         return b if isinstance(b, TOptional) else TOptional(b)
     if isinstance(b, TNull):
@@ -183,4 +228,9 @@ def assignable(src: Type, dst: Type) -> bool:
         return assignable(src.inner, dst)
     if isinstance(src, TInteger) and isinstance(dst, (TPlayer, TTeam)):
         return True
+    if isinstance(src, TCollection) and isinstance(dst, TCollection):
+        # The key is how a map is ADDRESSED, not part of its value space —
+        # strip it and compare elements exactly as the old whole-type equality
+        # did for keyless collections.
+        return src.element == dst.element
     return False

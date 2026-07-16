@@ -67,24 +67,16 @@ sampled:   every class's "everything else concrete rejects" branch is one
            stays `TAny`; `_check_produce_stmt`/`_check_define_outcomes` type
            variants through a disjoint path that never calls `_check_binop`)
            — not a residual, a domain exclusion.
-residual:  let-bound locals (`let x = <expr>`) are not typed across
-           statements by the flat statement walk (`TypeEnv.locals` is
-           populated only by loop/query/aggregation binders and function
-           params — see `_all_statements_scoped`/`_stmt_tree_scoped`, which
-           track ForEach/EachSimultaneous binders but not `LetStmt`). A
-           `let`-bound name referenced in a later statement therefore
-           infers `TAny` and passes every wall in this module vacuously,
-           regardless of what its initializer actually computed (`let
-           second = leader offset_by left` — skat.cardlang — types `second`
-           as `TAny` for the rest of the phase body). This is not
-           introduced by this change (every existing wall — the enum-
-           comparison wall, the dot-form wall — has the same blind spot);
-           it is recorded here because it materially limits how much bite
-           every wall in this module has against let-derived values. Wall:
-           roadmap.md, "Let-bound local typing across statements"
-           (deferred — out of scope for this change, which covers operator/
-           predicate-context totality, not the statement-walk's local
-           environment threading).
+residual:  a `let` whose initializer itself types `TAny` (an unregistered
+           `action.<field>`, a call with a loose signature) carries `TAny`
+           forward, so the gradual-typing pass-through applies one binding
+           later — the same rule as everywhere else `TAny` flows, not a
+           blind spot of the walk. `let`-bound locals are otherwise TYPED
+           across statements (the sequential fold in `_seq_tree_scoped`,
+           resolved by `_scoped_env`), so every wall in this module fires
+           through a `let` exactly as it fires on the inline expression —
+           pinned by the let-laundered probes in this module and the
+           dedicated ledger in tests/test_let_typing.py.
 """
 
 from __future__ import annotations
@@ -421,14 +413,21 @@ def test_offset_by_rejects_a_non_direction_right_operand() -> None:
     )
 
 
-def test_offset_by_accepts_gradual_any_on_either_side() -> None:
-    # A let-bound local stays TAny in the flat walk (documented residual
-    # above) — both operands pass vacuously.
+def test_offset_by_types_through_a_let() -> None:
+    # This test used to pin the let-TAny gap ("both operands pass
+    # vacuously"). Lets are typed now, so it pins the wall instead, in both
+    # directions: a Player-valued let is a legal receiver on its own merits,
+    # and an Integer-valued let is rejected exactly as the inline literal
+    # would be.
     _accepts(
         _game(
             "let second = actor offset_by left\n"
             "    for each player p: let probe = (second offset_by left is p)"
         )
+    )
+    _rejects(
+        _game("let z = 3\n    let probe = z offset_by left"),
+        "offset_by",
     )
 
 

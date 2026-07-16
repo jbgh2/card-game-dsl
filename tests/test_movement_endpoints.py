@@ -32,11 +32,13 @@ covered:    every rejected classification, each probed at two or more
             singleton/family name, a subscripted family); the classifier's
             own rejection for an unresolved root
 sampled:    none
-residual:   a `local` root is accepted unclassified — a binder may hold a
-            zone (`let h = hand[0]`), and locals are untyped until the
-            scoped-typing work lands (design-notes/scope-once.md; roadmap.md,
-            "A `let`-bound name has no static type"); the executor's Zone
-            check remains the loud backstop for a local holding a non-zone
+residual:   a `local` root whose initializer types `TAny` (an `outcome`
+            pronoun, an unregistered action field) is accepted — gradual
+            typing's ordinary rule, not a blind spot: lets are TYPED now, so
+            `let h = 3` is rejected at check time (the type half of the rule,
+            `_check_movement`) while `let h = hand[0]` still passes on its
+            merits. The executor's typed RuntimeError remains the backstop
+            for the TAny path (tests/test_fail_loud.py pins it directly).
 """
 
 from __future__ import annotations
@@ -156,13 +158,22 @@ def test_zone_shaped_endpoints_still_check() -> None:
     )
 
 
-def test_a_local_root_is_accepted_the_recorded_residual() -> None:
-    # A binder may legitimately hold a zone; locals are untyped until the
-    # scoped-typing work lands, so the wall lets `local` roots through and the
-    # executor's Zone check stays as the loud backstop. This test pins the
-    # residual's SHAPE (accepted at check time), so if locals gain types the
-    # residual row and this pin both get revisited.
+def test_a_zone_valued_local_is_accepted_and_a_non_zone_one_is_not() -> None:
+    # Both halves of the rule at the `local` root. Resolve's classification
+    # wall lets any binder through (a binder MAY hold a zone); the type half
+    # (`_check_movement`, now that lets are typed) decides by what the binder
+    # actually holds. `let h = 3` used to be this file's recorded residual —
+    # accepted at check time, dying on the executor's backstop.
     check_dsl(
         _game("let h = hand[0]\n    move all cards from h to deck"),
         "probe.cardlang",
     )
+    with pytest.raises(DiagnosticError) as excinfo:
+        check_dsl(
+            _game("let h = 3\n    move all cards from h to deck"),
+            "probe.cardlang",
+        )
+    assert "movement source must be a zone, got Integer" in str(excinfo.value)
+    with pytest.raises(DiagnosticError) as excinfo:
+        check_dsl(_game("let h = 3\n    shuffle h"), "probe.cardlang")
+    assert "'shuffle' target must be a zone, got Integer" in str(excinfo.value)

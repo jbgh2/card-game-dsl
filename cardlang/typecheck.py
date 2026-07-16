@@ -266,7 +266,7 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
             if isinstance(obj_ref, n.NameRef) and obj_ref.ref_kind == "zone":
                 family = env.zone_families.get(obj_ref.name)
                 if family is not None:
-                    return env.zones.get(obj_ref.name, TCollection(TAny()))
+                    return env.zones.get(obj_ref.name, TCollection(TAny(), zone=True))
             obj = infer(e.obj, env)
             return obj.element if isinstance(obj, TCollection) else TAny()
         case n.Call():
@@ -430,11 +430,23 @@ def env_from_game(game: Game) -> TypeEnv:
     for block in _state_blocks(game):
         for decl in block.decls:
             t = type_from_name(decl.type_name, decl.optional, structs)
-            # An indexed state var (`score[player] : Integer`) is a per-key map —
-            # a collection whose subscript yields the declared value type.
-            state_vars[decl.name] = TCollection(t) if decl.index is not None else t
+            # An indexed state var (`score[player]`) is a per-key map — a
+            # collection whose subscript yields the declared value type, KEYED
+            # by the index domain's binder type so a wrong-domain key
+            # (`score[hearts]`, `n[9]`'s read twin) is a check-time error, not
+            # a raw KeyError mid-playout.
+            state_vars[decl.name] = (
+                TCollection(t, key=_role_type(decl.index))
+                if decl.index is not None
+                else t
+            )
+    # The fallback carries zone=True like its twin in `infer`'s zone-family
+    # subscript arm: it describes an (unknown-typed) ZONE's contents, and an
+    # unflagged default would falsely reject every use of that zone at the
+    # endpoint walls. Unreachable today only by pass ordering (resolve raises
+    # on unknown zone types first) — kept truthful, not load-bearing.
     zones: dict[str, Type] = {
-        z.name: ZONE_CONTENT.get(z.type_ref.name, TCollection(TAny()))
+        z.name: ZONE_CONTENT.get(z.type_ref.name, TCollection(TAny(), zone=True))
         for z in game.zones
     }
     # `ZoneDecl.index` is `None` (a singleton zone) or one of the closed index
@@ -457,8 +469,33 @@ def env_from_game(game: Game) -> TypeEnv:
     )
 
 
-# A statement's enclosing loop binders, innermost last: (name, role type).
-_Binders = tuple[tuple[str, "Type"], ...]
+# A statement's enclosing binders, outermost first. A loop or parameter binder
+# carries its Type directly; a `let` binder carries its `LetStmt` NODE, because
+# its type is its initializer's inferred type *in the environment at that
+# point* — which only the consumer holds. `_scoped_env` resolves both kinds.
+_Binders = tuple[tuple[str, "Type | n.LetStmt"], ...]
+
+
+def _scoped_env(env: TypeEnv, binders: _Binders) -> TypeEnv:
+    """The environment a statement sees: binders folded in scope order, with a
+    `let` binder typed here by inferring its initializer in the environment
+    built so far (earlier binders are visible — the walk's sequential fold
+    guarantees that is exactly the let's own scope). The indexed form
+    (`let base[p] = E`) is a per-player map: `p` types as Player inside E
+    only, and `base` as a collection of E's type. This is what closed the
+    let-TAny gap: a `let`-bound name used to infer `TAny` everywhere, so every
+    wall went dark one binding away (`hearts is 3` rejected; `let z = hearts`
+    then `z is 3` accepted)."""
+    for name, bound in binders:
+        if isinstance(bound, n.LetStmt):
+            if bound.index is not None:
+                element = infer(bound.value, env.with_local(bound.index, TPlayer()))
+                env = env.with_local(name, TCollection(element, key=TPlayer()))
+            else:
+                env = env.with_local(name, infer(bound.value, env))
+        else:
+            env = env.with_local(name, bound)
+    return env
 
 
 def _stmt_tree_scoped(
@@ -482,20 +519,16 @@ def _stmt_tree_scoped(
                 s.body, binders + ((s.role, _role_type(s.role)),)
             )
         case n.RepeatUntil():
-            for x in s.body:
-                yield from _stmt_tree_scoped(x, binders)
+            yield from _seq_tree_scoped(s.body, binders)
         case n.IfStmt():
-            for x in s.then_body:
-                yield from _stmt_tree_scoped(x, binders)
-            for x in s.else_body or ():
-                yield from _stmt_tree_scoped(x, binders)
+            yield from _seq_tree_scoped(s.then_body, binders)
+            yield from _seq_tree_scoped(s.else_body or (), binders)
         case n.Block():
             # Synthetic, and created only by `expand`, which runs AFTER this
             # pass — so nothing here ever sees one today. The arm exists anyway:
             # a future pass ordering that did reach a block must not skip its
             # whole body without a word.
-            for x in s.body:
-                yield from _stmt_tree_scoped(x, binders)
+            yield from _seq_tree_scoped(s.body, binders)
         case n.Produces():
             # A deliberate leaf, not an oversight: arm bodies bind the arm's
             # payload binders, which this walk cannot know (they come from the
@@ -514,25 +547,50 @@ def _stmt_tree_scoped(
             assert_never(s)
 
 
+def _seq_tree_scoped(
+    stmts: tuple[n.Stmt, ...], binders: _Binders
+) -> Iterator[tuple[n.Stmt, _Binders]]:
+    """A statement SEQUENCE with the sequential-`let` fold: a `let` binds its
+    name for the REST of the tuple — the same fold resolve's `_rewrite_value`
+    applies when it scopes the name, and the runtime's `run_body` applies when
+    it binds the value. Every statement-tuple walk routes through here, so the
+    three passes cannot disagree about where a `let` is visible."""
+    current = binders
+    for s in stmts:
+        yield from _stmt_tree_scoped(s, current)
+        if isinstance(s, n.LetStmt):
+            current = current + ((s.name, s),)
+
+
 def _stmt_tree(s: n.Stmt) -> Iterator[n.Stmt]:
     yield from (st for st, _ in _stmt_tree_scoped(s))
 
 
-def _phase_statements_scoped(phase: n.Phase) -> Iterator[tuple[n.Stmt, _Binders]]:
+def _phase_statements_scoped(
+    phase: n.Phase, binders: _Binders = ()
+) -> Iterator[tuple[n.Stmt, _Binders]]:
+    # The sequential-`let` fold runs across phase ITEMS too, and carries into
+    # nested phases that follow the let — mirroring resolve's Phase fold and
+    # the driver, which passes the threaded context into `run_phase`. HOOKS
+    # deliberately get the phase-ENTRY binders, not the fold's: `before_each`/
+    # `after_each` run at iteration boundaries with the entry context, before
+    # any body `let` has executed, and resolve rejects a hook reading one.
+    current = binders
     for item in phase.items:
         match item:
             case n.Phase():
-                yield from _phase_statements_scoped(item)
+                yield from _phase_statements_scoped(item, current)
             case n.BeforeEach() | n.AfterEach():
-                for s in item.body:
-                    yield from _stmt_tree_scoped(s)
+                yield from _seq_tree_scoped(item.body, binders)
             case n.StateBlock() | n.ActiveRules() | n.LegalMoves() | n.TransitionTo():
                 pass  # configuration blocks hold no statements
             case _:
                 # The residue of PhaseItem is exactly Stmt — mypy checks that on
                 # this call, so a new phase-item block kind fails here loudly
                 # instead of being walked as a statement.
-                yield from _stmt_tree_scoped(item)
+                yield from _stmt_tree_scoped(item, current)
+                if isinstance(item, n.LetStmt):
+                    current = current + ((item.name, item),)
 
 
 def _non_define_statements(game: Game) -> Iterator[n.Stmt]:
@@ -544,15 +602,23 @@ def _non_define_statements(game: Game) -> Iterator[n.Stmt]:
         yield from (st for st, _ in _phase_statements_scoped(phase))
 
 
+def _move_param_binders(move_type: n.MoveTypeDef) -> _Binders:
+    """A move type's parameters, typed from their declarations — bound in its
+    guard and effect exactly as procedure parameters are bound in their body.
+    They used to be bound by resolve and NEVER typed, so `move_type m(s :
+    Suit) { when: s is 3 … }` passed both positions while the inline spelling
+    was rejected — the let-laundering shape, one binder kind over."""
+    env = TypeEnv()
+    return tuple((p.name, _param_type(p, env)) for p in move_type.params)
+
+
 def _all_statements_scoped(game: Game) -> Iterator[tuple[n.Stmt, _Binders]]:
     for move_type in game.move_types:
-        for s in move_type.effect:
-            yield from _stmt_tree_scoped(s)
+        yield from _seq_tree_scoped(move_type.effect, _move_param_binders(move_type))
     for phase in game.phases:
         yield from _phase_statements_scoped(phase)
     for define in game.defines:
-        for s in define.body:
-            yield from _stmt_tree_scoped(s)
+        yield from _seq_tree_scoped(define.body, ())
     # A procedure body is checked ONCE, here, at its declaration — with its
     # parameters bound to their declared types, which is what gives those
     # annotations force. It is not re-checked after expansion, because expansion
@@ -561,8 +627,7 @@ def _all_statements_scoped(game: Game) -> Iterator[tuple[n.Stmt, _Binders]]:
     env = TypeEnv()
     for proc in game.procedures:
         binders: _Binders = tuple((p.name, _param_type(p, env)) for p in proc.params)
-        for s in proc.body:
-            yield from _stmt_tree_scoped(s, binders)
+        yield from _seq_tree_scoped(proc.body, binders)
 
 
 def _all_statements(game: Game) -> Iterator[n.Stmt]:
@@ -992,6 +1057,26 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
             e.span,
         )
         return
+    if isinstance(right_t, TCollection) and right_t.key is not None:
+        # A keyed map is ambiguous under `in`: the sentence reads as a VALUE
+        # test, but the runtime store is a dict, whose `in` asks about KEYS —
+        # `2 in m` with every value 99 answered True because seat 2 exists.
+        # Reject rather than pick a side silently; both meanings have direct
+        # spellings. A TAny key means SOME branch of a merge is a map (the
+        # sticky rule in `types.unify`), which is exactly as ambiguous.
+        what_map = (
+            f"a map keyed by {_type_name(right_t.key)}"
+            if not isinstance(right_t.key, TAny)
+            else "a value that may be a keyed map (one branch of its "
+            "conditional is)"
+        )
+        bag.error(
+            f"`in` on {what_map} is ambiguous (keys or values?) — test a "
+            f"specific entry (`m[k] is …`) or quantify over the key domain "
+            f"instead",
+            e.span,
+        )
+        return
     lbare = _bare(infer(e.left, env))
     if isinstance(lbare, TEnum) and isinstance(e.right, n.ListLit):
         for item in e.right.elements:
@@ -1260,7 +1345,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 idx_t = infer(e.index, env)
                 if not assignable(idx_t, family):
                     bag.error(
-                        f"`{obj_ref.name}` is indexed by {_type_name(family)}"
+                        f"`{obj_ref.name}` is keyed by {_type_name(family)}"
                         f" — got {_type_name(idx_t)}",
                         e.span,
                     )
@@ -1268,6 +1353,23 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
             obj = infer(e.obj, env)
             if not subscriptable(obj):
                 bag.error(f"cannot index {_type_name(obj)} (not a collection)", e.span)
+            elif isinstance(obj, TCollection) and obj.key is not None:
+                # A KEYED map (a per-player/team state var, an indexed `let`)
+                # is addressed by its key domain, and the checker knows both
+                # sides now — `n[hearts]` used to sail through and die on a
+                # raw KeyError at the read.
+                idx_t = infer(e.index, env)
+                if not assignable(idx_t, obj.key):
+                    what = (
+                        f"`{obj_ref.name}`"
+                        if isinstance(obj_ref, n.NameRef)
+                        else "this map"
+                    )
+                    bag.error(
+                        f"{what} is keyed by {_type_name(obj.key)} — got "
+                        f"{_type_name(idx_t)}",
+                        e.span,
+                    )
     elif isinstance(e, n.StructLit):
         _check_struct_lit(e, env, bag)
     elif isinstance(e, n.Member):
@@ -1447,6 +1549,13 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
             if expr is not s.filter:
                 _check_expr(expr, env, bag)
         return
+    if isinstance(s, n.LetStmt) and s.index is not None:
+        # The indexed form's key binder (`let base[p] = E`) is bound to each
+        # player inside E only — check E in that scope, the same binding
+        # `_scoped_env` uses to type `base` and the runtime `_let` uses to
+        # evaluate it.
+        _check_expr(s.value, env.with_local(s.index, TPlayer()), bag)
+        return
     if isinstance(s, n.RunStmt):
         # Arity and argument types against the declared parameters — the same
         # check a `Call` gets against a function signature, and the only place a
@@ -1494,6 +1603,17 @@ def _check_assign(stmt: n.AssignStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
         # cases, which is why an assignment to a `let` or a typo sailed through here.
         return
     if stmt.index is not None and isinstance(target, TCollection):
+        if target.key is not None:
+            # The write twin of the subscript key check: `n[hearts] := 1` on a
+            # player-keyed store is a check-time error here; the runtime's
+            # domain wall (execute._assign) stays behind it for computed keys.
+            idx_t = infer(stmt.index, env)
+            if not assignable(idx_t, target.key):
+                bag.error(
+                    f"`{name}` is keyed by {_type_name(target.key)} — got "
+                    f"{_type_name(idx_t)}",
+                    stmt.span,
+                )
         target = target.element  # an indexed assignment writes one element
     rhs = infer(stmt.value, env)
     if stmt.op in ("+=", "-="):
@@ -1527,11 +1647,22 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
         case n.Round() if stmt.termination is not None:
             _check_bool(stmt.termination, env, bag, "round `until` condition")
         case n.Movement():
-            _check_movement(stmt, bag)
+            _check_movement(stmt, env, bag)
+        case n.EpistemicOp():
+            # The type half of the zone-target rule, like `_check_movement`'s
+            # endpoints: a `local` root passes resolve's classification, and
+            # the binder's inferred type decides here.
+            t = infer(stmt.target, env)
+            if not _is_zone_type(t):
+                bag.error(
+                    f"'{stmt.op}' target must be a zone, got "
+                    f"{_type_name(t)}{_zone_hint(t, filterable=False)}",
+                    stmt.span,
+                )
         case n.Round():
             pass  # a round without `until` has no Boolean position to check
         case (
-            n.EpistemicOp() | n.RotateStmt() | n.EachSimultaneous() | n.ForEach()
+            n.RotateStmt() | n.EachSimultaneous() | n.ForEach()
             | n.LetStmt() | n.Offer() | n.Produce() | n.Produces()
             | n.ContinueTo() | n.SkipToNextHand() | n.RunStmt() | n.Block()
         ):
@@ -1543,11 +1674,63 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
             assert_never(stmt)
 
 
-def _check_movement(stmt: n.Movement, bag: DiagnosticBag) -> None:
+def _is_zone_type(t: "Type") -> bool:
+    """Whether a value of this type IS a zone at runtime: the `zone` marker
+    (`ZONE_CONTENT`, a zone-family subscript), or TAny (a deliberately-loose
+    value the runtime backstop owns). The marker matters twice over: `all
+    players` is a collection of the wrong element, and a card QUERY is a
+    collection of the RIGHT element that still evaluates to a plain list —
+    only the marker separates `hand[0]` from `cards in hand[0] where …`."""
+    if isinstance(t, TAny):
+        return True
+    return isinstance(t, TCollection) and t.zone
+
+
+def _zone_hint(t: "Type", filterable: bool) -> str:
+    """A computed card collection fails the zone check with the RIGHT element,
+    which reads as a contradiction without this: say why it is still not a
+    zone, and what to write instead. The `where`-filter suggestion is offered
+    only where the grammar can actually take one (`filterable` — a movement's
+    FROM position); destinations, the gather form, and epistemic targets have
+    no filter slot, and a hint naming unwritable syntax is worse than none."""
+    if isinstance(t, TCollection) and isinstance(t.element, TCard) and not t.zone:
+        fix = (
+            "name the zone itself, or narrow the movement with a `where` filter"
+            if filterable
+            else "name the zone itself"
+        )
+        return f" (a computed card collection — a query result or list — is not a zone; {fix})"
+    return ""
+
+
+def _check_movement(stmt: n.Movement, env: TypeEnv, bag: DiagnosticBag) -> None:
     """Combination validity for the movement production (decisions.md, "Surface
     totality"): every combination the grammar accepts is either implemented by
     the executor or rejected here with a clear message — a clause the runtime
     would silently ignore must not reach it."""
+    # The TYPE half of the endpoint rule. Resolve rejects an endpoint whose
+    # root CLASSIFIES as a non-zone (a state var, a deck value); a `local`
+    # root passes classification because a binder may hold a zone — and now
+    # that lets are typed, the type says whether this one does. A zone value
+    # types as a CARD collection (ZONE_CONTENT), and the element matters:
+    # `let z = all players` is a collection too, and waving it through on the
+    # container shape alone sent it to the runtime's backstop with a message
+    # claiming the checker couldn't know — it knew Collection<Player> exactly.
+    for endpoint, what, filterable in (
+        # Only the from-position takes a `where` filter; the in-form's zone
+        # parses into `source` but has no dest, hence no filter slot either.
+        (stmt.source, "source", stmt.dest is not None),
+        (stmt.dest, "destination", False),
+    ):
+        if endpoint is None:
+            continue
+        t = infer(endpoint, env)
+        if not _is_zone_type(t):
+            bag.error(
+                f"movement {what} must be a zone, got "
+                f"{_type_name(t)}{_zone_hint(t, filterable)}",
+                stmt.span,
+            )
     if stmt.item not in ("card", "cards"):
         bag.error(
             f"movements move cards; '{stmt.item}' is not a supported item noun "
@@ -1637,11 +1820,15 @@ def _check_define_outcomes(
     define: n.DefineDef, variant: TVariant, env: TypeEnv, bag: DiagnosticBag
 ) -> None:
     """Every `produce` in a define's body names a declared variant and supplies
-    payloads of the declared arity and types."""
-    for stmt in define.body:
-        for sub in _stmt_tree(stmt):
-            if isinstance(sub, n.Produce):
-                _check_produce_stmt(sub, variant, f"define '{define.name}'", env, bag)
+    payloads of the declared arity and types — checked in the SCOPED
+    environment, so a payload routed through a `let` types like its inline
+    twin (`let z = hearts / produce Won(z)` used to pass a `Player` payload
+    the inline spelling had just been rejected for)."""
+    for sub, binders in _seq_tree_scoped(define.body, ()):
+        if isinstance(sub, n.Produce):
+            _check_produce_stmt(
+                sub, variant, f"define '{define.name}'", _scoped_env(env, binders), bag
+            )
 
 
 def _check_misplaced_produce(
@@ -2002,12 +2189,16 @@ def _check_phase_produces(
     variants: Mapping[str, TVariant],
     env: TypeEnv,
     bag: DiagnosticBag,
+    binders: _Binders = (),
 ) -> None:
-    # The nearest outcome-declaring phase owns the produces in this body.
+    # The nearest outcome-declaring phase owns the produces in this body. The
+    # binder fold mirrors `_phase_statements_scoped`, so a payload routed
+    # through a preceding `let` types exactly like its inline twin.
     owner = phase if phase.outcome_cases else enclosing
+    current = binders
     for item in phase.items:
         if isinstance(item, n.Phase):
-            _check_phase_produces(item, owner, variants, env, bag)
+            _check_phase_produces(item, owner, variants, env, bag, current)
         elif isinstance(item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.TransitionTo)):
             pass
         elif isinstance(item, (n.BeforeEach, n.AfterEach)):
@@ -2016,13 +2207,21 @@ def _check_phase_produces(
                     if isinstance(sub, n.Produce):
                         bag.error("'produce' may not appear in a before_each/after_each hook", sub.span)
         else:
-            for sub in _stmt_tree(item):
+            for sub, sub_binders in _stmt_tree_scoped(item, current):
                 if not isinstance(sub, n.Produce):
                     continue
                 if owner is None:
                     bag.error("'produce' may only appear in a define or outcome-phase body", sub.span)
                 else:
-                    _check_produce_stmt(sub, variants[owner.name], f"phase '{owner.name}'", env, bag)
+                    _check_produce_stmt(
+                        sub,
+                        variants[owner.name],
+                        f"phase '{owner.name}'",
+                        _scoped_env(env, sub_binders),
+                        bag,
+                    )
+            if isinstance(item, n.LetStmt):
+                current = current + ((item.name, item),)
 
 
 def _check_produces(
@@ -2060,23 +2259,20 @@ def _check_produces(
         arm_env = env
         for binder, t in zip(arm.binders, payload_types):
             arm_env = arm_env.with_local(binder, t)
-        for body_stmt in arm.body:
-            for sub, loop_binders in _stmt_tree_scoped(body_stmt):
-                # Arm bodies carry the same loop-binder typing as the main
-                # walk — a `for each` inside an arm is not a TAny loophole.
-                sub_env = arm_env
-                for name, t in loop_binders:
-                    sub_env = sub_env.with_local(name, t)
-                if isinstance(sub, n.Produce):
-                    # `_stmt_tree` does not descend into `produces:` arms, so the
-                    # outer misplaced-produce walk never sees this — reject it here.
-                    bag.error("'produce' may not appear in a produces: arm", sub.span)
-                if isinstance(sub, n.Produces):
-                    # Nested consumer: check it with the enclosing arm binders in
-                    # scope (so outer payload binders are typed, not TAny).
-                    _check_produces(sub, variants, sub_env, bag)
-                _check_stmt_exprs(sub, sub_env, bag)
-                _check_stmt_semantics(sub, sub_env, bag)
+        # Arm bodies carry the same binder typing as the main walk — a `for
+        # each` or a sequential `let` inside an arm is not a TAny loophole.
+        for sub, loop_binders in _seq_tree_scoped(arm.body, ()):
+            sub_env = _scoped_env(arm_env, loop_binders)
+            if isinstance(sub, n.Produce):
+                # `_stmt_tree` does not descend into `produces:` arms, so the
+                # outer misplaced-produce walk never sees this — reject it here.
+                bag.error("'produce' may not appear in a produces: arm", sub.span)
+            if isinstance(sub, n.Produces):
+                # Nested consumer: check it with the enclosing arm binders in
+                # scope (so outer payload binders are typed, not TAny).
+                _check_produces(sub, variants, sub_env, bag)
+            _check_stmt_exprs(sub, sub_env, bag)
+            _check_stmt_semantics(sub, sub_env, bag)
     missing = sorted(set(variant.cases) - seen)
     if missing:
         bag.error(
@@ -2103,9 +2299,7 @@ def typecheck(game: Game) -> Game:
     env = replace(env, procedures=_procedure_sigs(game))
     variants = variant_registry(game, env.structs)
     for stmt, binders in _all_statements_scoped(game):
-        senv = env
-        for name, t in binders:
-            senv = senv.with_local(name, t)
+        senv = _scoped_env(env, binders)
         _check_stmt_exprs(stmt, senv, bag)
         if isinstance(stmt, n.Produces):
             # `_check_produces` recurses into arm-nested consumers itself, carrying
@@ -2121,12 +2315,54 @@ def typecheck(game: Game) -> Game:
     _check_outcome_scope(game, bag)
     _check_outcome_name_collisions(game, bag)
     _check_single_outcome_consumer(game, bag)
-    for phase in _all_phases(game):
+
+    def check_phase_positions(phase: n.Phase, binders: _Binders) -> None:
+        """Phase-level expression positions, typed with the binders the runtime
+        actually evaluates them under. A nested phase's qualifier and a
+        transition predicate run mid-body with the THREADED context (a
+        preceding body `let` is bound — checking them with the bare env made
+        the same expression get three different verdicts by position); state
+        defaults run at ENTRY, so they see enclosing binders only (resolve
+        rejects a same-phase body `let` in them, like the hooks)."""
+        current = binders
+        for item in phase.items:
+            match item:
+                case n.Phase():
+                    if item.qualifier is not None:
+                        qenv = _scoped_env(env, current)
+                        _check_expr(item.qualifier.expr, qenv, bag)
+                        _check_bool(
+                            item.qualifier.expr,
+                            qenv,
+                            bag,
+                            f"phase '{item.name}' condition",
+                        )
+                    check_phase_positions(item, current)
+                case n.TransitionTo() if item.event.where is not None:
+                    # NO binders at all: a transition predicate may not read
+                    # any `let` (resolve rejects the reference — it is fired
+                    # by whichever round matches its event, and no lexical
+                    # position makes a binding reliably live then), so the
+                    # bare env is exactly its scope.
+                    _check_expr(item.event.where, env, bag)
+                case n.StateBlock():
+                    entry_env = _scoped_env(env, binders)
+                    for decl in item.decls:
+                        _check_expr(decl.default, entry_env, bag)
+                case n.LetStmt():
+                    current = current + ((item.name, item),)
+                case _:
+                    pass
+
+    for phase in game.phases:
         if phase.qualifier is not None:
+            # Top-level: nothing can precede a top-level phase, so the bare env
+            # is exactly its entry scope.
             _check_expr(phase.qualifier.expr, env, bag)
             _check_bool(
                 phase.qualifier.expr, env, bag, f"phase '{phase.name}' condition"
             )
+        check_phase_positions(phase, ())
     if game.loser is not None:
         _check_expr(game.loser.selection, env, bag)
 
@@ -2138,7 +2374,11 @@ def typecheck(game: Game) -> Game:
     # and derived type-field bodies.
     for move_type in game.move_types:
         if move_type.guard is not None:
-            _check_expr(move_type.guard, env, bag)
+            _check_expr(
+                move_type.guard,
+                _scoped_env(env, _move_param_binders(move_type)),
+                bag,
+            )
     for rule in game.rules:
         if rule.applies_when is not None and rule.applies_when.pred is not None:
             _check_expr(rule.applies_when.pred, env, bag)
@@ -2148,16 +2388,24 @@ def typecheck(game: Game) -> Game:
             _check_expr(rule.if_impossible, env, bag)
         if rule.exempts is not None:
             _check_expr(rule.exempts, env, bag)
-    for block in _state_blocks(game):
-        for decl in block.decls:
+    # Phase-level state defaults and transition predicates are checked by
+    # `check_phase_positions` above, with their real binder scope; only the
+    # game-level state block remains here (nothing can precede it).
+    if game.state is not None:
+        for decl in game.state.decls:
             _check_expr(decl.default, env, bag)
-    for phase in _all_phases(game):
-        for item in phase.items:
-            if isinstance(item, n.TransitionTo) and item.event.where is not None:
-                _check_expr(item.event.where, env, bag)
     for tdef in game.types:
+        # A derived body reads sibling fields by bare name (resolve scopes
+        # them); their declared types are in the struct registry, so bind
+        # them — `derived { bad = seat is hearts }` on a Player field used to
+        # type `seat` as TAny and accept the always-false comparison.
+        struct = env.structs.get(tdef.name)
+        denv = env
+        if struct is not None:
+            for fname, ftype in struct.fields.items():
+                denv = denv.with_local(fname, ftype)
         for derived in tdef.derived:
-            _check_expr(derived.value, env, bag)
+            _check_expr(derived.value, denv, bag)
 
     if bag.has_errors:
         error = DiagnosticError(bag.items[0])

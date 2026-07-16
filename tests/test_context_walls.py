@@ -176,7 +176,7 @@ def test_movement_source_is_still_checked_unbound_alongside_a_filter() -> None:
     # source's own (unrelated) zone-family-index wall must still fire.
     _rejects(
         _game("move all cards from hand[hearts] where card.suit is hearts to pile"),
-        "`hand` is indexed by Player — got Suit",
+        "`hand` is keyed by Player — got Suit",
     )
 
 

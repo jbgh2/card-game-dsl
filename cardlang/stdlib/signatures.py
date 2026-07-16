@@ -119,7 +119,14 @@ EARLY_SIGS: dict[str, Type] = {
 
 # Zone type name -> contents. Card containers hold cards; the resource zone holds
 # the permissive top (Resource generics deferred).
+# `zone=True`: these types describe values that ARE zones at runtime, which is
+# what the movement/epistemic zone-position checks require — a card QUERY also
+# types Collection<Card> but evaluates to a plain list, not a Zone.
 ZONE_CONTENT: dict[str, Type] = {
-    name: (TCollection(TAny()) if name == "ChipStack" else TCollection(TCard()))
+    name: (
+        TCollection(TAny(), zone=True)
+        if name == "ChipStack"
+        else TCollection(TCard(), zone=True)
+    )
     for name in LIBRARY_ZONE_TYPES
 }

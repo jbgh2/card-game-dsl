@@ -110,12 +110,13 @@ def _movement(stmt: n.Movement, ctx: Ctx) -> None:
         return
     source = evaluate(stmt.source, ctx)
     if not isinstance(source, Zone):
-        # User-reachable through the one recorded gap in the endpoint wall: a
-        # `let`-bound endpoint reaches the runtime untyped (resolve accepts a
-        # `local` root; design-notes/scope-once.md). Typed error, not assert.
+        # User-reachable through the endpoint rule's recorded residual: a
+        # value the checker deliberately leaves loose (`outcome`, an
+        # unregistered action field) reaches the runtime as TAny. Typed
+        # error, not assert.
         raise RuntimeError(
-            f"movement source is not a zone (got {type(source).__name__}) — a "
-            f"`let`-bound endpoint is only checked at runtime until locals are typed"
+            f"movement source is not a zone (got {type(source).__name__}) — "
+            f"the checker leaves this value's type open, so it is checked here"
         )
     if stmt.dest_each:
         assert isinstance(stmt.dest, n.NameRef)
@@ -134,8 +135,8 @@ def _movement(stmt: n.Movement, ctx: Ctx) -> None:
         dest = evaluate(stmt.dest, ctx)
         if not isinstance(dest, Zone):
             raise RuntimeError(
-                f"movement destination is not a zone (got {type(dest).__name__}) — a "
-                f"`let`-bound endpoint is only checked at runtime until locals are typed"
+                f"movement destination is not a zone (got {type(dest).__name__}) — "
+                f"the checker leaves this value's type open, so it is checked here"
             )
         player = (
             ctx.require_actor("a chosen movement")
@@ -191,8 +192,8 @@ def _gather(stmt: n.Movement, ctx: Ctx) -> None:
     dest = evaluate(stmt.dest, ctx)
     if not isinstance(dest, Zone):
         raise RuntimeError(
-            f"gather destination is not a zone (got {type(dest).__name__}) — a "
-            f"`let`-bound endpoint is only checked at runtime until locals are typed"
+            f"gather destination is not a zone (got {type(dest).__name__}) — "
+            f"the checker leaves this value's type open, so it is checked here"
         )
     zones = ctx.rs.zones
     for name, zone in zones.singles.items():
@@ -289,8 +290,8 @@ def _epistemic(stmt: n.EpistemicOp, ctx: Ctx) -> None:
     zone = evaluate(stmt.target, ctx)
     if not isinstance(zone, Zone):
         raise RuntimeError(
-            f"'{stmt.op}' target is not a zone (got {type(zone).__name__}) — a "
-            f"`let`-bound target is only checked at runtime until locals are typed"
+            f"'{stmt.op}' target is not a zone (got {type(zone).__name__}) — "
+            f"the checker leaves this value's type open, so it is checked here"
         )
     if stmt.op == "shuffle":
         ctx.rs.rng.shuffle(zone.cards)

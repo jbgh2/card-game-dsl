@@ -775,17 +775,24 @@
               "name": "oteam",
               "index": null,
               "value": {
-                "kind": "binop",
-                "op": "-",
-                "left": {
-                  "kind": "int",
-                  "value": 1
-                },
-                "right": {
-                  "kind": "name",
-                  "name": "dteam",
-                  "ref": "local"
-                }
+                "kind": "call",
+                "func": "team_of",
+                "args": [
+                  {
+                    "kind": "binop",
+                    "op": "offset_by",
+                    "left": {
+                      "kind": "name",
+                      "name": "declarer",
+                      "ref": "state_var"
+                    },
+                    "right": {
+                      "kind": "name",
+                      "name": "left",
+                      "ref": "enum_value"
+                    }
+                  }
+                ]
               }
             },
             {
