@@ -1,0 +1,1 @@
+struct_literal_missing_field.cardlang:13:13: error: Contract {} is missing field 'suit'

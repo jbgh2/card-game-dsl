@@ -1,0 +1,1 @@
+choose_without_static_ceiling.cardlang:14:15: error: `choose integer` needs a statically known upper bound: either give it a literal upper bound (`0 .. 13`) or declare a ceiling with `up to N` (`0 .. hand_size up to 10`) — the OpenSpiel action space reserves that many ids up front

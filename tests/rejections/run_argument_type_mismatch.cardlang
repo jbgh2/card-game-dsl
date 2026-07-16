@@ -1,0 +1,18 @@
+// Wall: typecheck.py's `run` call-site argument check. `give_point` declares
+// its parameter `who : Player`; the call site passes `hearts`, a Suit — the
+// procedure's parameter annotations are load-bearing, not decorative.
+game RunArgumentTypeMismatch {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase play {
+    run give_point(hearts)
+  }
+  winner: highest score
+}
+procedure give_point(who : Player) {
+  score[who] += 1
+}

@@ -1,0 +1,1 @@
+deck_over_capacity.cardlang:12:3: error: deck 'standard52' holds 52 cards but phase 'deal' deals up to 64 from it in one hand with 8 players

@@ -1,0 +1,1 @@
+duplicate_zone.cardlang:11:5: error: duplicate zone 'deck' — the later declaration would silently shadow the earlier one

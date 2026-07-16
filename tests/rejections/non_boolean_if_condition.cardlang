@@ -1,0 +1,16 @@
+// Wall: typecheck.py's `_check_bool` on an `if` condition. `total` is a bare
+// Integer state variable, not a Boolean, so it cannot head a condition.
+game NonBooleanIfCondition {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0  total : Integer = 0 }
+  phase play {
+    if total {
+      score[0] := 1
+    }
+  }
+  winner: highest score
+}

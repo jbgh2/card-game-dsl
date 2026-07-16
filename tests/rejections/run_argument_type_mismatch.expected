@@ -1,0 +1,1 @@
+run_argument_type_mismatch.cardlang:12:20: error: procedure 'give_point' expects Player, got Suit

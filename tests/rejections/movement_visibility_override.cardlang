@@ -1,0 +1,17 @@
+// Wall: typecheck.py's movement-combination check. A per-movement
+// `visibility = ...` clause parses (the grammar's `vis_clause`), but the
+// runtime is not wired to honor it — visibility derives from the declared
+// zone types, never a per-statement override (docs/decisions.md, "Knowledge,
+// visibility, and the projection model").
+game MovementVisibilityOverride {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player>  pile : TrickPile }
+  state { score[player] : Integer = 0 }
+  phase play {
+    move one card from deck to pile, visibility = 1
+  }
+  winner: highest score
+}
