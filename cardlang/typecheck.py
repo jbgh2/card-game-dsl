@@ -13,8 +13,24 @@ propagates without error. Deferred to later stages: variant outcome types and
 exhaustiveness (`TVariant`), user-defined `type` declarations (`TStruct`), full
 `ZoneContents`/`Resource` typing, and payload-type narrowing.
 
-Like :mod:`cardlang.resolve`, this annotates rather than rewrites: the
-(unchanged) :class:`Game` flows on, and the IR stays at the resolved-AST level.
+A pure validator: the (unchanged) :class:`Game` flows on, and the IR stays at
+the resolved-AST level.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Assumes:      a resolved AST (every ``NameRef`` classified, declarations
+              unique, rule templates instantiated).
+Establishes:  type validity only. The inferred :class:`~cardlang.types.Type`
+              values are ephemeral — they are NOT written onto nodes.
+              Downstream may assume every type wall held, but may not read
+              types off the tree; a downstream consumer that needs a type is
+              a signal to materialize it in this pass, never to re-infer it
+              there.
+Now illegal:  a type-invalid program, per the walls above and their
+              completeness ledgers. Recorded residuals live in roadmap.md,
+              "Explicitly deferred".
+Verified by:  the wall test modules (operator, aggregation, context,
+              ranking, rule-ref) and their ledgers.
 """
 
 from __future__ import annotations

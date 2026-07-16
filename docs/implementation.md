@@ -81,12 +81,14 @@ from being a one-way door.
 
 ### 2. The validated IR is the contract
 
-The compiler's real output is a **validated, typed intermediate
-representation** (serializable, e.g. JSON), not the in-memory host AST.
-Everything downstream — the future interpreter, the OpenSpiel adapter,
-any codegen — consumes the IR. This decouples the front-end language from
-the runtime language: the front end can stay Python (or later move to
-Rust) without dictating how games are eventually fed to OpenSpiel.
+The compiler's real output is a **validated intermediate representation**
+(serializable, e.g. JSON), not the in-memory host AST. The in-repo Python
+interpreter (`cardlang/runtime/`) and OpenSpiel adapter consume the checked
+AST directly — the same information the IR renders (building.md, "The pass
+pipeline") — but the serialized IR is the boundary any *non-Python* runtime
+or codegen would consume. That is what decouples the front-end language from
+the runtime language: the front end can stay Python (or later move to Rust)
+without dictating how games are eventually fed to OpenSpiel.
 
 ### 3. OpenSpiel new-game registration is Python or C++ only
 
@@ -184,10 +186,11 @@ v1 is done when the grammar parses every corpus game, the checker
 resolves every name and type, and the only remaining gaps are an explicit,
 enumerated stub list — nothing silent.
 
-The next milestone is the **runtime net**: an executable interpreter plus
-random-playout invariants (the game always terminates, the legal-move set
-is never empty unless the state is terminal, scores reconcile). OpenSpiel
-integration follows that, through the IR.
+Past that boundary sits the **runtime net**: the executable interpreter
+(`cardlang/runtime/`) plus random-playout invariants (the game always
+terminates, the legal-move set is never empty unless the state is terminal,
+scores reconcile), and the OpenSpiel integration on top of it — both
+consuming the checked AST (building.md, "The pass pipeline").
 
 The random-playout interpreter ignores visibility: every legality rule
 reads only the acting player's own hand plus public trick/game state, so a

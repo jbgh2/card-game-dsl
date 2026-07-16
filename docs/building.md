@@ -22,8 +22,10 @@ lets the IR be snapshotted.
 source (.md fenced block)
    │  extract
    ▼
-raw DSL text ──parse──▶ typed AST ──resolve──▶ resolved AST
-   ──typecheck──▶ type-annotated AST ──deck-capacity──▶ ──emit──▶ validated IR (JSON)
+raw DSL text ──parse──▶ typed AST ──resolve──▶ resolved AST ──typecheck──▶
+   checked AST ──expand──▶ procedure-free AST ──deck-capacity──▶ checked AST
+      ├──▶ runtime / OpenSpiel adapter (consume the checked AST directly)
+      └──emit──▶ validated IR (JSON — sidecar for the CLI and goldens)
 ```
 
 - **extract** — game files are Markdown; the DSL lives in fenced code blocks. A
@@ -46,6 +48,11 @@ raw DSL text ──parse──▶ typed AST ──resolve──▶ resolved AST
   `demands` returns candidate moves, `if_impossible` is a fallback), mechanic
   `outcome`/`routing` signatures, scoring components producing `ScoreDelta`, and
   exhaustiveness of matches on typed phase/mechanic outcomes.
+- **expand** — procedure expansion: every `run` site is spliced by value into a
+  hygienic `Block` and `Game.procedures` is emptied, so no later stage ever sees
+  a `RunStmt`. It sits after typecheck (a procedure's parameter types can only be
+  enforced while the call site exists) and before deck-capacity (everything
+  downstream is entitled to a procedure-free tree).
 - **deck-capacity** — a conservative static check: for each per-hand window (the
   deals between deck resets) it bounds the worst-case cards dealt from the deck and
   errors if that exceeds the deck's capacity, so a too-large player count (an
@@ -54,19 +61,31 @@ raw DSL text ──parse──▶ typed AST ──resolve──▶ resolved AST
   — `deal all`, a non-literal amount, a deal inside `repeat until` — contributes
   nothing; a guarded deal (`if`) counts as taken and a per-player deal (`for each
   player` / `to each`) multiplies by the player count (the high end of a range).
-- **emit** — lowers the type-annotated AST to the validated IR.
+- **emit** — renders the checked AST as the validated IR. This is a **sidecar**:
+  the runtime and the OpenSpiel adapter consume the checked AST directly
+  (`pipeline.check_source` → `runtime/driver.play_game`); the IR serves the CLI
+  and the golden-file snapshots, kept in lockstep by the goldens.
+
+Each pass states its binding contract — what it assumes, what it establishes,
+and what becomes illegal after it — in the `Contract` block of its module
+docstring (`cardlang/parse.py` through `cardlang/ir.py`). Those blocks are the
+authoritative per-pass reference; a check is placed by consulting the owning
+pass's contract, per [decisions.md](decisions.md), "Closed-domain completeness"
+(write-time triage).
 
 ## The AST↔IR seam
 
-The IR is the **resolved, type-annotated AST — not desugared**. Library
+The IR is the **resolved AST — not desugared**. Library
 constructs (`Hand<Owner>`, the `round` construct — including its betting form —
 and `ChallengeWindow`) are preserved as first-class IR nodes carrying their
-resolved bindings and inferred types. They are not lowered to primitives: `round`
-and the challenge mechanic are control-flow units whose desugaring needs runtime
-semantics, and
-the runtime is the next milestone, not this one. Keeping the IR at the resolved-AST
-level is what lets the runtime adapter's language stay an independent choice
-(see [implementation.md](implementation.md), "The validated IR is the contract").
+resolved bindings. They are not lowered to primitives: `round`
+and the challenge mechanic are control-flow units whose semantics live in the
+runtime's interpreters (`cardlang/runtime/mechanics.py`) — lowering them in the
+IR would state that meaning a second time, and the two would drift. Keeping the
+IR at the resolved-AST level keeps it in lockstep with the checked AST the
+runtime and OpenSpiel adapter consume, and keeps a non-Python runtime an open
+choice: the serialized IR is the boundary such a runtime would read (see
+[implementation.md](implementation.md), "The validated IR is the contract").
 The front end stops at this seam.
 
 ## The expression sublanguage
@@ -269,6 +288,6 @@ v1 is done when the grammar parses every corpus game, the checker resolves every
 name and type, the `runtime-primitive` surface is fully signatured, and
 `language-gap` is empty (or every remaining gap is a named, deferred open
 question) — nothing silent, and deferred implementation never confused with a
-language gap. The next milestone is the runtime net (an interpreter plus
-random-playout invariants), reached through the IR; see
-[implementation.md](implementation.md), "Milestone boundary".
+language gap. Past this boundary sits the runtime net (the interpreter in
+`cardlang/runtime/` plus random-playout invariants), which consumes the
+checked AST; see [implementation.md](implementation.md), "Milestone boundary".

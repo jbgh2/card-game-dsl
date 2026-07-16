@@ -10,6 +10,16 @@ node. Positions reported by Lark are 1-based within the DSL text; a
 A handful of private marker dataclasses (``_Deck``, ``_Direction``, …) carry
 intermediate results whose Lark rule produces a value the parent rule must
 pick out by type — they never escape this module.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Assumes:      raw DSL text (Markdown extraction already applied).
+Establishes:  a syntactically valid frozen AST; every node carries a
+              :class:`Span`. No semantic claims — names are unclassified
+              (``NameRef.ref_kind`` is ``None``) and nothing is typed.
+Now illegal:  ill-formed syntax; it cannot reach any later pass.
+Verified by:  the grammar-ambiguity check (tests/test_grammar_ambiguity.py)
+              and the per-construct parse tests.
 """
 
 from __future__ import annotations

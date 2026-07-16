@@ -88,6 +88,18 @@ enumerated rather than trusted:
   through silently and a future pass ordering would otherwise skip a whole body.)
 - `openspiel/encoding.py` — walks every dataclass field generically, so a block's
   body is reached like any other tuple.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Assumes:      a resolved, typechecked AST — every `run` names a declared
+              procedure and its arguments are already checked (the reason
+              this pass runs after typecheck, above).
+Establishes:  a procedure-free tree: no `RunStmt`, no `ProcedureDef`;
+              `Game.procedures` is empty. Expansion is total — there is
+              nothing left to reject here.
+Now illegal:  a `RunStmt` reaching any later stage; the IR emitter
+              hard-fails on one (cardlang/ir.py) as its backstop.
+Verified by:  tests/test_procedures.py; the emitter backstop above.
 """
 
 from dataclasses import fields, is_dataclass, replace
