@@ -29,8 +29,11 @@ from __future__ import annotations
 
 from itertools import combinations
 
+from cardlang.runtime import reads
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Card, Player
+
+_R = reads.row("cardlang/runtime/cribbage.py", "cribbage.cardlang")
 
 _VALUE = {"A": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9,
           "10": 10, "J": 10, "Q": 10, "K": 10}
@@ -145,11 +148,11 @@ def peg_origin_of(ctx: Ctx, c: Card) -> Player:
     before `play_pile` is drained for this sub-round — the close routing reads
     every card's origin before either split movement removes anything."""
     rs = ctx.rs
-    play_pile = rs.zones.single("play_pile")
+    play_pile = reads.single(rs, _R, "play_pile")
     position = play_pile.cards.index(c)
-    seq_bits = rs.get("seq_bits")
-    seq_len = rs.get("seq_len")
-    dealer: Player = rs.get("dealer")
+    seq_bits = reads.state(rs, _R, "seq_bits")
+    seq_len = reads.state(rs, _R, "seq_len")
+    dealer: Player = reads.state(rs, _R, "dealer")
     if peg_origin(seq_bits, seq_len, position):
         return dealer
     return next(p for p in rs.seating.players if p != dealer)
@@ -160,14 +163,14 @@ def cribbage_show_value(ctx: Ctx, p: Player) -> int:
     snapshot once pegging ends (every card started in `hand[p]` and is routed
     to `played[p]`, never the crib), scored against the shared starter."""
     rs = ctx.rs
-    hand4 = list(rs.zones.instance("played", p).cards)
-    starter = rs.zones.single("starter").cards[0]
+    hand4 = list(reads.instance(rs, _R, "played", p).cards)
+    starter = reads.single(rs, _R, "starter").cards[0]
     return show_score(hand4, starter, is_crib=False)
 
 
 def cribbage_crib_value(ctx: Ctx) -> int:
     """The dealer's crib show score against the shared starter."""
     rs = ctx.rs
-    crib = list(rs.zones.single("crib").cards)
-    starter = rs.zones.single("starter").cards[0]
+    crib = list(reads.single(rs, _R, "crib").cards)
+    starter = reads.single(rs, _R, "starter").cards[0]
     return show_score(crib, starter, is_crib=True)

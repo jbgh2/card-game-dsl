@@ -211,18 +211,25 @@ def _gather(stmt: n.Movement, ctx: Ctx) -> None:
             f"gather destination is not a zone (got {type(dest).__name__}) — "
             f"the checker leaves this value's type open, so it is checked here"
         )
+    # Zones are collected in lexicographic name order — singles and families
+    # in one sorted namespace, a family's instances in its index domain's
+    # order. The order is observable twice over (per-zone events shape each
+    # player's log; the stacked card order feeds the next same-seed shuffle),
+    # so it must not depend on the `zones { }` block, whose order is purely
+    # presentational (decisions.md, the gather paragraph).
     zones = ctx.rs.zones
-    for name, zone in zones.singles.items():
-        if zone is not dest:
+    for name in sorted(set(zones.singles) | set(zones.families)):
+        sources: list[tuple[tuple[str, Player | None], Zone]]
+        if name in zones.singles:
+            sources = [((name, None), zones.singles[name])]
+        else:
+            sources = [((name, key), zone) for key, zone in zones.families[name].items()]
+        for loc, zone in sources:
+            if zone is dest:
+                continue
             taken = zone.take_all()
             if ctx.observer is not None:
-                observe.movement(ctx, (name, None), zones.locate(dest), taken)
-            dest.add_all(taken)
-    for fname, family in zones.families.items():
-        for key, zone in family.items():
-            taken = zone.take_all()
-            if ctx.observer is not None:
-                observe.movement(ctx, (fname, key), zones.locate(dest), taken)
+                observe.movement(ctx, loc, zones.locate(dest), taken)
             dest.add_all(taken)
 
 

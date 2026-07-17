@@ -37,8 +37,11 @@ import itertools
 
 from dataclasses import dataclass
 
+from cardlang.runtime import reads
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import SUITS, Card, Player
+
+_R = reads.row("cardlang/runtime/president.py", "president.cardlang")
 
 # The rank order (high to low) — exactly president.cardlang's `ranking:` line,
 # mapped to strengths by the driver's formula (first-listed strongest). The
@@ -144,7 +147,7 @@ def president_next_holder(ctx: Ctx, p: Player) -> Player:
     plays clockwise, so the ring advances by +1 — Tichu's counterclockwise
     advance mirrored). Returns `p` unchanged when everyone is out (the hand is
     over; the value is never read)."""
-    hands = ctx.rs.zones.families["hand"]
+    hands = reads.family(ctx.rs, _R, "hand")
     players = list(ctx.rs.seating.players)
     if not any(hands[q].cards for q in players):
         return p
@@ -161,5 +164,5 @@ def president_is_top_rank(ctx: Ctx, p: Player, c: Card) -> bool:
     cards tie at the top rank any of them is a faithful give — the filtered
     movement takes the first match in hand order."""
     strength = ctx.rs.rank_index
-    hand = ctx.rs.zones.families["hand"][p].cards
+    hand = reads.instance(ctx.rs, _R, "hand", p).cards
     return strength[c.rank] == max(strength[x.rank] for x in hand)

@@ -34,8 +34,14 @@ from __future__ import annotations
 
 from itertools import combinations
 
+from cardlang.runtime import reads
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Card, Player
+
+# Every zone this module reads by name is declared in PRIMITIVE_READS
+# (cardlang/runtime/reads.py) — the declared-reads coupling contract; the
+# accessors below are the only sanctioned way to touch state by name.
+_R = reads.row("cardlang/runtime/gin.py", "gin-rummy.cardlang")
 
 _POINTS = {"A": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8,
            "9": 9, "10": 10, "J": 10, "Q": 10, "K": 10}
@@ -179,8 +185,8 @@ def _hand(ctx: Ctx, player: Player) -> list[Card]:
     staging zone (the just-taken discard, held apart so the "must discard a
     different card" rule is structural — the discard/knock candidate pool is
     `hand` alone, but deadwood counts everything held)."""
-    held = list(ctx.rs.zones.instance("hand", player).cards)
-    held.extend(ctx.rs.zones.instance("taken", player).cards)
+    held = list(reads.instance(ctx.rs, _R, "hand", player).cards)
+    held.extend(reads.instance(ctx.rs, _R, "taken", player).cards)
     return held
 
 
@@ -200,7 +206,7 @@ def gin_can_knock(ctx: Ctx, player: Player) -> bool:
     announce and then had zero movement candidates. Exactly
     `any c in hand: gin_knock_ok(c)` — the no-implicit-actions pairing."""
     held = _hand(ctx, player)
-    hand_only = list(ctx.rs.zones.instance("hand", player).cards)
+    hand_only = list(reads.instance(ctx.rs, _R, "hand", player).cards)
     return any(minimal_deadwood([c for c in held if c != d]) <= 10 for d in hand_only)
 
 
@@ -264,11 +270,12 @@ def gin_flat_points(ctx: Ctx, player: Player) -> int:
 def gin_shown_points(ctx: Ctx, player: Player) -> int:
     """The point count of `shown_deadwood[player]` — the scoring read after
     both arrangements (and any layoffs) are on the table."""
-    return flat_points(list(ctx.rs.zones.instance("shown_deadwood", player).cards))
+    return flat_points(list(reads.instance(ctx.rs, _R, "shown_deadwood", player).cards))
 
 
-def _extends_meld(ctx: Ctx, card: Card, slot: str, owner: Player) -> bool:
-    meld = list(ctx.rs.zones.instance(slot, owner).cards)
+def _extends_meld(card: Card, meld: list[Card]) -> bool:
+    # The slot zone is read at each wrapper with its literal name (the
+    # declared-reads scan refuses a variable name at an accessor call).
     return bool(meld) and valid_meld(meld + [card])
 
 
@@ -276,14 +283,14 @@ def gin_lay_ok_a(ctx: Ctx, card: Card, knocker: Player) -> bool:
     """Layoff legality onto the knocker's first shown meld: the extended
     group is still a valid meld. (Cards never lay off on deadwood; the gin
     case is guarded in the DSL — layoff is skipped entirely.)"""
-    return _extends_meld(ctx, card, "meldA", knocker)
+    return _extends_meld(card, list(reads.instance(ctx.rs, _R, "meldA", knocker).cards))
 
 
 def gin_lay_ok_b(ctx: Ctx, card: Card, knocker: Player) -> bool:
     """Layoff legality onto the knocker's second shown meld."""
-    return _extends_meld(ctx, card, "meldB", knocker)
+    return _extends_meld(card, list(reads.instance(ctx.rs, _R, "meldB", knocker).cards))
 
 
 def gin_lay_ok_c(ctx: Ctx, card: Card, knocker: Player) -> bool:
     """Layoff legality onto the knocker's third shown meld."""
-    return _extends_meld(ctx, card, "meldC", knocker)
+    return _extends_meld(card, list(reads.instance(ctx.rs, _R, "meldC", knocker).cards))

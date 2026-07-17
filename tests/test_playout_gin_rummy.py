@@ -68,7 +68,11 @@ def test_seed0_characterization() -> None:
     # PYTHONHASHSEED 0-12): every collection on the decision path is ordered
     # (source-order pools, combinations enumeration, seating rings) — the
     # in-process pin is sound without a subprocess seed pin.
+    # The vector also depends on the canonical gather order (`move all cards
+    # to <zone>` collects zones in sorted-name order): the gather feeds the
+    # pre-shuffle deck permutation, so a gather-order change legitimately
+    # moves these numbers (a sanctioned regeneration, not a construct drift).
     winner, match_score, hands_won, _ = _run(0)
     assert winner == 1
-    assert match_score == {0: 76, 1: 254}
-    assert hands_won == {0: 1, 1: 2}
+    assert match_score == {0: 135, 1: 328}
+    assert hands_won == {0: 2, 1: 3}

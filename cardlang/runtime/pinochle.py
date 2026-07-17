@@ -18,8 +18,11 @@ from __future__ import annotations
 
 from collections import Counter
 
+from cardlang.runtime import reads
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import SUITS, Card, Player
+
+_R = reads.row("cardlang/runtime/pinochle.py", "pinochle.cardlang")
 
 
 def pinochle_meld(cards: list[Card], trump: str) -> int:
@@ -56,8 +59,8 @@ def pinochle_meld_value(ctx: Ctx, player: Player) -> int:
     trump — a pure read of the live `hand` zone and the `trump_suit` state (no
     RNG, no mutation); the DSL statement `meld_score[team_of(p)] +=
     pinochle_meld_value(p)` is what actually credits it to the team."""
-    hand = ctx.rs.zones.instance("hand", player).cards
-    trump = ctx.rs.get("trump_suit")
+    hand = reads.instance(ctx.rs, _R, "hand", player).cards
+    trump = reads.state(ctx.rs, _R, "trump_suit")
     if not isinstance(trump, str):
         # Whether trump has been declared yet is live game state, so scoring
         # meld before it is the description's error, in the runtime's currency.

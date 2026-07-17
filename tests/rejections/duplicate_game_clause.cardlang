@@ -1,0 +1,17 @@
+// Wall: parse.py's `game()` builder. Every game clause except `phase` is
+// single-valued; a repeat would silently replace the first declaration
+// (decisions.md "Surface totality"), so the builder rejects at the second
+// occurrence. `players:` seeds the class here; the full closed domain (all
+// eleven single-valued clauses) is swept by tests/test_game_clause_walls.py.
+game DuplicatePlayers {
+  players: 2
+  players: 4
+  cards: standard52
+  max_length: 10
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase play {
+    deal 3 cards from deck to each hand
+  }
+  winner: highest score
+}

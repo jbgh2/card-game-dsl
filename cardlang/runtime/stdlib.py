@@ -10,10 +10,19 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
+from cardlang.runtime import reads
 from cardlang.runtime.state import Ctx, IllegalMove, elements
 from cardlang.runtime.values import SUITS, Card, Player
 from cardlang.stdlib.signatures import CALL_SIGS
 from cardlang.types import TCollection
+
+# This module's per-game functions (the auction outcomes; the pegging-scorer
+# call sites) read state on behalf of specific games — one declared-reads row
+# per game served (cardlang/runtime/reads.py).
+_BRIDGE_R = reads.row("cardlang/runtime/stdlib.py", "bridge.cardlang")
+_CRIBBAGE_R = reads.row("cardlang/runtime/stdlib.py", "cribbage.cardlang")
+_PINOCHLE_R = reads.row("cardlang/runtime/stdlib.py", "pinochle.cardlang")
+_TAROT_R = reads.row("cardlang/runtime/stdlib.py", "french-tarot.cardlang")
 
 
 def call(name: str, args: list[Any], ctx: Ctx) -> Any:
@@ -192,11 +201,11 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
         case "peg_pair_points":
             from cardlang.runtime.cribbage import peg_pair_points
 
-            return peg_pair_points(ctx.rs.zones.single("play_pile").cards)
+            return peg_pair_points(reads.single(ctx.rs, _CRIBBAGE_R, "play_pile").cards)
         case "peg_run_points":
             from cardlang.runtime.cribbage import peg_run_points
 
-            return peg_run_points(ctx.rs.zones.single("play_pile").cards)
+            return peg_run_points(reads.single(ctx.rs, _CRIBBAGE_R, "play_pile").cards)
         case "peg_origin_of":
             from cardlang.runtime.cribbage import peg_origin_of
 
@@ -298,7 +307,7 @@ def _player_holding(card: Card, ctx: Ctx) -> Player:
     := player_holding(2 of clubs)` right after the full deal) — so a card in
     nobody's hand is a game-logic error reported here, at the cause, rather
     than a silent `None` that key-errors some later subscript."""
-    for player, zone in ctx.rs.zones.families["hand"].items():
+    for player, zone in reads.magic_hand(ctx.rs).items():
         if card in zone.cards:
             return player
     raise RuntimeError(f"player_holding: no hand contains {card}")
@@ -494,13 +503,14 @@ def bridge_auction_outcome(
     declarer — the first player of the high-bidding side to have named the final
     strain (their left-hand opponent leads, so the exact seat matters)."""
     rs = ctx.rs
-    if not rs.get("made_bid"):
+    if not reads.state(rs, _BRIDGE_R, "made_bid"):
         ctx.trace("bridge_contract", {"all_pass": True})
         return ("all_pass", [])
-    high_team = rs.team_of[rs.get("high_bidder")]
-    strain = rs.get("cur_strain")
-    level = rs.get("cur_level")
-    doubled = rs.get("doubled")
+    high_bidder = reads.state(rs, _BRIDGE_R, "high_bidder")
+    high_team = rs.team_of[high_bidder]
+    strain = reads.state(rs, _BRIDGE_R, "cur_strain")
+    level = reads.state(rs, _BRIDGE_R, "cur_level")
+    doubled = reads.state(rs, _BRIDGE_R, "doubled")
     declarer = next(
         (
             p
@@ -516,7 +526,7 @@ def bridge_auction_outcome(
         raise RuntimeError(
             f"bridge auction: made_bid is set but no submit_bid in the history "
             f"names the final strain {strain!r} for the high team {high_team} "
-            f"(high_bidder={rs.get('high_bidder')})"
+            f"(high_bidder={high_bidder})"
         )
     ctx.trace(
         "bridge_contract",
@@ -539,9 +549,9 @@ def pinochle_auction_outcome(
     the opener at the minimum 50. (The bidding side must reach this in meld +
     tricks or be set back; see `pinochle.cardlang`.)"""
     rs = ctx.rs
-    lead_bidder = rs.get("lead_bidder")
+    lead_bidder = reads.state(rs, _PINOCHLE_R, "lead_bidder")
     if lead_bidder is None:
-        declarer, bid = rs.get("opener"), 50
+        declarer, bid = reads.state(rs, _PINOCHLE_R, "opener"), 50
         if declarer is None:
             # Whether `opener` was set before the round is runtime data — the
             # hosting game's own setup — so its absence is the description's
@@ -553,7 +563,7 @@ def pinochle_auction_outcome(
             )
         ctx.trace("pinochle_contract", {"all_pass": True, "declarer": declarer, "bid": bid})
         return ("bid_won", [declarer, bid])
-    bid = rs.get("working_bid")
+    bid = reads.state(rs, _PINOCHLE_R, "working_bid")
     ctx.trace(
         "pinochle_contract", {"all_pass": False, "declarer": lead_bidder, "bid": bid}
     )
@@ -567,10 +577,10 @@ def tarot_auction_outcome(
     level he reached, or — if every seat passed — the hand is thrown in (re-dealt,
     no score). `current_level` is 1..4 (petite..garde_contre; 0 = no bid)."""
     rs = ctx.rs
-    taker = rs.get("lead_taker")
+    taker = reads.state(rs, _TAROT_R, "lead_taker")
     if taker is None:
         ctx.trace("tarot_contract", {"thrown_in": True})
         return ("thrown_in", [])
-    level = rs.get("current_level")
+    level = reads.state(rs, _TAROT_R, "current_level")
     ctx.trace("tarot_contract", {"thrown_in": False, "taker": taker, "level": level})
     return ("taken", [taker, level])

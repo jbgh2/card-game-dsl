@@ -1,0 +1,7 @@
+// Wall: parse.py's `game()` builder, both mandatory clauses at once — the
+// bag-first idiom surfaces both omissions in a single failure (the second
+// appears as a note), rather than one per compile round-trip.
+game MissingBoth {
+  max_length: 10
+  winner: highest score
+}

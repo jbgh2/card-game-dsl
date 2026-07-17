@@ -1,0 +1,18 @@
+// Wall: resolve.py's `_resolve_direction`. `direction:` is grammatically a
+// bare NAME; unwalled, an unknown value was silently read as clockwise
+// (driver.py's `clockwise = direction != "counterclockwise"`) — the classic
+// accepted-with-different-semantics misread. `anticlockwise` is the most
+// plausible wrong sentence: it is what half the English-speaking world
+// calls counterclockwise.
+game UnknownDirection {
+  players: 2
+  cards: standard52
+  direction: anticlockwise
+  max_length: 10
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase play {
+    deal 3 cards from deck to each hand
+  }
+  winner: highest score
+}

@@ -1,12 +1,11 @@
 """T5: declaration reorder — pairing tests, structural preconditions, and
 completeness ledger.
 
-property:   reversing `game.move_types`, `game.rules`, and every
-            `StateBlock`'s `decls` (reorder.py) does not change a playout's
-            observable trace or terminal result; reversing `game.zones` too,
-            for the games where that is additionally sound (`_has_gather`);
-            and reordering does not change which diagnostic (by message) a
-            rejected program gets.
+property:   reversing `game.zones`, `game.move_types`, `game.rules`, and
+            every `StateBlock`'s `decls` (reorder.py) does not change a
+            playout's observable trace or terminal result; and reordering
+            does not change which diagnostic (by message) a rejected program
+            gets.
 domain:     corpus games (`pairing.CORPUS`) x seeds (`pairing.SEEDS`) for the
             playout property; `tests/rejections/*.cardlang` for the
             diagnostic property.
@@ -23,25 +22,20 @@ covered:    every corpus game (exhaustive), every seed in `pairing.SEEDS`;
             depends on are pinned as their own tests, not assumed:
             `test_every_game_has_exactly_one_deck_zone` (zone order is
             irrelevant to `driver.py`'s `next(... "Deck" ...)` only because
-            there is exactly one — this precondition matters only for the
-            games where zones ARE reordered, i.e. `not _has_gather`) and
+            there is exactly one) and
             `test_no_state_default_reads_a_sibling` (state-decl order is
             irrelevant to `_declare_state` only because no default
-            expression reads a same-block sibling).
+            expression reads a same-block sibling). The zones axis covers
+            every game: a gather visits zones in canonical sorted-name order
+            (`execute.py::_gather`; decisions.md "Loop lifecycle"), the
+            canonicalization that retired this suite's original gather-order
+            finding and its per-game exclusion.
 sampled:    seeds and decision depth only (CI budget) — pairing.py.
 residual:   `game.phases` and phase-body statement sequences — EXCLUDED, not
             deferred: decisions.md affirmatively says phase/statement order
             IS meaningful ("Sub-phase entry and exit"), so there is no
             metamorphic property to check there. Not a gap; see reorder.py's
-            module docstring. `game.zones` for the 13 corpus games with a
-            "gather" movement — EXCLUDED, a REAL finding (`execute.py::
-            _gather` couples a gather's observable event order to zone
-            declaration order via `ZoneStore`'s dict-insertion order), not a
-            defect in this transform; recorded in reorder.py's module
-            docstring and the task's report, not fixed (constraints: no
-            `cardlang/` changes). `test_zones_reordered_iff_no_gather` pins
-            which games get which treatment so the exclusion cannot silently
-            widen or narrow without a test noticing.
+            module docstring.
 """
 
 from __future__ import annotations
@@ -57,7 +51,7 @@ from cardlang.pipeline import _check
 from cardlang.resolve import _walk
 
 from tests.metamorphic import pairing
-from tests.metamorphic.reorder import plan_for, reorder_declarations
+from tests.metamorphic.reorder import reorder_declarations
 
 REJECTIONS_DIR = Path(__file__).parent.parent / "rejections"
 REJECTION_CASES = sorted(p.stem for p in REJECTIONS_DIR.glob("*.cardlang"))
@@ -70,15 +64,20 @@ REJECTION_CASES = sorted(p.stem for p in REJECTIONS_DIR.glob("*.cardlang"))
 # parsing, or a case not here that stops parsing, fails loudly — the
 # alternative (skip on parse failure) would let a parse regression silently
 # shrink the diagnostic property's domain.
-_PARSE_LEVEL_CASES = frozenset({"syntax_error"})
-
-# The corpus games with no "gather" movement (`Movement(source=None)`),
-# where `game.zones` IS additionally reordered — hand-checked once (against
-# `_has_gather`'s own logic, independently) so a change to either side is
-# caught by `test_zones_reordered_iff_no_gather` rather than the two silently
-# drifting in lockstep.
-_NO_GATHER_GAMES = frozenset({"coup.cardlang", "getaway.cardlang", "go-fish.cardlang", "gops.cardlang"})
-
+_PARSE_LEVEL_CASES = frozenset(
+    {
+        "syntax_error",
+        # The game-skeleton walls in parse.py's `game()`/`start()` builders
+        # (missing/duplicated single-valued clauses, game-count errors) —
+        # rejected before any tree exists to reorder.
+        "missing_cards_declaration",
+        "missing_players_declaration",
+        "missing_players_and_cards",
+        "duplicate_game_clause",
+        "no_game_block",
+        "two_game_blocks",
+    }
+)
 
 def _names_in(expr: n.Expr) -> set[str]:
     return {nd.name for nd in _walk(expr) if isinstance(nd, n.NameRef)}
@@ -111,22 +110,6 @@ def test_no_state_default_reads_a_sibling(path: Path) -> None:
                 f"{sorted(leaked)} from the same block — reordering that "
                 f"block would change evaluation order"
             )
-
-
-@pytest.mark.parametrize("path", pairing.CORPUS, ids=lambda p: p.name)
-def test_zones_reordered_iff_no_gather(path: Path) -> None:
-    """Pins WHICH games get the zones exclusion, independently of
-    `_has_gather`'s own logic (reorder.py module docstring), so a future
-    corpus game landing in the wrong bucket is a loud test failure rather
-    than a silent widening or narrowing of the exclusion."""
-    game = pairing.parse_corpus_game(path)
-    plan = plan_for(game)
-    expected = path.name in _NO_GATHER_GAMES
-    assert plan.zones_reordered == expected, (
-        f"{path.name}: zones_reordered={plan.zones_reordered}, expected "
-        f"{expected} — update _NO_GATHER_GAMES if this game's gather usage "
-        f"genuinely changed, after re-verifying reorder.py's citation"
-    )
 
 
 @pytest.mark.parametrize("path", pairing.CORPUS, ids=lambda p: p.name)
