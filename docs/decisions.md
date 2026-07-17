@@ -196,7 +196,7 @@ menu never blinks from an invisible sub-phase.
 A slot may mix operators and plain entries — a sub-phase that lists
 a bare rule is shadowing inheritance with its own complete set:
 
-```cardlang-fragment
+```cardlang-fragment active_rules_shadowing
 phase parent { active_rules: [A, B, C] }
 phase child  { active_rules: [X, Y] }                   // X, Y only — parent set discarded
 ```
@@ -320,7 +320,7 @@ Getaway's first-trick-to-waste behaviour is the canonical mistake: written as a
 rule (`rule FirstTrickAlwaysGoesToWaste`) it has nothing to constrain — its
 effect is *where the cards go*, an ordinary body movement after the round:
 
-```cardlang-fragment
+```cardlang-fragment first_trick_phase
 phase first_trick {
   active_rules: [MustLeadAceOfSpadesOnFirstPlay]
   round play_to_trick from leader over all players source hand into trick_pile
@@ -340,7 +340,7 @@ routing is a single unconditional movement, it is one statement after the round
 it branches — Getaway routes the pile to the trick winner on a tochoo (pickup)
 but to the waste otherwise — it is an `if` over the round's terminal state:
 
-```cardlang-fragment
+```cardlang-fragment play_phase
 phase play {
   round play_to_trick from leader over players where not eliminated[player]
         source hand into trick_pile outcome highest_of_led_suit early on_play_of_tochoo
@@ -677,7 +677,7 @@ live in the standard library so a game opts into a behaviour by name:
 When one *named* player decides — a chosen discard, a follower's answer to a led
 card, a victim flipping one of their own cards — the binder is `as`:
 
-```cardlang-fragment
+```cardlang-fragment as_taker
 as taker {
   move chosen 6 cards from hand[taker] where is_pref_discard(card) to discard[taker]
 }
@@ -1010,7 +1010,7 @@ deliberately *not* provided until a game requires them.
 Hearts uses `before_each` to gather the previous hand's cards, shuffle, and
 deal:
 
-```cardlang-fragment
+```cardlang-fragment before_each
 before_each {
   move all cards to deck
   shuffle deck
@@ -1209,7 +1209,7 @@ The deck is a constant from the closed stdlib registry (`DECKS` in
 `cardlang/runtime/values.py`): a game selects one by name and does not
 spell out its cards.
 
-```cardlang-fragment
+```cardlang-fragment cards_line
 cards: standard52
 ```
 
@@ -1880,7 +1880,7 @@ hidden randomness.
 A game declares its terminal result with exactly one top-level clause,
 evaluated against the final state when the phase tree finishes:
 
-```cardlang-fragment
+```cardlang-fragment winner_loser
 winner: lowest cumulative_score      // Hearts — rank a score variable
 loser:  the player where hand[player] is not empty   // Getaway — select directly
 ```
@@ -2330,7 +2330,7 @@ the commit step; the choice of whether to commit is elsewhere.
 
 **Hearts passing.** The passing phase reads as:
 
-```cardlang-fragment
+```cardlang-fragment passing_phase
 phase passing when pass_direction is not hold {
   active_rules: [PassExactlyThreeCards]
   legal_moves:  [transfer_between_hands]

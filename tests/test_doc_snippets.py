@@ -71,11 +71,14 @@ registry:   KNOWN_TAGS (below) is the closed tag vocabulary — six tags:
             fragment, text, ebnf. The three docs are the block source.
             WRAPPER_RECIPES (below) is the closed set of fragment shapes
             with a cheap wrapping harness, shared verbatim by
-            cardlang-fragment and cardlang-bad-fragment blocks (same
-            (doc, start_line) key space). BAD_FRAGMENT_SMOKE is the closed
-            set of benign fillers paired 1:1 with cardlang-bad-fragment
-            blocks, each proven to PASS through that block's wrapper before
-            the block's own (bad) text is checked against it.
+            cardlang-fragment and cardlang-bad-fragment blocks and keyed by
+            the block's recipe LABEL — the second word of its fence info
+            string (```cardlang-fragment <label>), a stable name that rides
+            with the block through edits rather than a line number that
+            every prose change shifts. BAD_FRAGMENT_SMOKE is the closed set
+            of benign fillers keyed by the same label, paired 1:1 with
+            cardlang-bad-fragment blocks, each proven to PASS through that
+            block's wrapper before the block's own (bad) text is checked.
 covered:    all 58 blocks carry a recognized tag
             (test_every_block_is_classified, parametrized over every
             block). All 8 `cardlang-fragment` blocks execute through their
@@ -186,13 +189,16 @@ KNOWN_TAGS = frozenset(
 # `cardlang-bad-fragment` in the docs — see the module docstring's ledger
 # "residual" section.
 #
-# `WRAPPER_RECIPES` is keyed by (doc_name, FencedBlock.start_line) regardless
-# of whether the block at that location is a `cardlang-fragment` (proven to
-# PASS once wrapped) or a `cardlang-bad-fragment` (proven to be REJECTED once
-# wrapped). A `cardlang-bad-fragment` block additionally needs an entry in
-# `BAD_FRAGMENT_SMOKE`, keyed the same way: a benign filler of the same shape
-# as the bad fragment, proven to PASS through the identical wrapper before
-# the bad text is checked — otherwise a rejection could come from the
+# `WRAPPER_RECIPES` is keyed by the block's recipe LABEL — the second word of
+# its fence info string (```cardlang-fragment <label>) — regardless of whether
+# the block is a `cardlang-fragment` (proven to PASS once wrapped) or a
+# `cardlang-bad-fragment` (proven to be REJECTED once wrapped). The label
+# rides with the block, so editing prose above it never touches this registry;
+# only adding, removing, or renaming a checked fragment does. A
+# `cardlang-bad-fragment` block additionally needs an entry in
+# `BAD_FRAGMENT_SMOKE`, keyed by the same label: a benign filler of the same
+# shape as the bad fragment, proven to PASS through the identical wrapper
+# before the bad text is checked — otherwise a rejection could come from the
 # wrapper itself, or from the fragment simply lacking an enclosing `game {}`,
 # rather than from the mistake the doc is illustrating.
 # ---------------------------------------------------------------------------
@@ -360,30 +366,34 @@ game Skeleton {{
 """
 
 
-# (doc file name, FencedBlock.start_line) -> wrapper. Keyed by content start
-# line (not the fence line) to match `FencedBlock.start_line` exactly.
-WRAPPER_RECIPES: dict[tuple[str, int], Callable[[str], str]] = {
-    ("decisions.md", 200): _wrap_active_rules_shadowing,
-    ("decisions.md", 324): _wrap_first_trick_phase,
-    ("decisions.md", 344): _wrap_play_phase,
-    ("decisions.md", 681): _wrap_as_taker,
-    ("decisions.md", 1014): _wrap_before_each,
-    ("decisions.md", 1213): _wrap_cards_line,
-    ("decisions.md", 1884): _wrap_winner_loser,
-    ("decisions.md", 2334): _wrap_passing_phase,
-    ("library.md", 469): _wrap_library_zones_block,
+# recipe label -> wrapper. The label is the second word of a fragment block's
+# fence info string (```cardlang-fragment <label>) — a stable name that rides
+# with the block through edits, so a prose change above it never touches this
+# registry. `test_recipe_labels_are_wellformed` pins that every fragment block
+# carries a unique label and every non-fragment block carries none;
+# `test_no_orphan_recipes` pins that every label here is claimed by a block.
+WRAPPER_RECIPES: dict[str, Callable[[str], str]] = {
+    "active_rules_shadowing": _wrap_active_rules_shadowing,
+    "first_trick_phase": _wrap_first_trick_phase,
+    "play_phase": _wrap_play_phase,
+    "as_taker": _wrap_as_taker,
+    "before_each": _wrap_before_each,
+    "cards_line": _wrap_cards_line,
+    "winner_loser": _wrap_winner_loser,
+    "passing_phase": _wrap_passing_phase,
+    "library_zones": _wrap_library_zones_block,
 }
 
 
-# (doc file name, FencedBlock.start_line) -> a benign filler of the same
-# shape as the `cardlang-bad-fragment` block at that key, wrapped through the
-# *same* WRAPPER_RECIPES entry and required to PASS
+# recipe label -> a benign filler of the same shape as the
+# `cardlang-bad-fragment` block with that label, wrapped through the *same*
+# WRAPPER_RECIPES entry and required to PASS
 # (test_bad_fragment_blocks_are_rejected_when_wrapped). Every
 # `cardlang-bad-fragment` block must have one, in addition to its
 # WRAPPER_RECIPES entry. Empty today: the docs currently tag zero blocks
 # `cardlang-bad-fragment` (see the module docstring's ledger "covered"
 # section — the code path is proven with synthetic fixtures instead).
-BAD_FRAGMENT_SMOKE: dict[tuple[str, int], str] = {}
+BAD_FRAGMENT_SMOKE: dict[str, str] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -404,6 +414,22 @@ _BLOCKS: list[FencedBlock] = _load_blocks()
 
 def _block_id(block: FencedBlock) -> str:
     return f"{block.source_name}:{block.start_line}"
+
+
+# A fence info string is `<tag>` or, for the fragment tags, `<tag> <label>`.
+# The tag classifies the block; the label (a stable name) keys its wrapper
+# recipe, so the registry no longer depends on the block's line number.
+_FRAGMENT_TAGS = frozenset({"cardlang-fragment", "cardlang-bad-fragment"})
+
+
+def _tag(block: FencedBlock) -> str:
+    parts = block.info.split(maxsplit=1)
+    return parts[0] if parts else ""
+
+
+def _label(block: FencedBlock) -> str:
+    parts = block.info.split(maxsplit=1)
+    return parts[1].strip() if len(parts) > 1 else ""
 
 
 def _run_pipeline(text: str, location: str) -> DiagnosticError | None:
@@ -472,7 +498,7 @@ def _rejected_when_wrapped(
 
 @pytest.mark.parametrize("block", _BLOCKS, ids=[_block_id(b) for b in _BLOCKS])
 def test_every_block_is_classified(block: FencedBlock) -> None:
-    assert block.info in KNOWN_TAGS, (
+    assert _tag(block) in KNOWN_TAGS, (
         f"{_block_id(block)}: unclassified snippet — every fenced block in "
         f"docs/decisions.md, docs/library.md, docs/model.md must carry an "
         f"info-string tag from {sorted(KNOWN_TAGS)} (got info={block.info!r}). "
@@ -480,14 +506,54 @@ def test_every_block_is_classified(block: FencedBlock) -> None:
     )
 
 
+def test_recipe_labels_are_wellformed() -> None:
+    """A fragment tag carries a unique recipe label; nothing else carries a
+    label. This is what lets WRAPPER_RECIPES key by name instead of by line."""
+    seen: dict[str, str] = {}
+    for block in _BLOCKS:
+        tag, label = _tag(block), _label(block)
+        if tag in _FRAGMENT_TAGS:
+            assert label, (
+                f"{_block_id(block)}: `{tag}` block needs a recipe label in its "
+                f"fence (```{tag} <label>) so its wrapper is keyed by name, not "
+                "line. See docs/maintaining.md 'Doc snippet tagging'."
+            )
+            assert label not in seen, (
+                f"duplicate recipe label {label!r}: {_block_id(block)} and "
+                f"{seen[label]} — a label names exactly one block."
+            )
+            seen[label] = _block_id(block)
+        else:
+            assert not label, (
+                f"{_block_id(block)}: a `{tag}` block must not carry a label "
+                f"(got {label!r}); only fragment tags key a recipe."
+            )
+
+
+def test_no_orphan_recipes() -> None:
+    """Every WRAPPER_RECIPES / BAD_FRAGMENT_SMOKE label is claimed by a block —
+    a recipe with no block is dead code that would silently rot."""
+    frag_labels = {_label(b) for b in _FRAGMENT_BLOCKS + _BAD_FRAGMENT_BLOCKS}
+    orphan_recipes = set(WRAPPER_RECIPES) - frag_labels
+    assert not orphan_recipes, (
+        f"WRAPPER_RECIPES labels with no fragment block: {sorted(orphan_recipes)}"
+    )
+    bad_labels = {_label(b) for b in _BAD_FRAGMENT_BLOCKS}
+    orphan_smoke = set(BAD_FRAGMENT_SMOKE) - bad_labels
+    assert not orphan_smoke, (
+        f"BAD_FRAGMENT_SMOKE labels with no cardlang-bad-fragment block: "
+        f"{sorted(orphan_smoke)}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Per-tag execution over the live docs.
 # ---------------------------------------------------------------------------
 
-_CARDLANG_BLOCKS = [b for b in _BLOCKS if b.info == "cardlang"]
-_BAD_BLOCKS = [b for b in _BLOCKS if b.info == "cardlang-bad"]
-_FRAGMENT_BLOCKS = [b for b in _BLOCKS if b.info == "cardlang-fragment"]
-_BAD_FRAGMENT_BLOCKS = [b for b in _BLOCKS if b.info == "cardlang-bad-fragment"]
+_CARDLANG_BLOCKS = [b for b in _BLOCKS if _tag(b) == "cardlang"]
+_BAD_BLOCKS = [b for b in _BLOCKS if _tag(b) == "cardlang-bad"]
+_FRAGMENT_BLOCKS = [b for b in _BLOCKS if _tag(b) == "cardlang-fragment"]
+_BAD_FRAGMENT_BLOCKS = [b for b in _BLOCKS if _tag(b) == "cardlang-bad-fragment"]
 
 
 @pytest.mark.parametrize(
@@ -519,13 +585,13 @@ def test_cardlang_bad_blocks_are_rejected(block: FencedBlock) -> None:
     "block", _FRAGMENT_BLOCKS, ids=[_block_id(b) for b in _FRAGMENT_BLOCKS]
 )
 def test_fragment_blocks_pass_when_wrapped(block: FencedBlock) -> None:
-    key = (block.source_name, block.start_line)
-    wrapper = WRAPPER_RECIPES.get(key)
+    wrapper = WRAPPER_RECIPES.get(_label(block))
     assert wrapper is not None, (
-        f"{_block_id(block)}: tagged `cardlang-fragment` but has no entry in "
-        "WRAPPER_RECIPES — every cardlang-fragment block must be either "
-        "wrapped and checked here, or retagged `text` and added to the "
-        "residual list in this module's docstring."
+        f"{_block_id(block)}: tagged `cardlang-fragment {_label(block)}` but "
+        f"label {_label(block)!r} has no entry in WRAPPER_RECIPES — every "
+        "cardlang-fragment block must be either wrapped and checked here, or "
+        "retagged `text` and added to the residual list in this module's "
+        "docstring."
     )
     wrapped = wrapper(block.text)
     err = _run_pipeline(wrapped, _block_id(block))
@@ -539,21 +605,22 @@ def test_fragment_blocks_pass_when_wrapped(block: FencedBlock) -> None:
     "block", _BAD_FRAGMENT_BLOCKS, ids=[_block_id(b) for b in _BAD_FRAGMENT_BLOCKS]
 )
 def test_bad_fragment_blocks_are_rejected_when_wrapped(block: FencedBlock) -> None:
-    key = (block.source_name, block.start_line)
-    wrapper = WRAPPER_RECIPES.get(key)
+    label = _label(block)
+    wrapper = WRAPPER_RECIPES.get(label)
     assert wrapper is not None, (
-        f"{_block_id(block)}: tagged `cardlang-bad-fragment` but has no "
-        "entry in WRAPPER_RECIPES — every cardlang-bad-fragment block must "
-        "be either wrapped and checked here, or retagged `text` and added "
-        "to the residual list in this module's docstring."
+        f"{_block_id(block)}: tagged `cardlang-bad-fragment {label}` but "
+        f"label {label!r} has no entry in WRAPPER_RECIPES — every "
+        "cardlang-bad-fragment block must be either wrapped and checked here, "
+        "or retagged `text` and added to the residual list in this module's "
+        "docstring."
     )
-    smoke = BAD_FRAGMENT_SMOKE.get(key)
+    smoke = BAD_FRAGMENT_SMOKE.get(label)
     assert smoke is not None, (
-        f"{_block_id(block)}: tagged `cardlang-bad-fragment` but has no "
-        "entry in BAD_FRAGMENT_SMOKE — every cardlang-bad-fragment block "
-        "needs a benign filler of the same shape, proven to pass through "
-        "the same wrapper, so a rejection of the block's own text can only "
-        "be coming from the mistake it demonstrates."
+        f"{_block_id(block)}: tagged `cardlang-bad-fragment {label}` but "
+        f"label {label!r} has no entry in BAD_FRAGMENT_SMOKE — every "
+        "cardlang-bad-fragment block needs a benign filler of the same shape, "
+        "proven to pass through the same wrapper, so a rejection of the "
+        "block's own text can only be coming from the mistake it demonstrates."
     )
     err = _rejected_when_wrapped(wrapper, smoke, block.text, _block_id(block))
     assert err is not None, (
@@ -561,33 +628,6 @@ def test_bad_fragment_blocks_are_rejected_when_wrapped(block: FencedBlock) -> No
         f"{wrapper.__name__}, but the pipeline accepted it — either the "
         "counterexample no longer demonstrates the mistake, or it should be "
         "retagged."
-    )
-
-
-def test_every_recipe_key_matches_a_live_fragment_block() -> None:
-    """The registry's REVERSE direction. The line-keyed registry breaks loudly
-    in the block→recipe direction (a doc edit that shifts a fragment's
-    start_line fails `test_fragment_blocks_pass_when_wrapped` with a missing-
-    recipe message — how the `as`-block PR's insertion into decisions.md was
-    caught). Without this test the recipe→block direction was silent: a
-    deleted or moved fragment left its recipe (and any BAD_FRAGMENT_SMOKE
-    filler) as a dead registry entry no run ever consults — the stale half of
-    the same drift, and the vacuously-green shape (an entry that reads as
-    coverage but can never fire). Both directions must fail the same edit."""
-    live = {
-        (b.source_name, b.start_line)
-        for b in _FRAGMENT_BLOCKS + _BAD_FRAGMENT_BLOCKS
-    }
-    stale_recipes = sorted(set(WRAPPER_RECIPES) - live)
-    assert not stale_recipes, (
-        f"WRAPPER_RECIPES keys with no live cardlang(-bad)-fragment block at "
-        f"that (doc, start_line): {stale_recipes} — a doc edit moved or "
-        "deleted the block; re-key the recipe (or delete it with the block)."
-    )
-    stale_smoke = sorted(set(BAD_FRAGMENT_SMOKE) - live)
-    assert not stale_smoke, (
-        f"BAD_FRAGMENT_SMOKE keys with no live block: {stale_smoke} — "
-        "re-key or delete alongside the block."
     )
 
 
@@ -623,10 +663,25 @@ game Tiny {
 """
 
 
+def test_self_tag_and_label_split() -> None:
+    def block(info: str) -> FencedBlock:
+        [b] = extract_blocks(f"```{info}\nx\n```\n", "synthetic.md")
+        return b
+
+    assert (_tag(block("cardlang")), _label(block("cardlang"))) == ("cardlang", "")
+    assert (_tag(block("cardlang-fragment play_phase")), _label(block("cardlang-fragment play_phase"))) == (
+        "cardlang-fragment",
+        "play_phase",
+    )
+    # Extra internal whitespace collapses to a single label word.
+    assert _label(block("cardlang-fragment   cards_line")) == "cards_line"
+    assert (_tag(block("")), _label(block(""))) == ("", "")
+
+
 def test_self_bare_fence_is_unclassified() -> None:
     [block] = extract_blocks("```\nsome stray dsl\n```\n", "synthetic.md")
-    assert block.info == ""
-    assert block.info not in KNOWN_TAGS
+    assert _tag(block) == ""
+    assert _tag(block) not in KNOWN_TAGS
 
 
 def test_self_unknown_tag_is_unclassified() -> None:
@@ -634,20 +689,20 @@ def test_self_unknown_tag_is_unclassified() -> None:
     # to "skipped like text" — that would be the accepted-but-ignored defect
     # this module exists to prevent.
     [block] = extract_blocks("```cardlang-fragmnet\nsome stray dsl\n```\n", "synthetic.md")
-    assert block.info not in KNOWN_TAGS
+    assert _tag(block) not in KNOWN_TAGS
 
 
 def test_self_cardlang_block_passes() -> None:
     md = f"```cardlang\n{_TINY_GOOD_GAME}```\n"
     [block] = extract_blocks(md, "synthetic.md")
-    assert block.info == "cardlang"
+    assert _tag(block) == "cardlang"
     assert _run_pipeline(block.text, "synthetic.md") is None
 
 
 def test_self_cardlang_bad_block_is_rejected() -> None:
     md = f"```cardlang-bad\n{_TINY_BAD_GAME}```\n"
     [block] = extract_blocks(md, "synthetic.md")
-    assert block.info == "cardlang-bad"
+    assert _tag(block) == "cardlang-bad"
     err = _run_pipeline(block.text, "synthetic.md")
     assert err is not None
     assert "is not an operator" in err.diagnostic.message
@@ -656,7 +711,7 @@ def test_self_cardlang_bad_block_is_rejected() -> None:
 def test_self_cardlang_fragment_block_passes_when_wrapped() -> None:
     md = "```cardlang-fragment\nmove all cards to deck\n```\n"
     [block] = extract_blocks(md, "synthetic.md")
-    assert block.info == "cardlang-fragment"
+    assert _tag(block) == "cardlang-fragment"
     wrapped = _game(f"  phase main {{\n{block.text}  }}\n  winner: highest score")
     assert _run_pipeline(wrapped, "synthetic.md") is None
 
@@ -676,7 +731,7 @@ _SELF_BAD_FRAGMENT_BAD = "move all cards to nonexistent_zone\n"  # unresolved zo
 def test_self_cardlang_bad_fragment_block_is_rejected_when_wrapped() -> None:
     md = f"```cardlang-bad-fragment\n{_SELF_BAD_FRAGMENT_BAD}```\n"
     [block] = extract_blocks(md, "synthetic.md")
-    assert block.info == "cardlang-bad-fragment"
+    assert _tag(block) == "cardlang-bad-fragment"
     err = _rejected_when_wrapped(
         _self_frag_wrapper, _SELF_BAD_FRAGMENT_SMOKE, block.text, "synthetic.md"
     )
@@ -694,7 +749,7 @@ def test_self_cardlang_bad_fragment_mistagged_benign_is_not_rejected() -> None:
     # situation, rather than the mistagging silently reading as proven.
     md = f"```cardlang-bad-fragment\n{_SELF_BAD_FRAGMENT_SMOKE}```\n"
     [block] = extract_blocks(md, "synthetic.md")
-    assert block.info == "cardlang-bad-fragment"
+    assert _tag(block) == "cardlang-bad-fragment"
     err = _rejected_when_wrapped(
         _self_frag_wrapper, _SELF_BAD_FRAGMENT_SMOKE, block.text, "synthetic.md"
     )
@@ -708,8 +763,8 @@ def test_self_text_block_is_not_executed() -> None:
     # test_every_block_is_classified / the per-tag tests above only ever
     # calls _run_pipeline for cardlang/cardlang-fragment/cardlang-bad).
     [block] = extract_blocks("```text\nnot ( valid at all\n```\n", "synthetic.md")
-    assert block.info == "text"
-    assert block.info not in (
+    assert _tag(block) == "text"
+    assert _tag(block) not in (
         "cardlang",
         "cardlang-fragment",
         "cardlang-bad",
