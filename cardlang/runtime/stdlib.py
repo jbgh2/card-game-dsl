@@ -190,6 +190,50 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.cribbage import cribbage_crib_value
 
             return cribbage_crib_value(ctx)
+        case "gin_card_points":
+            from cardlang.runtime.gin import card_points
+
+            return card_points(args[0])
+        case "gin_deadwood":
+            from cardlang.runtime.gin import gin_deadwood
+
+            return gin_deadwood(ctx, args[0])
+        case "gin_knock_ok":
+            from cardlang.runtime.gin import gin_knock_ok
+
+            return gin_knock_ok(ctx, args[0], args[1])
+        case "gin_valid_meld":
+            from cardlang.runtime.gin import gin_valid_meld
+
+            return gin_valid_meld(ctx, args[0])
+        case "gin_arrange_ok":
+            from cardlang.runtime.gin import gin_arrange_ok
+
+            return gin_arrange_ok(ctx, args[0], args[1])
+        case "gin_can_declare":
+            from cardlang.runtime.gin import gin_can_declare
+
+            return gin_can_declare(ctx, args[0])
+        case "gin_flat_points":
+            from cardlang.runtime.gin import gin_flat_points
+
+            return gin_flat_points(ctx, args[0])
+        case "gin_shown_points":
+            from cardlang.runtime.gin import gin_shown_points
+
+            return gin_shown_points(ctx, args[0])
+        case "gin_lay_ok_a":
+            from cardlang.runtime.gin import gin_lay_ok_a
+
+            return gin_lay_ok_a(ctx, args[0], args[1])
+        case "gin_lay_ok_b":
+            from cardlang.runtime.gin import gin_lay_ok_b
+
+            return gin_lay_ok_b(ctx, args[0], args[1])
+        case "gin_lay_ok_c":
+            from cardlang.runtime.gin import gin_lay_ok_c
+
+            return gin_lay_ok_c(ctx, args[0], args[1])
         case _:
             raise AssertionError(f"unknown stdlib function '{name}'")
 
@@ -335,6 +379,12 @@ def joint_codec_function(name: str) -> Any | None:
     joint predicate with no registered codec is walled loudly at
     `ActionSpace.for_game`, never silently absent from the action space."""
     match name:
+        case "gin_arrange_ok" | "gin_valid_meld":
+            # Both gin arrangement guards admit only valid melds, so their
+            # satisfying-subset universe IS the meld universe.
+            from cardlang.runtime.gin import GIN_MELD_CODEC
+
+            return GIN_MELD_CODEC
         case _:
             return None
 
