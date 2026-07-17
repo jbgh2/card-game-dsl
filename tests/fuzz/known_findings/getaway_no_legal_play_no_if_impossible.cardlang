@@ -1,0 +1,94 @@
+// Getaway (Bhabhi) — formalized DSL (parser/checker/runtime target).
+//
+// Companion to getaway.md. The machine-checkable form: every construct the
+// prose wrote informally is rendered as real syntax. This formalizes the
+// standard elimination game (Pagat: "Getaway"): follow suit; a player who is
+// void plays a tochoo, ending the trick and forcing the highest card of the led
+// suit to pick up the pile; a player who sheds all their cards is out; the last
+// player still holding cards is the loser. The non-standard steal and
+// draw-from-waste variants in getaway.md are intentionally not formalized here
+// (see decisions.md "Game result: winner and loser" and the review notes).
+
+game Getaway {
+
+  players: 4
+  direction: clockwise
+  max_length: 1000
+
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+    trick_pile   : TrickPile
+    waste        : Discard          // cards from a fully-followed trick leave play
+  }
+
+  state {
+    // Per-game: a player is eliminated once they have shed all their cards.
+    eliminated[player] : Boolean = false
+    // The trick leader, set to each trick's winner; readable by `loser:` below.
+    leader             : Player? = none
+  }
+
+  phase setup {
+    shuffle deck
+    deal all cards from deck as-equally-as-possible to each hand
+  }
+
+  phase first_trick {
+    // Forced opening lead: the ace of spades. The first trick always goes to
+    // the waste (a body movement after the round, not a rule — see decisions.md
+    // "Round configuration vs rules").
+    active_rules: [MustFollowSuit, MustLeadAceOfSpadesOnFirstPlay]
+    legal_moves: [play_to_trick]
+
+    leader := player_holding(A of spades)
+    round play_to_trick from leader over all players source hand into trick_pile
+          outcome highest_of_led_suit early on_play_of_tochoo
+    move all cards from trick_pile to waste
+    leader := outcome
+  }
+
+  phase play {
+    // Continues from the enclosing `leader`, set to the first trick's winner.
+    active_rules: [MustFollowSuit]
+    legal_moves:  [play_to_trick]
+
+    // Stop at one survivor — or zero, in the rare trick where the last players
+    // all shed their final card at once (handled by the `loser:` clause).
+    repeat until (number of players where has_cards(player)) <= 1 {
+      round play_to_trick from leader over players where not eliminated[player]
+            source hand into trick_pile outcome highest_of_led_suit early on_play_of_tochoo
+      // A tochoo ended the trick: the highest led-suit card picks up the pile.
+      // Otherwise everyone followed and the played cards are discarded.
+      if state.trick_terminated_early { move all cards from trick_pile to hand[outcome] }
+      else { move all cards from trick_pile to waste }
+      leader := outcome
+    }
+  }
+
+  // The sole survivor loses; if everyone got away on the same trick (no one
+  // holds cards), the winner of that final trick — the last `leader` — loses.
+  loser: if (number of players where has_cards(player)) is 1
+         then the player where has_cards(player)
+         else leader
+}
+
+// === Getaway-specific rules ===
+
+rule MustLeadAceOfSpadesOnFirstPlay {
+  constrains: play_to_trick
+  applies_when: state.led_suit is none      // i.e., leading
+  demands: cards in hand where card is A of spades
+  if_impossible: error("first lead must be the ace of spades")
+}
+
+// MustFollowSuit is a standard-library rule (library.md "Rules"): activated
+// by name above, defined once in cardlang/stdlib/rules.cardlang.
+
+// A player still in the hand holds cards. Named so the survivor count (the
+// `repeat until`) and the loser clause test the same predicate — they must agree
+// on who is left for the last-card winner to be named the loser.
+function has_cards(p : Player) = hand[p] is not empty

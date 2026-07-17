@@ -2574,9 +2574,6 @@ convenience. It is the load-bearing invariant of the whole approach, and it puts
 games needing a *runtime-extensible* action vocabulary or mutable rules (Mao,
 Nomic, CCG card-text) out of scope by construction rather than by preference.
 
-The full design — the kernel/standard-library split, the closed axes, the
-promotion rule, and the worked Coup example — is in
-[../superpowers/specs/2026-06-06-interaction-decision-sublanguage-design.md](../superpowers/specs/2026-06-06-interaction-decision-sublanguage-design.md).
 The kernel's atom (`offer`, parameterized `move_type` definitions, the `actor`
 pronoun) and the `round` construct are built. Every trick game (Hearts, Spades,
 Getaway, Bridge, Oh Hell) plays on the trick form of the kernel `round`, the

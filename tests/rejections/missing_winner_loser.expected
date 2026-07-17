@@ -1,0 +1,1 @@
+missing_winner_loser.cardlang:5:1: error: game 'MissingWinnerLoser' must declare `winner: <rank-dir> <var>` or `loser: <player-expr>` — without one the playout has no result
