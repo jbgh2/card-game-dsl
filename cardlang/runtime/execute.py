@@ -12,7 +12,7 @@ from typing import Any, Callable, assert_never
 from cardlang.ast import nodes as n
 from cardlang.domains import SIMULTANEOUS_ROLES, binds_actor, role_members
 from cardlang.runtime import mechanics, observe
-from cardlang.runtime.evaluate import evaluate
+from cardlang.runtime.evaluate import _elements, evaluate
 from cardlang.runtime.state import Ctx, Zone, _ContinueTo, _ProduceSignal, _SkipHand
 from cardlang.runtime.values import Card, Player
 
@@ -50,6 +50,9 @@ def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
             return ctx
         case n.AsBlock():
             _as_block(stmt, ctx)
+            return ctx
+        case n.Turns():
+            _turns(stmt, ctx)
             return ctx
         case n.Offer():
             _offer(stmt, ctx)
@@ -408,6 +411,59 @@ def _as_block(stmt: n.AsBlock, ctx: Ctx) -> None:
     (`as actor { … }` is idempotent) and no other player's turn can slip in."""
     player = evaluate(stmt.player, ctx)
     run_body(stmt.body, ctx.acting_as(player))
+
+
+def _turns(stmt: n.Turns, ctx: Ctx) -> None:
+    """The turn loop beneath the round forms (decisions.md "The `turns`
+    form"). Each iteration: check `until` (a turn boundary — before the
+    FIRST turn too, so the zero-iteration run exists); pick the player —
+    the previous player again when the `again` state var reads true, else
+    the next seat in game direction; skip seats failing the participants
+    predicate (re-evaluated per pick, so elimination falls out); bind the
+    binder and the acting player (the seat wall in `acting_as` guards the
+    bind) and run the body. A lap with no eligible participant is a
+    malformed game (whose turn is it?) — loud, like `offer`'s
+    no-legal-move rule, never a silent skip or an infinite spin."""
+    order = ctx.rs.seating.players  # seating order IS game-direction order
+    current: Player | None = None
+    guard = 0
+    while not bool(evaluate(stmt.termination, ctx)):
+        # The same non-termination backstop as `_repeat_until` (one loop
+        # class, one guard): a body that makes no decisions is invisible to
+        # the max_length DECISION counter, so the turn count itself is
+        # bounded too.
+        guard += 1
+        if guard > ctx.rs.max_length:
+            raise RuntimeError(
+                f"turns exceeded the game's declared max_length "
+                f"({ctx.rs.max_length}) turns — non-termination, or raise "
+                "max_length if this game genuinely runs this long"
+            )
+        if current is None:
+            leader = evaluate(stmt.leader, ctx)
+            candidate_seq = [leader, *_next_seats(order, leader)]
+        elif stmt.again is not None and bool(ctx.rs.get(stmt.again)):
+            candidate_seq = [current, *_next_seats(order, current)]
+        else:
+            candidate_seq = _next_seats(order, current)
+        participants = set(_elements(evaluate(stmt.participants, ctx)))
+        player = next((p for p in candidate_seq if p in participants), None)
+        if player is None:
+            raise RuntimeError(
+                "turns: no eligible participant — every seat fails the "
+                "`over` predicate; make the `until` condition cover this "
+                "state so the form is never asked to find a turn nobody "
+                "can take"
+            )
+        body_ctx = ctx.with_local(stmt.binder, player).acting_as(player)
+        run_body(stmt.body, body_ctx)
+        current = player
+
+
+def _next_seats(order: tuple[Player, ...], frm: Player) -> list[Player]:
+    """One full lap starting after `frm`, in seating (game-direction) order."""
+    i = order.index(frm)
+    return [order[(i + k) % len(order)] for k in range(1, len(order) + 1)]
 
 
 def _offer(stmt: n.Offer, ctx: Ctx) -> None:

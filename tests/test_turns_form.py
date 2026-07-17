@@ -167,3 +167,95 @@ def test_non_boolean_again_var_is_rejected() -> None:
     with pytest.raises(DiagnosticError) as e:
         check_dsl(dsl, "test.cardlang")
     assert "Boolean" in e.value.diagnostic.message
+
+
+# --- runtime semantics ---
+
+
+def test_rotation_binds_each_participant_in_direction_order() -> None:
+    game = check_dsl(
+        _game(
+            "  phase p { turns t from 1 over all players until score[0] > 0 {\n"
+            "    score[t] += 10\n"
+            "  } }"
+        ),
+        "test.cardlang",
+    )
+    result = play_game(game, random.Random(0))
+    # From seat 1 clockwise: 1, 2, then 0 scores and `until` fires before
+    # seat 1 comes round again.
+    assert result.scores == {0: 10, 1: 10, 2: 10}
+
+
+def test_until_is_checked_before_the_first_turn() -> None:
+    game = check_dsl(
+        _game(
+            "  phase p { stop := true\n"
+            "            turns t from 0 over all players until stop { score[t] += 1 } }"
+        ),
+        "test.cardlang",
+    )
+    result = play_game(game, random.Random(0))
+    assert all(v == 0 for v in result.scores.values())  # the zero-iteration run
+
+
+def test_participants_reevaluated_per_advance() -> None:
+    # A player leaves the ring the moment their score reaches 10 — the filter
+    # must see mid-loop state, so each seat takes exactly one turn and the
+    # loop ends when nobody is eligible... which must be the loud wall, so
+    # `until` fires first here: everyone at 10 IS the termination.
+    game = check_dsl(
+        _game(
+            "  phase p { turns t from 0 over players where score[player] < 10\n"
+            "            until (number of players where score[player] < 10) is 0 {\n"
+            "    score[t] += 10\n"
+            "  } }"
+        ),
+        "test.cardlang",
+    )
+    result = play_game(game, random.Random(0))
+    assert result.scores == {0: 10, 1: 10, 2: 10}  # one turn each, no repeats
+
+
+def test_again_repeats_the_same_player() -> None:
+    game = check_dsl(
+        _game(
+            "  phase p { turns t from 0 over all players until score[0] >= 2 again go {\n"
+            "    score[t] += 1\n"
+            "    go := (t is 0) and (score[0] < 2)\n"
+            "  } }",
+            extra_state="go : Boolean = false",
+        ),
+        "test.cardlang",
+    )
+    result = play_game(game, random.Random(0))
+    # Seat 0 goes twice back-to-back; nobody else ever gets a turn.
+    assert result.scores == {0: 2, 1: 0, 2: 0}
+
+
+def test_no_eligible_participant_is_a_loud_error() -> None:
+    game = check_dsl(
+        _game(
+            "  phase p { turns t from 0 over players where score[player] > 99\n"
+            "            until stop { score[t] += 1 } }"
+        ),
+        "test.cardlang",
+    )
+    with pytest.raises(RuntimeError, match="no eligible participant"):
+        play_game(game, random.Random(0))
+
+
+def test_decisionless_nontermination_hits_the_iteration_backstop() -> None:
+    # A body that makes no decisions is invisible to the max_length DECISION
+    # counter — the turn count itself must be bounded (the same backstop as
+    # `repeat until`, one loop class, one guard).
+    game = check_dsl(
+        _game(
+            "  phase p { turns t from 0 over all players until stop {\n"
+            "    score[t] += 0\n"
+            "  } }"
+        ),
+        "test.cardlang",
+    )
+    with pytest.raises(RuntimeError, match="max_length"):
+        play_game(game, random.Random(0))

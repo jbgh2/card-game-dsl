@@ -297,6 +297,16 @@ def _stmt(s: n.Stmt) -> IRDict:
                 "player": _expr(s.player),
                 "body": [_stmt(x) for x in s.body],
             }
+        case n.Turns():
+            return {
+                "kind": "turns",
+                "binder": s.binder,
+                "leader": _expr(s.leader),
+                "participants": _expr(s.participants),
+                "termination": _expr(s.termination),
+                "again": s.again,
+                "body": [_stmt(x) for x in s.body],
+            }
         case n.LetStmt():
             return {
                 "kind": "let",

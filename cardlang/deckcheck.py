@@ -240,6 +240,12 @@ def _stmt_usage(
             # body helps only the executions that enter the body; the gate must
             # still account for the one that never does.
             return carry, carry
+        case n.Turns():
+            # A turn loop's iteration count is runtime data — the same
+            # currency as `repeat until`, with the same soundness argument:
+            # `until` is checked before the first turn (runtime `_turns`),
+            # so the zero-iteration execution always exists.
+            return carry, carry
         case n.Round():
             # A round moves cards between hands and the play zone — never a
             # draw from the deck — so it is inert to deck usage.
