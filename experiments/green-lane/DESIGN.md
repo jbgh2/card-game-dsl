@@ -121,6 +121,30 @@ deck, two players, fixed open hands with **zero deal randomness**, compulsory
 total shipment, budgeted public inspections, hidden warehouse driving belief
 decay, zero-sum fine/seizure economy — doesn't match any game I know of.
 
+## Iteration outcome (post-evaluation)
+
+The evaluation loop ran: baseline solves → an agent red-team → two rounds
+of solved rule variants (see [REPORT.md](REPORT.md) §7–§9 and `variants/`).
+The **recommended table ruleset is the V4 composition** of two variant
+deltas onto the baseline:
+
+- hand per player: **2, 3, 4, 5, 7, A** of one suit; **7 and A are
+  contraband** (values 6 and 13 — a real "which contraband when" decision);
+- **impound**: inspected-legal goods clear publicly but score nobody; the
+  fine (raised to **5**) is the merchant's only compensation — so which
+  decoy you feed to an inspection matters;
+- everything else as below (2 tokens, hidden warehouse, zero-sum net-fine
+  scoring).
+
+Solved exactly at mini scale: fair to ±0.001, 71% of reached information
+sets mixed, and the safest naive rule loses 10.8 points/game to a best
+response (baseline: 6.0). The boldest structural direction — the V2 token
+*bounty*, where a false alarm hands the spent token to the merchant and
+couples a player's two roles into one game — is retained in `variants/` as
+the expert/future track: it measurably rewires behaviour but carries a
+first-mover edge (+0.66 after the V2b delay patch) that calls for
+even-count match play or one more order-balancing iteration.
+
 ## Evaluation plan
 
 Registered through the same general adapter as the corpus (path-based, seed
