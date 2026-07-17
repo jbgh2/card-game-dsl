@@ -12,13 +12,17 @@ events the characterization golden and the playout invariants consume.
 
 from __future__ import annotations
 
+from cardlang.runtime import reads
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Player
+
+_R = reads.row("cardlang/runtime/coup.py", "coup.cardlang")
 
 
 def _in_game(ctx: Ctx, p: Player) -> bool:
     return bool(
-        ctx.rs.get("alive")[p] and ctx.rs.zones.families["influence"][p].cards
+        reads.state(ctx.rs, _R, "alive")[p]
+        and reads.instance(ctx.rs, _R, "influence", p).cards
     )
 
 
@@ -43,13 +47,13 @@ def coup_has_char(ctx: Ctx, p: Player, rank: str | None) -> bool:
     declared semantics of proving an unset claim. The annotation used to say
     `str` while the interface said `Rank?`: two statements of one boundary,
     disagreeing about exactly the value the body was written to handle."""
-    return any(c.rank == rank for c in ctx.rs.zones.families["influence"][p].cards)
+    return any(c.rank == rank for c in reads.instance(ctx.rs, _R, "influence", p).cards)
 
 
 def coup_note_reveal(ctx: Ctx, p: Player) -> int:
     """Trace the influence flip that just happened (the last card into
     `revealed[p]`) — the per-seed reveal-sequence golden's anchor."""
-    card = ctx.rs.zones.families["revealed"][p].cards[-1]
+    card = reads.instance(ctx.rs, _R, "revealed", p).cards[-1]
     ctx.trace("coup_reveal", (p, card.rank))
     return 0
 
@@ -59,13 +63,13 @@ def coup_game_summary(ctx: Ctx) -> int:
     (50 coins, 15 cards — the playout invariants) plus final coins and the
     alive vector (the characterization golden)."""
     players = list(ctx.rs.seating.players)
-    coins = ctx.rs.get("coins")
-    alive = ctx.rs.get("alive")
-    treasury = ctx.rs.get("treasury")
+    coins = reads.state(ctx.rs, _R, "coins")
+    alive = reads.state(ctx.rs, _R, "alive")
+    treasury = reads.state(ctx.rs, _R, "treasury")
     total_coins = int(treasury) + sum(int(coins[p]) for p in players)
-    deck = ctx.rs.zones.single("court_deck")
-    influence = ctx.rs.zones.families["influence"]
-    revealed = ctx.rs.zones.families["revealed"]
+    deck = reads.single(ctx.rs, _R, "court_deck")
+    influence = reads.family(ctx.rs, _R, "influence")
+    revealed = reads.family(ctx.rs, _R, "revealed")
     total_cards = len(deck.cards) + sum(
         len(influence[p].cards) + len(revealed[p].cards) for p in players
     )

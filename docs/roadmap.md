@@ -423,20 +423,24 @@ Things we have noted but consciously not designed yet:
   runs T1 (the pairing harness), T2 (α-rename), T3 (inline-vs-`run`), and T5
   (declaration reorder) over the corpus, each with its own completeness
   ledger. Landing them surfaced two real findings in `cardlang/` behavior
-  (out of scope for the suite itself). One remains recorded here: several
-  kernel and per-game runtime primitives
-  (`cardlang/runtime/rules.py::legal_cards`,
-  `cardlang/runtime/mechanics.py::param_domain`, eleven
-  `cardlang/runtime/<game>.py` modules) read a zone or state variable by a
-  hardcoded Python string literal rather than deriving it from the AST — so
-  a corpus game's zone/state names are not actually free to rename despite
-  nothing in the grammar or type checker saying so
-  (`tests/metamorphic/rename.py`'s `_PRIMITIVE_COUPLED_NAMES`, cited
-  file:line). The other — a gather's event order tracking zone DECLARATION
-  order — is resolved: `execute.py::_gather` collects in canonical
-  sorted-name order (decisions.md, "Loop lifecycle: `before_each` and
-  `after_each`"), and the reorder transform's zones axis now covers every
-  corpus game.
+  (out of scope for the suite itself), both since resolved. (1) Game-local
+  runtime primitives read zone/state names as Python string literals
+  invisible to the pipeline — **closed as a class** by the declared-reads
+  registry (`PRIMITIVE_READS`, `cardlang/runtime/reads.py`): every
+  primitive read goes through typed accessors, the registry is pinned two
+  ways by `tests/test_primitive_reads.py` (against each game file's
+  declarations and against each module's accessor-call literals), a
+  drifted name fails a static test — or, past that, a typed
+  `PrimitiveReadError` — instead of a playout `KeyError`, and the rename
+  transform derives its exclusions from the registry. The kernel's own
+  literal reads (`cardlang/runtime/rules.py::legal_cards`,
+  `cardlang/runtime/mechanics.py::param_domain`) are the language-wide
+  magic `hand` name, spec'd in decisions.md "Declared parameter domains" —
+  a documented rule, not latent coupling. (2) A gather's event order
+  tracked zone DECLARATION order — resolved: `execute.py::_gather`
+  collects in canonical sorted-name order (decisions.md, "Loop lifecycle:
+  `before_each` and `after_each`"), and the reorder transform's zones axis
+  now covers every corpus game.
 
   **T4 (suit relabeling) is explicitly deferred**, not attempted: unlike the
   other three, it cannot be a pure `Game -> Game` AST transform — a suit's

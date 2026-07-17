@@ -28,8 +28,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from cardlang.runtime import reads
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Card, Player
+
+_R = reads.row("cardlang/runtime/bigtwo.py", "big-two.cardlang")
 
 # Big Two rank order for singles / pairs / triples / quads / full houses and a
 # flush's top card: the 2 is the highest rank, the 3 the lowest.
@@ -190,7 +193,7 @@ def bigtwo_lead_options(hand: list[Card], ctx: Ctx) -> list[Play]:
     correctness bug — exhaustive opening coverage means dropping representatives
     (full per-suit enumeration), a global change deferred for random play."""
     combos = _combos(hand)
-    if not ctx.rs.get("opened"):
+    if not reads.state(ctx.rs, _R, "opened"):
         three = Card("3", "diamonds")
         combos = [p for p in combos if three in p.cards]
     return combos
@@ -206,7 +209,7 @@ def bigtwo_follows(hand: list[Card], current: Play, ctx: Ctx) -> list[Play]:
 def first_leader_seat(ctx: Ctx) -> Player:
     """The seat holding the 3♦, who leads the first hand of the match."""
     three = Card("3", "diamonds")
-    hands = ctx.rs.zones.families["hand"]
+    hands = reads.family(ctx.rs, _R, "hand")
     return next(p for p in ctx.rs.seating.players if three in hands[p].cards)
 
 

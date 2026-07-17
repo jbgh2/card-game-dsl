@@ -12,15 +12,18 @@ events the playout-invariant harness checks winners against
 
 from __future__ import annotations
 
+from cardlang.runtime import reads
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.stdlib import highest_trump_or_led_suit
 from cardlang.runtime.values import Player
+
+_R = reads.row("cardlang/runtime/schnapsen.py", "schnapsen.cardlang")
 
 
 def schnapsen_trick_winner(ctx: Ctx, leader: Player, trump: str | None) -> Player:
     """The completed trick's winner: the highest trump if any was played, else
     the highest card of the led suit (no over-trump obligation)."""
-    cards = ctx.rs.zones.single("trick_pile").cards
+    cards = reads.single(ctx.rs, _R, "trick_pile").cards
     if len(cards) != 2:
         # The pile's live size is the hosting game's runtime data, so a wrong
         # call site is the description's error, in the runtime's currency.

@@ -17,8 +17,11 @@ recomputes winners from (tests/test_playout_doppelkopf.py).
 
 from __future__ import annotations
 
+from cardlang.runtime import reads
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Card, Player
+
+_R = reads.row("cardlang/runtime/doko.py", "doppelkopf.cardlang")
 
 # Plain-suit order (queens and jacks are never plain; the hearts 10 is a
 # trump, so plain hearts run A K 9 — the rank map covers the union).
@@ -53,7 +56,7 @@ def doko_trick_winner(ctx: Ctx, leader: Player) -> Player:
     else the strongest card of the led suit — strictly-greater comparison,
     so of two identical cards the first played wins (the double-pack rule).
     """
-    cards = ctx.rs.zones.single("trick_pile").cards
+    cards = reads.single(ctx.rs, _R, "trick_pile").cards
     if len(cards) != 4:
         # The pile's live size is the hosting game's runtime data, so a wrong
         # call site is the description's error, in the runtime's currency.

@@ -13,17 +13,21 @@ opponent — reproduced draw-for-draw at the same sites), partnership lookups,
 and the card-point table.
 
 The state-reading primitives (`tichu_double_victory`, `tichu_first_out`) read
-the finishing order from phase state via `ctx.rs.get` — the Stud/Cribbage/Skat
-precedent for game-local primitives over live state. `tichu_dragon_won` reads
+the finishing order from phase state through the declared-reads accessors
+(cardlang/runtime/reads.py) — the Stud/Cribbage/Skat precedent for game-local
+primitives over live state. `tichu_dragon_won` reads
 the completed round's standing play from `last_round_state` (the same terminal
 frame the body reads as `state.x`).
 """
 
 from __future__ import annotations
 
+from cardlang.runtime import reads
 from cardlang.runtime.combinations import Play, _combos, _legal_follows, _points
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Card, Player
+
+_R = reads.row("cardlang/runtime/tichu.py", "tichu.cardlang")
 
 
 # --- the climb queries (the monolith's candidate lists, verbatim) ---
@@ -62,7 +66,7 @@ def tichu_follows(hand: list[Card], current: Play, ctx: Ctx) -> list[Play]:
 def tichu_mahjong_holder(ctx: Ctx) -> Player:
     """Who leads the first trick: the Mahjong holder (post-push hands; the
     full deal guarantees one exists)."""
-    hands = ctx.rs.zones.families["hand"]
+    hands = reads.family(ctx.rs, _R, "hand")
     return next(
         p for p in ctx.rs.seating.players
         if any(c.rank == "Mahjong" for c in hands[p].cards)
@@ -71,13 +75,14 @@ def tichu_mahjong_holder(ctx: Ctx) -> Player:
 
 def tichu_players_holding(ctx: Ctx) -> int:
     """How many players still hold cards (the hand ends at <= 1)."""
-    hands = ctx.rs.zones.families["hand"]
+    hands = reads.family(ctx.rs, _R, "hand")
     return sum(1 for p in ctx.rs.seating.players if hands[p].cards)
 
 
 def tichu_double_victory(ctx: Ctx) -> bool:
     """Both recorded finishers are teammates (ends the hand early, +200)."""
-    first, second = ctx.rs.get("out_first"), ctx.rs.get("out_second")
+    first = reads.state(ctx.rs, _R, "out_first")
+    second = reads.state(ctx.rs, _R, "out_second")
     return (
         first is not None
         and second is not None
@@ -97,7 +102,7 @@ def tichu_next_holder(ctx: Ctx, p: Player) -> Player:
     """`p` if they still hold cards, else the next holder counterclockwise —
     the monolith's post-trick leader advance. Returns `p` unchanged when
     everyone is out (the hand is over; the value is never read)."""
-    hands = ctx.rs.zones.families["hand"]
+    hands = reads.family(ctx.rs, _R, "hand")
     players = list(ctx.rs.seating.players)
     if not any(hands[q].cards for q in players):
         return p
@@ -127,7 +132,7 @@ def tichu_opponent_team(ctx: Ctx, p: Player) -> int:
 def tichu_first_out(ctx: Ctx) -> Player:
     """The first player to shed out, defaulting to player 0 when nobody is
     recorded (the monolith's fallback; unreachable in a completed hand)."""
-    first = ctx.rs.get("out_first")
+    first = reads.state(ctx.rs, _R, "out_first")
     return 0 if first is None else int(first)
 
 
@@ -142,7 +147,7 @@ def tichu_hand_summary(ctx: Ctx) -> int:
     card points sitting in the two captured piles after routing — and return
     the card points. The playout harness asserts every non-double-victory hand
     distributes exactly 100 (tests/test_playout_tichu.py)."""
-    captured = ctx.rs.zones.families["captured"]
+    captured = reads.family(ctx.rs, _R, "captured")
     pts = sum(_points(c) for t in ctx.rs.teams for c in captured[t].cards)
     ctx.trace(
         "tichu_hand",
