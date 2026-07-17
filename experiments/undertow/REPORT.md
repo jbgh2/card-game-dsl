@@ -46,9 +46,27 @@ The decisive question — does *trained* play pull the tide lever harder
 than random play? — is §4's job: if learning widens the 0.272-vs-0.25 gap,
 the twist is a lever skill actually uses, not decorative chrome.
 
-## 4. Learned play (outcome-sampling MCCFR)
+## 4. Learned play (outcome-sampling MCCFR) — attempted, and the honest lesson
 
-<!-- RESULTS_MCCFR -->
+The 60k-iteration MCCFR run was killed after two hours at under 10k
+iterations (>700 ms/iteration). The arithmetic is structural, not bad
+luck: one outcome-sampling iteration walks one 52-decision trajectory,
+every state query re-simulates its whole prefix through the adapter
+(O(length²) ≈ 1,350 replays per trajectory at ~1 ms each), and the
+replay memo that made Green Lane's solves fast is defeated here by
+design — 2,048 sampled deals × 52 plies shatter prefix sharing, which
+is precisely what "large state space" means. For calibration, the same
+algorithm on Green Lane's full game (2 players, 24 decisions, heavy
+prefix reuse) ran at 13–21 ms/iteration and finished 120k in 42 minutes.
+
+Consequence for the pipeline (folded into
+`../game-to-artifact-plan.md`'s risk ledger): at this game size,
+training-based probes need engine throughput work first (an incremental
+stepping driver, or a fixture-pinned fast simulator). The trained-play
+tide-amplification question (§3) passes to a training-free instrument —
+the planned determinized-search (PIMC) opponent, which needs no
+convergence wait and directly tests whether *competent* play widens the
+0.272-vs-0.25 tide edge.
 
 ## Honesty ledger
 
