@@ -1,0 +1,1 @@
+constrains_unknown_move_type.cardlang:19:1: error: rule 'BadConstrains' constrains unknown move type 'nonesuch_move'

@@ -1,0 +1,1 @@
+deal_to_each_subscripted.cardlang:16:5: error: `to each` deals into a player-indexed family named bare (like `to each hand`) — a subscripted or computed destination targets one zone, so drop `each` or name the family

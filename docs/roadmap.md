@@ -455,16 +455,44 @@ Things we have noted but consciously not designed yet:
   just per-kind legality (sort/filter/take as expressions over
   zone-vs-list-vs-map).
 
-- **Semantic invariance is pinned per instance, not in general.** The engine
-  must not attach meaning to things the spec says are meaningless — a name's
-  spelling, declaration order, a suit's identity, the `run`/inline
-  distinction — but today only single witnesses pin this (the by-value
-  expansion regression test; the goldens' byte-stability). The general form
-  is a metamorphic suite: transform every corpus game in a spec-meaningless
-  way, replay both variants, require trace agreement. The implementation
-  plan — the four transforms, the pairing harness over the existing
-  driver/trace seams, and the acceptance criteria — is
-  [design-notes/metamorphic-suite.md](design-notes/metamorphic-suite.md).
+- **Semantic invariance: three of four transforms landed; suit relabeling
+  (T4) is deferred.** `tests/metamorphic/` (design plan:
+  [design-notes/metamorphic-suite.md](design-notes/metamorphic-suite.md))
+  runs T1 (the pairing harness), T2 (α-rename), T3 (inline-vs-`run`), and T5
+  (declaration reorder) over the corpus, each with its own completeness
+  ledger. Landing them surfaced two real findings, neither fixed here
+  (out of scope for the suite itself; each is a `cardlang/` behavior, not a
+  metamorphic-suite defect): (1) several kernel and per-game runtime
+  primitives (`cardlang/runtime/rules.py::legal_cards`,
+  `cardlang/runtime/mechanics.py::param_domain`, eleven
+  `cardlang/runtime/<game>.py` modules) read a zone or state variable by a
+  hardcoded Python string literal rather than deriving it from the AST — so
+  a corpus game's zone/state names are not actually free to rename despite
+  nothing in the grammar or type checker saying so
+  (`tests/metamorphic/rename.py`'s `_PRIMITIVE_COUPLED_NAMES`, cited
+  file:line); (2) `cardlang/runtime/execute.py::_gather` ("move all cards to
+  `<zone>`") iterates `ZoneStore`'s dicts in zone-DECLARATION order, so a
+  gather's observable "move"-event sequence is a function of zone
+  declaration order — real declaration-order sensitivity decisions.md never
+  documents (`tests/metamorphic/reorder.py`'s `_has_gather`, derived
+  structurally, not hand-listed).
+
+  **T4 (suit relabeling) is explicitly deferred**, not attempted: unlike the
+  other three, it cannot be a pure `Game -> Game` AST transform — a suit's
+  actual card membership comes from `cardlang.runtime.values.DECKS` (and the
+  parallel `cardlang.stdlib.values._DECK_SIZE` table), a Python registry
+  keyed by the `deck:` NAME, not from anything the parsed tree carries; a
+  sound implementation needs a permuted deck registered at test time, a
+  chooser whose sort key is permutation-equivariant (or the two variants'
+  greedy playouts diverge in STRUCTURE, not just labels, the first time a
+  suit-dependent decision breaks a tie), and a trace-rename hook covering
+  both raw suit names (`submit_bid(hearts)`) and `Card.__str__`'s suit
+  SYMBOLS (♣♦♥♠★☆) — three compounding sources of risk in one transform, on
+  top of the same hardcoded-suit-name landmines finding (1) above predicts
+  for trump-handling primitives specifically. Revisit if a second
+  procedure-using corpus game or a suit-relabeling need makes the investment
+  clearly worth it; until then this is a bounded, understood gap, not a
+  silent one.
 
 - **Surface totality is probed by hand, not mechanized.** Misuse-probe
   rejection tests cover the wrong sentences someone thought of; nothing
