@@ -64,9 +64,43 @@ Consequence for the pipeline (folded into
 training-based probes need engine throughput work first (an incremental
 stepping driver, or a fixture-pinned fast simulator). The trained-play
 tide-amplification question (§3) passes to a training-free instrument —
-the planned determinized-search (PIMC) opponent, which needs no
-convergence wait and directly tests whether *competent* play widens the
-0.272-vs-0.25 tide edge.
+the determinized-search (PIMC) opponent below.
+
+## 5. PIMC: the fast twin answers what MCCFR couldn't
+
+The pipeline plan's response to §4, built and measured (`fast_sim.py`,
+`pimc.py`, `results_pimc.json`):
+
+- **The drift barrier first.** `fast_sim.py` is a hand-written fast engine;
+  its only authority is the DSL runtime, enforced by differential fixtures
+  exported from the adapter: **120 complete games / 6,240 steps with
+  identical legal sets, trick winners, tide cards, and returns**
+  (`export_fixtures.py`). The artifact's JS engine passes the same 120-trace
+  bar (0 failures, re-runnable from the page console).
+- **Strength** (400 games, seats rotated): PIMC with 16 worlds × 3 rollouts
+  scores **5.40 mean tricks against three random seats** (baseline 3.25,
+  consistent 5.31–5.58 across seats) at **7.4 ms/decision** — roughly the
+  cost of a *single* adapter query, which is the whole engine-throughput
+  argument in one number. Cross-checked through the real runtime: **5.55**
+  over 40 adapter games — the bot integrates against the actual DSL engine
+  at full strength.
+- **The tide is a skill lever — the §3 question answered.** Under PIMC
+  self-play (150 games / 1,950 tricks): P(win next trick | you set the
+  tide) = **0.312** vs 0.272 under random play vs 0.25 baseline — competent
+  play widens the steering edge ~2.3×. And the tide-steal rate rises from
+  16.9% to **26.2%**: skilled players fight over the rudder half again as
+  often. The twist is not chrome; it is where the skill goes.
+
+## 6. The playable artifact
+
+`play/undertow.template.html` — a bright-nautical table (regatta cream,
+tide dial, ship's log): three PIMC deckhands (24 worlds × 4 rollouts) or an
+LLM playing East by relay (the briefing carries exactly East's information:
+own hand plus the public table). The page's engine is the fixture-pinned
+port above; testing surfaced and fixed one real concurrency defect (a
+NEW-VOYAGE mid-game left the old async chain alive and driving stale cards
+— now a generation guard, plus `apply()` failing loud on illegal cards
+instead of corrupting silently).
 
 ## Honesty ledger
 

@@ -1,0 +1,694 @@
+<title>Undertow — a 3½-rule trick game</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+/* UNDERTOW — a bright regatta day at the harbor. This page deliberately
+   commits to one sunlit visual world (contrast: Green Lane's night shift),
+   so it does not restyle for dark mode; color-scheme pinned light. */
+@font-face { font-family: 'Alfa Slab One'; font-style: normal; font-weight: 400;
+  src: url(data:font/woff2;base64,__ALFA__) format('woff2'); }
+@font-face { font-family: 'IBM Plex Mono'; font-style: normal; font-weight: 400;
+  src: url(data:font/woff2;base64,__PLEX400__) format('woff2'); }
+@font-face { font-family: 'IBM Plex Mono'; font-style: normal; font-weight: 600;
+  src: url(data:font/woff2;base64,__PLEX600__) format('woff2'); }
+
+:root {
+  color-scheme: light;
+  --sail: #F2E9D8;      /* sail-cream page ground */
+  --deck: #FBF6EA;      /* panel surfaces */
+  --ink:  #16324A;      /* deep harbor navy */
+  --faded:#5E7286;      /* weathered ink */
+  --foam: #2E8C7F;      /* seafoam — positive, waves */
+  --buoy: #E4572E;      /* buoy orange — tide, trump, alerts */
+  --brass:#B98B2F;      /* trick tallies */
+  --rope: #C9B896;      /* borders */
+  --cardred: #C0392B;
+  --slab: 'Alfa Slab One', 'Arial Black', serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--sail);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+.wrap { max-width: 1080px; margin: 0 auto; padding: 16px 16px 44px; }
+
+/* header */
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; }
+h1 { font-family: var(--slab); font-weight: 400; font-size: 40px; letter-spacing: 1px;
+     margin: 0; color: var(--ink); }
+h1 .tilde { color: var(--foam); }
+.sub { color: var(--faded); font-size: 12px; letter-spacing: 1.4px; text-transform: uppercase; }
+.head-controls { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.waves { height: 14px; margin: 8px 0 14px;
+  background: radial-gradient(circle at 10px -6px, transparent 12px, var(--foam) 12px, var(--foam) 14px, transparent 14.5px);
+  background-size: 28px 20px; background-repeat: repeat-x; opacity: .55; }
+
+button {
+  font-family: var(--mono); font-size: 13px; font-weight: 600; letter-spacing: .6px;
+  background: var(--deck); color: var(--ink);
+  border: 2px solid var(--ink); border-radius: 7px;
+  padding: 8px 14px; cursor: pointer; box-shadow: 2px 2px 0 var(--rope);
+}
+button:hover:not(:disabled) { background: #fff; }
+button:active:not(:disabled) { transform: translate(1px,1px); box-shadow: 1px 1px 0 var(--rope); }
+button:focus-visible { outline: 3px solid var(--foam); outline-offset: 2px; }
+button:disabled { opacity: .4; cursor: default; }
+button.go { background: var(--foam); color: #fff; border-color: #1F6157; }
+button.warn { background: var(--buoy); color: #fff; border-color: #A93C1D; }
+.small { font-size: 11px; padding: 5px 9px; }
+select {
+  font-family: var(--mono); font-size: 12.5px; background: var(--deck); color: var(--ink);
+  border: 2px solid var(--ink); border-radius: 7px; padding: 7px 8px;
+}
+select:focus-visible { outline: 3px solid var(--foam); outline-offset: 2px; }
+.label { font-size: 10.5px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--faded); }
+.num { font-variant-numeric: tabular-nums; }
+
+/* layout */
+.game { display: grid; grid-template-columns: minmax(0,1fr) 300px; gap: 14px; }
+@media (max-width: 880px) { .game { grid-template-columns: 1fr; } }
+.panel { background: var(--deck); border: 2px solid var(--rope); border-radius: 10px; padding: 12px 14px; }
+
+/* opponents */
+.crew { display: flex; gap: 10px; justify-content: space-between; flex-wrap: wrap; }
+.mate { flex: 1 1 150px; text-align: center; border: 2px solid var(--rope); border-radius: 10px;
+        background: var(--deck); padding: 8px 10px; }
+.mate .name { font-family: var(--slab); font-size: 15px; letter-spacing: 1px; }
+.mate.turn { border-color: var(--foam); box-shadow: 0 0 0 3px rgba(46,140,127,.25); }
+.backs { display: flex; justify-content: center; gap: 3px; margin: 6px 0 4px; min-height: 34px; }
+.back { width: 22px; height: 32px; border-radius: 4px; background:
+  repeating-linear-gradient(-45deg, #274B66 0 4px, #1D3B52 4px 8px); border: 1.5px solid #10283A; }
+.tally { color: var(--brass); font-size: 15px; letter-spacing: 2px; min-height: 1.2em; }
+
+/* the table */
+.table { position: relative; min-height: 300px; border: 2px solid var(--rope); border-radius: 12px;
+  background:
+    radial-gradient(ellipse 120% 90% at 50% 0%, #EAF3EE 0%, #DCEBE3 70%, #D2E4DA 100%); }
+.slot { position: absolute; width: 64px; height: 90px; border: 2px dashed var(--rope);
+        border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+.slot .label { position: absolute; bottom: -18px; width: 100%; text-align: center; }
+.slot.n { top: 18px; left: 50%; transform: translateX(-50%); }
+.slot.w { left: 8%; top: 50%; transform: translateY(-50%); }
+.slot.e { right: 8%; top: 50%; transform: translateY(-50%); }
+.slot.s { bottom: 26px; left: 50%; transform: translateX(-50%); }
+.callout { position: absolute; left: 50%; top: 47%; transform: translate(-50%,-50%);
+  text-align: center; font-size: 13px; max-width: 34ch; color: var(--ink); }
+.callout b { color: var(--buoy); }
+
+/* tide dial */
+.dialbox { display: flex; align-items: center; gap: 12px; }
+.dial { width: 92px; height: 92px; border-radius: 50%; border: 3px solid var(--ink);
+  background: #FFF8E9; position: relative; flex: 0 0 auto; }
+.dial .pt { position: absolute; font-size: 17px; font-weight: 600; }
+.dial .pt.c { top: 2px; left: 50%; transform: translateX(-50%); }
+.dial .pt.d { right: 6px; top: 50%; transform: translateY(-50%); color: var(--cardred); }
+.dial .pt.h { bottom: 2px; left: 50%; transform: translateX(-50%); color: var(--cardred); }
+.dial .pt.sp { left: 6px; top: 50%; transform: translateY(-50%); }
+.needle { position: absolute; left: 50%; top: 50%; width: 4px; height: 34px;
+  background: var(--buoy); border-radius: 2px; transform-origin: 50% 100%;
+  transform: translate(-50%,-100%) rotate(0deg); }
+@media (prefers-reduced-motion: no-preference) { .needle { transition: transform .5s cubic-bezier(.3,1.4,.4,1); } }
+.dial .hub { position: absolute; left: 50%; top: 50%; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--ink); transform: translate(-50%,-50%); }
+.dial.calm .needle { display: none; }
+.dial.calm::after { content: "CALM"; position: absolute; inset: 0; display: flex; align-items: center;
+  justify-content: center; font-size: 11px; letter-spacing: 2px; color: var(--faded); }
+
+/* cards */
+.card { width: 58px; height: 82px; border-radius: 8px; background: #fff; border: 2px solid var(--ink);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-family: var(--mono); font-weight: 600; box-shadow: 2px 3px 0 rgba(22,50,74,.18); padding: 0; }
+.card .r { font-size: 21px; line-height: 1.05; }
+.card .s { font-size: 19px; line-height: 1; }
+.card.red { color: var(--cardred); }
+.card.navy { color: var(--ink); }
+.card.tide-mark { outline: 3px solid var(--buoy); outline-offset: 2px; }
+.hand { display: flex; flex-wrap: wrap; gap: 8px; min-height: 92px; align-items: flex-end; }
+.hand .card.play { cursor: pointer; }
+.hand .card.play:hover, .hand .card.play:focus-visible { transform: translateY(-8px); border-color: var(--foam);
+  box-shadow: 2px 6px 0 rgba(46,140,127,.35); outline: none; }
+.hand .card.dim { opacity: .38; }
+@media (prefers-reduced-motion: no-preference) { .card { transition: transform .14s, box-shadow .14s, border-color .14s; } }
+
+/* log + rules + end */
+.logbook { height: 300px; overflow-y: auto; font-size: 12px; display: flex; flex-direction: column; gap: 3px; }
+.logbook div { color: var(--faded); }
+.logbook .you { color: var(--ink); } .logbook .tide { color: var(--buoy); } .logbook .sys { color: var(--foam); }
+details.rules summary { cursor: pointer; font-family: var(--slab); letter-spacing: 1px; font-size: 15px; color: var(--foam); }
+details.rules summary:focus-visible { outline: 3px solid var(--foam); outline-offset: 2px; }
+.rules-body { font-size: 12.5px; color: var(--faded); max-width: 66ch; }
+.rules-body b { color: var(--ink); }
+.rules-body .o { color: var(--buoy); font-weight: 600; }
+.endsheet { text-align: center; }
+.endsheet h2 { font-family: var(--slab); font-weight: 400; letter-spacing: 1px; font-size: 28px; margin: 4px 0 8px; }
+.endsheet h2.win { color: var(--foam); } .endsheet h2.loss { color: var(--buoy); } .endsheet h2.draw { color: var(--faded); }
+.finaltable { margin: 8px auto; border-collapse: collapse; font-size: 13px; }
+.finaltable td, .finaltable th { border: 1.5px solid var(--rope); padding: 4px 12px; }
+.finaltable th { font-weight: 400; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--faded); }
+
+/* relay */
+.relay textarea { width: 100%; height: 140px; background: #fff; color: var(--ink);
+  border: 2px solid var(--rope); border-radius: 8px; font-family: var(--mono); font-size: 11px; padding: 8px; resize: vertical; }
+.relay input[type=text] { flex: 1; background: #fff; color: var(--ink); border: 2px solid var(--rope);
+  border-radius: 8px; font-family: var(--mono); font-size: 13px; padding: 8px; }
+.relay input:focus-visible, .relay textarea:focus-visible { outline: 3px solid var(--foam); outline-offset: 1px; }
+.relay .hint { font-size: 11px; color: var(--faded); }
+.foot { margin-top: 20px; color: var(--faded); font-size: 11px; border-top: 2px solid var(--rope); padding-top: 10px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>UNDERTOW <span class="tilde">~~~</span></h1>
+    <span class="sub">the lowest card steers · trick <span id="trickNo" class="num">1</span>/13</span>
+    <div class="head-controls">
+      <label class="label" for="mode">crew</label>
+      <select id="mode" aria-label="Opponent mode">
+        <option value="ai">AI — three PIMC deckhands</option>
+        <option value="llm">LLM at East — by relay</option>
+      </select>
+      <button id="newGame" class="small">NEW VOYAGE</button>
+    </div>
+  </header>
+  <div class="waves" aria-hidden="true"></div>
+
+  <div class="game">
+    <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+      <div class="crew" id="crew"></div>
+
+      <div class="table" id="tableEl" aria-live="polite">
+        <div class="slot n" id="slot2"><span class="label">NORTH</span></div>
+        <div class="slot w" id="slot1"><span class="label">WEST</span></div>
+        <div class="slot e" id="slot3"><span class="label">EAST</span></div>
+        <div class="slot s" id="slot0"><span class="label">YOU · SOUTH</span></div>
+        <div class="callout" id="callout"></div>
+      </div>
+
+      <div class="panel">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+          <div>
+            <span class="label">your hand — south ⛵</span>
+            <span class="label" style="margin-left:12px">tricks <span class="tally num" id="tally0"></span></span>
+          </div>
+          <div class="dialbox">
+            <div>
+              <div class="label" style="text-align:right">the tide — trump now</div>
+              <div class="label num" id="tideBy" style="text-align:right">—</div>
+            </div>
+            <div class="dial calm" id="dial" role="img" aria-label="Tide dial: no trump yet">
+              <span class="pt c">♣</span><span class="pt d">♦</span><span class="pt h">♥</span><span class="pt sp">♠</span>
+              <span class="needle" id="needle"></span><span class="hub"></span>
+            </div>
+          </div>
+        </div>
+        <div class="hand" id="hand"></div>
+        <div class="label" id="prompt" style="margin-top:8px">—</div>
+      </div>
+
+      <div class="panel relay" id="relayPanel" hidden>
+        <div class="label" style="margin-bottom:6px">LLM relay — East's move</div>
+        <textarea id="briefing" readonly aria-label="Briefing for the LLM playing East"></textarea>
+        <div style="display:flex;gap:8px;margin:8px 0;flex-wrap:wrap;align-items:center">
+          <button id="copyBriefing" class="small">COPY BRIEFING</button>
+          <span class="hint" id="copyHint">Paste to any LLM; it answers with one order.</span>
+        </div>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="llmMove" placeholder="paste the order — e.g. PLAY 10♦ (or: play ten of diamonds)" aria-label="LLM's order">
+          <button id="applyLlm" class="go small">APPLY</button>
+        </div>
+        <div class="hint" id="llmError" role="alert"></div>
+      </div>
+
+      <div class="panel endsheet" id="endPanel" hidden></div>
+
+      <details class="rules panel">
+        <summary>SAILING ORDERS (3½ rules)</summary>
+        <div class="rules-body">
+          <p>Full deck, four hands of thirteen. Whoever holds the <b>2♣</b> leads first.</p>
+          <p><b>1.</b> Follow the led suit if you can. Highest trump — else highest card of
+          the led suit — takes the trick and leads next.<br>
+          <b>2.</b> <span class="o">The undertow:</span> when a trick is gathered, its
+          <b>lowest card</b> (earliest played breaks ties) names the
+          <span class="o">trump suit for the next trick</span>.<br>
+          <b>3.</b> Most tricks wins the voyage.<br>
+          <b>½.</b> The first trick is played with no trump — the tide isn't in yet.</p>
+          <p>Aces high, twos low. Every 2 is a rudder: high cards buy the present,
+          low cards steer the future. Can't win a trick? Your throwaway can still
+          drag the tide to a suit you own.</p>
+        </div>
+      </details>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+      <div class="panel">
+        <div class="label" style="margin-bottom:6px">Ship's log</div>
+        <div class="logbook" id="logbook" aria-live="polite"></div>
+      </div>
+      <div class="panel">
+        <div class="label" style="margin-bottom:4px">Standings</div>
+        <table class="num" id="standings" style="font-size:12.5px"></table>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">UNDERTOW · an original 3½-rule design probed through the cardlang →
+  OpenSpiel pipeline · the deckhands are determinized-Monte-Carlo (PIMC) players whose
+  Python twin was benchmarked against the real runtime (see the repo's
+  experiments/undertow/REPORT.md for the numbers) · this page's rules engine is a port of
+  a simulator differentially verified against the DSL runtime on 120 full games / 6,240
+  steps — re-run in this page's console: <code>runFixtures(fixturesJson)</code> · the LLM
+  relay hands the model exactly East's information: own hand + the public table.</div>
+</div>
+
+<script>
+'use strict';
+/* ========================= engine (port of fast_sim.py) ================== */
+const RANKS = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+const SUITS = ['♣','♦','♥','♠'];
+const SEATS = ['SOUTH','WEST','NORTH','EAST'];
+const TWO_OF_CLUBS = 0;
+const label = c => RANKS[c % 13] + SUITS[(c / 13) | 0];
+const parseLabel = s => SUITS.indexOf(s.slice(-1)) * 13 + RANKS.indexOf(s.slice(0, -1));
+const suitOf = c => (c / 13) | 0, rankOf = c => c % 13;
+
+class Engine {
+  constructor(hands, leader) {
+    this.hands = hands.map(h => [...h].sort((a, b) => a - b));
+    this.trump = null;
+    this.leader = leader !== undefined ? leader
+      : this.hands.findIndex(h => h.includes(TWO_OF_CLUBS));
+    this.toPlay = this.leader;
+    this.trick = [];          // [player, card] in play order
+    this.tricksWon = [0, 0, 0, 0];
+    this.history = [];        // completed tricks
+    this.lastTide = null;     // card that set the current trump
+  }
+  copy() {
+    const e = Object.create(Engine.prototype);
+    e.hands = this.hands.map(h => [...h]);
+    e.trump = this.trump; e.leader = this.leader; e.toPlay = this.toPlay;
+    e.trick = this.trick.map(t => [...t]);
+    e.tricksWon = [...this.tricksWon];
+    e.history = this.history.map(t => t.map(x => [...x]));
+    e.lastTide = this.lastTide;
+    return e;
+  }
+  terminal() { return this.hands.every(h => h.length === 0); }
+  legal() {
+    const hand = this.hands[this.toPlay];
+    if (!this.trick.length) return [...hand];
+    const led = suitOf(this.trick[0][1]);
+    const follow = hand.filter(c => suitOf(c) === led);
+    return follow.length ? follow : [...hand];
+  }
+  apply(card) {
+    const p = this.toPlay;
+    if (!this.legal().includes(card))  // fail loud: silent splice(-1) corrupts
+      throw new Error(`illegal apply: ${label(card)} by ${SEATS[p]}`);
+    this.hands[p].splice(this.hands[p].indexOf(card), 1);
+    this.trick.push([p, card]);
+    if (this.trick.length < 4) { this.toPlay = (p + 1) % 4; return null; }
+    const led = suitOf(this.trick[0][1]);
+    let pool = (this.trump !== null && this.trick.some(([, c]) => suitOf(c) === this.trump))
+      ? this.trick.filter(([, c]) => suitOf(c) === this.trump)
+      : this.trick.filter(([, c]) => suitOf(c) === led);
+    const winner = pool.reduce((a, b) => (rankOf(a[1]) > rankOf(b[1]) ? a : b))[0];
+    const low = Math.min(...this.trick.map(([, c]) => rankOf(c)));
+    const tideCard = this.trick.find(([, c]) => rankOf(c) === low)[1];
+    const done = this.trick;
+    this.trump = suitOf(tideCard);
+    this.lastTide = tideCard;
+    this.tricksWon[winner] += 1;
+    this.leader = winner; this.toPlay = winner;
+    this.history.push(done); this.trick = [];
+    return { winner, tideCard, trick: done };
+  }
+}
+
+/* fixture replay — the drift barrier, runnable from the console */
+function runFixtures(fx) {
+  let steps = 0, fails = [];
+  for (const tr of fx.traces) {
+    const hands = [[], [], [], []];
+    tr.steps.forEach(s => hands[s.actor].push(parseLabel(s.chosen)));
+    const e = new Engine(hands, tr.steps[0].actor);
+    let ti = 0;
+    for (let i = 0; i < tr.steps.length; i++) {
+      const s = tr.steps[i];
+      if (e.toPlay !== s.actor) { fails.push(`trace seed ${tr.seed} step ${i}: actor`); break; }
+      const want = [...s.legal].sort().join(',');
+      const got = e.legal().map(label).sort().join(',');
+      if (want !== got) { fails.push(`trace seed ${tr.seed} step ${i}: legal ${got} != ${want}`); break; }
+      const res = e.apply(parseLabel(s.chosen)); steps++;
+      if (res && ti < tr.tricks.length) {
+        const t = tr.tricks[ti++];
+        if (res.winner !== t.winner) fails.push(`seed ${tr.seed} trick ${ti}: winner`);
+        if (SUITS[e.trump] !== t.tide.slice(-1)) fails.push(`seed ${tr.seed} trick ${ti}: tide`);
+      }
+    }
+    const rets = tr.returns.join(',');
+    if (e.terminal() && e.tricksWon.join(',') !== rets.replaceAll('.0', ''))
+      fails.push(`seed ${tr.seed}: returns ${e.tricksWon} != ${rets}`);
+  }
+  return { traces: fx.traces.length, steps, failures: fails };
+}
+
+/* ==================== PIMC deckhand (port of pimc.py) ==================== */
+function voidsFromHistory(history, trick) {
+  const voids = [new Set(), new Set(), new Set(), new Set()];
+  for (const t of [...history, trick]) {
+    if (!t || !t.length) continue;
+    const led = suitOf(t[0][1]);
+    for (let i = 1; i < t.length; i++)
+      if (suitOf(t[i][1]) !== led) voids[t[i][0]].add(led);
+  }
+  return voids;
+}
+function sampleWorld(me, myHand, history, trick, handSizes) {
+  const seen = new Set(myHand);
+  history.forEach(t => t.forEach(([, c]) => seen.add(c)));
+  trick.forEach(([, c]) => seen.add(c));
+  const unseen = []; for (let c = 0; c < 52; c++) if (!seen.has(c)) unseen.push(c);
+  const voids = voidsFromHistory(history, trick);
+  const others = [0, 1, 2, 3].filter(p => p !== me);
+  for (let attempt = 0; attempt < 120; attempt++) {
+    for (let i = unseen.length - 1; i > 0; i--) {
+      const j = (Math.random() * (i + 1)) | 0;
+      [unseen[i], unseen[j]] = [unseen[j], unseen[i]];
+    }
+    const hands = [[], [], [], []]; hands[me] = [...myHand];
+    let pool = [...unseen], ok = true;
+    const order = [...others].sort((a, b) => (voids[b].size - voids[a].size) || (handSizes[b] - handSizes[a]));
+    for (const p of order) {
+      const take = [], rest = [];
+      for (const c of pool)
+        (take.length < handSizes[p] && !voids[p].has(suitOf(c))) ? take.push(c) : rest.push(c);
+      if (take.length < handSizes[p]) { ok = false; break; }
+      hands[p] = take; pool = rest;
+    }
+    if (ok && pool.length === 0) return hands;
+  }
+  return null;
+}
+function pimcDecide(me, myHand, history, trick, trump, tricksWon, handSizes, worlds, rollouts) {
+  let cands;
+  if (trick.length) {
+    const led = suitOf(trick[0][1]);
+    const follow = myHand.filter(c => suitOf(c) === led);
+    cands = follow.length ? follow : [...myHand];
+  } else cands = [...myHand];
+  if (cands.length === 1) return cands[0];
+  const totals = new Map(cands.map(c => [c, 0]));
+  let n = 0;
+  for (let w = 0; w < worlds; w++) {
+    const hands = sampleWorld(me, myHand, history, trick, handSizes);
+    if (!hands) continue;
+    n++;
+    const base = new Engine(hands, me);
+    base.trump = trump; base.toPlay = me;
+    base.trick = trick.map(x => [...x]);
+    base.tricksWon = [...tricksWon];
+    base.history = history.map(t => t.map(x => [...x]));
+    for (const c of cands) {
+      for (let r = 0; r < rollouts; r++) {
+        const s = base.copy();
+        s.apply(c);
+        while (!s.terminal()) {
+          const lg = s.legal();
+          s.apply(lg[(Math.random() * lg.length) | 0]);
+        }
+        totals.set(c, totals.get(c) + s.tricksWon[me]);
+      }
+    }
+  }
+  if (!n) return cands[(Math.random() * cands.length) | 0];
+  const best = Math.max(...totals.values());
+  const top = cands.filter(c => totals.get(c) >= best - 1e-9);
+  return top[(Math.random() * top.length) | 0];
+}
+
+/* ================================ UI ==================================== */
+const $ = id => document.getElementById(id);
+const HUMAN = 0, RELAY_SEAT = 3;
+let E = null, mode = 'ai', waitingHuman = false, waitingRelay = false, gameOver = false;
+const WORLDS = 24, ROLLOUTS = 4;
+/* Generation guard: every async chain carries the voyage it was born in and
+   dies at its next checkpoint if NEW VOYAGE (or a mode switch) superseded it —
+   without this, a chain sleeping through newGame() wakes up and drives the
+   new game with stale cards. */
+let GEN = 0;
+
+function deal() {
+  const deck = Array.from({ length: 52 }, (_, i) => i);
+  for (let i = 51; i > 0; i--) {
+    const j = (Math.random() * (i + 1)) | 0;
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  return [0, 1, 2, 3].map(p => deck.slice(p * 13, p * 13 + 13));
+}
+function cardEl(c, opts = {}) {
+  const el = document.createElement(opts.button ? 'button' : 'div');
+  el.className = 'card ' + (suitOf(c) === 1 || suitOf(c) === 2 ? 'red' : 'navy')
+    + (opts.play ? ' play' : '') + (opts.dim ? ' dim' : '') + (opts.tide ? ' tide-mark' : '');
+  if (opts.button) el.type = 'button';
+  el.innerHTML = `<span class="r">${RANKS[rankOf(c)]}</span><span class="s">${SUITS[suitOf(c)]}</span>`;
+  return el;
+}
+function log(t, cls) {
+  const d = document.createElement('div');
+  if (cls) d.className = cls;
+  d.textContent = t;
+  $('logbook').appendChild(d);
+  $('logbook').scrollTop = $('logbook').scrollHeight;
+}
+function tallyStr(n) { return '●'.repeat(n) || '—'; }
+
+function render() {
+  $('trickNo').textContent = Math.min(13, E.history.length + 1);
+  const crew = $('crew'); crew.replaceChildren();
+  for (const p of [1, 2, 3]) {
+    const d = document.createElement('div');
+    d.className = 'mate' + (E.toPlay === p && !gameOver ? ' turn' : '');
+    const nm = p === RELAY_SEAT && mode === 'llm' ? 'EAST 🤖 (your LLM)' : SEATS[p] + ' ⛵';
+    d.innerHTML = `<div class="name">${nm}</div>`
+      + `<div class="backs">${'<span class="back"></span>'.repeat(E.hands[p].length)}</div>`
+      + `<div class="tally num" aria-label="tricks won">${tallyStr(E.tricksWon[p])}</div>`;
+    crew.appendChild(d);
+  }
+  $('tally0').textContent = tallyStr(E.tricksWon[HUMAN]);
+
+  for (const p of [0, 1, 2, 3]) {
+    const slot = $('slot' + p);
+    [...slot.querySelectorAll('.card')].forEach(x => x.remove());
+    const played = E.trick.find(([q]) => q === p);
+    if (played) slot.appendChild(cardEl(played[1]));
+  }
+
+  const dial = $('dial');
+  if (E.trump === null) { dial.className = 'dial calm'; dial.setAttribute('aria-label', 'Tide dial: no trump yet'); $('tideBy').textContent = 'first trick — calm'; }
+  else {
+    dial.className = 'dial';
+    $('needle').style.transform = `translate(-50%,-100%) rotate(${[0, 90, 180, 270][E.trump]}deg)`;
+    dial.setAttribute('aria-label', `Tide dial: trump is ${SUITS[E.trump]}`);
+    $('tideBy').textContent = `${SUITS[E.trump]} — set by ${label(E.lastTide)}`;
+  }
+
+  const hand = $('hand'); hand.replaceChildren();
+  const legalSet = new Set(E.toPlay === HUMAN && !gameOver ? E.legal() : []);
+  const clickable = waitingHuman && legalSet.size > 1;
+  for (const c of E.hands[HUMAN]) {
+    const el = cardEl(c, {
+      button: clickable && legalSet.has(c),
+      play: clickable && legalSet.has(c),
+      dim: E.toPlay === HUMAN && !gameOver && !legalSet.has(c),
+    });
+    if (clickable && legalSet.has(c)) {
+      el.setAttribute('aria-label', 'play ' + label(c));
+      el.addEventListener('click', () => humanPlay(c));
+    }
+    hand.appendChild(el);
+  }
+
+  const st = $('standings'); st.replaceChildren();
+  [0, 1, 2, 3].forEach(p => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="label" style="padding:1px 8px 1px 0">${SEATS[p]}${p === 0 ? ' (you)' : ''}</td><td>${E.tricksWon[p]}</td>`;
+    st.appendChild(tr);
+  });
+}
+
+function showCallout(html, ms) {
+  $('callout').innerHTML = html;
+  if (ms) setTimeout(() => { if ($('callout').innerHTML === html) $('callout').innerHTML = ''; }, ms);
+}
+
+/* ============================== flow ==================================== */
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function playCard(card, note, gen) {
+  if (gen !== GEN) return;
+  const p = E.toPlay;
+  const res = E.apply(card);
+  const who = p === HUMAN ? 'you' : SEATS[p];
+  log(`T${E.history.length + (res ? 0 : 1)} · ${who} play${p === HUMAN ? '' : 's'} ${label(card)}${note || ''}`, p === HUMAN ? 'you' : '');
+  render();
+  if (res) {
+    const stealNote = suitOf(res.tideCard) !== suitOf(res.trick[0][1]) ? ' — a stolen tide!' : '';
+    showCallout(
+      `<b>${res.winner === HUMAN ? 'YOU take the trick' : SEATS[res.winner] + ' takes the trick'}</b><br>` +
+      `the ${label(res.tideCard)} drags the tide → <b>${SUITS[suitOf(res.tideCard)]} run next</b>${stealNote}`,
+      1500
+    );
+    log(`   ${res.winner === HUMAN ? 'you take' : SEATS[res.winner] + ' takes'} it — the ${label(res.tideCard)} sets the tide: ${SUITS[suitOf(res.tideCard)]}${stealNote}`, 'tide');
+    await sleep(1500);
+    if (gen !== GEN) return;
+    render();
+  }
+  await sleep(220);
+  if (gen !== GEN) return;
+  step(gen);
+}
+
+function humanPlay(card) {
+  if (!waitingHuman) return;
+  waitingHuman = false;
+  $('prompt').textContent = '—';
+  playCard(card, '', GEN);
+}
+
+async function step(gen) {
+  if (gen !== GEN) return;
+  if (E.terminal()) { endGame(); return; }
+  render();
+  const p = E.toPlay;
+  if (p === HUMAN) {
+    const legal = E.legal();
+    if (legal.length === 1) {
+      $('prompt').textContent = 'forced follow…';
+      await sleep(500);
+      if (gen !== GEN) return;
+      playCard(E.legal()[0], ' (forced)', gen);
+      return;
+    }
+    waitingHuman = true;
+    $('prompt').textContent = E.trick.length
+      ? `follow the ${SUITS[suitOf(E.trick[0][1])]} lead — or steer, if you're void`
+      : 'your lead — set the current';
+    render();
+    return;
+  }
+  if (mode === 'llm' && p === RELAY_SEAT && E.legal().length > 1) {
+    waitingRelay = true;
+    showRelay();
+    return;
+  }
+  await sleep(420 + Math.random() * 500);
+  if (gen !== GEN) return;
+  const legal = E.legal();  // recomputed after the sleep, same generation
+  const c = legal.length === 1 ? legal[0]
+    : pimcDecide(p, E.hands[p], E.history, E.trick, E.trump, E.tricksWon,
+        E.hands.map(h => h.length), WORLDS, ROLLOUTS);
+  playCard(c, legal.length === 1 ? ' (forced)' : '', gen);
+}
+
+function endGame() {
+  gameOver = true;
+  render();
+  const my = E.tricksWon[HUMAN];
+  const best = Math.max(...E.tricksWon);
+  const winners = [0, 1, 2, 3].filter(p => E.tricksWon[p] === best);
+  const cls = winners.includes(HUMAN) ? (winners.length === 1 ? 'win' : 'draw') : 'loss';
+  const title = cls === 'win' ? 'YOU TAKE THE VOYAGE'
+    : cls === 'draw' ? 'SHARED WATERS — ' + winners.map(p => SEATS[p]).join(' & ')
+    : winners.map(p => SEATS[p]).join(' & ') + ' TAKE' + (winners.length > 1 ? '' : 'S') + ' THE VOYAGE';
+  const p = $('endPanel'); p.hidden = false;
+  p.innerHTML = `<h2 class="${cls}">${title}</h2>`
+    + `<table class="finaltable num"><tr><th></th>${SEATS.map(s => `<th>${s}</th>`).join('')}</tr>`
+    + `<tr><td class="label">tricks</td>${E.tricksWon.map(t => `<td>${t}</td>`).join('')}</tr></table>`;
+  const again = document.createElement('button'); again.className = 'go'; again.textContent = 'NEW VOYAGE';
+  again.addEventListener('click', newGame); p.appendChild(again);
+  log(`— voyage over: ${E.tricksWon.join(' / ')} —`, 'sys');
+  $('prompt').textContent = 'voyage over';
+}
+
+/* ============================== relay =================================== */
+function showRelay() {
+  const e = E;
+  const hist = e.history.map((t, i) => {
+    const led = suitOf(t[0][1]);
+    const low = Math.min(...t.map(([, c]) => rankOf(c)));
+    const tide = t.find(([, c]) => rankOf(c) === low)[1];
+    return `T${i + 1}: ` + t.map(([q, c]) => `${SEATS[q]} ${label(c)}`).join(', ')
+      + ` | tide ${label(tide)} -> trump ${SUITS[suitOf(tide)]}`;
+  }).join('\n');
+  const cur = e.trick.length
+    ? e.trick.map(([q, c]) => `${SEATS[q]} ${label(c)}`).join(', ')
+    : '(you lead)';
+  $('briefing').value =
+`You are EAST in UNDERTOW, a trick-taking game. Rules: follow the led suit if you can; highest trump, else highest card of led suit, wins the trick and leads. THE TWIST: after each trick, its LOWEST card (earliest played breaks ties) sets the trump suit for the NEXT trick. First trick has no trump. Most tricks wins. Aces high, twos low.
+
+YOUR HAND (East): ${e.hands[RELAY_SEAT].map(label).join(', ')}
+Current trump: ${e.trump === null ? 'none (first trick)' : SUITS[e.trump]}
+Tricks won so far: ${SEATS.map((s, i) => `${s} ${e.tricksWon[i]}`).join(', ')}
+
+TRICKS PLAYED:
+${hist || '(none yet)'}
+
+CURRENT TRICK: ${cur}
+
+Choose one legal card (follow suit if you can). Reply with exactly one line: PLAY <card>  (e.g. "PLAY 10♦" or "PLAY 10D").`;
+  $('relayPanel').hidden = false;
+  $('llmError').textContent = '';
+  render();
+}
+function parseRelay(text) {
+  const t = (text || '').trim().toUpperCase()
+    .replace(/TEN/g, '10').replace(/JACK/g, 'J').replace(/QUEEN/g, 'Q')
+    .replace(/KING/g, 'K').replace(/ACE/g, 'A');
+  const m = t.match(/\b(10|[2-9]|[JQKA])\s*(?:OF\s*)?(CLUBS?|DIAMONDS?|HEARTS?|SPADES?|[CDHS♣♦♥♠])/);
+  if (!m) return { err: 'Could not read a card. Expected e.g. "PLAY 10♦" or "PLAY 10D".' };
+  const suit = { C: 0, D: 1, H: 2, S: 3, '♣': 0, '♦': 1, '♥': 2, '♠': 3 }[m[2][0]];
+  const card = suit * 13 + RANKS.indexOf(m[1]);
+  const legal = E.legal();
+  if (E.toPlay !== RELAY_SEAT) return { err: 'It is not East\'s turn.' };
+  if (!E.hands[RELAY_SEAT].includes(card)) return { err: `East does not hold ${label(card)}.` };
+  if (!legal.includes(card)) return { err: `${label(card)} is not legal — East must follow ${SUITS[suitOf(E.trick[0][1])]}.` };
+  return { card };
+}
+$('copyBriefing').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText($('briefing').value); $('copyHint').textContent = 'Copied.'; }
+  catch { $('briefing').focus(); $('briefing').select(); $('copyHint').textContent = 'Selected — copy manually.'; }
+});
+function applyRelay() {
+  if (!waitingRelay) return;
+  const res = parseRelay($('llmMove').value);
+  if (res.err) { $('llmError').textContent = res.err; return; }
+  waitingRelay = false;
+  $('llmMove').value = ''; $('llmError').textContent = '';
+  $('relayPanel').hidden = true;
+  playCard(res.card, '', GEN);
+}
+$('applyLlm').addEventListener('click', applyRelay);
+$('llmMove').addEventListener('keydown', e => { if (e.key === 'Enter') applyRelay(); });
+
+/* ============================== boot ==================================== */
+$('newGame').addEventListener('click', newGame);
+$('mode').addEventListener('change', () => { mode = $('mode').value; newGame(); });
+function newGame() {
+  GEN += 1;  // orphan every chain from the previous voyage
+  mode = $('mode').value;
+  E = new Engine(deal());
+  gameOver = false; waitingHuman = false; waitingRelay = false;
+  $('endPanel').hidden = true; $('relayPanel').hidden = true;
+  $('logbook').replaceChildren();
+  $('callout').innerHTML = '';
+  log(`— new voyage · ${mode === 'ai' ? 'three PIMC deckhands' : 'LLM at East by relay'} · ${SEATS[E.leader]} holds the 2♣ and leads —`, 'sys');
+  render();
+  step(GEN);
+}
+newGame();
+</script>
