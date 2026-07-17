@@ -2,8 +2,7 @@
 publicly identifies one matching card without moving it — the card stays in
 its zone, and the event reaches every player's log regardless of the zone's
 declared visibility (unlike a movement, which projects through it). Semantics:
-docs/superpowers/specs/2026-07-10-ws5-coup-interactive-windows-design.md,
-"The `reveal` epistemic op".
+library.md "Memory operations" (the `reveal` entry).
 """
 
 from __future__ import annotations

@@ -1,0 +1,1 @@
+reserved_word_zone.cardlang:13:5: error: zone 'state' is a reserved word — it is the phase/game state pronoun (`state.foo`) — pick another name

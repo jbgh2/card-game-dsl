@@ -28,6 +28,20 @@ see roadmap.md).
 `rules.legal_cards` returns a `set`, so the chooser sees candidates in
 hash-dependent order — the per-seed scores vary with `PYTHONHASHSEED`. We capture
 in a `PYTHONHASHSEED=0` subprocess so the goldens are reproducible.
+
+A second SANCTIONED regeneration covers every gather-using golden here
+(schnapsen/french-tarot/skat scores; stud/tichu/cribbage/schnapsen/skat hand
+vectors; tichu scores): the gather (`move all cards to <zone>`) was
+canonicalized to collect zones in sorted-name order instead of declaration
+order (decisions.md, the gather paragraph — declaration order was
+observation-visible and shaped info sets, which the metamorphic suite's
+declaration-reorder transform flagged). The gather stacks cards into the deck
+in collection order, so the next same-seed shuffle permutes differently and
+every subsequent deal moves — a wholesale per-seed shift, not a draw
+divergence. The coup golden did not move (Coup has no gather), and neither did
+bridge/pinochle/big-two (the zones actually non-empty at their gathers collect
+in the same order under both rules). Any diff NOT explained by that
+regeneration is a real divergence.
 """
 
 from __future__ import annotations
@@ -509,9 +523,9 @@ def test_skat_migration_preserves_per_hand_scores() -> None:
 # discriminator the game emits: the full reveal sequence (every influence
 # flip, in order, with its character — where every elimination happens) plus
 # final coins, the alive vector, and the winner, over 40 seeds under
-# PYTHONHASHSEED=0 (the WS5 behaviour-change re-pin, signed off in
-# docs/superpowers/specs/2026-07-10-ws5-coup-interactive-windows-design.md).
-# Regenerate by running _COUP_CAPTURE exactly as _capture_coup does.
+# PYTHONHASHSEED=0 (the WS5 behaviour-change re-pin — see kernel-migration.md,
+# Workstream 5). Regenerate by running _COUP_CAPTURE exactly as _capture_coup
+# does.
 _COUP_CAPTURE = """
 import json, random, sys
 from pathlib import Path

@@ -1,0 +1,19 @@
+// Wall: resolve.py's Movement `dest_each` check. The executor keys a
+// `to each` family by BARE name per seat, so a subscripted destination like
+// `hand[0]` targets one zone, not a family — rejected rather than silently
+// dealing into a single player's hand under `each`.
+game DealToEachSubscripted {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+  }
+  state { score[player] : Integer = 0 }
+  phase play {
+    deal 3 cards from deck to each hand[0]
+  }
+  winner: highest score
+}

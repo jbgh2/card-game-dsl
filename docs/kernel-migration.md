@@ -4,9 +4,7 @@ This is the execution brief for removing the per-game **concrete runtime
 mechanics** and expressing their decision logic in the DSL itself, on the
 interactive-decision kernel. The design it executes is settled in
 [decisions.md](decisions.md), "Interactive decisions: a kernel and an in-DSL
-standard library", with the full rationale in
-[superpowers/specs/2026-06-06-interaction-decision-sublanguage-design.md](superpowers/specs/2026-06-06-interaction-decision-sublanguage-design.md).
-The discipline (red→green, IR goldens, exhaustiveness) is in
+standard library". The discipline (red→green, IR goldens, exhaustiveness) is in
 [building.md](building.md). This file is the *order of operations* and the
 per-game scope.
 
@@ -478,8 +476,7 @@ deal-n + chosen-n + shuffle. Setup and every deck draw deal off the top
 it the whole `instantiate` construct (zero mechanics remained); the
 reveal-sequence golden (`tests/golden/coup_scores.json`: every influence
 flip in order, final coins, alive, winner, 40 seeds) pins the interactive
-scope, re-pinned at the WS5 sign-off
-(`docs/superpowers/specs/2026-07-10-ws5-coup-interactive-windows-design.md`).
+scope, re-pinned at the WS5 sign-off.
 
 **The Tichu half — done at real-rules fidelity.** The call rules were
 verified against the publisher's English rules (Pagat's commercial-games

@@ -50,7 +50,7 @@ registry:   the directory itself. `test_every_cardlang_case_has_a_matching_expec
             `tests/openspiel_ready/test_coverage.py`): an orphan `.cardlang`
             with no golden, or a golden with no source, fails the harness
             rather than being silently skipped or silently stale.
-covered:    14 cases, each independently verified (by reading the produced
+covered:    21 cases, each independently verified (by reading the produced
             diagnostic while authoring it, not just observing a raise) to
             fail for its stated reason: unknown library zone type,
             `active_rules:` naming an undefined rule, `transition_to:` a
@@ -60,27 +60,39 @@ covered:    14 cases, each independently verified (by reading the produced
             non-collection, a per-movement `visibility =` override, a
             missing `max_length:`, an over-capacity deck plan (8-player
             deal exceeding a 52-card deck), an integer `choose` with no
-            static ceiling, a wrong-typed stdlib call argument, and a
-            struct literal missing a declared field.
+            static ceiling, a wrong-typed stdlib call argument, a struct
+            literal missing a declared field, a raw grammar/syntax error
+            (parse.py's `UnexpectedInput` wrapping, over an unclosed `zones
+            {` block), `legal_moves:` naming an unknown move type,
+            `rule.constrains:` naming an unknown move type, a reserved-word
+            collision (a zone declared `state`), a procedure body binder
+            shadowing its own parameter's name (the one hygiene wall
+            expansion cannot replace by construction — cardlang/expand.py's
+            docstring), a `deal … to each` destination named as a
+            subscripted zone rather than the bare family, and a game
+            declaring neither `winner:` nor `loser:`.
 sampled:    the wall-class population itself — every diagnostic emission
             site across `cardlang/resolve.py`, `cardlang/typecheck.py`, and
             `cardlang/deckcheck.py` — is open and growing as the language
             evolves (a new checker rule is a new wall), not a closed
-            registry this module cross-products against. The 14 cases are
+            registry this module cross-products against. The 21 cases are
             representative wall classes, one seed per class named above;
             they are not exhaustive over every diagnostic call site in the
             front end (those stay covered, per-wall, by the scattered
             `DiagnosticError` tests this corpus does not replace).
-residual:   wall classes not yet mirrored into this corpus as of this
-            writing (each already has inline `DiagnosticError` coverage
-            elsewhere — the gap is only "not yet a pinned-message case
-            here", never "untested"): raw grammar/syntax errors (parse.py's
-            `UnexpectedInput` wrapping), `legal_moves:`/`rule.constrains:`
-            naming an unknown move type, reserved-word collisions, and the
-            procedure-hygiene walls (`tests/test_procedures.py`). Per the
-            rule recorded in docs/building.md, a newly written wall ships
-            its own rejection-corpus case going forward rather than
-            growing this residual list.
+residual:   none named as of this writing. The four wall classes recorded
+            residual as of the previous writing (raw grammar/syntax errors,
+            `legal_moves:`/`rule.constrains:` naming an unknown move type,
+            reserved-word collisions, and the procedure-hygiene binder-shadow
+            wall) are now mirrored above; the procedure-hygiene walls beyond
+            the one binder-shadow case stay uncovered here by design, not by
+            oversight — `cardlang/expand.py`'s docstring and
+            `tests/test_procedures.py`'s own completeness ledger both state
+            hygiene is closed BY CONSTRUCTION with exactly one remaining
+            wall, which is the case mirrored here. Per the rule recorded in
+            docs/building.md, a newly written wall ships its own
+            rejection-corpus case going forward rather than growing a
+            residual list.
 """
 
 from __future__ import annotations
@@ -103,7 +115,7 @@ BLESS = os.environ.get("REJECTIONS_BLESS") == "1"
 def _render(exc: DiagnosticError) -> str:
     """The stable rendering: `cardlang/cli.py`'s own format, reused so the
     corpus pins exactly what `cardlang <file>` prints to a designer — the
-    primary diagnostic line, then one line per attached note. The 14 current
+    primary diagnostic line, then one line per attached note. The 21 current
     cases each raise a single diagnostic, so the notes branch mirrors
     cli.py's behavior but is not itself exercised by this corpus; a future
     case built from a multi-error stage (deckcheck/resolve/typecheck's
