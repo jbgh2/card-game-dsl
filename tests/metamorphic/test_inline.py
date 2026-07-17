@@ -10,7 +10,11 @@ domain:     `docs/games/coup.cardlang` — the only corpus game using
 registry:   docs/games/*.cardlang (`pairing.CORPUS`), filtered to games
             containing the literal token `procedure` or `run` — today,
             exactly one.
-covered:    the one witness game, every seed in `pairing.SEEDS`.
+covered:    the one witness game, every seed in `pairing.SEEDS`, under the
+            DESCENDING chooser (`reverse=True` — "Why reverse=True" below);
+            `test_procedure_bodies_are_exercised` proves all three
+            procedures actually execute, not just that the (possibly
+            vacuous) comparison passes.
 sampled:    seeds and decision depth only (CI budget) — pairing.py.
 residual:   inline.py's splice is deliberately NOT a general procedure
             inliner (its module docstring lists exactly what Coup's shape
@@ -28,6 +32,27 @@ This also subsumes the plan's stated acceptance criterion for T3
 existing single-game regression keeps its own narrower, AST-focused
 assertions; this module is the general form for the one game exercising the
 construct today.
+
+Why `reverse=True`. Coup's default (ascending) greedy chooser is a genuine
+COVERAGE TRAP, not merely a slow path: every response window offers
+`[challenge, allow]` and "allow" sorts first, so the ascending policy can
+never choose "challenge" — `challenged` never becomes true, at ANY seed —
+which means `prove_claim` and `lose_influence` (2 of the 3 procedures this
+transform exists to test) are NEVER reached, and the pairing test's PASS
+would be checking almost nothing (the "Vacuously green" defect class,
+decisions.md "Closed-domain completeness"). Worse: "exchange" (which moves
+no coins) also sorts before every coin-granting move, so play never leaves
+a frozen `exchange`/"allow" loop and the greedy line never naturally
+terminates either. The DESCENDING policy (`reverse=True`,
+`pairing.run_variant`) is an equally deterministic, equally
+hashseed-independent chooser — just one that happens to reach every
+procedure body and terminate naturally for Coup. `test_procedure_bodies_are_
+exercised` proves this is not merely assumed: it inspects the trace for
+direct evidence each of the three procedures ran. Confirmed with a live
+mutation (not kept in the tree): forcing `lose_influence`'s bound argument
+to `actor` regardless of the real call-site argument made
+`test_spliced_game_plays_out_identically` fail at every seed with a located
+trace divergence — proof this suite's pass is not vacuous.
 """
 
 from __future__ import annotations
@@ -98,7 +123,30 @@ def test_splice_removes_every_procedure_construct(path: Path) -> None:
 
 @pytest.mark.parametrize("path", PROCEDURE_GAMES, ids=lambda p: p.name)
 @pytest.mark.parametrize("seed", pairing.SEEDS)
+def test_procedure_bodies_are_exercised(path: Path, seed: int) -> None:
+    """The second vacuity guard (module docstring, "Why reverse=True"): a
+    passing pairing comparison proves nothing if the procedure bodies never
+    actually ran during the playout. Every corpus procedure leaves direct
+    trace evidence when it runs: `challenge_window` polls `[challenge,
+    allow]` (a "challenge" `announce`/`chose`), `prove_claim` reveals a card
+    (a "reveal" event), and `lose_influence` flips a card into `revealed[p]`
+    (a "move" event with that destination). All three must appear — this is
+    Coup-specific (the module docstring's citation for WHY the descending
+    chooser is needed), not a general property inline.py could assert for
+    an arbitrary procedure-using game."""
+    a, _ = pairing.run_pair_source(path, splice_procedures, seed, reverse=True)
+    events = [e for log in a.events.values() for e in log]
+    assert any("challenge" in str(e) for e in events), "challenge_window never contested"
+    assert any(e[0] == "reveal" for e in events), "prove_claim never revealed a card"
+    assert any(
+        e[0] == "move" and (str(e[1]).startswith("revealed") or str(e[3]).startswith("revealed"))
+        for e in events
+    ), "lose_influence never flipped a card into revealed[]"
+
+
+@pytest.mark.parametrize("path", PROCEDURE_GAMES, ids=lambda p: p.name)
+@pytest.mark.parametrize("seed", pairing.SEEDS)
 def test_spliced_game_plays_out_identically(path: Path, seed: int) -> None:
-    a, b = pairing.run_pair_source(path, splice_procedures, seed)
+    a, b = pairing.run_pair_source(path, splice_procedures, seed, reverse=True)
     witness = pairing.compare_traces(a, b)  # nothing renamed: identity hook
     assert witness is None, f"{path} seed={seed}: {witness}"

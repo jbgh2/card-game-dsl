@@ -121,7 +121,7 @@ def _sort_key(candidate: Any) -> str:
     return repr(render(candidate))
 
 
-def _capped_sorted_chooser(cap: int) -> Chooser:
+def _capped_sorted_chooser(cap: int, *, reverse: bool = False) -> Chooser:
     calls = 0
 
     def choose(player: Player, candidates: list[Any], k: int) -> list[Any]:
@@ -129,7 +129,7 @@ def _capped_sorted_chooser(cap: int) -> Chooser:
         calls += 1
         if calls > cap:
             raise _Cutoff()
-        ordered = sorted(candidates, key=_sort_key)
+        ordered = sorted(candidates, key=_sort_key, reverse=reverse)
         return ordered[:k]
 
     return choose
@@ -169,16 +169,25 @@ def checked_variant(game: n.Game, *, label: str) -> n.Game:
         ) from e
 
 
-def run_variant(game: n.Game, seed: int, *, step_cap: int = STEP_CAP) -> PlayoutTrace:
+def run_variant(
+    game: n.Game, seed: int, *, step_cap: int = STEP_CAP, reverse: bool = False
+) -> PlayoutTrace:
     """Play one CHECKED game out deterministically (the sorted greedy
     chooser, capped at `step_cap` decisions), recording every player's
-    observation log."""
+    observation log. `reverse` picks the DESCENDING-sorted candidate instead
+    of the ascending one at every decision — same determinism and freedom
+    from `PYTHONHASHSEED` (module docstring), a different deterministic
+    policy. Exists because the ascending policy is a genuine coverage trap
+    for at least one corpus game (T3/Coup: "allow" always sorts before
+    "challenge", so the ascending policy can never reach a challenged
+    branch, no matter the seed) — see `test_inline.py` for where this
+    matters and why."""
     logs: dict[int, list[Event]] = {p: [] for p in range(game.players.low)}
 
     def observe(player: Player, event: Event) -> None:
         logs[player].append(event)
 
-    chooser = _capped_sorted_chooser(step_cap)
+    chooser = _capped_sorted_chooser(step_cap, reverse=reverse)
     try:
         result = play_game(game, random.Random(seed), chooser=chooser, observer=observe)
     except _Cutoff:
@@ -196,6 +205,7 @@ def run_pair_source(
     seed: int,
     *,
     step_cap: int = STEP_CAP,
+    reverse: bool = False,
 ) -> tuple[PlayoutTrace, PlayoutTrace]:
     """Like `run_pair`, but for a transform that operates on SOURCE TEXT
     rather than the parsed tree (T3's source-level splice, which must not
@@ -213,13 +223,18 @@ def run_pair_source(
         label=f"{path.name} (transformed)",
     )
     return (
-        run_variant(base, seed, step_cap=step_cap),
-        run_variant(transformed, seed, step_cap=step_cap),
+        run_variant(base, seed, step_cap=step_cap, reverse=reverse),
+        run_variant(transformed, seed, step_cap=step_cap, reverse=reverse),
     )
 
 
 def run_pair(
-    path: Path, transform: Transform, seed: int, *, step_cap: int = STEP_CAP
+    path: Path,
+    transform: Transform,
+    seed: int,
+    *,
+    step_cap: int = STEP_CAP,
+    reverse: bool = False,
 ) -> tuple[PlayoutTrace, PlayoutTrace]:
     """Parse `path` once, check the untransformed and `transform`-ed trees
     (each through its own single pipeline pass — see the module docstring on
@@ -228,8 +243,8 @@ def run_pair(
     base = checked_variant(parsed, label=f"{path.name} (untransformed)")
     transformed = checked_variant(transform(parsed), label=f"{path.name} (transformed)")
     return (
-        run_variant(base, seed, step_cap=step_cap),
-        run_variant(transformed, seed, step_cap=step_cap),
+        run_variant(base, seed, step_cap=step_cap, reverse=reverse),
+        run_variant(transformed, seed, step_cap=step_cap, reverse=reverse),
     )
 
 
