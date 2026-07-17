@@ -13,7 +13,12 @@ domain:     corpus games (`pairing.CORPUS`) x seeds (`pairing.SEEDS`) for the
 registry:   docs/games/*.cardlang (`pairing.CORPUS`); tests/rejections/ (the
             same registry `tests/test_rejections.py` glob-pins).
 covered:    every corpus game (exhaustive), every seed in `pairing.SEEDS`;
-            every rejection-corpus case (exhaustive, `REJECTIONS_DIR.glob`).
+            every rejection-corpus case that PARSES (exhaustive,
+            `REJECTIONS_DIR.glob` minus `_PARSE_LEVEL_CASES` — a parse-level
+            case has no declaration list to permute, so it is outside the
+            transform's domain by construction; the membership is pinned in
+            both directions, and the case's diagnostic stays pinned by
+            tests/test_rejections.py).
             Two structural PRECONDITIONS reorder.py's soundness argument
             depends on are pinned as their own tests, not assumed:
             `test_every_game_has_exactly_one_deck_zone` (zone order is
@@ -56,6 +61,16 @@ from tests.metamorphic.reorder import plan_for, reorder_declarations
 
 REJECTIONS_DIR = Path(__file__).parent.parent / "rejections"
 REJECTION_CASES = sorted(p.stem for p in REJECTIONS_DIR.glob("*.cardlang"))
+
+# Rejection-corpus cases whose rejection happens AT PARSE. A parse-level case
+# has no tree, so declaration reorder is inapplicable to it by construction —
+# it is outside this transform's domain, and its diagnostic is pinned by
+# tests/test_rejections.py instead. The set is pinned BOTH ways in
+# test_reorder_preserves_rejection_diagnostics: a case here that starts
+# parsing, or a case not here that stops parsing, fails loudly — the
+# alternative (skip on parse failure) would let a parse regression silently
+# shrink the diagnostic property's domain.
+_PARSE_LEVEL_CASES = frozenset({"syntax_error"})
 
 # The corpus games with no "gather" movement (`Movement(source=None)`),
 # where `game.zones` IS additionally reordered — hand-checked once (against
@@ -130,7 +145,20 @@ def test_reorder_preserves_rejection_diagnostics(case: str) -> None:
     case's span can legitimately move)."""
     path = REJECTIONS_DIR / f"{case}.cardlang"
     text = path.read_text()
-    parsed = parse_text(text, f"{case}.cardlang")
+    try:
+        parsed = parse_text(text, f"{case}.cardlang")
+    except DiagnosticError:
+        assert case in _PARSE_LEVEL_CASES, (
+            f"{case}: stopped parsing — either a parse regression, or a new "
+            "parse-level rejection case; if the latter, add it to "
+            "_PARSE_LEVEL_CASES (its diagnostic stays pinned by "
+            "tests/test_rejections.py)."
+        )
+        return
+    assert case not in _PARSE_LEVEL_CASES, (
+        f"{case}: is registered parse-level but now parses — remove it from "
+        "_PARSE_LEVEL_CASES so the reorder property covers it again."
+    )
 
     with pytest.raises(DiagnosticError) as before:
         _check(parsed)
