@@ -158,6 +158,10 @@ _PRIMITIVE_COUPLED_NAMES: dict[str, frozenset[str]] = {
         }
     ),
     "tichu.cardlang": frozenset({"captured", "out_first", "out_second"}),  # tichu.py:65-145
+    "gin-rummy.cardlang": frozenset(  # gin.py:_hand (taken), gin_shown_points,
+        # _extends_meld's slot names (meldA/B/C); `hand` is a global exclusion.
+        {"taken", "shown_deadwood", "meldA", "meldB", "meldC"}
+    ),
     # president.cardlang's game-local primitive (president.py) reads only
     # `hand` — already a global exclusion; no additional row needed.
 }
@@ -279,6 +283,14 @@ def _rewrite(node: object, name_map: dict[str, str]) -> object:
         new = name_map.get(node.target)
         if new is not None:
             node = replace(node, target=new)
+    elif isinstance(node, n.Turns):
+        # `turns … again <var>` names its go-again state variable as a bare
+        # string (the grammar takes a NAME there) — the `Winner.target`
+        # class, one construct over.
+        if node.again is not None:
+            new = name_map.get(node.again)
+            if new is not None:
+                node = replace(node, again=new)
     elif isinstance(node, n.Round):
         # The climbing/trick forms name their source/play zones as bare
         # strings (`source_zone`/`play_zone`), not a `NameRef` — the one
