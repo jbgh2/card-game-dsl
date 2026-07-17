@@ -1024,6 +1024,16 @@ it collects every card from all other zones into the named zone. A `Deck`-typed
 zone is initialized at game start holding the deck's cards, so the first
 `before_each` gather is a no-op and the deal is well-defined.
 
+A gather collects zones in **lexicographic zone-name order** — singleton zones
+and indexed families in one sorted namespace, a family's instances in its index
+domain's order (players in seating order, teams in team order). The collection
+order is observable twice over: each non-empty zone emits its own movement
+event (shaping every player's observation log, hence information sets), and the
+collected cards stack into the destination in collection order (feeding the
+next same-seed shuffle). Making the order canonical is what keeps the `zones { }`
+block a pure declaration: its order is presentational everywhere in the
+language, and reordering it never changes a playout.
+
 ## Mutation semantics
 
 **Only a declared state variable can be written.** `x := …`, `x += …`, and `rotate x
