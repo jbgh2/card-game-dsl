@@ -198,6 +198,10 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.gin import gin_deadwood
 
             return gin_deadwood(ctx, args[0])
+        case "gin_can_knock":
+            from cardlang.runtime.gin import gin_can_knock
+
+            return gin_can_knock(ctx, args[0])
         case "gin_knock_ok":
             from cardlang.runtime.gin import gin_knock_ok
 
@@ -214,6 +218,10 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.gin import gin_can_declare
 
             return gin_can_declare(ctx, args[0])
+        case "gin_can_declare_free":
+            from cardlang.runtime.gin import gin_can_declare_free
+
+            return gin_can_declare_free(ctx, args[0])
         case "gin_flat_points":
             from cardlang.runtime.gin import gin_flat_points
 

@@ -175,12 +175,27 @@ GIN_MELD_CODEC = _GinMeldCodec()
 
 
 def _hand(ctx: Ctx, player: Player) -> list[Card]:
-    return list(ctx.rs.zones.instance("hand", player).cards)
+    """The player's full private holding: `hand[p]` plus the `taken[p]`
+    staging zone (the just-taken discard, held apart so the "must discard a
+    different card" rule is structural — the discard/knock candidate pool is
+    `hand` alone, but deadwood counts everything held)."""
+    held = list(ctx.rs.zones.instance("hand", player).cards)
+    held.extend(ctx.rs.zones.instance("taken", player).cards)
+    return held
 
 
 def gin_deadwood(ctx: Ctx, player: Player) -> int:
     """The optimal partition's deadwood of `hand[player]`."""
     return minimal_deadwood(_hand(ctx, player))
+
+
+def gin_can_knock(ctx: Ctx, player: Player) -> bool:
+    """Knock availability — the `end_knock` announce guard: SOME held card can
+    be discarded leaving a <= 10 arrangement. Exactly `any c: gin_knock_ok`,
+    so the announce is offered iff its chosen movement will have a candidate
+    (the no-implicit-actions pairing)."""
+    held = _hand(ctx, player)
+    return any(minimal_deadwood([c for c in held if c != d]) <= 10 for d in held)
 
 
 def gin_knock_ok(ctx: Ctx, player: Player, discard: Card) -> bool:
@@ -224,6 +239,14 @@ def gin_can_declare(ctx: Ctx, player: Player) -> bool:
         if minimal_deadwood(rest) <= 10:
             return True
     return False
+
+
+def gin_can_declare_free(ctx: Ctx, player: Player) -> bool:
+    """The defender's declare guard: any valid meld exists in the hand — no
+    knock budget (a defender may arrange however they like; suboptimal is
+    rule-legal). The no-implicit-actions pairing for `declare_meld_d`."""
+    hand = _hand(ctx, player)
+    return any(valid_meld([hand[i] for i in meld]) for meld in _candidate_melds(hand))
 
 
 def gin_flat_points(ctx: Ctx, player: Player) -> int:

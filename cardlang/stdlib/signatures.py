@@ -101,6 +101,7 @@ CALL_SIGS: dict[str, Sig] = {
     "cribbage_crib_value": Sig((), TInteger()),  # Cribbage: the crib's show score
     "gin_card_points": Sig((TCard(),), TInteger()),  # Gin: A=1, pips, face=10
     "gin_deadwood": Sig((TPlayer(),), TInteger()),  # Gin: optimal-partition deadwood of the hand
+    "gin_can_knock": Sig((TPlayer(),), TBoolean()),  # Gin: some discard leaves <= 10 (the announce guard)
     "gin_knock_ok": Sig((TPlayer(), TCard()), TBoolean()),  # Gin: knock legality after this discard
     "gin_valid_meld": Sig(
         (TCollection(TCard()),), TBoolean()
@@ -109,6 +110,9 @@ CALL_SIGS: dict[str, Sig] = {
         (TPlayer(), TCollection(TCard())), TBoolean()
     ),  # Gin: valid meld AND the rest still arranges to <= 10 (the knocker's guard)
     "gin_can_declare": Sig((TPlayer(),), TBoolean()),  # Gin: some declarable meld exists
+    "gin_can_declare_free": Sig(
+        (TPlayer(),), TBoolean()
+    ),  # Gin: some valid meld exists (defender — no knock budget)
     "gin_flat_points": Sig((TPlayer(),), TInteger()),  # Gin: the hand counted as all-deadwood
     "gin_shown_points": Sig((TPlayer(),), TInteger()),  # Gin: shown_deadwood[p]'s point count
     "gin_lay_ok_a": Sig((TCard(), TPlayer()), TBoolean()),  # Gin: card extends knocker's meld A
