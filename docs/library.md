@@ -465,7 +465,7 @@ These get the corpus's zone declarations down to one line each, with
 no loss of meaning. A game's `zones { }` block reads like the rulebook
 would describe it:
 
-```cardlang-fragment
+```cardlang-fragment library_zones
 zones {
   deck             : Deck
   hand[player]     : Hand<player>

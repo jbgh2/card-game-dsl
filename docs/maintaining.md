@@ -116,19 +116,23 @@ keep the DSL in lockstep with the language:
 
 - ` ```cardlang ` — a complete game: pipeline-checked verbatim
   (`cardlang.pipeline.check_dsl`).
-- ` ```cardlang-fragment ` — a snippet (a rule, a phase, statements, a
-  `zones {}` block) that isn't a whole game. Checked by embedding it in a
-  minimal game via a registered wrapper recipe (`tests/test_doc_snippets.py`,
-  `WRAPPER_RECIPES`); every `cardlang-fragment` block must have one.
+- ` ```cardlang-fragment <label> ` — a snippet (a rule, a phase, statements, a
+  `zones {}` block) that isn't a whole game. The fence carries a **recipe
+  label** as its second word; the block is checked by embedding it in a minimal
+  game via the wrapper registered under that label
+  (`tests/test_doc_snippets.py`, `WRAPPER_RECIPES`). The label rides with the
+  block, so moving it or editing prose around it never touches the registry —
+  only adding, removing, or renaming a checked fragment does. Every
+  `cardlang-fragment` block needs a unique label with a registered recipe.
 - ` ```cardlang-bad ` — a complete game the prose shows as a counterexample:
   proven to be *rejected*, verbatim, by the pipeline. Use this only when the
   counterexample is already whole-game shaped, exactly like `cardlang` — a
   fragment checked raw here would "reject" merely for lacking an enclosing
   `game {}`, proving nothing about the mistake it's meant to demonstrate.
-- ` ```cardlang-bad-fragment ` — a snippet-shaped counterexample: the
-  `cardlang-fragment` treatment for `cardlang-bad`. Wrapped through the same
-  registered recipe (`WRAPPER_RECIPES`, keyed identically by
-  `(doc_name, start_line)`), then proven *rejected*. Because a rejection
+- ` ```cardlang-bad-fragment <label> ` — a snippet-shaped counterexample: the
+  `cardlang-fragment` treatment for `cardlang-bad`. Wrapped through the recipe
+  registered under its label (`WRAPPER_RECIPES`, the same label space as
+  `cardlang-fragment`), then proven *rejected*. Because a rejection
   through a broken wrapper — or through a fragment that merely isn't a whole
   game — would prove nothing about the snippet's own content, every
   `cardlang-bad-fragment` block also has a benign filler of the same shape
