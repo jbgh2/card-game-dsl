@@ -1,14 +1,27 @@
 # The metamorphic suite: transformations the spec says are meaningless
 
-**Status: proposal.** This is the implementation plan for the metamorphic
-testing entry in roadmap.md ("Explicitly deferred") — checking the runtime
-against itself by pinning equivalences the spec already asserts implicitly. A
-metamorphic check needs no second implementation: transform a game in a way
-the spec says cannot change its meaning, replay both variants under the same
-seed and the same scripted decisions, and require the traces to agree. A
-failure is almost always a real bug — a meaning the pipeline attached to
-something the spec says is meaningless: a name's spelling, declaration order,
-a suit's identity, the `run`/inline distinction.
+**Status: implemented (T1/T2/T3/T5); T4 deferred.** This was the
+implementation plan for the metamorphic testing entry in roadmap.md
+("Explicitly deferred"); the suite now lives at `tests/metamorphic/` — see
+roadmap.md's "Semantic invariance" bullet for landed status, the two real
+findings the suite surfaced (both real `cardlang/` behaviors, not fixed by
+this suite), and the reasoning for deferring T4 (suit relabeling cannot be a
+pure `Game -> Game` AST transform — a suit's card membership lives in a
+Python registry the parsed tree never carries). This file stays as the
+original design record; the plan below described the goal correctly for the
+three transforms that landed as designed (T1, T2, T5) and the one landed
+with a narrower domain than proposed (T3, single-witness — decisions.md
+"Named procedures" is itself corpus-first, single-witness).
+
+This is the implementation plan for the metamorphic testing entry in
+roadmap.md ("Explicitly deferred") — checking the runtime against itself by
+pinning equivalences the spec already asserts implicitly. A metamorphic
+check needs no second implementation: transform a game in a way the spec
+says cannot change its meaning, replay both variants under the same seed and
+the same scripted decisions, and require the traces to agree. A failure is
+almost always a real bug — a meaning the pipeline attached to something the
+spec says is meaningless: a name's spelling, declaration order, a suit's
+identity, the `run`/inline distinction.
 
 ## Why this, and why before fuzzing
 
