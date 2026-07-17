@@ -422,22 +422,21 @@ Things we have noted but consciously not designed yet:
   [design-notes/metamorphic-suite.md](design-notes/metamorphic-suite.md))
   runs T1 (the pairing harness), T2 (α-rename), T3 (inline-vs-`run`), and T5
   (declaration reorder) over the corpus, each with its own completeness
-  ledger. Landing them surfaced two real findings, neither fixed here
-  (out of scope for the suite itself; each is a `cardlang/` behavior, not a
-  metamorphic-suite defect): (1) several kernel and per-game runtime
-  primitives (`cardlang/runtime/rules.py::legal_cards`,
+  ledger. Landing them surfaced two real findings in `cardlang/` behavior
+  (out of scope for the suite itself). One remains recorded here: several
+  kernel and per-game runtime primitives
+  (`cardlang/runtime/rules.py::legal_cards`,
   `cardlang/runtime/mechanics.py::param_domain`, eleven
   `cardlang/runtime/<game>.py` modules) read a zone or state variable by a
   hardcoded Python string literal rather than deriving it from the AST — so
   a corpus game's zone/state names are not actually free to rename despite
   nothing in the grammar or type checker saying so
   (`tests/metamorphic/rename.py`'s `_PRIMITIVE_COUPLED_NAMES`, cited
-  file:line); (2) `cardlang/runtime/execute.py::_gather` ("move all cards to
-  `<zone>`") iterates `ZoneStore`'s dicts in zone-DECLARATION order, so a
-  gather's observable "move"-event sequence is a function of zone
-  declaration order — real declaration-order sensitivity decisions.md never
-  documents (`tests/metamorphic/reorder.py`'s `_has_gather`, derived
-  structurally, not hand-listed).
+  file:line). The other — a gather's event order tracking zone DECLARATION
+  order — is resolved: `execute.py::_gather` collects in canonical
+  sorted-name order (decisions.md, "Loop lifecycle: `before_each` and
+  `after_each`"), and the reorder transform's zones axis now covers every
+  corpus game.
 
   **T4 (suit relabeling) is explicitly deferred**, not attempted: unlike the
   other three, it cannot be a pure `Game -> Game` AST transform — a suit's
