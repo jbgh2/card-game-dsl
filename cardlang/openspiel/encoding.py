@@ -178,6 +178,7 @@ class ActionSpace:
         combos: list[Any] = []
         mt_index = {m.name: m for m in game.move_types}
         climb_engines: list[str] = []
+        joint_engines: list[str | None] = []
         # The move-parameter domains, sourced from the game AST. Suits come
         # from `runtime.values.deck_suits` — the deck's actual card suits,
         # never the bare module constant or the declared `Deck.suits` field —
@@ -223,6 +224,19 @@ class ActionSpace:
             elif isinstance(node, n.Round) and node.combos_fn is not None:
                 if node.combos_fn not in climb_engines:
                     climb_engines.append(node.combos_fn)
+            elif isinstance(node, n.Movement) and node.joint:
+                # A joint selection's candidates are card SUBSETS — the combo
+                # block's currency, exactly like climb plays. The subset
+                # universe is not statically derivable from the inline
+                # predicate, so the codec comes from a registry keyed by the
+                # predicate's root call (the climb-engine pattern one
+                # construct over): `gin_arrange_ok(...)` → the gin meld
+                # codec. A predicate whose root is not a registered call is
+                # walled below — loudly, not silently absent from the space.
+                root = node.filter
+                fn = root.func if isinstance(root, n.Call) else None
+                if fn not in joint_engines:
+                    joint_engines.append(fn)
             elif isinstance(node, n.Round) and node.move_types is not None:
                 for mt_name in node.move_types:
                     mt = mt_index[mt_name]
@@ -246,6 +260,42 @@ class ActionSpace:
                     universe,
                     key=lambda p: (p.size, p.kind, sorted(card_to_action(c) for c in p.cards)),
                 )
+        if joint_engines:
+            # Corpus-first walls, both loud (roadmap.md records the deferrals):
+            # the combo block serves one subset universe per game, so a game
+            # mixing climb and joint selections — or two joint predicates with
+            # different universes — needs a codec-composition design no game
+            # has forced yet.
+            if climb_engines:
+                raise NotImplementedError(
+                    "a game with BOTH a climb round and joint selections needs "
+                    "a composed combo block — not implemented (no corpus user); "
+                    "recorded in roadmap.md"
+                )
+            fns = sorted({f for f in joint_engines if f is not None})
+            if None in joint_engines or not fns:
+                raise NotImplementedError(
+                    "a joint selection's action encoding needs its subset "
+                    "universe: root the `where jointly` predicate in a "
+                    "registered call (the climb-engine pattern) — an inline "
+                    "predicate has no registered codec; recorded in roadmap.md"
+                )
+            codecs = {f: stdlib.joint_codec_function(f) for f in fns}
+            missing = sorted(f for f, c in codecs.items() if c is None)
+            if missing:
+                raise NotImplementedError(
+                    f"no subset codec registered for joint predicate root(s) "
+                    f"{missing} — register one in "
+                    f"cardlang.runtime.stdlib.joint_codec_function"
+                )
+            distinct = {id(c) for c in codecs.values()}
+            if len(distinct) > 1:
+                raise NotImplementedError(
+                    "joint predicates with different subset codecs in one "
+                    "game need a composed combo block — not implemented "
+                    "(no corpus user); recorded in roadmap.md"
+                )
+            combo_codec = next(iter(codecs.values()))
         return ActionSpace(
             card_block, sorted(names), vocab, int_ceiling, combos, combo_codec
         )

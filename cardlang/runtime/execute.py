@@ -7,6 +7,7 @@ the (possibly extended) context the caller threads into subsequent statements.
 
 from __future__ import annotations
 
+import itertools
 from typing import Any, Callable, assert_never
 
 from cardlang.ast import nodes as n
@@ -14,7 +15,7 @@ from cardlang.domains import SIMULTANEOUS_ROLES, binds_actor, role_members
 from cardlang.runtime import mechanics, observe
 from cardlang.runtime.evaluate import _elements, evaluate
 from cardlang.runtime.state import Ctx, Zone, _ContinueTo, _ProduceSignal, _SkipHand
-from cardlang.runtime.values import Card, Player
+from cardlang.runtime.values import Card, CardSet, Player
 
 
 def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
@@ -219,10 +220,14 @@ def _gather(stmt: n.Movement, ctx: Ctx) -> None:
 
 
 def _select(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> list[Card]:
-    # The `where` filter is a fully separate branch (not folded into the path
-    # below) so the unfiltered form — every existing movement in the corpus —
-    # runs the exact, untouched code it always has: no shared refactor that
-    # could shift an RNG draw and move an unrelated score golden.
+    # The joint form is its own branch above the per-card filter: the
+    # selection unit is a SUBSET, not a card (decisions.md "Joint-predicate
+    # selection"). The `where` filter is a fully separate branch (not folded
+    # into the path below) so the unfiltered form — every existing movement in
+    # the corpus — runs the exact, untouched code it always has: no shared
+    # refactor that could shift an RNG draw and move an unrelated score golden.
+    if stmt.joint:
+        return _select_joint(source, stmt, ctx, player)
     if stmt.filter is not None:
         return _select_filtered(source, stmt, ctx, player)
     amount = stmt.amount
@@ -231,7 +236,10 @@ def _select(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> list[Ca
     if amount == "one":
         count = 1
     else:
-        assert not isinstance(amount, str)  # parse admits "all" | "one" | Expr; both literals handled above
+        # Backstop: parse admits "all" | "one" | "some" | Expr; the literals
+        # are handled above, and "some" cannot reach here — resolve walls
+        # `some` to `jointly`, and every joint movement took the joint branch.
+        assert not isinstance(amount, str)
         count = int(evaluate(amount, ctx))
     if stmt.mode == "chosen":
         chosen = ctx.chooser(player, list(source.cards), count)
@@ -250,6 +258,60 @@ def _select(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> list[Ca
     taken = source.cards[:count]  # deal off the top
     del source.cards[:count]
     return taken
+
+
+# Joint selection enumerates subsets of the source; beyond this pool size the
+# subset count is no longer a sane decision space (2^16 candidates) — refuse
+# loudly rather than hang. Gin, the anchor, tops out at 11.
+_JOINT_ENUMERATION_BOUND = 16
+
+
+def _select_joint(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> list[Card]:
+    """The `where jointly <pred>` form: ONE decision whose candidates are the
+    source's subsets satisfying the joint predicate (`cards` bound to each
+    candidate set), sized per the amount — `some` is any non-empty size, an
+    expression is exactly that size, `one`/`all` degenerate to size 1 / the
+    whole source. Enumeration order is deterministic: sizes ascending,
+    `itertools.combinations` in source order — the action-space encoder and
+    the chooser see the same list."""
+    pool = list(source.cards)
+    if len(pool) > _JOINT_ENUMERATION_BOUND:
+        raise RuntimeError(
+            f"joint selection over {len(pool)} cards exceeds the enumeration "
+            f"bound ({_JOINT_ENUMERATION_BOUND} — 2^{len(pool)} subsets); "
+            f"narrow the source pool"
+        )
+    amount = stmt.amount
+    if amount == "some":
+        sizes = range(1, len(pool) + 1)
+    elif amount == "all":
+        sizes = range(len(pool), len(pool) + 1)
+    elif amount == "one":
+        sizes = range(1, 2)
+    else:
+        assert not isinstance(amount, str)  # the string literals are handled above
+        k = int(evaluate(amount, ctx))
+        sizes = range(k, k + 1)
+    assert stmt.filter is not None  # grammar: `jointly` IS a where-clause form
+    candidates: list[CardSet] = [
+        CardSet(subset)
+        for size in sizes
+        for subset in itertools.combinations(pool, size)
+        if bool(evaluate(stmt.filter, ctx.with_local("cards", list(subset))))
+    ]
+    if not candidates:
+        # No implicit skip (decisions.md "No implicit actions"): a decision
+        # point must have a candidate — guard the movement so it is only
+        # reached when a satisfying subset exists.
+        raise RuntimeError(
+            "joint selection: no subset of the source satisfies the "
+            "predicate — guard the movement (`if <exists> { … }`) so it is "
+            "only reached when one exists"
+        )
+    chosen = ctx.chooser(player, candidates, 1)[0]
+    for card in chosen.cards:
+        source.remove(card)
+    return list(chosen.cards)
 
 
 def _select_filtered(
