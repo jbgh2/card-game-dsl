@@ -392,6 +392,44 @@ def test_deckcheck_credits_a_some_return_as_one_card_not_a_refill() -> None:
     assert "deck" in e.value.diagnostic.message.lower()
 
 
+def test_joint_flag_survives_into_the_ir() -> None:
+    # Codex P2 on #67: the movement emitter dropped `joint`, so a subset
+    # decision binding `cards` was IR-indistinguishable from a per-card
+    # filter binding `card`. A mechanical sweep confirmed `joint` was the
+    # only dropped field across the Stmt union; this pins the fixed cell.
+    from cardlang.ir import emit
+
+    game = check_dsl(
+        _game(
+            "  phase p { as dealer {\n"
+            "    move chosen some cards from hand[dealer]\n"
+            f"         where jointly {JOINT_PRED} to discard\n"
+            "    move chosen one card from hand[dealer]\n"
+            "         where card.suit is hearts to discard\n"
+            "  } }"
+        ),
+        "t.cardlang",
+    )
+    ir = emit(game)
+
+    def movements(node: Any) -> list[dict[str, Any]]:
+        found: list[dict[str, Any]] = []
+        if isinstance(node, dict):
+            if node.get("kind") == "movement":
+                found.append(node)
+            for v in node.values():
+                found.extend(movements(v))
+        elif isinstance(node, list):
+            for v in node:
+                found.extend(movements(v))
+        return found
+
+    filtered = [m for m in movements(ir) if "filter" in m]
+    assert len(filtered) == 2
+    joint_flags = sorted(m.get("joint", False) for m in filtered)
+    assert joint_flags == [False, True]  # the per-card one carries no flag
+
+
 def test_action_space_walls_an_unregistered_joint_predicate() -> None:
     # The OpenSpiel action space needs the joint predicate's subset universe
     # (a registered codec, the climb-engine pattern). An inline predicate has
