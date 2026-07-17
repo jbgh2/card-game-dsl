@@ -31,7 +31,7 @@ turns <binder> from <leader-expr> over <participants-expr>
   (elimination falls out). No `direction` override clause — no corpus user,
   so it is not grammar (surface totality; recorded residual).
 - **Termination.** `until <pred>` is checked at each turn boundary, before
-  the turn is offered. Gin: `state.knocked or number of cards in deck <= 2`.
+  the turn is offered. Gin: `knocked or number of cards in deck <= 2`.
 - **Go-again axis.** `again <state-var>` names a declared Boolean state
   variable. The body's move effects write it (an ordinary fact, written on
   every path); after each turn the form reads it — true means the same
@@ -98,7 +98,7 @@ Rules source: https://www.pagat.com/rummy/ginrummy.html (fetched live).
      dealer is offered; on both passing the non-dealer draws from stock.
      Whoever took a card completes turn one (discard) pre-loop; the `turns`
      loop starts from the other player.
-  3. *Play*: `turns p … until state.knocked or number of cards in deck <= 2`
+  3. *Play*: `turns p … until knocked or number of cards in deck <= 2`
      — draw from stock or take the top discard, then discard or knock. The
      "took the discard → must discard a different card" rule keeps the
      stress branch's proven staging-zone shape (structural enforcement, no
