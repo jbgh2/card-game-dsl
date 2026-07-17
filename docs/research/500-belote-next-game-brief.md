@@ -89,17 +89,44 @@ With a trump suit: **joker (top) > right bower (jack of trump) > left bower
 (other jack of same colour) > A > K > Q > 10 > 9 > …**. The left bower "behave[s]
 in all respects as [a] member of the trump suit" — it changes **effective suit**
 for following, beating, and leading. The trump's same-colour off-suit therefore
-"has no jack". No-trump: all suits rank A(high)→low, **and the joker is a lone
-top trump** — a second special-card wrinkle beyond the bowers.
+"has no jack".
 
-### The hidden-information moment — open misère
+**The joker in No-trump (and misère / open misère) is not simply a lone top
+trump** — it belongs to no suit and carries its own decision and legality
+surface:
+
+- "A contractor who holds the joker can nominate which suit it belongs to. The
+  nomination must be made at the start of play, before the lead to the first
+  trick. The joker then counts as the highest card of that suit" — a
+  **pre-play suit-nomination decision node** for the contractor.
+- A non-nominated joker may be *led* with a lead-time suit nomination "which
+  the others must play if they can, provided that this suit has not previously
+  been led"; "once all four suits have been led, it is illegal to lead the
+  joker, except to the last trick."
+- Played to someone else's lead, "you can only play the joker if you have no
+  cards of the suit led" — and in misère "you **must** play the joker if you
+  have no cards of the suit led."
+
+### The hidden-information moments — misère is played three-handed, then (if open) revealed
+
+In **any** misère contract, the contractor plays **alone**:
+
+> "If the contract is Misere or Open Misere, the contractor's partner does not
+> take part in the play, but puts his cards face down on the table."
+
+So tricks are played three-handed for the whole contract, and the partner's
+ten cards sit face down on the table — an **inactive, still-hidden hand** that
+is itself information-set-relevant: every observer's candidate set over the
+live hands must exclude those ten unknown cards without ever learning them.
+
+Then, for open misère only:
 
 > "If the contract is Open Misère, after the first trick has been played, the
 > contractor arranges his cards face up on the table for all to see, and plays
 > the rest of the hand with his cards exposed."
 
-This is a **full common-knowledge reveal** to every observer identically, after
-trick 1. It is *not* unequally observed. See the analysis section.
+The reveal is a **full common-knowledge reveal** to every observer identically,
+after trick 1. It is *not* unequally observed. See the analysis section.
 
 ### Scoring / game end
 
@@ -217,10 +244,15 @@ phase outcome.
 inside the play `round`, then exposed play as ordinary movements. Every observer
 gets `identity` simultaneously. This is the *Coup category* — a common-knowledge
 reveal — which [knowledge-events.md](../open-questions/knowledge-events.md)
-already records as *not* forcing the question. Sketch:
+already records as *not* forcing the question. The three-handed play is the
+existing participants axis (the ring predicate excludes the contractor's
+partner), and the partner's face-down hand never emits at all — it stays at the
+hand zone's default others-projection for the rest of the contract. Sketch:
 
 ```text
-round offering [play_card] from leader over players until <hand empty>
+round offering [play_card] from leader
+      over players where not (is_misere and player is partner_of_declarer)
+      until <hands empty>
       // ... after the first trick resolves:
 if is_open_misere and tricks_played is 1 {
   reveal hand[declarer] to all        // identity to every observer, equally
@@ -280,8 +312,9 @@ boolean function of genuinely face-down cards, then a reveal, and claims may be
 | Misère inverse scoring (declarer wants 0 tricks) | Scoring expression `if declarer_tricks is 0` | None — Hearts' shoot-the-moon precedent |
 | No-trump contract | Follow-class variant (Skat's Null template) | Low |
 | Open-misère exposed play | `reveal(..., all)` + ordinary movement | Low |
+| Misère played three-handed (partner sits out, hand face down) | Participants predicate on the play ring (Getaway/Stud shape) | Low-moderate: the shrunk ring is an existing axis, but the sat-out hand is a **mid-contract inactive face-down hand** — a zone that stays at its hidden projection while its owner takes no turns. Modelable as-is (`hand[partner]` simply never moves or emits), but it is an information-set-relevant object the readiness proofs must cover: every observer's partition must keep those ten cards hidden-but-excluded for the rest of the hand, and trick-winner/lead logic must skip the seat. A new proof wrinkle, not new grammar. |
 | **Bowers: left bower changes effective suit** | **No fit** | **High — and it is Euchre's job.** Contextual rank *and* effective-suit remap keyed to runtime-chosen trump is the unsolved hard axis of [special-cards-declaration](../open-questions/special-cards-declaration.md); Euchre is its designated witness. 500 inherits it in the base rules. |
-| Joker as lone top trump (incl. No-trump) | Contextual top-of-order card | Low-moderate, but compounds the bower work |
+| Joker in No-trump / misère: pre-play suit nomination + lead-time nomination + no-suit legality | Nomination ≈ Skat's `declare_suit` one-draw round; the rest has **no clean fit** | **Moderate-high, previously undercounted.** Three pieces: (i) a contractor-only pre-play decision node ("nominate which suit it belongs to… before the lead to the first trick"); (ii) a *lead-time* nomination when the joker is led un-nominated ("a suit which the others must play if they can, provided that this suit has not previously been led") — a card play carrying a suit parameter, plus led-suit history as state; (iii) follow/lead legality for a card of **no suit** ("only… if you have no cards of the suit led"; *must* play it in misère; illegal to lead once all four suits have been led, except the last trick). (ii)+(iii) are the effective-suit problem again in a second costume — the joker's follow-class is contract- and nomination-dependent — compounding the bower work. |
 
 **Belote (lighter, mostly *precedented*):**
 
@@ -331,6 +364,13 @@ two. Three independent tiebreakers, each supported above:
   which is Euchre's designated witness. Tackling it first inside 500, wrapped in
   a large bid ladder, is the wrong place to solve it. **500 is Euchre's sequel,
   not its predecessor**; it should wait until Euchre settles the bower design.
+- The joker's No-trump/misère behaviour (pre-play nomination decision,
+  lead-time nomination against led-suit history, no-suit follow legality) is
+  the effective-suit problem in a second costume, and misère's three-handed
+  play adds a mid-contract sat-out face-down hand the readiness proofs must
+  cover — both raise 500's cost beyond the first draft of this brief, and
+  neither serves either advertised unblock. The recommendation is unchanged;
+  these corrections only widen Belote's margin.
 
 ### Honest caveat on the whole framing
 
@@ -367,5 +407,7 @@ should not be made on the belief that it is.
    candidate on the high-impact question.
 3. Minor: **_candidates.md #500** flags misère inverse scoring as a "second data
    point beyond Hearts' shoot-the-moon." Accurate — no contradiction, noted for
-   completeness. The joker acting as a lone top trump *including in No-trump* is a
-   small special-card wrinkle not mentioned in the candidate entry.
+   completeness. Two 500 mechanics the candidate entry does not mention at all:
+   the joker's No-trump/misère nomination-and-legality surface, and misère being
+   played three-handed with the partner's hand face down on the table (both
+   quoted in the 500 section above).
