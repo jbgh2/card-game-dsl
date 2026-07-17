@@ -1,0 +1,25 @@
+// Wall: parse.py's `start()` builder. A second `game { }` block used to be
+// silently discarded (the first won); a cardlang source is one game.
+game First {
+  players: 2
+  cards: standard52
+  max_length: 10
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase play {
+    deal 3 cards from deck to each hand
+  }
+  winner: highest score
+}
+
+game Second {
+  players: 2
+  cards: standard52
+  max_length: 10
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase play {
+    deal 3 cards from deck to each hand
+  }
+  winner: highest score
+}

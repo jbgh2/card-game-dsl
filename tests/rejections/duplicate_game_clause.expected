@@ -1,0 +1,1 @@
+duplicate_game_clause.cardlang:8:3: error: a game declares one `players:` — the repeat would silently replace the first; keep one

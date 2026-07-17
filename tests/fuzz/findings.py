@@ -16,9 +16,11 @@ someone fixes the underlying wall without updating this ledger, that test
 starts failing, which is the intended prompt to do the other half of the
 feed-forward rule below.
 
-Two classes, both surfaced so far (only `delete_line` has produced findings
-across the 450-mutant discovery sweep this ledger is built from — 18 corpus
-games x 5 operators x seeds 0..4):
+Two classes (only `delete_line` has produced findings across the 450-mutant
+discovery sweep this ledger is built from — 18 corpus games x 5 operators x
+seeds 0..4; every finding currently recorded is playout-class, the
+wrong-currency entries having been fixed and fed forward to
+`tests/rejections/`):
 
 - `"wrong-currency-crash"`: `run_oracle` (T1) returns `"crash"` — the front
   end let something other than `DiagnosticError` escape `check_dsl`.
@@ -77,24 +79,6 @@ class Finding:
 
 
 KNOWN_FINDINGS: tuple[Finding, ...] = (
-    Finding(
-        slug="missing_cards_declaration",
-        classification="wrong-currency-crash",
-        stage="oracle",
-        exception_type_name="VisitError",
-        message_substring='Error trying to process rule "game"',
-        note=(
-            "Minimal (hand-written, not corpus-derived): a `game { }` block "
-            "missing `cards:`. `cardlang/parse.py`'s `game()` transform "
-            "validates `players is not None and deck is not None` with a "
-            "bare Python `assert` (parse.py ~line 1013) instead of raising "
-            "a `DiagnosticError` naming the missing clause — Lark wraps the "
-            "resulting `AssertionError` in its own `VisitError` before it "
-            "reaches `check_dsl`. Discovered via docs/games/gops.cardlang "
-            "with `delete_line` (seed 0) removing its `cards: standard52` "
-            "line; shrunk by hand to this 6-line standalone repro."
-        ),
-    ),
     Finding(
         slug="cribbage_repeat_until_nonterminate",
         classification="accepted-then-crashes-at-playout",

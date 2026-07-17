@@ -1,6 +1,0 @@
-game X {
-  players: 2
-  direction: clockwise
-  max_length: 1
-  winner: highest x
-}

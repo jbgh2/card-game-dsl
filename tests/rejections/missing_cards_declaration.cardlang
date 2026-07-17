@@ -1,0 +1,12 @@
+// Wall: parse.py's `game()` builder. `cards:` is one of the two clauses the
+// AST makes mandatory (`Game.deck` is non-optional), so the parse builder is
+// the last layer where its absence exists to report. This is the retired
+// fuzz finding of the same slug (tests/fuzz/findings.py's feed-forward
+// rule): discovered as docs/games/gops.cardlang under `delete_line` seed 0,
+// which used to escape as a raw lark VisitError wrapping a bare assert.
+game X {
+  players: 2
+  direction: clockwise
+  max_length: 1
+  winner: highest x
+}
