@@ -12,7 +12,11 @@ reached a natural end within the step budget — see `oracle.py`,
 
 A finding at an `EXCUSED` triple is expected — it is already shrunk,
 classified, and pinned in `findings.KNOWN_FINDINGS` — and does not fail this
-sweep. A finding at ANY OTHER triple is new and fails the sweep with a
+sweep, PROVIDED the live crash matches the recorded finding (same stage,
+exception type, and message substring — `_assert_crash_matches_excused`): a
+corpus or mutator change producing a DIFFERENT crash at an excused triple is
+a new finding wearing an old excuse's key and fails loudly with both crashes
+shown. A finding at ANY OTHER triple is new and fails the sweep with a
 message pointing at `findings.py`'s feed-forward rule: shrink it, classify
 it, add it to the ledger (do not edit `cardlang/` to make it go away — see
 `oracle.py`'s module docstring on why this package makes zero such edits).
@@ -54,8 +58,13 @@ registry:   `mutate.MUTATORS` (closed, pinned by `test_mutate.py`'s own
             by `test_known_findings_directory_matches_ledger` below against
             `known_findings/*.cardlang`).
 covered:    a discovery sweep at authoring time (seeds 0-4, all 18 games, all
-            5 operators — 450 mutants, ~123s) found 6 crashing triples, all
-            under `delete_line`; all 6 are in `EXCUSED`/`KNOWN_FINDINGS`.
+            5 operators — 450 mutants, ~90-125s) found 6 crashing triples,
+            all under `delete_line`; all 6 are in `EXCUSED`/`KNOWN_FINDINGS`.
+            Re-run in full after the chooser was strengthened to the runtime
+            chooser's whole `k <= len(candidates)` contract (it previously
+            checked only the empty-pool special case): identical 6 findings —
+            no mutant at these seeds requests an over-sized pick from a
+            non-empty pool within the step budget.
             `MUTATION_SEEDS = (0, 2)` was chosen specifically because it
             covers 5 of those 6 triples (`getaway_no_legal_play...` needed
             seed 4 and is validated only by the frozen pinned test, not by
@@ -125,9 +134,56 @@ def _new_finding_message(
     )
 
 
+def _finding_by_slug(slug: str) -> Finding:
+    # `test_excused_table_targets_known_findings` pins that every EXCUSED
+    # slug resolves; this lookup is its backstop at use time.
+    matches = [f for f in KNOWN_FINDINGS if f.slug == slug]
+    assert matches, f"EXCUSED names unknown finding {slug!r}"
+    return matches[0]
+
+
+def _assert_crash_matches_excused(
+    finding: Finding,
+    stage: str,
+    exc: BaseException,
+    game_path: Path,
+    operator: str,
+    seed: int,
+) -> None:
+    """An excused triple is only excused for the SPECIFIC crash its ledger
+    entry records — same stage, same exception type, same message substring.
+    A corpus or mutator change that produces a DIFFERENT crash at the same
+    (file, operator, seed) triple is a NEW finding wearing an old excuse's
+    key, and silently accepting it would hide it exactly the way an
+    un-excused crash is never hidden."""
+    mismatches: list[str] = []
+    if stage != finding.stage:
+        mismatches.append(f"stage: observed {stage!r}, recorded {finding.stage!r}")
+    if type(exc).__name__ != finding.exception_type_name:
+        mismatches.append(
+            f"exception type: observed {type(exc).__name__!r}, recorded "
+            f"{finding.exception_type_name!r}"
+        )
+    if finding.message_substring not in str(exc):
+        mismatches.append(
+            f"message: observed {str(exc)!r}, which does not contain the "
+            f"recorded substring {finding.message_substring!r}"
+        )
+    assert not mismatches, (
+        f"the crash at {game_path.name} / {operator} / seed={seed} no longer "
+        f"matches its EXCUSED ledger entry {finding.slug!r}:\n  "
+        + "\n  ".join(mismatches)
+        + "\nThis is a NEW finding hiding behind an old excuse's key — "
+        "record it as its own KNOWN_FINDINGS entry (findings.py's ledger "
+        "format), or update the existing entry if the recorded crash "
+        "genuinely evolved with the corpus."
+    )
+
+
 def _run_one(game_path: Path, operator: str, seed: int) -> None:
     """Mutate, run the T1 oracle, and — if it passed — the T3 playout
-    invariants. Fails loudly on any crash not already in `EXCUSED`."""
+    invariants. Fails loudly on any crash not already in `EXCUSED`, and on
+    any crash that IS in `EXCUSED` but differs from the recorded finding."""
     text = game_path.read_text()
     mutated = mutate_text(text, operator, seed, label=game_path.name)
     if mutated is None or mutated == text:
@@ -140,6 +196,11 @@ def _run_one(game_path: Path, operator: str, seed: int) -> None:
         assert excused is not None, _new_finding_message(
             game_path, operator, seed, oracle_outcome, "oracle"
         )
+        assert oracle_outcome.exception is not None
+        _assert_crash_matches_excused(
+            _finding_by_slug(excused), "oracle", oracle_outcome.exception,
+            game_path, operator, seed,
+        )
         return
     if oracle_outcome.kind == "rejected":
         return  # the expected, correctly-diagnosed outcome
@@ -150,6 +211,11 @@ def _run_one(game_path: Path, operator: str, seed: int) -> None:
     if playout_outcome.kind == "crash":
         assert excused is not None, _new_finding_message(
             game_path, operator, seed, playout_outcome, "playout"
+        )
+        assert playout_outcome.exception is not None
+        _assert_crash_matches_excused(
+            _finding_by_slug(excused), "playout", playout_outcome.exception,
+            game_path, operator, seed,
         )
         return
     # "terminated" or "cutoff": both are clean (oracle.py, "Termination").
@@ -232,6 +298,24 @@ def test_known_findings_directory_matches_ledger() -> None:
         f"only on disk: {on_disk - in_ledger}; only in the ledger: "
         f"{in_ledger - on_disk}"
     )
+
+
+def test_excused_mismatch_fails_loudly() -> None:
+    """The suppression path's own misuse probe: an excused triple whose live
+    crash DIFFERS from the recorded finding (here: wrong exception type and
+    message) must fail with both crashes shown, not be silently excused."""
+    finding = _finding_by_slug("gops_empty_legal_set")  # any playout-stage entry
+    wrong_crash = ValueError("an entirely different failure")
+    with pytest.raises(AssertionError, match="no longer matches its EXCUSED ledger entry"):
+        _assert_crash_matches_excused(
+            finding, "playout", wrong_crash, Path("gops.cardlang"), "delete_line", 2
+        )
+    # Stage mismatch alone is also enough.
+    right_crash = AssertionError("playout invariant violated: ...")
+    with pytest.raises(AssertionError, match="stage: observed 'oracle'"):
+        _assert_crash_matches_excused(
+            finding, "oracle", right_crash, Path("gops.cardlang"), "delete_line", 2
+        )
 
 
 def test_excused_table_targets_known_findings() -> None:

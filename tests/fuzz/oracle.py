@@ -12,8 +12,10 @@ currency.
 `run_playout` is T3: a mutant that PASSES the pipeline is not yet proven
 sound — it still has to run. A bounded random playout under a deterministic
 chooser checks the runtime-net invariants implementation.md names: the game
-terminates (or is cut off — see "Termination" below), the legal-move set is
-never empty at a real decision point, and the terminal `GameResult` reconciles
+terminates (or is cut off — see "Termination" below), the legal-move set at
+every decision covers the requested pick (the runtime chooser's own `n <=
+len(candidates)` precondition, of which "never empty" is the special case —
+see `_CappedSortedChooser`), and the terminal `GameResult` reconciles
 against the game's own declared `winner:`/`loser:` shape. An exception here
 is a second, distinct finding class: "accepted-then-crashes-at-playout" —
 the mutant slipped past every static wall and only broke at runtime.
@@ -152,8 +154,17 @@ def _sort_key(candidate: Any) -> str:
 class _CappedSortedChooser:
     """A deterministic, PYTHONHASHSEED-independent chooser (module
     docstring, "The chooser") that raises `PlayoutCutoff` after `cap` calls
-    and asserts the T3 "legal set is non-empty" invariant on every call
-    that is asked to pick 1 or more candidates from an empty pool."""
+    and enforces the runtime chooser's own precondition: `k` must not exceed
+    the candidate pool. `cardlang/runtime/chooser.py`'s `random_chooser`
+    raises `ValueError("cannot choose {n} of {len} candidates")` on exactly
+    this condition (and `rng.sample` would refuse anyway), so a substitute
+    chooser that quietly truncated to a short prefix would make the playout
+    PROCEED where the real runtime errors — masking exactly the
+    accepted-then-crashes-at-playout findings T3 exists to catch (an
+    empty pool at `k >= 1` is the special case, subsumed here). The check is
+    the same condition in the harness's own currency (`AssertionError`,
+    naming the violated invariant), which `run_playout` reports as a
+    `"crash"` finding just like the runtime's `ValueError` would be."""
 
     cap: int
     calls: int = field(default=0, init=False)
@@ -162,12 +173,13 @@ class _CappedSortedChooser:
         self.calls += 1
         if self.calls > self.cap:
             raise PlayoutCutoff()
-        if k > 0 and not candidates:
+        if k > len(candidates):
             raise AssertionError(
                 f"playout invariant violated: player {player} was asked to "
-                f"choose {k} candidate(s) from an EMPTY legal set "
-                "(implementation.md: \"the legal-move set is non-empty "
-                "until terminal\")"
+                f"choose {k} candidate(s) from a legal set of "
+                f"{len(candidates)} (the runtime chooser's own contract — "
+                "cardlang/runtime/chooser.py; implementation.md: \"the "
+                "legal-move set is non-empty until terminal\")"
             )
         ordered = sorted(candidates, key=_sort_key)
         return ordered[:k]
