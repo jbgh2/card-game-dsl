@@ -27,6 +27,7 @@ class FencedBlock:
     source_name: str
     text: str
     start_line: int  # 1-based line of the first content line inside the fence
+    info: str = ""  # the opening fence's info string, stripped (e.g. "cardlang")
 
 
 def extract_blocks(markdown: str, source_name: str) -> list[FencedBlock]:
@@ -37,12 +38,14 @@ def extract_blocks(markdown: str, source_name: str) -> list[FencedBlock]:
     open_fence: str | None = None  # the backtick run that opened the current block
     content_start: int = 0  # 1-based line of the first content line
     buffer: list[str] = []
+    info = ""
 
     for i, line in enumerate(lines, start=1):
         match = _FENCE.match(line)
         if open_fence is None:
             if match is not None:
                 open_fence = match.group(2)
+                info = match.group(3).strip()
                 content_start = i + 1
                 buffer = []
             continue
@@ -54,6 +57,7 @@ def extract_blocks(markdown: str, source_name: str) -> list[FencedBlock]:
                     source_name=source_name,
                     text="\n".join(buffer) + ("\n" if buffer else ""),
                     start_line=content_start,
+                    info=info,
                 )
             )
             open_fence = None

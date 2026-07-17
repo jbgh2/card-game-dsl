@@ -57,7 +57,7 @@ def play_game(
     on_first_decision: Callable[[RuntimeState], None] | None = None,
 ) -> GameResult:
     assert game.winner is not None or game.loser is not None, (
-        "a game must declare a winner or a loser"
+        "resolve() must reject a game with neither `winner:` nor `loser:`"
     )
     seating = Seating(game.players.low, clockwise=game.direction != "counterclockwise")
     teams = tuple(range(len(game.partnerships)))
@@ -166,9 +166,17 @@ def play_game(
         pick = RANK_DIR_TO_PICK[game.winner.rank_dir]
         winner = pick(scores, key=lambda p: scores[p])
     else:
+        # winner is None here, so resolve's winner-or-loser wall leaves a loser
         assert game.loser is not None
         selected = evaluate(game.loser.selection, ctx)
-        assert isinstance(selected, int)  # a Player
+        if not isinstance(selected, int):
+            # `loser:` takes any expression and the checker leaves its type
+            # open, so the player-ness of the result is checked here — a
+            # game-description error in the runtime's currency.
+            raise RuntimeError(
+                f"`loser:` selected {selected!r} ({type(selected).__name__}), "
+                f"not a player"
+            )
         loser = selected
     rs.pop_frame()
     return GameResult(

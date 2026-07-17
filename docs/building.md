@@ -228,6 +228,18 @@ construct.
    static-rejection test) per cell ([decisions.md](decisions.md), "Surface
    totality"). "Accepted-but-ignored" — parses, runs, silently drops a clause —
    is the defect class the matrix exists to prevent.
+7. **The rejection corpus pins the diagnostic MESSAGE, not just the fact of
+   rejection.** `tests/rejections/` pairs a deliberately broken game
+   (`<case>.cardlang`, complete enough to reach the one wall it probes) with a
+   golden of its rendered diagnostic (`<case>.expected`), harnessed by
+   `tests/test_rejections.py` (a rustc-"ui test" shape). The scattered
+   per-module `DiagnosticError` tests prove a wall still fires from the right
+   AST shape; this corpus proves the sentence a designer actually reads still
+   reads the same way — a message can silently regress in wording or span
+   while every substring-assertion test stays green. A new wall ships with a
+   rejection-corpus case in the same change. Goldens are regenerated only
+   deliberately, with `REJECTIONS_BLESS=1` (see the module's docstring), and
+   the diff is read before it is committed.
 
 ## CI gates
 

@@ -28,6 +28,9 @@ def compute_active_rules(phase: n.Phase | None, rs: RuntimeState) -> tuple[n.Rul
     for item in phase.items:
         if isinstance(item, n.Phase) and _is_rule_delta(item):
             if _delta_active(item, rs):
+                # Only `active_rules` is folded. A `legal_moves` here would have
+                # no effect, which is exactly why resolve rejects one
+                # (`_check_rule_delta_subphases`); none reaches this loop.
                 for sub in item.items:
                     if isinstance(sub, n.ActiveRules):
                         for ref in sub.refs:
@@ -47,7 +50,14 @@ def _apply_ref(names: list[str], ref: n.RuleRef) -> None:
 
 
 def _is_rule_delta(phase: n.Phase) -> bool:
-    """A sub-phase that only configures rules (no statements / nested phases)."""
+    """A sub-phase that only configures rules (no statements / nested phases).
+
+    `LegalMoves` is admitted so a config-only sub-phase that carries one still
+    classifies as a rule-delta phase — which lets resolve identify and reject
+    it (`_check_rule_delta_subphases`), since a `legal_moves` here is honored
+    by no consumer. It is never folded; a rule-delta phase reaching runtime has
+    only `active_rules`/`transition_to` in force.
+    """
     return all(
         isinstance(item, (n.ActiveRules, n.LegalMoves, n.TransitionTo))
         for item in phase.items

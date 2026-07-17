@@ -68,7 +68,7 @@ def evaluate(e: n.Expr, ctx: Ctx) -> Any:
 
 
 def _choose(e: n.Choose, ctx: Ctx) -> Any:
-    assert e.domain == "integer"
+    assert e.domain == "integer"  # `choose integer` is the grammar's only choose form
     lo = int(evaluate(e.lo, ctx))
     hi = int(evaluate(e.hi, ctx))
     # Guard the live *range*, not just the drawn value: a range that escapes its
@@ -76,7 +76,7 @@ def _choose(e: n.Choose, ctx: Ctx) -> Any:
     # id, and a value-only check passes whenever the chooser happens to draw
     # inside the reserved block. `static_ceiling` is non-None (resolve enforced).
     ceiling = n.static_ceiling(e)
-    assert ceiling is not None
+    assert ceiling is not None  # resolve rejects a choose with no static ceiling
     if lo < 0 or hi > ceiling:
         raise RuntimeError(
             f"`choose integer in {lo} .. {hi}` escaped its declared domain "
@@ -166,14 +166,17 @@ def _pronoun(name: str, ctx: Ctx) -> Any:
         case "state":
             # Inside a round, `state` is the live accumulator; once a round has
             # returned, the surrounding body sees that round's terminal state.
-            # Reading `state` with neither active is a bug (e.g. a body that reads
-            # `state.x` before any round has run) — fail loudly, don't return a
-            # stale or empty frame.
+            # Reading `state` with neither active — a body that reads `state.x`
+            # before any round has run — is a game-description error (the
+            # checker validates the field, not the read's position in time),
+            # so it fails in the runtime's currency, not a stale/empty frame.
             if ctx.rs.mech_state:
                 return ctx.rs.mech_state[-1]
             if ctx.rs.last_round_state is None:
-                raise AssertionError(
-                    "`state` read with no active or just-completed round"
+                raise RuntimeError(
+                    "`state` read with no active or just-completed round — "
+                    "`state.` is defined only inside a `round` or directly "
+                    "after one returns"
                 )
             return ctx.rs.last_round_state
         case "outcome":
@@ -232,7 +235,13 @@ def _member(obj: Any, field: str) -> Any:
                 f"can only validate the field against every form's published set"
             )
         return obj[field]
-    raise AssertionError(f"cannot read field '{field}' of {obj!r}")
+    # Reachable when a value the checker deliberately leaves loose (an
+    # `outcome` payload, an unregistered action field — TAny) is dereferenced
+    # at play time: a game-description error in the runtime's currency.
+    raise RuntimeError(
+        f"cannot read field '{field}' of {obj!r} — the checker leaves this "
+        f"value's type open, so the read is checked here"
+    )
 
 
 def _subscript(e: n.Subscript, ctx: Ctx) -> Any:
@@ -365,7 +374,7 @@ def _card_query(e: n.CardQuery, ctx: Ctx) -> Any:
     source = evaluate(e.source, ctx)
     cards = list(_elements(source))
     if e.pred is None:  # the bare `number of cards in <zone>` size idiom
-        assert e.kind == "count"
+        assert e.kind == "count"  # parse builds a pred-less query only for that idiom
         return len(cards)
     # `any`/`all` short-circuit over the same card order the eager `set`/
     # `count` kinds use — predicates are side-effect-free, so stopping early

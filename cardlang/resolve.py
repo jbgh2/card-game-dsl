@@ -170,7 +170,7 @@ def resolve(game: n.Game) -> n.Game:
     for rule in game.rules:
         _resolve_rule(rule, bag)
     _resolve_phase_level(game.phases, known_rule_names, bag)
-    _check_remove_reachability(game.phases, bag)
+    _check_rule_delta_subphases(game.phases, bag)
 
     # Deep name resolution: classify every bare name and validate calls,
     # methods, card literals, and the rotate/winner targets.
@@ -180,6 +180,9 @@ def resolve(game: n.Game) -> n.Game:
     _check_functions(game, bag)
     _check_procedures(game, bag)
     _check_chooses(game, bag)
+    # Last, so a fixture missing its result clause still surfaces the
+    # sharper diagnostic it was aimed at first (bag order is report order).
+    _resolve_winner_loser(game, bag)
 
     _raise_if_errors(bag)
     return game
@@ -428,7 +431,7 @@ def _instantiate_rules(game: n.Game, bag: DiagnosticBag) -> n.Game:
     unsatisfiable diagnostic (no source text repairs it). Both resolve by
     NAME alone: `remove` targets a rule a `plain`/`add` reference already
     activated in the same runtime-consulted scope (validated structurally by
-    `_check_remove_reachability`, since `compute_active_rules` only ever
+    `_check_rule_delta_subphases`, since `compute_active_rules` only ever
     removes a name it finds already present); `override` has no runtime
     support yet at all and is rejected unconditionally, once, by
     `_resolve_phase_item` — this loop skips it so that is the only diagnostic
@@ -545,8 +548,18 @@ def _instantiate_rules(game: n.Game, bag: DiagnosticBag) -> n.Game:
     return replace(game, rules=tuple(rules)) if tuple(rules) != game.rules else game
 
 
-def _check_remove_reachability(phases: tuple[n.Phase, ...], bag: DiagnosticBag) -> None:
-    """`-X` and (unsupported today) `override X` can never instantiate a rule
+def _check_rule_delta_subphases(phases: tuple[n.Phase, ...], bag: DiagnosticBag) -> None:
+    """Validate every rule-delta sub-phase — two walls over the config-only
+    `_is_rule_delta` children the runtime folds conditionally.
+
+    **A rule-delta sub-phase may not carry `legal_moves:`.** It is never
+    executed (`driver.py` skips it) and `compute_active_rules` folds only its
+    `active_rules:`; a `legal_moves:` inside one is read by no consumer, so it
+    would be silently ignored — the accepted-but-ignored class. The move menu
+    is set by the phase you are in, never toggled by an invisible config
+    sub-phase, so this is rejected here rather than dropped.
+
+    **`-X` remove reachability.** `-X` and (unsupported today) `override X` can never instantiate a rule
     (`_instantiate_rules`'s docstring) — they only resolve X by NAME against a
     rule a `plain`/`add` reference already activated. A reference to a name no
     `plain`/`add` ever activates in the scope the runtime actually consults is
@@ -580,6 +593,16 @@ def _check_remove_reachability(phases: tuple[n.Phase, ...], bag: DiagnosticBag) 
             item for item in phase.items if isinstance(item, n.Phase) and _is_rule_delta(item)
         ]
         for child in delta_children:
+            for item in child.items:
+                if isinstance(item, n.LegalMoves):
+                    bag.error(
+                        "`legal_moves:` in a rule-delta sub-phase has no effect "
+                        "— a config-only sub-phase (active_rules/transition_to) "
+                        "toggles rules, not the move menu, and nothing consults "
+                        "it. Set `legal_moves:` on the phase itself, or restrict "
+                        "the move with a rule.",
+                        item.span,
+                    )
             child_refs = [
                 ref
                 for item in child.items
@@ -598,7 +621,7 @@ def _check_remove_reachability(phases: tuple[n.Phase, ...], bag: DiagnosticBag) 
             for item in phase.items
             if isinstance(item, n.Phase) and not any(item is d for d in delta_children)
         )
-        _check_remove_reachability(non_delta_children, bag)
+        _check_rule_delta_subphases(non_delta_children, bag)
 
 
 def _validate_removes(refs: list[n.RuleRef], added: set[str], bag: DiagnosticBag) -> None:
@@ -666,6 +689,19 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
                 f"value can ever be chosen — lower the start or raise the bound",
                 node.span,
             )
+
+
+def _resolve_winner_loser(game: n.Game, bag: DiagnosticBag) -> None:
+    """A game names its result. `winner:` and `loser:` are each optional
+    grammar positions, so their joint absence is checked here; before this
+    wall a game with neither compiled clean and died on a driver assert
+    before its first decision."""
+    if game.winner is None and game.loser is None:
+        bag.error(
+            f"game '{game.name}' must declare `winner: <rank-dir> <var>` or "
+            "`loser: <player-expr>` — without one the playout has no result",
+            game.span,
+        )
 
 
 def _resolve_max_length(game: n.Game, bag: DiagnosticBag) -> None:
@@ -1962,6 +1998,18 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bad = _bad_zone_endpoint(endpoint, direction)
                     if bad is not None:
                         bag.error(bad, nd.span)
+                if nd.dest_each and not isinstance(nd.dest, n.NameRef):
+                    # The executor keys the family by BARE name per seat, so a
+                    # subscripted or computed destination has no meaning under
+                    # `each`. Before this wall, `to each hand[0]` checked
+                    # clean and died on the executor's NameRef assert.
+                    bag.error(
+                        "`to each` deals into a player-indexed family named "
+                        "bare (like `to each hand`) — a subscripted or "
+                        "computed destination targets one zone, so drop "
+                        "`each` or name the family",
+                        nd.span,
+                    )
                 if nd.dest_each and isinstance(nd.dest, n.NameRef):
                     # `to each X` deals one parcel per PLAYER (the executor
                     # iterates seats and keys `X[player]`), so X must be a

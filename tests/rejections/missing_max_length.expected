@@ -1,0 +1,1 @@
+missing_max_length.cardlang:5:1: error: game 'MissingMaxLength' must declare `max_length: <n>` — a bound on decision/loop iterations the runtime enforces and the OpenSpiel adapter reports (docs/decisions.md, "Game length as a declared contract")

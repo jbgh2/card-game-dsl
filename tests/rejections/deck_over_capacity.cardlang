@@ -1,0 +1,16 @@
+// Wall: deckcheck.py's static deck-capacity check. An 8-player Stud-like
+// deal plan (`deal 8 cards ... to each hand`) needs 64 cards from a 52-card
+// deck in one hand — a compile error, not a runtime `ValueError` on an
+// exhausted deck.
+game DeckOverCapacity {
+  players: 8
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase deal {
+    deal 8 cards from deck to each hand
+  }
+  winner: highest score
+}

@@ -54,7 +54,13 @@ def doko_trick_winner(ctx: Ctx, leader: Player) -> Player:
     so of two identical cards the first played wins (the double-pack rule).
     """
     cards = ctx.rs.zones.single("trick_pile").cards
-    assert len(cards) == 4, f"doko trick pile holds {len(cards)} cards, expected 4"
+    if len(cards) != 4:
+        # The pile's live size is the hosting game's runtime data, so a wrong
+        # call site is the description's error, in the runtime's currency.
+        raise RuntimeError(
+            f"doko_trick_winner: trick pile holds {len(cards)} cards, expected "
+            f"a completed 4-card trick"
+        )
     # Seat attribution relies on the game pairing `turn_order_from` (seating
     # direction) with the same step its play loop uses (`offset_by left`,
     # clockwise here). A game combining counterclockwise seating with

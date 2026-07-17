@@ -69,6 +69,16 @@ def test_info_string_on_opening_fence_is_not_content() -> None:
     assert block.start_line == 4
 
 
+def test_info_string_is_captured_on_the_block() -> None:
+    block = extract_single_block(INFO_STRING, "b.md")
+    assert block.info == "dsl"
+
+
+def test_bare_fence_has_empty_info_string() -> None:
+    block = extract_single_block(HEARTS_LIKE, "hearts.md")
+    assert block.info == ""
+
+
 def test_no_fenced_block_is_an_error_for_single() -> None:
     with pytest.raises(DiagnosticError):
         extract_single_block("# Just prose, no code.\n", "empty.md")

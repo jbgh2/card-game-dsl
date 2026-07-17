@@ -456,6 +456,8 @@ class TichuComboCodec:
                     for v, s in zip(suit_vals, digits):
                         cards.add(Card(_RANK_OF_VAL[v], SUITS[s]))
                     return frozenset(cards)
+            # backstop of the codec's own window tables: offsets/sizes
+            # partition the segment, so an in-bounds index always matched above
             raise AssertionError("unreachable straight index")
         if index < self.size:
             i = index - _BASE_PAIRSEQ
@@ -475,6 +477,8 @@ class TichuComboCodec:
                         cards.add(Card(r, SUITS[s1]))
                         cards.add(Card(r, SUITS[s2]))
                     return frozenset(cards)
+            # backstop of the codec's own window tables: offsets/sizes
+            # partition the segment, so an in-bounds index always matched above
             raise AssertionError("unreachable pairseq index")
         raise ValueError(f"combo index {index} out of range 0..{self.size - 1}")
 

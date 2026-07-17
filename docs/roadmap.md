@@ -157,6 +157,32 @@ Things we have noted but consciously not designed yet:
   layouts. We don't, but we haven't implemented one yet. Klondike or FreeCell
   will be the test case.
 
+- **Doc-snippet fragment kinds with no cheap wrapping harness.**
+  `tests/test_doc_snippets.py` pipeline-checks every `cardlang`/
+  `cardlang-fragment` block in decisions.md/library.md/model.md, but a
+  `cardlang-fragment` block needs a registered recipe embedding it in a
+  minimal game; some fragment shapes have none and are tagged `text`
+  instead (residual, not silently skipped — see that module's docstring
+  ledger for the full list and why each is uncheckable today):
+  phase-outcome pattern matches (`produces:`/`continue to`, which need a
+  sibling phase's declared variant set plus game-specific tag vocabulary);
+  `legal_moves:` with `+`/`-`/`override` deltas (the grammar has no such
+  production — only `active_rules:` does); user-facing
+  `Zone<ContentType> { composition: ... }` declarations (no such
+  production exists — projection is the closed `ZONE_PROJECTIONS` Python
+  registry, cardlang/stdlib/zones.py); `type` fields with a range, union,
+  or type-parameter shape (`Integer in 1..7`, `Suit | NT`,
+  `type X<Layer: Integer> = ...` — `struct_field`/`type_def` only support a
+  bare, optionally-`?`, type name); the retired `choose <Type> with
+  <constraint>` statement and `<actor> chooses <description>` expression
+  forms (superseded by `round offering [...]` and plain function calls);
+  and the old `move_type X { source: ... destination: ... emits: ... }`
+  shape (superseded by `when:`/`effect {}`). Resource-zone movements and
+  the `override` rule-delta are the same residual class but already
+  recorded above under "Grammar surface deferred by the checker"; `apply_components`
+  the same but already recorded under "`scoring_component` / triggered
+  components (runtime)".
+
 - **OpenSpiel compilation (general pass).** A per-game *runtime adapter* now
   validates the target: Hearts is a registered `pyspiel.Game` passing OpenSpiel's
   consistency tester (see decisions.md "OpenSpiel compilation"). What remains is
@@ -331,6 +357,25 @@ Things we have noted but consciously not designed yet:
   it implicitly (a variant adds/removes rules and phases from a base game)
   but doesn't have explicit syntax for it. Worth revisiting after Pinochle.
 
+- **The runtime-assert triage scrape stops at the runtime packages.** The
+  mechanized write-time-triage gate (`tests/test_assert_triage.py`) enumerates
+  every `assert`/`raise AssertionError` in `cardlang/runtime/` and
+  `cardlang/stdlib/` and requires each to name its triage class. The compile
+  passes (`cardlang/parse.py` … `ir.py`, `openspiel/`) are outside its domain:
+  their failure currency for game-description defects is the bag-collected
+  diagnostic, and their internal asserts are pass invariants governed by the
+  `Contract` blocks in their module docstrings — a blanket scrape would
+  mis-rank those sites. Extending the gate there needs its own convention
+  (which comment tags mark a pass invariant) before it can be mechanical.
+
+- **`loser:` player-ness is checked at the driver, not statically.** The
+  wall for a non-player `loser:` selection is a typed RuntimeError at the
+  driver (`cardlang/runtime/driver.py`; pinned by
+  `tests/test_fail_loud.py::test_a_non_player_loser_selection_raises_a_typed_error`),
+  because the expression's type is often gradually `TAny`. When the checker
+  can infer a concrete non-player type for the selection, it could reject at
+  compile time; today it only validates the expression's names.
+
 - **Quantifier productions are not registry-derived.** The quantifiable-domain
   registry (`cardlang/domains.py`) is the one table behind binder typing,
   iteration, actorhood, member enumeration, and the move-parameter/action-space
@@ -371,6 +416,27 @@ Things we have noted but consciously not designed yet:
   (3) a surface operation lands that needs per-kind RESULT semantics, not
   just per-kind legality (sort/filter/take as expressions over
   zone-vs-list-vs-map).
+
+- **Semantic invariance is pinned per instance, not in general.** The engine
+  must not attach meaning to things the spec says are meaningless — a name's
+  spelling, declaration order, a suit's identity, the `run`/inline
+  distinction — but today only single witnesses pin this (the by-value
+  expansion regression test; the goldens' byte-stability). The general form
+  is a metamorphic suite: transform every corpus game in a spec-meaningless
+  way, replay both variants, require trace agreement. The implementation
+  plan — the four transforms, the pairing harness over the existing
+  driver/trace seams, and the acceptance criteria — is
+  [design-notes/metamorphic-suite.md](design-notes/metamorphic-suite.md).
+
+- **Surface totality is probed by hand, not mechanized.** Misuse-probe
+  rejection tests cover the wrong sentences someone thought of; nothing
+  sweeps the sentences nobody did. The general form is fuzzing behind one
+  oracle — every input passes the pipeline or fails as a located diagnostic;
+  anything else is a wrong-currency finding — over corpus mutants first,
+  then grammar-directed generation, with shrunken findings feeding the
+  rejection corpus. Sequenced after the metamorphic suite. The
+  implementation plan is
+  [design-notes/grammar-fuzzing.md](design-notes/grammar-fuzzing.md).
 
 ## Suggested next steps, in order
 

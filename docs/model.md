@@ -58,7 +58,7 @@ informational are just variables.
 
 ### The relationship between concepts
 
-```
+```text
        Phases organize game time and scope active rules
                      |
                      v
@@ -98,7 +98,7 @@ This replaces the ad-hoc `hearts_broken` boolean flag with structure.
 A rule is **a named, reusable constraint on a move type, optionally with an
 applicability condition**. Four clauses:
 
-```
+```text
 rule <Name> {
   constrains: <move_type>
   applies_when: <predicate on state>     // default: always
@@ -123,7 +123,7 @@ always playable last; see [decisions.md](decisions.md) "Rule exemption").
 
 Rules are referenced from phases by name:
 
-```
+```text
 phase play {
   active_rules: [MustFollowSuit, NoLeadingSuitUntilBroken(hearts), ...]
 }
@@ -131,19 +131,21 @@ phase play {
 
 ### Move types
 
-A move type names a pattern of card movement:
+A move type names a kind of move a player can make. Some are stdlib
+names shared across games (`play_to_trick`, `submit_bid`); a game also
+defines its own with a `move_type` block — an optional `when:` guard
+and an `effect` that carries out the move:
 
-```
-move_type play_to_trick {
-  source: hand[actor]
-  destination: trick_pile
-  emits: card_played event
+```text
+move_type play_card(c : Card) {
+  effect { move one card from hand[actor] where card is c to trick_pile }
 }
 ```
 
-Once defined, the move type is reusable across games. Hearts, Spades, and
-Pinochle all use `play_to_trick`. Rules attach to move types via their
-`constrains:` clause.
+Rules attach to move types via their `constrains:` clause. A game
+references a move type by name in a phase's `legal_moves:` or an
+`offer`; the stdlib move types are shared, so Hearts, Spades, and
+Pinochle all use `play_to_trick`.
 
 The set of legal move types in a phase is derivable from the phase's active
 rules: each rule constrains a move type, so the legal move types are the union

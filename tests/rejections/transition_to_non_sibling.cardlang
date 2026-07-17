@@ -1,0 +1,21 @@
+// Wall: resolve.py's `transition_to:` sibling check. `nowhere` is not one of
+// phase `a`'s siblings under `play` (only `b` is), so the target is rejected
+// even though `play_to_trick` is a real library move event.
+game TransitionToNonSibling {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+  }
+  state { score[player] : Integer = 0 }
+  phase play {
+    phase a {
+      transition_to: nowhere when play_to_trick
+    }
+    phase b { }
+  }
+  winner: highest score
+}

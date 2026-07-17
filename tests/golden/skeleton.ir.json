@@ -37,9 +37,28 @@
       }
     }
   ],
-  "state": null,
+  "state": {
+    "kind": "state",
+    "decls": [
+      {
+        "kind": "state_decl",
+        "name": "score",
+        "index": "player",
+        "type": "Integer",
+        "optional": false,
+        "default": {
+          "kind": "int",
+          "value": 0
+        }
+      }
+    ]
+  },
   "phases": [],
-  "winner": null,
+  "winner": {
+    "kind": "winner",
+    "rank_dir": "highest",
+    "target": "score"
+  },
   "loser": null,
   "rules": [],
   "move_types": [],
