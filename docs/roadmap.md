@@ -456,15 +456,41 @@ Things we have noted but consciously not designed yet:
   clearly worth it; until then this is a bounded, understood gap, not a
   silent one.
 
-- **Surface totality is probed by hand, not mechanized.** Misuse-probe
-  rejection tests cover the wrong sentences someone thought of; nothing
-  sweeps the sentences nobody did. The general form is fuzzing behind one
-  oracle — every input passes the pipeline or fails as a located diagnostic;
-  anything else is a wrong-currency finding — over corpus mutants first,
-  then grammar-directed generation, with shrunken findings feeding the
-  rejection corpus. Sequenced after the metamorphic suite. The
-  implementation plan is
-  [design-notes/grammar-fuzzing.md](design-notes/grammar-fuzzing.md).
+- **Mechanized surface totality: corpus mutation landed (T1-T3); grammar-
+  directed generation (T4) and shrinking (T5) are deferred.** `tests/fuzz/`
+  (design plan:
+  [design-notes/grammar-fuzzing.md](design-notes/grammar-fuzzing.md)) runs
+  the oracle (T1, `tests/fuzz/oracle.py::run_oracle`: every input either
+  passes `check_dsl` or fails as a `DiagnosticError`; anything else is a
+  finding) over five corpus-mutation operators (T2,
+  `tests/fuzz/mutate.py`: delete a line, duplicate a declaration, swap
+  adjacent tokens, rename one identifier occurrence, truncate a block) and
+  a bounded random playout for every pipeline-passing mutant (T3,
+  `run_playout`: termination or a clean cutoff, a non-empty legal set at
+  every decision, terminal-score reconciliation against the declared
+  `winner:`/`loser:`). A discovery sweep — 18 corpus games x 5 operators x
+  5 seeds, 450 mutants — found 6 crashing triples, all under
+  `delete_line`: one wrong-currency crash (`cardlang/parse.py`'s `game()`
+  transform validates a missing `cards:`/`players:` clause with a bare
+  Python `assert` rather than a `DiagnosticError`, so Lark's `VisitError`
+  escapes `check_dsl`) and five accepted-then-crashes-at-playout findings
+  (a mutant passes every static wall but breaks a runtime-net invariant —
+  a hand drained faster than the loop reading it, a non-terminating
+  `repeat until`, a short trick). All six are recorded, not fixed, in
+  `tests/fuzz/findings.py`'s `KNOWN_FINDINGS` ledger — concurrent work was
+  touching resolve/typecheck when this landed — and pinned loud (a
+  dedicated test replays each frozen minimal repro and fails if the crash
+  stops reproducing); each migrates to `tests/rejections/` once it is
+  actually fixed, per that module's feed-forward rule.
+
+  **T4 (grammar-directed generation walking `cardlang.grammar` productions
+  directly) and T5 (mechanized delta-debug shrinking) are deferred**, not
+  attempted: T1-T3 took the full budget to land cleanly with a verified,
+  CI-budgeted sweep (`tests/fuzz/test_fuzz.py`'s `MUTATION_SEEDS`, ~45-55s);
+  every `KNOWN_FINDINGS` entry above was shrunk by hand instead of
+  mechanically. Revisit once a wider mutation sweep
+  (`FUZZ_BUDGET_SECONDS`, the local/scheduled mode) suggests operator-level
+  coverage has plateaued.
 
 ## Suggested next steps, in order
 
