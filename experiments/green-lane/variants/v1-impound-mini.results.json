@@ -1,0 +1,213 @@
+{
+  "file": "v1-impound-mini.cardlang",
+  "iterations": 300,
+  "census": {
+    "decision_nodes": 568,
+    "terminals": 576,
+    "infosets_p0": 73,
+    "infosets_p1": 71,
+    "max_depth": 11
+  },
+  "exploitability_final": 0.11352680656272307,
+  "exploitability_trend": [
+    [
+      100,
+      0.4447351454863653
+    ],
+    [
+      200,
+      0.1933992496290733
+    ],
+    [
+      300,
+      0.11352680656272307
+    ]
+  ],
+  "game_value_p0": -0.0014797271514264132,
+  "infosets_reached": 144,
+  "infosets_mixed": 102,
+  "mixed_share": 0.7083333333333334,
+  "best_naive_rule": {
+    "rule": "uniform/never",
+    "mean_vs_equilibrium": -6.332785539641269,
+    "mean_vs_best_response": -6.333333333333334
+  },
+  "naive_grid": [
+    {
+      "rule": "ace_first/always",
+      "mean_vs_equilibrium": -0.07317901042753228,
+      "mean_vs_best_response": -45.0
+    },
+    {
+      "rule": "ace_first/never",
+      "mean_vs_equilibrium": -6.3258015030621095,
+      "mean_vs_best_response": -36.0
+    },
+    {
+      "rule": "ace_first/coin_flip",
+      "mean_vs_equilibrium": -0.8169992976434142,
+      "mean_vs_best_response": -38.0
+    },
+    {
+      "rule": "ace_last/always",
+      "mean_vs_equilibrium": 0.00864913355626351,
+      "mean_vs_best_response": -45.0
+    },
+    {
+      "rule": "ace_last/never",
+      "mean_vs_equilibrium": -6.336816676127268,
+      "mean_vs_best_response": -36.0
+    },
+    {
+      "rule": "ace_last/coin_flip",
+      "mean_vs_equilibrium": -0.76869082305999,
+      "mean_vs_best_response": -38.0
+    },
+    {
+      "rule": "uniform/always",
+      "mean_vs_equilibrium": -0.03821770828998661,
+      "mean_vs_best_response": -15.333333333333334
+    },
+    {
+      "rule": "uniform/never",
+      "mean_vs_equilibrium": -6.332785539641269,
+      "mean_vs_best_response": -6.333333333333334
+    },
+    {
+      "rule": "uniform/coin_flip",
+      "mean_vs_equilibrium": -0.8006315063807778,
+      "mean_vs_best_response": -8.333333333333334
+    }
+  ],
+  "top_decisions": [
+    {
+      "reach": 1.0,
+      "player": 0,
+      "depth": 0,
+      "strategy": {
+        "2\u2663": 0.3149773334339495,
+        "3\u2663": 0.35248311137738886,
+        "A\u2663": 0.3325395551886617
+      }
+    },
+    {
+      "reach": 1.0,
+      "player": 1,
+      "depth": 1,
+      "strategy": {
+        "inspect": 0.33451859501228876,
+        "wave": 0.6654814049877111
+      }
+    },
+    {
+      "reach": 0.6654814049877111,
+      "player": 1,
+      "depth": 2,
+      "strategy": {
+        "2\u2660": 0.34103676963160784,
+        "3\u2660": 0.32755030725578427,
+        "A\u2660": 0.3314129231126079
+      }
+    },
+    {
+      "reach": 0.23457095619386464,
+      "player": 0,
+      "depth": 3,
+      "strategy": {
+        "inspect": 0.2718825675271342,
+        "wave": 0.7281174324728658
+      }
+    },
+    {
+      "reach": 0.22129889040093909,
+      "player": 0,
+      "depth": 3,
+      "strategy": {
+        "inspect": 0.41286773156177237,
+        "wave": 0.5871322684382276
+      }
+    },
+    {
+      "reach": 0.20961155839290746,
+      "player": 0,
+      "depth": 3,
+      "strategy": {
+        "inspect": 0.3131883434674551,
+        "wave": 0.6868116565325451
+      }
+    },
+    {
+      "reach": 0.17079520235658177,
+      "player": 0,
+      "depth": 4,
+      "strategy": {
+        "2\u2663": 0.5785078720346453,
+        "A\u2663": 0.4214921279653547
+      }
+    },
+    {
+      "reach": 0.1516558400922392,
+      "player": 1,
+      "depth": 5,
+      "strategy": {
+        "inspect": 0.4829582529041873,
+        "wave": 0.5170417470958126
+      }
+    },
+    {
+      "reach": 0.14737620616791403,
+      "player": 1,
+      "depth": 5,
+      "strategy": {
+        "inspect": 0.5366200027695774,
+        "wave": 0.46337999723042267
+      }
+    },
+    {
+      "reach": 0.1456585372685957,
+      "player": 1,
+      "depth": 5,
+      "strategy": {
+        "inspect": 0.4831263615356805,
+        "wave": 0.5168736384643196
+      }
+    },
+    {
+      "reach": 0.1439636616482011,
+      "player": 0,
+      "depth": 4,
+      "strategy": {
+        "3\u2663": 0.39513652550839845,
+        "A\u2663": 0.6048634744916015
+      }
+    },
+    {
+      "reach": 0.1299317195239661,
+      "player": 0,
+      "depth": 4,
+      "strategy": {
+        "2\u2663": 0.964140481419646,
+        "3\u2663": 0.035859518580353966
+      }
+    },
+    {
+      "reach": 0.11791215518352423,
+      "player": 0,
+      "depth": 3,
+      "strategy": {
+        "inspect": 0.334619498643336,
+        "wave": 0.665380501356664
+      }
+    },
+    {
+      "reach": 0.11791215518352421,
+      "player": 1,
+      "depth": 2,
+      "strategy": {
+        "2\u2660": 0.3455676045432135,
+        "3\u2660": 0.32058552494722364,
+        "A\u2660": 0.333846870509563
+      }
+    }
+  ]
+}
