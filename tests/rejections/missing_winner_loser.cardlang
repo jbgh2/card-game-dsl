@@ -1,0 +1,18 @@
+// Wall: resolve.py's `_resolve_winner_loser`. `winner:` and `loser:` are
+// each optional grammar positions, so their joint absence is checked here —
+// a game declaring neither compiles clean up to this point and would
+// otherwise die on a driver assert at its first decision.
+game MissingWinnerLoser {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+  }
+  state { score[player] : Integer = 0 }
+  phase play {
+    deal 3 cards from deck to each hand
+  }
+}

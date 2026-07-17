@@ -1,0 +1,1 @@
+legal_moves_unknown_move_type.cardlang:15:5: error: legal_moves names unknown move type 'nonesuch_move'

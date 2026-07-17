@@ -1,0 +1,1 @@
+procedure_binder_shadows_parameter.cardlang:17:1: error: procedure 'bump' introduces a binder named 'who', shadowing its own parameter — rename one
