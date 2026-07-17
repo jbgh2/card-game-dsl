@@ -1,0 +1,1 @@
+two_game_blocks.cardlang:15:1: error: source declares 2 `game { }` blocks — a cardlang source is one game; move the others to their own files

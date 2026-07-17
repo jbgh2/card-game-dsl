@@ -1,0 +1,1 @@
+missing_players_declaration.cardlang:4:1: error: game 'MissingPlayers' must declare `players: <n>` (or `players: <lo> .. <hi>`) — the seat count that sizes every per-player zone and the turn ring

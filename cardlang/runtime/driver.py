@@ -59,6 +59,7 @@ def play_game(
     assert game.winner is not None or game.loser is not None, (
         "resolve() must reject a game with neither `winner:` nor `loser:`"
     )
+    # resolve() walls `direction:` to GAME_DIRECTIONS; None means clockwise.
     seating = Seating(game.players.low, clockwise=game.direction != "counterclockwise")
     teams = tuple(range(len(game.partnerships)))
     team_of = {
