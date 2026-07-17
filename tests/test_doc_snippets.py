@@ -330,13 +330,13 @@ game Skeleton {{
 # (doc file name, FencedBlock.start_line) -> wrapper. Keyed by content start
 # line (not the fence line) to match `FencedBlock.start_line` exactly.
 WRAPPER_RECIPES: dict[tuple[str, int], Callable[[str], str]] = {
-    ("decisions.md", 194): _wrap_active_rules_shadowing,
-    ("decisions.md", 318): _wrap_first_trick_phase,
-    ("decisions.md", 338): _wrap_play_phase,
-    ("decisions.md", 963): _wrap_before_each,
-    ("decisions.md", 1162): _wrap_cards_line,
-    ("decisions.md", 1833): _wrap_winner_loser,
-    ("decisions.md", 2283): _wrap_passing_phase,
+    ("decisions.md", 200): _wrap_active_rules_shadowing,
+    ("decisions.md", 324): _wrap_first_trick_phase,
+    ("decisions.md", 344): _wrap_play_phase,
+    ("decisions.md", 969): _wrap_before_each,
+    ("decisions.md", 1168): _wrap_cards_line,
+    ("decisions.md", 1839): _wrap_winner_loser,
+    ("decisions.md", 2289): _wrap_passing_phase,
     ("library.md", 469): _wrap_library_zones_block,
 }
 
