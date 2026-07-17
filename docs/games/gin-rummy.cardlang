@@ -44,7 +44,11 @@ game GinRummy {
   players: 2
   direction: clockwise
   // Measured over seeded random playouts (tests/test_playout_gin_rummy.py);
-  // arrangement decisions dominate. Raise only with a measurement.
+  // arrangement decisions dominate. Raise only with a measurement. This
+  // bound is also the game's only stop against mutual take-the-discard
+  // spin (the stock never depletes, so neither knock nor the no-result can
+  // ever fire) — real gin has no anti-spin rule either, and the loud
+  // max_length error is the declared-contract answer.
   max_length: 30000
 
   cards: standard52
@@ -61,7 +65,7 @@ game GinRummy {
     discard_pile           : Discard               // everything under it (dead)
     face_down              : FaceDownPile          // the knock discard (unseen)
     meldA[player]          : PlayerPile<player>    // shown melds — public at showdown;
-    meldB[player]          : PlayerPile<player>    //   3 slots hold any 10-11 card
+    meldB[player]          : PlayerPile<player>    //   3 slots hold any 10-card
     meldC[player]          : PlayerPile<player>    //   arrangement (3+3+4 / 3+4+4)
     shown_deadwood[player] : PlayerPile<player>    // shown unmelded cards (public)
   }
@@ -70,7 +74,7 @@ game GinRummy {
     match_score[player] : Integer = 0
     hands_won[player]   : Integer = 0   // boxes, settled at match end
     champion[player]    : Integer = 0   // set once, when a player reaches 100
-    dealer              : Player  = 0   // hand winner deals next (runtime-seeded start)
+    dealer              : Player  = 0   // seat 0 opens the match; hand winner deals next
   }
 
   phase match {

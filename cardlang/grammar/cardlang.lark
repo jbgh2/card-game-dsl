@@ -209,10 +209,14 @@ where_clause: "where" _JOINTLY_KW expr  -> where_jointly
 selection: [select_mode] amount NAME
 select_mode: "chosen" -> sel_chosen
            | "random" -> sel_random
-amount: "all"    -> amt_all
-      | "one"    -> amt_one
-      | _SOME_KW -> amt_some
-      | expr     -> amt_count
+// Every string alternative here is anchored: the expr alternative makes
+// this position genuinely ambiguous for an unanchored keyword (a fused typo
+// like `onecards` split as `one cards` with a REAL second parse — found for
+// `some`, swept to `all`/`one`).
+amount: _ALL_AMT_KW  -> amt_all
+      | _ONE_AMT_KW  -> amt_one
+      | _SOME_KW     -> amt_some
+      | expr         -> amt_count
 move_dest: "to" "each" zone_expr  -> dest_each
          | "to" zone_expr         -> dest_one
 vis_clause: "," "visibility" "=" expr
@@ -252,9 +256,12 @@ as_block: _AS_KW expr "{" statement* "}"
 // player (binder + acting player) for a braced body of statements, until the
 // termination predicate holds at a turn boundary. `again <var>` names a
 // declared Boolean state variable; when a turn ends with it true, the same
-// player takes the next turn (Go Fish's go-again). Statement-leading keyword
-// like `round`, so no NAME-exclusion guard is needed.
-turns_stmt: "turns" NAME "from" expr "over" expr "until" expr ["again" NAME] "{" statement* "}"
+// player takes the next turn (Go Fish's go-again). Statement-leading, so no
+// NAME-EXCLUSION is needed — but ANCHORING still is (the two are separate
+// halves): an unanchored inline keyword matches as a prefix under the
+// dynamic lexer, so `turnst from …` would silently parse as `turns t` and
+// `againgo` as `again go` — the fused-typo misparse class.
+turns_stmt: _TURNS_KW NAME "from" expr "over" expr "until" expr [_AGAIN_KW NAME] "{" statement* "}"
 
 offer: "offer" "to" expr "one" "of" "[" NAME ("," NAME)* "]"
 round_stmt: "round" NAME "from" expr "over" expr "source" NAME "into" NAME "outcome" NAME ["trump" expr] ["early" NAME]   -> round_stmt
@@ -538,9 +545,19 @@ _AS_KW: "as" /(?![A-Za-z0-9_-])/
 // `jointly` (the joint-predicate where form) and `some` (the any-size joint
 // amount) sit mid-movement where an identifier can follow, so they get the
 // same whole-word anchoring (`jointly_valid`/`some_var` must stay single
-// NAMEs). Neither joins the NAME exclusion: they never name a value.
+// NAMEs). Both ALSO join the NAME exclusion below: each sits where an
+// expression is grammatical too, so a bare-NAME reading would be a real
+// second parse (`some` as a count expr; `jointly(…)` as a call).
 _JOINTLY_KW: "jointly" /(?![A-Za-z0-9_])/
 _SOME_KW: "some" /(?![A-Za-z0-9_])/
+_TURNS_KW: "turns" /(?![A-Za-z0-9_])/
+_AGAIN_KW: "again" /(?![A-Za-z0-9_])/
+// The amount position's `all`/`one` (an expr is also grammatical there, so a
+// fused identifier is a real second parse). Their OTHER inline occurrences
+// (`all players`, `offer … one of`, `reveal one card`) are un-anchored
+// residual — recorded in roadmap.md.
+_ALL_AMT_KW: "all" /(?![A-Za-z0-9_])/
+_ONE_AMT_KW: "one" /(?![A-Za-z0-9_])/
 // `some` and `jointly` join the exclusion for the same reason as `all`/`one`:
 // both sit where an expression is also grammatical, so a NAME reading is a
 // real second parse (`some` as amt_count's expr; `jointly (x) >= 3` as a

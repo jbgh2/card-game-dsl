@@ -37,7 +37,87 @@ class TestReadiness(ReadinessProofs):
         "gin-rummy.cardlang",
         depth=9,
         swap_axis="any",
+        # The full random_sim_test re-simulates the whole (seed, history)
+        # state per action — measured ~8 minutes alone for gin's long
+        # matches, which dominates the suite on the 2-vCPU CI runner. The
+        # bounded random API walk is the sanctioned fallback for the
+        # score-target class (harness.py, `conformance_steps`).
+        conformance_steps=400,
     )
+
+
+def test_knock_line_derives_showdown_observations() -> None:
+    """The showdown surface, which the greedy line never reaches (the module
+    caveat): drive a knock at seed 3 by preferring `end_knock` whenever legal,
+    then apply the first joint arrangement decision (a combo-block action)
+    and assert its projections — the knocker's own `chose` + identity move,
+    the defender's count-only source view, and the knock card's face-down
+    count-only arrival on BOTH sides."""
+    from cardlang.openspiel.replay import load
+
+    path = str(GAMES_DIR / "gin-rummy.cardlang")
+    _, space = load(path)
+    seed = 3
+
+    def is_combo(aid: int) -> bool:
+        return space.to_string(aid).startswith(("set[", "run["))
+
+    history: list[int] = []
+    r = run(path, seed, ())
+    combo_pause = None
+    for _ in range(120):
+        assert isinstance(r, Pause)
+        combo = next((a for a in r.legal if is_combo(a)), None)
+        if combo is not None:
+            knocker = r.player
+            history.append(combo)
+            nxt = run(path, seed, tuple(history))
+            assert isinstance(nxt, Pause)
+            combo_pause = nxt
+            break
+        knock = next(
+            (a for a in r.legal if space.to_string(a) == "end_knock"), None
+        )
+        history.append(knock if knock is not None else r.legal[0])
+        r = run(path, seed, tuple(history))
+    assert combo_pause is not None, "no joint arrangement decision within 120 steps"
+    defender = 1 - knocker
+
+    # The knocker's own log: the joint pick is a recorded decision (`chose`)
+    # and the meld arrival is identity on both sides.
+    k_log = combo_pause.obs_logs[knocker]
+    assert any(e[0] == "chose" for e in k_log)
+    own_meld = next(
+        e
+        for e in k_log
+        if e[0] == "move"
+        and str(e[1]).startswith("hand[")
+        and str(e[3]).startswith("meld")
+    )
+    assert isinstance(own_meld[2], tuple) and isinstance(own_meld[4], tuple)
+
+    # The defender's view of the same meld: count-only on the knocker's hand
+    # (the source), identity on the public meld pile (the destination).
+    d_log = combo_pause.obs_logs[defender]
+    d_meld = next(
+        e
+        for e in d_log
+        if e[0] == "move"
+        and str(e[1]).startswith("hand[")
+        and str(e[3]).startswith("meld")
+    )
+    assert isinstance(d_meld[2], int) and isinstance(d_meld[4], tuple)
+
+    # The knock card reached `face_down` count-only for BOTH observers on the
+    # destination side (the knocker's own source view stays identity — their
+    # recall of their own hand).
+    for p, log in combo_pause.obs_logs.items():
+        fd = next(
+            e
+            for e in log
+            if e[0] == "move" and e[3] == "face_down"
+        )
+        assert isinstance(fd[4], int), f"player {p} saw the knock card"
 
 
 def test_turn_cycle_derives_observations() -> None:

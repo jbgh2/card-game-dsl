@@ -124,15 +124,38 @@ Things we have noted but consciously not designed yet:
   per-loop override). Joint-predicate selection: `jointly` under a `random`
   or dealt selection is rejected (a subset decision needs a decider; a
   uniform-random satisfying subset has no corpus user), `some` without
-  `jointly` is rejected (nothing owns the size), and the subset enumeration
+  `jointly` is rejected (nothing owns the size), `jointly` with `to each`
+  is rejected (each destination seat would become its own subset decider —
+  a real semantic no game has asked for; note the pre-existing non-joint
+  `chosen … to each` DOES reassign the decider per parcel the same way,
+  unexercised by the corpus and undocumented — the same decision awaits
+  whichever game first wants either shape), and the subset enumeration
   refuses source pools past 16 cards at runtime rather than hanging
-  (`cardlang/runtime/execute.py`, `_JOINT_ENUMERATION_BOUND`). On the
+  (`cardlang/runtime/execute.py`, `_JOINT_ENUMERATION_BOUND`). Movement
+  amounts: negative is a typed runtime error everywhere and a zero `chosen`
+  amount is refused as a vacuous decision (`_check_count`), while a zero
+  dealt/`random` amount stays an accepted no-op (a computed "deal what
+  remains" may legitimately be zero). On the
   OpenSpiel side, a joint predicate must root in a call with a registered
   subset codec (`cardlang/runtime/stdlib.py`, `joint_codec_function` — the
   climb-codec pattern); an inline or unregistered predicate, a game mixing
   climb and joint selections, or two joint predicates wanting different
   codecs are each a loud `NotImplementedError` at action-space
   construction, lifted when a game forces the composed-combo-block design.
+
+- **Unanchored inline keywords are a fused-typo misparse class.** Under the
+  dynamic lexer an inline string keyword can match as a PREFIX of an
+  identifier, so a fused typo gets a real second parse and may compile
+  (`onecards` as `one cards`). The members this change anchored (whole-word
+  negative lookahead): `turns`, `again`, the `amount` position's `all`/
+  `one`/`some`, `jointly` (plus the earlier `as`/`is`/`not`). The REMAINING
+  unanchored members are recorded, not fixed: `round`/`offer`/`reveal one
+  card`/`all players`/`for each`… — every other inline keyword adjacent to
+  a NAME. `allplayers` (with a same-named variable declared) is a live
+  silently-misresolved example (`_ambig`, the all-players reading wins).
+  The class fix is mechanical (anchor every inline keyword, or move to a
+  contextual-keyword lexer callback); sweep it as its own change with the
+  corpus ambiguity gate as the net.
   Rules that the runtime cannot yet enforce at all are a
   named open question, not a rejection —
   [open-questions/rule-scope-beyond-trick-play.md](open-questions/rule-scope-beyond-trick-play.md).

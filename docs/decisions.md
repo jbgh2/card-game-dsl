@@ -668,11 +668,16 @@ predicate, re-evaluated per advance, so elimination falls out), **termination
 placement** (`until` is checked at each turn boundary, before the first turn
 too — the zero-iteration run always exists), and the **go-again axis**
 (`again` names a declared Boolean state variable the body's move effects
-write on every path; a turn ending with it true repeats the same player — Go
-Fish's hit-or-matching-draw). A full lap finding no eligible participant is a
-loud runtime error, the `offer` no-legal-move rule one construct up; a
-decisionless body that never terminates hits the same iteration backstop as
-`repeat until`.
+write; a turn ending with it true repeats the same player — Go Fish's
+hit-or-matching-draw. The form CONSUMES the flag, resetting it to false as it
+reads it at the boundary, so a stale write buys at most one repeat and can
+never silently monopolize the loop — only a write during the turn keeps the
+turn). The leader expression is read once, at the first turn, and must name a
+real seat — a non-seat value (an out-of-range Integer, a loose pronoun) is a
+typed runtime error at the bind, the same seat wall `as` and `offer` carry. A
+full lap finding no eligible participant is a loud runtime error, the `offer`
+no-legal-move rule one construct up; a decisionless body that never
+terminates hits the same iteration backstop as `repeat until`.
 
 ```cardlang-fragment turns_form
 turns t from 0 over players where not eliminated[player]
@@ -1477,15 +1482,23 @@ as arranger {
 ```
 
 The amount picks the subset sizes: `some` (any non-empty size — the joint
-predicate owns the size constraint) or an expression (exactly that size).
-`jointly` requires `chosen` — the selection is a player decision over
-subsets; a dealt joint selection has no decider and a `random` one has no
-corpus user (both rejected loudly, recorded in [roadmap.md](roadmap.md)) —
-and `some` requires `jointly`. Enumeration is deterministic (sizes
-ascending, combinations in source order) and bounded: a source pool past 16
-cards is a loud runtime refusal, not a hang. No satisfying subset is the
-no-implicit-actions error: guard the movement so it is only reached when
-one exists.
+predicate owns the size constraint), an expression (exactly that size), or
+the degenerate `one`/`all` (size 1 / the whole source). Subset sizes are
+always at least one — a zero-card "choice" is not a decision — so a
+non-positive count, and `all` over an empty source, fall to the same loud
+no-satisfying-subset error `some` gives. (Movement amounts generally are
+walled at evaluation: a negative amount is a typed runtime error everywhere
+— a Python slice would otherwise silently move the rest — and a zero
+`chosen` amount is a vacuous decision node, also refused.) `jointly`
+requires `chosen` — the selection is a player decision over subsets; a
+dealt joint selection has no decider and a `random` one has no corpus user
+(both rejected loudly, recorded in [roadmap.md](roadmap.md)) — `some`
+requires `jointly`, and `to each` is rejected under `jointly` (it would
+silently make every destination seat its own subset decider; recorded).
+Enumeration is deterministic (sizes ascending, combinations in source
+order) and bounded: a source pool past 16 cards is a loud runtime refusal,
+not a hang. No satisfying subset is the no-implicit-actions error: guard
+the movement so it is only reached when one exists.
 
 For the OpenSpiel target, joint candidates are card subsets — the combo
 block's currency, exactly like climb combination plays — and the subset

@@ -93,3 +93,51 @@ def test_meld_codec_round_trips_every_meld() -> None:
 def test_meld_codec_rejects_a_non_meld() -> None:
     with pytest.raises(KeyError):
         GIN_MELD_CODEC.encode_cards(frozenset(_h("7C", "8D", "9C")))
+
+
+def test_gin_primitive_in_a_zone_less_game_fails_typed() -> None:
+    """The game-local-primitive precondition wall (one chokepoint for the
+    whole class, cribbage included): a primitive reading gin's zones from a
+    game without them is a typed RuntimeError naming the situation, never a
+    bare KeyError naming only the zone."""
+    import random
+
+    from cardlang.runtime.gin import gin_deadwood
+    from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
+    from cardlang.runtime.values import Seating
+
+    rs = RuntimeState(Seating(2), ZoneStore((), (0, 1)), random.Random(0))
+    ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]))
+    with pytest.raises(RuntimeError, match="zone family"):
+        gin_deadwood(ctx, 0)
+
+
+def test_can_knock_quantifies_the_discard_over_the_hand_zone_only() -> None:
+    """The 3%-of-seeds crash class (found by a 300-seed adversarial sweep):
+    a hand whose ONLY knock-legal discard is the just-taken staging card must
+    NOT offer the knock — the knock movement's candidate pool is `hand`, and
+    the taken card is never in it (the different-card rule). The witness:
+    hand 2♣3♣4♣ + 8♣8♦8♥8♠ + A♠4♥5♥ (every hand discard leaves 15+), taken
+    K♦ (discarding IT would leave exactly 10)."""
+    import random
+
+    from cardlang.pipeline import check_source
+    from cardlang.runtime.gin import gin_can_knock, gin_knock_ok
+    from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
+    from cardlang.runtime.values import Seating
+    from pathlib import Path
+
+    game = check_source(
+        Path(__file__).parent.parent / "docs" / "games" / "gin-rummy.cardlang"
+    )
+    rs = RuntimeState(Seating(2), ZoneStore(game.zones, (0, 1)), random.Random(0))
+    hand = _h("2C", "3C", "4C", "8C", "8D", "8H", "8S", "AS", "4H", "5H")
+    rs.zones.instance("hand", 0).add_all(hand)
+    rs.zones.instance("taken", 0).add_all(_h("KD"))
+    ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]))
+
+    # The taken K♦ would be a legal knock-discard — but it is not in the pool.
+    assert gin_knock_ok(ctx, 0, _c("KD"))
+    assert not any(gin_knock_ok(ctx, 0, c) for c in hand)
+    # So the announce must not be offered: guard == movement-has-a-candidate.
+    assert not gin_can_knock(ctx, 0)

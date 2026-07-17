@@ -282,9 +282,20 @@ def _movement_usage(m: n.Movement, carry: int, players: int, deck_zones: set[str
         # return.
         if m.amount == "one":
             return carry, max(0, carry - 1)
+        if m.amount == "some":
+            # A joint `some` return puts back AT LEAST one card (subset sizes
+            # are >= 1), never the pack — crediting a full refill here
+            # accepted a program that died mid-deal. One card is the sound
+            # minimum credit.
+            return carry, max(0, carry - 1)
         if isinstance(m.amount, n.IntLit):
             return carry, max(0, carry - m.amount.value)
-        return carry, 0  # `all` / non-literal: a refill
+        # `all` is a genuine refill. A NON-LITERAL amount also lands here and
+        # is credited as one — an over-credit the gate has always made
+        # (pre-existing; the sound credit for an expression that may evaluate
+        # to 1 is `carry - 1`, like `some`); recorded, not silently widened,
+        # since no corpus game returns an expression-counted amount to a deck.
+        return carry, 0
     if m.source is None or _base_name(m.source) not in deck_zones:
         return carry, carry  # not a deck draw
     if m.amount == "all":

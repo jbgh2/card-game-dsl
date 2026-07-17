@@ -64,7 +64,10 @@ def test_30_random_matches_satisfy_invariants() -> None:
 def test_seed0_characterization() -> None:
     # Byte-identity pin for the whole match: any change to the constructs'
     # decision sequence (turns rotation, joint enumeration order, offer
-    # order) moves this vector. PYTHONHASHSEED=0 per the suite convention.
+    # order) moves this vector. Measured hash-independent (identical under
+    # PYTHONHASHSEED 0-12): every collection on the decision path is ordered
+    # (source-order pools, combinations enumeration, seating rings) — the
+    # in-process pin is sound without a subprocess seed pin.
     winner, match_score, hands_won, _ = _run(0)
     assert winner == 1
     assert match_score == {0: 76, 1: 254}

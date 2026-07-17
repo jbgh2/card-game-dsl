@@ -139,9 +139,27 @@ class ZoneStore:
         return name in self.families
 
     def single(self, name: str) -> Zone:
+        if name not in self.singles:
+            raise RuntimeError(
+                f"no zone '{name}' in this game — a game-local stdlib "
+                f"primitive that reads it was called from a game without "
+                f"its zones"
+            )
         return self.singles[name]
 
     def instance(self, name: str, key: int) -> Zone:
+        # The typed wall for the whole game-local-primitive class: every
+        # per-game primitive (cribbage, gin, …) reads its zones by name
+        # through here, and calling one from a game without those zones used
+        # to die as a bare KeyError naming only the zone. (DSL-side zone
+        # references are resolve-walled long before this; only primitives
+        # and driver internals reach here with a foreign name.)
+        if name not in self.families:
+            raise RuntimeError(
+                f"no zone family '{name}' in this game — a game-local stdlib "
+                f"primitive that reads it was called from a game without "
+                f"its zones"
+            )
         return self.families[name][key]
 
     def locate(self, zone: Zone) -> "tuple[str, Player | None]":

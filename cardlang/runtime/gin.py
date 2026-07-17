@@ -190,12 +190,18 @@ def gin_deadwood(ctx: Ctx, player: Player) -> int:
 
 
 def gin_can_knock(ctx: Ctx, player: Player) -> bool:
-    """Knock availability — the `end_knock` announce guard: SOME held card can
-    be discarded leaving a <= 10 arrangement. Exactly `any c: gin_knock_ok`,
-    so the announce is offered iff its chosen movement will have a candidate
-    (the no-implicit-actions pairing)."""
+    """Knock availability — the `end_knock` announce guard: some card FROM THE
+    HAND ZONE can be discarded leaving a <= 10 arrangement of everything else
+    held. The discard candidates are exactly the knock movement's pool —
+    `hand[player]`, never the `taken` staging card (the "must discard a
+    different card" rule) — while the kept arrangement counts everything held.
+    Quantifying the discard over hand+taken instead was the 3%-of-seeds crash
+    class: a hand whose ONLY knock-legal discard is the taken card offered the
+    announce and then had zero movement candidates. Exactly
+    `any c in hand: gin_knock_ok(c)` — the no-implicit-actions pairing."""
     held = _hand(ctx, player)
-    return any(minimal_deadwood([c for c in held if c != d]) <= 10 for d in held)
+    hand_only = list(ctx.rs.zones.instance("hand", player).cards)
+    return any(minimal_deadwood([c for c in held if c != d]) <= 10 for d in hand_only)
 
 
 def gin_knock_ok(ctx: Ctx, player: Player, discard: Card) -> bool:

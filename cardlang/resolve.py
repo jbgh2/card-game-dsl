@@ -2020,6 +2020,18 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         "recorded in roadmap.md)",
                         nd.span,
                     )
+                if nd.joint and nd.dest_each:
+                    # `to each` would silently make EACH destination seat its
+                    # own subset-decider over the shrinking pool — the decider
+                    # identity is info-set-load-bearing, and no corpus game
+                    # wants the shape (recorded in roadmap.md).
+                    bag.error(
+                        "`where jointly` with `to each` is not implemented — "
+                        "each destination seat would become its own subset "
+                        "decider; write one joint selection per destination "
+                        "instead (recorded in roadmap.md)",
+                        nd.span,
+                    )
                 if nd.amount == "some" and not nd.joint:
                     bag.error(
                         "amount `some` (any satisfying size) is only "

@@ -219,6 +219,27 @@ def _gather(stmt: n.Movement, ctx: Ctx) -> None:
             dest.add_all(taken)
 
 
+def _check_count(count: int, mode: str | None) -> int:
+    """The amount-expression domain wall: an amount is runtime data (a
+    computed expression can go negative at a ring's edge), and Python's
+    negative slice would SILENTLY move len+count cards — the worst class.
+    Negative is never meaningful; zero under `chosen` is a vacuous decision
+    node (no-implicit-actions); zero under dealt/`random` is an allowed
+    no-op (a computed "deal what remains" may legitimately be zero —
+    recorded in roadmap.md)."""
+    if count < 0:
+        raise RuntimeError(
+            f"movement amount evaluated to {count} — a negative amount is "
+            f"never meaningful (a Python slice would silently move the rest)"
+        )
+    if count == 0 and mode == "chosen":
+        raise RuntimeError(
+            "a `chosen` movement's amount evaluated to 0 — a decision that "
+            "selects nothing is not a decision; guard the movement instead"
+        )
+    return count
+
+
 def _select(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> list[Card]:
     # The joint form is its own branch above the per-card filter: the
     # selection unit is a SUBSET, not a card (decisions.md "Joint-predicate
@@ -241,7 +262,7 @@ def _select(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> list[Ca
         # reach here — resolve rejects `some` without `jointly`, and every
         # joint movement took the joint branch before this.
         assert not isinstance(amount, str)
-        count = int(evaluate(amount, ctx))
+        count = _check_count(int(evaluate(amount, ctx)), stmt.mode)
     if stmt.mode == "chosen":
         chosen = ctx.chooser(player, list(source.cards), count)
         for card in chosen:
@@ -283,17 +304,21 @@ def _select_joint(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> l
             f"narrow the source pool"
         )
     amount = stmt.amount
+    # Subset sizes are always >= 1: a joint selection selects a non-empty
+    # subset (a zero-card "choice" is not a decision), so a k <= 0 amount and
+    # an `all` over an empty pool both yield no candidate sizes and fall to
+    # the loud no-satisfying-subset error below — consistent with `some`.
     if amount == "some":
         sizes = range(1, len(pool) + 1)
     elif amount == "all":
-        sizes = range(len(pool), len(pool) + 1)
+        sizes = range(max(1, len(pool)), len(pool) + 1)
     elif amount == "one":
         sizes = range(1, 2)
     else:
         # Backstop: parse admits "all" | "one" | "some" | Expr, and the three
         # string literals are handled above.
         assert not isinstance(amount, str)
-        k = int(evaluate(amount, ctx))
+        k = _check_count(int(evaluate(amount, ctx)), stmt.mode)
         sizes = range(k, k + 1)
     assert stmt.filter is not None  # grammar: `jointly` IS a where-clause form
     candidates: list[CardSet] = [
@@ -341,7 +366,7 @@ def _select_filtered(
         # are handled above and "some" never reaches the per-card filter path —
         # resolve walls `some` to `jointly`, which routes to `_select_joint`.
         assert not isinstance(amount, str)
-        count = int(evaluate(amount, ctx))
+        count = _check_count(int(evaluate(amount, ctx)), stmt.mode)
     if stmt.mode == "chosen":
         chosen = ctx.chooser(player, pool, count)
         for card in chosen:
@@ -485,14 +510,23 @@ def _turns(stmt: n.Turns, ctx: Ctx) -> None:
     """The turn loop beneath the round forms (decisions.md "The `turns`
     form"). Each iteration: check `until` (a turn boundary — before the
     FIRST turn too, so the zero-iteration run exists); pick the player —
-    the previous player again when the `again` state var reads true, else
-    the next seat in game direction; skip seats failing the participants
-    predicate (re-evaluated per pick, so elimination falls out); bind the
-    binder and the acting player (the seat wall in `acting_as` guards the
-    bind) and run the body. A lap with no eligible participant is a
-    malformed game (whose turn is it?) — loud, like `offer`'s
-    no-legal-move rule, never a silent skip or an infinite spin."""
-    order = ctx.rs.seating.players  # seating order IS game-direction order
+    the previous player again when the `again` state var read true at the
+    boundary (the form CONSUMES the flag: it resets to false on read, so a
+    stale write can never silently monopolize the loop — only a write
+    during the turn keeps the turn), else the next seat in GAME direction
+    (`Seating.clockwise`, the same axis the round forms rotate on); skip
+    seats failing the participants predicate (re-evaluated per pick, so
+    elimination falls out); bind the binder and the acting player and run
+    the body. The leader expression is read once, at the first turn, and
+    must name a real seat — a non-seat value (an out-of-range Integer, a
+    TAny pronoun) is a typed error HERE, before any rotation arithmetic,
+    the same seat wall `acting_as` gives `as`/`offer` (a bogus leader
+    would otherwise crash `order.index` as a bare ValueError). A lap with
+    no eligible participant is a malformed game (whose turn is it?) —
+    loud, like `offer`'s no-legal-move rule, never a silent skip or an
+    infinite spin."""
+    order = ctx.rs.seating.players
+    step = 1 if ctx.rs.seating.clockwise else -1
     current: Player | None = None
     guard = 0
     while not bool(evaluate(stmt.termination, ctx)):
@@ -509,11 +543,18 @@ def _turns(stmt: n.Turns, ctx: Ctx) -> None:
             )
         if current is None:
             leader = evaluate(stmt.leader, ctx)
-            candidate_seq = [leader, *_next_seats(order, leader)]
+            if leader not in order:
+                raise RuntimeError(
+                    f"turns: cannot start from {leader!r}: not a seat of "
+                    f"this {len(order)}-player game — the `from` expression "
+                    f"bound a non-player value"
+                )
+            candidate_seq = [leader, *_next_seats(order, leader, step)]
         elif stmt.again is not None and bool(ctx.rs.get(stmt.again)):
-            candidate_seq = [current, *_next_seats(order, current)]
+            ctx.rs.set(stmt.again, False)  # consumed: one write, one repeat
+            candidate_seq = [current, *_next_seats(order, current, step)]
         else:
-            candidate_seq = _next_seats(order, current)
+            candidate_seq = _next_seats(order, current, step)
         participants = set(_elements(evaluate(stmt.participants, ctx)))
         player = next((p for p in candidate_seq if p in participants), None)
         if player is None:
@@ -528,10 +569,11 @@ def _turns(stmt: n.Turns, ctx: Ctx) -> None:
         current = player
 
 
-def _next_seats(order: tuple[Player, ...], frm: Player) -> list[Player]:
-    """One full lap starting after `frm`, in seating (game-direction) order."""
+def _next_seats(order: tuple[Player, ...], frm: Player, step: int) -> list[Player]:
+    """One full lap starting after `frm`, stepping in game direction
+    (`step` = +1 clockwise, -1 counterclockwise — `Seating`'s convention)."""
     i = order.index(frm)
-    return [order[(i + k) % len(order)] for k in range(1, len(order) + 1)]
+    return [order[(i + step * k) % len(order)] for k in range(1, len(order) + 1)]
 
 
 def _offer(stmt: n.Offer, ctx: Ctx) -> None:

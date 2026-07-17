@@ -24,19 +24,34 @@ covered:    - `where jointly` parses with `joint=True`; plain `where` stays
               collection; `card` does not bind there; outside the filter
               `cards` is unresolved [resolve/typecheck]
             - the chooser is offered exactly the satisfying subsets, in
-              deterministic enumeration order (sizes ascending,
-              combinations in source order) [runtime]
+              deterministic enumeration order — the order itself is pinned
+              (a reversed-order mutant fails) [runtime]
+            - subset sizes are >= 1: zero/negative counts and `all` over an
+              empty pool fall to the loud no-subset error; negative amounts
+              are typed errors on EVERY movement path and a zero `chosen`
+              amount is a vacuous-decision refusal (`_check_count`)
+              [runtime]
             - no satisfying subset → loud RuntimeError (no-implicit-actions)
               [runtime]
             - a source pool above the enumeration bound → loud RuntimeError
               naming the bound [runtime]
-sampled:    destination shapes (single zone / `to each`) share the ordinary
-            movement path after selection — the joint branch only changes
-            WHICH cards are picked, pinned by one single-dest test.
+            - `to each` under `jointly` → located resolve rejection (each
+              destination seat would become its own subset decider)
+              [resolve]
+            - fused amount typos (`onecards`, `allcards`) are loud, never a
+              silent keyword-split parse (anchored amount keywords)
+              [grammar]
+            - a joint `some` return INTO the deck credits ONE card, not a
+              refill — the over-credit accepted a mid-deal crash [deckcheck]
+            - the action space walls an unregistered/inline joint predicate,
+              a climb+joint game, and two distinct joint codecs — all three
+              NotImplementedError walls probed [encoding]
+sampled:    the single-dest destination shape shares the ordinary movement
+            path after selection — pinned by one single-dest test.
 residual:   `jointly` under `random` mode (uniform over satisfying subsets)
             is implementable but has no corpus user — rejected loudly,
             recorded in roadmap.md "Grammar surface deferred by the
-            checker" alongside `some` without `jointly`.
+            checker" alongside `some` without `jointly` and `to each`.
 """
 
 from __future__ import annotations
@@ -277,6 +292,104 @@ def test_exact_count_jointly_offers_only_that_size() -> None:
     play_game(game, random.Random(0), chooser=chooser)
     assert len(seen) == 1
     assert len(seen[0]) == 4 and all(len(c.cards) == 3 for c in seen[0])
+    # The enumeration-order pin (a reversed-order mutant passed every other
+    # local test): combinations in source order — the subset OMITTING the
+    # last-placed card (7♠) first, the one omitting the first (7♣) last.
+    suits_per_candidate = [tuple(c.suit for c in cand.cards) for cand in seen[0]]
+    assert suits_per_candidate == [
+        ("clubs", "diamonds", "hearts"),
+        ("clubs", "diamonds", "spades"),
+        ("clubs", "hearts", "spades"),
+        ("diamonds", "hearts", "spades"),
+    ]
+
+
+def test_fused_amount_typos_are_loud() -> None:
+    # The anchored amount keywords: `onecards`/`allcards` used to split as
+    # `one cards` / `all cards` (a real second parse — the expr alternative
+    # makes the amount position genuinely ambiguous for unanchored keywords)
+    # and compile clean. Post-anchor they fail loudly — `onecards` reparses
+    # as amount-expr `chosen` + item `onecards` and dies in resolve;
+    # `allcards` is a plain syntax error. Loud in SOME located currency is
+    # the property; the split parse is the defect.
+    with pytest.raises(DiagnosticError):
+        check_dsl(
+            _game("  phase p { move chosen onecards from hand[0] to discard }"),
+            "t.cardlang",
+        )
+    with pytest.raises(DiagnosticError, match="syntax"):
+        check_dsl(
+            _game("  phase p { move allcards from deck to discard }"),
+            "t.cardlang",
+        )
+
+
+def test_jointly_with_to_each_is_rejected() -> None:
+    # `to each` would make every destination seat its own subset decider over
+    # the shrinking pool — walled until a game wants that shape.
+    with pytest.raises(DiagnosticError) as e:
+        check_dsl(
+            _game(
+                "  phase p { move chosen some cards from discard\n"
+                f"            where jointly {JOINT_PRED} to each hand }}"
+            ),
+            "t.cardlang",
+        )
+    assert "to each" in e.value.diagnostic.message
+
+
+def test_negative_and_zero_amounts_are_loud() -> None:
+    # The amount-expression domain wall: a negative amount would silently
+    # slice from the wrong end (`deal -2` used to move 50 of 52 cards); a
+    # zero `chosen` is a vacuous decision node.
+    game = check_dsl(
+        _game("  phase p { deal (0 - 2) cards from deck to discard }"),
+        "t.cardlang",
+    )
+    with pytest.raises(RuntimeError, match="negative"):
+        play_game(game, random.Random(0))
+
+    game = check_dsl(
+        _game(
+            "  phase setup { deal 3 cards from deck to hand[0] }\n"
+            "  phase p { as dealer { move chosen (1 - 1) cards from hand[dealer] to discard } }"
+        ),
+        "t.cardlang",
+    )
+    with pytest.raises(RuntimeError, match="0"):
+        play_game(game, random.Random(0))
+
+
+def test_empty_pool_all_jointly_is_loud_like_some() -> None:
+    # `all` over an empty pool used to mint one empty-subset "decision";
+    # subset sizes are >= 1, so it now falls to the loud no-subset error.
+    game = check_dsl(
+        _game(
+            "  phase p { as dealer { move chosen all cards from hand[dealer]\n"
+            "            where jointly (number of cards in cards) >= 0 to discard } }"
+        ),
+        "t.cardlang",
+    )
+    with pytest.raises(RuntimeError, match="no subset"):
+        play_game(game, random.Random(0))
+
+
+def test_deckcheck_credits_a_some_return_as_one_card_not_a_refill() -> None:
+    # A joint `some` return to the deck puts back AT LEAST one card, never
+    # the pack — the old full-refill credit statically accepted a program
+    # that died mid-deal (`deal 14` from a 13-card stock).
+    dsl = _game(
+        "  phase p {\n"
+        "    deal 36 cards from deck to discard\n"
+        "    deal 4 cards from deck to hand[0]\n"
+        "    as dealer { move chosen some cards from hand[dealer]\n"
+        f"            where jointly {JOINT_PRED} to deck }}\n"
+        "    deal 14 cards from deck to discard\n"
+        "  }"
+    )
+    with pytest.raises(DiagnosticError) as e:
+        check_dsl(dsl, "t.cardlang")
+    assert "deck" in e.value.diagnostic.message.lower()
 
 
 def test_action_space_walls_an_unregistered_joint_predicate() -> None:
@@ -293,6 +406,65 @@ def test_action_space_walls_an_unregistered_joint_predicate() -> None:
         "t.cardlang",
     )
     with pytest.raises(NotImplementedError, match="jointly"):
+        ActionSpace.for_game(game)
+
+
+def test_action_space_walls_a_climb_plus_joint_game() -> None:
+    # The combo block serves ONE subset universe: a game with both a climb
+    # round and a joint selection needs a composed block no game has forced.
+    from cardlang.openspiel.encoding import ActionSpace
+
+    dsl = (
+        "game G {\n"
+        "  players: 3\n"
+        "  max_length: 1000\n"
+        "  cards: standard52\n"
+        "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
+        "  zones { deck : Deck  hand[player] : Hand<player>\n"
+        "          trick_pile : TrickPile  discard : Discard }\n"
+        "  state { dealer : Player = 0  score[player] : Integer = 0 }\n"
+        "  winner: highest score\n"
+        "  phase p {\n"
+        "    round climb play_combination from 0 over all players\n"
+        "          source hand into trick_pile\n"
+        "          combinations president_lead_options follows president_follows\n"
+        "          until false\n"
+        "    as dealer { move chosen some cards from hand[dealer]\n"
+        "            where jointly gin_valid_meld(cards) to discard }\n"
+        "  }\n"
+        "}\n"
+        "move_type play_combination { effect { } }\n"
+    )
+    game = check_dsl(dsl, "t.cardlang")
+    with pytest.raises(NotImplementedError, match="climb"):
+        ActionSpace.for_game(game)
+
+
+def test_action_space_walls_two_distinct_joint_codecs(monkeypatch: Any) -> None:
+    # Two joint predicates whose registered codecs are DIFFERENT objects need
+    # a composed combo block — walled until a game forces the design. The
+    # registry is monkeypatched because today's only registered codecs (both
+    # gin roots) deliberately share one singleton.
+    from cardlang.openspiel.encoding import ActionSpace
+    from cardlang.runtime import stdlib as runtime_stdlib
+
+    class _StubCodec:
+        size = 1
+
+    codecs = {"gin_valid_meld": _StubCodec(), "gin_arrange_ok": _StubCodec()}
+    monkeypatch.setattr(
+        runtime_stdlib, "joint_codec_function", lambda name: codecs.get(name)
+    )
+    dsl = _game(
+        "  phase p { as dealer {\n"
+        "    move chosen some cards from hand[dealer]\n"
+        "         where jointly gin_valid_meld(cards) to discard\n"
+        "    move chosen some cards from hand[dealer]\n"
+        "         where jointly gin_arrange_ok(dealer, cards) to discard\n"
+        "  } }"
+    )
+    game = check_dsl(dsl, "t.cardlang")
+    with pytest.raises(NotImplementedError, match="different subset codecs"):
         ActionSpace.for_game(game)
 
 
