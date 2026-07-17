@@ -96,3 +96,74 @@ def test_turns_with_again_clause_parses() -> None:
     game = parse_text(dsl, "test.cardlang")
     nodes = [nd for nd in _walk(game) if isinstance(nd, n.Turns)]
     assert nodes[0].again == "go"
+
+
+# --- resolve/typecheck walls (misuse probes) ---
+
+
+def test_turns_checks_clean() -> None:
+    check_dsl(
+        _game(
+            "  phase p { turns t from dealer over all players until stop {\n"
+            "    score[t] += 1  stop := true\n"
+            "  } }"
+        ),
+        "test.cardlang",
+    )
+
+
+def test_binder_is_scoped_to_the_body_only() -> None:
+    dsl = _game(
+        "  phase p { turns t from dealer over all players until stop { score[t] += 1 }\n"
+        "            score[t] += 1 }"
+    )
+    with pytest.raises(DiagnosticError) as e:
+        check_dsl(dsl, "test.cardlang")
+    assert "unresolved name 't'" in e.value.diagnostic.message
+
+
+def test_non_boolean_until_is_rejected() -> None:
+    dsl = _game(
+        "  phase p { turns t from dealer over all players until dealer { score[t] += 1 } }"
+    )
+    with pytest.raises(DiagnosticError) as e:
+        check_dsl(dsl, "test.cardlang")
+    assert "Boolean" in e.value.diagnostic.message
+
+
+def test_non_player_leader_is_rejected() -> None:
+    dsl = _game(
+        "  phase p { turns t from stop over all players until stop { score[t] += 1 } }"
+    )
+    with pytest.raises(DiagnosticError) as e:
+        check_dsl(dsl, "test.cardlang")
+    assert "Player" in e.value.diagnostic.message
+
+
+def test_non_collection_participants_is_rejected() -> None:
+    dsl = _game(
+        "  phase p { turns t from dealer over stop until stop { score[t] += 1 } }"
+    )
+    with pytest.raises(DiagnosticError) as e:
+        check_dsl(dsl, "test.cardlang")
+    assert "players" in e.value.diagnostic.message
+
+
+def test_undeclared_again_var_is_rejected() -> None:
+    dsl = _game(
+        "  phase p { turns t from dealer over all players until stop again ghost {\n"
+        "    score[t] += 1 } }"
+    )
+    with pytest.raises(DiagnosticError) as e:
+        check_dsl(dsl, "test.cardlang")
+    assert "ghost" in e.value.diagnostic.message
+
+
+def test_non_boolean_again_var_is_rejected() -> None:
+    dsl = _game(
+        "  phase p { turns t from dealer over all players until stop again dealer {\n"
+        "    score[t] += 1 } }"
+    )
+    with pytest.raises(DiagnosticError) as e:
+        check_dsl(dsl, "test.cardlang")
+    assert "Boolean" in e.value.diagnostic.message

@@ -529,6 +529,10 @@ def _stmt_tree_scoped(
             # expression (walled by `_check_stmt_exprs`, typed to Player in
             # `_check_stmt`), so nothing new enters scope here.
             yield from _seq_tree_scoped(s.body, binders)
+        case n.Turns():
+            # The binder names the current player, one turn at a time —
+            # typed Player like a `for each player` binder.
+            yield from _seq_tree_scoped(s.body, binders + ((s.binder, TPlayer()),))
         case n.Block():
             # Synthetic, and created only by `expand`, which runs AFTER this
             # pass — so nothing here ever sees one today. The arm exists anyway:
@@ -1513,6 +1517,10 @@ def _stmt_exprs(s: n.Stmt) -> list[n.Expr]:
             return [s.cond]
         case n.AsBlock():
             return [s.player]
+        case n.Turns():
+            # `again` is a state-var NAME (a string, validated by resolve),
+            # not an expression — only the three expr positions walk here.
+            return [s.leader, s.participants, s.termination]
         case n.Produce():
             return list(s.payloads)
         case n.RunStmt():
@@ -1680,6 +1688,38 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
                     f"got {_type_name(t)}",
                     stmt.span,
                 )
+        case n.Turns():
+            # The form's three expression positions carry its contract: `from`
+            # is the first player, `over` the participants (a player
+            # collection, re-evaluated per advance), `until` the turn-boundary
+            # termination. `again`, when present, is a declared Boolean state
+            # var (resolve walls the declaration; the TYPE is checked here).
+            lt = infer(stmt.leader, env)
+            if not assignable(lt, TPlayer()):
+                bag.error(
+                    f"`turns … from` names the first player — expected a "
+                    f"Player, got {_type_name(lt)}",
+                    stmt.span,
+                )
+            pt = infer(stmt.participants, env)
+            if not (
+                isinstance(pt, TAny)
+                or (isinstance(pt, TCollection) and assignable(pt.element, TPlayer()))
+            ):
+                bag.error(
+                    f"`turns … over` names the participants — expected a "
+                    f"collection of players, got {_type_name(pt)}",
+                    stmt.span,
+                )
+            _check_bool(stmt.termination, env, bag, "turns `until` condition")
+            if stmt.again is not None:
+                at = env.state_vars.get(stmt.again)
+                if at is not None and not assignable(at, TBoolean()):
+                    bag.error(
+                        f"`again {stmt.again}`: the go-again flag must be "
+                        f"Boolean, got {_type_name(at)}",
+                        stmt.span,
+                    )
         case (
             n.RotateStmt() | n.EachSimultaneous() | n.ForEach()
             | n.LetStmt() | n.Offer() | n.Produce() | n.Produces()
@@ -1947,6 +1987,11 @@ def _control_flow_nodes(stmt: n.Stmt) -> Iterator[n.Stmt]:
             # would inline.
             for s in stmt.body:
                 yield from _control_flow_nodes(s)
+        case n.Turns():
+            # Transparent like the other compound statements: a jump inside a
+            # turn body unwinds out of the loop to the enclosing construct.
+            for s in stmt.body:
+                yield from _control_flow_nodes(s)
         case n.Block():
             # A block is transparent to control flow: a jump written in a
             # procedure body unwinds exactly as it would inline. Unreachable
@@ -2046,12 +2091,12 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
             for arm in stmt.arms:
                 for s in arm.body:
                     check_produces_scope(s, avail)  # the arm runs at this position
-        elif isinstance(stmt, (n.RepeatUntil, n.ForEach, n.EachSimultaneous)):
+        elif isinstance(stmt, (n.RepeatUntil, n.ForEach, n.EachSimultaneous, n.Turns)):
             # Any statement-level loop reruns its body; a run-once phase producer
             # is gone after the first iteration, so none are available inside.
             bodies = (
                 stmt.body
-                if isinstance(stmt, n.RepeatUntil)
+                if isinstance(stmt, (n.RepeatUntil, n.Turns))
                 else (stmt.body,)
             )
             for s in bodies:

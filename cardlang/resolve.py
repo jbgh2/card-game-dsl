@@ -232,7 +232,7 @@ def _node_binders(node: n.Node) -> tuple[str, ...]:
     them for reserved words. This registry answers for nodes a body walk can
     encounter, where the binder scopes within the walked tree itself."""
     match node:
-        case n.Comprehension() | n.Quantifier() | n.ForEach():
+        case n.Comprehension() | n.Quantifier() | n.ForEach() | n.Turns():
             return (node.binder,)
         case n.EachSimultaneous():
             return (node.role,)
@@ -1184,6 +1184,10 @@ _BINDER_SCOPE_FIELDS: dict[type, tuple[str, ...]] = {
     n.EpistemicOp: ("filter",),
     n.ForEach: ("body",),
     n.EachSimultaneous: ("body",),
+    # `turns`' binder scopes to the body only: leader/participants/termination
+    # evaluate in the enclosing scope (the binder does not exist until a turn
+    # is bound — decisions.md "The `turns` form").
+    n.Turns: ("body",),
 }
 
 
@@ -2059,6 +2063,18 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bag.error(bad, nd.span)
             case n.Winner() if nd.target not in cats.state_vars:
                 bag.error(f"winner references unknown variable '{nd.target}'", nd.span)
+            case n.Turns() if nd.again is not None and nd.again not in cats.state_vars:
+                # The go-again flag is ordinary game state the body's effects
+                # write (decisions.md "The `turns` form") — a plain string
+                # field like `Winner.target`, so the generic NameRef pass
+                # never sees it; validate it here or it fails only as a
+                # runtime KeyError at the first turn boundary.
+                bag.error(
+                    f"`again {nd.again}`: names no declared state variable — "
+                    f"the go-again flag is ordinary Boolean game state the "
+                    f"body's move effects write",
+                    nd.span,
+                )
             case n.Offer():
                 _check_vocabulary_moves(
                     nd.move_types,
