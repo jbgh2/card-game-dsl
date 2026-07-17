@@ -422,17 +422,22 @@ Things we have noted but consciously not designed yet:
   [design-notes/metamorphic-suite.md](design-notes/metamorphic-suite.md))
   runs T1 (the pairing harness), T2 (α-rename), T3 (inline-vs-`run`), and T5
   (declaration reorder) over the corpus, each with its own completeness
-  ledger. Landing them surfaced two real findings, neither fixed here
-  (out of scope for the suite itself; each is a `cardlang/` behavior, not a
-  metamorphic-suite defect): (1) several kernel and per-game runtime
-  primitives (`cardlang/runtime/rules.py::legal_cards`,
-  `cardlang/runtime/mechanics.py::param_domain`, eleven
-  `cardlang/runtime/<game>.py` modules) read a zone or state variable by a
-  hardcoded Python string literal rather than deriving it from the AST — so
-  a corpus game's zone/state names are not actually free to rename despite
-  nothing in the grammar or type checker saying so
-  (`tests/metamorphic/rename.py`'s `_PRIMITIVE_COUPLED_NAMES`, cited
-  file:line); (2) `cardlang/runtime/execute.py::_gather` ("move all cards to
+  ledger. Landing them surfaced two real findings: (1) game-local runtime
+  primitives read zone/state names as Python string literals invisible to
+  the pipeline — **closed as a class** by the declared-reads registry
+  (`PRIMITIVE_READS`, `cardlang/runtime/reads.py`): every primitive read
+  goes through typed accessors, the registry is pinned two ways by
+  `tests/test_primitive_reads.py` (against each game file's declarations
+  and against each module's accessor-call literals), a drifted name fails
+  a static test — or, past that, a typed `PrimitiveReadError` — instead of
+  a playout `KeyError`, and the rename transform derives its exclusions
+  from the registry. The kernel's own literal reads
+  (`cardlang/runtime/rules.py::legal_cards`,
+  `cardlang/runtime/mechanics.py::param_domain`) are the language-wide
+  magic `hand` name, spec'd in decisions.md "Declared parameter domains" —
+  a documented rule, not latent coupling. (2) — not fixed here, a
+  `cardlang/` behavior, not a metamorphic-suite defect —
+  `cardlang/runtime/execute.py::_gather` ("move all cards to
   `<zone>`") iterates `ZoneStore`'s dicts in zone-DECLARATION order, so a
   gather's observable "move"-event sequence is a function of zone
   declaration order — real declaration-order sensitivity decisions.md never
