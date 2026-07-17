@@ -1,0 +1,92 @@
+// GOPS (Goofspiel) — formalized DSL (parser/checker/runtime target).
+//
+// Companion to gops.md. Two players, 13 sealed-bid rounds on three suits of
+// the standard52 deck: P0 bids clubs, P1 bids spades, the shuffled diamond
+// suit is the prize deck (hearts are out of play). Each round the top prize
+// card is turned face up, both players commit one bid card face down
+// simultaneously, the bids are revealed, and the higher bid takes the prize
+// (A low ... K high). Equal bids discard the prize — the variant Pagat
+// records ("tied bids result in prize discard") and the rule OpenSpiel's
+// native goofspiel implements, chosen so the game mirrors
+// goofspiel(players=2,num_cards=13,points_order=random) for differential
+// validation (tests/test_differential_gops.py). Rules: Pagat
+// <https://www.pagat.com/misc/gops.html>; the prize is worth its rank value,
+// A=1 .. K=13 (91 points in the deck), and the higher prize total wins.
+//
+// The sealed bid is ZONE CONTENTS, never state: `bid[player]` is a
+// HiddenPile<player> (identity to the owner, a bare count to the opponent),
+// so before the reveal each player's information set contains their own
+// committed card and only "#1" of the opponent's. The commit is the
+// `each player simultaneously:` construct (Hearts's passing form); the
+// public turn — reveal both bids, compare, route the prize — is plain
+// statements over `rank_value`, whose strength order under the declared
+// `ranking:` (A weakest .. K strongest, 0-based) is exactly the bid order,
+// and whose value + 1 is exactly the prize value.
+
+game GOPS {
+
+  players: 2
+  direction: clockwise
+  max_length: 200
+
+  cards: standard52
+  ranking: K Q J 10 9 8 7 6 5 4 3 2 A
+
+  zones {
+    deck             : Deck                 // empty after setup
+    dead             : Muck                 // the hearts, out of play
+    prize_deck       : FaceDownPile         // the shuffled diamond suit
+    prize            : Discard              // the face-up prize on offer this round
+    hand[player]     : Hand<player>         // P0: clubs. P1: spades.
+    bid[player]      : HiddenPile<player>   // this round's sealed bid
+    captured[player] : PlayerPile<player>   // prizes won
+    discard          : Discard              // spent bids + tied-away prizes
+  }
+
+  state {
+    prize_points[player] : Integer = 0
+  }
+
+  phase setup {
+    move all cards from deck where card.suit is clubs to hand[0]
+    move all cards from deck where card.suit is spades to hand[1]
+    move all cards from deck where card.suit is diamonds to prize_deck
+    move all cards from deck to dead          // the hearts take no part
+    shuffle prize_deck
+  }
+
+  phase play {
+    repeat until prize_deck is empty {
+      // Turn up the round's prize.
+
+      // Sealed simultaneous bids: each player commits one card face down.
+      each player simultaneously:
+        move chosen 1 card from hand[player] to bid[player]
+
+      // Both bids are revealed to everyone; all routing below is public.
+      reveal one card from bid[0]
+      reveal one card from bid[1]
+
+      let b0 = sum of rank_value(card) over cards in bid[0]
+      let b1 = sum of rank_value(card) over cards in bid[1]
+      let pv = (sum of rank_value(card) over cards in prize) + 1   // A=1 .. K=13
+
+      if b0 > b1 {
+        prize_points[0] += pv
+        move all cards from prize to captured[0]
+      } else {
+        if b1 > b0 {
+          prize_points[1] += pv
+          move all cards from prize to captured[1]
+        } else {
+          // Equal bids: the prize is discarded (nobody scores it).
+          move all cards from prize to discard
+        }
+      }
+      move all cards from bid[0] to discard
+      move all cards from bid[1] to discard
+    }
+  }
+
+  winner: highest prize_points
+}

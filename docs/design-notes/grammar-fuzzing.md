@@ -1,11 +1,19 @@
 # Grammar fuzzing: mechanized surface totality
 
-**Status: proposal.** This is the implementation plan for the fuzzing entry
-in roadmap.md ("Explicitly deferred") — corpus mutation and grammar-directed
-generation behind one oracle. It runs after the metamorphic suite
-([metamorphic-suite.md](metamorphic-suite.md)): metamorphic failures are
-near-always real bugs, while a fuzzer needs an initial triage round before it
-earns its keep.
+**Status: implemented (T1/T2/T3); T4/T5 deferred.** This was the
+implementation plan for the fuzzing entry in roadmap.md ("Explicitly
+deferred") — corpus mutation and grammar-directed generation behind one
+oracle. The suite now lives at `tests/fuzz/` — see roadmap.md's "Mechanized
+surface totality" bullet for landed status, the six findings the discovery
+sweep surfaced (recorded, not fixed, in `tests/fuzz/findings.py`'s
+`KNOWN_FINDINGS`), and the reasoning for deferring T4 (grammar-directed
+generation) and T5 (mechanized shrinking — every finding above was shrunk by
+hand instead). This file stays as the design record; `tests/fuzz/oracle.py`,
+`mutate.py`, and `test_fuzz.py` carry the implementation-level detail
+(module docstrings, completeness ledgers) from here on. It ran after the
+metamorphic suite ([metamorphic-suite.md](metamorphic-suite.md)):
+metamorphic failures are near-always real bugs, while a fuzzer needs an
+initial triage round before it earns its keep.
 
 ## The oracle
 
