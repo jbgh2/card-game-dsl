@@ -27,7 +27,7 @@ game Skat {
   max_length: 8000
 
   cards: skat32
-  ranking: A 10 K Q J 9 8 7
+  ranking: ace-ten
 
   zones {
     deck             : Deck

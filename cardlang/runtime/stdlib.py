@@ -186,7 +186,10 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
         case "peg_run_points":
             from cardlang.runtime.cribbage import peg_run_points
 
-            return peg_run_points(reads.single(ctx.rs, _CRIBBAGE_R, "play_pile").cards)
+            return peg_run_points(
+                reads.single(ctx.rs, _CRIBBAGE_R, "play_pile").cards,
+                ctx.rs.rank_index,
+            )
         case "peg_origin_of":
             from cardlang.runtime.cribbage import peg_origin_of
 

@@ -11,6 +11,7 @@
   "direction": null,
   "max_length": 1000,
   "ranking": [],
+  "ranking_convention": null,
   "trump": null,
   "partnerships": [],
   "zones": [

@@ -8,7 +8,7 @@ game Hearts {
   max_length: 5000
 
   cards: standard52
-  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  ranking: aces high
 
   zones {
     deck             : Deck

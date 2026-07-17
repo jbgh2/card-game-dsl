@@ -47,7 +47,7 @@ game Doppelkopf {
   max_length: 30000
 
   cards: doppelkopf48
-  ranking: A 10 K Q J 9
+  ranking: ace-ten
 
   zones {
     deck             : Deck

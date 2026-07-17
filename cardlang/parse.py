@@ -63,6 +63,9 @@ class _Direction:
 class _Ranking:
     ranks: tuple[str, ...]
     span: Span
+    # A `RANKING_CONVENTIONS` key ("aces high", …) when the convention form
+    # was written; the parse-level XOR guarantees `ranks` is empty then.
+    convention: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -241,7 +244,23 @@ class _Builder(Transformer[Token, n.Game]):
         return _Deck(str(c[0]), span=self._span(meta))
 
     def ranking(self, meta: Meta, c: list[object]) -> _Ranking:
-        return _Ranking(tuple(str(r) for r in c), span=self._span(meta))
+        # The convention forms: `ace-ten` arrives as the RANK_CONV terminal
+        # (its hyphen has no enumeration derivation); the space forms
+        # (`aces high`, …) arrive as ordinary card_rank NAMEs and are
+        # recognized HERE by exact spelling — a grammar alternative would be
+        # a real Earley ambiguity against `card_rank+` (see the grammar's
+        # `ranking` comment). This reserves the registry keys' spellings in
+        # ranking position: an enumeration can never consist of ranks that
+        # space-join to a convention name.
+        from cardlang.runtime.values import RANKING_CONVENTIONS
+
+        span = self._span(meta)
+        if len(c) == 1 and isinstance(c[0], Token) and c[0].type == "RANK_CONV":
+            return _Ranking(ranks=(), span=span, convention=str(c[0]))
+        words = tuple(str(r) for r in c)
+        if " ".join(words) in RANKING_CONVENTIONS:
+            return _Ranking(ranks=(), span=span, convention=" ".join(words))
+        return _Ranking(words, span=span)
 
     def card_rank(self, meta: Meta, c: list[Token]) -> str:
         return str(c[0])
@@ -979,6 +998,7 @@ class _Builder(Transformer[Token, n.Game]):
         deck: str | None = None
         direction: str | None = None
         ranking: tuple[str, ...] = ()
+        ranking_convention: str | None = None
         trump: str | None = None
         partnerships: tuple[tuple[int, ...], ...] = ()
         max_length: int | None = None
@@ -1029,6 +1049,7 @@ class _Builder(Transformer[Token, n.Game]):
             elif isinstance(item, _Ranking):
                 once("ranking:", item.span)
                 ranking = item.ranks
+                ranking_convention = item.convention
             elif isinstance(item, _Trump):
                 once("trump:", item.span)
                 trump = item.suit
@@ -1091,6 +1112,7 @@ class _Builder(Transformer[Token, n.Game]):
             zones=zones,
             direction=direction,
             ranking=ranking,
+            ranking_convention=ranking_convention,
             trump=trump,
             partnerships=partnerships,
             max_length=max_length,

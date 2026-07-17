@@ -60,7 +60,7 @@ game Schnapsen {
   max_length: 1000
 
   cards: schnapsen20
-  ranking: A 10 K Q J
+  ranking: ace-ten
 
   zones {
     deck            : Deck

@@ -31,7 +31,7 @@ game Spades {
   max_length: 2000
 
   cards: standard52
-  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  ranking: aces high
   trump: spades
 
   zones {

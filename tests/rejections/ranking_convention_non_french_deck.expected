@@ -1,0 +1,1 @@
+ranking_convention_non_french_deck.cardlang:6:1: error: ranking: aces high — deck 'tichu56' has ranks outside the standard A..2 set (Mahjong, Dog, Phoenix, Dragon), so no named convention orders it; enumerate the ranking explicitly instead
