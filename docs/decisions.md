@@ -677,7 +677,7 @@ live in the standard library so a game opts into a behaviour by name:
 When one *named* player decides — a chosen discard, a follower's answer to a led
 card, a victim flipping one of their own cards — the binder is `as`:
 
-```
+```cardlang-fragment
 as taker {
   move chosen 6 cards from hand[taker] where is_pref_discard(card) to discard[taker]
 }

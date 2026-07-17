@@ -311,6 +311,39 @@ def _wrap_passing_phase(frag: str) -> str:
     return _game(f"{frag}\n  winner: highest score", top_level=rule)
 
 
+def _wrap_as_taker(frag: str) -> str:
+    # decisions.md "Single-actor decisions: the `as` block": the French Tarot
+    # chien discard quoted as the motivating example. The fragment references
+    # the taker (a Player state var), the taker's hidden discard pile, and
+    # `is_pref_discard` — in the real game a user-defined `function`
+    # (french-tarot.cardlang), so the wrapper declares one of the same shape
+    # with a trivial body. `move chosen` needs an acting player, which the
+    # fragment's own `as taker` supplies.
+    fn = "function is_pref_discard(c : Card) = c.rank is not K"
+    return f"""
+{fn}
+game Skeleton {{
+  players: 4
+  max_length: 1000
+  cards: standard52
+  zones {{
+    deck            : Deck
+    hand[player]    : Hand<player>
+    discard[player] : HiddenPile<player>
+  }}
+  state {{
+    taker              : Player = 0
+    score[player]      : Integer = 0
+  }}
+  phase main {{
+    deal 6 cards from deck to each hand
+{frag}
+  }}
+  winner: highest score
+}}
+"""
+
+
 def _wrap_library_zones_block(frag: str) -> str:
     # `frag` is a complete `zones { ... }` game_item (library.md's stdlib
     # zone-type usage example).
@@ -333,10 +366,11 @@ WRAPPER_RECIPES: dict[tuple[str, int], Callable[[str], str]] = {
     ("decisions.md", 200): _wrap_active_rules_shadowing,
     ("decisions.md", 324): _wrap_first_trick_phase,
     ("decisions.md", 344): _wrap_play_phase,
-    ("decisions.md", 969): _wrap_before_each,
-    ("decisions.md", 1168): _wrap_cards_line,
-    ("decisions.md", 1839): _wrap_winner_loser,
-    ("decisions.md", 2289): _wrap_passing_phase,
+    ("decisions.md", 681): _wrap_as_taker,
+    ("decisions.md", 1014): _wrap_before_each,
+    ("decisions.md", 1213): _wrap_cards_line,
+    ("decisions.md", 1884): _wrap_winner_loser,
+    ("decisions.md", 2334): _wrap_passing_phase,
     ("library.md", 469): _wrap_library_zones_block,
 }
 
@@ -527,6 +561,33 @@ def test_bad_fragment_blocks_are_rejected_when_wrapped(block: FencedBlock) -> No
         f"{wrapper.__name__}, but the pipeline accepted it — either the "
         "counterexample no longer demonstrates the mistake, or it should be "
         "retagged."
+    )
+
+
+def test_every_recipe_key_matches_a_live_fragment_block() -> None:
+    """The registry's REVERSE direction. The line-keyed registry breaks loudly
+    in the block→recipe direction (a doc edit that shifts a fragment's
+    start_line fails `test_fragment_blocks_pass_when_wrapped` with a missing-
+    recipe message — how the `as`-block PR's insertion into decisions.md was
+    caught). Without this test the recipe→block direction was silent: a
+    deleted or moved fragment left its recipe (and any BAD_FRAGMENT_SMOKE
+    filler) as a dead registry entry no run ever consults — the stale half of
+    the same drift, and the vacuously-green shape (an entry that reads as
+    coverage but can never fire). Both directions must fail the same edit."""
+    live = {
+        (b.source_name, b.start_line)
+        for b in _FRAGMENT_BLOCKS + _BAD_FRAGMENT_BLOCKS
+    }
+    stale_recipes = sorted(set(WRAPPER_RECIPES) - live)
+    assert not stale_recipes, (
+        f"WRAPPER_RECIPES keys with no live cardlang(-bad)-fragment block at "
+        f"that (doc, start_line): {stale_recipes} — a doc edit moved or "
+        "deleted the block; re-key the recipe (or delete it with the block)."
+    )
+    stale_smoke = sorted(set(BAD_FRAGMENT_SMOKE) - live)
+    assert not stale_smoke, (
+        f"BAD_FRAGMENT_SMOKE keys with no live block: {stale_smoke} — "
+        "re-key or delete alongside the block."
     )
 
 
