@@ -1557,7 +1557,14 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
     other direct expressions on these two node kinds (source/dest/amount/
     visibility, target) carry no binder and stay in the ambient `env`."""
     if isinstance(s, (n.Movement, n.EpistemicOp)) and s.filter is not None:
-        scoped = env.with_local("card", TCard())
+        # A joint filter (`where jointly`) binds `cards` — the candidate SET,
+        # a card collection — where a per-card filter binds each `card`
+        # (runtime `_select_joint` vs `_card_pred`; decisions.md
+        # "Joint-predicate selection").
+        if isinstance(s, n.Movement) and s.joint:
+            scoped = env.with_local("cards", TCollection(TCard()))
+        else:
+            scoped = env.with_local("card", TCard())
         _check_expr(s.filter, scoped, bag)
         verb = s.verb if isinstance(s, n.Movement) else s.op
         _check_bool(s.filter, scoped, bag, f"'{verb}' filter")

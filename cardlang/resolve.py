@@ -240,7 +240,11 @@ def _node_binders(node: n.Node) -> tuple[str, ...]:
             return ("player",)
         case n.CardQuery():
             return ("card",)
-        case n.Movement() | n.EpistemicOp() if node.filter is not None:
+        case n.Movement() if node.filter is not None:
+            # `where jointly` binds the candidate SET; a per-card `where`
+            # binds each candidate (decisions.md "Joint-predicate selection").
+            return ("cards",) if node.joint else ("card",)
+        case n.EpistemicOp() if node.filter is not None:
             return ("card",)
         case n.LetStmt():
             return (node.name, node.index) if node.index is not None else (node.name,)
@@ -2002,6 +2006,28 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bad = _bad_zone_endpoint(endpoint, direction)
                     if bad is not None:
                         bag.error(bad, nd.span)
+                # The joint-selection matrix (decisions.md "Joint-predicate
+                # selection"): `jointly` is a DECISION over subsets, so it
+                # requires `chosen` — a dealt jointly-selection has no
+                # decider and a `random` one has no corpus user (both
+                # recorded in roadmap.md); `some` (any-size) is meaningless
+                # without a joint predicate to own the size.
+                if nd.joint and nd.mode != "chosen":
+                    bag.error(
+                        "`where jointly` selects one subset as a player "
+                        "decision — it requires `chosen` (a dealt or "
+                        "`random` joint selection is not implemented; "
+                        "recorded in roadmap.md)",
+                        nd.span,
+                    )
+                if nd.amount == "some" and not nd.joint:
+                    bag.error(
+                        "amount `some` (any satisfying size) is only "
+                        "meaningful under `where jointly`, whose predicate "
+                        "owns the size constraint — use a count, `one`, or "
+                        "`all` otherwise",
+                        nd.span,
+                    )
                 if nd.dest_each and not isinstance(nd.dest, n.NameRef):
                     # The executor keys the family by BARE name per seat, so a
                     # subscripted or computed destination has no meaning under

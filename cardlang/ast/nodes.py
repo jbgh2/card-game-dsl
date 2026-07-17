@@ -339,13 +339,17 @@ class Movement:
 
     verb: str
     mode: str | None  # "chosen" | "random" | None
-    amount: str | Expr  # "all" | "one" | count expression
+    amount: str | Expr  # "all" | "one" | "some" | count expression
     item: str  # the item noun: "cards", "coins", …
     source: Expr | None  # a zone reference; None for a gather (collect-from-all)
     dest: Expr | None
     dest_each: bool
     distribution: str | None = None  # "as_equally_as_possible" for a round-robin deal
     filter: Expr | None = None  # a `where <lambda>` predicate narrowing the source pool
+    # `where jointly <pred>`: the filter binds `cards` (the candidate SET) and
+    # the selection is over the source's satisfying subsets — one decision,
+    # not per-card filtering (decisions.md "Joint-predicate selection").
+    joint: bool = False
     visibility: Expr | None = None
     span: Span | None = None
 
