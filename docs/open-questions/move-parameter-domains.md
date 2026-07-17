@@ -57,6 +57,21 @@ any resolution must preserve that);
 [phase-legal-moves](phase-legal-moves.md) (what a declared move vocabulary is
 for — the same static-contract instinct at phase level).
 
+## A larger sibling: no-limit bet sizing
+
+A bounded-integer move parameter (above) is a small, fully-enumerable
+interval. **No-limit betting is the same shape at a scale that cannot be
+enumerated outright** — a bet size ranging up to a player's whole stack has
+no small fixed ceiling, so it cannot mint one OpenSpiel action id per value
+the way `Suit`/`Rank`/`Player`/bounded-`Integer` do; it needs bet-size
+**action abstraction** (bucketing into a handful of representative sizes) to
+stay within "Anchored to a finite action space"
+([decisions.md](../decisions.md)). No corpus game forces this yet — Stud and
+the candidate Hold'em variants ([games/_candidates.md](../games/_candidates.md),
+"holdem") are fixed-limit, where the bet size is already one of a small
+enumerated set, so the ordinary bounded-integer domain above would suffice.
+No-limit variants stay unbuilt until a corpus game needs them.
+
 ## Adjacent cleanup to fold in
 
 One small gap surfaced during the declared-parameter-domains review, narrow

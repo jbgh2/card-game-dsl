@@ -509,9 +509,9 @@ def test_skat_migration_preserves_per_hand_scores() -> None:
 # discriminator the game emits: the full reveal sequence (every influence
 # flip, in order, with its character — where every elimination happens) plus
 # final coins, the alive vector, and the winner, over 40 seeds under
-# PYTHONHASHSEED=0 (the WS5 behaviour-change re-pin, signed off in
-# docs/superpowers/specs/2026-07-10-ws5-coup-interactive-windows-design.md).
-# Regenerate by running _COUP_CAPTURE exactly as _capture_coup does.
+# PYTHONHASHSEED=0 (the WS5 behaviour-change re-pin — see kernel-migration.md,
+# Workstream 5). Regenerate by running _COUP_CAPTURE exactly as _capture_coup
+# does.
 _COUP_CAPTURE = """
 import json, random, sys
 from pathlib import Path

@@ -1,10 +1,9 @@
 """Pin: an `offer` statement inside a `move_type` effect is legal and
-announced — the construct combination Task 3's Coup window pattern (challenge
-/ block / claim polls nested inside an action's effect) depends on. Per
-docs/superpowers/specs/2026-07-10-ws5-coup-interactive-windows-design.md,
-"Architecture decision": the runtime's `_offer` recurses through the same
-statement executor (`run_body`), so a nested offer's inner decision runs with
-the offered player bound as actor, not the outer actor.
+announced — the construct combination Coup's window pattern (challenge/block/
+claim polls nested inside an action's effect, decisions.md "Coup's challenge
+and block windows") depends on. The runtime's `_offer` recurses through the
+same statement executor (`run_body`), so a nested offer's inner decision runs
+with the offered player bound as actor, not the outer actor.
 """
 
 from __future__ import annotations
