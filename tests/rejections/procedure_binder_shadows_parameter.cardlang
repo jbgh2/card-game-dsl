@@ -1,0 +1,20 @@
+// Wall: resolve.py's `_check_procedures` binder-shadow check
+// (cardlang/expand.py's docstring: "the one hygiene wall that remains").
+// `bump`'s body binds a `let who` that shares its own parameter `who`'s
+// name — both classify as `local`, so substitution cannot tell them apart.
+game ProcedureBinderShadowsParameter {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase play {
+    run bump(0)
+  }
+  winner: highest score
+}
+procedure bump(who : Player) {
+  let who = 1
+  score[who] += 1
+}

@@ -1,0 +1,1 @@
+syntax_error.cardlang:12:9: error: syntax error: No terminal matches '{' in the current parser context, at line 12 col 9

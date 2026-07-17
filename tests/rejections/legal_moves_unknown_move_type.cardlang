@@ -1,0 +1,18 @@
+// Wall: resolve.py's `_resolve_phase_item` LegalMoves arm. `nonesuch_move`
+// names no library move type (cardlang/stdlib LIBRARY_MOVE_TYPES), so the
+// phase's move menu is rejected rather than silently offering nothing.
+game LegalMovesUnknownMoveType {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+  }
+  state { score[player] : Integer = 0 }
+  phase play {
+    legal_moves: [nonesuch_move]
+  }
+  winner: highest score
+}
