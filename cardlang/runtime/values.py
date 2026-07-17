@@ -211,6 +211,11 @@ def expand_ranking_convention(convention: str, deck_name: str) -> tuple[str, ...
 # A player is just an identity; the runtime uses small ints P0..P(n-1).
 Player = int
 
+# The closed value set of the game-level `direction:` clause (grammatically a
+# bare NAME). resolve's `_resolve_direction` walls membership; `driver.py`
+# maps the value onto `Seating.clockwise`. An omitted clause means clockwise.
+GAME_DIRECTIONS: tuple[str, ...] = ("clockwise", "counterclockwise")
+
 
 @dataclass(frozen=True, slots=True)
 class Seating:

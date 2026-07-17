@@ -38,14 +38,15 @@ sampled:    the "did you mean" hint is probed on four representative
             misspellings (word flip, case flip, space-for-hyphen, plausible
             non-convention), not on every string within edit distance of a
             key — the hint is advisory text on an already-loud diagnostic.
-residual:   a DUPLICATED `ranking:` clause is last-wins at parse today —
-            that is the game-clause duplication class, walled for every
-            header clause by PR #70 (open) rather than piecemeal here.
-            Partial-enumeration runtime KeyError (`rank_value` on a rank
+residual:   partial-enumeration runtime KeyError (`rank_value` on a rank
             outside a partial `ranking:`) is the standing recorded residual
             (docs/roadmap.md, "`ranking:` coverage is unchecked") and is
             unreachable from a convention, which is always a full
-            permutation of its deck by construction.
+            permutation of its deck by construction. (A duplicated
+            `ranking:` clause — convention or enumeration — is walled at
+            parse by the game-clause `once` sweep,
+            tests/test_game_clause_walls.py, so it is that ledger's cell,
+            not a residual here.)
 
 Rendered-diagnostic goldens for the walls live in `tests/rejections/`
 (ranking_unknown_convention, ranking_convention_non_french_deck,

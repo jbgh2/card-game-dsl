@@ -622,7 +622,15 @@ the variable is not allocated.
 
 ## Stdlib functions
 
-Standard helpers available across games.
+Standard helpers available across games. A function below (or a game-local
+primitive in the same shape) that reads live zones or state does so by the
+game's declared names — a coupling the pipeline cannot see — so every such
+read is declared in the `PRIMITIVE_READS` registry
+(`cardlang/runtime/reads.py`) and made through its typed accessors:
+`tests/test_primitive_reads.py` pins the declarations against the game
+file's actual zone/state declarations and against each module's source, so
+renaming either side fails a static test rather than key-erroring
+mid-playout.
 
 - `best_five_card_hand(cards: Set<Card>) → HandRank` — given a set of
   cards (typically 7 for Stud, 5 for draw poker, 2+5 community for

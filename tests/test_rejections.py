@@ -50,7 +50,7 @@ registry:   the directory itself. `test_every_cardlang_case_has_a_matching_expec
             `tests/openspiel_ready/test_coverage.py`): an orphan `.cardlang`
             with no golden, or a golden with no source, fails the harness
             rather than being silently skipped or silently stale.
-covered:    21 cases, each independently verified (by reading the produced
+covered:    28 cases, each independently verified (by reading the produced
             diagnostic while authoring it, not just observing a raise) to
             fail for its stated reason: unknown library zone type,
             `active_rules:` naming an undefined rule, `transition_to:` a
@@ -69,13 +69,20 @@ covered:    21 cases, each independently verified (by reading the produced
             shadowing its own parameter's name (the one hygiene wall
             expansion cannot replace by construction — cardlang/expand.py's
             docstring), a `deal … to each` destination named as a
-            subscripted zone rather than the bare family, and a game
-            declaring neither `winner:` nor `loser:`.
+            subscripted zone rather than the bare family, a game declaring
+            neither `winner:` nor `loser:`, a missing `players:`, a missing
+            `cards:` (the retired fuzz finding `missing_cards_declaration` —
+            tests/fuzz/findings.py's feed-forward rule), both missing at
+            once (the bag-plus-note rendering), a repeated single-valued
+            game clause (`players:` seeds the class; the closed domain is
+            swept by tests/test_game_clause_walls.py), a source with no
+            `game { }` block, a source with two, and an unknown
+            `direction:` value.
 sampled:    the wall-class population itself — every diagnostic emission
             site across `cardlang/resolve.py`, `cardlang/typecheck.py`, and
             `cardlang/deckcheck.py` — is open and growing as the language
             evolves (a new checker rule is a new wall), not a closed
-            registry this module cross-products against. The 21 cases are
+            registry this module cross-products against. The 28 cases are
             representative wall classes, one seed per class named above;
             they are not exhaustive over every diagnostic call site in the
             front end (those stay covered, per-wall, by the scattered

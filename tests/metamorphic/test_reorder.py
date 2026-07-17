@@ -64,7 +64,20 @@ REJECTION_CASES = sorted(p.stem for p in REJECTIONS_DIR.glob("*.cardlang"))
 # parsing, or a case not here that stops parsing, fails loudly — the
 # alternative (skip on parse failure) would let a parse regression silently
 # shrink the diagnostic property's domain.
-_PARSE_LEVEL_CASES = frozenset({"syntax_error"})
+_PARSE_LEVEL_CASES = frozenset(
+    {
+        "syntax_error",
+        # The game-skeleton walls in parse.py's `game()`/`start()` builders
+        # (missing/duplicated single-valued clauses, game-count errors) —
+        # rejected before any tree exists to reorder.
+        "missing_cards_declaration",
+        "missing_players_declaration",
+        "missing_players_and_cards",
+        "duplicate_game_clause",
+        "no_game_block",
+        "two_game_blocks",
+    }
+)
 
 def _names_in(expr: n.Expr) -> set[str]:
     return {nd.name for nd in _walk(expr) if isinstance(nd, n.NameRef)}

@@ -26,8 +26,11 @@ from collections import Counter
 from itertools import combinations
 from typing import Any
 
+from cardlang.runtime import reads
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Card, Player
+
+_R = reads.row("cardlang/runtime/stud.py", "seven-card-stud.cardlang")
 
 # The ante (1), bring-in (2), street limits (5/10), and raise cap (3) live in
 # seven-card-stud.cardlang; this module keeps only the poker evaluator, the seat
@@ -104,8 +107,8 @@ def _highest_upcards(seats: list[Player], up: dict[Player, list[Card]]) -> Playe
 def bring_in_seat(ctx: Ctx) -> Player:
     """The player who must post the bring-in: the lowest door card among players
     still holding chips (no one has folded at bring-in time)."""
-    stack = ctx.rs.get("stack")
-    up = ctx.rs.zones.families["upcards"]
+    stack = reads.state(ctx.rs, _R, "stack")
+    up = reads.family(ctx.rs, _R, "upcards")
     able = [p for p in ctx.rs.seating.players if stack[p] > 0]
     door = {p: up[p].cards[0] for p in able}
     return _lowest_door(able, door)
@@ -114,10 +117,10 @@ def bring_in_seat(ctx: Ctx) -> Player:
 def first_to_act_seat(ctx: Ctx) -> Player:
     """The first player to act on a later street: the highest visible upcards among
     players still live (holding chips and not folded)."""
-    stack = ctx.rs.get("stack")
-    folded = ctx.rs.get("folded")
+    stack = reads.state(ctx.rs, _R, "stack")
+    folded = reads.state(ctx.rs, _R, "folded")
     players = list(ctx.rs.seating.players)
-    up = ctx.rs.zones.families["upcards"]
+    up = reads.family(ctx.rs, _R, "upcards")
     live = [p for p in players if stack[p] > 0 and not folded[p]]
     if not live:  # unreachable in a real hand (a street runs only with >= 2 live)
         return players[0]
@@ -180,10 +183,10 @@ def pot_share(ctx: Ctx, player: Player) -> int:
     is what actually moves the chips."""
     rs = ctx.rs
     players = list(rs.seating.players)
-    committed = rs.get("committed")
-    folded = rs.get("folded")
-    in_hand_flags = rs.get("in_hand")
+    committed = reads.state(rs, _R, "committed")
+    folded = reads.state(rs, _R, "folded")
+    in_hand_flags = reads.state(rs, _R, "in_hand")
     in_hand = [p for p in players if in_hand_flags[p]]
-    hole = rs.zones.families["hole"]
-    upcards = rs.zones.families["upcards"]
+    hole = reads.family(rs, _R, "hole")
+    upcards = reads.family(rs, _R, "upcards")
     return _payouts(in_hand, committed, folded, hole, upcards).get(player, 0)

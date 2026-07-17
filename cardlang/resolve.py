@@ -148,6 +148,7 @@ def _check_reserved(
 def resolve(game: n.Game) -> n.Game:
     bag = DiagnosticBag()
     _resolve_deck(game, bag)
+    _resolve_direction(game, bag)
     game = _expand_ranking(game, bag)
     _resolve_ranking(game, bag)
     _check_duplicate_names(game, bag)
@@ -1065,7 +1066,23 @@ def _resolve_deck(game: n.Game, bag: DiagnosticBag) -> None:
 
         bag.error(
             f"unknown deck '{game.deck}' — known decks: {', '.join(sorted(DECKS))}",
-            None,
+            game.span,
+        )
+
+
+def _resolve_direction(game: n.Game, bag: DiagnosticBag) -> None:
+    """`direction:` is grammatically a bare NAME; an unwalled unknown value
+    (`direction: anticlockwise`) would silently seat the turn ring clockwise —
+    driver.py reads the clause as `clockwise = direction != "counterclockwise"`
+    (Surface totality: accepted-with-different-semantics)."""
+    from cardlang.runtime.values import GAME_DIRECTIONS
+
+    if game.direction is not None and game.direction not in GAME_DIRECTIONS:
+        options = " or ".join(f"`direction: {d}`" for d in GAME_DIRECTIONS)
+        bag.error(
+            f"unknown direction '{game.direction}' — declare {options} "
+            f"(omitting the clause means clockwise)",
+            game.span,
         )
 
 

@@ -109,7 +109,14 @@ interface cannot express one.
   its signature rewritten as values — mechanical for the scorers
   (`tichu_card_points`, `peg_value`), more involved where the function reads
   accumulator state (`pot_share`) or trick-terminal state
-  (`tarot_excuse_player`, `tichu_dragon_won`).
+  (`tarot_excuse_player`, `tichu_dragon_won`). The self-serving is no longer
+  *undeclared*, though: every name-keyed read goes through the typed
+  accessors of `cardlang/runtime/reads.py`, whose `PRIMITIVE_READS` table is
+  the "reads" clause of §2's declaration landed at the Python layer —
+  pinned against both the game files' declarations and the modules' own
+  sources by `tests/test_primitive_reads.py`. What the table cannot yet do
+  is *bound* what an implementation touches (the interface still hands over
+  `Ctx`); that is exactly the gap the narrow interface closes.
 - **The trace emitters.** `coup_note_reveal`, `tichu_hand_summary` (and any
   future sibling) are not primitives and cannot be declared as such. They
   move to the harness layer, keyed off observation events the kernel already
@@ -136,6 +143,10 @@ interface cannot express one.
    files; derive registry/signatures/dispatch from it; static test pins
    agreement. (This is new grammar surface and pays the
    [decisions.md](../decisions.md) "Surface totality" tax like any other.)
+   The reads half of the declaration already exists as
+   `cardlang/runtime/reads.py`'s `PRIMITIVE_READS` (authored in Python,
+   two-way pinned); this stage moves it into the game file and derives that
+   table from the parsed block instead.
 4. **Co-locate**: move each game's implementation out of
    `cardlang/runtime/` to live with its game; `cardlang/stdlib` keeps only
    game-independent names. Byte-identical traces throughout, enforced by the

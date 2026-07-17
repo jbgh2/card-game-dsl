@@ -20,8 +20,11 @@ from __future__ import annotations
 
 import math
 
+from cardlang.runtime import reads
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Card, Player
+
+_R = reads.row("cardlang/runtime/skat.py", "skat.cardlang")
 
 # Non-jack strength for Suit/Grand (trump-suit cards and led-suit cards).
 _SKAT_RANK = {"A": 7, "10": 6, "K": 5, "Q": 4, "9": 3, "8": 2, "7": 1}
@@ -42,11 +45,11 @@ _BID_SEQUENCE = (
 def _contract(ctx: Ctx) -> tuple[str, str | None]:
     """The declared contract, read from phase state (the declaration move
     effects set it before any consumer runs)."""
-    if ctx.rs.get("is_null"):
+    if reads.state(ctx.rs, _R, "is_null"):
         return "null", None
-    if ctx.rs.get("is_grand"):
+    if reads.state(ctx.rs, _R, "is_grand"):
         return "grand", None
-    return "suit", ctx.rs.get("trump_suit")
+    return "suit", reads.state(ctx.rs, _R, "trump_suit")
 
 
 def _is_trump(c: Card, game_type: str, trump_suit: str | None) -> bool:
@@ -115,9 +118,9 @@ def skat_follow_ok(ctx: Ctx, p: Player, c: Card) -> bool:
     card (`trick_pile[0]`): holding a card of the led class obliges playing
     one; void in the class, anything goes. No head/trump obligation."""
     game_type, trump_suit = _contract(ctx)
-    led = ctx.rs.zones.single("trick_pile").cards[0]
+    led = reads.single(ctx.rs, _R, "trick_pile").cards[0]
     cls = _follow_class(led, game_type, trump_suit)
-    hand = ctx.rs.zones.instance("hand", p).cards
+    hand = reads.instance(ctx.rs, _R, "hand", p).cards
     if any(_follow_class(x, game_type, trump_suit) == cls for x in hand):
         return _follow_class(c, game_type, trump_suit) == cls
     return True
@@ -130,7 +133,7 @@ def skat_trick_winner(ctx: Ctx, leader: Player) -> Player:
     rank order. Emits the play/trick_end/trick traces the playout harness
     recomputes winners from."""
     game_type, trump_suit = _contract(ctx)
-    cards = ctx.rs.zones.single("trick_pile").cards
+    cards = reads.single(ctx.rs, _R, "trick_pile").cards
     if len(cards) != 3:
         # The pile's live size is the hosting game's runtime data, so a wrong
         # call site is the description's error, in the runtime's currency.
@@ -152,8 +155,8 @@ def skat_matadors(ctx: Ctx, p: Player) -> int:
     trump structure: the length of the unbroken with/without run from the
     club Jack down the trump order. Undefined for Null (the game guards)."""
     game_type, trump_suit = _contract(ctx)
-    cards = list(ctx.rs.zones.instance("hand", p).cards) + list(
-        ctx.rs.zones.single("skat").cards
+    cards = list(reads.instance(ctx.rs, _R, "hand", p).cards) + list(
+        reads.single(ctx.rs, _R, "skat").cards
     )
     order = _trump_order(game_type, trump_suit)
     held = [any(c.rank == r and c.suit == s for c in cards) for (r, s) in order]

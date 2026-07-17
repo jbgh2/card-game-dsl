@@ -24,21 +24,20 @@ residual:   Three exclusion categories, each on its own `RenamePlan` field,
                 name decisions.md "Declared parameter domains" and
                 `resolve.py` require for `Card`-typed move parameters. Out
                 of T2's domain by the spec's own words, not a defect.
-            (3) `excluded_coupled` — per-game names a
-                `cardlang/runtime/<game>.py` game-local primitive reads by
-                hardcoded Python string literal (`_PRIMITIVE_COUPLED_NAMES`,
-                file:line cited). NOT a cardlang defect to fix here (that
-                coupling is the sanctioned "game-local stdlib primitive"
-                pattern, kernel-migration.md) — but it IS a real,
-                previously-undocumented finding this transform surfaced
-                empirically (a `KeyError` at playout time, not a pipeline
-                rejection): eleven corpus games have zone/state names that
-                are not actually free to rename despite nothing in the
-                grammar or type checker saying so. Recorded here and in the
-                task's final report per CLAUDE.md's found-divergence
-                obligation; every corpus game still has a nonempty safe set
-                (`test_every_game_renames_something`), so no game is
-                entirely excluded from the property this suite checks.
+            (3) `excluded_coupled` — per-game names a game-local primitive
+                module reads (the sanctioned "game-local stdlib primitive"
+                pattern, kernel-migration.md), DERIVED from the declared-
+                reads registry (`PRIMITIVE_READS`,
+                cardlang/runtime/reads.py) — the class this transform first
+                surfaced empirically as a playout `KeyError`, since closed:
+                the registry is pinned two ways by
+                tests/test_primitive_reads.py (against each game file's
+                declarations and against each module's accessor-call
+                literals), so these names are known-coupled by
+                declaration, not by hand-list. Every corpus game still has
+                a nonempty safe set (`test_every_game_renames_something`),
+                so no game is entirely excluded from the property this
+                suite checks.
 """
 
 from __future__ import annotations
