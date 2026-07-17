@@ -90,6 +90,23 @@ class Zone:
         return len(self.cards)
 
 
+def elements(value: Any) -> Any:
+    """The Zone -> ordered-elements coercion shared by every raw-Python site
+    that accepts either a Zone or an already-evaluated collection — the two
+    runtime shapes of a collection-typed expression.  The evaluator applies
+    it at its own consuming sites (card-query and comprehension sources, the
+    right-hand side of `in`, rule fallbacks, `turns` participants), and
+    `stdlib.call` applies it to every argument at its entry, so bare-Python
+    adapters never see a Zone handle.  A Zone yields its `.cards` list
+    (already a materialized, multi-pass `list`); anything else passes
+    through unchanged, since a `[...]` literal, a nested query or
+    comprehension result, and every other collection-typed expression
+    already evaluate to a concrete `list`.  Callers that need a fresh,
+    independent list (card-query, comprehension) wrap the result in
+    `list(...)` themselves; single-pass consumers use it as-is."""
+    return value.cards if isinstance(value, Zone) else value
+
+
 class ZoneStore:
     """All zone instances. Singleton zones map to one Zone; an indexed family
     maps to one Zone per index value — per player for `hand[player]`, per team

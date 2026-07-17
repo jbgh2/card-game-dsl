@@ -10,11 +10,30 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from cardlang.runtime.state import Ctx, IllegalMove
+from cardlang.runtime.state import Ctx, IllegalMove, elements
 from cardlang.runtime.values import SUITS, Card, Player
+from cardlang.stdlib.signatures import CALL_SIGS
+from cardlang.types import TCollection
 
 
 def call(name: str, args: list[Any], ctx: Ctx) -> Any:
+    # The wall for collection-shaped arguments: a collection-typed expression
+    # evaluates to either a Zone or a plain list (the zone facet is not part
+    # of assignability, so `gin_valid_meld(hand[p])` typechecks), and the
+    # adapters below are bare Python that iterates — a TCollection-declared
+    # param receives elements, never a Zone handle. SIGNATURE-DRIVEN, not
+    # blanket: a TAny param passes raw, because its adapter dispatches on
+    # the shape itself (`suit_of`: a card or a single-card zone — blanket
+    # coercion broke the schnapsen trump indicator). Owned here, at the one
+    # boundary where evaluated values leave the evaluator; the registry side
+    # is pinned by tests/test_stdlib_boundary.py (every TCollection param
+    # probed with a Zone, the TAny set pinned, no param may be zone=True).
+    sig = CALL_SIGS.get(name)
+    if sig is not None:
+        args = [
+            elements(a) if isinstance(p, TCollection) else a
+            for p, a in zip(sig.params, args)
+        ] + args[len(sig.params) :]
     match name:
         case "player_holding":
             return _player_holding(args[0], ctx)

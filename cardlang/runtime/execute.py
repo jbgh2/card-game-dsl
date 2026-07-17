@@ -13,8 +13,15 @@ from typing import Any, Callable, assert_never
 from cardlang.ast import nodes as n
 from cardlang.domains import SIMULTANEOUS_ROLES, binds_actor, role_members
 from cardlang.runtime import mechanics, observe
-from cardlang.runtime.evaluate import _elements, evaluate
-from cardlang.runtime.state import Ctx, Zone, _ContinueTo, _ProduceSignal, _SkipHand
+from cardlang.runtime.evaluate import evaluate
+from cardlang.runtime.state import (
+    Ctx,
+    Zone,
+    _ContinueTo,
+    _ProduceSignal,
+    _SkipHand,
+    elements,
+)
 from cardlang.runtime.values import Card, CardSet, Player
 
 
@@ -555,7 +562,7 @@ def _turns(stmt: n.Turns, ctx: Ctx) -> None:
             candidate_seq = [current, *_next_seats(order, current, step)]
         else:
             candidate_seq = _next_seats(order, current, step)
-        participants = set(_elements(evaluate(stmt.participants, ctx)))
+        participants = set(elements(evaluate(stmt.participants, ctx)))
         player = next((p for p in candidate_seq if p in participants), None)
         if player is None:
             raise RuntimeError(
