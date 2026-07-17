@@ -431,6 +431,25 @@ class AsBlock:
 
 
 @dataclass(frozen=True, slots=True)
+class Turns:
+    """`turns <binder> from <leader> over <participants> until <pred>
+    [again <var>] { <stmt>* }` — the turn loop beneath the round forms.
+    The binder names the current player, who is also the acting player
+    (`for each`'s binding semantics, one player at a time); rotation and
+    termination are owned by the form (decisions.md "The `turns` form").
+    `again` names a declared Boolean state variable the body's effects
+    write; a turn ending with it true repeats the same player."""
+
+    binder: str
+    leader: Expr
+    participants: Expr
+    termination: Expr
+    again: str | None
+    body: tuple[Stmt, ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class LetStmt:
     """`let <name>[<index>]? = <expr>`."""
 
@@ -630,6 +649,7 @@ Stmt = (
     | RepeatUntil
     | IfStmt
     | AsBlock
+    | Turns
     | LetStmt
     | AssignStmt
     | Offer
@@ -1040,6 +1060,7 @@ Node = (
     | RepeatUntil
     | IfStmt
     | AsBlock
+    | Turns
     | LetStmt
     | AssignStmt
     | Offer

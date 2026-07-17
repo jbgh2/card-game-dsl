@@ -157,6 +157,7 @@ move_event: NAME ["where" expr]
           | skip_stmt
           | run_stmt
           | as_block
+          | turns_stmt
 
 // Invoke a named procedure: its body is spliced in at this site, after the
 // arguments substitute for the parameters (decisions.md "Named procedures").
@@ -239,6 +240,15 @@ else_block: "else" "{" statement* "}"
 // captures `actor` and re-reads its guard mid-pass. Braced block like
 // `if_stmt`/`repeat_until`, so multi-statement bodies need no colon-body.
 as_block: _AS_KW expr "{" statement* "}"
+
+// The turn loop beneath the round forms (decisions.md "The `turns` form"):
+// rotate through the participants in game direction, binding each current
+// player (binder + acting player) for a braced body of statements, until the
+// termination predicate holds at a turn boundary. `again <var>` names a
+// declared Boolean state variable; when a turn ends with it true, the same
+// player takes the next turn (Go Fish's go-again). Statement-leading keyword
+// like `round`, so no NAME-exclusion guard is needed.
+turns_stmt: "turns" NAME "from" expr "over" expr "until" expr ["again" NAME] "{" statement* "}"
 
 offer: "offer" "to" expr "one" "of" "[" NAME ("," NAME)* "]"
 round_stmt: "round" NAME "from" expr "over" expr "source" NAME "into" NAME "outcome" NAME ["trump" expr] ["early" NAME]   -> round_stmt

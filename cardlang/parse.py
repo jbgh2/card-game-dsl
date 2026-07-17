@@ -553,6 +553,20 @@ class _Builder(Transformer[Token, n.Game]):
         body = tuple(_as_stmt(s) for s in c[1:])
         return n.AsBlock(player=player, body=body, span=self._span(meta))
 
+    def turns_stmt(self, meta: Meta, c: list[object]) -> n.Turns:
+        # c: [NAME(binder), expr(leader), expr(participants), expr(until),
+        #     NAME(again)|None, statement*] — with maybe_placeholders=True the
+        #     optional `again` NAME is None when the clause is absent.
+        return n.Turns(
+            binder=str(c[0]),
+            leader=_as_expr(c[1]),
+            participants=_as_expr(c[2]),
+            termination=_as_expr(c[3]),
+            again=str(c[4]) if c[4] is not None else None,
+            body=tuple(_as_stmt(s) for s in c[5:]),
+            span=self._span(meta),
+        )
+
     def named_arg(self, meta: Meta, c: list[object]) -> n.NamedArg:
         return n.NamedArg(name=str(c[0]), value=c[1], span=self._span(meta))  # type: ignore[arg-type]
 
