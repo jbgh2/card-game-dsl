@@ -1,0 +1,19 @@
+// Wall: resolve.py `_resolve_ranking`. A misspelled convention is not a
+// grammar error — its words are legal NAMEs, so it falls through to the
+// enumeration arm and is rejected as unknown ranks, with the hint naming
+// the closed convention set (the words match convention vocabulary).
+game RankingUnknownConvention {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: aces sideways
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+  }
+  state { score[player] : Integer = 0 }
+  phase play {
+    deal 3 cards from deck to each hand
+  }
+  winner: highest score
+}

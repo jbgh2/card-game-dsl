@@ -975,6 +975,13 @@ class Game:
     zones: tuple[ZoneDecl, ...]
     direction: str | None = None
     ranking: tuple[str, ...] = ()
+    # The convention keyword `ranking:` was written with (`"aces high"` etc.,
+    # a `RANKING_CONVENTIONS` key), or None for an enumerated/absent ranking.
+    # Parse guarantees the XOR (a convention parses with `ranking` empty);
+    # resolve expands the convention into `ranking`, so post-resolve `ranking`
+    # is always the operative strength order and this field only records the
+    # source form (for `ir.emit`).
+    ranking_convention: str | None = None
     trump: str | None = None
     partnerships: tuple[tuple[int, ...], ...] = ()
     max_length: int | None = None

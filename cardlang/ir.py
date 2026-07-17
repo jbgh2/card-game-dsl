@@ -53,6 +53,9 @@ def emit(game: n.Game) -> IRDict:
         "direction": game.direction,
         "max_length": game.max_length,
         "ranking": list(game.ranking),
+        # The source form: the convention keyword when one was written, else
+        # None. `ranking` above is always the operative (expanded) order.
+        "ranking_convention": game.ranking_convention,
         "trump": game.trump,
         "partnerships": [list(t) for t in game.partnerships],
         "zones": [_zone(z) for z in game.zones],

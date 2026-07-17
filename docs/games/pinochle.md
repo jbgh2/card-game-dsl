@@ -45,7 +45,7 @@ game Pinochle {
   max_length: 1000
 
   cards: pinochle48
-  ranking: A 10 K Q J 9            // 10 sits between K and A
+  ranking: ace-ten            // 10 sits between K and A
 
   zones {
     deck           : Deck

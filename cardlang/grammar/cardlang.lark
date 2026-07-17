@@ -49,7 +49,20 @@ cards: "cards" ":" NAME
 // length as a declared contract"): the runtime's non-termination backstop
 // and the OpenSpiel adapter's `max_game_length` both read this one number.
 max_length: "max_length" ":" INT
-ranking: "ranking" ":" card_rank+
+// Either an explicit strongest-first rank enumeration, or a ranking
+// convention the resolver expands against the declared deck (decisions.md,
+// "The `ranking:` declaration: enumeration or convention"). The space-form conventions
+// (`aces high`, `aces low`, `twos high`) are deliberately NOT grammar
+// alternatives: their words lex as ordinary card_rank NAMEs, so a second
+// derivation would be a real Earley ambiguity (tests/test_grammar_ambiguity
+// budgets the corpus at zero `_ambig` nodes). Instead parse.py's `ranking`
+// callback recognizes an enumeration whose space-joined spelling is exactly
+// a `RANKING_CONVENTIONS` key — reserving those spellings in ranking
+// position, pinned by tests/test_ranking_conventions.py. Only the
+// hyphenated `ace-ten` needs a terminal (a hyphen has no card_rank
+// derivation, so this arm is unambiguous), anchored like _AS_KW below.
+ranking: "ranking" ":" (RANK_CONV | card_rank+)
+RANK_CONV: /ace-ten(?![A-Za-z0-9_-])/
 
 // The suit (or rank-set) that beats all others in a trick. A single game-level
 // declaration the trump-aware outcome functions read; absent for no-trump games.

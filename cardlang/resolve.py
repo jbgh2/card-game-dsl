@@ -26,7 +26,12 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               rule templates are instantiated into concrete rules; every
               structural reference names a real declaration. This is the
               ONLY pass that classifies names — downstream dispatches on
-              ``ref_kind``, never re-derives it.
+              ``ref_kind``, never re-derives it. ``game.ranking`` is the
+              operative strength order: a ``ranking:`` convention keyword
+              is expanded against the deck here (``_expand_ranking``), so
+              no later pass may branch on ``ranking_convention`` for
+              semantics — it survives only as the source-form record
+              ``ir.emit`` prints.
 Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               zone/rule/move-type/phase reference reaching a later pass;
               the runtime hard-fails on an unclassified name
@@ -143,6 +148,7 @@ def _check_reserved(
 def resolve(game: n.Game) -> n.Game:
     bag = DiagnosticBag()
     _resolve_deck(game, bag)
+    game = _expand_ranking(game, bag)
     _resolve_ranking(game, bag)
     _check_duplicate_names(game, bag)
     _check_reserved_params(game, bag)
@@ -1063,6 +1069,53 @@ def _resolve_deck(game: n.Game, bag: DiagnosticBag) -> None:
         )
 
 
+def _expand_ranking(game: n.Game, bag: DiagnosticBag) -> n.Game:
+    """Expand a `ranking:` convention keyword (`aces high`, …) into the
+    operative strongest-first tuple: the `RANKING_CONVENTIONS` template
+    filtered to the declared deck's ranks. Establishes: post-resolve,
+    `game.ranking` IS the strength order for every game;
+    `game.ranking_convention` survives only as the record of the source
+    form (`ir.emit` prints it). Every consumer downstream of resolve
+    (typecheck's Rank enum, `domains.py`'s move-param domain, the driver's
+    `rank_index`, the OpenSpiel action space) reads the expanded tuple and
+    never learns conventions exist.
+
+    The wall: a convention is only meaningful for a deck whose ranks all
+    have a place in the French template — for any other deck (tarot78's
+    atouts, tichu56's specials, coup15's characters) filtering would
+    silently produce a partial or empty ranking, an accepted-but-ignored
+    declaration. Rejected here, in deck-membership currency, with the
+    offending ranks named. An unknown deck already got its diagnostic in
+    `_resolve_deck`; the convention is left unexpanded then (empty
+    `ranking`), matching how the rest of resolve degrades without a deck."""
+    if game.ranking_convention is None:
+        return game
+    if not _deck_known(game.deck):
+        return game
+    from cardlang.runtime.values import RANKS, expand_ranking_convention
+    from cardlang.runtime.values import deck_ranks as ordered_deck_ranks
+
+    french = frozenset(RANKS)
+    # The ORDERED runtime deck_ranks (first-appearance tuple), not this
+    # module's stdlib frozenset wrapper: the offenders appear in the
+    # diagnostic, and frozenset iteration is hash-seed-dependent — a
+    # rejection golden built on it flakes across CI runs.
+    offenders = [r for r in ordered_deck_ranks(game.deck) if r not in french]
+    if offenders:
+        bag.error(
+            f"ranking: {game.ranking_convention} — deck '{game.deck}' has "
+            f"ranks outside the standard A..2 set "
+            f"({', '.join(offenders)}), so no named convention orders it; "
+            f"enumerate the ranking explicitly instead",
+            game.span,
+        )
+        return game
+    return replace(
+        game,
+        ranking=expand_ranking_convention(game.ranking_convention, game.deck),
+    )
+
+
 def _resolve_ranking(game: n.Game, bag: DiagnosticBag) -> None:
     """`ranking:` entries must name real ranks of the declared deck. Unchecked,
     a typo (`11` for `10`) silently widens typecheck's Rank enum domain
@@ -1085,6 +1138,13 @@ def _resolve_ranking(game: n.Game, bag: DiagnosticBag) -> None:
     `ctx.rs.rank_index[...]` lookup at runtime instead of erroring here — an
     accepted residual (docs/roadmap.md), walled only by that runtime
     KeyError, not by this check."""
+    if game.ranking_convention is not None:
+        # Convention arm: `_expand_ranking` built the tuple from the deck's
+        # own ranks filtered through a registry template — unique and
+        # deck-member by construction, so re-validating it here would be
+        # re-deriving an established fact. The convention's walls (French
+        # deck, known spelling) live in `_expand_ranking` and the grammar.
+        return
     if not game.ranking or not _deck_known(game.deck):
         return
     known = deck_ranks(game.deck)
@@ -1099,9 +1159,30 @@ def _resolve_ranking(game: n.Game, bag: DiagnosticBag) -> None:
             )
         seen[rank] = None
         if rank not in known:
+            # A misspelled convention ("aces sideways", "high aces", a
+            # newline inside "aces high") arrives HERE, as enumeration
+            # words the deck doesn't know — the grammar falls through
+            # rather than erroring, since the words are legal NAMEs. When
+            # the bad entry is a word from some convention's spelling,
+            # point at the closed set instead of leaving the author to
+            # guess rank spellings.
+            from cardlang.runtime.values import RANKING_CONVENTIONS
+
+            conv_words = {
+                w.lower()
+                for key in RANKING_CONVENTIONS
+                for w in (key, *key.replace("-", " ").split())
+            }
+            hint = (
+                "  (did you mean a ranking convention? one of: "
+                + ", ".join(sorted(RANKING_CONVENTIONS)) + ")"
+                if rank.lower() in conv_words
+                else ""
+            )
             bag.error(
                 f"ranking: names unknown rank '{rank}' — not a rank of deck "
-                f"'{game.deck}' (known ranks: {', '.join(sorted(known))})",
+                f"'{game.deck}' (known ranks: {', '.join(sorted(known))})"
+                + hint,
                 game.span,
             )
 

@@ -26,7 +26,7 @@ from cardlang.runtime.cribbage import (
     peg_origin_of,
 )
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
-from cardlang.runtime.values import Card, Seating
+from cardlang.runtime.values import Card, Seating, expand_ranking_convention
 
 # --- peg_origin: the pure bit-decoder ---
 
@@ -76,10 +76,19 @@ def _zone_decls() -> tuple[n.ZoneDecl, ...]:
     )
 
 
+def _aces_low_index() -> dict[str, int]:
+    """The driver's `rank_index` for cribbage's declared `ranking: aces low` —
+    derived through the same public expansion the resolver uses, so the
+    fixture can't drift into a private copy of the order."""
+    order = expand_ranking_convention("aces low", "standard52")
+    return {r: len(order) - 1 - i for i, r in enumerate(order)}
+
+
 def _peg_ctx(
     play_pile: list[Card], seq_bits: int, seq_len: int, dealer: int = 1
 ) -> Ctx:
     rs = RuntimeState(Seating(2), ZoneStore(_zone_decls(), (0, 1)), random.Random(0))
+    rs.rank_index = _aces_low_index()
     rs.push_frame()
     rs.declare("dealer", False, dealer)
     rs.declare("seq_bits", False, seq_bits)
@@ -139,6 +148,7 @@ def test_peg_origin_of_requires_reading_before_the_pile_drains() -> None:
 
 def _show_ctx(played0: list[Card], played1: list[Card], crib: list[Card], starter: Card) -> Ctx:
     rs = RuntimeState(Seating(2), ZoneStore(_zone_decls(), (0, 1)), random.Random(0))
+    rs.rank_index = _aces_low_index()
     rs.zones.instance("played", 0).add_all(played0)
     rs.zones.instance("played", 1).add_all(played1)
     rs.zones.single("crib").add_all(crib)

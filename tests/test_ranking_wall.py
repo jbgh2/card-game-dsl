@@ -160,17 +160,26 @@ def test_every_declared_corpus_ranking_is_a_full_permutation_of_its_deck() -> No
     """Documents the corpus fact this module's docstring relies on: every
     `docs/games/*.cardlang` game that declares a `ranking:` declares a FULL
     permutation of its deck's ranks (verified directly here, independent of
-    resolve.py, since resolve.py itself does not require this)."""
+    resolve.py, since resolve.py itself does not require this). A convention
+    form is expanded through the same public helper the resolver uses — for
+    a convention the property holds by construction (the template filtered
+    to the deck's own ranks), so the assertion bites only on an enumerated
+    ranking; the corpus currently spells every ranking as a convention, and
+    this sweep keeps the property pinned should an enumerated one return."""
     from cardlang.parse import parse_text
+    from cardlang.runtime.values import expand_ranking_convention
 
     checked_any = False
     for path in sorted(GAMES.glob("*.cardlang")):
         game = parse_text(path.read_text(), str(path))
-        if not game.ranking:
+        ranking = game.ranking
+        if game.ranking_convention is not None:
+            ranking = expand_ranking_convention(game.ranking_convention, game.deck)
+        if not ranking:
             continue
         checked_any = True
-        assert set(game.ranking) == set(deck_ranks(game.deck)), path
-        assert len(game.ranking) == len(set(game.ranking)), path
+        assert set(ranking) == set(deck_ranks(game.deck)), path
+        assert len(ranking) == len(set(ranking)), path
     assert checked_any  # the sweep isn't vacuous
 
 

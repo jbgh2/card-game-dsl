@@ -168,6 +168,46 @@ def deck_ranks(deck_name: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(c.rank for c in build_deck(deck_name)))
 
 
+def _reranked(*top: str, bottom: str | None = None) -> tuple[str, ...]:
+    """The French ranks strongest-first with the named ranks moved: `top` in
+    the given order at the head, `bottom` at the tail, everything else in
+    aces-high order between. Every template derives from the ONE `RANKS`
+    tuple above — a convention is never a second spelling of the rank set."""
+    moved = set(top) | ({bottom} if bottom is not None else set())
+    rest = [r for r in reversed(RANKS) if r not in moved]
+    return top + tuple(rest) + ((bottom,) if bottom is not None else ())
+
+
+# The named ranking conventions `ranking:` accepts in place of an enumeration
+# (decisions.md, "The `ranking:` declaration: enumeration or convention"). Keys are the
+# exact surface spellings (single-spaced); values are the full French order,
+# strongest first. A game's operative ranking is the template FILTERED to its
+# deck's ranks (`expand_ranking_convention`), so one convention serves every
+# French-ranked deck: `aces high` means A K Q J 10 … on standard52 and
+# A K Q J 10 9 8 7 on skat32. `ace-ten` (the Ace-Ten family: Skat, Schnapsen,
+# Pinochle, Doppelkopf, Belote non-trump) promotes the 10 between A and K;
+# `twos high` is the climbing-game order (President). The grammar's RANK_CONV
+# terminal and this registry are reconciled by
+# tests/test_ranking_conventions.py — a key the grammar cannot parse, or a
+# parseable spelling with no key here, fails statically.
+RANKING_CONVENTIONS: dict[str, tuple[str, ...]] = {
+    "aces high": _reranked(),
+    "aces low": _reranked(bottom="A"),
+    "ace-ten": _reranked("A", "10"),
+    "twos high": _reranked("2"),
+}
+
+
+def expand_ranking_convention(convention: str, deck_name: str) -> tuple[str, ...]:
+    """A convention's operative ranking for a deck: the template filtered to
+    the deck's real ranks, order preserved. Total for every deck whose ranks
+    are all French — the resolver walls the rest (`resolve.py::
+    _expand_ranking`) before this runs, so filtering can never silently drop
+    a deck rank."""
+    members = set(deck_ranks(deck_name))
+    return tuple(r for r in RANKING_CONVENTIONS[convention] if r in members)
+
+
 # A player is just an identity; the runtime uses small ints P0..P(n-1).
 Player = int
 

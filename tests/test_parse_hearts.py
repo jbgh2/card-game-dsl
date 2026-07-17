@@ -33,7 +33,9 @@ def test_header_blocks() -> None:
     assert g.players == n.PlayersSpec(low=4, high=None, span=g.players.span)
     assert g.deck == "standard52"
     assert g.direction == "clockwise"
-    assert g.ranking[0] == "A" and g.ranking[-1] == "2" and len(g.ranking) == 13
+    # Parse records the convention form; the expanded A..2 tuple is resolve's
+    # doing (tests/test_ranking_conventions.py pins the expansion itself).
+    assert g.ranking == () and g.ranking_convention == "aces high"
     assert [z.name for z in g.zones] == ["deck", "hand", "trick_pile", "captured"]
     assert g.state is not None and g.state.decls[0].name == "cumulative_score"
     assert g.winner is not None
