@@ -27,7 +27,8 @@ The re-derivation costs clustered into a small number of measurable idioms:
 - `rule MustFollowSuit { … }` pasted verbatim into 7 game files under a
   header *calling* it a "standard library rule";
 - `for each player p: if p == X { … }` single-actor binding — 10+ uses,
-  still tracked as [open-questions/single-actor-binding.md](../open-questions/single-actor-binding.md);
+  now settled as the `as` block ([decisions.md](../decisions.md) "Single-actor
+  decisions: the `as` block");
 - Coup's three unnamed statement blocks (influence loss ×14, challenge
   window ×8, proven-claim swap ×7) — most of a 522-line file;
 - `0 - 200`, `0 - 1` for negative values; `c.rank == "K"` string comparison

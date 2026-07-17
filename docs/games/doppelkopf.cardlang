@@ -136,7 +136,7 @@ game Doppelkopf {
                           no_announcement]
                 from leader over all players until quiet >= 4
         }
-        for each player p: if p is leader { move chosen one card from hand[p] to trick_pile }
+        as leader { move chosen one card from hand[leader] to trick_pile }
         led_trump := any card in trick_pile where is_trump(card)
         led_suit := suit_of(trick_pile)
         if (number of cards in trick_pile where card is Q of clubs) > cq_seen {
@@ -162,7 +162,7 @@ game Doppelkopf {
                           no_announcement]
                 from s2 over all players until quiet >= 4
         }
-        for each player p: if p is s2 { move chosen one card from hand[p] where follow_ok(p, card) to trick_pile }
+        as s2 { move chosen one card from hand[s2] where follow_ok(s2, card) to trick_pile }
         if (number of cards in trick_pile where card is Q of clubs) > cq_seen {
           re_known[s2] := true
           cq_seen += 1
@@ -186,7 +186,7 @@ game Doppelkopf {
                           no_announcement]
                 from s3 over all players until quiet >= 4
         }
-        for each player p: if p is s3 { move chosen one card from hand[p] where follow_ok(p, card) to trick_pile }
+        as s3 { move chosen one card from hand[s3] where follow_ok(s3, card) to trick_pile }
         if (number of cards in trick_pile where card is Q of clubs) > cq_seen {
           re_known[s3] := true
           cq_seen += 1
@@ -210,7 +210,7 @@ game Doppelkopf {
                           no_announcement]
                 from s4 over all players until quiet >= 4
         }
-        for each player p: if p is s4 { move chosen one card from hand[p] where follow_ok(p, card) to trick_pile }
+        as s4 { move chosen one card from hand[s4] where follow_ok(s4, card) to trick_pile }
         if (number of cards in trick_pile where card is Q of clubs) > cq_seen {
           re_known[s4] := true
           cq_seen += 1

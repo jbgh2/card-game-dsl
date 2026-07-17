@@ -199,6 +199,11 @@ def _stmt_usage(
                 else (carry, carry)
             )
             return max(then_peak, else_peak), max(then_carry, else_carry)
+        case n.AsBlock():
+            # `as <p> { … }` rebinds only the acting player; for deck usage it is
+            # an UNCONDITIONAL sequence — its body runs once, threaded exactly as
+            # if written here (a deal inside it counts inline, like the Block arm).
+            return _seq_usage(stmt.body, carry, players, counts, deck_zones)
         case n.Block():
             # A block (what `expand` turns a `run` into) is an UNCONDITIONAL
             # sequence: thread it exactly as if its statements were written

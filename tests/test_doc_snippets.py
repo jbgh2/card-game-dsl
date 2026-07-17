@@ -317,6 +317,39 @@ def _wrap_passing_phase(frag: str) -> str:
     return _game(f"{frag}\n  winner: highest score", top_level=rule)
 
 
+def _wrap_as_taker(frag: str) -> str:
+    # decisions.md "Single-actor decisions: the `as` block": the French Tarot
+    # chien discard quoted as the motivating example. The fragment references
+    # the taker (a Player state var), the taker's hidden discard pile, and
+    # `is_pref_discard` — in the real game a user-defined `function`
+    # (french-tarot.cardlang), so the wrapper declares one of the same shape
+    # with a trivial body. `move chosen` needs an acting player, which the
+    # fragment's own `as taker` supplies.
+    fn = "function is_pref_discard(c : Card) = c.rank is not K"
+    return f"""
+{fn}
+game Skeleton {{
+  players: 4
+  max_length: 1000
+  cards: standard52
+  zones {{
+    deck            : Deck
+    hand[player]    : Hand<player>
+    discard[player] : HiddenPile<player>
+  }}
+  state {{
+    taker              : Player = 0
+    score[player]      : Integer = 0
+  }}
+  phase main {{
+    deal 6 cards from deck to each hand
+{frag}
+  }}
+  winner: highest score
+}}
+"""
+
+
 def _wrap_library_zones_block(frag: str) -> str:
     # `frag` is a complete `zones { ... }` game_item (library.md's stdlib
     # zone-type usage example).
@@ -343,6 +376,7 @@ WRAPPER_RECIPES: dict[str, Callable[[str], str]] = {
     "active_rules_shadowing": _wrap_active_rules_shadowing,
     "first_trick_phase": _wrap_first_trick_phase,
     "play_phase": _wrap_play_phase,
+    "as_taker": _wrap_as_taker,
     "before_each": _wrap_before_each,
     "cards_line": _wrap_cards_line,
     "winner_loser": _wrap_winner_loser,

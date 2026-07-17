@@ -546,6 +546,13 @@ class _Builder(Transformer[Token, n.Game]):
             span=self._span(meta),
         )
 
+    def as_block(self, meta: Meta, c: list[object]) -> n.AsBlock:
+        # `_AS_KW` is auto-filtered (leading underscore), so c[0] is the player
+        # expression and c[1:] are the braced body statements.
+        player = _as_expr(c[0])
+        body = tuple(_as_stmt(s) for s in c[1:])
+        return n.AsBlock(player=player, body=body, span=self._span(meta))
+
     def named_arg(self, meta: Meta, c: list[object]) -> n.NamedArg:
         return n.NamedArg(name=str(c[0]), value=c[1], span=self._span(meta))  # type: ignore[arg-type]
 

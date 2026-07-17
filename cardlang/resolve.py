@@ -285,9 +285,11 @@ def _node_binders(node: n.Node) -> tuple[str, ...]:
             # declaration namespace (`_categories`'s `state_vars`), not a binder
             # any construct introduces.
             return ()
-        # Statements that bind nothing.
+        # Statements that bind nothing. `AsBlock` rebinds the ACTING player, not a
+        # named binder — its player is an expression, not a NAME — so it introduces
+        # no name into scope; its body is an ordinary block (see `_BINDER_SCOPE_FIELDS`).
         case (
-            n.RotateStmt() | n.RepeatUntil() | n.IfStmt() | n.AssignStmt()
+            n.RotateStmt() | n.RepeatUntil() | n.IfStmt() | n.AsBlock() | n.AssignStmt()
             | n.Offer() | n.Round() | n.Produce() | n.Produces()
             | n.ContinueTo() | n.SkipToNextHand() | n.RunStmt() | n.Block()
         ):

@@ -145,17 +145,16 @@ game Skat {
       let matadors = if is_null then 0 else skat_matadors(declarer)
 
       // --- Ten tricks: forehand leads; strict follow by class (trump = the
-      // jacks + the trump suit; Null: plain suits). The single-actor
-      // `for each player p: if p is X` wrapper binds the acting player for
-      // each chosen movement — the idiom open-questions/single-actor-binding.md
-      // names as a candidate `as <player> { }` block.
+      // jacks + the trump suit; Null: plain suits). Each `as <seat>` block binds
+      // the acting player for its chosen movement (decisions.md "Single-actor
+      // decisions: the `as` block").
       leader := dealer offset_by left              // forehand leads trick 1
       repeat until (all players where hand[player] is empty) {
         let second = leader offset_by left
         let third  = second offset_by left
-        for each player p: if p is leader { move chosen one card from hand[p] to trick_pile }
-        for each player p: if p is second { move chosen one card from hand[p] where skat_follow_ok(p, card) to trick_pile }
-        for each player p: if p is third  { move chosen one card from hand[p] where skat_follow_ok(p, card) to trick_pile }
+        as leader { move chosen one card from hand[leader] to trick_pile }
+        as second { move chosen one card from hand[second] where skat_follow_ok(second, card) to trick_pile }
+        as third  { move chosen one card from hand[third] where skat_follow_ok(third, card) to trick_pile }
         let w = skat_trick_winner(leader)
         if w is declarer { declarer_tricks += 1 }
         move all cards from trick_pile to captured[w]

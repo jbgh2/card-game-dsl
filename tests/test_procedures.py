@@ -289,7 +289,7 @@ def test_zone_parameters_are_the_recorded_deferral() -> None:
 # Every member of the Stmt union, classified. The two sets must partition it.
 _BODY_ACCEPTED = {
     "Movement", "EpistemicOp", "RotateStmt", "EachSimultaneous", "ForEach",
-    "RepeatUntil", "IfStmt", "LetStmt", "AssignStmt", "Offer", "Produces",
+    "RepeatUntil", "IfStmt", "AsBlock", "LetStmt", "AssignStmt", "Offer", "Produces",
 }
 _BODY_REJECTED = {"Produce", "ContinueTo", "SkipToNextHand", "RunStmt", "Round"}
 
@@ -454,7 +454,8 @@ procedure window(who : Player) {
     score[seat] += 1
   }
   if score[seat] > 0 { score[seat] += 0 } else { score[seat] += 1 }
-  for each player q: if q is seat { move chosen one card from hand[q] to pile }
+  as seat { move chosen one card from hand[seat] to pile }
+  for each player q: score[q] += 0
   for each suit s: score[0] += 0
   each player simultaneously: move chosen 1 cards from hand[player] to pile
   rotate pass_dir through [left, across, right, hold]
@@ -690,7 +691,8 @@ def test_an_argument_naming_the_actor_survives_an_actor_rebinding_body() -> None
     """`for each player q:` rebinds the acting player — that is how the bound player
     becomes the chooser of a decision in the body — and `actor` READS the acting
     player, so `if q is actor` inside such a loop is true for EVERY q. That trap is
-    real and still live for inline text (open-questions/single-actor-binding.md).
+    real and still live for inline text (decisions.md "Single-actor decisions:
+    the `as` block", which gives the first-class binder that forecloses it).
 
     A procedure is immune, and not because of a wall: the argument is evaluated in
     the CALLER's context, before the loop exists, so `run mark(actor)` passes the

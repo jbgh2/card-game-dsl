@@ -445,19 +445,7 @@ questions by impact × actionability and is the authority on question
 priority. This section adds what that list doesn't carry: the cross-cutting
 work that isn't an open question, and which next game unblocks what.
 
-1. **Add the `as <player> { … }` block**
-   ([open-questions/single-actor-binding.md](open-questions/single-actor-binding.md),
-   now Tier 1). It is the one outstanding item that fixes a *silently wrong*
-   program rather than an awkward one: `for each player p: if p is actor` — the
-   only way the language can say "one named player decides" — is true for every
-   `p`, because the loop rebinds the acting player and `actor` reads it. Named
-   procedures walled the trap at their own boundary and, in doing so, proved it
-   exists; the idiom written inline is still unguarded, and six games use it. The
-   runtime plumbing (`ctx.acting_as`) is already there. Rewrite the corpus uses in
-   the same change (French Tarot's chien, Cribbage's crib, Schnapsen's answer,
-   Coup's influence loss), per the lockstep rule.
-
-2. **Pick the next game for its unblocks.** The full pipeline is
+1. **Pick the next game for its unblocks.** The full pipeline is
    [games/_candidates.md](games/_candidates.md); several candidates each
    unblock more than one open question:
 
@@ -476,16 +464,16 @@ work that isn't an open question, and which next game unblocks what.
    - **Klondike or FreeCell** — first solitaire; forces the deferred
      positional-zone design rather than an open question.
 
-3. **Address Tier 3 questions when their corner gets exercised.**
+2. **Address Tier 3 questions when their corner gets exercised.**
    [move-level-visibility](open-questions/move-level-visibility.md) awaits
    the first game needing a move-level projection override. When these
    land, the partition checks are their acceptance bar: new visibility
    surface arrives with derived partition coverage, not bespoke tests.
 
-4. **Pin down [memory-event-syntax](open-questions/memory-event-syntax.md)**
+3. **Pin down [memory-event-syntax](open-questions/memory-event-syntax.md)**
    when three or four examples exist beyond stdlib operations (Stud and
    Coup are the two so far; both composed the closed vocabulary without
    needing a declaration).
 
-5. **Defer Tier 5 cosmetic questions** until a real preference emerges
+4. **Defer Tier 5 cosmetic questions** until a real preference emerges
    from corpus pressure.

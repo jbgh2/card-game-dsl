@@ -567,134 +567,175 @@
               },
               "then": [
                 {
-                  "kind": "for_each",
-                  "role": "player",
-                  "binder": "p",
-                  "body": {
-                    "kind": "if",
-                    "cond": {
-                      "kind": "binop",
-                      "op": "==",
-                      "left": {
+                  "kind": "as",
+                  "player": {
+                    "kind": "name",
+                    "name": "taker",
+                    "ref": "state_var"
+                  },
+                  "body": [
+                    {
+                      "kind": "movement",
+                      "verb": "move",
+                      "mode": null,
+                      "amount": "all",
+                      "item": "cards",
+                      "source": {
                         "kind": "name",
-                        "name": "p",
-                        "ref": "local"
+                        "name": "chien",
+                        "ref": "zone"
                       },
-                      "right": {
-                        "kind": "name",
-                        "name": "taker",
-                        "ref": "state_var"
-                      }
-                    },
-                    "then": [
-                      {
-                        "kind": "movement",
-                        "verb": "move",
-                        "mode": null,
-                        "amount": "all",
-                        "item": "cards",
-                        "source": {
+                      "dest": {
+                        "kind": "subscript",
+                        "obj": {
                           "kind": "name",
-                          "name": "chien",
+                          "name": "hand",
                           "ref": "zone"
                         },
-                        "dest": {
-                          "kind": "subscript",
-                          "obj": {
-                            "kind": "name",
-                            "name": "hand",
-                            "ref": "zone"
-                          },
-                          "index": {
-                            "kind": "name",
-                            "name": "p",
-                            "ref": "local"
-                          }
-                        },
-                        "dest_each": false,
-                        "distribution": null,
-                        "visibility": null
+                        "index": {
+                          "kind": "name",
+                          "name": "taker",
+                          "ref": "state_var"
+                        }
                       },
-                      {
-                        "kind": "if",
-                        "cond": {
-                          "kind": "binop",
-                          "op": ">=",
-                          "left": {
-                            "kind": "card_query",
-                            "query": "count",
-                            "source": {
-                              "kind": "subscript",
-                              "obj": {
-                                "kind": "name",
-                                "name": "hand",
-                                "ref": "zone"
-                              },
-                              "index": {
-                                "kind": "name",
-                                "name": "p",
-                                "ref": "local"
-                              }
+                      "dest_each": false,
+                      "distribution": null,
+                      "visibility": null
+                    },
+                    {
+                      "kind": "if",
+                      "cond": {
+                        "kind": "binop",
+                        "op": ">=",
+                        "left": {
+                          "kind": "card_query",
+                          "query": "count",
+                          "source": {
+                            "kind": "subscript",
+                            "obj": {
+                              "kind": "name",
+                              "name": "hand",
+                              "ref": "zone"
                             },
-                            "pred": {
-                              "kind": "call",
-                              "func": "is_pref_discard",
-                              "args": [
-                                {
-                                  "kind": "name",
-                                  "name": "card",
-                                  "ref": "local"
-                                }
-                              ]
+                            "index": {
+                              "kind": "name",
+                              "name": "taker",
+                              "ref": "state_var"
                             }
                           },
-                          "right": {
+                          "pred": {
+                            "kind": "call",
+                            "func": "is_pref_discard",
+                            "args": [
+                              {
+                                "kind": "name",
+                                "name": "card",
+                                "ref": "local"
+                              }
+                            ]
+                          }
+                        },
+                        "right": {
+                          "kind": "int",
+                          "value": 6
+                        }
+                      },
+                      "then": [
+                        {
+                          "kind": "movement",
+                          "verb": "move",
+                          "mode": "chosen",
+                          "amount": {
                             "kind": "int",
                             "value": 6
+                          },
+                          "item": "cards",
+                          "source": {
+                            "kind": "subscript",
+                            "obj": {
+                              "kind": "name",
+                              "name": "hand",
+                              "ref": "zone"
+                            },
+                            "index": {
+                              "kind": "name",
+                              "name": "taker",
+                              "ref": "state_var"
+                            }
+                          },
+                          "dest": {
+                            "kind": "subscript",
+                            "obj": {
+                              "kind": "name",
+                              "name": "discard",
+                              "ref": "zone"
+                            },
+                            "index": {
+                              "kind": "name",
+                              "name": "taker",
+                              "ref": "state_var"
+                            }
+                          },
+                          "dest_each": false,
+                          "distribution": null,
+                          "visibility": null,
+                          "filter": {
+                            "kind": "call",
+                            "func": "is_pref_discard",
+                            "args": [
+                              {
+                                "kind": "name",
+                                "name": "card",
+                                "ref": "local"
+                              }
+                            ]
                           }
-                        },
-                        "then": [
-                          {
-                            "kind": "movement",
-                            "verb": "move",
-                            "mode": "chosen",
-                            "amount": {
-                              "kind": "int",
-                              "value": 6
+                        }
+                      ],
+                      "else": [
+                        {
+                          "kind": "movement",
+                          "verb": "move",
+                          "mode": "chosen",
+                          "amount": {
+                            "kind": "int",
+                            "value": 6
+                          },
+                          "item": "cards",
+                          "source": {
+                            "kind": "subscript",
+                            "obj": {
+                              "kind": "name",
+                              "name": "hand",
+                              "ref": "zone"
                             },
-                            "item": "cards",
-                            "source": {
-                              "kind": "subscript",
-                              "obj": {
-                                "kind": "name",
-                                "name": "hand",
-                                "ref": "zone"
-                              },
-                              "index": {
-                                "kind": "name",
-                                "name": "p",
-                                "ref": "local"
-                              }
+                            "index": {
+                              "kind": "name",
+                              "name": "taker",
+                              "ref": "state_var"
+                            }
+                          },
+                          "dest": {
+                            "kind": "subscript",
+                            "obj": {
+                              "kind": "name",
+                              "name": "discard",
+                              "ref": "zone"
                             },
-                            "dest": {
-                              "kind": "subscript",
-                              "obj": {
-                                "kind": "name",
-                                "name": "discard",
-                                "ref": "zone"
-                              },
-                              "index": {
-                                "kind": "name",
-                                "name": "p",
-                                "ref": "local"
-                              }
-                            },
-                            "dest_each": false,
-                            "distribution": null,
-                            "visibility": null,
-                            "filter": {
+                            "index": {
+                              "kind": "name",
+                              "name": "taker",
+                              "ref": "state_var"
+                            }
+                          },
+                          "dest_each": false,
+                          "distribution": null,
+                          "visibility": null,
+                          "filter": {
+                            "kind": "not",
+                            "operand": {
                               "kind": "call",
-                              "func": "is_pref_discard",
+                              "func": "is_bout",
                               "args": [
                                 {
                                   "kind": "name",
@@ -704,66 +745,10 @@
                               ]
                             }
                           }
-                        ],
-                        "else": [
-                          {
-                            "kind": "movement",
-                            "verb": "move",
-                            "mode": "chosen",
-                            "amount": {
-                              "kind": "int",
-                              "value": 6
-                            },
-                            "item": "cards",
-                            "source": {
-                              "kind": "subscript",
-                              "obj": {
-                                "kind": "name",
-                                "name": "hand",
-                                "ref": "zone"
-                              },
-                              "index": {
-                                "kind": "name",
-                                "name": "p",
-                                "ref": "local"
-                              }
-                            },
-                            "dest": {
-                              "kind": "subscript",
-                              "obj": {
-                                "kind": "name",
-                                "name": "discard",
-                                "ref": "zone"
-                              },
-                              "index": {
-                                "kind": "name",
-                                "name": "p",
-                                "ref": "local"
-                              }
-                            },
-                            "dest_each": false,
-                            "distribution": null,
-                            "visibility": null,
-                            "filter": {
-                              "kind": "not",
-                              "operand": {
-                                "kind": "call",
-                                "func": "is_bout",
-                                "args": [
-                                  {
-                                    "kind": "name",
-                                    "name": "card",
-                                    "ref": "local"
-                                  }
-                                ]
-                              }
-                            }
-                          }
-                        ]
-                      }
-                    ],
-                    "else": null
-                  }
+                        }
+                      ]
+                    }
+                  ]
                 }
               ],
               "else": null
