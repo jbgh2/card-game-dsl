@@ -118,7 +118,22 @@ Things we have noted but consciously not designed yet:
   tally is expressible today as per-player state plus a query; lift the wall
   when a game genuinely wants the store (the runtime's key-set plumbing
   already reads the domain table, so the extension is a table row plus an
-  observation-encoding decision, not a rewrite). Rules that the runtime cannot yet enforce at all are a
+  observation-encoding decision, not a rewrite).
+  The `turns` form has no `direction` override clause (rotation follows the
+  game's declared direction; not grammar until a game needs a mid-game or
+  per-loop override). Joint-predicate selection: `jointly` under a `random`
+  or dealt selection is rejected (a subset decision needs a decider; a
+  uniform-random satisfying subset has no corpus user), `some` without
+  `jointly` is rejected (nothing owns the size), and the subset enumeration
+  refuses source pools past 16 cards at runtime rather than hanging
+  (`cardlang/runtime/execute.py`, `_JOINT_ENUMERATION_BOUND`). On the
+  OpenSpiel side, a joint predicate must root in a call with a registered
+  subset codec (`cardlang/runtime/stdlib.py`, `joint_codec_function` — the
+  climb-codec pattern); an inline or unregistered predicate, a game mixing
+  climb and joint selections, or two joint predicates wanting different
+  codecs are each a loud `NotImplementedError` at action-space
+  construction, lifted when a game forces the composed-combo-block design.
+  Rules that the runtime cannot yet enforce at all are a
   named open question, not a rejection —
   [open-questions/rule-scope-beyond-trick-play.md](open-questions/rule-scope-beyond-trick-play.md).
 
@@ -455,12 +470,10 @@ work that isn't an open question, and which next game unblocks what.
      the compound hidden-function probe that blocks
      [structural-infoset-proofs](open-questions/structural-infoset-proofs.md)'
      constructive world generator — one game, two unblocks.
-   - **President** — the corpus-quality anchor
-     [turn-loop-form](open-questions/turn-loop-form.md) is blocked on, and
-     the third climbing instance that triggers promoting a shared
-     combination model to the standard library.
-   - **Gin Rummy** — the other turn-loop-form anchor, and the rummy-family
-     game [meld-groups](open-questions/meld-groups.md) is blocked on.
+   - **Canasta** — the residual of
+     [meld-groups](open-questions/meld-groups.md) (first-class shared
+     growing meld objects; the joint-predicate selection half is settled,
+     anchored by Gin Rummy), and a third climbing-adjacent shed game.
    - **Klondike or FreeCell** — first solitaire; forces the deferred
      positional-zone design rather than an open question.
 

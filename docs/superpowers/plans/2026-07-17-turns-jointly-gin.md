@@ -855,11 +855,11 @@ move_type ask effect: replace every `current_player := …` with
 
 **Files:**
 - Modify: `docs/decisions.md` (new "The `turns` form" section — spec-voice promotion; "Joint-predicate selection" under the movement/operation section; fenced examples tagged `cardlang-fragment <label>` with recipes in `tests/test_doc_snippets.py`)
-- Delete: `docs/open-questions/turn-loop-form.md`; Modify: `docs/open-questions/_index.md`, `docs/open-questions/meld-groups.md` (rewrite in place to the narrowed residual: first-class groups, Canasta forcing), `docs/roadmap.md` (President-bullet correction + residuals: `direction` clause, `random`+jointly, enumeration bound), `docs/library.md` (`turns` beside the round forms), `docs/games/_candidates.md` (drop gin)
+- Delete: the turn-loop-form question (now decisions.md "The `turns` form"); Modify: `docs/open-questions/_index.md`, `docs/open-questions/meld-groups.md` (rewrite in place to the narrowed residual: first-class groups, Canasta forcing), `docs/roadmap.md` (President-bullet correction + residuals: `direction` clause, `random`+jointly, enumeration bound), `docs/library.md` (`turns` beside the round forms), `docs/games/_candidates.md` (drop gin)
 - Modify: `docs/appendix.md` — NOT touched (stable reference table; wholesale-replace rule).
 
 - [ ] **Step 1**: write both decisions.md sections + doc-snippet labels/recipes (labels `turns_form`, `jointly_meld`).
-- [ ] **Step 2**: sweep every reference to `turn-loop-form.md` repo-wide (docs AND tests — the `as`-PR lesson) and repoint to the decisions.md title.
+- [ ] **Step 2**: sweep every reference to the turn-loop-form question repo-wide (docs AND tests — the `as`-PR lesson) and repoint to the decisions.md title.
 - [ ] **Step 3**: finalize both completeness ledgers; run the `surface-totality-audit` skill's checklist against each (misuse probes present per category: omitted-clause-with-absorbing-operand, wrong-typed operand in every predicate context, boundary-token doubling, out-of-scope binder).
 - [ ] **Step 4**: gates: `mypy` bare; `PYTHONHASHSEED=0 pytest -q` full; commit `docs: promote turn-loop-form, narrow meld-groups, catalogue turns + jointly`.
 

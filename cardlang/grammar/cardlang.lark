@@ -541,7 +541,12 @@ _AS_KW: "as" /(?![A-Za-z0-9_-])/
 // NAMEs). Neither joins the NAME exclusion: they never name a value.
 _JOINTLY_KW: "jointly" /(?![A-Za-z0-9_])/
 _SOME_KW: "some" /(?![A-Za-z0-9_])/
-NAME: /(?!(?:always|all|one|not|is|number)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+// `some` and `jointly` join the exclusion for the same reason as `all`/`one`:
+// both sit where an expression is also grammatical, so a NAME reading is a
+// real second parse (`some` as amt_count's expr; `jointly (x) >= 3` as a
+// call to a function named jointly under the per-card where). Neither ever
+// names a value. The `\b` anchor keeps `some_var`/`jointly_valid` whole.
+NAME: /(?!(?:always|all|one|some|jointly|not|is|number)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 STRING: /"[^"]*"/
 
 LINE_COMMENT: /\/\/[^\n]*/

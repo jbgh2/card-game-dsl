@@ -104,6 +104,36 @@ Key design notes:
   pile (`captured[team_of(outcome)]`) — or to a random opponent's on a Dragon
   win, or to the discard with the lead passing to the partner on the Dog.
 
+## The turn loop: the `turns` form
+
+The loop beneath the round forms, for games whose turn is a *body of
+statements* (draw-then-discard, ask-and-resolve) rather than one flat
+candidate list — the full spec is [decisions.md](decisions.md) "The `turns`
+form":
+
+```text
+turns <binder> from <leader> over <participants>
+      until <pred> [again <state-var>] { <statements> }
+```
+
+Key design notes:
+
+- **The binder is the turn-holder**, bound like a `for each player` binder
+  (name + acting player), so the body's `offer`s and chosen movements are
+  attributed without a cursor state variable.
+- **The form owns rotation and termination** — advance in game direction
+  through the participants predicate (re-evaluated per advance, so
+  elimination falls out); `until` checked at every turn boundary, the first
+  included.
+- **`again <state-var>` is the go-again axis**: the body's move effects
+  write a declared Boolean on every path; a turn ending with it true
+  repeats the same player. Go Fish's hit-or-matching-draw is the corpus
+  anchor; Gin Rummy's strictly alternating draw-discard cycle is the plain
+  form's.
+- **The dividing line from the auction form**: a turn that is one flat
+  candidate list stays an auction-form configuration (Schnapsen's leader
+  loop); `turns` exists for statement-structured turns.
+
 ## Move types
 
 - `play_to_trick` — source: hand, destination: trick_pile

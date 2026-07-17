@@ -645,6 +645,52 @@ is a stable function of the card-set, which is what determinized replay needs;
 the codec route is the designed answer for any future engine whose combination
 space explodes ([kernel-migration.md](kernel-migration.md), Workstream 3).
 
+## The `turns` form
+
+The turn loop beneath the round forms — for games whose turn is a *body of
+statements* rather than one flat candidate list (the dividing line from the
+round family: a single-list turn is an auction-form configuration; `turns` is
+for draw-then-discard shapes, ask-and-resolve shapes, anything with statement
+structure per turn):
+
+```text
+turns <binder> from <leader> over <participants>
+      until <pred> [again <state-var>] { <statements> }
+```
+
+The binder names the current player, who is also the acting player — exactly
+`for each`'s per-iteration binding, one player at a time — so a `chosen`
+movement or `offer` in the body is attributed to the turn-holder without a
+cursor variable. The form owns what every hand-rolled turn loop re-implements
+(and where the stress-sweep's runtime failures clustered): **rotation**
+(advance in game direction to the next seat satisfying the participants
+predicate, re-evaluated per advance, so elimination falls out), **termination
+placement** (`until` is checked at each turn boundary, before the first turn
+too — the zero-iteration run always exists), and the **go-again axis**
+(`again` names a declared Boolean state variable the body's move effects
+write on every path; a turn ending with it true repeats the same player — Go
+Fish's hit-or-matching-draw). A full lap finding no eligible participant is a
+loud runtime error, the `offer` no-legal-move rule one construct up; a
+decisionless body that never terminates hits the same iteration backstop as
+`repeat until`.
+
+```cardlang-fragment turns_form
+turns t from 0 over players where not eliminated[player]
+      until (number of players where not eliminated[player]) is 0 {
+  score[t] += 1
+  eliminated[t] := true
+}
+```
+
+Gin Rummy's draw-discard cycle is the strict-alternation anchor; Go Fish is
+the go-again anchor (its move effect writes `went_again` instead of mutating
+a cursor). Schnapsen's leader loop stays on the auction form — its turn IS
+one flat candidate list. A `direction` override clause is deliberately not
+grammar: no corpus user ([roadmap.md](roadmap.md), "Grammar surface deferred
+by the checker"). The form emits no observations of its own — the body's
+decisions emit through their own sites, and rotation is derivable from
+state — so information sets are unchanged by construction.
+
 ## No implicit actions
 
 Every decision point has at least one legal move, and the engine neither invents
@@ -1414,6 +1460,50 @@ A new rulebook verb is presumed an instance of an existing family — movement
 sugar or an epistemic op — until a game proves it is genuinely none of them.
 Adding a fourth family is a deliberate act, not the default response to a new
 word.
+
+## Joint-predicate selection
+
+A movement's per-card `where` filter tests each candidate alone —
+`chosen K cards where <pred>` can never say "these K cards *together* form a
+valid group," which is the load-bearing test of every meld-family game. The
+joint form binds **`cards`** — the candidate *set*, a card collection — and
+the selection becomes ONE decision over the source's satisfying subsets:
+
+```cardlang-fragment jointly_selection
+as arranger {
+  move chosen some cards from hand[arranger]
+       where jointly (number of cards in cards) >= 3 to waste
+}
+```
+
+The amount picks the subset sizes: `some` (any non-empty size — the joint
+predicate owns the size constraint) or an expression (exactly that size).
+`jointly` requires `chosen` — the selection is a player decision over
+subsets; a dealt joint selection has no decider and a `random` one has no
+corpus user (both rejected loudly, recorded in [roadmap.md](roadmap.md)) —
+and `some` requires `jointly`. Enumeration is deterministic (sizes
+ascending, combinations in source order) and bounded: a source pool past 16
+cards is a loud runtime refusal, not a hang. No satisfying subset is the
+no-implicit-actions error: guard the movement so it is only reached when
+one exists.
+
+For the OpenSpiel target, joint candidates are card subsets — the combo
+block's currency, exactly like climb combination plays — and the subset
+universe comes from a **registered per-predicate codec**
+(`joint_codec_function`, the climb-engine codec pattern: the predicate's
+root call names it, `gin_arrange_ok` → the 329-meld universe of
+standard52). A joint predicate with no registered codec is walled loudly at
+action-space construction, never silently absent from the space.
+
+Gin Rummy's showdown arrangements are the anchor: the knocker declares
+melds one joint selection at a time, each guarded so the remaining hand
+still arranges to a legal knock — every reachable arrangement stays legal,
+random play included, while equal-deadwood arrangement *choices* (which
+change what the defender can lay off) remain real decisions. First-class
+meld *objects* (shared growing team piles, per-group scoring) remain the
+open design in
+[open-questions/meld-groups.md](open-questions/meld-groups.md), forced next
+by Canasta.
 
 ## The expression register
 

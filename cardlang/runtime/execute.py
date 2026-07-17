@@ -236,9 +236,10 @@ def _select(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> list[Ca
     if amount == "one":
         count = 1
     else:
-        # Backstop: parse admits "all" | "one" | "some" | Expr; the literals
-        # are handled above, and "some" cannot reach here — resolve walls
-        # `some` to `jointly`, and every joint movement took the joint branch.
+        # Backstop shadowing the resolve wall: parse admits "all" | "one" |
+        # "some" | Expr; the literals are handled above, and "some" cannot
+        # reach here — resolve rejects `some` without `jointly`, and every
+        # joint movement took the joint branch before this.
         assert not isinstance(amount, str)
         count = int(evaluate(amount, ctx))
     if stmt.mode == "chosen":
@@ -289,7 +290,9 @@ def _select_joint(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> l
     elif amount == "one":
         sizes = range(1, 2)
     else:
-        assert not isinstance(amount, str)  # the string literals are handled above
+        # Backstop: parse admits "all" | "one" | "some" | Expr, and the three
+        # string literals are handled above.
+        assert not isinstance(amount, str)
         k = int(evaluate(amount, ctx))
         sizes = range(k, k + 1)
     assert stmt.filter is not None  # grammar: `jointly` IS a where-clause form
@@ -334,7 +337,10 @@ def _select_filtered(
     if amount == "one":
         count = 1
     else:
-        assert not isinstance(amount, str)  # parse admits "all" | "one" | Expr; both literals handled above
+        # Backstop: parse admits "all" | "one" | "some" | Expr; the first two
+        # are handled above and "some" never reaches the per-card filter path —
+        # resolve walls `some` to `jointly`, which routes to `_select_joint`.
+        assert not isinstance(amount, str)
         count = int(evaluate(amount, ctx))
     if stmt.mode == "chosen":
         chosen = ctx.chooser(player, pool, count)

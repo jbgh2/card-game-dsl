@@ -1,7 +1,7 @@
 # The `turns` form, joint-predicate selection, and Gin Rummy — design
 
-**Settles [open-questions/turn-loop-form.md](../../open-questions/turn-loop-form.md)
-(promoted to decisions.md, file deleted) and consumes the recorded starting
+**Settles the turn-loop-form question (promoted to
+[decisions.md](../../decisions.md) "The `turns` form"; its file is deleted) and consumes the recorded starting
 point of [open-questions/meld-groups.md](../../open-questions/meld-groups.md)
 (joint-predicate selection is built; the question narrows to first-class
 groups, forced next by Canasta).** Anchors: **Gin Rummy** (new corpus game,
@@ -137,8 +137,8 @@ must reproduce the cursor's exact sequence.
 
 ## 5. Docs and gates
 
-- decisions.md gains "The `turns` form" (spec-voice promotion of
-  turn-loop-form, which is deleted) and "Joint-predicate selection" (in the
+- decisions.md gains "The `turns` form" (spec-voice promotion of the
+  turn-loop-form question, whose file is deleted) and "Joint-predicate selection" (in the
   movement section); meld-groups.md is rewritten in place to its narrowed
   residual (first-class groups, Canasta as the forcing function);
   library.md catalogues `turns` beside the three round forms; roadmap's
