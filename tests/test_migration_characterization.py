@@ -28,6 +28,20 @@ see roadmap.md).
 `rules.legal_cards` returns a `set`, so the chooser sees candidates in
 hash-dependent order — the per-seed scores vary with `PYTHONHASHSEED`. We capture
 in a `PYTHONHASHSEED=0` subprocess so the goldens are reproducible.
+
+A second SANCTIONED regeneration covers every gather-using golden here
+(schnapsen/french-tarot/skat scores; stud/tichu/cribbage/schnapsen/skat hand
+vectors; tichu scores): the gather (`move all cards to <zone>`) was
+canonicalized to collect zones in sorted-name order instead of declaration
+order (decisions.md, the gather paragraph — declaration order was
+observation-visible and shaped info sets, which the metamorphic suite's
+declaration-reorder transform flagged). The gather stacks cards into the deck
+in collection order, so the next same-seed shuffle permutes differently and
+every subsequent deal moves — a wholesale per-seed shift, not a draw
+divergence. The coup golden did not move (Coup has no gather), and neither did
+bridge/pinochle/big-two (the zones actually non-empty at their gathers collect
+in the same order under both rules). Any diff NOT explained by that
+regeneration is a real divergence.
 """
 
 from __future__ import annotations
