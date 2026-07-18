@@ -90,6 +90,23 @@ class Zone:
         return len(self.cards)
 
 
+def elements(value: Any) -> Any:
+    """The Zone -> ordered-elements coercion shared by every raw-Python site
+    that accepts either a Zone or an already-evaluated collection — the two
+    runtime shapes of a collection-typed expression.  The evaluator applies
+    it at its own consuming sites (card-query and comprehension sources, the
+    right-hand side of `in`, rule fallbacks, `turns` participants), and
+    `stdlib.call` applies it to every argument at its entry, so bare-Python
+    adapters never see a Zone handle.  A Zone yields its `.cards` list
+    (already a materialized, multi-pass `list`); anything else passes
+    through unchanged, since a `[...]` literal, a nested query or
+    comprehension result, and every other collection-typed expression
+    already evaluate to a concrete `list`.  Callers that need a fresh,
+    independent list (card-query, comprehension) wrap the result in
+    `list(...)` themselves; single-pass consumers use it as-is."""
+    return value.cards if isinstance(value, Zone) else value
+
+
 class ZoneStore:
     """All zone instances. Singleton zones map to one Zone; an indexed family
     maps to one Zone per index value — per player for `hand[player]`, per team
@@ -139,9 +156,27 @@ class ZoneStore:
         return name in self.families
 
     def single(self, name: str) -> Zone:
+        if name not in self.singles:
+            raise RuntimeError(
+                f"no zone '{name}' in this game — a game-local stdlib "
+                f"primitive that reads it was called from a game without "
+                f"its zones"
+            )
         return self.singles[name]
 
     def instance(self, name: str, key: int) -> Zone:
+        # The typed wall for the whole game-local-primitive class: every
+        # per-game primitive (cribbage, gin, …) reads its zones by name
+        # through here, and calling one from a game without those zones used
+        # to die as a bare KeyError naming only the zone. (DSL-side zone
+        # references are resolve-walled long before this; only primitives
+        # and driver internals reach here with a foreign name.)
+        if name not in self.families:
+            raise RuntimeError(
+                f"no zone family '{name}' in this game — a game-local stdlib "
+                f"primitive that reads it was called from a game without "
+                f"its zones"
+            )
         return self.families[name][key]
 
     def locate(self, zone: Zone) -> "tuple[str, Player | None]":

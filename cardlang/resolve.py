@@ -239,7 +239,7 @@ def _node_binders(node: n.Node) -> tuple[str, ...]:
     them for reserved words. This registry answers for nodes a body walk can
     encounter, where the binder scopes within the walked tree itself."""
     match node:
-        case n.Comprehension() | n.Quantifier() | n.ForEach():
+        case n.Comprehension() | n.Quantifier() | n.ForEach() | n.Turns():
             return (node.binder,)
         case n.EachSimultaneous():
             return (node.role,)
@@ -247,7 +247,11 @@ def _node_binders(node: n.Node) -> tuple[str, ...]:
             return ("player",)
         case n.CardQuery():
             return ("card",)
-        case n.Movement() | n.EpistemicOp() if node.filter is not None:
+        case n.Movement() if node.filter is not None:
+            # `where jointly` binds the candidate SET; a per-card `where`
+            # binds each candidate (decisions.md "Joint-predicate selection").
+            return ("cards",) if node.joint else ("card",)
+        case n.EpistemicOp() if node.filter is not None:
             return ("card",)
         case n.LetStmt():
             return (node.name, node.index) if node.index is not None else (node.name,)
@@ -1282,6 +1286,10 @@ _BINDER_SCOPE_FIELDS: dict[type, tuple[str, ...]] = {
     n.EpistemicOp: ("filter",),
     n.ForEach: ("body",),
     n.EachSimultaneous: ("body",),
+    # `turns`' binder scopes to the body only: leader/participants/termination
+    # evaluate in the enclosing scope (the binder does not exist until a turn
+    # is bound — decisions.md "The `turns` form").
+    n.Turns: ("body",),
 }
 
 
@@ -2096,6 +2104,40 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bad = _bad_zone_endpoint(endpoint, direction)
                     if bad is not None:
                         bag.error(bad, nd.span)
+                # The joint-selection matrix (decisions.md "Joint-predicate
+                # selection"): `jointly` is a DECISION over subsets, so it
+                # requires `chosen` — a dealt jointly-selection has no
+                # decider and a `random` one has no corpus user (both
+                # recorded in roadmap.md); `some` (any-size) is meaningless
+                # without a joint predicate to own the size.
+                if nd.joint and nd.mode != "chosen":
+                    bag.error(
+                        "`where jointly` selects one subset as a player "
+                        "decision — it requires `chosen` (a dealt or "
+                        "`random` joint selection is not implemented; "
+                        "recorded in roadmap.md)",
+                        nd.span,
+                    )
+                if nd.joint and nd.dest_each:
+                    # `to each` would silently make EACH destination seat its
+                    # own subset-decider over the shrinking pool — the decider
+                    # identity is info-set-load-bearing, and no corpus game
+                    # wants the shape (recorded in roadmap.md).
+                    bag.error(
+                        "`where jointly` with `to each` is not implemented — "
+                        "each destination seat would become its own subset "
+                        "decider; write one joint selection per destination "
+                        "instead (recorded in roadmap.md)",
+                        nd.span,
+                    )
+                if nd.amount == "some" and not nd.joint:
+                    bag.error(
+                        "amount `some` (any satisfying size) is only "
+                        "meaningful under `where jointly`, whose predicate "
+                        "owns the size constraint — use a count, `one`, or "
+                        "`all` otherwise",
+                        nd.span,
+                    )
                 if nd.dest_each and not isinstance(nd.dest, n.NameRef):
                     # The executor keys the family by BARE name per seat, so a
                     # subscripted or computed destination has no meaning under
@@ -2157,6 +2199,18 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bag.error(bad, nd.span)
             case n.Winner() if nd.target not in cats.state_vars:
                 bag.error(f"winner references unknown variable '{nd.target}'", nd.span)
+            case n.Turns() if nd.again is not None and nd.again not in cats.state_vars:
+                # The go-again flag is ordinary game state the body's effects
+                # write (decisions.md "The `turns` form") — a plain string
+                # field like `Winner.target`, so the generic NameRef pass
+                # never sees it; validate it here or it fails only as a
+                # runtime KeyError at the first turn boundary.
+                bag.error(
+                    f"`again {nd.again}`: names no declared state variable — "
+                    f"the go-again flag is ordinary Boolean game state the "
+                    f"body's move effects write",
+                    nd.span,
+                )
             case n.Offer():
                 _check_vocabulary_moves(
                     nd.move_types,

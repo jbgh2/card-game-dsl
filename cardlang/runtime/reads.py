@@ -142,6 +142,13 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         single_zones=_fs("trick_pile", "chien"),
     ),
     PrimitiveReads(
+        module="cardlang/runtime/gin.py",
+        game_file="gin-rummy.cardlang",
+        zone_families=_fs(
+            "hand", "taken", "shown_deadwood", "meldA", "meldB", "meldC"
+        ),
+    ),
+    PrimitiveReads(
         module="cardlang/runtime/tichu.py",
         game_file="tichu.cardlang",
         state_vars=_fs("out_first", "out_second"),

@@ -166,6 +166,7 @@ class _Dist:
 @dataclass(frozen=True, slots=True)
 class _Where:
     expr: object  # Expr
+    joint: bool = False  # `where jointly <pred>` — binds `cards`, not `card`
 
 
 @dataclass(frozen=True, slots=True)
@@ -456,6 +457,9 @@ class _Builder(Transformer[Token, n.Game]):
     def amt_one(self, meta: Meta, c: list[object]) -> str:
         return "one"
 
+    def amt_some(self, meta: Meta, c: list[object]) -> str:
+        return "some"
+
     def amt_count(self, meta: Meta, c: list[object]) -> object:
         return _as_expr(c[0])
 
@@ -477,7 +481,7 @@ class _Builder(Transformer[Token, n.Game]):
         dest = next(x for x in c if isinstance(x, _Dest))
         vis = next((x.expr for x in c if isinstance(x, _Vis)), None)
         dist = next((x.mode for x in c if isinstance(x, _Dist)), None)
-        filt = next((x.expr for x in c if isinstance(x, _Where)), None)
+        where = next((x for x in c if isinstance(x, _Where)), None)
         return n.Movement(
             verb=str(c[0]),
             mode=sel.mode,
@@ -487,7 +491,8 @@ class _Builder(Transformer[Token, n.Game]):
             dest=dest.zone,  # type: ignore[arg-type]
             dest_each=dest.each,
             distribution=dist,
-            filter=filt,  # type: ignore[arg-type]
+            filter=where.expr if where is not None else None,  # type: ignore[arg-type]
+            joint=where.joint if where is not None else False,
             visibility=vis,  # type: ignore[arg-type]
             span=self._span(meta),
         )
@@ -495,8 +500,11 @@ class _Builder(Transformer[Token, n.Game]):
     def dist_equally(self, meta: Meta, c: list[object]) -> _Dist:
         return _Dist("as_equally_as_possible")
 
-    def where_clause(self, meta: Meta, c: list[object]) -> _Where:
+    def where_each(self, meta: Meta, c: list[object]) -> _Where:
         return _Where(_as_expr(c[0]))
+
+    def where_jointly(self, meta: Meta, c: list[object]) -> _Where:
+        return _Where(_as_expr(c[0]), joint=True)
 
     def move_gather(self, meta: Meta, c: list[object]) -> n.Movement:
         assert isinstance(c[1], _Selection) and isinstance(c[2], _Dest)
@@ -586,6 +594,20 @@ class _Builder(Transformer[Token, n.Game]):
         player = _as_expr(c[0])
         body = tuple(_as_stmt(s) for s in c[1:])
         return n.AsBlock(player=player, body=body, span=self._span(meta))
+
+    def turns_stmt(self, meta: Meta, c: list[object]) -> n.Turns:
+        # c: [NAME(binder), expr(leader), expr(participants), expr(until),
+        #     NAME(again)|None, statement*] — with maybe_placeholders=True the
+        #     optional `again` NAME is None when the clause is absent.
+        return n.Turns(
+            binder=str(c[0]),
+            leader=_as_expr(c[1]),
+            participants=_as_expr(c[2]),
+            termination=_as_expr(c[3]),
+            again=str(c[4]) if c[4] is not None else None,
+            body=tuple(_as_stmt(s) for s in c[5:]),
+            span=self._span(meta),
+        )
 
     def named_arg(self, meta: Meta, c: list[object]) -> n.NamedArg:
         return n.NamedArg(name=str(c[0]), value=c[1], span=self._span(meta))  # type: ignore[arg-type]

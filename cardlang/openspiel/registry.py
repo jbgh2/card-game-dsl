@@ -29,4 +29,5 @@ GAMES: dict[str, str] = {
     "cardlang_doppelkopf": "doppelkopf.cardlang",
     "cardlang_president": "president.cardlang",
     "cardlang_gops": "gops.cardlang",
+    "cardlang_gin_rummy": "gin-rummy.cardlang",
 }

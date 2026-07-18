@@ -256,22 +256,8 @@ Diamond Cassino adds bonus scoring. Standard Cassino suffices.
 
 ## Rummy family
 
-### gin-rummy
-
-2 players, standard 52, set/run formation with knock-or-gin
-termination.
-
-**Why interesting.** Introduces *meld* as a fundamental concept the
-current corpus doesn't have. A meld is a multi-card group held in
-the player's own hand (not transferred to a capture zone) that
-must be *recognized* — the hand's score depends on which subset of
-cards forms valid melds vs. deadwood. New shape of move: a "knock"
-announces a configuration that triggers scoring without moving any
-cards into a capture zone.
-
-**Notes.** Knock-or-gin termination is a classic typed-phase outcome
-(knock with N deadwood / gin with 0 / undercut by opponent's
-better-or-equal melds).
+(Gin Rummy is in the corpus — [gin-rummy.md](gin-rummy.md) — anchoring the
+`turns` form and joint-predicate selection.)
 
 ### canasta
 

@@ -11,8 +11,10 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from cardlang.runtime import reads
-from cardlang.runtime.state import Ctx, IllegalMove
+from cardlang.runtime.state import Ctx, IllegalMove, elements
 from cardlang.runtime.values import SUITS, Card, Player
+from cardlang.stdlib.signatures import CALL_SIGS
+from cardlang.types import TCollection
 
 # This module's per-game functions (the auction outcomes; the pegging-scorer
 # call sites) read state on behalf of specific games — one declared-reads row
@@ -24,6 +26,23 @@ _TAROT_R = reads.row("cardlang/runtime/stdlib.py", "french-tarot.cardlang")
 
 
 def call(name: str, args: list[Any], ctx: Ctx) -> Any:
+    # The wall for collection-shaped arguments: a collection-typed expression
+    # evaluates to either a Zone or a plain list (the zone facet is not part
+    # of assignability, so `gin_valid_meld(hand[p])` typechecks), and the
+    # adapters below are bare Python that iterates — a TCollection-declared
+    # param receives elements, never a Zone handle. SIGNATURE-DRIVEN, not
+    # blanket: a TAny param passes raw, because its adapter dispatches on
+    # the shape itself (`suit_of`: a card or a single-card zone — blanket
+    # coercion broke the schnapsen trump indicator). Owned here, at the one
+    # boundary where evaluated values leave the evaluator; the registry side
+    # is pinned by tests/test_stdlib_boundary.py (every TCollection param
+    # probed with a Zone, the TAny set pinned, no param may be zone=True).
+    sig = CALL_SIGS.get(name)
+    if sig is not None:
+        args = [
+            elements(a) if isinstance(p, TCollection) else a
+            for p, a in zip(sig.params, args)
+        ] + args[len(sig.params) :]
     match name:
         case "player_holding":
             return _player_holding(args[0], ctx)
@@ -202,6 +221,58 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.cribbage import cribbage_crib_value
 
             return cribbage_crib_value(ctx)
+        case "gin_card_points":
+            from cardlang.runtime.gin import card_points
+
+            return card_points(args[0])
+        case "gin_deadwood":
+            from cardlang.runtime.gin import gin_deadwood
+
+            return gin_deadwood(ctx, args[0])
+        case "gin_can_knock":
+            from cardlang.runtime.gin import gin_can_knock
+
+            return gin_can_knock(ctx, args[0])
+        case "gin_knock_ok":
+            from cardlang.runtime.gin import gin_knock_ok
+
+            return gin_knock_ok(ctx, args[0], args[1])
+        case "gin_valid_meld":
+            from cardlang.runtime.gin import gin_valid_meld
+
+            return gin_valid_meld(ctx, args[0])
+        case "gin_arrange_ok":
+            from cardlang.runtime.gin import gin_arrange_ok
+
+            return gin_arrange_ok(ctx, args[0], args[1])
+        case "gin_can_declare":
+            from cardlang.runtime.gin import gin_can_declare
+
+            return gin_can_declare(ctx, args[0])
+        case "gin_can_declare_free":
+            from cardlang.runtime.gin import gin_can_declare_free
+
+            return gin_can_declare_free(ctx, args[0])
+        case "gin_flat_points":
+            from cardlang.runtime.gin import gin_flat_points
+
+            return gin_flat_points(ctx, args[0])
+        case "gin_shown_points":
+            from cardlang.runtime.gin import gin_shown_points
+
+            return gin_shown_points(ctx, args[0])
+        case "gin_lay_ok_a":
+            from cardlang.runtime.gin import gin_lay_ok_a
+
+            return gin_lay_ok_a(ctx, args[0], args[1])
+        case "gin_lay_ok_b":
+            from cardlang.runtime.gin import gin_lay_ok_b
+
+            return gin_lay_ok_b(ctx, args[0], args[1])
+        case "gin_lay_ok_c":
+            from cardlang.runtime.gin import gin_lay_ok_c
+
+            return gin_lay_ok_c(ctx, args[0], args[1])
         case _:
             raise AssertionError(f"unknown stdlib function '{name}'")
 
@@ -336,6 +407,25 @@ def climb_universe_function(name: str) -> Callable[[], list[Any]]:
                 f"no declared combination universe for climb engine '{name}' — "
                 f"register one here or provide a codec (climb_codec_function)"
             )
+
+
+def joint_codec_function(name: str) -> Any | None:
+    """The subset codec for a joint selection (`where jointly`) whose
+    predicate is rooted in the named call — the climb-engine codec pattern
+    (`climb_codec_function` below) one construct over: pure card-set <->
+    action-index functions (`size` / `encode_cards` / `decode` / `kind_of`)
+    over the predicate's satisfying-subset universe. Keyed corpus-first; a
+    joint predicate with no registered codec is walled loudly at
+    `ActionSpace.for_game`, never silently absent from the action space."""
+    match name:
+        case "gin_arrange_ok" | "gin_valid_meld":
+            # Both gin arrangement guards admit only valid melds, so their
+            # satisfying-subset universe IS the meld universe.
+            from cardlang.runtime.gin import GIN_MELD_CODEC
+
+            return GIN_MELD_CODEC
+        case _:
+            return None
 
 
 def climb_codec_function(name: str) -> Any | None:

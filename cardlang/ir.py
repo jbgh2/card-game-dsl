@@ -249,9 +249,14 @@ def _stmt(s: n.Stmt) -> IRDict:
             }
             # Emitted ONLY when present, so every existing movement (none of
             # which uses `where`) stays byte-identical in its golden — this is
-            # the whole point of the conditional key (plan §2e/§4).
+            # the whole point of the conditional key (plan §2e/§4). `joint`
+            # rides the same convention: without it, a subset decision binding
+            # `cards` was IR-indistinguishable from a per-card filter binding
+            # `card` (Codex P2 on #67) — wrong semantics for any IR consumer.
             if s.filter is not None:
                 movement["filter"] = _expr(s.filter)
+                if s.joint:
+                    movement["joint"] = True
             return movement
         case n.EpistemicOp():
             op: IRDict = {"kind": "epistemic_op", "op": s.op, "target": _expr(s.target)}
@@ -298,6 +303,16 @@ def _stmt(s: n.Stmt) -> IRDict:
             return {
                 "kind": "as",
                 "player": _expr(s.player),
+                "body": [_stmt(x) for x in s.body],
+            }
+        case n.Turns():
+            return {
+                "kind": "turns",
+                "binder": s.binder,
+                "leader": _expr(s.leader),
+                "participants": _expr(s.participants),
+                "termination": _expr(s.termination),
+                "again": s.again,
                 "body": [_stmt(x) for x in s.body],
             }
         case n.LetStmt():

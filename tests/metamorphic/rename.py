@@ -253,6 +253,14 @@ def _rewrite(node: object, name_map: dict[str, str]) -> object:
         new = name_map.get(node.target)
         if new is not None:
             node = replace(node, target=new)
+    elif isinstance(node, n.Turns):
+        # `turns … again <var>` names its go-again state variable as a bare
+        # string (the grammar takes a NAME there) — the `Winner.target`
+        # class, one construct over.
+        if node.again is not None:
+            new = name_map.get(node.again)
+            if new is not None:
+                node = replace(node, again=new)
     elif isinstance(node, n.Round):
         # The climbing/trick forms name their source/play zones as bare
         # strings (`source_zone`/`play_zone`), not a `NameRef` — the one

@@ -1,63 +1,36 @@
-# A card-group (meld) construct
+# First-class meld groups
 
-**Tier 2 — high impact, blocked on a corpus-quality anchor game.** Three
-data points now exist on the same missing shape — the corpus-first threshold
-for a mechanic:
+**Tier 2 — high impact, blocked on Canasta (the remaining data point).**
 
-- **Pinochle** (corpus): melds as *scoring* over a static hand — expressed
-  today with four near-identical rule bodies whose repetition
-  [library.md](../library.md) already flags.
-- **Gin Rummy** (stress branch): melds as *live, owned structures* — the
-  encoding models three meld slots as separate zones with per-slot validity
-  helpers written three times, because functions cannot take a zone
-  parameter and nothing represents "a group of cards with a joint
-  predicate."
-- **Canasta** (stress branch): melds as *shared, growing, team-owned piles
-  keyed by rank* — wanting a `(team, rank)`-indexed zone family (zone
-  families take exactly one index) plus wild-card composition rules per
-  group.
+The *formation* half of the original question is settled:
+[decisions.md](../decisions.md) "Joint-predicate selection" gives movements a
+joint mode — `move chosen some cards from <zone> where jointly <pred>` binds
+`cards` (the candidate set) and selects one satisfying subset as a single
+decision. Gin Rummy anchors it: the showdown arrangements are joint
+selections, the "these K cards together form a valid run" test is a joint
+predicate, and the OpenSpiel action space takes the subset universe from a
+registered per-predicate codec (the 329-meld universe of standard52).
 
-(Stress-branch evidence: `stress-test/broad-sweep`,
-`stress-test/FINDINGS.md`.) The common shape: a **named group of cards with
-a joint validity predicate** (same-rank set / consecutive run / wild-card
-limits), an owner, visibility, and per-group scoring. Today each game
-re-derives it from zones + triplicated helpers, and the *joint* part — "these
-K cards together form a valid run" — is genuinely inexpressible, because
-`chosen K cards where <pred>` filters each card independently.
+What remains open is melds as first-class *objects*:
 
-## Why it matters for the stated goals
+- **Shared, growing, keyed groups.** Canasta's melds are team-owned piles
+  keyed by rank — a `(team, rank)`-indexed zone family (zone families take
+  exactly one index today) — that grow across turns under wild-card
+  composition rules checked at every extension, not only at formation.
+  Gin's bounded three-slot zones (`meldA/B/C[player]`) deliberately do not
+  model this: they hold a one-shot arrangement, revealed once and extended
+  only by layoffs whose legality is a plain per-card predicate.
+- **Per-group scoring.** Canasta scores each meld by its composition
+  (natural vs mixed canastas); Pinochle's meld tally still runs on a flat
+  Counter primitive (`pinochle_meld_value` — the repetition
+  [library.md](../library.md) flags). A group object with declared validity,
+  owner, projection, and comprehension access would subsume both.
 
-The rummy family (Gin, Canasta, Rummy 500, Contract Rummy…) is one of the
-largest game families outside trick-taking; today every member pays the same
-tax. A meld construct would also subsume two gaps the sweep filed
-separately: joint-predicate selection (for forming the group) and
-multi-index zone families (for holding them). And melds are public knowledge
-structures — first-class groups give the projection model a natural unit
-("the meld's identity is public, the hand it came from stays hidden") that
-zones currently approximate.
+**Current recommendation: design the group object against Canasta when it
+enters the corpus** — the joint-selection primitive plus bounded meld zones
+carried Gin without it, so the forcing function is genuinely the shared
+growing-pile shape, not the rummy family per se.
 
-## The options
-
-- **A `meld` zone-like declaration.** Groups as first-class zone contents:
-  declared validity predicate (checked at formation and extension), owner,
-  projection, and comprehension access for scoring. Largest design; covers
-  all three data points.
-- **Joint-predicate selection only.** Add "choose a *set* of K cards
-  satisfying `<joint pred>`" and keep representing melds as zones. Cheaper;
-  fixes formation but leaves the (team, rank) indexing and the triplicated
-  validators untouched.
-- **Defer until a rummy-family game enters the corpus properly.** The
-  stress-branch encodings are breadth probes, not spec-grade anchors; the
-  design wants a real game file to be written against.
-
-**Current recommendation: defer, with Gin Rummy as the named forcing
-function.** Gin is already in [games/_candidates.md](../games/_candidates.md)
-and is the smallest rummy-family game; promoting it to the corpus is the
-natural trigger to design the construct, starting from the joint-predicate
-selection primitive (which Casino's sum-capture also wants) and growing to
-first-class groups only if Gin still needs them.
-
-Related: [library.md](../library.md) (Pinochle's flagged meld repetition —
-the corpus-side data point); [decisions.md](../decisions.md) "The operation
-vocabulary" (where a joint-selection mode would live);
-[games/_candidates.md](../games/_candidates.md) (gin-rummy, canasta).
+Related: [decisions.md](../decisions.md) "Joint-predicate selection" (the
+settled half); [games/_candidates.md](../games/_candidates.md) (canasta);
+[library.md](../library.md) (Pinochle's flagged meld repetition).

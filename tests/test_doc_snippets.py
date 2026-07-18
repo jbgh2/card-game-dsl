@@ -350,6 +350,38 @@ game Skeleton {{
 """
 
 
+def _wrap_turns_form(frag: str) -> str:
+    # decisions.md "The `turns` form": the elimination-loop sketch. Uses only
+    # the shared skeleton's vocabulary (score, eliminated).
+    return _game(f"  phase turnly {{\n{frag}\n  }}\n  winner: highest score")
+
+
+def _wrap_jointly_selection(frag: str) -> str:
+    # decisions.md "Joint-predicate selection": the arrangement sketch. The
+    # fragment names `arranger` (a Player state var) and moves from their
+    # hand into the shared waste; the joint predicate is self-contained.
+    return f"""
+game Skeleton {{
+  players: 2
+  max_length: 1000
+  cards: standard52
+  zones {{
+    deck         : Deck
+    hand[player] : Hand<player>
+    waste        : Discard
+  }}
+  state {{
+    arranger        : Player = 0
+    score[player]   : Integer = 0
+  }}
+  phase main {{
+{frag}
+  }}
+  winner: highest score
+}}
+"""
+
+
 def _wrap_library_zones_block(frag: str) -> str:
     # `frag` is a complete `zones { ... }` game_item (library.md's stdlib
     # zone-type usage example).
@@ -377,6 +409,8 @@ WRAPPER_RECIPES: dict[str, Callable[[str], str]] = {
     "first_trick_phase": _wrap_first_trick_phase,
     "play_phase": _wrap_play_phase,
     "as_taker": _wrap_as_taker,
+    "turns_form": _wrap_turns_form,
+    "jointly_selection": _wrap_jointly_selection,
     "before_each": _wrap_before_each,
     "cards_line": _wrap_cards_line,
     "winner_loser": _wrap_winner_loser,

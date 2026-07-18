@@ -130,6 +130,20 @@ class Card:
         return f"{self.rank}{sym}"
 
 
+@dataclass(frozen=True, slots=True)
+class CardSet:
+    """A joint-selection candidate: one subset of a movement's source pool
+    (`where jointly` — decisions.md "Joint-predicate selection"). Exposes
+    `.cards` because that is the runtime's convention for set-valued
+    decision candidates (a climb `Play` does the same), which is what the
+    OpenSpiel encoder's combo block and `match()` key on."""
+
+    cards: tuple[Card, ...]
+
+    def __str__(self) -> str:
+        return "{" + ",".join(str(c) for c in self.cards) + "}"
+
+
 def build_deck(deck_name: str) -> list[Card]:
     """Construct the ordered list of cards a named deck contains."""
     deck = DECKS.get(deck_name)

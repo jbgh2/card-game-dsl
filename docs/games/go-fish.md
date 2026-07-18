@@ -46,16 +46,16 @@ Setup and play:
   no bonus final ask, and no refill for an emptied hand.
 - **Winner.** Whoever holds the most books when the game ends.
 
-The turn structure runs as one kernel loop: `phase play` repeats `offer to
-current_player one of [ask]` until a hand is empty or the stock is, and
-every rule of the turn — the give-all-matching transfer, the stock draw,
-book completion — lives inside `ask`'s single `effect` block, written in the
-existing closed movement verbs (`move`, `draw`). "Go again" needs no special
-control flow: nothing in a hit branch or a matching-draw branch ever
-reassigns `current_player`, so the next loop iteration simply offers the
-same actor another ask. The one branch that *does* reassign it —
-`current_player := actor offset_by left` — is the non-matching draw, handing
-the turn on exactly where Pagat says it should. Book completion is one guard
+The turn structure runs on the kernel's `turns` form (decisions.md "The
+`turns` form" — Go Fish is the go-again axis's corpus anchor): the form owns
+rotation and offers each turn's `ask`, until a hand is empty or the stock
+is, and every rule of the turn — the give-all-matching transfer, the stock
+draw, book completion — lives inside `ask`'s single `effect` block, written
+in the existing closed movement verbs (`move`, `draw`). "Go again" is the
+form's `again went_again` clause: the effect writes the Boolean on every
+path — true on a hit or a matching draw (the same player is offered the
+next turn), false on the non-matching draw, handing the turn on exactly
+where Pagat says it should. Book completion is one guard
 ("does this hand now contain all four of some rank?"), reused twice: once
 at the end of every `ask` (covering hits and both kinds of draw) and once
 for every hand in `phase setup` (covering an opening quad that no later
@@ -98,7 +98,7 @@ everyone else, so a bystander derives "the asker now holds N more of rank
 R" from the public ask plus the public size change on both hands, never
 from watching the cards move. Even the stock draw needs no special-casing
 to stay honest: whether the same player is asked again next is public
-(`current_player` is state, and state is always public in this language),
+(`went_again` is state, and state is always public in this language),
 and "go again" only follows a hit or a matching draw, so a bystander can
 always tell whether a fish draw matched without ever being shown the card
 itself. This is the derived-information-set model the whole language is
@@ -122,7 +122,7 @@ game GoFish {
   }
 
   state {
-    current_player     : Player  = 0
+    went_again         : Boolean = false  // the turn loop's go-again flag
     book_count[player] : Integer = 0
   }
 
@@ -136,12 +136,17 @@ game GoFish {
              to book[p]
         book_count[p] += 1
       }
-    current_player := 0
   }
 
   phase play {
-    repeat until (deck is empty) or (any player where hand[player] is empty) {
-      offer to current_player one of [ask]
+    // The turn loop owns rotation; `ask`'s effect writes `went_again` on
+    // every path (a hit or drawing the asked rank retains the turn), and the
+    // form re-offers the same player while it reads true (decisions.md
+    // "The `turns` form" — Go Fish is the go-again axis's corpus anchor).
+    turns t from 0 over all players
+          until (deck is empty) or (any player where hand[player] is empty)
+          again went_again {
+      offer to t one of [ask]
     }
   }
 
@@ -156,16 +161,16 @@ move_type ask(target : Player, rank : Rank) {
     let target_holds = number of cards in hand[target] where card.rank is rank
     if target_holds > 0 {
       move all cards from hand[target] where card.rank is rank to hand[actor]
-      // A hit: current_player unchanged, so the next iteration offers to the same
-      // player — "you go again".
+      went_again := true                   // a hit: "you go again"
     } else {
       let before = number of cards in hand[actor] where card.rank is rank
       draw 1 card from deck to hand[actor]
       let after = number of cards in hand[actor] where card.rank is rank
-      if after is before {                 // drew a non-matching card: pass left
-        current_player := actor offset_by left
+      if after is before {
+        went_again := false                // drew a non-matching card: pass left
+      } else {
+        went_again := true                 // drew the asked rank: go again
       }
-      // drew the asked rank: go again (current_player unchanged)
     }
     // Book completion (from a transfer or a draw): set aside four of a rank.
     if any rank where rank_count(actor, rank) is 4 {

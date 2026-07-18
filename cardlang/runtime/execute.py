@@ -7,14 +7,22 @@ the (possibly extended) context the caller threads into subsequent statements.
 
 from __future__ import annotations
 
+import itertools
 from typing import Any, Callable, assert_never
 
 from cardlang.ast import nodes as n
 from cardlang.domains import SIMULTANEOUS_ROLES, binds_actor, role_members
 from cardlang.runtime import mechanics, observe
 from cardlang.runtime.evaluate import evaluate
-from cardlang.runtime.state import Ctx, Zone, _ContinueTo, _ProduceSignal, _SkipHand
-from cardlang.runtime.values import Card, Player
+from cardlang.runtime.state import (
+    Ctx,
+    Zone,
+    _ContinueTo,
+    _ProduceSignal,
+    _SkipHand,
+    elements,
+)
+from cardlang.runtime.values import Card, CardSet, Player
 
 
 def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
@@ -50,6 +58,9 @@ def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
             return ctx
         case n.AsBlock():
             _as_block(stmt, ctx)
+            return ctx
+        case n.Turns():
+            _turns(stmt, ctx)
             return ctx
         case n.Offer():
             _offer(stmt, ctx)
@@ -222,11 +233,36 @@ def _gather(stmt: n.Movement, ctx: Ctx) -> None:
             dest.add_all(taken)
 
 
+def _check_count(count: int, mode: str | None) -> int:
+    """The amount-expression domain wall: an amount is runtime data (a
+    computed expression can go negative at a ring's edge), and Python's
+    negative slice would SILENTLY move len+count cards — the worst class.
+    Negative is never meaningful; zero under `chosen` is a vacuous decision
+    node (no-implicit-actions); zero under dealt/`random` is an allowed
+    no-op (a computed "deal what remains" may legitimately be zero —
+    recorded in roadmap.md)."""
+    if count < 0:
+        raise RuntimeError(
+            f"movement amount evaluated to {count} — a negative amount is "
+            f"never meaningful (a Python slice would silently move the rest)"
+        )
+    if count == 0 and mode == "chosen":
+        raise RuntimeError(
+            "a `chosen` movement's amount evaluated to 0 — a decision that "
+            "selects nothing is not a decision; guard the movement instead"
+        )
+    return count
+
+
 def _select(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> list[Card]:
-    # The `where` filter is a fully separate branch (not folded into the path
-    # below) so the unfiltered form — every existing movement in the corpus —
-    # runs the exact, untouched code it always has: no shared refactor that
-    # could shift an RNG draw and move an unrelated score golden.
+    # The joint form is its own branch above the per-card filter: the
+    # selection unit is a SUBSET, not a card (decisions.md "Joint-predicate
+    # selection"). The `where` filter is a fully separate branch (not folded
+    # into the path below) so the unfiltered form — every existing movement in
+    # the corpus — runs the exact, untouched code it always has: no shared
+    # refactor that could shift an RNG draw and move an unrelated score golden.
+    if stmt.joint:
+        return _select_joint(source, stmt, ctx, player)
     if stmt.filter is not None:
         return _select_filtered(source, stmt, ctx, player)
     amount = stmt.amount
@@ -235,8 +271,12 @@ def _select(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> list[Ca
     if amount == "one":
         count = 1
     else:
-        assert not isinstance(amount, str)  # parse admits "all" | "one" | Expr; both literals handled above
-        count = int(evaluate(amount, ctx))
+        # Backstop shadowing the resolve wall: parse admits "all" | "one" |
+        # "some" | Expr; the literals are handled above, and "some" cannot
+        # reach here — resolve rejects `some` without `jointly`, and every
+        # joint movement took the joint branch before this.
+        assert not isinstance(amount, str)
+        count = _check_count(int(evaluate(amount, ctx)), stmt.mode)
     if stmt.mode == "chosen":
         chosen = ctx.chooser(player, list(source.cards), count)
         for card in chosen:
@@ -254,6 +294,66 @@ def _select(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> list[Ca
     taken = source.cards[:count]  # deal off the top
     del source.cards[:count]
     return taken
+
+
+# Joint selection enumerates subsets of the source; beyond this pool size the
+# subset count is no longer a sane decision space (2^16 candidates) — refuse
+# loudly rather than hang. Gin, the anchor, tops out at 11.
+_JOINT_ENUMERATION_BOUND = 16
+
+
+def _select_joint(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> list[Card]:
+    """The `where jointly <pred>` form: ONE decision whose candidates are the
+    source's subsets satisfying the joint predicate (`cards` bound to each
+    candidate set), sized per the amount — `some` is any non-empty size, an
+    expression is exactly that size, `one`/`all` degenerate to size 1 / the
+    whole source. Enumeration order is deterministic: sizes ascending,
+    `itertools.combinations` in source order — the action-space encoder and
+    the chooser see the same list."""
+    pool = list(source.cards)
+    if len(pool) > _JOINT_ENUMERATION_BOUND:
+        raise RuntimeError(
+            f"joint selection over {len(pool)} cards exceeds the enumeration "
+            f"bound ({_JOINT_ENUMERATION_BOUND} — 2^{len(pool)} subsets); "
+            f"narrow the source pool"
+        )
+    amount = stmt.amount
+    # Subset sizes are always >= 1: a joint selection selects a non-empty
+    # subset (a zero-card "choice" is not a decision), so a k <= 0 amount and
+    # an `all` over an empty pool both yield no candidate sizes and fall to
+    # the loud no-satisfying-subset error below — consistent with `some`.
+    if amount == "some":
+        sizes = range(1, len(pool) + 1)
+    elif amount == "all":
+        sizes = range(max(1, len(pool)), len(pool) + 1)
+    elif amount == "one":
+        sizes = range(1, 2)
+    else:
+        # Backstop: parse admits "all" | "one" | "some" | Expr, and the three
+        # string literals are handled above.
+        assert not isinstance(amount, str)
+        k = _check_count(int(evaluate(amount, ctx)), stmt.mode)
+        sizes = range(k, k + 1)
+    assert stmt.filter is not None  # grammar: `jointly` IS a where-clause form
+    candidates: list[CardSet] = [
+        CardSet(subset)
+        for size in sizes
+        for subset in itertools.combinations(pool, size)
+        if bool(evaluate(stmt.filter, ctx.with_local("cards", list(subset))))
+    ]
+    if not candidates:
+        # No implicit skip (decisions.md "No implicit actions"): a decision
+        # point must have a candidate — guard the movement so it is only
+        # reached when a satisfying subset exists.
+        raise RuntimeError(
+            "joint selection: no subset of the source satisfies the "
+            "predicate — guard the movement (`if <exists> { … }`) so it is "
+            "only reached when one exists"
+        )
+    chosen = ctx.chooser(player, candidates, 1)[0]
+    for card in chosen.cards:
+        source.remove(card)
+    return list(chosen.cards)
 
 
 def _select_filtered(
@@ -276,8 +376,11 @@ def _select_filtered(
     if amount == "one":
         count = 1
     else:
-        assert not isinstance(amount, str)  # parse admits "all" | "one" | Expr; both literals handled above
-        count = int(evaluate(amount, ctx))
+        # Backstop: parse admits "all" | "one" | "some" | Expr; the first two
+        # are handled above and "some" never reaches the per-card filter path —
+        # resolve walls `some` to `jointly`, which routes to `_select_joint`.
+        assert not isinstance(amount, str)
+        count = _check_count(int(evaluate(amount, ctx)), stmt.mode)
     if stmt.mode == "chosen":
         chosen = ctx.chooser(player, pool, count)
         for card in chosen:
@@ -415,6 +518,76 @@ def _as_block(stmt: n.AsBlock, ctx: Ctx) -> None:
     (`as actor { … }` is idempotent) and no other player's turn can slip in."""
     player = evaluate(stmt.player, ctx)
     run_body(stmt.body, ctx.acting_as(player))
+
+
+def _turns(stmt: n.Turns, ctx: Ctx) -> None:
+    """The turn loop beneath the round forms (decisions.md "The `turns`
+    form"). Each iteration: check `until` (a turn boundary — before the
+    FIRST turn too, so the zero-iteration run exists); pick the player —
+    the previous player again when the `again` state var read true at the
+    boundary (the form CONSUMES the flag: it resets to false on read, so a
+    stale write can never silently monopolize the loop — only a write
+    during the turn keeps the turn), else the next seat in GAME direction
+    (`Seating.clockwise`, the same axis the round forms rotate on); skip
+    seats failing the participants predicate (re-evaluated per pick, so
+    elimination falls out); bind the binder and the acting player and run
+    the body. The leader expression is read once, at the first turn, and
+    must name a real seat — a non-seat value (an out-of-range Integer, a
+    TAny pronoun) is a typed error HERE, before any rotation arithmetic,
+    the same seat wall `acting_as` gives `as`/`offer` (a bogus leader
+    would otherwise crash `order.index` as a bare ValueError). A lap with
+    no eligible participant is a malformed game (whose turn is it?) —
+    loud, like `offer`'s no-legal-move rule, never a silent skip or an
+    infinite spin."""
+    order = ctx.rs.seating.players
+    step = 1 if ctx.rs.seating.clockwise else -1
+    current: Player | None = None
+    guard = 0
+    while not bool(evaluate(stmt.termination, ctx)):
+        # The same non-termination backstop as `_repeat_until` (one loop
+        # class, one guard): a body that makes no decisions is invisible to
+        # the max_length DECISION counter, so the turn count itself is
+        # bounded too.
+        guard += 1
+        if guard > ctx.rs.max_length:
+            raise RuntimeError(
+                f"turns exceeded the game's declared max_length "
+                f"({ctx.rs.max_length}) turns — non-termination, or raise "
+                "max_length if this game genuinely runs this long"
+            )
+        if current is None:
+            leader = evaluate(stmt.leader, ctx)
+            if leader not in order:
+                raise RuntimeError(
+                    f"turns: cannot start from {leader!r}: not a seat of "
+                    f"this {len(order)}-player game — the `from` expression "
+                    f"bound a non-player value"
+                )
+            candidate_seq = [leader, *_next_seats(order, leader, step)]
+        elif stmt.again is not None and bool(ctx.rs.get(stmt.again)):
+            ctx.rs.set(stmt.again, False)  # consumed: one write, one repeat
+            candidate_seq = [current, *_next_seats(order, current, step)]
+        else:
+            candidate_seq = _next_seats(order, current, step)
+        participants = set(elements(evaluate(stmt.participants, ctx)))
+        player = next((p for p in candidate_seq if p in participants), None)
+        if player is None:
+            raise RuntimeError(
+                "turns: no eligible participant — every seat fails the "
+                "`over` predicate; make the `until` condition cover this "
+                "state so the form is never asked to find a turn nobody "
+                "can take"
+            )
+        body_ctx = ctx.with_local(stmt.binder, player).acting_as(player)
+        run_body(stmt.body, body_ctx)
+        current = player
+
+
+def _next_seats(order: tuple[Player, ...], frm: Player, step: int) -> list[Player]:
+    """One full lap starting after `frm`, stepping in game direction
+    (`step` = +1 clockwise, -1 counterclockwise — `Seating`'s convention)."""
+    i = order.index(frm)
+    return [order[(i + step * k) % len(order)] for k in range(1, len(order) + 1)]
 
 
 def _offer(stmt: n.Offer, ctx: Ctx) -> None:
