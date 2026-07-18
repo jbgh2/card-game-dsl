@@ -43,15 +43,19 @@ class RulePolicy:
             return {a: 1.0 / len(labeled) for a, _ in labeled}
         return {a: (1.0 if a == pick else 0.0) for a, _ in labeled}
 
+    # Every rank any Green Lane variant declares contraband (baseline/V1: K A;
+    # V2/V2b: K A; V3/V4: 7 A) — and no variant's decoy (always 2..5) collides
+    # with it, so prefix classification stays exact across the whole family.
+    # Keep this set in sync with the variants' contraband predicates.
+    CONTRABAND_PREFIXES = ("A", "K", "Q", "7")
+
     def _pick_ship(self, labeled: list[tuple[int, str]]) -> int | None:
-        # "Contraband" for rule purposes = face cards and aces, so the same
-        # rules apply to variants whose contraband is K or Q rather than A.
-        aces = [a for a, lab in labeled if lab.startswith(("A", "K", "Q"))]
-        others = [a for a, lab in labeled if not lab.startswith(("A", "K", "Q"))]
+        hot = [a for a, lab in labeled if lab.startswith(self.CONTRABAND_PREFIXES)]
+        cold = [a for a, lab in labeled if not lab.startswith(self.CONTRABAND_PREFIXES)]
         if self.ship_rule == "ace_first":
-            return aces[0] if aces else labeled[0][0]
+            return hot[0] if hot else labeled[0][0]
         if self.ship_rule == "ace_last":
-            return others[0] if others else labeled[0][0]
+            return cold[0] if cold else labeled[0][0]
         return None  # "uniform"
 
     def _pick_response(self, labeled: list[tuple[int, str]]) -> int | None:

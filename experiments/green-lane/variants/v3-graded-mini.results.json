@@ -35,17 +35,17 @@
   "naive_grid": [
     {
       "rule": "ace_first/always",
-      "mean_vs_equilibrium": 0.030973966113037932,
+      "mean_vs_equilibrium": -0.00424220295974187,
       "mean_vs_best_response": -42.0
     },
     {
       "rule": "ace_first/never",
-      "mean_vs_equilibrium": -15.305631232636657,
+      "mean_vs_equilibrium": -15.304284749858553,
       "mean_vs_best_response": -34.0
     },
     {
       "rule": "ace_first/coin_flip",
-      "mean_vs_equilibrium": -1.8812733650078006,
+      "mean_vs_equilibrium": -1.9045621058743367,
       "mean_vs_best_response": -28.75
     },
     {
