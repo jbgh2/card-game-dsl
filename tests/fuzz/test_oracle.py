@@ -46,10 +46,8 @@ def test_run_oracle_rejects_syntax_error() -> None:
 
 
 def test_run_oracle_rejects_missing_winner_or_loser() -> None:
-    # A proper DiagnosticError from resolve, not the parse-time bare-assert
-    # crash that findings.KNOWN_FINDINGS's `missing_cards_declaration` pins
-    # (an entirely absent `cards:` clause) -- this case demonstrates the
-    # oracle's other, EXPECTED branch: "rejected" is not itself a finding.
+    # A proper DiagnosticError from resolve — this case demonstrates the
+    # oracle's EXPECTED branch: "rejected" is not itself a finding.
     text = (
         "game NoWinnerOrLoser {\n"
         "  players: 2\n"

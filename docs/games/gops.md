@@ -68,7 +68,7 @@ the deal itself is public (each player's remaining bid cards are perfectly
 deducible from the reveals), the derived information set is *almost* the
 whole state — hidden in exactly two places, the prize order and the live
 bid, which is precisely what makes the game pure strategy. The rank scale
-needs no game-local primitive: under `ranking: K Q J 10 9 8 7 6 5 4 3 2 A`,
+needs no game-local primitive: under `ranking: aces low`,
 the stdlib `rank_value` is 0 for the Ace up to 12 for the King — the bid
 comparison directly, and the prize value as `rank_value + 1`.
 
@@ -80,7 +80,7 @@ game GOPS {
   max_length: 200
 
   cards: standard52
-  ranking: K Q J 10 9 8 7 6 5 4 3 2 A
+  ranking: aces low
 
   zones {
     deck             : Deck                 // empty after setup

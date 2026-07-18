@@ -24,9 +24,17 @@ from cardlang.runtime.cribbage import (
     show_score,
 )
 from cardlang.runtime.driver import play_game
-from cardlang.runtime.values import Card
+from cardlang.runtime.values import Card, expand_ranking_convention
 
 CRIBBAGE = Path(__file__).parent.parent / "docs" / "games" / "cribbage.cardlang"
+
+# The declared `ranking: aces low`'s rank_index, derived through the same
+# expansion the resolver uses (never a private copy of the order).
+_ORDER = {
+    r: i
+    for i, r in enumerate(reversed(expand_ranking_convention("aces low", "standard52")))
+}
+
 
 
 def _c(spec: str) -> Card:
@@ -36,11 +44,11 @@ def _c(spec: str) -> Card:
 
 def test_show_scorer_known_hands() -> None:
     # The perfect 29: J + three fives matching the starter's suit on the J.
-    assert show_score([_c("5C"), _c("5D"), _c("5S"), _c("JH")], _c("5H"), False) == 29
+    assert show_score([_c("5C"), _c("5D"), _c("5S"), _c("JH")], _c("5H"), False, _ORDER) == 29
     # Run of five plus two fifteens (7+8, 4+5+6).
-    assert show_score([_c("4C"), _c("5D"), _c("6S"), _c("7H")], _c("8C"), False) == 9
+    assert show_score([_c("4C"), _c("5D"), _c("6S"), _c("7H")], _c("8C"), False, _ORDER) == 9
     # Double run of three (4 5 5 6) + pair + two fifteens.
-    assert run_score([_c("4C"), _c("5D"), _c("5S"), _c("6H"), _c("9C")]) == 6
+    assert run_score([_c("4C"), _c("5D"), _c("5S"), _c("6H"), _c("9C")], _ORDER) == 6
     # Fifteens: K + 5 = 15.
     assert count_fifteens([_c("KC"), _c("5D")]) == 2
     # Flush: four of a suit scores 4 in hand, 5 with matching starter, 5-only in crib.
@@ -55,8 +63,8 @@ def test_show_scorer_known_hands() -> None:
 def test_pegging_scorers() -> None:
     assert peg_pair_points([_c("7C"), _c("7D")]) == 2  # a pair
     assert peg_pair_points([_c("7C"), _c("7D"), _c("7S")]) == 6  # pair royal
-    assert peg_run_points([_c("4C"), _c("6D"), _c("5S")]) == 3  # run regardless of order
-    assert peg_run_points([_c("9C"), _c("4D"), _c("6S"), _c("5H")]) == 3  # only the suffix
+    assert peg_run_points([_c("4C"), _c("6D"), _c("5S")], _ORDER) == 3  # run regardless of order
+    assert peg_run_points([_c("9C"), _c("4D"), _c("6S"), _c("5H")], _ORDER) == 3  # only the suffix
 
 
 def test_50_random_games_satisfy_invariants() -> None:

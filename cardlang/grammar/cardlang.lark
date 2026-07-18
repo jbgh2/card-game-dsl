@@ -49,7 +49,20 @@ cards: "cards" ":" NAME
 // length as a declared contract"): the runtime's non-termination backstop
 // and the OpenSpiel adapter's `max_game_length` both read this one number.
 max_length: "max_length" ":" INT
-ranking: "ranking" ":" card_rank+
+// Either an explicit strongest-first rank enumeration, or a ranking
+// convention the resolver expands against the declared deck (decisions.md,
+// "The `ranking:` declaration: enumeration or convention"). The space-form conventions
+// (`aces high`, `aces low`, `twos high`) are deliberately NOT grammar
+// alternatives: their words lex as ordinary card_rank NAMEs, so a second
+// derivation would be a real Earley ambiguity (tests/test_grammar_ambiguity
+// budgets the corpus at zero `_ambig` nodes). Instead parse.py's `ranking`
+// callback recognizes an enumeration whose space-joined spelling is exactly
+// a `RANKING_CONVENTIONS` key — reserving those spellings in ranking
+// position, pinned by tests/test_ranking_conventions.py. Only the
+// hyphenated `ace-ten` needs a terminal (a hyphen has no card_rank
+// derivation, so this arm is unambiguous), anchored like _AS_KW below.
+ranking: "ranking" ":" (RANK_CONV | card_rank+)
+RANK_CONV: /ace-ten(?![A-Za-z0-9_-])/
 
 // The suit (or rank-set) that beats all others in a trick. A single game-level
 // declaration the trump-aware outcome functions read; absent for no-trump games.
@@ -157,6 +170,7 @@ move_event: NAME ["where" expr]
           | skip_stmt
           | run_stmt
           | as_block
+          | turns_stmt
 
 // Invoke a named procedure: its body is spliced in at this site, after the
 // arguments substitute for the parameters (decisions.md "Named procedures").
@@ -199,13 +213,23 @@ dist_clause: "as-equally-as-possible"  -> dist_equally
 // selection draws from it (an ordinary expr with `card` bound per candidate,
 // like the card query's `where` — the source-order subset, not a
 // reordering). Only the `from` form takes it (any destination shape).
-where_clause: "where" expr
+// The `jointly` form instead binds `cards` — the candidate SET — and the
+// selection is over the source's subsets satisfying the joint predicate
+// (decisions.md "Joint-predicate selection"); requires `chosen` (resolve
+// walls the rest of the matrix).
+where_clause: "where" _JOINTLY_KW expr  -> where_jointly
+            | "where" expr              -> where_each
 selection: [select_mode] amount NAME
 select_mode: "chosen" -> sel_chosen
            | "random" -> sel_random
-amount: "all"  -> amt_all
-      | "one"  -> amt_one
-      | expr   -> amt_count
+// Every string alternative here is anchored: the expr alternative makes
+// this position genuinely ambiguous for an unanchored keyword (a fused typo
+// like `onecards` split as `one cards` with a REAL second parse — found for
+// `some`, swept to `all`/`one`).
+amount: _ALL_AMT_KW  -> amt_all
+      | _ONE_AMT_KW  -> amt_one
+      | _SOME_KW     -> amt_some
+      | expr         -> amt_count
 move_dest: "to" "each" zone_expr  -> dest_each
          | "to" zone_expr         -> dest_one
 vis_clause: "," "visibility" "=" expr
@@ -239,6 +263,18 @@ else_block: "else" "{" statement* "}"
 // captures `actor` and re-reads its guard mid-pass. Braced block like
 // `if_stmt`/`repeat_until`, so multi-statement bodies need no colon-body.
 as_block: _AS_KW expr "{" statement* "}"
+
+// The turn loop beneath the round forms (decisions.md "The `turns` form"):
+// rotate through the participants in game direction, binding each current
+// player (binder + acting player) for a braced body of statements, until the
+// termination predicate holds at a turn boundary. `again <var>` names a
+// declared Boolean state variable; when a turn ends with it true, the same
+// player takes the next turn (Go Fish's go-again). Statement-leading, so no
+// NAME-EXCLUSION is needed — but ANCHORING still is (the two are separate
+// halves): an unanchored inline keyword matches as a prefix under the
+// dynamic lexer, so `turnst from …` would silently parse as `turns t` and
+// `againgo` as `again go` — the fused-typo misparse class.
+turns_stmt: _TURNS_KW NAME "from" expr "over" expr "until" expr [_AGAIN_KW NAME] "{" statement* "}"
 
 offer: "offer" "to" expr "one" "of" "[" NAME ("," NAME)* "]"
 round_stmt: "round" NAME "from" expr "over" expr "source" NAME "into" NAME "outcome" NAME ["trump" expr] ["early" NAME]   -> round_stmt
@@ -519,7 +555,28 @@ _NOT_KW: "not" /(?![A-Za-z0-9_])/
 // statement-leading, so — unlike the value-position keywords — it stays out of
 // the NAME exclusion below; the anchoring alone keeps `assets := …` a NAME.
 _AS_KW: "as" /(?![A-Za-z0-9_-])/
-NAME: /(?!(?:always|all|one|not|is|number)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+// `jointly` (the joint-predicate where form) and `some` (the any-size joint
+// amount) sit mid-movement where an identifier can follow, so they get the
+// same whole-word anchoring (`jointly_valid`/`some_var` must stay single
+// NAMEs). Both ALSO join the NAME exclusion below: each sits where an
+// expression is grammatical too, so a bare-NAME reading would be a real
+// second parse (`some` as a count expr; `jointly(…)` as a call).
+_JOINTLY_KW: "jointly" /(?![A-Za-z0-9_])/
+_SOME_KW: "some" /(?![A-Za-z0-9_])/
+_TURNS_KW: "turns" /(?![A-Za-z0-9_])/
+_AGAIN_KW: "again" /(?![A-Za-z0-9_])/
+// The amount position's `all`/`one` (an expr is also grammatical there, so a
+// fused identifier is a real second parse). Their OTHER inline occurrences
+// (`all players`, `offer … one of`, `reveal one card`) are un-anchored
+// residual — recorded in roadmap.md.
+_ALL_AMT_KW: "all" /(?![A-Za-z0-9_])/
+_ONE_AMT_KW: "one" /(?![A-Za-z0-9_])/
+// `some` and `jointly` join the exclusion for the same reason as `all`/`one`:
+// both sit where an expression is also grammatical, so a NAME reading is a
+// real second parse (`some` as amt_count's expr; `jointly (x) >= 3` as a
+// call to a function named jointly under the per-card where). Neither ever
+// names a value. The `\b` anchor keeps `some_var`/`jointly_valid` whole.
+NAME: /(?!(?:always|all|one|some|jointly|not|is|number)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 STRING: /"[^"]*"/
 
 LINE_COMMENT: /\/\/[^\n]*/

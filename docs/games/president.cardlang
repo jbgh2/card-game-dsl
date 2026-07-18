@@ -37,7 +37,7 @@ game President {
                       // play per hand, the game ends at 11)
 
   cards: standard52
-  ranking: 2 A K Q J 10 9 8 7 6 5 4 3   // suits are irrelevant
+  ranking: twos high   // suits are irrelevant
 
   zones {
     deck         : Deck

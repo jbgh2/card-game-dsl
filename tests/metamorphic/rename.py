@@ -72,29 +72,25 @@ corpus-wide.
 declared spelling.** Eleven corpus games ship a `cardlang/runtime/<game>.py`
 module of bespoke Python (kernel-migration.md's sanctioned "game-local
 stdlib primitive" pattern — Stud's `pot_share`, Skat's `skat_matadors`,
-Tichu's `tichu_mahjong_holder`, …) that reads live `RuntimeState` DIRECTLY,
-by the zone/state-variable name ITS AUTHOR gave it — a hardcoded Python
-string literal, never derived from the AST the way `execute.py`/`evaluate.py`
-read a `NameRef.name` off the tree. That coupling is invisible anywhere in
-the DSL or the type checker: nothing about `zones { influence[player] :
-Hand<player> }` says "and `coup.py` line 67 also spells this `influence`" —
-so this transform's own pairing run is what surfaces it, empirically, as a
-`KeyError`/`AttributeError` at PLAYOUT time (the tree passes resolve/
-typecheck/expand — the pipeline has no way to know). This is real and worth
-recording (CLAUDE.md's report obligation for a found divergence), but it is
-not a cardlang defect to fix here: it is exactly the "hand"-name case's
-cousin, discovered per name instead of declared as a wall, because no
-registry of "which zone names a Python primitive reads" exists to derive it
-from — so `_PRIMITIVE_COUPLED_NAMES` below is a hand-maintained, per-game,
-file:line-cited exclusion table (the `tests/openspiel_ready/harness.py`
-`GameSpec` precedent for per-game test-harness knowledge that cannot be
-derived from a registry), not a hand-list standing in for one that could be.
-A stale entry (a primitive file that stops reading a name) is harmless — it
-just leaves one more name unrenamed than strictly necessary, silently within
-this transform's own generosity, never within cardlang's; a MISSING entry
-(a primitive starts reading a name not yet excluded) is not silent at all —
-it fails the pairing test itself, the same way this whole class was first
-found. Were some future game's SAFE set ever empty after every exclusion,
+Tichu's `tichu_mahjong_holder`, …) that reads live `RuntimeState` by the
+zone/state-variable name ITS AUTHOR gave it — a Python string literal, never
+derived from the AST the way `execute.py`/`evaluate.py` read a
+`NameRef.name` off the tree. This transform's own pairing run is what FIRST
+surfaced that coupling, empirically, as a `KeyError` at PLAYOUT time (the
+tree passes resolve/typecheck/expand — the pipeline has no way to know). The
+coupling is now DECLARED rather than latent: every such read goes through
+the typed accessors of `cardlang/runtime/reads.py`, whose `PRIMITIVE_READS`
+registry is pinned two ways by tests/test_primitive_reads.py — every
+declared name against the game file's actual declarations, and every
+module's accessor-call literals against its rows, exactly. This transform
+derives its exclusions from that registry (`_coupled_names` below) instead
+of keeping a copy that could drift: a primitive that starts or stops reading
+a name updates the registry (the source pin forces it), and the exclusion
+set follows automatically. Because the registry is pinned EXACT in both
+directions, the exclusion is never generous — every excluded name really is
+read by some primitive — and never short: a missing declaration fails the
+static pin before this suite would meet it as a playout `KeyError`.
+Were some future game's SAFE set ever empty after every exclusion,
 `test_every_game_renames_something` (test_rename.py) fails LOUDLY rather
 than the pairing test passing vacuously over nothing renamed — a hard
 failure, deliberately, rather than a quieter skip: an empty safe set means
@@ -111,6 +107,7 @@ from typing import Callable, cast
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import Span
 from cardlang.resolve import _introduced_binders, _walk as _resolve_walk
+from cardlang.runtime.reads import PRIMITIVE_READS
 
 from tests.metamorphic.pairing import Event
 
@@ -124,43 +121,17 @@ _PREFIX = "_mt_"
 # see the module docstring.
 _GLOBAL_EXCLUSIONS: frozenset[str] = frozenset({"hand"})
 
-# Per-game zone/state-variable names a `cardlang/runtime/<game>.py` game-local
-# primitive reads by hardcoded Python string literal — see the module
-# docstring's second exclusion. Each row is exactly the literals grepped out
-# of the named file; keep the file:line citations current when either drifts.
-_PRIMITIVE_COUPLED_NAMES: dict[str, frozenset[str]] = {
-    "big-two.cardlang": frozenset({"opened"}),  # bigtwo.py:193
-    "bridge.cardlang": frozenset(  # stdlib.py:407-429 (bridge_auction_outcome)
-        {"made_bid", "high_bidder", "cur_strain", "cur_level", "doubled"}
-    ),
-    "coup.cardlang": frozenset(  # coup.py:21,46,52,62-68
-        {"court_deck", "influence", "revealed", "alive", "coins", "treasury"}
-    ),
-    "cribbage.cardlang": frozenset(  # cribbage.py:148-172; stdlib.py:176,180 (play_pile)
-        {"play_pile", "played", "starter", "crib", "seq_bits", "seq_len", "dealer"}
-    ),
-    "doppelkopf.cardlang": frozenset({"trick_pile"}),  # doko.py:56
-    "pinochle.cardlang": frozenset(  # pinochle.py:60; stdlib.py:452-466 (pinochle_auction_outcome)
-        {"trump_suit", "lead_bidder", "opener", "working_bid"}
-    ),
-    "schnapsen.cardlang": frozenset({"trick_pile"}),  # schnapsen.py:23
-    "skat.cardlang": frozenset(  # skat.py:45,47,49,118-156
-        {"trick_pile", "skat", "is_null", "is_grand", "trump_suit"}
-    ),
-    "seven-card-stud.cardlang": frozenset(  # stud.py:107-188
-        {"upcards", "hole", "stack", "folded", "committed", "in_hand"}
-    ),
-    "french-tarot.cardlang": frozenset(  # tarot.py:79,143-147; stdlib.py:480-484 (tarot_auction_outcome)
-        {
-            "trick_pile", "captured", "chien", "discard",  # tarot.py zones
-            "taker", "bid_level",  # tarot.py:143-144 (resolved auction result)
-            "lead_taker", "current_level",  # stdlib.py:480-484 (live auction state)
-        }
-    ),
-    "tichu.cardlang": frozenset({"captured", "out_first", "out_second"}),  # tichu.py:65-145
-    # president.cardlang's game-local primitive (president.py) reads only
-    # `hand` — already a global exclusion; no additional row needed.
-}
+def _coupled_names(game_file: str) -> frozenset[str]:
+    """Every zone/state name a game-local primitive reads for `game_file` —
+    derived from the declared-reads registry (`PRIMITIVE_READS`,
+    cardlang/runtime/reads.py), unioned over the game's rows (a game may be
+    served by its own module AND stdlib.py). See the module docstring's
+    second exclusion."""
+    names: set[str] = set()
+    for row in PRIMITIVE_READS:
+        if row.game_file == game_file:
+            names |= row.state_vars | row.zone_families | row.single_zones
+    return frozenset(names)
 
 
 def _all_string_tokens(game: n.Game) -> frozenset[str]:
@@ -235,7 +206,10 @@ def build_rename_plan(game: n.Game) -> RenamePlan:
 
     filename = Path(game.span.source_name).name if game.span is not None else ""
     excluded_global = domain & _GLOBAL_EXCLUSIONS
-    excluded_coupled = domain & _PRIMITIVE_COUPLED_NAMES.get(filename, frozenset())
+    # Subtracting the global exclusions keeps the three excluded sets a
+    # partition: `hand` is primitive-coupled too (Tichu/Skat/... rows declare
+    # it) but is already excluded corpus-wide as the magic name.
+    excluded_coupled = (domain & _coupled_names(filename)) - excluded_global
 
     safe = sorted(domain - unsafe - excluded_global - excluded_coupled)
 
@@ -279,6 +253,14 @@ def _rewrite(node: object, name_map: dict[str, str]) -> object:
         new = name_map.get(node.target)
         if new is not None:
             node = replace(node, target=new)
+    elif isinstance(node, n.Turns):
+        # `turns … again <var>` names its go-again state variable as a bare
+        # string (the grammar takes a NAME there) — the `Winner.target`
+        # class, one construct over.
+        if node.again is not None:
+            new = name_map.get(node.again)
+            if new is not None:
+                node = replace(node, again=new)
     elif isinstance(node, n.Round):
         # The climbing/trick forms name their source/play zones as bare
         # strings (`source_zone`/`play_zone`), not a `NameRef` — the one

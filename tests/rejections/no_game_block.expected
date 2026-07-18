@@ -1,0 +1,1 @@
+no_game_block.cardlang:5:1: error: source declares no `game { }` block — a cardlang source is one game plus its supporting definitions

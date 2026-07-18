@@ -1,0 +1,7 @@
+// Wall: parse.py's `start()` builder. `start: top_item+` accepts a source
+// of bare definitions, so a file with no `game { }` block at all is
+// grammatically reachable — it used to escape as a raw StopIteration inside
+// lark's VisitError.
+rule nothing {
+  demands: actions where true
+}

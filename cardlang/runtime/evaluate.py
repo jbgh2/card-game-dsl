@@ -14,7 +14,7 @@ from cardlang.ast import nodes as n
 from cardlang.domains import role_members
 from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
 from cardlang.runtime import observe, stdlib
-from cardlang.runtime.state import Ctx, Move, StructValue, Zone
+from cardlang.runtime.state import Ctx, Move, StructValue, elements
 from cardlang.runtime.values import Card
 
 
@@ -252,21 +252,6 @@ def _subscript(e: n.Subscript, ctx: Ctx) -> Any:
     return evaluate(obj, ctx)[index]
 
 
-def _elements(value: Any) -> Any:
-    """The Zone -> ordered-elements coercion shared by every site that
-    accepts either a Zone or an already-evaluated collection: the card-query
-    and comprehension sources, and the right-hand side of `in` (which may
-    hold generic values — suits, ranks — not just cards). A Zone yields its
-    `.cards` list (already a materialized, multi-pass `list`); anything else
-    passes through unchanged, since a `[...]` literal, a nested query or
-    comprehension result, and every other collection-typed expression here
-    already evaluate to a concrete `list`. Callers that need a fresh,
-    independent list (card-query, comprehension) wrap the result in
-    `list(...)` themselves; `in` only needs single-pass membership and uses
-    it as-is."""
-    return value.cards if isinstance(value, Zone) else value
-
-
 def _binop(e: n.BinOp, ctx: Ctx) -> Any:
     if e.op == "and":
         return bool(evaluate(e.left, ctx)) and bool(evaluate(e.right, ctx))
@@ -296,7 +281,7 @@ def _binop(e: n.BinOp, ctx: Ctx) -> Any:
         case "offset_by":
             return ctx.rs.seating.offset_by(left, right)
         case "in":
-            return left in _elements(right)
+            return left in elements(right)
         case _:
             raise AssertionError(f"unknown operator '{e.op}'")
 
@@ -372,7 +357,7 @@ def _player_query(e: n.PlayerQuery, ctx: Ctx) -> Any:
 
 def _card_query(e: n.CardQuery, ctx: Ctx) -> Any:
     source = evaluate(e.source, ctx)
-    cards = list(_elements(source))
+    cards = list(elements(source))
     if e.pred is None:  # the bare `number of cards in <zone>` size idiom
         assert e.kind == "count"  # parse builds a pred-less query only for that idiom
         return len(cards)
@@ -406,14 +391,14 @@ def _if_expr(e: n.IfExpr, ctx: Ctx) -> Any:
 
 def _comprehension(e: n.Comprehension, ctx: Ctx) -> Any:
     source = evaluate(e.source, ctx)
-    elements = list(_elements(source))
+    items = list(elements(source))
     if e.filter is not None:
-        elements = [
+        items = [
             x
-            for x in elements
+            for x in items
             if evaluate(e.filter, ctx.with_local(e.binder, x))
         ]
-    values = [evaluate(e.body, ctx.with_local(e.binder, x)) for x in elements]
+    values = [evaluate(e.body, ctx.with_local(e.binder, x)) for x in items]
     match e.agg:
         case "sum":
             return sum(values)

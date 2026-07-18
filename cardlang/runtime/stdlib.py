@@ -10,11 +10,39 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from cardlang.runtime.state import Ctx, IllegalMove
+from cardlang.runtime import reads
+from cardlang.runtime.state import Ctx, IllegalMove, elements
 from cardlang.runtime.values import SUITS, Card, Player
+from cardlang.stdlib.signatures import CALL_SIGS
+from cardlang.types import TCollection
+
+# This module's per-game functions (the auction outcomes; the pegging-scorer
+# call sites) read state on behalf of specific games — one declared-reads row
+# per game served (cardlang/runtime/reads.py).
+_BRIDGE_R = reads.row("cardlang/runtime/stdlib.py", "bridge.cardlang")
+_CRIBBAGE_R = reads.row("cardlang/runtime/stdlib.py", "cribbage.cardlang")
+_PINOCHLE_R = reads.row("cardlang/runtime/stdlib.py", "pinochle.cardlang")
+_TAROT_R = reads.row("cardlang/runtime/stdlib.py", "french-tarot.cardlang")
 
 
 def call(name: str, args: list[Any], ctx: Ctx) -> Any:
+    # The wall for collection-shaped arguments: a collection-typed expression
+    # evaluates to either a Zone or a plain list (the zone facet is not part
+    # of assignability, so `gin_valid_meld(hand[p])` typechecks), and the
+    # adapters below are bare Python that iterates — a TCollection-declared
+    # param receives elements, never a Zone handle. SIGNATURE-DRIVEN, not
+    # blanket: a TAny param passes raw, because its adapter dispatches on
+    # the shape itself (`suit_of`: a card or a single-card zone — blanket
+    # coercion broke the schnapsen trump indicator). Owned here, at the one
+    # boundary where evaluated values leave the evaluator; the registry side
+    # is pinned by tests/test_stdlib_boundary.py (every TCollection param
+    # probed with a Zone, the TAny set pinned, no param may be zone=True).
+    sig = CALL_SIGS.get(name)
+    if sig is not None:
+        args = [
+            elements(a) if isinstance(p, TCollection) else a
+            for p, a in zip(sig.params, args)
+        ] + args[len(sig.params) :]
     match name:
         case "player_holding":
             return _player_holding(args[0], ctx)
@@ -173,11 +201,14 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
         case "peg_pair_points":
             from cardlang.runtime.cribbage import peg_pair_points
 
-            return peg_pair_points(ctx.rs.zones.single("play_pile").cards)
+            return peg_pair_points(reads.single(ctx.rs, _CRIBBAGE_R, "play_pile").cards)
         case "peg_run_points":
             from cardlang.runtime.cribbage import peg_run_points
 
-            return peg_run_points(ctx.rs.zones.single("play_pile").cards)
+            return peg_run_points(
+                reads.single(ctx.rs, _CRIBBAGE_R, "play_pile").cards,
+                ctx.rs.rank_index,
+            )
         case "peg_origin_of":
             from cardlang.runtime.cribbage import peg_origin_of
 
@@ -190,6 +221,58 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.cribbage import cribbage_crib_value
 
             return cribbage_crib_value(ctx)
+        case "gin_card_points":
+            from cardlang.runtime.gin import card_points
+
+            return card_points(args[0])
+        case "gin_deadwood":
+            from cardlang.runtime.gin import gin_deadwood
+
+            return gin_deadwood(ctx, args[0])
+        case "gin_can_knock":
+            from cardlang.runtime.gin import gin_can_knock
+
+            return gin_can_knock(ctx, args[0])
+        case "gin_knock_ok":
+            from cardlang.runtime.gin import gin_knock_ok
+
+            return gin_knock_ok(ctx, args[0], args[1])
+        case "gin_valid_meld":
+            from cardlang.runtime.gin import gin_valid_meld
+
+            return gin_valid_meld(ctx, args[0])
+        case "gin_arrange_ok":
+            from cardlang.runtime.gin import gin_arrange_ok
+
+            return gin_arrange_ok(ctx, args[0], args[1])
+        case "gin_can_declare":
+            from cardlang.runtime.gin import gin_can_declare
+
+            return gin_can_declare(ctx, args[0])
+        case "gin_can_declare_free":
+            from cardlang.runtime.gin import gin_can_declare_free
+
+            return gin_can_declare_free(ctx, args[0])
+        case "gin_flat_points":
+            from cardlang.runtime.gin import gin_flat_points
+
+            return gin_flat_points(ctx, args[0])
+        case "gin_shown_points":
+            from cardlang.runtime.gin import gin_shown_points
+
+            return gin_shown_points(ctx, args[0])
+        case "gin_lay_ok_a":
+            from cardlang.runtime.gin import gin_lay_ok_a
+
+            return gin_lay_ok_a(ctx, args[0], args[1])
+        case "gin_lay_ok_b":
+            from cardlang.runtime.gin import gin_lay_ok_b
+
+            return gin_lay_ok_b(ctx, args[0], args[1])
+        case "gin_lay_ok_c":
+            from cardlang.runtime.gin import gin_lay_ok_c
+
+            return gin_lay_ok_c(ctx, args[0], args[1])
         case _:
             raise AssertionError(f"unknown stdlib function '{name}'")
 
@@ -227,7 +310,7 @@ def _player_holding(card: Card, ctx: Ctx) -> Player:
     := player_holding(2 of clubs)` right after the full deal) — so a card in
     nobody's hand is a game-logic error reported here, at the cause, rather
     than a silent `None` that key-errors some later subscript."""
-    for player, zone in ctx.rs.zones.families["hand"].items():
+    for player, zone in reads.magic_hand(ctx.rs).items():
         if card in zone.cards:
             return player
     raise RuntimeError(f"player_holding: no hand contains {card}")
@@ -326,6 +409,25 @@ def climb_universe_function(name: str) -> Callable[[], list[Any]]:
             )
 
 
+def joint_codec_function(name: str) -> Any | None:
+    """The subset codec for a joint selection (`where jointly`) whose
+    predicate is rooted in the named call — the climb-engine codec pattern
+    (`climb_codec_function` below) one construct over: pure card-set <->
+    action-index functions (`size` / `encode_cards` / `decode` / `kind_of`)
+    over the predicate's satisfying-subset universe. Keyed corpus-first; a
+    joint predicate with no registered codec is walled loudly at
+    `ActionSpace.for_game`, never silently absent from the action space."""
+    match name:
+        case "gin_arrange_ok" | "gin_valid_meld":
+            # Both gin arrangement guards admit only valid melds, so their
+            # satisfying-subset universe IS the meld universe.
+            from cardlang.runtime.gin import GIN_MELD_CODEC
+
+            return GIN_MELD_CODEC
+        case _:
+            return None
+
+
 def climb_codec_function(name: str) -> Any | None:
     """The engine's arithmetic combo codec — pure card-set <-> action-index
     functions (`size` / `encode_cards` / `decode` / `kind_of`) — keyed by the
@@ -404,13 +506,14 @@ def bridge_auction_outcome(
     declarer — the first player of the high-bidding side to have named the final
     strain (their left-hand opponent leads, so the exact seat matters)."""
     rs = ctx.rs
-    if not rs.get("made_bid"):
+    if not reads.state(rs, _BRIDGE_R, "made_bid"):
         ctx.trace("bridge_contract", {"all_pass": True})
         return ("all_pass", [])
-    high_team = rs.team_of[rs.get("high_bidder")]
-    strain = rs.get("cur_strain")
-    level = rs.get("cur_level")
-    doubled = rs.get("doubled")
+    high_bidder = reads.state(rs, _BRIDGE_R, "high_bidder")
+    high_team = rs.team_of[high_bidder]
+    strain = reads.state(rs, _BRIDGE_R, "cur_strain")
+    level = reads.state(rs, _BRIDGE_R, "cur_level")
+    doubled = reads.state(rs, _BRIDGE_R, "doubled")
     declarer = next(
         (
             p
@@ -426,7 +529,7 @@ def bridge_auction_outcome(
         raise RuntimeError(
             f"bridge auction: made_bid is set but no submit_bid in the history "
             f"names the final strain {strain!r} for the high team {high_team} "
-            f"(high_bidder={rs.get('high_bidder')})"
+            f"(high_bidder={high_bidder})"
         )
     ctx.trace(
         "bridge_contract",
@@ -449,9 +552,9 @@ def pinochle_auction_outcome(
     the opener at the minimum 50. (The bidding side must reach this in meld +
     tricks or be set back; see `pinochle.cardlang`.)"""
     rs = ctx.rs
-    lead_bidder = rs.get("lead_bidder")
+    lead_bidder = reads.state(rs, _PINOCHLE_R, "lead_bidder")
     if lead_bidder is None:
-        declarer, bid = rs.get("opener"), 50
+        declarer, bid = reads.state(rs, _PINOCHLE_R, "opener"), 50
         if declarer is None:
             # Whether `opener` was set before the round is runtime data — the
             # hosting game's own setup — so its absence is the description's
@@ -463,7 +566,7 @@ def pinochle_auction_outcome(
             )
         ctx.trace("pinochle_contract", {"all_pass": True, "declarer": declarer, "bid": bid})
         return ("bid_won", [declarer, bid])
-    bid = rs.get("working_bid")
+    bid = reads.state(rs, _PINOCHLE_R, "working_bid")
     ctx.trace(
         "pinochle_contract", {"all_pass": False, "declarer": lead_bidder, "bid": bid}
     )
@@ -477,10 +580,10 @@ def tarot_auction_outcome(
     level he reached, or — if every seat passed — the hand is thrown in (re-dealt,
     no score). `current_level` is 1..4 (petite..garde_contre; 0 = no bid)."""
     rs = ctx.rs
-    taker = rs.get("lead_taker")
+    taker = reads.state(rs, _TAROT_R, "lead_taker")
     if taker is None:
         ctx.trace("tarot_contract", {"thrown_in": True})
         return ("thrown_in", [])
-    level = rs.get("current_level")
+    level = reads.state(rs, _TAROT_R, "current_level")
     ctx.trace("tarot_contract", {"thrown_in": False, "taker": taker, "level": level})
     return ("taken", [taker, level])

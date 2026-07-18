@@ -235,7 +235,7 @@ def test_card_query_source_rejects_a_non_card_collection() -> None:
 
 def test_card_query_source_rejects_a_bare_card() -> None:
     # A card-TYPED source is still not a collection: before this wall it
-    # unified with TCard, passed, and `list(_elements(card))` crashed at
+    # unified with TCard, passed, and `list(elements(card))` crashed at
     # runtime (Codex review, PR #48).
     _rejects(
         _game(

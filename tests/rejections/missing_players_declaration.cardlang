@@ -1,0 +1,13 @@
+// Wall: parse.py's `game()` builder. `players:` is one of the two clauses
+// the AST makes mandatory (`Game.players` is non-optional); its omission is
+// reported by the parse builder, the last layer where the absence exists.
+game MissingPlayers {
+  cards: standard52
+  max_length: 10
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase play {
+    deal 3 cards from deck to each hand
+  }
+  winner: highest score
+}

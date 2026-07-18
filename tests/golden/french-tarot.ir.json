@@ -11,6 +11,7 @@
   "direction": "counterclockwise",
   "max_length": 15000,
   "ranking": [],
+  "ranking_convention": null,
   "trump": "atouts",
   "partnerships": [],
   "zones": [

@@ -12,7 +12,11 @@ what is not expressible there:
   `peg_pair_points`/`peg_run_points` — the pegging-count scorers. Module-level
   so they can be unit-tested against known cribbage hands (the strongest
   falsifiable check for a counting game) independent of the ctx-adapter
-  wiring below.
+  wiring below. The run scorers take the rank order as a parameter — the
+  ctx adapters pass `rs.rank_index`, built by the driver from the game's
+  `ranking: aces low` — so this module holds NO private copy of the rank
+  order; the declaration is the single source of truth for what "adjacent
+  ranks" means.
 - `peg_origin`/`peg_origin_of` — the pegging sub-round's card-provenance
   decoder. Zones don't retain who moved a card, and no `round` form fits
   pegging's per-play scoring plus forced-play flow (docs/kernel-migration.md,
@@ -27,15 +31,17 @@ what is not expressible there:
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from itertools import combinations
 
+from cardlang.runtime import reads
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Card, Player
 
+_R = reads.row("cardlang/runtime/cribbage.py", "cribbage.cardlang")
+
 _VALUE = {"A": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9,
           "10": 10, "J": 10, "Q": 10, "K": 10}
-_ORDER = {"A": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9,
-          "10": 10, "J": 11, "Q": 12, "K": 13}
 
 
 def value(c: Card) -> int:
@@ -61,12 +67,18 @@ def count_pairs(cards: list[Card]) -> int:
     return 2 * sum(1 for a, b in combinations(cards, 2) if a.rank == b.rank)
 
 
-def run_score(cards: list[Card]) -> int:
+def run_score(cards: list[Card], order: Mapping[str, int]) -> int:
     """Length × multiplicity of the run (≥3) over the ranks (a 5-card show hand
-    contains at most one run)."""
+    contains at most one run). `order` is the game's declared rank order —
+    `ctx.rs.rank_index` from cribbage.cardlang's `ranking: aces low` — under
+    which "a run" means ranks ADJACENT in the declaration: strengths are dense
+    consecutive integers (the driver's `enumerate` formula), so A-2-3 runs and
+    Q-K-A does not, exactly the A-low no-wraparound rule. A rank missing from
+    `order` KeyErrors like `rank_value`'s lookup — the same partial-`ranking:`
+    residual, moot here since `aces low` covers the whole deck."""
     counts: dict[int, int] = {}
     for c in cards:
-        counts[_ORDER[c.rank]] = counts.get(_ORDER[c.rank], 0) + 1
+        counts[order[c.rank]] = counts.get(order[c.rank], 0) + 1
     distinct = sorted(counts)
     i = 0
     while i < len(distinct):
@@ -95,12 +107,12 @@ def nob_score(hand4: list[Card], starter: Card) -> int:
     return 1 if any(c.rank == "J" and c.suit == starter.suit for c in hand4) else 0
 
 
-def show_score(hand4: list[Card], starter: Card, is_crib: bool) -> int:
+def show_score(hand4: list[Card], starter: Card, is_crib: bool, order: Mapping[str, int]) -> int:
     five = [*hand4, starter]
     return (
         count_fifteens(five)
         + count_pairs(five)
-        + run_score(five)
+        + run_score(five, order)
         + flush_score(hand4, starter, is_crib)
         + nob_score(hand4, starter)
     )
@@ -121,9 +133,11 @@ def peg_pair_points(seq: list[Card]) -> int:
     return n_same * (n_same - 1) if n_same >= 2 else 0
 
 
-def peg_run_points(seq: list[Card]) -> int:
+def peg_run_points(seq: list[Card], order: Mapping[str, int]) -> int:
+    """`order` as in `run_score`: the declared ranking's `rank_index`, whose
+    dense consecutive strengths carry the run-adjacency meaning."""
     for k in range(len(seq), 2, -1):
-        orders = [_ORDER[c.rank] for c in seq[-k:]]
+        orders = [order[c.rank] for c in seq[-k:]]
         if len(set(orders)) == k and max(orders) - min(orders) == k - 1:
             return k
     return 0
@@ -145,11 +159,11 @@ def peg_origin_of(ctx: Ctx, c: Card) -> Player:
     before `play_pile` is drained for this sub-round — the close routing reads
     every card's origin before either split movement removes anything."""
     rs = ctx.rs
-    play_pile = rs.zones.single("play_pile")
+    play_pile = reads.single(rs, _R, "play_pile")
     position = play_pile.cards.index(c)
-    seq_bits = rs.get("seq_bits")
-    seq_len = rs.get("seq_len")
-    dealer: Player = rs.get("dealer")
+    seq_bits = reads.state(rs, _R, "seq_bits")
+    seq_len = reads.state(rs, _R, "seq_len")
+    dealer: Player = reads.state(rs, _R, "dealer")
     if peg_origin(seq_bits, seq_len, position):
         return dealer
     return next(p for p in rs.seating.players if p != dealer)
@@ -160,14 +174,14 @@ def cribbage_show_value(ctx: Ctx, p: Player) -> int:
     snapshot once pegging ends (every card started in `hand[p]` and is routed
     to `played[p]`, never the crib), scored against the shared starter."""
     rs = ctx.rs
-    hand4 = list(rs.zones.instance("played", p).cards)
-    starter = rs.zones.single("starter").cards[0]
-    return show_score(hand4, starter, is_crib=False)
+    hand4 = list(reads.instance(rs, _R, "played", p).cards)
+    starter = reads.single(rs, _R, "starter").cards[0]
+    return show_score(hand4, starter, is_crib=False, order=rs.rank_index)
 
 
 def cribbage_crib_value(ctx: Ctx) -> int:
     """The dealer's crib show score against the shared starter."""
     rs = ctx.rs
-    crib = list(rs.zones.single("crib").cards)
-    starter = rs.zones.single("starter").cards[0]
-    return show_score(crib, starter, is_crib=True)
+    crib = list(reads.single(rs, _R, "crib").cards)
+    starter = reads.single(rs, _R, "starter").cards[0]
+    return show_score(crib, starter, is_crib=True, order=rs.rank_index)

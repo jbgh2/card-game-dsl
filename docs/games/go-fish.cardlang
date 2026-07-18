@@ -20,7 +20,7 @@ game GoFish {
   max_length: 600
 
   cards: standard52
-  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  ranking: aces high
 
   zones {
     deck         : Deck                 // face-down stock
@@ -29,7 +29,7 @@ game GoFish {
   }
 
   state {
-    current_player     : Player  = 0
+    went_again         : Boolean = false  // the turn loop's go-again flag
     book_count[player] : Integer = 0
   }
 
@@ -43,12 +43,17 @@ game GoFish {
              to book[p]
         book_count[p] += 1
       }
-    current_player := 0
   }
 
   phase play {
-    repeat until (deck is empty) or (any player where hand[player] is empty) {
-      offer to current_player one of [ask]
+    // The turn loop owns rotation; `ask`'s effect writes `went_again` on
+    // every path (a hit or drawing the asked rank retains the turn), and the
+    // form re-offers the same player while it reads true (decisions.md
+    // "The `turns` form" — Go Fish is the go-again axis's corpus anchor).
+    turns t from 0 over all players
+          until (deck is empty) or (any player where hand[player] is empty)
+          again went_again {
+      offer to t one of [ask]
     }
   }
 
@@ -63,16 +68,16 @@ move_type ask(target : Player, rank : Rank) {
     let target_holds = number of cards in hand[target] where card.rank is rank
     if target_holds > 0 {
       move all cards from hand[target] where card.rank is rank to hand[actor]
-      // A hit: current_player unchanged, so the next iteration offers to the same
-      // player — "you go again".
+      went_again := true                   // a hit: "you go again"
     } else {
       let before = number of cards in hand[actor] where card.rank is rank
       draw 1 card from deck to hand[actor]
       let after = number of cards in hand[actor] where card.rank is rank
-      if after is before {                 // drew a non-matching card: pass left
-        current_player := actor offset_by left
+      if after is before {
+        went_again := false                // drew a non-matching card: pass left
+      } else {
+        went_again := true                 // drew the asked rank: go again
       }
-      // drew the asked rank: go again (current_player unchanged)
     }
     // Book completion (from a transfer or a draw): set aside four of a rank.
     if any rank where rank_count(actor, rank) is 4 {

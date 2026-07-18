@@ -118,7 +118,45 @@ Things we have noted but consciously not designed yet:
   tally is expressible today as per-player state plus a query; lift the wall
   when a game genuinely wants the store (the runtime's key-set plumbing
   already reads the domain table, so the extension is a table row plus an
-  observation-encoding decision, not a rewrite). Rules that the runtime cannot yet enforce at all are a
+  observation-encoding decision, not a rewrite).
+  The `turns` form has no `direction` override clause (rotation follows the
+  game's declared direction; not grammar until a game needs a mid-game or
+  per-loop override). Joint-predicate selection: `jointly` under a `random`
+  or dealt selection is rejected (a subset decision needs a decider; a
+  uniform-random satisfying subset has no corpus user), `some` without
+  `jointly` is rejected (nothing owns the size), `jointly` with `to each`
+  is rejected (each destination seat would become its own subset decider —
+  a real semantic no game has asked for; note the pre-existing non-joint
+  `chosen … to each` DOES reassign the decider per parcel the same way,
+  unexercised by the corpus and undocumented — the same decision awaits
+  whichever game first wants either shape), and the subset enumeration
+  refuses source pools past 16 cards at runtime rather than hanging
+  (`cardlang/runtime/execute.py`, `_JOINT_ENUMERATION_BOUND`). Movement
+  amounts: negative is a typed runtime error everywhere and a zero `chosen`
+  amount is refused as a vacuous decision (`_check_count`), while a zero
+  dealt/`random` amount stays an accepted no-op (a computed "deal what
+  remains" may legitimately be zero). On the
+  OpenSpiel side, a joint predicate must root in a call with a registered
+  subset codec (`cardlang/runtime/stdlib.py`, `joint_codec_function` — the
+  climb-codec pattern); an inline or unregistered predicate, a game mixing
+  climb and joint selections, or two joint predicates wanting different
+  codecs are each a loud `NotImplementedError` at action-space
+  construction, lifted when a game forces the composed-combo-block design.
+
+- **Unanchored inline keywords are a fused-typo misparse class.** Under the
+  dynamic lexer an inline string keyword can match as a PREFIX of an
+  identifier, so a fused typo gets a real second parse and may compile
+  (`onecards` as `one cards`). The members this change anchored (whole-word
+  negative lookahead): `turns`, `again`, the `amount` position's `all`/
+  `one`/`some`, `jointly` (plus the earlier `as`/`is`/`not`). The REMAINING
+  unanchored members are recorded, not fixed: `round`/`offer`/`reveal one
+  card`/`all players`/`for each`… — every other inline keyword adjacent to
+  a NAME. `allplayers` (with a same-named variable declared) is a live
+  silently-misresolved example (`_ambig`, the all-players reading wins).
+  The class fix is mechanical (anchor every inline keyword, or move to a
+  contextual-keyword lexer callback); sweep it as its own change with the
+  corpus ambiguity gate as the net.
+  Rules that the runtime cannot yet enforce at all are a
   named open question, not a rejection —
   [open-questions/rule-scope-beyond-trick-play.md](open-questions/rule-scope-beyond-trick-play.md).
 
@@ -422,22 +460,25 @@ Things we have noted but consciously not designed yet:
   [design-notes/metamorphic-suite.md](design-notes/metamorphic-suite.md))
   runs T1 (the pairing harness), T2 (α-rename), T3 (inline-vs-`run`), and T5
   (declaration reorder) over the corpus, each with its own completeness
-  ledger. Landing them surfaced two real findings, neither fixed here
-  (out of scope for the suite itself; each is a `cardlang/` behavior, not a
-  metamorphic-suite defect): (1) several kernel and per-game runtime
-  primitives (`cardlang/runtime/rules.py::legal_cards`,
-  `cardlang/runtime/mechanics.py::param_domain`, eleven
-  `cardlang/runtime/<game>.py` modules) read a zone or state variable by a
-  hardcoded Python string literal rather than deriving it from the AST — so
-  a corpus game's zone/state names are not actually free to rename despite
-  nothing in the grammar or type checker saying so
-  (`tests/metamorphic/rename.py`'s `_PRIMITIVE_COUPLED_NAMES`, cited
-  file:line); (2) `cardlang/runtime/execute.py::_gather` ("move all cards to
-  `<zone>`") iterates `ZoneStore`'s dicts in zone-DECLARATION order, so a
-  gather's observable "move"-event sequence is a function of zone
-  declaration order — real declaration-order sensitivity decisions.md never
-  documents (`tests/metamorphic/reorder.py`'s `_has_gather`, derived
-  structurally, not hand-listed).
+  ledger. Landing them surfaced two real findings in `cardlang/` behavior
+  (out of scope for the suite itself), both since resolved. (1) Game-local
+  runtime primitives read zone/state names as Python string literals
+  invisible to the pipeline — **closed as a class** by the declared-reads
+  registry (`PRIMITIVE_READS`, `cardlang/runtime/reads.py`): every
+  primitive read goes through typed accessors, the registry is pinned two
+  ways by `tests/test_primitive_reads.py` (against each game file's
+  declarations and against each module's accessor-call literals), a
+  drifted name fails a static test — or, past that, a typed
+  `PrimitiveReadError` — instead of a playout `KeyError`, and the rename
+  transform derives its exclusions from the registry. The kernel's own
+  literal reads (`cardlang/runtime/rules.py::legal_cards`,
+  `cardlang/runtime/mechanics.py::param_domain`) are the language-wide
+  magic `hand` name, spec'd in decisions.md "Declared parameter domains" —
+  a documented rule, not latent coupling. (2) A gather's event order
+  tracked zone DECLARATION order — resolved: `execute.py::_gather`
+  collects in canonical sorted-name order (decisions.md, "Loop lifecycle:
+  `before_each` and `after_each`"), and the reorder transform's zones axis
+  now covers every corpus game.
 
   **T4 (suit relabeling) is explicitly deferred**, not attempted: unlike the
   other three, it cannot be a pure `Game -> Game` AST transform — a suit's
@@ -520,12 +561,10 @@ work that isn't an open question, and which next game unblocks what.
      the compound hidden-function probe that blocks
      [structural-infoset-proofs](open-questions/structural-infoset-proofs.md)'
      constructive world generator — one game, two unblocks.
-   - **President** — the corpus-quality anchor
-     [turn-loop-form](open-questions/turn-loop-form.md) is blocked on, and
-     the third climbing instance that triggers promoting a shared
-     combination model to the standard library.
-   - **Gin Rummy** — the other turn-loop-form anchor, and the rummy-family
-     game [meld-groups](open-questions/meld-groups.md) is blocked on.
+   - **Canasta** — the residual of
+     [meld-groups](open-questions/meld-groups.md) (first-class shared
+     growing meld objects; the joint-predicate selection half is settled,
+     anchored by Gin Rummy), and a third climbing-adjacent shed game.
    - **Klondike or FreeCell** — first solitaire; forces the deferred
      positional-zone design rather than an open question.
 

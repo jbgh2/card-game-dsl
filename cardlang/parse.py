@@ -34,7 +34,13 @@ from lark.tree import Meta
 from lark.visitors import Transformer, v_args
 
 from cardlang.ast import nodes as n
-from cardlang.diagnostics import Diagnostic, DiagnosticError, Severity, Span
+from cardlang.diagnostics import (
+    Diagnostic,
+    DiagnosticBag,
+    DiagnosticError,
+    Severity,
+    Span,
+)
 from cardlang.extract import FencedBlock
 
 
@@ -44,36 +50,46 @@ from cardlang.extract import FencedBlock
 @dataclass(frozen=True, slots=True)
 class _Deck:
     name: str
+    span: Span
 
 
 @dataclass(frozen=True, slots=True)
 class _Direction:
     value: str
+    span: Span
 
 
 @dataclass(frozen=True, slots=True)
 class _Ranking:
     ranks: tuple[str, ...]
+    span: Span
+    # A `RANKING_CONVENTIONS` key ("aces high", …) when the convention form
+    # was written; the parse-level XOR guarantees `ranks` is empty then.
+    convention: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class _Trump:
     suit: str
+    span: Span
 
 
 @dataclass(frozen=True, slots=True)
 class _Partnerships:
     teams: tuple[tuple[int, ...], ...]
+    span: Span
 
 
 @dataclass(frozen=True, slots=True)
 class _MaxLength:
     value: int
+    span: Span
 
 
 @dataclass(frozen=True, slots=True)
 class _Zones:
     zones: tuple[n.ZoneDecl, ...]
+    span: Span
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,6 +166,7 @@ class _Dist:
 @dataclass(frozen=True, slots=True)
 class _Where:
     expr: object  # Expr
+    joint: bool = False  # `where jointly <pred>` — binds `cards`, not `card`
 
 
 @dataclass(frozen=True, slots=True)
@@ -217,32 +234,50 @@ class _Builder(Transformer[Token, n.Game]):
         return n.PlayersSpec(low=int(c[0]), high=int(c[1]), span=self._span(meta))
 
     def players(self, meta: Meta, c: list[n.PlayersSpec]) -> n.PlayersSpec:
-        return c[0]
+        # Re-span over the whole clause (`players: …`), not just the spec —
+        # the duplicate-clause diagnostic points here.
+        return replace(c[0], span=self._span(meta))
 
     def direction(self, meta: Meta, c: list[Token]) -> _Direction:
-        return _Direction(str(c[0]))
+        return _Direction(str(c[0]), span=self._span(meta))
 
     def cards(self, meta: Meta, c: list[Token]) -> _Deck:
-        return _Deck(str(c[0]))
+        return _Deck(str(c[0]), span=self._span(meta))
 
     def ranking(self, meta: Meta, c: list[object]) -> _Ranking:
-        return _Ranking(tuple(str(r) for r in c))
+        # The convention forms: `ace-ten` arrives as the RANK_CONV terminal
+        # (its hyphen has no enumeration derivation); the space forms
+        # (`aces high`, …) arrive as ordinary card_rank NAMEs and are
+        # recognized HERE by exact spelling — a grammar alternative would be
+        # a real Earley ambiguity against `card_rank+` (see the grammar's
+        # `ranking` comment). This reserves the registry keys' spellings in
+        # ranking position: an enumeration can never consist of ranks that
+        # space-join to a convention name.
+        from cardlang.runtime.values import RANKING_CONVENTIONS
+
+        span = self._span(meta)
+        if len(c) == 1 and isinstance(c[0], Token) and c[0].type == "RANK_CONV":
+            return _Ranking(ranks=(), span=span, convention=str(c[0]))
+        words = tuple(str(r) for r in c)
+        if " ".join(words) in RANKING_CONVENTIONS:
+            return _Ranking(ranks=(), span=span, convention=" ".join(words))
+        return _Ranking(words, span=span)
 
     def card_rank(self, meta: Meta, c: list[Token]) -> str:
         return str(c[0])
 
     def trump(self, meta: Meta, c: list[Token]) -> _Trump:
-        return _Trump(str(c[0]))
+        return _Trump(str(c[0]), span=self._span(meta))
 
     def team_spec(self, meta: Meta, c: list[Token]) -> tuple[int, ...]:
         return tuple(int(x) for x in c)
 
     def partnerships(self, meta: Meta, c: list[object]) -> _Partnerships:
         teams = tuple(t for t in c if isinstance(t, tuple))
-        return _Partnerships(teams)
+        return _Partnerships(teams, span=self._span(meta))
 
     def max_length(self, meta: Meta, c: list[Token]) -> _MaxLength:
-        return _MaxLength(int(c[0]))
+        return _MaxLength(int(c[0]), span=self._span(meta))
 
     def winner(self, meta: Meta, c: list[Token]) -> n.Winner:
         return n.Winner(rank_dir=str(c[0]), target=str(c[1]), span=self._span(meta))
@@ -281,7 +316,7 @@ class _Builder(Transformer[Token, n.Game]):
         )
 
     def zones(self, meta: Meta, c: list[n.ZoneDecl]) -> _Zones:
-        return _Zones(tuple(c))
+        return _Zones(tuple(c), span=self._span(meta))
 
     # --- state ---
 
@@ -422,6 +457,9 @@ class _Builder(Transformer[Token, n.Game]):
     def amt_one(self, meta: Meta, c: list[object]) -> str:
         return "one"
 
+    def amt_some(self, meta: Meta, c: list[object]) -> str:
+        return "some"
+
     def amt_count(self, meta: Meta, c: list[object]) -> object:
         return _as_expr(c[0])
 
@@ -443,7 +481,7 @@ class _Builder(Transformer[Token, n.Game]):
         dest = next(x for x in c if isinstance(x, _Dest))
         vis = next((x.expr for x in c if isinstance(x, _Vis)), None)
         dist = next((x.mode for x in c if isinstance(x, _Dist)), None)
-        filt = next((x.expr for x in c if isinstance(x, _Where)), None)
+        where = next((x for x in c if isinstance(x, _Where)), None)
         return n.Movement(
             verb=str(c[0]),
             mode=sel.mode,
@@ -453,7 +491,8 @@ class _Builder(Transformer[Token, n.Game]):
             dest=dest.zone,  # type: ignore[arg-type]
             dest_each=dest.each,
             distribution=dist,
-            filter=filt,  # type: ignore[arg-type]
+            filter=where.expr if where is not None else None,  # type: ignore[arg-type]
+            joint=where.joint if where is not None else False,
             visibility=vis,  # type: ignore[arg-type]
             span=self._span(meta),
         )
@@ -461,8 +500,11 @@ class _Builder(Transformer[Token, n.Game]):
     def dist_equally(self, meta: Meta, c: list[object]) -> _Dist:
         return _Dist("as_equally_as_possible")
 
-    def where_clause(self, meta: Meta, c: list[object]) -> _Where:
+    def where_each(self, meta: Meta, c: list[object]) -> _Where:
         return _Where(_as_expr(c[0]))
+
+    def where_jointly(self, meta: Meta, c: list[object]) -> _Where:
+        return _Where(_as_expr(c[0]), joint=True)
 
     def move_gather(self, meta: Meta, c: list[object]) -> n.Movement:
         assert isinstance(c[1], _Selection) and isinstance(c[2], _Dest)
@@ -552,6 +594,20 @@ class _Builder(Transformer[Token, n.Game]):
         player = _as_expr(c[0])
         body = tuple(_as_stmt(s) for s in c[1:])
         return n.AsBlock(player=player, body=body, span=self._span(meta))
+
+    def turns_stmt(self, meta: Meta, c: list[object]) -> n.Turns:
+        # c: [NAME(binder), expr(leader), expr(participants), expr(until),
+        #     NAME(again)|None, statement*] — with maybe_placeholders=True the
+        #     optional `again` NAME is None when the clause is absent.
+        return n.Turns(
+            binder=str(c[0]),
+            leader=_as_expr(c[1]),
+            participants=_as_expr(c[2]),
+            termination=_as_expr(c[3]),
+            again=str(c[4]) if c[4] is not None else None,
+            body=tuple(_as_stmt(s) for s in c[5:]),
+            span=self._span(meta),
+        )
 
     def named_arg(self, meta: Meta, c: list[object]) -> n.NamedArg:
         return n.NamedArg(name=str(c[0]), value=c[1], span=self._span(meta))  # type: ignore[arg-type]
@@ -964,6 +1020,7 @@ class _Builder(Transformer[Token, n.Game]):
         deck: str | None = None
         direction: str | None = None
         ranking: tuple[str, ...] = ()
+        ranking_convention: str | None = None
         trump: str | None = None
         partnerships: tuple[tuple[int, ...], ...] = ()
         max_length: int | None = None
@@ -972,44 +1029,103 @@ class _Builder(Transformer[Token, n.Game]):
         phases: list[n.Phase] = []
         winner: n.Winner | None = None
         loser: n.Loser | None = None
+
+        # Every game clause except `phase` is single-valued; the grammar
+        # (`game_item*`) accepts repeats, so keeping the last one would
+        # silently discard the first (decisions.md "Surface totality"):
+        # reject at the repeated clause. `merge_hint` distinguishes the
+        # block clauses (whose declarations merge) from the scalar ones.
+        seen: set[str] = set()
+
+        # `span` is Optional only because AST nodes type it so; every node
+        # this builder constructs carries one.
+        def once(clause: str, span: Span | None, merge_hint: bool = False) -> None:
+            if clause in seen:
+                what, fix = (
+                    (f"`{clause}` block", "merge the declarations into it")
+                    if merge_hint
+                    else (
+                        f"`{clause}`",
+                        "the repeat would silently replace the first; keep one",
+                    )
+                )
+                raise DiagnosticError(
+                    Diagnostic(
+                        Severity.ERROR,
+                        f"a game declares one {what} — {fix}",
+                        span,
+                    )
+                )
+            seen.add(clause)
+
         for item in c[1:]:
             if isinstance(item, n.PlayersSpec):
+                once("players:", item.span)
                 players = item
             elif isinstance(item, _Deck):
+                once("cards:", item.span)
                 deck = item.name
             elif isinstance(item, _Direction):
+                once("direction:", item.span)
                 direction = item.value
             elif isinstance(item, _Ranking):
+                once("ranking:", item.span)
                 ranking = item.ranks
+                ranking_convention = item.convention
             elif isinstance(item, _Trump):
+                once("trump:", item.span)
                 trump = item.suit
             elif isinstance(item, _Partnerships):
+                once("partnerships:", item.span)
                 partnerships = item.teams
             elif isinstance(item, _MaxLength):
+                once("max_length:", item.span)
                 max_length = item.value
             elif isinstance(item, _Zones):
+                once("zones { }", item.span, merge_hint=True)
                 zones = item.zones
             elif isinstance(item, n.StateBlock):
-                if state is not None:
-                    # Keeping the last block would silently discard the first's
-                    # declarations (decisions.md "Surface totality"): reject.
-                    raise DiagnosticError(
-                        Diagnostic(
-                            Severity.ERROR,
-                            "a game declares one `state { }` block — merge the "
-                            "declarations into it",
-                            item.span,
-                        )
-                    )
+                once("state { }", item.span, merge_hint=True)
                 state = item
             elif isinstance(item, n.Phase):
                 phases.append(item)
             elif isinstance(item, n.Winner):
+                once("winner:", item.span)
                 winner = item
             elif isinstance(item, n.Loser):
+                once("loser:", item.span)
                 loser = item
             else:
                 raise AssertionError(f"unexpected game item: {item!r}")
+
+        # `players:` and `cards:` are the two clauses the AST itself makes
+        # mandatory (`Game.players` / `Game.deck` are non-optional), so this
+        # builder is the last layer where their absence exists to report —
+        # the optionally-representable mandatory clauses (`max_length:`,
+        # `winner:`/`loser:`) are walled in resolve instead. Bag-first so a
+        # game missing both hears about both at once (resolve's
+        # `_raise_if_errors` idiom).
+        bag = DiagnosticBag()
+        game_span = self._span(meta)
+        if players is None:
+            bag.error(
+                f"game '{name}' must declare `players: <n>` (or `players: "
+                f"<lo> .. <hi>`) — the seat count that sizes every per-player "
+                f"zone and the turn ring",
+                game_span,
+            )
+        if deck is None:
+            bag.error(
+                f"game '{name}' must declare `cards: <deck>` — the deck it "
+                f"is played with (e.g. `cards: standard52`)",
+                game_span,
+            )
+        if bag.has_errors:
+            error = DiagnosticError(bag.items[0])
+            if len(bag.items) > 1:
+                error.add_note(bag.format())
+            raise error
+        # Backstop for mypy narrowing only: the bag raise above is the wall.
         assert players is not None and deck is not None
         return n.Game(
             name=name,
@@ -1018,6 +1134,7 @@ class _Builder(Transformer[Token, n.Game]):
             zones=zones,
             direction=direction,
             ranking=ranking,
+            ranking_convention=ranking_convention,
             trump=trump,
             partnerships=partnerships,
             max_length=max_length,
@@ -1148,7 +1265,31 @@ class _Builder(Transformer[Token, n.Game]):
         return n.RunStmt(name=name, args=args, span=self._span(meta))
 
     def start(self, meta: Meta, c: list[object]) -> n.Game:
-        game = next(x for x in c if isinstance(x, n.Game))
+        # `start: top_item+` accepts any mix of definitions, so game-count
+        # errors are reachable from source: zero games used to escape as a
+        # raw StopIteration, and a second game would be silently discarded
+        # (decisions.md "Surface totality"). One game per source.
+        games = [x for x in c if isinstance(x, n.Game)]
+        if not games:
+            raise DiagnosticError(
+                Diagnostic(
+                    Severity.ERROR,
+                    "source declares no `game { }` block — a cardlang source "
+                    "is one game plus its supporting definitions",
+                    self._span(meta),
+                )
+            )
+        if len(games) > 1:
+            raise DiagnosticError(
+                Diagnostic(
+                    Severity.ERROR,
+                    f"source declares {len(games)} `game {{ }}` blocks — a "
+                    "cardlang source is one game; move the others to their "
+                    "own files",
+                    games[1].span,
+                )
+            )
+        game = games[0]
         rules = tuple(x for x in c if isinstance(x, n.RuleDef))
         move_types = tuple(x for x in c if isinstance(x, n.MoveTypeDef))
         types = tuple(x for x in c if isinstance(x, n.TypeDef))

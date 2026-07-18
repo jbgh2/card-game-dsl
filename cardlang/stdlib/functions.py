@@ -117,5 +117,18 @@ STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
         "peg_origin_of",  # Cribbage: which player played a live pegging-pile card
         "cribbage_show_value",  # Cribbage: a player's pegged hand's show score
         "cribbage_crib_value",  # Cribbage: the dealer's crib show score
+        "gin_card_points",  # Gin: deadwood value of a card (A=1, pips, faces 10)
+        "gin_deadwood",  # Gin: optimal-partition deadwood of a hand
+        "gin_can_knock",  # Gin: some discard leaves a <= 10 arrangement
+        "gin_knock_ok",  # Gin: knock legality after a specific discard
+        "gin_valid_meld",  # Gin: joint meld validity (set / ace-low run)
+        "gin_arrange_ok",  # Gin: valid meld AND the rest still arranges to <= 10
+        "gin_can_declare",  # Gin: some declarable meld exists (knocker)
+        "gin_can_declare_free",  # Gin: some valid meld exists (defender)
+        "gin_flat_points",  # Gin: a hand counted as all-deadwood
+        "gin_shown_points",  # Gin: shown_deadwood[p]'s point count
+        "gin_lay_ok_a",  # Gin: card extends the knocker's meld A
+        "gin_lay_ok_b",  # Gin: card extends the knocker's meld B
+        "gin_lay_ok_c",  # Gin: card extends the knocker's meld C
     }
 )

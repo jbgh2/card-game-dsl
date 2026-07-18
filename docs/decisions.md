@@ -469,6 +469,45 @@ candidate lists (same length and order) play identically under a random playout 
 the property that lets a hand-written engine be re-expressed in this form without
 changing behaviour.
 
+## The `ranking:` declaration: enumeration or convention
+
+`ranking:` declares the game's rank strength order, strongest first. It is
+optional (Coup and French Tarot declare none — the rank *namespace* always
+comes from the deck; `ranking:` only orders it), and an enumeration may be
+a partial permutation of the deck's ranks, which narrows the `Rank`
+move-parameter domain (see "Declared parameter domains").
+
+The clause takes one of two forms:
+
+- **An explicit enumeration** — `ranking: A K Q J 10 9 8 7 6 5 4 3 2` —
+  each entry a rank of the declared deck, no repeats.
+- **A convention keyword** — one of the closed set `aces high`, `aces low`,
+  `ace-ten`, `twos high`. A convention means *this deck's ranks in the
+  standard French order, with the named adjustment*: `aces high` is
+  A K Q … 2, `aces low` moves the ace to the bottom, `ace-ten` promotes the
+  10 between ace and king (the Ace-Ten family: Skat, Schnapsen, Pinochle,
+  Doppelkopf, Belote's non-trump order), and `twos high` moves the 2 to the
+  top (the climbing-game order). The template is **filtered to the declared
+  deck**, so one convention serves every French-ranked deck: `aces high`
+  means A K Q J 10 9 8 7 on skat32. A convention is always a *complete*
+  ranking of its deck. A deck with any rank outside the standard A..2 set
+  (tarot78's atouts, tichu56's specials, coup15's characters) admits no
+  convention — the resolver rejects it, naming the offending ranks, and the
+  game enumerates explicitly instead.
+
+The convention spellings are **reserved in ranking position**: an
+enumeration whose entries spell exactly a convention name is read as the
+convention (no deck names ranks `aces`/`high`, so nothing real is
+shadowed). The resolver expands the convention into the operative tuple;
+everything downstream — the Rank enum, the move-parameter domain, the
+runtime's `rank_index`, the OpenSpiel action space — consumes the expanded
+order and never sees the keyword. The registry is
+`cardlang/runtime/values.py::RANKING_CONVENTIONS`, derived from the one
+canonical `RANKS` tuple and reconciled against the grammar in both
+directions by `tests/test_ranking_conventions.py`; suit-contextual orders
+(trump promotions, Euchre's bowers) are out of this declaration's scope
+([open-questions/special-cards-declaration.md](open-questions/special-cards-declaration.md)).
+
 ## Declared parameter domains
 
 A `move_type` may take any number of parameters (Go Fish's `ask(target :
@@ -644,6 +683,57 @@ fixed per-kind block layout) when enumeration is infeasible (Tichu:
 is a stable function of the card-set, which is what determinized replay needs;
 the codec route is the designed answer for any future engine whose combination
 space explodes ([kernel-migration.md](kernel-migration.md), Workstream 3).
+
+## The `turns` form
+
+The turn loop beneath the round forms — for games whose turn is a *body of
+statements* rather than one flat candidate list (the dividing line from the
+round family: a single-list turn is an auction-form configuration; `turns` is
+for draw-then-discard shapes, ask-and-resolve shapes, anything with statement
+structure per turn):
+
+```text
+turns <binder> from <leader> over <participants>
+      until <pred> [again <state-var>] { <statements> }
+```
+
+The binder names the current player, who is also the acting player — exactly
+`for each`'s per-iteration binding, one player at a time — so a `chosen`
+movement or `offer` in the body is attributed to the turn-holder without a
+cursor variable. The form owns what every hand-rolled turn loop re-implements
+(and where the stress-sweep's runtime failures clustered): **rotation**
+(advance in game direction to the next seat satisfying the participants
+predicate, re-evaluated per advance, so elimination falls out), **termination
+placement** (`until` is checked at each turn boundary, before the first turn
+too — the zero-iteration run always exists), and the **go-again axis**
+(`again` names a declared Boolean state variable the body's move effects
+write; a turn ending with it true repeats the same player — Go Fish's
+hit-or-matching-draw. The form CONSUMES the flag, resetting it to false as it
+reads it at the boundary, so a stale write buys at most one repeat and can
+never silently monopolize the loop — only a write during the turn keeps the
+turn). The leader expression is read once, at the first turn, and must name a
+real seat — a non-seat value (an out-of-range Integer, a loose pronoun) is a
+typed runtime error at the bind, the same seat wall `as` and `offer` carry. A
+full lap finding no eligible participant is a loud runtime error, the `offer`
+no-legal-move rule one construct up; a decisionless body that never
+terminates hits the same iteration backstop as `repeat until`.
+
+```cardlang-fragment turns_form
+turns t from 0 over players where not eliminated[player]
+      until (number of players where not eliminated[player]) is 0 {
+  score[t] += 1
+  eliminated[t] := true
+}
+```
+
+Gin Rummy's draw-discard cycle is the strict-alternation anchor; Go Fish is
+the go-again anchor (its move effect writes `went_again` instead of mutating
+a cursor). Schnapsen's leader loop stays on the auction form — its turn IS
+one flat candidate list. A `direction` override clause is deliberately not
+grammar: no corpus user ([roadmap.md](roadmap.md), "Grammar surface deferred
+by the checker"). The form emits no observations of its own — the body's
+decisions emit through their own sites, and rotation is derivable from
+state — so information sets are unchanged by construction.
 
 ## No implicit actions
 
@@ -1023,6 +1113,16 @@ before_each {
 it collects every card from all other zones into the named zone. A `Deck`-typed
 zone is initialized at game start holding the deck's cards, so the first
 `before_each` gather is a no-op and the deal is well-defined.
+
+A gather collects zones in **lexicographic zone-name order** — singleton zones
+and indexed families in one sorted namespace, a family's instances in its index
+domain's order (players in seating order, teams in team order). The collection
+order is observable twice over: each non-empty zone emits its own movement
+event (shaping every player's observation log, hence information sets), and the
+collected cards stack into the destination in collection order (feeding the
+next same-seed shuffle). Making the order canonical is what keeps the `zones { }`
+block a pure declaration: its order is presentational everywhere in the
+language, and reordering it never changes a playout.
 
 ## Mutation semantics
 
@@ -1414,6 +1514,58 @@ A new rulebook verb is presumed an instance of an existing family — movement
 sugar or an epistemic op — until a game proves it is genuinely none of them.
 Adding a fourth family is a deliberate act, not the default response to a new
 word.
+
+## Joint-predicate selection
+
+A movement's per-card `where` filter tests each candidate alone —
+`chosen K cards where <pred>` can never say "these K cards *together* form a
+valid group," which is the load-bearing test of every meld-family game. The
+joint form binds **`cards`** — the candidate *set*, a card collection — and
+the selection becomes ONE decision over the source's satisfying subsets:
+
+```cardlang-fragment jointly_selection
+as arranger {
+  move chosen some cards from hand[arranger]
+       where jointly (number of cards in cards) >= 3 to waste
+}
+```
+
+The amount picks the subset sizes: `some` (any non-empty size — the joint
+predicate owns the size constraint), an expression (exactly that size), or
+the degenerate `one`/`all` (size 1 / the whole source). Subset sizes are
+always at least one — a zero-card "choice" is not a decision — so a
+non-positive count, and `all` over an empty source, fall to the same loud
+no-satisfying-subset error `some` gives. (Movement amounts generally are
+walled at evaluation: a negative amount is a typed runtime error everywhere
+— a Python slice would otherwise silently move the rest — and a zero
+`chosen` amount is a vacuous decision node, also refused.) `jointly`
+requires `chosen` — the selection is a player decision over subsets; a
+dealt joint selection has no decider and a `random` one has no corpus user
+(both rejected loudly, recorded in [roadmap.md](roadmap.md)) — `some`
+requires `jointly`, and `to each` is rejected under `jointly` (it would
+silently make every destination seat its own subset decider; recorded).
+Enumeration is deterministic (sizes ascending, combinations in source
+order) and bounded: a source pool past 16 cards is a loud runtime refusal,
+not a hang. No satisfying subset is the no-implicit-actions error: guard
+the movement so it is only reached when one exists.
+
+For the OpenSpiel target, joint candidates are card subsets — the combo
+block's currency, exactly like climb combination plays — and the subset
+universe comes from a **registered per-predicate codec**
+(`joint_codec_function`, the climb-engine codec pattern: the predicate's
+root call names it, `gin_arrange_ok` → the 329-meld universe of
+standard52). A joint predicate with no registered codec is walled loudly at
+action-space construction, never silently absent from the space.
+
+Gin Rummy's showdown arrangements are the anchor: the knocker declares
+melds one joint selection at a time, each guarded so the remaining hand
+still arranges to a legal knock — every reachable arrangement stays legal,
+random play included, while equal-deadwood arrangement *choices* (which
+change what the defender can lay off) remain real decisions. First-class
+meld *objects* (shared growing team piles, per-group scoring) remain the
+open design in
+[open-questions/meld-groups.md](open-questions/meld-groups.md), forced next
+by Canasta.
 
 ## The expression register
 

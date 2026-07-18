@@ -339,13 +339,17 @@ class Movement:
 
     verb: str
     mode: str | None  # "chosen" | "random" | None
-    amount: str | Expr  # "all" | "one" | count expression
+    amount: str | Expr  # "all" | "one" | "some" | count expression
     item: str  # the item noun: "cards", "coins", …
     source: Expr | None  # a zone reference; None for a gather (collect-from-all)
     dest: Expr | None
     dest_each: bool
     distribution: str | None = None  # "as_equally_as_possible" for a round-robin deal
     filter: Expr | None = None  # a `where <lambda>` predicate narrowing the source pool
+    # `where jointly <pred>`: the filter binds `cards` (the candidate SET) and
+    # the selection is over the source's satisfying subsets — one decision,
+    # not per-card filtering (decisions.md "Joint-predicate selection").
+    joint: bool = False
     visibility: Expr | None = None
     span: Span | None = None
 
@@ -426,6 +430,25 @@ class AsBlock:
     "Single-actor decisions: the `as` block")."""
 
     player: Expr
+    body: tuple[Stmt, ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Turns:
+    """`turns <binder> from <leader> over <participants> until <pred>
+    [again <var>] { <stmt>* }` — the turn loop beneath the round forms.
+    The binder names the current player, who is also the acting player
+    (`for each`'s binding semantics, one player at a time); rotation and
+    termination are owned by the form (decisions.md "The `turns` form").
+    `again` names a declared Boolean state variable the body's effects
+    write; a turn ending with it true repeats the same player."""
+
+    binder: str
+    leader: Expr
+    participants: Expr
+    termination: Expr
+    again: str | None
     body: tuple[Stmt, ...]
     span: Span | None = None
 
@@ -630,6 +653,7 @@ Stmt = (
     | RepeatUntil
     | IfStmt
     | AsBlock
+    | Turns
     | LetStmt
     | AssignStmt
     | Offer
@@ -975,6 +999,13 @@ class Game:
     zones: tuple[ZoneDecl, ...]
     direction: str | None = None
     ranking: tuple[str, ...] = ()
+    # The convention keyword `ranking:` was written with (`"aces high"` etc.,
+    # a `RANKING_CONVENTIONS` key), or None for an enumerated/absent ranking.
+    # Parse guarantees the XOR (a convention parses with `ranking` empty);
+    # resolve expands the convention into `ranking`, so post-resolve `ranking`
+    # is always the operative strength order and this field only records the
+    # source form (for `ir.emit`).
+    ranking_convention: str | None = None
     trump: str | None = None
     partnerships: tuple[tuple[int, ...], ...] = ()
     max_length: int | None = None
@@ -1040,6 +1071,7 @@ Node = (
     | RepeatUntil
     | IfStmt
     | AsBlock
+    | Turns
     | LetStmt
     | AssignStmt
     | Offer

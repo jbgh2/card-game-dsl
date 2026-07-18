@@ -66,13 +66,17 @@ design. The data point is named in each file.
   The actionable checks are built as per-game proofs over the empirical
   harness; only the constructive world generator is blocked, on the first
   compound hidden-function probe that defeats any simple swap axis.
-- [turn-loop-form](turn-loop-form.md) — a `turns` form beneath the three
-  round forms (rotation, participant filtering, termination owned by the
-  kernel); seven stress-sweep games hand-rolled the same scaffolding;
-  blocked on a corpus-quality anchor game (President or Gin Rummy).
-- [meld-groups](meld-groups.md) — a card-group construct with joint
-  validity predicates; Pinochle + Gin + Canasta are the three data points;
-  blocked on a rummy-family game entering the corpus properly.
+- [meld-groups](meld-groups.md) — first-class card-group OBJECTS (shared,
+  growing, team-owned piles with per-group scoring); the joint-predicate
+  selection half is settled in [decisions.md](../decisions.md)
+  "Joint-predicate selection" (Gin Rummy anchors it); the residual is
+  blocked on Canasta.
+- [family-libraries](family-libraries.md) — an import tier between
+  game-local and stdlib, so game families (poker first: Kuhn, Leduc, and
+  Hold'em are all OpenSpiel targets) share betting machinery, rules, and
+  primitives without pasting them per game or promoting them to the
+  stdlib; blocked on the second poker-family game, and sequenced behind
+  shared rule definitions and named procedures, which it presupposes.
 
 ## Tier 3 — Medium impact, narrow scope
 

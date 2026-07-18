@@ -1,0 +1,332 @@
+// Gin Rummy — standard rules, 2 players.
+//
+// Rules source: https://www.pagat.com/rummy/ginrummy.html (fetched live per
+// CLAUDE.md). Ten cards each, 21st turned up (the upcard); non-dealer has
+// first refusal of the upcard, then the dealer, and if both pass the
+// non-dealer draws from stock — whoever moved a card completes turn one by
+// discarding (or knocking), and alternation starts from the other player.
+// Each turn: draw from stock or take the top discard, then discard — or
+// knock, by discarding face down, once some arrangement of the remaining ten
+// leaves at most 10 points of deadwood (A=1, pips, face=10). Melds are sets
+// (3-4 of a rank) and runs (3+ consecutive, same suit, ace low). At the
+// showdown the knocker exposes their arrangement; the defender arranges
+// their own melds and — unless the knocker went gin — lays off onto the
+// knocker's melds. Knock: the deadwood difference to the knocker; undercut
+// (defender's count <= knocker's): the difference + 10 to the defender;
+// gin: 20 + the defender's count, never undercut. If the stock falls to two
+// cards and the last drawer discarded without knocking, the hand is a
+// no-result: no score, same dealer. Hands repeat until a player reaches 100;
+// then +20 per hand won (boxes), and the champion adds 100 — 200 when the
+// opponent never scored. The hand's winner deals the next hand.
+//
+// This is the corpus anchor for BOTH the `turns` form (the draw-discard
+// loop) and joint-predicate selection (the showdown arrangements are
+// `move chosen some cards … where jointly …` decisions — decisions.md
+// "Joint-predicate selection"). The combinatorial floor (optimal-deadwood
+// partition) is the game-local primitive set in cardlang/runtime/gin.py,
+// the Cribbage/Pinochle/Skat pattern.
+//
+// The "took the discard → must discard a DIFFERENT card" rule is structural:
+// a taken discard sits in the hidden `taken[player]` staging zone, so the
+// discard/knock candidate pool (`hand`, the Card-param domain) simply never
+// contains it; the gin primitives count `hand + taken`, and the staging zone
+// merges into the hand as the turn's discard completes.
+//
+// One recorded arrangement note: the knocker declares melds one at a time,
+// each declaration guarded by `gin_arrange_ok` (a valid meld whose removal
+// leaves the rest still arrangeable to <= 10) and the close guarded by the
+// flat remainder being <= 10 — so every reachable arrangement is knock-legal
+// (random play included), while equal-deadwood arrangement CHOICES (which
+// affect what the defender can lay off) remain real decisions.
+
+game GinRummy {
+
+  players: 2
+  direction: clockwise
+  // Measured over seeded random playouts (tests/test_playout_gin_rummy.py);
+  // arrangement decisions dominate. Raise only with a measurement. This
+  // bound is also the game's only stop against mutual take-the-discard
+  // spin (the stock never depletes, so neither knock nor the no-result can
+  // ever fire) — real gin has no anti-spin rule either, and the loud
+  // max_length error is the declared-contract answer.
+  max_length: 30000
+
+  cards: standard52
+  // Ace low everywhere (A-2-3 is a run; Q-K-A is not). Highest-to-lowest per
+  // the `ranking:` convention; gin reads points from `gin_card_points`, not
+  // rank order, so this ranking only fixes the Rank iteration domain.
+  ranking: K Q J 10 9 8 7 6 5 4 3 2 A
+
+  zones {
+    deck                   : Deck                  // the stock
+    hand[player]           : Hand<player>
+    taken[player]          : HiddenPile<player>    // just-taken discard (see header)
+    discard_top            : Discard               // the single take-able card
+    discard_pile           : Discard               // everything under it (dead)
+    face_down              : FaceDownPile          // the knock discard (unseen)
+    meldA[player]          : PlayerPile<player>    // shown melds — public at showdown;
+    meldB[player]          : PlayerPile<player>    //   3 slots hold any 10-card
+    meldC[player]          : PlayerPile<player>    //   arrangement (3+3+4 / 3+4+4)
+    shown_deadwood[player] : PlayerPile<player>    // shown unmelded cards (public)
+  }
+
+  state {
+    match_score[player] : Integer = 0
+    hands_won[player]   : Integer = 0   // boxes, settled at match end
+    champion[player]    : Integer = 0   // set once, when a player reaches 100
+    dealer              : Player  = 0   // seat 0 opens the match; hand winner deals next
+  }
+
+  phase match {
+
+    phase hand_loop repeat until (any player where match_score[player] >= 100) {
+
+      phase hand {
+        state {
+          knocked      : Boolean = false
+          went_gin     : Boolean = false
+          knocker      : Player  = 0     // meaningful only once `knocked`
+          opener       : Player  = 0     // who completed turn one
+          upcard_taken : Boolean = false
+          arranging    : Boolean = true  // knocker's showdown window
+          defending    : Boolean = true  // defender's showdown window
+        }
+
+        phase deal {
+          move all cards to deck
+          shuffle deck
+          deal 10 cards from deck to each hand
+          deal 1 cards from deck to discard_top
+        }
+
+        // --- Turn one: the upcard ritual. Non-dealer refuses first; the
+        // taker (or, on two passes, the non-dealer with a forced stock
+        // draw) completes the turn with an ordinary discard-or-knock.
+        phase turn_one {
+          let nd = the player where player is not dealer
+          offer to nd one of [take_upcard, pass_upcard]
+          if not upcard_taken {
+            offer to dealer one of [take_upcard, pass_upcard]
+          }
+          if not upcard_taken {
+            draw 1 card from deck to hand[nd]
+            opener := nd
+          }
+          offer to opener one of [end_discard, end_knock]
+        }
+
+        // --- The draw-discard turn loop: alternation from the opener's
+        // opponent until someone knocks or the stock is down to two.
+        phase play {
+          turns t from (the player where player is not opener)
+                over all players
+                until knocked or ((number of cards in deck) <= 2) {
+            offer to t one of [draw_stock, take_discard]
+            offer to t one of [end_discard, end_knock]
+          }
+        }
+
+        // --- Showdown (skipped whole on the stock-low no-result): the
+        // knocker exposes an arrangement; the defender arranges and —
+        // barring gin — lays off; then the counts settle the hand.
+        phase showdown when knocked {
+          repeat until not arranging {
+            offer to knocker one of [declare_meld, finish_arranging]
+          }
+          let defender = the player where player is not knocker
+          repeat until not defending {
+            offer to defender one of [declare_meld_d, lay_off_a, lay_off_b,
+                                      lay_off_c, finish_defense]
+          }
+          let k_count = gin_shown_points(knocker)
+          let d_count = gin_shown_points(defender)
+          if went_gin {
+            match_score[knocker] += 20 + d_count
+            hands_won[knocker] += 1
+            dealer := knocker
+          } else {
+            if k_count < d_count {
+              match_score[knocker] += d_count - k_count
+              hands_won[knocker] += 1
+              dealer := knocker
+            } else {
+              // The undercut: equal counts go to the defender too.
+              match_score[defender] += (k_count - d_count) + 10
+              hands_won[defender] += 1
+              dealer := defender
+            }
+          }
+        }
+      }
+    }
+
+    // --- Match settlement: the reacher of 100 is champion (exactly one —
+    // a gin hand scores one side only); boxes and the game bonus are the
+    // traditional settlement arithmetic on top.
+    phase settle {
+      let champ = the player where match_score[player] >= 100
+      champion[champ] := 1
+      let runner = the player where player is not champ
+      if match_score[runner] is 0 {
+        match_score[champ] += 200      // shutout: the opponent never scored
+      } else {
+        match_score[champ] += 100      // the game bonus
+      }
+      for each player p: match_score[p] += 20 * hands_won[p]
+    }
+  }
+
+  winner: highest champion
+}
+
+// --- turn-one ritual ---
+
+move_type take_upcard {
+  when: (number of cards in discard_top) > 0
+  effect {
+    move all cards from discard_top to taken[actor]
+    upcard_taken := true
+    opener := actor
+  }
+}
+
+move_type pass_upcard {
+  effect { }
+}
+
+// --- the turn vocabulary ---
+
+move_type draw_stock {
+  when: deck is not empty
+  effect { draw 1 card from deck to hand[actor] }
+}
+
+move_type take_discard {
+  when: (number of cards in discard_top) > 0
+  effect { move all cards from discard_top to taken[actor] }
+}
+
+// End the turn with an open discard: the announce is the decision to play
+// on; the chosen movement inside is the card decision (one Card-parameterized
+// action per vocabulary is the encoding rule, so the pair is announce +
+// choose). The previous top retires under the new one, and the staging zone
+// (a taken discard, when there is one) merges into the hand — the "different
+// card" rule has already been enforced by the candidate pool (`hand` never
+// holds the just-taken card).
+move_type end_discard {
+  effect {
+    move all cards from discard_top to discard_pile
+    move chosen one card from hand[actor] to discard_top
+    move all cards from taken[actor] to hand[actor]
+  }
+}
+
+// End the turn by knocking: announced (as at a real table), then the knock
+// card goes FACE DOWN (its identity is not the defender's to see). The
+// announce is offered only while some discard leaves a <= 10 arrangement
+// (`gin_can_knock`), and the card decision is filtered to exactly those
+// discards (`gin_knock_ok` counts hand + taken minus the candidate, so the
+// guard is exact on both draw paths). Gin is a zero-deadwood knock.
+move_type end_knock {
+  when: gin_can_knock(actor)
+  effect {
+    move all cards from discard_top to discard_pile
+    move chosen one card from hand[actor] where gin_knock_ok(actor, card) to face_down
+    move all cards from taken[actor] to hand[actor]
+    knocked := true
+    knocker := actor
+    went_gin := gin_deadwood(actor) is 0
+  }
+}
+
+// --- the showdown vocabulary ---
+
+// The knocker declares one meld: a joint selection over the hand, guarded so
+// the remainder still arranges to a legal knock; slots fill A -> B -> C (11
+// cards hold at most three melds).
+move_type declare_meld {
+  when: gin_can_declare(actor)
+  effect {
+    if meldA[actor] is empty {
+      move chosen some cards from hand[actor]
+           where jointly gin_arrange_ok(actor, cards) to meldA[actor]
+    } else {
+      if meldB[actor] is empty {
+        move chosen some cards from hand[actor]
+             where jointly gin_arrange_ok(actor, cards) to meldB[actor]
+      } else {
+        move chosen some cards from hand[actor]
+             where jointly gin_arrange_ok(actor, cards) to meldC[actor]
+      }
+    }
+  }
+}
+
+// The knocker closes: whatever remains unmelded is the shown deadwood, and
+// the close is only offered while that remainder is knock-legal — which the
+// declare guard keeps reachable on every path.
+move_type finish_arranging {
+  when: gin_flat_points(actor) <= 10
+  effect {
+    move all cards from hand[actor] to shown_deadwood[actor]
+    arranging := false
+  }
+}
+
+// The defender arranges freely (no knock budget — a suboptimal arrangement
+// is rule-legal, it just scores worse).
+move_type declare_meld_d {
+  when: gin_can_declare_free(actor)
+  effect {
+    if meldA[actor] is empty {
+      move chosen some cards from hand[actor]
+           where jointly gin_valid_meld(cards) to meldA[actor]
+    } else {
+      if meldB[actor] is empty {
+        move chosen some cards from hand[actor]
+             where jointly gin_valid_meld(cards) to meldB[actor]
+      } else {
+        move chosen some cards from hand[actor]
+             where jointly gin_valid_meld(cards) to meldC[actor]
+      }
+    }
+  }
+}
+
+// Layoffs: a hand card that extends one of the knocker's shown melds moves
+// onto it — forbidden entirely when the knocker went gin, and never onto
+// deadwood (there is no move that reaches it). Announce-plus-choose like the
+// turn end: the slot pick is the announced decision, the card the chosen one.
+move_type lay_off_a {
+  when: (not went_gin)
+        and (any card in hand[actor] where gin_lay_ok_a(card, knocker))
+  effect {
+    move chosen one card from hand[actor]
+         where gin_lay_ok_a(card, knocker) to meldA[knocker]
+  }
+}
+
+move_type lay_off_b {
+  when: (not went_gin)
+        and (any card in hand[actor] where gin_lay_ok_b(card, knocker))
+  effect {
+    move chosen one card from hand[actor]
+         where gin_lay_ok_b(card, knocker) to meldB[knocker]
+  }
+}
+
+move_type lay_off_c {
+  when: (not went_gin)
+        and (any card in hand[actor] where gin_lay_ok_c(card, knocker))
+  effect {
+    move chosen one card from hand[actor]
+         where gin_lay_ok_c(card, knocker) to meldC[knocker]
+  }
+}
+
+move_type finish_defense {
+  effect {
+    move all cards from hand[actor] to shown_deadwood[actor]
+    defending := false
+  }
+}

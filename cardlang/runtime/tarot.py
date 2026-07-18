@@ -33,8 +33,11 @@ doubled; the 78 cards sum to 182).
 
 from __future__ import annotations
 
+from cardlang.runtime import reads
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Card, Player
+
+_R = reads.row("cardlang/runtime/tarot.py", "french-tarot.cardlang")
 
 # Bid levels, ascending, with their scoring multipliers.
 _LEVELS = ("petite", "garde", "garde_sans", "garde_contre")
@@ -76,7 +79,7 @@ def tarot_led_suit(ctx: Ctx) -> str:
     zone (the follow-suit demand's own view — distinct from the kernel's
     `state.led_suit`, the literal first card's suit, which gates a rule's
     `applies_when` instead)."""
-    return _led_suit(ctx.rs.zones.single("trick_pile").cards)
+    return _led_suit(reads.single(ctx.rs, _R, "trick_pile").cards)
 
 
 def tarot_trump_height(c: Card) -> int:
@@ -140,11 +143,11 @@ def tarot_per_opp(ctx: Ctx, pb: int) -> int:
     (`is_pref_discard`, `not is_bout`) exclude every bout by construction, so
     a discarded card can never BE one."""
     rs = ctx.rs
-    taker: Player = rs.get("taker")
-    level = _LEVELS[rs.get("bid_level") - 1]  # bid_level is 1..4 (0 = no bid)
-    captured = rs.zones.families["captured"]
-    chien = rs.zones.single("chien")
-    discard = rs.zones.families["discard"]
+    taker: Player = reads.state(rs, _R, "taker")
+    level = _LEVELS[reads.state(rs, _R, "bid_level") - 1]  # bid_level is 1..4 (0 = no bid)
+    captured = reads.family(rs, _R, "captured")
+    chien = reads.single(rs, _R, "chien")
+    discard = reads.family(rs, _R, "discard")
 
     taker_doubled = sum(tarot_card_points(c) for c in captured[taker].cards)
     taker_doubled += sum(tarot_card_points(c) for c in discard[taker].cards)

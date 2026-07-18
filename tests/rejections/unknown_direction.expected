@@ -1,0 +1,1 @@
+unknown_direction.cardlang:7:1: error: unknown direction 'anticlockwise' — declare `direction: clockwise` or `direction: counterclockwise` (omitting the clause means clockwise)

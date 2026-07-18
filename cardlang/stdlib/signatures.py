@@ -99,6 +99,25 @@ CALL_SIGS: dict[str, Sig] = {
     "peg_origin_of": Sig((TCard(),), TPlayer()),  # Cribbage: who played a pegging-pile card
     "cribbage_show_value": Sig((TPlayer(),), TInteger()),  # Cribbage: a hand's show score
     "cribbage_crib_value": Sig((), TInteger()),  # Cribbage: the crib's show score
+    "gin_card_points": Sig((TCard(),), TInteger()),  # Gin: A=1, pips, face=10
+    "gin_deadwood": Sig((TPlayer(),), TInteger()),  # Gin: optimal-partition deadwood of the hand
+    "gin_can_knock": Sig((TPlayer(),), TBoolean()),  # Gin: some discard leaves <= 10 (the announce guard)
+    "gin_knock_ok": Sig((TPlayer(), TCard()), TBoolean()),  # Gin: knock legality after this discard
+    "gin_valid_meld": Sig(
+        (TCollection(TCard()),), TBoolean()
+    ),  # Gin: joint meld validity (the defender's arrangement guard)
+    "gin_arrange_ok": Sig(
+        (TPlayer(), TCollection(TCard())), TBoolean()
+    ),  # Gin: valid meld AND the rest still arranges to <= 10 (the knocker's guard)
+    "gin_can_declare": Sig((TPlayer(),), TBoolean()),  # Gin: some declarable meld exists
+    "gin_can_declare_free": Sig(
+        (TPlayer(),), TBoolean()
+    ),  # Gin: some valid meld exists (defender — no knock budget)
+    "gin_flat_points": Sig((TPlayer(),), TInteger()),  # Gin: the hand counted as all-deadwood
+    "gin_shown_points": Sig((TPlayer(),), TInteger()),  # Gin: shown_deadwood[p]'s point count
+    "gin_lay_ok_a": Sig((TCard(), TPlayer()), TBoolean()),  # Gin: card extends knocker's meld A
+    "gin_lay_ok_b": Sig((TCard(), TPlayer()), TBoolean()),  # Gin: card extends knocker's meld B
+    "gin_lay_ok_c": Sig((TCard(), TPlayer()), TBoolean()),  # Gin: card extends knocker's meld C
 }
 
 # Outcome / value callbacks passed by bare name — result type is mechanic-driven.

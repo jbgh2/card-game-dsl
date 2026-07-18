@@ -26,7 +26,12 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               rule templates are instantiated into concrete rules; every
               structural reference names a real declaration. This is the
               ONLY pass that classifies names — downstream dispatches on
-              ``ref_kind``, never re-derives it.
+              ``ref_kind``, never re-derives it. ``game.ranking`` is the
+              operative strength order: a ``ranking:`` convention keyword
+              is expanded against the deck here (``_expand_ranking``), so
+              no later pass may branch on ``ranking_convention`` for
+              semantics — it survives only as the source-form record
+              ``ir.emit`` prints.
 Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               zone/rule/move-type/phase reference reaching a later pass;
               the runtime hard-fails on an unclassified name
@@ -143,6 +148,8 @@ def _check_reserved(
 def resolve(game: n.Game) -> n.Game:
     bag = DiagnosticBag()
     _resolve_deck(game, bag)
+    _resolve_direction(game, bag)
+    game = _expand_ranking(game, bag)
     _resolve_ranking(game, bag)
     _check_duplicate_names(game, bag)
     _check_reserved_params(game, bag)
@@ -232,7 +239,7 @@ def _node_binders(node: n.Node) -> tuple[str, ...]:
     them for reserved words. This registry answers for nodes a body walk can
     encounter, where the binder scopes within the walked tree itself."""
     match node:
-        case n.Comprehension() | n.Quantifier() | n.ForEach():
+        case n.Comprehension() | n.Quantifier() | n.ForEach() | n.Turns():
             return (node.binder,)
         case n.EachSimultaneous():
             return (node.role,)
@@ -240,7 +247,11 @@ def _node_binders(node: n.Node) -> tuple[str, ...]:
             return ("player",)
         case n.CardQuery():
             return ("card",)
-        case n.Movement() | n.EpistemicOp() if node.filter is not None:
+        case n.Movement() if node.filter is not None:
+            # `where jointly` binds the candidate SET; a per-card `where`
+            # binds each candidate (decisions.md "Joint-predicate selection").
+            return ("cards",) if node.joint else ("card",)
+        case n.EpistemicOp() if node.filter is not None:
             return ("card",)
         case n.LetStmt():
             return (node.name, node.index) if node.index is not None else (node.name,)
@@ -1059,8 +1070,71 @@ def _resolve_deck(game: n.Game, bag: DiagnosticBag) -> None:
 
         bag.error(
             f"unknown deck '{game.deck}' — known decks: {', '.join(sorted(DECKS))}",
-            None,
+            game.span,
         )
+
+
+def _resolve_direction(game: n.Game, bag: DiagnosticBag) -> None:
+    """`direction:` is grammatically a bare NAME; an unwalled unknown value
+    (`direction: anticlockwise`) would silently seat the turn ring clockwise —
+    driver.py reads the clause as `clockwise = direction != "counterclockwise"`
+    (Surface totality: accepted-with-different-semantics)."""
+    from cardlang.runtime.values import GAME_DIRECTIONS
+
+    if game.direction is not None and game.direction not in GAME_DIRECTIONS:
+        options = " or ".join(f"`direction: {d}`" for d in GAME_DIRECTIONS)
+        bag.error(
+            f"unknown direction '{game.direction}' — declare {options} "
+            f"(omitting the clause means clockwise)",
+            game.span,
+        )
+
+
+def _expand_ranking(game: n.Game, bag: DiagnosticBag) -> n.Game:
+    """Expand a `ranking:` convention keyword (`aces high`, …) into the
+    operative strongest-first tuple: the `RANKING_CONVENTIONS` template
+    filtered to the declared deck's ranks. Establishes: post-resolve,
+    `game.ranking` IS the strength order for every game;
+    `game.ranking_convention` survives only as the record of the source
+    form (`ir.emit` prints it). Every consumer downstream of resolve
+    (typecheck's Rank enum, `domains.py`'s move-param domain, the driver's
+    `rank_index`, the OpenSpiel action space) reads the expanded tuple and
+    never learns conventions exist.
+
+    The wall: a convention is only meaningful for a deck whose ranks all
+    have a place in the French template — for any other deck (tarot78's
+    atouts, tichu56's specials, coup15's characters) filtering would
+    silently produce a partial or empty ranking, an accepted-but-ignored
+    declaration. Rejected here, in deck-membership currency, with the
+    offending ranks named. An unknown deck already got its diagnostic in
+    `_resolve_deck`; the convention is left unexpanded then (empty
+    `ranking`), matching how the rest of resolve degrades without a deck."""
+    if game.ranking_convention is None:
+        return game
+    if not _deck_known(game.deck):
+        return game
+    from cardlang.runtime.values import RANKS, expand_ranking_convention
+    from cardlang.runtime.values import deck_ranks as ordered_deck_ranks
+
+    french = frozenset(RANKS)
+    # The ORDERED runtime deck_ranks (first-appearance tuple), not this
+    # module's stdlib frozenset wrapper: the offenders appear in the
+    # diagnostic, and frozenset iteration is hash-seed-dependent — a
+    # rejection golden built on it flakes across CI runs.
+    offenders = [r for r in ordered_deck_ranks(game.deck) if r not in french]
+    if offenders:
+        bag.error(
+            f"ranking: {game.ranking_convention} — deck '{game.deck}' has "
+            f"ranks outside the standard A..2 set "
+            f"({', '.join(offenders)}), so no named convention orders it; "
+            f"enumerate the ranking explicitly instead",
+            game.span,
+        )
+        return game
+    return replace(
+        game,
+        ranking=expand_ranking_convention(game.ranking_convention, game.deck),
+    )
 
 
 def _resolve_ranking(game: n.Game, bag: DiagnosticBag) -> None:
@@ -1085,6 +1159,13 @@ def _resolve_ranking(game: n.Game, bag: DiagnosticBag) -> None:
     `ctx.rs.rank_index[...]` lookup at runtime instead of erroring here — an
     accepted residual (docs/roadmap.md), walled only by that runtime
     KeyError, not by this check."""
+    if game.ranking_convention is not None:
+        # Convention arm: `_expand_ranking` built the tuple from the deck's
+        # own ranks filtered through a registry template — unique and
+        # deck-member by construction, so re-validating it here would be
+        # re-deriving an established fact. The convention's walls (French
+        # deck, known spelling) live in `_expand_ranking` and the grammar.
+        return
     if not game.ranking or not _deck_known(game.deck):
         return
     known = deck_ranks(game.deck)
@@ -1099,9 +1180,30 @@ def _resolve_ranking(game: n.Game, bag: DiagnosticBag) -> None:
             )
         seen[rank] = None
         if rank not in known:
+            # A misspelled convention ("aces sideways", "high aces", a
+            # newline inside "aces high") arrives HERE, as enumeration
+            # words the deck doesn't know — the grammar falls through
+            # rather than erroring, since the words are legal NAMEs. When
+            # the bad entry is a word from some convention's spelling,
+            # point at the closed set instead of leaving the author to
+            # guess rank spellings.
+            from cardlang.runtime.values import RANKING_CONVENTIONS
+
+            conv_words = {
+                w.lower()
+                for key in RANKING_CONVENTIONS
+                for w in (key, *key.replace("-", " ").split())
+            }
+            hint = (
+                "  (did you mean a ranking convention? one of: "
+                + ", ".join(sorted(RANKING_CONVENTIONS)) + ")"
+                if rank.lower() in conv_words
+                else ""
+            )
             bag.error(
                 f"ranking: names unknown rank '{rank}' — not a rank of deck "
-                f"'{game.deck}' (known ranks: {', '.join(sorted(known))})",
+                f"'{game.deck}' (known ranks: {', '.join(sorted(known))})"
+                + hint,
                 game.span,
             )
 
@@ -1184,6 +1286,10 @@ _BINDER_SCOPE_FIELDS: dict[type, tuple[str, ...]] = {
     n.EpistemicOp: ("filter",),
     n.ForEach: ("body",),
     n.EachSimultaneous: ("body",),
+    # `turns`' binder scopes to the body only: leader/participants/termination
+    # evaluate in the enclosing scope (the binder does not exist until a turn
+    # is bound — decisions.md "The `turns` form").
+    n.Turns: ("body",),
 }
 
 
@@ -1998,6 +2104,40 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bad = _bad_zone_endpoint(endpoint, direction)
                     if bad is not None:
                         bag.error(bad, nd.span)
+                # The joint-selection matrix (decisions.md "Joint-predicate
+                # selection"): `jointly` is a DECISION over subsets, so it
+                # requires `chosen` — a dealt jointly-selection has no
+                # decider and a `random` one has no corpus user (both
+                # recorded in roadmap.md); `some` (any-size) is meaningless
+                # without a joint predicate to own the size.
+                if nd.joint and nd.mode != "chosen":
+                    bag.error(
+                        "`where jointly` selects one subset as a player "
+                        "decision — it requires `chosen` (a dealt or "
+                        "`random` joint selection is not implemented; "
+                        "recorded in roadmap.md)",
+                        nd.span,
+                    )
+                if nd.joint and nd.dest_each:
+                    # `to each` would silently make EACH destination seat its
+                    # own subset-decider over the shrinking pool — the decider
+                    # identity is info-set-load-bearing, and no corpus game
+                    # wants the shape (recorded in roadmap.md).
+                    bag.error(
+                        "`where jointly` with `to each` is not implemented — "
+                        "each destination seat would become its own subset "
+                        "decider; write one joint selection per destination "
+                        "instead (recorded in roadmap.md)",
+                        nd.span,
+                    )
+                if nd.amount == "some" and not nd.joint:
+                    bag.error(
+                        "amount `some` (any satisfying size) is only "
+                        "meaningful under `where jointly`, whose predicate "
+                        "owns the size constraint — use a count, `one`, or "
+                        "`all` otherwise",
+                        nd.span,
+                    )
                 if nd.dest_each and not isinstance(nd.dest, n.NameRef):
                     # The executor keys the family by BARE name per seat, so a
                     # subscripted or computed destination has no meaning under
@@ -2059,6 +2199,18 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bag.error(bad, nd.span)
             case n.Winner() if nd.target not in cats.state_vars:
                 bag.error(f"winner references unknown variable '{nd.target}'", nd.span)
+            case n.Turns() if nd.again is not None and nd.again not in cats.state_vars:
+                # The go-again flag is ordinary game state the body's effects
+                # write (decisions.md "The `turns` form") — a plain string
+                # field like `Winner.target`, so the generic NameRef pass
+                # never sees it; validate it here or it fails only as a
+                # runtime KeyError at the first turn boundary.
+                bag.error(
+                    f"`again {nd.again}`: names no declared state variable — "
+                    f"the go-again flag is ordinary Boolean game state the "
+                    f"body's move effects write",
+                    nd.span,
+                )
             case n.Offer():
                 _check_vocabulary_moves(
                     nd.move_types,

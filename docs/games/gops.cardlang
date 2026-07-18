@@ -30,7 +30,7 @@ game GOPS {
   max_length: 200
 
   cards: standard52
-  ranking: K Q J 10 9 8 7 6 5 4 3 2 A
+  ranking: aces low
 
   zones {
     deck             : Deck                 // empty after setup
