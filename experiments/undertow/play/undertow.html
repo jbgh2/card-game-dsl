@@ -441,6 +441,11 @@ const WORLDS = 24, ROLLOUTS = 4;
    without this, a chain sleeping through newGame() wakes up and drives the
    new game with stale cards. */
 let GEN = 0;
+/* The engine resolves a trick the instant its 4th card lands (E.trick empties
+   synchronously), which would blank the table before the closing card is ever
+   seen. While set, shownTrick overrides what the slots render: the completed
+   trick stays on the table through the callout, then sweeps to the winner. */
+let shownTrick = null;
 
 function deal() {
   const deck = Array.from({ length: 52 }, (_, i) => i);
@@ -468,7 +473,7 @@ function log(t, cls) {
 function tallyStr(n) { return '●'.repeat(n) || '—'; }
 
 function render() {
-  $('trickNo').textContent = Math.min(13, E.history.length + 1);
+  $('trickNo').textContent = shownTrick ? E.history.length : Math.min(13, E.history.length + 1);
   const crew = $('crew'); crew.replaceChildren();
   for (const p of [1, 2, 3]) {
     const d = document.createElement('div');
@@ -481,11 +486,15 @@ function render() {
   }
   $('tally0').textContent = tallyStr(E.tricksWon[HUMAN]);
 
+  const trickToShow = shownTrick || E.trick;
   for (const p of [0, 1, 2, 3]) {
     const slot = $('slot' + p);
     [...slot.querySelectorAll('.card')].forEach(x => x.remove());
-    const played = E.trick.find(([q]) => q === p);
-    if (played) slot.appendChild(cardEl(played[1]));
+    const played = trickToShow.find(([q]) => q === p);
+    if (played) {
+      const tideMark = shownTrick && E.lastTide === played[1];
+      slot.appendChild(cardEl(played[1], { tide: tideMark }));
+    }
   }
 
   const dial = $('dial');
@@ -529,23 +538,48 @@ function showCallout(html, ms) {
 /* ============================== flow ==================================== */
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+function sweepTrick(winner) {
+  /* Slide all four shown cards to the winner's slot, fading; the winner's own
+     card just shrinks in place. Skipped under prefers-reduced-motion. */
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return sleep(250);
+  const target = $('slot' + winner).getBoundingClientRect();
+  for (const p of [0, 1, 2, 3]) {
+    const el = $('slot' + p).querySelector('.card');
+    if (!el) continue;
+    const from = el.getBoundingClientRect();
+    el.style.transition = 'transform .5s ease-in, opacity .5s ease-in';
+    el.style.transform =
+      `translate(${target.left - from.left}px, ${target.top - from.top}px) scale(.6)`;
+    el.style.opacity = '0';
+  }
+  return sleep(560);
+}
+
 async function playCard(card, note, gen) {
   if (gen !== GEN) return;
   const p = E.toPlay;
   const res = E.apply(card);
   const who = p === HUMAN ? 'you' : SEATS[p];
   log(`T${E.history.length + (res ? 0 : 1)} · ${who} play${p === HUMAN ? '' : 's'} ${label(card)}${note || ''}`, p === HUMAN ? 'you' : '');
-  render();
   if (res) {
+    // Hold the completed trick on the table (the engine already resolved it),
+    // with the tide-setting card ringed, then sweep it to the winner.
+    shownTrick = res.trick;
+    render();
     const stealNote = suitOf(res.tideCard) !== suitOf(res.trick[0][1]) ? ' — a stolen tide!' : '';
     showCallout(
       `<b>${res.winner === HUMAN ? 'YOU take the trick' : SEATS[res.winner] + ' takes the trick'}</b><br>` +
       `the ${label(res.tideCard)} drags the tide → <b>${SUITS[suitOf(res.tideCard)]} run next</b>${stealNote}`,
-      1500
+      2400
     );
     log(`   ${res.winner === HUMAN ? 'you take' : SEATS[res.winner] + ' takes'} it — the ${label(res.tideCard)} sets the tide: ${SUITS[suitOf(res.tideCard)]}${stealNote}`, 'tide');
-    await sleep(1500);
+    await sleep(1400);
     if (gen !== GEN) return;
+    await sweepTrick(res.winner);
+    if (gen !== GEN) return;
+    shownTrick = null;
+    render();
+  } else {
     render();
   }
   await sleep(220);
@@ -682,7 +716,7 @@ function newGame() {
   GEN += 1;  // orphan every chain from the previous voyage
   mode = $('mode').value;
   E = new Engine(deal());
-  gameOver = false; waitingHuman = false; waitingRelay = false;
+  gameOver = false; waitingHuman = false; waitingRelay = false; shownTrick = null;
   $('endPanel').hidden = true; $('relayPanel').hidden = true;
   $('logbook').replaceChildren();
   $('callout').innerHTML = '';
