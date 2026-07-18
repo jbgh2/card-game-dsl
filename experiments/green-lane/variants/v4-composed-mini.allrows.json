@@ -1,0 +1,1451 @@
+{
+  "iterations": 300,
+  "game_value_p0": -0.0005443577615352746,
+  "rows": [
+    {
+      "reach": 1.0,
+      "player": 0,
+      "depth": 0,
+      "strategy": {
+        "2\u2663": 0.3471308925878537,
+        "7\u2663": 0.2928523281653721,
+        "A\u2663": 0.3600167792467742
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[2\u2663,7\u2663,A\u2663];hand[1]=#3;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#0;warehouse[0]=[];warehouse[1]=#0|state:fine_net={0:0,1:0};inspector=1;merchant=0;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None)"
+    },
+    {
+      "reach": 1.0,
+      "player": 1,
+      "depth": 1,
+      "strategy": {
+        "inspect": 0.33141664505356766,
+        "wave": 0.6685833549464323
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#2;hand[1]=[2\u2660,7\u2660,A\u2660];seized[0]=[];seized[1]=[];shipment[0]=#1;shipment[1]=[];warehouse[0]=#0;warehouse[1]=[]|state:fine_net={0:0,1:0};inspector=1;merchant=0;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1)"
+    },
+    {
+      "reach": 0.6685833549464323,
+      "player": 1,
+      "depth": 2,
+      "strategy": {
+        "2\u2660": 0.4140383241459177,
+        "7\u2660": 0.0732982281654939,
+        "A\u2660": 0.5126634476885884
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#2;hand[1]=[2\u2660,7\u2660,A\u2660];seized[0]=[];seized[1]=[];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[]|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1)"
+    },
+    {
+      "reach": 0.2407012261058174,
+      "player": 0,
+      "depth": 3,
+      "strategy": {
+        "inspect": 0.3395563094432686,
+        "wave": 0.6604436905567315
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[2\u2663,7\u2663];hand[1]=#2;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#1;warehouse[0]=[A\u2663];warehouse[1]=#0|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.23208593677193684,
+      "player": 0,
+      "depth": 3,
+      "strategy": {
+        "inspect": 0.3406294359631302,
+        "wave": 0.6593705640368699
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[7\u2663,A\u2663];hand[1]=#2;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#1;warehouse[0]=[2\u2663];warehouse[1]=#0|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.22875722599141513,
+      "player": 1,
+      "depth": 5,
+      "strategy": {
+        "inspect": 0.5038427623762698,
+        "wave": 0.49615723762373015
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,7\u2660];seized[0]=[];seized[1]=[];shipment[0]=#1;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[A\u2660]|state:fine_net={0:0,1:0};inspector=1;merchant=0;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('A\u2660',), 'warehouse[1]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1)"
+    },
+    {
+      "reach": 0.19579619206867804,
+      "player": 0,
+      "depth": 3,
+      "strategy": {
+        "inspect": 0.3145269425286203,
+        "wave": 0.6854730574713797
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[2\u2663,A\u2663];hand[1]=#2;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#1;warehouse[0]=[7\u2663];warehouse[1]=#0|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.1847493885370341,
+      "player": 1,
+      "depth": 5,
+      "strategy": {
+        "inspect": 0.4916366485758316,
+        "wave": 0.5083633514241682
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[7\u2660,A\u2660];seized[0]=[];seized[1]=[];shipment[0]=#1;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[2\u2660]|state:fine_net={0:0,1:0};inspector=1;merchant=0;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('2\u2660',), 'warehouse[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1)"
+    },
+    {
+      "reach": 0.15896960609085634,
+      "player": 0,
+      "depth": 4,
+      "strategy": {
+        "2\u2663": 0.5429191905242211,
+        "7\u2663": 0.4570808094757788
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[2\u2663,7\u2663];hand[1]=#2;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#0;warehouse[0]=[A\u2663];warehouse[1]=#1|state:fine_net={0:0,1:0};inspector=1;merchant=0;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1)"
+    },
+    {
+      "reach": 0.1530306350343373,
+      "player": 0,
+      "depth": 4,
+      "strategy": {
+        "7\u2663": 0.39867702502827645,
+        "A\u2663": 0.6013229749717235
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[7\u2663,A\u2663];hand[1]=#2;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#0;warehouse[0]=[2\u2663];warehouse[1]=#1|state:fine_net={0:0,1:0};inspector=1;merchant=0;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1)"
+    },
+    {
+      "reach": 0.13421301441857023,
+      "player": 0,
+      "depth": 4,
+      "strategy": {
+        "2\u2663": 0.49779205949916405,
+        "A\u2663": 0.502207940500836
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[2\u2663,A\u2663];hand[1]=#2;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#0;warehouse[0]=[7\u2663];warehouse[1]=#1|state:fine_net={0:0,1:0};inspector=1;merchant=0;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1)"
+    },
+    {
+      "reach": 0.11931555314095679,
+      "player": 1,
+      "depth": 2,
+      "strategy": {
+        "2\u2660": 0.3580418600619349,
+        "7\u2660": 0.2529604219615799,
+        "A\u2660": 0.3889977179764852
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#2;hand[1]=[2\u2660,7\u2660,A\u2660];seized[0]=[];seized[1]=[A\u2663];shipment[0]=#0;shipment[1]=[];warehouse[0]=#0;warehouse[1]=[]|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', 1, 'seized[1]', ('A\u2663',))"
+    },
+    {
+      "reach": 0.11931555314095679,
+      "player": 0,
+      "depth": 3,
+      "strategy": {
+        "inspect": 0.32964144755633645,
+        "wave": 0.6703585524436635
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[2\u2663,7\u2663];hand[1]=#2;seized[0]=[];seized[1]=[A\u2663];shipment[0]=[];shipment[1]=#1;warehouse[0]=[];warehouse[1]=#0|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', ('A\u2663',), 'seized[1]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.11504495581591684,
+      "player": 0,
+      "depth": 3,
+      "strategy": {
+        "inspect": 0.33862530348061815,
+        "wave": 0.6613746965193819
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[];hand[0]=[7\u2663,A\u2663];hand[1]=#2;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#1;warehouse[0]=[];warehouse[1]=#0|state:fine_net={0:5,1:-5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', ('2\u2663',), 'cleared[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.11504495581591682,
+      "player": 1,
+      "depth": 2,
+      "strategy": {
+        "2\u2660": 0.3731701379074117,
+        "7\u2660": 0.2165627472042251,
+        "A\u2660": 0.4102671148883632
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[];hand[0]=#2;hand[1]=[2\u2660,7\u2660,A\u2660];seized[0]=[];seized[1]=[];shipment[0]=#0;shipment[1]=[];warehouse[0]=#0;warehouse[1]=[]|state:fine_net={0:5,1:-5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', 1, 'cleared[0]', ('2\u2663',))"
+    },
+    {
+      "reach": 0.11400102182262611,
+      "player": 1,
+      "depth": 5,
+      "strategy": {
+        "inspect": 0.5020567968736156,
+        "wave": 0.4979432031263843
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,7\u2660];seized[0]=[A\u2660];seized[1]=[];shipment[0]=#1;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[]|state:fine_net={0:5,1:-5};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', 'A\u2660');('move', 'shipment[1]', ('A\u2660',), 'seized[0]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1)"
+    },
+    {
+      "reach": 0.11349955333436788,
+      "player": 1,
+      "depth": 6,
+      "strategy": {
+        "2\u2660": 0.4970440815202761,
+        "7\u2660": 0.5029559184797239
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,7\u2660];seized[0]=[];seized[1]=[];shipment[0]=#0;shipment[1]=[];warehouse[0]=#2;warehouse[1]=[A\u2660]|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('A\u2660',), 'warehouse[1]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1)"
+    },
+    {
+      "reach": 0.09705613609669404,
+      "player": 1,
+      "depth": 2,
+      "strategy": {
+        "2\u2660": 0.3766967012687441,
+        "7\u2660": 0.2113535342560156,
+        "A\u2660": 0.4119497644752402
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#2;hand[1]=[2\u2660,7\u2660,A\u2660];seized[0]=[];seized[1]=[7\u2663];shipment[0]=#0;shipment[1]=[];warehouse[0]=#0;warehouse[1]=[]|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', 1, 'seized[1]', ('7\u2663',))"
+    },
+    {
+      "reach": 0.09705613609669403,
+      "player": 0,
+      "depth": 3,
+      "strategy": {
+        "inspect": 0.3340331850557612,
+        "wave": 0.6659668149442388
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[2\u2663,A\u2663];hand[1]=#2;seized[0]=[];seized[1]=[7\u2663];shipment[0]=[];shipment[1]=#1;warehouse[0]=[];warehouse[1]=#0|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', ('7\u2663',), 'seized[1]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.09391981833025247,
+      "player": 1,
+      "depth": 6,
+      "strategy": {
+        "7\u2660": 0.4969994601169645,
+        "A\u2660": 0.5030005398830354
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[7\u2660,A\u2660];seized[0]=[];seized[1]=[];shipment[0]=#0;shipment[1]=[];warehouse[0]=#2;warehouse[1]=[2\u2660]|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('2\u2660',), 'warehouse[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1)"
+    },
+    {
+      "reach": 0.09206974329684196,
+      "player": 1,
+      "depth": 5,
+      "strategy": {
+        "inspect": 0.49885197818454774,
+        "wave": 0.5011480218154521
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[2\u2660];hand[0]=#1;hand[1]=[7\u2660,A\u2660];seized[0]=[];seized[1]=[];shipment[0]=#1;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[]|state:fine_net={0:-5,1:5};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', '2\u2660');('move', 'shipment[1]', ('2\u2660',), 'cleared[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1)"
+    },
+    {
+      "reach": 0.07998420148758681,
+      "player": 0,
+      "depth": 4,
+      "strategy": {
+        "2\u2663": 0.5,
+        "7\u2663": 0.5
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[2\u2663,7\u2663];hand[1]=#2;seized[0]=[];seized[1]=[A\u2663];shipment[0]=[];shipment[1]=#0;warehouse[0]=[];warehouse[1]=#1|state:fine_net={0:-5,1:5};inspector=1;merchant=0;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', ('A\u2663',), 'seized[1]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1)"
+    },
+    {
+      "reach": 0.07608782273883768,
+      "player": 0,
+      "depth": 4,
+      "strategy": {
+        "7\u2663": 0.5,
+        "A\u2663": 0.5
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[];hand[0]=[7\u2663,A\u2663];hand[1]=#2;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#0;warehouse[0]=[];warehouse[1]=#1|state:fine_net={0:5,1:-5};inspector=1;merchant=0;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', ('2\u2663',), 'cleared[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1)"
+    },
+    {
+      "reach": 0.06463616582710989,
+      "player": 0,
+      "depth": 4,
+      "strategy": {
+        "2\u2663": 0.5,
+        "A\u2663": 0.5
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[2\u2663,A\u2663];hand[1]=#2;seized[0]=[];seized[1]=[7\u2663];shipment[0]=[];shipment[1]=#0;warehouse[0]=[];warehouse[1]=#1|state:fine_net={0:-5,1:5};inspector=1;merchant=0;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', ('7\u2663',), 'seized[1]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1)"
+    },
+    {
+      "reach": 0.056766033966039284,
+      "player": 1,
+      "depth": 6,
+      "strategy": {
+        "2\u2660": 0.5,
+        "7\u2660": 0.5
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,7\u2660];seized[0]=[A\u2660];seized[1]=[];shipment[0]=#0;shipment[1]=[];warehouse[0]=#2;warehouse[1]=[]|state:fine_net={0:5,1:-5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:0,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', 'A\u2660');('move', 'shipment[1]', ('A\u2660',), 'seized[0]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1)"
+    },
+    {
+      "reach": 0.046140569722268834,
+      "player": 1,
+      "depth": 6,
+      "strategy": {
+        "7\u2660": 0.5,
+        "A\u2660": 0.5
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[2\u2660];hand[0]=#1;hand[1]=[7\u2660,A\u2660];seized[0]=[];seized[1]=[];shipment[0]=#0;shipment[1]=[];warehouse[0]=#2;warehouse[1]=[]|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:0,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', '2\u2660');('move', 'shipment[1]', ('2\u2660',), 'cleared[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1)"
+    },
+    {
+      "reach": 0.04610442320122269,
+      "player": 0,
+      "depth": 7,
+      "strategy": {
+        "inspect": 0.5212296652035042,
+        "wave": 0.4787703347964959
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[7\u2663];hand[1]=#1;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#1;warehouse[0]=[2\u2663,A\u2663];warehouse[1]=#1|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.04591641351943706,
+      "player": 0,
+      "depth": 7,
+      "strategy": {
+        "inspect": 0.5017550602523041,
+        "wave": 0.4982449397476958
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[7\u2663];hand[1]=#1;seized[0]=[];seized[1]=[A\u2663];shipment[0]=[];shipment[1]=#1;warehouse[0]=[2\u2663];warehouse[1]=#1|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', ('A\u2663',), 'seized[1]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.043241993403952364,
+      "player": 0,
+      "depth": 7,
+      "strategy": {
+        "inspect": 0.5197655228260781,
+        "wave": 0.48023447717392187
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[7\u2663];hand[1]=#1;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#1;warehouse[0]=[2\u2663,A\u2663];warehouse[1]=#1|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.043065656452849634,
+      "player": 0,
+      "depth": 7,
+      "strategy": {
+        "inspect": 0.5010948180815167,
+        "wave": 0.4989051819184833
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[];hand[0]=[7\u2663];hand[1]=#1;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#1;warehouse[0]=[A\u2663];warehouse[1]=#1|state:fine_net={0:5,1:-5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', ('2\u2663',), 'cleared[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.04190081410204359,
+      "player": 0,
+      "depth": 4,
+      "strategy": {
+        "2\u2663": 0.5023863776205354,
+        "7\u2663": 0.49761362237946466
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[2\u2663,7\u2663];hand[1]=#2;seized[0]=[A\u2660];seized[1]=[];shipment[0]=[];shipment[1]=#0;warehouse[0]=[A\u2663];warehouse[1]=#0|state:fine_net={0:5,1:-5};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 0, 'inspect');('reveal', 'shipment[1]', 'A\u2660');('move', 'shipment[1]', 1, 'seized[0]', ('A\u2660',))"
+    },
+    {
+      "reach": 0.04117941790548558,
+      "player": 1,
+      "depth": 6,
+      "strategy": {
+        "2\u2660": 0.5007199323460204,
+        "7\u2660": 0.4992800676539796
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,7\u2660];seized[0]=[];seized[1]=[A\u2663];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[A\u2660]|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('A\u2660',), 'warehouse[1]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', 1, 'seized[1]', ('A\u2663',))"
+    },
+    {
+      "reach": 0.04052876354685944,
+      "player": 0,
+      "depth": 4,
+      "strategy": {
+        "7\u2663": 0.4934977211728484,
+        "A\u2663": 0.5065022788271515
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[7\u2663,A\u2663];hand[1]=#2;seized[0]=[A\u2660];seized[1]=[];shipment[0]=[];shipment[1]=#0;warehouse[0]=[2\u2663];warehouse[1]=#0|state:fine_net={0:5,1:-5};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 0, 'inspect');('reveal', 'shipment[1]', 'A\u2660');('move', 'shipment[1]', 1, 'seized[0]', ('A\u2660',))"
+    },
+    {
+      "reach": 0.039992100743793405,
+      "player": 0,
+      "depth": 6,
+      "strategy": {
+        "inspect": 0.4979470237112926,
+        "wave": 0.5020529762887075
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[7\u2663];hand[1]=#1;seized[0]=[];seized[1]=[A\u2663];shipment[0]=[];shipment[1]=#1;warehouse[0]=[2\u2663];warehouse[1]=#1|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', ('A\u2663',), 'seized[1]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.039992100743793405,
+      "player": 0,
+      "depth": 6,
+      "strategy": {
+        "inspect": 0.4979470237112926,
+        "wave": 0.5020529762887075
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[2\u2663];hand[1]=#1;seized[0]=[];seized[1]=[A\u2663];shipment[0]=[];shipment[1]=#1;warehouse[0]=[7\u2663];warehouse[1]=#1|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', ('A\u2663',), 'seized[1]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.03955060426663655,
+      "player": 1,
+      "depth": 6,
+      "strategy": {
+        "2\u2660": 0.504400412183045,
+        "7\u2660": 0.495599587816955
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,7\u2660];seized[0]=[];seized[1]=[];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[A\u2660]|state:fine_net={0:5,1:-5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('A\u2660',), 'warehouse[1]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', 1, 'cleared[0]', ('2\u2663',))"
+    },
+    {
+      "reach": 0.03804391136941884,
+      "player": 0,
+      "depth": 6,
+      "strategy": {
+        "inspect": 0.5010727098821346,
+        "wave": 0.4989272901178654
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[];hand[0]=[A\u2663];hand[1]=#1;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#1;warehouse[0]=[7\u2663];warehouse[1]=#1|state:fine_net={0:5,1:-5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', ('2\u2663',), 'cleared[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.03804391136941884,
+      "player": 0,
+      "depth": 6,
+      "strategy": {
+        "inspect": 0.5010727098821346,
+        "wave": 0.4989272901178654
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[];hand[0]=[7\u2663];hand[1]=#1;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#1;warehouse[0]=[A\u2663];warehouse[1]=#1|state:fine_net={0:5,1:-5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', ('2\u2663',), 'cleared[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.03640520669262115,
+      "player": 0,
+      "depth": 7,
+      "strategy": {
+        "inspect": 0.45802783284568865,
+        "wave": 0.5419721671543113
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[2\u2663];hand[1]=#1;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#1;warehouse[0]=[7\u2663,A\u2663];warehouse[1]=#1|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.03625674954143314,
+      "player": 0,
+      "depth": 7,
+      "strategy": {
+        "inspect": 0.4957264051649405,
+        "wave": 0.5042735948350595
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[2\u2663];hand[1]=#1;seized[0]=[];seized[1]=[7\u2663];shipment[0]=[];shipment[1]=#1;warehouse[0]=[A\u2663];warehouse[1]=#1|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', ('7\u2663',), 'seized[1]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.03452765048492508,
+      "player": 1,
+      "depth": 6,
+      "strategy": {
+        "2\u2660": 0.5031661428583982,
+        "7\u2660": 0.49683385714160166
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,7\u2660];seized[0]=[];seized[1]=[7\u2663];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[A\u2660]|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('A\u2660',), 'warehouse[1]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', 1, 'seized[1]', ('7\u2663',))"
+    },
+    {
+      "reach": 0.033840022980725436,
+      "player": 0,
+      "depth": 4,
+      "strategy": {
+        "2\u2663": 0.4993461840111536,
+        "7\u2663": 0.5006538159888463
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[2\u2660];hand[0]=[2\u2663,7\u2663];hand[1]=#2;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#0;warehouse[0]=[A\u2663];warehouse[1]=#0|state:fine_net={0:-5,1:5};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 0, 'inspect');('reveal', 'shipment[1]', '2\u2660');('move', 'shipment[1]', 1, 'cleared[1]', ('2\u2660',))"
+    },
+    {
+      "reach": 0.033770276852190265,
+      "player": 0,
+      "depth": 7,
+      "strategy": {
+        "inspect": 0.4580605600785913,
+        "wave": 0.5419394399214088
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[2\u2663];hand[1]=#1;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#1;warehouse[0]=[7\u2663,A\u2663];warehouse[1]=#1|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.03363256470736889,
+      "player": 0,
+      "depth": 7,
+      "strategy": {
+        "inspect": 0.5039991680804328,
+        "wave": 0.4960008319195673
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[2\u2663];hand[1]=#1;seized[0]=[];seized[1]=[A\u2663];shipment[0]=[];shipment[1]=#1;warehouse[0]=[7\u2663];warehouse[1]=#1|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', ('A\u2663',), 'seized[1]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.03347333705505351,
+      "player": 0,
+      "depth": 7,
+      "strategy": {
+        "inspect": 0.5191702258859292,
+        "wave": 0.48082977411407074
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[A\u2663];hand[1]=#1;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#1;warehouse[0]=[2\u2663,7\u2663];warehouse[1]=#1|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.033336835803957555,
+      "player": 0,
+      "depth": 7,
+      "strategy": {
+        "inspect": 0.5006600692819033,
+        "wave": 0.4993399307180967
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[];hand[0]=[A\u2663];hand[1]=#1;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#1;warehouse[0]=[7\u2663];warehouse[1]=#1|state:fine_net={0:5,1:-5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', ('2\u2663',), 'cleared[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.03273192464628557,
+      "player": 0,
+      "depth": 4,
+      "strategy": {
+        "7\u2663": 0.49203997304025276,
+        "A\u2663": 0.5079600269597472
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[2\u2660];hand[0]=[7\u2663,A\u2663];hand[1]=#2;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#0;warehouse[0]=[2\u2663];warehouse[1]=#0|state:fine_net={0:-5,1:5};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 0, 'inspect');('reveal', 'shipment[1]', '2\u2660');('move', 'shipment[1]', 1, 'cleared[1]', ('2\u2660',))"
+    },
+    {
+      "reach": 0.03270664101531464,
+      "player": 1,
+      "depth": 5,
+      "strategy": {
+        "inspect": 0.5064277654674146,
+        "wave": 0.49357223453258525
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,A\u2660];seized[0]=[];seized[1]=[];shipment[0]=#1;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[7\u2660]|state:fine_net={0:0,1:0};inspector=1;merchant=0;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('7\u2660',), 'warehouse[1]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1)"
+    },
+    {
+      "reach": 0.032451712267782006,
+      "player": 1,
+      "depth": 6,
+      "strategy": {
+        "7\u2660": 0.5001531145758618,
+        "A\u2660": 0.4998468854241383
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[7\u2660,A\u2660];seized[0]=[];seized[1]=[A\u2663];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[2\u2660]|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('2\u2660',), 'warehouse[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', 1, 'seized[1]', ('A\u2663',))"
+    },
+    {
+      "reach": 0.032318082913554945,
+      "player": 0,
+      "depth": 6,
+      "strategy": {
+        "inspect": 0.49741256361765895,
+        "wave": 0.502587436382341
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[A\u2663];hand[1]=#1;seized[0]=[];seized[1]=[7\u2663];shipment[0]=[];shipment[1]=#1;warehouse[0]=[2\u2663];warehouse[1]=#1|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', ('7\u2663',), 'seized[1]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.032318082913554945,
+      "player": 0,
+      "depth": 6,
+      "strategy": {
+        "inspect": 0.49741256361765895,
+        "wave": 0.502587436382341
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[2\u2663];hand[1]=#1;seized[0]=[];seized[1]=[7\u2663];shipment[0]=[];shipment[1]=#1;warehouse[0]=[A\u2663];warehouse[1]=#1|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', ('7\u2663',), 'seized[1]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.03157144417372309,
+      "player": 0,
+      "depth": 4,
+      "strategy": {
+        "2\u2663": 0.5000713559708349,
+        "A\u2663": 0.49992864402916515
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[2\u2663,A\u2663];hand[1]=#2;seized[0]=[A\u2660];seized[1]=[];shipment[0]=[];shipment[1]=#0;warehouse[0]=[7\u2663];warehouse[1]=#0|state:fine_net={0:5,1:-5};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 0, 'inspect');('reveal', 'shipment[1]', 'A\u2660');('move', 'shipment[1]', 1, 'seized[0]', ('A\u2660',))"
+    },
+    {
+      "reach": 0.031216331513200135,
+      "player": 1,
+      "depth": 5,
+      "strategy": {
+        "2\u2660": 0.5015083989066906,
+        "7\u2660": 0.4984916010933093
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,7\u2660];seized[0]=[];seized[1]=[];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[A\u2660]|state:fine_net={0:5,1:-5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', 1, 'cleared[0]', ('2\u2663',));('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('A\u2660',), 'warehouse[1]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('move', 'shipment[0]', 1, 'warehouse[0]', 1)"
+    },
+    {
+      "reach": 0.031168114921479393,
+      "player": 1,
+      "depth": 6,
+      "strategy": {
+        "7\u2660": 0.504493756192134,
+        "A\u2660": 0.495506243807866
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[];hand[0]=#1;hand[1]=[7\u2660,A\u2660];seized[0]=[];seized[1]=[];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[2\u2660]|state:fine_net={0:5,1:-5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('2\u2660',), 'warehouse[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', 1, 'cleared[0]', ('2\u2663',))"
+    },
+    {
+      "reach": 0.03111367185284266,
+      "player": 1,
+      "depth": 5,
+      "strategy": {
+        "2\u2660": 0.5070742510053851,
+        "7\u2660": 0.492925748994615
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,7\u2660];seized[0]=[];seized[1]=[A\u2663];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[A\u2660]|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', 1, 'seized[1]', ('A\u2663',));('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('A\u2660',), 'warehouse[1]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('move', 'shipment[0]', 1, 'warehouse[0]', 1)"
+    },
+    {
+      "reach": 0.030567224349564298,
+      "player": 0,
+      "depth": 7,
+      "strategy": {
+        "inspect": 0.5181044344951302,
+        "wave": 0.4818955655048698
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[A\u2663];hand[1]=#1;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#1;warehouse[0]=[2\u2663,7\u2663];warehouse[1]=#1|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.030442573964113227,
+      "player": 0,
+      "depth": 7,
+      "strategy": {
+        "inspect": 0.49859048271239953,
+        "wave": 0.5014095172876005
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[A\u2663];hand[1]=#1;seized[0]=[];seized[1]=[7\u2663];shipment[0]=[];shipment[1]=#1;warehouse[0]=[2\u2663];warehouse[1]=#1|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', ('7\u2663',), 'seized[1]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.028637692276184158,
+      "player": 1,
+      "depth": 5,
+      "strategy": {
+        "7\u2660": 0.4886754472732024,
+        "A\u2660": 0.5113245527267976
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[7\u2660,A\u2660];seized[0]=[];seized[1]=[A\u2663];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[2\u2660]|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', 1, 'seized[1]', ('A\u2663',));('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('2\u2660',), 'warehouse[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('move', 'shipment[0]', 1, 'warehouse[0]', 1)"
+    },
+    {
+      "reach": 0.028564152306008287,
+      "player": 1,
+      "depth": 8,
+      "strategy": {
+        "inspect": 0.9999946053429613,
+        "wave": 5.394657038789455e-06
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#0;hand[1]=[2\u2660];seized[0]=[7\u2660];seized[1]=[];shipment[0]=#1;shipment[1]=[];warehouse[0]=#2;warehouse[1]=[A\u2660]|state:fine_net={0:5,1:-5};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('A\u2660',), 'warehouse[1]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', '7\u2660');('move', 'shipment[1]', ('7\u2660',), 'seized[0]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1)"
+    },
+    {
+      "reach": 0.02852111978831712,
+      "player": 1,
+      "depth": 8,
+      "strategy": {
+        "inspect": 0.9999946053429613,
+        "wave": 5.394657038789455e-06
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#0;hand[1]=[2\u2660];seized[0]=[];seized[1]=[];shipment[0]=#1;shipment[1]=[];warehouse[0]=#2;warehouse[1]=[7\u2660,A\u2660]|state:fine_net={0:0,1:0};inspector=1;merchant=0;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('A\u2660',), 'warehouse[1]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('7\u2660',), 'warehouse[1]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1)"
+    },
+    {
+      "reach": 0.028393703304526757,
+      "player": 1,
+      "depth": 5,
+      "strategy": {
+        "7\u2660": 0.5060339345409272,
+        "A\u2660": 0.49396606545907285
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[];hand[0]=#1;hand[1]=[7\u2660,A\u2660];seized[0]=[];seized[1]=[];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[2\u2660]|state:fine_net={0:5,1:-5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', 1, 'cleared[0]', ('2\u2663',));('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('2\u2660',), 'warehouse[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('move', 'shipment[0]', 1, 'warehouse[0]', 1)"
+    },
+    {
+      "reach": 0.028383016983019642,
+      "player": 1,
+      "depth": 7,
+      "strategy": {
+        "inspect": 0.9999945929139525,
+        "wave": 5.407086047493886e-06
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#0;hand[1]=[7\u2660];seized[0]=[A\u2660];seized[1]=[];shipment[0]=#1;shipment[1]=[];warehouse[0]=#2;warehouse[1]=[2\u2660]|state:fine_net={0:5,1:-5};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', 'A\u2660');('move', 'shipment[1]', ('A\u2660',), 'seized[0]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('move', 'shipment[1]', ('2\u2660',), 'warehouse[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1)"
+    },
+    {
+      "reach": 0.028383016983019642,
+      "player": 1,
+      "depth": 7,
+      "strategy": {
+        "inspect": 0.9999945929139525,
+        "wave": 5.407086047493886e-06
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#0;hand[1]=[2\u2660];seized[0]=[A\u2660];seized[1]=[];shipment[0]=#1;shipment[1]=[];warehouse[0]=#2;warehouse[1]=[7\u2660]|state:fine_net={0:5,1:-5};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', 'A\u2660');('move', 'shipment[1]', ('A\u2660',), 'seized[0]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('move', 'shipment[1]', ('7\u2660',), 'warehouse[1]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1)"
+    },
+    {
+      "reach": 0.028228403972777844,
+      "player": 1,
+      "depth": 8,
+      "strategy": {
+        "inspect": 0.9999945411789685,
+        "wave": 5.458821031584447e-06
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[2\u2660];hand[0]=#0;hand[1]=[7\u2660];seized[0]=[];seized[1]=[];shipment[0]=#1;shipment[1]=[];warehouse[0]=#2;warehouse[1]=[A\u2660]|state:fine_net={0:-5,1:5};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('A\u2660',), 'warehouse[1]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', '2\u2660');('move', 'shipment[1]', ('2\u2660',), 'cleared[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1)"
+    },
+    {
+      "reach": 0.028185877267264636,
+      "player": 1,
+      "depth": 8,
+      "strategy": {
+        "inspect": 0.9999551753677483,
+        "wave": 4.4824632251722734e-05
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#0;hand[1]=[7\u2660];seized[0]=[];seized[1]=[];shipment[0]=#1;shipment[1]=[];warehouse[0]=#2;warehouse[1]=[2\u2660,A\u2660]|state:fine_net={0:0,1:0};inspector=1;merchant=0;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('A\u2660',), 'warehouse[1]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('2\u2660',), 'warehouse[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1)"
+    },
+    {
+      "reach": 0.02720974301752021,
+      "player": 1,
+      "depth": 6,
+      "strategy": {
+        "7\u2660": 0.5035359447430519,
+        "A\u2660": 0.49646405525694826
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[7\u2660,A\u2660];seized[0]=[];seized[1]=[7\u2663];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[2\u2660]|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('2\u2660',), 'warehouse[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', 1, 'seized[1]', ('7\u2663',))"
+    },
+    {
+      "reach": 0.02662685328906049,
+      "player": 1,
+      "depth": 5,
+      "strategy": {
+        "2\u2660": 0.5049472557414882,
+        "7\u2660": 0.49505274425851176
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,7\u2660];seized[0]=[];seized[1]=[7\u2663];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[A\u2660]|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', 1, 'seized[1]', ('7\u2663',));('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('A\u2660',), 'warehouse[1]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('move', 'shipment[0]', 1, 'warehouse[0]', 1)"
+    },
+    {
+      "reach": 0.025497795669830965,
+      "player": 0,
+      "depth": 4,
+      "strategy": {
+        "2\u2663": 0.4976591223820257,
+        "A\u2663": 0.5023408776179743
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[2\u2660];hand[0]=[2\u2663,A\u2663];hand[1]=#2;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#0;warehouse[0]=[7\u2663];warehouse[1]=#0|state:fine_net={0:-5,1:5};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 0, 'inspect');('reveal', 'shipment[1]', '2\u2660');('move', 'shipment[1]', 1, 'cleared[1]', ('2\u2660',))"
+    },
+    {
+      "reach": 0.024348230449731823,
+      "player": 1,
+      "depth": 5,
+      "strategy": {
+        "7\u2660": 0.4919448297333403,
+        "A\u2660": 0.5080551702666598
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[7\u2660,A\u2660];seized[0]=[];seized[1]=[7\u2663];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[2\u2660]|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', 1, 'seized[1]', ('7\u2663',));('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('2\u2660',), 'warehouse[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('move', 'shipment[0]', 1, 'warehouse[0]', 1)"
+    },
+    {
+      "reach": 0.023638665745362115,
+      "player": 1,
+      "depth": 8,
+      "strategy": {
+        "inspect": 0.9999152566608281,
+        "wave": 8.47433391719085e-05
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#0;hand[1]=[7\u2660];seized[0]=[A\u2660];seized[1]=[];shipment[0]=#1;shipment[1]=[];warehouse[0]=#2;warehouse[1]=[2\u2660]|state:fine_net={0:5,1:-5};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('2\u2660',), 'warehouse[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', 'A\u2660');('move', 'shipment[1]', ('A\u2660',), 'seized[0]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1)"
+    },
+    {
+      "reach": 0.02360305358047148,
+      "player": 1,
+      "depth": 8,
+      "strategy": {
+        "inspect": 0.9999152566608281,
+        "wave": 8.47433391719085e-05
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#0;hand[1]=[7\u2660];seized[0]=[];seized[1]=[];shipment[0]=#1;shipment[1]=[];warehouse[0]=#2;warehouse[1]=[2\u2660,A\u2660]|state:fine_net={0:0,1:0};inspector=1;merchant=0;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('2\u2660',), 'warehouse[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('A\u2660',), 'warehouse[1]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1)"
+    },
+    {
+      "reach": 0.02335664314806154,
+      "player": 1,
+      "depth": 8,
+      "strategy": {
+        "inspect": 0.9999142334171853,
+        "wave": 8.57665828146564e-05
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#0;hand[1]=[A\u2660];seized[0]=[7\u2660];seized[1]=[];shipment[0]=#1;shipment[1]=[];warehouse[0]=#2;warehouse[1]=[2\u2660]|state:fine_net={0:5,1:-5};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('2\u2660',), 'warehouse[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', '7\u2660');('move', 'shipment[1]', ('7\u2660',), 'seized[0]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1)"
+    },
+    {
+      "reach": 0.02332145585635732,
+      "player": 1,
+      "depth": 8,
+      "strategy": {
+        "inspect": 0.999854149431534,
+        "wave": 0.00014585056846609242
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#0;hand[1]=[A\u2660];seized[0]=[];seized[1]=[];shipment[0]=#1;shipment[1]=[];warehouse[0]=#2;warehouse[1]=[2\u2660,7\u2660]|state:fine_net={0:0,1:0};inspector=1;merchant=0;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('2\u2660',), 'warehouse[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('7\u2660',), 'warehouse[1]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1)"
+    },
+    {
+      "reach": 0.023070284861134417,
+      "player": 1,
+      "depth": 7,
+      "strategy": {
+        "inspect": 0.9999933477451172,
+        "wave": 6.652254882782631e-06
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[2\u2660];hand[0]=#0;hand[1]=[A\u2660];seized[0]=[];seized[1]=[];shipment[0]=#1;shipment[1]=[];warehouse[0]=#2;warehouse[1]=[7\u2660]|state:fine_net={0:-5,1:5};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', '2\u2660');('move', 'shipment[1]', ('2\u2660',), 'cleared[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('move', 'shipment[1]', ('7\u2660',), 'warehouse[1]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1)"
+    },
+    {
+      "reach": 0.023070284861134417,
+      "player": 1,
+      "depth": 7,
+      "strategy": {
+        "inspect": 0.9999933477451172,
+        "wave": 6.652254882782631e-06
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[2\u2660];hand[0]=#0;hand[1]=[7\u2660];seized[0]=[];seized[1]=[];shipment[0]=#1;shipment[1]=[];warehouse[0]=#2;warehouse[1]=[A\u2660]|state:fine_net={0:-5,1:5};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', '2\u2660');('move', 'shipment[1]', ('2\u2660',), 'cleared[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('move', 'shipment[1]', ('A\u2660',), 'warehouse[1]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1)"
+    },
+    {
+      "reach": 0.022877620687422204,
+      "player": 0,
+      "depth": 8,
+      "strategy": {
+        "inspect": 0.9999932713568914,
+        "wave": 6.728643108620357e-06
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[];hand[1]=#0;seized[0]=[];seized[1]=[A\u2663];shipment[0]=[];shipment[1]=#1;warehouse[0]=[2\u2663,7\u2663];warehouse[1]=#2|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', ('A\u2663',), 'seized[1]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.022071870717220513,
+      "player": 0,
+      "depth": 9,
+      "strategy": {
+        "inspect": 0.9999764244974412,
+        "wave": 2.3575502558730654e-05
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[];hand[1]=#0;seized[0]=[];seized[1]=[7\u2663];shipment[0]=[];shipment[1]=#1;warehouse[0]=[2\u2663,A\u2663];warehouse[1]=#2|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', ('7\u2663',), 'seized[1]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.021485679167047852,
+      "player": 0,
+      "depth": 8,
+      "strategy": {
+        "inspect": 0.9999928354443169,
+        "wave": 7.16455568303101e-06
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[];hand[0]=[];hand[1]=#0;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#1;warehouse[0]=[7\u2663,A\u2663];warehouse[1]=#2|state:fine_net={0:5,1:-5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', ('2\u2663',), 'cleared[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.020764829024549576,
+      "player": 0,
+      "depth": 9,
+      "strategy": {
+        "inspect": 0.9999842321064526,
+        "wave": 1.576789354740365e-05
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[];hand[1]=#0;seized[0]=[];seized[1]=[7\u2663];shipment[0]=[];shipment[1]=#1;warehouse[0]=[2\u2663,A\u2663];warehouse[1]=#2|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', ('7\u2663',), 'seized[1]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.02050965693014884,
+      "player": 1,
+      "depth": 6,
+      "strategy": {
+        "2\u2660": 0.5,
+        "7\u2660": 0.5
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,7\u2660];seized[0]=[A\u2660];seized[1]=[7\u2663];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[]|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:0,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', 'A\u2660');('move', 'shipment[1]', ('A\u2660',), 'seized[0]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', 1, 'seized[1]', ('7\u2663',))"
+    },
+    {
+      "reach": 0.020232837358559987,
+      "player": 1,
+      "depth": 5,
+      "strategy": {
+        "2\u2660": 0.5027188398466615,
+        "A\u2660": 0.49728116015333845
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,A\u2660];seized[0]=[];seized[1]=[A\u2663];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[7\u2660]|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', 1, 'seized[1]', ('A\u2663',));('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('7\u2660',), 'warehouse[1]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('move', 'shipment[0]', 1, 'warehouse[0]', 1)"
+    },
+    {
+      "reach": 0.02007815320645931,
+      "player": 0,
+      "depth": 7,
+      "strategy": {
+        "inspect": 0.9995273765435446,
+        "wave": 0.00047262345645535916
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[];hand[1]=#0;seized[0]=[];seized[1]=[A\u2663];shipment[0]=[];shipment[1]=#1;warehouse[0]=[2\u2663,7\u2663];warehouse[1]=#2|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', ('A\u2663',), 'seized[1]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.02007815320645931,
+      "player": 0,
+      "depth": 7,
+      "strategy": {
+        "inspect": 0.9995273765435446,
+        "wave": 0.00047262345645535916
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[];hand[1]=#0;seized[0]=[];seized[1]=[A\u2663];shipment[0]=[];shipment[1]=#1;warehouse[0]=[2\u2663,7\u2663];warehouse[1]=#2|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', ('A\u2663',), 'seized[1]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.019729214865010107,
+      "player": 0,
+      "depth": 9,
+      "strategy": {
+        "inspect": 0.9999921661996651,
+        "wave": 7.833800334895885e-06
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[];hand[0]=[];hand[1]=#0;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#1;warehouse[0]=[7\u2663,A\u2663];warehouse[1]=#2|state:fine_net={0:5,1:-5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', ('2\u2663',), 'cleared[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.018981145605028397,
+      "player": 0,
+      "depth": 7,
+      "strategy": {
+        "inspect": 0.9999587719637105,
+        "wave": 4.122803628953206e-05
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[];hand[0]=[];hand[1]=#0;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#1;warehouse[0]=[7\u2663,A\u2663];warehouse[1]=#2|state:fine_net={0:5,1:-5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', ('2\u2663',), 'cleared[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.018981145605028397,
+      "player": 0,
+      "depth": 7,
+      "strategy": {
+        "inspect": 0.9999587719637105,
+        "wave": 4.122803628953206e-05
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[];hand[0]=[];hand[1]=#0;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#1;warehouse[0]=[7\u2663,A\u2663];warehouse[1]=#2|state:fine_net={0:5,1:-5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', ('2\u2663',), 'cleared[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.01849495560764411,
+      "player": 1,
+      "depth": 6,
+      "strategy": {
+        "2\u2660": 0.5,
+        "7\u2660": 0.5
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,7\u2660];seized[0]=[A\u2660];seized[1]=[];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[]|state:fine_net={0:10,1:-10};inspector=0;merchant=1;score={0:0,1:0};tokens={0:0,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', 'A\u2660');('move', 'shipment[1]', ('A\u2660',), 'seized[0]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', 1, 'cleared[0]', ('2\u2663',))"
+    },
+    {
+      "reach": 0.01830015198704901,
+      "player": 0,
+      "depth": 9,
+      "strategy": {
+        "inspect": 0.9999915544564807,
+        "wave": 8.445543519317599e-06
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[];hand[0]=[];hand[1]=#0;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#1;warehouse[0]=[7\u2663,A\u2663];warehouse[1]=#2|state:fine_net={0:5,1:-5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', ('2\u2663',), 'cleared[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.018283321428292885,
+      "player": 0,
+      "depth": 8,
+      "strategy": {
+        "inspect": 0.9999915805590694,
+        "wave": 8.419440930565485e-06
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[];hand[1]=#0;seized[0]=[];seized[1]=[7\u2663];shipment[0]=[];shipment[1]=#1;warehouse[0]=[2\u2663,A\u2663];warehouse[1]=#2|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', ('7\u2663',), 'seized[1]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.01823037531879387,
+      "player": 1,
+      "depth": 6,
+      "strategy": {
+        "2\u2660": 0.5,
+        "7\u2660": 0.5
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,7\u2660];seized[0]=[A\u2660];seized[1]=[A\u2663];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[]|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:0,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', 'A\u2660');('move', 'shipment[1]', ('A\u2660',), 'seized[0]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', 1, 'seized[1]', ('A\u2663',))"
+    },
+    {
+      "reach": 0.016681780074443646,
+      "player": 0,
+      "depth": 8,
+      "strategy": {
+        "inspect": 0.9999907722470808,
+        "wave": 9.227752919239203e-06
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[];hand[1]=#0;seized[0]=[];seized[1]=[A\u2663];shipment[0]=[];shipment[1]=#1;warehouse[0]=[2\u2663,7\u2663];warehouse[1]=#2|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', ('A\u2663',), 'seized[1]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.016646413280708733,
+      "player": 0,
+      "depth": 8,
+      "strategy": {
+        "inspect": 0.9999907526418944,
+        "wave": 9.247358105571455e-06
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[];hand[0]=[];hand[1]=#0;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#1;warehouse[0]=[7\u2663,A\u2663];warehouse[1]=#2|state:fine_net={0:5,1:-5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', ('2\u2663',), 'cleared[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.016485836668886006,
+      "player": 1,
+      "depth": 6,
+      "strategy": {
+        "7\u2660": 0.5,
+        "A\u2660": 0.5
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[2\u2660];hand[0]=#1;hand[1]=[7\u2660,A\u2660];seized[0]=[];seized[1]=[7\u2663];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[]|state:fine_net={0:-10,1:10};inspector=0;merchant=1;score={0:0,1:0};tokens={0:0,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', '2\u2660');('move', 'shipment[1]', ('2\u2660',), 'cleared[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', 1, 'seized[1]', ('7\u2663',))"
+    },
+    {
+      "reach": 0.016477787921110796,
+      "player": 1,
+      "depth": 5,
+      "strategy": {
+        "2\u2660": 0.5023150851283246,
+        "A\u2660": 0.4976849148716755
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,A\u2660];seized[0]=[];seized[1]=[];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[7\u2660]|state:fine_net={0:5,1:-5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', 1, 'cleared[0]', ('2\u2663',));('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('7\u2660',), 'warehouse[1]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('move', 'shipment[0]', 1, 'warehouse[0]', 1)"
+    },
+    {
+      "reach": 0.01629933428320035,
+      "player": 1,
+      "depth": 5,
+      "strategy": {
+        "inspect": 0.5006580927131054,
+        "wave": 0.4993419072868947
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,A\u2660];seized[0]=[7\u2660];seized[1]=[];shipment[0]=#1;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[]|state:fine_net={0:5,1:-5};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', '7\u2660');('move', 'shipment[1]', ('7\u2660',), 'seized[0]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1)"
+    },
+    {
+      "reach": 0.01624266244031552,
+      "player": 0,
+      "depth": 7,
+      "strategy": {
+        "inspect": 0.9997664169482909,
+        "wave": 0.0002335830517090518
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[];hand[1]=#0;seized[0]=[];seized[1]=[7\u2663];shipment[0]=[];shipment[1]=#1;warehouse[0]=[2\u2663,A\u2663];warehouse[1]=#2|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', ('7\u2663',), 'seized[1]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.01624266244031552,
+      "player": 0,
+      "depth": 7,
+      "strategy": {
+        "inspect": 0.9997664169482909,
+        "wave": 0.0002335830517090518
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[];hand[1]=#0;seized[0]=[];seized[1]=[7\u2663];shipment[0]=[];shipment[1]=#1;warehouse[0]=[2\u2663,A\u2663];warehouse[1]=#2|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', ('7\u2663',), 'seized[1]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.01614308988998395,
+      "player": 1,
+      "depth": 6,
+      "strategy": {
+        "2\u2660": 0.4964221974039827,
+        "A\u2660": 0.5035778025960174
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,A\u2660];seized[0]=[];seized[1]=[];shipment[0]=#0;shipment[1]=[];warehouse[0]=#2;warehouse[1]=[7\u2660]|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('7\u2660',), 'warehouse[1]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1)"
+    },
+    {
+      "reach": 0.01609384003842155,
+      "player": 0,
+      "depth": 9,
+      "strategy": {
+        "inspect": 0.9999682494065423,
+        "wave": 3.175059345770823e-05
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[];hand[1]=#0;seized[0]=[];seized[1]=[A\u2663];shipment[0]=[];shipment[1]=#1;warehouse[0]=[2\u2663,7\u2663];warehouse[1]=#2|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', ('A\u2663',), 'seized[1]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.015982830591855283,
+      "player": 0,
+      "depth": 4,
+      "strategy": {
+        "7\u2663": 0.5,
+        "A\u2663": 0.5
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[];hand[0]=[7\u2663,A\u2663];hand[1]=#2;seized[0]=[A\u2660];seized[1]=[];shipment[0]=[];shipment[1]=#0;warehouse[0]=[];warehouse[1]=#0|state:fine_net={0:10,1:-10};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', ('2\u2663',), 'cleared[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 0, 'inspect');('reveal', 'shipment[1]', 'A\u2660');('move', 'shipment[1]', 1, 'seized[0]', ('A\u2660',))"
+    },
+    {
+      "reach": 0.015982830591855283,
+      "player": 1,
+      "depth": 5,
+      "strategy": {
+        "2\u2660": 0.5,
+        "7\u2660": 0.5
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,7\u2660];seized[0]=[A\u2660];seized[1]=[];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[]|state:fine_net={0:10,1:-10};inspector=0;merchant=1;score={0:0,1:0};tokens={0:0,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', 1, 'cleared[0]', ('2\u2663',));('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', 'A\u2660');('move', 'shipment[1]', ('A\u2660',), 'seized[0]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('move', 'shipment[0]', 1, 'warehouse[0]', 1)"
+    },
+    {
+      "reach": 0.015299806038091583,
+      "player": 0,
+      "depth": 4,
+      "strategy": {
+        "2\u2663": 0.5,
+        "7\u2663": 0.5
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[2\u2663,7\u2663];hand[1]=#2;seized[0]=[A\u2660];seized[1]=[A\u2663];shipment[0]=[];shipment[1]=#0;warehouse[0]=[];warehouse[1]=#0|state:fine_net={0:0,1:0};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', ('A\u2663',), 'seized[1]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 0, 'inspect');('reveal', 'shipment[1]', 'A\u2660');('move', 'shipment[1]', 1, 'seized[0]', ('A\u2660',))"
+    },
+    {
+      "reach": 0.015299806038091583,
+      "player": 1,
+      "depth": 5,
+      "strategy": {
+        "2\u2660": 0.5,
+        "7\u2660": 0.5
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,7\u2660];seized[0]=[A\u2660];seized[1]=[A\u2663];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[]|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:0,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', 1, 'seized[1]', ('A\u2663',));('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', 'A\u2660');('move', 'shipment[1]', ('A\u2660',), 'seized[0]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('move', 'shipment[0]', 1, 'warehouse[0]', 1)"
+    },
+    {
+      "reach": 0.015264196316338092,
+      "player": 0,
+      "depth": 8,
+      "strategy": {
+        "inspect": 0.9999899152669692,
+        "wave": 1.0084733030804144e-05
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[];hand[1]=#0;seized[0]=[];seized[1]=[7\u2663];shipment[0]=[];shipment[1]=#1;warehouse[0]=[2\u2663,A\u2663];warehouse[1]=#2|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', ('7\u2663',), 'seized[1]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.014759581846235957,
+      "player": 1,
+      "depth": 6,
+      "strategy": {
+        "7\u2660": 0.5,
+        "A\u2660": 0.5
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[2\u2660];hand[0]=#1;hand[1]=[7\u2660,A\u2660];seized[0]=[];seized[1]=[];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[]|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:0,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', '2\u2660');('move', 'shipment[1]', ('2\u2660',), 'cleared[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', 1, 'cleared[0]', ('2\u2663',))"
+    },
+    {
+      "reach": 0.014729169223509548,
+      "player": 0,
+      "depth": 9,
+      "strategy": {
+        "inspect": 0.9999491636854752,
+        "wave": 5.083631452482519e-05
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[];hand[1]=#0;seized[0]=[];seized[1]=[A\u2663];shipment[0]=[];shipment[1]=#1;warehouse[0]=[2\u2663,7\u2663];warehouse[1]=#2|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', ('A\u2663',), 'seized[1]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 0.014683755059451156,
+      "player": 1,
+      "depth": 6,
+      "strategy": {
+        "7\u2660": 0.5,
+        "A\u2660": 0.5
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[2\u2660];hand[0]=#1;hand[1]=[7\u2660,A\u2660];seized[0]=[];seized[1]=[A\u2663];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[]|state:fine_net={0:-10,1:10};inspector=0;merchant=1;score={0:0,1:0};tokens={0:0,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', '2\u2660');('move', 'shipment[1]', ('2\u2660',), 'cleared[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', 1, 'seized[1]', ('A\u2663',))"
+    },
+    {
+      "reach": 0.014537638722851014,
+      "player": 0,
+      "depth": 4,
+      "strategy": {
+        "7\u2663": 0.5,
+        "A\u2663": 0.5
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[2\u2660];hand[0]=[7\u2663,A\u2663];hand[1]=#2;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#0;warehouse[0]=[];warehouse[1]=#0|state:fine_net={0:0,1:0};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', ('2\u2663',), 'cleared[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 0, 'inspect');('reveal', 'shipment[1]', '2\u2660');('move', 'shipment[1]', 1, 'cleared[1]', ('2\u2660',))"
+    },
+    {
+      "reach": 0.014537638722851014,
+      "player": 1,
+      "depth": 5,
+      "strategy": {
+        "7\u2660": 0.5,
+        "A\u2660": 0.5
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[2\u2660];hand[0]=#1;hand[1]=[7\u2660,A\u2660];seized[0]=[];seized[1]=[];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[]|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:0,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', 1, 'cleared[0]', ('2\u2663',));('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', '2\u2660');('move', 'shipment[1]', ('2\u2660',), 'cleared[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('move', 'shipment[0]', 1, 'warehouse[0]', 1)"
+    },
+    {
+      "reach": 0.014082270304722647,
+      "player": 0,
+      "depth": 4,
+      "strategy": {
+        "2\u2663": 0.5,
+        "7\u2663": 0.5
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[2\u2660];hand[0]=[2\u2663,7\u2663];hand[1]=#2;seized[0]=[];seized[1]=[A\u2663];shipment[0]=[];shipment[1]=#0;warehouse[0]=[];warehouse[1]=#0|state:fine_net={0:-10,1:10};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', ('A\u2663',), 'seized[1]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 0, 'inspect');('reveal', 'shipment[1]', '2\u2660');('move', 'shipment[1]', 1, 'cleared[1]', ('2\u2660',))"
+    },
+    {
+      "reach": 0.014082270304722647,
+      "player": 1,
+      "depth": 5,
+      "strategy": {
+        "7\u2660": 0.5,
+        "A\u2660": 0.5
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[2\u2660];hand[0]=#1;hand[1]=[7\u2660,A\u2660];seized[0]=[];seized[1]=[A\u2663];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[]|state:fine_net={0:-10,1:10};inspector=0;merchant=1;score={0:0,1:0};tokens={0:0,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', 1, 'seized[1]', ('A\u2663',));('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', '2\u2660');('move', 'shipment[1]', ('2\u2660',), 'cleared[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('move', 'shipment[0]', 1, 'warehouse[0]', 1)"
+    },
+    {
+      "reach": 0.013661082088317577,
+      "player": 1,
+      "depth": 5,
+      "strategy": {
+        "2\u2660": 0.5025563481346632,
+        "A\u2660": 0.4974436518653369
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,A\u2660];seized[0]=[];seized[1]=[7\u2663];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[7\u2660]|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', 1, 'seized[1]', ('7\u2663',));('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('7\u2660',), 'warehouse[1]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('move', 'shipment[0]', 1, 'warehouse[0]', 1)"
+    },
+    {
+      "reach": 0.013355399116849477,
+      "player": 0,
+      "depth": 4,
+      "strategy": {
+        "2\u2663": 0.5,
+        "A\u2663": 0.5
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[2\u2663,A\u2663];hand[1]=#2;seized[0]=[A\u2660];seized[1]=[7\u2663];shipment[0]=[];shipment[1]=#0;warehouse[0]=[];warehouse[1]=#0|state:fine_net={0:0,1:0};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', ('7\u2663',), 'seized[1]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 0, 'inspect');('reveal', 'shipment[1]', 'A\u2660');('move', 'shipment[1]', 1, 'seized[0]', ('A\u2660',))"
+    },
+    {
+      "reach": 0.013355399116849477,
+      "player": 1,
+      "depth": 5,
+      "strategy": {
+        "2\u2660": 0.5,
+        "7\u2660": 0.5
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,7\u2660];seized[0]=[A\u2660];seized[1]=[7\u2663];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[]|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:0,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', 1, 'seized[1]', ('7\u2663',));('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', 'A\u2660');('move', 'shipment[1]', ('A\u2660',), 'seized[0]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('move', 'shipment[0]', 1, 'warehouse[0]', 1)"
+    },
+    {
+      "reach": 0.012212495855783104,
+      "player": 0,
+      "depth": 4,
+      "strategy": {
+        "2\u2663": 0.5,
+        "A\u2663": 0.5
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[2\u2660];hand[0]=[2\u2663,A\u2663];hand[1]=#2;seized[0]=[];seized[1]=[7\u2663];shipment[0]=[];shipment[1]=#0;warehouse[0]=[];warehouse[1]=#0|state:fine_net={0:-10,1:10};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', ('7\u2663',), 'seized[1]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 0, 'inspect');('reveal', 'shipment[1]', '2\u2660');('move', 'shipment[1]', 1, 'cleared[1]', ('2\u2660',))"
+    },
+    {
+      "reach": 0.012212495855783104,
+      "player": 1,
+      "depth": 5,
+      "strategy": {
+        "7\u2660": 0.5,
+        "A\u2660": 0.5
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[2\u2660];hand[0]=#1;hand[1]=[7\u2660,A\u2660];seized[0]=[];seized[1]=[7\u2663];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[]|state:fine_net={0:-10,1:10};inspector=0;merchant=1;score={0:0,1:0};tokens={0:0,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', 1, 'seized[1]', ('7\u2663',));('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', '2\u2660');('move', 'shipment[1]', ('2\u2660',), 'cleared[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('move', 'shipment[0]', 1, 'warehouse[0]', 1)"
+    },
+    {
+      "reach": 0.009949275310555755,
+      "player": 0,
+      "depth": 4,
+      "strategy": {
+        "2\u2663": 0.5,
+        "7\u2663": 0.5
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[2\u2663,7\u2663];hand[1]=#2;seized[0]=[7\u2660];seized[1]=[A\u2663];shipment[0]=[];shipment[1]=#0;warehouse[0]=[];warehouse[1]=#0|state:fine_net={0:0,1:0};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', ('A\u2663',), 'seized[1]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 0, 'inspect');('reveal', 'shipment[1]', '7\u2660');('move', 'shipment[1]', 1, 'seized[0]', ('7\u2660',))"
+    },
+    {
+      "reach": 0.009949275310555755,
+      "player": 1,
+      "depth": 5,
+      "strategy": {
+        "2\u2660": 0.5,
+        "A\u2660": 0.5
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,A\u2660];seized[0]=[7\u2660];seized[1]=[A\u2663];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[]|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:0,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', 1, 'seized[1]', ('A\u2663',));('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', '7\u2660');('move', 'shipment[1]', ('7\u2660',), 'seized[0]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('move', 'shipment[0]', 1, 'warehouse[0]', 1)"
+    },
+    {
+      "reach": 0.008436663762372846,
+      "player": 0,
+      "depth": 4,
+      "strategy": {
+        "7\u2663": 0.5,
+        "A\u2663": 0.5
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[];hand[0]=[7\u2663,A\u2663];hand[1]=#2;seized[0]=[7\u2660];seized[1]=[];shipment[0]=[];shipment[1]=#0;warehouse[0]=[];warehouse[1]=#0|state:fine_net={0:10,1:-10};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', ('2\u2663',), 'cleared[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 0, 'inspect');('reveal', 'shipment[1]', '7\u2660');('move', 'shipment[1]', 1, 'seized[0]', ('7\u2660',))"
+    },
+    {
+      "reach": 0.008436663762372846,
+      "player": 1,
+      "depth": 5,
+      "strategy": {
+        "2\u2660": 0.5,
+        "A\u2660": 0.5
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,A\u2660];seized[0]=[7\u2660];seized[1]=[];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[]|state:fine_net={0:10,1:-10};inspector=0;merchant=1;score={0:0,1:0};tokens={0:0,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', 1, 'cleared[0]', ('2\u2663',));('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', '7\u2660');('move', 'shipment[1]', ('7\u2660',), 'seized[0]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('move', 'shipment[0]', 1, 'warehouse[0]', 1)"
+    },
+    {
+      "reach": 0.008138940668479934,
+      "player": 1,
+      "depth": 6,
+      "strategy": {
+        "2\u2660": 0.5,
+        "A\u2660": 0.5
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,A\u2660];seized[0]=[7\u2660];seized[1]=[];shipment[0]=#0;shipment[1]=[];warehouse[0]=#2;warehouse[1]=[]|state:fine_net={0:5,1:-5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:0,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', '7\u2660');('move', 'shipment[1]', ('7\u2660',), 'seized[0]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1)"
+    },
+    {
+      "reach": 0.00685207529695156,
+      "player": 0,
+      "depth": 4,
+      "strategy": {
+        "2\u2663": 0.5,
+        "A\u2663": 0.5
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[2\u2663,A\u2663];hand[1]=#2;seized[0]=[7\u2660];seized[1]=[7\u2663];shipment[0]=[];shipment[1]=#0;warehouse[0]=[];warehouse[1]=#0|state:fine_net={0:0,1:0};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:0}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', ('7\u2663',), 'seized[1]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 0, 'inspect');('reveal', 'shipment[1]', '7\u2660');('move', 'shipment[1]', 1, 'seized[0]', ('7\u2660',))"
+    },
+    {
+      "reach": 0.00685207529695156,
+      "player": 1,
+      "depth": 5,
+      "strategy": {
+        "2\u2660": 0.5,
+        "A\u2660": 0.5
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,A\u2660];seized[0]=[7\u2660];seized[1]=[7\u2663];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[]|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:0,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', 1, 'seized[1]', ('7\u2663',));('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', '7\u2660');('move', 'shipment[1]', ('7\u2660',), 'seized[0]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('move', 'shipment[0]', 1, 'warehouse[0]', 1)"
+    },
+    {
+      "reach": 0.005990782932192067,
+      "player": 0,
+      "depth": 4,
+      "strategy": {
+        "2\u2663": 0.499387304113387,
+        "7\u2663": 0.5006126958866131
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[2\u2663,7\u2663];hand[1]=#2;seized[0]=[7\u2660];seized[1]=[];shipment[0]=[];shipment[1]=#0;warehouse[0]=[A\u2663];warehouse[1]=#0|state:fine_net={0:5,1:-5};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 0, 'inspect');('reveal', 'shipment[1]', '7\u2660');('move', 'shipment[1]', 1, 'seized[0]', ('7\u2660',))"
+    },
+    {
+      "reach": 0.005917848053538359,
+      "player": 1,
+      "depth": 6,
+      "strategy": {
+        "2\u2660": 0.5015001106695754,
+        "A\u2660": 0.49849988933042455
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,A\u2660];seized[0]=[];seized[1]=[A\u2663];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[7\u2660]|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('7\u2660',), 'warehouse[1]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', 1, 'seized[1]', ('A\u2663',))"
+    },
+    {
+      "reach": 0.005794613544454538,
+      "player": 0,
+      "depth": 4,
+      "strategy": {
+        "7\u2663": 0.4962579848910168,
+        "A\u2663": 0.5037420151089832
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[7\u2663,A\u2663];hand[1]=#2;seized[0]=[7\u2660];seized[1]=[];shipment[0]=[];shipment[1]=#0;warehouse[0]=[2\u2663];warehouse[1]=#0|state:fine_net={0:5,1:-5};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 0, 'inspect');('reveal', 'shipment[1]', '7\u2660');('move', 'shipment[1]', 1, 'seized[0]', ('7\u2660',))"
+    },
+    {
+      "reach": 0.005683773068691248,
+      "player": 1,
+      "depth": 6,
+      "strategy": {
+        "2\u2660": 0.5058871333229019,
+        "A\u2660": 0.49411286667709814
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,A\u2660];seized[0]=[];seized[1]=[];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[7\u2660]|state:fine_net={0:5,1:-5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('7\u2660',), 'warehouse[1]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', 1, 'cleared[0]', ('2\u2663',))"
+    },
+    {
+      "reach": 0.00496193000310108,
+      "player": 1,
+      "depth": 6,
+      "strategy": {
+        "2\u2660": 0.5036269564593602,
+        "A\u2660": 0.4963730435406397
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,A\u2660];seized[0]=[];seized[1]=[7\u2663];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[7\u2660]|state:fine_net={0:-5,1:5};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('7\u2660',), 'warehouse[1]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', 1, 'seized[1]', ('7\u2663',))"
+    },
+    {
+      "reach": 0.004513937806553746,
+      "player": 0,
+      "depth": 4,
+      "strategy": {
+        "2\u2663": 0.49864838928434313,
+        "A\u2663": 0.5013516107156568
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[2\u2663,A\u2663];hand[1]=#2;seized[0]=[7\u2660];seized[1]=[];shipment[0]=[];shipment[1]=#0;warehouse[0]=[7\u2663];warehouse[1]=#0|state:fine_net={0:5,1:-5};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 0, 'inspect');('reveal', 'shipment[1]', '7\u2660');('move', 'shipment[1]', 1, 'seized[0]', ('7\u2660',))"
+    },
+    {
+      "reach": 0.004069470334239967,
+      "player": 1,
+      "depth": 7,
+      "strategy": {
+        "inspect": 0.9999622876191471,
+        "wave": 3.771238085295696e-05
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#0;hand[1]=[A\u2660];seized[0]=[7\u2660];seized[1]=[];shipment[0]=#1;shipment[1]=[];warehouse[0]=#2;warehouse[1]=[2\u2660]|state:fine_net={0:5,1:-5};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', '7\u2660');('move', 'shipment[1]', ('7\u2660',), 'seized[0]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('move', 'shipment[1]', ('2\u2660',), 'warehouse[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1)"
+    },
+    {
+      "reach": 0.004069470334239967,
+      "player": 1,
+      "depth": 7,
+      "strategy": {
+        "inspect": 0.9999622876191471,
+        "wave": 3.771238085295696e-05
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#0;hand[1]=[2\u2660];seized[0]=[7\u2660];seized[1]=[];shipment[0]=#1;shipment[1]=[];warehouse[0]=#2;warehouse[1]=[A\u2660]|state:fine_net={0:5,1:-5};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', '7\u2660');('move', 'shipment[1]', ('7\u2660',), 'seized[0]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('move', 'shipment[1]', ('A\u2660',), 'warehouse[1]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1)"
+    },
+    {
+      "reach": 0.0040677149175212726,
+      "player": 1,
+      "depth": 8,
+      "strategy": {
+        "inspect": 0.9999621178454196,
+        "wave": 3.788215458042982e-05
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#0;hand[1]=[2\u2660];seized[0]=[A\u2660];seized[1]=[];shipment[0]=#1;shipment[1]=[];warehouse[0]=#2;warehouse[1]=[7\u2660]|state:fine_net={0:5,1:-5};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('7\u2660',), 'warehouse[1]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', 'A\u2660');('move', 'shipment[1]', ('A\u2660',), 'seized[0]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1)"
+    },
+    {
+      "reach": 0.0040615868163868295,
+      "player": 1,
+      "depth": 8,
+      "strategy": {
+        "inspect": 0.9999621178454196,
+        "wave": 3.788215458042982e-05
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#0;hand[1]=[2\u2660];seized[0]=[];seized[1]=[];shipment[0]=#1;shipment[1]=[];warehouse[0]=#2;warehouse[1]=[7\u2660,A\u2660]|state:fine_net={0:0,1:0};inspector=1;merchant=0;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('7\u2660',), 'warehouse[1]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', 'A\u2660');('move', 'hand[1]', ('A\u2660',), 'shipment[1]', ('A\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('A\u2660',), 'warehouse[1]', ('A\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1)"
+    },
+    {
+      "reach": 0.004009914589878788,
+      "player": 1,
+      "depth": 8,
+      "strategy": {
+        "inspect": 0.9999615717986404,
+        "wave": 3.842820135960031e-05
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[2\u2660];hand[0]=#0;hand[1]=[A\u2660];seized[0]=[];seized[1]=[];shipment[0]=#1;shipment[1]=[];warehouse[0]=#2;warehouse[1]=[7\u2660]|state:fine_net={0:-5,1:5};inspector=1;merchant=0;score={0:0,1:0};tokens={0:0,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('7\u2660',), 'warehouse[1]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', '2\u2660');('move', 'shipment[1]', ('2\u2660',), 'cleared[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1)"
+    },
+    {
+      "reach": 0.004003873566197061,
+      "player": 1,
+      "depth": 8,
+      "strategy": {
+        "inspect": 0.9997706657946742,
+        "wave": 0.00022933420532582672
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#0;hand[1]=[A\u2660];seized[0]=[];seized[1]=[];shipment[0]=#1;shipment[1]=[];warehouse[0]=#2;warehouse[1]=[2\u2660,7\u2660]|state:fine_net={0:0,1:0};inspector=1;merchant=0;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('7\u2660',), 'warehouse[1]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '2\u2660');('move', 'hand[1]', ('2\u2660',), 'shipment[1]', ('2\u2660',));('announce', 0, 'wave');('move', 'shipment[1]', ('2\u2660',), 'warehouse[1]', ('2\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1)"
+    },
+    {
+      "reach": 0.002941208705019598,
+      "player": 1,
+      "depth": 6,
+      "strategy": {
+        "2\u2660": 0.5,
+        "A\u2660": 0.5
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,A\u2660];seized[0]=[7\u2660];seized[1]=[7\u2663];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[]|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:0,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', '7\u2660');('move', 'shipment[1]', ('7\u2660',), 'seized[0]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', '7\u2663');('move', 'shipment[0]', 1, 'seized[1]', ('7\u2663',))"
+    },
+    {
+      "reach": 0.0026247444867590194,
+      "player": 1,
+      "depth": 6,
+      "strategy": {
+        "2\u2660": 0.5,
+        "A\u2660": 0.5
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[2\u2663];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,A\u2660];seized[0]=[7\u2660];seized[1]=[];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[]|state:fine_net={0:10,1:-10};inspector=0;merchant=1;score={0:0,1:0};tokens={0:0,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', '7\u2660');('move', 'shipment[1]', ('7\u2660',), 'seized[0]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', '2\u2663');('move', 'shipment[0]', 1, 'cleared[0]', ('2\u2663',))"
+    },
+    {
+      "reach": 0.0025944404229418,
+      "player": 1,
+      "depth": 6,
+      "strategy": {
+        "2\u2660": 0.5,
+        "A\u2660": 0.5
+      },
+      "infoset": "P1|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=#1;hand[1]=[2\u2660,A\u2660];seized[0]=[7\u2660];seized[1]=[A\u2663];shipment[0]=#0;shipment[1]=[];warehouse[0]=#1;warehouse[1]=[]|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:0,1:0}|obs:('move', 'deck', 3, 'hand[0]', 3);('move', 'deck', 3, 'hand[1]', ('2\u2660', '7\u2660', 'A\u2660'));('move', 'deck', 46, 'dead', None);('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'wave');('chose', 'wave');('announce', 1, 'wave');('move', 'shipment[0]', 1, 'warehouse[0]', 1);('chose', '7\u2660');('move', 'hand[1]', ('7\u2660',), 'shipment[1]', ('7\u2660',));('announce', 0, 'inspect');('reveal', 'shipment[1]', '7\u2660');('move', 'shipment[1]', ('7\u2660',), 'seized[0]', ('7\u2660',));('move', 'hand[0]', 1, 'shipment[0]', 1);('chose', 'inspect');('chose', 'inspect');('announce', 1, 'inspect');('reveal', 'shipment[0]', 'A\u2663');('move', 'shipment[0]', 1, 'seized[1]', ('A\u2663',))"
+    },
+    {
+      "reach": 1.5594144282102942e-06,
+      "player": 0,
+      "depth": 9,
+      "strategy": {
+        "inspect": 0.9999929976605972,
+        "wave": 7.002339402802196e-06
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[];hand[1]=#0;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#1;warehouse[0]=[2\u2663,7\u2663,A\u2663];warehouse[1]=#2|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 1.4670697556659212e-06,
+      "player": 0,
+      "depth": 9,
+      "strategy": {
+        "inspect": 0.9999925568985021,
+        "wave": 7.4431014979234435e-06
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[];hand[1]=#0;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#1;warehouse[0]=[2\u2663,7\u2663,A\u2663];warehouse[1]=#2|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 1.3939018904162968e-06,
+      "player": 0,
+      "depth": 9,
+      "strategy": {
+        "inspect": 0.9999921661996651,
+        "wave": 7.833800334895885e-06
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[];hand[1]=#0;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#1;warehouse[0]=[2\u2663,7\u2663,A\u2663];warehouse[1]=#2|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 1.2929362178974932e-06,
+      "player": 0,
+      "depth": 9,
+      "strategy": {
+        "inspect": 0.9999915544564807,
+        "wave": 8.445543519317599e-06
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[];hand[1]=#0;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#1;warehouse[0]=[2\u2663,7\u2663,A\u2663];warehouse[1]=#2|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', 'A\u2663');('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 1.137056603980667e-06,
+      "player": 0,
+      "depth": 9,
+      "strategy": {
+        "inspect": 0.999990396653027,
+        "wave": 9.603346972989275e-06
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[];hand[1]=#0;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#1;warehouse[0]=[2\u2663,7\u2663,A\u2663];warehouse[1]=#2|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    },
+    {
+      "reach": 1.0406403379651662e-06,
+      "player": 0,
+      "depth": 9,
+      "strategy": {
+        "inspect": 0.9999895068942674,
+        "wave": 1.0493105732675068e-05
+      },
+      "infoset": "P0|dead=?;deck=#0;cleared[0]=[];cleared[1]=[];hand[0]=[];hand[1]=#0;seized[0]=[];seized[1]=[];shipment[0]=[];shipment[1]=#1;warehouse[0]=[2\u2663,7\u2663,A\u2663];warehouse[1]=#2|state:fine_net={0:0,1:0};inspector=0;merchant=1;score={0:0,1:0};tokens={0:1,1:1}|obs:('move', 'deck', 3, 'hand[0]', ('2\u2663', '7\u2663', 'A\u2663'));('move', 'deck', 3, 'hand[1]', 3);('move', 'deck', 46, 'dead', None);('chose', '2\u2663');('move', 'hand[0]', ('2\u2663',), 'shipment[0]', ('2\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('2\u2663',), 'warehouse[0]', ('2\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('chose', '7\u2663');('move', 'hand[0]', ('7\u2663',), 'shipment[0]', ('7\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('7\u2663',), 'warehouse[0]', ('7\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1);('chose', 'wave');('chose', 'wave');('announce', 0, 'wave');('move', 'shipment[1]', 1, 'warehouse[1]', 1);('move', 'hand[0]', ('A\u2663',), 'shipment[0]', ('A\u2663',));('announce', 1, 'wave');('move', 'shipment[0]', ('A\u2663',), 'warehouse[0]', ('A\u2663',));('move', 'hand[1]', 1, 'shipment[1]', 1)"
+    }
+  ]
+}
