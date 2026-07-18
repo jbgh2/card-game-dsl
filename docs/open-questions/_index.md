@@ -16,11 +16,16 @@ folder, and remove the entry from this index. See
 
 ## Tier 1 — High impact, enough data to commit now
 
-(Empty — both questions that sat here are settled in
-[decisions.md](../decisions.md): single-actor-binding → "Single-actor decisions:
-the `as` block"; the integer `choose` domain (half of move-parameter-domains) →
-"Declared parameter domains". The latter's residual, the signed bounded-`Integer`
-*parameter* domain, waits on a corpus game and sits in Tier 2.)
+- [family-libraries](family-libraries.md) — an import tier between
+  game-local and stdlib (`uses <library>`), so game families share
+  move_types, rules, procedures, and primitives without pasting them per
+  game or promoting them to the stdlib. The definition forms it
+  presupposes all exist, the front end holds a working single instance of
+  each mechanism imports generalize (fragment parsing, library-fallback
+  resolution with a shadowing wall, by-value expansion), and two families
+  supply the data: the poker anchors OpenSpiel guarantees, and the
+  smuggling family whose five sibling rulesets measured the copy-drift and
+  parameterization cost end to end.
 
 ## Tier 2 — High impact, blocked on a data point
 
@@ -68,12 +73,6 @@ design. The data point is named in each file.
 - [meld-groups](meld-groups.md) — a card-group construct with joint
   validity predicates; Pinochle + Gin + Canasta are the three data points;
   blocked on a rummy-family game entering the corpus properly.
-- [family-libraries](family-libraries.md) — an import tier between
-  game-local and stdlib, so game families (poker first: Kuhn, Leduc, and
-  Hold'em are all OpenSpiel targets) share betting machinery, rules, and
-  primitives without pasting them per game or promoting them to the
-  stdlib; blocked on the second poker-family game, and sequenced behind
-  shared rule definitions and named procedures, which it presupposes.
 
 ## Tier 3 — Medium impact, narrow scope
 

@@ -499,7 +499,18 @@ questions by impact × actionability and is the authority on question
 priority. This section adds what that list doesn't carry: the cross-cutting
 work that isn't an open question, and which next game unblocks what.
 
-1. **Pick the next game for its unblocks.** The full pipeline is
+1. **Design and build the family-library import tier**
+   ([open-questions/family-libraries.md](open-questions/family-libraries.md),
+   Tier 1). The `uses <library>` mechanism between game-local and stdlib:
+   the definition forms it needs all exist, the front end holds a working
+   single instance of each mechanism it generalizes, and two families pin
+   the surface — the poker anchors (Kuhn/Leduc, small enough to test the
+   sharing mechanism rather than the games) and the smuggling family, whose
+   five sibling rulesets measured the copy-drift and parameterization cost
+   the tier removes. Landing Kuhn or Leduc alongside the mechanism gives it
+   a corpus anchor in the same change.
+
+2. **Pick the next game for its unblocks.** The full pipeline is
    [games/_candidates.md](games/_candidates.md); several candidates each
    unblock more than one open question:
 
@@ -518,16 +529,16 @@ work that isn't an open question, and which next game unblocks what.
    - **Klondike or FreeCell** — first solitaire; forces the deferred
      positional-zone design rather than an open question.
 
-2. **Address Tier 3 questions when their corner gets exercised.**
+3. **Address Tier 3 questions when their corner gets exercised.**
    [move-level-visibility](open-questions/move-level-visibility.md) awaits
    the first game needing a move-level projection override. When these
    land, the partition checks are their acceptance bar: new visibility
    surface arrives with derived partition coverage, not bespoke tests.
 
-3. **Pin down [memory-event-syntax](open-questions/memory-event-syntax.md)**
+4. **Pin down [memory-event-syntax](open-questions/memory-event-syntax.md)**
    when three or four examples exist beyond stdlib operations (Stud and
    Coup are the two so far; both composed the closed vocabulary without
    needing a declaration).
 
-4. **Defer Tier 5 cosmetic questions** until a real preference emerges
+5. **Defer Tier 5 cosmetic questions** until a real preference emerges
    from corpus pressure.
