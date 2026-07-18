@@ -25,9 +25,11 @@ the same medicine as decks) generates a finite `Cell` value domain,
 named **relations** (edge sets), named **regions** (cell subsets), and
 named **lines** (pattern triples/tuples); a game's `zones {}` block then
 declares a zone family indexed by `cell` exactly as it declares one
-indexed by `player`. Pieces are ordinary zone **contents** — a piece set
-is a registry entry in the deck family (side as suit, kind as rank,
-with multiplicities). Placement and movement are the **existing kernel
+indexed by `player`. Pieces are ordinary zone **contents** — the
+individuated content kind, of which cards are the deck-flavored
+specialization (**`Card ⊂ Piece`**, §2.3); a piece set is a
+component-set registry entry with declared axes and multiplicities.
+Placement and movement are the **existing kernel
 movement** between cell zones and ordinary off-board zones (reserves,
 captured piles, the bar), so observation events emit through the
 declared projections at the sites that already exist, and information
@@ -146,38 +148,78 @@ The double-indexed family (`ocean[player][cell]`) is one genuinely new
 index shape — Battleship needs a board *per player*. It composes the
 two existing index roles rather than inventing a third.
 
-### 2.3 Pieces are contents
+### 2.3 One individuated content kind: `Piece`, with `Card` as its deck specialization
 
-A piece set is a registry entry in the deck family — the `pieces:`
-clause names it, mutually exclusive with `cards:` until a game
-witnesses needing both:
+Zone contents keep their two-kind ontology — individuated and fungible
+(`Resource`, untouched) — but the individuated kind's base is the
+**`Piece`**: identity = two enumerable axes with per-set declared
+names, times multiplicities, plus per-game attributes and optional
+facing. **`Card` is the deck specialization of `Piece`, not the other
+way around.** A deck is a component set whose axes are named
+`suit`/`rank` and which carries the card-only conventions — `ranking:`,
+the follow/trump rule family, hand-order enumeration, the `Card`
+move-parameter domain. A piece set names its axes (`side`/`kind` for
+the ladder's games) and carries none of them. Both flavors live in one
+closed component-set registry — the `DECKS` registry generalized, decks
+becoming its card-flavored entries — and a game selects one with the
+matching head word, `cards:` or `pieces:`, mutually exclusive until a
+game witnesses needing both:
 
 ```text
-pieces: xo_marks           // { sides: { [x, o]: [mark] }, copies: 5/4 }
-pieces: draughts_men       // { sides: { [white, black]: [man, king] }, 12 men + 12 kings per side }
-pieces: stratego_barrage   // { sides: { [red, blue]: [flag, spy, scout, miner, general, marshal, bomb] }, scout ×2 }
+pieces: xo_marks           // axes: side = [x, o], kind = [mark]; copies 5/4
+pieces: draughts_men       // axes: side = [white, black], kind = [man, king]; 12 men + 12 kings per side
+pieces: stratego_barrage   // axes: side = [red, blue], kind = [flag, spy, scout, miner, general, marshal, bomb]; scout ×2
 ```
 
-Side plays the structural role suit plays for cards; kind plays rank;
-multiplicities are the Pinochle mechanism. This is why the content axis
-needs **no new machinery at all**: indistinguishable tokens are
-duplicate "cards" (identity projection of two copies is the same
-multiset — the fungibility Pinochle already models), and Stratego's
-individuated hidden ranks are exactly what card identity under a hiding
-projection already is. `pieces:` is a distinct head word rather than a
-reuse of `cards:` because the two name different physical kits a cold
-reader must distinguish — one concept per word, not a paraphrase pair —
-but this is a surface call to ratify, flagged in §5. `ranking:` stays a
-card-deck clause: piece interactions that look rank-like but are not a
-linear order (spy beats marshal) are per-game pure functions, which is
-the "meaning is interpretation" principle doing its job.
+The machinery argument is unchanged by the direction of the subset:
+zones, projections, movement, and multiplicity attach to the **base**,
+so pieces need no new observation machinery (two identical men are
+duplicate entries exactly as Pinochle's doubled deck already is, and
+Stratego's hidden ranks are piece identity under a hiding projection).
+What the direction changes is **where the walls sit**. Modelling
+pieces as cards would give every card convention a per-construct
+backstop excluding piece games — `ranking:` over sides, follow-suit
+over pieces, a hand-order `Card` parameter in a game with no hands —
+the backstop-proliferation tell of
+[decisions.md](../decisions.md)'s write-time triage. With
+`Card ⊂ Piece`, each of those is one wall at the content-kind level:
+the construct demands deck content, and the checker rejects it in a
+piece game by type, naming the kind. (Piece interactions that look
+rank-like but are not a linear order — spy beats marshal — stay
+per-game pure functions: meaning is interpretation, never a smuggled
+ranking.)
 
-The movement construct reaches pieces through its **item-noun slot**,
-which [decisions.md](../decisions.md) "The operation vocabulary"
-deliberately holds open (`cards` today, "so a resource transfer can one
-day be the same construct"): `move one piece from reserve[actor] to
-square[at]` is the same movement production with a second noun, not a
-second construct.
+Doctrine already points in this direction: [model.md](../model.md)
+calls Card "the **canonical** individuated content of zones" — the
+canonical instance, not the base;
+[generalization-path.md](generalization-path.md) §0 frames cards as
+the high-affordance entry *token*, and its §2 files content-type
+declarability as "the same closed-registry medicine already filed for
+decks". Tichu's specials — cards that already strain the suit × rank
+tuple
+([open-questions/special-cards-declaration.md](../open-questions/special-cards-declaration.md))
+— are independent evidence that the base wants declared axes even
+within cards. The base still carries exactly what the ladder's
+witnesses force — two named axes, multiplicities, optional facing —
+and no more; specials and richer attributes remain their own
+question.
+
+Two consequences fix the surface coherently. The query register
+follows the declared content — `pieces in square[c] where …` in a
+piece game, `cards in hand where …` in a deck game — one noun per
+game, with noun/content agreement checked, so neither noun is a
+second spelling of the other. And the movement construct reaches
+pieces through its **item-noun slot**, which
+[decisions.md](../decisions.md) "The operation vocabulary"
+deliberately holds open (`cards` today, "so a resource transfer can
+one day be the same construct"): `move one piece from reserve[actor]
+to square[at]` is the same movement production with the noun bound to
+the game's content kind, not a second construct.
+
+The flip's acceptance criterion is that **the card corpus cannot
+tell**: all 18 card games keep `cards:`, card queries, and
+byte-identical behavior. `Card` becoming a specialization must be
+surface-invisible to them, or the refactor is wrong.
 
 Promotion (draughts man → king) is a supply swap — move the man to the
 supply, move a king from the supply to the cell — two public kernel
@@ -187,8 +229,9 @@ whose identity must persist through the change.)
 
 Off-board structure is ordinary zones throughout: reserves for
 unplaced pieces, captured piles, the backgammon bar and bear-off tray,
-the battleship fleet-before-placement. This is where the card
-machinery is reused verbatim, and it is most of every game's zone list.
+the battleship fleet-before-placement. This is where the existing
+zone machinery is reused verbatim, and it is most of every game's
+zone list.
 
 ### 2.4 Decisions: `Cell` joins the closed parameter domains
 
@@ -499,8 +542,10 @@ from the first stage that could parse them.
   `game_item` alternatives (docking at the existing skeleton-clause
   walls, which grow their combination matrix: `board:` requires
   `pieces:`, `cards:`+`board:` together rejected-until-witnessed,
-  piece games skip `ranking:`). The `BOARDS` registry with the wave-A
-  entries + integrity pins; piece sets in the deck registry family;
+  `ranking:` demands deck content). The `BOARDS` registry with the
+  wave-A entries + integrity pins; the component-set registry
+  generalizing `DECKS` — **`Card ⊂ Piece` lands here**, with
+  byte-identical card-corpus behavior as its acceptance wall;
   `Cell` value type + constants in resolve/typecheck; the `cell`
   index role in the domains table; `BoardCell`/`Point`/`HiddenCell`
   rows in the zone registries with probe rows; capacity walls.
@@ -545,10 +590,13 @@ the corpus one.
 Ratifying this note means opening (or updating) exactly these
 questions, not silently deciding them:
 
-- **The board/piece surface**: `pieces:` vs overloading `cards:`; the
-  board-declaration argument forms; cell-constant lexing (`a1` as a
-  minted constant vs a name). One-spelling-per-concept is the
-  criterion; §2.3 states the current lean.
+- **The board/piece surface details**: the content-kind direction is
+  §2.3's commitment (`Card ⊂ Piece`), but its surface residue is open —
+  how a component-set entry declares its axis names, how
+  noun/content agreement is enforced (resolver vs typechecker), the
+  board-declaration argument forms, and cell-constant lexing (`a1` as
+  a minted constant vs a name). One-spelling-per-concept is the
+  criterion throughout.
 - **Cell-typed state** (`chain_from : Cell?`): a new state-variable
   value type — public like all state, but the type set is a closed
   domain that grows.
