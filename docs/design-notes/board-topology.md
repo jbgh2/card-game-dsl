@@ -108,25 +108,32 @@ A registry entry — generated (grids, hex tilings, tracks) or enumerated
 
 Concretely — "registry entry" must not hide the content — an entry is
 data in the `DECKS` style ([library.md](../library.md) shows each
-deck's composition; boards get the same treatment). The two non-grid
+deck's composition; boards get the same treatment). Payload sketches
+are **literal data** — lists, `..` ranges (the tarot78/`choose`
+precedent), visible elisions — with derivations in prose; they use no
+indexed meta-variables, because `_` is an ordinary identifier
+character in the language (`went_again`, `entry_cell`) and a
+pseudo-subscript would collide with real names. The two non-grid
 ladder entries in full:
 
 ```text
 backgammon_track = track(24):
-  cells:   p1 … p24                    // one shared track; absolute names use
-                                       // White's numbering (the published convention)
-  frames:  pip(white, p_i) = i         // each player's pip index over the SAME cells;
-           pip(black, p_i) = 25 - i    // "forward" is decreasing pip in your own frame
-  regions: home(player) = cells with pip(player, cell) <= 6
-  derived: next(player); advance(cell, player, d, policy);
-           entry_cell(player, d) = the cell with pip(player, .) = 25 - d
+  cells:   [p1 .. p24]                      // one shared track, named in
+                                            // White's numbering (the published convention)
+  frames:  pip_order(white) = [p1 .. p24]   // p1 is White's 1-point (bear-off end)
+           pip_order(black) = [p24 .. p1]   // the same cells, traversed oppositely
+  regions: home(player) = the first 6 cells of the player's frame
+  derived: pip(player, cell) = the cell's 1-based position in the player's frame;
+           next(player); advance(cell, player, d, policy);
+           entry_cell(player, d) = the cell at position 25 - d in the player's frame
 ```
 
 A die move is **class-4 track arithmetic over the frame, not
-edge-walking**: from `c` to the cell at `pip(actor, c) - d`; entry
-from the bar targets `entry_cell(actor, d)`; bear-off legality reads
-`home(actor)` and the exact-or-highest overshoot policy; the pip
-count is a sum of `pip(actor, .)` over occupied cells. The bar and
+edge-walking**: a die `d` advances a checker `d` positions along its
+owner's frame (`advance`); entry from the bar targets
+`entry_cell(actor, d)`; bear-off legality reads `home(actor)` and the
+exact-or-highest overshoot policy; the pip count sums
+`pip(actor, cell)` over the actor's occupied cells. The bar and
 the borne-off tray are **not cells** — they are ordinary per-player
 zones (§2.3's off-board rule), sources and destinations of moves
 whose cell end is computed from the frame. `track(n)` is the family;
