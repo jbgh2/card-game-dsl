@@ -91,6 +91,27 @@ The pipeline plan's response to §4, built and measured (`fast_sim.py`,
   16.9% to **26.2%**: skilled players fight over the rudder half again as
   often. The twist is not chrome; it is where the skill goes.
 
+## 5b. The difficulty ladder (each rung measured)
+
+The artifact's crew comes in four ranks, tuned on the PIMC knobs — worlds
+sampled, rollouts per candidate, and whether rollouts model opponents as
+random or *purposeful* (win cheaply / duck low / cash long suits, 25%
+noise). Python-twin benchmarks (`pimc.py levels`, `results_pimc.json`):
+
+| rank | config | mean tricks vs 3 random | ms/decision |
+|---|---|---|---|
+| 🍺 Drunken Deckhand | uniform random | 3.25 (by definition) | ~0 |
+| ⚓ Steady Bosun | 2 worlds × 1 rollout | 4.40 | 0.3 |
+| ⛵ First Mate | 16 × 3, random rollouts | 5.40 | 7.4 |
+| 🧭 Grizzled Captain | 32 × 3, **purposeful-opponent rollouts** | 5.59 | 18.3 |
+
+The vs-random metric compresses at the top (everything competent farms a
+random table), so the top rung is also measured head-to-head: **one
+Captain at a table of three First Mates takes 3.81 tricks against the
+3.25 equal-play share** (120 games) — the purposeful-opponent model is a
+real step, exactly the "assume they have a plan" upgrade. The JS port's
+in-page think time: 7 ms mean / 29 ms max at Captain.
+
 ## 6. The playable artifact
 
 `play/undertow.template.html` — a bright-nautical table (regatta cream,

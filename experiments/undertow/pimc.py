@@ -83,6 +83,57 @@ def sample_world(
     return None
 
 
+# --- rollout policies ------------------------------------------------------
+# 'random': uniform legal (the measured First Mate). 'heuristic': the Grizzled
+# Captain's opponent model — simulated players play PURPOSEFULLY: win the
+# trick as cheaply as possible, otherwise duck low; leads half-cash a long
+# suit's top card; 25% noise keeps the estimate honest. Mirrored line-for-line
+# in the artifact's JS (parity by construction: same constants, same order).
+
+
+def _beats(c: int, best: int, led: int, trump: int | None) -> bool:
+    cs, bs = c // 13, best // 13
+    if trump is not None:
+        if cs == trump:
+            return bs != trump or (c % 13) > (best % 13)
+        if bs == trump:
+            return False
+    if cs == led:
+        return bs != led or (c % 13) > (best % 13)
+    return False
+
+
+def heuristic_move(sim: Sim, rng: random.Random) -> int:
+    lg = sim.legal()
+    if len(lg) == 1 or rng.random() < 0.25:
+        return rng.choice(lg)
+    if sim.trick:
+        led = sim.trick[0][1] // 13
+        best = sim.trick[0][1]
+        for _, c in sim.trick[1:]:
+            if _beats(c, best, led, sim.trump):
+                best = c
+        winning = [c for c in lg if _beats(c, best, led, sim.trump)]
+        if winning:
+            return min(winning, key=lambda c: c % 13)
+        return min(lg, key=lambda c: c % 13)
+    if rng.random() < 0.5:
+        by_suit: dict[int, list[int]] = {}
+        for c in lg:
+            by_suit.setdefault(c // 13, []).append(c)
+        suit = max(by_suit, key=lambda s: max(cc % 13 for cc in by_suit[s]))
+        return max(by_suit[suit], key=lambda c: c % 13)
+    return rng.choice(lg)
+
+
+def rollout(sim: Sim, rng: random.Random, policy: str) -> list[int]:
+    if policy == "random":
+        return sim.rollout_random(rng)
+    while not sim.terminal():
+        sim.apply(heuristic_move(sim, rng))
+    return sim.tricks_won
+
+
 # --- the bot ---------------------------------------------------------------
 
 
@@ -98,9 +149,10 @@ def decide(
     rng: random.Random,
     worlds: int = 16,
     rollouts: int = 3,
+    policy: str = "random",
 ) -> int:
-    """Pick a card: average final own-tricks over sampled worlds x random
-    rollouts, per candidate action; argmax with random tie-break."""
+    """Pick a card: average final own-tricks over sampled worlds x rollouts
+    (uniform-random or heuristic opponents), per candidate; argmax."""
     # legality mirrors the engine
     if trick:
         led = trick[0][1] // 13
@@ -128,7 +180,7 @@ def decide(
             for _ in range(rollouts):
                 s = base.copy()
                 s.apply(c)
-                won = s.rollout_random(rng)
+                won = rollout(s, rng, policy)
                 totals[c] += won[me]
     if n == 0:  # sampler starved (shouldn't happen); play safe
         return rng.choice(cands)
@@ -136,7 +188,10 @@ def decide(
     return rng.choice([c for c, v in totals.items() if v >= best - 1e-9])
 
 
-def decide_from_sim(sim: Sim, me: int, rng: random.Random, worlds: int, rollouts: int) -> int:
+def decide_from_sim(
+    sim: Sim, me: int, rng: random.Random, worlds: int, rollouts: int,
+    policy: str = "random",
+) -> int:
     """Adapter for self-play: extracts EXACTLY the deciding player's view."""
     return decide(
         me,
@@ -150,6 +205,7 @@ def decide_from_sim(sim: Sim, me: int, rng: random.Random, worlds: int, rollouts
         rng,
         worlds,
         rollouts,
+        policy,
     )
 
 
@@ -323,6 +379,64 @@ def adapter_crosscheck(n_games: int) -> None:
     save("adapter_crosscheck", out)
 
 
+def levels_bench() -> None:
+    """Measured claims for the artifact's difficulty ladder. Drunken Deckhand
+    is uniform random (3.25 by definition); First Mate is the already-measured
+    16/3 random-rollout player (5.40); this benches the other two rungs plus
+    the ladder's top step head-to-head."""
+    rng = random.Random(41)
+    out: dict[str, object] = {}
+
+    def vs_random(tag: str, worlds: int, rollouts: int, policy: str, n_games: int) -> None:
+        tot = 0.0
+        t0 = time.perf_counter()
+        lat: list[float] = []
+        for g in range(n_games):
+            seat = g % 4
+            sim = Sim(random_deal(rng))
+            while not sim.terminal():
+                if sim.to_play == seat:
+                    t1 = time.perf_counter()
+                    c = decide_from_sim(sim, seat, rng, worlds, rollouts, policy)
+                    lat.append(time.perf_counter() - t1)
+                    sim.apply(c)
+                else:
+                    sim.apply(rng.choice(sim.legal()))
+            tot += sim.tricks_won[seat]
+        out[tag] = {
+            "mean_tricks_vs_3_random": round(tot / n_games, 3),
+            "worlds": worlds, "rollouts": rollouts, "policy": policy,
+            "n_games": n_games, "ms_per_decision": round(1000 * statistics.mean(lat), 1),
+        }
+        print(tag, json.dumps(out[tag]), f"({time.perf_counter() - t0:.0f}s)")
+
+    vs_random("bosun", 2, 1, "random", 200)
+    vs_random("captain", 32, 3, "heuristic", 160)
+
+    # the top step of the ladder, head-to-head: one captain vs three mates
+    tot = 0.0
+    n_h2h = 120
+    t0 = time.perf_counter()
+    for g in range(n_h2h):
+        seat = g % 4
+        sim = Sim(random_deal(rng))
+        while not sim.terminal():
+            p = sim.to_play
+            if p == seat:
+                c = decide_from_sim(sim, p, rng, 32, 3, "heuristic")
+            else:
+                c = decide_from_sim(sim, p, rng, 16, 3, "random")
+            sim.apply(c)
+        tot += sim.tricks_won[seat]
+    out["captain_vs_3_mates"] = {
+        "captain_mean_tricks": round(tot / n_h2h, 3),
+        "baseline_equal_play": 3.25, "n_games": n_h2h,
+    }
+    print("captain_vs_3_mates", json.dumps(out["captain_vs_3_mates"]),
+          f"({time.perf_counter() - t0:.0f}s)")
+    save("levels", out)
+
+
 def main() -> None:
     mode = sys.argv[1] if len(sys.argv) > 1 else "bench"
     n = int(sys.argv[2]) if len(sys.argv) > 2 else (240 if mode == "bench" else 100)
@@ -332,6 +446,8 @@ def main() -> None:
         tide(n)
     elif mode == "adapter":
         adapter_crosscheck(n)
+    elif mode == "levels":
+        levels_bench()
     else:
         raise SystemExit(f"unknown mode {mode}")
 

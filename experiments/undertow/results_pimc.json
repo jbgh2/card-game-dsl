@@ -26,5 +26,28 @@
     "adapter_pimc_vs_random_mean_tricks": 5.55,
     "n_games": 40,
     "baseline": 3.25
+  },
+  "levels": {
+    "bosun": {
+      "mean_tricks_vs_3_random": 4.4,
+      "worlds": 2,
+      "rollouts": 1,
+      "policy": "random",
+      "n_games": 200,
+      "ms_per_decision": 0.3
+    },
+    "captain": {
+      "mean_tricks_vs_3_random": 5.588,
+      "worlds": 32,
+      "rollouts": 3,
+      "policy": "heuristic",
+      "n_games": 160,
+      "ms_per_decision": 18.3
+    },
+    "captain_vs_3_mates": {
+      "captain_mean_tricks": 3.808,
+      "baseline_equal_play": 3.25,
+      "n_games": 120
+    }
   }
 }

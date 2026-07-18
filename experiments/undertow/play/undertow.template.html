@@ -171,6 +171,13 @@ details.rules summary:focus-visible { outline: 3px solid var(--foam); outline-of
         <option value="ai">AI — three PIMC deckhands</option>
         <option value="llm">LLM at East — by relay</option>
       </select>
+      <label class="label" for="level">rank</label>
+      <select id="level" aria-label="AI difficulty">
+        <option value="deckhand">🍺 Drunken Deckhand</option>
+        <option value="bosun">⚓ Steady Bosun</option>
+        <option value="mate" selected>⛵ First Mate</option>
+        <option value="captain">🧭 Grizzled Captain</option>
+      </select>
       <button id="newGame" class="small">NEW VOYAGE</button>
     </div>
   </header>
@@ -256,12 +263,15 @@ details.rules summary:focus-visible { outline: 3px solid var(--foam); outline-of
   </div>
 
   <div class="foot">UNDERTOW · an original 3½-rule design probed through the cardlang →
-  OpenSpiel pipeline · the deckhands are determinized-Monte-Carlo (PIMC) players whose
-  Python twin was benchmarked against the real runtime (see the repo's
-  experiments/undertow/REPORT.md for the numbers) · this page's rules engine is a port of
-  a simulator differentially verified against the DSL runtime on 120 full games / 6,240
-  steps — re-run in this page's console: <code>runFixtures(fixturesJson)</code> · the LLM
-  relay hands the model exactly East's information: own hand + the public table.</div>
+  OpenSpiel pipeline · the crew are determinized-Monte-Carlo (PIMC) players; the rank
+  select tunes how many hidden-hand worlds they imagine, how many futures they roll out,
+  and whether those futures assume random or purposeful opponents (Grizzled Captain
+  models everyone as playing to win) — each rank's strength is benchmarked by a Python
+  twin against the real runtime (numbers in the repo's experiments/undertow/REPORT.md) ·
+  this page's rules engine is a port of a simulator differentially verified against the
+  DSL runtime on 120 full games / 6,240 steps — re-run in this page's console:
+  <code>runFixtures(fixturesJson)</code> · the LLM relay hands the model exactly East's
+  information: own hand + the public table.</div>
 </div>
 
 <script>
@@ -394,7 +404,50 @@ function sampleWorld(me, myHand, history, trick, handSizes) {
   }
   return null;
 }
-function pimcDecide(me, myHand, history, trick, trump, tricksWon, handSizes, worlds, rollouts) {
+/* Rollout policies. 'random': uniform legal (the measured First Mate).
+   'heuristic': the Grizzled Captain's opponent model — simulated players play
+   PURPOSEFULLY: win the trick as cheaply as possible, otherwise duck low;
+   leads half-cash a long suit's top card; 25% noise keeps estimates honest.
+   Mirrored line-for-line from pimc.py (same constants, same order). */
+function beatsCard(c, best, led, trump) {
+  const cs = suitOf(c), bs = suitOf(best);
+  if (trump !== null) {
+    if (cs === trump) return bs !== trump || rankOf(c) > rankOf(best);
+    if (bs === trump) return false;
+  }
+  if (cs === led) return bs !== led || rankOf(c) > rankOf(best);
+  return false;
+}
+function heuristicMove(sim) {
+  const lg = sim.legal();
+  if (lg.length === 1 || Math.random() < 0.25) return lg[(Math.random() * lg.length) | 0];
+  if (sim.trick.length) {
+    const led = suitOf(sim.trick[0][1]);
+    let best = sim.trick[0][1];
+    for (let i = 1; i < sim.trick.length; i++)
+      if (beatsCard(sim.trick[i][1], best, led, sim.trump)) best = sim.trick[i][1];
+    const winning = lg.filter(c => beatsCard(c, best, led, sim.trump));
+    if (winning.length) return winning.reduce((a, b) => (rankOf(a) <= rankOf(b) ? a : b));
+    return lg.reduce((a, b) => (rankOf(a) <= rankOf(b) ? a : b));
+  }
+  if (Math.random() < 0.5) {
+    const bySuit = new Map();
+    for (const c of lg) { if (!bySuit.has(suitOf(c))) bySuit.set(suitOf(c), []); bySuit.get(suitOf(c)).push(c); }
+    let suit = null, top = -1;
+    for (const [s, cs] of bySuit) { const m = Math.max(...cs.map(rankOf)); if (m > top) { top = m; suit = s; } }
+    return bySuit.get(suit).reduce((a, b) => (rankOf(a) >= rankOf(b) ? a : b));
+  }
+  return lg[(Math.random() * lg.length) | 0];
+}
+function runRollout(s, policy) {
+  while (!s.terminal()) {
+    if (policy === 'random') { const lg = s.legal(); s.apply(lg[(Math.random() * lg.length) | 0]); }
+    else s.apply(heuristicMove(s));
+  }
+  return s.tricksWon;
+}
+
+function pimcDecide(me, myHand, history, trick, trump, tricksWon, handSizes, worlds, rollouts, policy) {
   let cands;
   if (trick.length) {
     const led = suitOf(trick[0][1]);
@@ -417,11 +470,7 @@ function pimcDecide(me, myHand, history, trick, trump, tricksWon, handSizes, wor
       for (let r = 0; r < rollouts; r++) {
         const s = base.copy();
         s.apply(c);
-        while (!s.terminal()) {
-          const lg = s.legal();
-          s.apply(lg[(Math.random() * lg.length) | 0]);
-        }
-        totals.set(c, totals.get(c) + s.tricksWon[me]);
+        totals.set(c, totals.get(c) + runRollout(s, policy)[me]);
       }
     }
   }
@@ -435,7 +484,16 @@ function pimcDecide(me, myHand, history, trick, trump, tricksWon, handSizes, wor
 const $ = id => document.getElementById(id);
 const HUMAN = 0, RELAY_SEAT = 3;
 let E = null, mode = 'ai', waitingHuman = false, waitingRelay = false, gameOver = false;
-const WORLDS = 24, ROLLOUTS = 4;
+/* The crew's rank — worlds sampled and rollouts per candidate, and whether the
+   rollouts model opponents as random or purposeful. Numbers in the repo's
+   REPORT.md; Drunken Deckhand plays uniform random (fair share 3.25 tricks). */
+const LEVELS = {
+  deckhand: { random: true },                                  /* 3.25 by definition */
+  bosun:    { worlds: 2,  rollouts: 1, policy: 'random' },     /* 4.54 vs 3 random  */
+  mate:     { worlds: 16, rollouts: 3, policy: 'random' },     /* 5.40 vs 3 random  */
+  captain:  { worlds: 32, rollouts: 3, policy: 'heuristic' },  /* 5.54 vs random; +0.58/game over Mates head-to-head */
+};
+let level = 'mate';
 /* Generation guard: every async chain carries the voyage it was born in and
    dies at its next checkpoint if NEW VOYAGE (or a mode switch) superseded it —
    without this, a chain sleeping through newGame() wakes up and drives the
@@ -623,9 +681,11 @@ async function step(gen) {
   await sleep(420 + Math.random() * 500);
   if (gen !== GEN) return;
   const legal = E.legal();  // recomputed after the sleep, same generation
+  const L = LEVELS[level];
   const c = legal.length === 1 ? legal[0]
+    : L.random ? legal[(Math.random() * legal.length) | 0]
     : pimcDecide(p, E.hands[p], E.history, E.trick, E.trump, E.tricksWon,
-        E.hands.map(h => h.length), WORLDS, ROLLOUTS);
+        E.hands.map(h => h.length), L.worlds, L.rollouts, L.policy);
   playCard(c, legal.length === 1 ? ' (forced)' : '', gen);
 }
 
@@ -710,17 +770,26 @@ $('applyLlm').addEventListener('click', applyRelay);
 $('llmMove').addEventListener('keydown', e => { if (e.key === 'Enter') applyRelay(); });
 
 /* ============================== boot ==================================== */
+const LEVEL_NAMES = {
+  deckhand: 'Drunken Deckhand', bosun: 'Steady Bosun',
+  mate: 'First Mate', captain: 'Grizzled Captain',
+};
 $('newGame').addEventListener('click', newGame);
-$('mode').addEventListener('change', () => { mode = $('mode').value; newGame(); });
+$('mode').addEventListener('change', () => { newGame(); });
+$('level').addEventListener('change', () => { newGame(); });
 function newGame() {
   GEN += 1;  // orphan every chain from the previous voyage
   mode = $('mode').value;
+  level = $('level').value;
   E = new Engine(deal());
   gameOver = false; waitingHuman = false; waitingRelay = false; shownTrick = null;
   $('endPanel').hidden = true; $('relayPanel').hidden = true;
   $('logbook').replaceChildren();
   $('callout').innerHTML = '';
-  log(`— new voyage · ${mode === 'ai' ? 'three PIMC deckhands' : 'LLM at East by relay'} · ${SEATS[E.leader]} holds the 2♣ and leads —`, 'sys');
+  const crewDesc = mode === 'ai'
+    ? `three ${LEVEL_NAMES[level]}s`
+    : `LLM at East by relay, ${LEVEL_NAMES[level]}s at West & North`;
+  log(`— new voyage · ${crewDesc} · ${SEATS[E.leader]} holds the 2♣ and leads —`, 'sys');
   render();
   step(GEN);
 }
