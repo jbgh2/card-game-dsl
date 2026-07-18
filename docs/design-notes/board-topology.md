@@ -76,10 +76,11 @@ nullary-explosion wall returning):
 
 ```text
 board: grid(3, 3)          // tic-tac-toe
-board: grid(8, 8)          // breakthrough, draughts (with dark-squares region)
+board: grid(8, 8)          // breakthrough
+board: draughts8           // grid(8, 8) restricted to the 32 dark squares
 board: hex_rhombus(11)     // hex
 board: morris9             // nine men's morris (enumerated graph)
-board: backgammon_track    // 24 typed points + bar + off, per-player direction
+board: backgammon_track    // one shared 24-cell track, opposed per-player pip frames
 ```
 
 A registry entry — generated (grids, hex tilings, tracks) or enumerated
@@ -104,6 +105,52 @@ A registry entry — generated (grids, hex tilings, tracks) or enumerated
 - **Jump triples**, where the family has them: `(from, over, to)`
   triples for the draughts jump — declared data, so guards and effects
   look up the captured square instead of computing geometry.
+
+Concretely — "registry entry" must not hide the content — an entry is
+data in the `DECKS` style ([library.md](../library.md) shows each
+deck's composition; boards get the same treatment). The two non-grid
+ladder entries in full:
+
+```text
+backgammon_track = track(24):
+  cells:   p1 … p24                    // one shared track; absolute names use
+                                       // White's numbering (the published convention)
+  frames:  pip(white, p_i) = i         // each player's pip index over the SAME cells;
+           pip(black, p_i) = 25 - i    // "forward" is decreasing pip in your own frame
+  regions: home(player) = cells with pip(player, cell) <= 6
+  derived: next(player); advance(cell, player, d, policy);
+           entry_cell(player, d) = the cell with pip(player, .) = 25 - d
+```
+
+A die move is **class-4 track arithmetic over the frame, not
+edge-walking**: from `c` to the cell at `pip(actor, c) - d`; entry
+from the bar targets `entry_cell(actor, d)`; bear-off legality reads
+`home(actor)` and the exact-or-highest overshoot policy; the pip
+count is a sum of `pip(actor, .)` over occupied cells. The bar and
+the borne-off tray are **not cells** — they are ordinary per-player
+zones (§2.3's off-board rule), sources and destinations of moves
+whose cell end is computed from the frame. `track(n)` is the family;
+Parcheesi-style rings with per-player tails would add branch
+remapping to it later, not a new shape.
+
+```text
+morris9 = enumerated graph:
+  cells:  a1 d1 g1  b2 d2 f2  c3 d3 e3  a4 b4 c4  e4 f4 g4
+          c5 d5 e5  b6 d6 f6  a7 d7 g7                       // the 24 points
+  edges:  adjacent = { a1-d1, d1-g1, a1-a4, b2-d2, ... }     // the 32 board segments
+  lines:  mills = { (a1,d1,g1), (b2,d2,f2), ..., (g1,g4,g7) } // all 16
+```
+
+Generated families take **cell-set modifiers** where the physical
+board has unused or missing squares, because a cell no rule can ever
+touch must not exist: `draughts8` is grid(8, 8) restricted to the 32
+dark squares (the diagonal relation, its derived jump triples, and
+the `crownhead(player)` regions living on the restriction), and the
+Stratego board is grid(10, 10) minus the lakes. Dead cells kept in
+the `Cell` domain would reserve action ids legal in no state — the
+defect the declared-ceiling rule already names
+([decisions.md](../decisions.md) "Declared parameter domains") — so
+restriction happens in the entry, never by permanent guard-mask.
 
 Everything in the entry is **closed data with integrity pins from
 birth** ([decisions.md](../decisions.md) "Closed-domain completeness"):
@@ -294,7 +341,8 @@ only declared topology data and zone contents:
 - **Wave A** needs classes 1–4 only: `neighbors`, `is_adjacent`,
   `occupant`/`is_empty`, `between`, region membership, line
   enumeration (`any line in lines(3) where every cell held by p`),
-  track advance with landing policy (backgammon's exact bear-off). The
+  track advance with landing policy and per-player frame reads
+  (backgammon's bear-off and pip count). The
   cell-query surface mirrors the card-query register — `cells in
   <region> where <pred>`, `number of cells in …`, `any/all cell(s)
   in … where` — one spelling per concept, lifted to positions.

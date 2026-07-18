@@ -580,9 +580,10 @@ oracle's scope; a later variant delta if wanted).
 **Why interesting.** The chance rung — and only that: the first
 mid-game chance nodes (`roll`), which are a replay-model change
 ([design-notes/domain-map.md](../design-notes/domain-map.md), the
-in-play-dice tripwire), on a track entry with typed points, per-point
-stacks (blots and made points as count guards), bar re-entry, and
-exact-policy bear-off. Named the cheapest topology entry by
+in-play-dice tripwire), on the track family (one shared 24-cell track
+under opposed per-player pip frames; bar and tray are ordinary
+zones), per-point stacks (blots and made points as count guards), bar
+re-entry, and exact-policy bear-off. Named the cheapest topology entry by
 generalization-path §1; the ladder puts two deterministic rungs before
 it so the chance change lands in isolation.
 
