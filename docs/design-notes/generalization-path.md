@@ -80,10 +80,12 @@ projects hidden — containment-style hiding, exactly per
 [decisions.md](../decisions.md) "Hidden information lives only in
 zones."
 
-Witness ladder: Backgammon (track + dice + doubling, cheapest entry) →
-Stratego (attribute hiding on the existing model) → a Catan- or
-Go-shaped game (forces the fixed-point queries). Dice are mid-game
-chance nodes — a small `roll` primitive; OpenSpiel hosts them natively.
+Witness ladder, concrete model, and staging:
+[board-topology.md](board-topology.md) — eight rungs, oracle-anchored,
+one new mechanism per rung, filed in
+[games/_candidates.md](../games/_candidates.md) under "Boards: the
+topology witness ladder". Dice are mid-game chance nodes — a small
+`roll` primitive; OpenSpiel hosts them natively.
 
 Risk to hold in view: boards arriving as per-game Python mechanics
 before the topology sublanguage exists would recreate the info-set
