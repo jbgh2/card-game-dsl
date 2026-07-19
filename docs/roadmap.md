@@ -94,11 +94,37 @@ Things we have noted but consciously not designed yet:
   resolves to. (b) A derived field whose type flowed through a function return
   stayed frozen at the permissive top, so `score[p] := s.flag` accepted a
   Boolean into an Integer-declared state variable — a LOST WALL, not an
-  imprecision. Closed by the fixpoint. A third trap for anyone adding a pass:
-  intermediate rounds must report into a scratch `DiagnosticBag`, or every
-  function-body diagnostic is multiplied by the round count. No corpus game
-  declares a struct at all, which is precisely why the suite is silent here —
-  the ledger is `tests/test_permissive_top.py`.
+  imprecision. Closed by the fixpoint. (c) A struct's field map holds a
+  SNAPSHOT of each struct-typed field, and reading those snapshots made walls
+  decay with traversal depth — a recursive type has no finite unrolled form,
+  so `r.copy.copy.copy.flag` reached the permissive top. Closed by resolving
+  struct-typed reads through the REGISTRY by name, at both the receiver and
+  the result; a bounded comparison depth is NOT a fix, because the path stays
+  observable past any cutoff, and it is exponential on a declaration DAG
+  besides. (d) The same ambient-environment defect appeared twice, because
+  fixing the pipeline's path stopped the fix from exercising `env_from_game`'s
+  default branch — there is now ONE construction path, and adding a second is
+  the mistake to avoid. A further trap for anyone adding a pass: intermediate
+  rounds must report into a scratch `DiagnosticBag`, or every function-body
+  diagnostic is multiplied by the round count. The ledger is
+  `tests/test_permissive_top.py`.
+
+- **The corpus has no witness for user `type` declarations.** Not a design
+  question — a coverage hole, and the highest-value one this file records.
+  Every defect listed in the entry above was found by review or adversarial
+  probe, never by the suite, and they share one cause: no game in
+  `docs/games/` declares a `type` at all, so the entire struct/function
+  subsystem is exercised only by unit tests written by whoever last changed
+  it. A green suite is therefore not evidence about that code, which is
+  exactly the "vacuously green" class decisions.md ranks alongside
+  accepted-but-ignored. The fix is corpus-first as usual: a game whose scoring
+  or contract state genuinely wants a record type (the Bridge/Oh Hell family's
+  `{ tricks_required, tricks_actual } derived { made }` shape is the obvious
+  candidate, and already appears in the test fixtures) would put derived
+  fields, struct-typed state, and struct-typed function parameters on the
+  playout and golden paths. Until then, treat changes under
+  `struct_and_function_registries` as unverified by the suite and probe them
+  adversarially by hand.
 
 - **The deck-capacity gate does not see move-driven draws.** Its domain is the
   scripted deals in phase bodies (`cardlang/deckcheck.py`, module docstring):
