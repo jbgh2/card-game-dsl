@@ -101,7 +101,7 @@ import pytest
 
 from cardlang import domains, typecheck
 from cardlang.ast import nodes as n
-from cardlang.diagnostics import DiagnosticError
+from cardlang.diagnostics import DiagnosticBag, DiagnosticError
 from cardlang.domains import BY_ID, SIMULTANEOUS_ROLES, ZONE_INDEX_ROLES, role_type
 from cardlang.pipeline import check_dsl
 from cardlang.stdlib.functions import STDLIB_CALL_FUNCS
@@ -648,6 +648,46 @@ def test_env_from_game_keeps_the_signatures_it_solved() -> None:
     )
     assert set(env.functions) == {"dbl"}
     assert infer(n.Call("dbl", (n.IntLit(2),)), env) == TInteger()
+
+
+def test_env_from_game_fills_in_the_procedure_signatures() -> None:
+    """Swept from the same class as the two findings above, before a fourth
+    instance was reported: `env_from_game` also owed `procedures`.
+
+    This one failed SILENTLY rather than loudly, which makes it the worse
+    shape. The `run`-site check guarded with `if sig is not None`, so an env
+    without procedure signatures skipped the arity and argument-type wall
+    instead of failing — and that site is the ONLY place a procedure's
+    parameter annotations bite at all (after expansion the call site is gone).
+    The guard is now a raise, on the same reasoning as every other lookup here:
+    resolve has established the procedure exists, so a miss is a registry
+    divergence, and guarding leniently on an invariant you have just asserted
+    is how a check goes dark."""
+    from cardlang.parse import parse_text
+    from cardlang.resolve import resolve
+    from cardlang.typecheck import _check_stmt_exprs, env_from_game
+
+    src = """
+game G {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score : Integer = 0 }
+  phase play { score := 1  run bump(0) }
+  winner: highest score
+}
+procedure bump(p : Player) { score := 1 }
+"""
+    env = env_from_game(resolve(parse_text(src, "g.cardlang")))
+    assert set(env.procedures) == {"bump"}
+
+    bag = DiagnosticBag()
+    _check_stmt_exprs(
+        n.RunStmt("bump", (n.IntLit(0), n.IntLit(1), n.IntLit(2))), env, bag
+    )
+    assert any("expects 1 argument(s), got 3" in d.message for d in bag.items)
 
 
 def test_a_derived_field_reached_through_a_function_is_assignment_checked() -> None:

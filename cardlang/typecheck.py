@@ -785,16 +785,22 @@ def env_from_game(
     is a caller too. Recursion is not a risk — the builder always calls back
     with a registry in hand, taking the branch above.
 
-    That branch also keeps the SIGNATURES the builder solved on the way. They
-    are free once the registry is solved, and discarding them left
-    `TypeEnv.functions` empty, so `infer` on any call to a user function
-    raised the no-signature `AssertionError` against an environment that had
-    just computed it. The supplied-registry branch deliberately does not: the
-    fixpoint uses this env as the INPUT to `_function_sigs`, and handing it a
-    half-built signature map would seed a round from itself."""
+    That branch also keeps the SIGNATURES the builder solved on the way, and
+    fills in the procedure signatures. Both are free here, and an env missing
+    either silently disables a wall rather than losing precision: an empty
+    `functions` made `infer` raise on any call to a user function, and an empty
+    `procedures` made the `run`-site arity and argument-type check skip — the
+    only place a procedure's parameter annotations bite at all.
+
+    The supplied-registry branch deliberately fills in NEITHER: the fixpoint
+    uses this env as the INPUT to `_function_sigs`, so handing it a half-built
+    signature map would seed a round from itself, and `typecheck` sets both
+    once, after the registries settle."""
     functions: Mapping[str, Sig] = {}
+    procedures: Mapping[str, Sig] = {}
     if structs is None:
         structs, functions = struct_and_function_registries(game, DiagnosticBag())
+        procedures = _procedure_sigs(game)
     state_vars: dict[str, Type] = {}
     for block in _state_blocks(game):
         for decl in block.decls:
@@ -848,6 +854,7 @@ def env_from_game(
         value_enums=value_enum_map(game),
         structs=structs,
         functions=functions,
+        procedures=procedures,
         has_ranking=bool(game.ranking),
         positions=positions,
     )
@@ -1987,22 +1994,37 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
         # procedure's parameter annotations can bite (after expansion, the call
         # site is gone). Resolve has already established that the procedure exists.
         sig = env.procedures.get(s.name)
-        if sig is not None:
-            if len(s.args) != len(sig.params):
-                bag.error(
-                    f"procedure '{s.name}' expects {len(sig.params)} argument(s), "
-                    f"got {len(s.args)}",
-                    s.span,
-                )
-            else:
-                for arg, param in zip(s.args, sig.params):
-                    got = infer(arg, env)
-                    if not assignable(got, param):
-                        bag.error(
-                            f"procedure '{s.name}' expects {_type_name(param)}, got "
-                            f"{_type_name(got)}",
-                            arg.span,
-                        )
+        if sig is None:
+            # Not `if sig is not None:`. The comment above states the
+            # invariant — resolve has established that the procedure exists,
+            # and `_procedure_sigs` builds one entry per declared procedure —
+            # so a miss is a divergence between the two, exactly like the name
+            # lookups in `_name_type`. Guarding leniently on an invariant you
+            # have just asserted is how the check goes dark: an env built
+            # without procedures silently skipped this arity and argument-type
+            # wall rather than failing, and it is the ONLY place a procedure's
+            # parameter annotations bite (after expansion the call site is
+            # gone). See decisions.md, "The permissive top and the lookup-miss
+            # walls" — a fallback standing in for an answer the program has is
+            # a silent wrong answer.
+            raise _env_miss(
+                "procedure", s.name, "procedures", "`_procedure_sigs`"
+            )
+        if len(s.args) != len(sig.params):
+            bag.error(
+                f"procedure '{s.name}' expects {len(sig.params)} argument(s), "
+                f"got {len(s.args)}",
+                s.span,
+            )
+        else:
+            for arg, param in zip(s.args, sig.params):
+                got = infer(arg, env)
+                if not assignable(got, param):
+                    bag.error(
+                        f"procedure '{s.name}' expects {_type_name(param)}, got "
+                        f"{_type_name(got)}",
+                        arg.span,
+                    )
     for expr in _stmt_exprs(s):
         _check_expr(expr, env, bag)
 
