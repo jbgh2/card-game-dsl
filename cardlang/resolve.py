@@ -1681,8 +1681,8 @@ _OUTCOME_BINDING_STMTS = (n.Round,)
 # through `_classify` like every read, so "what is this name?" is already answered by
 # the time we get here. Were it a bare `str` that no name check ever saw, the three
 # ways it can go wrong would need three separate hand-written checks — and the easiest
-# to omit is the plain typo, so `totaly_score := 1` would reach the runtime as a bare
-# KeyError.
+# to omit is the plain typo, so `totaly_score := 1` would reach the runtime, which
+# requires every name it writes to have been declared.
 #
 # The subtle one is a binder shadowing a state variable. A READ resolves binders BEFORE
 # state variables; a write goes to state regardless. So `let turn = …` followed by

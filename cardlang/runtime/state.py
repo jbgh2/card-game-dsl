@@ -170,34 +170,43 @@ class ZoneStore:
     def single(self, name: str) -> Zone:
         if name not in self.singles:
             raise RuntimeError(
-                f"no single zone '{name}' in this game — names reaching here "
-                f"come from the resolved AST, so this one asks for a zone the "
-                f"game never declared"
+                f"no single zone '{name}' in this game — this asks for a zone "
+                f"the game never declared"
             )
         return self.singles[name]
 
     def instance(self, name: str, key: int) -> Zone:
         # Both lookups fail in the runtime's typed currency, never as a bare
         # KeyError — the name and the key are equally capable of missing, so
-        # neither is left to the raw dict. Only engine core reaches these two
-        # methods: names come from the resolved AST (resolve's walls own
-        # them), keys from the game's seating and teams or from the family
-        # itself. Game-local primitives do not reach here at all —
-        # cardlang/runtime/reads.py is their sanctioned path, and it holds
-        # both lookups to this same currency against its declared-reads
-        # registry.
+        # neither is left to the raw dict.
+        #
+        # Names arriving here are engine-core's: read off the resolved AST,
+        # or the language-wide magic `hand` that `mechanics.py`/`rules.py`
+        # spell literally (walled by resolve's Card-vocabulary hand-family
+        # rule, not by an AST provenance). Game-local primitives do not reach
+        # here at all — cardlang/runtime/reads.py is their sanctioned path,
+        # holding both lookups to this same currency against its
+        # declared-reads registry.
+        #
+        # KEYS, by contrast, are author-reachable: a zone-family subscript's
+        # index is checked with `types.assignable`, which admits a bare
+        # Integer literal, so `hand[9]` in a 4-player game type-checks and
+        # arrives here (roadmap.md, "Zone-family index strictness (deferred
+        # re-audit)"). That deferral is what makes this wall reachable rather
+        # than a backstop, and why the key branch owes a typed error.
         if name not in self.families:
             raise RuntimeError(
-                f"no zone family '{name}' in this game — names reaching here "
-                f"come from the resolved AST, so this one asks for a family "
-                f"the game never declared"
+                f"no zone family '{name}' in this game — this asks for a "
+                f"family the game never declared"
             )
         family = self.families[name]
         if key not in family:
+            role = self.zone_index.get(name)
+            indexed = f"indexed by '{role}'" if role else "indexed"
             raise RuntimeError(
-                f"zone family '{name}' has no instance keyed {key!r} — "
-                f"instance keys come from the game's seating and teams, so "
-                f"this one names no seat or team the family covers"
+                f"zone family '{name}' is {indexed} and has no instance "
+                f"keyed {key!r} — its instances are keyed "
+                f"{sorted(family)}"
             )
         return family[key]
 

@@ -102,7 +102,8 @@ ACTION_FIELDS: dict[str, Type] = {"card": TCard(), "actor": TPlayer()}
 
 # stdlib functions whose result depends on a declared `ranking:` (they index
 # `ctx.rs.rank_index`, empty when the game declares none — runtime/stdlib.py
-# `rank_value` reads it unguarded and would KeyError). resolve.py already
+# `rank_value` requires every rank it is asked for to be present in that
+# index, and has nothing to fall back on). resolve.py already
 # gates a bare `Rank` move-parameter domain on the same `has_ranking`
 # condition (`_check_move_params`); this is the analogous compile-time gate
 # for a *call*. A registry, not an `if`, so the next ranking-dependent

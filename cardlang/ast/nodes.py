@@ -475,8 +475,8 @@ class AssignStmt:
     classification, to validation, and to `substitute`.
 
     Three defects would follow, and all three dissolve once the target is an ordinary
-    name. A typo (`totaly_score := 1`) would reach the runtime as a bare `KeyError`,
-    because nothing ever checked the name existed. A binder shadowing a state
+    name. A typo (`totaly_score := 1`) would reach the runtime, which requires every
+    name it writes to have been declared, because nothing ever checked it existed. A binder shadowing a state
     variable would make one name mean two things — a read of `x` finding the binder
     while `x := 1` went to the state variable, silently. And procedure expansion, which
     rewrites `NameRef`s, would rewrite every read of a parameter and leave the write
