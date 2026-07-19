@@ -16,13 +16,21 @@ property:   a structurally invalid game skeleton — a mandatory clause
             set — fails `check_dsl` with a located `DiagnosticError`, never
             a bare assert / raw lark error / silently different meaning.
 domain:     the `?game_item` alternatives of the `game` production, times
-            {omitted, duplicated}; plus the game-count axis of `start`
-            (zero / one / many); plus the `direction:` value axis.
+            {omitted, duplicated, ABSORBED}; plus the game-count axis of
+            `start` (zero / one / many); plus the `direction:` value axis.
+            The absorption axis was added after `uses <library>` was found
+            to vanish when written below `ranking:` — `ranking:` takes an
+            unbounded `card_rank+` run, so a clause spelled as two bare
+            names is eaten by it with no error. That is a property of the
+            RANKING production, not of `uses`, so it is swept over every
+            clause rather than probed on the one that was found broken.
 registry:   `cardlang/grammar/cardlang.lark` (`?game_item`) — scraped here
             by `_game_item_alternatives`, so a clause added to the grammar
             fails `test_game_item_registry_pin` until it is classified
             below; `GAME_DIRECTIONS` in `cardlang/runtime/values.py` for
-            the direction value set.
+            the direction value set; `CARD_RANK_NAME`'s negative lookahead
+            for the absorption axis, scraped by `_card_rank_excluded` so
+            both sides of that pin stay derived.
 covered:    duplication — exhaustively, every single-valued clause (all
             alternatives except `phase`), one probe each, parse-layer wall;
             omission — `players:`/`cards:` (parse wall, including the
@@ -31,7 +39,10 @@ covered:    duplication — exhaustively, every single-valued clause (all
             rejection fixtures), `state`/`zones`/`trump`/`partnerships`/
             `direction`/`ranking` omission is legal by design (probed by
             the valid BASE game here, which omits four of them);
-            game-count — zero and two, parse wall.
+            game-count — zero and two, parse wall; absorption —
+            exhaustively, every clause written after a `ranking:`
+            enumeration and asserted to parse as itself, plus the static
+            keyword/exclusion-set pin.
 sampled:    `ranking:` omission with rank-dependent constructs in play is
             typecheck's `has_ranking` gate (tests/test_ranking_wall.py);
             zero-`phase` games are accepted with defined degenerate
@@ -48,9 +59,11 @@ import re
 from pathlib import Path
 
 import pytest
+from lark import Tree
 
 import cardlang
 from cardlang.diagnostics import DiagnosticError
+from cardlang.parse import parse_to_tree
 from cardlang.pipeline import check_dsl
 
 GRAMMAR = (
@@ -69,6 +82,90 @@ def _game_item_alternatives() -> set[str]:
     names = {match.group(1)}
     names.update(re.findall(r"\|\s*(\w+)", match.group(2)))
     return names
+
+
+def _clause_keyword(rule_name: str) -> str:
+    """The literal keyword a clause production opens with, read from the grammar
+    rather than mapped by hand: `uses_decl: "uses" NAME` -> `uses`, and
+    `state_block: "state" "{" ...` -> `state`, neither of which matches its rule
+    name."""
+    match = re.search(rf'^{rule_name}:\s*"([a-z_]+)"', GRAMMAR, re.MULTILINE)
+    assert match is not None, f"clause `{rule_name}` opens with no literal keyword"
+    return match.group(1)
+
+
+def _card_rank_excluded() -> set[str]:
+    """The words `CARD_RANK_NAME`'s negative lookahead refuses, scraped from the
+    terminal itself — the other half of the pin below."""
+    match = re.search(r"^CARD_RANK_NAME:\s*/\(\?!\(\?:([^)]+)\)", GRAMMAR, re.MULTILINE)
+    assert match is not None, "grammar lost its `CARD_RANK_NAME` terminal"
+    return set(match.group(1).split("|"))
+
+
+def test_card_rank_excludes_every_clause_keyword() -> None:
+    """`ranking:` takes an unbounded `card_rank+` run, so any clause spelled as
+    two bare names in a row is absorbed into it and vanishes from the AST with no
+    error — the defect that let `uses <library>` be silently swallowed. The run
+    is bounded by refusing clause keywords as rank names, and BOTH sides of that
+    exclusion are derived: the clause list from `?game_item`, the excluded set
+    from the terminal. A clause added to the grammar without an entry in
+    CARD_RANK_NAME fails here rather than at a designer's desk."""
+    keywords = {_clause_keyword(rule) for rule in _game_item_alternatives()}
+    missing = keywords - _card_rank_excluded()
+    assert not missing, (
+        f"game clause keyword(s) {sorted(missing)} are still legal rank names, so "
+        f"`ranking:` can absorb the clause and drop it silently — add them to "
+        f"CARD_RANK_NAME's exclusion list in cardlang.lark"
+    )
+
+
+@pytest.mark.parametrize("rule_name", sorted(_game_item_alternatives()))
+def test_no_clause_is_absorbed_when_it_follows_ranking(rule_name: str) -> None:
+    """The behavioural half: every clause still parses as ITSELF when written
+    after a `ranking:` enumeration. Swept over the whole clause registry rather
+    than probing the one clause that was found broken (decisions.md
+    "Closed-domain completeness": sweep the class, don't patch the instance)."""
+    keyword = _clause_keyword(rule_name)
+    clause = _CLAUSE_TEXT[rule_name]
+    src = (
+        "game G {\n  players: 2\n  cards: standard52\n  ranking: aces high\n"
+        f"  {clause}\n  zones {{ deck : Deck }}\n}}"
+    )
+    tree = parse_to_tree(src, "absorb.cardlang")
+    ranking = [n for n in tree.iter_subtrees() if n.data == "ranking"]
+    # Each `card_rank` child is a Tree wrapping one token; a bare Token here
+    # would mean the RANK_CONV arm matched, which this source does not use.
+    ranks = [
+        str(c.children[0]) for c in ranking[0].children if isinstance(c, Tree)
+    ]
+    assert ranks == ["aces", "high"], (
+        f"`{keyword}` was absorbed into the ranking enumeration as {ranks} — the "
+        f"clause is silently gone"
+    )
+    assert any(n.data == rule_name for n in tree.iter_subtrees()), (
+        f"`{keyword}` did not parse as a `{rule_name}` clause"
+    )
+
+
+# One minimally-valid source line per clause, for the absorption sweep above.
+# Keyed by grammar rule name so the parametrization above stays derived.
+_CLAUSE_TEXT: dict[str, str] = {
+    "uses_decl": "uses poker_betting",
+    "players": "players: 3",
+    "direction": "direction: clockwise",
+    "cards": "cards: skat32",
+    "ranking": "ranking: K Q J",
+    "trump": "trump: hearts",
+    "partnerships": "partnerships: [[0, 2], [1, 3]]",
+    "max_length": "max_length: 10",
+    "positions": "positions { column : 1..7 }",
+    "zones": "zones { stock : Deck }",
+    "state_block": "state { score[player] : Integer = 0 }",
+    "phase": "phase p { }",
+    "winner": "winner: highest score",
+    # `loser:` takes an expr, not `winner:`'s `rank_dir NAME`.
+    "loser": "loser: score",
+}
 
 
 # grammar rule name -> the clause spelling the duplicate diagnostic names.

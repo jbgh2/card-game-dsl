@@ -540,7 +540,13 @@ card_literal: card_rank "of" NAME
 // rank is any name or number (A, Q, 10, 2 — or Duke, Mahjong in custom decks),
 // checked by the resolver against the deck's Rank enum. Do NOT reserve face
 // letters as terminals; that would globally steal A/K/Q/J from every game.
-card_rank: NAME | INT
+// A rank may not be a game-clause keyword: `card_rank+` is unbounded, so a
+// clause spelled as two bare names (`uses <library>`) is otherwise absorbed into
+// the enumeration and vanishes silently. Excluded here rather than from NAME so
+// `state { uses : Integer }` keeps working. Pinned against `?game_item` by
+// tests/test_game_clause_walls.py::test_card_rank_excludes_every_clause_keyword.
+card_rank: CARD_RANK_NAME | INT
+CARD_RANK_NAME: /(?!(?:always|all|one|some|jointly|not|is|number|uses|players|direction|cards|ranking|trump|partnerships|max_length|positions|zones|state|phase|winner|loser)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
 all_players: "all" "players"
 call: NAME "(" [arg_list] ")"
