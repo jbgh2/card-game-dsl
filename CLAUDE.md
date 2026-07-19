@@ -115,6 +115,7 @@ docs/
 - **"How is game Y described in the DSL?"** → `docs/games/Y.md`
 - **"How do we keep info sets derivable / hit the OpenSpiel target?"** → the load-bearing section above, then `docs/design-notes/kernel-extensibility.md`
 - **"How do the engine's domains fit together / where does new work dock?"** → `docs/design-notes/domain-map.md`
+- **"How do I start a new piece of work?"** → the `cardlang-planning` skill (`.claude/skills/`) — the ordered planning gates; run it before exploring or entering plan mode
 - **"How complete must a new construct be?"** → `docs/decisions.md`, "Surface totality" (grammar surface) and "Closed-domain completeness" (the machinery beneath it); the mechanized gate is the `surface-totality-audit` skill (`.claude/skills/`)
 - **"What's still being decided?"** → `docs/open-questions/_index.md` then the named file
 - **"What should we build next?" / "In what order?"** → `docs/roadmap.md`, "Suggested next steps, in order" — the authority on cross-cutting task sequence. `docs/open-questions/_index.md` owns question *priority*; `docs/games/_candidates.md` holds the full game pipeline.
@@ -149,11 +150,14 @@ that adds or extends grammar surface, a checker wall or diagnostic, a stdlib
 registry, or any closed-domain mechanism additionally passes the
 **surface-totality audit** — run the `surface-totality-audit` skill
 (`.claude/skills/`), the mechanized form of decisions.md "Surface totality"
-and "Closed-domain completeness". Its two artifacts are mandatory in the
-change: misuse-probe **rejection tests** (the most plausible wrong sentences,
-each proven loud in the right layer's currency) and the **completeness
-ledger** (property / domain / registry / covered / sampled / residual — no
-residual cell without both a wall and a roadmap.md record). A green suite
+and "Closed-domain completeness". Its artifacts are mandatory in the change:
+the **grid** (the crossed coverage domain as an executable parametrized
+test — axes derived in code, expected outcomes authored red BEFORE the
+implementation exists), misuse-probe **rejection tests** (the most plausible
+wrong sentences, each proven loud in the right layer's currency), and the
+**completeness ledger** (judgment columns in the grid module's docstring —
+`covered` IS the grid; no residual cell without both a wall and a roadmap.md
+record; born-green pins name their reddening mutation). A green suite
 must never stand in for this gate: the suite proves nothing about cells no
 test names.
 

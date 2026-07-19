@@ -2978,33 +2978,55 @@ clause. A check cited as a guarantee states its quantifier (exhaustive over
 what; sampled how); where it cannot cover its domain, it records the gap
 (the coverage-record obligation in
 [open-questions/structural-infoset-proofs.md](open-questions/structural-infoset-proofs.md))
-rather than reading as if it did. The crime is never incompleteness; it is
-*silent* incompleteness.
+rather than reading as if it did. A check born green — a pin over behavior
+already correct when the pin was written — additionally records and
+demonstrates the one-line mutation that turns it red (`red under: <the
+edit>` in its docstring); a guarantee whose author cannot name a reddening
+edit is this defect class wearing a test's name. The crime is never
+incompleteness; it is *silent* incompleteness.
 
 Acceptance for changes to rigor-critical machinery — anything the
 information-set guarantees, the encodings, or the invariants rest on — is
-therefore a stated completeness argument, not a green suite. The argument
-has a fixed shape, the **completeness ledger**, shipped in the change itself
-(the commit message, or the covering test module's docstring — somewhere a
-reviewer sees without asking):
+therefore a stated completeness argument, not a green suite. For an
+enumerable domain the argument's canonical form is the **grid**: the
+domain's axes derived in code from their defining registries — an axis with
+no defining site gets its derivation built as the change's first
+deliverable, because a hand-listed axis is complete only by luck and goes
+stale silently when a parallel change extends the surface — crossed into a
+parametrized test whose expected-outcome column is authored **before the
+implementation exists** and run red first. Every cell is a design decision
+(accept, or reject with a named diagnostic), so a cell that flips
+uncommanded is a regression caught at write time, and a commanded cell that
+stays green means the test does not reach the behavior. `covered` means an
+executed grid row; prose describes only what the grid does not run. The
+judgment columns ship as the **completeness ledger** in the grid module's
+docstring:
 
 ```text
 property:   <the guarantee, one line>
 domain:     <what is quantified over>
-registry:   <where that domain is defined in code>
-covered:    <cells exhaustively handled, and by which layer>
+registry:   <where each axis is derived in code — the grid reads these>
+covered:    <the grid: module + parametrization, not a prose cell list>
 sampled:    <cells covered by example only, and why that suffices>
-residual:   <cells NOT covered — each with its wall and its roadmap.md line>
+residual:   <cells NOT in the grid — each with its wall and its roadmap.md line>
 ```
 
-A residual row without both a wall and a record fails the gate; "no corpus
-witness" is never by itself a reason to leave a residual cell silent, because
-corpus-first governs which mechanisms exist, not how completely a mechanism
-covers its own domain. A wall guards its whole class at the layer that owns
-the class: an operand-compatibility rule lives in the type layer consulted by
-every comparison-shaped context, not at the first site that motivated it.
-The `surface-totality-audit` skill (`.claude/skills/`) operationalizes this
-section and "Surface totality" as a pre-commit gate.
+The gate is symmetric: a residual row without both a wall and a record
+fails it, and a `covered` claim without an executed grid row fails it
+equally. "No corpus witness" is never by itself a reason to leave a
+residual cell silent, because corpus-first governs which mechanisms exist,
+not how completely a mechanism covers its own domain — and when the
+construct itself has no corpus witness, the change ships a minimal witness
+fixture (a complete game exercising the construct end to end): a corpus
+hole is an integration blind spot, not an exemption. A wall guards its
+whole class at the layer that owns the class: an operand-compatibility rule
+lives in the type layer consulted by every comparison-shaped context, not
+at the first site that motivated it. The `surface-totality-audit` skill
+(`.claude/skills/`) operationalizes this section and "Surface totality" as
+a pre-commit gate, including the red-first order (axes -> framing check ->
+expected column -> red -> implement -> green) and the `xfail(strict=True)`
+mechanism that keeps the pre-push checks green while the red-to-green
+transition stays visible in the diff.
 
 A wall must also speak its **layer's failure currency**: the compile
 stages fail as diagnostics (`DiagnosticBag`, with a span and a
@@ -3044,4 +3066,7 @@ and close or wall the whole class in one change. A lone patch converts a
 class defect into a recurring one — the corpus's duplicate-name
 shadowing sat for months as exactly this: the duplicate-move-parameter
 instance was fixed while duplicate zones, state variables, move types,
-and struct types kept shadowing silently until the class was swept.
+and struct types kept shadowing silently until the class was swept. The
+sweep binds at find time, not fix time: a *report* of one cell of a
+crossable product is an incomplete report — cross the product and report
+the pattern, whoever holds the finding.
