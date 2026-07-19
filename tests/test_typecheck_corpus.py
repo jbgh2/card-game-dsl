@@ -37,14 +37,19 @@ MD_TWINS = sorted(
 
 
 def test_corpus_is_present() -> None:
-    # Two-sided pin: every game file is registered with the OpenSpiel
-    # adapter and every registration has a file. Derived, not a literal
-    # count — two branches each adding a game used to auto-merge the same
-    # numeric bump and leave main red with no conflict marker. The registry
-    # module is pure data, so this core test never needs pyspiel.
+    # The registry derives its short-name -> file map from this same
+    # docs/games/ directory (cardlang/openspiel/registry.py), so "every file is
+    # registered" now holds by construction. What this pin still catches is a
+    # DERIVATION collision: two files whose stems differ only by a character the
+    # short-name rule folds away (`-` vs `_`) map to one key, silently dropping
+    # a game from the dict — the value list then no longer matches the file
+    # list. The registry imports nothing third-party, so this core test never
+    # needs pyspiel.
     from cardlang.openspiel.registry import GAMES as REGISTERED
 
     assert sorted(p.name for p in CORPUS) == sorted(REGISTERED.values())
+    assert len(REGISTERED) == len(CORPUS), "two game files collided on one short name"
+    assert all(k.startswith("cardlang_") for k in REGISTERED)
 
 
 @pytest.mark.parametrize("path", CORPUS, ids=lambda p: p.name)
