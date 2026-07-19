@@ -26,7 +26,11 @@ covered:    zone index + type arg — a position works as either (Klondike/
             test_position_family_owner_arg_must_match_its_index +
             tests/rejections/positions_zone_owner_arg_mismatch; the wall is
             general, stated in tests/test_zone_index_roles.py);
-            move params (both games + the vocab-order pin below); the
+            move params — both the action-space vocab (both games + the
+            vocab-order pin below) and their TYPING in guards/effects (a
+            position param types as its integer member, not TAny, so a
+            wrong-domain use like `src is hearts` is caught —
+            test_position_move_param_types_as_integer_not_any); the
             collision sweep (every built-in id and spelling, derived from
             the registries); bounds walls incl. the 256-member ceiling
             boundary; unowned ownership (`zone_observer_key` -> None,
@@ -301,6 +305,32 @@ def test_role_indexed_family_may_not_take_a_position_owner_arg() -> None:
             _game(zones="pile[column] : Cascade<column>  foo[player] : Cascade<column>"),
             "t",
         )
+
+
+def test_position_move_param_types_as_integer_not_any() -> None:
+    # A move parameter may be a position domain (`build(src : column)`); the
+    # move-binder env must carry the game's positions so the param types as the
+    # integer member it binds. Before this, that env was a fresh TypeEnv() with
+    # no positions, so the param typed TAny and a wrong-domain use like `src is
+    # hearts` passed typecheck — accepted-but-ignored. Now caught; the valid
+    # integer uses (family subscript, integer comparison) still check.
+    with pytest.raises(DiagnosticError, match="comparing Suit with Integer"):
+        check_dsl(
+            _game(
+                vocab=", poke",
+                moves="move_type poke(src : column) { when: src is hearts "
+                "effect { resigned := true } }\n",
+            ),
+            "t",
+        )
+    check_dsl(
+        _game(
+            vocab=", poke",
+            moves="move_type poke(src : column) { when: pile[src] is empty "
+            "effect { resigned := true } }\n",
+        ),
+        "t",
+    )
 
 
 # --- IR ----------------------------------------------------------------------

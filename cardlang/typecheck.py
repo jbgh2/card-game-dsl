@@ -620,19 +620,32 @@ def _non_define_statements(game: Game) -> Iterator[n.Stmt]:
         yield from (st for st, _ in _phase_statements_scoped(phase))
 
 
-def _move_param_binders(move_type: n.MoveTypeDef) -> _Binders:
+def _move_param_binders(
+    move_type: n.MoveTypeDef, positions: frozenset[str]
+) -> _Binders:
     """A move type's parameters, typed from their declarations — bound in its
     guard and effect exactly as procedure parameters are bound in their body.
     They used to be bound by resolve and NEVER typed, so `move_type m(s :
     Suit) { when: s is 3 … }` passed both positions while the inline spelling
-    was rejected — the let-laundering shape, one binder kind over."""
-    env = TypeEnv()
+    was rejected — the let-laundering shape, one binder kind over.
+
+    `positions` (the game's declared position domains) must be threaded in: a
+    move parameter may be a position domain (`build(src : column)`), and
+    `_param_type` types those as `TInteger` only when the domain is in
+    `env.positions`. A fresh `TypeEnv()` would leave it `TAny`, so `src is
+    hearts` and other wrong-domain uses would pass — accepted-but-ignored, one
+    binder kind over yet again. (Procedure params, by contrast, resolve gates
+    to `Player`, so they never carry a position and their env needs none.)"""
+    env = TypeEnv(positions=positions)
     return tuple((p.name, _param_type(p, env)) for p in move_type.params)
 
 
 def _all_statements_scoped(game: Game) -> Iterator[tuple[n.Stmt, _Binders]]:
+    positions = frozenset(p.name for p in game.positions)
     for move_type in game.move_types:
-        yield from _seq_tree_scoped(move_type.effect, _move_param_binders(move_type))
+        yield from _seq_tree_scoped(
+            move_type.effect, _move_param_binders(move_type, positions)
+        )
     for phase in game.phases:
         yield from _phase_statements_scoped(phase)
     for define in game.defines:
@@ -2471,7 +2484,7 @@ def typecheck(game: Game) -> Game:
         if move_type.guard is not None:
             _check_expr(
                 move_type.guard,
-                _scoped_env(env, _move_param_binders(move_type)),
+                _scoped_env(env, _move_param_binders(move_type, env.positions)),
                 bag,
             )
     for rule in game.rules:
