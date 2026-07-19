@@ -387,10 +387,12 @@ def test_a_derived_body_calling_a_user_function_is_typed() -> None:
 def test_a_function_returning_a_derived_field_keeps_its_real_type() -> None:
     """The struct/function build must not cost precision in function bodies:
     `reads()` returns the derived field's Boolean, so comparing it to a Suit is
-    still rejected. Pinned because the three-step build nearly gave this up —
-    an intermediate version typed every derived field loosely while signatures
-    were computed, which silently ACCEPTED this always-false comparison: a new
-    member of the very class this module exists to close."""
+    still rejected. Pinned because an intermediate design gave this up — it
+    typed every derived field loosely while the signatures were computed, and
+    silently ACCEPTED this always-false comparison: a new member of the very
+    class this module exists to close. The fixpoint removed the trade, but the
+    pin stays, since any future reordering of the two registries can lose it
+    again."""
     src = "type R = { a : Integer } derived { made = a > 0 }\n" + _game(
         decls="function reads(x : R) = x.made",
         state="score[player] : Integer = 0  r : R = none",
