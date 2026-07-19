@@ -191,3 +191,64 @@ The zero-centered curve remains available as value *texture* (it does
 change which commits are mistakes), but it is no longer a candidate
 fix for the commit-count axis, and on this evidence the all-positive
 curve's wider spread serves the interactive core better.
+
+## 8. Round 3 — capacity 4 (adopted) + recon draw: the axis comes alive
+
+Designer decisions after round 2: candidate (d), the per-location
+capacity of four (staged plus flipped, per player), goes into the BASE
+game — `salvo.cardlang`'s commit guards; candidate (c), the recon
+draw (commit fewer than two in a round, draw one extra at round end),
+tested as `variants/salvo-recon.cardlang`. Configs `cap` and `recon`
+in the arena; knob-identical to round 1; hold-threshold sensitivity by
+`--hold-below N --probes-only`. Data: `results_triage_cap.json`,
+`results_triage_recon.json`, plus `_hb9/11/13` probe files.
+
+**The recon draw makes commitment count a real decision, and the
+capacity-only control proves the attribution.** Own-value restraint
+(`blind_hold` vs never-holding `blind`, knob-identical) across hold
+thresholds:
+
+| hold threshold | capacity only | capacity + recon |
+|---|---|---|
+| 7 (default) | 48.4 / 51.0 | 54.1 / 45.4 |
+| 9 | 48.2 / 51.3 | 55.3 / 44.3 |
+| 11 | 43.3 / 56.4 | **57.9 / 41.8** |
+| 13 | — | 20.0 / 80.0 |
+
+Without recon, holding loses at every threshold, monotonically worse
+the more you hold — there is nothing to buy. With recon, the same
+policies win with an **interior optimum** around thresholds 9-11, and
+over-digging (13: 7.2 commits/game) crashes to 20/80 — a dose-response
+curve with a sweet spot and a punishment for overdose, which is
+exactly what "the count is a decision" looks like. Opponent-aware
+restraint says the same: sighted vs sighted_nohold under recon is
+56.2/42.3 at the default threshold and 61.6/37.1 at 11, against a
+flat null under capacity-only (50.0/48.7 and 48.4/50.4).
+
+**An honest side effect: capacity compresses the crude-heuristic
+skill gap.** sighted vs blind fell from 68.0/31.8 (round 1) to
+48.1/51.3 under capacity (53.1/46.3 with recon). The cap performs
+sighted's signature move — overkill avoidance — for both players by
+rule, and forces blind's dumps to diversify; round 1's gap was partly
+built on exploiting a pathology the cap now outlaws. Two reads, both
+recorded: (1) decision divergence holds at 14-19% (round-1 level), so
+choices remain opponent-contingent — the game did not slide back
+toward solitaire; (2) the sighted heuristic's race knobs
+(won/lost margin 25) were calibrated to uncapped margins (~22 mean)
+and rarely fire at the capped scale (~9 mean) — under capacity,
+sighted approximately equals blind_hold, consistent with its weights
+being stale rather than the reading layer being dead. Re-tuning
+sighted for the capped game (or graduating to the mini + solver) is
+the follow-up instrument; until then the capacity skill-gap number is
+a floor, not a measurement.
+
+Margins tighten under capacity everywhere (blind mirror 22.0 to 9.3
+mean; medians 5-8), unclaimed ties sit at 4-6%: tight races, no
+runaway dumps, liveness intact.
+
+**Recommendation to the designer**: adopt the recon draw into the
+base game (it is the tested answer to "commitment number must
+matter"), keep hold-threshold texture in mind for combos (held cards
+already gain option value in round 4's combo work), and treat the
+sighted re-tune as the next instrument work before reading any more
+skill-gap numbers off the arena.

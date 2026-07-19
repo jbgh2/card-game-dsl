@@ -81,10 +81,13 @@ Each round:
 2. **Commit.** In initiative order, each player stages zero, one, or
    two cards from hand face-down at locations of their choice (two
    cards may go to the same location or different ones; staging
-   nothing is legal). A staged card shows the opponent *where* it sits
-   and nothing else — like a card back at a Snap location — so the
-   second committer acts seeing the first's placement counts, never
-   their identities. Alternating initiative balances that edge.
+   nothing is legal). **Capacity: a player may never have more than
+   four cards at one location** (staged plus flipped — Snap's
+   per-side cap; a full location simply can't be committed to). A
+   staged card shows the opponent *where* it sits and nothing else —
+   like a card back at a Snap location — so the second committer acts
+   seeing the first's placement counts, never their identities.
+   Alternating initiative balances that edge.
 3. **Flip.** All staged cards are revealed at once and placed face-up
    in their owner's row at their location. They stay there for the
    rest of the game. Nothing triggers on reveal, so reveal order never
@@ -129,21 +132,21 @@ locations wins; if that also ties, the game is a draw.
   in the location's own suit stacks both bonuses.
 - **Combos reward planning across turns** and justify off-target
   commits, which keeps hands from being priced by proximity alone.
-- **The commit-count axis is a confirmed open problem.** Every commit
-  scores at least +1, and a player sees eleven cards (five dealt plus
-  six drawn) against twelve commit slots, so committing the maximum is
-  near-dominant — confirmed empirically (REPORT.md sections 3 and 7):
-  the WHERE of a commit carries the game, the HOW-MANY is currently
-  fake. The zero-centered curve (base 6 minus distance) was tested as
-  a fix and refuted — a commit takes the best of three locations, so
-  the max-of-three value is almost always positive, and with slots
-  outnumbering cards a commit has no opportunity cost for any curve to
-  price; compressing the value range also diluted the interactive
-  core. The live candidates all add scarcity or economy rather than
-  reshaping values: a recon draw (committing fewer than two earns an
-  extra draw), per-location capacity (Snap's four-card cap), a total
-  commit budget, and combo option-value on held cards — designer's
-  choice pending, REPORT.md section 7 has the trade-offs.
+- **The commit-count axis needs an economy, not a value curve —
+  settled empirically across three arena rounds** (REPORT.md sections
+  3, 7, 8). Under the base rules committing the maximum is
+  near-dominant: a commit takes the best of three locations (almost
+  always positive for some location) and costs nothing. The
+  zero-centered curve was tested as a fix and refuted (it also
+  diluted the interactive core; the all-positive curve stays). What
+  works is the **recon draw** — a player who commits fewer than two
+  cards in a round draws one extra at round end — tested in
+  `variants/salvo-recon.cardlang`: restraint then beats commit-max
+  with an interior optimum (hold moderately: win; never hold: lose;
+  over-dig: collapse), while the capacity-only control shows holding
+  losing at every threshold without it. Recommended for adoption into
+  the base rules; adoption is the designer's call. Remaining
+  candidates (total commit budget; combo option-value) stay recorded.
 
 ## Information structure
 

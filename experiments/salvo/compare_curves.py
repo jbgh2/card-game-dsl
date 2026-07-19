@@ -1,61 +1,83 @@
-"""Side-by-side of the curve A/B: round-1 all-positive (results_triage.json)
-vs zero-centered (results_triage_zc.json). Prints the shared pairings with
-win rates and commit/hold usage, then the zc-only commit-count probes.
+"""Side-by-side of Salvo arena configs (results_triage*.json files).
 
-Run:  python experiments/salvo/compare_curves.py
+Default: every canonical config file present, in design-history order
+(full, zc, cap, recon). Pass filenames to compare a custom set, e.g. the
+hold-threshold sweep:
+
+  python compare_curves.py results_triage_recon.json \
+      results_triage_recon_hb9.json results_triage_recon_hb11.json
 """
 
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 
+CANONICAL = [
+    "results_triage.json",        # round 1: no cap, all-positive curve
+    "results_triage_zc.json",     # round 2: zero-centered curve (refuted)
+    "results_triage_cap.json",    # round 3 baseline: capacity 4
+    "results_triage_recon.json",  # round 3: capacity + recon draw
+]
 
-def load(name: str) -> dict[str, dict]:
-    data = json.loads((HERE / name).read_text())
-    return {p["pairing"]: p for p in data["pairings"]}
+
+def label_of(name: str, data: dict) -> str:
+    base = data.get("curve", "full")
+    hb = data.get("tuning", {}).get("hold_below")
+    stem = name.removeprefix("results_triage").removesuffix(".json").strip("_") or "full"
+    if "hb" in stem.rsplit("_", 1)[-1]:
+        return f"{base} hb={hb:g}"
+    return {"full": "round1", "zc": "zero-centered", "cap": "capacity", "recon": "cap+recon"}.get(base, base)
 
 
-def fmt_row(p: dict | None) -> str:
+def fmt_cell(p: dict | None) -> str:
     if p is None:
-        return f"{'—':>24}"
+        return f"{'—':>21}"
     a, b = p["pairing"].split(" vs ")
     wr = p["win_rate"]
-    wa, wb = wr.get(a, 0.0), wr.get(b, 0.0)
-    if a == b:  # mirror rows pool both seats; only draws are meaningful
-        return f"{'(mirror) draws ' + format(wr.get('draw', 0.0), '.1%'):>24}"
-    return f"{wa:>7.1%} /{wb:>7.1%} ({wr.get('draw', 0.0):.1%} draw)"
+    if a == b:
+        return f"{'draws ' + format(wr.get('draw', 0.0), '.1%'):>21}"
+    return f"{wr.get(a, 0.0):>7.1%} /{wr.get(b, 0.0):>7.1%}"
 
 
 def main() -> None:
-    full = load("results_triage.json")
-    zc = load("results_triage_zc.json")
+    names = sys.argv[1:] or [n for n in CANONICAL if (HERE / n).exists()]
+    tables: list[tuple[str, dict[str, dict]]] = []
+    for n in names:
+        data = json.loads((HERE / n).read_text())
+        tables.append((label_of(n, data), {p["pairing"]: p for p in data["pairings"]}))
 
-    print(f"{'pairing':<28} {'all-positive':>24}   {'zero-centered':>24}")
-    for pairing in list(full) + [p for p in zc if p not in full]:
-        print(f"{pairing:<28} {fmt_row(full.get(pairing))}   {fmt_row(zc.get(pairing))}")
+    all_pairings: list[str] = []
+    for _, t in tables:
+        for p in t:
+            if p not in all_pairings:
+                all_pairings.append(p)
 
-    print("\ncommit/hold usage (mean per game, non-mirror pairings):")
-    for label, table in (("all-positive", full), ("zero-centered", zc)):
-        for pairing, p in table.items():
-            a, b = pairing.split(" vs ")
-            if a == b:
-                continue
+    header = f"{'pairing':<28}" + "".join(f" {lab:>21}" for lab, _ in tables)
+    print(header)
+    for pairing in all_pairings:
+        print(f"{pairing:<28}" + "".join(f" {fmt_cell(t.get(pairing))}" for _, t in tables))
+
+    print("\nmean commits/holds per game and margins (mean/median, unclaimed):")
+    for lab, t in tables:
+        for pairing, p in t.items():
             mc, mh = p["mean_commits"], p["mean_holds"]
+            usage = "  ".join(f"{k} {mc[k]:.2f}c/{mh[k]:.2f}h" for k in mc)
             print(
-                f"  [{label}] {pairing:<26}"
-                + "  ".join(f"{k}: {mc[k]:.2f}c/{mh[k]:.2f}h" for k in mc)
+                f"  [{lab}] {pairing:<26} {usage}"
+                f"   margins {p['margin_mean']:.1f}/{p['margin_median']}"
+                f"  uncl {p['unclaimed_rate_per_loc']:.1%}"
             )
-
-    print("\nmargins (mean/median) and unclaimed-tie rate per location:")
-    for label, table in (("all-positive", full), ("zero-centered", zc)):
-        for pairing, p in table.items():
-            print(
-                f"  [{label}] {pairing:<26} {p['margin_mean']:>6.1f}/{p['margin_median']:<4}"
-                f"  unclaimed {p['unclaimed_rate_per_loc']:.1%}"
-            )
+        div = [
+            f"{pairing}: {p['sighted_divergence_rate']:.1%}"
+            for pairing, p in t.items()
+            if "sighted_divergence_rate" in p
+        ]
+        if div:
+            print(f"  [{lab}] divergence  " + "  ".join(div))
 
 
 if __name__ == "__main__":

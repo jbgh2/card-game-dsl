@@ -1,0 +1,113 @@
+{
+  "curve": "recon",
+  "seeds_per_seating": 500,
+  "tuning": {
+    "game": "variants/salvo-recon.cardlang",
+    "base": 13,
+    "results": "results_triage_recon_hb9.json",
+    "won_margin": 25.0,
+    "lost_margin": 25.0,
+    "overkill_w": 0.15,
+    "lostcause_w": 0.2,
+    "urgency_w": 1.3,
+    "opp_staged_est": 9.5,
+    "hold_below": 9.0
+  },
+  "pairings": [
+    {
+      "pairing": "blind_hold vs blind",
+      "games": 1000,
+      "win_rate": {
+        "blind_hold": 0.553,
+        "blind": 0.443,
+        "draw": 0.004
+      },
+      "mean_locs_won": {
+        "blind_hold": 1.53
+      },
+      "margin_mean": 9.43,
+      "margin_median": 7.0,
+      "unclaimed_rate_per_loc": 0.0423,
+      "mean_commits": {
+        "blind_hold": 10.63,
+        "blind": 11
+      },
+      "mean_holds": {
+        "blind_hold": 1.2,
+        "blind": 1
+      }
+    },
+    {
+      "pairing": "sighted vs sighted_nohold",
+      "games": 1000,
+      "win_rate": {
+        "sighted": 0.572,
+        "sighted_nohold": 0.411,
+        "draw": 0.017
+      },
+      "mean_locs_won": {
+        "sighted": 1.556
+      },
+      "margin_mean": 7.04,
+      "margin_median": 5.0,
+      "unclaimed_rate_per_loc": 0.0523,
+      "mean_commits": {
+        "sighted": 10.76,
+        "sighted_nohold": 11
+      },
+      "mean_holds": {
+        "sighted": 1.12,
+        "sighted_nohold": 1
+      },
+      "sighted_divergence_rate": 0.1512
+    },
+    {
+      "pairing": "sighted vs blind_hold",
+      "games": 1000,
+      "win_rate": {
+        "sighted": 0.464,
+        "blind_hold": 0.529,
+        "draw": 0.007
+      },
+      "mean_locs_won": {
+        "sighted": 1.377
+      },
+      "margin_mean": 9.98,
+      "margin_median": 7.0,
+      "unclaimed_rate_per_loc": 0.0477,
+      "mean_commits": {
+        "sighted": 10.43,
+        "blind_hold": 10.62
+      },
+      "mean_holds": {
+        "sighted": 1.32,
+        "blind_hold": 1.21
+      },
+      "sighted_divergence_rate": 0.1946
+    },
+    {
+      "pairing": "sighted vs blind",
+      "games": 1000,
+      "win_rate": {
+        "sighted": 0.543,
+        "blind": 0.447,
+        "draw": 0.01
+      },
+      "mean_locs_won": {
+        "sighted": 1.516
+      },
+      "margin_mean": 10.16,
+      "margin_median": 7.0,
+      "unclaimed_rate_per_loc": 0.046,
+      "mean_commits": {
+        "sighted": 10.48,
+        "blind": 11
+      },
+      "mean_holds": {
+        "sighted": 1.29,
+        "blind": 1
+      },
+      "sighted_divergence_rate": 0.1907
+    }
+  ]
+}

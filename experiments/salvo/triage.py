@@ -76,6 +76,24 @@ CURVES: dict[str, dict[str, Any]] = {
         won_margin=15.0, lost_margin=15.0, overkill_w=0.15, lostcause_w=0.2,
         urgency_w=1.3, opp_staged_est=4.0, hold_below=0.5,
     ),
+    # capacity-4 base game (the round-3 baseline after the designer adopted
+    # Snap's per-side cap): same curve and knobs as "full", new rules
+    "cap": dict(
+        game="salvo.cardlang",
+        base=13,
+        results="results_triage_cap.json",
+        won_margin=25.0, lost_margin=25.0, overkill_w=0.15, lostcause_w=0.2,
+        urgency_w=1.3, opp_staged_est=9.5, hold_below=7.0,
+    ),
+    # capacity + recon draw (candidate (c)): knob-identical to "cap" so the
+    # rule's effect is isolated; hold-threshold sensitivity via --hold-below
+    "recon": dict(
+        game="variants/salvo-recon.cardlang",
+        base=13,
+        results="results_triage_recon.json",
+        won_margin=25.0, lost_margin=25.0, overkill_w=0.15, lostcause_w=0.2,
+        urgency_w=1.3, opp_staged_est=9.5, hold_below=7.0,
+    ),
 }
 TUN: dict[str, Any] = CURVES["full"]  # rebound in main()
 
@@ -171,10 +189,12 @@ def blind_policy(kind: str, pause: Any, space: Any, ctx: Ctx, lv: Any, ridx: dic
     if kind == "offer":
         commit_ids = {lab.removeprefix("commit_"): aid for aid, lab in labels.items() if lab.startswith("commit_")}
         hold_id = next((aid for aid, lab in labels.items() if lab == "hold"), None)
-        if not commit_ids:  # hand empty: hold is all there is
+        if not commit_ids:  # hand empty or every location at capacity
             assert hold_id is not None
             return hold_id
-        best = _best_pairs(hand, locs, lv, ridx)[0]
+        # only locations actually offered (capacity guards filter the rest)
+        pairs = [t for t in _best_pairs(hand, locs, lv, ridx) if t[1] in commit_ids]
+        best = pairs[0]
         if (
             allow_hold
             and hold_id is not None
@@ -246,7 +266,11 @@ def sighted_policy(kind: str, pause: Any, space: Any, ctx: Ctx, lv: Any, ridx: d
             (lv(c, locs[l]) * weights[l], l, c)
             for c in hand
             for l in LOCS
+            if l in commit_ids  # capacity guards filter un-offered locations
         ]
+        if not scored:
+            assert hold_id is not None
+            return hold_id
         scored.sort(key=lambda t: (-t[0], t[1], ridx[t[2].rank], t[2].suit))
         best_v, best_l, _ = scored[0]
         if allow_hold and hold_id is not None and best_v < TUN["hold_below"] and _round_no(pause) < HOLD_LAST_ROUND:
@@ -480,10 +504,20 @@ def main() -> None:
     global GAME_PATH, TUN
     ap = argparse.ArgumentParser()
     ap.add_argument("--seeds", type=int, default=150, help="seeds per seating per pairing")
-    ap.add_argument("--curve", choices=sorted(CURVES), default="full", help="value curve / game variant")
+    ap.add_argument("--curve", choices=sorted(CURVES), default="full", help="config: value curve / game variant")
+    ap.add_argument("--hold-below", type=float, default=None, help="override the hold threshold (sensitivity sweeps); suffixes the results filename")
+    ap.add_argument("--probes-only", action="store_true", help="run only the four commit-count probe pairings (for sweeps)")
     args = ap.parse_args()
 
-    TUN = CURVES[args.curve]
+    TUN = dict(CURVES[args.curve])
+    if args.hold_below is not None:
+        TUN["hold_below"] = args.hold_below
+        stem, dot, ext = TUN["results"].rpartition(".")
+        TUN["results"] = f"{stem}_hb{args.hold_below:g}.{ext}"
+    elif args.probes_only:
+        # never clobber a full-pairing results file with a probe subset
+        stem, dot, ext = TUN["results"].rpartition(".")
+        TUN["results"] = f"{stem}_probes.{ext}"
     GAME_PATH = str(HERE / TUN["game"])
     game_ast, space = replay.load(GAME_PATH)
     ridx = rank_index_map(game_ast)
@@ -499,10 +533,18 @@ def main() -> None:
         ("blind", "blind"),
         ("sighted", "sighted"),
     ]
-    if args.curve == "zc":
+    if args.curve != "full":
         # the commit-count probes: does restraint pay at all, and does
-        # own-value restraint alone capture it?
+        # own-value restraint alone capture it? ("full" keeps the exact
+        # round-1 pairing list for byte-stable reproducibility)
         pairings += [("blind_hold", "blind"), ("sighted", "blind_hold")]
+    if args.probes_only:
+        pairings = [
+            ("blind_hold", "blind"),
+            ("sighted", "sighted_nohold"),
+            ("sighted", "blind_hold"),
+            ("sighted", "blind"),
+        ]
     results = []
     for a, b in pairings:
         res = arena(space, a, b, args.seeds, lv, ridx)
