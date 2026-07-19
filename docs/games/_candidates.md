@@ -20,8 +20,8 @@ relevant tier.
 
 **Source policy.** Summaries are written from memory for games the
 author is confident about. For games with regional variation or fiddly
-scoring (Skat, French Tarot, Doppelkopf, Sheepshead, Piquet, 500,
-Belote, regional Scopa variants), the entry flags where
+scoring (Skat, French Tarot, Doppelkopf, Sheepshead, Piquet,
+regional Scopa variants), the entry flags where
 [Pagat](https://www.pagat.com/) should be consulted before committing
 to a real implementation. Pagat covers card games only; board-game
 entries (the topology ladder below) pin their variant to a named public
@@ -35,8 +35,8 @@ executable tiebreaker where one exists.
 | [special-cards-declaration](../open-questions/special-cards-declaration.md) (contextual rank) | 2nd play-time *relative*-rank card beyond Tichu's Phoenix | **[euchre](#euchre)** (bowers: rank *and effective suit* remap, in the base rules, keyed to a runtime-chosen trump), [president](#president) single-joker variant ("one higher than the card below it") |
 | [move-level-visibility](../open-questions/move-level-visibility.md) | per-observer move-level override (forces replace-vs-merge) | **poker "show one, show all"** — a Stud or [holdem](#holdem) variant, exercisable in the *existing* poker corpus |
 | [memory-event-syntax](../open-questions/memory-event-syntax.md) | an event composition can't express | **[hanabi](#hanabi)** (partial-identity hint over an inverted hand — forces it; _dedicated deck, out of scope_), [cabo](#cabo) (composable from existing ops) |
-| [knowledge-events](../open-questions/knowledge-events.md) | phase outcome observed unequally | **[mascarade](#mascarade)**, [love-letter](#love-letter) (both _dedicated deck, out of scope_) |
-| [structural-infoset-proofs](../open-questions/structural-infoset-proofs.md) | a compound hidden-function probe (public outcome as a non-trivial function of hidden state) | **[cheat](#cheat)** (challenge outcome = boolean function of hidden cards, then a reveal), [500](#500) open misère (corroborates: full reveal, not a function), [battleship](#battleship) (shot result = predicate of a hidden board), [stratego-barrage](#stratego-barrage) (combat) |
+| [knowledge-events](../open-questions/knowledge-events.md) | phase outcome observed unequally | **[mascarade](#mascarade)**, [love-letter](#love-letter) (both _dedicated deck, out of scope_); Belote (now in the corpus) supplies the in-play announce-and-show data point — see the question file |
+| [structural-infoset-proofs](../open-questions/structural-infoset-proofs.md) | board-shaped instances of the compound hidden-function probe, extending the Cheat-anchored constructive world generator to spatial hiding | **[battleship](#battleship)** (shot result = public predicate of a hidden board), [stratego-barrage](#stratego-barrage) (combat double-reveal) |
 | [unbounded-lines-and-max-length](../open-questions/unbounded-lines-and-max-length.md) | a game whose legal lines cycle, forcing the draw-rule design | **[nine-mens-morris](#nine-mens-morris)**, [english-draughts](#english-draughts) (both counter-based draw rules; wave C of the topology ladder is gated on this settlement) |
 
 `higher-order-knowledge` is no longer listed: the verified pass found no
@@ -72,42 +72,6 @@ auction shape. "Going alone" adds a mid-auction participation change.
 **Notes.** **Pagat** for the trump-making sequence, stick-the-dealer, and
 going-alone scoring: <https://www.pagat.com/euchre/euchre.html>. North
 American rules; British variants differ in deck size.
-
-### 500
-
-4 players (partnerships of 2), 43- or 45-card deck, bidded trick-taking
-with miseres and open miseres.
-
-**Why interesting.** Some bids (Miseres) have *inverse* scoring —
-declarer wants zero tricks. Open Miseres reveal the declarer's hand —
-a knowledge event mid-phase that flips the visibility of a private
-zone. Useful variant input to
-[knowledge-events](../open-questions/knowledge-events.md), and a
-second data point for inverse-outcome scoring beyond Hearts'
-shoot-the-moon.
-
-**Notes.** Multiple regional variants (Australian, Canadian, US).
-**Pagat** for the bidding table and contract-by-contract scoring
-brackets: <https://www.pagat.com/500/500.html>.
-
-### belote
-
-4 players (partnerships), 32-card deck, bidded trick-taking with
-melding (Belote-Rebelote, sequences, four-of-a-kind), strict follow
-rules.
-
-**Why interesting.** Pinochle's continental cousin. Follow rules are
-stricter than Pinochle's (in many variants: must overtrump the best
-trump played so far by *partnership*, not just by self), exercising
-the constrained-follow rule family in a new shape. Declarations of
-melds happen *during* play (announced on the trick they're shown),
-introducing mid-phase knowledge events that affect end-of-hand
-scoring.
-
-**Notes.** **Pagat** for declaration rules — what can be announced,
-when, and how announcements interact: <https://www.pagat.com/jass/belote.html>.
-Klaverjas (Dutch) is a near-twin; implement Belote first and treat
-Klaverjas as a delta.
 
 ### piquet
 
@@ -260,54 +224,21 @@ Diamond Cassino adds bonus scoring. Standard Cassino suffices.
 
 ## Rummy family
 
-(Gin Rummy is in the corpus — [gin-rummy.md](gin-rummy.md) — anchoring the
-`turns` form and joint-predicate selection.)
-
-### canasta
-
-4 players (partnerships), two 52-card decks + 4 jokers. Rummy with a
-frozen discard pile, melds of seven (canastas), elaborate per-hand
-scoring.
-
-**Why interesting.** The *frozen pile* is an instance of a zone
-whose state (frozen vs. unfrozen) changes the rule set for taking
-from it — analogous to Hearts' `hearts_broken` sub-phase pattern, but
-on a zone rather than a phase. Useful test of whether the
-boolean-vs-sub-phase criterion in
-[decisions.md](../decisions.md) generalizes to zone state.
-
-**Notes.** Hand and Foot is a Canasta extension with two hands per
-player (the "hand" played first, then the "foot"). Implement
-Canasta first.
+(Gin Rummy — [gin-rummy.md](gin-rummy.md) — anchors the `turns` form and
+joint-predicate selection; Canasta — [canasta.md](canasta.md) — settled
+meld groups as flattened zone families and answered the frozen-pile
+zone-state question, both now in [decisions.md](../decisions.md). Hand
+and Foot, a Canasta extension with two hands per player — the "hand"
+played first, then the "foot" — would be a delta on the Canasta file if
+ever wanted.)
 
 ## Memory, bluff, inference
 
-### cheat
-
-3+ players, standard 52, shedding by claim: each play is face-down cards
-plus a public rank claim ("three 7s"); any player may challenge, flipping
-the played cards — the liar (or the wrong challenger) takes the whole pile.
-
-**Why interesting — two high-leverage unblocks in one small game:**
-
-- *The compound hidden-function probe* that
-  [structural-infoset-proofs](../open-questions/structural-infoset-proofs.md)
-  is blocked on: the challenge outcome is a **public boolean function of
-  hidden content** (were the face-down cards what was claimed?), followed
-  by a public reveal of exactly those cards. No simple swap axis survives
-  that channel — this is the named data point for the constructive world
-  generator.
-- *The second real challenge window* after interactive Coup (and the claim
-  vocabulary is open — any rank — where Coup's is closed), advancing the
-  `challenge` stdlib promotion toward its third instance.
-
-Claim-versus-content is also the modeling rule from decisions.md ("a
-public assertion is a state variable *because* it is public") in its
-purest form. Verified expressible at stress scope (the broad-sweep
-branch hand-rolled it twice).
-
-**Notes.** Known as I Doubt It / Bullshit / Bluff. **Pagat**:
-<https://www.pagat.com/beating/cheat.html>.
+(Cheat, formerly a candidate here, is now in the corpus
+([cheat.cardlang](cheat.cardlang)): the compound hidden-function probe
+anchoring the constructive world generator of
+[structural-infoset-proofs](../open-questions/structural-infoset-proofs.md),
+and the second challenge-window instance after Coup.)
 
 ### hanabi
 
@@ -486,32 +417,6 @@ because it's a card game.
 
 ## Solitaire & patience
 
-### klondike
-
-1 player, standard 52, solitaire with seven tableau columns, four
-foundations, draw from stock.
-
-**Why interesting.** Canonical solitaire — explicitly deferred in
-[roadmap.md](../roadmap.md) but flagged as a high-value test of
-*positional zones*. Tableau columns have ordered visibility (top of
-pile visible, beneath hidden until exposed), and movement obeys
-positional adjacency rules. The DSL currently has no story for
-positional zones; Klondike is the forcing function.
-
-**Notes.** Klondike forces "ordered zone with positional visibility"
-and "stack-movement primitive" as first-class design questions.
-
-### freecell
-
-1 player, standard 52, solitaire variant with all cards face-up at
-deal, four free cells, eight tableau columns.
-
-**Why interesting.** A Klondike variant with *no hidden
-information* — positional but perfect-information. Tests whether
-the positional-zone design forced by Klondike collapses cleanly to
-the no-information case, or whether positional and informational
-zone properties need orthogonal treatment.
-
 ### spider
 
 1 player, two 52-card decks, solitaire with ten tableau columns.
@@ -520,8 +425,15 @@ Sequences must form same-suit runs to be removed to foundations.
 **Why interesting.** The *removal criterion* (complete K-to-A run
 in one suit) is a stronger combination-recognition test than
 Klondike's foundations. Bridges solitaire and meld-recognition (Gin
-Rummy). Useful third positional candidate; implementation can wait
-until after Klondike+FreeCell expose the right primitives.
+Rummy). The positional substrate is in place
+([klondike](klondike.md) + [freecell](freecell.md) — position
+domains, Cascade/HiddenStack column pairs, `top_of`); Spider's new
+pressure is the removal recognizer and the ten-column two-deck
+scale, plus a genuine test of the run-invariant assumption: Spider's
+mid-game deals drop a fresh row onto the piles, so a face-up pile is
+NOT rank-monotone and the rank-filter suffix denotation no longer
+covers every legal unit move — the positional-slice movement
+recorded as deferred in [roadmap.md](../roadmap.md).
 
 ## Boards: the topology witness ladder
 
@@ -604,12 +516,14 @@ repeated shots illegal; first fleet sunk loses.
 **Why interesting.** The first hidden-information board: per-player
 hidden cell families (identity to owner, nothing to others) and the
 **probe action** — a shot's result is a public function of a hidden
-zone's true contents, which is exactly the compound hidden-function
-probe [structural-infoset-proofs](../open-questions/structural-infoset-proofs.md)
-awaits, in board shape (Cheat is the card shape); budget the two
-together per the domain map. Footprint placement (one decision, a
-bounded effect placing each segment) and monotone shot sets keep
-everything else already-earned.
+zone's true contents: the compound hidden-function probe class whose
+Cheat anchor landed the constructive world generator
+(`tests/openspiel_ready/worlds.py`;
+[structural-infoset-proofs](../open-questions/structural-infoset-proofs.md)).
+Battleship extends that generator to spatial hiding — the question's
+recorded residual — so the two are budgeted together. Footprint
+placement (one decision, a bounded effect placing each segment) and
+monotone shot sets keep everything else already-earned.
 
 **Notes.** 1990 Milton Bradley rules; note some editions announce ship
 type on every hit — the pin announces type on sink only. OpenSpiel
@@ -692,7 +606,9 @@ draws.
 **Why interesting.** The rule-composition rung: mandatory capture as a
 rule whose demand narrows the vocabulary to jumps when any exist, jump
 `(from, over, to)` triples as declared relation data, multi-jump
-chains on the `turns` form's `again` axis with a `Cell?` chain anchor,
+chains on the `turns` form's `again` axis with a position-typed chain
+anchor (lifting the recorded position-typed-state wall —
+[roadmap.md](../roadmap.md) "Positional zones — walled residuals"),
 promotion as a supply swap, and counter-based draw state. English over
 International deliberately: no capture maximization, so the gated
 optimization query class stays unwitnessed. Same

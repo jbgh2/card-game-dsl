@@ -232,6 +232,7 @@ def param_domain(p: "n.MoveParam", actor: Player, ctx: Ctx) -> list[Any]:
             suits=ctx.rs.suits,
             ranks=list(ctx.rs.rank_index),
             players=list(ctx.rs.seating.players),
+            positions=ctx.rs.position_domains,
         ),
     )
 

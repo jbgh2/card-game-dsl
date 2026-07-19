@@ -25,6 +25,13 @@ LIBRARY_ZONE_TYPES: dict[str, bool] = {
     "FaceDownPile": False,  # a face-down stock (Schnapsen's talon)
     "Burn": False,  # the per-street burned-card pile (Stud)
     "HiddenPile": True,  # a resting pile a player owns but conceals (Tarot's discards)
+    # Positional-layout types (decisions.md "Position domains and positional
+    # zones"). All four take an index argument — a position domain, or a
+    # seat/team role for the uniform-projection ones. Klondike + FreeCell.
+    "Cascade": True,  # a face-up ordered pile; order public (arrival events)
+    "HiddenStack": True,  # a face-down pile family (Klondike's tableau_down)
+    "Foundation": True,  # an ascending suit pile (A up to K), face up
+    "Cell": True,  # a one-card holding space (FreeCell's free cells)
 }
 
 
@@ -55,6 +62,10 @@ ZONE_PROJECTIONS: dict[str, ZoneVisibility] = {
     "FaceDownPile": ZoneVisibility("count_only", "count_only"),
     "Burn": ZoneVisibility("trivial", "trivial"),
     "HiddenPile": ZoneVisibility("identity", "count_only"),  # same profile as Hand
+    "Cascade": ZoneVisibility("identity", "identity"),
+    "HiddenStack": ZoneVisibility("count_only", "count_only"),
+    "Foundation": ZoneVisibility("identity", "identity"),
+    "Cell": ZoneVisibility("identity", "identity"),
 }
 
 

@@ -1,0 +1,1 @@
+positions_for_each.cardlang:23:5: error: unknown `for each` role 'column' (expected one of player, rank, suit, team)

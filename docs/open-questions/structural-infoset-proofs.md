@@ -1,6 +1,7 @@
 # Structural proofs of the OpenSpiel-readiness properties
 
-**Tier 2 — high impact, blocked on a data point.** The load-bearing project
+**Tier 2 — high impact, first constructive instance built (Cheat);
+corpus-wide generalization remains.** The load-bearing project
 requirement is that information sets are *derived* (CLAUDE.md;
 [decisions.md](../decisions.md) "Knowledge, visibility, and the projection
 model"). The `openspiel_ready` harness proves the readiness properties —
@@ -50,8 +51,22 @@ Two *distinct* kinds of harness misfit already exist, each patched per game:
   false when a public observation is a function of hidden content — Go Fish's
   ask publicly reveals a transfer count that reads the target's hidden hand — so
   the harness fails on a legally-replayed but distinguishable world. Patched with
-  a same-`rank` swap axis (bespoke-test fallback); a *compound* hidden-function
-  probe would defeat any simple swap axis.
+  a same-`rank` swap axis (bespoke-test fallback). The *compound* hidden-function
+  case that defeats any simple swap axis is now in the corpus — Cheat's
+  challenge verdict is a public Boolean over a *set* of hidden cards, then a
+  reveal of exactly those cards, so whether a hidden card may vary depends on
+  the line (was it played? flipped? picked up?), not on any per-card
+  attribute — and it is covered by the constructive generator below, not by
+  an axis.
+- **Opponent-shape gap (Klondike, FreeCell).** The shared swap and own-view
+  proofs assume opponent hands to pair; a 1-player game has none. Klondike
+  overrides them with the chance-hidden analogues (a face-down-tableau ↔
+  undrawn-stock swap with legal-action agreement; an exposed-layout
+  perturbation), and FreeCell — perfect information — proves the honest
+  degeneracy instead (no populated zone below identity, all 52 identities in
+  the rendered state, info sets singletons). Both live in the game's proof
+  module per the standing convention; the underlying misfit is again the
+  sampler shape, not the property.
 
 Both are the same root: the proof is a **simulate-and-perturb sampler** over a
 property that is really **structural**.
@@ -121,7 +136,20 @@ checklist for resolving this question.
 - **Indistinguishability — no leak.** Perturbing only hidden content leaves
   the observer's information state byte-identical. *Covered, weakly
   sampled:* one seed, one depth, the first legally-replaying swap pair, the
-  greedy `legal[0]` line — plus the accreting exceptions above.
+  greedy `legal[0]` line — plus the accreting exceptions above. *Covered
+  constructively for Cheat only* (`tests/openspiel_ready/worlds.py` +
+  `test_cheat.py`): the pinned set is derived from the line itself (cards
+  named by the history's decisions, cards named in the observer's log,
+  cards in the observer's identity projections) and the **entire remaining
+  hidden set** is permuted across the other hands' deal-time contents —
+  per observer, on a challenge-exercising line, with legal-action agreement
+  when the observer is to move, and one discriminating probe per pin class
+  (a decode-pin violation trips the replay wall; a log-pin violation
+  replays legally but visibly differs, the world the axis heuristic could
+  never rule out). Paired-history probes pin the channel itself: two lines
+  one hidden played card apart are byte-identical to every non-claimant
+  until a challenge flips the play, distinguishable to everyone after, and
+  identical forever if no one calls.
 - **Soundness, generalized — nothing over-hidden.** Perturbing any
   *declared-visible* fact must change the observer's information state.
   The general obligation is one perturbation per visible fact — every zone
@@ -203,10 +231,12 @@ Legal-action agreement, the seed/rng assertions, adapter agreement, the
 enumerated per-visible-fact soundness perturbations, and the
 witness-and-coverage obligations are built, as per-game proofs over
 today's swap-and-replay harness (`tests/openspiel_ready/harness.py` +
-`partition.py`) — none of them waited on the data point below. Only the
-constructive world generator — building indistinguishable worlds from the
-projection lattice instead of sampling swaps — remains blocked, and it is
-what keeps this question open.
+`partition.py`) — none of them waited on the compound data point. The
+constructive world generator now has its first instance
+(`tests/openspiel_ready/worlds.py`, anchored by Cheat — see "What the
+data point pinned" below); what keeps this question open is generalizing
+it: the swap axes still carry every other game, and retiring them needs
+the per-game sufficiency analysis named below.
 
 ## The options
 
@@ -222,19 +252,35 @@ what keeps this question open.
   perturbation-sensitive properties); keep the simulation harness for
   conformance and perfect recall, where it fits.
 
-## Blocked on
+## What the data point pinned, and what remains
 
-Only the constructive world generator is blocked (everything in "Actionable
-now" is not). Its general shape wants **the first game that defeats a simple
-swap-axis constraint** — a compound hidden-function probe, whose public outcome is a
-non-trivial function of hidden state (e.g. "how many red cards do you hold", a
-sum-capture reveal, a partial-information bid comparison). That case forces the
-equivalence-class machinery to be general rather than axis-shaped, and pins
-whether the structural proof can be fully static or needs a constructive
-sampler. Until then the direction is clear but a committed design risks
-generalizing from two points. It could instead graduate to a design-note and be
-built proactively if the corpus is about to add such a game — the whack-a-mole
-cost is paid per game, so moving before the next mole is the point.
+The compound hidden-function probe the generator's design waited on is in
+the corpus: **Cheat** (challenge verdict = a public Boolean over a set of
+hidden cards, then a reveal of exactly those cards), and the generator's
+first instance is built against it (`tests/openspiel_ready/worlds.py`,
+exercised by `test_cheat.py`). The data point settles the design fork the
+old "Blocked on" posed: the structural proof **cannot be fully static** —
+the equivalence classes are *line-dependent* (a card is constrained because
+this line played, revealed, or delivered it, not because of any per-card
+attribute) — so the generator is a **constructive sampler over lines**: it
+derives the pinned set from the replayed line (decode pins from the
+history's card-naming decisions, log pins from the observer's observation
+log, projection pins from the observer's current identity entitlements) and
+permutes the entire remaining hidden set, validity by construction.
+
+What remains, and keeps the question open, is **generalizing it across the
+corpus**. The pin derivation is generic machinery, but its *sufficiency* —
+"every public emission that reads hidden content names exactly the cards it
+read" — is a per-game property: Cheat satisfies it (the flip names the very
+cards the verdict read; every other guard reads counts and public state),
+while Go Fish does not (the ask's public transfer count reads the target's
+hidden rank composition without naming a card), so adopting the generator
+there needs count-preserving constraints the pin classes don't yet carry —
+derived from the emission sites, which is exactly the structural analysis
+"The direction" describes. Until that lands per game, the swap axes remain
+the standing coverage for every game but Cheat, and the generator's
+assert-backed shape is the safety net: a game outside its sufficiency
+condition fails the equality assert loudly, never certifies a wrong world.
 
 Related: the readiness harness (`tests/openspiel_ready/harness.py`);
 [decisions.md](../decisions.md) "Knowledge, visibility, and the projection

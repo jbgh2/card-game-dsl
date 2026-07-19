@@ -1,0 +1,130 @@
+// Green Lane V1 "impound" MINI — the exactly-solvable shrink of
+// v1-impound.cardlang (see ../DESIGN.md for the baseline family). Same rules
+// as the baseline mini — hands are the 2, 3 (legal) and A (contraband) of
+// one suit each, ONE inspection token per player, six smuggling rounds —
+// except for the V1 delta:
+//   1. Inspected-legal goods are IMPOUNDED: they still land face up in the
+//      merchant's cleared pile, but they score NOBODY — the crate's value
+//      is simply lost. (Waved goods still score for the merchant; seized
+//      contraband still scores for the inspector.)
+//   2. The fine is 5 (was 4). A false alarm nets the merchant a margin of
+//      2*fine - 2*value — +8 baiting with the 2, +6 baiting with the 3 —
+//      instead of the baseline's flat +8, so decoy identity matters.
+// Small enough for vanilla CFR and exact best response through the
+// OpenSpiel adapter.
+
+game GreenLaneV1ImpoundMini {
+
+  players: 2
+  direction: clockwise
+  max_length: 200
+
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+
+  zones {
+    deck              : Deck
+    dead              : Muck                  // the 46 out-of-play cards
+    hand[player]      : Hand<player>          // goods still to ship
+    shipment[player]  : HiddenPile<player>    // this round's face-down shipment
+    warehouse[player] : HiddenPile<player>    // waved-through goods, concealed
+    cleared[player]   : PlayerPile<player>    // impound lot: inspected-legal goods, public, scores NOBODY
+    seized[player]    : PlayerPile<player>    // contraband this player confiscated
+  }
+
+  state {
+    tokens[player]   : Integer = 1   // one inspection for the whole game
+    fine_net[player] : Integer = 0   // fines received minus fines paid
+    merchant         : Player  = 0   // this round's shipper
+    inspector        : Player  = 1   // this round's customs officer
+    score[player]    : Integer = 0   // settled once, in scoring
+  }
+
+  phase setup {
+    // Fixed public hands: 2, 3 (legal; rank_value 0..1) and A (contraband;
+    // rank_value 12) of clubs for P0, spades for P1.
+    move all cards from deck
+         where card.suit is clubs and (rank_value(card) <= 1 or rank_value(card) >= 12)
+         to hand[0]
+    move all cards from deck
+         where card.suit is spades and (rank_value(card) <= 1 or rank_value(card) >= 12)
+         to hand[1]
+    move all cards from deck to dead
+  }
+
+  phase play {
+    // Six smuggling rounds, roles alternating; hands shrink in lockstep.
+    repeat until hand[0] is empty and hand[1] is empty {
+      merchant := 0
+      inspector := 1
+      run smuggle_round()
+      merchant := 1
+      inspector := 0
+      run smuggle_round()
+    }
+  }
+
+  phase scoring {
+    // Warehouse scores for the shipper, seized for the confiscator, both at
+    // card value (rank_value + 1, folded in as the zone count). The cleared
+    // piles (impounded goods) score nobody — deliberately absent from these
+    // sums; that IS the V1 delta.
+    let goods0 = (sum of rank_value(card) over cards in warehouse[0])
+               + (number of cards in warehouse[0])
+               + (sum of rank_value(card) over cards in seized[0])
+               + (number of cards in seized[0])
+    let goods1 = (sum of rank_value(card) over cards in warehouse[1])
+               + (number of cards in warehouse[1])
+               + (sum of rank_value(card) over cards in seized[1])
+               + (number of cards in seized[1])
+    score[0] := goods0 - goods1 + fine_net[0] - fine_net[1]
+    score[1] := goods1 - goods0 + fine_net[1] - fine_net[0]
+  }
+
+  winner: highest score
+}
+
+// One smuggling round for the current `merchant` / `inspector` — identical
+// to the baseline's (see ../green-lane.cardlang for the commentary).
+procedure smuggle_round() {
+  if (number of cards in hand[merchant]) is 1 {
+    move one card from hand[merchant] to shipment[merchant]
+  } else {
+    as merchant {
+      move chosen 1 card from hand[merchant] to shipment[merchant]
+    }
+  }
+  if tokens[inspector] > 0 {
+    offer to inspector one of [inspect, wave]
+  } else {
+    move all cards from shipment[merchant] to warehouse[merchant]
+  }
+}
+
+move_type wave {
+  effect {
+    move all cards from shipment[merchant] to warehouse[merchant]
+  }
+}
+
+// Spend the token and open the crate. Contraband is seized and scores for
+// the inspector; legal goods are impounded in `cleared` (scoring nobody)
+// and the inspector pays the 5-point fine.
+move_type inspect {
+  when: tokens[actor] > 0   // backstop: the offer site in smuggle_round gates on tokens
+  effect {
+    tokens[actor] -= 1
+    reveal one card from shipment[merchant]
+    // Contraband: rank_value >= 12 — textually the same threshold as the
+    // setup filter above, so the two sites cannot drift apart.
+    if any card in shipment[merchant] where rank_value(card) >= 12 {
+      move all cards from shipment[merchant] to seized[actor]
+      fine_net[merchant] -= 5
+      fine_net[actor] += 5
+    } else {
+      move all cards from shipment[merchant] to cleared[merchant]
+      fine_net[merchant] += 5
+      fine_net[actor] -= 5
+    }
+  }
+}

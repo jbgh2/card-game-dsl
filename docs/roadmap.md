@@ -142,6 +142,14 @@ Things we have noted but consciously not designed yet:
   climb and joint selections, or two joint predicates wanting different
   codecs are each a loud `NotImplementedError` at action-space
   construction, lifted when a game forces the composed-combo-block design.
+  Joint selections on a deck with duplicate identical cards (pinochle48,
+  doppelkopf48, coup15, canasta108) are refused there too: the combo block
+  canonicalizes subsets by frozenset, which collapses copies — {K♠, K♠}
+  would collide with {K♠} — so the encoding needs a multiset-safe
+  canonicalization no game has forced (Canasta, the first duplicate-deck
+  melding game, deliberately encodes melds per card through the card block
+  instead — copies share an id soundly there, since identical cards are
+  interchangeable).
 
 - **Unanchored inline keywords are a fused-typo misparse class.** Under the
   dynamic lexer an inline string keyword can match as a PREFIX of an
@@ -191,9 +199,47 @@ Things we have noted but consciously not designed yet:
   `docs/games/*.cardlang` ranking today happens to be a full permutation of
   its deck).
 
-- **Solitaire and positional zones.** CardStock excludes spatially-dependent
-  layouts. We don't, but we haven't implemented one yet. Klondike or FreeCell
-  will be the test case.
+- **500's lead-time joker nomination.** Pagat's no-trump-family rule lets an
+  un-nominated joker be *led* with a lead-time suit nomination (naming a suit
+  not previously led, which the others must follow; the lead is illegal once
+  all four suits have been led, except to the last trick). The corpus file
+  keeps the restriction and drops the nomination: an un-nominated joker may
+  be led only as its holder's last card
+  ([games/five-hundred.md](games/five-hundred.md), "Chosen ruleset"); the
+  wall is `five_hundred_lead_ok` filtering the lead out (never
+  accepted-but-ignored — the move is simply not offered). The declarer's
+  start-of-play nomination, the strategically load-bearing form, is modelled
+  in full. Revisit if a game forces play-time suit nomination as a
+  first-class decision — the same contextual-declaration surface Euchre's
+  bower work ([open-questions/special-cards-declaration.md](open-questions/special-cards-declaration.md))
+  may grow.
+
+- **Positional zones — walled residuals.** Positional layouts are live
+  ([decisions.md](decisions.md) "Position domains and positional zones";
+  Klondike and FreeCell are the corpus anchors). Four cells of the position
+  design stay deferred, each behind a wall:
+  - `for each <position>` iteration and position-indexed `state` stores —
+    both rejected at resolve with diagnostics
+    (tests/rejections/positions_for_each,
+    positions_state_indexed_by_position); no corpus game addresses columns
+    by loop or keeps per-column scalar state (guards + parameters cover
+    both games). Implement when a game needs one.
+  - A **positional slice movement** ("card X and everything above it" as
+    surface). Klondike's run move is denoted by a rank filter because a
+    cascade's face-up run is rank-monotone (the run invariant); Spider's
+    mid-game deals break that monotonicity, so Spider is the forcing
+    candidate ([games/_candidates.md](games/_candidates.md)). Until then a
+    non-denotable unit move simply has no sentence that expresses it —
+    grammatically inexpressible, not accepted-and-dropped.
+  - `top_of`/`bottom_of` in a move **guard** over a zone the decider
+    cannot see would make legality depend on hidden state. No static wall
+    exists (guards may legitimately read any expression); the per-game
+    openspiel_ready legal-action-agreement proofs are the police, as for
+    every other guard read (tests/test_positions.py names this residual).
+  - The canonical **gather** over a position family is order-preserving
+    per the canonical zone-collection rule but has no corpus witness
+    (single-deal games never gather); sampled, stated explicitly in
+    decisions.md rather than assumed.
 
 - **Doc-snippet fragment kinds with no cheap wrapping harness.**
   `tests/test_doc_snippets.py` pipeline-checks every `cardlang`/
@@ -248,9 +294,17 @@ Things we have noted but consciously not designed yet:
   remains, and the `instantiate` construct is deleted. Coup runs at real
   interactive scope (challenges, blocks, claimed characters, and targets
   are announced player decisions; a proven challenge's card is publicly
-  revealed). The remaining scope of work is Tichu's call windows and
-  Dragon routing — a behaviour change with its own sign-off, in
-  [kernel-migration.md](kernel-migration.md), Workstream 5.
+  revealed). The challenge window now has its SECOND instance — Cheat
+  ([games/cheat.cardlang](games/cheat.cardlang)), whose claim vocabulary is
+  open (all 13 ranks) where Coup's is five characters, and whose window is
+  the same game-local procedure shape as Coup's (rotate from the claimant's
+  left, first challenge closes) — so a third instance triggers the
+  `challenge` promotion; the shared shape to lift is the
+  window-plus-verdict procedure, with the verdict predicate (Coup's
+  has-the-claimed-character proof, Cheat's all-cards-match-the-claim flip)
+  as the game-supplied parameter. The remaining scope of work is Tichu's
+  call windows and Dragon routing — a behaviour change with its own
+  sign-off, in [kernel-migration.md](kernel-migration.md), Workstream 5.
 
 - **Typed outcomes: Stages 1–3 built; remaining corpus migrations + checker coverage.**
   Stage 1 is built: `cardlang/typecheck.py` is a real type checker (a `Type`
@@ -540,33 +594,59 @@ questions by impact × actionability and is the authority on question
 priority. This section adds what that list doesn't carry: the cross-cutting
 work that isn't an open question, and which next game unblocks what.
 
-1. **Pick the next game for its unblocks.** The full pipeline is
-   [games/_candidates.md](games/_candidates.md); several candidates each
-   unblock more than one open question:
+1. **Design and build the family-library import tier**
+   ([open-questions/family-libraries.md](open-questions/family-libraries.md),
+   Tier 1). The `uses <library>` mechanism between game-local and stdlib:
+   the definition forms it needs all exist, the front end holds a working
+   single instance of each mechanism it generalizes, and two families pin
+   the surface — the poker anchors (Kuhn/Leduc, small enough to test the
+   sharing mechanism rather than the games) and the smuggling family, whose
+   five sibling rulesets measured the copy-drift and parameterization cost
+   the tier removes. Landing Kuhn or Leduc alongside the mechanism gives it
+   a corpus anchor in the same change.
 
-   - **500 or Belote** — the unequally-observed phase outcome that
-     [knowledge-events](open-questions/knowledge-events.md) awaits (500's
-     open misère reveal; Belote's in-play declarations), and plausibly also
-     the compound hidden-function probe that blocks
-     [structural-infoset-proofs](open-questions/structural-infoset-proofs.md)'
-     constructive world generator — one game, two unblocks.
-   - **Canasta** — the residual of
-     [meld-groups](open-questions/meld-groups.md) (first-class shared
-     growing meld objects; the joint-predicate selection half is settled,
-     anchored by Gin Rummy), and a third climbing-adjacent shed game.
-   - **Klondike or FreeCell** — first solitaire; forces the deferred
-     positional-zone design rather than an open question.
+2. **Pick the next game for its unblocks.** The six-game wave (Cheat, 500,
+   Belote, Canasta, Klondike, FreeCell) cleared the candidates that each
+   unblocked a Tier 2 question; the full pipeline is
+   [games/_candidates.md](games/_candidates.md). The candidates that still
+   each unblock an open question:
 
-2. **Address Tier 3 questions when their corner gets exercised.**
+   - **Euchre** — the bowers are the sharpest witness for
+     [special-cards-declaration](open-questions/special-cards-declaration.md)'s
+     contextual-rank axis (rank *and* effective-suit remap, keyed to a
+     runtime-chosen trump). 500's joker and bowers were carried by game-local
+     primitives, leaving the *declarative* bower surface unforced — Euchre is
+     that forcing function.
+   - **Hold'em** — the "show one, show all" showdown rule is the per-observer
+     move-level override that
+     [move-level-visibility](open-questions/move-level-visibility.md) awaits
+     (exercisable in the existing poker corpus), and as the second poker game
+     it is the data point [family-libraries](open-questions/family-libraries.md)
+     is blocked on.
+   - **Spider** — the third positional game and the forcing candidate for the
+     deferred positional slice movement ("Positional zones — walled
+     residuals", above): its mid-game deals break the run-monotonicity that
+     let Klondike denote runs with a rank filter.
+
+   Not game-gated: the
+   [structural-infoset-proofs](open-questions/structural-infoset-proofs.md)
+   residual is generalizing the constructive world generator (first instance
+   landed with Cheat) across the corpus via per-game emission-site analysis —
+   no new game needed. And
+   [knowledge-events](open-questions/knowledge-events.md) is narrowed by 500
+   and Belote to awaiting only an out-of-scope dedicated-deck game (Mascarade
+   / Love Letter).
+
+3. **Address Tier 3 questions when their corner gets exercised.**
    [move-level-visibility](open-questions/move-level-visibility.md) awaits
    the first game needing a move-level projection override. When these
    land, the partition checks are their acceptance bar: new visibility
    surface arrives with derived partition coverage, not bespoke tests.
 
-3. **Pin down [memory-event-syntax](open-questions/memory-event-syntax.md)**
+4. **Pin down [memory-event-syntax](open-questions/memory-event-syntax.md)**
    when three or four examples exist beyond stdlib operations (Stud and
    Coup are the two so far; both composed the closed vocabulary without
    needing a declaration).
 
-4. **Defer Tier 5 cosmetic questions** until a real preference emerges
+5. **Defer Tier 5 cosmetic questions** until a real preference emerges
    from corpus pressure.

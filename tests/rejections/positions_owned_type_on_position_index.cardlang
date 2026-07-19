@@ -1,0 +1,27 @@
+// Wall: resolve.py `_resolve_zone`. No observer IS a column, so a
+// zone type with distinct owner/others projections (Hand) on a
+// position index would leave its owner projection silently
+// unreachable — visibility-level accepted-but-ignored.
+game PositionsOwnedTypeOnPositionIndex {
+  players: 1
+  direction: clockwise
+  max_length: 100
+  cards: standard52
+  positions { column : 1..3 }
+  zones {
+    deck : Deck
+    pile[column] : Hand<column>
+  }
+  state {
+    resigned : Boolean = false
+    score[player] : Integer = 0
+    }
+  phase setup { shuffle deck }
+  phase play {
+    turns t from 0 over all players until resigned {
+      offer to t one of [quit]
+    }
+    }
+  winner: highest score
+}
+move_type quit { effect { resigned := true } }

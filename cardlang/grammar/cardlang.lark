@@ -32,6 +32,7 @@ game: "game" NAME "{" game_item* "}"
           | trump
           | partnerships
           | max_length
+          | positions
           | zones
           | state_block
           | phase
@@ -72,6 +73,13 @@ trump: "trump" ":" NAME
 // `partnerships: [[0, 2], [1, 3]]` — partners sit across in a four-hand game.
 partnerships: "partnerships" ":" "[" team_spec ("," team_spec)* "]"
 team_spec: "[" INT ("," INT)* "]"
+
+// Declared position domains (decisions.md "Position domains and positional
+// zones"): per-game integer index/parameter domains for positional layouts
+// (tableau columns, free cells). The bounds are integer literals — the
+// domain must be static, like the `choose` ceiling.
+positions: "positions" "{" position_decl* "}"
+position_decl: NAME ":" INT ".." INT
 
 zones: "zones" "{" zone_decl* "}"
 zone_decl: NAME [index] ":" type_ref

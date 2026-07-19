@@ -17,19 +17,40 @@ The state-index wall is new. Before it, `state { x[suit] : Integer = 0 }`
 checked clean and the runtime keyed it BY PLAYERS — the declared index was
 accepted and ignored, the repo's worst defect class.
 
+The owner-agreement wall is newer still. A validity check ("is the owner a
+known role?") is not an agreement check ("does the owner match the index?"):
+before it, `hand[player] : Hand<team>` checked clean because `team` is a valid
+role — but the runtime keys the family by the INDEX (`zone_observer_key` reads
+`ZoneDecl.index`; the argument's domain is never consulted), so the `<team>`
+was accepted and then ignored, the same worst class. An owned type also has no
+key for its owner when it has no index at all. Both are now rejected.
+
 property:   a declared index/owner role is either a `zone_key_of` domain,
             honored identically at every consumer, or rejected at resolve
-            with the legal roles named
+            with the legal roles named; and on an owned zone type the owner
+            argument names the SAME domain as the index (and an owned type has
+            an index), since the family is keyed by the index and a differing
+            argument domain is otherwise accepted-but-ignored
 domain:     declaration site {zone index, zone owner arg, state index}
-            × role {every domain-table row, plus an unknown name}
+            × role {every domain-table row, plus an unknown name}; and, at the
+            owner-argument site, the (owner domain, index domain) pair —
+            {equal, unequal, index-absent}
 registry:   `cardlang.domains.DOMAINS` (the `zone_key_of` column) for roles;
-            the three grammar sites for positions
-covered:    every cell: accepted roles are proven by corpus games (bridge:
-            `captured[team] : TeamPile<team>`, `score[team]`; every game:
-            `hand[player]`) and by the parametrized accepts below; rejected
-            roles by the parametrized rejects (each site × each non-indexable
-            row × unknown)
-sampled:    none
+            `cardlang.stdlib.zones.LIBRARY_ZONE_TYPES` (`takes_owner`) for
+            which types carry an owner; the three grammar sites for positions
+covered:    every role-validity cell: accepted roles are proven by corpus
+            games (bridge: `captured[team] : TeamPile<team>`, `score[team]`;
+            every game: `hand[player]`) and by the parametrized accepts below;
+            rejected roles by the parametrized rejects (each site × each
+            non-indexable row × unknown). Owner==index agreement: both unequal
+            role/role directions and the index-absent case rejected below; the
+            position directions (owner a different position, or a role) in
+            tests/test_positions.py and the rejection corpus
+            (tests/rejections/{zone_owner_arg_domain_mismatch,
+            positions_zone_owner_arg_mismatch, zone_owned_type_without_index})
+sampled:    the owner==index rule is uniform over domains, so the unequal case
+            is probed by representative pairs per category (role/role,
+            position/position, position/role, role/position), not every pair
 residual:   value-domain-indexed state (`x[rank]` as a per-rank tally) —
             walled here, recorded in roadmap.md ("Value-domain-indexed
             state")
@@ -89,6 +110,34 @@ def test_a_zone_type_may_not_be_owned_by_a_value_domain(role: str) -> None:
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(_game(f"h2[player] : Hand<{role}>", ""), "probe.cardlang")
     assert f"unknown owner '{role}'" in str(exc.value)
+
+
+@pytest.mark.parametrize(
+    "zones,index",
+    [
+        ("h2[player] : Hand<team>", "player"),  # valid role, wrong domain
+        ("won[team] : TeamPile<player>", "team"),  # the other direction
+    ],
+)
+def test_owned_zone_owner_arg_must_match_its_index(zones: str, index: str) -> None:
+    # Validity is not agreement: `team` and `player` are both indexable roles,
+    # so the owner passes the value-domain check above — but the runtime keys
+    # the family by the INDEX, so an owner naming the other role is
+    # accepted-but-ignored. Rejected at the site (the accepted counterpart is
+    # the base game's `hand[player] : Hand<player>`).
+    with pytest.raises(DiagnosticError) as exc:
+        check_dsl(_game(zones, ""), "probe.cardlang")
+    msg = str(exc.value)
+    assert f"indexed by '{index}'" in msg
+    assert "must name the same domain as the index" in msg
+
+
+def test_an_owned_zone_type_must_be_indexed() -> None:
+    # The index-absent cell: an owned type with no index has no key for its
+    # owner, so the argument is again accepted-but-ignored.
+    with pytest.raises(DiagnosticError) as exc:
+        check_dsl(_game("solo : Hand<player>", ""), "probe.cardlang")
+    assert "must be indexed by its owner" in str(exc.value)
 
 
 @pytest.mark.parametrize("role", _NON_INDEX_ROLES)

@@ -1,0 +1,28 @@
+// Wall: resolve.py `_resolve_positions`. A declared position may not
+// reuse a built-in domain id or type spelling: the reconciliation
+// between the closed domains registry and the per-game block is
+// rejection, so lookups that consult positions first can never
+// shadow a built-in row.
+game PositionsBuiltinCollision {
+  players: 1
+  direction: clockwise
+  max_length: 100
+  cards: standard52
+  positions { player : 1..4 }
+  zones {
+    deck : Deck
+    pile[player] : Cascade<player>
+  }
+  state {
+    resigned : Boolean = false
+    score[player] : Integer = 0
+    }
+  phase setup { shuffle deck }
+  phase play {
+    turns t from 0 over all players until resigned {
+      offer to t one of [quit]
+    }
+    }
+  winner: highest score
+}
+move_type quit { effect { resigned := true } }

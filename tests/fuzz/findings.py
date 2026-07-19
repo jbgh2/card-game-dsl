@@ -80,6 +80,25 @@ class Finding:
 
 KNOWN_FINDINGS: tuple[Finding, ...] = (
     Finding(
+        slug="klondike_flip_from_empty_stack",
+        classification="accepted-then-crashes-at-playout",
+        stage="playout",
+        exception_type_name="ValueError",
+        message_substring="cannot deal 1 cards from a source holding 0",
+        note=(
+            "docs/games/klondike.cardlang, `delete_line` seed 0, deleting "
+            "the setup `deal 4 cards from deck to tableau_down[4]` (line 58 "
+            "at discovery time). The setup flip `draw 1 card from "
+            "tableau_down[4] to tableau_up[4]` then draws from an empty "
+            "hidden stack and dies on the movement executor's "
+            "exhausted-source ValueError before any decision. Checker-green "
+            "because the deck-capacity gate's declared domain is DECK usage "
+            "only (deckcheck.py) — an intermediate zone's balance is "
+            "invisible to it; the general static net for non-deck source "
+            "balances is the same recorded residual class."
+        ),
+    ),
+    Finding(
         slug="cribbage_repeat_until_nonterminate",
         classification="accepted-then-crashes-at-playout",
         stage="playout",

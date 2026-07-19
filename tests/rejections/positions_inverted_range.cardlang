@@ -1,0 +1,26 @@
+// Wall: resolve.py `_resolve_positions`. An inclusive range needs
+// lo <= hi; an inverted range would declare an empty domain whose
+// every zone family has zero instances — accepted-but-ignored.
+game PositionsInvertedRange {
+  players: 1
+  direction: clockwise
+  max_length: 100
+  cards: standard52
+  positions { column : 7..1 }
+  zones {
+    deck : Deck
+    pile[column] : Cascade<column>
+  }
+  state {
+    resigned : Boolean = false
+    score[player] : Integer = 0
+    }
+  phase setup { shuffle deck }
+  phase play {
+    turns t from 0 over all players until resigned {
+      offer to t one of [quit]
+    }
+    }
+  winner: highest score
+}
+move_type quit { effect { resigned := true } }

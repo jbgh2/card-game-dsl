@@ -1,0 +1,145 @@
+// Green Lane — an original two-player customs-inspection duel (experiment,
+// not corpus; see DESIGN.md alongside this file).
+//
+// Each player must ship their whole six-card hand, one card per round, past
+// the other player's two inspections. Both starting hands are public: the
+// 2, 3, 4, 5, K, A of one suit each (card value = rank_value + 1, so
+// 1/2/3/4/12/13). K and A are contraband. There is NO shuffle and no deal —
+// every piece of hidden information is a concealed choice: the face-down
+// shipment, and the warehouse of waved-through goods (both HiddenPile).
+//
+// A smuggling round: the merchant commits one card face down to `shipment`;
+// the inspector (if they still hold a token) chooses `inspect` or `wave`.
+// Waved goods slide unseen into the merchant's warehouse. An inspection
+// reveals the card: legal goods clear publicly and the inspector pays a
+// 4-point fine for the false alarm; contraband is seized — it will score
+// for the INSPECTOR — and the merchant pays the 4-point fine.
+//
+// Scoring is zero-sum by construction: each player's score is their goods
+// total (warehouse + cleared + seized, at card value) plus net fines, MINUS
+// the opponent's same total. Since every legal card scores for its merchant
+// no matter what happens to it, the whole game is the timing duel over the
+// K and the A versus the two inspection tokens.
+
+game GreenLane {
+
+  players: 2
+  direction: clockwise
+  max_length: 400
+
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+
+  zones {
+    deck              : Deck
+    dead              : Muck                  // the 40 out-of-play cards
+    hand[player]      : Hand<player>          // goods still to ship
+    shipment[player]  : HiddenPile<player>    // this round's face-down shipment
+    warehouse[player] : HiddenPile<player>    // waved-through goods, concealed
+    cleared[player]   : PlayerPile<player>    // inspected-legal goods, public
+    seized[player]    : PlayerPile<player>    // contraband this player confiscated
+  }
+
+  state {
+    tokens[player]   : Integer = 2   // inspections left (public — deterrence is visible)
+    fine_net[player] : Integer = 0   // fines received minus fines paid
+    merchant         : Player  = 0   // this round's shipper
+    inspector        : Player  = 1   // this round's customs officer
+    score[player]    : Integer = 0   // settled once, in scoring
+  }
+
+  phase setup {
+    // Fixed public hands: the 2, 3, 4, 5 (legal; rank_value 0..3) and the
+    // K, A (contraband; rank_value 11..12) of clubs for P0, spades for P1.
+    move all cards from deck
+         where card.suit is clubs and (rank_value(card) <= 3 or rank_value(card) >= 11)
+         to hand[0]
+    move all cards from deck
+         where card.suit is spades and (rank_value(card) <= 3 or rank_value(card) >= 11)
+         to hand[1]
+    move all cards from deck to dead
+  }
+
+  phase play {
+    // Twelve smuggling rounds, roles alternating. Hands shrink in lockstep,
+    // so both empty together after six pairs.
+    repeat until hand[0] is empty and hand[1] is empty {
+      merchant := 0
+      inspector := 1
+      run smuggle_round()
+      merchant := 1
+      inspector := 0
+      run smuggle_round()
+    }
+  }
+
+  phase scoring {
+    // Goods total at card value (rank_value + 1, folded in as the zone count):
+    // warehouse and cleared score for the player who shipped them; seized
+    // score for the player who confiscated them.
+    let goods0 = (sum of rank_value(card) over cards in warehouse[0])
+               + (number of cards in warehouse[0])
+               + (sum of rank_value(card) over cards in cleared[0])
+               + (number of cards in cleared[0])
+               + (sum of rank_value(card) over cards in seized[0])
+               + (number of cards in seized[0])
+    let goods1 = (sum of rank_value(card) over cards in warehouse[1])
+               + (number of cards in warehouse[1])
+               + (sum of rank_value(card) over cards in cleared[1])
+               + (number of cards in cleared[1])
+               + (sum of rank_value(card) over cards in seized[1])
+               + (number of cards in seized[1])
+    score[0] := goods0 - goods1 + fine_net[0] - fine_net[1]
+    score[1] := goods1 - goods0 + fine_net[1] - fine_net[0]
+  }
+
+  winner: highest score
+}
+
+// One smuggling round for the current `merchant` / `inspector`. The commit is
+// the merchant's own concealed choice (the `as` block makes the merchant the
+// chooser); with one card left the shipment is forced, so no decision is
+// offered. The inspector decides only while they hold a token — with none
+// left the wave is automatic.
+procedure smuggle_round() {
+  if (number of cards in hand[merchant]) is 1 {
+    move one card from hand[merchant] to shipment[merchant]
+  } else {
+    as merchant {
+      move chosen 1 card from hand[merchant] to shipment[merchant]
+    }
+  }
+  if tokens[inspector] > 0 {
+    offer to inspector one of [inspect, wave]
+  } else {
+    move all cards from shipment[merchant] to warehouse[merchant]
+  }
+}
+
+// Wave the shipment through: it lands in the warehouse still face down —
+// the inspector never learns what it was.
+move_type wave {
+  effect {
+    move all cards from shipment[merchant] to warehouse[merchant]
+  }
+}
+
+// Spend a token and open the crate. Contraband (K/A: rank_value >= 11) is
+// seized and will score for the inspector, and the merchant is fined 4.
+// Legal goods clear publicly and the inspector pays the 4-point fine.
+move_type inspect {
+  when: tokens[actor] > 0   // backstop: the offer site in smuggle_round gates on tokens
+  effect {
+    tokens[actor] -= 1
+    reveal one card from shipment[merchant]
+    if any card in shipment[merchant] where rank_value(card) >= 11 {
+      move all cards from shipment[merchant] to seized[actor]
+      fine_net[merchant] -= 4
+      fine_net[actor] += 4
+    } else {
+      move all cards from shipment[merchant] to cleared[merchant]
+      fine_net[merchant] += 4
+      fine_net[actor] -= 4
+    }
+  }
+}

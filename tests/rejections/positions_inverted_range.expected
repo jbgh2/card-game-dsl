@@ -1,0 +1,1 @@
+positions_inverted_range.cardlang:9:15: error: position domain 'column' declares an empty range 7..1 — the bounds are inclusive and must satisfy lo <= hi

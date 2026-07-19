@@ -93,6 +93,12 @@ class _Zones:
 
 
 @dataclass(frozen=True, slots=True)
+class _Positions:
+    positions: tuple[n.PositionDecl, ...]
+    span: Span
+
+
+@dataclass(frozen=True, slots=True)
 class _TypeName:
     name: str
     optional: bool
@@ -317,6 +323,16 @@ class _Builder(Transformer[Token, n.Game]):
 
     def zones(self, meta: Meta, c: list[n.ZoneDecl]) -> _Zones:
         return _Zones(tuple(c), span=self._span(meta))
+
+    # --- positions ---
+
+    def position_decl(self, meta: Meta, c: list[Token]) -> n.PositionDecl:
+        return n.PositionDecl(
+            name=str(c[0]), lo=int(c[1]), hi=int(c[2]), span=self._span(meta)
+        )
+
+    def positions(self, meta: Meta, c: list[n.PositionDecl]) -> _Positions:
+        return _Positions(tuple(c), span=self._span(meta))
 
     # --- state ---
 
@@ -1024,6 +1040,7 @@ class _Builder(Transformer[Token, n.Game]):
         trump: str | None = None
         partnerships: tuple[tuple[int, ...], ...] = ()
         max_length: int | None = None
+        positions: tuple[n.PositionDecl, ...] = ()
         zones: tuple[n.ZoneDecl, ...] = ()
         state: n.StateBlock | None = None
         phases: list[n.Phase] = []
@@ -1081,6 +1098,9 @@ class _Builder(Transformer[Token, n.Game]):
             elif isinstance(item, _MaxLength):
                 once("max_length:", item.span)
                 max_length = item.value
+            elif isinstance(item, _Positions):
+                once("positions { }", item.span, merge_hint=True)
+                positions = item.positions
             elif isinstance(item, _Zones):
                 once("zones { }", item.span, merge_hint=True)
                 zones = item.zones
@@ -1137,6 +1157,7 @@ class _Builder(Transformer[Token, n.Game]):
             ranking_convention=ranking_convention,
             trump=trump,
             partnerships=partnerships,
+            positions=positions,
             max_length=max_length,
             state=state,
             phases=tuple(phases),

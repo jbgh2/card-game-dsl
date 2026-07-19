@@ -31,6 +31,7 @@ KERNEL_GAMES = [
     "doppelkopf.cardlang",
     "president.cardlang",
     "gops.cardlang",
+    "belote.cardlang",
 ]
 
 

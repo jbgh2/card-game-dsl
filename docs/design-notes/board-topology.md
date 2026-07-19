@@ -21,11 +21,14 @@ under "Boards: the topology witness ladder".*
 
 A **board is an indexed family of zones plus declared static data about
 their indices**. The board declaration (a closed stdlib registry entry,
-the same medicine as decks) generates a finite `Cell` value domain,
+the same medicine as decks) generates a finite named-member position
+domain (its cells),
 named **relations** (edge sets), named **regions** (cell subsets), and
 named **lines** (pattern triples/tuples); a game's `zones {}` block then
-declares a zone family indexed by `cell` exactly as it declares one
-indexed by `player`. Pieces are ordinary zone **contents** — the
+declares a zone family indexed by `cell` exactly as Klondike's tableau
+is indexed by `column` — the landed position-domain mechanism
+([decisions.md](../decisions.md) "Position domains and positional
+zones"), which boards extend rather than rival (§2.2). Pieces are ordinary zone **contents** — the
 individuated content kind, of which cards are the deck-flavored
 specialization (**`Card ⊂ Piece`**, §2.3); a piece set is a
 component-set registry entry with declared axes and multiplicities.
@@ -35,10 +38,10 @@ captured piles, the bar), so observation events emit through the
 declared projections at the sites that already exist, and information
 sets derive with **no new observation machinery for the entire
 perfect-information family**. Decisions are parameterized moves whose
-`Cell` parameters join the closed declared-domain set — a fixed
-cross-product the OpenSpiel adapter ids once and guards mask per state,
-exactly the contract `Player`/`Rank` parameters already satisfy
-([decisions.md](../decisions.md) "Declared parameter domains"). The
+cell parameters ride the landed position-domain mechanism — a fixed
+cross-product the OpenSpiel adapter ids once and guards mask per
+state, already anchored by Klondike's `build(src : column, dst :
+column)`. The
 topology itself is **meaning, never state**: pure data consulted by
 closed query verbs, per the two organizing principles of
 [generalization-path.md](generalization-path.md) §0.
@@ -86,10 +89,12 @@ board: backgammon_track    // one shared 24-cell track, opposed per-player pip f
 A registry entry — generated (grids, hex tilings, tracks) or enumerated
 (morris9) — defines, as static data:
 
-- **Cells**: the finite position set, minted as value constants
-  (`a1 … h8`, `p1 … p24`) in the same way a deck mints card and rank
-  constants. `Cell` becomes an enumerable value type of the game,
-  exactly parallel to `Rank`.
+- **Cells**: the finite position set, minted as a **named-member
+  position domain** — the landed `positions {}` mechanism
+  ([decisions.md](../decisions.md) "Position domains and positional
+  zones") with registry-minted named constants (`a1 … h8`,
+  `p1 … p24`) in place of integer bounds, reconciled by the same
+  name-collision wall.
 - **Relations**: named edge sets — `orthogonal`, `diagonal`,
   `dark_diagonal`, hex adjacency, track successor. Where a game's
   movement is rank-asymmetric, the entry also carries **per-player
@@ -174,15 +179,28 @@ games use five registry entries, and the first game whose board is
 genuinely one-off (a Catan-shaped map) is the witness that forces the
 in-file form.
 
-### 2.2 Cells are zones
+### 2.2 Cells are zones, on the landed position-domain substrate
 
-The `zones {}` block gains cell-indexed families; the index-role set
-(today exactly `player`/`team` — [domain-map.md](domain-map.md), the
-Decision registry) grows by `cell`:
+The substrate already exists: **declared position domains**
+([decisions.md](../decisions.md) "Position domains and positional
+zones", anchored by Klondike/FreeCell) mint per-game finite domains
+that index zone families (`tableau_up[column] : Cascade<column>`) and
+parameterize moves (`build(src : column, dst : column)`), enumerated
+into the guard-masked cross-product and the OpenSpiel action space.
+Boards do not add a rival mechanism: **a board entry mints a position
+domain** — with two extensions over the `positions {}` block's
+integer-keyed form: members are **named constants** (`a1 … h8`,
+reconciled by the same name-collision wall), and the domain carries
+the topology data of §2.1 (relations, regions, lines, frames) for the
+query verbs to consult. The 256-member cap accommodates every ladder
+board (the largest is 10×10 = 100). This also answers the recorded
+deferral in [positional-zones.md](positional-zones.md) "Adjacency":
+adjacency arrives on board-minted domains as declared entry data,
+never as an algebra on bare `positions {}` integers.
 
 ```text
 zones {
-  square[cell]     : BoardCell          // identity to all, capacity 1
+  square[cell]     : Cell<cell>         // identity to all, capacity 1
   point[cell]      : Point              // identity to all, unbounded stack (backgammon)
   ocean[player][cell] : HiddenCell<player>  // identity to owner; nothing to others (battleship)
   reserve[player]  : PlayerPile<player> // unplaced pieces, public
@@ -190,21 +208,35 @@ zones {
 }
 ```
 
-The new zone types are rows in the same closed registries as every
-other zone type (`LIBRARY_ZONE_TYPES` + `ZONE_PROJECTIONS`,
-`cardlang/stdlib/zones.py`, with `ZONE_PROBES` rows in the same
-change): `BoardCell` = identity to all; `Point` = identity to all,
-stack; `HiddenCell<Owner>` = identity to owner, trivial to others.
-**Capacity** is a zone-type property (capacity 1 for `BoardCell`,
-unbounded for `Point`), enforced as a loud runtime wall and respected
-by movement guards. This is C1 of the requirements doc — per-position
-zone families sharing a projection policy — and it is the entire
-visibility story for boards: projections attach to cells because cells
-are zones.
+Zone types: `Cell` (the one-card holding space FreeCell landed) is
+**reused** for capacity-1 squares — same profile, one spelling per
+concept — with **capacity** made a typed zone-type property in the
+same change (1 for `Cell`, unbounded for the new stack row `Point`),
+enforced as a loud runtime wall and respected by movement guards.
+`HiddenCell<Owner>` (identity to owner, **trivial** to others —
+`count_only` would leak occupancy, which for a board cell *is* the
+secret) pairs with `Cell` exactly as the landed `HiddenStack` pairs
+with `Cascade`. New rows land in the same closed registries as every
+other zone type (`LIBRARY_ZONE_TYPES` + `ZONE_PROJECTIONS` +
+`ZONE_PROBES`, `cardlang/stdlib/zones.py`). This is C1 of the
+requirements doc — per-position zone families sharing a projection
+policy — and it is the entire visibility story for boards: projections
+attach to cells because cells are zones.
+
+One landed wall matters here: **positions are unowned** — an
+owner-differentiated zone type on a position index is rejected because
+its owner projection would be unreachable. Wave A never touches that
+wall (`Cell`, `Point` are uniform-projection rows, exactly the class
+the wall admits).
 
 The double-indexed family (`ocean[player][cell]`) is one genuinely new
-index shape — Battleship needs a board *per player*. It composes the
-two existing index roles rather than inventing a third.
+index shape — Battleship needs a board *per player* — and it is where
+the positions-are-unowned wall gets its stage-4 **amendment, not an
+exception**: an owner-differentiated type is legal on a compound index
+iff a component supplies the owner key (here `player`; the position
+component stays unowned), which is the same contract the landed
+owner-argument wall already enforces on single-index families. A
+`HiddenCell` on a bare position index stays rejected.
 
 ### 2.3 One individuated content kind: `Piece`, with `Card` as its deck specialization
 
@@ -275,8 +307,8 @@ to square[at]` is the same movement production with the noun bound to
 the game's content kind, not a second construct.
 
 The flip's acceptance criterion is that **the card corpus cannot
-tell**: all 18 card games keep `cards:`, card queries, and
-byte-identical behavior. `Card` becoming a specialization must be
+tell**: every card game in the corpus keeps `cards:`, card queries,
+and byte-identical behavior. `Card` becoming a specialization must be
 surface-invisible to them, or the refactor is wrong.
 
 Promotion (draughts man → king) is a supply swap — move the man to the
@@ -291,31 +323,32 @@ the battleship fleet-before-placement. This is where the existing
 zone machinery is reused verbatim, and it is most of every game's
 zone list.
 
-### 2.4 Decisions: `Cell` joins the closed parameter domains
+### 2.4 Decisions: board cells are position-domain move parameters
 
 ```text
-move_type place(at : Cell) {
+move_type place(at : cell) {
   when: square[at] is empty
   effect { move one piece from reserve[actor] to square[at] }
 }
 
-move_type step(from : Cell, to : Cell) {
+move_type step(from : cell, to : cell) {
   when: occupant_side(from) is side_of(actor)
         and to in neighbors(from, forward_diagonal(actor))
   effect { move all pieces from square[from] to square[to] }
 }
 ```
 
-`Cell` enumerates its board's declared cell list — a fixed-from-
-declaration domain exactly like `Rank` — and cross-products with other
-parameters under the settled guard-filtered-mask contract: the
-OpenSpiel action space reserves one id per combination, fixed for the
-game, and the guard masks it per state
-([decisions.md](../decisions.md) "Declared parameter domains"). A
-`(from, to)` pair over an 8×8 board is 4096 ids; where that is
-wasteful the vocabulary can carry a small declared direction enum
-instead (`step(from : Cell, dir : Direction)` — 64 × 3), which also
-matches how the native OpenSpiel board games encode moves. Adjacency,
+This surface is **already landed**: a declared position domain is a
+move-parameter domain, enumerated into the guard-filtered
+cross-product with one OpenSpiel action id per combination
+([decisions.md](../decisions.md) "Position domains and positional
+zones" — `build(src : column, dst : column)` is the corpus anchor).
+Boards inherit it whole; the parameter spelling is the board domain's
+name, exactly as Klondike's is `column`. A `(from, to)` pair over an
+8×8 board is 4096 ids; where that is wasteful the vocabulary can
+carry a small declared direction enum instead (`step(from : cell, dir
+: Direction)` — 64 × 3), which also matches how the native OpenSpiel
+board games encode moves. Adjacency,
 occupancy, and path-clearness live in guards as **masks**, never as
 domains that grow or shrink. Every board decision is therefore an
 ordinary parameterized `offer` — one flat candidate list, one chooser
@@ -329,14 +362,17 @@ decision: the guard demands a clear path (`between(from, to)` empty —
 a class-2 query over declared data), not a per-step decision chain.
 Draughts multi-jumps are the opposite: each hop **is** a decision, and
 the `turns` form's `again` axis ([decisions.md](../decisions.md) "The
-`turns` form") plus a `Cell?`-typed chain-anchor state variable
-(public, as all state is) expresses "same piece continues" — with
-mandatory capture as an ordinary rule whose demand narrows the
-vocabulary to jumps when any exist.
+`turns` form") plus a position-typed chain-anchor state variable
+(public, as all state is) expresses "same piece continues" — noting
+that position-typed `state` is currently **rejected surface** (a
+recorded walled residual, [roadmap.md](../roadmap.md) "Positional
+zones — walled residuals"); the draughts rung is the witness that
+lifts it. Mandatory capture is an ordinary rule whose demand narrows
+the vocabulary to jumps when any exist.
 
 Compound placements (a battleship spanning four cells) are one
 decision whose **effect** runs a bounded sequence of kernel movements
-— `place_ship_h(at : Cell)` computes the footprint from declared data
+— `place_ship_h(at : cell)` computes the footprint from declared data
 and moves each segment; every movement emits through the (hidden-cell)
 projections at the existing sites. No atomic-multi-placement machinery
 is needed for the ladder.
@@ -356,7 +392,15 @@ only declared topology data and zone contents:
   (backgammon's bear-off and pip count). The
   cell-query surface mirrors the card-query register — `cells in
   <region> where <pred>`, `number of cells in …`, `any/all cell(s)
-  in … where` — one spelling per concept, lifted to positions.
+  in … where` — one spelling per concept, lifted to positions. This
+  is a deliberate **wall-lift**: quantifiers and iteration over
+  position domains are currently rejected surface with recorded
+  residuals ([roadmap.md](../roadmap.md) "Positional zones — walled
+  residuals" — no solitaire addressed columns by loop or quantifier);
+  board win predicates ("any line…", "board full") and fixed setup
+  arrays (breakthrough's 16 pieces on two rows) are the witnesses
+  those records were waiting for, so the lifts land here with the
+  register, not as silent accepts.
 - **Wave C's gate** is the class-5/6 fixed point: `reachable(from,
   to, via, connectivity)` and `region(seed, same_by, connectivity)` as
   **built-in primitives that own their loops**, terminating in at most
@@ -407,11 +451,13 @@ seed/rng non-observability proof extended to roll sites.
   contents" (`announce hit if ocean[opp][at] is not empty`); the
   emission half is the existing `announce`. A shot result is a
   **public function of hidden contents** — the compound
-  hidden-function probe
-  [open-questions/structural-infoset-proofs.md](../open-questions/structural-infoset-proofs.md)
-  is blocked on, in its board-shaped form (Cheat is the card-shaped
-  one). Per [domain-map.md](domain-map.md), budget the probe-action
-  capability and that proof-generator work together.
+  hidden-function probe class whose first instance (Cheat) anchored
+  the constructive world generator (`tests/openspiel_ready/worlds.py`;
+  [open-questions/structural-infoset-proofs.md](../open-questions/structural-infoset-proofs.md)).
+  Battleship extends the generator to **spatial** hiding — exactly
+  that question's recorded residual (generalizing the sampler across
+  emission-site shapes) — so the stage budgets the probe action and
+  that generalization together.
 - **Stratego Barrage adds C3 + C6 — the one moat-level event.**
   Position public, rank private-to-owner is a per-attribute projection
   (the emission classes grow beyond
@@ -501,7 +547,9 @@ does not move.
    for zero-sum). Adds C1-hidden (owner-identity boards, the
    double-indexed family) + C2 (the probe action); placement via
    footprint effects; still monotone (legal shots strictly shrink).
-   Feeds the structural-infoset-proofs compound probe directly.
+   Extends the Cheat-anchored constructive world generator
+   (`tests/openspiel_ready/worlds.py`) to spatial hiding — that
+   question's recorded residual.
 5. **Stratego, Barrage variant** (10×10 with lakes; 8 pieces per side:
    Flag, Spy, 2 Scouts, Miner, General, Marshal, Bomb; two-square
    rule in scope, chase rule scoped out and named in the entry; **no
@@ -545,7 +593,7 @@ that forces it; every rung earns at least one):
 
 | Mechanism | TTT | Brk | BG | Bshp | Barr | Hex | NMM | Drts |
 |---|---|---|---|---|---|---|---|---|
-| Generated grid + `Cell` domain + cell zones (C1) | ● | | | | | | | |
+| Generated grid + board position domain + cell zones (C1) | ● | | | | | | | |
 | Placement vocabulary + line patterns + full-board draw | ● | | | | | | | |
 | Movement vocabulary + per-player frames + reach-region win | | ● | | | | | | |
 | Track entry, stacks/capacity, `roll` chance, race win | | | ● | | | | | |
@@ -607,14 +655,20 @@ from the first stage that could parse them.
   wave-A entries + integrity pins; the component-set registry
   generalizing `DECKS` — **`Card ⊂ Piece` lands here**, with
   byte-identical card-corpus behavior as its acceptance wall;
-  `Cell` value type + constants in resolve/typecheck; the `cell`
-  index role in the domains table; `BoardCell`/`Point`/`HiddenCell`
-  rows in the zone registries with probe rows; capacity walls.
-- **Stage 2 — decisions, movement, classes 1–4.** `Cell` (and the
-  small direction-enum) parameter domains + the action-space cell
-  block; cell-zone endpoints through the existing movement executor;
+  board entries minting **named-member position domains** through the
+  landed declared-domain machinery (same collision wall; deliberately
+  no new row in the built-in domains registry, per the alternative
+  positional-zones.md already rejected); capacity as a typed
+  zone-type property on the existing `Cell` row plus the new `Point`
+  row, with probe rows.
+- **Stage 2 — decisions, movement, classes 1–4.** Board domains ride
+  the landed position-parameter enumeration (ids from the declared
+  domain, no new action-space block kind) plus the small direction
+  enums; cell-zone endpoints through the existing movement executor;
   class 1–4 verbs into the stdlib call/signature/dispatch registries;
-  the cell-query register. Witnesses: tic-tac-toe, then breakthrough;
+  the cell-query register — lifting the recorded position
+  quantifier/iteration walls against their board witnesses (§2.5).
+  Witnesses: tic-tac-toe, then breakthrough;
   the GOPS differential harness generalized to a reusable
   native-oracle comparison. Perfect-info proof modules (adapter
   agreement, conformance, degenerate partitions).
@@ -624,9 +678,12 @@ from the first stage that could parse them.
   extended to roll sites. Witness: backgammon.
 - **Stage 4 — probes.** The probe action (declared pure predicate
   over a hidden zone, result announced to declared observers);
-  double-indexed zone families. Witness: battleship — budgeted
-  together with the structural-infoset-proofs compound-probe
-  generator it unblocks.
+  double-indexed zone families with the unowned-wall amendment
+  (owner key supplied by the player component — §2.2) and the
+  `HiddenCell` row. Witness: battleship — budgeted together with
+  extending the Cheat-anchored constructive world generator
+  (`tests/openspiel_ready/worlds.py`) to spatial hiding, the
+  structural-infoset-proofs residual.
 - **Stage 5 — the moat workstream.** C3 attribute-level emission
   classes + C6 anonymous-persistent movement identity, with the
   partition-proof battery extended **first** as the acceptance bar.
@@ -637,7 +694,9 @@ from the first stage that could parse them.
 - **Stage 7 — open-ended play.** Settle
   unbounded-lines-and-max-length (draw rules; counter-based state
   idioms; repetition history stays out unless that settlement pulls
-  it in). Witnesses: nine men's morris, then english draughts.
+  it in); lift the position-typed `state` wall for the draughts
+  chain anchor (a recorded walled residual). Witnesses: nine men's
+  morris, then english draughts.
 
 Cross-cutting honesty: the adapter still provides no tensors
 (information-state strings carry CFR; the Representation domain is
@@ -658,9 +717,11 @@ questions, not silently deciding them:
   board-declaration argument forms, and cell-constant lexing (`a1` as
   a minted constant vs a name). One-spelling-per-concept is the
   criterion throughout.
-- **Cell-typed state** (`chain_from : Cell?`): a new state-variable
-  value type — public like all state, but the type set is a closed
-  domain that grows.
+- **Position-typed state** (the draughts chain anchor): currently
+  rejected surface with a recorded residual
+  ([roadmap.md](../roadmap.md) "Positional zones — walled residuals");
+  stage 7 lifts it against its witness — public like all state, with
+  the state-type set growing by declared position domains.
 - **The draw/repetition settlement** — already
   [open-questions/unbounded-lines-and-max-length.md](../open-questions/unbounded-lines-and-max-length.md);
   wave C is its forcing set.
@@ -669,12 +730,14 @@ questions, not silently deciding them:
   witness; both are named walls until then.
 - **The spatial leak lint** (requirements doc, key finding 8): owned
   by the knowledge model; its static half is unscheduled.
-- **Solitaire positional zones are orthogonal**: Klondike's tableau is
-  intra-zone order and per-position facing *within* one zone — none
-  of the board machinery above — so the solitaire thread
-  ([roadmap.md](../roadmap.md)) neither gates nor is gated by this
-  ladder. Stating that here keeps the two threads from being
-  sequenced against each other by mistake.
+- **The positional residuals this ladder does not lift**: the landed
+  positional machinery is this design's substrate (§2.2), and the
+  ladder lifts exactly three of its recorded walls (quantifiers and
+  iteration at stage 2, position-typed state at stage 7). The others
+  stay walled on their own witnesses — the positional slice movement
+  on Spider, the position-family gather on a first gathering layout
+  ([roadmap.md](../roadmap.md) "Positional zones — walled
+  residuals") — and nothing here re-sequences them.
 
 The ladder's candidates entries are in
 [games/_candidates.md](../games/_candidates.md); per corpus-first

@@ -55,6 +55,11 @@ CALL_SIGS: dict[str, Sig] = {
     "bigtwo_first_leader": Sig((), TPlayer()),  # Big Two: the 3♦ holder (leads hand 1)
     "rank_value": Sig((TCard(),), TInteger()),  # a card's rank strength (higher = stronger)
     "card_value": Sig((TCard(),), TInteger()),  # a card's deck-declared card-point value
+    # Positional order reads (decisions.md "Position domains and positional
+    # zones", sequence orientation): top = the sequence end (most recent
+    # arrival), bottom = the front. Loud runtime error on an empty collection.
+    "top_of": Sig((TCollection(TCard()),), TCard()),
+    "bottom_of": Sig((TCollection(TCard()),), TCard()),
     "pinochle_meld_value": Sig((TPlayer(),), TInteger()),  # Pinochle: a hand's meld under trump
     "tarot_led_suit": Sig((), TEnum("Suit")),  # French Tarot: the effective led suit
     "tarot_trump_height": Sig((TCard(),), TInteger()),  # French Tarot: an atout's rank strength
@@ -118,6 +123,51 @@ CALL_SIGS: dict[str, Sig] = {
     "gin_lay_ok_a": Sig((TCard(), TPlayer()), TBoolean()),  # Gin: card extends knocker's meld A
     "gin_lay_ok_b": Sig((TCard(), TPlayer()), TBoolean()),  # Gin: card extends knocker's meld B
     "gin_lay_ok_c": Sig((TCard(), TPlayer()), TBoolean()),  # Gin: card extends knocker's meld C
+    "five_hundred_next_bid": Sig(
+        (TInteger(), TOptional(TEnum("Suit"))), TInteger()
+    ),  # 500: cheapest bid ordinal in a strain beating the standing bid (0 = none)
+    "five_hundred_bid_value": Sig((TInteger(),), TInteger()),  # 500: contract ordinal -> score value
+    "five_hundred_bid_level": Sig((TInteger(),), TInteger()),  # 500: contract ordinal -> trick target
+    "five_hundred_follow_ok": Sig((TPlayer(), TCard()), TBoolean()),  # 500: follow legality
+    "five_hundred_lead_ok": Sig((TPlayer(), TCard()), TBoolean()),  # 500: lead legality
+    "five_hundred_trick_winner": Sig((TPlayer(),), TPlayer()),  # 500: the trick's winner
+    "belote_trump_height": Sig((TCard(),), TInteger()),  # Belote: trump-suit rank strength
+    "belote_opp_winning": Sig((), TBoolean()),  # Belote: live trick's winner is an opponent?
+    "belote_royal_player": Sig((), TOptional(TPlayer())),  # Belote: who played a trump K/Q
+    "belote_best_is": Sig(
+        (TPlayer(), TInteger(), TEnum("Rank"), TBoolean()), TBoolean()
+    ),  # Belote: the declaration guard — stated combination is the best exactly
+    "belote_decl_points": Sig((TPlayer(),), TInteger()),  # Belote: best combination's points
+    "belote_decl_class": Sig((TPlayer(),), TInteger()),  # Belote: best combination's class
+    "belote_decl_height": Sig((TPlayer(),), TInteger()),  # Belote: best combination's height
+    "belote_decl_trump": Sig((TPlayer(),), TBoolean()),  # Belote: best combination in trump?
+    "belote_decl_size": Sig((TPlayer(),), TInteger()),  # Belote: declared-card count
+    "belote_decl_slot": Sig((TPlayer(), TInteger(), TCard()), TBoolean()),  # Belote: k-th declared card?
+    "canasta_is_red3": Sig((TCard(),), TBoolean()),  # Canasta: a red three (bonus card)?
+    "canasta_is_black3": Sig((TCard(),), TBoolean()),  # Canasta: a black three (stop card)?
+    "canasta_top_starts_pile": Sig((), TBoolean()),  # Canasta: turned card may start the pile
+    "canasta_top_is_wild": Sig((), TBoolean()),  # Canasta: the new top froze the pile
+    "canasta_pile_rank": Sig((), TEnum("Rank")),  # Canasta: the pile's top rank
+    "canasta_can_take_pile": Sig((TPlayer(),), TBoolean()),  # Canasta: legal pile take exists
+    "canasta_must_take_pile": Sig((TPlayer(),), TBoolean()),  # Canasta: no-stock forced take
+    "canasta_can_start": Sig(
+        (TPlayer(), TEnum("Rank")), TBoolean()
+    ),  # Canasta: a new meld of the rank is completable
+    "canasta_stage_ok": Sig(
+        (TPlayer(), TCard()), TBoolean()
+    ),  # Canasta: card joins the open attempt, close stays reachable
+    "canasta_close_ok": Sig((TPlayer(),), TBoolean()),  # Canasta: attempt closes as it stands
+    "canasta_add_ok": Sig(
+        (TPlayer(), TEnum("Rank"), TCard()), TBoolean()
+    ),  # Canasta: card lays onto the standing meld of the rank
+    "canasta_discard_ok": Sig(
+        (TPlayer(), TCard()), TBoolean()
+    ),  # Canasta: the discard may end the turn (go-out rule)
+    "canasta_black3_ok": Sig((TPlayer(),), TBoolean()),  # Canasta: go-out black-three meld legal
+    "canasta_meld_points": Sig((TTeam(),), TInteger()),  # Canasta: melded card points
+    "canasta_canasta_bonus": Sig((TTeam(),), TInteger()),  # Canasta: canasta bonuses
+    "canasta_red3_bonus": Sig((TTeam(),), TInteger()),  # Canasta: red-three bonus
+    "canasta_hand_points": Sig((TTeam(),), TInteger()),  # Canasta: points left in hands
 }
 
 # Outcome / value callbacks passed by bare name — result type is mechanic-driven.
@@ -125,6 +175,7 @@ VALUE_SIGS: dict[str, Type] = {
     "highest_of_led_suit": TAny(),
     "highest_trump_or_led_suit": TAny(),
     "tarot_trick_winner": TAny(),  # trick winner; the Excuse never wins
+    "belote_trick_winner": TAny(),  # trick winner under Belote's J-9 trump order
     "bridge_auction_outcome": TAny(),  # auction form: produces the typed variant
     "pinochle_auction_outcome": TAny(),  # auction form: produces bid_won
     "tarot_auction_outcome": TAny(),  # auction form: produces taken | thrown_in

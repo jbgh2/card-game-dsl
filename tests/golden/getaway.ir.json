@@ -28,6 +28,7 @@
   "ranking_convention": "aces high",
   "trump": null,
   "partnerships": [],
+  "positions": [],
   "zones": [
     {
       "kind": "zone",

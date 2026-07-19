@@ -697,6 +697,24 @@ class ZoneDecl:
 
 
 @dataclass(frozen=True, slots=True)
+class PositionDecl:
+    """One entry of the `positions { }` block: a declared per-game position
+    domain `<name> : <lo>..<hi>` (decisions.md "Position domains and
+    positional zones"). Members are the inclusive integer range; the name is
+    usable as a zone-family index and a move-parameter domain, and nowhere
+    else (resolve walls the rest of the role/type surface)."""
+
+    name: str
+    lo: int
+    hi: int
+    span: Span | None = None
+
+    @property
+    def members(self) -> tuple[int, ...]:
+        return tuple(range(self.lo, self.hi + 1))
+
+
+@dataclass(frozen=True, slots=True)
 class StateDecl:
     """`<name>[<index>]? : <type>['?'] = <default>`."""
 
@@ -1008,6 +1026,10 @@ class Game:
     ranking_convention: str | None = None
     trump: str | None = None
     partnerships: tuple[tuple[int, ...], ...] = ()
+    # Declared position domains (`positions { column : 1..7 }`) — per-game
+    # integer index/parameter domains (decisions.md "Position domains and
+    # positional zones"). Empty for every game with no positional layout.
+    positions: tuple[PositionDecl, ...] = ()
     max_length: int | None = None
     state: StateBlock | None = None
     phases: tuple[Phase, ...] = ()
@@ -1051,6 +1073,7 @@ Node = (
     | TypeArg
     | StateBlock
     | StateDecl
+    | PositionDecl
     | Phase
     | PhaseQualifier
     | BeforeEach

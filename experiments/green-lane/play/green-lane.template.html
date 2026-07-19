@@ -1,0 +1,747 @@
+<title>Green Lane — night shift</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+/* GREEN LANE — a customs checkpoint after dark. This page deliberately
+   commits to a single visual world (night shift at the port), so it does
+   not restyle for light mode; color-scheme is pinned dark. */
+@font-face { font-family: 'Saira Stencil One'; font-style: normal; font-weight: 400;
+  src: url(data:font/woff2;base64,__SAIRA__) format('woff2'); }
+@font-face { font-family: 'IBM Plex Mono'; font-style: normal; font-weight: 400;
+  src: url(data:font/woff2;base64,__PLEX400__) format('woff2'); }
+@font-face { font-family: 'IBM Plex Mono'; font-style: normal; font-weight: 600;
+  src: url(data:font/woff2;base64,__PLEX600__) format('woff2'); }
+
+:root {
+  color-scheme: dark;
+  --night: #0D1417;      /* harbor-night ground */
+  --booth: #151F23;      /* booth panel */
+  --booth-2: #1B272C;    /* raised surface */
+  --line: #2A3A40;       /* hairline */
+  --manifest: #E9E4D3;   /* paper-cream ink */
+  --dim: #8FA098;        /* weathered ink */
+  --lane: #46B36A;       /* the green lane */
+  --lane-deep: #2C7A48;
+  --alarm: #E0592F;      /* inspection / seizure */
+  --steel: #5E93AE;      /* official stamps, info */
+  --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --stencil: 'Saira Stencil One', 'Arial Black', 'Avenir Next Condensed', sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--night);
+  background-image: radial-gradient(ellipse 120% 60% at 50% -10%, #16242A 0%, var(--night) 60%);
+  color: var(--manifest);
+  font-family: var(--mono);
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+.wrap { max-width: 1060px; margin: 0 auto; padding: 18px 16px 48px; }
+
+/* ---------- header ---------- */
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 18px; border-bottom: 2px solid var(--line); padding-bottom: 12px; }
+h1 { font-family: var(--stencil); font-weight: 400; font-size: 32px; letter-spacing: 2px; margin: 0; color: var(--lane); text-shadow: 0 0 22px rgba(70,179,106,.25); }
+h1 .lane-mark { display: inline-block; width: 14px; height: 26px; background: repeating-linear-gradient(180deg, var(--lane) 0 6px, transparent 6px 10px); margin-right: 10px; vertical-align: -3px; }
+.sub { color: var(--dim); font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; }
+.head-controls { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* ---------- generic ---------- */
+button {
+  font-family: var(--mono); font-size: 13px; font-weight: 600; letter-spacing: .8px;
+  background: var(--booth-2); color: var(--manifest);
+  border: 1px solid var(--line); border-radius: 3px;
+  padding: 8px 14px; cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--dim); }
+button:focus-visible { outline: 2px solid var(--steel); outline-offset: 2px; }
+button:disabled { opacity: .38; cursor: default; }
+button.go { background: var(--lane-deep); border-color: var(--lane); color: #EAF6EC; }
+button.go:hover:not(:disabled) { background: #35914F; }
+button.risk { background: #6B2A16; border-color: var(--alarm); color: #F6E4DC; }
+button.risk:hover:not(:disabled) { background: #83341B; }
+button.ghost { background: transparent; }
+.small { font-size: 11px; padding: 5px 9px; }
+.label { font-size: 10.5px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--dim); }
+.num { font-variant-numeric: tabular-nums; }
+
+select {
+  font-family: var(--mono); font-size: 12.5px; background: var(--booth-2); color: var(--manifest);
+  border: 1px solid var(--line); border-radius: 3px; padding: 7px 8px;
+}
+select:focus-visible { outline: 2px solid var(--steel); outline-offset: 2px; }
+
+/* ---------- layout ---------- */
+.game { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; margin-top: 16px; }
+@media (max-width: 860px) { .game { grid-template-columns: 1fr; } }
+
+.board { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.panel { background: var(--booth); border: 1px solid var(--line); border-radius: 4px; padding: 12px 14px; }
+
+/* round track */
+.track { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+.tick { width: 22px; height: 10px; background: var(--booth-2); border: 1px solid var(--line); border-radius: 2px; }
+.tick.done-you { background: var(--lane-deep); border-color: var(--lane-deep); }
+.tick.done-them { background: #3D5561; border-color: #3D5561; }
+.tick.now { border-color: var(--lane); box-shadow: 0 0 8px rgba(70,179,106,.5); }
+.tick.gap { width: 8px; background: transparent; border: none; }
+
+/* player strips */
+.side { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.side .who { font-family: var(--stencil); font-size: 15px; letter-spacing: 1.5px; }
+.tokens { display: inline-flex; gap: 5px; vertical-align: middle; }
+.token { width: 15px; height: 15px; border-radius: 50%; border: 2px solid var(--steel); background: radial-gradient(circle at 35% 30%, #7FB3CC, #3A6B84); }
+.token.spent { background: transparent; border-style: dashed; opacity: .4; }
+.pilebox { display: inline-flex; gap: 6px; align-items: center; }
+
+/* crates */
+.crates { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; min-height: 66px; }
+.crate {
+  width: 52px; height: 62px; border-radius: 3px; position: relative; padding: 0;
+  background: linear-gradient(160deg, #22313A 0%, #182428 100%);
+  border: 1px solid #35505C;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: inherit; font-weight: 600; letter-spacing: 0;
+  color: var(--manifest);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.45);
+}
+.crate .rk { font-size: 19px; line-height: 1; }
+.crate .vv { font-size: 10px; color: var(--dim); margin-top: 4px; }
+.crate.contra::after {
+  content: ""; position: absolute; inset: auto 4px 4px 4px; height: 6px; border-radius: 1px;
+  background: repeating-linear-gradient(-45deg, var(--alarm) 0 5px, #241A14 5px 10px); opacity: .85;
+}
+.crate.pick { cursor: pointer; }
+.crate.pick:hover, .crate.pick:focus-visible { border-color: var(--lane); box-shadow: 0 0 10px rgba(70,179,106,.35); outline: none; transform: translateY(-3px); }
+@media (prefers-reduced-motion: no-preference) { .crate { transition: transform .15s, box-shadow .15s, border-color .15s; } }
+.crate.facedown { background: linear-gradient(160deg, #1B272C, #141D21); border-color: var(--line); color: var(--dim); }
+.crate.facedown .rk { font-size: 22px; }
+.crate.mini { width: 36px; height: 44px; }
+.crate.mini .rk { font-size: 14px; }
+.crate.mini .vv { display: none; }
+.crate.ghosted { opacity: .45; }
+
+/* the counter */
+.counter { min-height: 172px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; position: relative;
+  background: var(--booth); border: 1px solid var(--line); border-radius: 4px; padding: 16px;
+  background-image: repeating-linear-gradient(0deg, transparent 0 26px, rgba(94,147,174,.05) 26px 27px); }
+.counter .prompt { font-size: 13.5px; max-width: 46ch; }
+.counter .prompt strong { color: var(--lane); }
+.actionrow { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+
+/* stamp */
+.stamp {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  pointer-events: none; z-index: 5;
+}
+.stamp span {
+  font-family: var(--stencil); font-size: 44px; letter-spacing: 4px; padding: 6px 26px;
+  border: 4px solid currentColor; border-radius: 6px; transform: rotate(-8deg);
+  background: rgba(13,20,23,.55);
+}
+.stamp.seized span { color: var(--alarm); text-shadow: 0 0 30px rgba(224,89,47,.5); }
+.stamp.impound span { color: var(--steel); }
+.stamp.waved span { color: var(--lane); }
+@media (prefers-reduced-motion: no-preference) {
+  .stamp span { animation: thunk .38s cubic-bezier(.2, 1.6, .4, 1) both; }
+  @keyframes thunk { from { transform: rotate(-8deg) scale(2.4); opacity: 0; } to { transform: rotate(-8deg) scale(1); opacity: 1; } }
+}
+
+/* rail */
+.rail { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.ledger { height: 300px; overflow-y: auto; font-size: 12px; display: flex; flex-direction: column; gap: 3px; }
+.ledger div { color: var(--dim); }
+.ledger .you { color: var(--manifest); }
+.ledger .hit { color: var(--alarm); }
+.ledger .ok { color: var(--lane); }
+.ledger .sys { color: var(--steel); }
+.duty td { padding: 1px 8px 1px 0; }
+
+/* relay */
+.relay textarea {
+  width: 100%; height: 150px; background: var(--night); color: var(--manifest);
+  border: 1px solid var(--line); border-radius: 3px; font-family: var(--mono); font-size: 11px; padding: 8px; resize: vertical;
+}
+.relay input[type=text] {
+  width: 100%; background: var(--night); color: var(--manifest); border: 1px solid var(--line);
+  border-radius: 3px; font-family: var(--mono); font-size: 13px; padding: 8px;
+}
+.relay input:focus-visible, .relay textarea:focus-visible { outline: 2px solid var(--steel); outline-offset: 1px; }
+.relay .hint { font-size: 11px; color: var(--dim); }
+
+/* rules + end */
+details.rules summary { cursor: pointer; font-family: var(--stencil); letter-spacing: 2px; font-size: 14px; color: var(--steel); }
+details.rules summary:focus-visible { outline: 2px solid var(--steel); outline-offset: 2px; }
+.rules-body { font-size: 12.5px; color: var(--dim); max-width: 68ch; }
+.rules-body b { color: var(--manifest); font-weight: 600; }
+.rules-body .g { color: var(--lane); } .rules-body .r { color: var(--alarm); } .rules-body .s { color: var(--steel); }
+
+.endsheet { text-align: center; }
+.endsheet h2 { font-family: var(--stencil); font-weight: 400; letter-spacing: 3px; font-size: 30px; margin: 4px 0 2px; }
+.endsheet h2.win { color: var(--lane); } .endsheet h2.loss { color: var(--alarm); } .endsheet h2.draw { color: var(--steel); }
+.breakdown { margin: 12px auto 4px; border-collapse: collapse; font-size: 13px; }
+.breakdown th, .breakdown td { border: 1px solid var(--line); padding: 5px 12px; text-align: right; }
+.breakdown th { color: var(--dim); font-weight: 400; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
+.breakdown td:first-child, .breakdown th:first-child { text-align: left; }
+.foot { margin-top: 22px; color: var(--dim); font-size: 11px; border-top: 1px solid var(--line); padding-top: 10px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1><span class="lane-mark"></span>GREEN LANE</h1>
+    <span class="sub">night shift · crossing <span id="roundNo" class="num">1</span>/12</span>
+    <div class="head-controls">
+      <label class="label" for="mode">opponent</label>
+      <select id="mode" aria-label="Opponent mode">
+        <option value="ai">AI — solver-tuned officer</option>
+        <option value="llm">LLM — play by relay</option>
+      </select>
+      <button id="newGame" class="small ghost">NEW SHIFT</button>
+    </div>
+  </header>
+
+  <div class="game">
+    <div class="board">
+      <div class="panel">
+        <div class="track" id="track" aria-label="Round track"></div>
+      </div>
+
+      <!-- opponent -->
+      <div class="panel">
+        <div class="side">
+          <span class="who" style="color:var(--steel)">THEM · SPADES</span>
+          <span class="label">tokens <span class="tokens" id="oppTokens"></span></span>
+          <span class="label">crates left <span class="num" id="oppHandCount">6</span></span>
+          <span class="label">warehouse <span class="num" id="oppWh">0</span> sealed</span>
+        </div>
+        <div class="side" style="margin-top:6px">
+          <span class="pilebox"><span class="label">impounded</span><span class="crates" id="oppImpound" style="min-height:0;margin:0"></span></span>
+          <span class="pilebox"><span class="label">they seized</span><span class="crates" id="oppSeized" style="min-height:0;margin:0"></span></span>
+        </div>
+      </div>
+
+      <!-- counter -->
+      <div class="counter" id="counter" aria-live="polite">
+        <div id="stampZone"></div>
+        <div id="counterCrate"></div>
+        <div class="prompt" id="prompt">—</div>
+        <div class="actionrow" id="actions"></div>
+      </div>
+
+      <!-- you -->
+      <div class="panel">
+        <div class="side">
+          <span class="who" style="color:var(--lane)">YOU · CLUBS</span>
+          <span class="label">tokens <span class="tokens" id="youTokens"></span></span>
+          <span class="label">banked (private) <span class="num" id="youBanked">0</span> pts</span>
+        </div>
+        <div class="crates" id="youHand"></div>
+        <div class="side" style="margin-top:6px">
+          <span class="pilebox"><span class="label">impounded</span><span class="crates" id="youImpound" style="min-height:0;margin:0"></span></span>
+          <span class="pilebox"><span class="label">you seized</span><span class="crates" id="youSeized" style="min-height:0;margin:0"></span></span>
+        </div>
+      </div>
+
+      <div class="panel relay" id="relayPanel" hidden>
+        <div class="label" style="margin-bottom:6px">LLM relay — their move</div>
+        <textarea id="briefing" readonly aria-label="Briefing for the LLM opponent"></textarea>
+        <div style="display:flex;gap:8px;margin:8px 0;flex-wrap:wrap">
+          <button id="copyBriefing" class="small">COPY BRIEFING</button>
+          <span class="hint" id="copyHint">Paste it to any LLM (Claude works). It answers with one order.</span>
+        </div>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="llmMove" placeholder="paste the order — e.g. SHIP A, or WAVE / INSPECT" aria-label="LLM's order">
+          <button id="applyLlm" class="go small">APPLY</button>
+        </div>
+        <div class="hint" id="llmError" role="alert"></div>
+      </div>
+
+      <div class="panel" id="endPanel" hidden></div>
+
+      <details class="rules panel">
+        <summary>PORT REGULATIONS</summary>
+        <div class="rules-body">
+          <p>Twelve crossings. Each player runs the same cargo — the <b>2, 3, 4, 5</b>
+          (legal goods, worth 1/2/3/4) and the <b class="r">7 and A</b> (contraband,
+          worth 6 and 13) — one crate per crossing, face down. You ship on odd
+          crossings; they ship on even ones. The other side is customs, holding
+          <b>two inspection tokens</b> for the whole night.</p>
+          <p><b class="g">Waved through:</b> the crate slides into the shipper's
+          warehouse unopened. Nobody learns what it was. It banks its value.<br>
+          <b class="s">Opened — legal goods:</b> false alarm. The crate is
+          <b class="s">impounded</b> (it scores nobody) and customs pays the shipper
+          the <b>5-point</b> fine.<br>
+          <b class="r">Opened — contraband:</b> <b class="r">seized</b>. The crate's
+          value scores for customs, and the shipper pays the <b>5-point</b> fine.</p>
+          <p>Out of tokens, customs waves everything; down to one crate, it ships
+          itself under seal. Final score is your banked value + what you seized +
+          net fines, minus the same for them. Highest total takes the night.</p>
+          <p>Both starting hands are public. All the hiding is in the choosing.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="rail">
+      <div class="panel">
+        <div class="label" style="margin-bottom:6px">Manifest</div>
+        <div class="ledger" id="ledger" aria-live="polite"></div>
+      </div>
+      <div class="panel">
+        <div class="label" style="margin-bottom:6px">Duty ledger (public)</div>
+        <table class="duty num" id="duty"></table>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">GREEN LANE · an original design solved with counterfactual-regret
+  minimization through the cardlang → OpenSpiel pipeline · the built-in officer is a
+  heuristic tuned from the solved equilibria, not a solver · LLM mode relays the
+  opponent's exact information set — nothing more — to whichever model you paste it to.</div>
+</div>
+
+<script>
+'use strict';
+/* ============================== engine ============================== */
+const RANKS = [['2',1],['3',2],['4',3],['5',4],['7',6],['A',13]];
+const CONTRA = new Set(['7','A']);
+const FINE = 5, TOKENS0 = 2, ROUNDS = 12;
+const SUIT = ['♣','♠']; /* you=clubs, them=spades */
+
+let S = null;         /* game state */
+let mode = 'ai';
+let busy = false;     /* animation / AI-thinking lock */
+
+function freshState() {
+  return {
+    hand:      [RANKS.map(([r]) => r), RANKS.map(([r]) => r)],
+    warehouse: [[], []],          /* hidden: contents known only to owner (we render owner-side only) */
+    impound:   [[], []],          /* public */
+    seized:    [[], []],          /* public: seized[p] = contraband p confiscated from opp */
+    tokens:    [TOKENS0, TOKENS0],
+    fineNet:   [0, 0],
+    round: 1,                     /* 1..12; odd: you ship, even: they ship */
+    crate: null,                  /* rank on the counter, or null */
+    phase: 'SHIP',                /* SHIP -> RESPOND -> (resolve) -> next round | END */
+    log: [],
+  };
+}
+const val = r => RANKS.find(([k]) => k === r)[1];
+const isContra = r => CONTRA.has(r);
+const merchant = () => (S.round % 2 === 1 ? 0 : 1);   /* you are P0 */
+const inspector = () => 1 - merchant();
+
+function bankTotal(p) {
+  return S.warehouse[p].reduce((a, r) => a + val(r), 0)
+       + S.seized[p].reduce((a, r) => a + val(r), 0);
+}
+function scoreOf(p) { const q = 1 - p; return bankTotal(p) - bankTotal(q) + S.fineNet[p] - S.fineNet[q]; }
+
+function shipCrate(rank, forced) {
+  const m = merchant();
+  S.hand[m].splice(S.hand[m].indexOf(rank), 1);
+  S.crate = rank;
+  S.phase = 'RESPOND';
+  log(m === 0
+    ? `C${S.round} · you ship a crate${forced ? ' — last one, under seal' : ''}`
+    : `C${S.round} · they ship a crate${forced ? ' — last one, under seal' : ''}`, m === 0 ? 'you' : '');
+}
+function resolve(action) {  /* 'wave' | 'inspect' | 'autowave' */
+  const m = merchant(), i = inspector(), r = S.crate;
+  let verdict;
+  if (action !== 'inspect') {
+    S.warehouse[m].push(r);
+    verdict = { kind: 'waved', text: 'WAVED', cls: 'waved' };
+    log(action === 'autowave'
+      ? `   no tokens left — waved through automatically`
+      : (i === 0 ? `   you wave it through` : `   they wave it through`), 'ok');
+  } else {
+    S.tokens[i] -= 1;
+    if (isContra(r)) {
+      S.seized[i].push(r);
+      S.fineNet[m] -= FINE; S.fineNet[i] += FINE;
+      verdict = { kind: 'seized', text: 'SEIZED', cls: 'seized', reveal: r };
+      log(`   ${i === 0 ? 'you open' : 'they open'} the crate: ${r}${SUIT[m]} — SEIZED, fine ${FINE} to ${i === 0 ? 'you' : 'them'}`, 'hit');
+    } else {
+      S.impound[m].push(r);
+      S.fineNet[m] += FINE; S.fineNet[i] -= FINE;
+      verdict = { kind: 'impound', text: 'IMPOUNDED', cls: 'impound', reveal: r };
+      log(`   ${i === 0 ? 'you open' : 'they open'} the crate: ${r}${SUIT[m]} — legal goods impounded, fine ${FINE} to ${m === 0 ? 'you' : 'them'}`, 'sys');
+    }
+  }
+  S.crate = null;
+  return verdict;
+}
+function advance() {
+  if (S.round >= ROUNDS) { S.phase = 'END'; }
+  else { S.round += 1; S.phase = 'SHIP'; }
+}
+
+/* ======================= solver-tuned officer ======================= */
+/* A heuristic shaped by the exact CFR+ solves of the mini games (bold-ace
+   opening, token-scarcity-driven inspection, endgame deduction). Honest
+   label: tuned FROM the solved equilibria, it is not the solver. */
+function aiPickShip() {
+  const m = 1;  /* AI ships only as P1 */
+  const hand = S.hand[m];
+  const myShipsLeft = Math.ceil((ROUNDS - S.round + 1) / 2);
+  const contra = hand.filter(isContra), decoys = hand.filter(r => !isContra(r));
+  if (S.tokens[0] === 0 && contra.length) return weighted(contra.map(r => [r, r === 'A' ? 1.3 : 1]));
+  if (contra.length >= myShipsLeft) return weighted(contra.map(r => [r, r === 'A' ? 1.3 : 1]));
+  const slack = myShipsLeft - contra.length;
+  const cw = 1 + 1 / (slack + 1);
+  const w = hand.map(r => [r,
+    isContra(r) ? (r === 'A' ? 1.15 : 0.8) * cw   /* bold ace, deferred 7 (solved V4 shape) */
+                : (1 - 0.05 * val(r))             /* cheap decoys lead: best bait, fine − value is largest */
+  ]);
+  return weighted(w);
+}
+function aiRespond() {
+  /* Belief: every crate of yours not publicly accounted for (not impounded,
+     not seized) is equally likely to be the one on the counter. */
+  const unaccounted = RANKS.map(([r]) => r)
+    .filter(r => !S.impound[0].includes(r) && !S.seized[1].includes(r));
+  const contraLeft = unaccounted.filter(isContra);
+  const p = contraLeft.length / unaccounted.length;
+  if (p === 0) return 'wave';
+  const vC = contraLeft.reduce((a, r) => a + val(r), 0) / contraLeft.length;
+  const decoysLeft = unaccounted.filter(r => !isContra(r));
+  const vD = decoysLeft.length ? decoysLeft.reduce((a, r) => a + val(r), 0) / decoysLeft.length : 0;
+  const dCatch = 4 * vC + 2 * FINE;   /* seize: value changes hands + fine   */
+  const dAlarm = 2 * vD - 2 * FINE;   /* impound denies their bank, costs 2F */
+  const myRespondsLeft = Math.floor((ROUNDS - S.round) / 2) + 1;
+  const tokenValue = (myRespondsLeft <= 1 || contraLeft.length === 0)
+    ? 0 : 4 + 2 * (contraLeft.length - 1);
+  const ev = p * dCatch + (1 - p) * dAlarm - tokenValue;
+  if (p === 1 && ev > 0) return 'inspect';
+  const prob = Math.min(0.97, Math.max(0.03, 1 / (1 + Math.exp(-ev / 8))));
+  return Math.random() < prob ? 'inspect' : 'wave';
+}
+function weighted(pairs) {
+  const tot = pairs.reduce((a, [, w]) => a + w, 0);
+  let x = Math.random() * tot;
+  for (const [r, w] of pairs) { x -= w; if (x <= 0) return r; }
+  return pairs[pairs.length - 1][0];
+}
+
+/* ============================ LLM relay ============================ */
+/* The briefing contains exactly the opponent player's information set:
+   public state + their own private zones. Nothing about your hand or
+   warehouse beyond public counts. */
+function publicHistory() {
+  /* The ledger is written from the human's seat; the briefing addresses the
+     LLM as "you", so flip the pronouns (the log lines come from a fixed set
+     of templates, so phrase-level swaps are exact). */
+  const flip = t => t
+    .replace(/\byou (ship|open|wave)\b/g, '@@SUBJ@@ $1')
+    .replace(/\bthey (ship|open|wave)\b/g, 'you $1')
+    .replace(/@@SUBJ@@/g, 'they')
+    .replace(/\bto you\b/g, '@@OBJ@@')
+    .replace(/\bto them\b/g, 'to you')
+    .replace(/@@OBJ@@/g, 'to them');
+  return S.log.map(e => flip(e.t)).join('\n');
+}
+function briefingFor(kind) {
+  const head =
+`You are playing GREEN LANE as Player 1 (spades). Rules: 12 crossings; the shipper commits one crate face down; customs (2 tokens for the whole game) inspects or waves. Waved: crate banks its value for the shipper, unseen. Inspected legal (2/3/4/5, values 1/2/3/4): crate is impounded (scores nobody), customs pays the shipper a 5-point fine. Inspected contraband (7 value 6, A value 13): customs seizes it (scores it) and the shipper pays 5. Score = own banked + own seizures + net fines, minus opponent's same. Both starting hands were 2,3,4,5,7,A.
+
+YOUR PRIVATE INFORMATION:
+- your remaining hand: ${S.hand[1].join(', ') || '(empty)'}
+- your warehouse (already slipped through): ${S.warehouse[1].join(', ') || '(empty)'}
+
+PUBLIC STATE:
+- crossing ${S.round} of 12 (${merchant() === 1 ? 'YOU are the shipper' : 'THEY are shipping; you are customs'})
+- tokens — you: ${S.tokens[1]}, them: ${S.tokens[0]}
+- fines net — you: ${S.fineNet[1] >= 0 ? '+' : ''}${S.fineNet[1]}
+- impounded from them: ${S.impound[0].join(', ') || 'none'} | you seized from them: ${S.seized[1].join(', ') || 'none'}
+- impounded from you: ${S.impound[1].join(', ') || 'none'} | they seized from you: ${S.seized[0].join(', ') || 'none'}
+- their crates still unshipped: ${S.hand[0].length}; their warehouse count: ${S.warehouse[0].length}
+
+GAME LOG SO FAR:
+${publicHistory() || '(start of game)'}
+`;
+  if (kind === 'ship')
+    return head + `\nIt is your decision: choose ONE crate from your remaining hand to ship face down.\nReply with exactly one line: SHIP <rank>   (e.g. "SHIP A" or "SHIP 3"). Nothing else.`;
+  return head + `\nIt is your decision as customs: the face-down crate is on the counter and you hold ${S.tokens[1]} token(s).\nReply with exactly one line: INSPECT   or   WAVE. Nothing else.`;
+}
+function parseLlm(text, kind) {
+  const t = (text || '').trim().toUpperCase();
+  if (kind === 'ship') {
+    const m = t.match(/SHIP\s*[:\-]?\s*(A|7|5|4|3|2)\b/) || t.match(/\b(A|7|5|4|3|2)\s*(?:OF\s*SPADES|♠)?\s*$/);
+    if (!m) return { err: 'Could not read a SHIP order. Expected e.g. "SHIP A".' };
+    if (!S.hand[1].includes(m[1])) return { err: `They no longer hold the ${m[1]} — remaining: ${S.hand[1].join(', ')}.` };
+    return { ship: m[1] };
+  }
+  if (/\b(INSPECT|OPEN|SEARCH)\b/.test(t)) {
+    if (S.tokens[1] === 0) return { err: 'No tokens left — only WAVE is legal.' };
+    return { respond: 'inspect' };
+  }
+  if (/\b(WAVE|PASS|ALLOW|CLEAR)\b/.test(t)) return { respond: 'wave' };
+  return { err: 'Could not read the order. Expected INSPECT or WAVE.' };
+}
+
+/* =============================== UI =============================== */
+const $ = id => document.getElementById(id);
+function log(t, cls) { S.log.push({ t, cls }); }
+
+function crateEl(rank, opts = {}) {
+  const d = document.createElement(opts.button ? 'button' : 'div');
+  d.className = 'crate' + (opts.mini ? ' mini' : '') + (opts.facedown ? ' facedown' : '')
+    + (!opts.facedown && rank && isContra(rank) ? ' contra' : '') + (opts.pick ? ' pick' : '')
+    + (opts.ghost ? ' ghosted' : '');
+  if (opts.button) d.type = 'button';
+  const rk = document.createElement('div'); rk.className = 'rk';
+  rk.textContent = opts.facedown ? '▮' : rank + (opts.suit || '');
+  d.appendChild(rk);
+  if (!opts.facedown && !opts.mini && rank) {
+    const vv = document.createElement('div'); vv.className = 'vv';
+    vv.textContent = val(rank) + ' pt' + (val(rank) > 1 ? 's' : ''); d.appendChild(vv);
+  }
+  return d;
+}
+function tokensEl(el, n) {
+  el.replaceChildren();
+  for (let k = 0; k < TOKENS0; k++) {
+    const t = document.createElement('span');
+    t.className = 'token' + (k < n ? '' : ' spent'); el.appendChild(t);
+  }
+}
+function pileInto(el, ranks, suitIdx) {
+  el.replaceChildren();
+  if (!ranks.length) { const s = document.createElement('span'); s.className = 'label'; s.textContent = '—'; el.appendChild(s); return; }
+  ranks.forEach(r => el.appendChild(crateEl(r, { mini: true, suit: SUIT[suitIdx] })));
+}
+
+function render() {
+  $('roundNo').textContent = Math.min(S.round, ROUNDS);
+  const tr = $('track'); tr.replaceChildren();
+  for (let c = 1; c <= ROUNDS; c++) {
+    if (c > 1 && c % 2 === 1) { const g = document.createElement('span'); g.className = 'tick gap'; tr.appendChild(g); }
+    const t = document.createElement('span');
+    t.className = 'tick' + (c < S.round ? (c % 2 === 1 ? ' done-you' : ' done-them') : '') + (c === S.round && S.phase !== 'END' ? ' now' : '');
+    t.title = `crossing ${c} · ${c % 2 === 1 ? 'you ship' : 'they ship'}`;
+    tr.appendChild(t);
+  }
+  tokensEl($('youTokens'), S.tokens[0]); tokensEl($('oppTokens'), S.tokens[1]);
+  $('oppHandCount').textContent = S.hand[1].length;
+  $('oppWh').textContent = S.warehouse[1].length;
+  $('youBanked').textContent = bankTotal(0);
+  pileInto($('youImpound'), S.impound[0], 0);
+  pileInto($('youSeized'), S.seized[0], 1);
+  pileInto($('oppImpound'), S.impound[1], 1);
+  pileInto($('oppSeized'), S.seized[1], 0);
+
+  const hand = $('youHand'); hand.replaceChildren();
+  const yourTurnToShip = S.phase === 'SHIP' && merchant() === 0 && !busy;
+  S.hand[0].forEach(r => {
+    const c = crateEl(r, { suit: SUIT[0], button: yourTurnToShip, pick: yourTurnToShip });
+    if (yourTurnToShip) { c.setAttribute('aria-label', `ship the ${r} of clubs`); c.addEventListener('click', () => humanShip(r)); }
+    hand.appendChild(c);
+  });
+
+  const led = $('ledger'); led.replaceChildren();
+  S.log.forEach(e => { const d = document.createElement('div'); if (e.cls) d.className = e.cls; d.textContent = e.t; led.appendChild(d); });
+  led.scrollTop = led.scrollHeight;
+
+  const duty = $('duty'); duty.replaceChildren();
+  [['fines — you', (S.fineNet[0] >= 0 ? '+' : '') + S.fineNet[0]],
+   ['fines — them', (S.fineNet[1] >= 0 ? '+' : '') + S.fineNet[1]],
+   ['you seized', S.seized[0].reduce((a, r) => a + val(r), 0) + ' pts'],
+   ['they seized', S.seized[1].reduce((a, r) => a + val(r), 0) + ' pts'],
+  ].forEach(([k, v]) => {
+    const trr = document.createElement('tr');
+    const a = document.createElement('td'); a.className = 'label'; a.textContent = k;
+    const b = document.createElement('td'); b.textContent = v;
+    trr.append(a, b); duty.appendChild(trr);
+  });
+
+  renderCounter();
+}
+
+function renderCounter() {
+  const crate = $('counterCrate'), prompt = $('prompt'), actions = $('actions');
+  crate.replaceChildren(); actions.replaceChildren(); $('relayPanel').hidden = true;
+  $('endPanel').hidden = true;
+  if (S.phase === 'END') { renderEnd(); prompt.textContent = 'Shift over.'; return; }
+
+  const m = merchant();
+  if (S.phase === 'SHIP') {
+    if (m === 0) {
+      if (S.hand[0].length === 1) { prompt.innerHTML = 'Your last crate ships itself, <strong>under seal</strong>.'; }
+      else prompt.innerHTML = 'Your crossing. <strong>Pick a crate</strong> from your dock to ship face down.';
+    } else {
+      prompt.textContent = mode === 'ai' ? 'Their crossing. The officer is choosing a crate…' : 'Their crossing — relay their shipping order below.';
+      if (mode === 'llm' && S.hand[1].length > 1 && !busy) showRelay('ship');
+    }
+  } else if (S.phase === 'RESPOND') {
+    /* the crate shows face up only to its shipper (you); face down when theirs */
+    crate.replaceChildren(crateEl(S.crate, { facedown: m === 1, suit: SUIT[m] }));
+    if (inspector() === 0) {
+      if (S.tokens[0] > 0) {
+        prompt.innerHTML = 'Their crate is on the counter. <strong>Open it</strong>, or wave it into their warehouse?';
+        const w = document.createElement('button'); w.className = 'go'; w.textContent = 'WAVE THROUGH';
+        w.addEventListener('click', () => humanRespond('wave'));
+        const i = document.createElement('button'); i.className = 'risk'; i.textContent = `OPEN THE CRATE (${S.tokens[0]} left)`;
+        i.addEventListener('click', () => humanRespond('inspect'));
+        actions.append(w, i);
+      } else prompt.textContent = 'No tokens left — the crate rolls through…';
+    } else {
+      prompt.textContent = S.tokens[1] === 0 ? 'They are out of tokens — your crate rolls through…'
+        : (mode === 'ai' ? 'Your crate is face down on their counter. The officer is deciding…'
+                         : 'Your crate is face down on their counter — relay their response below.');
+      if (mode === 'llm' && S.tokens[1] > 0 && !busy) showRelay('respond');
+    }
+  }
+}
+
+function stamp(verdict) {
+  const z = $('stampZone'); z.replaceChildren();
+  if (!verdict || verdict.kind === 'waved') {
+    if (verdict) { const d = document.createElement('div'); d.className = 'stamp waved'; d.innerHTML = '<span>WAVED</span>'; z.appendChild(d); setTimeout(() => z.replaceChildren(), 900); }
+    return;
+  }
+  const d = document.createElement('div'); d.className = 'stamp ' + verdict.cls;
+  const s = document.createElement('span'); s.textContent = verdict.text; d.appendChild(s); z.appendChild(d);
+  setTimeout(() => z.replaceChildren(), 1300);
+}
+
+function renderEnd() {
+  const p = $('endPanel'); p.hidden = false; p.className = 'panel endsheet';
+  const my = scoreOf(0), verdictCls = my > 0 ? 'win' : my < 0 ? 'loss' : 'draw';
+  const title = my > 0 ? 'YOU TAKE THE NIGHT' : my < 0 ? 'THE NIGHT GOES TO THEM' : 'DEAD EVEN';
+  const rows = [
+    ['banked (warehouse)', bankTotal(0) - S.seized[0].reduce((a, r) => a + val(r), 0), bankTotal(1) - S.seized[1].reduce((a, r) => a + val(r), 0)],
+    ['seized from opponent', S.seized[0].reduce((a, r) => a + val(r), 0), S.seized[1].reduce((a, r) => a + val(r), 0)],
+    ['net fines', S.fineNet[0], S.fineNet[1]],
+    ['impounded (scores nobody)', -0 + S.impound[0].reduce((a, r) => a + val(r), 0), S.impound[1].reduce((a, r) => a + val(r), 0)],
+  ];
+  p.replaceChildren();
+  const h = document.createElement('h2'); h.className = verdictCls; h.textContent = title; p.appendChild(h);
+  const sc = document.createElement('div'); sc.className = 'num';
+  sc.textContent = `final margin ${my > 0 ? '+' : ''}${my} · you ${my >= 0 ? 'over' : 'under'} them`;
+  p.appendChild(sc);
+  const t = document.createElement('table'); t.className = 'breakdown num';
+  t.innerHTML = '<tr><th></th><th>you</th><th>them</th></tr>';
+  rows.forEach(([k, a, b]) => {
+    const trr = document.createElement('tr');
+    trr.innerHTML = `<td>${k}</td><td>${a}</td><td>${b}</td>`;
+    t.appendChild(trr);
+  });
+  const wt = document.createElement('tr');
+  wt.innerHTML = `<td><b>total (margin basis)</b></td><td><b>${bankTotal(0) + S.fineNet[0]}</b></td><td><b>${bankTotal(1) + S.fineNet[1]}</b></td>`;
+  t.appendChild(wt);
+  p.appendChild(t);
+  const reveal = document.createElement('div'); reveal.className = 'label'; reveal.style.marginTop = '10px';
+  reveal.textContent = `their warehouse held: ${S.warehouse[1].join(', ') || 'nothing'} · yours: ${S.warehouse[0].join(', ') || 'nothing'}`;
+  p.appendChild(reveal);
+  const again = document.createElement('button'); again.className = 'go'; again.style.marginTop = '12px';
+  again.textContent = 'NEW SHIFT'; again.addEventListener('click', newGame);
+  p.appendChild(again);
+  if (!S.endLogged) {
+    S.endLogged = true;
+    log(`— shift over: margin ${my > 0 ? '+' : ''}${my} —`, my > 0 ? 'ok' : my < 0 ? 'hit' : 'sys');
+    const led = $('ledger');
+    const d = document.createElement('div'); d.className = S.log[S.log.length - 1].cls;
+    d.textContent = S.log[S.log.length - 1].t; led.appendChild(d); led.scrollTop = led.scrollHeight;
+  }
+}
+
+/* ============================ flow ============================ */
+function humanShip(rank) {
+  if (busy || S.phase !== 'SHIP' || merchant() !== 0) return;
+  shipCrate(rank, false);
+  render();
+  setTimeout(opponentRespondIfNeeded, 250);
+}
+function humanRespond(action) {
+  if (busy || S.phase !== 'RESPOND' || inspector() !== 0) return;
+  const v = resolve(action); stamp(v); advance(); render();
+  setTimeout(stepOpponent, v.kind === 'waved' ? 650 : 1200);
+}
+function opponentRespondIfNeeded() {
+  /* after you ship: their response (auto / AI / relay) */
+  if (S.phase !== 'RESPOND' || inspector() !== 1) return;
+  if (S.tokens[1] === 0) { const v = resolve('autowave'); stamp(v); advance(); render(); setTimeout(stepOpponent, 700); return; }
+  if (mode === 'ai') {
+    busy = true; render();
+    setTimeout(() => {
+      busy = false;
+      const v = resolve(aiRespond()); stamp(v); advance(); render();
+      setTimeout(stepOpponent, v.kind === 'waved' ? 650 : 1200);
+    }, 700 + Math.random() * 900);
+  } else render();  /* relay panel is showing */
+}
+function stepOpponent() {
+  /* runs at the top of each round: if it's their crossing, drive their ship;
+     if it's yours, wait for your click; handles your forced last crate. */
+  if (S.phase === 'END') { render(); return; }
+  if (S.phase !== 'SHIP') { render(); return; }
+  if (merchant() === 0) {
+    if (S.hand[0].length === 1) {
+      shipCrate(S.hand[0][0], true); render();
+      setTimeout(opponentRespondIfNeeded, 500);
+    } else render();
+    return;
+  }
+  /* their crossing */
+  if (S.hand[1].length === 1) {
+    shipCrate(S.hand[1][0], true); render();
+    setTimeout(humanRespondOrAuto, 400);
+    return;
+  }
+  if (mode === 'ai') {
+    busy = true; render();
+    setTimeout(() => {
+      busy = false; shipCrate(aiPickShip(), false); render();
+      setTimeout(humanRespondOrAuto, 350);
+    }, 600 + Math.random() * 800);
+  } else render();  /* relay ship panel */
+}
+function humanRespondOrAuto() {
+  if (S.phase !== 'RESPOND' || inspector() !== 0) { render(); return; }
+  if (S.tokens[0] === 0) {
+    const v = resolve('autowave'); stamp(v); advance(); render();
+    setTimeout(stepOpponent, 700);
+  } else render();  /* your buttons are showing */
+}
+
+/* relay wiring */
+function showRelay(kind) {
+  const rp = $('relayPanel'); rp.hidden = false;
+  $('briefing').value = briefingFor(kind);
+  rp.dataset.kind = kind;
+  $('llmError').textContent = '';
+}
+$('copyBriefing').addEventListener('click', async () => {
+  const ta = $('briefing');
+  try { await navigator.clipboard.writeText(ta.value); $('copyHint').textContent = 'Copied — paste it to your LLM.'; }
+  catch { ta.focus(); ta.select(); $('copyHint').textContent = 'Select-all is done — copy manually (⌘C).'; }
+});
+$('applyLlm').addEventListener('click', applyLlmMove);
+$('llmMove').addEventListener('keydown', e => { if (e.key === 'Enter') applyLlmMove(); });
+function applyLlmMove() {
+  const kind = $('relayPanel').dataset.kind;
+  const res = parseLlm($('llmMove').value, kind);
+  if (res.err) { $('llmError').textContent = res.err; return; }
+  $('llmMove').value = ''; $('llmError').textContent = '';
+  if (kind === 'ship') { shipCrate(res.ship, false); render(); setTimeout(humanRespondOrAuto, 350); }
+  else {
+    const v = resolve(res.respond); stamp(v); advance(); render();
+    setTimeout(stepOpponent, v.kind === 'waved' ? 650 : 1200);
+  }
+}
+
+/* header wiring */
+$('newGame').addEventListener('click', newGame);
+$('mode').addEventListener('change', () => {
+  mode = $('mode').value;
+  if (S.round > 1 || S.phase !== 'SHIP') newGame(); else render();
+});
+function newGame() {
+  S = freshState(); busy = false;
+  mode = $('mode').value;
+  log(`— new shift · opponent: ${mode === 'ai' ? 'solver-tuned officer' : 'LLM by relay'} —`, 'sys');
+  render();
+  stepOpponent();
+}
+newGame();
+</script>
