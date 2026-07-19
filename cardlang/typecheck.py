@@ -248,54 +248,45 @@ def _provisional_structs(game: Game) -> dict[str, TStruct]:
     return structs
 
 
-def _type_key(t: Type, depth: int) -> object:
-    """A type's identity for the fixpoint's convergence test, comparing nested
-    struct FIELDS down to ``depth`` and falling back to the bare name below it.
+def _type_key(t: Type) -> object:
+    """A type's identity for the fixpoint's convergence test, with any nested
+    struct reduced to its NAME.
 
-    Both halves are load-bearing, and each was learned from a defect.
+    Reducing to the name is sound only because a nested snapshot is never
+    OBSERVED: every read of a struct-typed field resolves through the registry
+    (`_canonical`), so what a round must compare is each type's OWN fields.
+    Those the key does compare, and a nested type's refinement shows up under
+    that type's own entry in the registry-wide fingerprint.
 
-    Comparing nested fields at all is required because a nested struct's fields
-    are OBSERVABLE: `infer`'s Member arm reads them, so `o.inner.flag` types
-    off the `Inner` embedded in `Outer.inner`, not off the registry's `Inner`.
-    A key that stopped at the name reported convergence while a nested struct
-    was still sharpening, and `o.inner.flag` stayed at the permissive top — a
-    Boolean silently assignable to an Integer state variable.
-
-    Cutting off at ``depth`` is required because a derived field may hold a
-    value of its own type (`derived { copy = R { x: x } }`), so `R`'s field map
-    contains an `R` whose field map contains an `R`, without end. The caller
-    passes the number of declared types: a chain of DISTINCT structs cannot
-    nest deeper than that, so anything below the cutoff has repeated a name and
-    is recursive, where the name is exactly the right answer (struct types are
-    nominal to every consumer — `types.assignable`/`unify`).
+    An earlier version compared nested fields structurally to a bounded depth.
+    That was two defects in one: unsound, because a RECURSIVE path stays
+    observable past any fixed cutoff (`r.copy.copy.copy.flag` decayed to the
+    permissive top); and exponential, because a declaration DAG whose types
+    each hold two fields of the previous one revisits shared children once per
+    path. Resolving reads through the registry removes the need for depth
+    entirely, so the fingerprint is linear in the declared fields again.
     """
     if isinstance(t, TStruct):
-        if depth <= 0:
-            return ("struct", t.name)
-        return (
-            "struct",
-            t.name,
-            t.derived,
-            tuple((f, _type_key(t.fields[f], depth - 1)) for f in sorted(t.fields)),
-        )
+        return ("struct", t.name)
     if isinstance(t, TVariant):
         return ("variant", t.name)
     if isinstance(t, TOptional):
-        return ("optional", _type_key(t.inner, depth))
+        return ("optional", _type_key(t.inner))
     if isinstance(t, TCollection):
         return (
             "collection",
-            _type_key(t.element, depth),
-            None if t.key is None else _type_key(t.key, depth),
+            _type_key(t.element),
+            None if t.key is None else _type_key(t.key),
             t.zone,
         )
     return t
 
 
-def _registry_key(structs: Mapping[str, TStruct], depth: int) -> object:
-    """The whole registry's fingerprint, nested-field-sensitive to ``depth``."""
+def _registry_key(structs: Mapping[str, TStruct]) -> object:
+    """The whole registry's fingerprint: every type's own fields, nominal one
+    level down. Linear in the declared fields — see `_type_key`."""
     return {
-        name: (s.derived, {f: _type_key(ft, depth) for f, ft in s.fields.items()})
+        name: (s.derived, {f: _type_key(ft) for f, ft in s.fields.items()})
         for name, s in structs.items()
     }
 
@@ -328,18 +319,9 @@ def struct_and_function_registries(
     round would multiply every function-body diagnostic by the round count.
     """
     structs = _provisional_structs(game)
-    # Nested struct fields are compared down to the number of declared types —
-    # deeper than that has repeated a name and is recursive (`_type_key`).
-    depth = len(game.types)
-    # Each round can promote at least one derived field or one signature away
-    # from the top, and a nested field can need one round per nesting level;
-    # +2 covers the settling round that changes nothing.
-    bound = (
-        sum(len(t.derived) for t in game.types)
-        + len(game.functions)
-        + len(game.types)
-        + 2
-    )
+    # Each round promotes at least one derived field or one signature away from
+    # the top; +2 covers the settling round that changes nothing.
+    bound = sum(len(t.derived) for t in game.types) + len(game.functions) + 2
     for _ in range(bound):
         # The ambient environment for this round, which BOTH consumers need:
         # function bodies, and derived bodies (which may name a state variable,
@@ -347,13 +329,11 @@ def struct_and_function_registries(
         ambient = env_from_game(game, structs)
         sigs = _function_sigs(game, ambient, DiagnosticBag())
         settled = struct_registry(game, sigs, base=ambient)
-        done = _registry_key(settled, depth) == _registry_key(structs, depth)
+        done = _registry_key(settled) == _registry_key(structs)
         # Take the newer registry ALWAYS, including on the round that settles.
-        # Testing first and keeping the older one on convergence threw away a
-        # strictly better result: the round that reports "nothing changed" is
-        # the one built against the fullest environment, and discarding it left
-        # a stale nested struct behind (its `Member` reads then typed as the
-        # permissive top).
+        # Testing first and keeping the older one threw away a strictly better
+        # result: the round that reports "nothing changed" is the one built
+        # against the fullest environment.
         structs = settled
         if done:
             break
@@ -435,6 +415,23 @@ class TypeEnv:
 
     def with_local(self, name: str, t: Type) -> "TypeEnv":
         return replace(self, locals={**self.locals, name: t})
+
+
+def _canonical(t: Type, env: TypeEnv) -> Type:
+    """A struct type read out of another struct's field map, resolved to the
+    registry's entry for that name.
+
+    A struct's field map holds a SNAPSHOT of each struct-typed field, taken
+    while the registry was still being built, so a snapshot can be staler than
+    the registry — unavoidably so for a recursive type, whose unrolled value
+    has no finite form. Struct types are nominal (`types.assignable`/`unify`
+    compare by name), so the registry entry is the same type and strictly more
+    refined: resolving by name at each read keeps a traversal exact at any
+    depth, and keeps the registry's own representation finite.
+    """
+    if isinstance(t, TStruct):
+        return env.structs.get(t.name, t)
+    return t
 
 
 def _untyped_operator(op: str) -> AssertionError:
@@ -591,7 +588,17 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                 return ROUND_STATE_FIELDS[e.field]
             obj = infer(e.obj, env)
             if isinstance(obj, TStruct):
-                return obj.fields.get(e.field, TAny())
+                # Resolve a struct-typed field through the REGISTRY by name
+                # rather than reading the snapshot embedded in the receiver's
+                # field map. A recursive type (`derived { copy = R { x: x } }`)
+                # cannot be represented by a finite unrolled value: each
+                # embedded copy is one round staler than the last, so reading
+                # snapshots made `r.copy.flag` correct, `r.copy.copy.flag`
+                # correct, and `r.copy.copy.copy.flag` the permissive top —
+                # a wall that decays with traversal depth. Struct types are
+                # nominal, so the registry entry IS the type; one lookup per
+                # hop keeps every depth exact and finite.
+                return _canonical(obj.fields.get(e.field, TAny()), env)
             if isinstance(obj, TCard):
                 # A card's fields are a closed pair; `_check_expr` rejects
                 # anything else on a known-Card receiver.

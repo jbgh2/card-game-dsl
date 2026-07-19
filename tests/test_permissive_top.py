@@ -79,9 +79,16 @@ residual:   (1) MERGE-failure top: `unify` returning None in `IfExpr`/`ListLit`
             the convergence key reduced a NESTED struct to its bare name while
             `infer`'s Member arm reads nested fields, and the loop tested
             before assigning, so a stale nested struct survived and its field
-            reads typed as the top. The key is now nested-field-sensitive down
-            to the number of declared types (deeper is recursive by pigeonhole)
-            and the loop always keeps the newer registry.
+            reads typed as the top. The loop now always keeps the newer
+            registry, and -- after review showed a bounded-depth key was BOTH
+            unsound (a recursive path stays observable past any cutoff, so
+            `r.copy.copy.copy.flag` decayed to the top) and exponential on a
+            declaration DAG -- struct-typed field reads resolve through the
+            REGISTRY by name (`_canonical`) instead of off the embedded
+            snapshot. Nested snapshots are then never observed, so the
+            fingerprint is nominal and linear again. Every defect in this
+            group was found by review or adversarial probe, never by the
+            suite.
 """
 
 from __future__ import annotations
@@ -537,6 +544,48 @@ def test_a_nested_struct_field_is_typed_whatever_the_declaration_order(
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(src, "g.cardlang")
     assert "cannot assign Boolean to 'score' (Integer)" in str(ei.value)
+
+
+@pytest.mark.parametrize("hops", [0, 1, 2, 3, 6, 12])
+def test_a_recursive_struct_path_stays_typed_at_any_depth(hops: int) -> None:
+    """A struct's field map holds a SNAPSHOT of each struct-typed field, and a
+    recursive type has no finite unrolled form — every embedded copy is one
+    round staler than the last. Reading snapshots therefore made the wall decay
+    with traversal depth: `r.copy.flag` and `r.copy.copy.flag` were checked,
+    `r.copy.copy.copy.flag` typed as the permissive top and a Boolean became
+    assignable to an Integer.
+
+    A bounded comparison depth cannot fix this — the path stays observable past
+    any cutoff. Reads resolve through the REGISTRY by name instead
+    (`_canonical`), which is exact at every depth because struct types are
+    nominal. Parametrized well past any plausible cutoff for that reason."""
+    path = "r" + ".copy" * hops + ".flag"
+    src = (
+        "type R = { x : Integer } derived { copy = R { x: x }  flag = x > 0 }\n"
+        + _game(state="r : R = R { x: 3 }  score[player] : Integer = 0").replace(
+            "phase play { for each player p: score[p] := 1 }",
+            f"phase play {{ for each player p: score[p] := {path} }}",
+        )
+    )
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "cannot assign Boolean to 'score' (Integer)" in str(ei.value), path
+
+
+def test_a_declaration_dag_does_not_blow_up_the_fixpoint() -> None:
+    """Each `T_i` holds TWO fields of `T_{i-1}`, so a structural fingerprint
+    revisits the shared child once per path and is exponential in the chain
+    length — a modest source file could stall the checker. Reads resolving
+    through the registry removed the need to fingerprint nested fields at all,
+    so this is linear again. Twenty levels is far past where the exponential
+    form became unusable (seconds, and a million-node fingerprint per round)."""
+    types = ["type T0 = { v : Integer } derived { f0 = v > 0 }"]
+    for i in range(1, 21):
+        types.append(
+            f"type T{i} = {{ a : T{i - 1}  b : T{i - 1} }} "
+            f"derived {{ f{i} = a.f{i - 1} }}"
+        )
+    check_dsl("\n".join(types) + "\n" + _game(), "g.cardlang")
 
 
 def test_a_derived_field_reached_through_a_function_is_assignment_checked() -> None:
