@@ -43,6 +43,63 @@ Things we have noted but consciously not designed yet:
   in the caller's context, and the body runs in a block (decisions.md "Named
   procedures").
 
+- **The permissive top on a MERGE failure.** The lookup-miss population of
+  `Any` is closed — a lookup whose domain is closed raises rather than
+  falling back to the top, and every declared type name is validated where it is
+  declared (decisions.md, "The permissive top and the lookup-miss walls";
+  ledger `tests/test_permissive_top.py`). A second, distinct population
+  remains: when `unify` cannot reconcile two types, the result falls to the top
+  rather than being rejected. `if c then 1 else hearts` and a mixed
+  `[1, hearts]` list literal each type as the top and go permissive from
+  there. This is not a missed lookup — both branch types are known — so it
+  wants a WALL (the branches of a conditional, and the elements of a list
+  literal, must have a common type), not a raise. It is deferred rather than
+  written because the wall is a new rejection over an existing surface, which
+  needs its own misuse-probe pass over every position a conditional
+  expression can appear in. The narrower sibling: `max`/`min` comprehensions
+  type as the top although `_check_agg_body` already forces an Integer body, so
+  their result type can simply be tightened to `Integer` — a precision fix,
+  no new rejection.
+
+- **The Card-vocabulary check is still offer-sited, and double-reports.**
+  `_check_move_params` (the move-parameter DOMAIN gate) now runs once per
+  DECLARED move type, because a parameter is a property of the declaration.
+  Its sibling `_check_card_vocabulary` was left at the `offer` / `round
+  offering` call sites, so the halves of one class now sit at two layers.
+  The visible cost: "this game declares no `hand[player]`" is a whole-GAME
+  fact, so a Card-parameterized move named by N offers reports it N times for
+  one defect. Moving it wholesale is wrong, which is why this is deferred
+  rather than done — the check is two rules wearing one name. "No
+  `hand[player]` to enumerate a Card over" belongs to the declaration; "more
+  than one Card-parameterized move in this vocabulary" is genuinely a property
+  OF the vocabulary and must stay where it is. Splitting them is the work.
+  Pre-existing (the duplication predates the move-parameter change); found by
+  the adversarial pass over that change.
+
+- **Struct and function registries are solved by a bounded fixpoint.** Not
+  deferred work — recorded because the shape is a trap worth knowing before
+  touching `typecheck.struct_and_function_registries`. The two registries
+  depend on each other in both directions and at arbitrary depth: a derived
+  field's body may call a function, a function's parameters and body may
+  mention a struct, and a function's RETURN type may therefore depend on a
+  derived field which depends on another function. No fixed pass count is
+  enough; a chain of N needs N rounds. Two fixed-pass versions each shipped a
+  defect that an adversarial probe caught and a fully green suite did not:
+  (a) `TStruct` compares STRUCTURALLY, so two registries disagreeing about one
+  derived field produced two unequal copies of one nominal type — diagnostics
+  reading `expects R, got R` at eight sites, and well-typed programs made
+  unwritable. Closed by comparing structs NOMINALLY (by name) in
+  `types.assignable`/`unify`, which is the correct semantics for a declared
+  type: identity belongs to the name, and the fields are what the name
+  resolves to. (b) A derived field whose type flowed through a function return
+  stayed frozen at the permissive top, so `score[p] := s.flag` accepted a
+  Boolean into an Integer-declared state variable — a LOST WALL, not an
+  imprecision. Closed by the fixpoint. A third trap for anyone adding a pass:
+  intermediate rounds must report into a scratch `DiagnosticBag`, or every
+  function-body diagnostic is multiplied by the round count. No corpus game
+  declares a struct at all, which is precisely why the suite is silent here —
+  the ledger is `tests/test_permissive_top.py`.
+
 - **The deck-capacity gate does not see move-driven draws.** Its domain is the
   scripted deals in phase bodies (`cardlang/deckcheck.py`, module docstring):
   a draw inside a MOVE effect — reached through `offer` or a `round` — is not

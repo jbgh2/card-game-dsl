@@ -1,1 +1,1 @@
-positions_param_domain_typo.cardlang:21:7: error: move 'mv' has unsupported parameter domain 'colum' (expected Player, Suit, Suit?, Rank, or Card, or a declared position domain (column))
+positions_param_domain_typo.cardlang:26:1: error: move 'mv' has unsupported parameter domain 'colum' (expected Player, Suit, Suit?, Rank, or Card, or a declared position domain (column))

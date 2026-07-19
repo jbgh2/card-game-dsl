@@ -166,6 +166,9 @@ def unify(a: Type, b: Type) -> Type | None:
     """
     if isinstance(a, TAny) or isinstance(b, TAny):
         return TAny()
+    if isinstance(a, TStruct) and isinstance(b, TStruct):
+        # Nominal, for the reason `assignable` gives: same name, same type.
+        return a if a.name == b.name else None
     if isinstance(a, TCollection) and isinstance(b, TCollection):
         element = unify(a.element, b.element)
         if element is None:
@@ -217,6 +220,15 @@ def assignable(src: Type, dst: Type) -> bool:
         return True
     if isinstance(src, TNull):
         return isinstance(dst, TOptional)  # `none` only fits an optional
+    if isinstance(src, TStruct) and isinstance(dst, TStruct):
+        # A declared `type` is NOMINAL: two `R`s are the same type because they
+        # are both named R, not because their field mappings happen to match.
+        # `TStruct` carries its fields, so dataclass equality is structural —
+        # and any two registries that disagreed about one derived field's type
+        # then produced two unequal `R`s, which surfaced as diagnostics reading
+        # `expects R, got R` and made well-typed programs unwritable. Identity
+        # belongs to the name; the fields are what the name resolves TO.
+        return src.name == dst.name
     if src == dst:
         return True
     if isinstance(dst, TOptional):

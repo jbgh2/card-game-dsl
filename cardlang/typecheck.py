@@ -142,7 +142,7 @@ def value_enum_map(game: Game) -> dict[str, TEnum]:
     for suit in deck_suits(game.deck):
         m[suit] = TEnum("Suit")
     # Membership comes from the deck alone (Coup/Tarot declare no
-    # `ranking:`). resolve's `_resolve_ranking` guarantees ranking ⊆ deck
+    # `ranking:`). resolve's `_resolve_ranking` guarantees ranking is a subset of deck
     # ranks (an unknown rank is a resolve-time error), and resolve always
     # runs before typecheck (cardlang/pipeline.py's `_check`), so unioning
     # `game.ranking` in here would add nothing beyond order.
@@ -153,20 +153,28 @@ def value_enum_map(game: Game) -> dict[str, TEnum]:
     return m
 
 
-def struct_registry(game: Game) -> dict[str, TStruct]:
+def struct_registry(
+    game: Game, functions: Mapping[str, Sig] | None = None
+) -> dict[str, TStruct]:
     """Build the user-defined struct types. Declared fields resolve eagerly;
-    derived fields are typed in an env of the declared fields, so each `TStruct`
-    carries both declared and derived field types under one mapping.
+    derived fields are typed in an env of the declared fields (plus the user
+    ``functions``, when a derived body calls one), so each `TStruct` carries
+    both declared and derived field types under one mapping.
 
     Structs are built in source order: a field whose type is another user type
     only resolves if that type was declared earlier (forward references resolve
-    to `TAny` — acceptable for Stage 2)."""
+    to `TAny` — acceptable for Stage 2, pinned by tests/test_permissive_top.py).
+
+    ``functions`` closes a cycle, and must be supplied by any caller that wants
+    precise derived types — see `_provisional_structs`."""
     structs: dict[str, TStruct] = {}
     for tdef in game.types:
         fields: dict[str, Type] = {}
         for f in tdef.fields:
             fields[f.name] = type_from_name(f.type_name, f.optional, structs)
-        field_env = TypeEnv(locals=dict(fields), structs=structs)
+        field_env = TypeEnv(
+            locals=dict(fields), structs=structs, functions=functions or {}
+        )
         for d in tdef.derived:
             fields[d.name] = infer(d.value, field_env)
         structs[tdef.name] = TStruct(
@@ -175,6 +183,86 @@ def struct_registry(game: Game) -> dict[str, TStruct]:
             derived=frozenset(d.name for d in tdef.derived),
         )
     return structs
+
+
+def _provisional_structs(game: Game) -> dict[str, TStruct]:
+    """The fixpoint's starting point: declared fields resolved, DERIVED fields
+    typed as the permissive top.
+
+    Every field NAME exists here, which is what stops a function body reading a
+    derived field from being falsely rejected as "has no field" before the
+    field's type is known. The types themselves are refined by
+    `struct_and_function_registries`.
+
+    The top here is deliberate and local — written at the site that introduces
+    it rather than reached as a lookup fallback (decisions.md, "The permissive
+    top and the lookup-miss walls") — and it does not survive the fixpoint for
+    any field whose type is derivable.
+    """
+    structs: dict[str, TStruct] = {}
+    for tdef in game.types:
+        fields: dict[str, Type] = {}
+        for f in tdef.fields:
+            fields[f.name] = type_from_name(f.type_name, f.optional, structs)
+        for d in tdef.derived:
+            fields[d.name] = TAny()
+        structs[tdef.name] = TStruct(
+            name=tdef.name,
+            fields=fields,
+            derived=frozenset(d.name for d in tdef.derived),
+        )
+    return structs
+
+
+def struct_and_function_registries(
+    game: Game, bag: DiagnosticBag
+) -> tuple[dict[str, TStruct], dict[str, Sig]]:
+    """The struct and user-function registries, solved together.
+
+    The two are mutually dependent, in both directions and at arbitrary depth:
+    a derived field's body may call a function (`derived { made = tag(a) }`),
+    and a function's parameters and body may mention a struct
+    (`function f(x : R) = x.made`). A function's RETURN type can therefore
+    depend on a derived field's type, which can depend on another function's
+    return type, and so on. No fixed number of passes is enough — a chain of
+    N types and functions needs N rounds — so this iterates to a FIXPOINT.
+
+    Getting this wrong is not a precision nicety, it is the accepted-but-ignored
+    class: a derived field left at the permissive top silently exempts every
+    expression that reads it from every wall. The version of this function that
+    ran a fixed three passes accepted `score[p] := s.flag` — a Boolean into an
+    Integer-declared state variable — because `s.flag`'s type was frozen at the
+    top from the draft round.
+
+    Each round is monotone in precision (a field only moves from the top toward
+    a concrete type as the signatures feeding it sharpen), so the iteration
+    settles; the bound below is a backstop, and exceeding it is a checker bug
+    rather than a program error. Intermediate rounds report into a SCRATCH bag:
+    their diagnostics are recomputed by the final round, and reporting them per
+    round would multiply every function-body diagnostic by the round count.
+    """
+    structs = _provisional_structs(game)
+    # Each round can promote at least one derived field or one signature away
+    # from the top; +2 covers the settling round that changes nothing.
+    bound = sum(len(t.derived) for t in game.types) + len(game.functions) + 2
+    for _ in range(bound):
+        sigs = _function_sigs(game, env_from_game(game, structs), DiagnosticBag())
+        settled = struct_registry(game, sigs)
+        if settled == structs:
+            break
+        structs = settled
+    else:
+        raise AssertionError(
+            f"the struct/function type fixpoint did not settle in {bound} "
+            f"rounds — each round should only sharpen a derived field or a "
+            f"signature, so this is a checker bug (a non-monotone round), not "
+            f"a program error"
+        )
+    # The final signatures are built against the settled registry and into the
+    # REAL bag, so every function body is checked exactly once, against the
+    # types everything else sees.
+    env = env_from_game(game, structs)
+    return structs, _function_sigs(game, env, bag)
 
 
 def _payload_type(name: str, structs: Mapping[str, TStruct]) -> "Type":
@@ -243,9 +331,33 @@ class TypeEnv:
         return replace(self, locals={**self.locals, name: t})
 
 
+def _untyped_operator(op: str) -> AssertionError:
+    """A `BinOp` operator `infer` has no result type for.
+
+    Kept out of `infer`'s BinOp arm deliberately: that arm is scraped as the
+    operator registry (tests/test_operator_walls.py reconciles it against
+    `OP_CLASSES`), so a message with quoted text inside it would read as
+    operators. The old blanket `TAny` here meant a NEW operator typed as the
+    permissive top and passed every operand wall silently — the inference-side
+    twin of `_op_class`'s refusal on the checking side.
+    """
+    return AssertionError(
+        f"operator '{op}' has no result type in `infer` — every BinOp operator "
+        f"the parser builds must be typed here (surface totality, "
+        f"decisions.md); add it beside its OP_CLASSES entry"
+    )
+
+
 def infer(e: n.Expr, env: TypeEnv) -> Type:
     """Infer the type of an expression. Unrefined arms return `TAny` (the
-    permissive top); precision is added construct by construct."""
+    permissive top); precision is added construct by construct.
+
+    A LOOKUP that cannot legitimately miss raises instead of returning the top
+    (`_env_miss`, `_untyped_operator`): the top satisfies every constraint, so
+    missed lookup would silently switch off every wall below it rather than
+    merely losing precision. See decisions.md, "The permissive top and the
+    lookup-miss walls"; the audited top sites are pinned by
+    tests/test_permissive_top.py."""
     match e:
         case n.IntLit():
             return TInteger()
@@ -269,12 +381,32 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
             if isinstance(obj_ref, n.NameRef) and obj_ref.ref_kind == "zone":
                 family = env.zone_families.get(obj_ref.name)
                 if family is not None:
-                    return env.zones.get(obj_ref.name, TCollection(TAny(), zone=True))
+                    zone_t = env.zones.get(obj_ref.name)
+                    if zone_t is None:
+                        raise _env_miss(
+                            "zone", obj_ref.name, "zones", "`env_from_game`"
+                        )
+                    return zone_t
             obj = infer(e.obj, env)
+            # A subscript of a non-collection is REJECTED by `_check_expr`
+            # (`subscriptable`), which admits the permissive top; so the only
+            # value reaching here is one already typed as the top (or one whose error is
+            # already in the bag). Gradual, not a lookup miss.
             return obj.element if isinstance(obj, TCollection) else TAny()
         case n.Call():
             sig = CALL_SIGS.get(e.func) or env.functions.get(e.func)
-            return sig.ret if sig is not None else TAny()
+            if sig is None:
+                # `CALL_SIGS` covers `STDLIB_CALL_FUNCS` exactly (pinned by
+                # tests/test_permissive_top.py), and resolve rejects a call to
+                # any name that is neither a stdlib function nor a declared
+                # one — so a missing signature is a registry divergence.
+                raise AssertionError(
+                    f"call to '{e.func}' has no signature in CALL_SIGS and no "
+                    f"declared function — resolve rejects unknown calls before "
+                    f"this pass, so the stdlib signature registry has drifted "
+                    f"from the stdlib function registry"
+                )
+            return sig.ret
         case n.BinOp():
             if e.op in ("==", "!=", "<", ">", "<=", ">=", "and", "or", "in"):
                 return TBoolean()
@@ -286,7 +418,11 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                 # p untyped by the flat walk) must still hit the dot-form
                 # rejection rather than fall through to a runtime assert.
                 return TPlayer()
-            return TAny()  # any future operators
+            # Every operator the parser builds is typed above; an unrecognized
+            # one is loud (the message lives in `_untyped_operator` so this arm
+            # holds operator literals ONLY — tests/test_operator_walls.py
+            # scrapes it as the operator registry).
+            raise _untyped_operator(e.op)
         case n.Not() | n.IsCheck() | n.Quantifier():
             return TBoolean()
         case n.Choose():
@@ -312,7 +448,16 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
         case n.IfExpr():
             return _ifexpr_type(e, env)
         case n.StructLit():
-            return env.structs.get(e.type_name, TAny())
+            struct = env.structs.get(e.type_name)
+            if struct is None:
+                # resolve rejects a literal of an undeclared type
+                # (`_validate_refs`, "unknown type"), and `struct_registry`
+                # builds one entry per `game.types` — so a miss is a divergence
+                # between the two, not a program error.
+                raise _env_miss(
+                    "struct type", e.type_name, "structs", "`struct_registry`"
+                )
+            return struct
         case n.Member():
             # `action.card` / `action.actor`: the sound subset of the `action`
             # pronoun's shape (Finding 3) — typed directly off the pronoun,
@@ -364,16 +509,66 @@ def _ifexpr_type(e: n.IfExpr, env: TypeEnv) -> Type:
     return merged if merged is not None else TAny()
 
 
+def _env_miss(kind: str, name: str, env_field: str, builder: str) -> AssertionError:
+    """A name resolve CLASSIFIED but this pass cannot type: the type environment
+    is incomplete, which is a checker bug rather than a program error.
+
+    This is the amplifier the permissive `TAny` used to hide (decisions.md
+    "Closed-domain completeness"; the resolution recorded in decisions.md, "The
+    permissive top and the lookup-miss walls"). A miss here used to return the
+    permissive top, and `TAny` satisfies EVERY constraint — so one unthreaded
+    binder silently exempted every expression below it from every type wall,
+    and the checker reported success. Both bugs the split was motivated by had
+    exactly this shape: a move parameter whose position domain was not threaded
+    into the binder env typed `TAny`, so `src is hearts` passed.
+
+    The fix for this exception is NEVER to bind `TAny` at the raising site to
+    quiet it — that restores the hole. It is to thread the missing binder in
+    the pass that owns the scope. A binder that is genuinely untypable today is
+    a deliberate reclassification: bind it to `TAny` *explicitly* at the site
+    that introduces it, where the choice is visible and auditable.
+    """
+    return AssertionError(
+        f"{kind} '{name}' was classified by resolve but is absent from "
+        f"`TypeEnv.{env_field}` — {builder} and the resolver's classification "
+        f"have diverged, so this expression would type as the permissive top "
+        f"and every type wall below it would silently pass. This is a checker "
+        f"bug: thread the binding through, never bind `TAny` here to quiet it."
+    )
+
+
 def _name_type(e: n.NameRef, env: TypeEnv) -> Type:
     match e.ref_kind:
         case "local":
-            return env.locals.get(e.name, TAny())
+            t = env.locals.get(e.name)
+            if t is None:
+                # The headline case: a runtime binder the statement walk failed
+                # to carry into scope. `_scoped_env` folds loop/parameter/`let`
+                # binders; a construct whose binder it does not know reaches
+                # here.
+                raise _env_miss(
+                    "binder", e.name, "locals", "the statement walk's binder fold"
+                )
+            return t
         case "state_var":
-            return env.state_vars.get(e.name, TAny())
+            t = env.state_vars.get(e.name)
+            if t is None:
+                raise _env_miss(
+                    "state variable", e.name, "state_vars", "`env_from_game`"
+                )
+            return t
         case "zone":
-            return env.zones.get(e.name, TAny())
+            t = env.zones.get(e.name)
+            if t is None:
+                raise _env_miss("zone", e.name, "zones", "`env_from_game`")
+            return t
         case "enum_value":
-            return env.value_enums.get(e.name, TAny())
+            t_enum = env.value_enums.get(e.name)
+            if t_enum is None:
+                raise _env_miss(
+                    "enum value", e.name, "value_enums", "`value_enum_map`"
+                )
+            return t_enum
         case "bool":
             return TBoolean()
         case "null":
@@ -387,8 +582,25 @@ def _name_type(e: n.NameRef, env: TypeEnv) -> Type:
             # move-type/mechanic-specific (see ACTION_FIELDS for the
             # sound subset of `action` typed via Member access).
             return TPlayer() if e.name == "actor" else TAny()
+        case "function":
+            # A bare function NAME in value position (a callback handed to a
+            # round form, never applied here). Genuinely the top: its type is the
+            # signature of whatever consumes it, which no `Type` in this model
+            # can spell. One of the audited permissive sites.
+            return TAny()
         case _:
-            return TAny()  # function / unresolved
+            # Every `ref_kind` resolve stamps is handled above, and resolve
+            # RAISES on an unclassified name before this pass runs — so an
+            # unknown kind here is a resolver/checker divergence, not a program
+            # error. Loud, per the same rule as `_env_miss`: the old blanket
+            # `TAny` made a whole new ref kind type as the permissive top and
+            # sail through every wall.
+            raise AssertionError(
+                f"name '{e.name}' has ref_kind {e.ref_kind!r}, which this pass "
+                f"does not type — resolve classifies every name (and rejects "
+                f"the unclassifiable), so a new ref kind must be given a type "
+                f"here rather than defaulting to the permissive top"
+            )
 
 
 def _type_name(t: Type) -> str:
@@ -425,10 +637,17 @@ def _state_blocks(game: Game) -> list[n.StateBlock]:
     return blocks
 
 
-def env_from_game(game: Game) -> TypeEnv:
+def env_from_game(
+    game: Game, structs: Mapping[str, TStruct] | None = None
+) -> TypeEnv:
     """Build the top-level type environment: declared state vars (value types),
-    zone contents, the deck/stdlib enum value map, and the user struct types."""
-    structs = struct_registry(game)
+    zone contents, the deck/stdlib enum value map, and the user struct types.
+
+    ``structs`` lets `typecheck` supply the registry it built with the function
+    signatures in scope (see `_provisional_structs`); omitted, the registry is
+    built here without them, which is precise for every struct whose derived
+    fields call no user function."""
+    structs = struct_registry(game) if structs is None else structs
     state_vars: dict[str, Type] = {}
     for block in _state_blocks(game):
         for decl in block.decls:
@@ -443,23 +662,32 @@ def env_from_game(game: Game) -> TypeEnv:
                 if decl.index is not None
                 else t
             )
-    # The fallback carries zone=True like its twin in `infer`'s zone-family
-    # subscript arm: it describes an (unknown-typed) ZONE's contents, and an
-    # unflagged default would falsely reject every use of that zone at the
-    # endpoint walls. Unreachable today only by pass ordering (resolve raises
-    # on unknown zone types first) — kept truthful, not load-bearing.
-    zones: dict[str, Type] = {
-        z.name: ZONE_CONTENT.get(z.type_ref.name, TCollection(TAny(), zone=True))
-        for z in game.zones
-    }
+    # `ZONE_CONTENT` covers `LIBRARY_ZONE_TYPES` exactly (pinned by
+    # tests/test_permissive_top.py) and resolve rejects an unknown zone type
+    # before this pass runs, so every declared zone has a content type. The old
+    # permissive fallback here would have typed an unknown zone's contents as
+    # the top, sending every downstream Card/endpoint wall dark for that zone.
+    def zone_content(z: n.ZoneDecl) -> Type:
+        content = ZONE_CONTENT.get(z.type_ref.name)
+        if content is None:
+            raise AssertionError(
+                f"zone '{z.name}' has library type '{z.type_ref.name}' with no "
+                f"ZONE_CONTENT entry — resolve rejects unknown zone types "
+                f"before this pass, so the content registry has drifted from "
+                f"LIBRARY_ZONE_TYPES"
+            )
+        return content
+
+    zones: dict[str, Type] = {z.name: zone_content(z) for z in game.zones}
     # `ZoneDecl.index` is `None` (a singleton zone) or one of the closed index
     # roles resolve.py validates (the domain table's `ZONE_INDEX_ROLES`, plus
     # the game's declared position domains — integer-keyed); a family's
     # subscript key types as the index domain's binder type — the same
     # table cell `for each <role>` reads, so `hand[p]` and `captured[t]` key by
-    # TPlayer/TTeam without this site re-spelling the role list. (`role_type`'s
-    # TAny fallback covers the unresolved-role case, whose diagnostic resolve
-    # already owns.)
+    # TPlayer/TTeam without this site re-spelling the role list. (`role_type`
+    # RAISES on a role outside the registry rather than falling back to the
+    # permissive top; resolve rejects an unknown index role before this pass,
+    # so reaching that raise would mean the two registries had diverged.)
     positions = frozenset(p.name for p in game.positions)
     zone_families: dict[str, Type] = {
         z.name: (TInteger() if z.index in positions else _role_type(z.index))
@@ -2402,8 +2630,10 @@ def typecheck(game: Game) -> Game:
             players.span,
         )
 
-    env = env_from_game(game)
-    env = replace(env, functions=_function_sigs(game, env, bag))
+    # Structs and user functions are solved together, to a fixpoint — they
+    # depend on each other in both directions and at arbitrary depth.
+    structs, functions = struct_and_function_registries(game, bag)
+    env = replace(env_from_game(game, structs), functions=functions)
     env = replace(env, procedures=_procedure_sigs(game))
     variants = variant_registry(game, env.structs)
     for stmt, binders in _all_statements_scoped(game):

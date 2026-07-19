@@ -93,7 +93,7 @@ def test_rank_domain_sourced_from_game_ranking_not_deck() -> None:
     origin `mechanics.param_domain` reads at runtime (`ctx.rs.rank_index`,
     which `driver.py` builds from `game.ranking`) — never from the deck's own
     ranks. Before the fix the two sourcings coincided only by accident
-    (`ranking ⊆ deck ranks`, unenforced); a game whose `ranking:` is a strict
+    (`ranking is a subset of deck ranks`, unenforced); a game whose `ranking:` is a strict
     SUBSET of its deck's ranks exposes the divergence directly: `ranking: A K
     Q` under `cards: standard52` (13 ranks) resolves cleanly via `check_dsl`
     — nothing requires a `ranking:` to cover every deck rank — so this is a

@@ -27,16 +27,6 @@ folder, and remove the entry from this index. See
   smuggling family whose five sibling rulesets measured the copy-drift and
   parameterization cost end to end.
 
-- [permissive-any-type](permissive-any-type.md) — `TAny` is the checker's top
-  type and satisfies every constraint, but it doubles as the fallback for a
-  lookup that failed to resolve, so an incompletely-built type environment
-  silently accepts bad code (the repo's worst class). Two PR-review findings in
-  one cycle were this shape. Split it: a non-permissive `TUnresolved` sentinel
-  for the miss sites (loud at the use) plus a small named set of legitimate ⊤
-  uses (`error()`, dynamic stdlib returns, unknown-element collections). Not
-  "delete `TAny`" — full removal needs a divergence type and polymorphic sigs
-  the corpus does not force; the permissiveness is the harm, not the type.
-
 ## Tier 2 — High impact, blocked on a data point
 
 These questions need one more game in the corpus before committing to a

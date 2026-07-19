@@ -250,11 +250,25 @@ BY_PARAM_DOMAIN: dict[str, Domain] = {s: d for d in DOMAINS for s in d.param_dom
 
 
 def role_type(role: str) -> Type:
-    """The type a `for each <role>` / `any <role>` binder carries. The registry is
-    closed and resolve rejects anything outside it; the `TAny` fallback is a
-    backstop for the permissive walks that run before that rejection."""
+    """The type a `for each <role>` / `any <role>` binder carries.
+
+    Every role-bearing surface draws from this registry: quantifier roles are
+    fixed by the parser (four hard-coded spellings), and `for each` /
+    simultaneous / zone-index / state-index roles are each walled by resolve
+    against a subset of `BY_ID` (`tests/test_permissive_top.py` pins all five
+    role sets as subsets). So an unknown role is a registry divergence and
+    raises, matching `role_members`/`zone_observer_key` in this module — it
+    used to return the permissive `TAny`, which types the binder as the top
+    and silently exempts every use of it from every type wall.
+    """
     row = BY_ID.get(role)
-    return row.binder_type if row is not None else TAny()
+    if row is None:
+        raise AssertionError(
+            f"'{role}' is not a binder role (resolve rejects these) — a new "
+            f"role must carry a binder type here rather than defaulting to the "
+            f"permissive top"
+        )
+    return row.binder_type
 
 
 def binds_actor(role: str) -> bool:

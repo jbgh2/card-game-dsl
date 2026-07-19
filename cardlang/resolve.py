@@ -186,6 +186,7 @@ def resolve(game: n.Game) -> n.Game:
     game = _classify_names(game, cats, bag)
     _validate_refs(game, cats, bag)
     _check_position_family_refs(game, bag, position_names)
+    _check_declared_type_names(game, bag)
     _check_functions(game, bag)
     _check_procedures(game, bag)
     _check_chooses(game, bag)
@@ -1620,6 +1621,80 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
             )
 
 
+def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
+    """A function parameter's and a variant payload's declared type name names
+    a real type.
+
+    Validating a declared type name is resolve's job, and it was being done in
+    only some of the positions that declare one: `StateDecl` and `StructField`
+    were walled and move parameters had their own domain gate, while function
+    parameters and variant payloads were not checked at all.
+    `typecheck.type_from_name` maps an unknown name to the permissive `TAny`,
+    so a mere TYPO exempted the annotated value from every downstream wall —
+    `function f(x : Integar) = x is hearts` was accepted while the
+    correctly-spelled `Integer` version was rejected. Making a type name worse
+    must never make the checker more permissive (decisions.md "Surface
+    totality"; "The permissive top and the lookup-miss walls").
+
+    Both positions here are built with the struct registry threaded
+    (`type_from_name(..., structs)`), so a user-declared `type` is legal
+    alongside the built-ins — the allowed set mirrors exactly what the builder
+    can resolve, since a wall admitting a name its builder still maps to
+    `TAny` would trade one silent hole for another.
+
+    The other declaring positions are deliberately absent, each already owned
+    by a wall at least as tight: move parameters by `_check_move_params`
+    (which additionally requires an ENUMERABLE domain, and now runs for every
+    declared move type), procedure parameters by `_PROCEDURE_DOMAINS`, and
+    rule-template parameters by `_check_template`'s Suit-only gate. Adding a
+    second name check over any of them would report one defect twice, in two
+    currencies.
+    """
+    defined_types = {t.name for t in game.types}
+    known = KNOWN_TYPE_NAMES | defined_types
+
+    def base_of(type_name: str) -> str:
+        # A trailing `?` marks a nullable domain/payload (`Suit?`), not part of
+        # the name — strip it before the lookup, never by a blanket rstrip.
+        return type_name[:-1] if type_name.endswith("?") else type_name
+
+    for fn in game.functions:
+        for p in fn.params:
+            if base_of(p.type_name) not in known:
+                bag.error(
+                    f"unknown type '{p.type_name}' in parameter '{p.name}' of "
+                    f"function '{fn.name}'",
+                    fn.span,
+                )
+    for define in game.defines:
+        for case in define.cases:
+            for payload in case.payload_types:
+                if base_of(payload) not in known:
+                    bag.error(
+                        f"unknown type '{payload}' in payload of case "
+                        f"'{case.tag}'",
+                        case.span or define.span,
+                    )
+    for phase in _walk(game):
+        if not isinstance(phase, n.Phase) or not phase.outcome_cases:
+            continue
+        for case in phase.outcome_cases:
+            for payload in case.payload_types:
+                if base_of(payload) not in known:
+                    bag.error(
+                        f"unknown type '{payload}' in payload of case "
+                        f"'{case.tag}'",
+                        case.span or phase.span,
+                    )
+    # Move parameters are deliberately NOT checked here: `_check_move_params`
+    # already owns them with a stricter, better-worded gate (it names the legal
+    # domains, including the game's declared position domains). Its gap was
+    # REACH, not strength — it ran only for a move a vocabulary enumerates —
+    # and the fix is to run it for every declared move type, at its own call
+    # site, rather than to shadow it with a second diagnostic in a different
+    # currency (two messages for one defect is noise).
+
+
 # The closed set of procedure-parameter domains (decisions.md "Named
 # procedures"), corpus-first. Unlike a move parameter, a procedure argument is
 # an arbitrary expression rather than a value the action space must enumerate,
@@ -2043,30 +2118,27 @@ def _check_card_vocabulary(
 
 def _check_vocabulary_moves(
     names: tuple[str, ...],
-    move_type_defs: dict[str, n.MoveTypeDef],
     defined_move_types: set[str],
     bag: DiagnosticBag,
     span: Span | None,
     unknown_msg: str,
-    has_ranking: bool,
-    positions: frozenset[str],
 ) -> None:
     """The shared body of a vocabulary's per-name loop, wherever one is
     enumerated (a plain `offer` or the auction `round offering` —
     `_check_card_vocabulary`'s docstring has the same "wherever one is
-    enumerated" rationale): every named move type must be defined, and a
-    defined, parameterized one passes `_check_move_params`'s totality gate.
+    enumerated" rationale): every named move type must be defined.
     `unknown_msg` is the caller-specific wording for an unknown name (the two
     call sites differ only in this message, "offer ..." vs "round vocabulary
-    ..."). `has_ranking` (`bool(game.ranking)`) is threaded through to
-    `_check_move_params`'s Rank-needs-a-declared-ranking gate."""
+    ...").
+
+    Parameter DOMAINS are deliberately not checked here. They are a property
+    of the move type's DECLARATION, so `_validate_refs` gates every declared
+    move type once — which both closes the old gap (a move type no vocabulary
+    named was never gated at all) and stops a move type named by two
+    vocabularies from reporting the same defect once per mention."""
     for name in names:
         if name not in defined_move_types:
             bag.error(f"{unknown_msg} '{name}'", span)
-            continue
-        mt = move_type_defs[name]
-        if mt.params:
-            _check_move_params(mt, bag, span, has_ranking, positions)
 
 
 def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
@@ -2083,6 +2155,21 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     outcome_phases = {
         nd.name for nd in _walk(game) if isinstance(nd, n.Phase) and nd.outcome_cases
     }
+    # Every DECLARED move type's parameter domains, gated exactly once. The
+    # gate itself is unchanged; its REACH was the hole. It used to run from the
+    # vocabulary call sites, so a move type no `offer`/`round offering` names
+    # had its parameter domains unchecked entirely — and an unchecked domain
+    # name falls through `typecheck.type_from_name` to the permissive top,
+    # which silently exempts the parameter from every downstream wall
+    # (decisions.md, "The permissive top and the lookup-miss walls"). Declaring
+    # a move type is what makes its parameters real; whether some phase happens
+    # to offer it is not the checker's business — and gating at the declaration
+    # also stops a move named by two vocabularies from reporting one defect
+    # twice.
+    declared_positions = frozenset(p.name for p in game.positions)
+    for mt in game.move_types:
+        if mt.params:
+            _check_move_params(mt, bag, mt.span, bool(game.ranking), declared_positions)
     for nd in _walk(game):
         match nd:
             case n.Call() if (
@@ -2357,13 +2444,10 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
             case n.Offer():
                 _check_vocabulary_moves(
                     nd.move_types,
-                    move_type_defs,
                     defined_move_types,
                     bag,
                     nd.span,
                     "offer names unknown move type",
-                    bool(game.ranking),
-                    frozenset(p.name for p in game.positions),
                 )
                 _check_card_vocabulary(nd.move_types, move_type_defs, game, bag, nd.span)
             case n.Round() if nd.move_types is not None:
@@ -2376,16 +2460,15 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # `Player` statically and `Card` over the actor's live hand —
                 # any other type, or a domain combination `_check_move_params`
                 # rejects, would crash `enumerate_domain`/produce an
-                # indistinguishable action id mid-playout, so reject it here.
+                # indistinguishable action id mid-playout. That gate now runs
+                # over every DECLARED move type (above), which covers these and
+                # the ones no vocabulary names.
                 _check_vocabulary_moves(
                     nd.move_types,
-                    move_type_defs,
                     defined_move_types,
                     bag,
                     nd.span,
                     "round vocabulary names unknown move type",
-                    bool(game.ranking),
-                    frozenset(p.name for p in game.positions),
                 )
                 _check_card_vocabulary(nd.move_types, move_type_defs, game, bag, nd.span)
                 # The betting form omits `outcome` (it mutates state directly and
