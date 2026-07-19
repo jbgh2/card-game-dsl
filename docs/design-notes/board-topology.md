@@ -98,7 +98,11 @@ A registry entry — generated (grids, hex tilings, tracks) or enumerated
   per-player transform, never a second board (the requirements doc's
   ownership/mirroring property).
 - **Regions**: named cell subsets — `back_row(player)`, `home(player)`,
-  `bar`, `off`, the lakes' complement on the Stratego board.
+  `crownhead(player)`. Two non-examples fix the boundary: off-board
+  places (the backgammon bar and borne-off tray) are ordinary zones
+  (§2.3), never regions or cells; and holes (the Stratego lakes) are
+  cell-set modifiers (below), not regions — the remaining cells need
+  no name.
 - **Lines**: named tuple sets for pattern rules — `lines(3)` on a grid
   (rows, columns, diagonals of length 3, statically enumerated), the
   16 mills of `morris9`.
@@ -478,9 +482,11 @@ does not move.
    — pieces only advance.
 3. **Backgammon** (single game, no doubling cube; oracle `backgammon`,
    thoroughly tested, explicit-stochastic). Adds exactly the chance
-   workstream: `roll`, doubles, the track entry with typed points,
-   stacks with capacity semantics (blots, made points as count
-   guards), bar re-entry, exact-policy bear-off, race win. The
+   workstream: `roll`, doubles, the track family (one shared 24-cell
+   track under opposed per-player pip frames; bar and tray are
+   ordinary zones), stacks with capacity semantics (blots, made
+   points as count guards), bar re-entry, exact-or-highest bear-off,
+   race win. The
    doubling cube is a wager layer excluded from the pin (matching the
    oracle's scope); it is separately interesting — a stake-state
    mechanic, not topology — and can be a later variant delta.

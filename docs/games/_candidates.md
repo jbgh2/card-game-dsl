@@ -573,7 +573,9 @@ standard abstract-games references. OpenSpiel `breakthrough`
 
 2 players, the 24-point track + bar + bear-off, 15 checkers each, two
 dice. Race game: enter and run checkers per pip counts, hit blots to
-the bar, bear off exactly; first fleet off wins. **Single game, no
+the bar; bear off on the exact roll, or with a higher roll from the
+rearmost checker once no higher point is occupied; first fleet off
+wins. **Single game, no
 doubling cube** (the cube is a wager layer, excluded to match the
 oracle's scope; a later variant delta if wanted).
 
@@ -583,7 +585,7 @@ mid-game chance nodes (`roll`), which are a replay-model change
 in-play-dice tripwire), on the track family (one shared 24-cell track
 under opposed per-player pip frames; bar and tray are ordinary
 zones), per-point stacks (blots and made points as count guards), bar
-re-entry, and exact-policy bear-off. Named the cheapest topology entry by
+re-entry, and exact-or-highest bear-off. Named the cheapest topology entry by
 generalization-path §1; the ladder puts two deterministic rungs before
 it so the chance change lands in isolation.
 
