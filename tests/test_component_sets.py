@@ -18,14 +18,17 @@ registry:   cardlang.runtime.values.COMPONENT_SETS,
 covered:    all rows, exhaustively parametrized below; DECKS-view equality;
             xo_marks composition pinned card-by-card; each of the wall's
             three branches fired directly (duplicate axes, non-identifier
-            axis, piece flavor spelling "suit"/"rank"); the unknown-name
-            refusal on both build_deck and component_set, message content
-            pinned to name component sets and list known ones
+            axis, piece flavor spelling "suit"/"rank"); build_deck's
+            unknown-name refusal (message pinned to name component sets and
+            list known ones) and component_set's graceful None on a miss —
+            two distinct miss behaviors, each pinned as itself
 sampled:    build_deck ordering, pinned against frozen expected values on
             standard52 (the suits x ranks cross-product path, first suit)
-            and xo_marks (the explicit-list path, verbatim) — the other 9
-            card decks share standard52's code path so are not
-            independently sampled for order
+            and xo_marks (the explicit-list path, verbatim) — 5 of the
+            other 9 card decks (schnapsen20, pinochle48, doppelkopf48,
+            skat32, coup15) share standard52's cross-product path and the
+            remaining 4 (tarot78, tichu56, five_hundred43, canasta108)
+            share xo_marks's explicit-list path, so both paths are sampled
 residual:   none
 """
 
