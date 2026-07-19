@@ -3059,7 +3059,7 @@ shared machinery per game nor promote domain knowledge into the stdlib.
 
 A game names one whole library at a time:
 
-```
+```text
 game SevenCardStud {
   uses poker_betting
   ...
@@ -3094,7 +3094,7 @@ spliced library text would be the wrong diagnostics currency — they name symbo
 the author never typed. So a library names its contract, checked at the `uses`
 line:
 
-```
+```text
 requires {
   stack[player] : Integer
   raise_cap     : Integer
