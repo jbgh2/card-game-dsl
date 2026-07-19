@@ -141,7 +141,8 @@ class ZoneStore:
                 # raises inside `role_static_members`, but a known
                 # non-indexable row (suit/rank) would quietly enumerate the
                 # deliberately-empty () sources and build a zero-instance
-                # family whose every access key-errors far from the cause.
+                # family — every later access would then be refused for a
+                # missing key, far from the declaration that caused it.
                 # Resolve walls these declarations; reaching this raise means
                 # a construction path bypassed it.
                 if decl.index not in ZONE_INDEX_ROLES and decl.index not in positions:
@@ -169,26 +170,36 @@ class ZoneStore:
     def single(self, name: str) -> Zone:
         if name not in self.singles:
             raise RuntimeError(
-                f"no zone '{name}' in this game — a game-local stdlib "
-                f"primitive that reads it was called from a game without "
-                f"its zones"
+                f"no single zone '{name}' in this game — names reaching here "
+                f"come from the resolved AST, so this one asks for a zone the "
+                f"game never declared"
             )
         return self.singles[name]
 
     def instance(self, name: str, key: int) -> Zone:
-        # The typed wall for the whole game-local-primitive class: every
-        # per-game primitive (cribbage, gin, …) reads its zones by name
-        # through here, and calling one from a game without those zones would
-        # otherwise die as a bare KeyError naming only the zone. (DSL-side zone
-        # references are resolve-walled long before this; only primitives
-        # and driver internals reach here with a foreign name.)
+        # Both lookups fail in the runtime's typed currency, never as a bare
+        # KeyError — the name and the key are equally capable of missing, so
+        # neither is left to the raw dict. Only engine core reaches these two
+        # methods: names come from the resolved AST (resolve's walls own
+        # them), keys from the game's seating and teams or from the family
+        # itself. Game-local primitives do not reach here at all —
+        # cardlang/runtime/reads.py is their sanctioned path, and it holds
+        # both lookups to this same currency against its declared-reads
+        # registry.
         if name not in self.families:
             raise RuntimeError(
-                f"no zone family '{name}' in this game — a game-local stdlib "
-                f"primitive that reads it was called from a game without "
-                f"its zones"
+                f"no zone family '{name}' in this game — names reaching here "
+                f"come from the resolved AST, so this one asks for a family "
+                f"the game never declared"
             )
-        return self.families[name][key]
+        family = self.families[name]
+        if key not in family:
+            raise RuntimeError(
+                f"zone family '{name}' has no instance keyed {key!r} — "
+                f"instance keys come from the game's seating and teams, so "
+                f"this one names no seat or team the family covers"
+            )
+        return family[key]
 
     def locate(self, zone: Zone) -> "tuple[str, Player | None]":
         """The (name, instance-key) of a zone object — the reverse lookup the
