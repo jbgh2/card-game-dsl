@@ -1,0 +1,98 @@
+// Fixed-limit poker betting — the family library shared by every poker game in
+// the corpus (Kuhn, Leduc, Seven-Card Stud). "Betting proceeds as in standard
+// poker" is the rulebook sentence a game's `uses poker_betting` line stands in
+// for, and this file is that sentence written out.
+//
+// What is here is the ZONE-FREE core: check, bet, call, raise, and the three
+// ring predicates that keep a betting round's `over` filter and `until`
+// terminator naming the same set. Every one of them moves chips and nothing
+// else, which is why this library's `requires` contract is state-only.
+//
+// What is deliberately NOT here is `fold`. Folding is the one betting move that
+// touches cards, and which cards — and where they go — is a property of the
+// game, not of the family: Stud sends the folder's upcards to the muck the
+// instant they fold (opponents stop seeing them, and that is an observation
+// their information sets carry), while Kuhn and Leduc simply end the player's
+// hand. A move touching a game-specific zone stays game-local; the library holds
+// the part that is genuinely the same. Each game defines its own `fold` and
+// offers it alongside the four imported moves in one vocabulary list.
+//
+// Variation across the family is carried by REQUIRED STATE the game sets, not by
+// parameters on the import: `limit` is the current street's bet size, and
+// `raise_cap` the number of raises allowed (Stud 3, Leduc 2). A library that
+// could set those would be configuring the game rather than contracting with it.
+
+library poker_betting {
+
+  // What the including game must declare. Checked at its `uses` line, so an
+  // unmet requirement is reported in the game's currency rather than as an
+  // undeclared name inside text the author did not write.
+  requires {
+    stack[player]     : Integer   // chips held
+    committed[player] : Integer   // chips put in this hand (for side pots)
+    bet_by[player]    : Integer   // chips put in on the current street
+    acted[player]     : Boolean   // has acted since the last aggression
+    folded[player]    : Boolean   // out of the hand
+    bet_to_match      : Integer   // the street's standing bet
+    raises            : Integer   // raises so far on this street
+    limit             : Integer   // this street's bet size
+    raise_cap         : Integer   // raises allowed per street
+  }
+
+  // Betting-ring predicates. `pending` composes the others; the round's `over`
+  // filter and its `until` terminator must name the same set, or the priority
+  // ring will not close exactly when it empties.
+  function can_act(p : Player) = not folded[p] and stack[p] > 0
+  function owes(p : Player)    = bet_by[p] < bet_to_match
+  function pending(p : Player) = can_act(p) and (not acted[p] or owes(p))
+
+  move_type check {
+    when: bet_to_match <= bet_by[actor]
+    effect { acted[actor] := true }
+  }
+
+  // A bet is a partial all-in when the actor cannot cover the limit.
+  move_type bet {
+    when: bet_to_match is 0
+    effect {
+      let post = if limit < stack[actor] then limit else stack[actor]
+      stack[actor] := stack[actor] - post
+      committed[actor] := committed[actor] + post
+      bet_by[actor] := bet_by[actor] + post
+      bet_to_match := bet_by[actor]
+      raises := 1
+      for each player p: acted[p] := false
+      acted[actor] := true
+    }
+  }
+
+  move_type call {
+    when: bet_to_match > bet_by[actor]
+    effect {
+      let owed = bet_to_match - bet_by[actor]
+      let pay = if owed < stack[actor] then owed else stack[actor]
+      stack[actor] := stack[actor] - pay
+      committed[actor] := committed[actor] + pay
+      bet_by[actor] := bet_by[actor] + pay
+      acted[actor] := true
+    }
+  }
+
+  // Aggression re-opens the action: every other player's `acted` is cleared, so
+  // seats that already acted this street owe a response again.
+  move_type raise {
+    when: bet_to_match > bet_by[actor] and raises < raise_cap
+    effect {
+      let owed = bet_to_match - bet_by[actor]
+      let want = owed + limit
+      let pay = if want < stack[actor] then want else stack[actor]
+      stack[actor] := stack[actor] - pay
+      committed[actor] := committed[actor] + pay
+      bet_by[actor] := bet_by[actor] + pay
+      bet_to_match := if bet_to_match > bet_by[actor] then bet_to_match else bet_by[actor]
+      raises := raises + 1
+      for each player p: acted[p] := false
+      acted[actor] := true
+    }
+  }
+}

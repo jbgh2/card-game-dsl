@@ -93,6 +93,12 @@ class _Zones:
 
 
 @dataclass(frozen=True, slots=True)
+class _Requires:
+    decls: tuple[n.RequireDecl, ...]
+    span: Span
+
+
+@dataclass(frozen=True, slots=True)
 class _Positions:
     positions: tuple[n.PositionDecl, ...]
     span: Span
@@ -199,8 +205,9 @@ def _parser() -> Lark:
         propagate_positions=True,
         maybe_placeholders=True,
         # `start` is a game file; `library_rules` is the stdlib rules fragment
-        # (rule definitions with no enclosing game).
-        start=["start", "library_rules"],
+        # (rule definitions with no enclosing game); `library` is a family
+        # library (decisions.md "Family libraries").
+        start=["start", "library_rules", "library"],
     )
 
 
@@ -358,6 +365,52 @@ class _Builder(Transformer[Token, n.Game]):
 
     def state_block(self, meta: Meta, c: list[n.StateDecl]) -> n.StateBlock:
         return n.StateBlock(decls=tuple(c), span=self._span(meta))
+
+    # --- family libraries ---
+
+    def uses_decl(self, meta: Meta, c: list[Token]) -> n.UsesDecl:
+        return n.UsesDecl(name=str(c[0]), span=self._span(meta))
+
+    def require_decl(self, meta: Meta, c: list[object]) -> n.RequireDecl:
+        index = c[1]
+        assert index is None or isinstance(index, str)
+        assert isinstance(c[2], _TypeName)
+        return n.RequireDecl(
+            name=str(c[0]),
+            index=index,
+            type_name=c[2].name,
+            optional=c[2].optional,
+            span=self._span(meta),
+        )
+
+    def requires_block(self, meta: Meta, c: list[n.RequireDecl]) -> _Requires:
+        return _Requires(tuple(c), span=self._span(meta))
+
+    def library(self, meta: Meta, c: list[object]) -> n.Library:
+        # `library_item*` accepts repeats of the single-valued `requires` block
+        # the same way `game_item*` does for the scalar game clauses; keeping the
+        # last would silently discard the first (decisions.md "Surface totality").
+        requires_blocks = [x for x in c if isinstance(x, _Requires)]
+        if len(requires_blocks) > 1:
+            raise DiagnosticError(
+                Diagnostic(
+                    Severity.ERROR,
+                    "a library declares one `requires` block — merge the "
+                    "declarations into it",
+                    requires_blocks[1].span,
+                )
+            )
+        return n.Library(
+            name=str(c[0]),
+            requires=requires_blocks[0].decls if requires_blocks else (),
+            rules=tuple(x for x in c if isinstance(x, n.RuleDef)),
+            move_types=tuple(x for x in c if isinstance(x, n.MoveTypeDef)),
+            types=tuple(x for x in c if isinstance(x, n.TypeDef)),
+            defines=tuple(x for x in c if isinstance(x, n.DefineDef)),
+            functions=tuple(x for x in c if isinstance(x, n.FunctionDef)),
+            procedures=tuple(x for x in c if isinstance(x, n.ProcedureDef)),
+            span=self._span(meta),
+        )
 
     # --- user-defined types ---
 
@@ -1044,6 +1097,7 @@ class _Builder(Transformer[Token, n.Game]):
         zones: tuple[n.ZoneDecl, ...] = ()
         state: n.StateBlock | None = None
         phases: list[n.Phase] = []
+        uses: list[n.UsesDecl] = []
         winner: n.Winner | None = None
         loser: n.Loser | None = None
 
@@ -1107,6 +1161,11 @@ class _Builder(Transformer[Token, n.Game]):
             elif isinstance(item, n.StateBlock):
                 once("state { }", item.span, merge_hint=True)
                 state = item
+            elif isinstance(item, n.UsesDecl):
+                # No `once`: a game uses as many libraries as it draws on. A
+                # REPEATED name is still a defect (the second import is a no-op),
+                # and is walled in resolve, where the library names are known.
+                uses.append(item)
             elif isinstance(item, n.Phase):
                 phases.append(item)
             elif isinstance(item, n.Winner):
@@ -1164,6 +1223,7 @@ class _Builder(Transformer[Token, n.Game]):
             winner=winner,
             loser=loser,
             rules=(),
+            uses=tuple(uses),
             span=self._span(meta),
         )
 
@@ -1377,6 +1437,16 @@ def parse_library_rules(text: str, source_name: str) -> tuple[n.RuleDef, ...]:
     result = _transform(_Builder(source_name, 0), tree)
     assert isinstance(result, tuple)
     assert all(isinstance(r, n.RuleDef) for r in result)
+    return result
+
+
+def parse_library(text: str, source_name: str) -> n.Library:
+    """Parse a family-library file (`library <name> { ... }`, no enclosing game)
+    into a Library node, spans mapped to ``source_name`` — so a diagnostic raised
+    inside library text names the library file, not the game that used it."""
+    tree = parse_to_tree(text, source_name, start="library")
+    result = _transform(_Builder(source_name, 0), tree)
+    assert isinstance(result, n.Library)
     return result
 
 

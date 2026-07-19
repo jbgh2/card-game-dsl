@@ -49,10 +49,19 @@ with a test that can fail); a future corpus game that trips it renames
 everything else and leaves that one name alone, which is safe, not silent —
 the excluded names are on `RenamePlan.unsafe`, not swallowed.
 
-Two more exclusions, found empirically by running this transform and
-reading the resulting failures — both real, both OUT of T2's domain (the
-spec does not say these names are meaningless), neither a bug in this
+Three more exclusions, found empirically by running this transform and
+reading the resulting failures — all real, all OUT of T2's domain (the
+spec does not say these names are meaningless), none a bug in this
 transform:
+
+**A `requires`d name is a contract, not a game-private spelling.** A game
+that `uses` a family library shares a state namespace with library text
+this transform does not rewrite, and the spelling IS the interface
+(decisions.md "Family libraries"). Renaming one would break the contract —
+a real semantic change, so T2's premise does not hold for it and the name
+is excluded (`RenamePlan.excluded_contract`) rather than renamed. Note this
+exclusion is derived from the library's own `requires` block, not a
+hand-listed set, so it tracks the libraries automatically.
 
 **`hand` is a language-wide magic name, not a renamable zone.** decisions.md
 "Declared parameter domains": a `Card`-typed move parameter enumerates "the
@@ -106,6 +115,7 @@ from typing import Callable, cast
 
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import Span
+from cardlang.libraries import library_names, load_library
 from cardlang.resolve import _introduced_binders, _walk as _resolve_walk
 from cardlang.runtime.reads import PRIMITIVE_READS
 
@@ -187,6 +197,21 @@ class RenamePlan:
     unsafe: frozenset[str]
     excluded_global: frozenset[str]
     excluded_coupled: frozenset[str]
+    excluded_contract: frozenset[str]
+
+
+def _contract_names(game: n.Game) -> frozenset[str]:
+    """State names a `uses`d library REQUIRES. These are not game-private: the
+    spelling is the interface between the game and the library (decisions.md
+    "Family libraries"), and the library text is not part of the rename domain.
+    Renaming one would not be a meaning-preserving transform — it would break the
+    contract, which is a real semantic change, so the name is excluded rather
+    than renamed-and-patched."""
+    names: set[str] = set()
+    for use in game.uses:
+        if use.name in library_names():
+            names.update(r.name for r in load_library(use.name).requires)
+    return frozenset(names)
 
 
 def build_rename_plan(game: n.Game) -> RenamePlan:
@@ -210,8 +235,14 @@ def build_rename_plan(game: n.Game) -> RenamePlan:
     # partition: `hand` is primitive-coupled too (Tichu/Skat/... rows declare
     # it) but is already excluded corpus-wide as the magic name.
     excluded_coupled = (domain & _coupled_names(filename)) - excluded_global
+    # Subtracted like the others so the excluded sets stay a partition.
+    excluded_contract = (
+        (domain & _contract_names(game)) - excluded_global - excluded_coupled
+    )
 
-    safe = sorted(domain - unsafe - excluded_global - excluded_coupled)
+    safe = sorted(
+        domain - unsafe - excluded_global - excluded_coupled - excluded_contract
+    )
 
     used = set(_all_string_tokens(game))
     name_map: dict[str, str] = {}
@@ -231,6 +262,7 @@ def build_rename_plan(game: n.Game) -> RenamePlan:
         unsafe=frozenset(unsafe),
         excluded_global=frozenset(excluded_global),
         excluded_coupled=frozenset(excluded_coupled),
+        excluded_contract=frozenset(excluded_contract),
     )
 
 

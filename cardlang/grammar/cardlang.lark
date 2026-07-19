@@ -11,6 +11,31 @@ start: top_item+
 // (cardlang/stdlib/rules.cardlang): rule definitions with no enclosing game.
 library_rules: rule_def+
 
+// Alternate start for a family-library file (docs/libraries/<name>.cardlang):
+// the definition forms a game already holds, plus the `requires` contract, with
+// no enclosing game (decisions.md "Family libraries"). A library carries no
+// content forms — no zones, no state defaults, no phases — because it declares
+// a vocabulary, not a game; what it needs from its including game it names in
+// `requires`, and what it does with cards it does not do at all (a move touching
+// a game-specific zone stays game-local, which is why `requires` is state-only).
+library: "library" NAME "{" library_item* "}"
+
+?library_item: requires_block
+             | rule_def
+             | move_type_def
+             | type_def
+             | define_def
+             | function_def
+             | procedure_def
+
+// The state the including game must declare, checked at its `uses` line so the
+// error lands in the game's currency rather than inside spliced library text.
+// Deliberately `state_decl` minus the `= <default>`: the default is the game's
+// to choose (Stud's raise cap is 3, Leduc's is 2), and a library that could set
+// one would be configuring the game rather than contracting with it.
+requires_block: "requires" "{" require_decl* "}"
+require_decl: NAME [index] ":" type_name
+
 ?top_item: game
          | rule_def
          | move_type_def
@@ -25,7 +50,8 @@ library_rules: rule_def+
 
 game: "game" NAME "{" game_item* "}"
 
-?game_item: players
+?game_item: uses_decl
+          | players
           | direction
           | cards
           | ranking
@@ -38,6 +64,13 @@ game: "game" NAME "{" game_item* "}"
           | phase
           | winner
           | loser
+
+// `uses <library>` — a family-library import, the tier between game-local and
+// stdlib (decisions.md "Family libraries"). Unlike every other game clause this
+// one may repeat: a game uses as many libraries as it draws on, and the line is
+// meant to read like the rulebook sentence it stands in for ("betting proceeds
+// as in standard poker"). Whole-library, never a named-definitions manifest.
+uses_decl: "uses" NAME
 
 players: "players" ":" players_spec
 players_spec: INT ".." INT   -> players_range

@@ -309,6 +309,17 @@
                     "kind": "int",
                     "value": 0
                   }
+                },
+                {
+                  "kind": "state_decl",
+                  "name": "raise_cap",
+                  "index": null,
+                  "type": "Integer",
+                  "optional": false,
+                  "default": {
+                    "kind": "int",
+                    "value": 3
+                  }
                 }
               ]
             },
@@ -3232,8 +3243,9 @@
             "ref": "state_var"
           },
           "right": {
-            "kind": "int",
-            "value": 3
+            "kind": "name",
+            "name": "raise_cap",
+            "ref": "state_var"
           }
         }
       },

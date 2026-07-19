@@ -58,6 +58,7 @@ from cardlang.stdlib.functions import (
     STDLIB_TRICK_OUTCOMES,
     STDLIB_VALUE_NAMES,
 )
+from cardlang.libraries import library_names, load_library
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
 from cardlang.stdlib.rules import library_rules
 from cardlang.stdlib.values import DIRECTION_VALUES, deck_ranks, deck_suits, enum_values
@@ -145,8 +146,207 @@ def _check_reserved(
         )
 
 
+# Every definition kind a `library { }` may hold, as (Game/Library field name,
+# the noun a diagnostic calls it). This tuple IS the closed domain the import
+# tier's collision walls sweep: `_apply_uses` derives its per-kind loops from it,
+# so a seventh definition form added to `Library` without an entry here is a
+# static failure in `tests/test_family_libraries.py`, not a silently unwalled
+# collision. Zones and state are absent by construction — a library declares a
+# vocabulary, not a game, and what it needs from the game it names in `requires`.
+_LIBRARY_DEF_KINDS: tuple[tuple[str, str], ...] = (
+    ("rules", "rule"),
+    ("move_types", "move type"),
+    ("types", "type"),
+    ("defines", "define"),
+    ("functions", "function"),
+    ("procedures", "procedure"),
+)
+
+
+def _apply_uses(game: n.Game, bag: DiagnosticBag) -> n.Game:
+    """Resolve every `uses <library>` line: load the named libraries, wall the
+    three-way collisions, check each library's `requires` contract against the
+    game's declared state, and splice the definitions into the game.
+
+    Runs FIRST in `resolve`, before every other name check, so that what flows on
+    is one flat `Game` and no later pass needs to know imports exist — which is
+    what makes an import pure name resolution, with no runtime or
+    information-set implication.
+
+    Collisions are errors, never overrides: `uses` is composition, and a game
+    redefining what it imports would make the tier inheritance (decisions.md
+    "Family libraries"). That is also why the game's own definitions are spliced
+    alongside, not merged over, the library's."""
+    if not game.uses:
+        return game
+
+    available = library_names()
+    libraries: list[tuple[n.UsesDecl, n.Library]] = []
+    seen_uses: dict[str, n.UsesDecl] = {}
+    for use in game.uses:
+        if use.name in seen_uses:
+            bag.error(
+                f"game '{game.name}' already uses library '{use.name}' — the "
+                f"repeat imports nothing further; delete it",
+                use.span,
+            )
+            continue
+        seen_uses[use.name] = use
+        if use.name not in available:
+            known = ", ".join(sorted(available)) or "none"
+            bag.error(
+                f"unknown library '{use.name}' — `uses` names a family library "
+                f"in docs/libraries/ (available: {known})",
+                use.span,
+            )
+            continue
+        libraries.append((use, load_library(use.name)))
+
+    _check_library_collisions(game, libraries, bag)
+    for use, library in libraries:
+        _check_requires(game, use, library, bag)
+
+    # Imported definitions come FIRST, in `uses` order, then the game's own: the
+    # import is the base a game extends, which is the order the game file itself
+    # reads in (`uses` sits at the top). Names are unique across the two by the
+    # collision walls above, so order carries no meaning beyond IR stability —
+    # but it must be STABLE, since `ir.emit` prints these tuples in order and the
+    # goldens pin the printout.
+    spliced: dict[str, tuple[object, ...]] = {}
+    for field, _ in _LIBRARY_DEF_KINDS:
+        from_libraries = tuple(
+            d for _, library in libraries for d in getattr(library, field)
+        )
+        spliced[field] = from_libraries + tuple(getattr(game, field))
+    # `uses` is emptied here for the same reason `procedures` is emptied by
+    # `expand`: a surviving entry downstream would mean the import was parsed and
+    # ignored, and `openspiel.encoding` walks every dataclass field of the Game.
+    return replace(game, uses=(), **spliced)  # type: ignore[arg-type]
+
+
+def _check_library_collisions(
+    game: n.Game,
+    libraries: list[tuple[n.UsesDecl, n.Library]],
+    bag: DiagnosticBag,
+) -> None:
+    """The three-way collision matrix — game / library / stdlib — swept across
+    every definition kind in `_LIBRARY_DEF_KINDS` rather than the kinds that
+    happen to collide in today's corpus (decisions.md "Closed-domain
+    completeness": sweep the class, don't patch the instance).
+
+    The stdlib leg covers the two registries whose names share ONE namespace with
+    a game's definitions: rules (library rules splice into `game.rules`) and call
+    functions. Stdlib MOVE types are deliberately not a cell: they and a game's
+    `move_type` definitions are two disjoint consult paths that never merge
+    (`stdlib/moves.py`, and Stud/Skat/Schnapsen/Coup all rely on it), so a wall
+    here would reject four games that are correct today."""
+    for field, noun in _LIBRARY_DEF_KINDS:
+        local = {d.name: d for d in getattr(game, field)}
+        from_libraries: dict[str, str] = {}
+        for use, library in libraries:
+            for definition in getattr(library, field):
+                if definition.name in local:
+                    bag.error(
+                        f"{noun} '{definition.name}' is defined by this game and "
+                        f"also by library '{library.name}' — `uses` imports, it "
+                        f"does not inherit, so there is no override: rename the "
+                        f"game's {noun}, or drop it and use the library's",
+                        local[definition.name].span,
+                    )
+                elif definition.name in from_libraries:
+                    bag.error(
+                        f"{noun} '{definition.name}' is defined by both library "
+                        f"'{from_libraries[definition.name]}' and library "
+                        f"'{library.name}' — resolution is flat, so neither wins; "
+                        f"use only one of them, or rename in one library",
+                        use.span,
+                    )
+                else:
+                    from_libraries[definition.name] = library.name
+
+    stdlib_rules = library_rules()
+    for _, library in libraries:
+        for rule in library.rules:
+            if rule.name in stdlib_rules:
+                bag.error(
+                    f"library '{library.name}' defines rule '{rule.name}', which "
+                    f"shadows the standard-library rule of the same name — "
+                    f"delete it (`active_rules` resolves it from the stdlib), or "
+                    f"rename it if the body genuinely differs",
+                    rule.span,
+                )
+        for fn in library.functions:
+            if fn.name in STDLIB_CALL_FUNCS:
+                bag.error(
+                    f"library '{library.name}' defines function '{fn.name}', "
+                    f"which shadows the stdlib function of the same name; rename "
+                    f"it (a call would type-check against the stdlib signature "
+                    f"but run this one instead)",
+                    fn.span,
+                )
+
+
+def _check_requires(
+    game: n.Game,
+    use: n.UsesDecl,
+    library: n.Library,
+    bag: DiagnosticBag,
+) -> None:
+    """Check a library's `requires` contract against the game's declared state.
+
+    Reported on the game's `uses` line, in the game's currency: the author wrote
+    that line, and an undeclared-name error surfacing from inside spliced library
+    text would name symbols they never typed.
+
+    Satisfied from ANY `state { }` block in the game, not just the game-level one:
+    a phase's state block is the natural home for state that resets on phase
+    re-entry, which is exactly what per-hand betting state is (Stud declares all
+    nine of `poker_betting`'s requirements inside `phase play`). Where the state
+    lives is the game's business; that it exists, per-player or scalar, at the
+    library's type, is the contract."""
+    declared: dict[str, n.StateDecl] = {}
+    for node in _walk(game):
+        if isinstance(node, n.StateBlock):
+            for decl in node.decls:
+                declared.setdefault(decl.name, decl)
+    for want in library.requires:
+        have = declared.get(want.name)
+        wanted = f"{want.name}{f'[{want.index}]' if want.index else ''}"
+        spelled = f"{wanted} : {want.type_name}{'?' if want.optional else ''}"
+        if have is None:
+            bag.error(
+                f"library '{library.name}' requires state `{spelled}`, which "
+                f"game '{game.name}' does not declare — add it to the game's "
+                f"`state {{ }}` block with the initial value the game wants",
+                use.span,
+            )
+            continue
+        if have.index != want.index:
+            got = "per-player" if have.index else "a scalar"
+            need = "per-player" if want.index else "a scalar"
+            bag.error(
+                f"library '{library.name}' requires state `{spelled}` to be "
+                f"{need}, but game '{game.name}' declares it as {got}",
+                use.span,
+            )
+        if (have.type_name, have.optional) != (want.type_name, want.optional):
+            bag.error(
+                f"library '{library.name}' requires state `{spelled}`, but game "
+                f"'{game.name}' declares it as "
+                f"`{have.type_name}{'?' if have.optional else ''}`",
+                use.span,
+            )
+
+
 def resolve(game: n.Game) -> n.Game:
     bag = DiagnosticBag()
+    # First: `uses` splices each named library's definitions in, so everything
+    # below sees one flat game. Errors here (unknown library, a collision, an
+    # unmet `requires`) make the spliced game unrepresentative, so they are
+    # reported as a complete set and raised before the rest of the pass adds
+    # noise derived from a half-assembled game.
+    game = _apply_uses(game, bag)
+    _raise_if_errors(bag)
     _resolve_deck(game, bag)
     _resolve_direction(game, bag)
     game = _expand_ranking(game, bag)
@@ -285,6 +485,11 @@ def _node_binders(node: n.Node) -> tuple[str, ...]:
         # covered by `_rewrite` + `_check_reserved_params` — see the docstring.)
         case (
             n.Game() | n.PlayersSpec() | n.Winner() | n.Loser()
+            # The import trio binds nothing: `uses` and `requires` name state and
+            # definitions that already live in flat, game-wide namespaces, and a
+            # `Library` is gone by the end of `_apply_uses` — its definitions are
+            # spliced into the Game and reached through the arms below.
+            | n.Library() | n.UsesDecl() | n.RequireDecl()
             | n.MoveTypeDef() | n.MoveParam() | n.RuleDef() | n.RuleRef()
             | n.AppliesWhen() | n.Demands()
             | n.DefineDef() | n.FunctionDef() | n.ProcedureDef()
