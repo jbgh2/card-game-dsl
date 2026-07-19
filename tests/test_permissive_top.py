@@ -70,6 +70,12 @@ residual:   (1) MERGE-failure top: `unify` returning None in `IfExpr`/`ListLit`
             `score[p] := s.flag` accepted a Boolean into an Integer state
             variable). Both are pinned below. Corpus exposure is zero: no game
             declares a struct, which is exactly why the suite was silent.
+            A third, found in review: derived bodies were typed in a BARE
+            environment, so every name resolve legitimately scopes into one (a
+            state variable, a zone, an enum value, a struct literal of its own
+            or a later type) hit `_env_miss` and aborted the check. Swept as a
+            class, not patched at the reported instance, and pinned by the two
+            parametrized derived-body tests below.
 """
 
 from __future__ import annotations
@@ -440,6 +446,60 @@ def test_a_derived_field_reached_through_a_function_keeps_its_real_type() -> Non
         with pytest.raises(DiagnosticError) as ei:
             check_dsl(game_of(body), "g.cardlang")
         assert "comparing Suit with Integer can never be equal" in str(ei.value), body
+
+
+@pytest.mark.parametrize(
+    "derived_body",
+    [
+        "hearts",  # an enum value
+        "turn",  # a state variable
+        "deck",  # a zone
+        "actor",  # a pronoun
+        "rank_value(2 of clubs)",  # a stdlib call
+        "x + 1",  # the struct's own declared field
+    ],
+)
+def test_a_derived_body_may_name_anything_resolve_scopes_it(derived_body: str) -> None:
+    """resolve scopes a derived body as the game's names PLUS the struct's own
+    fields (`_classify_type_derived`), so a body may legitimately name a state
+    variable, a zone, an enum value or a pronoun.
+
+    `struct_registry` used to type derived bodies in a BARE `TypeEnv` carrying
+    only the fields, which was survivable while a lookup miss returned the
+    permissive top and became a crash the moment it raised: `derived { s =
+    hearts }` aborted the whole check. Found as one instance (a struct literal,
+    below) in review; this is the swept class (decisions.md, "Closed-domain
+    completeness" — sweep the class before patching the instance)."""
+    check_dsl(
+        f"type R = {{ x : Integer }} derived {{ d = {derived_body} }}\n"
+        + _game(state="score[player] : Integer = 0  turn : Integer = 0"),
+        "g.cardlang",
+    )
+
+
+@pytest.mark.parametrize(
+    "types",
+    [
+        # its OWN type: the reported instance
+        "type R = { x : Integer } derived { copy = R { x: x } }",
+        # a LATER-declared type: same miss, one declaration over
+        "type A = { n : Integer } derived { made = B { m: n } }\ntype B = { m : Integer }",
+        # control: an EARLIER type, which the source-order map already had
+        "type B = { m : Integer }\ntype A = { n : Integer } derived { made = B { m: n } }",
+    ],
+)
+def test_a_derived_body_may_build_any_declared_struct(types: str) -> None:
+    """A derived body may name a struct literal of ANY declared type, including
+    its own and one declared later — resolve validates the literal against
+    every declared type, so these are valid programs. `struct_registry` builds
+    in source order, so the body's environment must be seeded with every
+    declared type rather than only the ones already completed.
+
+    The self-referential case additionally proves the fixpoint TERMINATES on a
+    recursive type: `R`'s field map contains an `R`, so structural comparison
+    would nest one level deeper every round forever. `_registry_key` compares
+    nominally one level down, which is both finite and the right question."""
+    check_dsl(types + "\n" + _game(), "g.cardlang")
 
 
 def test_a_derived_field_reached_through_a_function_is_assignment_checked() -> None:

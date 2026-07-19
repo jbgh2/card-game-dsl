@@ -154,12 +154,21 @@ def value_enum_map(game: Game) -> dict[str, TEnum]:
 
 
 def struct_registry(
-    game: Game, functions: Mapping[str, Sig] | None = None
+    game: Game,
+    functions: Mapping[str, Sig] | None = None,
+    base: "TypeEnv | None" = None,
 ) -> dict[str, TStruct]:
     """Build the user-defined struct types. Declared fields resolve eagerly;
-    derived fields are typed in an env of the declared fields (plus the user
-    ``functions``, when a derived body calls one), so each `TStruct` carries
-    both declared and derived field types under one mapping.
+    derived fields are typed in the AMBIENT environment (``base``) extended
+    with the declared fields and the user ``functions``, so each `TStruct`
+    carries both declared and derived field types under one mapping.
+
+    ``base`` matters because resolve scopes a derived body as the game's names
+    PLUS the struct's own fields (`_classify_type_derived`), so a body may name
+    a state variable, a zone, an enum value or a pronoun — none of which a bare
+    `TypeEnv` carries. Omitting it does not merely lose precision now that a
+    lookup miss is a hard `_env_miss`: `derived { s = hearts }` would abort the
+    check outright. Callers that have the ambient environment must pass it.
 
     Structs are built in source order: a field whose type is another user type
     only resolves if that type was declared earlier (forward references resolve
@@ -168,12 +177,37 @@ def struct_registry(
     ``functions`` closes a cycle, and must be supplied by any caller that wants
     precise derived types — see `_provisional_structs`."""
     structs: dict[str, TStruct] = {}
+    # A derived BODY may name any declared type, including its own and one
+    # declared later (`type R = { x : Integer } derived { copy = R { x: x } }`).
+    # resolve validates a struct literal against every declared type, so those
+    # are valid programs; inferring the body against the source-order-partial
+    # map alone would hand `infer` a name resolve accepted and this pass could
+    # not find, which is now a hard `_env_miss` rather than a silent top. Seed
+    # the body environment with every declared type and let the ones already
+    # completed win — a self- or forward-reference then types as the seed
+    # entry, whose derived fields are still the top. That imprecision is
+    # harmless: struct types compare NOMINALLY (`types.assignable`/`unify`), so
+    # the seed `R` and the final `R` are the same type to every consumer.
+    #
+    # Declared FIELD types deliberately keep the partial map: a field typed by
+    # a later struct resolving to the top is documented Stage-2 behaviour
+    # (pinned by tests/test_permissive_top.py) and is a separate question from
+    # what a body may NAME.
+    ambient = base if base is not None else TypeEnv()
+    seed = _provisional_structs(game)
     for tdef in game.types:
         fields: dict[str, Type] = {}
         for f in tdef.fields:
             fields[f.name] = type_from_name(f.type_name, f.optional, structs)
-        field_env = TypeEnv(
-            locals=dict(fields), structs=structs, functions=functions or {}
+        field_env = replace(
+            ambient,
+            locals={**ambient.locals, **fields},
+            # Precedence, weakest first: every declared type by name (so a
+            # self- or forward-reference resolves at all), the previous
+            # fixpoint round's registry (more precise), then the types already
+            # completed in THIS round (most precise).
+            structs={**seed, **ambient.structs, **structs},
+            functions=functions or {},
         )
         for d in tdef.derived:
             fields[d.name] = infer(d.value, field_env)
@@ -214,6 +248,44 @@ def _provisional_structs(game: Game) -> dict[str, TStruct]:
     return structs
 
 
+def _nominal_key(t: Type) -> object:
+    """A type's identity for the fixpoint's convergence test, with any nested
+    struct reduced to its NAME.
+
+    A derived field may hold a value of its own type
+    (`type R = { x : Integer } derived { copy = R { x: x } }`), so `R`'s field
+    map contains an `R`, whose field map contains an `R`. `TStruct` compares
+    structurally, so each round nests one level deeper and deep equality never
+    settles — a recursive type would spin to the round bound and be reported as
+    a checker bug. Reducing a nested struct to its name makes the fingerprint
+    finite, and it is the RIGHT test: struct types are nominal to every
+    consumer (`types.assignable`/`unify`), so two rounds that agree up to
+    struct names have agreed on everything the rest of the checker can see.
+    """
+    if isinstance(t, TStruct):
+        return ("struct", t.name)
+    if isinstance(t, TVariant):
+        return ("variant", t.name)
+    if isinstance(t, TOptional):
+        return ("optional", _nominal_key(t.inner))
+    if isinstance(t, TCollection):
+        return (
+            "collection",
+            _nominal_key(t.element),
+            None if t.key is None else _nominal_key(t.key),
+            t.zone,
+        )
+    return t
+
+
+def _registry_key(structs: Mapping[str, TStruct]) -> object:
+    """The whole registry's fingerprint, nominal one level down."""
+    return {
+        name: (s.derived, {f: _nominal_key(ft) for f, ft in s.fields.items()})
+        for name, s in structs.items()
+    }
+
+
 def struct_and_function_registries(
     game: Game, bag: DiagnosticBag
 ) -> tuple[dict[str, TStruct], dict[str, Sig]]:
@@ -246,9 +318,13 @@ def struct_and_function_registries(
     # from the top; +2 covers the settling round that changes nothing.
     bound = sum(len(t.derived) for t in game.types) + len(game.functions) + 2
     for _ in range(bound):
-        sigs = _function_sigs(game, env_from_game(game, structs), DiagnosticBag())
-        settled = struct_registry(game, sigs)
-        if settled == structs:
+        # The ambient environment for this round, which BOTH consumers need:
+        # function bodies, and derived bodies (which may name a state variable,
+        # a zone or an enum value just as any other expression can).
+        ambient = env_from_game(game, structs)
+        sigs = _function_sigs(game, ambient, DiagnosticBag())
+        settled = struct_registry(game, sigs, base=ambient)
+        if _registry_key(settled) == _registry_key(structs):
             break
         structs = settled
     else:
