@@ -387,28 +387,65 @@ class _Builder(Transformer[Token, n.Game]):
         return _Requires(tuple(c), span=self._span(meta))
 
     def library(self, meta: Meta, c: list[object]) -> n.Library:
-        # `library_item*` accepts repeats of the single-valued `requires` block
-        # the same way `game_item*` does for the scalar game clauses; keeping the
-        # last would silently discard the first (decisions.md "Surface totality").
-        requires_blocks = [x for x in c if isinstance(x, _Requires)]
-        if len(requires_blocks) > 1:
-            raise DiagnosticError(
-                Diagnostic(
-                    Severity.ERROR,
-                    "a library declares one `requires` block — merge the "
-                    "declarations into it",
-                    requires_blocks[1].span,
-                )
-            )
+        # ONE dispatch over the children, not a filter per field: independent
+        # filters have no residue, so an item no filter matches is dropped
+        # without a word — the accepted-but-ignored defect class, at the
+        # granularity of a whole clause. `game()` below is the sibling this
+        # mirrors, down to the `else` arm's currency.
+        requires: tuple[n.RequireDecl, ...] = ()
+        seen_requires = False
+        rules: list[n.RuleDef] = []
+        move_types: list[n.MoveTypeDef] = []
+        types: list[n.TypeDef] = []
+        defines: list[n.DefineDef] = []
+        functions: list[n.FunctionDef] = []
+        procedures: list[n.ProcedureDef] = []
+        for item in c[1:]:
+            if isinstance(item, _Requires):
+                # `library_item*` accepts repeats of the single-valued `requires`
+                # block the same way `game_item*` does for the scalar game
+                # clauses; keeping the last would silently discard the first
+                # (decisions.md "Surface totality").
+                if seen_requires:
+                    raise DiagnosticError(
+                        Diagnostic(
+                            Severity.ERROR,
+                            "a library declares one `requires` block — merge the "
+                            "declarations into it",
+                            item.span,
+                        )
+                    )
+                seen_requires = True
+                requires = item.decls
+            elif isinstance(item, n.RuleDef):
+                rules.append(item)
+            elif isinstance(item, n.MoveTypeDef):
+                move_types.append(item)
+            elif isinstance(item, n.TypeDef):
+                types.append(item)
+            elif isinstance(item, n.DefineDef):
+                defines.append(item)
+            elif isinstance(item, n.FunctionDef):
+                functions.append(item)
+            elif isinstance(item, n.ProcedureDef):
+                procedures.append(item)
+            else:
+                # An `?library_item` alternative with no arm above. Compiler-bug
+                # currency, exactly as in `game()`: a grammar alternative nobody
+                # taught the builder about is a defect in this package, not a
+                # sentence the designer got wrong, so it may not be reported as
+                # an author-facing diagnostic. Pinned by
+                # tests/test_family_libraries.py::test_an_unhandled_library_item_is_loud.
+                raise AssertionError(f"unexpected library item: {item!r}")
         return n.Library(
             name=str(c[0]),
-            requires=requires_blocks[0].decls if requires_blocks else (),
-            rules=tuple(x for x in c if isinstance(x, n.RuleDef)),
-            move_types=tuple(x for x in c if isinstance(x, n.MoveTypeDef)),
-            types=tuple(x for x in c if isinstance(x, n.TypeDef)),
-            defines=tuple(x for x in c if isinstance(x, n.DefineDef)),
-            functions=tuple(x for x in c if isinstance(x, n.FunctionDef)),
-            procedures=tuple(x for x in c if isinstance(x, n.ProcedureDef)),
+            requires=requires,
+            rules=tuple(rules),
+            move_types=tuple(move_types),
+            types=tuple(types),
+            defines=tuple(defines),
+            functions=tuple(functions),
+            procedures=tuple(procedures),
             span=self._span(meta),
         )
 

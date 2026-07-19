@@ -93,6 +93,7 @@ from typing import Iterator
 
 import pytest
 from lark import Tree
+from lark.exceptions import VisitError
 
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticError
@@ -188,9 +189,9 @@ _ITEM_TRUNCATED: dict[str, str] = {
 }
 
 # grammar rule name -> the `n.Library` field the builder must file the item
-# under. The third derived column: `parse.library()` collects its children
-# through one independent isinstance filter per field, so a kind with no filter
-# parses and is dropped without a word.
+# under. The third derived column: `parse.library()` files each child by one
+# dispatch over the item kinds, so a kind with no arm is a loud stop rather
+# than a clause dropped without a word.
 _ITEM_FIELD: dict[str, str] = {
     "requires_block": "requires",
     "rule_def": "rules",
@@ -276,7 +277,7 @@ def test_two_well_formed_library_items_both_survive(item: str, follower: str) ->
     passing because the FOLLOWER cannot appear there at all, rather than because
     the truncation is refused.
 
-    red under: delete any isinstance filter from `parse.library()`."""
+    red under: delete any dispatch arm from `parse.library()`."""
     src = (
         f"library L {{\n  {_ITEM_WELL_FORMED[item]}\n  "
         f"{_ITEM_WELL_FORMED[follower]}\n}}"
@@ -303,12 +304,12 @@ def test_a_repeated_requires_block_is_rejected() -> None:
 @pytest.mark.parametrize("item", sorted(library_item_alternatives()))
 def test_the_library_builder_files_every_item_kind(item: str) -> None:
     """Every `?library_item` the grammar accepts reaches the field it belongs
-    in, and no other. `parse.library()` has one independent isinstance filter
-    per kind, so a kind the grammar grows and the builder does not filter parses
-    and is dropped without a word — the accepted-but-ignored defect class.
+    in, and no other. `parse.library()` dispatches each child once over the item
+    kinds; the `else` arm under that dispatch is what stops a kind the grammar
+    grows and the builder does not know from being dropped without a word.
 
-    red under: delete any isinstance filter from `parse.library()` — the row for
-    that kind then finds its field empty."""
+    red under: point any dispatch arm in `parse.library()` at the wrong list —
+    the row for that kind then finds its own field empty and another populated."""
     library = parse_library(f"library L {{ {_ITEM_WELL_FORMED[item]} }}", "L.cardlang")
     home = _ITEM_FIELD[item]
     assert getattr(library, home), f"`{_ITEM_WELL_FORMED[item]}` never reached `{home}`"
@@ -316,7 +317,6 @@ def test_the_library_builder_files_every_item_kind(item: str) -> None:
     assert not elsewhere, f"it also landed in {elsewhere}"
 
 
-@pytest.mark.xfail(strict=True, reason="`library()` has no exhaustive dispatch arm yet")
 def test_an_unhandled_library_item_is_loud() -> None:
     """The pin for the filters above: an eighth `?library_item` alternative that
     no filter matches must stop the build, not vanish. Simulated the way the
@@ -333,8 +333,14 @@ def test_an_unhandled_library_item_is_loud() -> None:
     `parse.library()`."""
     tree = parse_to_tree("library L { }", "L.cardlang", start="library")
     tree.children.append(Tree("an_eighth_library_item", []))
-    with pytest.raises(AssertionError, match="unexpected library item"):
+    # Lark wraps a builder-callback exception in `VisitError`, and `_transform`
+    # unwraps only `DiagnosticError` — deliberately, since that is the
+    # author-facing currency and this is not. `game()`'s arm surfaces the same
+    # way, which is what "the equivalent arm" means here.
+    with pytest.raises(VisitError) as exc:
         _transform(_Builder("L.cardlang", 0), tree)
+    assert isinstance(exc.value.orig_exc, AssertionError)
+    assert "unexpected library item" in str(exc.value.orig_exc)
 
 
 # --- the `uses` line itself ---------------------------------------------------
