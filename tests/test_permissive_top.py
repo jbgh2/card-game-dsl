@@ -75,7 +75,13 @@ residual:   (1) MERGE-failure top: `unify` returning None in `IfExpr`/`ListLit`
             state variable, a zone, an enum value, a struct literal of its own
             or a later type) hit `_env_miss` and aborted the check. Swept as a
             class, not patched at the reported instance, and pinned by the two
-            parametrized derived-body tests below.
+            parametrized derived-body tests below. A fourth, also from review:
+            the convergence key reduced a NESTED struct to its bare name while
+            `infer`'s Member arm reads nested fields, and the loop tested
+            before assigning, so a stale nested struct survived and its field
+            reads typed as the top. The key is now nested-field-sensitive down
+            to the number of declared types (deeper is recursive by pigeonhole)
+            and the loop always keeps the newer registry.
 """
 
 from __future__ import annotations
@@ -500,6 +506,37 @@ def test_a_derived_body_may_build_any_declared_struct(types: str) -> None:
     would nest one level deeper every round forever. `_registry_key` compares
     nominally one level down, which is both finite and the right question."""
     check_dsl(types + "\n" + _game(), "g.cardlang")
+
+
+@pytest.mark.parametrize("outer_first", [True, False])
+def test_a_nested_struct_field_is_typed_whatever_the_declaration_order(
+    outer_first: bool,
+) -> None:
+    """A NESTED struct's fields are observable — `infer`'s Member arm reads
+    them, so `o.inner.flag` types off the `Inner` embedded in `Outer.inner`,
+    not off the registry's `Inner`. Two bugs conspired to leave that embedded
+    copy stale when `Outer` was declared FIRST: the convergence key reduced a
+    nested struct to its bare name, so a round that only sharpened nested
+    fields looked identical; and the loop tested before assigning, so the
+    round that reported convergence — built against the fullest environment —
+    was thrown away. `o.inner.flag` then typed as the permissive top and a
+    Boolean was silently assignable to an Integer state variable.
+
+    Declaration order is the sharp formulation: the same program must get the
+    same verdict either way round, so this asserts both orders reject."""
+    outer = "type Outer = { n : Integer } derived { inner = Inner { m: n } }"
+    inner = "type Inner = { m : Integer } derived { flag = m > 0 }"
+    types = f"{outer}\n{inner}" if outer_first else f"{inner}\n{outer}"
+    src = types + "\n" + _game(
+        decls="function ask(o : Outer) = o.inner.flag",
+        state="o : Outer = Outer { n: 3 }  score[player] : Integer = 0",
+    ).replace(
+        "phase play { for each player p: score[p] := 1 }",
+        "phase play { for each player p: score[p] := ask(o) }",
+    )
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "cannot assign Boolean to 'score' (Integer)" in str(ei.value)
 
 
 def test_a_derived_field_reached_through_a_function_is_assignment_checked() -> None:
