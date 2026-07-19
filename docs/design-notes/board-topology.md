@@ -350,8 +350,9 @@ name, exactly as Klondike's is `column`. A `(from, to)` pair over an
 8×8 board is 4096 ids; where that is wasteful, the board family also
 mints its **direction names** (a grid's compass constants) as a second
 named-member domain through the same landed minting, so `step(from :
-cell, along : dir)` is 64 × 3 with `neighbor(from, dir)` as declared
-entry data. Directions are deliberately *not* a new parameter-domain
+cell, along : dir)` is 64 × 3, the guard consulting
+`neighbor(from, along)` — a declared entry table over
+(cell, direction) pairs, looked up with the move's bound values. Directions are deliberately *not* a new parameter-domain
 kind (no declared-enum parameter surface exists, and none is proposed)
 and *not* per-direction move types (hand-compiling one move type per
 direction is exactly the nullary explosion position domains exist to
@@ -724,13 +725,16 @@ from the first stage that could parse them.
   unbounded-lines-and-max-length (draw rules; counter-based state
   idioms; repetition history stays out unless that settlement pulls
   it in), and **generalize declarative-rule binding to every kernel
-  decision site** via the decision interpreter's candidate hook —
-  resolving
+  decision site** via the decision interpreter's candidate hook.
+  This is the stage where
   [open-questions/rule-scope-beyond-trick-play.md](../open-questions/rule-scope-beyond-trick-play.md)
-  with its two board witnesses (draughts' forced capture, morris's
-  in-mill removal restriction); validated-but-unenforced rules do not
-  survive this stage. Witnesses: nine men's morris, then english
-  draughts.
+  resolves — against its two board witnesses (draughts' forced
+  capture, morris's in-mill removal restriction) — and is promoted
+  into decisions.md per maintaining.md's promotion rule; until then
+  the question stays open and its file carries the tradeoffs,
+  including the guards-may-suffice counter-evidence this note argues
+  against. Validated-but-unenforced rules do not survive this stage.
+  Witnesses: nine men's morris, then english draughts.
 
 Cross-cutting honesty: the adapter still provides no tensors
 (information-state strings carry CFR; the Representation domain is

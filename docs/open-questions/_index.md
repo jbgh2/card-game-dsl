@@ -91,8 +91,11 @@ of the language.
 - [rule-scope-beyond-trick-play](rule-scope-beyond-trick-play.md) — rules apply
   only at the trick form's card-decision site; `actions where` demands and
   rules constraining non-trick move types are validated but unenforced. Where
-  (if anywhere) should declarative rules bind outside a trick round? Data
-  point: the first game needing a reusable non-trick constraint.
+  (if anywhere) should declarative rules bind outside a trick round? The
+  awaited data point now exists by name: draughts' mandatory capture and
+  morris's in-mill removal restriction (the board-topology ladder, which
+  proposes uniform binding at every decision site and stages the
+  resolution with those witnesses).
 - [round-config-factoring](round-config-factoring.md) — folding a repeated,
   parameterized `round` block (a list/`for each in [...]` loop over Stud's five
   betting streets) into one body; the within-round predicate duplication is
