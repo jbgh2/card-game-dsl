@@ -107,7 +107,7 @@ from cardlang.pipeline import check_dsl
 from cardlang.stdlib.functions import STDLIB_CALL_FUNCS
 from cardlang.stdlib.signatures import CALL_SIGS, ZONE_CONTENT
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
-from cardlang.types import TAny, TCard, TCollection, TInteger
+from cardlang.types import TAny, TBoolean, TCard, TCollection, TEnum, TInteger
 from cardlang.typecheck import TypeEnv, infer
 
 CARDLANG_ROOT = Path(typecheck.__file__).parent
@@ -586,6 +586,44 @@ def test_a_declaration_dag_does_not_blow_up_the_fixpoint() -> None:
             f"derived {{ f{i} = a.f{i - 1} }}"
         )
     check_dsl("\n".join(types) + "\n" + _game(), "g.cardlang")
+
+
+@pytest.mark.parametrize(
+    "body,expected",
+    [("score", TInteger()), ("hearts", TEnum("Suit")), ("x > 0", TBoolean())],
+)
+def test_env_from_game_builds_derived_bodies_with_ambient_names(
+    body: str, expected: object
+) -> None:
+    """`env_from_game(game)` — the public helper, called WITHOUT a prebuilt
+    registry — must build derived bodies with the game's ambient names in
+    scope, exactly as the main pipeline does.
+
+    Its default branch used to call `struct_registry(game)` bare, which types
+    derived bodies against an empty `TypeEnv`; once a lookup miss raised, that
+    aborted the helper outright for a valid game. The main `typecheck` path had
+    been fixed by supplying the registry, which is precisely what stopped it
+    from exercising this branch — a public helper is a caller too, and its
+    behaviour must not depend on which entry point reached it."""
+    src = f"""
+type R = {{ x : Integer }} derived {{ d = {body} }}
+game G {{
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones {{ deck : Deck  hand[player] : Hand<player> }}
+  state {{ score : Integer = 0 }}
+  phase play {{ score := 1 }}
+  winner: highest score
+}}
+"""
+    from cardlang.parse import parse_text
+    from cardlang.resolve import resolve
+    from cardlang.typecheck import env_from_game
+
+    env = env_from_game(resolve(parse_text(src, "g.cardlang")))
+    assert env.structs["R"].fields["d"] == expected
 
 
 def test_a_derived_field_reached_through_a_function_is_assignment_checked() -> None:

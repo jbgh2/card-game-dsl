@@ -771,11 +771,21 @@ def env_from_game(
     """Build the top-level type environment: declared state vars (value types),
     zone contents, the deck/stdlib enum value map, and the user struct types.
 
-    ``structs`` lets `typecheck` supply the registry it built with the function
-    signatures in scope (see `_provisional_structs`); omitted, the registry is
-    built here without them, which is precise for every struct whose derived
-    fields call no user function."""
-    structs = struct_registry(game) if structs is None else structs
+    ``structs`` lets the caller supply a registry it has already built — which
+    `struct_and_function_registries` does on every round of its fixpoint, and
+    which is the ONLY way to avoid re-solving it here.
+
+    Omitted, the registry is solved from scratch through that same builder
+    rather than a bare `struct_registry(game)` call. The bare call typed
+    derived bodies against an empty `TypeEnv`, so a derived field naming any
+    ambient thing — `derived { d = score }`, a zone, an enum value, a pronoun —
+    aborted this helper with `_env_miss` for a perfectly valid game. That is
+    the same defect the ambient-environment fix closed for the main pipeline,
+    surviving in the branch the main pipeline no longer takes: a public helper
+    is a caller too. Recursion is not a risk — the builder always calls back
+    with a registry in hand, taking the branch above."""
+    if structs is None:
+        structs, _sigs = struct_and_function_registries(game, DiagnosticBag())
     state_vars: dict[str, Type] = {}
     for block in _state_blocks(game):
         for decl in block.decls:
