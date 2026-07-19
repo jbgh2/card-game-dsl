@@ -430,8 +430,15 @@ def _canonical(t: Type, env: TypeEnv) -> Type:
     depth, and keeps the registry's own representation finite.
     """
     if isinstance(t, TStruct):
-        return env.structs.get(t.name, t)
+        return _canonical_struct(t, env)
     return t
+
+
+def _canonical_struct(t: TStruct, env: TypeEnv) -> TStruct:
+    """`_canonical` for a receiver already known to be a struct, so the caller
+    keeps its narrowing (and its field map)."""
+    entry = env.structs.get(t.name)
+    return entry if entry is not None else t
 
 
 def _untyped_operator(op: str) -> AssertionError:
@@ -588,17 +595,25 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                 return ROUND_STATE_FIELDS[e.field]
             obj = infer(e.obj, env)
             if isinstance(obj, TStruct):
-                # Resolve a struct-typed field through the REGISTRY by name
-                # rather than reading the snapshot embedded in the receiver's
-                # field map. A recursive type (`derived { copy = R { x: x } }`)
-                # cannot be represented by a finite unrolled value: each
-                # embedded copy is one round staler than the last, so reading
-                # snapshots made `r.copy.flag` correct, `r.copy.copy.flag`
-                # correct, and `r.copy.copy.copy.flag` the permissive top —
-                # a wall that decays with traversal depth. Struct types are
-                # nominal, so the registry entry IS the type; one lookup per
-                # hop keeps every depth exact and finite.
-                return _canonical(obj.fields.get(e.field, TAny()), env)
+                # Read struct fields through the REGISTRY, not off the snapshot
+                # embedded in whatever value produced the receiver. A recursive
+                # type (`derived { copy = R { x: x } }`) has no finite unrolled
+                # form — each embedded copy is one round staler than the last —
+                # so reading snapshots made `r.copy.flag` correct,
+                # `r.copy.copy.flag` correct, and `r.copy.copy.copy.flag` the
+                # permissive top: a wall that decayed with traversal depth.
+                # Struct types are nominal, so the registry entry IS the type
+                # and is never staler.
+                #
+                # BOTH ends are canonicalized, and each covers a different
+                # producer. The receiver, because a struct-typed value can
+                # arrive from a snapshot-bearing map (a derived body's sibling
+                # binding, a field of a field) and its own map would then be
+                # stale for SCALAR fields, which canonicalizing the result
+                # cannot repair. The result, because that is what the next hop
+                # of a chain becomes.
+                receiver = _canonical_struct(obj, env)
+                return _canonical(receiver.fields.get(e.field, TAny()), env)
             if isinstance(obj, TCard):
                 # A card's fields are a closed pair; `_check_expr` rejects
                 # anything else on a known-Card receiver.
