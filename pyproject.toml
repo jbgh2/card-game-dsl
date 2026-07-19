@@ -35,9 +35,13 @@ cardlang = ["grammar/*.lark", "stdlib/*.cardlang"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# The grid mechanism (surface-totality-audit, Step 1) commits designed-to-flip
-# cells as xfail marks; strict-by-default means a bare mark cannot opt out of
-# failing loud when its cell starts passing.
+# A recorded gap is an `xfail`, and an `xfail` that starts passing FAILS the
+# build (decisions.md "Closed-domain completeness"): closing a gap must force
+# the ledger that records it to be updated in the same change. Without this,
+# an unexpected pass is reported and ignored — a check that cannot fail.
+# The grid mechanism (surface-totality-audit, Step 1) leans on the same
+# default: designed-to-flip cells ride as xfail marks, and a bare mark cannot
+# opt out of failing loud when its cell starts passing.
 xfail_strict = true
 
 [tool.mypy]

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-# Suits shared by the French-suited decks. Rank ordering is no longer a global:
+# Suits shared by the French-suited decks. Rank ordering is not a global:
 # it is read per game from the `ranking:` declaration (see runtime.state /
 # driver, `rank_index`), so a deck like schnapsen20 (A 10 K Q J) ranks correctly
 # without a second source of truth. `Card.rank_order` is kept only as a

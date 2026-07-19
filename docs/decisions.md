@@ -3079,3 +3079,30 @@ and struct types kept shadowing silently until the class was swept. The
 sweep binds at find time, not fix time: a *report* of one cell of a
 crossable product is an incomplete report — cross the product and report
 the pattern, whoever holds the finding.
+
+**A check's comment names the downstream contract, never the downstream
+exception type.** A wall is most naturally justified by what goes wrong
+without it, and the temptation is to name the crash: "without this wall,
+`to each hand[0]` would die on the executor's `NameRef` assert". That
+couples the comment to another module's current implementation — the one
+detail a reader editing *this* file never sees, and the one most likely to
+move. Failure currency is deliberately mobile here: a bare `KeyError`
+becomes a typed `RuntimeError`, a backstop assert becomes a wall one layer
+up. Every comment naming the old type is then confidently wrong while still
+reading as precise, which is worse than vague. Name instead what the
+downstream layer *requires* — the thing that actually justifies the wall:
+"without this wall, it would reach the executor, which requires a zone in
+this position and refuses anything else at play time". The warning survives
+a change of currency; the coupling does not. The exception type is
+load-bearing in exactly one place: an argument *about* failure currency
+("a typed error, not a bare `KeyError`"), where the type is the subject
+rather than incidental colour.
+
+State the consequence in the subjunctive — "would check clean and die" —
+not as a past event ("checked clean and died") and not as a present claim
+("checks clean and dies"). The past tense is unfalsifiable: it stays
+literally true after the behaviour it describes is gone, so it rots into a
+misleading implication that nothing can catch. The subjunctive says
+something about the code as it stands, which means a reader can check it
+and the claim can be found wrong — the same reason walls beat prose
+everywhere else in this document.

@@ -44,9 +44,8 @@ def coup_has_char(ctx: Ctx, p: Player, rank: str | None) -> bool:
     """Does `p` hold the claimed character face-down (a challenge's proof)?
     `rank` is `Rank?` in CALL_SIGS and Coup passes `block_claim : Rank? = none`,
     so `None` genuinely arrives here — and matches no card, which is the
-    declared semantics of proving an unset claim. The annotation used to say
-    `str` while the interface said `Rank?`: two statements of one boundary,
-    disagreeing about exactly the value the body was written to handle."""
+    declared semantics of proving an unset claim. The annotation (`str | None`)
+    and the interface (`Rank?`) agree on exactly the value the body handles."""
     return any(c.rank == rank for c in reads.instance(ctx.rs, _R, "influence", p).cards)
 
 

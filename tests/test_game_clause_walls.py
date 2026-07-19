@@ -157,7 +157,7 @@ def test_base_probe_is_accepted() -> None:
 def test_duplicate_clause_rejected(rule_name: str) -> None:
     """Every single-valued clause, repeated, is rejected at the second
     occurrence — never silently last-wins (the parse.py `game()` wall,
-    generalized from the old `state { }`-only check)."""
+    which spans every single-valued clause, not just `state { }`)."""
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(_duplicate_probe(rule_name), "dup.cardlang")
     message = exc.value.diagnostic.message
@@ -191,8 +191,8 @@ def test_missing_players_and_cards_reports_both() -> None:
 
 
 def test_no_game_block_rejected() -> None:
-    """`start: top_item+` accepts a game-less source; it used to escape as
-    a StopIteration inside lark's VisitError."""
+    """`start: top_item+` accepts a game-less source; without this wall it
+    would escape as a StopIteration inside lark's VisitError."""
     text = "rule nothing {\n  demands: actions where true\n}\n"
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(text, "probe.cardlang")
@@ -200,7 +200,8 @@ def test_no_game_block_rejected() -> None:
 
 
 def test_two_game_blocks_rejected_at_the_second() -> None:
-    """A second game block used to be silently discarded (first-wins)."""
+    """Without this wall, a second game block would be silently discarded
+    (first-wins)."""
     text = BASE + BASE.replace("Probe", "Probe2")
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(text, "probe.cardlang")
@@ -216,9 +217,9 @@ def test_known_directions_accepted(value: str) -> None:
 
 
 def test_unknown_direction_rejected() -> None:
-    """`direction: anticlockwise` used to be silently read as clockwise
-    (driver.py's `!= "counterclockwise"` test) — the resolve wall names the
-    value set instead."""
+    """Without this wall, `direction: anticlockwise` would be silently read as
+    clockwise (driver.py's `!= "counterclockwise"` test) — the resolve wall
+    names the value set instead."""
     text = BASE.replace("  max_length", "  direction: anticlockwise\n  max_length")
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(text, "probe.cardlang")

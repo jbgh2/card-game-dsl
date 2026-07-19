@@ -131,9 +131,9 @@ def _rejects(src: str, needle: str) -> None:
 
 
 def test_movement_filter_rejects_an_unknown_card_field() -> None:
-    # THE PROBE named in the brief. Before the fix: `_stmt_exprs` ran the
-    # filter through the flat, unbound `env`, so `card` typed `TAny` (an
-    # unbound local) and the closed CARD_FIELDS wall never fired.
+    # The headline probe. Were `_stmt_exprs` to run the filter
+    # through the flat, unbound `env`, `card` would type `TAny` (an unbound
+    # local) and the closed CARD_FIELDS wall would never fire.
     _rejects(
         _game("deal 5 cards from deck where card.colour is 3 to each hand"),
         "Card has no field 'colour'",
@@ -267,9 +267,9 @@ def _ctx(players: tuple[int, ...] = (0, 1)) -> Ctx:
 
 
 def test_runtime_is_empty_over_a_zone_still_works() -> None:
-    # Regression: a Zone (a singleton/family instance) is the pre-existing
-    # shape `_is_check` handled before the fix; the new `len()`-based fold
-    # must still answer it correctly.
+    # Regression: a Zone (a singleton/family instance) is one shape
+    # `_is_check` must handle; the `len()`-based fold must still answer it
+    # correctly.
     ctx = _ctx()
     ctx.rs.zones.instance("hand", 0).add_all([Card("Q", "spades")])
     zone_ref = n.NameRef("hand", ref_kind="zone")
@@ -284,9 +284,10 @@ def test_runtime_is_empty_over_a_zone_still_works() -> None:
 
 def test_runtime_is_empty_over_a_card_query_set_result() -> None:
     # A CardQuery "set" result evaluates to a plain `list`
-    # (evaluate._card_query's "set" arm), not a `Zone` — before the fix,
-    # `_is_check`'s bare `assert isinstance(value, Zone)` would crash on
-    # this with an AssertionError instead of answering the question.
+    # (evaluate._card_query's "set" arm), not a `Zone` — without the
+    # `len()`-based fold, a bare `assert isinstance(value, Zone)` in
+    # `_is_check` would crash on this with an AssertionError instead of
+    # answering the question.
     ctx = _ctx()
     ctx.rs.zones.instance("hand", 0).add_all([Card("Q", "hearts"), Card("2", "clubs")])
     query = n.CardQuery(

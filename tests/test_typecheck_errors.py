@@ -235,8 +235,8 @@ game G {
 def test_rejects_dot_form_on_loop_and_quantifier_binders() -> None:
     # Binder-introducing constructs type their binders (for-each and
     # quantifier binders are seats/teams by their role), so the dot-form
-    # rejection fires on binder-rooted receivers too — previously they
-    # inferred TAny and only failed loud at runtime.
+    # rejection fires on binder-rooted receivers too — untyped, they would
+    # infer TAny and only fail loud at runtime.
     header = """
 game G {
   players: 2

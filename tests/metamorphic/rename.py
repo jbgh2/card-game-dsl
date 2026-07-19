@@ -89,7 +89,7 @@ a name updates the registry (the source pin forces it), and the exclusion
 set follows automatically. Because the registry is pinned EXACT in both
 directions, the exclusion is never generous — every excluded name really is
 read by some primitive — and never short: a missing declaration fails the
-static pin before this suite would meet it as a playout `KeyError`.
+static pin before this suite would meet it at playout.
 Were some future game's SAFE set ever empty after every exclusion,
 `test_every_game_renames_something` (test_rename.py) fails LOUDLY rather
 than the pairing test passing vacuously over nothing renamed — a hard

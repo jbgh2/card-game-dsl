@@ -202,7 +202,7 @@ def test_arity_mismatch_no_longer_piles_an_undefined_rule_note() -> None:
 
 def test_remove_x_library_plain_never_added_rejected() -> None:
     report = _rejects(_game("- MustFollowSuit"), "removes a rule that is never added")
-    assert "pass arguments" not in report  # the old unsatisfiable dead-end
+    assert "pass arguments" not in report  # an unsatisfiable dead-end
 
 
 def test_remove_x_library_param_never_added_rejected() -> None:
@@ -288,9 +288,9 @@ def test_override_x_library_plain_rejected_single_message() -> None:
 
 def test_override_x_library_param_rejected_without_the_unsatisfiable_pass_args() -> None:
     report = _rejects(_game("override NoLeadingSuitUntilBroken"), "not yet supported")
-    # Before the fix, `_instantiate_rules` ALSO ran override refs through the
-    # plain/add argument-checking path — and since override can never carry
-    # arguments (no grammar slot), that always produced a second,
+    # Were `_instantiate_rules` to ALSO run override refs through the
+    # plain/add argument-checking path, then — since override can never carry
+    # arguments (no grammar slot) — that would always produce a second,
     # unsatisfiable "pass arguments" diagnostic alongside the real one.
     assert "pass arguments" not in report
     assert "undefined rule" not in report
@@ -315,7 +315,7 @@ def test_override_x_undefined_rejected() -> None:
     assert "not yet supported" in report
 
 
-# --- Finding 2: a defective template validates once, not once per reference
+# --- a defective template validates once, not once per reference
 
 
 def test_defective_template_diagnostic_fires_exactly_once_across_two_activating_phases() -> None:

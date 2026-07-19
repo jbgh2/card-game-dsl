@@ -1,17 +1,16 @@
 """Lets are typed at declaration — the sequential fold that closed the
 let-TAny gap (`typecheck._seq_tree_scoped` + `_scoped_env`).
 
-A `let`-bound name used to infer `TAny` in every later statement, and `TAny`
-passes `assignable` in both directions — so EVERY wall went dark one binding
-away: `hearts is 3` was rejected while `let z = hearts` / `z is 3` was
-accepted, and the same laundering defeated the ordering, arithmetic,
-offset_by, run-argument, assignment and endpoint walls. This was the widest
-recorded hole in the checker (three separate ledgers carried "bounded by the
-let-TAny gap" residuals). The fix is one fold: every statement-tuple walk
-routes through `_seq_tree_scoped`, which binds a `let` for the REST of its
-tuple — the same fold resolve applies for scoping and the runtime applies for
-values — and `_scoped_env` types the binder by inferring its initializer in
-the environment at that point.
+Without this fold, a `let`-bound name would infer `TAny` in every later
+statement, and `TAny` passes `assignable` in both directions — so EVERY wall
+would go dark one binding away: `hearts is 3` would be rejected while
+`let z = hearts` / `z is 3` sailed through, and the same laundering would
+defeat the ordering, arithmetic, offset_by, run-argument, assignment and
+endpoint walls — the widest recorded hole in the checker. The fold: every
+statement-tuple walk routes through `_seq_tree_scoped`, which binds a `let`
+for the REST of its tuple — the same fold resolve applies for scoping and the
+runtime applies for values — and `_scoped_env` types the binder by inferring
+its initializer in the environment at that point.
 
 property:   a `let`-bound name carries its initializer's inferred type into
             every later statement of its scope, so each wall answers the same
@@ -217,14 +216,15 @@ def test_the_indexed_lets_key_binder_is_a_player_inside_the_value() -> None:
 # predicate run MID-BODY with the threaded context (a preceding let is bound,
 # so they are typed with it); this phase's own hooks and state defaults run at
 # ENTRY, before any body let has executed (so resolve rejects the read — the
-# binding cannot exist yet, and it used to die as a raw KeyError mid-playout).
+# binding cannot exist yet, and without that rejection it would die as a raw
+# KeyError mid-playout).
 
 
 def test_a_nested_phase_qualifier_is_typed_with_preceding_lets() -> None:
-    # This exact expression gets ONE verdict everywhere now; the qualifier
-    # position used to be checked with the bare env, so `when z is 3` was
-    # accepted while the same expression in the body was rejected — and the
-    # phase silently never fired.
+    # This exact expression gets ONE verdict everywhere. Were the qualifier
+    # position checked with the bare env, `when z is 3` would be accepted
+    # while the same expression in the body was rejected — and the phase
+    # would silently never fire.
     _rejects(
         _game("let z = hearts\n    phase inner when z is 3 { n[0] := 1 }"),
         _LAUNDER,
@@ -265,9 +265,9 @@ def test_a_transition_predicate_cannot_read_a_same_phase_body_let() -> None:
     # A transition is CONFIGURATION: collected position-independently and
     # evaluated with the context captured at whichever round fires it — which
     # may run before the `let`. Entry scope, like hooks and state defaults.
-    # This cell was in the ledger with no pin; probing it found the gap
-    # (resolve scoped the let over it, typecheck typed it, the playout raised
-    # a raw KeyError from a round that ran before the binding existed).
+    # Without this wall the earlier passes are no help: resolve scopes the let
+    # over it and typecheck types it, so the mismatch survives to a round that
+    # may run before the binding exists.
     _rejects(
         _game(
             "legal_moves: [play_to_trick]\n"
@@ -334,8 +334,8 @@ def test_an_enclosing_let_is_visible_to_a_nested_phases_hook() -> None:
 
 def test_a_non_card_collection_is_not_a_zone() -> None:
     # A collection SHAPE is not enough: `all players` is a collection too, and
-    # it used to reach the runtime's backstop with a message claiming the
-    # checker couldn't know — it knew Collection<Player> exactly.
+    # without this wall it would reach the runtime's backstop with a message
+    # claiming the checker couldn't know — it knows Collection<Player> exactly.
     _rejects(
         _game("let z = all players\n    move all cards from z to deck"),
         "movement source must be a zone, got Collection<Player>",
@@ -343,7 +343,7 @@ def test_a_non_card_collection_is_not_a_zone() -> None:
 
 
 def test_a_computed_card_collection_is_not_a_zone() -> None:
-    # The RIGHT element is not enough either (Codex review of #51): a card
+    # The RIGHT element is not enough either: a card
     # query and a list literal both type Collection<Card> but evaluate to
     # plain lists, not zones — only ZONE_CONTENT's `zone` marker separates
     # `hand[0]` from `cards in hand[0] where …`. The message says why the
@@ -363,10 +363,10 @@ def test_a_computed_card_collection_is_not_a_zone() -> None:
 
 def test_a_produce_payload_is_typed_through_a_let() -> None:
     # The payload-vs-variant check runs in its own pass (`_check_define_
-    # outcomes` / `_check_phase_produces`), which read the bare env (Codex
-    # review of #51): `produce Won(z)` with `let z = hearts` passed a Player
-    # payload the inline spelling had just been rejected for. Both owners now
-    # fold binders like the main walk.
+    # outcomes` / `_check_phase_produces`). Were those to read the bare env,
+    # `produce Won(z)` with `let z = hearts` would pass a Player payload the
+    # inline spelling had just been rejected for. Both owners fold binders
+    # like the main walk.
     _rejects(
         _game(
             "d produces:\n      Won(w) { n[w] := 1 }",
@@ -391,8 +391,8 @@ def test_a_produce_payload_is_typed_through_a_let() -> None:
 def test_a_keyed_map_rejects_a_wrong_domain_key() -> None:
     # Keyed collections carry their key domain: an indexed let is
     # player-keyed, and a per-player state var is keyed by its declared index
-    # role — reads and writes both check, where a raw KeyError used to be the
-    # first sign.
+    # role — reads and writes both check, where without them the first sign
+    # would come at play time.
     _rejects(_game("let m[q] = q\n    n[m[hearts]] := 1"), "`m` is keyed by Player")
     _rejects(
         _game("let k = hearts\n    if n[k] > 0 { n[0] := 1 }"),
@@ -413,14 +413,14 @@ def test_a_zone_valued_let_map_still_works() -> None:
     )
 
 
-# --- facets through unify, and the walls the review round added ----------------
+# --- facets through unify, and the walls that guard them -----------------------
 
 
 def test_a_conditional_choice_of_zones_is_still_a_zone() -> None:
-    # unify() used to rebuild TCollection(element) BARE, stripping zone=True
-    # even from unify(zone, zone) — so this legal program (accepted and
-    # running on main) was falsely rejected with a hint calling two named
-    # zones 'a query result or list'. Facets the branches agree on survive.
+    # Were unify() to rebuild TCollection(element) BARE, it would strip
+    # zone=True even from unify(zone, zone) — falsely rejecting this legal
+    # program with a hint calling two named zones 'a query result or list'.
+    # Facets the branches agree on survive.
     check_dsl(
         _game(
             "let h = if n[0] is 0 then hand[0] else hand[1]\n"
@@ -444,9 +444,9 @@ def test_a_conditional_choice_of_keyed_maps_keeps_the_key() -> None:
 
 
 def test_a_map_merged_with_a_non_map_stays_keyed() -> None:
-    # The key facet is STICKY through unify (Codex review of #51): `if c then
-    # n else [99]` may be a dict at runtime, so `2 in m` is exactly as
-    # ambiguous as on the map itself — it ran the keys-vs-values misread on
+    # The key facet is STICKY through unify: `if c then n else [99]` may be a
+    # dict at runtime, so `2 in m` is exactly as ambiguous as on the map
+    # itself — without stickiness it would run the keys-vs-values misread on
     # the map branch while typing as a plain list. The domain becomes
     # unknowable (TAny), so a subscript read stays permissive.
     _rejects(
@@ -482,9 +482,10 @@ def test_a_zone_merged_with_a_non_zone_is_not_a_zone() -> None:
 def test_to_each_requires_the_family_name_not_a_zone_value() -> None:
     # `to each X` deals into X[player] BY NAME — the executor never evaluates
     # the destination — so a binder can never stand there even when it holds
-    # a zone: `let h = hand[0]` / `to each h` typed clean (h IS a zone) and
-    # died on KeyError: 'h' hunting a family by that name (Codex review of
-    # #51). The generic endpoint rule admits zone-valued binders; this
+    # a zone: without this wall `let h = hand[0]` / `to each h` would type
+    # clean (h IS a zone) and reach the executor, which requires a declared
+    # player-indexed zone FAMILY under that name and refuses any other name at
+    # deal time. The generic endpoint rule admits zone-valued binders; this
     # position is stricter because it consumes the name, not the value.
     _rejects(
         _game("let h = hand[0]\n    deal 1 cards from deck to each h"),
@@ -530,8 +531,8 @@ def test_move_type_params_are_typed_in_guard_and_effect() -> None:
 
 def test_derived_fields_type_their_siblings() -> None:
     # A derived body reads sibling fields by bare name; their declared types
-    # are in the struct registry and are now bound — `seat is hearts` on a
-    # Player field used to be accepted as TAny.
+    # are in the struct registry and are bound — without that binding,
+    # `seat is hearts` on a Player field would be accepted as TAny.
     _rejects(
         _game("n[0] := 1").replace(
             "game G {",
@@ -542,9 +543,9 @@ def test_derived_fields_type_their_siblings() -> None:
 
 
 def test_the_zone_hint_names_the_filter_only_where_one_can_be_written() -> None:
-    # The hint used to suggest `where` filters on destinations, gathers and
-    # shuffle targets — positions whose grammar has no filter slot, sending
-    # the designer to a syntax error.
+    # Unqualified, the hint would suggest `where` filters on destinations,
+    # gathers and shuffle targets — positions whose grammar has no filter
+    # slot, sending the designer to a syntax error.
     _rejects(
         _game("let cs = [2 of clubs]\n    shuffle cs"),
         "name the zone itself)",
