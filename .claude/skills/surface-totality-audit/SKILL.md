@@ -128,10 +128,15 @@ implementation.
 The push discipline (both checks green before any push — CLAUDE.md) still
 holds: commit the grid with strict `xfail` marks on the designed-to-flip
 cells (`strict=True` per mark; a global `xfail_strict = true` in
-pyproject makes it the default, so a bare mark cannot opt out). CI stays
-green, the implementation removes the marks, and strict turns a leftover
-mark on a now-passing cell into a loud failure, so a flip cannot be
-forgotten. The red-to-green transition is then
+pyproject makes it the default, so a bare mark cannot opt out). Constrain
+each mark to the cell's designed failure — `raises=AssertionError` for
+the outcome assertion, or the specific expected exception — because an
+unconstrained xfail counts ANY exception as the expected red: a harness
+crash, an import error, a broken fixture all masquerade as design-red
+and exit 0. Red-for-the-wrong-reason is the vacuously-green class
+wearing red. CI stays green, the implementation removes the marks, and
+strict turns a leftover mark on a now-passing cell into a loud failure,
+so a flip cannot be forgotten. The red-to-green transition is then
 visible in the diff. Structure the grid so its derived cell table is
 exportable as data: the review replays the HEAD-derived cells against the
 merge base (the cells that fail there, plus the cells that cannot exist

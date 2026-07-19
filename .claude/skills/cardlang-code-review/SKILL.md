@@ -71,8 +71,11 @@ loud failure is the system working; silence is the enemy.
      cells silently vanish from the base's derivation — the gate would
      then under-report the delta or misread an absent cell as a green
      one). The delta is the cells that fail on the base PLUS the cells
-     that cannot exist there (added cells); diff that set against what
-     the change claims. An unclaimed flip is a finding (class 3 —
+     that cannot exist there (added cells); classify each failure before
+     counting it — an outcome-mismatch (the cell's own assertion) is
+     delta, while an ERROR is either an added cell failing to construct
+     (delta) or a grid defect (class 4), never silently assumed to be
+     the former. Diff that set against what the change claims. An unclaimed flip is a finding (class 3 —
      behavior changed silently); a claimed flip whose cell RUNS green on
      the base means the grid does not reach the behavior (class 4) — an
      added cell is part of the delta, never evidence of vacuity.

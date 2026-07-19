@@ -3031,8 +3031,10 @@ lives in the type layer consulted by every comparison-shaped context, not
 at the first site that motivated it. The `surface-totality-audit` skill
 (`.claude/skills/`) operationalizes this section and "Surface totality" as
 a pre-commit gate, including the red-first order (axes -> framing check ->
-expected column -> red -> implement -> green) and the `xfail(strict=True)`
-mechanism that keeps the pre-push checks green while the red-to-green
+expected column -> red -> implement -> green) and the
+`xfail(strict=True, raises=...)` mechanism — each mark constrained to the
+cell's designed failure, so a harness crash cannot impersonate the red
+run — that keeps the pre-push checks green while the red-to-green
 transition stays visible in the diff.
 
 A wall must also speak its **layer's failure currency**: the compile
