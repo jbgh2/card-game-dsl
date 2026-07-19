@@ -594,16 +594,32 @@ questions by impact × actionability and is the authority on question
 priority. This section adds what that list doesn't carry: the cross-cutting
 work that isn't an open question, and which next game unblocks what.
 
-1. **Design and build the family-library import tier**
-   ([open-questions/family-libraries.md](open-questions/family-libraries.md),
-   Tier 1). The `uses <library>` mechanism between game-local and stdlib:
-   the definition forms it needs all exist, the front end holds a working
-   single instance of each mechanism it generalizes, and two families pin
-   the surface — the poker anchors (Kuhn/Leduc, small enough to test the
-   sharing mechanism rather than the games) and the smuggling family, whose
-   five sibling rulesets measured the copy-drift and parameterization cost
-   the tier removes. Landing Kuhn or Leduc alongside the mechanism gives it
-   a corpus anchor in the same change.
+1. **Land the poker anchors on the family-library tier.** The `uses
+   <library>` mechanism itself is built and settled
+   ([decisions.md](decisions.md) "Family libraries"): grammar surface,
+   library loading, the flat two-level splice, the three-way collision
+   walls, the `requires` contract, and the totality artifacts in
+   `tests/test_family_libraries.py`. Seven-Card Stud is refactored onto
+   `docs/libraries/poker_betting.cardlang` as its full-scale consumer.
+
+   What remains is the anchor that makes the tier non-vacuous: **Kuhn and
+   Leduc**. A library with one consumer is indistinguishable from
+   game-local code, so the sharing mechanism is not yet exercised by
+   anything — these two are small enough that a shared-betting corpus tests
+   the mechanism rather than the games, and both are OpenSpiel-guaranteed.
+   Their decks (`kuhn3`, `leduc6`) are already registered. Each needs a
+   `tests/openspiel_ready/` proof module; `docs/games/` auto-globs into the
+   OpenSpiel registry, so they cannot land as game files alone. Two edges to
+   check rather than assume when they do: Kuhn never offers `raise`, so it
+   is the first imported-but-unoffered move type (confirm it does not
+   inflate the action space), and Leduc's raise cap of 2 is the first real
+   use of `raise_cap` as family-varying required state.
+
+   After the anchors, the measured second customer is the smuggling family
+   (`experiments/green-lane/`), whose five sibling rulesets share ~90% of
+   their text and are kept aligned by hand-diffing — the copy-drift the tier
+   removes, and the case that will test whether parameterization can keep
+   riding on required state or genuinely needs a `with` clause.
 
 2. **Pick the next game for its unblocks.** The six-game wave (Cheat, 500,
    Belote, Canasta, Klondike, FreeCell) cleared the candidates that each
@@ -621,8 +637,8 @@ work that isn't an open question, and which next game unblocks what.
      move-level override that
      [move-level-visibility](open-questions/move-level-visibility.md) awaits
      (exercisable in the existing poker corpus), and as the second poker game
-     it is the data point [family-libraries](open-questions/family-libraries.md)
-     is blocked on.
+     it is the full-scale second poker consumer of the family-library tier
+     ([decisions.md](decisions.md) "Family libraries").
    - **Spider** — the third positional game and the forcing candidate for the
      deferred positional slice movement ("Positional zones — walled
      residuals", above): its mid-game deals break the run-monotonicity that

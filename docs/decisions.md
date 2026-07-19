@@ -3045,3 +3045,90 @@ class defect into a recurring one — the corpus's duplicate-name
 shadowing sat for months as exactly this: the duplicate-move-parameter
 instance was fixed while duplicate zones, state variables, move types,
 and struct types kept shadowing silently until the class was swept.
+
+## Family libraries
+
+A **library** is the import tier between game-local definitions and the stdlib.
+It holds exactly the definition forms a game already holds — move_types, rules,
+functions, procedures, types, defines — plus a `requires` block, and it lives in
+`docs/libraries/<name>.cardlang`, beside the corpus and maintained with it. The
+stdlib is the part maintained with the *language*; that boundary is the one
+[design-notes/primitive-sidecars.md](design-notes/primitive-sidecars.md) exists
+to defend, and the tier exists so a family of related games need neither paste
+shared machinery per game nor promote domain knowledge into the stdlib.
+
+A game names one whole library at a time:
+
+```
+game SevenCardStud {
+  uses poker_betting
+  ...
+}
+```
+
+Whole-library, never a named-definitions manifest: the line stands in for the
+rulebook sentence it replaces ("betting proceeds as in standard poker" is
+Pagat's own practice), and that is what keeps the read-cold acceptance test
+intact — the readable unit becomes the game file plus its *named* libraries. A
+game may `uses` several libraries; repeating one is an error, because the
+repeat imports nothing further.
+
+Resolution is flat and two-level: game, then the named libraries, then the
+stdlib. There is no library-imports-library. Imports are pure name resolution —
+`resolve` splices each named library's definitions into the game before any
+other name check runs, so what flows on is one flat game and no later pass knows
+imports exist. That is what makes an import carry no runtime and no
+information-set implication.
+
+**`uses` imports; it does not inherit.** A game-local definition under an
+imported name is an error, not an override, and so is the same name from two
+libraries. Import-with-override would make the tier inheritance, and would put a
+game's meaning at the mercy of a silent redefinition — the accepted-but-ignored
+defect class at file granularity. Variants-as-deltas
+([principles.md](principles.md)) remains a separate, unbuilt mechanism; the two
+are deliberately not one.
+
+**A library declares what it requires.** Family definitions read state the
+including game must declare, and undeclared-name errors surfacing from inside
+spliced library text would be the wrong diagnostics currency — they name symbols
+the author never typed. So a library names its contract, checked at the `uses`
+line:
+
+```
+requires {
+  stack[player] : Integer
+  raise_cap     : Integer
+}
+```
+
+Deliberately a `state_decl` minus the `= <default>`: the initial value is the
+game's to choose, and a library that could set one would be configuring the game
+rather than contracting with it. A requirement is satisfied from any `state { }`
+block in the game — a phase's block is the natural home for state that resets on
+phase re-entry, which is what per-hand betting state is. Because the spelling is
+the interface, a `requires`d name is not game-private: the metamorphic rename
+transform excludes it for that reason.
+
+**What a library holds, and what stays game-local.** A library declares a
+vocabulary, not a game, so it carries no zones, no state defaults and no phases.
+The corpus forced a sharper line than that: **a move that touches a
+game-specific zone stays game-local; the library holds the zone-agnostic core.**
+`poker_betting` holds check, bet, call, raise and the `can_act`/`owes`/`pending`
+ring predicates — all of which move chips and nothing else — and omits `fold`,
+the one betting move that touches cards. Which cards a fold disposes of, and
+where they go, is a property of the game: Stud sends the folder's upcards to the
+muck the instant they fold, and opponents' information sets carry that
+observation. Each game defines its own `fold` and offers it alongside the
+imported four in one vocabulary list. The signal that this factoring is natural
+rather than forced is that `poker_betting`'s contract requires no zones at all.
+
+**Parameterization rides on required state, not on the import.** Family members
+differ by constants — Stud allows three raises per street, Leduc two — and those
+differences are carried by required state the game declares and sets (`limit`,
+`raise_cap`), not by a `with` clause on `uses`. The import surface stays a bare
+name.
+
+The tier's completeness gate is `tests/test_family_libraries.py`, whose ledger
+records the one deliberate non-cell: stdlib move types and a game's `move_type`
+definitions are disjoint consult paths that never share a namespace, so there is
+no collision there to wall.

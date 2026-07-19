@@ -16,17 +16,6 @@ folder, and remove the entry from this index. See
 
 ## Tier 1 — High impact, enough data to commit now
 
-- [family-libraries](family-libraries.md) — an import tier between
-  game-local and stdlib (`uses <library>`), so game families share
-  move_types, rules, procedures, and primitives without pasting them per
-  game or promoting them to the stdlib. The definition forms it
-  presupposes all exist, the front end holds a working single instance of
-  each mechanism imports generalize (fragment parsing, library-fallback
-  resolution with a shadowing wall, by-value expansion), and two families
-  supply the data: the poker anchors OpenSpiel guarantees, and the
-  smuggling family whose five sibling rulesets measured the copy-drift and
-  parameterization cost end to end.
-
 - [permissive-any-type](permissive-any-type.md) — `TAny` is the checker's top
   type and satisfies every constraint, but it doubles as the fallback for a
   lookup that failed to resolve, so an incompletely-built type environment
