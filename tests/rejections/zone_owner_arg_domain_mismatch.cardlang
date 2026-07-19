@@ -1,0 +1,20 @@
+// Wall: resolve.py `_resolve_zone`. The runtime keys a zone family solely by
+// its index (ZoneStore / zone_observer_key read ZoneDecl.index; the owner
+// argument's domain is never consulted), so an owner argument naming a
+// different domain than the index is accepted and then ignored — the worst
+// class. Require the owner argument to name the index's domain.
+game ZoneOwnerArgDomainMismatch {
+  players: 4
+  partnerships: [[0, 2], [1, 3]]
+  max_length: 100
+  direction: clockwise
+  cards: standard52
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+    stash[player] : Hand<team>
+  }
+  state { n[player] : Integer = 0 }
+  phase p { deal 1 cards from deck to each hand }
+  winner: highest n
+}

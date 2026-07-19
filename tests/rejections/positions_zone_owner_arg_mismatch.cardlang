@@ -1,0 +1,27 @@
+// Wall: resolve.py `_resolve_zone`. A position-indexed family is keyed by its
+// index position, so an owner argument naming a DIFFERENT position (or a role)
+// is accepted and then ignored. `Cascade<slot>` on a `[column]` family still
+// keys by `column` — the `<slot>` is silently dropped. Require arg == index.
+game PositionsZoneOwnerArgMismatch {
+  players: 1
+  direction: clockwise
+  max_length: 100
+  cards: standard52
+  positions { column : 1..3  slot : 1..3 }
+  zones {
+    deck : Deck
+    tableau[column] : Cascade<slot>
+  }
+  state {
+    resigned : Boolean = false
+    score[player] : Integer = 0
+    }
+  phase setup { shuffle deck }
+  phase play {
+    turns t from 0 over all players until resigned {
+      offer to t one of [quit]
+    }
+    }
+  winner: highest score
+}
+move_type quit { effect { resigned := true } }

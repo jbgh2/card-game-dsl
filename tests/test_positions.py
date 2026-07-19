@@ -20,7 +20,12 @@ registry:   cardlang/domains.py (built-in rows; DomainSources.positions) +
             n.Game.positions; the collision wall `_resolve_positions` is the
             reconciliation between the two definition sites — swept here
             registry-derived, so neither source can grow past it.
-covered:    zone index + type arg (Klondike/FreeCell corpus + this module);
+covered:    zone index + type arg — a position works as either (Klondike/
+            FreeCell corpus + this module), and a type arg naming a domain
+            OTHER than the index is rejected (the owner==index wall:
+            test_position_family_owner_arg_must_match_its_index +
+            tests/rejections/positions_zone_owner_arg_mismatch; the wall is
+            general, stated in tests/test_zone_index_roles.py);
             move params (both games + the vocab-order pin below); the
             collision sweep (every built-in id and spelling, derived from
             the registries); bounds walls incl. the 256-member ceiling
@@ -256,6 +261,44 @@ def test_to_each_position_family_is_rejected() -> None:
     with pytest.raises(DiagnosticError, match="deals one parcel per player"):
         check_dsl(
             _game(stmt="deal 1 card from deck to each pile"),
+            "t",
+        )
+
+
+@pytest.mark.parametrize(
+    "zones",
+    [
+        "pile[column] : Cascade<slot>",  # a different position domain
+        "pile[column] : Cascade<player>",  # a role, not the index position
+    ],
+)
+def test_position_family_owner_arg_must_match_its_index(zones: str) -> None:
+    # The type-arg slot's MISUSE. A position family is keyed by its index
+    # position, so an owner argument naming a different position — or a role —
+    # is accepted-but-ignored. Distinct from the projection-uniformity wall
+    # (a non-uniform type like Hand on a position index): here the type is
+    # uniform (Cascade), only the argument's domain is wrong. The role-indexed
+    # counterpart (`hand[player] : Cascade<column>`) and the general wall live
+    # in tests/test_zone_index_roles.py and the rejection corpus.
+    with pytest.raises(
+        DiagnosticError, match="must name the same domain as the index"
+    ):
+        check_dsl(
+            _game(zones=zones, positions="positions { column : 1..3  slot : 1..3 }"),
+            "t",
+        )
+
+
+def test_role_indexed_family_may_not_take_a_position_owner_arg() -> None:
+    # The fourth (role, position) direction: a role-indexed family with a
+    # position type arg (`foo[player] : Cascade<column>`). Same wall — the
+    # family keys by the player index and the `<column>` is ignored. (`pile`
+    # keeps `column` a validly-used position so nothing else complains.)
+    with pytest.raises(
+        DiagnosticError, match="must name the same domain as the index"
+    ):
+        check_dsl(
+            _game(zones="pile[column] : Cascade<column>  foo[player] : Cascade<column>"),
             "t",
         )
 

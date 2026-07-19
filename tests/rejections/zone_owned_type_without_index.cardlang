@@ -1,0 +1,19 @@
+// Wall: resolve.py `_resolve_zone`. An owned zone type has no index to key its
+// owner by. The runtime keys a family solely by its index, so an owner
+// argument with no index is unkeyed — accepted and then ignored. An owned zone
+// must be indexed by its owner.
+game ZoneOwnedTypeWithoutIndex {
+  players: 4
+  partnerships: [[0, 2], [1, 3]]
+  max_length: 100
+  direction: clockwise
+  cards: standard52
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+    stash : Hand<player>
+  }
+  state { n[player] : Integer = 0 }
+  phase p { deal 1 cards from deck to each hand }
+  winner: highest n
+}

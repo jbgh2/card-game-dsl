@@ -1,0 +1,1 @@
+zone_owned_type_without_index.cardlang:14:5: error: zone 'stash' is typed 'Hand<player>' but has no index — an owned zone type must be indexed by its owner; write 'stash[player] : Hand<player>'

@@ -805,6 +805,33 @@ def _resolve_zone(
     for arg in ref.args:
         if arg.name not in _KNOWN_ROLES and arg.name not in positions:
             bag.error(f"unknown owner '{arg.name}'", arg.span)
+        elif takes_owner and zone.index is None:
+            # An owned zone type has no index to key its owner by. The runtime
+            # keys a family solely by its index (ZoneStore / zone_observer_key
+            # read ZoneDecl.index; the owner argument's domain is never
+            # consulted), so an owner with no index is unkeyed — the argument
+            # is accepted and then ignored, the worst class. An owned zone
+            # must be indexed by its owner.
+            bag.error(
+                f"zone '{zone.name}' is typed '{ref.name}<{arg.name}>' but has "
+                f"no index — an owned zone type must be indexed by its owner; "
+                f"write '{zone.name}[{arg.name}] : {ref.name}<{arg.name}>'",
+                zone.span,
+            )
+        elif takes_owner and arg.name != zone.index:
+            # Same silent-ignore: the runtime keys the family by the index, so
+            # an owner argument that names a different domain than the index is
+            # accepted and then ignored (`{ref.name}<{arg.name}>` on a
+            # `[{zone.index}]` family still keys by `{zone.index}`). Require the
+            # argument to name the index's domain.
+            bag.error(
+                f"zone '{zone.name}' is indexed by '{zone.index}' but typed "
+                f"'{ref.name}<{arg.name}>' — the owner argument must name the "
+                f"same domain as the index (the runtime keys the family by the "
+                f"index, so '<{arg.name}>' would be silently ignored); write "
+                f"'{ref.name}<{zone.index}>'",
+                arg.span,
+            )
     if zone.index in positions:
         # A position-indexed family has no owner (no observer IS a column —
         # decisions.md "Position domains and positional zones"), so a zone
