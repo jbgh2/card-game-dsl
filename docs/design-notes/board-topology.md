@@ -101,7 +101,9 @@ A registry entry — generated (grids, hex tilings, tracks) or enumerated
   frames**: `forward(player)` and `forward_diagonal(player)` resolve to
   opposite concrete relations per seat — one shared graph, a declared
   per-player transform, never a second board (the requirements doc's
-  ownership/mirroring property).
+  ownership/mirroring property). Where a family's movement is
+  direction-parameterized (grids), the entry also mints its direction
+  names as a second named-member domain for move parameters (§2.4).
 - **Regions**: named cell subsets — `back_row(player)`, `home(player)`,
   `crownhead(player)`. Two non-examples fix the boundary: off-board
   places (the backgammon bar and borne-off tray) are ordinary zones
@@ -345,10 +347,16 @@ cross-product with one OpenSpiel action id per combination
 zones" — `build(src : column, dst : column)` is the corpus anchor).
 Boards inherit it whole; the parameter spelling is the board domain's
 name, exactly as Klondike's is `column`. A `(from, to)` pair over an
-8×8 board is 4096 ids; where that is wasteful the vocabulary can
-carry a small declared direction enum instead (`step(from : cell, dir
-: Direction)` — 64 × 3), which also matches how the native OpenSpiel
-board games encode moves. Adjacency,
+8×8 board is 4096 ids; where that is wasteful, the board family also
+mints its **direction names** (a grid's compass constants) as a second
+named-member domain through the same landed minting, so `step(from :
+cell, along : dir)` is 64 × 3 with `neighbor(from, dir)` as declared
+entry data. Directions are deliberately *not* a new parameter-domain
+kind (no declared-enum parameter surface exists, and none is proposed)
+and *not* per-direction move types (hand-compiling one move type per
+direction is exactly the nullary explosion position domains exist to
+prevent). This also matches how the native OpenSpiel board games
+encode moves. Adjacency,
 occupancy, and path-clearness live in guards as **masks**, never as
 domains that grow or shrink. Every board decision is therefore an
 ordinary parameterized `offer` — one flat candidate list, one chooser
@@ -363,12 +371,25 @@ a class-2 query over declared data), not a per-step decision chain.
 Draughts multi-jumps are the opposite: each hop **is** a decision, and
 the `turns` form's `again` axis ([decisions.md](../decisions.md) "The
 `turns` form") plus a position-typed chain-anchor state variable
-(public, as all state is) expresses "same piece continues" — noting
-that position-typed `state` is currently **rejected surface** (a
-recorded walled residual, [roadmap.md](../roadmap.md) "Positional
-zones — walled residuals"); the draughts rung is the witness that
-lifts it. Mandatory capture is an ordinary rule whose demand narrows
-the vocabulary to jumps when any exist.
+(public, as all state is) expresses "same piece continues" —
+position-typed `state` is currently **rejected surface** (a recorded
+walled residual, [roadmap.md](../roadmap.md) "Positional zones —
+walled residuals"); the wall lifts at stage 5, whose Barrage shuttle
+rule is its first forcing witness, and the chain anchor reuses the
+lift. Mandatory capture is a reusable declarative rule — and that is
+a commitment about where rules are *going*, not a description of
+today: rules currently bind only at the trick form's card-decision
+site, and a rule constraining any other move type is validated but
+unenforced
+([open-questions/rule-scope-beyond-trick-play.md](../open-questions/rule-scope-beyond-trick-play.md)).
+A board corpus cannot leave that standing — unenforced constraints
+are the accepted-but-ignored defect class — and the future-facing
+resolution is uniform: **rules bind at every kernel decision site**,
+attached at the decision interpreter's candidate hook, so one
+enforcement path serves the trick form, `turns`-body offers, and
+every later form. Draughts' forced capture and morris's in-mill
+removal restriction are the two forcing witnesses that question has
+been waiting for; §4 stages it.
 
 Compound placements (a battleship spanning four cells) are one
 decision whose **effect** runs a bounded sequence of kernel movements
@@ -552,7 +573,9 @@ does not move.
    question's recorded residual.
 5. **Stratego, Barrage variant** (10×10 with lakes; 8 pieces per side:
    Flag, Spy, 2 Scouts, Miner, General, Marshal, Bomb; two-square
-   rule in scope, chase rule scoped out and named in the entry; **no
+   rule in scope — its shuttle tracking is the first forcing witness
+   for position-typed state, whose recorded wall lifts here — chase
+   rule scoped out and named in the entry; **no
    native oracle** — verified absent from OpenSpiel; DeepNash was
    never open-sourced). The moat rung: C3 attribute-level projections
    + C6 anonymous-persistent identity, partition proofs extended
@@ -581,7 +604,10 @@ does not move.
    sequences completed, crowning ends the move; 40-move no-capture
    draw, matching the oracle `checkers`, which implements forced
    captures and that exact draw rule). Adds rule-driven demand
-   narrowing (mandatory capture as rule composition), jump triples,
+   narrowing (mandatory capture as rule composition — with morris,
+   the forcing pair for binding rules at every decision site,
+   [open-questions/rule-scope-beyond-trick-play.md](../open-questions/rule-scope-beyond-trick-play.md)),
+   jump triples,
    multi-jump chains on the `again` axis, promotion, counter-based
    draw state. English over International deliberately: no
    maximum-capture optimization, so class 7 stays unwitnessed.
@@ -687,16 +713,24 @@ from the first stage that could parse them.
 - **Stage 5 — the moat workstream.** C3 attribute-level emission
   classes + C6 anonymous-persistent movement identity, with the
   partition-proof battery extended **first** as the acceptance bar.
-  Witness: Barrage. Explicitly a moat-level event with its own
-  sign-off.
+  Also lifts the position-typed `state` wall (a recorded residual):
+  the two-square shuttle rule tracks the mover's previous from/to,
+  the wall's first forcing witness; draughts' chain anchor reuses the
+  lift at stage 7. Witness: Barrage. Explicitly a moat-level event
+  with its own sign-off.
 - **Stage 6 — fixed points.** `reachable`/`region` as bounded
   built-ins with deterministic frontier order. Witness: hex.
 - **Stage 7 — open-ended play.** Settle
   unbounded-lines-and-max-length (draw rules; counter-based state
   idioms; repetition history stays out unless that settlement pulls
-  it in); lift the position-typed `state` wall for the draughts
-  chain anchor (a recorded walled residual). Witnesses: nine men's
-  morris, then english draughts.
+  it in), and **generalize declarative-rule binding to every kernel
+  decision site** via the decision interpreter's candidate hook —
+  resolving
+  [open-questions/rule-scope-beyond-trick-play.md](../open-questions/rule-scope-beyond-trick-play.md)
+  with its two board witnesses (draughts' forced capture, morris's
+  in-mill removal restriction); validated-but-unenforced rules do not
+  survive this stage. Witnesses: nine men's morris, then english
+  draughts.
 
 Cross-cutting honesty: the adapter still provides no tensors
 (information-state strings carry CFR; the Representation domain is
@@ -717,11 +751,12 @@ questions, not silently deciding them:
   board-declaration argument forms, and cell-constant lexing (`a1` as
   a minted constant vs a name). One-spelling-per-concept is the
   criterion throughout.
-- **Position-typed state** (the draughts chain anchor): currently
-  rejected surface with a recorded residual
-  ([roadmap.md](../roadmap.md) "Positional zones — walled residuals");
-  stage 7 lifts it against its witness — public like all state, with
-  the state-type set growing by declared position domains.
+- **Position-typed state**: currently rejected surface with a
+  recorded residual ([roadmap.md](../roadmap.md) "Positional zones —
+  walled residuals"); stage 5 lifts it against its first witness
+  (Barrage's two-square tracking), and the draughts chain anchor
+  reuses it — public like all state, with the state-type set growing
+  by declared position domains.
 - **The draw/repetition settlement** — already
   [open-questions/unbounded-lines-and-max-length.md](../open-questions/unbounded-lines-and-max-length.md);
   wave C is its forcing set.
@@ -733,7 +768,7 @@ questions, not silently deciding them:
 - **The positional residuals this ladder does not lift**: the landed
   positional machinery is this design's substrate (§2.2), and the
   ladder lifts exactly three of its recorded walls (quantifiers and
-  iteration at stage 2, position-typed state at stage 7). The others
+  iteration at stage 2, position-typed state at stage 5). The others
   stay walled on their own witnesses — the positional slice movement
   on Spider, the position-family gather on a first gathering layout
   ([roadmap.md](../roadmap.md) "Positional zones — walled
