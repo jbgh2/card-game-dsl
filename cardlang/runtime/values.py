@@ -49,15 +49,8 @@ class Deck:
 
 @dataclass(frozen=True, slots=True)
 class ComponentSet:
-    """The registry entry behind both `cards:` (flavor "card") and the later
-    `pieces:` clause (flavor "piece"): a `Deck` payload plus the two surface
-    field names its items bind to. `axes` are positional against the item
-    slots every `Deck` already carries: axes[0] binds the suit slot, axes[1]
-    the rank slot. A card set spells them ("suit", "rank") -- the deck
-    vocabulary itself; a piece set spells its own surface vocabulary
-    (xo_marks: ("side", "kind")) and, per `__post_init__` below, may never
-    reuse the card spelling, so the two flavors can never collide on axis
-    names alone."""
+    """One `cards:`/`pieces:` registry entry. `axes` bind positionally to the
+    `Deck` item slots: axes[0] is the suit slot, axes[1] the rank slot."""
 
     flavor: Literal["card", "piece"]
     axes: tuple[str, str]
@@ -69,9 +62,6 @@ class ComponentSet:
             raise ValueError(f"ComponentSet axes must be distinct, got {self.axes!r}")
         if not a0.isidentifier() or not a1.isidentifier():
             raise ValueError(f"ComponentSet axes must both be identifiers, got {self.axes!r}")
-        # "suit"/"rank" is the card flavor's spelling (every card row below
-        # uses it); a piece flavor reusing it would make the two flavors
-        # indistinguishable by axis name alone.
         if self.flavor == "piece" and self.axes == ("suit", "rank"):
             raise ValueError(
                 "piece-flavored ComponentSet may not spell axes as "
@@ -118,10 +108,6 @@ def _canasta108() -> tuple[tuple[str, str], ...]:
     return tuple(cards)
 
 
-# The component-set registry: every named `cards:` deck (flavor "card") plus
-# the piece sets a later `pieces:` clause will name (flavor "piece",
-# starting with xo_marks below). Each Deck literal is unchanged from the
-# pre-registry DECKS dict, merely wrapped -- the data itself never moves.
 COMPONENT_SETS: dict[str, ComponentSet] = {
     "standard52": ComponentSet("card", ("suit", "rank"), Deck(suits=SUITS, ranks=RANKS, values={})),
     # 20-card Ace-Ten deck: J Q K 10 A in four suits, A 10 K Q J high to low.
@@ -195,11 +181,6 @@ COMPONENT_SETS: dict[str, ComponentSet] = {
             copies=3,
         ),
     ),
-    # 9-piece Tic-Tac-Toe mark set: five X marks, four O marks (the second
-    # player gets the shorter half of an odd board). Explicit-list form like
-    # the non-uniform card decks above (the canasta108 precedent for
-    # asymmetric multiplicities): "side" (x/o) binds the suit slot, "kind"
-    # (always "mark") binds the rank slot.
     "xo_marks": ComponentSet(
         "piece",
         ("side", "kind"),
@@ -207,10 +188,8 @@ COMPONENT_SETS: dict[str, ComponentSet] = {
     ),
 }
 
-# DECKS is COMPONENT_SETS filtered to its card-flavored rows: the one shape
-# (`dict[str, Deck]`) every pre-existing deck consumer reads, unchanged --
-# resolve's unknown-deck diagnostic, driver.py, the ranking-convention
-# matrix, and every deck-keyed test. A piece set never appears here.
+# The card-flavored projection every pre-existing deck consumer reads;
+# a piece set never appears here.
 DECKS: dict[str, Deck] = {
     name: cs.deck for name, cs in COMPONENT_SETS.items() if cs.flavor == "card"
 }
@@ -270,7 +249,7 @@ def build_deck(deck_name: str) -> list[Card]:
             f"known component sets: {', '.join(sorted(COMPONENT_SETS))}"
         )
     deck = cs.deck
-    if deck.cards:  # non-uniform deck (Tarot) or explicit-list piece set (xo_marks)
+    if deck.cards:  # explicit-list form
         return [Card(rank, suit) for rank, suit in deck.cards]
     return [
         Card(rank, suit)

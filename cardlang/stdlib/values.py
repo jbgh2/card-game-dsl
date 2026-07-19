@@ -20,8 +20,7 @@ DIRECTION_VALUES: frozenset[str] = frozenset({"left", "right", "across", "hold"}
 # component set name -> total item count. Irregular decks (copies in
 # pinochle48/coup15, explicit lists in tarot78/tichu56) make a suits x ranks
 # formula wrong, so the size is an explicit table — pinned to
-# `len(runtime.build_deck(name))` by a drift test. xo_marks (a piece set)
-# takes the same explicit-list path and the same drift pin.
+# `len(runtime.build_deck(name))` by a drift test.
 _DECK_SIZE: dict[str, int] = {
     "standard52": 52,
     "schnapsen20": 20,
