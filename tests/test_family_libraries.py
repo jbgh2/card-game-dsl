@@ -9,14 +9,24 @@ text the author did not write.
 
 Completeness ledger
 -------------------
-property: every way a `uses` line can be wrong is rejected, loudly, at resolve.
-domain:   the import tier's error space, which is the product of two closed sets
-          — the failure modes of a `uses` line (unknown library, repeated import)
+property: a family-library file parses as the items its author wrote, and every
+          way a `uses` line can be wrong is rejected, loudly, at resolve.
+domain:   two layers. At PARSE, the library file's clause skeleton: the
+          `?library_item` alternatives times {well-formed, truncated at their
+          last required slot}, crossed with every alternative as the NEIGHBOUR
+          written below — the cell that matters being a truncated item that
+          completes itself from its neighbour and drops it. At RESOLVE, the
+          import tier's error space, which is the product of two closed sets —
+          the failure modes of a `uses` line (unknown library, repeated import)
           and, for each definition kind in `resolve._LIBRARY_DEF_KINDS`, the
           three-way collision matrix (game/library, library/library,
           library/stdlib) — plus the three ways a `requires` entry can go unmet
           (absent, wrong type, wrong index).
-registry: the DEFINITION-KIND axis from `resolve._LIBRARY_DEF_KINDS`, pinned to
+registry: the ITEM axis from the grammar's `?library_item`, scraped by
+          `library_item_alternatives` (shared with tests/test_game_clause_walls,
+          which owns the other half of the same absorption class and pins the
+          `STRUCT_TYPE_NAME` terminal against both clause registries); the
+          DEFINITION-KIND axis from `resolve._LIBRARY_DEF_KINDS`, pinned to
           `n.Library`'s own fields by `test_def_kinds_covers_every_library_field`;
           the COLLISION-SOURCE axis from the three namespaces a library name can
           land in — the game (`n.Game`'s same-named fields), another library, and
@@ -26,9 +36,22 @@ registry: the DEFINITION-KIND axis from `resolve._LIBRARY_DEF_KINDS`, pinned to
           too, which is the fix for how this file's first stdlib move-type cell
           shipped vacuous (it probed `play_card`, which `stdlib/moves.py`
           documents as game-defined, so no edit could redden it).
-covered:  the grid — definition kind x collision source, all 18 cells executed:
-          `test_game_local_definition_may_not_shadow_a_library_one` (6),
-          `test_two_libraries_may_not_define_the_same_name` (6), and
+covered:  the parse grid — item x neighbour, all 49 truncated cells executed by
+          `test_a_truncated_library_item_may_not_absorb_its_neighbour`, all
+          commanded REJECT, plus the 42 off-diagonal well-formed cells as its
+          control; the diagonal's one real cell (a repeated `requires` block) is
+          its own probe, the rest of the diagonal asserting nothing the
+          off-diagonal does not. One truncated cell was open when this grid was
+          written — `function_def` then `requires_block` — and its
+          red-before-green transition is in this branch's history; the other 48
+          are refused by brace structure rather than by the fix and are the
+          sweep of the class. The builder's side of the same registry is
+          `test_the_library_builder_files_every_item_kind` (7 cells, each item
+          filed in its own `n.Library` field and no other) with
+          `test_an_unhandled_library_item_is_loud` as the pin under it.
+          The resolve grid — definition kind x collision source, all 18 cells
+          executed: `test_game_local_definition_may_not_shadow_a_library_one`
+          (6), `test_two_libraries_may_not_define_the_same_name` (6), and
           `test_library_definition_against_the_stdlib_namespace` (6, of which
           the 3 kinds with no stdlib registry skip with that reason named).
           Every cell's expected outcome is a commanded decision: the stdlib row
@@ -39,6 +62,9 @@ covered:  the grid — definition kind x collision source, all 18 cells executed
 sampled:  the `uses`-line failure modes (unknown library, repeated import) and
           the three `requires` mismatch modes are one probe each, not a crossed
           product — each is a single-axis error with no second axis to cross.
+          The truncation axis takes ONE truncation per item (its last required
+          slot); an item can also be cut mid-slot, but every such cut is a
+          strict prefix of this one and cannot absorb more.
 residual: none of the grid. The stdlib row's three accepting cells are decisions,
           not gaps: stdlib move types and a game's `move_type` definitions are
           disjoint consult paths that never share a namespace
@@ -66,15 +92,17 @@ from pathlib import Path
 from typing import Iterator
 
 import pytest
+from lark import Tree
 
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticError
 from cardlang.libraries import library_names, load_library
-from cardlang.parse import parse_library, parse_text
+from cardlang.parse import _Builder, _transform, parse_library, parse_text, parse_to_tree
 from cardlang.resolve import _LIBRARY_DEF_KINDS, resolve
 from cardlang.stdlib.functions import STDLIB_CALL_FUNCS
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
 from cardlang.stdlib.rules import library_rules
+from tests.test_game_clause_walls import library_item_alternatives
 
 # A minimal game that satisfies `poker_betting`'s whole `requires` contract. Every
 # probe below is this game plus exactly one thing wrong, so a failure names the
@@ -124,6 +152,195 @@ def test_the_probe_game_is_otherwise_valid() -> None:
     """The control. Without it every probe below could be passing for the wrong
     reason — a vacuously-green suite is the defect class this file guards."""
     resolve(_game())
+
+
+# --- the library file's own clause skeleton (parse layer) ---------------------
+#
+# Before a `uses` line can be wrong, the library FILE has to parse as the items
+# its author wrote. `?library_item*` is a sibling sequence with no separator, so
+# an item whose last required slot is left empty can complete itself from the
+# item written below it — silently, with no `_ambig` node, because only one
+# derivation is complete and the ambiguity budget counts ambiguity, not loss.
+# The grid below is that class: every alternative, well-formed and truncated,
+# crossed with every alternative as its neighbour.
+
+# One minimally-valid source line per `?library_item` alternative, and the same
+# item truncated at its last required slot. Keyed by grammar rule name so both
+# grids stay derived from the registry; pinned by `test_library_item_registry_pin`.
+_ITEM_WELL_FORMED: dict[str, str] = {
+    "requires_block": "requires { y : Integer }",
+    "rule_def": "rule r { }",
+    "move_type_def": "move_type m { effect { } }",
+    "type_def": "type T = { x : Integer }",
+    "define_def": "define d -> { a | b } { }",
+    "function_def": "function f() = 1",
+    "procedure_def": "procedure p() { }",
+}
+
+_ITEM_TRUNCATED: dict[str, str] = {
+    "requires_block": "requires {",
+    "rule_def": "rule r {",
+    "move_type_def": "move_type m {",
+    "type_def": "type T = {",
+    "define_def": "define d ->",
+    "function_def": "function f() =",
+    "procedure_def": "procedure p() {",
+}
+
+# grammar rule name -> the `n.Library` field the builder must file the item
+# under. The third derived column: `parse.library()` collects its children
+# through one independent isinstance filter per field, so a kind with no filter
+# parses and is dropped without a word.
+_ITEM_FIELD: dict[str, str] = {
+    "requires_block": "requires",
+    "rule_def": "rules",
+    "move_type_def": "move_types",
+    "type_def": "types",
+    "define_def": "defines",
+    "function_def": "functions",
+    "procedure_def": "procedures",
+}
+
+
+def test_library_item_registry_pin() -> None:
+    """All three tables above are keyed by grammar rule name and must cover
+    `?library_item` exactly — an eighth alternative added to the grammar fails
+    here until it is given a well-formed spelling, a truncated spelling, and the
+    field it is filed under.
+
+    red under: add an alternative to `?library_item` in cardlang.lark."""
+    alternatives = library_item_alternatives()
+    for what, table in (
+        ("well-formed", _ITEM_WELL_FORMED),
+        ("truncated", _ITEM_TRUNCATED),
+        ("field", _ITEM_FIELD),
+    ):
+        assert set(table) == alternatives, (
+            f"the {what} table does not cover `?library_item`: "
+            f"{sorted(set(table) ^ alternatives)}"
+        )
+    assert set(_ITEM_FIELD.values()) == {f.name for f in fields(n.Library)} - {
+        "name",
+        "span",
+    }, "every `n.Library` payload field must be the home of exactly one item kind"
+
+
+def _neighbour_cells(*, truncated: bool) -> list[object]:
+    """The grid: every `?library_item` alternative crossed with every other as
+    its neighbour. The one cell open today — a `function_def` truncated to
+    `function f() =`, whose empty `expr` slot reads the `requires { y : Integer }`
+    below it as a `struct_lit`, since `NAME "{" NAME ":" expr "}"` is exactly a
+    single-entry brace clause — is marked xfail so the red-before-green
+    transition is visible in the diff. The other 48 are refused by brace
+    structure rather than by the fix, and are here as the sweep of the class."""
+    items = sorted(library_item_alternatives())
+    cells: list[object] = []
+    for item in items:
+        for follower in items:
+            if not truncated and item == follower:
+                # A repeat of the single-valued `requires` block is its own
+                # error, probed separately below; the rest of the diagonal
+                # asserts nothing the off-diagonal cells do not.
+                continue
+            open_cell = truncated and (item, follower) == ("function_def", "requires_block")
+            cells.append(
+                pytest.param(
+                    item,
+                    follower,
+                    marks=[pytest.mark.xfail(strict=True)] if open_cell else [],
+                    id=f"{item}-then-{follower}",
+                )
+            )
+    return cells
+
+
+@pytest.mark.parametrize("item,follower", _neighbour_cells(truncated=True))
+def test_a_truncated_library_item_may_not_absorb_its_neighbour(
+    item: str, follower: str
+) -> None:
+    """An item missing its required slot is a syntax error, always — never an
+    item completed from the one below it, which would drop that one silently.
+
+    Asserted at the PARSE layer deliberately: the absorbed reading IS a
+    well-formed parse, so letting a later stage reject it for some other reason
+    (an unknown struct type, an unresolved name) would leave this cell green
+    while the neighbouring item had vanished.
+
+    red under: delete `requires` from STRUCT_TYPE_NAME's exclusion list in
+    cardlang.lark."""
+    src = f"library L {{\n  {_ITEM_TRUNCATED[item]}\n  {_ITEM_WELL_FORMED[follower]}\n}}"
+    with pytest.raises(DiagnosticError) as exc:
+        parse_library(src, "L.cardlang")
+    assert exc.value.diagnostic.span is not None, (
+        "a parse-layer refusal must be located, not a bare error"
+    )
+
+
+@pytest.mark.parametrize("item,follower", _neighbour_cells(truncated=False))
+def test_two_well_formed_library_items_both_survive(item: str, follower: str) -> None:
+    """The control for the grid above. Without it every truncated cell could be
+    passing because the FOLLOWER cannot appear there at all, rather than because
+    the truncation is refused.
+
+    red under: delete any isinstance filter from `parse.library()`."""
+    src = (
+        f"library L {{\n  {_ITEM_WELL_FORMED[item]}\n  "
+        f"{_ITEM_WELL_FORMED[follower]}\n}}"
+    )
+    library = parse_library(src, "L.cardlang")
+    for name in (item, follower):
+        assert getattr(library, _ITEM_FIELD[name]), (
+            f"`{_ITEM_WELL_FORMED[name]}` did not reach `Library.{_ITEM_FIELD[name]}`"
+        )
+
+
+def test_a_repeated_requires_block_is_rejected() -> None:
+    """The `requires` diagonal of the control grid: `requires` is the library's
+    one single-valued item, so a second block is the same defect a repeated
+    game clause is — keeping the last would discard the first."""
+    with pytest.raises(DiagnosticError) as exc:
+        parse_library(
+            "library L { requires { a : Integer } requires { b : Integer } }",
+            "L.cardlang",
+        )
+    assert "one `requires` block" in str(exc.value)
+
+
+@pytest.mark.parametrize("item", sorted(library_item_alternatives()))
+def test_the_library_builder_files_every_item_kind(item: str) -> None:
+    """Every `?library_item` the grammar accepts reaches the field it belongs
+    in, and no other. `parse.library()` has one independent isinstance filter
+    per kind, so a kind the grammar grows and the builder does not filter parses
+    and is dropped without a word — the accepted-but-ignored defect class.
+
+    red under: delete any isinstance filter from `parse.library()` — the row for
+    that kind then finds its field empty."""
+    library = parse_library(f"library L {{ {_ITEM_WELL_FORMED[item]} }}", "L.cardlang")
+    home = _ITEM_FIELD[item]
+    assert getattr(library, home), f"`{_ITEM_WELL_FORMED[item]}` never reached `{home}`"
+    elsewhere = [f for f in _ITEM_FIELD.values() if f != home and getattr(library, f)]
+    assert not elsewhere, f"it also landed in {elsewhere}"
+
+
+@pytest.mark.xfail(strict=True, reason="`library()` has no exhaustive dispatch arm yet")
+def test_an_unhandled_library_item_is_loud() -> None:
+    """The pin for the filters above: an eighth `?library_item` alternative that
+    no filter matches must stop the build, not vanish. Simulated the way the
+    grammar would deliver it — Lark's `Transformer` leaves a rule it has no
+    callback for as a bare `Tree`, which is what an unclassified alternative
+    hands the builder.
+
+    An `AssertionError`, not a `DiagnosticError`, and matching `game()`'s arm
+    exactly: a grammar alternative with no builder arm is a defect in this
+    package, not a sentence the designer got wrong, so it may not be reported in
+    the author-facing diagnostic currency.
+
+    red under: delete the `else: raise AssertionError` arm from
+    `parse.library()`."""
+    tree = parse_to_tree("library L { }", "L.cardlang", start="library")
+    tree.children.append(Tree("an_eighth_library_item", []))
+    with pytest.raises(AssertionError, match="unexpected library item"):
+        _transform(_Builder("L.cardlang", 0), tree)
 
 
 # --- the `uses` line itself ---------------------------------------------------

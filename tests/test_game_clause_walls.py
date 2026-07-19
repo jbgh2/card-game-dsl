@@ -24,13 +24,28 @@ domain:     the `?game_item` alternatives of the `game` production, times
             names is eaten by it with no error. That is a property of the
             RANKING production, not of `uses`, so it is swept over every
             clause rather than probed on the one that was found broken.
+            The axis has TWO absorbers, because the class is "an unbounded
+            or empty slot completes itself from the clause below it": the
+            `card_rank+` run, and an empty EXPRESSION slot, which reads a
+            single-entry brace clause as a `struct_lit`. The second was
+            found as `function f() =` swallowing a library's `requires`
+            block, and holds identically for a game's `loser:` swallowing
+            `zones { }`. Its fix is at the absorbed end — a clause keyword
+            is refused as a struct-literal type name — so its domain is the
+            clause KEYWORD registry of BOTH sibling sequences (`?game_item`
+            and `?library_item`), times {absorbed-as-a-literal,
+            declarable-as-a-type}, the second being the cost the exclusion
+            imposes on `type_def`.
 registry:   `cardlang/grammar/cardlang.lark` (`?game_item`) — scraped here
             by `_game_item_alternatives`, so a clause added to the grammar
             fails `test_game_item_registry_pin` until it is classified
-            below; `GAME_DIRECTIONS` in `cardlang/runtime/values.py` for
-            the direction value set; `CARD_RANK_NAME`'s negative lookahead
-            for the absorption axis, scraped by `_card_rank_excluded` so
-            both sides of that pin stay derived.
+            below; `?library_item` likewise by `library_item_alternatives`,
+            which the import tier's own module reuses; `GAME_DIRECTIONS` in
+            `cardlang/runtime/values.py` for the direction value set;
+            `CARD_RANK_NAME`'s and `STRUCT_TYPE_NAME`'s negative lookaheads
+            for the two absorption legs, scraped by `_card_rank_excluded`
+            and `_struct_type_excluded` so both sides of each pin stay
+            derived.
 covered:    duplication — exhaustively, every single-valued clause (all
             alternatives except `phase`), one probe each, parse-layer wall;
             omission — `players:`/`cards:` (parse wall, including the
@@ -41,8 +56,14 @@ covered:    duplication — exhaustively, every single-valued clause (all
             the valid BASE game here, which omits four of them);
             game-count — zero and two, parse wall; absorption —
             exhaustively, every clause written after a `ranking:`
-            enumeration and asserted to parse as itself, plus the static
-            keyword/exclusion-set pin.
+            enumeration and asserted to parse as itself, and every clause
+            written after an EMPTY `loser:` and asserted to be refused at
+            the parse layer, plus the static keyword/exclusion-set pin for
+            each of the two terminals; the exclusion's cost —
+            exhaustively, `type <keyword> = { }` refused for every clause
+            keyword of both registries. `loser:` is the only game clause
+            whose last slot is a bare `expr`, checked against the grammar
+            rather than assumed: `winner:` takes `rank_dir NAME`.
 sampled:    `ranking:` omission with rank-dependent constructs in play is
             typecheck's `has_ranking` gate (tests/test_ranking_wall.py);
             zero-`phase` games are accepted with defined degenerate
@@ -63,7 +84,7 @@ from lark import Tree
 
 import cardlang
 from cardlang.diagnostics import DiagnosticError
-from cardlang.parse import parse_to_tree
+from cardlang.parse import parse_text, parse_to_tree
 from cardlang.pipeline import check_dsl
 
 GRAMMAR = (
@@ -71,17 +92,29 @@ GRAMMAR = (
 ).read_text()
 
 
-def _game_item_alternatives() -> set[str]:
-    """Scrape the `?game_item:` alternatives — the clause registry this
+def _item_alternatives(production: str) -> set[str]:
+    """Scrape one `?<production>:` alternation — the clause registries this
     module's domain derives from (never hand-enumerate what a registry
     already defines)."""
     match = re.search(
-        r"^\?game_item:\s*(\w+)((?:\s*\n\s*\|\s*\w+)*)", GRAMMAR, re.MULTILINE
+        rf"^\?{production}:\s*(\w+)((?:\s*\n\s*\|\s*\w+)*)", GRAMMAR, re.MULTILINE
     )
-    assert match is not None, "grammar lost its `?game_item` production"
+    assert match is not None, f"grammar lost its `?{production}` production"
     names = {match.group(1)}
     names.update(re.findall(r"\|\s*(\w+)", match.group(2)))
     return names
+
+
+def _game_item_alternatives() -> set[str]:
+    return _item_alternatives("game_item")
+
+
+def library_item_alternatives() -> set[str]:
+    """The `?library_item` alternatives — a family-library file's clause
+    registry (decisions.md "Family libraries"). Public because the import
+    tier's own module (tests/test_family_libraries.py) derives its truncation
+    grid from the same scrape, and one scrape means one place to fix."""
+    return _item_alternatives("library_item")
 
 
 def _clause_keyword(rule_name: str) -> str:
@@ -173,6 +206,117 @@ _CLAUSE_TEXT: dict[str, str] = {
     # `loser:` takes an expr, not `winner:`'s `rank_dir NAME`.
     "loser": "loser: score",
 }
+
+
+# --- the second absorber: an expression slot, via `struct_lit` ----------------
+#
+# `struct_lit: NAME "{" field_init ("," field_init)* "}"` with
+# `field_init: NAME ":" expr` is token-identical to a single-entry brace clause
+# (`zones { deck : Deck }`, `requires { y : Integer }`). So an expression slot
+# left EMPTY — a `loser:` with no expression, a `function f() =` with no body —
+# reads the clause written below it as a struct literal and completes, dropping
+# the clause with no error and no `_ambig` node for the ambiguity budget to
+# catch. The fix is at the ABSORBED end, not the absorbing one: a clause
+# keyword is refused as a struct-literal type name, which closes every
+# expression slot in the grammar at once, so the domain below is the clause
+# KEYWORD registry rather than the set of slots that can do the absorbing.
+
+
+def _clause_keywords() -> set[str]:
+    """Every clause keyword a struct-literal type name must refuse, from BOTH
+    sibling-sequence registries: `?game_item` (a game file) and `?library_item`
+    (a family-library file)."""
+    return {
+        _clause_keyword(rule)
+        for rule in _game_item_alternatives() | library_item_alternatives()
+    }
+
+
+def _struct_type_excluded() -> set[str]:
+    """The words `STRUCT_TYPE_NAME`'s negative lookahead refuses, scraped from
+    the terminal itself — the other half of the pin below."""
+    match = re.search(
+        r"^STRUCT_TYPE_NAME:\s*/\(\?!\(\?:([^)]+)\)", GRAMMAR, re.MULTILINE
+    )
+    assert match is not None, "grammar lost its `STRUCT_TYPE_NAME` terminal"
+    return set(match.group(1).split("|"))
+
+
+@pytest.mark.xfail(strict=True, reason="STRUCT_TYPE_NAME does not exist yet")
+def test_struct_type_name_excludes_every_clause_keyword() -> None:
+    """Both sides derived, like the `CARD_RANK_NAME` pin above: the keyword set
+    from the two clause registries, the exclusion set from the terminal. A
+    clause added to either grammar production without an entry in
+    STRUCT_TYPE_NAME fails here rather than at a designer's desk.
+
+    red under: delete `zones` from STRUCT_TYPE_NAME's exclusion list in
+    cardlang.lark."""
+    missing = _clause_keywords() - _struct_type_excluded()
+    assert not missing, (
+        f"clause keyword(s) {sorted(missing)} are still legal struct-literal type "
+        f"names, so an empty expression slot can absorb the clause and drop it "
+        f"silently — add them to STRUCT_TYPE_NAME's exclusion list in cardlang.lark"
+    )
+
+
+def _absorption_cells() -> list[object]:
+    """`?game_item` alternatives, with the one cell that is open today marked
+    xfail so the grid's red-before-green transition is visible in the diff:
+    `zones { stock : Deck }` is the single-entry, unindexed, type-argument-free
+    clause whose text is exactly `NAME "{" NAME ":" expr "}"`. The others are
+    refused by structure, not by the fix — `state`'s decls carry `= <default>`,
+    `positions`' carry a `..` range, and the rest are not brace clauses at all
+    — and are here as the completeness sweep of the class."""
+    return [
+        pytest.param(rule, marks=[pytest.mark.xfail(strict=True)])
+        if rule == "zones"
+        else rule
+        for rule in sorted(_game_item_alternatives())
+    ]
+
+
+@pytest.mark.parametrize("rule_name", _absorption_cells())
+def test_no_clause_is_absorbed_by_an_empty_expression_slot(rule_name: str) -> None:
+    """`loser:` is the one game clause whose last slot is a bare `expr`, so it
+    is the game-file end of the absorption class. Left empty it must fail to
+    parse — never quietly take the next clause as its expression.
+
+    Asserted at the PARSE layer deliberately: the absorbed reading is a
+    well-formed parse, and letting a later stage reject it for some other
+    reason (an unknown struct type) would make this cell green while the clause
+    still vanished.
+
+    red under: delete `zones` from STRUCT_TYPE_NAME's exclusion list."""
+    src = (
+        "game G {\n  players: 2\n  cards: standard52\n  loser:\n"
+        f"  {_CLAUSE_TEXT[rule_name]}\n}}"
+    )
+    with pytest.raises(DiagnosticError) as exc:
+        parse_text(src, "absorb.cardlang")
+    assert exc.value.diagnostic.span is not None, (
+        "a parse-layer refusal must be located, not a bare error"
+    )
+
+
+@pytest.mark.xfail(strict=True, reason="STRUCT_TYPE_NAME does not exist yet")
+@pytest.mark.parametrize("keyword", sorted(_clause_keywords()))
+def test_a_type_may_not_be_declared_under_a_clause_keyword(keyword: str) -> None:
+    """The cost of the exclusion above, made explicit and swept over the same
+    registry. A type whose name a struct literal cannot spell would be
+    declarable but unusable — accepted-but-ignored one step removed — so the
+    DECLARATION is refused too, keeping `type_def` and `struct_lit` symmetric
+    about which names a struct type may take.
+
+    red under: point `type_def`'s name back at plain `NAME` in cardlang.lark."""
+    src = (
+        f"type {keyword} = {{ x : Integer }}\n"
+        "game G { players: 2 cards: standard52 zones { deck : Deck } }"
+    )
+    with pytest.raises(DiagnosticError) as exc:
+        parse_text(src, "typename.cardlang")
+    assert exc.value.diagnostic.span is not None, (
+        "a parse-layer refusal must be located, not a bare error"
+    )
 
 
 # grammar rule name -> the clause spelling the duplicate diagnostic names.
