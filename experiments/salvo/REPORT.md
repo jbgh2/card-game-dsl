@@ -334,3 +334,19 @@ are the game's thinnest battlefield somewhat more often than chance
 than amplifying it, because sighted players contest an edge the
 opponent under-commits to. No concede-the-edge degenerate pattern
 under any policy. Question 3 closes positive.
+
+## 11. Round 5 (combos + jokers) — BLOCKED on a language review, by design
+
+The round stopped before implementation. Expressing the combo bonus
+table requires combinatorial-structure queries over a zone (same-rank
+groups, runs, flushes) that the language does not have; the shortest
+path — another registered per-game stdlib primitive in cribbage's mold
+— is exactly the pattern this experiment exists to surface, not extend
+(designer's call, on review). The hole turns out to be the language's
+largest recurring one: five shipped witnesses already pay for it in
+Python (cribbage's show, Stud's entire showdown, the climbing
+vocabularies, Gin's melds, Canasta's melds). The characterization and
+option space live in `docs/design-notes/combination-scoring.md`; Salvo
+resumes this round when the language decision lands. The joker half is
+NOT blocked on expressiveness (joker cards, rankings, and filtered
+deals all exist) — only on the deck question recorded in the same note.
