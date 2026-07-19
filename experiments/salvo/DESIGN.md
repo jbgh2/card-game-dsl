@@ -92,8 +92,11 @@ Each round:
    in their owner's row at their location. They stay there for the
    rest of the game. Nothing triggers on reveal, so reveal order never
    matters.
+4. **Recon.** A player who committed fewer than two cards this round
+   draws one extra card. Restraint buys card advantage — the round's
+   real question is surge now or dig for better ammunition.
 
-Cards left in hand after turn six score nothing.
+Cards left in hand after round six score nothing.
 
 **Scoring** (after turn six). At each location, each player totals their
 army there:
@@ -140,13 +143,12 @@ locations wins; if that also ties, the game is a draw.
   zero-centered curve was tested as a fix and refuted (it also
   diluted the interactive core; the all-positive curve stays). What
   works is the **recon draw** — a player who commits fewer than two
-  cards in a round draws one extra at round end — tested in
-  `variants/salvo-recon.cardlang`: restraint then beats commit-max
+  cards in a round draws one extra at round end — now adopted into the
+  base rules (the Round loop's step 4): restraint beats commit-max
   with an interior optimum (hold moderately: win; never hold: lose;
-  over-dig: collapse), while the capacity-only control shows holding
-  losing at every threshold without it. Recommended for adoption into
-  the base rules; adoption is the designer's call. Remaining
-  candidates (total commit budget; combo option-value) stay recorded.
+  over-dig: collapse), while the capacity-only control showed holding
+  losing at every threshold without it. Remaining candidates (total
+  commit budget; combo option-value) stay recorded.
 
 ## Information structure
 

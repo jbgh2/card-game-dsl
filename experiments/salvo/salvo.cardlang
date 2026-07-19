@@ -1,4 +1,4 @@
-// Salvo — round-1 encoding of the original design in DESIGN.md.
+// Salvo — the base game of DESIGN.md (staged-alternating encoding).
 //
 // Two players fight over three location cards dealt face up. Each location's
 // rank is a target (a committed card is worth 13 minus its distance to the
@@ -6,11 +6,14 @@
 // both players draw, then each in turn stages up to two cards face down at
 // locations of their choice; all staged cards flip together at round end.
 // A player may never hold more than FOUR cards at one location (staged plus
-// flipped — Snap's per-side cap; the guard on the commit vocabulary).
+// flipped — Snap's per-side cap; the guard on the commit vocabulary), and a
+// player who commits FEWER THAN TWO cards in a round draws one extra card at
+// round end (the recon draw — restraint buys card advantage; REPORT.md
+// section 8 is the evidence this rule is what makes the count a decision).
 // Highest army total takes a location; most locations wins, grand total
 // breaks ties (encoded as final = locations * 1000 + total).
 //
-// Round-1 reductions, deliberate (all recorded in DESIGN.md):
+// Deliberate encoding choices and remaining reductions (per DESIGN.md):
 //
 // - STAGED-ALTERNATING COMMITS, not pure-sealed simultaneity. The sealed
 //   `each player simultaneously:` body is one fixed-destination chosen
@@ -22,10 +25,11 @@
 //   Snap itself shows as face-down card-backs at locations. Initiative
 //   alternates each round to balance the information edge.
 // - NO COMBOS yet: cribbage-style combination scoring lives in a registered
-//   stdlib primitive, not in-DSL combinators; a salvo primitive is round-2
-//   work. Base-game sims isolate the interaction question first (combos are
-//   self-synergy — if the base game is double solitaire, combos worsen it).
-// - NO JOKERS yet: they ride the same round-2 change.
+//   stdlib primitive, not in-DSL combinators; a salvo primitive is future
+//   work. Base-game sims isolated the interaction question first (combos are
+//   self-synergy — if the base game were double solitaire, combos would
+//   worsen it).
+// - NO JOKERS yet: they ride the same future change.
 //
 // The staged piles are HiddenPile<player> — identity to the owner, a bare
 // count to the opponent — so the flip is just a movement to the public
@@ -55,16 +59,17 @@ game Salvo {
   }
 
   state {
-    round_no         : Integer = 0
-    first_mover      : Player  = 0     // round initiative, alternates
-    committer        : Player  = 0     // whose commit window is open
-    committed        : Integer = 0     // commits made in the open window
-    commit_open      : Boolean = false
-    pts_a[player]    : Integer = 0     // army totals, computed at settle
-    pts_b[player]    : Integer = 0
-    pts_c[player]    : Integer = 0
-    locs_won[player] : Integer = 0
-    final[player]    : Integer = 0
+    round_no          : Integer = 0
+    first_mover       : Player  = 0     // round initiative, alternates
+    committer         : Player  = 0     // whose commit window is open
+    committed         : Integer = 0     // commits made in the open window
+    commit_open       : Boolean = false
+    commits_r[player] : Integer = 0     // this round's commit count, for recon
+    pts_a[player]     : Integer = 0     // army totals, computed at settle
+    pts_b[player]     : Integer = 0
+    pts_c[player]     : Integer = 0
+    locs_won[player]  : Integer = 0
+    final[player]     : Integer = 0
   }
 
   phase setup {
@@ -89,6 +94,7 @@ game Salvo {
       repeat until (not commit_open) or (committed is 2) {
         offer to committer one of [commit_a, commit_b, commit_c, hold]
       }
+      commits_r[committer] := committed
 
       // Second commit window: this player has seen the staging counts.
       committer := the player where player is not first_mover
@@ -97,11 +103,16 @@ game Salvo {
       repeat until (not commit_open) or (committed is 2) {
         offer to committer one of [commit_a, commit_b, commit_c, hold]
       }
+      commits_r[committer] := committed
 
       // The flip: every staged card goes public at once.
       for each player p: move all cards from staged_a[p] to army_a[p]
       for each player p: move all cards from staged_b[p] to army_b[p]
       for each player p: move all cards from staged_c[p] to army_c[p]
+
+      // Recon: a round of restraint earns an extra card.
+      if commits_r[0] < 2 { draw 1 card from deck to hand[0] }
+      if commits_r[1] < 2 { draw 1 card from deck to hand[1] }
 
       first_mover := the player where player is not first_mover
       round_no += 1

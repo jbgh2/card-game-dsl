@@ -21,6 +21,7 @@ CANONICAL = [
     "results_triage_zc.json",     # round 2: zero-centered curve (refuted)
     "results_triage_cap.json",    # round 3 baseline: capacity 4
     "results_triage_recon.json",  # round 3: capacity + recon draw
+    "results_triage_base.json",   # round 4: adopted base, tuned knobs
 ]
 
 
@@ -30,7 +31,7 @@ def label_of(name: str, data: dict) -> str:
     stem = name.removeprefix("results_triage").removesuffix(".json").strip("_") or "full"
     if "hb" in stem.rsplit("_", 1)[-1]:
         return f"{base} hb={hb:g}"
-    return {"full": "round1", "zc": "zero-centered", "cap": "capacity", "recon": "cap+recon"}.get(base, base)
+    return {"full": "round1", "zc": "zero-centered", "cap": "capacity", "recon": "cap+recon", "base": "base (tuned)"}.get(base, base)
 
 
 def fmt_cell(p: dict | None) -> str:
