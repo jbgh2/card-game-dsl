@@ -1,0 +1,271 @@
+// 500 (Five Hundred) — formalized DSL (parser/checker/runtime target).
+//
+// Companion to five-hundred.md. Four-player partnership Australian 500,
+// 43-card pack (A..5 black, A..4 red, one joker), play to +500 / out at -500.
+// Each hand: an ascending drop-out auction over the 27-rung contract ladder
+// (six spades up to ten no-trumps, with misère and open misère inserted),
+// the winner takes the three-card kitty and discards three, and ten tricks
+// are played — under a trump contract the joker and both bowers are the top
+// three trumps and members of the trump suit in all respects; a misère is
+// played three-handed (the declarer's partner sits the hand out, cards face
+// down) and the declarer wants NO tricks; an open misère additionally lays
+// the declarer's hand face up for everyone after the first trick.
+//
+// The hand runs fully on the kernel. The auction is the drop-out ring form
+// of `round` (the Pinochle shape: a passed seat leaves the participants
+// predicate and is never offered again); each bid is the cheapest rung in
+// the named strain that beats the standing bid (the Bridge precedent —
+// level jumps are folded into successive raises), with misère and open
+// misère as their own guarded moves at their Pagat insertion points. The
+// ladder ordinal, contract values, follow/lead legality, and trick winner
+// are game-local primitives (cardlang/runtime/five_hundred.py); the tricks
+// are single-actor filtered movements (the Skat/Doppelkopf shape), three
+// per trick in a misère. The open-misère reveal is a plain movement into
+// `exposed[declarer]` — a PublicHand zone, identity to every observer — so
+// the mid-phase visibility flip is carried entirely by the standing zone
+// projections (open-questions material: knowledge-events).
+//
+// The deck-derived Suit domain carries a fifth value, the joker's own
+// "joker" suit. It is never a biddable strain nor a nominable suit: the bid
+// guard's `five_hundred_next_bid` returns 0 for it and the nomination guard
+// excludes it, so both actions sit permanently masked in the action space.
+
+game FiveHundred {
+
+  players: 4
+  partnerships: [[0, 2], [1, 3]]   // partners sit across
+  direction: clockwise
+  max_length: 20000
+
+  cards: five_hundred43
+  ranking: Joker A K Q J 10 9 8 7 6 5 4
+
+  zones {
+    deck            : Deck
+    hand[player]    : Hand<player>
+    kitty           : FaceDownPile           // the three-card kitty
+    exposed[player] : PublicHand<player>     // the open-misère lay-down
+    trick_pile      : TrickPile
+    captured[team]  : TeamPile<team>
+  }
+
+  state {
+    // Game-level: persists across hands. The champion marker fixes the
+    // winner the moment the game ends: +500 reached BY WINNING A CONTRACT
+    // (crossing 500 on opponents' tricks alone does not win), or the other
+    // side going out backwards at -500.
+    score[team]    : Integer = 0
+    champion[team] : Integer = 0
+  }
+
+  phase hand_sequence repeat until (any team where champion[team] is 1) {
+    state {
+      dealer : Player = 0
+    }
+
+    before_each {
+      move all cards to deck
+      shuffle deck
+      // 3 to each - 1 kitty - 4 to each - 1 kitty - 3 to each - 1 kitty.
+      deal 3 cards from deck to each hand
+      deal 1 card from deck to kitty
+      deal 4 cards from deck to each hand
+      deal 1 card from deck to kitty
+      deal 3 cards from deck to each hand
+      deal 1 card from deck to kitty
+      dealer := dealer offset_by left
+    }
+
+    phase play {
+      state {
+        opener            : Player?  = none
+        passed[player]    : Boolean  = false
+        bid_rank          : Integer  = 0      // standing contract ordinal (0 = none)
+        high_bidder       : Player?  = none
+        declarer          : Player?  = none
+        trump_suit        : Suit?    = none   // none = the no-trump family
+        is_misere         : Boolean  = false
+        is_open_misere    : Boolean  = false
+        joker_suit        : Suit?    = none   // the declarer's nomination, if any
+        leader            : Player?  = none
+        tricks_played     : Integer  = 0
+        declarer_tricks   : Integer  = 0      // misère contracts count these
+        team_tricks[team] : Integer  = 0      // suit/no-trump contracts count these
+      }
+
+      // --- The auction: eldest speaks first, clockwise; a bid must beat the
+      // standing bid on the ladder; a pass drops the seat for the rest of the
+      // auction. It ends when a bid stands and only the bidder survives, or
+      // when all four pass (the hand is thrown in).
+      opener := dealer offset_by left
+      round offering [submit_bid, bid_misere, bid_open_misere, pass]
+            from opener over players where not passed[player]
+            until (bid_rank > 0 and (number of players where not passed[player]) <= 1)
+                  or (number of players where not passed[player]) is 0
+      if high_bidder is none { skip to next hand }
+      declarer := high_bidder
+
+      // --- The kitty: the declarer takes the three cards (identity to him
+      // alone; counts to the table) and buries any three face down.
+      move all cards from kitty to hand[declarer]
+      as declarer { move chosen 3 cards from hand[declarer] to kitty }
+
+      // --- Joker nomination (no-trump family only, misères included): the
+      // declarer may announce the suit the joker belongs to before the first
+      // lead — it then counts as the highest card of that suit. The offer is
+      // made whether or not he holds the joker (declining reveals nothing);
+      // actually nominating requires holding it.
+      if trump_suit is none {
+        offer to declarer one of [nominate_joker_suit, decline_nomination]
+      }
+
+      leader := declarer                      // the declarer leads trick 1
+
+      if is_misere or is_open_misere {
+        // --- Misère: three-handed — the declarer's partner puts his cards
+        // face down (his untouched hand) and takes no part. Play stops the
+        // moment the declarer wins a trick (the contract is already lost;
+        // opponents score nothing in a misère either way). In an open
+        // misère, the declarer's hand goes face up for everyone once the
+        // first trick has been played, and he plays on from the exposed
+        // cards.
+        repeat until tricks_played >= 10 or declarer_tricks > 0 {
+          if is_open_misere and tricks_played is 1 {
+            move all cards from hand[declarer] to exposed[declarer]
+          }
+          let dead = declarer offset_by across
+          let x1 = leader offset_by left
+          let a2 = if x1 is dead then x1 offset_by left else x1
+          let x2 = a2 offset_by left
+          let a3 = if x2 is dead then x2 offset_by left else x2
+          if is_open_misere and tricks_played >= 1 and leader is declarer {
+            as leader { move chosen one card from exposed[leader] where five_hundred_lead_ok(leader, card) to trick_pile }
+          } else {
+            as leader { move chosen one card from hand[leader] where five_hundred_lead_ok(leader, card) to trick_pile }
+          }
+          if is_open_misere and tricks_played >= 1 and a2 is declarer {
+            as a2 { move chosen one card from exposed[a2] where five_hundred_follow_ok(a2, card) to trick_pile }
+          } else {
+            as a2 { move chosen one card from hand[a2] where five_hundred_follow_ok(a2, card) to trick_pile }
+          }
+          if is_open_misere and tricks_played >= 1 and a3 is declarer {
+            as a3 { move chosen one card from exposed[a3] where five_hundred_follow_ok(a3, card) to trick_pile }
+          } else {
+            as a3 { move chosen one card from hand[a3] where five_hundred_follow_ok(a3, card) to trick_pile }
+          }
+          let w = five_hundred_trick_winner(leader)
+          move all cards from trick_pile to captured[team_of(w)]
+          if w is declarer { declarer_tricks += 1 }
+          tricks_played += 1
+          leader := w
+        }
+      } else {
+        // --- Suit and no-trump contracts: ten four-handed tricks. Strict
+        // follow within the led class (under a trump contract the joker and
+        // both bowers ARE the trump suit); no obligation to trump; the
+        // winner leads the next trick.
+        repeat until tricks_played >= 10 {
+          let s2 = leader offset_by left
+          let s3 = s2 offset_by left
+          let s4 = s3 offset_by left
+          as leader { move chosen one card from hand[leader] where five_hundred_lead_ok(leader, card) to trick_pile }
+          as s2 { move chosen one card from hand[s2] where five_hundred_follow_ok(s2, card) to trick_pile }
+          as s3 { move chosen one card from hand[s3] where five_hundred_follow_ok(s3, card) to trick_pile }
+          as s4 { move chosen one card from hand[s4] where five_hundred_follow_ok(s4, card) to trick_pile }
+          let w = five_hundred_trick_winner(leader)
+          move all cards from trick_pile to captured[team_of(w)]
+          team_tricks[team_of(w)] += 1
+          tricks_played += 1
+          leader := w
+        }
+      }
+
+      // --- Scoring. Misère contracts score inversely: the table value for
+      // taking NO trick, minus it for taking any; the opponents score
+      // nothing either way. Suit/no-trump contracts score the table value
+      // made or lose it failed; a slam (all ten tricks) on a contract worth
+      // under 250 scores 250 instead; the opponents always score 10 per
+      // trick they took. The game ends only on a contract win crossing +500
+      // or a side going out backwards at -500.
+      let dteam = team_of(declarer)
+      let oteam = team_of(declarer offset_by left)  // partners sit across: the left neighbour is always an opponent
+      let value = five_hundred_bid_value(bid_rank)
+      let made = if is_misere or is_open_misere then declarer_tricks is 0
+                 else team_tricks[dteam] >= five_hundred_bid_level(bid_rank)
+      if made {
+        score[dteam] += if team_tricks[dteam] is 10 and value < 250 then 250 else value
+        if score[dteam] >= 500 { champion[dteam] := 1 }
+      } else {
+        score[dteam] -= value
+        if score[dteam] <= 0 - 500 { champion[oteam] := 1 }
+      }
+      if not is_misere and not is_open_misere {
+        score[oteam] += 10 * team_tricks[oteam]
+      }
+    }
+  }
+
+  winner: highest champion
+}
+
+// === The auction vocabulary ===
+//
+// Game-defined move_types (the Skat/Bridge shape). Every bid writes the
+// standing contract into public phase state; the ladder ordinal encodes the
+// full Pagat order (6♠ 40 ... 10NT 520; misère above the sevens, below the
+// eights; open misère between 10♦ and 10♥). A bid names a strain and takes
+// the cheapest rung in it that beats the standing bid — the Bridge
+// precedent for level derivation.
+
+move_type submit_bid(strain : Suit?) {
+  when: five_hundred_next_bid(bid_rank, strain) > 0
+  effect {
+    bid_rank       := five_hundred_next_bid(bid_rank, strain)
+    trump_suit     := strain
+    is_misere      := false
+    is_open_misere := false
+    high_bidder    := actor
+  }
+}
+
+// Misère (250): biddable only once the standing bid is a seven-level bid
+// (ordinals 60..100) — Pagat: "Misere can only be bid after someone has bid
+// seven" — and outranked by any eight bid.
+move_type bid_misere {
+  when: bid_rank >= 60 and bid_rank <= 100
+  effect {
+    bid_rank       := 105
+    trump_suit     := none
+    is_misere      := true
+    is_open_misere := false
+    high_bidder    := actor
+  }
+}
+
+// Open misère (500): biddable over any lower bid, or as the first bid.
+move_type bid_open_misere {
+  when: bid_rank < 235
+  effect {
+    bid_rank       := 235
+    trump_suit     := none
+    is_misere      := false
+    is_open_misere := true
+    high_bidder    := actor
+  }
+}
+
+move_type pass {
+  effect { passed[actor] := true }
+}
+
+// The joker's suit, announced before the first lead (no-trump family only).
+// Nominating requires actually holding the joker; the joker's own "joker"
+// suit is a deck fact, not a nominable suit.
+move_type nominate_joker_suit(s : Suit) {
+  when: (any card in hand[actor] where card.rank is Joker) and s is not joker
+  effect { joker_suit := s }
+}
+
+move_type decline_nomination {
+  effect { }
+}

@@ -1,0 +1,496 @@
+// Belote — formalized DSL (parser/checker/runtime target).
+//
+// Companion to belote.md. Plain four-player partnership Belote (not Coinche),
+// 32-card skat32 deck, counterclockwise, first team to 1000. Each hand: deal
+// 3+2 and turn a card up; two take/pass rounds make trump (accept the turned
+// suit, or name another; all pass twice throws the hand in); the deal
+// completes asymmetrically (the taker gets the turned card + 2, the others 3);
+// eight tricks under the strict follow/trump/over-trump obligations; the
+// taking side must total at least as many points as the defenders or go
+// "dedans" (the defenders take 162 plus every announced declaration).
+//
+// The whole hand runs on the kernel. The trump-making is two outcome-less
+// offering rounds over shrinking rings (the Skat shape). The tricks run on
+// the trick form of `round`, legality narrowed by the five-rule cascade
+// below — the corpus's richest constrained-follow instance: the trump and
+// over-trump obligations are GATED partnership-relatively (they bind only
+// while an OPPONENT is winning the trick, via `belote_opp_winning()`), the
+// over-trump target is the best trump in the trick from either side, and
+// trump leads must be beaten regardless of who is winning. The mid-play
+// knowledge events COMPOSE existing ops (belote.md, "Declarations"):
+// announcements carry their content in the move name and Rank parameter
+// (the Doppelkopf announcement-vocabulary shape — the announce event is
+// what observers' information sets derive from), the Belote-Rebelote
+// window is an `offer` whose acceptance publicly `reveal`s the partner
+// card still in hand, and the entitled side's showing is a loop of
+// one-card `reveal`s over the best combination's cards. Plain-suit
+// ranking is `ace-ten`; the within-trump reorder
+// (J > 9 > A > 10 > K > Q > 8 > 7) is outside `ranking:`'s scope
+// (decisions.md) and lives in the belote_* primitives.
+
+game Belote {
+
+  players: 4
+  partnerships: [[0, 2], [1, 3]]   // partners sit across
+  direction: counterclockwise      // canonical for Belote
+  max_length: 20000
+
+  cards: skat32
+  ranking: ace-ten                 // plain-suit order A 10 K Q J 9 8 7
+
+  zones {
+    deck           : Deck
+    hand[player]   : Hand<player>
+    turnup         : Discard       // the face-up trump proposal
+    trick_pile     : TrickPile
+    captured[team] : TeamPile<team>
+  }
+
+  state {
+    // Game-level: persists across hands.
+    score[team] : Integer = 0
+  }
+
+  phase hand_sequence repeat until (any team where score[team] >= 1000) {
+    state {
+      dealer : Player = 0
+    }
+
+    before_each {
+      move all cards to deck
+      shuffle deck
+      deal 3 cards from deck to each hand
+      deal 2 cards from deck to each hand
+      deal 1 card from deck to turnup
+    }
+
+    phase play {
+      state {
+        // Trump-making.
+        taker         : Player? = none
+        trump_suit    : Suit?   = none
+        acted[player] : Boolean = false
+        // Tricks.
+        leader           : Player? = none
+        trick_no         : Integer = 0
+        tricks_won[team] : Integer = 0
+        last_winner      : Player? = none
+        // Belote-Rebelote: the trump K-Q announcement. One window, at the
+        // close of the trick where the FIRST trump royal is played.
+        belote_resolved : Boolean = false
+        belote_said     : Boolean = false
+        belote_holder   : Player? = none
+        // Declarations: the announced public claims. Written only by the
+        // declaration moves — a silent player's row stays zero, so nothing
+        // of an undeclared hand reaches public state.
+        decl_acted[player]  : Boolean = false
+        decl_points[player] : Integer = 0
+        decl_class[player]  : Integer = 0
+        decl_height[player] : Integer = 0
+        decl_trump[player]  : Boolean = false
+        ann_meld[team]      : Integer = 0   // announced totals (dedans transfer)
+        best_str            : Integer = 0
+        best_holder         : Player? = none
+        show_k              : Integer = 0
+        // Scoring accumulators.
+        meld_score[team] : Integer = 0   // the entitled side's declarations
+        total[team]      : Integer = 0
+      }
+
+      // The cascade constrains only `play_to_trick`, so the game-defined
+      // trump-making, declaration, and Belote-Rebelote vocabularies below
+      // run unconstrained beside it (the Skat shape: game-defined move
+      // types are not `legal_moves:` entries).
+      active_rules: [MustFollowSuit, MustHeadTrumpLead,
+                     MustTrumpIfVoidVsOpponents, MustOverTrumpVsOpponents,
+                     NoUnderTrumpVsPartner]
+      legal_moves:  [play_to_trick]
+
+      // --- Trump-making: two take/pass rounds from the dealer's right.
+      // Round one accepts the turned suit; round two names any other suit;
+      // all pass twice throws the hand in (the next dealer deals).
+      round offering [take, pass] from dealer offset_by right
+            over players where not acted[player]
+            until taker is not none
+                  or (number of players where not acted[player]) is 0
+      if taker is none {
+        for each player p: acted[p] := false
+        round offering [take_suit, pass] from dealer offset_by right
+              over players where not acted[player]
+              until taker is not none
+                    or (number of players where not acted[player]) is 0
+      }
+      // All pass twice: the hand is thrown in. The cards return to the deck
+      // HERE, in declaration order (hands by seat, then the turn-up), so the
+      // next hand's `move all cards to deck` gather finds every zone empty:
+      // this is the corpus's first game that can reach a gather with full
+      // HANDS (the sorted-name gather order is canonical, but `hand` is the
+      // language-wide magic name the metamorphic rename cannot touch, so a
+      // gather over non-empty hands is order-sensitive under renaming —
+      // returning the cards explicitly keeps the throw-in rename-stable).
+      if taker is none {
+        for each player p: move all cards from hand[p] to deck
+        move all cards from turnup to deck
+        skip to next hand
+      }
+
+      // The deal completes: the taker gets the turned card and two more,
+      // every other player three more (32 = 21 + 2 + 3x3).
+      move all cards from turnup to hand[taker]
+      for each player p:
+        deal (if p is taker then 2 else 3) cards from deck to hand[p]
+
+      // --- Eight tricks, the dealer's right leading the first, the trick
+      // winner leading the next. Legality is the five-rule cascade below.
+      leader := dealer offset_by right
+      repeat until (all players where hand[player] is empty) {
+        trick_no += 1
+        round play_to_trick from leader over all players source hand into trick_pile
+              outcome belote_trick_winner trump trump_suit
+
+        // Belote-Rebelote window: fires once, at the close of the trick
+        // where the first trump K/Q was played — a PUBLIC gate (the play was
+        // public), so the offer's existence leaks nothing. Only a player who
+        // still holds the partner royal can say it (the private guard); a
+        // player without it declines with the same public move as a player
+        // declining by choice. Saying it publicly reveals the partner card,
+        // still in hand — exactly the announcement's information content.
+        if not belote_resolved {
+          let bp = belote_royal_player()
+          if bp is not none {
+            belote_resolved := true
+            offer to bp one of [say_belote, no_belote]
+            if belote_said {
+              reveal one card from hand[bp] where is_royal(card)
+            }
+          }
+        }
+
+        tricks_won[team_of(outcome)] += 1
+        last_winner := outcome
+        move all cards from trick_pile to captured[team_of(outcome)]
+
+        // Declarations: announced at the close of the first trick, in play
+        // order from its leader (belote.md, "Declarations" — the reference
+        // interleaves them with the trick's plays); compared; and the
+        // entitled side's combinations shown before the second trick.
+        if trick_no is 1 {
+          round offering [declare_tierce, declare_tierce_trump,
+                          declare_quarte, declare_quarte_trump,
+                          declare_quinte, declare_quinte_trump,
+                          declare_carre, no_declaration]
+                from leader
+                over players where not decl_acted[player]
+                until (number of players where not decl_acted[player]) is 0
+
+          // The comparison, in announcement order: strict `>` keeps the
+          // earlier announcer, so equal-height ties go to the first in
+          // rotation and a trump sequence (the +1 strength bit) beats an
+          // equal plain one — Pagat's tie-break order exactly.
+          let d1 = leader
+          let d2 = d1 offset_by right
+          let d3 = d2 offset_by right
+          let d4 = d3 offset_by right
+          if decl_strength(d1) > best_str { best_str := decl_strength(d1)  best_holder := d1 }
+          if decl_strength(d2) > best_str { best_str := decl_strength(d2)  best_holder := d2 }
+          if decl_strength(d3) > best_str { best_str := decl_strength(d3)  best_holder := d3 }
+          if decl_strength(d4) > best_str { best_str := decl_strength(d4)  best_holder := d4 }
+
+          // The showing: the entitled side's declared cards become public,
+          // one reveal per card over the best combination (the same
+          // enumeration the announcement's guard verified). The losing side
+          // never shows — its cards stay at the hand's own projection.
+          if best_holder is not none {
+            for each player p:
+              if team_of(p) is team_of(best_holder) and decl_points[p] > 0 {
+                show_k := 0
+                repeat until show_k >= belote_decl_size(p) {
+                  reveal one card from hand[p] where belote_decl_slot(p, show_k, card)
+                  show_k += 1
+                }
+              }
+          }
+        }
+
+        leader := last_winner
+      }
+
+      // --- Scoring. Only the side with the best declaration counts its
+      // declarations — and a side that took no trick counts none (the
+      // standard rule; the variant that lets a capot defender keep them is
+      // out of scope). Belote-Rebelote's 20 always stays with its announcer.
+      if best_holder is not none {
+        if tricks_won[team_of(best_holder)] > 0 {
+          for each player p:
+            if team_of(p) is team_of(best_holder) {
+              meld_score[team_of(p)] += decl_points[p]
+            }
+        }
+      }
+
+      let taking = team_of(taker)
+      for each team t:
+        total[t] := (sum of bel_card_points(card) over cards in captured[t])
+                    + meld_score[t] + belote20(t)
+      if tricks_won[taking] is 8 {
+        total[taking] += 100          // capot: 100 instead of the dix de der
+      } else {
+        total[team_of(last_winner)] += 10   // dix de der
+      }
+
+      for each team t:
+        if t is not taking {
+          if total[taking] >= total[t] {
+            // Contract made (ties go to the takers): both sides bank.
+            score[taking] += total[taking]
+            score[t] += total[t]
+          } else {
+            // Dedans: the defenders take 162 plus every announced
+            // declaration, each side keeping its Belote-Rebelote 20.
+            score[t] += 162 + ann_meld[t] + ann_meld[taking]
+                        + belote20(t)
+            score[taking] += belote20(taking)
+          }
+        }
+    }
+
+    after_each {
+      dealer := dealer offset_by right
+    }
+  }
+
+  winner: highest score
+}
+
+// === Trump-making vocabulary ===
+//
+// Round one: accept the turned card's suit as trump, or pass. Round two:
+// name any OTHER suit, or pass. A seat that passes drops out of the ring.
+
+move_type take {
+  effect {
+    trump_suit := suit_of(turnup)
+    taker := actor
+  }
+}
+
+move_type take_suit(s : Suit) {
+  when: s is not suit_of(turnup)
+  effect {
+    trump_suit := s
+    taker := actor
+  }
+}
+
+move_type pass {
+  effect { acted[actor] := true }
+}
+
+// === Declaration vocabulary ===
+//
+// One decision per player, in play order at the close of the first trick:
+// announce the hand's best combination, or stay silent. The announcement's
+// CONTENT — kind and trump status in the move name, the top card as the
+// Rank parameter — rides the move itself, so the public announce event
+// carries exactly what the spoken protocol communicates and every
+// observer's information set derives it from their log (the Doppelkopf
+// announcement-vocabulary shape). The guard verifies the holding exactly
+// (no false, weaker, or absent declarations); the effects book the same
+// facts into scoring state.
+
+move_type declare_tierce(h : Rank) {
+  when: belote_best_is(actor, 1, h, false)
+  effect {
+    decl_points[actor] := belote_decl_points(actor)
+    decl_class[actor]  := belote_decl_class(actor)
+    decl_height[actor] := belote_decl_height(actor)
+    decl_trump[actor]  := belote_decl_trump(actor)
+    ann_meld[team_of(actor)] += belote_decl_points(actor)
+    decl_acted[actor] := true
+  }
+}
+
+move_type declare_tierce_trump(h : Rank) {
+  when: belote_best_is(actor, 1, h, true)
+  effect {
+    decl_points[actor] := belote_decl_points(actor)
+    decl_class[actor]  := belote_decl_class(actor)
+    decl_height[actor] := belote_decl_height(actor)
+    decl_trump[actor]  := belote_decl_trump(actor)
+    ann_meld[team_of(actor)] += belote_decl_points(actor)
+    decl_acted[actor] := true
+  }
+}
+
+move_type declare_quarte(h : Rank) {
+  when: belote_best_is(actor, 2, h, false)
+  effect {
+    decl_points[actor] := belote_decl_points(actor)
+    decl_class[actor]  := belote_decl_class(actor)
+    decl_height[actor] := belote_decl_height(actor)
+    decl_trump[actor]  := belote_decl_trump(actor)
+    ann_meld[team_of(actor)] += belote_decl_points(actor)
+    decl_acted[actor] := true
+  }
+}
+
+move_type declare_quarte_trump(h : Rank) {
+  when: belote_best_is(actor, 2, h, true)
+  effect {
+    decl_points[actor] := belote_decl_points(actor)
+    decl_class[actor]  := belote_decl_class(actor)
+    decl_height[actor] := belote_decl_height(actor)
+    decl_trump[actor]  := belote_decl_trump(actor)
+    ann_meld[team_of(actor)] += belote_decl_points(actor)
+    decl_acted[actor] := true
+  }
+}
+
+move_type declare_quinte(h : Rank) {
+  when: belote_best_is(actor, 3, h, false)
+  effect {
+    decl_points[actor] := belote_decl_points(actor)
+    decl_class[actor]  := belote_decl_class(actor)
+    decl_height[actor] := belote_decl_height(actor)
+    decl_trump[actor]  := belote_decl_trump(actor)
+    ann_meld[team_of(actor)] += belote_decl_points(actor)
+    decl_acted[actor] := true
+  }
+}
+
+move_type declare_quinte_trump(h : Rank) {
+  when: belote_best_is(actor, 3, h, true)
+  effect {
+    decl_points[actor] := belote_decl_points(actor)
+    decl_class[actor]  := belote_decl_class(actor)
+    decl_height[actor] := belote_decl_height(actor)
+    decl_trump[actor]  := belote_decl_trump(actor)
+    ann_meld[team_of(actor)] += belote_decl_points(actor)
+    decl_acted[actor] := true
+  }
+}
+
+move_type declare_carre(r : Rank) {
+  when: belote_best_is(actor, 4, r, false)
+  effect {
+    decl_points[actor] := belote_decl_points(actor)
+    decl_class[actor]  := belote_decl_class(actor)
+    decl_height[actor] := belote_decl_height(actor)
+    decl_trump[actor]  := belote_decl_trump(actor)
+    ann_meld[team_of(actor)] += belote_decl_points(actor)
+    decl_acted[actor] := true
+  }
+}
+
+move_type no_declaration {
+  effect { decl_acted[actor] := true }
+}
+
+// === Belote-Rebelote vocabulary ===
+//
+// The window's offer goes to whoever just played a trump royal; only a
+// player still holding the OTHER trump royal may say it (holding both is
+// what Belote-Rebelote claims — a player plays one card per trick, so the
+// partner card of a genuinely held pair is always still in hand at the
+// window). Declining — by choice or for want of the partner card — is the
+// same public move, so ineligibility is indistinguishable from silence.
+// The rebelote on the pair's second card is automatic: after the reveal it
+// carries no further information, and a rational announcer never forfeits
+// the 20 (belote.md, "Belote-Rebelote").
+
+move_type say_belote {
+  when: any card in hand[actor] where is_royal(card)
+  effect {
+    belote_said := true
+    belote_holder := actor
+  }
+}
+
+move_type no_belote {
+  effect { }
+}
+
+// === Functions ===
+
+// A trump royal: the King or Queen of the trump suit.
+function is_royal(c : Card) =
+  c.suit is trump_suit and (c.rank is K or c.rank is Q)
+
+// Card points under the declared trump: trump J=20 9=14 A=11 10=10 K=4 Q=3;
+// plain A=11 10=10 K=4 Q=3 J=2; the rest 0. The 32 cards sum to 152.
+function bel_card_points(c : Card) =
+  if c.suit is trump_suit
+  then (if c.rank is J then 20 elif c.rank is "9" then 14
+        elif c.rank is A then 11 elif c.rank is "10" then 10
+        elif c.rank is K then 4 elif c.rank is Q then 3 else 0)
+  else (if c.rank is A then 11 elif c.rank is "10" then 10
+        elif c.rank is K then 4 elif c.rank is Q then 3
+        elif c.rank is J then 2 else 0)
+
+// A player's announced declaration strength, from the PUBLIC claim state
+// only: class dominates (carré > quinte > quarte > tierce), then height,
+// then the trump bit (an equal-height trump sequence wins). 0 = no claim.
+function decl_strength(p : Player) =
+  if decl_points[p] is 0 then 0
+  else decl_class[p] * 100 + decl_height[p] * 2
+       + (if decl_trump[p] then 1 else 0)
+
+// Belote-Rebelote's 20, to the announcing player's team — scored in every
+// settlement branch ("always scores 20 points, irrespective").
+function belote20(t : Team) =
+  if belote_said and team_of(belote_holder) is t then 20 else 0
+
+// === Strict-trick legality (rule DSL) ===
+//
+// The cascade reproduces Pagat's obligations exactly (belote.md, "Play"):
+// follow suit if able; on a TRUMP lead, beat the best trump so far if able
+// ("whoever holds the trick at this stage" — no partner exception); void on
+// a plain lead with an OPPONENT winning, trump if able, over-trumping the
+// trick's best trump when one is there (else under-trump — `if_impossible:
+// hand` keeps the trump narrowing); void with the PARTNER winning, free —
+// except that a partner-winning trick already trumped may only be discarded
+// on or OVER-trumped, never under-trumped (the fourth-player rule). Each
+// rule's `if_impossible: hand` intersects the running set with the whole
+// hand — "keep the prior narrowing" — so an inapplicable obligation falls
+// through (rules.legal_cards).
+
+// MustFollowSuit is the standard-library rule (library.md "Rules").
+
+rule MustHeadTrumpLead {
+  constrains: play_to_trick
+  applies_when: state.led_suit is not none and state.led_suit is trump_suit
+  demands: cards in hand where card.suit is trump_suit and
+             belote_trump_height(card) > (highest belote_trump_height(card)
+               over cards in trick_pile where card.suit is trump_suit or 0)
+  if_impossible: hand   // cannot over-trump: any trump (or a void hand) stands
+}
+
+rule MustTrumpIfVoidVsOpponents {
+  constrains: play_to_trick
+  applies_when: state.led_suit is not none and state.led_suit is not trump_suit
+                and belote_opp_winning()
+  demands: cards in hand where card.suit is trump_suit
+  if_impossible: hand   // holds the led suit, or has no trump
+}
+
+rule MustOverTrumpVsOpponents {
+  constrains: play_to_trick
+  applies_when: state.led_suit is not none and state.led_suit is not trump_suit
+                and belote_opp_winning()
+                and (any card in trick_pile where card.suit is trump_suit)
+  demands: cards in hand where card.suit is trump_suit and
+             belote_trump_height(card) > (highest belote_trump_height(card)
+               over cards in trick_pile where card.suit is trump_suit or 0)
+  if_impossible: hand   // cannot over-trump: the trump narrowing stands (under-trump)
+}
+
+rule NoUnderTrumpVsPartner {
+  constrains: play_to_trick
+  applies_when: state.led_suit is not none and state.led_suit is not trump_suit
+                and (not belote_opp_winning())
+                and (any card in trick_pile where card.suit is trump_suit)
+  demands: cards in hand where card.suit is not trump_suit or
+             belote_trump_height(card) > (highest belote_trump_height(card)
+               over cards in trick_pile where card.suit is trump_suit or 0)
+  if_impossible: hand   // only under-trumps left: one must be played
+}

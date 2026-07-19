@@ -1,0 +1,25 @@
+// Shrunk from docs/games/klondike.cardlang, `delete_line` seed 0 (deleting
+// the setup `deal 4 cards from deck to tableau_down[4]`): the setup flip
+// then draws from an EMPTY hidden stack. Minimal form: a dealt `draw` whose
+// non-deck source holds nothing. The deck-capacity gate's domain is deck
+// usage only (deckcheck.py module docstring) — an intermediate zone's
+// balance is invisible to it — so the program is checker-green and dies on
+// the movement executor's exhausted-source ValueError at playout, before
+// any decision.
+game KlondikeFlipFromEmptyStack {
+  players: 1
+  max_length: 100
+  cards: standard52
+  positions { column : 1..1 }
+  zones {
+    deck                 : Deck
+    tableau_down[column] : HiddenStack<column>
+    tableau_up[column]   : Cascade<column>
+  }
+  state { score[player] : Integer = 0 }
+  phase setup {
+    shuffle deck
+    draw 1 card from tableau_down[1] to tableau_up[1]
+  }
+  winner: highest score
+}

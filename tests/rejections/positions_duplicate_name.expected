@@ -1,0 +1,1 @@
+positions_duplicate_name.cardlang:8:30: error: duplicate position 'column' — the later declaration would silently shadow the earlier one

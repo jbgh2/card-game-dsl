@@ -65,11 +65,13 @@ def play_game(
     team_of = {
         p: ti for ti, members in enumerate(game.partnerships) for p in members
     }
-    zones = ZoneStore(game.zones, seating.players, teams)
+    positions = {p.name: p.members for p in game.positions}
+    zones = ZoneStore(game.zones, seating.players, teams, positions=positions)
     rs = RuntimeState(seating, zones, rng)
     rs.trump = game.trump
     rs.teams = teams
     rs.team_of = team_of
+    rs.position_domains = positions
     assert game.max_length is not None, "resolve() must reject a missing max_length"
     rs.max_length = game.max_length
     # Rank strength is read from the game's `ranking:` (high to low), so every

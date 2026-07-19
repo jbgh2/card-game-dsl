@@ -111,6 +111,7 @@ MUTATION_SEEDS: tuple[int, ...] = tuple(
 # anyway so a `CARDLANG_FUZZ_SEEDS` run that DOES include seed 4 is still
 # correctly excused rather than reported as a spurious new finding.
 EXCUSED: dict[tuple[str, str, int], str] = {
+    ("klondike.cardlang", "delete_line", 0): "klondike_flip_from_empty_stack",
     ("cribbage.cardlang", "delete_line", 2): "cribbage_repeat_until_nonterminate",
     ("getaway.cardlang", "delete_line", 0): "getaway_missing_deal_no_hand_holder",
     ("getaway.cardlang", "delete_line", 4): "getaway_no_legal_play_no_if_impossible",

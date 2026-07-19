@@ -130,6 +130,16 @@ def _name(e: n.NameRef, ctx: Ctx) -> Any:
             return ctx.rs.get(e.name)
         case "zone":
             if ctx.rs.zones.is_family(e.name):
+                # Backstop shadowing resolve's `_check_position_family_refs`
+                # wall: a bare position-family read has no per-player
+                # instance to sugar to, and `instance(name, seat)` would
+                # key-error far from the cause.
+                if ctx.rs.zones.zone_index[e.name] in ctx.rs.position_domains:
+                    raise RuntimeError(
+                        f"'{e.name}' is a position-indexed zone family and "
+                        f"must be subscripted — it has no per-player "
+                        f"instances (resolve walls this reference)"
+                    )
                 if ctx.current_player is None:
                     # The bare-family actor sugar (`hand` = the acting
                     # player's hand) read outside any acting context — a phase

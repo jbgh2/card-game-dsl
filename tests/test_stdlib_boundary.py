@@ -118,6 +118,24 @@ _ZONE_PROBES: dict[str, str] = {
         "    if gin_arrange_ok(1, hand[1]) { score[1] += 1 }\n"
         "  }"
     ),
+    # `top_of`/`bottom_of` (decisions.md "Position domains and positional
+    # zones"): each reads a card off a ZONE argument. The filtered deal
+    # preserves deck order (suit-major, 2..A rank-minor), so hand[dealer] is
+    # 7♣ 7♦ 7♥ 7♠ (both ends rank 7 — the true witness) and hand[1] is
+    # Q♣ K♣ … Q♠ K♠ (bottom Q♣, top K♠ — each false arm probes the end the
+    # order refutes), matching the gin probes' {0: 1, 1: 0} contract.
+    "top_of": _game(
+        "  phase p {\n" + _DEAL +
+        '    if top_of(hand[dealer]).rank is "7" { score[dealer] += 1 }\n'
+        "    if top_of(hand[1]).rank is Q { score[1] += 1 }\n"
+        "  }"
+    ),
+    "bottom_of": _game(
+        "  phase p {\n" + _DEAL +
+        '    if bottom_of(hand[dealer]).rank is "7" { score[dealer] += 1 }\n'
+        "    if bottom_of(hand[1]).rank is K { score[1] += 1 }\n"
+        "  }"
+    ),
 }
 
 

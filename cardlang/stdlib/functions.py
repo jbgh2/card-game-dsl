@@ -21,6 +21,7 @@ STDLIB_TRICK_OUTCOMES: frozenset[str] = frozenset(
         "highest_of_led_suit",
         "highest_trump_or_led_suit",  # trick winner with a trump suit in play
         "tarot_trick_winner",  # French Tarot: highest atout else led suit; Excuse never wins
+        "belote_trick_winner",  # Belote: highest trump under the J-9 trump order, else led suit
     }
 )
 STDLIB_AUCTION_OUTCOMES: frozenset[str] = frozenset(
@@ -81,6 +82,8 @@ STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
         "bigtwo_first_leader",  # Big Two: the holder of the 3♦, who leads the first hand
         "rank_value",  # a card's rank strength under the game's `ranking:` (higher = stronger)
         "card_value",  # a card's deck-declared card-point value (point-trick counters)
+        "top_of",  # the top card of an ordered zone/collection (the sequence end)
+        "bottom_of",  # the bottom card of an ordered zone/collection (the sequence front)
         "pinochle_meld_value",  # Pinochle: a player's hand's meld points under the declared trump
         "tarot_led_suit",  # French Tarot: the effective led suit (first non-Excuse card) in play
         "tarot_trump_height",  # French Tarot: an atout's rank strength (0 for a non-atout)
@@ -130,5 +133,38 @@ STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
         "gin_lay_ok_a",  # Gin: card extends the knocker's meld A
         "gin_lay_ok_b",  # Gin: card extends the knocker's meld B
         "gin_lay_ok_c",  # Gin: card extends the knocker's meld C
+        "five_hundred_next_bid",  # 500: cheapest bid ordinal in a strain beating the standing bid
+        "five_hundred_bid_value",  # 500: a contract ordinal's score value (misère 250, open 500)
+        "five_hundred_bid_level",  # 500: a suit/NT contract ordinal's trick target (6..10)
+        "five_hundred_follow_ok",  # 500: follow legality (joker + bowers are trump-suit members)
+        "five_hundred_lead_ok",  # 500: lead legality (un-nominated joker lead restriction)
+        "five_hundred_trick_winner",  # 500: the trick's winner (3 cards in misère, else 4)
+        "belote_trump_height",  # Belote: a rank's strength within trump (J > 9 > A > 10 > K > Q > 8 > 7)
+        "belote_opp_winning",  # Belote: is the live trick's current winner an opponent of the actor?
+        "belote_royal_player",  # Belote: who played a trump K/Q in the trick just completed
+        "belote_best_is",  # Belote: is the stated (class, rank, trump) the actor's best combination?
+        "belote_decl_points",  # Belote: the best combination's points under trump
+        "belote_decl_class",  # Belote: the best combination's class (carré > quinte > quarte > tierce)
+        "belote_decl_height",  # Belote: the best combination's height (top card / carré rank)
+        "belote_decl_trump",  # Belote: is the best combination a trump-suit sequence?
+        "belote_decl_size",  # Belote: how many cards the declarations comprise (showing bound)
+        "belote_decl_slot",  # Belote: is a card the k-th declared card (the showing's reveal predicate)?
+        "canasta_is_red3",  # Canasta: is the card a red three (bonus card)?
+        "canasta_is_black3",  # Canasta: is the card a black three (stop card)?
+        "canasta_top_starts_pile",  # Canasta: may the turned card start the pile?
+        "canasta_top_is_wild",  # Canasta: did the discard just freeze the pile?
+        "canasta_pile_rank",  # Canasta: the pile's top rank (the meld a take feeds)
+        "canasta_can_take_pile",  # Canasta: a complete legal pile take exists
+        "canasta_must_take_pile",  # Canasta: the no-stock forced take applies
+        "canasta_can_start",  # Canasta: a new meld of the rank is completable from hand
+        "canasta_stage_ok",  # Canasta: card joins the open attempt, close stays reachable
+        "canasta_close_ok",  # Canasta: the open attempt closes legally as it stands
+        "canasta_add_ok",  # Canasta: card lays onto the side's standing meld of the rank
+        "canasta_discard_ok",  # Canasta: the discard may end the turn (go-out rule)
+        "canasta_black3_ok",  # Canasta: the go-out black-three meld is legal now
+        "canasta_meld_points",  # Canasta: card points of everything the side melded
+        "canasta_canasta_bonus",  # Canasta: 500 per natural / 300 per mixed canasta
+        "canasta_red3_bonus",  # Canasta: the red-three bonus, sign by melded-or-not
+        "canasta_hand_points",  # Canasta: card points left in both partners' hands
     }
 )

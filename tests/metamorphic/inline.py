@@ -10,15 +10,18 @@ genuinely independent check: if this module's splice and `cardlang.expand`
 ever disagree, that is real information, not a shared bug replaying itself
 twice.
 
-Domain: exactly one corpus game. `docs/games/coup.cardlang` is the only
-`.cardlang` file declaring a `procedure` or using `run` (grepped, not
-assumed — `test_inline.py::test_run_and_procedure_are_coup_only` pins it, so
-this residual is a falsifiable fact, not a guess). decisions.md "Named
-procedures" is corpus-first, single-witness — same as every open axis in this
-language — so this transform's domain is thin by construction, not by
-oversight.
+Domain: exactly two corpus games. `docs/games/coup.cardlang` and
+`docs/games/cheat.cardlang` are the only `.cardlang` files declaring a
+`procedure` or using `run` (grepped, not assumed —
+`test_inline.py::test_run_and_procedure_domain_is_pinned` pins the set, so
+this residual is a falsifiable fact, not a guess). Cheat's one procedure
+(`resolve_play`, called from its four play effects with the bare argument
+`actor`) sits inside the same shape envelope Coup established — every
+soundness condition below holds for it verbatim, checked by the same
+parametrized tests, so no splice generalization was needed when it joined;
+a third game outside the envelope still triggers one.
 
-The splice, and why it is sound for Coup's specific shape (not a general
+The splice, and why it is sound for this specific shape (not a general
 `run`-inlining engine): each call site becomes
 
     let <fresh>_<param1> = <arg1>
@@ -36,12 +39,12 @@ the temporary here is instead a long, corpus-checked-fresh identifier
 same freshness discipline `rename.py` uses for T2, applied to source
 characters instead of AST tokens).
 
-This is sound for Coup specifically because: no procedure body itself
-contains a `run` — a LANGUAGE-LEVEL guarantee, not merely true of Coup's
-text: `resolve.py`'s `_check_procedures` rejects "a procedure may not invoke
-another (v1 — expansion is a single splice, not a call graph)", so no
-corpus game that passes resolve (all of them) could have nested calls to
-splice in sequence even if a second procedure-using game arrived. Every
+This is sound for the pinned two-game domain specifically because: no
+procedure body itself contains a `run` — a LANGUAGE-LEVEL guarantee, not
+merely true of these games' text: `resolve.py`'s `_check_procedures` rejects
+"a procedure may not invoke another (v1 — expansion is a single splice, not
+a call graph)", so no corpus game that passes resolve (all of them) could
+have nested calls to splice in sequence. Every
 argument is a bare identifier or bare enum literal (checked by
 `test_inline.py`, since nothing walls this the way nesting is walled) — no
 argument expression has a side effect a naive re-evaluation could duplicate
@@ -54,11 +57,11 @@ Every call site already sits inside a `{ }` block (a move-type effect or an
 statements in place of one `run` line never needs to introduce braces of its
 own. A general inliner would additionally need to: parse arbitrary argument
 expressions (balanced-paren/bracket comma splitting, implemented here
-defensively even though Coup never exercises it); and wrap multi-statement
-splices in a brace pair for the single-statement grammar slots (`for each
-<role> <binder>: <stmt>`) this transform does not attempt, because Coup
-never calls `run` from one. Extending to a second procedure-using game is
-future work, not assumed to be free.
+defensively even though no pinned game exercises it); and wrap
+multi-statement splices in a brace pair for the single-statement grammar
+slots (`for each <role> <binder>: <stmt>`) this transform does not attempt,
+because no pinned game calls `run` from one. Extending to a game outside
+this envelope is future work, not assumed to be free.
 """
 
 from __future__ import annotations
@@ -180,8 +183,9 @@ def splice_procedures(text: str) -> str:
         return text  # nothing to splice; caller decides whether that's a problem
 
     # Splice call sites first (procedure bodies are still present in `text`
-    # at this point, but no call site lies WITHIN a procedure body for Coup
-    # — verified by test_inline.py — so processing them in file order and
+    # at this point, but no call site lies WITHIN a procedure body — that
+    # would be a nested `run`, which resolve's `_check_procedures` wall
+    # rejects language-wide — so processing them in file order and
     # patching from the end backward is safe and simple).
     edits: list[tuple[int, int, str]] = []  # (start, end, replacement), any order
     for m in _RUN_CALL.finditer(text):

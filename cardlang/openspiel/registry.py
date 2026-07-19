@@ -30,4 +30,10 @@ GAMES: dict[str, str] = {
     "cardlang_president": "president.cardlang",
     "cardlang_gops": "gops.cardlang",
     "cardlang_gin_rummy": "gin-rummy.cardlang",
+    "cardlang_cheat": "cheat.cardlang",
+    "cardlang_five_hundred": "five-hundred.cardlang",
+    "cardlang_belote": "belote.cardlang",
+    "cardlang_canasta": "canasta.cardlang",
+    "cardlang_klondike": "klondike.cardlang",
+    "cardlang_freecell": "freecell.cardlang",
 }

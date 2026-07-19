@@ -39,13 +39,16 @@ Residual: coverage (every deck rank present) is deliberately NOT required —
 `test_rank_domain_sourced_from_game_ranking_not_deck` pins a genuine PARTIAL
 `ranking:` (`ranking: A K Q` under standard52's 13 ranks) as a supported,
 deliberate feature that narrows the `Rank` move-parameter domain; walling
-partial coverage here would break that regression test. The corpus itself
-(docs/games/*.cardlang) happens to declare only full permutations — swept
-below — but that is incidental, not required. A card whose rank falls
-outside a partial ranking still crashes `rank_value`'s
-`ctx.rs.rank_index[...]` lookup at runtime instead of erroring at resolve
-time — recorded in docs/roadmap.md ("`ranking:` coverage is unchecked"),
-walled only by that runtime KeyError, not by this check.
+partial coverage here would break that regression test. The corpus carries
+one deliberate partial — Canasta's eleven meldable natural ranks under
+canasta108's 14 (wilds and threes are never a meld's rank) — and the sweep
+below pins each partial's omission set EXACTLY
+(`_DELIBERATE_PARTIAL_OMISSIONS`), so an accidental omission in any game
+still fails. A card whose rank falls outside a partial ranking still
+crashes `rank_value`'s `ctx.rs.rank_index[...]` lookup at runtime instead
+of erroring at resolve time — recorded in docs/roadmap.md ("`ranking:`
+coverage is unchecked"), walled only by that runtime KeyError, not by this
+check.
 
 Adjacent cell closed here (same two-source domain, opposite direction):
 card-LITERAL rank validation (`resolve._categories.ranks`, consumed by the
@@ -156,16 +159,30 @@ def test_corpus_ranking_resolves_clean(path: Path) -> None:
     check_source(path)
 
 
-def test_every_declared_corpus_ranking_is_a_full_permutation_of_its_deck() -> None:
+# The corpus games whose enumerated `ranking:` is a DELIBERATE partial
+# permutation, mapped to the exact rank set they omit. Partial rankings are
+# a supported feature (they narrow the Rank move-parameter domain — see the
+# module docstring's residual note); the sweep below pins each one's
+# omission set EXACTLY, so an ACCIDENTAL omission in any game still fails
+# here. Canasta's ranking is its eleven meldable natural ranks: threes and
+# the wild ranks are never a meld's rank, by design (the game file header).
+_DELIBERATE_PARTIAL_OMISSIONS: dict[str, frozenset[str]] = {
+    "canasta": frozenset({"3", "2", "Joker"}),
+}
+
+
+def test_every_declared_corpus_ranking_is_a_permutation_and_partials_are_pinned() -> None:
     """Documents the corpus fact this module's docstring relies on: every
-    `docs/games/*.cardlang` game that declares a `ranking:` declares a FULL
-    permutation of its deck's ranks (verified directly here, independent of
-    resolve.py, since resolve.py itself does not require this). A convention
-    form is expanded through the same public helper the resolver uses — for
-    a convention the property holds by construction (the template filtered
-    to the deck's own ranks), so the assertion bites only on an enumerated
-    ranking; the corpus currently spells every ranking as a convention, and
-    this sweep keeps the property pinned should an enumerated one return."""
+    `docs/games/*.cardlang` game that declares a `ranking:` declares a
+    duplicate-free permutation of its deck's ranks — FULL for every game
+    except those in `_DELIBERATE_PARTIAL_OMISSIONS`, whose omitted set must
+    match the pinned rationale exactly (verified directly here, independent
+    of resolve.py, since resolve.py itself does not require coverage). A
+    convention form is expanded through the same public helper the resolver
+    uses — for a convention the property holds by construction (the
+    template filtered to the deck's own ranks), so the full/partial
+    assertion bites only on an enumerated ranking (gin's full enumeration,
+    canasta's partial one)."""
     from cardlang.parse import parse_text
     from cardlang.runtime.values import expand_ranking_convention
 
@@ -178,9 +195,20 @@ def test_every_declared_corpus_ranking_is_a_full_permutation_of_its_deck() -> No
         if not ranking:
             continue
         checked_any = True
-        assert set(ranking) == set(deck_ranks(game.deck)), path
         assert len(ranking) == len(set(ranking)), path
+        omitted = set(deck_ranks(game.deck)) - set(ranking)
+        expected = _DELIBERATE_PARTIAL_OMISSIONS.get(path.stem, frozenset())
+        assert set(ranking) <= set(deck_ranks(game.deck)), path
+        assert omitted == expected, (
+            f"{path}: ranking omits {sorted(omitted)} but the pinned "
+            f"deliberate omission is {sorted(expected)} — an accidental "
+            f"omission, or an unpinned deliberate one"
+        )
     assert checked_any  # the sweep isn't vacuous
+    # The pin table names only real corpus games (a renamed game must move
+    # its row, not orphan it).
+    for stem in _DELIBERATE_PARTIAL_OMISSIONS:
+        assert (GAMES / f"{stem}.cardlang").exists(), stem
 
 
 # --- card literals validate against the DECK, not the ranking ----------

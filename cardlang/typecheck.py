@@ -235,6 +235,9 @@ class TypeEnv:
     # call site left to check.
     procedures: Mapping[str, Sig] = field(default_factory=dict)
     has_ranking: bool = False  # bool(game.ranking) — gates RANKING_GATED_FUNCS
+    # Declared position-domain names (decisions.md "Position domains and
+    # positional zones") — a parameter typed by one binds as Integer.
+    positions: frozenset[str] = frozenset()
 
     def with_local(self, name: str, t: Type) -> "TypeEnv":
         return replace(self, locals={**self.locals, name: t})
@@ -450,14 +453,18 @@ def env_from_game(game: Game) -> TypeEnv:
         for z in game.zones
     }
     # `ZoneDecl.index` is `None` (a singleton zone) or one of the closed index
-    # roles resolve.py validates (the domain table's `ZONE_INDEX_ROLES`); a
-    # family's subscript key types as the index domain's binder type — the same
+    # roles resolve.py validates (the domain table's `ZONE_INDEX_ROLES`, plus
+    # the game's declared position domains — integer-keyed); a family's
+    # subscript key types as the index domain's binder type — the same
     # table cell `for each <role>` reads, so `hand[p]` and `captured[t]` key by
     # TPlayer/TTeam without this site re-spelling the role list. (`role_type`'s
     # TAny fallback covers the unresolved-role case, whose diagnostic resolve
     # already owns.)
+    positions = frozenset(p.name for p in game.positions)
     zone_families: dict[str, Type] = {
-        z.name: _role_type(z.index) for z in game.zones if z.index is not None
+        z.name: (TInteger() if z.index in positions else _role_type(z.index))
+        for z in game.zones
+        if z.index is not None
     }
     return TypeEnv(
         state_vars=state_vars,
@@ -466,6 +473,7 @@ def env_from_game(game: Game) -> TypeEnv:
         value_enums=value_enum_map(game),
         structs=structs,
         has_ranking=bool(game.ranking),
+        positions=positions,
     )
 
 
@@ -744,6 +752,11 @@ def _function_sigs(game: Game, env: TypeEnv, bag: DiagnosticBag) -> dict[str, Si
 def _param_type(p: n.MoveParam, env: TypeEnv) -> Type:
     optional = p.type_name.endswith("?")
     base = p.type_name[:-1] if optional else p.type_name
+    if base in env.positions:
+        # A position-domain parameter (`src : column`) binds an integer
+        # member of the declared range; resolve's collision wall guarantees
+        # the name shadows no built-in type spelling.
+        return TInteger()
     return type_from_name(base, optional, env.structs)
 
 

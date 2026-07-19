@@ -58,6 +58,7 @@ def emit(game: n.Game) -> IRDict:
         "ranking_convention": game.ranking_convention,
         "trump": game.trump,
         "partnerships": [list(t) for t in game.partnerships],
+        "positions": [_position(p) for p in game.positions],
         "zones": [_zone(z) for z in game.zones],
         "state": _state_block(game.state) if game.state else None,
         "phases": [_phase(p) for p in game.phases],
@@ -81,6 +82,10 @@ def to_json(game: n.Game) -> str:
 
 def _players(p: n.PlayersSpec) -> IRDict:
     return {"kind": "players", "low": p.low, "high": p.high}
+
+
+def _position(p: n.PositionDecl) -> IRDict:
+    return {"kind": "position", "name": p.name, "lo": p.lo, "hi": p.hi}
 
 
 def _winner(w: n.Winner) -> IRDict:

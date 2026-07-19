@@ -64,19 +64,12 @@ design. The data point is named in each file.
   directions (leak and over-hiding), recall, seed/rng non-observability,
   legal-action agreement, adapter agreement — with today's coverage per item.
   The actionable checks are built as per-game proofs over the empirical
-  harness; only the constructive world generator is blocked, on the first
-  compound hidden-function probe that defeats any simple swap axis.
-- [meld-groups](meld-groups.md) — first-class card-group OBJECTS (shared,
-  growing, team-owned piles with per-group scoring); the joint-predicate
-  selection half is settled in [decisions.md](../decisions.md)
-  "Joint-predicate selection" (Gin Rummy anchors it); the residual is
-  blocked on Canasta.
-- [family-libraries](family-libraries.md) — an import tier between
-  game-local and stdlib, so game families (poker first: Kuhn, Leduc, and
-  Hold'em are all OpenSpiel targets) share betting machinery, rules, and
-  primitives without pasting them per game or promoting them to the
-  stdlib; blocked on the second poker-family game, and sequenced behind
-  shared rule definitions and named procedures, which it presupposes.
+  harness, and the constructive world generator has its first instance
+  (`tests/openspiel_ready/worlds.py`, anchored by Cheat — the compound
+  hidden-function probe, which pinned the design as a constructive sampler
+  over lines, not a static enumeration); the residual is generalizing it
+  across the corpus via the per-game emission-site sufficiency analysis the
+  file names, retiring the swap axes game by game.
 
 ## Tier 3 — Medium impact, narrow scope
 
