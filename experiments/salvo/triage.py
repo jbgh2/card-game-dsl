@@ -63,14 +63,15 @@ CURVES: dict[str, dict[str, Any]] = {
     # Earlier configs (round-1 no-cap "full", "cap", "recon"-as-variant) are
     # retired — their game files evolved into this base; the committed
     # results_triage*.json files pin what each historical run measured.
-    # hold_below=10 sits at the sweep's interior optimum (REPORT.md s8);
-    # won/lost margins re-scaled by tune_sighted.py (REPORT.md s9).
+    # knobs = tune_sighted.py's stage-B winner (REPORT.md s9): hold at the
+    # interior optimum 11, no urgency boost, opponent staged cards assumed
+    # strong; the wide race margins survived the sweep (tight ones collapse).
     "base": dict(
         game="salvo.cardlang",
         base=13,
         results="results_triage_base.json",
         won_margin=25.0, lost_margin=25.0, overkill_w=0.15, lostcause_w=0.2,
-        urgency_w=1.3, opp_staged_est=9.5, hold_below=10.0,
+        urgency_w=1.0, opp_staged_est=11.0, hold_below=11.0,
     ),
     # zero-centered curve (refuted, kept as the historical variant): 6-dist
     # (+3), -6..+9 — knobs rescaled to the smaller value range

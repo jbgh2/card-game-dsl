@@ -1,0 +1,244 @@
+{
+  "curve": "base",
+  "seeds_per_seating": 500,
+  "tuning": {
+    "game": "salvo.cardlang",
+    "base": 13,
+    "results": "results_triage_base.json",
+    "won_margin": 25.0,
+    "lost_margin": 25.0,
+    "overkill_w": 0.15,
+    "lostcause_w": 0.2,
+    "urgency_w": 1.0,
+    "opp_staged_est": 11.0,
+    "hold_below": 11.0
+  },
+  "pairings": [
+    {
+      "pairing": "random vs random",
+      "games": 1000,
+      "win_rate": {
+        "random": 1.0,
+        "draw": 0.0
+      },
+      "mean_locs_won": {
+        "random": 1.46
+      },
+      "margin_mean": 14.32,
+      "margin_median": 12.0,
+      "unclaimed_rate_per_loc": 0.0267,
+      "mean_commits": {
+        "random": 7.54
+      },
+      "mean_holds": {
+        "random": 2.82
+      }
+    },
+    {
+      "pairing": "blind vs random",
+      "games": 1000,
+      "win_rate": {
+        "blind": 0.976,
+        "random": 0.024,
+        "draw": 0.0
+      },
+      "mean_locs_won": {
+        "blind": 2.617
+      },
+      "margin_mean": 20.06,
+      "margin_median": 18.5,
+      "unclaimed_rate_per_loc": 0.0137,
+      "mean_commits": {
+        "blind": 11,
+        "random": 7.5
+      },
+      "mean_holds": {
+        "blind": 1,
+        "random": 2.82
+      }
+    },
+    {
+      "pairing": "sighted vs random",
+      "games": 1000,
+      "win_rate": {
+        "sighted": 0.98,
+        "random": 0.02,
+        "draw": 0.0
+      },
+      "mean_locs_won": {
+        "sighted": 2.581
+      },
+      "margin_mean": 20.13,
+      "margin_median": 21.0,
+      "unclaimed_rate_per_loc": 0.011,
+      "mean_commits": {
+        "sighted": 9.66,
+        "random": 7.5
+      },
+      "mean_holds": {
+        "sighted": 1.83,
+        "random": 2.82
+      },
+      "sighted_divergence_rate": 0.1631
+    },
+    {
+      "pairing": "sighted vs blind",
+      "games": 1000,
+      "win_rate": {
+        "sighted": 0.655,
+        "blind": 0.345,
+        "draw": 0.0
+      },
+      "mean_locs_won": {
+        "sighted": 1.656
+      },
+      "margin_mean": 15.78,
+      "margin_median": 12.0,
+      "unclaimed_rate_per_loc": 0.0287,
+      "mean_commits": {
+        "sighted": 9.26,
+        "blind": 11
+      },
+      "mean_holds": {
+        "sighted": 2.02,
+        "blind": 1
+      },
+      "sighted_divergence_rate": 0.1862
+    },
+    {
+      "pairing": "sighted_nohold vs blind",
+      "games": 1000,
+      "win_rate": {
+        "sighted_nohold": 0.512,
+        "blind": 0.485,
+        "draw": 0.003
+      },
+      "mean_locs_won": {
+        "sighted_nohold": 1.467
+      },
+      "margin_mean": 10.47,
+      "margin_median": 8.0,
+      "unclaimed_rate_per_loc": 0.0343,
+      "mean_commits": {
+        "sighted_nohold": 11,
+        "blind": 11
+      },
+      "mean_holds": {
+        "sighted_nohold": 1,
+        "blind": 1
+      }
+    },
+    {
+      "pairing": "sighted vs sighted_nohold",
+      "games": 1000,
+      "win_rate": {
+        "sighted": 0.62,
+        "sighted_nohold": 0.38,
+        "draw": 0.0
+      },
+      "mean_locs_won": {
+        "sighted": 1.613
+      },
+      "margin_mean": 14.58,
+      "margin_median": 12.0,
+      "unclaimed_rate_per_loc": 0.0277,
+      "mean_commits": {
+        "sighted": 9.05,
+        "sighted_nohold": 11
+      },
+      "mean_holds": {
+        "sighted": 2.08,
+        "sighted_nohold": 1
+      },
+      "sighted_divergence_rate": 0.1963
+    },
+    {
+      "pairing": "blind vs blind",
+      "games": 1000,
+      "win_rate": {
+        "blind": 0.994,
+        "draw": 0.006
+      },
+      "mean_locs_won": {
+        "blind": 1.438
+      },
+      "margin_mean": 9.31,
+      "margin_median": 7.0,
+      "unclaimed_rate_per_loc": 0.0413,
+      "mean_commits": {
+        "blind": 11
+      },
+      "mean_holds": {
+        "blind": 1
+      }
+    },
+    {
+      "pairing": "sighted vs sighted",
+      "games": 1000,
+      "win_rate": {
+        "sighted": 1.0,
+        "draw": 0.0
+      },
+      "mean_locs_won": {
+        "sighted": 1.451
+      },
+      "margin_mean": 16.09,
+      "margin_median": 16.0,
+      "unclaimed_rate_per_loc": 0.0327,
+      "mean_commits": {
+        "sighted": 8.55
+      },
+      "mean_holds": {
+        "sighted": 2.31
+      },
+      "sighted_divergence_rate": 0.2184
+    },
+    {
+      "pairing": "blind_hold vs blind",
+      "games": 1000,
+      "win_rate": {
+        "blind_hold": 0.579,
+        "blind": 0.418,
+        "draw": 0.003
+      },
+      "mean_locs_won": {
+        "blind_hold": 1.572
+      },
+      "margin_mean": 10.39,
+      "margin_median": 8.0,
+      "unclaimed_rate_per_loc": 0.0343,
+      "mean_commits": {
+        "blind_hold": 10.06,
+        "blind": 11
+      },
+      "mean_holds": {
+        "blind_hold": 1.57,
+        "blind": 1
+      }
+    },
+    {
+      "pairing": "sighted vs blind_hold",
+      "games": 1000,
+      "win_rate": {
+        "sighted": 0.567,
+        "blind_hold": 0.433,
+        "draw": 0.0
+      },
+      "mean_locs_won": {
+        "sighted": 1.549
+      },
+      "margin_mean": 15.32,
+      "margin_median": 12.0,
+      "unclaimed_rate_per_loc": 0.034,
+      "mean_commits": {
+        "sighted": 9.18,
+        "blind_hold": 10.05
+      },
+      "mean_holds": {
+        "sighted": 2.07,
+        "blind_hold": 1.58
+      },
+      "sighted_divergence_rate": 0.1869
+    }
+  ]
+}

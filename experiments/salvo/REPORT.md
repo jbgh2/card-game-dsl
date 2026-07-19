@@ -252,3 +252,52 @@ matter"), keep hold-threshold texture in mind for combos (held cards
 already gain option value in round 4's combo work), and treat the
 sighted re-tune as the next instrument work before reading any more
 skill-gap numbers off the arena.
+
+## 9. Round 4 — recon adopted; the re-tuned instrument and the
+## adopted game's scoreboard
+
+The designer adopted the recon draw; `salvo.cardlang` now carries
+capacity + recon and the tested variant file is retired. The arena
+gained per-seat knob dicts (a candidate can face a FIXED reference),
+and `tune_sighted.py` swept the sighted knobs in two stages (200
+seeds/cell vs fixed `blind_hold(10)` and `blind`; data:
+`results_tune.json`).
+
+**Tuning result.** Winner: `hold_below 11, urgency_w 1.0,
+opp_staged_est 11` — margins stay at 25 (the round-3 "stale knobs"
+hypothesis was wrong in an instructive way: TIGHT margins collapse
+outright — won/lost 8 scores 0.09-0.11, the weights fire constantly
+and strangle commitment — while the wide originals were near-optimal;
+the urgency boost was mildly harmful; the real gains were the hold
+threshold and respecting unseen staged cards). Tuned-vs-old-knobs:
+61.2/38.4.
+
+**The adopted game's scoreboard** (`results_triage_base.json`, tuned
+knobs, 1000 games/pairing):
+
+| pairing | win rate | reading |
+|---|---|---|
+| sighted vs blind | **65.5 / 34.5** | full skill vs commit-max |
+| sighted vs sighted_nohold | **62.0 / 38.0** | holding, given sight |
+| sighted vs blind_hold | 56.7 / 43.3 | sight, given holding |
+| blind_hold vs blind | 57.9 / 41.8 | holding, blind |
+| sighted_nohold vs blind | 51.2 / 48.5 | sight alone, no holding |
+
+Two axes, both load-bearing, and a profile shift worth naming: in
+round 1 the entire skill was WHERE (redirection 69/31, holding nil);
+in the adopted game redirection alone is nearly neutral (51/49 —
+capacity now does crude redirection by rule) while the
+commitment-count axis carries the head of the skill (holding worth
+~+20 net points blind or sighted), and opponent-reading stacks
+another ~+9 on top of restraint (56.7 vs blind_hold). Tuned play uses
+~9.3 commits and ~2 holds per game — the recon dial is exercised, not
+maxed. Divergence holds at 16-22%; margins 9-16 mean; unclaimed ties
+1-4%. The designer's requirement — commitment number must matter — is
+now the game's strongest measured skill axis, with location-reading
+second and both above chance.
+
+Caveats, standing: all numbers are heuristic-tier lower bounds (the
+sweep is coarse, one knob family, references are simple policies);
+the exact-tier mini remains the ground-truth instrument for
+equilibrium questions, and combos/jokers (round 5) will move every
+number.

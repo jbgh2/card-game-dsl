@@ -91,7 +91,9 @@ def main() -> None:
     a_knobs = best["knobs"]
     for uw in (1.0, 1.3, 1.6):
         for est in (8.0, 9.5, 11.0):
-            tun = dict(OLD, **a_knobs, urgency_w=uw, opp_staged_est=est)
+            tun = dict(OLD)
+            tun.update(a_knobs)
+            tun.update(urgency_w=uw, opp_staged_est=est)
             c = cell(tun, space, lv, ridx, SWEEP_SEEDS)
             results["stage_b"].append(c)
             print(json.dumps(c))

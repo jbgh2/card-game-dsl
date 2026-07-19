@@ -1,0 +1,523 @@
+{
+  "sweep_seeds": 200,
+  "final_seeds": 500,
+  "stage_a": [
+    {
+      "knobs": {
+        "hold_below": 7.0,
+        "won_margin": 8.0,
+        "lost_margin": 8.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.085,
+      "vs_blind": 0.1325,
+      "score": 0.10875000000000001
+    },
+    {
+      "knobs": {
+        "hold_below": 7.0,
+        "won_margin": 10.0,
+        "lost_margin": 10.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.2725,
+      "vs_blind": 0.38,
+      "score": 0.32625000000000004
+    },
+    {
+      "knobs": {
+        "hold_below": 7.0,
+        "won_margin": 12.0,
+        "lost_margin": 12.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.3275,
+      "vs_blind": 0.4625,
+      "score": 0.395
+    },
+    {
+      "knobs": {
+        "hold_below": 7.0,
+        "won_margin": 16.0,
+        "lost_margin": 16.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.43,
+      "vs_blind": 0.565,
+      "score": 0.49749999999999994
+    },
+    {
+      "knobs": {
+        "hold_below": 7.0,
+        "won_margin": 25.0,
+        "lost_margin": 25.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.45,
+      "vs_blind": 0.54,
+      "score": 0.495
+    },
+    {
+      "knobs": {
+        "hold_below": 9.0,
+        "won_margin": 8.0,
+        "lost_margin": 8.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.08,
+      "vs_blind": 0.13,
+      "score": 0.10500000000000001
+    },
+    {
+      "knobs": {
+        "hold_below": 9.0,
+        "won_margin": 10.0,
+        "lost_margin": 10.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.28,
+      "vs_blind": 0.3775,
+      "score": 0.32875
+    },
+    {
+      "knobs": {
+        "hold_below": 9.0,
+        "won_margin": 12.0,
+        "lost_margin": 12.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.35,
+      "vs_blind": 0.465,
+      "score": 0.4075
+    },
+    {
+      "knobs": {
+        "hold_below": 9.0,
+        "won_margin": 16.0,
+        "lost_margin": 16.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.4425,
+      "vs_blind": 0.5875,
+      "score": 0.515
+    },
+    {
+      "knobs": {
+        "hold_below": 9.0,
+        "won_margin": 25.0,
+        "lost_margin": 25.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.475,
+      "vs_blind": 0.545,
+      "score": 0.51
+    },
+    {
+      "knobs": {
+        "hold_below": 10.0,
+        "won_margin": 8.0,
+        "lost_margin": 8.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.0875,
+      "vs_blind": 0.135,
+      "score": 0.11125
+    },
+    {
+      "knobs": {
+        "hold_below": 10.0,
+        "won_margin": 10.0,
+        "lost_margin": 10.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.285,
+      "vs_blind": 0.385,
+      "score": 0.33499999999999996
+    },
+    {
+      "knobs": {
+        "hold_below": 10.0,
+        "won_margin": 12.0,
+        "lost_margin": 12.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.36,
+      "vs_blind": 0.4675,
+      "score": 0.41375
+    },
+    {
+      "knobs": {
+        "hold_below": 10.0,
+        "won_margin": 16.0,
+        "lost_margin": 16.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.47,
+      "vs_blind": 0.5925,
+      "score": 0.53125
+    },
+    {
+      "knobs": {
+        "hold_below": 10.0,
+        "won_margin": 25.0,
+        "lost_margin": 25.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.4775,
+      "vs_blind": 0.5575,
+      "score": 0.5175
+    },
+    {
+      "knobs": {
+        "hold_below": 11.0,
+        "won_margin": 8.0,
+        "lost_margin": 8.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.095,
+      "vs_blind": 0.125,
+      "score": 0.11
+    },
+    {
+      "knobs": {
+        "hold_below": 11.0,
+        "won_margin": 10.0,
+        "lost_margin": 10.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.29,
+      "vs_blind": 0.3775,
+      "score": 0.33375
+    },
+    {
+      "knobs": {
+        "hold_below": 11.0,
+        "won_margin": 12.0,
+        "lost_margin": 12.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.38,
+      "vs_blind": 0.46,
+      "score": 0.42000000000000004
+    },
+    {
+      "knobs": {
+        "hold_below": 11.0,
+        "won_margin": 16.0,
+        "lost_margin": 16.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.5025,
+      "vs_blind": 0.5925,
+      "score": 0.5475
+    },
+    {
+      "knobs": {
+        "hold_below": 11.0,
+        "won_margin": 25.0,
+        "lost_margin": 25.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.4975,
+      "vs_blind": 0.6,
+      "score": 0.54875
+    },
+    {
+      "knobs": {
+        "hold_below": 12.0,
+        "won_margin": 8.0,
+        "lost_margin": 8.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.085,
+      "vs_blind": 0.1025,
+      "score": 0.09375
+    },
+    {
+      "knobs": {
+        "hold_below": 12.0,
+        "won_margin": 10.0,
+        "lost_margin": 10.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.255,
+      "vs_blind": 0.31,
+      "score": 0.2825
+    },
+    {
+      "knobs": {
+        "hold_below": 12.0,
+        "won_margin": 12.0,
+        "lost_margin": 12.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.315,
+      "vs_blind": 0.3875,
+      "score": 0.35125
+    },
+    {
+      "knobs": {
+        "hold_below": 12.0,
+        "won_margin": 16.0,
+        "lost_margin": 16.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.4625,
+      "vs_blind": 0.545,
+      "score": 0.50375
+    },
+    {
+      "knobs": {
+        "hold_below": 12.0,
+        "won_margin": 25.0,
+        "lost_margin": 25.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.4825,
+      "vs_blind": 0.595,
+      "score": 0.53875
+    }
+  ],
+  "stage_b": [
+    {
+      "knobs": {
+        "hold_below": 11.0,
+        "won_margin": 25.0,
+        "lost_margin": 25.0,
+        "urgency_w": 1.0,
+        "opp_staged_est": 8.0
+      },
+      "vs_blind_hold": 0.575,
+      "vs_blind": 0.6675,
+      "score": 0.62125
+    },
+    {
+      "knobs": {
+        "hold_below": 11.0,
+        "won_margin": 25.0,
+        "lost_margin": 25.0,
+        "urgency_w": 1.0,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.5775,
+      "vs_blind": 0.67,
+      "score": 0.62375
+    },
+    {
+      "knobs": {
+        "hold_below": 11.0,
+        "won_margin": 25.0,
+        "lost_margin": 25.0,
+        "urgency_w": 1.0,
+        "opp_staged_est": 11.0
+      },
+      "vs_blind_hold": 0.585,
+      "vs_blind": 0.685,
+      "score": 0.635
+    },
+    {
+      "knobs": {
+        "hold_below": 11.0,
+        "won_margin": 25.0,
+        "lost_margin": 25.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 8.0
+      },
+      "vs_blind_hold": 0.5,
+      "vs_blind": 0.5925,
+      "score": 0.54625
+    },
+    {
+      "knobs": {
+        "hold_below": 11.0,
+        "won_margin": 25.0,
+        "lost_margin": 25.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.4975,
+      "vs_blind": 0.6,
+      "score": 0.54875
+    },
+    {
+      "knobs": {
+        "hold_below": 11.0,
+        "won_margin": 25.0,
+        "lost_margin": 25.0,
+        "urgency_w": 1.3,
+        "opp_staged_est": 11.0
+      },
+      "vs_blind_hold": 0.5275,
+      "vs_blind": 0.615,
+      "score": 0.57125
+    },
+    {
+      "knobs": {
+        "hold_below": 11.0,
+        "won_margin": 25.0,
+        "lost_margin": 25.0,
+        "urgency_w": 1.6,
+        "opp_staged_est": 8.0
+      },
+      "vs_blind_hold": 0.455,
+      "vs_blind": 0.5375,
+      "score": 0.49624999999999997
+    },
+    {
+      "knobs": {
+        "hold_below": 11.0,
+        "won_margin": 25.0,
+        "lost_margin": 25.0,
+        "urgency_w": 1.6,
+        "opp_staged_est": 9.5
+      },
+      "vs_blind_hold": 0.455,
+      "vs_blind": 0.5425,
+      "score": 0.49875
+    },
+    {
+      "knobs": {
+        "hold_below": 11.0,
+        "won_margin": 25.0,
+        "lost_margin": 25.0,
+        "urgency_w": 1.6,
+        "opp_staged_est": 11.0
+      },
+      "vs_blind_hold": 0.4825,
+      "vs_blind": 0.5475,
+      "score": 0.515
+    }
+  ],
+  "winner": {
+    "knobs": {
+      "hold_below": 11.0,
+      "won_margin": 25.0,
+      "lost_margin": 25.0,
+      "urgency_w": 1.0,
+      "opp_staged_est": 11.0
+    },
+    "vs_blind_hold": 0.585,
+    "vs_blind": 0.685,
+    "score": 0.635
+  },
+  "final": {
+    "tuned_vs_blind": {
+      "pairing": "sighted vs blind",
+      "games": 1000,
+      "win_rate": {
+        "sighted": 0.655,
+        "blind": 0.345,
+        "draw": 0.0
+      },
+      "mean_locs_won": {
+        "sighted": 1.656
+      },
+      "margin_mean": 15.78,
+      "margin_median": 12.0,
+      "unclaimed_rate_per_loc": 0.0287,
+      "mean_commits": {
+        "sighted": 9.26,
+        "blind": 11
+      },
+      "mean_holds": {
+        "sighted": 2.02,
+        "blind": 1
+      },
+      "sighted_divergence_rate": 0.1862
+    },
+    "tuned_vs_blind_hold10": {
+      "pairing": "sighted vs blind_hold",
+      "games": 1000,
+      "win_rate": {
+        "sighted": 0.585,
+        "blind_hold": 0.415,
+        "draw": 0.0
+      },
+      "mean_locs_won": {
+        "sighted": 1.563
+      },
+      "margin_mean": 15.02,
+      "margin_median": 11.0,
+      "unclaimed_rate_per_loc": 0.0377,
+      "mean_commits": {
+        "sighted": 9.22,
+        "blind_hold": 10.43
+      },
+      "mean_holds": {
+        "sighted": 2.06,
+        "blind_hold": 1.33
+      },
+      "sighted_divergence_rate": 0.1848
+    },
+    "tuned_vs_old": {
+      "pairing": "sighted vs sighted_old",
+      "games": 1000,
+      "win_rate": {
+        "sighted": 0.612,
+        "sighted_old": 0.384,
+        "draw": 0.004
+      },
+      "mean_locs_won": {
+        "sighted": 1.61
+      },
+      "margin_mean": 11.46,
+      "margin_median": 8.0,
+      "unclaimed_rate_per_loc": 0.034,
+      "mean_commits": {
+        "sighted": 9.37,
+        "sighted_old": 10.35
+      },
+      "mean_holds": {
+        "sighted": 1.9,
+        "sighted_old": 1.28
+      },
+      "sighted_divergence_rate": 0.1407
+    },
+    "tuned_mirror": {
+      "pairing": "sighted vs sighted",
+      "games": 1000,
+      "win_rate": {
+        "sighted": 1.0,
+        "draw": 0.0
+      },
+      "mean_locs_won": {
+        "sighted": 1.451
+      },
+      "margin_mean": 16.09,
+      "margin_median": 16.0,
+      "unclaimed_rate_per_loc": 0.0327,
+      "mean_commits": {
+        "sighted": 8.55
+      },
+      "mean_holds": {
+        "sighted": 2.31
+      },
+      "sighted_divergence_rate": 0.2184
+    }
+  }
+}
