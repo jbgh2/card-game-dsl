@@ -483,8 +483,9 @@ def test_to_each_requires_the_family_name_not_a_zone_value() -> None:
     # `to each X` deals into X[player] BY NAME — the executor never evaluates
     # the destination — so a binder can never stand there even when it holds
     # a zone: without this wall `let h = hand[0]` / `to each h` would type
-    # clean (h IS a zone) and die on KeyError: 'h' hunting a family by that
-    # name. The generic endpoint rule admits zone-valued binders; this
+    # clean (h IS a zone) and reach the executor, which requires a declared
+    # player-indexed zone FAMILY under that name and refuses any other name at
+    # deal time. The generic endpoint rule admits zone-valued binders; this
     # position is stricter because it consumes the name, not the value.
     _rejects(
         _game("let h = hand[0]\n    deal 1 cards from deck to each h"),

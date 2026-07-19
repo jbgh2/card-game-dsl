@@ -706,8 +706,8 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
 def _resolve_winner_loser(game: n.Game, bag: DiagnosticBag) -> None:
     """A game names its result. `winner:` and `loser:` are each optional
     grammar positions, so their joint absence is checked here; without this
-    wall a game with neither would compile clean and die on a driver assert
-    before its first decision."""
+    wall a game with neither would compile clean and then reach a driver that
+    requires at least one of them before it can play a single decision."""
     if game.winner is None and game.loser is None:
         bag.error(
             f"game '{game.name}' must declare `winner: <rank-dir> <var>` or "
@@ -1502,7 +1502,8 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         # generic tuple fold would scope all three anyway, so `let z = 5`
         # followed by `before_each { n[1] := z }` (or a transition reading a
         # body let, fired by an earlier round) would resolve, type-check, and
-        # die mid-playout on a raw KeyError for a binding that did not exist.
+        # then ask the runtime's scope stack for a binding no live frame holds
+        # — a lookup it requires to succeed, mid-playout.
         entry = cats
         current = cats
         out_items: list[object] = []
@@ -1724,9 +1725,9 @@ def _bad_zone_endpoint(expr: n.Expr | None, what: str) -> str | None:
     name-shaped (the grammar rejects literals there), so its ROOT name has a
     classification, and most classifications cannot possibly be a zone.
     `deal 1 cards from turn to each hand` and `shuffle turn` (with
-    `turn : Integer`) would otherwise both check clean and die mid-playout on a
-    bare AssertionError in the executor — a statically nameable error in the
-    wrong currency at the wrong time.
+    `turn : Integer`) would otherwise both check clean and reach the executor,
+    which requires an actual Zone in this position and refuses anything else at
+    play time — a statically nameable error deferred to the wrong time.
 
     A `local` root stays accepted HERE: a binder may legitimately hold a zone
     value (`let h = hand[0]`), and which one it holds is a TYPE question —
@@ -2283,7 +2284,8 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     # The executor keys the family by BARE name per seat, so a
                     # subscripted or computed destination has no meaning under
                     # `each`. Before this wall, `to each hand[0]` checked
-                    # clean and died on the executor's NameRef assert.
+                    # clean and reached an executor that requires this
+                    # destination to be a bare name it can key per seat.
                     bag.error(
                         "`to each` deals into a player-indexed family named "
                         "bare (like `to each hand`) — a subscripted or "
@@ -2295,7 +2297,9 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     # `to each X` deals one parcel per PLAYER (the executor
                     # iterates seats and keys `X[player]`), so X must be a
                     # player-indexed family. Before this wall, `to each deck`
-                    # (a singleton) checked clean and died on a raw KeyError,
+                    # (a singleton) checked clean and then asked the zone store
+                    # for a player-keyed family of that name, which it requires
+                    # to be declared and refuses at play time;
                     # and `to each captured` (a TEAM family) silently dealt
                     # into team slots AS IF team ids were seats before crashing
                     # — player keying was assumed, not checked, the same class
@@ -2319,8 +2323,9 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         # player)`), not a zone value — so unlike the generic
                         # endpoints, a binder can never stand here even when it
                         # HOLDS a zone: `let h = hand[0]` / `to each h` would
-                        # type clean (h is a zone) and die on `KeyError: 'h'`
-                        # hunting a family by that name.
+                        # type clean (h is a zone) and then ask the zone store
+                        # for a family literally named 'h', which requires a
+                        # declared family of that name and refuses at play time.
                         what_k = _WRITE_TARGET_KINDS.get(
                             nd.dest.ref_kind, f"a {nd.dest.ref_kind}"
                         )
@@ -2333,8 +2338,9 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         )
             case n.EpistemicOp():
                 # The other member of the zone-position class: `shuffle turn` /
-                # `reveal one card from turn` checked clean and died on the
-                # executor's Zone assert, exactly like the movement endpoints.
+                # `reveal one card from turn` checked clean and then reached an
+                # executor that requires an actual Zone as the op's target and
+                # refuses anything else, exactly like the movement endpoints.
                 bad = _bad_zone_endpoint(nd.target, nd.op)
                 if bad is not None:
                     bag.error(bad, nd.span)
@@ -2344,8 +2350,9 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # The go-again flag is ordinary game state the body's effects
                 # write (decisions.md "The `turns` form") — a plain string
                 # field like `Winner.target`, so the generic NameRef pass
-                # never sees it; validate it here or it fails only as a
-                # runtime KeyError at the first turn boundary.
+                # never sees it; validate it here or it fails only at the
+                # first turn boundary, where the executor reads it out of
+                # round state — which requires the name to be in scope.
                 bag.error(
                     f"`again {nd.again}`: names no declared state variable — "
                     f"the go-again flag is ordinary Boolean game state the "

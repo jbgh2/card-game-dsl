@@ -436,8 +436,9 @@ def env_from_game(game: Game) -> TypeEnv:
             # An indexed state var (`score[player]`) is a per-key map — a
             # collection whose subscript yields the declared value type, KEYED
             # by the index domain's binder type so a wrong-domain key
-            # (`score[hearts]`, `n[9]`'s read twin) is a check-time error, not
-            # a raw KeyError mid-playout.
+            # (`score[hearts]`, `n[9]`'s read twin) is a check-time error
+            # rather than a mid-playout one: the runtime indexes the map
+            # directly and requires the key to be one it actually holds.
             state_vars[decl.name] = (
                 TCollection(t, key=_role_type(decl.index))
                 if decl.index is not None
@@ -1391,8 +1392,9 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
             elif isinstance(obj, TCollection) and obj.key is not None:
                 # A KEYED map (a per-player/team state var, an indexed `let`)
                 # is addressed by its key domain, and the checker knows both
-                # sides — without this, `n[hearts]` would sail through and die
-                # on a raw KeyError at the read.
+                # sides — without this, `n[hearts]` would sail through to a
+                # runtime that indexes the map directly and requires the key
+                # to be one it actually holds.
                 idx_t = infer(e.index, env)
                 if not assignable(idx_t, obj.key):
                     what = (
@@ -1418,7 +1420,8 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
             # `state.` names a round's PUBLISHED state, and that is a closed set.
             # Without this wall the receiver inferred `TAny`, every arm below
             # missed, and the read went through: a typo (`state.lead_suit`)
-            # surfaced as a bare KeyError at play time, and — far worse — a form's
+            # failed only at play time, where the running round refuses a field
+            # it does not publish, and — far worse — a form's
             # private working memory (`state.idx`, the trick's ring cursor) read
             # clean, ran, and silently changed the game. See stdlib/round_state.py.
             field_list = ", ".join(f"`{f}`" for f in sorted(ROUND_STATE_FIELDS))
@@ -1447,8 +1450,8 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
             # A zone-family subscript (`hand[p]`) is typed as the zone's
             # content collection rather than a single Card, so a dot-form
             # access on it (`hand[p].rank`) needs its own wall — without it
-            # this would silently read as TAny and only crash at play time
-            # (`_member` has no case for a `Zone`/list).
+            # this would silently read as TAny and only fail at play time,
+            # where field access is not defined over a zone's contents.
             bag.error(
                 "a collection has no fields — aggregate over it ('sum of … "
                 "over cards in …') or take a specific card",

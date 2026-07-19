@@ -65,8 +65,9 @@ def check_capacity(game: n.Game) -> n.Game:
     # domain registry rather than assumed. A hand-written rule like "players, or
     # once" would count a loop over a VALUE domain (`for each suit s: deal 15 cards
     # …`) as one iteration: it would demand four times what this gate checked, pass,
-    # and die mid-deal on a bare ValueError — the exact failure currency the gate
-    # exists to replace. A new domain row arrives here already counted.
+    # and fail mid-deal, where the executor requires a source to hold at least the
+    # cards a deal asks for — the exact failure currency the gate exists to replace.
+    # A new domain row arrives here already counted.
     sources = DomainSources(
         suits=sorted(deck_suits(game.deck)),
         ranks=list(game.ranking) or sorted(deck_ranks(game.deck)),

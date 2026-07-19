@@ -181,9 +181,10 @@ def test_card_membership_in_a_zone_family_is_accepted() -> None:
 
 def test_rejects_dot_access_on_a_zone_family_subscript() -> None:
     # Without this, `hand[0]` would infer as Card, so `.rank` would type-check
-    # clean as `Rank` and only crash at play time (`_member` has no case for a
-    # Zone/list). With the subscript typing, `hand[0] : Collection<Card>` and
-    # the collection-has-no-fields wall catches it statically.
+    # clean as `Rank` and only fail at play time, where a field read is served
+    # only for the value shapes that HAVE fields and a zone is not one of them.
+    # With the subscript typing, `hand[0] : Collection<Card>` and the
+    # collection-has-no-fields wall catches it statically.
     _rejects(_game("let probe = hand[0].rank"), "a collection has no fields")
 
 

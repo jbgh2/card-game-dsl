@@ -279,8 +279,9 @@ def role_static_members(role: str, sources: DomainSources) -> list[Any]:
     `for each <role>` without running the game. The deck-capacity gate is the
     consumer: it must know how many times a loop body runs. Without this, it would
     assume "players, or once" — so `for each suit s: deal 15 cards …` would count
-    as ONE iteration, demand 4x what the gate checked, pass, and die mid-deal on a
-    bare ValueError. Reading the row makes that count a fact of the table.
+    as ONE iteration, demand 4x what the gate checked, pass, and fail mid-deal,
+    where the executor requires a source to hold at least the cards a deal asks
+    for. Reading the row makes that count a fact of the table.
 
     A declared position domain resolves ahead of the table (its name can never
     collide with a row id — resolve rejects the collision), so the zone store
