@@ -137,15 +137,31 @@ def _duplicate_probe(rule_name: str) -> str:
     return BASE.replace(f"{marker}\n", f"{marker}\n{marker}\n")
 
 
+# The clauses a game may legitimately write MORE THAN ONCE, each with the reason
+# and with where its own repeat-abuse wall lives — a clause is not exempt from
+# duplication checking just by being here, it is checked somewhere else.
+#
+#   phase      — a game is a sequence of phases; repetition IS the construct.
+#   uses_decl  — a game uses as many family libraries as it draws on
+#                (decisions.md "Family libraries"). Repeating the SAME library is
+#                still a defect, and is walled in `resolve._apply_uses`, not in
+#                parse: only resolve knows the library names.
+REPEATABLE: dict[str, str] = {
+    "phase": "a game is a sequence of phases",
+    "uses_decl": "a game may use several libraries; the repeated-NAME wall is "
+    "in resolve._apply_uses, which is the pass that knows library names",
+}
+
+
 def test_game_item_registry_pin() -> None:
     """The domain this module quantifies over IS the grammar's clause list:
     a new `?game_item` alternative must be classified here (single-valued or
     repeatable) before it can land."""
     alternatives = _game_item_alternatives()
-    assert alternatives == set(SINGLE_VALUED) | {"phase"}, (
+    assert alternatives == set(SINGLE_VALUED) | set(REPEATABLE), (
         "the `game` production's clause list changed — classify the new "
-        "clause in SINGLE_VALUED (or document it as repeatable like `phase`) "
-        "and give it omission/duplication probes"
+        "clause in SINGLE_VALUED (or in REPEATABLE, with the reason and the "
+        "location of its own repeat wall) and give it omission/duplication probes"
     )
 
 
