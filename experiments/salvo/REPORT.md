@@ -301,3 +301,36 @@ sweep is coarse, one knob family, references are simple policies);
 the exact-tier mini remains the ground-truth instrument for
 equilibrium questions, and combos/jokers (round 5) will move every
 number.
+
+## 10. Location liveness by target extremity (evaluation question 3)
+
+Instrument: `probe_liveness.py` — 1000 mirror playouts per policy on
+the adopted base game, each location binned by its target's distance
+from rank 7 (mid: targets 6-8, near: 4-5/9-10, edge: A-3/J-K; the
+bins naturally appear in 21/31/47% of location slots). Data:
+`results_liveness.json`.
+
+Under tuned sighted play:
+
+| bin | cards | card-distance | affinity | margin | unclaimed | least-contested (vs share) |
+|---|---|---|---|---|---|---|
+| mid | 6.09 | 1.84 | 48.5% | 14.7 | 4.2% | 16.3% (21.4%) |
+| near | 5.94 | 1.76 | 47.1% | 15.2 | 4.5% | 27.3% (31.2%) |
+| edge | 5.40 | 1.92 | 40.4% | 16.9 | 2.5% | 56.4% (47.4%) |
+
+**The designed personalities are real.** Edge targets are precision
+fights: skilled play commits FEWER cards there but keeps them just as
+close to the target (distance ~1.9 — against random's 5.3, the
+repricing does enormous selective work), with affinity mattering
+less. Mid targets are volume wars: more cards, more affinity rescue.
+The gradient is modest but consistent, margins stay flat-ish across
+bins (14.7-16.9), and unclaimed ties are low everywhere.
+
+**The Blotto abandonment watch comes back healthy.** Edge locations
+are the game's thinnest battlefield somewhat more often than chance
+(56.4% least-contested against a 47.4% appearance share, ratio 1.19)
+— a lean, not a script. Instructively, BLIND play is scriptier
+(71.5%, ratio 1.51): opponent-awareness softens abandonment rather
+than amplifying it, because sighted players contest an edge the
+opponent under-commits to. No concede-the-edge degenerate pattern
+under any policy. Question 3 closes positive.

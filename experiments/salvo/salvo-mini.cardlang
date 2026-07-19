@@ -1,0 +1,122 @@
+// Salvo-mini — the exactly solvable twin (DESIGN.md, "Mini variant").
+//
+// Purpose: ground truth for the staging questions the arena can only
+// approximate — does the FIRST committer mix placements at equilibrium
+// (bluffing with interior probabilities), and does the second committer's
+// reading of the staging counts carry value? Everything else is shrunk or
+// removed to keep the tree exactly walkable:
+//
+// - Pool: spades and hearts, ace to six (twelve cards), filtered from
+//   standard52 in setup (GOPS's suit-filter pattern).
+// - Two locations, hands of three, three rounds, stage zero or one card
+//   per round (a single offer per window — no window loop).
+// - NO draw, NO recon, NO capacity: the recon economy is arena-tier
+//   tested (REPORT.md sections 8-9) and capacity cannot bind at these
+//   sizes (at most three commits per player, two locations); both are
+//   deliberately absent so the only mechanism under the microscope is
+//   staged concealment itself. `held` counts voluntary holds.
+// - Scoring is the base game's proximity + affinity, but `final` is the
+//   POINT DIFFERENTIAL (own total minus opponent's), so the game is
+//   zero-sum by construction and the solver stack (CFR+, exploitability)
+//   applies directly. Argmax winner is unchanged by the transform.
+//
+// The seed samples the deal (locations + hands). A single-seed chance
+// root is a fixed public deal — Green Lane's shape, where the only
+// hidden information is what sits in a staged pile before its flip.
+
+game SalvoMini {
+
+  players: 2
+  direction: clockwise
+  max_length: 60
+
+  cards: standard52
+  ranking: aces low                // A=0 .. K=12; live pool uses 0..5
+
+  zones {
+    deck             : Deck
+    dead             : Muck                // the 40 filtered-out cards
+    location_a       : Discard
+    location_b       : Discard
+    hand[player]     : Hand<player>
+    staged_a[player] : HiddenPile<player>  // identity to owner, count to
+    staged_b[player] : HiddenPile<player>  //   the opponent — the channel
+    army_a[player]   : PlayerPile<player>
+    army_b[player]   : PlayerPile<player>
+  }
+
+  state {
+    round_no       : Integer = 0
+    first_mover    : Player  = 0     // round initiative, alternates
+    committer      : Player  = 0
+    held[player]   : Integer = 0     // voluntary holds (also the hold no-op)
+    pts_a[player]  : Integer = 0
+    pts_b[player]  : Integer = 0
+    final[player]  : Integer = 0
+  }
+
+  phase setup {
+    move all cards from deck where card.suit is clubs to dead
+    move all cards from deck where card.suit is diamonds to dead
+    move all cards from deck where rank_value(card) >= 6 to dead
+    shuffle deck
+    move one card from deck to location_a
+    move one card from deck to location_b
+    deal 3 cards from deck to hand[0]
+    deal 3 cards from deck to hand[1]
+  }
+
+  phase play {
+    repeat until round_no is 3 {
+      // One sealed staging decision per player, initiative order; the
+      // second committer has seen the first's staging counts.
+      committer := first_mover
+      offer to committer one of [commit_a, commit_b, hold]
+      committer := the player where player is not first_mover
+      offer to committer one of [commit_a, commit_b, hold]
+
+      // The flip.
+      for each player p: move all cards from staged_a[p] to army_a[p]
+      for each player p: move all cards from staged_b[p] to army_b[p]
+
+      first_mover := the player where player is not first_mover
+      round_no += 1
+    }
+  }
+
+  phase settle {
+    for each player p: pts_a[p] := sum of loc_value(card, top_of(location_a)) over cards in army_a[p]
+    for each player p: pts_b[p] := sum of loc_value(card, top_of(location_b)) over cards in army_b[p]
+
+    // Zero-sum point differential; argmax winner unchanged.
+    final[0] := (pts_a[0] + pts_b[0]) - (pts_a[1] + pts_b[1])
+    final[1] := (pts_a[1] + pts_b[1]) - (pts_a[0] + pts_b[0])
+  }
+
+  winner: highest final
+}
+
+// Identical value functions to salvo.cardlang — change both together.
+function dist(c : Card, l : Card) = if rank_value(c) >= rank_value(l) then rank_value(c) - rank_value(l) else rank_value(l) - rank_value(c)
+
+function loc_value(c : Card, l : Card) = (13 - dist(c, l)) + (if c.suit is l.suit then 3 else 0)
+
+move_type commit_a {
+  when: hand[actor] is not empty
+  effect {
+    move chosen 1 card from hand[actor] to staged_a[actor]
+  }
+}
+
+move_type commit_b {
+  when: hand[actor] is not empty
+  effect {
+    move chosen 1 card from hand[actor] to staged_b[actor]
+  }
+}
+
+move_type hold {
+  effect {
+    held[actor] += 1
+  }
+}
