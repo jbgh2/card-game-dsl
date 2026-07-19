@@ -207,10 +207,8 @@ class ActionSpace:
                 int_ceiling = ceiling if int_ceiling is None else max(int_ceiling, ceiling)
             elif isinstance(node, n.Offer):
                 # Routed by arity, same rule the round vocabulary below uses:
-                # nullary keeps today's bare-name representation in `names`
-                # (every offer-using corpus game today — Coup, Skat — names
-                # only nullary moves, so this is unchanged for them); a
-                # parameterized, non-Card move type contributes its
+                # a nullary offer keeps the bare-name representation in
+                # `names`; a parameterized, non-Card move type contributes its
                 # cross-product to `vocab` instead of a stray, never-used bare
                 # name. Without this routing, a parameterized `offer` move,
                 # like Go Fish's `ask`, would be silently mis-routed.

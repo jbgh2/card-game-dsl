@@ -1,29 +1,14 @@
-"""Type-foundation fixes to cardlang/typecheck.py (four confirmed review
-findings, all in the Subscript/Member/Call layer):
+"""The type foundations under `Subscript`, `Member` and `Call`, where a
+mistyped receiver silently disarms every wall downstream of it.
 
-1. **Zone-family subscript mistyping.** `env_from_game` mapped every zone
-   name to its *content* type regardless of `ZoneDecl.index`, so a family
-   instance (`hand[p]`) fell through the generic Subscript arm
-   (collection -> element) and typed as a single `Card`. Two opposite
-   symptoms: an aggregation source degraded to `TAny` (every wall inside the
-   body went dark), and `card in hand[p]` was rejected outright ("must be a
-   collection... got Card"). Fixed by giving `TypeEnv` a `zone_families` map
-   (name -> the type its index must be `assignable` to) so `Subscript` can
-   tell a family instance apart from generic collection indexing.
-2. **The Card field pair enumerated twice** (`infer`'s Member arm and
-   `_check_expr`'s rejection wall) — collapsed to one `CARD_FIELDS` registry.
-3. **`action.card.*` bypassed every wall** — `action` is a pronoun (`TAny`),
-   so `action.card.suit is 3` typechecked clean and was silently `False` at
-   runtime. Fixed with the sound subset: `ACTION_FIELDS` types the two
-   fields universal across every move type (`card: Card`, `actor: Player` —
-   the runtime `Move` payload's own shape, cardlang/runtime/state.py). The
-   bare `actor` pronoun is typed `Player` too (`evaluate._pronoun` ->
-   `ctx.current_player`, always set where `actor` is legally read).
-4. **`rank_value` was ungated for no-`ranking:` games** — it indexes
-   `ctx.rs.rank_index`, empty for a game like Coup, and would only fail at
-   runtime with a bare `KeyError`. Gated behind `RANKING_GATED_FUNCS`
-   (today `{"rank_value"}`) and `TypeEnv.has_ranking`, mirroring resolve.py's
-   existing `Rank`-move-param gate on the same condition.
+Four areas, one section below each: a zone-family subscript types as the
+family's content (not as a single Card, which would degrade an aggregation
+source to `TAny` and take every wall in the body dark with it); the Card
+field pair lives in one `CARD_FIELDS` registry rather than at two sites that
+can drift; `action.card.*` and the bare `actor` pronoun are typed from
+`ACTION_FIELDS` rather than left as `TAny` and silently `False`; and
+`rank_value` is gated on a declared `ranking:` by `RANKING_GATED_FUNCS`,
+mirroring resolve.py's `Rank`-move-param gate on the same condition.
 
 Completeness ledger
 --------------------

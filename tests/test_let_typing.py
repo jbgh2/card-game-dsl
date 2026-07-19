@@ -265,9 +265,9 @@ def test_a_transition_predicate_cannot_read_a_same_phase_body_let() -> None:
     # A transition is CONFIGURATION: collected position-independently and
     # evaluated with the context captured at whichever round fires it — which
     # may run before the `let`. Entry scope, like hooks and state defaults.
-    # This cell was in the ledger with no pin; probing it found the gap
-    # (resolve scoped the let over it, typecheck typed it, the playout raised
-    # a raw KeyError from a round that ran before the binding existed).
+    # Without this wall the earlier passes are no help: resolve scopes the let
+    # over it and typecheck types it, so the mismatch survives to a round that
+    # may run before the binding exists.
     _rejects(
         _game(
             "legal_moves: [play_to_trick]\n"
@@ -391,8 +391,8 @@ def test_a_produce_payload_is_typed_through_a_let() -> None:
 def test_a_keyed_map_rejects_a_wrong_domain_key() -> None:
     # Keyed collections carry their key domain: an indexed let is
     # player-keyed, and a per-player state var is keyed by its declared index
-    # role — reads and writes both check, where without them a raw KeyError
-    # would be the first sign.
+    # role — reads and writes both check, where without them the first sign
+    # would come at play time.
     _rejects(_game("let m[q] = q\n    n[m[hearts]] := 1"), "`m` is keyed by Player")
     _rejects(
         _game("let k = hearts\n    if n[k] > 0 { n[0] := 1 }"),

@@ -221,10 +221,11 @@ def _stmt_usage(
         case n.Produces():
             # Exactly one arm runs (typecheck enforces arm exhaustiveness over
             # the variant's cases), so this is an if with one branch per arm:
-            # worst case over arms, for both peak and carry. Without this arm
-            # the kind would fall to the silent default, making the gate blind
-            # to every deal written inside a `produces:` arm — the same hole the
-            # Block arm closes, one construct over.
+            # worst case over arms, for both peak and carry. The arm is
+            # mandatory rather than optional: `_stmt_usage` ends in
+            # `assert_never`, so omitting it is a mypy error before it is
+            # anything else — the gate cannot go quietly blind to deals
+            # written inside a `produces:` arm.
             if not stmt.arms:
                 return carry, carry
             usages = [

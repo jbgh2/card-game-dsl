@@ -5,8 +5,7 @@ The `state.` pronoun reads the live round's accumulator (`runtime/state.py`'s
 drives `next_actor` off a ring cursor `idx` and a materialized `order`, and both
 sit in the same dict as `led_suit`. With nothing distinguishing them and nothing
 checking the field name, `state.idx` would type-check, run, and silently change
-the game (in Hearts, moving the winner from player 2 to player 0), while a typo
-like `state.lead_suit` would reach the runtime as a bare `KeyError` — a round's
+the game (in Hearts, moving the winner from player 2 to player 0), and a round's
 private cursor would be part of the language's surface by accident.
 
 This module is the line between the two. A form's PUBLISHED fields are the closed,

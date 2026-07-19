@@ -143,10 +143,9 @@ def test_a_non_zone_endpoint_is_rejected_at_resolve(body: str, expected: str) ->
 def test_to_each_requires_a_player_indexed_family(body: str, expected: str) -> None:
     """The arity axis of the zone-position domain. `to each X` deals one
     parcel per PLAYER (the executor iterates seats and keys X[player]), so
-    without this wall a singleton would die on the zone store's missing-family
-    error, and a TEAM family would silently deal into team slots AS IF team ids
-    were seats before crashing on a raw KeyError — player keying is assumed at
-    the executor, and this wall is what checks it at the surface."""
+    without this wall a singleton and a TEAM family alike would reach the zone
+    store, which serves only keys its family actually covers — player keying is
+    assumed at the executor, and this wall is what checks it at the surface."""
     with pytest.raises(DiagnosticError) as excinfo:
         check_dsl(_game(body), "probe.cardlang")
     assert expected in str(excinfo.value)

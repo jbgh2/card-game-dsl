@@ -115,8 +115,8 @@ def test_a_published_field_is_accepted() -> None:
 
 
 def test_rejects_a_misspelled_field() -> None:
-    """Before the wall this reached the runtime as a bare `KeyError: 'lead_suit'`,
-    with no span — and only if the line happened to execute."""
+    """Without the wall a misspelled field is a check-time silence: it reaches
+    the runtime with no span, and only if the line happens to execute."""
     rejects("state.lead_suit is none", "a round publishes no `lead_suit`")
 
 
