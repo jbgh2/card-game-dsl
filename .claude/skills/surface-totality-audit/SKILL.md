@@ -1,6 +1,6 @@
 ---
 name: surface-totality-audit
-description: MANDATORY completeness gate for any change that adds or extends grammar surface, a checker wall or diagnostic, a stdlib registry, or any closed-domain mechanism. Run BEFORE writing the implementation — the grid is authored red first — and again before committing. Produces the artifacts the change must ship with: the grid (the crossed coverage domain as an executable test), the misuse-probe rejection tests, and the completeness ledger. A green suite is a regression gate, not a completeness gate; this skill is the completeness gate.
+description: "MANDATORY completeness gate for any change that adds or extends grammar surface, a checker wall or diagnostic, a stdlib registry, or any closed-domain mechanism. Run BEFORE writing the implementation — the grid is authored red first — and again before committing. Produces the artifacts the change must ship with: the grid (the crossed coverage domain as an executable test), the misuse-probe rejection tests, and the completeness ledger. A green suite is a regression gate, not a completeness gate; this skill is the completeness gate."
 ---
 
 # Surface-totality audit
@@ -109,8 +109,14 @@ matters more — the frame.
 **Materialize the grid, red, before implementing.** Cross the derived axes
 into a checked-in parametrized test and author its expected-outcome column
 before the implementation exists: every cell is a design decision — accept,
-or reject with a named diagnostic — never undecided, never blank. Then run
-it. The red cells are the work list, and the red run is the proof the grid
+or reject with a named diagnostic. A genuinely undecided cell is never
+guessed into the grid to complete the parametrization: a guess pinned by a
+passing row carries the authority of an executed decision nobody made, and
+the next author reads its flip as a regression rather than as an open
+question surfacing. Undecided cells go to `residual` with the same wall
+and roadmap record as an uncovered cell — the symmetric gate still
+applies, so this is no cheap out. The grid pins decisions that have been
+made; it is not a device for making them. Then run it. The red cells are the work list, and the red run is the proof the grid
 can fail. Cells meant to keep current behavior may capture it from the
 pre-change tree, but a captured value is reviewed as a decision — a
 captured outcome nobody can justify is a design finding now, not a review
@@ -223,8 +229,12 @@ domain:     <what is quantified over>
 registry:   <where each axis is derived in code — the grid reads these>
 covered:    <the grid: module + parametrization, not a prose cell list>
 sampled:    <cells covered by example only, and why that is enough>
-residual:   <cells NOT in the grid — each with its wall and its roadmap.md line>
+residual:   <cells NOT in the grid, uncovered or not-yet-decided — each with its wall and its roadmap.md line>
 ```
+
+(`registry` names the derivation sites the grid reads; `covered` names the
+executed parametrization that crosses them — complementary rows, not
+restatements.)
 
 The gate is symmetric: **a residual row without both a wall and a record
 fails the audit, and a `covered` claim without an executed grid row fails

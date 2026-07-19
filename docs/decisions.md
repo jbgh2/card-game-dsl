@@ -2999,8 +2999,13 @@ parametrized test whose expected-outcome column is authored **before the
 implementation exists** and run red first. Every cell is a design decision
 (accept, or reject with a named diagnostic), so a cell that flips
 uncommanded is a regression caught at write time, and a commanded cell that
-stays green means the test does not reach the behavior. `covered` means an
-executed grid row; prose describes only what the grid does not run. The
+stays green means the test does not reach the behavior. A cell whose
+correct outcome is not yet decided is never guessed into the grid — a
+guess pinned by a passing row carries the authority of a decision nobody
+made; it goes to residual with its wall and its record. The grid pins
+decisions that have been made; it is not a device for making them.
+`covered` means an executed grid row; prose describes only what the grid
+does not run. The
 judgment columns ship as the **completeness ledger** in the grid module's
 docstring:
 
@@ -3010,7 +3015,7 @@ domain:     <what is quantified over>
 registry:   <where each axis is derived in code — the grid reads these>
 covered:    <the grid: module + parametrization, not a prose cell list>
 sampled:    <cells covered by example only, and why that suffices>
-residual:   <cells NOT in the grid — each with its wall and its roadmap.md line>
+residual:   <cells NOT in the grid, uncovered or not-yet-decided — each with its wall and its roadmap.md line>
 ```
 
 The gate is symmetric: a residual row without both a wall and a record
