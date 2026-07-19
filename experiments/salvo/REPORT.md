@@ -120,10 +120,74 @@ depth by target extremity, initiative effects) are a round-2 probe.
 
 1. **Curve A/B**: zero-centered variant file through this same arena —
    does holding come alive (sighted vs sighted_nohold separates), does
-   the sighted-blind gap grow, do margins stay healthy?
+   the sighted-blind gap grow, do margins stay healthy? → run; see
+   section 7. **Refuted on both counts.**
 2. **Per-location liveness**: contest depth vs target extremity (are
    edge targets knife-fights and mid targets volume wars, as
    designed?).
 3. **salvo-mini + exact tier**: equilibrium mixing at the first
    committer's staging, value of the count channel, per DESIGN.md.
 4. Combos + jokers (needs the stdlib combo primitive decision).
+
+## 7. Round 2 — the zero-centered curve A/B (hypothesis refuted)
+
+Variant: `variants/salvo-zc.cardlang` (base value 6 minus distance,
+range -6..+9; the sole diff from the main file). Instrument: the same
+arena with per-curve tuning (`--curve zc`; knobs rescaled, controlled
+pairs still knob-identical; mirror pin green on the variant, including
+negative totals). New policy `blind_hold`: own-value restraint with
+zero opponent state. Data: `results_triage_zc.json`, 10 pairings, 1000
+games each; side-by-side via `compare_curves.py`.
+
+The zero-centered curve was the recorded fallback for the dead
+commit-count axis. It does not fix it, and it costs interaction:
+
+- **Holding still worthless.** sighted vs sighted_nohold: 50.2/48.8.
+  blind_hold vs blind: 50.4/49.1. Both indistinguishable. Hold usage
+  barely moved (~1.1 vs the forced 1.0): the hold trigger almost
+  never fires.
+- **The interaction gap SHRANK.** sighted vs blind fell from 68.0/31.8
+  to 56.8/42.5; decision divergence fell from 16-21% to 11-12%. The
+  compressed value range (spread 15 points vs 8) flattens army
+  differences: margins halve everywhere (blind mirror 22.0 to 10.1,
+  sighted mirror 11.4 to 7.8), unclaimed ties rise in non-adapted play
+  (random mirror 2.7% to 5.8%). Less texture, more coin-flip, less
+  room for the opponent-reading that made round 1 encouraging.
+- Blind punishes random harder (90.8% to 97.0%) — negative values
+  penalize random's bad commits — but that is value-hygiene, not
+  interaction.
+
+**Diagnosis: the axis is dead for a structural reason the curve cannot
+reach.** A commit chooses the best of THREE locations, so a card must
+be far from every target at once (and off-suit near the close ones)
+before holding beats committing — with targets spread over the rank
+line, the max-of-three value is almost always comfortably positive.
+Meanwhile committing has **no opportunity cost**: eleven cards, twelve
+slots, so playing a card never forecloses anything. No value curve
+makes "how many" a decision while slots outnumber cards and every
+commit is free.
+
+**Live fix candidates, for the designer** (all cheap in this harness;
+all change rules, not numbers):
+
+- **(c) Recon draw** — commits and draws trade off: a round in which
+  you commit fewer than two earns an extra draw. Holding buys card
+  advantage; restraint becomes an economy, not a value judgment. The
+  standard-deck-native answer to Snap's energy ramp.
+- **(d) Per-location capacity** — Snap's four-card cap per side per
+  location. Creates slot scarcity (9-12 capped slots against 11
+  cards), kills dump-ground piles, and makes committing to a
+  location spend one of ITS scarce slots.
+- **(e) Total commit budget** — e.g. eight commits per game across
+  all locations: every commit forecloses another; interacts with the
+  per-round reveal order (late commits are better informed), so it
+  likely needs (d) or a per-round cap alongside to avoid everyone
+  sandbagging to the end.
+- **Combos** (already scheduled) — held cards gain option value
+  (keep the 7 hoping to pair it later), a softer, texture-first
+  pressure on the same axis.
+
+The zero-centered curve remains available as value *texture* (it does
+change which commits are mistakes), but it is no longer a candidate
+fix for the commit-count axis, and on this evidence the all-positive
+curve's wider spread serves the interactive core better.

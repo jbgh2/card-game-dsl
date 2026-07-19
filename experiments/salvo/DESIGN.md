@@ -129,19 +129,21 @@ locations wins; if that also ties, the game is a draw.
   in the location's own suit stacks both bonuses.
 - **Combos reward planning across turns** and justify off-target
   commits, which keeps hands from being priced by proximity alone.
-- **The all-positive curve is a recorded risk.** Every commit scores at
-  least +1, and a player sees eleven cards (five dealt plus six drawn)
-  against twelve commit slots — so on paper, committing the maximum
-  every turn is close to dominant, and the 0/1/2 choice may be fake.
-  The simulation gate arbitrates (see the evaluation plan). Two
-  fallbacks are ready if it confirms the dominance: (a) **zero-centered
-  values** — base value 6 minus distance, so far-off commits score
-  negative, passing and hand-digging become real, and mid-vs-edge
-  targets diverge harder (a one-line change); (b) **shared capacity
-  with priority reveal** — locations hold a limited number of cards
-  total, the current leader's cards flip and claim slots first — which
-  disciplines volume through scarcity instead. Fallback (a) is the
-  default; (b) is the more Snap-authentic but heavier lever.
+- **The commit-count axis is a confirmed open problem.** Every commit
+  scores at least +1, and a player sees eleven cards (five dealt plus
+  six drawn) against twelve commit slots, so committing the maximum is
+  near-dominant — confirmed empirically (REPORT.md sections 3 and 7):
+  the WHERE of a commit carries the game, the HOW-MANY is currently
+  fake. The zero-centered curve (base 6 minus distance) was tested as
+  a fix and refuted — a commit takes the best of three locations, so
+  the max-of-three value is almost always positive, and with slots
+  outnumbering cards a commit has no opportunity cost for any curve to
+  price; compressing the value range also diluted the interactive
+  core. The live candidates all add scarcity or economy rather than
+  reshaping values: a recon draw (committing fewer than two earns an
+  extra draw), per-location capacity (Snap's four-card cap), a total
+  commit budget, and combo option-value on held cards — designer's
+  choice pending, REPORT.md section 7 has the trade-offs.
 
 ## Information structure
 

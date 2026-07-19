@@ -51,21 +51,45 @@ from cardlang.openspiel import replay
 from cardlang.runtime.values import Card
 
 HERE = Path(__file__).resolve().parent
-GAME_PATH = str(HERE / "salvo.cardlang")
+GAME_PATH = str(HERE / "salvo.cardlang")  # rebound in main() by --curve
 
 LOCS = ("a", "b", "c")
 
-# --- the value mirror (salvo.cardlang `dist` / `loc_value`) — VALUE_MIRROR
+# One switch selects game file + value mirror + policy tuning together, so
+# they cannot drift apart; the per-game mirror pin then PROVES the pairing
+# (a wrong base fails the totals assertion on game one).
+CURVES: dict[str, dict[str, Any]] = {
+    # round-1 all-positive curve: per-card value 13-dist (+3 suit), 1..16
+    "full": dict(
+        game="salvo.cardlang",
+        base=13,
+        results="results_triage.json",
+        won_margin=25.0, lost_margin=25.0, overkill_w=0.15, lostcause_w=0.2,
+        urgency_w=1.3, opp_staged_est=9.5, hold_below=7.0,
+    ),
+    # zero-centered curve (DESIGN.md fallback (a)): 6-dist (+3), -6..+9 —
+    # knobs rescaled to the smaller value range (hand-set, see REPORT.md)
+    "zc": dict(
+        game="variants/salvo-zc.cardlang",
+        base=6,
+        results="results_triage_zc.json",
+        won_margin=15.0, lost_margin=15.0, overkill_w=0.15, lostcause_w=0.2,
+        urgency_w=1.3, opp_staged_est=4.0, hold_below=0.5,
+    ),
+}
+TUN: dict[str, Any] = CURVES["full"]  # rebound in main()
+
+# --- the value mirror (the game file's `dist` / `loc_value`) — VALUE_MIRROR
 
 
 def rank_index_map(game_ast: Any) -> dict[str, int]:
     return {r: i for i, r in enumerate(game_ast.ranking)}
 
 
-def make_loc_value(ridx: dict[str, int]) -> Callable[[Card, Card], int]:
+def make_loc_value(ridx: dict[str, int], base: int) -> Callable[[Card, Card], int]:
     def loc_value(c: Card, loc: Card) -> int:
         d = abs(ridx[c.rank] - ridx[loc.rank])
-        return (13 - d) + (3 if c.suit == loc.suit else 0)
+        return (base - d) + (3 if c.suit == loc.suit else 0)
 
     return loc_value
 
@@ -136,16 +160,28 @@ def _best_pairs(hand: list[Card], locs: dict[str, Card], lv: Any, ridx: dict[str
     return pairs
 
 
-def blind_policy(kind: str, pause: Any, space: Any, ctx: Ctx, lv: Any, ridx: dict[str, int], rng: random.Random) -> int:
-    """Commit-max greedy: no opponent state, never holds voluntarily."""
+def blind_policy(kind: str, pause: Any, space: Any, ctx: Ctx, lv: Any, ridx: dict[str, int], rng: random.Random, allow_hold: bool = False) -> int:
+    """Commit-max greedy: no opponent state, never holds voluntarily.
+    With allow_hold=True (the `blind_hold` policy) it holds when its best
+    available commit falls below the curve's hold threshold — restraint
+    driven by OWN-hand value only, still zero opponent state."""
     hand = hand_of(pause)
     locs = location_cards(pause.rs)
     labels = offer_labels(space, sorted(pause.legal)) if kind == "offer" else {}
     if kind == "offer":
         commit_ids = {lab.removeprefix("commit_"): aid for aid, lab in labels.items() if lab.startswith("commit_")}
+        hold_id = next((aid for aid, lab in labels.items() if lab == "hold"), None)
         if not commit_ids:  # hand empty: hold is all there is
-            return next(aid for aid, lab in labels.items() if lab == "hold")
+            assert hold_id is not None
+            return hold_id
         best = _best_pairs(hand, locs, lv, ridx)[0]
+        if (
+            allow_hold
+            and hold_id is not None
+            and best[0] < TUN["hold_below"]
+            and _round_no(pause) < HOLD_LAST_ROUND
+        ):
+            return hold_id
         return commit_ids[best[1]]
     # card pick for the pending location
     assert ctx.pending_loc is not None
@@ -158,14 +194,7 @@ def blind_policy(kind: str, pause: Any, space: Any, ctx: Ctx, lv: Any, ridx: dic
     raise AssertionError("no hand card encodable among legal picks")
 
 
-# sighted tuning knobs (documented in the report; all heuristic)
-WON_MARGIN = 25      # status above this: location considered safely won
-LOST_MARGIN = 25     # status below minus-this: written off
-OVERKILL_W = 0.15    # weight on a safely-won location
-LOSTCAUSE_W = 0.2    # weight on a written-off location
-URGENCY_W = 1.3      # weight when slightly behind (a live race)
-OPP_STAGED_EST = 9.5  # assumed value of one unseen staged opponent card
-HOLD_BELOW = 7.0     # hold rather than commit below this weighted value
+# Curve-dependent knobs live in CURVES/TUN; this one is round-structural:
 HOLD_LAST_ROUND = 5  # rounds 0-4 may hold; round 5 (last) always commits
 
 
@@ -178,7 +207,7 @@ def _status(pause: Any, me: int, l: str, lv: Any, locs: dict[str, Card]) -> floa
     mine = sum(lv(c, target) for c in zone_cards(pause.rs, f"army_{l}", me))
     mine += sum(lv(c, target) for c in zone_cards(pause.rs, f"staged_{l}", me))
     theirs = sum(lv(c, target) for c in zone_cards(pause.rs, f"army_{l}", opp))
-    theirs += OPP_STAGED_EST * len(zone_cards(pause.rs, f"staged_{l}", opp))
+    theirs += TUN["opp_staged_est"] * len(zone_cards(pause.rs, f"staged_{l}", opp))
     return mine - theirs
 
 
@@ -198,12 +227,12 @@ def sighted_policy(kind: str, pause: Any, space: Any, ctx: Ctx, lv: Any, ridx: d
     weights: dict[str, float] = {}
     for l in LOCS:
         s = _status(pause, me, l, lv, locs)
-        if s >= WON_MARGIN:
-            weights[l] = OVERKILL_W
-        elif s <= -LOST_MARGIN:
-            weights[l] = LOSTCAUSE_W
+        if s >= TUN["won_margin"]:
+            weights[l] = TUN["overkill_w"]
+        elif s <= -TUN["lost_margin"]:
+            weights[l] = TUN["lostcause_w"]
         elif s < 0:
-            weights[l] = URGENCY_W
+            weights[l] = TUN["urgency_w"]
         else:
             weights[l] = 1.0
     if kind == "offer":
@@ -220,7 +249,7 @@ def sighted_policy(kind: str, pause: Any, space: Any, ctx: Ctx, lv: Any, ridx: d
         ]
         scored.sort(key=lambda t: (-t[0], t[1], ridx[t[2].rank], t[2].suit))
         best_v, best_l, _ = scored[0]
-        if allow_hold and hold_id is not None and best_v < HOLD_BELOW and _round_no(pause) < HOLD_LAST_ROUND:
+        if allow_hold and hold_id is not None and best_v < TUN["hold_below"] and _round_no(pause) < HOLD_LAST_ROUND:
             return hold_id
         return commit_ids[best_l]
     assert ctx.pending_loc is not None
@@ -239,9 +268,17 @@ def sighted_nohold_policy(kind: str, pause: Any, space: Any, ctx: Ctx, lv: Any, 
     return sighted_policy(kind, pause, space, ctx, lv, ridx, rng, allow_hold=False)
 
 
+def blind_hold_policy(kind: str, pause: Any, space: Any, ctx: Ctx, lv: Any, ridx: dict[str, int], rng: random.Random) -> int:
+    """Own-value restraint with zero opponent state: holds when its best
+    commit is below the curve's threshold. Separates 'the curve makes
+    counting matter' from 'opponent info makes counting matter'."""
+    return blind_policy(kind, pause, space, ctx, lv, ridx, rng, allow_hold=True)
+
+
 POLICIES: dict[str, Policy] = {
     "random": random_policy,
     "blind": blind_policy,
+    "blind_hold": blind_hold_policy,
     "sighted": sighted_policy,
     "sighted_nohold": sighted_nohold_policy,
 }
@@ -306,8 +343,11 @@ def playout(
     # settle stats from the final world: re-run to the last pause is gone, so
     # recompute from the terminal returns encoding: final = locs*1000 + total.
     ret = r.returns
-    locs_won = [int(x) // 1000 for x in ret]
-    totals = [int(x) % 1000 for x in ret]
+    # final = locs*1000 + total, with |total| bounded far inside 500 on both
+    # curves — round-decode stays exact even for negative zc totals (floor
+    # division would misdecode 2000-50 as 1 location).
+    locs_won = [round(x / 1000) for x in ret]
+    totals = [int(x) - 1000 * lw for x, lw in zip(ret, locs_won)]
     # margins need the per-location points; recompute by replaying the final
     # world once with a fresh run that stops at terminal — the terminal world
     # is not exposed, so derive margins from a full replay via the runtime
@@ -437,13 +477,17 @@ def arena(space: Any, a: str, b: str, n_seeds: int, lv: Any, ridx: dict[str, int
 
 
 def main() -> None:
+    global GAME_PATH, TUN
     ap = argparse.ArgumentParser()
     ap.add_argument("--seeds", type=int, default=150, help="seeds per seating per pairing")
+    ap.add_argument("--curve", choices=sorted(CURVES), default="full", help="value curve / game variant")
     args = ap.parse_args()
 
+    TUN = CURVES[args.curve]
+    GAME_PATH = str(HERE / TUN["game"])
     game_ast, space = replay.load(GAME_PATH)
     ridx = rank_index_map(game_ast)
-    lv = make_loc_value(ridx)
+    lv = make_loc_value(ridx, TUN["base"])
 
     pairings = [
         ("random", "random"),
@@ -455,6 +499,10 @@ def main() -> None:
         ("blind", "blind"),
         ("sighted", "sighted"),
     ]
+    if args.curve == "zc":
+        # the commit-count probes: does restraint pay at all, and does
+        # own-value restraint alone capture it?
+        pairings += [("blind_hold", "blind"), ("sighted", "blind_hold")]
     results = []
     for a, b in pairings:
         res = arena(space, a, b, args.seeds, lv, ridx)
@@ -462,8 +510,13 @@ def main() -> None:
         print(json.dumps(res))
         sys.stdout.flush()
 
-    out_path = HERE / "results_triage.json"
-    out_path.write_text(json.dumps({"seeds_per_seating": args.seeds, "pairings": results}, indent=2))
+    out_path = HERE / TUN["results"]
+    out_path.write_text(
+        json.dumps(
+            {"curve": args.curve, "seeds_per_seating": args.seeds, "tuning": TUN, "pairings": results},
+            indent=2,
+        )
+    )
     print(f"wrote {out_path}")
 
 
