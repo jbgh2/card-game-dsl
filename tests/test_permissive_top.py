@@ -628,6 +628,28 @@ game G {{
     assert env.structs["R"].fields["d"] == expected
 
 
+def test_env_from_game_keeps_the_signatures_it_solved() -> None:
+    """The default branch solves the function signatures on its way to the
+    struct registry — the two are one fixpoint — so it must return them.
+
+    Discarding them left `TypeEnv.functions` empty, and `infer` on a call to
+    any user function then raised the no-signature `AssertionError` against an
+    environment that had just computed that very signature. Asserting the
+    inferred TYPE rather than merely that nothing raised: an empty map is
+    exactly what the old code had, and a laxer assertion would not have
+    noticed it."""
+    from cardlang.parse import parse_text
+    from cardlang.resolve import resolve
+    from cardlang.typecheck import env_from_game
+
+    src = _game(decls="function dbl(x : Integer) = x + x", state="score : Integer = 0")
+    env = env_from_game(
+        resolve(parse_text(src.replace("score[p] := 1", "score := 1"), "g.cardlang"))
+    )
+    assert set(env.functions) == {"dbl"}
+    assert infer(n.Call("dbl", (n.IntLit(2),)), env) == TInteger()
+
+
 def test_a_derived_field_reached_through_a_function_is_assignment_checked() -> None:
     """The same defect at an assignment rather than a comparison: `s.flag` is a
     Boolean reached through a function, and a Boolean may not be written to an

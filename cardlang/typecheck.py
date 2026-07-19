@@ -783,9 +783,18 @@ def env_from_game(
     the same defect the ambient-environment fix closed for the main pipeline,
     surviving in the branch the main pipeline no longer takes: a public helper
     is a caller too. Recursion is not a risk — the builder always calls back
-    with a registry in hand, taking the branch above."""
+    with a registry in hand, taking the branch above.
+
+    That branch also keeps the SIGNATURES the builder solved on the way. They
+    are free once the registry is solved, and discarding them left
+    `TypeEnv.functions` empty, so `infer` on any call to a user function
+    raised the no-signature `AssertionError` against an environment that had
+    just computed it. The supplied-registry branch deliberately does not: the
+    fixpoint uses this env as the INPUT to `_function_sigs`, and handing it a
+    half-built signature map would seed a round from itself."""
+    functions: Mapping[str, Sig] = {}
     if structs is None:
-        structs, _sigs = struct_and_function_registries(game, DiagnosticBag())
+        structs, functions = struct_and_function_registries(game, DiagnosticBag())
     state_vars: dict[str, Type] = {}
     for block in _state_blocks(game):
         for decl in block.decls:
@@ -838,6 +847,7 @@ def env_from_game(
         zone_families=zone_families,
         value_enums=value_enum_map(game),
         structs=structs,
+        functions=functions,
         has_ranking=bool(game.ranking),
         positions=positions,
     )
