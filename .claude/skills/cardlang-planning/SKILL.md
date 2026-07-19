@@ -38,7 +38,11 @@ stdlib registry, corpus game, docs, tests/goldens. The classification
 decides which gates the plan must SCHEDULE — if the change adds or
 extends surface, a wall, a diagnostic, a registry, or any closed-domain
 mechanism, the surface-totality-audit fires and Gate 4 applies.
-Misclassifying here is how audit-triggering work ships ungated.
+Misclassifying here is how audit-triggering work ships ungated — so the
+tie-breaker is fixed: when unsure whether the trigger matches, it
+matches. Unsure is a legal state throughout this process (decisions.md
+"Closed-domain completeness"); what is never legal is resolving it with
+a silent guess.
 
 ## Gate 3 — State the acceptance criteria before the task list
 
@@ -65,9 +69,13 @@ Planning is when the surface-totality-audit's Step 1 runs, not
 pre-commit: derive the axes in code, run the fresh-context framing check
 (the definition sources only — grammar, AST unions, and the registry
 modules wholesale; the plan is exactly the conditioning that check exists
-to escape), author the expected-outcome column, and run the grid red. The plan's task list begins with the grid; the red set IS the
-work list. A plan whose domain statement was written before the framing
-check ran is the failure mode this gate exists for.
+to escape), author the expected-outcome column, and run the grid red.
+The plan's task list begins with the grid; the red set IS the work list.
+The author's derivation is PROVISIONAL input to the framing check, not a
+violation of it — the check works by diffing lists, and the accepted
+domain statement is what survives the diff. The failure mode this gate
+exists for is freezing the domain, or authoring any expected outcome,
+without the check having run.
 
 ## Gate 5 — The plan contract: every step names its proving artifact
 

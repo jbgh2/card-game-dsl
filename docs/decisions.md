@@ -3005,7 +3005,18 @@ guess pinned by a passing row carries the authority of a decision nobody
 made; it goes to residual with its wall and its record. The grid pins
 decisions that have been made; it is not a device for making them.
 `covered` means an executed grid row; prose describes only what the grid
-does not run. The
+does not run.
+
+**Unsure is a legal state everywhere in this process; the silent guess is
+not.** Every mandate above names its uncertainty exit: an undecided cell
+goes to residual, an open design question to its open-questions/ file, a
+guard that cannot be classified does not land until it can, a review
+claim rests at PLAUSIBLE without executed evidence. The imperatives here
+prohibit manufactured certainty, never hesitation — a stated "not
+decided" with a wall is the process working; a guessed answer wearing a
+green row is the defect. The tie-breaker runs the same way: when unsure
+whether a gate applies, it applies — the superset is cheap, the guess is
+not. The
 judgment columns ship as the **completeness ledger** in the grid module's
 docstring:
 

@@ -92,6 +92,14 @@ the definition sources ONLY — the grammar, the AST unions, and the
 registry modules (a domain defined by a stdlib registry appears in
 neither grammar nor AST) — never the diff, the plan, or your domain
 statement — and ask what axes and positions the surface actually has.
+Your own derivation is PROVISIONAL until this diff: the accepted domain
+statement is what survives it, and no expected outcome is authored before
+acceptance. Tell the subagent that unsure candidates are welcome — an
+axis it half-suspects goes on the list, because the diff sorts
+over-report cheaply and an under-report never surfaces. The same
+permission runs through this whole process: unsure is a legal state with
+a named route (residual, roadmap, open-questions); the silent guess is
+the only illegal move.
 The definition-source set is itself an axis and gets no author-side
 selection: it comes from the pinned registry-module manifest (a
 checked-in list, itself pinned by a scrape over module-level registry
