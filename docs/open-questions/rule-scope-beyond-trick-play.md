@@ -43,3 +43,19 @@ filtering a chosen movement, which
 suggests guards may be enough and rules may be a trick-form-only device; if
 so, the resolution is to *say that* (narrow the rule grammar's claim), not to
 build the wider machinery.
+
+That awaited data point now exists, twice over, in the board-topology
+witness ladder
+([design-notes/board-topology.md](../design-notes/board-topology.md)):
+english draughts' **mandatory capture** (a cross-variant, reusable
+demand — the capture obligation recurs across the whole draughts
+family) and nine men's morris's **in-mill removal restriction** (a
+named constraint on the removal decision), both constraining
+`turns`-body decisions, not trick plays. The note's proposed
+resolution is the wide one — rules bind at every kernel decision site
+via the decision interpreter's candidate hook, one enforcement path
+across forms — staged with those witnesses (its stage 7), at which
+point this question resolves and promotes per
+[maintaining.md](../maintaining.md). The Schnapsen evidence above is
+the standing counter-case to weigh at that point: the narrow
+resolution remains coherent until the wide one is actually built.

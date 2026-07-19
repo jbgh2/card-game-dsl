@@ -38,6 +38,7 @@ executable tiebreaker where one exists.
 | [knowledge-events](../open-questions/knowledge-events.md) | phase outcome observed unequally | **[mascarade](#mascarade)**, [love-letter](#love-letter) (both _dedicated deck, out of scope_); Belote (now in the corpus) supplies the in-play announce-and-show data point — see the question file |
 | [structural-infoset-proofs](../open-questions/structural-infoset-proofs.md) | board-shaped instances of the compound hidden-function probe, extending the Cheat-anchored constructive world generator to spatial hiding | **[battleship](#battleship)** (shot result = public predicate of a hidden board), [stratego-barrage](#stratego-barrage) (combat double-reveal) |
 | [unbounded-lines-and-max-length](../open-questions/unbounded-lines-and-max-length.md) | a game whose legal lines cycle, forcing the draw-rule design | **[nine-mens-morris](#nine-mens-morris)**, [english-draughts](#english-draughts) (both counter-based draw rules; wave C of the topology ladder is gated on this settlement) |
+| [rule-scope-beyond-trick-play](../open-questions/rule-scope-beyond-trick-play.md) | a reusable declarative constraint on a non-trick decision site | **[english-draughts](#english-draughts)** (mandatory capture), [nine-mens-morris](#nine-mens-morris) (in-mill removal restriction) — the pair forcing rules to bind at every kernel decision site |
 
 `higher-order-knowledge` is no longer listed: the verified pass found no
 card game whose *rules* read second-order knowledge (Hanabi and
@@ -538,7 +539,9 @@ Flag, Spy, 2 Scouts, Miner, General, Marshal, Bomb, placed secretly in
 the back rows. Pieces move one square orthogonally (Scouts any clear
 distance); attacking reveals both ranks and removes the loser (Spy
 kills Marshal when attacking; Miner defuses Bomb; Flag capture wins);
-two-square shuttle rule in scope, the chase rule scoped out and named.
+two-square shuttle rule in scope (its tracking state is
+position-typed — the recorded position-typed-state wall lifts here,
+first witness), the chase rule scoped out and named.
 
 **Why interesting.** The one moat-level rung: position-public,
 rank-private pieces force **attribute-level projections** (C3) and
@@ -604,11 +607,17 @@ ways; lose with no pieces or no legal move; 40-move no-capture rule
 draws.
 
 **Why interesting.** The rule-composition rung: mandatory capture as a
-rule whose demand narrows the vocabulary to jumps when any exist, jump
+rule whose demand narrows the vocabulary to jumps when any exist —
+with [nine-mens-morris](#nine-mens-morris)'s in-mill removal
+restriction, the forcing pair for
+[rule-scope-beyond-trick-play](../open-questions/rule-scope-beyond-trick-play.md)
+(rules constraining non-trick decision sites are validated but
+unenforced today; the ladder resolves that by binding rules at every
+kernel decision site) — jump
 `(from, over, to)` triples as declared relation data, multi-jump
 chains on the `turns` form's `again` axis with a position-typed chain
-anchor (lifting the recorded position-typed-state wall —
-[roadmap.md](../roadmap.md) "Positional zones — walled residuals"),
+anchor (reusing the wall-lift the [stratego-barrage](#stratego-barrage)
+rung lands),
 promotion as a supply swap, and counter-based draw state. English over
 International deliberately: no capture maximization, so the gated
 optimization query class stays unwitnessed. Same
