@@ -16,26 +16,38 @@ domain:   the import tier's error space, which is the product of two closed sets
           three-way collision matrix (game/library, library/library,
           library/stdlib) — plus the three ways a `requires` entry can go unmet
           (absent, wrong type, wrong index).
-registry: `resolve._LIBRARY_DEF_KINDS` (the definition kinds) and
-          `cardlang.libraries.library_names()` (the available libraries). Both
-          are derived, not hand-listed: the kinds are pinned to `n.Library`'s
-          own fields by `test_def_kinds_covers_every_library_field` below, and
-          the library set is glob-derived from docs/libraries/.
-covered:  all of it, exhaustively for the per-kind legs — the game/library and
-          library/library collision probes are PARAMETERIZED over
-          `_LIBRARY_DEF_KINDS` rather than written out for the kinds that happen
-          to collide in today's corpus, so a seventh definition form added to
-          `n.Library` fails the pin above before it can ship unwalled.
-sampled:  nothing.
-residual: the library/stdlib leg covers rules and call functions but NOT move
-          types, and that is deliberate rather than a gap: stdlib move types and
-          a game's `move_type` definitions are two disjoint consult paths that
-          never merge into one namespace (`cardlang/stdlib/moves.py`), so there
-          is no collision to wall — Stud, Skat, Schnapsen and Coup all rely on
-          defining game-local move types under stdlib-known names today, and a
-          wall here would reject four correct games. `test_stdlib_move_type_name_
-          is_not_a_collision` below is the falsifiable half of this row: it
-          pins the non-collision as intended behaviour rather than an oversight.
+registry: the DEFINITION-KIND axis from `resolve._LIBRARY_DEF_KINDS`, pinned to
+          `n.Library`'s own fields by `test_def_kinds_covers_every_library_field`;
+          the COLLISION-SOURCE axis from the three namespaces a library name can
+          land in — the game (`n.Game`'s same-named fields), another library, and
+          the stdlib registries (`library_rules()`, `STDLIB_CALL_FUNCS`,
+          `LIBRARY_MOVE_TYPES`), read through `_stdlib_member`. Every axis is
+          computed, never spelled: the probe NAMES come out of the registries
+          too, which is the fix for how this file's first stdlib move-type cell
+          shipped vacuous (it probed `play_card`, which `stdlib/moves.py`
+          documents as game-defined, so no edit could redden it).
+covered:  the grid — definition kind x collision source, all 18 cells executed:
+          `test_game_local_definition_may_not_shadow_a_library_one` (6),
+          `test_two_libraries_may_not_define_the_same_name` (6), and
+          `test_library_definition_against_the_stdlib_namespace` (6, of which
+          the 3 kinds with no stdlib registry skip with that reason named).
+          Every cell's expected outcome is a commanded decision: the stdlib row
+          is `_STDLIB_REJECTS`, where `False` is as deliberate as `True`.
+          Born-green cells carry their reddening edit as `red under:` in the
+          test docstring; the move-type accept was demonstrated red by extending
+          `_check_library_collisions`'s stdlib leg to move_types.
+sampled:  the `uses`-line failure modes (unknown library, repeated import) and
+          the three `requires` mismatch modes are one probe each, not a crossed
+          product — each is a single-axis error with no second axis to cross.
+residual: none of the grid. The stdlib row's three accepting cells are decisions,
+          not gaps: stdlib move types and a game's `move_type` definitions are
+          disjoint consult paths that never share a namespace
+          (`cardlang/stdlib/moves.py`), and types/defines/procedures have no
+          stdlib registry at all. `test_the_accepting_move_type_cell_has_real_
+          corpus_dependents` keeps the first decision honest by DERIVING its
+          dependent games from the corpus — the hand-written version of that
+          list named four games of which three were wrong, and named Stud, which
+          the same change that wrote it had just made wrong.
 
 One deliberate NON-error, recorded here so a later reader does not mistake its
 absence from the probes for an omission: an imported definition a game never
@@ -50,6 +62,7 @@ action-space derivation, so it belongs in the currency of the adapter.
 from __future__ import annotations
 
 from dataclasses import fields, replace
+from pathlib import Path
 from typing import Iterator
 
 import pytest
@@ -59,6 +72,9 @@ from cardlang.diagnostics import DiagnosticError
 from cardlang.libraries import library_names, load_library
 from cardlang.parse import parse_library, parse_text
 from cardlang.resolve import _LIBRARY_DEF_KINDS, resolve
+from cardlang.stdlib.functions import STDLIB_CALL_FUNCS
+from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
+from cardlang.stdlib.rules import library_rules
 
 # A minimal game that satisfies `poker_betting`'s whole `requires` contract. Every
 # probe below is this game plus exactly one thing wrong, so a failure names the
@@ -147,7 +163,10 @@ def test_def_kinds_covers_every_library_field() -> None:
     """`_LIBRARY_DEF_KINDS` is the closed domain the collision walls sweep, so it
     must equal `n.Library`'s definition fields exactly. A seventh form added to
     the node without an entry there would ship unwalled; this is the static
-    failure that prevents it."""
+    failure that prevents it.
+
+    red under: add a field to `n.Library` without adding it to
+    `_LIBRARY_DEF_KINDS`."""
     node_fields = {f.name for f in fields(n.Library)} - {"name", "requires", "span"}
     assert {field for field, _ in _LIBRARY_DEF_KINDS} == node_fields
     assert set(_DEF_SOURCE) == node_fields, (
@@ -165,7 +184,10 @@ def test_game_local_definition_may_not_shadow_a_library_one(
 ) -> None:
     """`uses` imports, it does not inherit — so a game-local definition under an
     imported name is an error, not an override. This is the wall that keeps the
-    tier composition rather than inheritance (decisions.md "Family libraries")."""
+    tier composition rather than inheritance (decisions.md "Family libraries").
+
+    red under: delete the `if definition.name in local` arm of
+    `_check_library_collisions`."""
     library = parse_library(
         f"library probe_lib {{ {_DEF_SOURCE[field]} }}", "probe_lib.cardlang"
     )
@@ -182,7 +204,10 @@ def test_two_libraries_may_not_define_the_same_name(
     field: str, noun: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Resolution is flat, so neither library wins — silently picking one would
-    make a game's meaning depend on `uses` order."""
+    make a game's meaning depend on `uses` order.
+
+    red under: delete the `elif definition.name in from_libraries` arm of
+    `_check_library_collisions`."""
     source = _DEF_SOURCE[field]
     _patch_libraries(
         monkeypatch,
@@ -197,63 +222,107 @@ def test_two_libraries_may_not_define_the_same_name(
     )
 
 
-def test_library_rule_may_not_shadow_a_stdlib_rule(
-    monkeypatch: pytest.MonkeyPatch,
+def _stdlib_member(field: str) -> str | None:
+    """A real member of the stdlib registry that shares a namespace with this
+    definition kind, drawn FROM the registry, or None when no stdlib registry
+    exists for the kind. Derived rather than spelled: a hand-written probe name
+    can silently not be a member of the registry it claims to probe, which is
+    exactly how this file's first stdlib-move-type cell shipped vacuous (it
+    probed `play_card`, which `stdlib/moves.py` documents as game-defined)."""
+    registry: dict[str, frozenset[str] | set[str]] = {
+        "rules": frozenset(library_rules()),
+        "functions": frozenset(STDLIB_CALL_FUNCS),
+        "move_types": frozenset(LIBRARY_MOVE_TYPES),
+    }
+    members = registry.get(field)
+    return min(members) if members else None
+
+
+# The stdlib leg of the collision grid: for each definition kind, whether a
+# library defining something under a REAL stdlib name of that kind is rejected.
+# `False` is as much a commanded decision as `True` — move_types are a
+# deliberate non-collision (two disjoint consult paths), and the three kinds
+# with no stdlib registry cannot collide at all.
+_STDLIB_REJECTS: dict[str, bool] = {
+    "rules": True,
+    "functions": True,
+    "move_types": False,
+    "types": False,
+    "defines": False,
+    "procedures": False,
+}
+
+
+def test_stdlib_grid_covers_every_definition_kind() -> None:
+    """Both axes of the stdlib leg are derived, so the grid below cannot silently
+    stop covering a kind.
+
+    red under: drop any key from `_STDLIB_REJECTS`."""
+    assert set(_STDLIB_REJECTS) == {field for field, _ in _LIBRARY_DEF_KINDS}
+    # A kind commanded to reject must have a registry to collide with, and a
+    # kind commanded to accept because no registry exists must really have none.
+    assert {f for f in _STDLIB_REJECTS if _stdlib_member(f)} == {
+        "rules",
+        "functions",
+        "move_types",
+    }
+
+
+@pytest.mark.parametrize("field,noun", list(_kinds()), ids=lambda v: str(v))
+def test_library_definition_against_the_stdlib_namespace(
+    field: str, noun: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The library leg of the wall `resolve` already applies to game-local rules
-    — in library currency, naming the library rather than telling the author to
-    delete a local definition they do not have."""
+    """The stdlib row of the collision grid, run for every definition kind rather
+    than written out for the two that reject.
+
+    The accepting cells are the load-bearing ones. Stdlib move types and a game's
+    `move_type` definitions are disjoint consult paths that never share a
+    namespace, so a library defining one under a stdlib name must NOT be an
+    error: six corpus games depend on that (see `_stdlib_move_type_games`).
+
+    red under: extend `_check_library_collisions`'s stdlib leg to move_types, or
+    delete its `library_rules()` leg."""
+    name = _stdlib_member(field)
+    if name is None:
+        pytest.skip(f"no stdlib registry shares a namespace with {noun}s")
+    source = _DEF_SOURCE[field].replace("collide", name)
     _patch_libraries(
         monkeypatch,
-        {
-            "probe_lib": parse_library(
-                "library probe_lib { rule MustFollowSuit { } }", "probe_lib.cardlang"
-            )
-        },
+        {"probe_lib": parse_library(f"library probe_lib {{ {source} }}", "pl.cardlang")},
     )
-    _rejects(
-        _game(uses="uses probe_lib"),
-        "library 'probe_lib' defines rule 'MustFollowSuit'",
-        "shadows the standard-library rule",
-    )
+    game = _game(uses="uses probe_lib")
+    if _STDLIB_REJECTS[field]:
+        _rejects(game, f"library 'probe_lib' defines {noun} '{name}'", "shadows the")
+    else:
+        resolve(game)
 
 
-def test_library_function_may_not_shadow_a_stdlib_function(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_libraries(
-        monkeypatch,
-        {
-            "probe_lib": parse_library(
-                "library probe_lib { function pot_share(p : Player) = 1 }",
-                "probe_lib.cardlang",
-            )
-        },
-    )
-    _rejects(
-        _game(uses="uses probe_lib"),
-        "library 'probe_lib' defines function 'pot_share'",
-        "shadows the stdlib function",
-    )
+def _stdlib_move_type_games() -> list[str]:
+    """Corpus games that define a `move_type` under a stdlib move-type name — the
+    games the accepting move_types cell above protects. Derived from the corpus,
+    because the hand-written version of this list named four games of which three
+    were wrong, and one (Stud) was made wrong by the very change that wrote it."""
+    games_dir = Path(__file__).resolve().parent.parent / "docs" / "games"
+    hits = []
+    for path in sorted(games_dir.glob("*.cardlang")):
+        game = parse_text(path.read_text(), path.name)
+        if {m.name for m in game.move_types} & set(LIBRARY_MOVE_TYPES):
+            hits.append(path.stem)
+    return hits
 
 
-def test_stdlib_move_type_name_is_not_a_collision(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The falsifiable half of this file's residual ledger row. Stdlib move types
-    and a game's `move_type` definitions are disjoint consult paths, so a library
-    defining one under a stdlib-known name is NOT an error — and must not become
-    one, because Stud, Skat, Schnapsen and Coup all rely on that today."""
-    _patch_libraries(
-        monkeypatch,
-        {
-            "probe_lib": parse_library(
-                "library probe_lib { move_type play_card { effect { } } }",
-                "probe_lib.cardlang",
-            )
-        },
+def test_the_accepting_move_type_cell_has_real_corpus_dependents() -> None:
+    """The accepting cell is only a design decision if something depends on it;
+    otherwise it is an untested branch wearing a decision's name.
+
+    red under: add the stdlib move-type leg to `_check_library_collisions` — every
+    game below then fails to resolve."""
+    dependents = _stdlib_move_type_games()
+    assert len(dependents) >= 3, (
+        f"only {dependents} still define a move type under a stdlib name; if this "
+        f"reaches zero the non-collision is no longer load-bearing and the "
+        f"residual ledger row should be revisited rather than left standing"
     )
-    resolve(_game(uses="uses probe_lib"))
 
 
 # --- the `requires` contract --------------------------------------------------

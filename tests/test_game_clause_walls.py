@@ -109,7 +109,10 @@ def test_card_rank_excludes_every_clause_keyword() -> None:
     is bounded by refusing clause keywords as rank names, and BOTH sides of that
     exclusion are derived: the clause list from `?game_item`, the excluded set
     from the terminal. A clause added to the grammar without an entry in
-    CARD_RANK_NAME fails here rather than at a designer's desk."""
+    CARD_RANK_NAME fails here rather than at a designer's desk.
+
+    red under: delete `uses` from CARD_RANK_NAME's exclusion list in
+    cardlang.lark."""
     keywords = {_clause_keyword(rule) for rule in _game_item_alternatives()}
     missing = keywords - _card_rank_excluded()
     assert not missing, (
@@ -124,7 +127,11 @@ def test_no_clause_is_absorbed_when_it_follows_ranking(rule_name: str) -> None:
     """The behavioural half: every clause still parses as ITSELF when written
     after a `ranking:` enumeration. Swept over the whole clause registry rather
     than probing the one clause that was found broken (decisions.md
-    "Closed-domain completeness": sweep the class, don't patch the instance)."""
+    "Closed-domain completeness": sweep the class, don't patch the instance).
+
+    red under: delete `uses` from CARD_RANK_NAME's exclusion list — the
+    `uses_decl` row then fails with the clause absorbed as two rank names, which
+    is the defect exactly as it was found."""
     keyword = _clause_keyword(rule_name)
     clause = _CLAUSE_TEXT[rule_name]
     src = (
