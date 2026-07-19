@@ -332,9 +332,9 @@ def test_membership_rejects_non_collection_right_hand_side() -> None:
 
 
 def test_membership_rejects_integer_against_a_suit_list() -> None:
-    # THE PROBE named in the brief: `Integer in [hearts, spades]` — the
-    # general `unify`-based wall, not the enum-literal path (the left
-    # operand isn't itself an enum).
+    # The headline probe: `Integer in [hearts, spades]` — the general
+    # `unify`-based wall, not the enum-literal path (the left operand
+    # isn't itself an enum).
     _rejects(
         _game("let probe = 3 in [hearts, spades]"),
         "membership compares Integer with a collection of Suit — never true",
@@ -342,7 +342,7 @@ def test_membership_rejects_integer_against_a_suit_list() -> None:
 
 
 def test_membership_rejects_a_suit_against_a_card_collection() -> None:
-    # THE PROBE named in the brief: "a Suit in a zone (collection of Card)".
+    # The headline probe: a Suit in a zone (collection of Card).
     _rejects(
         _game("let probe = hearts in hand[0]"),
         "membership compares Suit with a collection of Card — never true",

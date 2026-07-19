@@ -45,14 +45,13 @@ covered:   Quantifier.body (Boolean-checked, both roles reachable via
            Comprehension.default (the Boolean-misparse diagnostic — THE
            headline probe — and the generic body/default type-mismatch
            fallback when the default isn't Boolean). Note on the headline
-           probe: the brief's exact sentence (`where card.suit is hearts or
-           card.suit is spades`) is, as of this change, caught one layer
-           earlier — resolve.py's concurrently-landed scoping fix evaluates
-           `Comprehension.default` OUTSIDE the `card` binder's scope (the
-           grammar's own reading: a default is a fallback value, not a
-           per-card predicate), so a misparsed default that references
-           `card` is now an "unresolved name" at resolve time, a stronger
-           diagnosis of the identical bug. This typecheck-level wall's real,
+           probe: that exact sentence (`where card.suit is hearts or
+           card.suit is spades`) is caught one layer earlier — resolve
+           evaluates `Comprehension.default` OUTSIDE the `card` binder's
+           scope (the grammar's own reading: a default is a fallback value,
+           not a per-card predicate), so a misparsed default that references
+           `card` surfaces as an "unresolved name" at resolve time, a
+           stronger diagnosis of the identical bug. This typecheck-level wall's real,
            non-redundant domain is a misparsed default that does NOT
            reference the binder — any Boolean expression valid in the outer
            scope (a plain state var, a function call) — which resolves
@@ -75,9 +74,9 @@ residual:  same let-bound-locals residual as test_operator_walls.py (a
            over-broad by design (a `where`-clause-adjacent Boolean default
            is flagged even in the vanishingly unlikely case that a
            Boolean-body aggregation genuinely intends a Boolean default —
-           no corpus game does this, and the brief specifies exactly this
-           trade-off: "almost always" the misparse, not "always"), so it is
-           not tracked as a coverage gap.
+           no corpus game does this, and the wall is deliberately scoped to
+           this trade-off: "almost always" the misparse, not "always"), so
+           it is not tracked as a coverage gap.
 """
 
 from __future__ import annotations
@@ -212,8 +211,8 @@ def test_pinochle_shape_stays_accepted() -> None:
 
 
 def test_aggregation_source_rejects_a_non_card_collection() -> None:
-    # THE PROBE named in the brief (generalized: `cumulative_score`-shaped —
-    # an indexed Integer state var, itself a `Collection<Integer>`).
+    # The headline probe, generalized: `cumulative_score`-shaped — an
+    # indexed Integer state var, itself a `Collection<Integer>`.
     _rejects(
         _game("let probe = sum of 1 over cards in score"),
         "'cards in ...' expects a zone or collection of cards, got "

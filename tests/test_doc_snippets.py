@@ -59,11 +59,11 @@ property:   every fenced block in docs/{decisions,library,model}.md carries
             a whole game or of the pipeline crashing.
 domain:     the fenced blocks `cardlang.extract.extract_blocks` finds in
             docs/decisions.md, docs/library.md, docs/model.md — 44 + 10 + 4
-            = 58 blocks as of this change. (An earlier plan for this task
-            cited 88/10/8, i.e. `grep -c '^```'` — fence *lines*, not
-            blocks: 88 = 44*2, 8 = 4*2; library.md's "10" underequal already
-            counted blocks because five of its ten blocks are indented
-            inside list items and a column-anchored grep misses them.
+            = 58 blocks. (Counting with `grep -c '^```'` instead gives
+            88/10/8 — fence *lines*, not blocks: 88 = 44*2, 8 = 4*2; and
+            library.md's "10" already counted blocks only by accident,
+            because five of its ten blocks are indented inside list items
+            and a column-anchored grep misses them.
             `extract_blocks` is the authority; block counts, not fence-line
             counts, are what this module classifies.)
 registry:   KNOWN_TAGS (below) is the closed tag vocabulary — six tags:
