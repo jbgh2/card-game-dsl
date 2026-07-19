@@ -144,6 +144,11 @@ Run them as written. In particular:
 - Run the **full** `pytest -q`, not a subset — the corpus harness and golden/
   characterization tests catch regressions a narrow run misses. Some exact-score
   tests pin `PYTHONHASHSEED=0`; don't assume a passing subset means a green suite.
+- **The evidence must be able to fail.** A piped run (`pytest -q | tail -3`)
+  reports the pipe's exit status, not the suite's — a killed run surfaces as a
+  clean exit. Run the checks bare or under `set -o pipefail`, and treat the
+  suite's own summary line (`N passed`) as the evidence, never a wrapper's
+  exit code. CI runs the commands bare and is the authority.
 
 **These two checks are regression gates, not completeness gates.** A change
 that adds or extends grammar surface, a checker wall or diagnostic, a stdlib

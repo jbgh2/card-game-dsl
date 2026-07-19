@@ -64,18 +64,27 @@ loud failure is the system working; silence is the enemy.
    docstring). Absence of any is a severity-2 finding reported first —
    never a below-the-fold conventions note. When the artifacts exist, use
    them:
-   - **Run the grid against the merge base** (copy the grid's test file
-     into a merge-base worktree). The cells that fail there are the
-     change's behavioral delta, materialized; diff that set against what
-     the change claims. An unclaimed flip is a finding (class 3 — behavior
-     changed silently); a claimed flip whose cell stays green there means
-     the grid does not reach the behavior (class 4).
+   - **Run the grid against the merge base — with the HEAD-derived cell
+     set.** Derive the cell list on the proposed tree and carry it to the
+     merge-base worktree as data; never let the base re-derive it (a
+     change that ADDS a production or registry member would have its new
+     cells silently vanish from the base's derivation — the gate would
+     then under-report the delta or misread an absent cell as a green
+     one). The delta is the cells that fail on the base PLUS the cells
+     that cannot exist there (added cells); diff that set against what
+     the change claims. An unclaimed flip is a finding (class 3 —
+     behavior changed silently); a claimed flip whose cell RUNS green on
+     the base means the grid does not reach the behavior (class 4) — an
+     added cell is part of the delta, never evidence of vacuity.
    - **Check each axis is derived, not hand-listed.** A hand-listed axis is
      the tell the framing check was skipped, and it goes stale silently
      when a parallel branch extends the surface.
-   - **Replay one `red under:` witness per pin module.** A born-green pin
-     with no named witness, or one its named mutation leaves green, is
-     class 4.
+   - **Replay `red under:` witnesses per credited CLAIM, not per
+     module.** Every guard the ledger credits is a pin with its own
+     witness; a module-level witness proves the module can fail, not that
+     each credited assertion can — a dead assert hides behind a live
+     neighbor. A pin with no named witness, or one its named mutation
+     leaves green, is class 4.
    - Take the `residual` rows as the review's priority slice.
    The review checks and samples the artifacts; it never re-derives them,
    and it never substitutes for a missing grid or ledger.

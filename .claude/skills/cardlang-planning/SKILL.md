@@ -63,9 +63,9 @@ plan; the kernel path is the default (CLAUDE.md).
 
 Planning is when the surface-totality-audit's Step 1 runs, not
 pre-commit: derive the axes in code, run the fresh-context framing check
-(grammar + AST unions only — the plan is exactly the conditioning that
-check exists to escape), author the expected-outcome column, and run the
-grid red. The plan's task list begins with the grid; the red set IS the
+(the definition sources only — grammar, AST unions, and the registry
+modules wholesale; the plan is exactly the conditioning that check exists
+to escape), author the expected-outcome column, and run the grid red. The plan's task list begins with the grid; the red set IS the
 work list. A plan whose domain statement was written before the framing
 check ran is the failure mode this gate exists for.
 

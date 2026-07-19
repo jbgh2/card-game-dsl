@@ -88,9 +88,12 @@ member.
 **The framing check (mandatory, before outcomes are authored).** The grid
 makes every decided cell honest; it does nothing for the axis you never
 derived. So before authoring the expected column, hand a fresh subagent the
-grammar and the AST unions ONLY — not the diff, not the plan, not your
-domain statement — and ask what axes and positions the surface actually
-has. Diff its list against yours: every discrepancy is a new axis for the
+definition sources ONLY — the grammar, the AST unions, and the registry
+modules (the repo's fixed definition-source set, wholesale — a domain
+defined by a stdlib registry appears in neither grammar nor AST, and a
+hand-picked registry subset would smuggle your framing back in) — never
+the diff, the plan, or your domain statement — and ask what axes and
+positions the surface actually has. Diff its list against yours: every discrepancy is a new axis for the
 grid or a recorded residual. The context that produced an implementation
 plan frames the domain as the implementation's shape (a change statement
 reading "validates function-param and variant-payload type names" has
@@ -112,13 +115,18 @@ the grid does not reach the behavior — fix the grid before touching the
 implementation.
 
 The push discipline (both checks green before any push — CLAUDE.md) still
-holds: commit the grid with `xfail(strict=True)` marks on the
-designed-to-flip cells. CI stays green, the implementation removes the
-marks, and `strict` turns a leftover mark on a now-passing cell into a loud
-failure, so a flip cannot be forgotten. The red-to-green transition is then
-visible in the diff, and a reviewer can apply the grid file to the merge
-base and run it — the cells that fail there are the change's behavioral
-delta, materialized.
+holds: commit the grid with strict `xfail` marks on the designed-to-flip
+cells (`strict=True` per mark; a global `xfail_strict = true` in
+pyproject makes it the default, so a bare mark cannot opt out). CI stays
+green, the implementation removes the marks, and strict turns a leftover
+mark on a now-passing cell into a loud failure, so a flip cannot be
+forgotten. The red-to-green transition is then
+visible in the diff. Structure the grid so its derived cell table is
+exportable as data: the review replays the HEAD-derived cells against the
+merge base (the cells that fail there, plus the cells that cannot exist
+there, are the change's behavioral delta, materialized) — the base tree
+must never re-derive the cell list, or a change that adds a production or
+registry member loses exactly its new cells from the replay.
 
 ## Step 2 — Misuse probes (the adversarial pass)
 
@@ -183,7 +191,11 @@ registry-equality or count pin over behavior that is already correct starts
 life green — its red run never happened, so its capacity to fail is
 unproven. Such a pin ships with the one-line mutation that reddens it: make
 the edit, watch the test fail, revert, and record it in the test's
-docstring as `red under: <the edit>`. A grid born red needs no witness —
+docstring as `red under: <the edit>`. The obligation is per CLAIM:
+anything the ledger credits with catching a failure is a pin and carries
+its own witness — a module that can fail does not prove each credited
+guard can (a dead assertion survives behind a live neighbor's witness).
+A grid born red needs no witness —
 its red run is the witness. A pin whose author cannot name a reddening edit
 is not a pin; it is the vacuously-green class wearing a test's name.
 
