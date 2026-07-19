@@ -36,6 +36,15 @@ residual: the library/stdlib leg covers rules and call functions but NOT move
           wall here would reject four correct games. `test_stdlib_move_type_name_
           is_not_a_collision` below is the falsifiable half of this row: it
           pins the non-collision as intended behaviour rather than an oversight.
+
+One deliberate NON-error, recorded here so a later reader does not mistake its
+absence from the probes for an omission: an imported definition a game never
+uses is legal (decisions.md "Family libraries", the subset-vocabulary
+paragraph). Kuhn imports `raise` and never offers it. That is the tier working
+as designed — `uses` names a family, not a manifest — and its cost at the
+OpenSpiel target is pinned to zero in
+`tests/openspiel_ready/test_kuhn_poker.py`, not here: the claim is about the
+action-space derivation, so it belongs in the currency of the adapter.
 """
 
 from __future__ import annotations

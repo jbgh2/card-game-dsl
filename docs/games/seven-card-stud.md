@@ -40,8 +40,20 @@ can't cover it, and resets every other player's `acted` so action re-opens). The
 (or one lone contender remains, already matched). The 3rd street is shown in full;
 streets 4–7 repeat the same betting round after a burn and a dealt card.
 
+Four of those five move types are not Stud's own. `uses poker_betting` imports
+them — `check`, `bet`, `call`, `raise` and the `can_act`/`owes`/`pending` ring
+predicates — from the family library shared with Kuhn and Leduc
+([poker_betting](../libraries/poker_betting.cardlang),
+[decisions.md](../decisions.md) "Family libraries"); the line stands in for the
+rulebook sentence "betting proceeds as in standard fixed-limit poker". Stud's
+own contribution is `fold`, which mucks the folder's **upcards** — a fact about
+Stud's zones, and an observation opponents' information sets carry — and the
+`raise_cap` of 3 it declares as ordinary state, where Leduc declares 2.
+
 ```
 game SevenCardStud {
+
+  uses poker_betting
 
   players: 4
   direction: clockwise
@@ -72,6 +84,7 @@ game SevenCardStud {
         folded[player]  : Boolean = false   bet_by[player]    : Integer = 0
         acted[player]   : Boolean = false   bet_to_match : Integer = 0
         raises : Integer = 0   limit : Integer = 0
+        raise_cap : Integer = 3            // fixed-limit Stud allows three
       }
 
       for each player p: in_hand[p] := stack[p] > 0
@@ -120,46 +133,13 @@ game SevenCardStud {
   winner: highest stack
 }
 
-// The betting vocabulary (game-defined move types). Offered in this order; the
-// `when:` guards filter to the legal options at each decision.
-move_type check { when: bet_to_match <= bet_by[actor]  effect { acted[actor] := true } }
-move_type bet {
-  when: bet_to_match is 0
-  effect {
-    let post = if limit < stack[actor] then limit else stack[actor]
-    stack[actor] := stack[actor] - post   committed[actor] := committed[actor] + post
-    bet_by[actor] := bet_by[actor] + post  bet_to_match := bet_by[actor]  raises := 1
-    for each player p: acted[p] := false   acted[actor] := true
-  }
-}
-move_type call {
-  when: bet_to_match > bet_by[actor]
-  effect {
-    let owed = bet_to_match - bet_by[actor]   let pay = if owed < stack[actor] then owed else stack[actor]
-    stack[actor] := stack[actor] - pay   committed[actor] := committed[actor] + pay
-    bet_by[actor] := bet_by[actor] + pay   acted[actor] := true
-  }
-}
-move_type raise {
-  when: bet_to_match > bet_by[actor] and raises < 3
-  effect {
-    let owed = bet_to_match - bet_by[actor]   let want = owed + limit
-    let pay = if want < stack[actor] then want else stack[actor]
-    stack[actor] := stack[actor] - pay   committed[actor] := committed[actor] + pay
-    bet_by[actor] := bet_by[actor] + pay
-    bet_to_match := if bet_to_match > bet_by[actor] then bet_to_match else bet_by[actor]
-    raises := raises + 1   for each player p: acted[p] := false   acted[actor] := true
-  }
-}
+// Stud's own betting move. check/bet/call/raise and the can_act/owes/pending ring
+// predicates come from `uses poker_betting` above; `fold` stays here because it
+// touches Stud's zones — the folder's upcards go straight to the muck, so
+// opponents stop seeing them. All five are offered together in the `offering`
+// list; the `when:` guards filter to the legal options at each decision.
 move_type fold {
   when: bet_to_match > bet_by[actor]
   effect { folded[actor] := true  move all cards from upcards[actor] to muck }
 }
-
-// Betting-ring predicates, factored with named functions so the `over` filter and
-// the `until` terminator name the same set (and cannot drift). `pending` composes
-// the others.
-function can_act(p : Player) = not folded[p] and stack[p] > 0
-function owes(p : Player)    = bet_by[p] < bet_to_match
-function pending(p : Player) = can_act(p) and (not acted[p] or owes(p))
 ```

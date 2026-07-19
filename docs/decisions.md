@@ -3128,6 +3128,20 @@ differences are carried by required state the game declares and sets (`limit`,
 `raise_cap`), not by a `with` clause on `uses`. The import surface stays a bare
 name.
 
+**A member offers a subset of the family vocabulary, at no cost.** Importing a
+library is not a commitment to use all of it: Kuhn's `offering` list is
+`[check, bet, call, fold]`, so the imported `raise` is never offered — standard
+Kuhn has no raise. That costs nothing at the OpenSpiel target, because the
+action space is derived from the `offering` / `offer` lists, never from the
+game's move-type table, so an imported-but-unoffered move type mints no action
+id and cannot widen `num_distinct_actions`. This is what makes whole-library
+import affordable for a small family member, and it is pinned rather than
+assumed (`tests/openspiel_ready/test_kuhn_poker.py`). It is not a licence to
+leave a move type dead by accident: a game's own definitions are still subject
+to the ordinary totality rule above — the exemption is for *imported* text the
+author did not write, whose unused parts are the price of naming a family
+rather than a manifest.
+
 The tier's completeness gate is `tests/test_family_libraries.py`, whose ledger
 records the one deliberate non-cell: stdlib move types and a game's `move_type`
 definitions are disjoint consult paths that never share a namespace, so there is

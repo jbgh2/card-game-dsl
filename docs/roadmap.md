@@ -594,28 +594,26 @@ questions by impact × actionability and is the authority on question
 priority. This section adds what that list doesn't carry: the cross-cutting
 work that isn't an open question, and which next game unblocks what.
 
-1. **Land the poker anchors on the family-library tier.** The `uses
-   <library>` mechanism itself is built and settled
-   ([decisions.md](decisions.md) "Family libraries"): grammar surface,
-   library loading, the flat two-level splice, the three-way collision
-   walls, the `requires` contract, and the totality artifacts in
-   `tests/test_family_libraries.py`. Seven-Card Stud is refactored onto
-   `docs/libraries/poker_betting.cardlang` as its full-scale consumer.
+1. **Take the family-library tier to its second family.** The `uses
+   <library>` mechanism is built and settled ([decisions.md](decisions.md)
+   "Family libraries"): grammar surface, library loading, the flat two-level
+   splice, the three-way collision walls, the `requires` contract, and the
+   totality artifacts in `tests/test_family_libraries.py`. Its poker anchors
+   are landed — Seven-Card Stud as the full-scale consumer, and **Kuhn** and
+   **Leduc** as the two that make the tier non-vacuous, since a library with
+   one consumer is indistinguishable from game-local code. All three share
+   `docs/libraries/poker_betting.cardlang` verbatim and each defines its own
+   `fold`. Both edges the anchors existed to check came out clean, and are
+   now pinned by their proof modules rather than assumed: an
+   imported-but-unoffered move type (Kuhn's `raise`) mints no action id,
+   because the action space is derived from the `offering`/`offer` lists and
+   never from the game's move-type table; and `raise_cap` carries a real
+   family difference (Leduc 2, Stud 3) entirely in each game's declared
+   state, with neither the library nor the `uses` line mentioning it.
 
-   What remains is the anchor that makes the tier non-vacuous: **Kuhn and
-   Leduc**. A library with one consumer is indistinguishable from
-   game-local code, so the sharing mechanism is not yet exercised by
-   anything — these two are small enough that a shared-betting corpus tests
-   the mechanism rather than the games, and both are OpenSpiel-guaranteed.
-   Their decks (`kuhn3`, `leduc6`) are already registered. Each needs a
-   `tests/openspiel_ready/` proof module; `docs/games/` auto-globs into the
-   OpenSpiel registry, so they cannot land as game files alone. Two edges to
-   check rather than assume when they do: Kuhn never offers `raise`, so it
-   is the first imported-but-unoffered move type (confirm it does not
-   inflate the action space), and Leduc's raise cap of 2 is the first real
-   use of `raise_cap` as family-varying required state.
-
-   After the anchors, the measured second customer is the smuggling family
+   What is still unmeasured is whether that parameterization scales. Both
+   anchors vary only in *scalars* on required state; the next customer is the
+   smuggling family
    (`experiments/green-lane/`), whose five sibling rulesets share ~90% of
    their text and are kept aligned by hand-diffing — the copy-drift the tier
    removes, and the case that will test whether parameterization can keep
@@ -636,9 +634,11 @@ work that isn't an open question, and which next game unblocks what.
    - **Hold'em** — the "show one, show all" showdown rule is the per-observer
      move-level override that
      [move-level-visibility](open-questions/move-level-visibility.md) awaits
-     (exercisable in the existing poker corpus), and as the second poker game
-     it is the full-scale second poker consumer of the family-library tier
-     ([decisions.md](decisions.md) "Family libraries").
+     (exercisable in the existing poker corpus), and it would be the poker
+     family's fourth `uses poker_betting` consumer — the first whose betting
+     structure (blinds, a four-street board) differs from Stud's streets and
+     the toys' single-card hands ([decisions.md](decisions.md) "Family
+     libraries").
    - **Spider** — the third positional game and the forcing candidate for the
      deferred positional slice movement ("Positional zones — walled
      residuals", above): its mid-game deals break the run-monotonicity that
