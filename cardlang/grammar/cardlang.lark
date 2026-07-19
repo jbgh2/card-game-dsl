@@ -127,7 +127,10 @@ type_name: NAME "?"   -> optional_type
          | NAME       -> plain_type
 
 // User-defined struct type: named fields plus optional computed `derived` fields.
-type_def: "type" NAME "=" "{" struct_field* "}" [derived_block]
+// The name is `STRUCT_TYPE_NAME`, not `NAME`, so declaration and use agree on
+// which names a struct type may take: a type `struct_lit` cannot spell would be
+// declarable but unusable, which is accepted-but-ignored one step removed.
+type_def: "type" STRUCT_TYPE_NAME "=" "{" struct_field* "}" [derived_block]
 struct_field: NAME ":" type_name
 derived_block: "derived" "{" derived_field* "}"
 derived_field: NAME "=" expr
@@ -532,8 +535,21 @@ list_lit: "[" expr ("," expr)* "]"
 // `TypeName { field: expr, … }` — constructs a user-defined struct value. At
 // least one field is required, keeping it distinct from a statement block in
 // expression-before-`{` positions (if/repeat/phase).
-struct_lit: NAME "{" field_init ("," field_init)* "}"
+//
+// A struct type may not be spelled with a clause keyword. `NAME "{" NAME ":"
+// expr "}"` is token-identical to a single-entry brace clause (`zones { stock :
+// Deck }`, `requires { y : Integer }`), so an expression slot left EMPTY —
+// `loser:` with no expression, `function f() =` with no body — otherwise reads
+// the clause below it as a struct literal, completes, and drops that clause
+// with no error and no `_ambig` node for the ambiguity budget to see. Refusing
+// the keyword closes every expression slot in the grammar at once, which is why
+// this is at the absorbed end rather than at each absorbing one. The exclusion
+// covers BOTH sibling-sequence registries (`?game_item`, `?library_item`) and
+// is pinned against them by
+// tests/test_game_clause_walls.py::test_struct_type_name_excludes_every_clause_keyword.
+struct_lit: STRUCT_TYPE_NAME "{" field_init ("," field_init)* "}"
 field_init: NAME ":" expr
+STRUCT_TYPE_NAME: /(?!(?:uses|players|direction|cards|ranking|trump|partnerships|max_length|positions|zones|state|phase|winner|loser|requires|move_type|rule|type|define|function|procedure)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
 card_literal: card_rank "of" NAME
 // Ranks and suits are values a game's deck defines, not language keywords: a

@@ -227,12 +227,7 @@ def test_library_item_registry_pin() -> None:
 
 def _neighbour_cells(*, truncated: bool) -> list[object]:
     """The grid: every `?library_item` alternative crossed with every other as
-    its neighbour. The one cell open today — a `function_def` truncated to
-    `function f() =`, whose empty `expr` slot reads the `requires { y : Integer }`
-    below it as a `struct_lit`, since `NAME "{" NAME ":" expr "}"` is exactly a
-    single-entry brace clause — is marked xfail so the red-before-green
-    transition is visible in the diff. The other 48 are refused by brace
-    structure rather than by the fix, and are here as the sweep of the class."""
+    its neighbour."""
     items = sorted(library_item_alternatives())
     cells: list[object] = []
     for item in items:
@@ -242,15 +237,7 @@ def _neighbour_cells(*, truncated: bool) -> list[object]:
                 # error, probed separately below; the rest of the diagonal
                 # asserts nothing the off-diagonal cells do not.
                 continue
-            open_cell = truncated and (item, follower) == ("function_def", "requires_block")
-            cells.append(
-                pytest.param(
-                    item,
-                    follower,
-                    marks=[pytest.mark.xfail(strict=True)] if open_cell else [],
-                    id=f"{item}-then-{follower}",
-                )
-            )
+            cells.append(pytest.param(item, follower, id=f"{item}-then-{follower}"))
     return cells
 
 
@@ -265,6 +252,13 @@ def test_a_truncated_library_item_may_not_absorb_its_neighbour(
     well-formed parse, so letting a later stage reject it for some other reason
     (an unknown struct type, an unresolved name) would leave this cell green
     while the neighbouring item had vanished.
+
+    One cell was open when this grid was written: a `function_def` truncated to
+    `function f() =`, whose empty `expr` slot read the `requires { y : Integer }`
+    below it as a `struct_lit` — `NAME "{" NAME ":" expr "}"` being exactly a
+    single-entry brace clause — leaving the contract silently empty. The other
+    48 are refused by brace structure rather than by the fix, and are the sweep
+    of the class.
 
     red under: delete `requires` from STRUCT_TYPE_NAME's exclusion list in
     cardlang.lark."""

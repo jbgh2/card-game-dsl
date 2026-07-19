@@ -242,7 +242,6 @@ def _struct_type_excluded() -> set[str]:
     return set(match.group(1).split("|"))
 
 
-@pytest.mark.xfail(strict=True, reason="STRUCT_TYPE_NAME does not exist yet")
 def test_struct_type_name_excludes_every_clause_keyword() -> None:
     """Both sides derived, like the `CARD_RANK_NAME` pin above: the keyword set
     from the two clause registries, the exclusion set from the terminal. A
@@ -259,23 +258,7 @@ def test_struct_type_name_excludes_every_clause_keyword() -> None:
     )
 
 
-def _absorption_cells() -> list[object]:
-    """`?game_item` alternatives, with the one cell that is open today marked
-    xfail so the grid's red-before-green transition is visible in the diff:
-    `zones { stock : Deck }` is the single-entry, unindexed, type-argument-free
-    clause whose text is exactly `NAME "{" NAME ":" expr "}"`. The others are
-    refused by structure, not by the fix — `state`'s decls carry `= <default>`,
-    `positions`' carry a `..` range, and the rest are not brace clauses at all
-    — and are here as the completeness sweep of the class."""
-    return [
-        pytest.param(rule, marks=[pytest.mark.xfail(strict=True)])
-        if rule == "zones"
-        else rule
-        for rule in sorted(_game_item_alternatives())
-    ]
-
-
-@pytest.mark.parametrize("rule_name", _absorption_cells())
+@pytest.mark.parametrize("rule_name", sorted(_game_item_alternatives()))
 def test_no_clause_is_absorbed_by_an_empty_expression_slot(rule_name: str) -> None:
     """`loser:` is the one game clause whose last slot is a bare `expr`, so it
     is the game-file end of the absorption class. Left empty it must fail to
@@ -285,6 +268,13 @@ def test_no_clause_is_absorbed_by_an_empty_expression_slot(rule_name: str) -> No
     well-formed parse, and letting a later stage reject it for some other
     reason (an unknown struct type) would make this cell green while the clause
     still vanished.
+
+    One cell was open when this sweep was written: `zones { stock : Deck }`, the
+    single-entry, unindexed, type-argument-free clause whose text is exactly
+    `NAME "{" NAME ":" expr "}"`. The rest are refused by structure rather than
+    by the fix — `state`'s decls carry `= <default>`, `positions`' carry a `..`
+    range, and the others are not brace clauses at all — and are the sweep of
+    the class.
 
     red under: delete `zones` from STRUCT_TYPE_NAME's exclusion list."""
     src = (
@@ -298,7 +288,6 @@ def test_no_clause_is_absorbed_by_an_empty_expression_slot(rule_name: str) -> No
     )
 
 
-@pytest.mark.xfail(strict=True, reason="STRUCT_TYPE_NAME does not exist yet")
 @pytest.mark.parametrize("keyword", sorted(_clause_keywords()))
 def test_a_type_may_not_be_declared_under_a_clause_keyword(keyword: str) -> None:
     """The cost of the exclusion above, made explicit and swept over the same
