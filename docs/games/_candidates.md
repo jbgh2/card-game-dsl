@@ -23,7 +23,10 @@ author is confident about. For games with regional variation or fiddly
 scoring (Skat, French Tarot, Doppelkopf, Sheepshead, Piquet,
 regional Scopa variants), the entry flags where
 [Pagat](https://www.pagat.com/) should be consulted before committing
-to a real implementation.
+to a real implementation. Pagat covers card games only; board-game
+entries (the topology ladder below) pin their variant to a named public
+rule source instead, with the native OpenSpiel implementation as the
+executable tiebreaker where one exists.
 
 ## Coverage by open question
 
@@ -33,6 +36,8 @@ to a real implementation.
 | [move-level-visibility](../open-questions/move-level-visibility.md) | per-observer move-level override (forces replace-vs-merge) | **poker "show one, show all"** — a Stud or [holdem](#holdem) variant, exercisable in the *existing* poker corpus |
 | [memory-event-syntax](../open-questions/memory-event-syntax.md) | an event composition can't express | **[hanabi](#hanabi)** (partial-identity hint over an inverted hand — forces it; _dedicated deck, out of scope_), [cabo](#cabo) (composable from existing ops) |
 | [knowledge-events](../open-questions/knowledge-events.md) | phase outcome observed unequally | **[mascarade](#mascarade)**, [love-letter](#love-letter) (both _dedicated deck, out of scope_); Belote (now in the corpus) supplies the in-play announce-and-show data point — see the question file |
+| [structural-infoset-proofs](../open-questions/structural-infoset-proofs.md) | board-shaped instances of the compound hidden-function probe, extending the Cheat-anchored constructive world generator to spatial hiding | **[battleship](#battleship)** (shot result = public predicate of a hidden board), [stratego-barrage](#stratego-barrage) (combat double-reveal) |
+| [unbounded-lines-and-max-length](../open-questions/unbounded-lines-and-max-length.md) | a game whose legal lines cycle, forcing the draw-rule design | **[nine-mens-morris](#nine-mens-morris)**, [english-draughts](#english-draughts) (both counter-based draw rules; wave C of the topology ladder is gated on this settlement) |
 
 `higher-order-knowledge` is no longer listed: the verified pass found no
 card game whose *rules* read second-order knowledge (Hanabi and
@@ -430,6 +435,189 @@ NOT rank-monotone and the rank-filter suffix denotation no longer
 covers every legal unit move — the positional-slice movement
 recorded as deferred in [roadmap.md](../roadmap.md).
 
+## Boards: the topology witness ladder
+
+The witness ladder for the topology axis
+([design-notes/generalization-path.md](../design-notes/generalization-path.md)
+§1), in graduation order; the model each rung tests, the selection
+criteria, the coverage matrix, and the rejected candidates (Snakes &
+Ladders, Ludo, phantom variants, chess, Go, Quoridor, tile-layers) are
+in [design-notes/board-topology.md](../design-notes/board-topology.md).
+Each rung adds exactly one mechanism over its predecessors, and every
+rung except Barrage has a native OpenSpiel implementation as a
+differential oracle. Not card games — precedent for that is
+[liars-dice](#liars-dice), below — but unlike the provocation entries,
+these are real pipeline candidates: the dream goal on the project's own
+table is all fixed-outcome board games.
+
+### tic-tac-toe
+
+2 players, 3×3 grid, 5+4 marks. Alternate placing on empty cells;
+three in a line wins; full board draws.
+
+**Why interesting.** The walking skeleton for the whole axis: board
+declaration, the `Cell` parameter domain, cell-indexed zone families,
+the placement vocabulary, declared line patterns, `turns` on a board,
+draw-on-full-board. Perfect information and monotone, so the
+observation model does not move at all — which is the point: every
+later rung changes one thing against this baseline.
+
+**Notes.** Rules are common knowledge; OpenSpiel `tic_tac_toe`
+(thoroughly tested) is the oracle.
+
+### breakthrough
+
+2 players, 8×8 grid, 16 pawn-like pieces each. Move one piece one
+square straight or diagonally forward; capture diagonally only; first
+to reach the opponent's back row wins.
+
+**Why interesting.** The movement rung: per-player direction frames
+("forward" as a declared per-seat transform over one shared board),
+the step/capture vocabulary with `Cell` (or cell × direction)
+parameters, displacement capture into a captured pile, reach-region
+win. Still monotone — pieces only advance, so no draw machinery.
+
+**Notes.** Invented by Dan Troyka, 2000; rules on the inventor's and
+standard abstract-games references. OpenSpiel `breakthrough`
+(thoroughly tested; `rows`/`columns` parameters) is the oracle.
+
+### backgammon
+
+2 players, the 24-point track + bar + bear-off, 15 checkers each, two
+dice. Race game: enter and run checkers per pip counts, hit blots to
+the bar; bear off on the exact roll, or with a higher roll from the
+rearmost checker once no higher point is occupied; first fleet off
+wins. **Single game, no
+doubling cube** (the cube is a wager layer, excluded to match the
+oracle's scope; a later variant delta if wanted).
+
+**Why interesting.** The chance rung — and only that: the first
+mid-game chance nodes (`roll`), which are a replay-model change
+([design-notes/domain-map.md](../design-notes/domain-map.md), the
+in-play-dice tripwire), on the track family (one shared 24-cell track
+under opposed per-player pip frames; bar and tray are ordinary
+zones), per-point stacks (blots and made points as count guards), bar
+re-entry, and exact-or-highest bear-off. Named the cheapest topology entry by
+generalization-path §1; the ladder puts two deterministic rungs before
+it so the chance change lands in isolation.
+
+**Notes.** Backgammon rules are heavily standardized (e.g. US
+Backgammon Federation rules). OpenSpiel `backgammon` (thoroughly
+tested, explicit-stochastic) is the oracle.
+
+### battleship
+
+2 players, two private 10×10 grids, the 1990 Milton Bradley fleet
+(carrier 5, battleship 4, cruiser 3, submarine 3, destroyer 2). Place
+ships secretly (horizontal/vertical, no overlap); alternate calling
+shots; hit/miss announced per shot, ship type announced when sunk;
+repeated shots illegal; first fleet sunk loses.
+
+**Why interesting.** The first hidden-information board: per-player
+hidden cell families (identity to owner, nothing to others) and the
+**probe action** — a shot's result is a public function of a hidden
+zone's true contents: the compound hidden-function probe class whose
+Cheat anchor landed the constructive world generator
+(`tests/openspiel_ready/worlds.py`;
+[structural-infoset-proofs](../open-questions/structural-infoset-proofs.md)).
+Battleship extends that generator to spatial hiding — the question's
+recorded residual — so the two are budgeted together. Footprint
+placement (one decision, a bounded effect placing each segment) and
+monotone shot sets keep everything else already-earned.
+
+**Notes.** 1990 Milton Bradley rules; note some editions announce ship
+type on every hit — the pin announces type on sink only. OpenSpiel
+`battleship` (imperfect-information, CFR-consumable) is the oracle,
+parameterized to match: default `ship_sizes [2;3;3;4;5]`,
+`allow_repeated_shots=false`, `loss_multiplier=1.0` (zero-sum).
+
+### stratego-barrage
+
+2 players, the 10×10 Stratego board with lakes, 8 pieces per side:
+Flag, Spy, 2 Scouts, Miner, General, Marshal, Bomb, placed secretly in
+the back rows. Pieces move one square orthogonally (Scouts any clear
+distance); attacking reveals both ranks and removes the loser (Spy
+kills Marshal when attacking; Miner defuses Bomb; Flag capture wins);
+two-square shuttle rule in scope, the chase rule scoped out and named.
+
+**Why interesting.** The one moat-level rung: position-public,
+rank-private pieces force **attribute-level projections** (C3) and
+**anonymous-persistent identity** on movement events (C6) — the
+per-object visibility risk the domain map marks as its own workstream,
+with the extended partition proofs as the acceptance bar, landed
+before the game. Combat is the second compound hidden-function probe;
+scout moves and moved-so-not-a-bomb narrowing test that candidate-set
+semantics derive partial identity from public movement correctly.
+Barrage is the minimal variant carrying all of it; Banqi/Luzhanqi are
+the named second witnesses if C3/C6 generality needs one.
+
+**Notes.** Jumbo's official Stratego rules, Barrage/"duel" quick-play
+variant. **No OpenSpiel oracle** (verified absent) — acceptance is the
+proof battery plus playout characterization, flagged as the ladder's
+one non-differential rung.
+
+### hex
+
+2 players, 11×11 hex rhombus, no swap rule. Alternate placing stones;
+win by connecting your two opposite sides.
+
+**Why interesting.** Exactly one addition: the bounded `reachable`
+fixed point (class-5 connectivity) — the query generalization-path §1
+calls the real design object of the axis — on a hex tiling entry.
+Monotone, drawless (a filled hex board always has a winner), perfect
+information: everything else is wave-A machinery.
+
+**Notes.** Rules are two sentences; the pin excludes the swap/pie rule
+to match the oracle default. OpenSpiel `hex` (`board_size=11`,
+`swap=false`) is the oracle.
+
+### nine-mens-morris
+
+2 players, the 24-point mill board (an enumerated graph, not a grid),
+9 men each. Phase 1: alternate placing; phase 2: move to adjacent
+points; a player reduced to 3 men flies anywhere. Forming a mill
+(three declared collinear points) removes an opponent man — not from
+an opponent mill unless nothing else is available. Reduce the opponent
+to two men, or block them from moving, to win.
+
+**Why interesting.** The non-grid rung: an enumerated graph entry with
+declared mills, the place→move→fly phase shift on one board,
+mill-triggered removal (a second decision inside the turn, with the
+in-mill removal restriction as its guard), blockade loss
+(no-legal-move as a termination predicate), and the ladder's first
+cyclic movement — which is why it is **gated on settling**
+[unbounded-lines-and-max-length](../open-questions/unbounded-lines-and-max-length.md)
+(the draw rule; align the pin with the oracle's termination rule at
+entry time).
+
+**Notes.** Standard rules with the flying phase (flying is
+variant-divergent across sources — the pin names it explicitly).
+OpenSpiel `nine_mens_morris` is the oracle.
+
+### english-draughts
+
+2 players, 8×8 board (dark squares), 12 men each. Men move/capture
+diagonally forward; captures are **mandatory** and a chosen jump
+sequence must be completed (no maximum-capture rule); reaching the
+back row crowns a king (ending the move) that moves/captures both
+ways; lose with no pieces or no legal move; 40-move no-capture rule
+draws.
+
+**Why interesting.** The rule-composition rung: mandatory capture as a
+rule whose demand narrows the vocabulary to jumps when any exist, jump
+`(from, over, to)` triples as declared relation data, multi-jump
+chains on the `turns` form's `again` axis with a position-typed chain
+anchor (lifting the recorded position-typed-state wall —
+[roadmap.md](../roadmap.md) "Positional zones — walled residuals"),
+promotion as a supply swap, and counter-based draw state. English over
+International deliberately: no capture maximization, so the gated
+optimization query class stays unwitnessed. Same
+unbounded-lines gate as morris.
+
+**Notes.** WCDF/APA English draughts rules. OpenSpiel `checkers`
+implements exactly this pin (forced captures, 40-move no-capture
+draw) and is the oracle.
+
 ## Edge-case experiments
 
 ### gops
@@ -445,7 +633,7 @@ what the MARL algorithms distinguish. Also the first **differential
 validation** target: OpenSpiel ships a native `goofspiel`, so a DSL
 implementation can be checked game-tree-against-reference — divergence on
 identical lines is a bug in one of them. (The same angle applies to
-[euchre](#euchre), [gin-rummy](#gin-rummy), and Hearts, all of which have
+[euchre](#euchre), [gin-rummy](gin-rummy.md), and Hearts, all of which have
 native OpenSpiel implementations — a compiled game validating against a
 hand-coded reference is the strongest external check the engine's
 correctness story can get.)
