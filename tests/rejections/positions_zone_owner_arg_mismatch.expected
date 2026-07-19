@@ -1,0 +1,1 @@
+positions_zone_owner_arg_mismatch.cardlang:13:31: error: zone 'tableau' is indexed by 'column' but typed 'Cascade<slot>' — the owner argument must name the same domain as the index (the runtime keys the family by the index, so '<slot>' would be silently ignored); write 'Cascade<column>'

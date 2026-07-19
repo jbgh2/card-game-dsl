@@ -1,0 +1,27 @@
+// Wall: resolve.py's iteration-role registry check. A position is
+// not an iteration role (deferred; roadmap.md records it): columns
+// are addressed by literal or parameter, never looped over.
+game PositionsForEach {
+  players: 1
+  direction: clockwise
+  max_length: 100
+  cards: standard52
+  positions { column : 1..3 }
+  zones {
+    deck : Deck
+    pile[column] : Cascade<column>
+  }
+  state {
+    resigned : Boolean = false
+    score[player] : Integer = 0
+    }
+  phase setup { shuffle deck }
+  phase play {
+    turns t from 0 over all players until resigned {
+      offer to t one of [quit]
+    }
+    for each column c: shuffle pile[c]
+  }
+  winner: highest score
+}
+move_type quit { effect { resigned := true } }

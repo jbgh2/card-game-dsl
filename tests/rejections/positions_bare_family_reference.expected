@@ -1,0 +1,1 @@
+positions_bare_family_reference.cardlang:24:8: error: 'pile' is a position-indexed zone family and must be subscripted (`pile[<column>]`) — the bare-family actor sugar reads the acting player's instance, and a position family has no per-player instances

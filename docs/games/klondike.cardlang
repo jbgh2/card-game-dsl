@@ -1,0 +1,191 @@
+// Klondike — one player, standard 52-card deck. Variant pinned: deal 1,
+// unlimited redeals, Kings only to empty columns, partial-run moves allowed,
+// no worrying back (foundation cards never come down), mandatory immediate
+// flip. Pagat has no standalone Klondike page (its patience section links
+// out); this pin follows the classic rules its Klondike-derived entries
+// (pagat.com/patience/double.html) assume.
+//
+// This is the corpus witness for POSITION DOMAINS (decisions.md "Position
+// domains and positional zones"): seven tableau columns as position-indexed
+// zone families, each column TWO stacked zones — a face-down HiddenStack
+// under a face-up Cascade — so the flip is an ordinary kernel movement whose
+// observation event (count from the hidden side, identity at the open side)
+// IS the derived reveal. Hidden information here is chance-hidden (the
+// shuffle), not opponent-hidden: the sole player's information set is exactly
+// the exposed cards + counts + their own observation history.
+//
+// Foundations are four position-indexed piles under a fixed suit layout
+// (clubs=1, diamonds=2, hearts=3, spades=4 — a presentational convention,
+// rule-equivalent: each foundation builds one suit A up to K, and the suit a
+// pile takes is determined the moment its ace lands). `ranking: aces low`
+// gives rank_value A=0 .. K=12, the foundation/tableau arithmetic scale.
+
+game Klondike {
+
+  players: 1
+  direction: clockwise
+  max_length: 600
+
+  cards: standard52
+  ranking: aces low
+
+  positions {
+    column : 1..7    // the seven tableau columns, left to right
+    fslot  : 1..4    // the four foundation piles (clubs, diamonds, hearts, spades)
+  }
+
+  zones {
+    deck                  : Deck                  // the face-down stock
+    waste                 : Discard               // the face-up waste pile
+    tableau_down[column]  : HiddenStack<column>   // a column's face-down cards
+    tableau_up[column]    : Cascade<column>       // a column's face-up run
+    foundation[fslot]     : Foundation<fslot>     // ace up to king, one suit each
+  }
+
+  state {
+    resigned           : Boolean = false
+    home_count[player] : Integer = 0    // cards sent to the foundations (the score)
+  }
+
+  // Column c is dealt c cards face down, then its top card is flipped: the
+  // flip is the draw from the hidden stack to the open cascade, and its
+  // observation event is what shows the player the seven exposed cards.
+  phase setup {
+    shuffle deck
+    deal 1 card  from deck to tableau_down[1]
+    deal 2 cards from deck to tableau_down[2]
+    deal 3 cards from deck to tableau_down[3]
+    deal 4 cards from deck to tableau_down[4]
+    deal 5 cards from deck to tableau_down[5]
+    deal 6 cards from deck to tableau_down[6]
+    deal 7 cards from deck to tableau_down[7]
+    draw 1 card from tableau_down[1] to tableau_up[1]
+    draw 1 card from tableau_down[2] to tableau_up[2]
+    draw 1 card from tableau_down[3] to tableau_up[3]
+    draw 1 card from tableau_down[4] to tableau_up[4]
+    draw 1 card from tableau_down[5] to tableau_up[5]
+    draw 1 card from tableau_down[6] to tableau_up[6]
+    draw 1 card from tableau_down[7] to tableau_up[7]
+  }
+
+  // One player, one decision per turn, until the game is won or abandoned.
+  // `resign` is always legal, so the offer can never be empty; a solitaire
+  // player may abandon at any point, and under random play that is also what
+  // bounds the game length.
+  phase play {
+    turns t from 0 over all players
+          until resigned or (any player where home_count[player] is 52) {
+      offer to t one of [draw_stock, redeal, waste_to_foundation,
+                         waste_to_tableau, tableau_to_foundation,
+                         tableau_to_tableau, resign]
+    }
+  }
+
+  winner: highest home_count
+}
+
+// The fixed foundation layout: which pile a suit builds on.
+function fpile(s : Suit) = if s is clubs then 1 elif s is diamonds then 2 elif s is hearts then 3 else 4
+
+// Card color, for the alternating tableau build.
+function red(s : Suit) = (s is hearts) or (s is diamonds)
+
+// May c be placed on t in the tableau? One rank lower, opposite color.
+function fits_down(c : Card, t : Card) = (rank_value(c) is rank_value(t) - 1) and (red(c.suit) is not red(t.suit))
+
+// May c go to its foundation next? Its pile's ace first, then ascending.
+function home_ok(c : Card) = if foundation[fpile(c.suit)] is empty then rank_value(c) is 0 else rank_value(c) is rank_value(top_of(foundation[fpile(c.suit)])) + 1
+
+// Turn one stock card face up onto the waste (deal-1 variant).
+move_type draw_stock {
+  when: deck is not empty
+  effect {
+    draw 1 card from deck to waste
+  }
+}
+
+// Stock exhausted: turn the waste over, unshuffled, to form the new stock.
+// The dealt take is FIFO (decisions.md, sequence orientation), so the new
+// pass repeats the last pass's order — exactly the physical turn-over. The
+// player has seen every card go by, so after one full pass the stock's
+// order is derived knowledge in their observation history; no shuffle, no
+// new chance.
+move_type redeal {
+  when: (deck is empty) and (waste is not empty)
+  effect {
+    move all cards from waste to deck
+  }
+}
+
+// The top waste card to its foundation.
+move_type waste_to_foundation {
+  when: (waste is not empty) and home_ok(top_of(waste))
+  effect {
+    let c = top_of(waste)
+    move one card from waste where card is c to foundation[fpile(c.suit)]
+    home_count[actor] += 1
+  }
+}
+
+// The top waste card onto a column: onto a fitting face-up top card, or a
+// King onto an empty column. The flip invariant (a column's face-up part is
+// empty only when its face-down part is too) makes `tableau_up[dst] is
+// empty` the whole emptiness test.
+move_type waste_to_tableau(dst : column) {
+  when: (waste is not empty)
+        and (if tableau_up[dst] is empty
+             then top_of(waste).rank is K
+             else fits_down(top_of(waste), top_of(tableau_up[dst])))
+  effect {
+    let c = top_of(waste)
+    move one card from waste where card is c to tableau_up[dst]
+  }
+}
+
+// A column's top card to its foundation, flipping the newly exposed card
+// if the face-up run empties.
+move_type tableau_to_foundation(src : column) {
+  when: (tableau_up[src] is not empty) and home_ok(top_of(tableau_up[src]))
+  effect {
+    let c = top_of(tableau_up[src])
+    move one card from tableau_up[src] where card is c to foundation[fpile(c.suit)]
+    home_count[actor] += 1
+    if (tableau_up[src] is empty) and (tableau_down[src] is not empty) {
+      draw 1 card from tableau_down[src] to tableau_up[src]
+    }
+  }
+}
+
+// Move a face-up run (a card and everything above it) between columns.
+// Onto a non-empty column, the moving unit is determined by the target's
+// top rank: the run's card one rank below it, opposite color, plus all
+// cards above — denoted by the rank filter, because a cascade's face-up
+// run is a strictly-descending alternating sequence (the run invariant,
+// decisions.md "Position domains and positional zones"). Onto an empty
+// column, only a King-based run may move, and it moves whole.
+move_type tableau_to_tableau(src : column, dst : column) {
+  when: (src is not dst)
+        and (tableau_up[src] is not empty)
+        and (if tableau_up[dst] is empty
+             then bottom_of(tableau_up[src]).rank is K
+             else (any card in tableau_up[src]
+                   where fits_down(card, top_of(tableau_up[dst]))))
+  effect {
+    if tableau_up[dst] is empty {
+      move all cards from tableau_up[src] to tableau_up[dst]
+    } else {
+      let v = rank_value(top_of(tableau_up[dst]))
+      move all cards from tableau_up[src] where rank_value(card) < v to tableau_up[dst]
+    }
+    if (tableau_up[src] is empty) and (tableau_down[src] is not empty) {
+      draw 1 card from tableau_down[src] to tableau_up[src]
+    }
+  }
+}
+
+// Abandon the game; the score stands at the cards already sent home.
+move_type resign {
+  effect {
+    resigned := true
+  }
+}

@@ -65,8 +65,8 @@ cells plus a lie in the `members` column.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Sequence
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, Callable, Mapping, Sequence
 
 from cardlang.types import TAny, TEnum, TPlayer, TTeam, Type
 
@@ -91,6 +91,16 @@ class DomainSources:
     ranks: Sequence[str]
     players: Sequence[int]
     teams: Sequence[Any] = ()
+    # Declared position domains (decisions.md "Position domains and
+    # positional zones"): name -> ordered members. Per-game, unlike every
+    # other source (which reads a fixed table through per-game values):
+    # `driver.py` builds it from `rs.position_domains` and
+    # `openspiel/encoding.py` from `game.positions` — the same origin
+    # (`PositionDecl.members`) both ways, so the runtime candidate
+    # enumeration and the static action space cannot diverge. A declared
+    # name can never collide with a built-in spelling (resolve rejects the
+    # collision), so the lookup order below is unambiguous.
+    positions: Mapping[str, Sequence[int]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -213,7 +223,17 @@ def zone_observer_key(role: str, rs: "RuntimeState", observer: int) -> int | Non
     """The observer's own key in a zone family indexed by `role` — their seat,
     their team. The ownership half of `zone_key_of`; raises (rather than
     guessing player keying, as the old `== "team"` sites did) for a role no row
-    marks zone-indexable, because resolve rejects those before a game runs."""
+    marks zone-indexable, because resolve rejects those before a game runs.
+
+    A declared POSITION domain (decisions.md "Position domains and positional
+    zones") is indexable but unowned — no observer *is* a column — so it
+    returns `None`: never equal to any instance key, hence every observer
+    projects such a family through the zone type's `others` column. Both
+    ownership consumers (runtime `observe._is_owner` and the proof oracle
+    `tests/openspiel_ready/partition._is_owner`) read this one function, so
+    the unowned rule cannot drift between them."""
+    if role in rs.position_domains:
+        return None
     row = BY_ID.get(role)
     if row is None or row.zone_key_of is None:
         raise AssertionError(
@@ -262,7 +282,13 @@ def role_static_members(role: str, sources: DomainSources) -> list[Any]:
     consumer: it must know how many times a loop body runs, and it used to assume
     "players, or once" — so `for each suit s: deal 15 cards …` counted as ONE
     iteration, demanded 4x what the gate checked, passed, and died mid-deal on a
-    bare ValueError. Reading the row instead makes that count a fact of the table."""
+    bare ValueError. Reading the row instead makes that count a fact of the table.
+
+    A declared position domain resolves ahead of the table (its name can never
+    collide with a row id — resolve rejects the collision), so the zone store
+    can key a position-indexed family from the same sources struct."""
+    if role in sources.positions:
+        return list(sources.positions[role])
     row = BY_ID.get(role)
     if row is None:
         raise AssertionError(f"unknown role '{role}' (resolve rejects these)")
@@ -282,7 +308,13 @@ def enumerate_domain(type_name: str, sources: DomainSources) -> list[Any]:
     `Rank`/`Player` domain instead. `Card` is likewise absent (state-dependent;
     `mechanics.param_domain` handles it ahead of this table) and bounded-`Integer`
     is rejected at resolve time (deferred) — so this lookup is total over what
-    reaches it, and loud over what should not."""
+    reaches it, and loud over what should not.
+
+    A declared position domain (`src : column`) enumerates its declared
+    members, checked ahead of the table — resolve's collision wall guarantees
+    a declared name never shadows a built-in spelling."""
+    if type_name in sources.positions:
+        return list(sources.positions[type_name])
     row = BY_PARAM_DOMAIN.get(type_name)
     if row is None:
         raise NotImplementedError(f"move parameter domain '{type_name}' not supported")

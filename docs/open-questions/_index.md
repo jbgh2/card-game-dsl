@@ -27,6 +27,16 @@ folder, and remove the entry from this index. See
   smuggling family whose five sibling rulesets measured the copy-drift and
   parameterization cost end to end.
 
+- [permissive-any-type](permissive-any-type.md) — `TAny` is the checker's top
+  type and satisfies every constraint, but it doubles as the fallback for a
+  lookup that failed to resolve, so an incompletely-built type environment
+  silently accepts bad code (the repo's worst class). Two PR-review findings in
+  one cycle were this shape. Split it: a non-permissive `TUnresolved` sentinel
+  for the miss sites (loud at the use) plus a small named set of legitimate ⊤
+  uses (`error()`, dynamic stdlib returns, unknown-element collections). Not
+  "delete `TAny`" — full removal needs a divergence type and polymorphic sigs
+  the corpus does not force; the permissiveness is the harm, not the type.
+
 ## Tier 2 — High impact, blocked on a data point
 
 These questions need one more game in the corpus before committing to a
@@ -64,19 +74,12 @@ design. The data point is named in each file.
   directions (leak and over-hiding), recall, seed/rng non-observability,
   legal-action agreement, adapter agreement — with today's coverage per item.
   The actionable checks are built as per-game proofs over the empirical
-  harness; only the constructive world generator is blocked, on the first
-  compound hidden-function probe that defeats any simple swap axis.
-- [meld-groups](meld-groups.md) — first-class card-group OBJECTS (shared,
-  growing, team-owned piles with per-group scoring); the joint-predicate
-  selection half is settled in [decisions.md](../decisions.md)
-  "Joint-predicate selection" (Gin Rummy anchors it); the residual is
-  blocked on Canasta.
-- [family-libraries](family-libraries.md) — an import tier between
-  game-local and stdlib, so game families (poker first: Kuhn, Leduc, and
-  Hold'em are all OpenSpiel targets) share betting machinery, rules, and
-  primitives without pasting them per game or promoting them to the
-  stdlib; blocked on the second poker-family game, and sequenced behind
-  shared rule definitions and named procedures, which it presupposes.
+  harness, and the constructive world generator has its first instance
+  (`tests/openspiel_ready/worlds.py`, anchored by Cheat — the compound
+  hidden-function probe, which pinned the design as a constructive sampler
+  over lines, not a static enumeration); the residual is generalizing it
+  across the corpus via the per-game emission-site sufficiency analysis the
+  file names, retiring the swap axes game by game.
 
 ## Tier 3 — Medium impact, narrow scope
 

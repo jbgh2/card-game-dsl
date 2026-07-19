@@ -1,0 +1,1 @@
+positions_owned_type_on_position_index.cardlang:13:20: error: zone 'pile' is indexed by position 'column', which no observer owns, but type 'Hand' declares different owner/others projections (identity vs count_only) — its owner projection would be unreachable; use a uniform-projection type (Cascade, HiddenStack, Foundation, Cell, …)

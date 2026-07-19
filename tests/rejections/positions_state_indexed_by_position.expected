@@ -1,0 +1,1 @@
+positions_state_indexed_by_position.cardlang:17:5: error: state variable 'cnt' is indexed by 'column', which is not an indexable role (player, team) — a value domain has no per-member store (roadmap.md records the extension)

@@ -62,7 +62,7 @@ from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
 from cardlang.stdlib.rules import library_rules
 from cardlang.stdlib.values import DIRECTION_VALUES, deck_ranks, deck_suits, enum_values
 from cardlang.typecheck import KNOWN_TYPE_NAMES
-from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
+from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES, ZONE_PROJECTIONS
 
 # Roles a zone may be indexed by or owned by — the `zone_key_of` column of the
 # domain table, not a local list (it used to be a hand-written {player, team}
@@ -155,8 +155,9 @@ def resolve(game: n.Game) -> n.Game:
     _check_reserved_params(game, bag)
     _check_reserved_binders(game, bag)
     _resolve_max_length(game, bag)
+    position_names = _resolve_positions(game, bag)
     for zone in game.zones:
-        _resolve_zone(zone, bag)
+        _resolve_zone(zone, bag, position_names)
 
     # Names that resolve to SOME rule template (local or library), independent
     # of whether that template ever successfully instantiates — the set
@@ -184,6 +185,7 @@ def resolve(game: n.Game) -> n.Game:
     cats = _categories(game)
     game = _classify_names(game, cats, bag)
     _validate_refs(game, cats, bag)
+    _check_position_family_refs(game, bag, position_names)
     _check_functions(game, bag)
     _check_procedures(game, bag)
     _check_chooses(game, bag)
@@ -288,7 +290,7 @@ def _node_binders(node: n.Node) -> tuple[str, ...]:
             | n.DefineDef() | n.FunctionDef() | n.ProcedureDef()
             | n.VariantCase() | n.StructField() | n.DerivedField()
             | n.ZoneDecl() | n.TypeRef() | n.TypeArg()
-            | n.StateBlock() | n.StateDecl()
+            | n.StateBlock() | n.StateDecl() | n.PositionDecl()
             | n.Phase() | n.PhaseQualifier() | n.BeforeEach() | n.AfterEach()
             | n.ActiveRules() | n.LegalMoves() | n.TransitionTo() | n.MoveEvent()
         ):
@@ -732,8 +734,60 @@ def _resolve_max_length(game: n.Game, bag: DiagnosticBag) -> None:
         )
 
 
-def _resolve_zone(zone: n.ZoneDecl, bag: DiagnosticBag) -> None:
-    if zone.index is not None and zone.index not in _KNOWN_ROLES:
+# The bound on a declared position domain's member count: a Suit-sized or
+# column-sized layout is orders of magnitude below it, and a cross-product of
+# two runaway domains would otherwise silently explode the OpenSpiel
+# vocabulary block (every member pair mints an action id). No physical
+# tabletop layout approaches it.
+_POSITION_MEMBER_CEILING = 256
+
+
+def _resolve_positions(game: n.Game, bag: DiagnosticBag) -> frozenset[str]:
+    """Wall the `positions { }` block (decisions.md "Position domains and
+    positional zones"): static, non-empty, bounded ranges, and names that can
+    never collide with a built-in domain id or declared-type spelling — the
+    reconciliation between the two definition sites (the closed
+    `cardlang.domains` registry and the per-game block) is rejection, so a
+    lookup that consults positions first can never shadow a built-in row.
+    Duplicates are rejected by `_check_duplicate_names`, with every other
+    declaration namespace. Returns the declared names for the consumers
+    (zone indexes, move parameters, the bare-reference wall)."""
+    # Built-in spellings a position may not reuse: the domain ids (`player`,
+    # `suit`, …), their declared-type forms (`Player`, `Suit`, …, via
+    # KNOWN_TYPE_NAMES), and the value-position enum/type names. The pin
+    # test (tests/test_positions.py) reconciles this union against the two
+    # source registries so neither can grow past it silently.
+    taken = _ITERATION_ROLES | SIMULTANEOUS_ROLES | ZONE_INDEX_ROLES | KNOWN_TYPE_NAMES
+    for p in game.positions:
+        if p.lo > p.hi:
+            bag.error(
+                f"position domain '{p.name}' declares an empty range "
+                f"{p.lo}..{p.hi} — the bounds are inclusive and must satisfy "
+                f"lo <= hi",
+                p.span,
+            )
+        elif p.hi - p.lo + 1 > _POSITION_MEMBER_CEILING:
+            bag.error(
+                f"position domain '{p.name}' declares {p.hi - p.lo + 1} "
+                f"members — more than the ceiling "
+                f"({_POSITION_MEMBER_CEILING}); every member mints action-"
+                f"space ids, so a runaway range is a declaration error",
+                p.span,
+            )
+        if p.name in taken:
+            bag.error(
+                f"position domain '{p.name}' collides with a built-in domain "
+                f"or type name — pick another name",
+                p.span,
+            )
+    return frozenset(p.name for p in game.positions)
+
+
+def _resolve_zone(
+    zone: n.ZoneDecl, bag: DiagnosticBag, positions: frozenset[str]
+) -> None:
+    index_known = zone.index is None or zone.index in _KNOWN_ROLES or zone.index in positions
+    if not index_known:
         bag.error(f"unknown index role '{zone.index}'", zone.span)
 
     ref = zone.type_ref
@@ -749,8 +803,85 @@ def _resolve_zone(zone: n.ZoneDecl, bag: DiagnosticBag) -> None:
     if not takes_owner and ref.args:
         bag.error(f"zone type '{ref.name}' takes no type arguments", ref.span)
     for arg in ref.args:
-        if arg.name not in _KNOWN_ROLES:
+        if arg.name not in _KNOWN_ROLES and arg.name not in positions:
             bag.error(f"unknown owner '{arg.name}'", arg.span)
+        elif takes_owner and zone.index is None:
+            # An owned zone type has no index to key its owner by. The runtime
+            # keys a family solely by its index (ZoneStore / zone_observer_key
+            # read ZoneDecl.index; the owner argument's domain is never
+            # consulted), so an owner with no index is unkeyed — the argument
+            # is accepted and then ignored, the worst class. An owned zone
+            # must be indexed by its owner.
+            bag.error(
+                f"zone '{zone.name}' is typed '{ref.name}<{arg.name}>' but has "
+                f"no index — an owned zone type must be indexed by its owner; "
+                f"write '{zone.name}[{arg.name}] : {ref.name}<{arg.name}>'",
+                zone.span,
+            )
+        elif takes_owner and arg.name != zone.index:
+            # Same silent-ignore: the runtime keys the family by the index, so
+            # an owner argument that names a different domain than the index is
+            # accepted and then ignored (`{ref.name}<{arg.name}>` on a
+            # `[{zone.index}]` family still keys by `{zone.index}`). Require the
+            # argument to name the index's domain.
+            bag.error(
+                f"zone '{zone.name}' is indexed by '{zone.index}' but typed "
+                f"'{ref.name}<{arg.name}>' — the owner argument must name the "
+                f"same domain as the index (the runtime keys the family by the "
+                f"index, so '<{arg.name}>' would be silently ignored); write "
+                f"'{ref.name}<{zone.index}>'",
+                arg.span,
+            )
+    if zone.index in positions:
+        # A position-indexed family has no owner (no observer IS a column —
+        # decisions.md "Position domains and positional zones"), so a zone
+        # type with distinct owner/others projections would leave its owner
+        # projection silently unreachable: accepted-but-ignored at the
+        # visibility level, the worst class.
+        vis = ZONE_PROJECTIONS[ref.name]
+        if vis.owner != vis.others:
+            bag.error(
+                f"zone '{zone.name}' is indexed by position '{zone.index}', "
+                f"which no observer owns, but type '{ref.name}' declares "
+                f"different owner/others projections ({vis.owner} vs "
+                f"{vis.others}) — its owner projection would be unreachable; "
+                f"use a uniform-projection type (Cascade, HiddenStack, "
+                f"Foundation, Cell, …)",
+                ref.span,
+            )
+
+
+def _check_position_family_refs(
+    game: n.Game, bag: DiagnosticBag, positions: frozenset[str]
+) -> None:
+    """A position-indexed family must always be subscripted: the bare-family
+    actor sugar (`hand` = the acting player's hand) keys the family by the
+    acting SEAT, and a position family has no seat keys — the runtime read
+    would land outside the key set. Walled here, after classification (so a
+    local binder shadowing the family name is exempt: only `ref_kind ==
+    "zone"` references are family reads). The runtime's phantom-key error in
+    `evaluate._name` is the backstop shadowing this wall."""
+    pos_families = {z.name for z in game.zones if z.index in positions}
+    if not pos_families:
+        return
+    subscript_objs = {
+        id(nd.obj) for nd in _walk(game) if isinstance(nd, n.Subscript)
+    }
+    for nd in _walk(game):
+        if (
+            isinstance(nd, n.NameRef)
+            and nd.ref_kind == "zone"
+            and nd.name in pos_families
+            and id(nd) not in subscript_objs
+        ):
+            index = next(z.index for z in game.zones if z.name == nd.name)
+            bag.error(
+                f"'{nd.name}' is a position-indexed zone family and must be "
+                f"subscripted (`{nd.name}[<{index}>]`) — the bare-family "
+                f"actor sugar reads the acting player's instance, and a "
+                f"position family has no per-player instances",
+                nd.span,
+            )
 
 
 def _resolve_rule(rule: n.RuleDef, bag: DiagnosticBag) -> None:
@@ -967,6 +1098,10 @@ def _check_duplicate_names(game: n.Game, bag: DiagnosticBag) -> None:
                 _check_reserved(name, kind, getattr(decl, "span", None), bag)
 
     check("zone", game.zones, reserved=True)
+    # Position names live in dedicated slots (zone index, type arg, parameter
+    # type) — never bare expression position — so, like move_type names, they
+    # need uniqueness but not the reserved-word sweep.
+    check("position", game.positions)
     check("move_type", game.move_types)
     check("type", game.types, reserved=True)
     check("define", game.defines)
@@ -1791,7 +1926,11 @@ _LEGAL_PARAM_DOMAINS = f"{', '.join(PARAM_DOMAIN_ORDER)}, or Card"
 
 
 def _check_move_params(
-    mt: n.MoveTypeDef, bag: DiagnosticBag, span: Span | None, has_ranking: bool
+    mt: n.MoveTypeDef,
+    bag: DiagnosticBag,
+    span: Span | None,
+    has_ranking: bool,
+    positions: frozenset[str],
 ) -> None:
     """Totality gate for a parameterized move offered/enumerated in a decision
     (an `offer` statement or a `round offering` vocabulary). Fixed-from-type
@@ -1836,10 +1975,13 @@ def _check_move_params(
                 f"open-questions/move-parameter-domains.md)",
                 span,
             )
-        elif t not in _FIXED_DOMAINS and t != "Card":
+        elif t not in _FIXED_DOMAINS and t != "Card" and t not in positions:
+            expected = _LEGAL_PARAM_DOMAINS
+            if positions:
+                expected += ", or a declared position domain (" + ", ".join(sorted(positions)) + ")"
             bag.error(
                 f"move '{mt.name}' has unsupported parameter domain '{t}' "
-                f"(expected {_LEGAL_PARAM_DOMAINS})",
+                f"(expected {expected})",
                 span,
             )
         # Exact string, matching `_FIXED_DOMAINS`'s own convention (never by
@@ -1907,6 +2049,7 @@ def _check_vocabulary_moves(
     span: Span | None,
     unknown_msg: str,
     has_ranking: bool,
+    positions: frozenset[str],
 ) -> None:
     """The shared body of a vocabulary's per-name loop, wherever one is
     enumerated (a plain `offer` or the auction `round offering` —
@@ -1923,7 +2066,7 @@ def _check_vocabulary_moves(
             continue
         mt = move_type_defs[name]
         if mt.params:
-            _check_move_params(mt, bag, span, has_ranking)
+            _check_move_params(mt, bag, span, has_ranking, positions)
 
 
 def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
@@ -2220,6 +2363,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     nd.span,
                     "offer names unknown move type",
                     bool(game.ranking),
+                    frozenset(p.name for p in game.positions),
                 )
                 _check_card_vocabulary(nd.move_types, move_type_defs, game, bag, nd.span)
             case n.Round() if nd.move_types is not None:
@@ -2241,6 +2385,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     nd.span,
                     "round vocabulary names unknown move type",
                     bool(game.ranking),
+                    frozenset(p.name for p in game.positions),
                 )
                 _check_card_vocabulary(nd.move_types, move_type_defs, game, bag, nd.span)
                 # The betting form omits `outcome` (it mutates state directly and

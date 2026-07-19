@@ -117,6 +117,7 @@ class ZoneStore:
         decls: Iterable[n.ZoneDecl],
         players: tuple[Player, ...],
         teams: tuple[int, ...] = (),
+        positions: "dict[str, tuple[int, ...]] | None" = None,
     ) -> None:
         self.singles: dict[str, Zone] = {}
         self.families: dict[str, dict[int, Zone]] = {}
@@ -124,6 +125,7 @@ class ZoneStore:
         # emitter and info-state builder can look up any zone's projection.
         self.zone_type: dict[str, str] = {}
         self.zone_index: dict[str, str | None] = {}
+        positions = positions or {}
         for decl in decls:
             self.zone_type[decl.name] = decl.type_ref.name
             self.zone_index[decl.name] = decl.index
@@ -131,8 +133,10 @@ class ZoneStore:
                 self.singles[decl.name] = Zone()
             else:
                 # The family's key set is the index domain's member set, read
-                # from the domain table. The old `teams if index == "team" else
-                # players` silently keyed ANY other role by players. The gate
+                # from the domain table (or the game's declared position
+                # domains — decisions.md "Position domains and positional
+                # zones"). The old `teams if index == "team" else players`
+                # silently keyed ANY other role by players. The gate
                 # below is what makes the backstop REAL: an unknown role
                 # raises inside `role_static_members`, but a known
                 # non-indexable row (suit/rank) would quietly enumerate the
@@ -140,15 +144,22 @@ class ZoneStore:
                 # family whose every access key-errors far from the cause.
                 # Resolve walls these declarations; reaching this raise means
                 # a construction path bypassed it.
-                if decl.index not in ZONE_INDEX_ROLES:
+                if decl.index not in ZONE_INDEX_ROLES and decl.index not in positions:
                     raise AssertionError(
                         f"zone family '{decl.name}' is indexed by "
-                        f"'{decl.index}', which is not a zone-index role "
-                        f"(resolve rejects this declaration)"
+                        f"'{decl.index}', which is not a zone-index role or a "
+                        f"declared position domain (resolve rejects this "
+                        f"declaration)"
                     )
                 keys = role_static_members(
                     decl.index,
-                    DomainSources(suits=(), ranks=(), players=players, teams=teams),
+                    DomainSources(
+                        suits=(),
+                        ranks=(),
+                        players=players,
+                        teams=teams,
+                        positions=positions,
+                    ),
                 )
                 self.families[decl.name] = {k: Zone() for k in keys}
 
@@ -230,6 +241,11 @@ class RuntimeState:
         self.card_values: dict[str, int] = {}  # rank -> card points (point-trick games)
         self.suits: tuple[str, ...] = ()  # the deck's actual card suits (move-param domains)
         self.ranks: tuple[str, ...] = ()  # rank iteration order: ranking: if declared, else deck order
+        # Declared position domains, name -> ordered members (decisions.md
+        # "Position domains and positional zones"); set by the driver from
+        # `game.positions`, read by `zone_observer_key` (unowned families)
+        # and `mechanics.param_domain` (position move parameters).
+        self.position_domains: dict[str, tuple[int, ...]] = {}
         self.max_length: int = 0  # the game's declared non-termination backstop
         self.decisions_made: int = 0  # every chooser pick, checked against max_length
 

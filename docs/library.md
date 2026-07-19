@@ -176,7 +176,8 @@ their own parameterized rules with the same instantiation semantics.
 The library:
 
 - `MustFollowSuit` — constrains `play_to_trick`; the canonical follow-suit
-  rule (Hearts, Getaway, Spades, Bridge, Oh Hell, Pinochle). French Tarot's
+  rule (Hearts, Getaway, Spades, Bridge, Oh Hell, Pinochle, Belote).
+  French Tarot's
   follow rule is game-local under its own name (`MustFollowEffectiveSuit`):
   its demand reads `tarot_led_suit()`, the effective led suit, not the raw
   `state.led_suit` — a genuinely different body, so it does not share this
@@ -216,7 +217,19 @@ answers outside any trick `round` (see "Mechanics" below). The cascade rules
 above stay game-local because their bodies genuinely diverge between Pinochle
 and Tarot (trump vocabulary and height helper); a shared parameterized
 cascade is a promotion candidate only if a third strict-trick game arrives
-whose bodies match one of the existing pairs.
+whose bodies match one of the existing pairs. Belote is that third game and
+its bodies match neither: its cascade (`MustHeadTrumpLead` /
+`MustTrumpIfVoidVsOpponents` / `MustOverTrumpVsOpponents` /
+`NoUnderTrumpVsPartner`, [games/belote.cardlang](games/belote.cardlang)) is
+the corpus's richest — the trump and over-trump obligations are GATED
+partnership-relatively (`applies_when` reads `belote_opp_winning()`, the
+live trick's current winner against the actor's partnership), the
+over-trump target is the trick's best trump from either side, trump leads
+must be beaten regardless of who is winning, and the fourth-player
+exception (partner winning on a trump: discard or over-trump, never
+under-trump) is its own demand — all inside the existing
+`applies_when`/`demands`/`if_impossible` running-intersection form, with no
+new rule surface.
 
 French Tarot's four-rule cascade (`ExcuseIsExempt`/`MustFollowEffectiveSuit`/
 `MustTrumpIfVoid`/`MustOverTrump`) is the same running-intersection shape,
@@ -238,6 +251,8 @@ match) and so must trump if able, a quirk the split preserves precisely.
 - `TrumpedHighestOfLedSuit(trump_suit)` — with-trump outcome
 - `tarot_trick_winner` — French Tarot: highest atout, else highest of the
   effective led suit (`tarot_led_suit()`); the Excuse never wins
+- `belote_trick_winner` — Belote: highest trump under the J-9 trump order,
+  else highest of the led suit under the ace-ten ranking
 
 ## Mechanics
 
@@ -484,6 +499,16 @@ type Burn                            = Zone<Card>             { composition: tri
 type RandomizedPile                  = Zone<Card>             { composition: count_only to all, ordered: no }  // cards publicly entered but positionally shuffled (Getaway's waste; some discard variants)
 type ChipStack<Owner: Player>        = Zone<Resource<chip>>   { composition: count_only to all }
 
+// Positional-layout types (decisions.md "Position domains and positional
+// zones"). Their index parameter is usually a declared position domain
+// (`tableau_up[column] : Cascade<column>`) — an UNOWNED index, so both
+// projection columns must agree (uniform); the checker rejects an
+// owner-differentiated type (Hand, HiddenPile) on a position index.
+type Cascade<At: position>           = Zone<Card>             { composition: identity to all, ordered: yes }   // a face-up ordered pile; order public via arrival events (tableau runs, FreeCell columns)
+type HiddenStack<At: position>       = Zone<Card>             { composition: count_only to all, ordered: yes } // a face-down pile family (Klondike's tableau_down)
+type Foundation<At: position>        = Zone<Card>             { composition: identity to all, ordered: yes }   // an ascending suit pile, A up to K
+type Cell<At: position>              = Zone<Card>             { composition: identity to all }                 // a one-card holding space (FreeCell's free cells)
+
 // A "pot" in poker is not just a chip zone — it carries an eligibility
 // set determining who can win it. There is no library Pot type: the
 // eligibility shape varies by game, and Seven-Card Stud models it with
@@ -605,7 +630,7 @@ the stdlib registry.
   ```text
   { suits: { [S, H, D, C]: [7, 8, 9, J, Q, K, 10, A] } }
   ```
-  Used by Skat.
+  Used by Skat, Belote.
 
 - `schnapsen20` = 20-card Schnapsen deck.
   ```text
@@ -694,6 +719,12 @@ mid-playout.
   (`trick_score[...] += sum of card_value(card) over cards in trick_pile`), Schnapsen
   (`card_points[w] += sum of card_value(card) over cards in trick_pile`), and Skat
   (the declarer's points: a `sum of … over cards in captured[declarer]` plus the skat).
+- `top_of(zone) → Card` / `bottom_of(zone) → Card` — the card at an ordered
+  collection's two ends (top = the sequence end, the most recent arrival;
+  bottom = the front — decisions.md "Position domains and positional zones",
+  sequence orientation). A loud runtime error on an empty collection: guard
+  the read (`Z is not empty`). Used throughout Klondike and FreeCell (build
+  targets, foundation progression, the moving run's split rank).
 
 Cribbage's pegging and show scoring, plus the pegging count's card provenance,
 are six game-local primitives reading `cardlang/runtime/cribbage.py` — game-local
@@ -744,6 +775,38 @@ contract (`is_grand` / `is_null` / `trump_suit`) from phase state:
 - `skat_effective_loss(game_value: Integer, bid: Integer, base: Integer) →
   Integer` — the loss base under the overbid rule (the smallest multiple of
   the base covering the bid; a ceiling the expression language lacks).
+
+500's contract machinery is six game-local primitives reading
+`cardlang/runtime/five_hundred.py`; the play-legality ones read the declared
+contract (`trump_suit` / `is_misere` / `is_open_misere` / `joker_suit` /
+`declarer`) from phase state:
+
+- `five_hundred_next_bid(standing: Integer, strain: Suit?) → Integer` — the
+  cheapest rung in the strain that beats the standing contract ordinal on
+  the 27-rung ladder (misère above the sevens, open misère between 10♦ and
+  10♥), or 0 when none exists — also 0 for the deck-derived "joker"
+  pseudo-strain, which is never biddable.
+- `five_hundred_bid_value(rank: Integer) → Integer` — the ordinal's score
+  value (the Pagat table; misère 250, open misère 500); off-ladder ordinals
+  refuse loudly.
+- `five_hundred_bid_level(rank: Integer) → Integer` — a suit/no-trump
+  ordinal's trick target (6..10); the misères have none and refuse.
+- `five_hundred_follow_ok(p: Player, c: Card) → Boolean` — follow-class
+  legality against the led card: under a trump contract the joker, right
+  bower, and left bower are members of the trump suit in all respects (the
+  Skat follow-class shape plus the left bower's effective-suit change); in
+  the no-trump family the joker is suitless (playable only when void; FORCED
+  when void in a misère) or, once nominated, a member of its suit.
+- `five_hundred_lead_ok(p: Player, c: Card) → Boolean` — lead legality: an
+  un-nominated joker may not be led in the no-trump family before the
+  holder's last card (the modelled form of the lead-nomination rule —
+  [games/five-hundred.md](games/five-hundred.md), "Chosen ruleset").
+- `five_hundred_trick_winner(leader: Player) → Player` — the completed
+  trick's winner (three cards in a misère — the declarer's partner sits
+  out — else four): highest trump (joker > bowers > A..), else highest of
+  the led class; an un-nominated joker wins any no-trump trick it is played
+  to. Emits the play/trick_end/trick traces the playout harness recomputes
+  winners from.
 
 Tichu's hand needs twelve game-local primitives plus the two climb queries,
 all reading `cardlang/runtime/tichu.py` (the combination engine itself stays
@@ -811,6 +874,37 @@ primitives, all reading `cardlang/runtime/tarot.py`:
   `discard`, plus the chien's at Garde sans le chien — the chien is never
   moved there, so it counts where it sits), the petit-au-bout adjustment
   `pb`, and the bid multiplier.
+
+Belote's within-trump rank reorder (J > 9 > A > 10 > K > Q > 8 > 7 —
+suit-contextual, so outside the `ranking:` declaration's scope; the
+plain-suit order is `ranking: ace-ten`), its partnership-gated obligations,
+and its declaration combinations need ten game-local primitives, all reading
+`cardlang/runtime/belote.py`:
+
+- `belote_trump_height(card: Card) → Integer` — a rank's strength within
+  the trump suit (1..8), the over-trump comparison's currency (the demand
+  filters on `card.suit is trump_suit` itself).
+- `belote_trick_winner` — a **trick outcome function** (named on `round …
+  outcome belote_trick_winner`): highest trump under the J-9 trump order if
+  any was played, else highest of the led suit under the ace-ten
+  `rank_index`.
+- `belote_opp_winning() → Boolean` — is the live, partial trick's current
+  winner an opponent of the acting player? The partnership-relative gate on
+  the trump/over-trump obligations, read in the rules' `applies_when` off
+  the live round accumulator plus the actor `legal_cards` bound.
+- `belote_royal_player() → Player?` — who played a trump King or Queen in
+  the trick that just completed (a pure read of public facts), aiming the
+  Belote-Rebelote window's `offer`.
+- `belote_best_is(p: Player, class: Integer, rank: Rank, trump: Boolean) →
+  Boolean` — the declaration moves' guard: the stated combination is the
+  hand's best, exactly (no false, weaker, or absent declarations).
+- `belote_decl_points(p)` / `belote_decl_class(p)` / `belote_decl_height(p)`
+  / `belote_decl_trump(p)` — the best combination's points, class, height,
+  and trump flag (the scoring bookkeeping behind the announced content).
+- `belote_decl_size(p: Player) → Integer`, `belote_decl_slot(p: Player,
+  k: Integer, card: Card) → Boolean` — the per-card enumeration of the best
+  combination, walked by the entitled side's showing (`reveal one card from
+  hand[p] where belote_decl_slot(p, show_k, card)`).
 
 `Card.__str__`'s rendering (used by observation logs and `to_string` in the
 OpenSpiel encoding) maps atouts to `★` and the Excuse to `☆` alongside the

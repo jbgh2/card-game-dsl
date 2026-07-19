@@ -62,6 +62,29 @@ def _tichu56() -> tuple[tuple[str, str], ...]:
     return tuple(cards)
 
 
+def _five_hundred43() -> tuple[tuple[str, str], ...]:
+    """The 43-card Australian 500 pack: the black suits keep A..5 (10 cards),
+    the red suits A..4 (11), plus the single joker — its own suit and rank,
+    like Tarot's Excuse."""
+    black = ("A", "K", "Q", "J", "10", "9", "8", "7", "6", "5")
+    red = black + ("4",)
+    cards = [(r, s) for s in SUITS for r in (red if s in ("diamonds", "hearts") else black)]
+    cards.append(("Joker", "joker"))
+    return tuple(cards)
+
+
+def _canasta108() -> tuple[tuple[str, str], ...]:
+    """The 108-card Canasta pack: two standard 52-card packs plus four jokers.
+    An explicit list rather than `copies=2` because the jokers sit outside the
+    suits×ranks cross product (their own `joker` suit, like Tichu's
+    `special`); the two standard copies are spelled by repetition, so the
+    deck genuinely holds duplicate identical Card values (the pinochle48
+    precedent — zones are multisets)."""
+    cards = [(r, s) for _ in range(2) for s in SUITS for r in RANKS]
+    cards += [("Joker", "joker")] * 4
+    return tuple(cards)
+
+
 DECKS: dict[str, Deck] = {
     "standard52": Deck(suits=SUITS, ranks=RANKS, values={}),
     # 20-card Ace-Ten deck: J Q K 10 A in four suits, A 10 K Q J high to low.
@@ -97,6 +120,13 @@ DECKS: dict[str, Deck] = {
     "tarot78": Deck(suits=SUITS, ranks=(), values={}, cards=_tarot78()),
     # 56-card Tichu pack: standard 52 plus Mahjong, Dog, Phoenix, Dragon.
     "tichu56": Deck(suits=SUITS, ranks=(), values={}, cards=_tichu56()),
+    # 43-card Australian 500 pack (non-uniform): A..5 black, A..4 red, one joker.
+    "five_hundred43": Deck(suits=SUITS, ranks=(), values={}, cards=_five_hundred43()),
+    # 108-card Canasta pack: two standard 52s plus four jokers. No `values`
+    # table: Canasta's card points are a scoring fact of the game, held in
+    # its game-local primitive (cardlang/runtime/canasta.py), not a deck
+    # property — the deck is also used with other point tables in principle.
+    "canasta108": Deck(suits=SUITS, ranks=(), values={}, cards=_canasta108()),
     # 15-card Coup deck: five characters (the "rank") under one suit, three each.
     "coup15": Deck(
         suits=("court",),

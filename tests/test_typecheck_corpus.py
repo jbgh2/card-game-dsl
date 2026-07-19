@@ -37,14 +37,40 @@ MD_TWINS = sorted(
 
 
 def test_corpus_is_present() -> None:
-    # Two-sided pin: every game file is registered with the OpenSpiel
-    # adapter and every registration has a file. Derived, not a literal
-    # count — two branches each adding a game used to auto-merge the same
-    # numeric bump and leave main red with no conflict marker. The registry
-    # module is pure data, so this core test never needs pyspiel.
-    from cardlang.openspiel.registry import GAMES as REGISTERED
+    # The registry is DERIVED from this same docs/games/ directory
+    # (cardlang/openspiel/registry.py `_derive_games`), so "every file is
+    # registered" holds by construction — the real guarantees moved INTO the
+    # derivation, which raises rather than build a silently-broken map. Here we
+    # only confirm the production call maps the real corpus without raising and
+    # in the expected shape; the two raise conditions are pinned below with
+    # controlled directories. The registry imports nothing third-party, so this
+    # core test never needs pyspiel.
+    from cardlang.openspiel.registry import _GAMES_DIR, _derive_games
 
-    assert sorted(p.name for p in CORPUS) == sorted(REGISTERED.values())
+    games = _derive_games(_GAMES_DIR)
+    assert sorted(games.values()) == sorted(p.name for p in CORPUS)
+    assert all(k.startswith("cardlang_") for k in games)
+
+
+def test_derive_games_raises_on_an_empty_directory(tmp_path: Path) -> None:
+    # The packaging failure made loud: an empty (or missing) corpus directory
+    # would derive an empty registry and register no games silently.
+    from cardlang.openspiel.registry import _derive_games
+
+    with pytest.raises(RuntimeError, match="no .cardlang games found"):
+        _derive_games(tmp_path)
+
+
+def test_derive_games_raises_on_a_short_name_collision(tmp_path: Path) -> None:
+    # Two stems differing only by the character the short-name rule folds away
+    # (`-` vs `_`) map to one OpenSpiel name; a dict would keep the last
+    # silently, dropping a game.
+    from cardlang.openspiel.registry import _derive_games
+
+    (tmp_path / "go-fish.cardlang").write_text("")
+    (tmp_path / "go_fish.cardlang").write_text("")
+    with pytest.raises(RuntimeError, match="same OpenSpiel short name"):
+        _derive_games(tmp_path)
 
 
 @pytest.mark.parametrize("path", CORPUS, ids=lambda p: p.name)

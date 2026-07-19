@@ -29,7 +29,7 @@ registry:   `cardlang.runtime.values.RANKING_CONVENTIONS` and
             _FRENCH_EXPANSIONS / _NON_FRENCH_DECKS below (the two-way pin
             idiom).
 covered:    all 20 French cells (5 decks x 4 conventions, frozen expected
-            tuples); all 12 non-French cells (3 decks x 4 conventions, wall
+            tuples); all 16 non-French cells (4 decks x 4 conventions, wall
             probed through real source per deck and per convention); the
             unknown-deck degrade; registry↔grammar reconciliation in both
             directions; the reserved-spelling pin; the 14 corpus migration
@@ -79,7 +79,9 @@ _DECK_GAME: dict[str, str] = {
     "skat32": "skat.cardlang",
     "tarot78": "french-tarot.cardlang",
     "tichu56": "tichu.cardlang",
+    "five_hundred43": "five-hundred.cardlang",
     "coup15": "coup.cardlang",
+    "canasta108": "canasta.cardlang",
 }
 
 # The frozen expansion table: every (deck, convention) cell for the decks
@@ -109,8 +111,13 @@ _FRENCH_EXPANSIONS: dict[tuple[str, str], tuple[str, ...]] = {
     ("skat32", "twos high"): ("A", "K", "Q", "J", "10", "9", "8", "7"),
 }
 
-# The decks a convention must REJECT (ranks outside the French set).
-_NON_FRENCH_DECKS = frozenset({"tarot78", "tichu56", "coup15"})
+# The decks a convention must REJECT (ranks outside the French set). One
+# non-French rank rejects the whole convention (the game enumerates
+# explicitly instead): five_hundred43 and canasta108 are otherwise French
+# but for the Joker (canasta108 an otherwise-French double pack).
+_NON_FRENCH_DECKS = frozenset(
+    {"tarot78", "tichu56", "coup15", "five_hundred43", "canasta108"}
+)
 
 
 def _probe_source(deck: str, ranking_clause: str) -> str:
@@ -155,8 +162,8 @@ def test_french_cell_expands_to_frozen_tuple(deck: str, conv: str) -> None:
 @pytest.mark.parametrize("deck", sorted(_NON_FRENCH_DECKS))
 @pytest.mark.parametrize("conv", sorted(RANKING_CONVENTIONS))
 def test_non_french_cell_rejects_through_real_source(deck: str, conv: str) -> None:
-    """All 12 wall cells, through the full pipeline: the diagnostic names the
-    convention and says to enumerate instead."""
+    """Every non-French wall cell, through the full pipeline: the diagnostic
+    names the convention and says to enumerate instead."""
     with pytest.raises(DiagnosticError) as exc:
         resolve(parse_text(_probe_source(deck, f"ranking: {conv}"), "probe.cardlang"))
     assert "outside the standard A..2 set" in str(exc.value)
@@ -251,6 +258,11 @@ _PRE_MIGRATION: dict[str, tuple[str, str, tuple[str, ...]]] = {
     "gops": ("aces low", "standard52", ("K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2", "A")),
     "president": ("twos high", "standard52", ("2", "A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3")),
     "skat": ("ace-ten", "skat32", ("A", "10", "K", "Q", "J", "9", "8", "7")),
+    # Belote postdates the migration (born on the convention): its row
+    # freezes the expansion it was written against — the plain-suit play
+    # order; the within-trump J-9 reorder is suit-contextual, outside
+    # `ranking:`'s scope, and lives in the belote_* primitives.
+    "belote": ("ace-ten", "skat32", ("A", "10", "K", "Q", "J", "9", "8", "7")),
     "doppelkopf": ("ace-ten", "doppelkopf48", ("A", "10", "K", "Q", "J", "9")),
     "pinochle": ("ace-ten", "pinochle48", ("A", "10", "K", "Q", "J", "9")),
     "schnapsen": ("ace-ten", "schnapsen20", ("A", "10", "K", "Q", "J")),
@@ -263,6 +275,20 @@ _PRE_MIGRATION: dict[str, tuple[str, str, tuple[str, ...]]] = {
     # playout goldens + the scorer unit tests), not tuple-equality, so its
     # row freezes the NEW expansion.
     "cribbage": ("aces low", "standard52", ("K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2", "A")),
+    # Cheat is convention-BORN, not migrated: it joined the corpus already
+    # declaring `aces low` (no pre-migration literal exists; the game never
+    # compares rank strength — the convention only fixes the Rank
+    # enumeration order, which its claim cycle reads A -> K). Its row
+    # freezes the expansion it was born onto, so the two-way pin below
+    # keeps covering it like every other convention game.
+    "cheat": ("aces low", "standard52", ("K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2", "A")),
+    # Klondike and FreeCell post-date the migration (no pre-migration
+    # literal exists); like cribbage's row, theirs freeze the expansion the
+    # games were BUILT against — the A=0..K=12 scale every foundation/build
+    # guard's rank arithmetic assumes — so a template edit that kept other
+    # games stable still fails loudly here.
+    "klondike": ("aces low", "standard52", ("K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2", "A")),
+    "freecell": ("aces low", "standard52", ("K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2", "A")),
 }
 
 

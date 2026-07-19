@@ -1,0 +1,1 @@
+zone_owner_arg_domain_mismatch.cardlang:15:26: error: zone 'stash' is indexed by 'player' but typed 'Hand<team>' — the owner argument must name the same domain as the index (the runtime keys the family by the index, so '<team>' would be silently ignored); write 'Hand<player>'

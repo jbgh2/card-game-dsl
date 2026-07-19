@@ -1,0 +1,343 @@
+// Canasta — Classic Canasta, 4 players in partnerships.
+//
+// Rules source: https://www.pagat.com/rummy/canasta.html (fetched live per
+// CLAUDE.md). Two 52-card packs plus four jokers (108 cards); partners sit
+// across; eleven cards each; play clockwise from dealer's left. Each turn:
+// draw the top of the stock OR take the WHOLE discard pile (only ever legal
+// when its top card can immediately feed a meld of that rank), meld as
+// desired, then discard one card. Melds are 3+ cards of one rank with at
+// least two naturals and at most three wilds (jokers and deuces are wild); a
+// side keeps one meld per rank, growing across turns under either partner's
+// adds; seven or more cards make a canasta (natural 500 / mixed 300). The
+// discard pile is FROZEN by any wild discard (and by a wild/red-three
+// turn-up at the deal), and is always frozen against a side that has not yet
+// melded: a frozen pile is taken only with two natural cards of the top rank
+// from hand. Unfrozen, the top card may also meld with one natural + one
+// wild, or join the side's standing meld. Black threes block the pile while
+// on top and meld only as a going-out group; red threes are bonus cards,
+// laid out and replaced on sight. A side's first meld must meet the minimum
+// count (15/50/90/120 by cumulative score; taking the pile counts only the
+// top card toward it). Going out — shedding every card, with or without a
+// final discard — requires the side to own a canasta and pays 100. When the
+// stock runs out play continues on forced/voluntary pile takes until a
+// player entitled to draw cannot; then the hand scores: melded card points
+// plus canasta and red-three bonuses, minus card points left in hands.
+//
+// Simplifications (explicit, per corpus policy — everything else is the
+// Pagat classic game):
+//   - a fixed FOUR-deal match replaces "first side to 5000" (the
+//     initial-meld minimum still reads the real cumulative-score brackets,
+//     including the negative-score 15);
+//   - the initial meld minimum must be met by a SINGLE meld (plus the pile's
+//     top card when taking); the real game may combine several melds laid in
+//     the same turn;
+//   - the optional "may I go out?" partner question and the concealed-hand
+//     double bonus are omitted;
+//   - the first dealer is seat 0; the deal rotates left each hand.
+//
+// Encoding notes (decision structure, not rule changes):
+//   - Melding is announce-then-stage: `start_meld(rank)` (or a pile take)
+//     opens an attempt, cards join it one at a time through the public
+//     `stage` zone, and `close_meld` commits the pile — each stage/close
+//     guarded by the canasta.py completability core so every reachable
+//     staging state still closes legally (Gin's arrange-guard totality,
+//     per card). No `where jointly` selection: canasta108 holds duplicate
+//     identical cards, which the combo block's frozenset canonicalization
+//     cannot tell apart (walled loudly at ActionSpace.for_game).
+//   - The per-(side, rank) melds are eleven team-indexed zone families plus
+//     the black-three go-out pile — the zone-family flattening of
+//     decisions.md "Meld groups: flattened zone families".
+//   - `pile_frozen` stays a boolean: no rule's `applies_when:` reads it —
+//     it gates only take-pile preconditions (decisions.md "The
+//     boolean-as-sub-phase criterion", which zone state does not change).
+//   - Black threes never freeze the pile; they block it purely by SITTING
+//     on top (no take reaches a non-natural top card), so no extra state.
+//   - The `ranking:` is deliberately PARTIAL — exactly the eleven meldable
+//     natural ranks — so the Rank move-parameter domain of start_meld /
+//     add_to_meld is the meldable set by construction (threes, deuces and
+//     jokers are never a meld's rank).
+
+game Canasta {
+
+  players: 4
+  partnerships: [[0, 2], [1, 3]]   // partners sit across
+  direction: clockwise
+  // Measured over seeded random playouts (tests/test_playout_canasta.py):
+  // the longest of seeds 0..29 makes 1224 decisions across the four deals.
+  // Raise only with a measurement.
+  max_length: 8000
+
+  cards: canasta108
+  // The meldable natural ranks, strongest first — a deliberately partial
+  // ranking: it is the Rank iteration/parameter domain (threes and the wild
+  // ranks are excluded by construction). Canasta has no trick ranking; card
+  // POINT values are scoring facts in cardlang/runtime/canasta.py.
+  ranking: A K Q J 10 9 8 7 6 5 4
+
+  zones {
+    deck           : Deck                  // the face-down stock
+    hand[player]   : Hand<player>
+    stage[player]  : PlayerPile<player>    // the open meld attempt (public, as at a table)
+    pile_top       : Discard               // the discard pile's take-able top card
+    pile_rest      : Discard               // everything beneath it (public history)
+    meldA[team]    : TeamPile<team>        // the side's meld of aces …
+    meldK[team]    : TeamPile<team>
+    meldQ[team]    : TeamPile<team>
+    meldJ[team]    : TeamPile<team>
+    meld10[team]   : TeamPile<team>
+    meld9[team]    : TeamPile<team>
+    meld8[team]    : TeamPile<team>
+    meld7[team]    : TeamPile<team>
+    meld6[team]    : TeamPile<team>
+    meld5[team]    : TeamPile<team>
+    meld4[team]    : TeamPile<team>        // … one team-indexed family per rank
+    meld3b[team]   : TeamPile<team>        // the going-out black-three group
+    red3[team]     : TeamPile<team>        // laid-out red threes (bonus cards)
+  }
+
+  state {
+    score[team]  : Integer = 0
+    deals_played : Integer = 0
+    dealer       : Player  = 0   // seat 0 opens; the deal rotates left
+  }
+
+  phase match {
+
+    phase deals repeat until deals_played >= 4 {
+
+      phase hand {
+        state {
+          opener            : Player  = 0      // dealer's left; leads the hand
+          hand_over         : Boolean = false
+          turn_done         : Boolean = false
+          pile_frozen       : Boolean = false  // wild discard / wild-or-red-3 turn-up
+          taking_pile       : Boolean = false  // the open attempt is a pile take
+          meld_rank         : Rank?   = none   // the open attempt's rank (none = closed)
+          team_melded[team] : Boolean = false
+          went_out[team]    : Integer = 0
+        }
+
+        phase deal {
+          move all cards to deck
+          shuffle deck
+          deal 11 cards from deck to each hand
+          // Red threes dealt are laid out at once and replaced from the stock.
+          for each player p: repeat until (number of cards in hand[p] where canasta_is_red3(card)) is 0 {
+            move 1 card from hand[p] where canasta_is_red3(card) to red3[team_of(p)]
+            draw 1 card from deck to hand[p]
+          }
+          // Turn up the pile's first card; a wild or red three stacks
+          // beneath (freezing the pile) until a start card appears.
+          deal 1 cards from deck to pile_top
+          repeat until canasta_top_starts_pile() {
+            move all cards from pile_top to pile_rest
+            pile_frozen := true
+            deal 1 cards from deck to pile_top
+          }
+          opener := dealer offset_by left
+        }
+
+        // --- The turn loop: draw or take, sweep drawn red threes, then the
+        // meld window until the turn ends by discard or going out.
+        phase play {
+          turns t from opener over all players until hand_over {
+            turn_done := false
+
+            if deck is empty {
+              // No stock: the pile take is forced when the top card matches
+              // a standing meld of the side and the pile is not frozen
+              // against it; otherwise it may be taken if legal, and a
+              // player entitled to draw who does not take ends the hand.
+              if canasta_must_take_pile(t) {
+                offer to t one of [take_pile]
+              } else {
+                if canasta_can_take_pile(t) {
+                  offer to t one of [take_pile, decline_pile]
+                } else {
+                  hand_over := true
+                  turn_done := true
+                }
+              }
+            } else {
+              offer to t one of [draw_stock, take_pile]
+            }
+
+            // A drawn red three is laid out and replaced at once; drawing a
+            // red three as the stock's last card ends the hand (no meld, no
+            // discard).
+            repeat until (number of cards in hand[t] where canasta_is_red3(card)) is 0 {
+              move 1 card from hand[t] where canasta_is_red3(card) to red3[team_of(t)]
+              if deck is empty {
+                hand_over := true
+                turn_done := true
+              } else {
+                draw 1 card from deck to hand[t]
+              }
+            }
+
+            repeat until turn_done {
+              if meld_rank is none {
+                offer to t one of [start_meld, add_to_meld, meld_black3, end_discard]
+              } else {
+                offer to t one of [stage_card, close_meld]
+              }
+              // Going out: every card shed (melded, or the last one
+              // discarded) with the attempt closed. The guards allowed it
+              // only with a canasta on the side's row.
+              if (hand[t] is empty) and (meld_rank is none) {
+                went_out[team_of(t)] := 1
+                hand_over := true
+                turn_done := true
+              }
+            }
+          }
+        }
+
+        // --- Hand settlement: melded card points, canasta bonuses (each
+        // meld pile scored as an object, by its own composition), red-three
+        // bonuses (sign by whether the side melded), the going-out 100,
+        // minus the card points still held in both partners' hands.
+        phase scoring {
+          for each team u: score[u] += canasta_meld_points(u) + canasta_canasta_bonus(u)
+                                       + canasta_red3_bonus(u) + 100 * went_out[u]
+                                       - canasta_hand_points(u)
+          deals_played += 1
+          dealer := dealer offset_by left
+        }
+      }
+    }
+  }
+
+  winner: highest score
+}
+
+// --- the draw window ---
+
+move_type draw_stock {
+  when: deck is not empty
+  effect { draw 1 card from deck to hand[actor] }
+}
+
+// Take the whole discard pile: opens a meld attempt on the top card's rank
+// with the top card already staged; the REST of the pile joins the hand only
+// when the attempt closes (so only the top card can count toward an initial
+// meld's minimum — structural, not checked). Guarded by the complete take
+// legality: frozen-pile pair justification, unfrozen meld-or-pair, the
+// initial minimum, and go-out safety (canasta.py, `canasta_can_take_pile`).
+move_type take_pile {
+  when: canasta_can_take_pile(actor)
+  effect {
+    meld_rank := canasta_pile_rank()
+    taking_pile := true
+    move all cards from pile_top to stage[actor]
+  }
+}
+
+// Decline the no-stock pile take: the player is entitled to draw, the stock
+// is empty, so the hand ends (offered only beside a legal, unforced take).
+move_type decline_pile {
+  effect {
+    hand_over := true
+    turn_done := true
+  }
+}
+
+// --- the meld window ---
+
+// Announce a new meld of a rank (the eleven-rank parameter domain is the
+// declared partial ranking). Legal while the side has no meld of that rank
+// and a legal close is reachable from the hand — including the initial-meld
+// minimum while the side has not yet melded.
+move_type start_meld(rank : Rank) {
+  when: canasta_can_start(actor, rank)
+  effect { meld_rank := rank }
+}
+
+// Stage one card into the open attempt: a natural of the announced rank or a
+// wild, and only if a legal close stays reachable (the per-card totality
+// guard — a staged position can always close, random play included).
+move_type stage_card {
+  when: any card in hand[actor] where canasta_stage_ok(actor, card)
+  effect {
+    move chosen one card from hand[actor] where canasta_stage_ok(actor, card) to stage[actor]
+  }
+}
+
+// Commit the open attempt to the side's meld pile of its rank. On a pile
+// take this is also the moment the rest of the pile flushes into the hand
+// (its red threes to the side's row) and the pile unfreezes — a new pile
+// starts from the next discard.
+move_type close_meld {
+  when: canasta_close_ok(actor)
+  effect {
+    if meld_rank is A { move all cards from stage[actor] to meldA[team_of(actor)] }
+    else { if meld_rank is K { move all cards from stage[actor] to meldK[team_of(actor)] }
+    else { if meld_rank is Q { move all cards from stage[actor] to meldQ[team_of(actor)] }
+    else { if meld_rank is J { move all cards from stage[actor] to meldJ[team_of(actor)] }
+    else { if meld_rank is "10" { move all cards from stage[actor] to meld10[team_of(actor)] }
+    else { if meld_rank is "9" { move all cards from stage[actor] to meld9[team_of(actor)] }
+    else { if meld_rank is "8" { move all cards from stage[actor] to meld8[team_of(actor)] }
+    else { if meld_rank is "7" { move all cards from stage[actor] to meld7[team_of(actor)] }
+    else { if meld_rank is "6" { move all cards from stage[actor] to meld6[team_of(actor)] }
+    else { if meld_rank is "5" { move all cards from stage[actor] to meld5[team_of(actor)] }
+    else {
+      // Structurally meld_rank is "4" here: start_meld's domain and the
+      // take guard admit exactly the eleven declared natural ranks.
+      move all cards from stage[actor] to meld4[team_of(actor)]
+    } } } } } } } } } }
+    team_melded[team_of(actor)] := true
+    if taking_pile {
+      move all cards from pile_rest where canasta_is_red3(card) to red3[team_of(actor)]
+      move all cards from pile_rest to hand[actor]
+      taking_pile := false
+      pile_frozen := false
+    }
+    meld_rank := none
+  }
+}
+
+// Lay one card directly onto the side's standing meld of a rank — either
+// partner, any turn: the growing half of the shared meld object. A natural
+// of the rank always fits; a wild while the pile holds fewer than three.
+move_type add_to_meld(rank : Rank) {
+  when: any card in hand[actor] where canasta_add_ok(actor, rank, card)
+  effect {
+    if rank is A { move chosen one card from hand[actor] where canasta_add_ok(actor, rank, card) to meldA[team_of(actor)] }
+    else { if rank is K { move chosen one card from hand[actor] where canasta_add_ok(actor, rank, card) to meldK[team_of(actor)] }
+    else { if rank is Q { move chosen one card from hand[actor] where canasta_add_ok(actor, rank, card) to meldQ[team_of(actor)] }
+    else { if rank is J { move chosen one card from hand[actor] where canasta_add_ok(actor, rank, card) to meldJ[team_of(actor)] }
+    else { if rank is "10" { move chosen one card from hand[actor] where canasta_add_ok(actor, rank, card) to meld10[team_of(actor)] }
+    else { if rank is "9" { move chosen one card from hand[actor] where canasta_add_ok(actor, rank, card) to meld9[team_of(actor)] }
+    else { if rank is "8" { move chosen one card from hand[actor] where canasta_add_ok(actor, rank, card) to meld8[team_of(actor)] }
+    else { if rank is "7" { move chosen one card from hand[actor] where canasta_add_ok(actor, rank, card) to meld7[team_of(actor)] }
+    else { if rank is "6" { move chosen one card from hand[actor] where canasta_add_ok(actor, rank, card) to meld6[team_of(actor)] }
+    else { if rank is "5" { move chosen one card from hand[actor] where canasta_add_ok(actor, rank, card) to meld5[team_of(actor)] }
+    else {
+      // Structurally rank is "4" here (the declared Rank domain).
+      move chosen one card from hand[actor] where canasta_add_ok(actor, rank, card) to meld4[team_of(actor)]
+    } } } } } } } } } }
+  }
+}
+
+// Meld the black threes — only ever as part of going out: the side owns a
+// canasta and the hand is exactly the group (3–4 black threes), plus at most
+// one card for the final discard. No wilds may join the group.
+move_type meld_black3 {
+  when: canasta_black3_ok(actor)
+  effect {
+    move all cards from hand[actor] where canasta_is_black3(card) to meld3b[team_of(actor)]
+  }
+}
+
+// End the turn with a discard. The previous top retires under the new one; a
+// wild discard freezes the pile. Discarding the LAST card is going out and
+// was only offered with a canasta on the side's row (`canasta_discard_ok`).
+move_type end_discard {
+  when: any card in hand[actor] where canasta_discard_ok(actor, card)
+  effect {
+    move all cards from pile_top to pile_rest
+    move chosen one card from hand[actor] where canasta_discard_ok(actor, card) to pile_top
+    if canasta_top_is_wild() { pile_frozen := true }
+    turn_done := true
+  }
+}

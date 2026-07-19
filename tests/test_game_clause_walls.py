@@ -83,6 +83,7 @@ SINGLE_VALUED: dict[str, str] = {
     "trump": "trump:",
     "partnerships": "partnerships:",
     "max_length": "max_length:",
+    "positions": "positions { }",
     "zones": "zones { }",
     "state_block": "state { }",
     "winner": "winner:",
@@ -111,6 +112,7 @@ BASE = "\n".join(BASE_LINES) + "\n"
 # clauses BASE does not already carry. The duplicate wall fires at parse
 # time, before resolve, so these only need to be grammatical.
 _EXTRA_CLAUSE: dict[str, str] = {
+    "positions": "  positions { column : 1..3 }",
     "direction": "  direction: clockwise",
     "ranking": "  ranking: A K Q J 10 9 8 7 6 5 4 3 2",
     "trump": "  trump: spades",

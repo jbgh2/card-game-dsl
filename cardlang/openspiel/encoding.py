@@ -194,6 +194,9 @@ class ActionSpace:
             suits=list(deck_suits(game.deck)),
             ranks=list(game.ranking),
             players=list(range(game.players.low)),
+            # Position move-parameter domains, from the same PositionDecl
+            # members the driver hands the runtime — identical by construction.
+            positions={p.name: p.members for p in game.positions},
         )
         for node in _walk(game):
             if isinstance(node, n.Choose):
@@ -261,11 +264,22 @@ class ActionSpace:
                     key=lambda p: (p.size, p.kind, sorted(card_to_action(c) for c in p.cards)),
                 )
         if joint_engines:
-            # Corpus-first walls, both loud (roadmap.md records the deferrals):
+            # Corpus-first walls, all loud (roadmap.md records the deferrals):
             # the combo block serves one subset universe per game, so a game
             # mixing climb and joint selections — or two joint predicates with
             # different universes — needs a codec-composition design no game
             # has forced yet.
+            deck_cards = build_deck(game.deck)
+            if len(deck_cards) != len(set(deck_cards)):
+                raise NotImplementedError(
+                    f"joint selections on a deck with duplicate identical "
+                    f"cards ('{game.deck}') need a multiset-safe combo "
+                    f"canonicalization — the combo block keys subsets by "
+                    f"frozenset, which collapses copies (two identical cards "
+                    f"encode as one, colliding distinct subsets); not "
+                    f"implemented (no corpus user — Canasta deliberately "
+                    f"encodes melds per card instead); recorded in roadmap.md"
+                )
             if climb_engines:
                 raise NotImplementedError(
                     "a game with BOTH a climb round and joint selections needs "

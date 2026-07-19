@@ -4,27 +4,33 @@ property:   splicing every `run NAME(args)` call site with the named
             procedure's body, independently reimplemented at SOURCE-TEXT
             level (inline.py — never calling `cardlang.expand`), does not
             change a playout's observable trace or terminal result.
-domain:     `docs/games/coup.cardlang` — the only corpus game using
-            `procedure`/`run` (pinned below, not assumed) — x seeds
-            (`pairing.SEEDS`).
+domain:     `docs/games/coup.cardlang` and `docs/games/cheat.cardlang` —
+            the corpus games using `procedure`/`run` (pinned below, not
+            assumed) — x seeds (`pairing.SEEDS`) x that game's policies
+            (`_POLICIES`).
 registry:   docs/games/*.cardlang (`pairing.CORPUS`), filtered to games
             containing the literal token `procedure` or `run` — today,
-            exactly one.
-covered:    the one witness game, every seed in `pairing.SEEDS`, under the
-            DESCENDING chooser (`reverse=True` — "Why reverse=True" below);
-            `test_procedure_bodies_are_exercised` proves all three
-            procedures actually execute, not just that the (possibly
+            exactly two.
+covered:    both witness games, every seed in `pairing.SEEDS`, under each
+            policy in `_POLICIES[game]` ("Why reverse=True" below: Coup
+            needs the DESCENDING chooser to reach its procedures at all;
+            Cheat runs under BOTH — descending challenges every window,
+            ascending allows every one, and the two together reach every
+            branch of its single procedure);
+            `test_procedure_bodies_are_exercised` proves the procedure
+            bodies actually execute per game, not just that the (possibly
             vacuous) comparison passes.
 sampled:    seeds and decision depth only (CI budget) — pairing.py.
 residual:   inline.py's splice is deliberately NOT a general procedure
-            inliner (its module docstring lists exactly what Coup's shape
-            lets it skip: no nested `run` inside a procedure body, no
-            call-site argument with side effects worth re-evaluating
-            differently, every call site already brace-scoped). A second
-            procedure-using corpus game would need those generalized before
-            this transform covers it — not fixed here, since none exists
-            today; `test_run_and_procedure_are_coup_only` fails loudly the
-            day one is added, which is the trigger to generalize.
+            inliner (its module docstring lists exactly the shape envelope
+            both pinned games sit inside: no nested `run` inside a
+            procedure body — a resolve-level wall — no call-site argument
+            beyond a bare identifier/literal, every call site
+            brace-scoped). A game outside that envelope needs the splice
+            generalized before this suite covers it — not fixed here,
+            since none exists today; `test_run_and_procedure_domain_is_
+            pinned` fails loudly the day one is added, which is the
+            trigger to generalize.
 
 This also subsumes the plan's stated acceptance criterion for T3
 ("the inline-vs-`run` regression test's invariant is subsumed by transform
@@ -82,13 +88,37 @@ def _uses_procedures(path: Path) -> bool:
 
 PROCEDURE_GAMES = tuple(p for p in pairing.CORPUS if _uses_procedures(p))
 
+# Per-game deterministic policies (the `reverse` axis of pairing's sorted
+# chooser). Coup: descending only — ascending is the frozen exchange/"allow"
+# loop that never reaches a procedure ("Why reverse=True", module
+# docstring). Cheat: both — descending picks `call_cheat` at every window
+# (every play flipped and adjudicated), ascending picks `allow` (every play
+# merges unchallenged), so the pair reaches every branch of `resolve_play`.
+# `test_procedure_bodies_are_exercised` holds direct evidence per (game,
+# policy), so a wrong entry here fails loudly rather than passing vacuously.
+_POLICIES: dict[str, tuple[bool, ...]] = {
+    "coup.cardlang": (True,),
+    "cheat.cardlang": (True, False),
+}
 
-def test_run_and_procedure_are_coup_only() -> None:
+_GAME_POLICY_CASES = tuple(
+    pytest.param(path, reverse, id=f"{path.name}-{'desc' if reverse else 'asc'}")
+    for path in PROCEDURE_GAMES
+    for reverse in _POLICIES[path.name]
+)
+
+
+def test_run_and_procedure_domain_is_pinned() -> None:
     names = sorted(p.name for p in PROCEDURE_GAMES)
-    assert names == ["coup.cardlang"], (
+    assert names == ["cheat.cardlang", "coup.cardlang"], (
         f"the procedure/run domain changed: {names} — a new procedure-using "
         f"game needs inline.py generalized (its module docstring lists what "
-        f"it currently assumes) before this suite's coverage claim holds"
+        f"it currently assumes) and a `_POLICIES` entry with exercise "
+        f"evidence before this suite's coverage claim holds"
+    )
+    assert sorted(_POLICIES) == names, (
+        "_POLICIES and the pinned domain disagree — every procedure-using "
+        "game declares its deterministic policies here"
     )
 
 
@@ -121,32 +151,60 @@ def test_splice_removes_every_procedure_construct(path: Path) -> None:
     assert spliced != text
 
 
-@pytest.mark.parametrize("path", PROCEDURE_GAMES, ids=lambda p: p.name)
+@pytest.mark.parametrize(("path", "reverse"), _GAME_POLICY_CASES)
 @pytest.mark.parametrize("seed", pairing.SEEDS)
-def test_procedure_bodies_are_exercised(path: Path, seed: int) -> None:
+def test_procedure_bodies_are_exercised(path: Path, reverse: bool, seed: int) -> None:
     """The second vacuity guard (module docstring, "Why reverse=True"): a
     passing pairing comparison proves nothing if the procedure bodies never
     actually ran during the playout. Every corpus procedure leaves direct
-    trace evidence when it runs: `challenge_window` polls `[challenge,
-    allow]` (a "challenge" `announce`/`chose`), `prove_claim` reveals a card
-    (a "reveal" event), and `lose_influence` flips a card into `revealed[p]`
-    (a "move" event with that destination). All three must appear — this is
-    Coup-specific (the module docstring's citation for WHY the descending
-    chooser is needed), not a general property inline.py could assert for
-    an arbitrary procedure-using game."""
-    a, _ = pairing.run_pair_source(path, splice_procedures, seed, reverse=True)
+    trace evidence when it runs — per game, per policy:
+
+    - Coup (descending): `challenge_window` polls `[challenge, allow]` (a
+      "challenge" `announce`/`chose`), `prove_claim` reveals a card (a
+      "reveal" event), `lose_influence` flips a card into `revealed[p]`.
+    - Cheat descending: `resolve_play`'s window is contested every play (a
+      "call_cheat" announce), the flip fires (a "move" into `flipped`), and
+      the verdict routes the flipped cards to a hand.
+    - Cheat ascending: the window passes every play (an "allow" announce)
+      and the play merges face-down (a "move" from `played` to `pile`) —
+      the branch the descending policy never reaches.
+
+    This is per-game evidence (the reason `_POLICIES` exists), not a general
+    property inline.py could assert for an arbitrary procedure-using game."""
+    a, _ = pairing.run_pair_source(path, splice_procedures, seed, reverse=reverse)
     events = [e for log in a.events.values() for e in log]
-    assert any("challenge" in str(e) for e in events), "challenge_window never contested"
-    assert any(e[0] == "reveal" for e in events), "prove_claim never revealed a card"
-    assert any(
-        e[0] == "move" and (str(e[1]).startswith("revealed") or str(e[3]).startswith("revealed"))
-        for e in events
-    ), "lose_influence never flipped a card into revealed[]"
+    if path.name == "coup.cardlang":
+        assert any("challenge" in str(e) for e in events), "challenge_window never contested"
+        assert any(e[0] == "reveal" for e in events), "prove_claim never revealed a card"
+        assert any(
+            e[0] == "move" and (str(e[1]).startswith("revealed") or str(e[3]).startswith("revealed"))
+            for e in events
+        ), "lose_influence never flipped a card into revealed[]"
+    elif path.name == "cheat.cardlang" and reverse:
+        assert any(e[0] == "announce" and e[2] == "call_cheat" for e in events), (
+            "resolve_play's window was never contested"
+        )
+        assert any(e[0] == "move" and e[3] == "flipped" for e in events), (
+            "resolve_play never flipped a challenged play"
+        )
+        assert any(
+            e[0] == "move" and e[1] == "flipped" and str(e[3]).startswith("hand[")
+            for e in events
+        ), "resolve_play never routed a verdict"
+    elif path.name == "cheat.cardlang":
+        assert any(e[0] == "announce" and e[2] == "allow" for e in events), (
+            "resolve_play's window was never polled"
+        )
+        assert any(e[0] == "move" and e[1] == "played" and e[3] == "pile" for e in events), (
+            "resolve_play never merged an unchallenged play"
+        )
+    else:  # a new domain member slipped past the pin — never pass silently
+        raise AssertionError(f"no exercise evidence declared for {path.name}")
 
 
-@pytest.mark.parametrize("path", PROCEDURE_GAMES, ids=lambda p: p.name)
+@pytest.mark.parametrize(("path", "reverse"), _GAME_POLICY_CASES)
 @pytest.mark.parametrize("seed", pairing.SEEDS)
-def test_spliced_game_plays_out_identically(path: Path, seed: int) -> None:
-    a, b = pairing.run_pair_source(path, splice_procedures, seed, reverse=True)
+def test_spliced_game_plays_out_identically(path: Path, reverse: bool, seed: int) -> None:
+    a, b = pairing.run_pair_source(path, splice_procedures, seed, reverse=reverse)
     witness = pairing.compare_traces(a, b)  # nothing renamed: identity hook
     assert witness is None, f"{path} seed={seed}: {witness}"

@@ -74,6 +74,10 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             return ctx.rs.rank_index[args[0].rank]
         case "card_value":
             return ctx.rs.card_values.get(args[0].rank, 0)
+        case "top_of":
+            return _end_card(args[0], "top_of", -1)
+        case "bottom_of":
+            return _end_card(args[0], "bottom_of", 0)
         case "pinochle_meld_value":
             from cardlang.runtime.pinochle import pinochle_meld_value
 
@@ -273,6 +277,138 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.gin import gin_lay_ok_c
 
             return gin_lay_ok_c(ctx, args[0], args[1])
+        case "five_hundred_next_bid":
+            from cardlang.runtime.five_hundred import five_hundred_next_bid
+
+            return five_hundred_next_bid(args[0], args[1])
+        case "five_hundred_bid_value":
+            from cardlang.runtime.five_hundred import five_hundred_bid_value
+
+            return five_hundred_bid_value(args[0])
+        case "five_hundred_bid_level":
+            from cardlang.runtime.five_hundred import five_hundred_bid_level
+
+            return five_hundred_bid_level(args[0])
+        case "five_hundred_follow_ok":
+            from cardlang.runtime.five_hundred import five_hundred_follow_ok
+
+            return five_hundred_follow_ok(ctx, args[0], args[1])
+        case "five_hundred_lead_ok":
+            from cardlang.runtime.five_hundred import five_hundred_lead_ok
+
+            return five_hundred_lead_ok(ctx, args[0], args[1])
+        case "five_hundred_trick_winner":
+            from cardlang.runtime.five_hundred import five_hundred_trick_winner
+
+            return five_hundred_trick_winner(ctx, args[0])
+        case "belote_trump_height":
+            from cardlang.runtime.belote import belote_trump_height
+
+            return belote_trump_height(args[0])
+        case "belote_opp_winning":
+            from cardlang.runtime.belote import belote_opp_winning
+
+            return belote_opp_winning(ctx)
+        case "belote_royal_player":
+            from cardlang.runtime.belote import belote_royal_player
+
+            return belote_royal_player(ctx)
+        case "belote_best_is":
+            from cardlang.runtime.belote import belote_best_is
+
+            return belote_best_is(ctx, args[0], args[1], args[2], args[3])
+        case "belote_decl_points":
+            from cardlang.runtime.belote import belote_decl_points
+
+            return belote_decl_points(ctx, args[0])
+        case "belote_decl_class":
+            from cardlang.runtime.belote import belote_decl_class
+
+            return belote_decl_class(ctx, args[0])
+        case "belote_decl_height":
+            from cardlang.runtime.belote import belote_decl_height
+
+            return belote_decl_height(ctx, args[0])
+        case "belote_decl_trump":
+            from cardlang.runtime.belote import belote_decl_trump
+
+            return belote_decl_trump(ctx, args[0])
+        case "belote_decl_size":
+            from cardlang.runtime.belote import belote_decl_size
+
+            return belote_decl_size(ctx, args[0])
+        case "belote_decl_slot":
+            from cardlang.runtime.belote import belote_decl_slot
+
+            return belote_decl_slot(ctx, args[0], args[1], args[2])
+        case "canasta_is_red3":
+            from cardlang.runtime.canasta import canasta_is_red3
+
+            return canasta_is_red3(ctx, args[0])
+        case "canasta_is_black3":
+            from cardlang.runtime.canasta import canasta_is_black3
+
+            return canasta_is_black3(ctx, args[0])
+        case "canasta_top_starts_pile":
+            from cardlang.runtime.canasta import canasta_top_starts_pile
+
+            return canasta_top_starts_pile(ctx)
+        case "canasta_top_is_wild":
+            from cardlang.runtime.canasta import canasta_top_is_wild
+
+            return canasta_top_is_wild(ctx)
+        case "canasta_pile_rank":
+            from cardlang.runtime.canasta import canasta_pile_rank
+
+            return canasta_pile_rank(ctx)
+        case "canasta_can_take_pile":
+            from cardlang.runtime.canasta import canasta_can_take_pile
+
+            return canasta_can_take_pile(ctx, args[0])
+        case "canasta_must_take_pile":
+            from cardlang.runtime.canasta import canasta_must_take_pile
+
+            return canasta_must_take_pile(ctx, args[0])
+        case "canasta_can_start":
+            from cardlang.runtime.canasta import canasta_can_start
+
+            return canasta_can_start(ctx, args[0], args[1])
+        case "canasta_stage_ok":
+            from cardlang.runtime.canasta import canasta_stage_ok
+
+            return canasta_stage_ok(ctx, args[0], args[1])
+        case "canasta_close_ok":
+            from cardlang.runtime.canasta import canasta_close_ok
+
+            return canasta_close_ok(ctx, args[0])
+        case "canasta_add_ok":
+            from cardlang.runtime.canasta import canasta_add_ok
+
+            return canasta_add_ok(ctx, args[0], args[1], args[2])
+        case "canasta_discard_ok":
+            from cardlang.runtime.canasta import canasta_discard_ok
+
+            return canasta_discard_ok(ctx, args[0], args[1])
+        case "canasta_black3_ok":
+            from cardlang.runtime.canasta import canasta_black3_ok
+
+            return canasta_black3_ok(ctx, args[0])
+        case "canasta_meld_points":
+            from cardlang.runtime.canasta import canasta_meld_points
+
+            return canasta_meld_points(ctx, args[0])
+        case "canasta_canasta_bonus":
+            from cardlang.runtime.canasta import canasta_canasta_bonus
+
+            return canasta_canasta_bonus(ctx, args[0])
+        case "canasta_red3_bonus":
+            from cardlang.runtime.canasta import canasta_red3_bonus
+
+            return canasta_red3_bonus(ctx, args[0])
+        case "canasta_hand_points":
+            from cardlang.runtime.canasta import canasta_hand_points
+
+            return canasta_hand_points(ctx, args[0])
         case _:
             raise AssertionError(f"unknown stdlib function '{name}'")
 
@@ -302,6 +438,30 @@ def _suit_of(value: Any) -> str:
             f"suit_of expects a card or a zone, got {type(value).__name__}"
         )
     return value.suit
+
+
+def _end_card(cards: Any, fn: str, end: int) -> Card:
+    """The card at one end of an ordered collection (`top_of` = the sequence
+    end, `bottom_of` = the front — decisions.md "Position domains and
+    positional zones", sequence orientation). The `call` boundary already
+    coerced the TCollection param to elements, so `cards` is a plain list.
+    An empty collection is a game-logic error reported at the cause (guard
+    the read: `Z is not empty`); a non-card element is user-reachable
+    (`top_of([1])` typechecks only per element type, but a TAny-typed source
+    can reach here) and gets a typed error, not a bare attribute crash."""
+    seq = list(cards)
+    if not seq:
+        raise RuntimeError(
+            f"{fn}: the collection is empty — no card to read; guard the "
+            f"read (`… is not empty`) so it only runs when a card is there"
+        )
+    card = seq[end]
+    if not isinstance(card, Card):
+        raise RuntimeError(
+            f"{fn} expects a collection of cards, got an element of type "
+            f"{type(card).__name__}"
+        )
+    return card
 
 
 def _player_holding(card: Card, ctx: Ctx) -> Player:
@@ -338,6 +498,10 @@ def value_function(name: str) -> Callable[..., Any]:
             from cardlang.runtime.tarot import tarot_trick_winner
 
             return tarot_trick_winner
+        case "belote_trick_winner":
+            from cardlang.runtime.belote import belote_trick_winner
+
+            return belote_trick_winner
         case _:
             raise AssertionError(f"unknown stdlib value '{name}'")
 

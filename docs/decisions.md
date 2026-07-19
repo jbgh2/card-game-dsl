@@ -107,10 +107,17 @@ Examples:
   and enclosing structure routes on the outcome.
 - `dummy_revealed` in Bridge: read by zone-routing helper, no rule
   gates on it. Correctly a boolean.
+- `pile_frozen` in Canasta: ZONE state (the discard pile is frozen or
+  not) rather than phase state, and the criterion carries over unchanged
+  — no rule's `applies_when:` reads it; it gates only the take-pile
+  move's preconditions, and its operative meaning is per-side anyway (a
+  partnership that has not melded is frozen out regardless, the
+  per-player-exception shape below). Correctly a boolean.
 
 The criterion: ask whether any rule reads the boolean in its
 `applies_when:` clause. If yes, the boolean is hiding a phase
-transition; refactor to sub-phases. If no, it's just data.
+transition; refactor to sub-phases. If no, it's just data. The subject
+of the boolean — a phase fact, a zone fact — doesn't change the test.
 
 **Per-player exception.** A boolean indexed by player (e.g.,
 `has_played_yet[player]` in Tichu) that gates only a move's own
@@ -1561,11 +1568,53 @@ Gin Rummy's showdown arrangements are the anchor: the knocker declares
 melds one joint selection at a time, each guarded so the remaining hand
 still arranges to a legal knock — every reachable arrangement stays legal,
 random play included, while equal-deadwood arrangement *choices* (which
-change what the defender can lay off) remain real decisions. First-class
-meld *objects* (shared growing team piles, per-group scoring) remain the
-open design in
-[open-questions/meld-groups.md](open-questions/meld-groups.md), forced next
-by Canasta.
+change what the defender can lay off) remain real decisions. Persistent
+meld *objects* (shared growing team piles, per-group scoring) are not a
+construct at all — see "Meld groups: flattened zone families" below.
+
+## Meld groups: flattened zone families
+
+There is no first-class meld-group object. A game's persistent card groups
+— shared, growing, keyed, typed, scored as objects — flatten onto existing
+machinery, and two rummy-family games prove the two halves:
+
+- **The key flattens into zone-family names.** A group keyed by a small
+  static domain declares one zone family per key value: Canasta's
+  per-partnership per-rank melds are eleven team-indexed `TeamPile`
+  families (`meldA[team] … meld4[team]`), plus the black-three going-out
+  group and the red-three row; Gin's three arrangement slots are
+  `meldA/B/C[player]`. The one index a zone family carries is the *owner*
+  (a `zone_key_of` domain — a seat or a team); every other key is spelled
+  in the name. Statement-level routing on a runtime key value is an
+  if-dispatch over the key domain in the move's effect
+  ([games/canasta.cardlang](games/canasta.cardlang), `close_meld`), closed
+  by construction because the key domain is the declared (possibly
+  partial) `ranking:`.
+- **Growth is ordinary movement.** Either partner extends a standing meld
+  with a plain guarded movement on any of their turns; nothing about the
+  group persists outside its zone.
+- **Typed state is derived from composition, never stored.** Natural vs
+  mixed, canasta-completion, wild-count legality are pure functions of the
+  pile's contents, evaluated at every read by game-local primitives (the
+  guards at extension time, the scorers at hand end). Storing group state
+  beside the cards would create a second source of truth.
+- **Per-group scoring reads each zone as an object.** Canasta's hand
+  settlement scores every meld pile by its own composition
+  (`canasta_canasta_bonus`); the group *is* the zone.
+- **Joint formation legality** is either a joint selection ("Joint-predicate
+  selection" above — Gin's one-shot arrangements) or, where the action
+  space cannot carry subset ids (a duplicate-card deck's multisets —
+  [roadmap.md](roadmap.md)), an announce-then-stage decomposition whose
+  per-card guards keep a legal completion reachable from every offered
+  state (Canasta's `stage_card`/`close_meld`, the arrange-guard totality
+  trick per card).
+
+The forcing function this decision waited for was Canasta's shared growing
+pile, and the flattening carried it without new surface. A first-class
+group object becomes worth designing only if a game arrives whose group
+key domain is *not* statically declarable (unboundedly many groups, or
+keys outside any declared enumeration) — Cassino's builds are the nearest
+candidate ([games/_candidates.md](games/_candidates.md)).
 
 ## The expression register
 
@@ -2026,6 +2075,90 @@ call windows and Dragon routing) is a real announced decision in the
 observation stream. What stays reduced is named per game in its file
 (Tichu's Mahjong wish and bomb variants, and the like), as scope, not as
 hidden randomness.
+
+## Position domains and positional zones
+
+Solitaire layouts (and any game whose rules address *places* — columns,
+cells, piles-by-location) are described with **declared position
+domains**: per-game, finite, integer-keyed value domains, declared in a
+game-level `positions { }` block:
+
+```text
+positions {
+  column : 1..7      // Klondike's seven tableau columns
+}
+```
+
+Each entry mints a domain usable in exactly two surface slots:
+
+- **Zone-family index**: `tableau_up[column] : Cascade<column>` — one
+  zone instance per member, subscripted by any integer-valued expression
+  (`tableau_up[c]`, `tableau_up[3]`). The declaration's type argument
+  names the same domain as the index, like `Hand<player>`.
+- **Move-parameter domain**: `move_type build(src : column, dst :
+  column)` — enumerated into the guard-filtered cross-product like
+  `Suit`/`Rank`/`Player` ("Declared parameter domains"), with one
+  OpenSpiel vocabulary action id per combination. The runtime and the
+  static action space enumerate the same declared `lo..hi` members by
+  construction.
+
+The bounds are non-negative integer literals with `lo <= hi`, and a
+domain holds at most 256 members (a layout wider than that is a
+declaration error, not an action-space explosion). A declared name may
+not collide with a built-in domain id or type name (`player`, `suit`,
+`Rank`, `Card`, `Integer`, …) — the built-in registry and the declared
+block are reconciled by rejection, so the two sources can never disagree
+about a name.
+
+**Positions are unowned.** No observer *is* a column, so a
+position-indexed family has no owner: every observer receives the zone
+type's `others` projection. Consequently a zone type whose owner and
+others projections differ (`Hand`, `HiddenPile` — any row with two
+distinct projections) cannot be indexed by a position; the checker
+rejects it, because its owner projection would be silently unreachable.
+Uniform-projection types (`Cascade`, `HiddenStack`, `Foundation`,
+`Cell`, `PlayerPile`, …) may.
+
+**Everything else rejects loudly.** A position domain is not a seat and
+not an iteration role: `for each column c`, `each column simultaneously`,
+a position-indexed `state` variable, and a position-typed `state`
+declaration are all rejected with diagnostics (deferred, recorded in
+[roadmap.md](roadmap.md)); quantifiers (`any column where …`) are
+grammatically inexpressible. A position-indexed family must always be
+subscripted — the bare-family actor sugar (`hand` = the acting player's
+hand) is meaningless for an unowned family and is rejected.
+
+**Mixed-facing piles are two zones.** Per-position visibility inside one
+physical pile (Klondike's columns: face-down below, face-up above) is
+represented by *zone decomposition*, never by per-card facing state: a
+`HiddenStack<column>` family under a `Cascade<column>` family, with the
+flip written as an ordinary movement between them. The flip's observation
+event derives from the two declared projections (count from the hidden
+side, identity from the open side) exactly like every other movement —
+per-position visibility adds **nothing** to the projection model. The
+analysis and the rejected alternatives are in
+[design-notes/positional-zones.md](design-notes/positional-zones.md).
+
+**Sequence orientation.** A zone's contents are a sequence: arrivals
+append at the end (placing on top of a face-up pile — `top_of` reads the
+end, `bottom_of` the front), and the dealt take (`draw`/`deal` with no
+`where`) removes from the front (FIFO). For a shuffled stock the ends are
+indistinguishable; where order is observable the FIFO contract is the
+physical one — Klondike's unshuffled redeal (`move all cards from waste
+to deck`) cycles the stock in exactly the order the last pass drew.
+Filtered movement selects in source order and appends in source order,
+which is what moves a cascade's run as an intact unit ("stack movement"
+is a usage pattern of the existing movement verb — a rank filter denotes
+the suffix — not new surface). Sequence *knowledge* is derived, not
+declared: an identity-entitled observer saw every arrival event, so order
+falls out of the observation log under perfect recall.
+
+`top_of(z)` / `bottom_of(z)` are stdlib functions over any card
+collection; on an empty collection they fail loudly at runtime (guard
+first — `Z is not empty`). Their use in a move *guard* is subject to the
+same discipline as every guard expression: legality must not read
+information the decider is not entitled to, which the per-game
+legal-action-agreement proofs police (`tests/openspiel_ready/`).
 
 ## Game result: `winner:` and `loser:`
 

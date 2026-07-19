@@ -235,6 +235,9 @@ class TypeEnv:
     # call site left to check.
     procedures: Mapping[str, Sig] = field(default_factory=dict)
     has_ranking: bool = False  # bool(game.ranking) — gates RANKING_GATED_FUNCS
+    # Declared position-domain names (decisions.md "Position domains and
+    # positional zones") — a parameter typed by one binds as Integer.
+    positions: frozenset[str] = frozenset()
 
     def with_local(self, name: str, t: Type) -> "TypeEnv":
         return replace(self, locals={**self.locals, name: t})
@@ -450,14 +453,18 @@ def env_from_game(game: Game) -> TypeEnv:
         for z in game.zones
     }
     # `ZoneDecl.index` is `None` (a singleton zone) or one of the closed index
-    # roles resolve.py validates (the domain table's `ZONE_INDEX_ROLES`); a
-    # family's subscript key types as the index domain's binder type — the same
+    # roles resolve.py validates (the domain table's `ZONE_INDEX_ROLES`, plus
+    # the game's declared position domains — integer-keyed); a family's
+    # subscript key types as the index domain's binder type — the same
     # table cell `for each <role>` reads, so `hand[p]` and `captured[t]` key by
     # TPlayer/TTeam without this site re-spelling the role list. (`role_type`'s
     # TAny fallback covers the unresolved-role case, whose diagnostic resolve
     # already owns.)
+    positions = frozenset(p.name for p in game.positions)
     zone_families: dict[str, Type] = {
-        z.name: _role_type(z.index) for z in game.zones if z.index is not None
+        z.name: (TInteger() if z.index in positions else _role_type(z.index))
+        for z in game.zones
+        if z.index is not None
     }
     return TypeEnv(
         state_vars=state_vars,
@@ -466,6 +473,7 @@ def env_from_game(game: Game) -> TypeEnv:
         value_enums=value_enum_map(game),
         structs=structs,
         has_ranking=bool(game.ranking),
+        positions=positions,
     )
 
 
@@ -612,19 +620,32 @@ def _non_define_statements(game: Game) -> Iterator[n.Stmt]:
         yield from (st for st, _ in _phase_statements_scoped(phase))
 
 
-def _move_param_binders(move_type: n.MoveTypeDef) -> _Binders:
+def _move_param_binders(
+    move_type: n.MoveTypeDef, positions: frozenset[str]
+) -> _Binders:
     """A move type's parameters, typed from their declarations — bound in its
     guard and effect exactly as procedure parameters are bound in their body.
     They used to be bound by resolve and NEVER typed, so `move_type m(s :
     Suit) { when: s is 3 … }` passed both positions while the inline spelling
-    was rejected — the let-laundering shape, one binder kind over."""
-    env = TypeEnv()
+    was rejected — the let-laundering shape, one binder kind over.
+
+    `positions` (the game's declared position domains) must be threaded in: a
+    move parameter may be a position domain (`build(src : column)`), and
+    `_param_type` types those as `TInteger` only when the domain is in
+    `env.positions`. A fresh `TypeEnv()` would leave it `TAny`, so `src is
+    hearts` and other wrong-domain uses would pass — accepted-but-ignored, one
+    binder kind over yet again. (Procedure params, by contrast, resolve gates
+    to `Player`, so they never carry a position and their env needs none.)"""
+    env = TypeEnv(positions=positions)
     return tuple((p.name, _param_type(p, env)) for p in move_type.params)
 
 
 def _all_statements_scoped(game: Game) -> Iterator[tuple[n.Stmt, _Binders]]:
+    positions = frozenset(p.name for p in game.positions)
     for move_type in game.move_types:
-        yield from _seq_tree_scoped(move_type.effect, _move_param_binders(move_type))
+        yield from _seq_tree_scoped(
+            move_type.effect, _move_param_binders(move_type, positions)
+        )
     for phase in game.phases:
         yield from _phase_statements_scoped(phase)
     for define in game.defines:
@@ -744,6 +765,11 @@ def _function_sigs(game: Game, env: TypeEnv, bag: DiagnosticBag) -> dict[str, Si
 def _param_type(p: n.MoveParam, env: TypeEnv) -> Type:
     optional = p.type_name.endswith("?")
     base = p.type_name[:-1] if optional else p.type_name
+    if base in env.positions:
+        # A position-domain parameter (`src : column`) binds an integer
+        # member of the declared range; resolve's collision wall guarantees
+        # the name shadows no built-in type spelling.
+        return TInteger()
     return type_from_name(base, optional, env.structs)
 
 
@@ -2458,7 +2484,7 @@ def typecheck(game: Game) -> Game:
         if move_type.guard is not None:
             _check_expr(
                 move_type.guard,
-                _scoped_env(env, _move_param_binders(move_type)),
+                _scoped_env(env, _move_param_binders(move_type, env.positions)),
                 bag,
             )
     for rule in game.rules:
