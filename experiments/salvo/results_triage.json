@@ -1,0 +1,184 @@
+{
+  "seeds_per_seating": 500,
+  "pairings": [
+    {
+      "pairing": "random vs random",
+      "games": 1000,
+      "win_rate": {
+        "random": 0.994,
+        "draw": 0.006
+      },
+      "mean_locs_won": {
+        "random": 1.459
+      },
+      "margin_mean": 16.96,
+      "margin_median": 14.0,
+      "unclaimed_rate_per_loc": 0.0273,
+      "mean_commits": {
+        "random": 7.72
+      },
+      "mean_holds": {
+        "random": 2.72
+      }
+    },
+    {
+      "pairing": "blind vs random",
+      "games": 1000,
+      "win_rate": {
+        "blind": 0.908,
+        "random": 0.092,
+        "draw": 0.0
+      },
+      "mean_locs_won": {
+        "blind": 2.235
+      },
+      "margin_mean": 27.54,
+      "margin_median": 23.0,
+      "unclaimed_rate_per_loc": 0.0153,
+      "mean_commits": {
+        "blind": 11,
+        "random": 7.66
+      },
+      "mean_holds": {
+        "blind": 1,
+        "random": 2.75
+      }
+    },
+    {
+      "pairing": "sighted vs random",
+      "games": 1000,
+      "win_rate": {
+        "sighted": 0.988,
+        "random": 0.012,
+        "draw": 0.0
+      },
+      "mean_locs_won": {
+        "sighted": 2.64
+      },
+      "margin_mean": 19.9,
+      "margin_median": 21.0,
+      "unclaimed_rate_per_loc": 0.0163,
+      "mean_commits": {
+        "sighted": 10.71,
+        "random": 7.66
+      },
+      "mean_holds": {
+        "sighted": 1.18,
+        "random": 2.75
+      },
+      "sighted_divergence_rate": 0.1875
+    },
+    {
+      "pairing": "sighted vs blind",
+      "games": 1000,
+      "win_rate": {
+        "sighted": 0.68,
+        "blind": 0.318,
+        "draw": 0.002
+      },
+      "mean_locs_won": {
+        "sighted": 1.656
+      },
+      "margin_mean": 21.22,
+      "margin_median": 17.0,
+      "unclaimed_rate_per_loc": 0.0263,
+      "mean_commits": {
+        "sighted": 10.7,
+        "blind": 11
+      },
+      "mean_holds": {
+        "sighted": 1.19,
+        "blind": 1
+      },
+      "sighted_divergence_rate": 0.2069
+    },
+    {
+      "pairing": "sighted_nohold vs blind",
+      "games": 1000,
+      "win_rate": {
+        "sighted_nohold": 0.69,
+        "blind": 0.308,
+        "draw": 0.002
+      },
+      "mean_locs_won": {
+        "sighted_nohold": 1.667
+      },
+      "margin_mean": 20.75,
+      "margin_median": 17.0,
+      "unclaimed_rate_per_loc": 0.0267,
+      "mean_commits": {
+        "sighted_nohold": 11,
+        "blind": 11
+      },
+      "mean_holds": {
+        "sighted_nohold": 1,
+        "blind": 1
+      }
+    },
+    {
+      "pairing": "sighted vs sighted_nohold",
+      "games": 1000,
+      "win_rate": {
+        "sighted": 0.483,
+        "sighted_nohold": 0.497,
+        "draw": 0.02
+      },
+      "mean_locs_won": {
+        "sighted": 1.382
+      },
+      "margin_mean": 11.46,
+      "margin_median": 8.0,
+      "unclaimed_rate_per_loc": 0.076,
+      "mean_commits": {
+        "sighted": 10.89,
+        "sighted_nohold": 11
+      },
+      "mean_holds": {
+        "sighted": 1.06,
+        "sighted_nohold": 1
+      },
+      "sighted_divergence_rate": 0.1585
+    },
+    {
+      "pairing": "blind vs blind",
+      "games": 1000,
+      "win_rate": {
+        "blind": 0.998,
+        "draw": 0.002
+      },
+      "mean_locs_won": {
+        "blind": 1.463
+      },
+      "margin_mean": 22.01,
+      "margin_median": 19.0,
+      "unclaimed_rate_per_loc": 0.0247,
+      "mean_commits": {
+        "blind": 11
+      },
+      "mean_holds": {
+        "blind": 1
+      }
+    },
+    {
+      "pairing": "sighted vs sighted",
+      "games": 1000,
+      "win_rate": {
+        "sighted": 0.98,
+        "draw": 0.02
+      },
+      "mean_locs_won": {
+        "sighted": 1.386
+      },
+      "margin_mean": 11.44,
+      "margin_median": 8.0,
+      "unclaimed_rate_per_loc": 0.076,
+      "mean_commits": {
+        "sighted": 10.88
+      },
+      "mean_holds": {
+        "sighted": 1.07
+      },
+      "sighted_divergence_rate": 0.1583
+    }
+  ]
+}

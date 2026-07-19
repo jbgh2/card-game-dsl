@@ -25,17 +25,17 @@ original composition.
   standard-deck original in Snap's shape.
 - **Standard materials**: 52 cards plus two jokers, nothing printed,
   playable at a kitchen table from one page of rules.
-- **Snap's soul preserved**: both players commit face-down at the same
-  time, every turn, into a fight over three places; the reveal is the
-  drama beat.
+- **Snap's soul preserved**: every round both players commit cards
+  face-down into a fight over three places, seeing where the opponent
+  commits but never what; the round-end flip is the drama beat.
 - **Familiar vocabulary**: scoring leans on combos every card player
   already owns — pairs, runs, flushes — rather than invented iconography.
 - **Measurably interesting**: sealed commits should *mix* at equilibrium
   (bluffing frequencies with interior probabilities), and the lab battery
   should demonstrate that, not just assert it.
-- **Small DSL footprint**: at most one candidate-new construct (the
-  set-valued simultaneous commit, named below); everything else rides
-  surface the corpus already exercises.
+- **Small DSL footprint**: zero new constructs — the commit runs on
+  Cheat's per-option move_type pattern over offer windows; only the
+  pure-simultaneous variant (parked, below) would need new surface.
 
 ## The idea
 
@@ -47,7 +47,7 @@ deal* — a king is gold at a queen-target and nearly dead at a 3-target;
 every card is good somewhere. That repricing is what lets the game skip
 any energy or cost system: there is no globally best card to dump.
 
-Over six turns the players build armies at the locations, two sealed
+Over six rounds the players build armies at the locations, two sealed
 cards at a time at most, drawing as they go. Armies score their proximity
 and affinity — and their internal structure: a pair, a run, a flush
 committed to one location is worth extra, so some commits are made for
@@ -74,17 +74,21 @@ ace low: A=1, 2..10, J=11, Q=12, K=13, linear, no wraparound.
   scores 13, the farthest possible miss scores 1).
 - **Affinity**: its suit. Each committed card matching it scores +3.
 
-**Turn loop** (six turns). Each turn:
+**Round loop** (six rounds; the **initiative** alternates each round).
+Each round:
 
 1. **Draw.** Both players draw one card from the deck.
-2. **Commit.** Both players *simultaneously and secretly* choose zero,
-   one, or two cards from hand and assign each chosen card to a
-   location (two cards may go to the same location or different ones).
-   Committing nothing is legal.
-3. **Flip.** All committed cards are revealed at once and placed
-   face-up in their owner's row at their location. They stay there for
-   the rest of the game. Nothing triggers on reveal, so reveal order
-   never matters.
+2. **Commit.** In initiative order, each player stages zero, one, or
+   two cards from hand face-down at locations of their choice (two
+   cards may go to the same location or different ones; staging
+   nothing is legal). A staged card shows the opponent *where* it sits
+   and nothing else — like a card back at a Snap location — so the
+   second committer acts seeing the first's placement counts, never
+   their identities. Alternating initiative balances that edge.
+3. **Flip.** All staged cards are revealed at once and placed face-up
+   in their owner's row at their location. They stay there for the
+   rest of the game. Nothing triggers on reveal, so reveal order never
+   matters.
 
 Cards left in hand after turn six score nothing.
 
@@ -141,23 +145,26 @@ locations wins; if that also ties, the game is a draw.
 
 ## Information structure
 
-Hidden information: each hand, the deck order, and the opponent's
-*concurrent* commit. Because every turn ends in a full flip, there is no
-lingering "I can see where but not what" state — the sealed commit is
-resolved the moment it is observable. So v1's imperfect information is
-GOPS-class (outguessing a simultaneous choice, plus hidden hands and
-deck), with a much richer action space per decision. The
-existence-only-placement construct the capstone entry names arises only
-in parked variants (blind-to-end reveal, two-wave commits), not in v1 —
-this is stated so the capstone link is not overclaimed.
+Hidden information: each hand, the deck order, and the *identities* of
+the opponent's currently staged cards. Placement counts are public the
+moment a card is staged — the "I can see where but not what" state the
+`marvel-snap` capstone entry names as existence-only-at-a-position,
+live from the first commit of every round until its flip. Within a
+round this is a one-sided window (the second committer reads the
+first's counts before acting), which is exactly Snap's real-time
+placement information; alternating initiative shares the window
+evenly. Strict same-instant commitment exists only in the parked
+pure-simultaneous variant, which would need new sealed-block surface.
 
 ## Mini variant (salvo-mini, exactly solvable)
 
 A shrunk twin for exact-tier ground truth on the one question that
-matters most: **do sealed commits mix at equilibrium?** Shape: two suits
-of ranks A–6 (twelve cards), no jokers; two locations; deal three or
-four each; three or four turns; commit zero or one card per turn; no
-draw; combos reduced to pairs only; result by grand total (majority is
+matters most: **does staging mix at equilibrium?** (Does the first
+committer randomize placements to avoid being read, and does the
+second committer's response to the counts carry value?) Shape: two
+suits of ranks A–6 (twelve cards), no jokers; two locations; deal
+three or four each; three or four rounds; stage zero or one card per
+round; no draw; no combos; result by grand total (majority is
 degenerate at two locations). Exact numbers are build-time knobs sized
 to the census budget, per the lab's tiering.
 
@@ -168,12 +175,16 @@ to the census budget, per the lab's tiering.
 - **Blackjack sum-to-target** (army's pip sum seeks the target): bust
   rules and ace-value questions, and it punishes exactly the multi-card
   flow the turn structure wants.
-- **Open alternating play**: simplest, but loses the simultaneous-commit
+- **Open alternating play**: simplest, but loses the sealed-commit
   soul; it would be a different (and less novel) game.
-- **Steady drip** (commit exactly one, no pass): the machinery-lite
-  fallback if the set-valued commit proves expensive — kept as a
-  variant file, not v1, because tempo choice is where the bluffing
-  texture lives.
+- **Pure-simultaneous commits** (both players' full commit sets chosen
+  against the same state, no placement counts leaking within the
+  round): the original sketch. The sealed block's body is one
+  fixed-destination chosen movement (decisions.md, "Simultaneous moves
+  and atomic effect"), so this needs a genuinely new set-valued sealed
+  form — parked until the staged encoding shows a reason to want it;
+  it also removes the existence-only channel, which the staged form
+  gets for free.
 - **Zero-centered value curve**: not rejected — the recorded first
   fallback for the commit-max risk, above.
 - **Shared capacity + priority reveal**: not rejected — the recorded
@@ -186,37 +197,39 @@ to the census budget, per the lab's tiering.
   match/points superstructure around single hands; parked as a variant
   layer, not v1.
 - **Blind-to-end reveal** (armies stay face-down until scoring):
-  maximum poker and a true existence-only witness, but you can never
-  react to being behind; parked.
-- **Two-wave commits** (place face-down, see placement counts, then
-  optionally add one more before the flip): restores existence-only
-  information inside the turn at the cost of a sub-round; parked.
+  maximum poker, but you can never react to being behind; parked.
+- **Two-wave commits** (place, see counts, optionally add one more):
+  superseded — the staged commit windows are this idea, generalized;
+  the second committer always acts on the first's counts.
 
 ## DSL surface notes
 
-Existing surface this rides: sealed simultaneous choice
-(`each player simultaneously:` — GOPS's bids, Hearts's passing),
-turned-card-as-rule-parameter (the trump turn-up family), per-location
-accumulation piles, shared-deck draw, and combo detection over a card
-set (cribbage's show scoring is the stdlib precedent).
+v1 rides existing surface end to end. The commit is Cheat's pattern —
+one move_type per option (`commit_a` / `commit_b` / `commit_c` /
+`hold`) with the hidden card pick as the in-effect chosen movement —
+inside per-player offer windows (Coup's computed-player `repeat until`
+shape). Staged cards sit in `HiddenPile<player>` zones, whose
+identity-to-owner / count-to-others projection IS the existence-only
+channel; the flip is a plain movement to public piles. Locations are
+the turned-card-as-rule-parameter family; scoring is `sum of f(card,
+top_of(...)) over cards in ...`.
 
-The one candidate-new construct: a **set-valued simultaneous commit** —
-each player secretly selects up to two cards *with a location assignment
-each*. GOPS seals one card with a fixed destination; Hearts seals three
-with a fixed destination; Salvo seals zero-to-two with *chosen*
-destinations. If this exceeds the current simultaneous form, that is a
-witnessed corpus-first need (and exactly the surface the capstone
-requires later); it goes through the surface-totality gate like any
-grammar change, with the steady-drip variant standing as the
-within-surface fallback. No per-game Python is anticipated; the combo
-bonus table may want a small stdlib scoring primitive if cribbage's
-machinery doesn't already generalize.
+Would need new surface, both parked: the pure-simultaneous variant (a
+set-valued sealed commit — also what the capstone eventually needs),
+and the combo bonus table (a stdlib scoring primitive in cribbage's
+registered-primitive mold, unless its machinery generalizes). No
+per-game Python is anticipated either way.
 
 ## Evaluation plan
 
 The standard loop: check, play, simulate; then the battery
 (`experiments/game-to-artifact-plan.md`), probe tier for the full game,
-exact tier for salvo-mini.
+exact tier for salvo-mini. The round-1 instrument is `triage.py`
+(playout arena over `salvo.cardlang`: random / blind-greedy /
+sighted-adaptive policies under manual projection discipline, with a
+per-game mirror pin proving its value function equals the DSL's settle
+math), run before any solver work; it covers the base game — combos
+and jokers enter at round 2.
 
 Decision questions, in priority order:
 
@@ -224,9 +237,10 @@ Decision questions, in priority order:
    MCCFR/arena play, how often does a nontrivial policy commit fewer
    than two cards? If holding and passing never appear outside forced
    positions, adopt fallback (a) and re-run.
-2. **Do sealed commits mix?** Exact tier on salvo-mini: equilibrium
-   commit choices should show interior probabilities, not pure
-   strategies.
+2. **Does staging mix?** Exact tier on salvo-mini: the first
+   committer's equilibrium placements should show interior
+   probabilities, not pure strategies, and the second committer's
+   count-reading should carry measurable value.
 3. **Location liveness**: are all three locations contested, or does
    play collapse onto two? (Unclaimed-tie frequency feeds this.)
 4. **Combo incidence and table tuning**: how often does each combo type
