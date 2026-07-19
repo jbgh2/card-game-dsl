@@ -135,8 +135,8 @@ class ZoneStore:
                 # The family's key set is the index domain's member set, read
                 # from the domain table (or the game's declared position
                 # domains — decisions.md "Position domains and positional
-                # zones"). The old `teams if index == "team" else players`
-                # silently keyed ANY other role by players. The gate
+                # zones"). A `teams if index == "team" else players` rule
+                # would silently key ANY other role by players. The gate
                 # below is what makes the backstop REAL: an unknown role
                 # raises inside `role_static_members`, but a known
                 # non-indexable row (suit/rank) would quietly enumerate the
@@ -178,8 +178,8 @@ class ZoneStore:
     def instance(self, name: str, key: int) -> Zone:
         # The typed wall for the whole game-local-primitive class: every
         # per-game primitive (cribbage, gin, …) reads its zones by name
-        # through here, and calling one from a game without those zones used
-        # to die as a bare KeyError naming only the zone. (DSL-side zone
+        # through here, and calling one from a game without those zones would
+        # otherwise die as a bare KeyError naming only the zone. (DSL-side zone
         # references are resolve-walled long before this; only primitives
         # and driver internals reach here with a foreign name.)
         if name not in self.families:

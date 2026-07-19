@@ -132,8 +132,8 @@ def test_migration_preserves_per_seed_results(name: str) -> None:
 #
 # Anchored on the driver's own `hand_end` trace (driver.py, emitted once per hand
 # as `dict(rs.get(score_var))` — for Stud's `winner: highest stack`, that is
-# `dict(stack)`) rather than the mechanic-local `stud_hand` trace the showdown
-# used to emit: same values, same count, but a signal that survives the showdown
+# `dict(stack)`) rather than a mechanic-local `stud_hand` trace the showdown
+# could emit: same values, same count, but a signal that survives the showdown
 # leaving `instantiate` for the kernel (docs/kernel-migration.md).
 _STUD_CAPTURE = """
 import json, random, sys
@@ -367,7 +367,7 @@ def test_bigtwo_migration_preserves_per_seed_results() -> None:
 # first perturbs. Anchored on the driver's own `hand_end` trace (driver.py,
 # `dict(rs.get(score_var))` — for Cribbage's `winner: highest score`, that is
 # `dict(score)`), a signal that survives the migration (no mechanic-local trace
-# is read by any test — the old `cribbage_show` trace's only occurrence was its
+# is read by any test — the mechanic-local `cribbage_show` trace's only use was its
 # own emission). `hands_played` is NOT pinned: Cribbage has no phase named
 # `scoring`, so the driver's hand counter reads 0 both before and after — the
 # per-hand vector list length already carries that information. Cribbage's

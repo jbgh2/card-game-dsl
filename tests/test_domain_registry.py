@@ -9,13 +9,13 @@ hand-listed: a new row (or a new column value on an existing row) is a new set
 of cells that this module forces someone to classify.
 
 The defect class this exists to close (docs/decisions.md, "Closed-domain
-completeness"): the four domains used to be defined in two half-tables under two
-key namespaces — `roles.ROLES` (lowercase, gating `for each` and binder typing)
-and `mechanics.enumerate_domain` (capitalised, gating move parameters) — with
-nothing relating `player` to `Player`. Neither table knew the other's columns, so
-"what is `team` legal in?" had no single answer, and the seat/value asymmetry
-(`for each player` rebinds the actor; `for each suit` does not) was an if-chain in
-`execute._for_each` rather than a fact of the table.
+completeness"): four domains defined in two half-tables under two key
+namespaces — `roles.ROLES` (lowercase, gating `for each` and binder typing) and
+`mechanics.enumerate_domain` (capitalised, gating move parameters) — with
+nothing relating `player` to `Player`. Neither table knows the other's columns, so
+"what is `team` legal in?" has no single answer, and the seat/value asymmetry
+(`for each player` rebinds the actor; `for each suit` does not) lives as an if-chain
+in `execute._for_each` rather than as a fact of the table.
 
 Completeness ledger
 --------------------

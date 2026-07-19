@@ -142,11 +142,10 @@ residual:   fragment KINDS with no cheap wrapping harness. These are never
                 form — superseded by the `round offering [...]` kernel
                 construct and plain function calls (`team_of(outcome)`);
                 no corpus game uses either retired form today.
-              - the old `move_type X { source: ... destination: ...
+              - the retired `move_type X { source: ... destination: ...
                 emits: ... }` shape — superseded by `when:` / `effect {}`.
             Each kind above is `text`-tagged at every site it appears in
-            the three docs today (see the per-block classification in the
-            commit that introduced this module).
+            the three docs today.
 """
 
 from __future__ import annotations
@@ -452,7 +451,7 @@ def _block_id(block: FencedBlock) -> str:
 
 # A fence info string is `<tag>` or, for the fragment tags, `<tag> <label>`.
 # The tag classifies the block; the label (a stable name) keys its wrapper
-# recipe, so the registry no longer depends on the block's line number.
+# recipe, so the registry does not depend on the block's line number.
 _FRAGMENT_TAGS = frozenset({"cardlang-fragment", "cardlang-bad-fragment"})
 
 

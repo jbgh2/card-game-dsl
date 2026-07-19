@@ -37,11 +37,11 @@ hoping:
 lexicographic-name order (`runtime/execute.py::_gather`; decisions.md, "Loop
 lifecycle: `before_each` and `after_each`"), so its per-zone event sequence
 is independent of zone declaration order and the zones axis is sound
-corpus-wide. This transform originally excluded the gather-using games —
-`_gather` used to iterate `ZoneStore`'s declaration-ordered dicts, an order
-sensitivity this suite's first run surfaced as a real finding — and the
-canonicalization is what retired the exclusion; the reversed-zones pairing
-runs over the whole corpus are the regression proof it stays retired.
+corpus-wide. Were `_gather` to iterate `ZoneStore`'s declaration-ordered
+dicts instead, the zones axis would be unsound for the gather-using games
+and they would have to be excluded from this transform; the canonicalization
+is what lets it run corpus-wide, and the reversed-zones pairing runs over the
+whole corpus are the regression proof that it stays that way.
 
 `game.phases` and each phase's `items` (the statement sequence) are
 DELIBERATELY excluded — reordering either changes what the game DOES

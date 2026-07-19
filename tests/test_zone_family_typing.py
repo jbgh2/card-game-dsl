@@ -140,24 +140,24 @@ def _rejects(src: str, needle: str) -> None:
 
 
 # =============================================================================
-# Finding 1 — zone-family subscript typing
+# Zone-family subscript typing
 # =============================================================================
 
 # --- Symptom A: aggregation source degraded to TAny ---
 
 
 def test_aggregation_over_a_zone_family_binds_card_not_any() -> None:
-    # Before the fix this passed too (a TAny source is permissive), but for
-    # the wrong reason — proven by the next test, which shows the wall now
-    # firing *inside* the same shape.
+    # Without the subscript typing this would pass too (a TAny source is
+    # permissive), but for the wrong reason — proven by the next test, which
+    # shows the wall firing *inside* the same shape.
     _accepts(_game("let probe = sum of rank_value(card) over cards in hand[0]"))
 
 
 def test_aggregation_body_over_a_zone_family_is_walled() -> None:
-    # Before the fix: `hand[0]` inferred as a single Card, so the
-    # comprehension source wasn't a TCollection, so `card` bound TAny inside
-    # the body, so a bad field silently passed. Now `card : Card` and the
-    # Card-field wall fires.
+    # Without this, `hand[0]` would infer as a single Card, so the
+    # comprehension source would not be a TCollection, so `card` would bind
+    # TAny inside the body and a bad field would silently pass. With the
+    # subscript typing, `card : Card` and the Card-field wall fires.
     _rejects(
         _game(
             "let probe = sum of rank_value(card) over cards in hand[0] "
@@ -171,8 +171,8 @@ def test_aggregation_body_over_a_zone_family_is_walled() -> None:
 
 
 def test_card_membership_in_a_zone_family_is_accepted() -> None:
-    # Before the fix: `hand[0]` inferred as Card, so the `in` right-hand-side
-    # wall rejected this with "must be a collection... got Card".
+    # Without this, `hand[0]` would infer as Card, so the `in` right-hand-side
+    # wall would reject this with "must be a collection... got Card".
     _accepts(_game("let probe = (Q of spades) in hand[0]"))
 
 
@@ -180,14 +180,14 @@ def test_card_membership_in_a_zone_family_is_accepted() -> None:
 
 
 def test_rejects_dot_access_on_a_zone_family_subscript() -> None:
-    # Before the fix `hand[0]` inferred as Card, so `.rank` type-checked
-    # clean as `Rank` and only crashed at play time (`_member` has no case
-    # for a Zone/list). Now `hand[0] : Collection<Card>` and the new
-    # collection-has-no-fields wall catches it statically.
+    # Without this, `hand[0]` would infer as Card, so `.rank` would type-check
+    # clean as `Rank` and only crash at play time (`_member` has no case for a
+    # Zone/list). With the subscript typing, `hand[0] : Collection<Card>` and
+    # the collection-has-no-fields wall catches it statically.
     _rejects(_game("let probe = hand[0].rank"), "a collection has no fields")
 
 
-# --- index-type checking (did not exist at all before the fix) ---
+# --- index-type checking ---
 
 
 def test_rejects_a_zone_family_index_of_the_wrong_type() -> None:
@@ -262,7 +262,7 @@ def test_rejects_a_player_index_on_a_team_family() -> None:
 
 
 # =============================================================================
-# Finding 2 — the Card field pair, one registry (CARD_FIELDS)
+# The Card field pair, one registry (CARD_FIELDS)
 # =============================================================================
 
 
@@ -279,15 +279,15 @@ def test_unknown_card_field_message_lists_both_registry_fields() -> None:
 
 
 # =============================================================================
-# Finding 3 — action.card / action.actor / bare actor typing
+# action.card / action.actor / bare actor typing
 # =============================================================================
 
 
 def test_action_card_suit_flows_through_to_the_enum_wall() -> None:
-    # Before the fix: `action` is TAny, so `action.card` and `action.card.suit`
-    # were both TAny too, and `action.card.suit is 3` typechecked clean —
-    # silently False at runtime (hearts.md/spades.md's real shape, just with
-    # a bug: an Integer instead of a Suit).
+    # Without this typing, `action` would be TAny, so `action.card` and
+    # `action.card.suit` would both be TAny too, and `action.card.suit is 3`
+    # would typecheck clean — silently False at runtime (hearts.md/spades.md's
+    # real shape, just with a bug: an Integer instead of a Suit).
     _rejects(
         _game(
             "for each player q: score[q] := 1\n"
@@ -330,8 +330,8 @@ def test_bare_actor_pronoun_types_as_player() -> None:
 
 
 def test_actor_dot_access_is_rejected_by_the_object_model_wall() -> None:
-    # Before the fix `actor` was TAny (permissive); now it's Player, and
-    # Player is in the closed dot-form-rejection set (decisions.md "Typed
+    # Without this typing `actor` would be TAny (permissive); it is Player,
+    # and Player is in the closed dot-form-rejection set (decisions.md "Typed
     # object model") — `actor.foo` must reject the same way `p.foo` already
     # does for any other Player-typed value.
     _rejects(
@@ -342,15 +342,15 @@ def test_actor_dot_access_is_rejected_by_the_object_model_wall() -> None:
 
 def test_actor_indexes_a_player_family_zone() -> None:
     # coup.md's real shape (`influence[actor]`, `coins[actor]`): actor's new
-    # Player typing must still satisfy the zone-family index check from
-    # Finding 1.
+    # Player typing must still satisfy the zone-family subscript typing's
+    # index check.
     _accepts(
         _team_game("for each player q: score[0] := (number of cards in hand[actor])")
     )
 
 
 # =============================================================================
-# Finding 4 — rank_value gated on a declared ranking:
+# rank_value gated on a declared ranking:
 # =============================================================================
 
 

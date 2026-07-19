@@ -1,6 +1,6 @@
-"""Completeness guard for the per-game split: the old single-file harness
-parametrized its proofs over the adapter's registry, so a newly registered
-game was covered automatically. With one module per game, that guarantee
+"""Completeness guard for the per-game split: a single-file harness that
+parametrized its proofs over the adapter's registry would cover a newly
+registered game automatically. With one module per game, that guarantee
 must be enforced instead: every registered game has a proof module whose
 `TestReadiness` runs the shared proofs against the right spec, and no proof
 module targets an unregistered game."""

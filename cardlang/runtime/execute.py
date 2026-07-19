@@ -596,9 +596,9 @@ def _offer(stmt: n.Offer, ctx: Ctx) -> None:
     # Every named move type's guard-filtered cross product (`concrete_moves`),
     # concatenated in the vocabulary's declared order — one flat candidate
     # list, exactly like the auction form. A nullary move (every offer-using
-    # game today) contributes at most one `(name, None)` candidate, in the
-    # same order the old bare-name list did, so the chooser draws the same
-    # index; `render()` turns `(name, None)` back into the bare name for
+    # game today) contributes at most one `(name, None)` candidate, so the
+    # index the chooser draws is that move type's position in the
+    # vocabulary; `render()` turns `(name, None)` back into the bare name for
     # observation, so `observe.announce`/`observe.choice` see identical text.
     # `pctx` (already bound to `player`) is threaded into `concrete_moves` so
     # the binding isn't redundantly recomputed for every move type in the

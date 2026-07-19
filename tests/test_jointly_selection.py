@@ -305,10 +305,10 @@ def test_exact_count_jointly_offers_only_that_size() -> None:
 
 
 def test_fused_amount_typos_are_loud() -> None:
-    # The anchored amount keywords: `onecards`/`allcards` used to split as
-    # `one cards` / `all cards` (a real second parse — the expr alternative
-    # makes the amount position genuinely ambiguous for unanchored keywords)
-    # and compile clean. Post-anchor they fail loudly — `onecards` reparses
+    # The anchored amount keywords: unanchored, `onecards`/`allcards` would
+    # split as `one cards` / `all cards` (a real second parse — the expr
+    # alternative makes the amount position genuinely ambiguous for unanchored
+    # keywords) and compile clean. Anchored they fail loudly — `onecards` reparses
     # as amount-expr `chosen` + item `onecards` and dies in resolve;
     # `allcards` is a plain syntax error. Loud in SOME located currency is
     # the property; the split parse is the defect.
@@ -340,7 +340,7 @@ def test_jointly_with_to_each_is_rejected() -> None:
 
 def test_negative_and_zero_amounts_are_loud() -> None:
     # The amount-expression domain wall: a negative amount would silently
-    # slice from the wrong end (`deal -2` used to move 50 of 52 cards); a
+    # slice from the wrong end (`deal -2` would move 50 of 52 cards); a
     # zero `chosen` is a vacuous decision node.
     game = check_dsl(
         _game("  phase p { deal (0 - 2) cards from deck to discard }"),
@@ -361,8 +361,9 @@ def test_negative_and_zero_amounts_are_loud() -> None:
 
 
 def test_empty_pool_all_jointly_is_loud_like_some() -> None:
-    # `all` over an empty pool used to mint one empty-subset "decision";
-    # subset sizes are >= 1, so it now falls to the loud no-subset error.
+    # Left unwalled, `all` over an empty pool would mint one empty-subset
+    # "decision"; subset sizes are >= 1, so it falls to the loud no-subset
+    # error.
     game = check_dsl(
         _game(
             "  phase p { as dealer { move chosen all cards from hand[dealer]\n"
@@ -376,8 +377,8 @@ def test_empty_pool_all_jointly_is_loud_like_some() -> None:
 
 def test_deckcheck_credits_a_some_return_as_one_card_not_a_refill() -> None:
     # A joint `some` return to the deck puts back AT LEAST one card, never
-    # the pack — the old full-refill credit statically accepted a program
-    # that died mid-deal (`deal 14` from a 13-card stock).
+    # the pack — a full-refill credit would statically accept a program that
+    # dies mid-deal (`deal 14` from a 13-card stock).
     dsl = _game(
         "  phase p {\n"
         "    deal 36 cards from deck to discard\n"
@@ -393,10 +394,10 @@ def test_deckcheck_credits_a_some_return_as_one_card_not_a_refill() -> None:
 
 
 def test_joint_flag_survives_into_the_ir() -> None:
-    # Codex P2 on #67: the movement emitter dropped `joint`, so a subset
-    # decision binding `cards` was IR-indistinguishable from a per-card
-    # filter binding `card`. A mechanical sweep confirmed `joint` was the
-    # only dropped field across the Stmt union; this pins the fixed cell.
+    # If the movement emitter dropped `joint`, a subset decision binding
+    # `cards` would be IR-indistinguishable from a per-card filter binding
+    # `card`. A mechanical sweep confirmed `joint` was the only dropped field
+    # across the Stmt union; this pins that cell.
     from cardlang.ir import emit
 
     game = check_dsl(

@@ -146,9 +146,9 @@ def test_role_type_falls_back_to_any_outside_the_registry() -> None:
 
 def test_the_runtime_has_no_private_role_domain_accessors() -> None:
     # Both runtime consumers (evaluate's quantifier, execute's `for each`) call
-    # `domains.role_members`. The private per-module accessors this refactor
-    # removed — evaluate's `_role_domain` and execute's older `_enum_role_domain`
-    # — must not come back: a second accessor is a second place the domain order
+    # `domains.role_members`. The private per-module accessors these asserts
+    # forbid — evaluate's `_role_domain` and execute's `_enum_role_domain` —
+    # must not appear: a second accessor is a second place the domain order
     # can drift.
     assert not hasattr(evaluate_mod, "_role_domain")
     assert not hasattr(execute_mod, "_role_domain")

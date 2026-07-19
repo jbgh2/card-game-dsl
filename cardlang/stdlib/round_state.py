@@ -3,11 +3,11 @@
 The `state.` pronoun reads the live round's accumulator (`runtime/state.py`'s
 `mech_state`). That accumulator is also the form's *working memory*: `TrickForm`
 drives `next_actor` off a ring cursor `idx` and a materialized `order`, and both
-sat in the same dict as `led_suit`. Nothing distinguished them, and nothing
-checked the field name — so `state.idx` type-checked, ran, and silently changed
-the game (in Hearts it moved the winner from player 2 to player 0), while a typo
-like `state.lead_suit` reached the runtime as a bare `KeyError`. A round's private
-cursor was part of the language's surface by accident.
+sit in the same dict as `led_suit`. With nothing distinguishing them and nothing
+checking the field name, `state.idx` would type-check, run, and silently change
+the game (in Hearts, moving the winner from player 2 to player 0), while a typo
+like `state.lead_suit` would reach the runtime as a bare `KeyError` — a round's
+private cursor would be part of the language's surface by accident.
 
 This module is the line between the two. A form's PUBLISHED fields are the closed,
 typed set the DSL may name; its INTERNALS are working memory the surface cannot
@@ -16,10 +16,10 @@ else; `runtime/mechanics.py` is pinned against it, so a form that starts
 publishing (or hiding) a field without saying so here fails a test rather than
 quietly widening the language.
 
-Typing the fields is the second half of the win. `state.led_suit` used to infer
-`TAny`, which is contagious: `card.suit is state.idx` compared a Suit to an
-Integer and slipped past the enum-comparison wall because the right-hand side was
-untyped. With a declared type, every existing wall starts working there.
+Typing the fields is the second half of the win. Untyped, `state.led_suit` would
+infer `TAny`, which is contagious: `card.suit is state.idx` would compare a Suit
+to an Integer and slip past the enum-comparison wall because the right-hand side
+is untyped. With a declared type, every existing wall works there.
 """
 
 from __future__ import annotations

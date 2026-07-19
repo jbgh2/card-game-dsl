@@ -212,11 +212,11 @@ def test_every_declared_corpus_ranking_is_a_permutation_and_partials_are_pinned(
 
 
 # --- card literals validate against the DECK, not the ranking ----------
-# (Codex review of PR #48, round 2: `cats.ranks` read `game.ranking`, so a
-# no-`ranking:` game rejected every card literal, and a partial ranking
-# rejected literals naming real deck cards outside it — while the bare
-# enum spelling `card.rank is Q` resolved via the deck. Existence is the
-# deck's domain; `ranking:` is an ordering.)
+# (Were `cats.ranks` to read `game.ranking`, a no-`ranking:` game would
+# reject every card literal, and a partial ranking would reject literals
+# naming real deck cards outside it — while the bare enum spelling
+# `card.rank is Q` resolved via the deck. Existence is the deck's domain;
+# `ranking:` is an ordering.)
 
 
 def _literal_game(ranking_line: str, lit: str) -> str:
