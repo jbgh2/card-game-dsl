@@ -1,0 +1,128 @@
+// Kuhn poker (2 players) — formalized DSL (parser/checker/runtime target).
+//
+// Companion to kuhn-poker.md. The canonical toy poker: a three-card deck
+// (J, Q, K in one suit), one card each, one ante of 1 chip each, a single
+// betting round with a bet size of 1 and no raises, then a showdown the
+// higher card takes. Matches OpenSpiel's `kuhn_poker` at 2 players — the
+// same tree (check-check, check-bet-fold/call, bet-fold/call) and the same
+// returns, net chips against the starting stack.
+//
+// Betting proceeds as in standard fixed-limit poker: check/bet/call and the
+// can_act/owes/pending ring predicates come from the family library shared
+// with Leduc and Seven-Card Stud (docs/libraries/poker_betting.cardlang).
+// `fold` is Kuhn's own — folding disposes of the folder's card, and where
+// that card goes is a fact about Kuhn's zones, not about betting: here it
+// mucks unseen, so a fold never reveals what was folded.
+//
+// The library also carries `raise`, which Kuhn never offers: the vocabulary
+// list is [check, bet, call, fold]. `raise_cap` is nonetheless declared and
+// set to 1, so the imported move type is *doubly* dead — unoffered, and
+// guard-false even if it were offered. That is the point of a whole-library
+// import: the family's vocabulary comes in entire, and a member selects its
+// own subset in the `offering` list. Nothing about the unoffered move
+// reaches the OpenSpiel action space, which is derived from the `offering`
+// lists rather than from the game's move-type table.
+//
+// Chips are plain integers (the Stud convention). `net[player]` is the
+// terminal score — the hand's chip delta against the starting stack, which
+// is exactly OpenSpiel's `money_[player] - kStartingMoney`, so the returns
+// are zero-sum in chips rather than a raw stack level.
+
+game KuhnPoker {
+
+  uses poker_betting
+
+  players: 2
+  direction: clockwise
+  max_length: 100
+
+  cards: kuhn3
+  // J < Q < K. The four ranking conventions coincide on a J/Q/K deck (none
+  // of them moves a card the deck holds: there is no ace, no ten, no two),
+  // so `aces high` is chosen for its plain reading, not to pick a winner
+  // among alternatives.
+  ranking: aces high
+
+  zones {
+    deck            : Deck                 // the one undealt card
+    hand[player]    : Hand<player>         // the private card
+    shown[player]   : PublicHand<player>   // the showdown reveal
+    muck            : Muck                 // a folded card, never seen
+  }
+
+  state {
+    // The stack is ample: a Kuhn hand commits at most 2 chips, so no player
+    // is ever short and `can_act`'s `stack[p] > 0` never gates.
+    stack[player]     : Integer = 8
+    net[player]       : Integer = 0        // terminal score: chips won or lost
+
+    // The library's contract (poker_betting `requires`).
+    committed[player] : Integer = 0
+    bet_by[player]    : Integer = 0
+    acted[player]     : Boolean = false
+    folded[player]    : Boolean = false
+    bet_to_match      : Integer = 0
+    raises            : Integer = 0
+    limit             : Integer = 1        // the bet size
+    raise_cap         : Integer = 1        // no raises: a bet sets raises to 1
+
+    first_actor       : Player = 0         // Kuhn's non-dealer convention: P0 opens
+  }
+
+  phase deal {
+    shuffle deck
+    for each player p: deal 1 card from deck to hand[p]
+    // Antes: one chip each, posted before any decision.
+    for each player p: stack[p] := stack[p] - 1
+    for each player p: committed[p] := committed[p] + 1
+  }
+
+  phase betting {
+    // One street. The ring's `over` filter and its `until` terminator name
+    // the same set (`pending`), so the priority ring closes exactly when it
+    // empties; the second arm is the all-but-one-can-act case, which Kuhn
+    // reaches when a player folds.
+    round offering [check, bet, call, fold] from first_actor
+          over players where pending(player)
+          order priority
+          until (number of players where pending(player)) is 0
+             or ((number of players where can_act(player)) <= 1
+                 and (number of players where can_act(player) and owes(player)) is 0)
+  }
+
+  phase showdown {
+    // A contested hand reveals both cards; a fold ended the hand without a
+    // reveal (the folded card already mucked, count-only to everyone).
+    if (number of players where not folded[player]) > 1 {
+      for each player p: move all cards from hand[p] to shown[p]
+      let c0 = sum of rank_value(card) over cards in shown[0]
+      let c1 = sum of rank_value(card) over cards in shown[1]
+      // The three cards are distinct, so a showdown never ties.
+      if c0 > c1 {
+        stack[0] := stack[0] + committed[0] + committed[1]
+      } else {
+        stack[1] := stack[1] + committed[0] + committed[1]
+      }
+    } else {
+      for each player p: if not folded[p] {
+        stack[p] := stack[p] + committed[0] + committed[1]
+      }
+    }
+    for each player p: net[p] := stack[p] - 8
+  }
+
+  winner: highest net
+}
+
+// Kuhn's own betting move. check/bet/call and the ring predicates come from
+// `uses poker_betting`; `fold` stays here because it touches Kuhn's zones.
+// The folded card goes to the Muck — trivial to every observer, the owner
+// included — so the fold reveals nothing, matching OpenSpiel, where a passed
+// hand is never shown.
+move_type fold {
+  when: bet_to_match > bet_by[actor]
+  effect {
+    folded[actor] := true
+    move all cards from hand[actor] to muck
+  }
+}

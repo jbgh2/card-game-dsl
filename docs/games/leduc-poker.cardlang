@@ -1,0 +1,159 @@
+// Leduc poker (2 players) — formalized DSL (parser/checker/runtime target).
+//
+// Companion to leduc-poker.md. The standard step up from Kuhn: a six-card
+// deck (J, Q, K in two suits), one private card each, a betting round, one
+// face-up community card, a second betting round, then a showdown a pair
+// with the board wins. Matches OpenSpiel's `leduc_poker` at 2 players — ante
+// 1, first-round bets of 2 and second-round bets of 4, at most two
+// aggressive actions per round, ties split.
+//
+// Betting proceeds as in standard fixed-limit poker: check/bet/call/raise
+// and the can_act/owes/pending ring predicates come from the family library
+// shared with Kuhn and Seven-Card Stud
+// (docs/libraries/poker_betting.cardlang). `fold` is Leduc's own — the
+// folded card mucks unseen, exactly as in Kuhn and unlike Stud, whose fold
+// mucks upcards opponents were already watching.
+//
+// The two constants the family varies over are ordinary required state, not
+// arguments on the import: `limit` is the street's bet size (2, then 4), and
+// `raise_cap` the aggressive actions allowed per street. Leduc sets
+// `raise_cap := 2` where Stud sets 3, and neither the library nor the import
+// line mentions the difference.
+//
+// Chips are plain integers (the Stud convention). `net[player]` is the
+// terminal score — the hand's chip delta against the starting stack, which
+// is exactly OpenSpiel's `money_[player] - kStartingMoney`.
+
+game LeducPoker {
+
+  uses poker_betting
+
+  players: 2
+  direction: clockwise
+  max_length: 200
+
+  cards: leduc6
+  // J < Q < K. The four ranking conventions coincide on a J/Q/K deck (none
+  // of them moves a card the deck holds: there is no ace, no ten, no two),
+  // so `aces high` is chosen for its plain reading, not to pick a winner
+  // among alternatives.
+  ranking: aces high
+
+  zones {
+    deck            : Deck                 // the three undealt cards
+    hand[player]    : Hand<player>         // the private card
+    board           : Discard              // the face-up community card
+    shown[player]   : PublicHand<player>   // the showdown reveal
+    muck            : Muck                 // a folded card, never seen
+  }
+
+  state {
+    // The stack is ample: a Leduc hand commits at most 13 chips (1 ante +
+    // 2+2 on the first street + 4+4 on the second), so no player is ever
+    // short and `can_act`'s `stack[p] > 0` never gates.
+    stack[player]     : Integer = 40
+    net[player]       : Integer = 0        // terminal score: chips won or lost
+
+    // The library's contract (poker_betting `requires`).
+    committed[player] : Integer = 0
+    bet_by[player]    : Integer = 0
+    acted[player]     : Boolean = false
+    folded[player]    : Boolean = false
+    bet_to_match      : Integer = 0
+    raises            : Integer = 0
+    limit             : Integer = 2        // the first street's bet size
+    raise_cap         : Integer = 2        // two aggressive actions per street
+
+    first_actor       : Player = 0         // P0 opens both streets
+  }
+
+  phase deal {
+    shuffle deck
+    for each player p: deal 1 card from deck to hand[p]
+    // Antes: one chip each, posted before any decision.
+    for each player p: stack[p] := stack[p] - 1
+    for each player p: committed[p] := committed[p] + 1
+  }
+
+  // First street: private cards only, bets of 2. The ring's `over` filter
+  // and its `until` terminator name the same set (`pending`), so the
+  // priority ring closes exactly when it empties; the second arm covers the
+  // case where only one player can still act.
+  phase first_street {
+    round offering [check, bet, call, fold, raise] from first_actor
+          over players where pending(player)
+          order priority
+          until (number of players where pending(player)) is 0
+             or ((number of players where can_act(player)) <= 1
+                 and (number of players where can_act(player) and owes(player)) is 0)
+  }
+
+  // Second street: the community card is turned face up and bets double.
+  // Skipped entirely if the first street ended in a fold — the board is
+  // never dealt then, which is what keeps a folded hand's card unknowable
+  // even in hindsight.
+  phase second_street {
+    if (number of players where not folded[player]) > 1 {
+      deal 1 card from deck to board
+      bet_to_match := 0
+      raises := 0
+      limit := 4
+      for each player p: bet_by[p] := 0
+      for each player p: acted[p] := false
+      round offering [check, bet, call, fold, raise] from first_actor
+            over players where pending(player)
+            order priority
+            until (number of players where pending(player)) is 0
+               or ((number of players where can_act(player)) <= 1
+                   and (number of players where can_act(player) and owes(player)) is 0)
+    }
+  }
+
+  phase showdown {
+    // Hand strength: a private card matching the board's rank is a pair and
+    // beats every unpaired holding; otherwise the higher card wins. Only one
+    // player can pair, since the deck holds exactly two cards of each rank —
+    // if the board and one hand share a rank, both copies are accounted for.
+    // The +10 offset clears the three-rank scale (rank_value is 0..2).
+    let board_rank = sum of rank_value(card) over cards in board
+    if (number of players where not folded[player]) > 1 {
+      for each player p: move all cards from hand[p] to shown[p]
+      let r0 = sum of rank_value(card) over cards in shown[0]
+      let r1 = sum of rank_value(card) over cards in shown[1]
+      let s0 = if r0 is board_rank then r0 + 10 else r0
+      let s1 = if r1 is board_rank then r1 + 10 else r1
+      if s0 > s1 {
+        stack[0] := stack[0] + committed[0] + committed[1]
+      } else {
+        if s1 > s0 {
+          stack[1] := stack[1] + committed[0] + committed[1]
+        } else {
+          // Equal ranks split. A showdown is only reached with the betting
+          // matched, so the two entrants committed the same amount and each
+          // simply takes their own commitment back.
+          for each player p: stack[p] := stack[p] + committed[p]
+        }
+      }
+    } else {
+      for each player p: if not folded[p] {
+        stack[p] := stack[p] + committed[0] + committed[1]
+      }
+    }
+    for each player p: net[p] := stack[p] - 40
+  }
+
+  winner: highest net
+}
+
+// Leduc's own betting move. check/bet/call/raise and the ring predicates
+// come from `uses poker_betting`; `fold` stays here because it touches
+// Leduc's zones. The folded card goes to the Muck — trivial to every
+// observer, the owner included — so a fold reveals nothing, matching
+// OpenSpiel, where a folded hand is never shown.
+move_type fold {
+  when: bet_to_match > bet_by[actor]
+  effect {
+    folded[actor] := true
+    move all cards from hand[actor] to muck
+  }
+}
