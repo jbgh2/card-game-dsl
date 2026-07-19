@@ -6,6 +6,20 @@ What's explicitly deferred, and the suggested order of next steps.
 
 Things we have noted but consciously not designed yet:
 
+- **Registry-module manifest for the framing check**
+  (surface-totality-audit, Step 1). The fresh-context framing check's
+  input set — "the registry modules" — has no defining site in code:
+  registries are spread across `cardlang/domains.py`,
+  `cardlang/runtime/values.py`, `cardlang/runtime/reads.py`,
+  `cardlang/stdlib/signatures.py`, `cardlang/stdlib/zones.py`, and
+  author-side selection would reintroduce the exact framing blind spot
+  the check exists to remove. Deliverable: a checked-in manifest pinned
+  by a scrape test over module-level registry constants (UPPERCASE
+  container assignments), so a new registry module fails the pin until
+  listed or excluded with a reason. The interim wall, stated in the
+  skill: the framing subagent receives the entire `cardlang/` package —
+  completeness by superset, never by judgment.
+
 - **Named procedures — deferred cells.** Every one is a loud wall today, never a
   silent acceptance; the ledger is `tests/test_procedures.py`. (a) **`Zone`
   parameters.** The design note expected the corpus to need them; it does not — a

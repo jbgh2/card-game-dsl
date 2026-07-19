@@ -83,8 +83,10 @@ loud failure is the system working; silence is the enemy.
      module.** Every guard the ledger credits is a pin with its own
      witness; a module-level witness proves the module can fail, not that
      each credited assertion can — a dead assert hides behind a live
-     neighbor. A pin with no named witness, or one its named mutation
-     leaves green, is class 4.
+     neighbor. A pin with no named witness, one its named mutation leaves
+     green, or one whose witness edits the pin itself (its assertion, its
+     expected literal — a fault planted in the test proves nothing about
+     the code under guard) is class 4.
    - Take the `residual` rows as the review's priority slice.
    The review checks and samples the artifacts; it never re-derives them,
    and it never substitutes for a missing grid or ledger.

@@ -87,13 +87,18 @@ member.
 
 **The framing check (mandatory, before outcomes are authored).** The grid
 makes every decided cell honest; it does nothing for the axis you never
-derived. So before authoring the expected column, hand a fresh subagent the
-definition sources ONLY — the grammar, the AST unions, and the registry
-modules (the repo's fixed definition-source set, wholesale — a domain
-defined by a stdlib registry appears in neither grammar nor AST, and a
-hand-picked registry subset would smuggle your framing back in) — never
-the diff, the plan, or your domain statement — and ask what axes and
-positions the surface actually has. Diff its list against yours: every discrepancy is a new axis for the
+derived. So before authoring the expected column, hand a fresh subagent
+the definition sources ONLY — the grammar, the AST unions, and the
+registry modules (a domain defined by a stdlib registry appears in
+neither grammar nor AST) — never the diff, the plan, or your domain
+statement — and ask what axes and positions the surface actually has.
+The definition-source set is itself an axis and gets no author-side
+selection: it comes from the pinned registry-module manifest (a
+checked-in list, itself pinned by a scrape over module-level registry
+constants — recorded in roadmap.md until it lands), and until that
+manifest exists the subagent gets the ENTIRE `cardlang/` package.
+Completeness by superset, never by judgment: a hand-picked subset
+smuggles your framing back in through the input list. Diff its list against yours: every discrepancy is a new axis for the
 grid or a recorded residual. The context that produced an implementation
 plan frames the domain as the implementation's shape (a change statement
 reading "validates function-param and variant-payload type names" has
@@ -191,7 +196,11 @@ registry-equality or count pin over behavior that is already correct starts
 life green — its red run never happened, so its capacity to fail is
 unproven. Such a pin ships with the one-line mutation that reddens it: make
 the edit, watch the test fail, revert, and record it in the test's
-docstring as `red under: <the edit>`. The obligation is per CLAIM:
+docstring as `red under: <the edit>`. The edit must plant the claimed
+fault in the code under guard — production code, a registry, the scraped
+surface — never in the pin's own assertions or expected values: a pin
+that can only be reddened by editing itself guards nothing. The
+obligation is per CLAIM:
 anything the ledger credits with catching a failure is a pin and carries
 its own witness — a module that can fail does not prove each credited
 guard can (a dead assertion survives behind a live neighbor's witness).

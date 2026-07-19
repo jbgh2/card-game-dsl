@@ -2981,8 +2981,10 @@ what; sampled how); where it cannot cover its domain, it records the gap
 rather than reading as if it did. A check born green — a pin over behavior
 already correct when the pin was written — additionally records and
 demonstrates the one-line mutation that turns it red (`red under: <the
-edit>` in its docstring); a guarantee whose author cannot name a reddening
-edit is this defect class wearing a test's name. The crime is never
+edit>` in its docstring), the mutation planting the fault in the code
+under guard — never in the pin's own assertions or expected values; a
+guarantee whose author cannot name a reddening edit, or can name only an
+edit to the pin itself, is this defect class wearing a test's name. The crime is never
 incompleteness; it is *silent* incompleteness.
 
 Acceptance for changes to rigor-critical machinery — anything the
