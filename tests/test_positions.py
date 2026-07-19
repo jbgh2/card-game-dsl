@@ -310,10 +310,10 @@ def test_role_indexed_family_may_not_take_a_position_owner_arg() -> None:
 def test_position_move_param_types_as_integer_not_any() -> None:
     # A move parameter may be a position domain (`build(src : column)`); the
     # move-binder env must carry the game's positions so the param types as the
-    # integer member it binds. Before this, that env was a fresh TypeEnv() with
-    # no positions, so the param typed TAny and a wrong-domain use like `src is
-    # hearts` passed typecheck — accepted-but-ignored. Now caught; the valid
-    # integer uses (family subscript, integer comparison) still check.
+    # integer member it binds. Were that env a fresh TypeEnv() with no
+    # positions, the param would type TAny and a wrong-domain use like `src is
+    # hearts` would pass typecheck — accepted-but-ignored. The valid integer
+    # uses (family subscript, integer comparison) still check.
     with pytest.raises(DiagnosticError, match="comparing Suit with Integer"):
         check_dsl(
             _game(

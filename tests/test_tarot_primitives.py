@@ -224,7 +224,7 @@ def test_per_opp_garde_sans_counts_the_chien() -> None:
 
 def test_per_opp_counts_the_taker_discard() -> None:
     # The fidelity stage reroutes the chien discard to a hidden `discard[taker]`
-    # zone, no longer commingled into `captured[taker]` — tarot_per_opp must
+    # zone, not commingled into `captured[taker]` — tarot_per_opp must
     # still count it toward the taker's total (same 36-doubled-point, 3-bout
     # hand as test_per_opp_at_petite_threshold_with_three_bouts, but split
     # across captured + discard instead of sitting entirely in captured).

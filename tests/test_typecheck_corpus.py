@@ -4,18 +4,19 @@ Every executable game in the corpus must type-check clean. This is the guard
 against false positives as the checker's precision grows: any new typing rule
 that wrongly rejects a real game turns this red.
 
-That now includes the `.md` twins. They used to be exempt, on the stated grounds
-that "some original design docs carry illustrative syntax that isn't executable"
-— and the exemption is exactly what let one rot: `hearts.md` carried a retired
-quantifier spelling (`any cumulative_score >= 100`, from before the English
-register landed) and a retired `repeat until all hands empty`, so its DSL block
-had not parsed for some time and nothing said so. maintaining.md is unambiguous
-that this is a bug and not a historical artifact — "a game file that uses
-obsolete syntax is a bug" — and the corpus is the living spec, so the doctrine
-needed a gate rather than a carve-out. The premise is also simply false now: every
-one of the 16 `.md` twins that carries a fenced block is executable. The two that
-carry none (doppelkopf, president) are prose-only companions and are skipped, not
-failed.
+That includes the `.md` twins. Exempting them, on the grounds that "some
+original design docs carry illustrative syntax that isn't executable", is
+exactly what lets one rot: `hearts.md` carried a retired quantifier spelling
+(`any cumulative_score >= 100`, predating the English register) and a retired
+`repeat until all hands empty`, so its DSL block did not parse and nothing said
+so. maintaining.md is unambiguous that this is a bug and not a historical
+artifact — "a game file that uses obsolete syntax is a bug" — and the corpus is
+the living spec, so the doctrine needs a gate rather than a carve-out. The
+premise is also simply false: every `.md` twin that carries a fenced block is
+executable. Twins carrying none are prose-only companions and are skipped, not
+failed — which is a hole if it grows silently, so the skipped set is pinned by
+name in `test_the_prose_only_twins_are_the_pinned_set` rather than counted in
+this sentence.
 """
 
 from __future__ import annotations
@@ -34,6 +35,23 @@ CORPUS = sorted(GAMES.glob("*.cardlang"))
 MD_TWINS = sorted(
     p for p in GAMES.glob("*.md") if p.stem != "_candidates" and "```" in p.read_text()
 )
+
+# The twins this gate does NOT cover, by name. A count in prose hid the fact
+# that this set had grown from two to six; pinned, a seventh has to be added
+# here deliberately, and a twin that gains a block has to be removed.
+PROSE_ONLY_TWINS: frozenset[str] = frozenset(
+    {"belote", "canasta", "doppelkopf", "five-hundred", "gin-rummy", "president"}
+)
+
+
+def test_the_prose_only_twins_are_the_pinned_set() -> None:
+    """The gate's blind spot, named rather than counted."""
+    uncovered = {
+        p.stem
+        for p in GAMES.glob("*.md")
+        if p.stem != "_candidates" and "```" not in p.read_text()
+    }
+    assert uncovered == PROSE_ONLY_TWINS
 
 
 def test_corpus_is_present() -> None:

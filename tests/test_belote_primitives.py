@@ -7,8 +7,8 @@ Completeness ledger (surface-totality-audit)
 property:   every Belote primitive computes its documented value over the
             32-card pack, and every plausible misuse of the new stdlib
             names fails loud in the owning layer's currency
-domain:     the 10 STDLIB_CALL_FUNCS rows + 1 STDLIB_TRICK_OUTCOMES row
-            this change adds x {name, arity, param types, dispatch arm,
+domain:     Belote's 10 STDLIB_CALL_FUNCS rows + 1 STDLIB_TRICK_OUTCOMES
+            row x {name, arity, param types, dispatch arm,
             reads row} + the primitives' own value domains (32 ranks x
             4 suits, the decomposition's combination classes, the guard's
             class argument)

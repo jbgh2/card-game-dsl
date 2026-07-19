@@ -155,13 +155,13 @@ def unify(a: Type, b: Type) -> Type | None:
     Equal types unify to themselves; ``TAny`` absorbs anything, at ANY depth; a
     bare ``T`` and ``T?`` unify to ``T?``. Anything else is a mismatch.
 
-    The depth matters. `TAny` used to absorb only at the top level, so two
-    collections were compared by plain equality — and a deliberately-unrefined
+    The depth matters. Were `TAny` to absorb only at the top level, two
+    collections would be compared by plain equality — and a deliberately-unrefined
     element type (a chip stack is `Collection<Any>` precisely because that part of
-    the object model is unrefined) was judged disjoint from `Collection<Card>`. Every
-    caller that asks "are these compatible?" inherited that: the equality wall would
-    MANUFACTURE a `can never be equal` diagnostic for a comparison whose only
-    uncertainty was in the element. Gradual typing has to be gradual all the way
+    the object model is unrefined) would be judged disjoint from `Collection<Card>`.
+    Every caller that asks "are these compatible?" would inherit that: the equality
+    wall would MANUFACTURE a `can never be equal` diagnostic for a comparison whose
+    only uncertainty is in the element. Gradual typing has to be gradual all the way
     down, or it is just a top-level special case.
     """
     if isinstance(a, TAny) or isinstance(b, TAny):
@@ -171,11 +171,11 @@ def unify(a: Type, b: Type) -> Type | None:
         if element is None:
             return None
         # PRESERVE the facets. Rebuilding bare TCollection(element) here
-        # erased them: `if c then hand[0] else hand[1]` — two genuine zones —
-        # unified to a non-zone and was falsely rejected at every endpoint,
-        # and two same-keyed maps unified to an unkeyed one, sending the
-        # keyed-map wall dark through any IfExpr. The two facets merge in
-        # OPPOSITE directions because they feed opposite wall polarities:
+        # would erase them: `if c then hand[0] else hand[1]` — two genuine
+        # zones — would unify to a non-zone and be falsely rejected at every
+        # endpoint, and two same-keyed maps would unify to an unkeyed one,
+        # sending the keyed-map wall dark through any IfExpr. The two facets
+        # merge in OPPOSITE directions because they feed opposite wall polarities:
         # `zone` PERMITS (an endpoint requires a definite zone, so a maybe-
         # zone must not qualify — AND), while `key` PROHIBITS (membership on
         # a maybe-map is still ambiguous at runtime, so keyedness must be
@@ -230,7 +230,7 @@ def assignable(src: Type, dst: Type) -> bool:
         return True
     if isinstance(src, TCollection) and isinstance(dst, TCollection):
         # The key is how a map is ADDRESSED, not part of its value space —
-        # strip it and compare elements exactly as the old whole-type equality
-        # did for keyless collections.
+        # strip it and compare elements exactly as whole-type equality does
+        # for keyless collections.
         return src.element == dst.element
     return False

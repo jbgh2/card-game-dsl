@@ -131,12 +131,12 @@ def test_known_call_signatures() -> None:
 # CALL_SIGS states each stdlib function's interface once for the checker; the
 # `call()` match in runtime/stdlib.py states it again for the runtime (how many
 # `args[i]` the arm consumes, and the Python annotations of the helper it
-# forwards to). Two statements of one interface, previously with no
-# reconciliation: `coup_has_char` was declared `Rank?` to the DSL and
-# `rank: str` to Python, so the annotation denied the `none` value the checker
-# admits (and the body deliberately handles — an unset claim matches no card).
-# These pins derive both facts from the dispatch's AST rather than a third
-# hand-written list.
+# forwards to). Two statements of one interface, which nothing else
+# reconciles: a helper declared `Rank?` to the DSL but annotated `rank: str`
+# to Python would deny the `none` value the checker admits (and the body
+# deliberately handles — an unset claim matches no card), and the two
+# statements would disagree in silence. These pins derive both facts from the
+# dispatch's AST rather than a third hand-written list.
 
 
 @dataclasses.dataclass(frozen=True)

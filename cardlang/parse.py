@@ -1287,9 +1287,10 @@ class _Builder(Transformer[Token, n.Game]):
 
     def start(self, meta: Meta, c: list[object]) -> n.Game:
         # `start: top_item+` accepts any mix of definitions, so game-count
-        # errors are reachable from source: zero games used to escape as a
-        # raw StopIteration, and a second game would be silently discarded
-        # (decisions.md "Surface totality"). One game per source.
+        # errors are reachable from source: without these walls a source with
+        # no game would fail as an index error rather than a diagnostic, and a
+        # second game would be silently discarded (decisions.md "Surface
+        # totality"). One game per source.
         games = [x for x in c if isinstance(x, n.Game)]
         if not games:
             raise DiagnosticError(

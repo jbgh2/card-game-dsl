@@ -194,10 +194,14 @@ Things we have noted but consciously not designed yet:
   which narrows the `Rank` move-parameter domain this way on purpose.
   A card whose rank falls outside a partial `ranking:` still crashes
   `rank_value`'s `ctx.rs.rank_index[...]` lookup at runtime
-  (`cardlang/runtime/stdlib.py`) instead of erroring at resolve time — this
-  residual half has no pinning test (no corpus game exercises it: every
-  `docs/games/*.cardlang` ranking today happens to be a full permutation of
-  its deck).
+  (`cardlang/runtime/stdlib.py`) instead of erroring at resolve time. No
+  corpus game exercises it — every `docs/games/*.cardlang` ranking today
+  happens to be a full permutation of its deck — so the residual is pinned
+  by a witness fixture instead:
+  `tests/test_ranking_wall.py::test_a_rank_outside_a_partial_ranking_fails_in_the_runtime_currency`,
+  an `xfail(strict=True, raises=KeyError)`. Giving that lookup the runtime's
+  typed currency turns the xfail into an unexpected pass, which fails the
+  build and retires this entry in the same change.
 
 - **500's lead-time joker nomination.** Pagat's no-trump-family rule lets an
   un-nominated joker be *led* with a lead-time suit nomination (naming a suit
@@ -266,6 +270,20 @@ Things we have noted but consciously not designed yet:
   recorded above under "Grammar surface deferred by the checker"; `apply_components`
   the same but already recorded under "`scoring_component` / triggered
   components (runtime)".
+
+- **Six `.md` twins carry no DSL block, so the type-checker corpus net skips
+  them.** `tests/test_typecheck_corpus.py` holds every `docs/games/*.md`
+  twin that carries a fenced block to the same bar as the `.cardlang`
+  files, which is what keeps a twin from rotting into obsolete syntax
+  unnoticed (the `hearts.md` case that motivated the gate). Six twins carry
+  no block at all and are skipped rather than failed: belote, canasta,
+  doppelkopf, five-hundred, gin-rummy, president. Skipping is right —
+  there is nothing to check — but the set is a coverage hole that grew
+  from two to six behind a hand-written count in prose, so it is now pinned
+  by name in that module (`PROSE_ONLY_TWINS`): a seventh has to be added
+  deliberately, and a twin that gains a block has to be removed. Closing
+  the hole means giving those six twins DSL blocks, which is corpus work,
+  not checker work.
 
 - **OpenSpiel compilation (general pass).** A per-game *runtime adapter* now
   validates the target: Hearts is a registered `pyspiel.Game` passing OpenSpiel's

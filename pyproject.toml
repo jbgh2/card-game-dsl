@@ -35,6 +35,11 @@ cardlang = ["grammar/*.lark", "stdlib/*.cardlang"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# A recorded gap is an `xfail`, and an `xfail` that starts passing FAILS the
+# build (decisions.md "Closed-domain completeness"): closing a gap must force
+# the ledger that records it to be updated in the same change. Without this,
+# an unexpected pass is reported and ignored — a check that cannot fail.
+xfail_strict = true
 
 [tool.mypy]
 python_version = "3.11"
