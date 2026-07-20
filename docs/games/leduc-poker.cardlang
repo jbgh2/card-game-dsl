@@ -54,14 +54,14 @@ game LeducPoker {
     stack[player]     : Integer = 40
     net[player]       : Integer = 0        // terminal score: chips won or lost
 
-    // The library's contract (poker_betting `requires`).
+    // The library's contract (poker_betting `requires`). `acted` and `limit`
+    // are absent because the library provides them; the two bet sizes are
+    // named at the streets that use them.
     committed[player] : Integer = 0
     bet_by[player]    : Integer = 0
-    acted[player]     : Boolean = false
     folded[player]    : Boolean = false
     bet_to_match      : Integer = 0
     raises            : Integer = 0
-    limit             : Integer = 2        // the first street's bet size
     raise_cap         : Integer = 2        // two aggressive actions per street
 
     first_actor       : Player = 0         // P0 opens both streets
@@ -80,6 +80,7 @@ game LeducPoker {
   // priority ring closes exactly when it empties; the second arm covers the
   // case where only one player can still act.
   phase first_street {
+    run open_street(2)
     round offering [check, bet, call, fold, raise] from first_actor
           over players where pending(player)
           order priority
@@ -95,11 +96,7 @@ game LeducPoker {
   phase second_street {
     if (number of players where not folded[player]) > 1 {
       deal 1 card from deck to board
-      bet_to_match := 0
-      raises := 0
-      limit := 4
-      for each player p: bet_by[p] := 0
-      for each player p: acted[p] := false
+      run open_street(4)
       round offering [check, bet, call, fold, raise] from first_actor
             over players where pending(player)
             order priority

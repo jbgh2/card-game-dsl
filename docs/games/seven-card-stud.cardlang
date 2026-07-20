@@ -60,15 +60,18 @@ game SevenCardStud {
 
     phase play {
       state {
-        // Per-hand betting state, reset each hand on phase re-entry.
+        // Per-hand betting state, reset each hand on phase re-entry. `acted`
+        // and `limit` are not here because poker_betting provides them: they
+        // live at game level and carry across hands, which is harmless because
+        // every street opens with `open_street`, and a hand that opens no
+        // street (everyone all-in on the ante) runs no round and reads
+        // neither.
         in_hand[player]   : Boolean = false   // entered the hand holding chips
         committed[player] : Integer = 0       // chips put in this hand (for side pots)
         folded[player]    : Boolean = false
         bet_by[player]    : Integer = 0        // chips put in on the current street
-        acted[player]     : Boolean = false    // has acted since the last aggression
         bet_to_match      : Integer = 0        // the street's standing bet
         raises            : Integer = 0        // raises so far on this street
-        limit             : Integer = 0        // the current street's bet size
         raise_cap         : Integer = 3        // fixed-limit Stud allows three
       }
 
@@ -91,15 +94,18 @@ game SevenCardStud {
       // Bring-in + 3rd street. Skipped only when fewer than two entrants can act
       // (everyone all-in on the ante); then the hand is dealt straight to showdown.
       if (number of players where stack[player] > 0) >= 2 {
+        run open_street(5)
         let bringer = bring_in_seat()
         // The bring-in is a forced post (no decision): the lowest door puts 2 — a
         // partial all-in if it holds only one chip — and stands as the opening bet.
+        // It posts AFTER the street is opened, so opening does not clear it, and
+        // it counts as the street's first aggression, leaving two raises of the
+        // three the cap allows.
         bet_by[bringer] := if 2 < stack[bringer] then 2 else stack[bringer]
         stack[bringer] := stack[bringer] - bet_by[bringer]
         committed[bringer] := committed[bringer] + bet_by[bringer]
         bet_to_match := 2
         raises := 1
-        limit := 5
         round offering [check, bet, call, fold, raise] from bringer offset_by left
               over players where pending(player)
               order priority
@@ -122,11 +128,7 @@ game SevenCardStud {
         deal 1 card from deck to burn
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
         if (number of players where can_act(player)) >= 2 {
-          bet_to_match := 0
-          raises := 0
-          limit := 5
-          for each player p: bet_by[p] := 0
-          for each player p: acted[p] := false
+          run open_street(5)
           round offering [check, bet, call, fold, raise] from first_to_act_seat()
                 over players where pending(player)
                 order priority
@@ -141,11 +143,7 @@ game SevenCardStud {
         deal 1 card from deck to burn
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
         if (number of players where can_act(player)) >= 2 {
-          bet_to_match := 0
-          raises := 0
-          limit := 10
-          for each player p: bet_by[p] := 0
-          for each player p: acted[p] := false
+          run open_street(10)
           round offering [check, bet, call, fold, raise] from first_to_act_seat()
                 over players where pending(player)
                 order priority
@@ -160,11 +158,7 @@ game SevenCardStud {
         deal 1 card from deck to burn
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
         if (number of players where can_act(player)) >= 2 {
-          bet_to_match := 0
-          raises := 0
-          limit := 10
-          for each player p: bet_by[p] := 0
-          for each player p: acted[p] := false
+          run open_street(10)
           round offering [check, bet, call, fold, raise] from first_to_act_seat()
                 over players where pending(player)
                 order priority
@@ -179,11 +173,7 @@ game SevenCardStud {
         deal 1 card from deck to burn
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to hole[p] }
         if (number of players where can_act(player)) >= 2 {
-          bet_to_match := 0
-          raises := 0
-          limit := 10
-          for each player p: bet_by[p] := 0
-          for each player p: acted[p] := false
+          run open_street(10)
           round offering [check, bet, call, fold, raise] from first_to_act_seat()
                 over players where pending(player)
                 order priority

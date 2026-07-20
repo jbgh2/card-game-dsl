@@ -56,14 +56,14 @@ game KuhnPoker {
     stack[player]     : Integer = 8
     net[player]       : Integer = 0        // terminal score: chips won or lost
 
-    // The library's contract (poker_betting `requires`).
+    // The library's contract (poker_betting `requires`). `acted` and `limit`
+    // are absent because the library provides them: they are its own
+    // bookkeeping, and Kuhn's bet size of 1 is named at the street instead.
     committed[player] : Integer = 0
     bet_by[player]    : Integer = 0
-    acted[player]     : Boolean = false
     folded[player]    : Boolean = false
     bet_to_match      : Integer = 0
     raises            : Integer = 0
-    limit             : Integer = 1        // the bet size
     raise_cap         : Integer = 1        // no raises: a bet sets raises to 1
 
     first_actor       : Player = 0         // Kuhn's non-dealer convention: P0 opens
@@ -78,10 +78,16 @@ game KuhnPoker {
   }
 
   phase betting {
-    // One street. The ring's `over` filter and its `until` terminator name
-    // the same set (`pending`), so the priority ring closes exactly when it
-    // empties; the second arm is the all-but-one-can-act case, which Kuhn
-    // reaches when a player folds.
+    // Kuhn's one street, at a bet size of 1. Opening it is a formality here —
+    // nothing has happened yet, so every value `open_street` clears is already
+    // clear — but it is how the bet size gets set, and it is the same sentence
+    // Leduc and Stud open each of their streets with.
+    run open_street(1)
+
+    // The ring's `over` filter and its `until` terminator name the same set
+    // (`pending`), so the priority ring closes exactly when it empties; the
+    // second arm is the all-but-one-can-act case, which Kuhn reaches when a
+    // player folds.
     round offering [check, bet, call, fold] from first_actor
           over players where pending(player)
           order priority
