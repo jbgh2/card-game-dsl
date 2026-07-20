@@ -8,12 +8,14 @@ memoization pins `cardlang/parse.py`'s Contract block cites (see
 from __future__ import annotations
 
 import dataclasses
+import pathlib
 
 import pytest
 
 from cardlang.ast.nodes import Game, PlayersSpec, TypeArg, TypeRef, ZoneDecl
 from cardlang.diagnostics import DiagnosticError
 from cardlang.parse import _parse_text_cached, parse_text
+from cardlang.pipeline import _check
 
 SKELETON = """game Skeleton {
   players: 2
@@ -95,10 +97,12 @@ def test_comments_are_ignored() -> None:
 # ---------------------------------------------------------------------------
 # `parse_text` memoization (cardlang/parse.py, Contract "Now illegal").
 #
-# The memo is sound only while all four hold, so each gets a probe: it is
-# actually live; its key separates what changes the AST; its key does NOT
-# separate mere argument spellings; and it never caches a rejection.
-# The fifth probe pins the frozen-ness that lets two callers share one tree.
+# One probe per condition the memo's soundness rests on: it actually fires; its
+# key separates what changes the AST; its key does NOT separate mere argument
+# spellings; it never caches a rejection; and the front end it stands in for is
+# deterministic, so a cached answer equals a recomputed one. A last backstop
+# pins the immutability that lets two callers hold one tree — the wall for that
+# is test_node_registry.py, which this one names rather than duplicates.
 # ---------------------------------------------------------------------------
 
 
@@ -160,6 +164,32 @@ def test_a_rejection_is_re_raised_every_time_never_memoized() -> None:
     with pytest.raises(DiagnosticError) as second:
         parse_text(bad, "broken.dsl")
     assert first.value is not second.value
+
+
+@pytest.mark.parametrize("game", ["hearts", "coup", "canasta"])
+def test_the_front_end_is_deterministic_on_repeat(game: str) -> None:
+    """The one real coverage loss the memo caused, restored deliberately.
+
+    Before memoization the suite re-derived ~1000 parses and ~800 checks per
+    run on input it had already seen. Nothing asserted they agreed, but they
+    did incidentally guard against a nondeterministic front end — an AST tuple
+    built by iterating a `set`, say, which would make the pipeline's output
+    depend on hash order. Those are dict lookups now, so the guard is gone
+    unless it is stated.
+
+    Stated here, via `__wrapped__` to bypass both memos. Three games rather
+    than the corpus because each pass is a real Earley parse: `hearts`
+    (trick-taking), `coup` (interactive, procedures), `canasta` (the largest
+    source, melds). SAMPLED, not exhaustive — a nondeterminism confined to a
+    construct only some other game uses would not be caught here."""
+    path = pathlib.Path(__file__).parent.parent / "docs" / "games" / f"{game}.cardlang"
+    text = path.read_text()
+    first = _parse_text_cached.__wrapped__(text, str(path), 0)
+    second = _parse_text_cached.__wrapped__(text, str(path), 0)
+    assert first == second, f"{game}: two parses of identical text disagree"
+    assert _check.__wrapped__(first) == _check.__wrapped__(second), (
+        f"{game}: two checks of equal trees disagree"
+    )
 
 
 def test_a_shared_ast_cannot_be_mutated() -> None:
