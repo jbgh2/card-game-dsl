@@ -15,7 +15,10 @@ tables, bid ladders — and never for mechanics, movement, or decisions. Every
 game-local primitive in the corpus conforms in spirit: `pot_share`,
 `pinochle_meld_value`, `skat_next_bid`, `cribbage_show_value` are all reads.
 
-The implementation of that policy has drifted from its intent in three ways:
+The implementation of that policy drifted from its intent in three ways.
+One remains open; the migration has closed the other two, and each is
+marked with what closed it so this section states the live problem rather
+than the original one:
 
 1. **The language package contains game knowledge.** Nine game modules sit in
    `cardlang/runtime/` beside the engine core, and of the ~50 names in
@@ -29,20 +32,23 @@ The implementation of that policy has drifted from its intent in three ways:
    should be a registry-derived one, the shape
    [decisions.md](../decisions.md) "Closed-domain completeness" warns
    against.
-2. **Purity is conventional, not structural.** A primitive receives `Ctx` —
-   the engine's whole internal state object — and self-serves:
-   `tichu_next_holder` scans hands, `pot_share` reads the betting
-   accumulator and the live hole cards. Nothing structural stops a
-   "pure read" from mutating state or reading a hidden zone it has no
-   business seeing; the guarantee lives in review.
-3. **Two primitives are not reads at all.** `coup_note_reveal` and
-   `tichu_hand_summary` are trace emitters for the playout harness. Coup
-   calls one as `let noted = coup_note_reveal(q)` — a dead variable, purely
-   for the side effect. That is harness instrumentation leaking into the
-   rules text.
+2. **Purity was conventional, not structural — CLOSED by stage 2.** A
+   primitive used to receive `Ctx`, the engine's whole internal state
+   object, and self-serve from it; nothing structural stopped a "pure
+   read" from mutating state, making a decision, or reading a hidden zone
+   it had no business seeing. It now receives values only, so those are
+   not expressible. What survives is a granularity question, not a safety
+   one (§3).
+3. **Two primitives were not reads at all — CLOSED by stage 1.**
+   `coup_note_reveal` and `tichu_hand_summary` were trace emitters for the
+   playout harness, one of them called as `let noted = coup_note_reveal(q)`
+   — a dead variable, purely for the side effect. Both are gone from the
+   rules text and the harness derives their facts from observation events.
+   `coup_game_summary` remains registered for the reason §3 gives.
 
-The central placement is not protecting anything. It is a migration
-artifact: the primitives were extracted *out of* `instantiate` mechanics
+That leaves item 1, which is stage 4's, and it is the reason this note
+exists: the central placement is not protecting anything. It is a
+migration artifact: the primitives were extracted *out of* `instantiate` mechanics
 during the kernel migration, and the path of least resistance left them
 where the mechanics had lived. What actually separates a sanctioned
 primitive from `instantiate` hell is not where its file sits — it is what
@@ -122,8 +128,8 @@ interface cannot express one.
   and `tichu_hand_summary` are gone from all three tables and from both
   games' rules text (including Coup's dead `let`); the harness derives their
   facts from the observation events the kernel already emits
-  (`tests/playout_trace.py`). Two members of the class are still in the
-  runtime. `coup_game_summary` is a trace emitter by call shape, registered
+  (`tests/playout_trace.py`). The rest of the class stayed, and is narrowed
+  rather than evicted. `coup_game_summary` is a trace emitter by call shape, registered
   because its `coup_game` payload recomputes conservation totals from engine
   state rather than from movement views — reproducing it at the harness is
   its own design step ([roadmap.md](../roadmap.md), "Primitive sidecars").
