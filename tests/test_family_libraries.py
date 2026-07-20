@@ -745,6 +745,132 @@ def parse_default(literal: str) -> n.Expr:
     return game.state.decls[0].default
 
 
+# --- the contract is SUFFICIENT, not merely advisory --------------------------
+#
+# `requires` is only a contract if a game that meets it in full is enough. That
+# is a property of the LIBRARY, checked once against the library's own
+# namespaces, not of any game that imports it: a leak reaching past the contract
+# resolves fine against a game that happens to declare the extra name and fails
+# against a game that satisfies the contract exactly — reported inside library
+# text the author never wrote, which is the very currency failure the contract
+# exists to prevent.
+#
+# The grid is definition kind x reference kind: WHERE the leak is written (the
+# six kinds of `_LIBRARY_DEF_KINDS`, so no definition form is checked less than
+# another) times WHAT it reaches for.
+
+# One leak site per definition kind, with a `{read}` slot for the reference. The
+# `procedures` site carries a move type that runs it, because an uninvoked
+# procedure is separately an error and the cell must fail for its OWN reason.
+_LEAK_SITE: dict[str, str] = {
+    "rules": "rule r {{ applies_when: {read} > 0 }}",
+    "move_types": "move_type m {{ effect {{ declared_thing := {read} }} }}",
+    "types": "type T = {{ x : Integer }} derived {{ y = {read} }}",
+    "defines": (
+        "define d -> {{ a | b }} "
+        "{{ if {read} > 0 {{ produce a }} else {{ produce b }} }}"
+    ),
+    "functions": "function f() = {read}",
+    "procedures": (
+        "procedure p() {{ declared_thing := {read} }} "
+        "move_type runner {{ effect {{ run p() }} }}"
+    ),
+}
+
+# reference kind -> (the leaking spelling, the contracted spelling that is its
+# control). Both spellings are the same shape in the same slot, so a cell that
+# rejects can only be rejecting the leak.
+_LEAK_READS: dict[str, tuple[str, str]] = {
+    "state": ("undeclared_thing", "declared_thing"),
+    "call": ("undeclared_helper()", "contracted_helper()"),
+}
+
+
+def test_leak_sites_cover_every_definition_kind() -> None:
+    """A library holds six definition kinds and any of them can leak, so the
+    grid's site table must cover `_LIBRARY_DEF_KINDS` exactly — the same
+    registry the collision matrix above sweeps.
+
+    red under: drop a key from `_LEAK_SITE`."""
+    assert set(_LEAK_SITE) == {field for field, _ in _LIBRARY_DEF_KINDS}
+
+
+def _leaky(field: str, kind: str, *, leaking: bool) -> n.Library:
+    read = _LEAK_READS[kind][0 if leaking else 1]
+    return parse_library(
+        "library leaky { requires { declared_thing : Integer } "
+        "function contracted_helper() = declared_thing "
+        f"{_LEAK_SITE[field].format(read=read)} }}",
+        "docs/libraries/leaky.cardlang",
+    )
+
+
+# A game that satisfies `leaky`'s contract AND happens to provide what the leak
+# reaches for. That second half is what makes the cells meaningful: without it
+# they would fail as ordinary unresolved names and prove nothing about the
+# contract.
+_LEAK_HOST = dict(
+    uses="uses leaky",
+    extra_state="    declared_thing : Integer = 0\n"
+    "    undeclared_thing : Integer = 0\n",
+    extra="function undeclared_helper() = 1",
+)
+
+
+def _leak_cells() -> list[object]:
+    return [
+        pytest.param(
+            field,
+            kind,
+            id=f"{field}-{kind}",
+            marks=[pytest.mark.xfail(strict=True)],
+        )
+        for field, _ in _LIBRARY_DEF_KINDS
+        for kind in sorted(_LEAK_READS)
+    ]
+
+
+@pytest.mark.parametrize("field,kind", _leak_cells())
+def test_a_library_may_not_reach_past_its_contract(
+    field: str, kind: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every leak is refused, wherever it is written and whatever it reaches
+    for, and refused in the LIBRARY's currency — the span is in the library
+    file, because the library author is who must fix it. A game cannot: the
+    only thing it could do is declare the extra name, which is exactly the
+    accident that made the leak invisible.
+
+    red under: delete the `_check_library_encapsulation` call from
+    `_apply_uses`."""
+    _patch_libraries(monkeypatch, {"leaky": _leaky(field, kind, leaking=True)})
+    with pytest.raises(DiagnosticError) as exc:
+        resolve(_game(**_LEAK_HOST))
+    message = str(exc.value)
+    assert "docs/libraries/leaky.cardlang:" in message, (
+        f"the failure must land in the library file, not in the game:\n{message}"
+    )
+    assert "library 'leaky'" in message
+
+
+@pytest.mark.parametrize(
+    "field,kind",
+    [(f, k) for f, _ in _LIBRARY_DEF_KINDS for k in sorted(_LEAK_READS)],
+    ids=lambda v: str(v),
+)
+def test_the_same_site_reaching_only_its_contract_is_accepted(
+    field: str, kind: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The control row. Each cell is its leaking twin with one name swapped —
+    a contracted state variable for the undeclared one, a library-defined
+    function for the game's — so a rejecting leak cell can only be rejecting
+    the leak and not the site.
+
+    red under: make `_check_library_encapsulation` reject anything it classifies
+    rather than only what it fails to."""
+    _patch_libraries(monkeypatch, {"leaky": _leaky(field, kind, leaking=False)})
+    resolve(_game(**_LEAK_HOST))
+
+
 def _patch_libraries(
     monkeypatch: pytest.MonkeyPatch, libraries: dict[str, n.Library]
 ) -> None:
