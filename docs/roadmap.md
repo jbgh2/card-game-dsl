@@ -801,15 +801,28 @@ Things we have noted but consciously not designed yet:
   the execution plan in §5) evicted the two pure trace emitters from the
   stdlib registry; the harness derives their facts from observation events
   (`tests/playout_trace.py`, grid and ledger in
-  `tests/test_trace_emitter_eviction.py`). Remaining: narrowing every
-  primitive's interface to values-in/value-out, the `primitives { }`
-  declaration block, and co-location — per the design note's sequence. One
-  named residual rides until then: `coup_game_summary` is a third
-  dead-`let` trace emitter by call shape, still registered because its
-  `coup_game` payload recomputes conservation totals from engine state
+  `tests/test_trace_emitter_eviction.py`). Stage 2 is in progress: the
+  binder (`cardlang/runtime/sidecar.py`) and the crossed no-`Ctx` wall
+  (`tests/test_primitive_narrowing.py`) have landed with the scorers —
+  schnapsen, pinochle, cribbage and tarot as whole modules, plus
+  `tichu_card_points`. Remaining there: belote, bigtwo, canasta, coup,
+  doko, five_hundred, gin, president, skat, stud, and the rest of tichu;
+  then the `primitives { }` declaration block and co-location, per the
+  design note's §5.
+
+  Three residuals ride until their own steps. `coup_game_summary` is a
+  third dead-`let` trace emitter by call shape, still registered because
+  its `coup_game` payload recomputes conservation totals from engine state
   (coins, treasury, zone censuses) rather than from movement views —
   reproducing it at the harness is its own design step, not a mechanical
-  repeat of stage 1.
+  repeat of stage 1. The three auction outcomes (`bridge_`/`pinochle_`/
+  `tarot_auction_outcome`) are implemented inside `cardlang/runtime/
+  stdlib.py`, so the game-module wall does not reach them; stage 4
+  (co-location) owns their move. And both bundles the binder hands over
+  are module-granular, so a primitive can still see a declared name it
+  does not need — the per-primitive `reads` clause of stage 3 is what
+  closes that, and it also removes the cost of materializing a whole row
+  per call.
 
 ## Suggested next steps, in order
 

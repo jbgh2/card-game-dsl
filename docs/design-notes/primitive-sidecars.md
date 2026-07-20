@@ -182,17 +182,47 @@ no regeneration was needed. The misuse probe holds: calling either removed
 name yields the standard unknown-function diagnostic. Residual:
 `coup_game_summary` (§3).
 
-**Stage 2 — narrow the interface (M, 4-6 PRs by game family).** For
-each game primitive, split surface from implementation: the game-file
-call and its checker signature stay EXACTLY as they are; the
-implementation is rewritten values-in/value-out, and the dispatch
-layer fetches the primitive's declared reads (the `PRIMITIVE_READS`
-table in `cardlang/runtime/reads.py` is the authored inventory) and
-passes plain values. Scorers first, the accumulator-readers
-(`pot_share`) and trick-terminal readers (`tarot_excuse_player`)
-last. Acceptance per PR: no `Ctx` reaches any game module (grep-able
-wall), `tests/test_primitive_reads.py` stays green, goldens
-byte-identical — this stage is a pure refactor.
+**Stage 2 — narrow the interface (M, 4-6 PRs by game family). In
+progress.** For each game primitive, split surface from
+implementation: the game-file call and its checker signature stay
+EXACTLY as they are; the implementation is rewritten
+values-in/value-out, and the dispatch layer binds what the
+implementation may see and passes plain values. Scorers first, the
+accumulator-readers (`pot_share`) and trick-terminal readers last.
+Acceptance per PR: no `Ctx` reaches any game module (the crossed wall
+in `tests/test_primitive_narrowing.py`), the declared-reads pins hold,
+goldens byte-identical — this stage is a pure refactor.
+
+What a primitive may see is TWO axes, not one. `PRIMITIVE_READS` is
+the authored inventory of the name-keyed half only; the
+engine-structural half (the seating ring, `team_of`/`teams`,
+`rank_index`, the two round-state views, the acting player) had no
+declaration anywhere and is now the closed `EngineFacts` field set in
+`cardlang/runtime/sidecar.py`. Both bundles are MODULE-granular this
+stage; the design note's §2 end state is per-primitive, which is what
+stage 3's `reads` clause buys — and it buys two concrete things
+beyond precision: a primitive stops paying to materialize rows it
+never reads, and a fixture stops having to declare names its
+primitive never touches.
+
+Landed so far: the binder, the crossed wall, and the scorers —
+schnapsen, pinochle, cribbage and tarot as whole modules, plus
+`tichu_card_points`. `schnapsen_trick_winner` is the trace witness
+(see below). Remaining: belote, bigtwo, canasta, coup, doko,
+five_hundred, gin, president, skat, stud, and the rest of tichu.
+
+A primitive that emits is not values-out. Four game-local trick
+winners and `coup_game_summary` compute a value AND emit the engine's
+own `play`/`trick`/`trick_end` vocabulary; emitting needs the tracer,
+which is the handle this stage removes. They return `(value, events)`
+and the dispatch performs the emission — same events, same order,
+byte-identical goldens — which narrows `coup_game_summary` without
+evicting it (its eviction stays its own step, §3).
+
+Risk closed: `pot_share`'s surface signature does NOT have to change.
+`_payouts` in `stud.py` is already a pure core taking
+`in_hand`/`committed`/`folded`/`hole`/`upcards`, so `pot_share(p :
+Player) -> Integer` survives the narrowing intact.
 
 **Stage 3 — the `primitives { }` block (L, 1-2 PRs; the audit
 stage).** Grammar: `name(param : Type, ...) -> Type reads <names>`.
@@ -232,13 +262,8 @@ the triage mirror updates alongside (its per-game mirror pin proves
 sidecar/mirror parity); arena re-runs and REPORT verdicts close the
 round.
 
-Standing risks: `pot_share`'s accumulator inputs may force its surface
-signature to change after all — stage 2 flags it loudly instead of
-absorbing it (the shape is favourable, `_payouts` in `stud.py` is already
-a pure core taking `in_hand`/`committed`/`folded`/`hole`/`upcards`, but
-the risk stays open until stage 2 lands it); the unmerged family-library
-branch also touches stdlib surface — rebase order should be agreed before
-stage 3 lands.
+Standing risks: the unmerged family-library branch also touches stdlib
+surface — rebase order should be agreed before stage 3 lands.
 
 ## 6. One pressure to preserve
 
