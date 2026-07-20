@@ -1,11 +1,11 @@
 """The legal-move engine narrows per rule and honors each rule's `if_impossible`.
 
 Regression guards for two runtime bugs found in review:
-- An empty intersection used to collapse to the whole hand, wiping out *other*
+- An empty intersection would collapse to the whole hand, wiping out *other*
   active rules — e.g. letting a Hearts player void in the led suit dump penalty
   cards on the first trick even while holding a safe off-suit card.
-- An explicit `if_impossible: error(...)` was ignored; a forced-lead rule that
-  cannot be satisfied must reject the move (raise `IllegalMove`).
+- An explicit `if_impossible: error(...)` would be ignored; a forced-lead rule
+  that cannot be satisfied must reject the move (raise `IllegalMove`).
 """
 
 from __future__ import annotations

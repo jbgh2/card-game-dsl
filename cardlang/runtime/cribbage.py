@@ -73,9 +73,10 @@ def run_score(cards: list[Card], order: Mapping[str, int]) -> int:
     `ctx.rs.rank_index` from cribbage.cardlang's `ranking: aces low` — under
     which "a run" means ranks ADJACENT in the declaration: strengths are dense
     consecutive integers (the driver's `enumerate` formula), so A-2-3 runs and
-    Q-K-A does not, exactly the A-low no-wraparound rule. A rank missing from
-    `order` KeyErrors like `rank_value`'s lookup — the same partial-`ranking:`
-    residual, moot here since `aces low` covers the whole deck."""
+    Q-K-A does not, exactly the A-low no-wraparound rule. `order` must cover
+    every rank it is asked for, exactly as `rank_value` requires — the same
+    partial-`ranking:` residual, moot here since `aces low` covers the whole
+    deck."""
     counts: dict[int, int] = {}
     for c in cards:
         counts[order[c.rank]] = counts.get(order[c.rank], 0) + 1

@@ -3047,33 +3047,75 @@ clause. A check cited as a guarantee states its quantifier (exhaustive over
 what; sampled how); where it cannot cover its domain, it records the gap
 (the coverage-record obligation in
 [open-questions/structural-infoset-proofs.md](open-questions/structural-infoset-proofs.md))
-rather than reading as if it did. The crime is never incompleteness; it is
-*silent* incompleteness.
+rather than reading as if it did. A check born green — a pin over behavior
+already correct when the pin was written — additionally records and
+demonstrates the one-line mutation that turns it red (`red under: <the
+edit>` in its docstring), the mutation planting the fault in the code
+under guard — never in the pin's own assertions or expected values; a
+guarantee whose author cannot name a reddening edit, or can name only an
+edit to the pin itself, is this defect class wearing a test's name. The crime is never
+incompleteness; it is *silent* incompleteness.
 
 Acceptance for changes to rigor-critical machinery — anything the
 information-set guarantees, the encodings, or the invariants rest on — is
-therefore a stated completeness argument, not a green suite. The argument
-has a fixed shape, the **completeness ledger**, shipped in the change itself
-(the commit message, or the covering test module's docstring — somewhere a
-reviewer sees without asking):
+therefore a stated completeness argument, not a green suite. For an
+enumerable domain the argument's canonical form is the **grid**: the
+domain's axes derived in code from their defining registries — an axis with
+no defining site gets its derivation built as the change's first
+deliverable, because a hand-listed axis is complete only by luck and goes
+stale silently when a parallel change extends the surface — crossed into a
+parametrized test whose expected-outcome column is authored **before the
+implementation exists** and run red first. Every cell is a design decision
+(accept, or reject with a named diagnostic), so a cell that flips
+uncommanded is a regression caught at write time, and a commanded cell that
+stays green means the test does not reach the behavior. A cell whose
+correct outcome is not yet decided is never guessed into the grid — a
+guess pinned by a passing row carries the authority of a decision nobody
+made; it goes to residual with its wall and its record. The grid pins
+decisions that have been made; it is not a device for making them.
+`covered` means an executed grid row; prose describes only what the grid
+does not run.
+
+**Unsure is a legal state everywhere in this process; the silent guess is
+not.** Every mandate above names its uncertainty exit: an undecided cell
+goes to residual, an open design question to its open-questions/ file, a
+guard that cannot be classified does not land until it can, a review
+claim rests at PLAUSIBLE without executed evidence. The imperatives here
+prohibit manufactured certainty, never hesitation — a stated "not
+decided" with a wall is the process working; a guessed answer wearing a
+green row is the defect. The tie-breaker runs the same way: when unsure
+whether a gate applies, it applies — the superset is cheap, the guess is
+not. The
+judgment columns ship as the **completeness ledger** in the grid module's
+docstring:
 
 ```text
 property:   <the guarantee, one line>
 domain:     <what is quantified over>
-registry:   <where that domain is defined in code>
-covered:    <cells exhaustively handled, and by which layer>
+registry:   <where each axis is derived in code — the grid reads these>
+covered:    <the grid: module + parametrization, not a prose cell list>
 sampled:    <cells covered by example only, and why that suffices>
-residual:   <cells NOT covered — each with its wall and its roadmap.md line>
+residual:   <cells NOT in the grid, uncovered or not-yet-decided — each with its wall and its roadmap.md line>
 ```
 
-A residual row without both a wall and a record fails the gate; "no corpus
-witness" is never by itself a reason to leave a residual cell silent, because
-corpus-first governs which mechanisms exist, not how completely a mechanism
-covers its own domain. A wall guards its whole class at the layer that owns
-the class: an operand-compatibility rule lives in the type layer consulted by
-every comparison-shaped context, not at the first site that motivated it.
-The `surface-totality-audit` skill (`.claude/skills/`) operationalizes this
-section and "Surface totality" as a pre-commit gate.
+The gate is symmetric: a residual row without both a wall and a record
+fails it, and a `covered` claim without an executed grid row fails it
+equally. "No corpus witness" is never by itself a reason to leave a
+residual cell silent, because corpus-first governs which mechanisms exist,
+not how completely a mechanism covers its own domain — and when the
+construct itself has no corpus witness, the change ships a minimal witness
+fixture (a complete game exercising the construct end to end): a corpus
+hole is an integration blind spot, not an exemption. A wall guards its
+whole class at the layer that owns the class: an operand-compatibility rule
+lives in the type layer consulted by every comparison-shaped context, not
+at the first site that motivated it. The `surface-totality-audit` skill
+(`.claude/skills/`) operationalizes this section and "Surface totality" as
+a pre-commit gate, including the red-first order (axes -> framing check ->
+expected column -> red -> implement -> green) and the
+`xfail(strict=True, raises=...)` mechanism — each mark constrained to the
+cell's designed failure, so a harness crash cannot impersonate the red
+run — that keeps the pre-push checks green while the red-to-green
+transition stays visible in the diff.
 
 A wall must also speak its **layer's failure currency**: the compile
 stages fail as diagnostics (`DiagnosticBag`, with a span and a
@@ -3113,4 +3155,34 @@ and close or wall the whole class in one change. A lone patch converts a
 class defect into a recurring one — the corpus's duplicate-name
 shadowing sat for months as exactly this: the duplicate-move-parameter
 instance was fixed while duplicate zones, state variables, move types,
-and struct types kept shadowing silently until the class was swept.
+and struct types kept shadowing silently until the class was swept. The
+sweep binds at find time, not fix time: a *report* of one cell of a
+crossable product is an incomplete report — cross the product and report
+the pattern, whoever holds the finding.
+
+**A check's comment names the downstream contract, never the downstream
+exception type.** A wall is most naturally justified by what goes wrong
+without it, and the temptation is to name the crash: "without this wall,
+`to each hand[0]` would die on the executor's `NameRef` assert". That
+couples the comment to another module's current implementation — the one
+detail a reader editing *this* file never sees, and the one most likely to
+move. Failure currency is deliberately mobile here: a bare `KeyError`
+becomes a typed `RuntimeError`, a backstop assert becomes a wall one layer
+up. Every comment naming the old type is then confidently wrong while still
+reading as precise, which is worse than vague. Name instead what the
+downstream layer *requires* — the thing that actually justifies the wall:
+"without this wall, it would reach the executor, which requires a zone in
+this position and refuses anything else at play time". The warning survives
+a change of currency; the coupling does not. The exception type is
+load-bearing in exactly one place: an argument *about* failure currency
+("a typed error, not a bare `KeyError`"), where the type is the subject
+rather than incidental colour.
+
+State the consequence in the subjunctive — "would check clean and die" —
+not as a past event ("checked clean and died") and not as a present claim
+("checks clean and dies"). The past tense is unfalsifiable: it stays
+literally true after the behaviour it describes is gone, so it rots into a
+misleading implication that nothing can catch. The subjunctive says
+something about the code as it stands, which means a reader can check it
+and the claim can be found wrong — the same reason walls beat prose
+everywhere else in this document.

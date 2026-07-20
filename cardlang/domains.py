@@ -1,8 +1,8 @@
 """The closed registry of *quantifiable domains* — the finite value sets the
 language can range a binder or a move parameter over.
 
-One row per domain, one column per facet the rest of the engine used to
-re-derive for itself:
+One row per domain, one column per facet the rest of the engine needs —
+derived once here rather than re-derived by each consumer:
 
 | domain   | type   | binder type   | binds actor | `for each` | `each … simultaneously` | move params      |
 |----------|--------|---------------|-------------|------------|-------------------------|------------------|
@@ -11,18 +11,17 @@ re-derive for itself:
 | `suit`   | Suit   | `TEnum(Suit)` | no          | yes        | no                      | `Suit`, `Suit?`  |
 | `rank`   | Rank   | `TEnum(Rank)` | no          | yes        | no                      | `Rank`           |
 
-The two namespaces are now one row, not two tables: the lowercase `id` is the
+The two namespaces are one row, not two tables: the lowercase `id` is the
 role noun the *statement* surface spells (`for each player p`, `any suit
 where …`), and `type_name` is the capitalised spelling the *declaration*
-surface uses (`move_type bid(s: Suit)`). They were previously two disjoint
-registries — `ROLES`/`ROLE_TYPES` keyed lowercase, `enumerate_domain` keyed
-capitalised — with nothing relating `player` to `Player`.
+surface uses (`move_type bid(s: Suit)`). One row relates `player` to
+`Player`; split across two registries keyed differently, nothing would.
 
 `binds_actor` is the seat/value asymmetry as data. A SEAT domain's member *is*
 an actor, so `for each player p:` rebinds `ctx.acting_as(p)` and a decision in
 the body knows who is choosing; a VALUE domain's member is a bare enum value
-and carries no actor. That fact was an if-chain in `runtime/execute.py::_for_each`;
-it is now a column, and `_for_each` is a table walk.
+and carries no actor. That fact is a column here rather than an if-chain in
+`runtime/execute.py::_for_each`, which is a table walk over it.
 
 Consumers: `resolve.py` (`_ITERATION_ROLES` = the `iterable` column,
 `_FIXED_DOMAINS` = the union of `param_domains`, the `each … simultaneously`
@@ -110,8 +109,7 @@ class Domain:
     # The canonical id: the `for each <id>` role noun, the `any <id> where`
     # quantifier noun, and the implicit binder name.
     id: str
-    # The declared-type spelling, the other half of what used to be two
-    # namespaces (`player` <-> `Player`).
+    # The declared-type spelling (`Player` to the id's `player`).
     type_name: str
     # What a `for each`/quantifier binder over this domain types as.
     binder_type: Type
@@ -221,9 +219,9 @@ ZONE_INDEX_ROLES: frozenset[str] = frozenset(
 
 def zone_observer_key(role: str, rs: "RuntimeState", observer: int) -> int | None:
     """The observer's own key in a zone family indexed by `role` — their seat,
-    their team. The ownership half of `zone_key_of`; raises (rather than
-    guessing player keying, as the old `== "team"` sites did) for a role no row
-    marks zone-indexable, because resolve rejects those before a game runs.
+    their team. The ownership half of `zone_key_of`; raises (rather than guessing
+    player keying) for a role no row marks zone-indexable, because resolve
+    rejects those before a game runs.
 
     A declared POSITION domain (decisions.md "Position domains and positional
     zones") is indexable but unowned — no observer *is* a column — so it
@@ -293,10 +291,11 @@ def role_members(role: str, ctx: "Ctx") -> list[Any]:
 def role_static_members(role: str, sources: DomainSources) -> list[Any]:
     """A role's members at DECLARATION time — what a static analysis can know about
     `for each <role>` without running the game. The deck-capacity gate is the
-    consumer: it must know how many times a loop body runs, and it used to assume
-    "players, or once" — so `for each suit s: deal 15 cards …` counted as ONE
-    iteration, demanded 4x what the gate checked, passed, and died mid-deal on a
-    bare ValueError. Reading the row instead makes that count a fact of the table.
+    consumer: it must know how many times a loop body runs. Without this, it would
+    assume "players, or once" — so `for each suit s: deal 15 cards …` would count
+    as ONE iteration, demand 4x what the gate checked, pass, and fail mid-deal,
+    where the executor requires a source to hold at least the cards a deal asks
+    for. Reading the row makes that count a fact of the table.
 
     A declared position domain resolves ahead of the table (its name can never
     collide with a row id — resolve rejects the collision), so the zone store

@@ -177,9 +177,9 @@ def test_non_boolean_again_var_is_rejected() -> None:
 
 def test_fused_keyword_typos_are_syntax_errors() -> None:
     # The anchored `_TURNS_KW`/`_AGAIN_KW`: an unanchored inline keyword
-    # matches as a PREFIX under the dynamic lexer, so `turnst from …` used to
-    # parse as `turns t` and `againgo` as `again go` — a misspelling
-    # compiling to a running game.
+    # matches as a PREFIX under the dynamic lexer, so unanchored, `turnst
+    # from …` would parse as `turns t` and `againgo` as `again go` — a
+    # misspelling compiling to a running game.
     with pytest.raises(DiagnosticError, match="syntax"):
         check_dsl(
             _game("  phase p { turnst from dealer over all players until stop { stop := true } }"),

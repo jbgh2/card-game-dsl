@@ -2,28 +2,30 @@
 consumer walls: zone index (`hand[<role>]`), zone owner (`Hand<role>`), and
 state-variable index (`state { x[<role>] }`).
 
-The registry used to be a hand-written `_KNOWN_ROLES = {"player", "team"}` in
-resolve, re-spelled as `== "team"` at five more sites (typecheck key typing,
-the zone store's key sets, the driver's state keying, the observation layer's
-ownership test, and the openspiel proof harness's own ownership oracle in
-tests/openspiel_ready/partition.py) — each of which silently defaulted every
-non-team role to player keying. It is now the `zone_key_of` column of the
-domain table: a domain may index a zone exactly when an observer has a key of
-their own in it (their seat, their team), and all six sites read the table —
+The defect class this closes: a hand-written `_KNOWN_ROLES = {"player",
+"team"}` in resolve, re-spelled as `== "team"` at five more sites (typecheck
+key typing, the zone store's key sets, the driver's state keying, the
+observation layer's ownership test, and the openspiel proof harness's own
+ownership oracle in tests/openspiel_ready/partition.py) — each of which would
+silently default every non-team role to player keying. The registry is
+instead the `zone_key_of` column of the domain table: a domain may index a
+zone exactly when an observer has a key of their own in it (their seat, their
+team), and all six sites read the table —
 the proof-harness site matters doubly, since an oracle with a private copy of
 the rule proves the corpus against the copy, not the rule.
 
-The state-index wall is new. Before it, `state { x[suit] : Integer = 0 }`
-checked clean and the runtime keyed it BY PLAYERS — the declared index was
-accepted and ignored, the repo's worst defect class.
+Without the state-index wall, `state { x[suit] : Integer = 0 }` would check
+clean and the runtime would key it BY PLAYERS — the declared index accepted
+and ignored, the repo's worst defect class.
 
-The owner-agreement wall is newer still. A validity check ("is the owner a
+The owner-agreement wall is a separate axis. A validity check ("is the owner a
 known role?") is not an agreement check ("does the owner match the index?"):
-before it, `hand[player] : Hand<team>` checked clean because `team` is a valid
-role — but the runtime keys the family by the INDEX (`zone_observer_key` reads
-`ZoneDecl.index`; the argument's domain is never consulted), so the `<team>`
-was accepted and then ignored, the same worst class. An owned type also has no
-key for its owner when it has no index at all. Both are now rejected.
+without it, `hand[player] : Hand<team>` would check clean because `team` is a
+valid role — but the runtime keys the family by the INDEX (`zone_observer_key`
+reads `ZoneDecl.index`; the argument's domain is never consulted), so the
+`<team>` would be accepted and then ignored, the same worst class. An owned
+type also has no key for its owner when it has no index at all. Both are
+rejected.
 
 property:   a declared index/owner role is either a `zone_key_of` domain,
             honored identically at every consumer, or rejected at resolve
@@ -163,8 +165,9 @@ def test_every_indexable_role_is_accepted_at_all_three_sites(role: str) -> None:
 
 def test_team_indexing_needs_partnerships() -> None:
     # A team-indexed store in a game with no `partnerships:` has an EMPTY key
-    # set — it used to declare fine, hold nothing, and fail far away on the
-    # first write. Both declaration sites are rejected at the cause.
+    # set — without these walls it would declare fine, hold nothing, and fail
+    # far away on the first write. Both declaration sites are rejected at the
+    # cause.
     src_zone = _game("won[team] : TeamPile<team>", "").replace(
         "  partnerships: [[0, 2], [1, 3]]\n", ""
     )

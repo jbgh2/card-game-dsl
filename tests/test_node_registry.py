@@ -57,10 +57,10 @@ def test_node_union_is_exactly_the_modules_dataclasses() -> None:
 def test_every_param_bearing_node_kind_is_reserved_swept() -> None:
     """`resolve._PARAM_BEARING` — the table `_check_reserved_params` walks — must
     cover exactly the node kinds that carry a `params` field, derived from the
-    Node union rather than remembered. Before this pin the four collections were
-    a hand-written tuple inside the function: a new parameterized declaration
-    form (procedures were one, once) joins the reserved-word sweep only if
-    someone remembers it exists."""
+    Node union rather than remembered. With the four collections spelled as a
+    hand-written tuple inside the function, a new parameterized declaration
+    form (procedures were one, once) would join the reserved-word sweep only if
+    someone remembered it exists."""
     from cardlang.resolve import _PARAM_BEARING
 
     with_params = {

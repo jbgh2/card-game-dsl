@@ -7,8 +7,7 @@ filename. It is DERIVED from the directory rather than hand-listed: the corpus
 name is mechanical — `cardlang_` + the file stem with `-` turned to `_`
 (`go-fish.cardlang` -> `cardlang_go_fish`). A new game needs only its file;
 there is no second list to keep in sync, and no numeric count for two branches
-to bump into the same silent merge (the failure mode the old hand-listed pin
-existed to catch).
+to bump into the same silent merge.
 
 Because the map is derived from the directory, the derivation refuses to
 produce a silently-broken registry: `_derive_games` raises if the directory
