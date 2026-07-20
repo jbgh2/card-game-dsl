@@ -59,15 +59,18 @@ covered:  the parse grid — item x neighbour, all 49 truncated cells executed b
           `test_the_library_builder_files_every_item_kind` (7 cells, each item
           filed in its own `n.Library` field and no other) with
           `test_an_unhandled_library_item_is_loud` as the pin under it.
-          The encapsulation grid — leak site x reference kind, all 12 cells
-          executed by `test_a_library_may_not_reach_past_its_contract` and all
-          commanded REJECT, each against a game that satisfies the contract AND
-          happens to provide what the leak reaches for (without that second
-          half the cells would be ordinary unresolved names and would prove
-          nothing about the contract), each paired with a control twin in
-          `test_the_same_site_reaching_only_its_contract_is_accepted` differing
-          by one name. All 12 were open before the wall; the red-before-green
-          transition is in this branch's history.
+          The encapsulation grid — leak site x reference kind, all 30 cells
+          executed by `test_a_library_may_not_reach_past_its_contract`, all
+          commanded REJECT and all asserted to land in the LIBRARY file, each
+          against a game that satisfies the contract AND happens to provide what
+          the leak reaches for (without that second half the cells would be
+          ordinary unresolved names and would prove nothing about the contract).
+          Twelve carry a control twin in `test_the_same_site_reaching_only_its_
+          contract_is_accepted`, differing by one name; the other three columns
+          have no legal counterpart to be a twin, and the two controls beside
+          them establish the site. 24 cells were open before the wall and the
+          `card_literal` column for a commit after it — both red-before-green
+          transitions are in this branch's history.
           The `requires` grid — multiplicity x shape, 9 cells executed by
           `test_a_requirement_is_answered_by_exactly_one_matching_declaration`,
           accepting in exactly one; the multiplicity-2 row was open and is the
@@ -350,6 +353,23 @@ def test_two_well_formed_library_items_both_survive(item: str, follower: str) ->
         assert getattr(library, _ITEM_FIELD[name]), (
             f"`{_ITEM_WELL_FORMED[name]}` did not reach `Library.{_ITEM_FIELD[name]}`"
         )
+
+
+def test_a_library_naming_a_card_says_why_it_may_not(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The message half of the grid's `card_literal` column. "Unresolved name"
+    would be wrong twice over — the rank and suit are not names, and the reason
+    is not that they failed to resolve but that a family has no one deck."""
+    _patch_libraries(
+        monkeypatch, {"leaky": _leaky("functions", "card_literal", leaking=True)}
+    )
+    with pytest.raises(DiagnosticError) as exc:
+        resolve(_leak_host())
+    message = str(exc.value)
+    assert "names the card `Q of hearts`" in message, message
+    assert "deck-agnostic" in message, message
+    assert "docs/libraries/leaky.cardlang:" in message, message
 
 
 def test_a_repeated_requires_block_is_rejected() -> None:
@@ -948,16 +968,12 @@ def _leak_host() -> n.Game:
 
 
 def _leak_cells() -> list[object]:
-    """The full cross. The `card_literal` column is the one open today: a card
+    """The full cross. The `card_literal` column was the last one open: a card
     literal's rank and suit are plain strings on the node, not classified
-    `NameRef`s, so the classification sweep never saw them."""
+    `NameRef`s, so the classification sweep could not see them and they needed a
+    channel of their own."""
     return [
-        pytest.param(
-            field,
-            kind,
-            id=f"{field}-{kind}",
-            marks=[pytest.mark.xfail(strict=True)] if kind == "card_literal" else [],
-        )
+        pytest.param(field, kind, id=f"{field}-{kind}")
         for field, _ in _LIBRARY_DEF_KINDS
         for kind in sorted(_LEAK_READS)
     ]

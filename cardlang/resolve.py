@@ -297,6 +297,7 @@ class _LibraryReach:
 
     unresolved: tuple[n.NameRef, ...]
     unknown_calls: tuple[n.Call, ...]
+    card_literals: tuple[n.CardLiteral, ...]
     state_reads: frozenset[str]
 
 
@@ -346,6 +347,7 @@ def _library_reach(library: n.Library) -> _LibraryReach:
     known_calls = {f.name for f in library.functions} | set(STDLIB_CALL_FUNCS)
     unresolved: list[n.NameRef] = []
     unknown_calls: list[n.Call] = []
+    card_literals: list[n.CardLiteral] = []
     state_reads: set[str] = set()
     for node in _child_nodes(tuple(classified)):
         if isinstance(node, n.NameRef):
@@ -355,9 +357,17 @@ def _library_reach(library: n.Library) -> _LibraryReach:
                 state_reads.add(node.name)
         elif isinstance(node, n.Call) and node.func not in known_calls:
             unknown_calls.append(node)
+        elif isinstance(node, n.CardLiteral):
+            # Every one of them: a card literal's rank and suit are plain
+            # strings on the node, never `NameRef`s, so the classification above
+            # cannot see them — and `cats.ranks`/`cats.suits` are empty for a
+            # library anyway, so any card named here is out of contract by
+            # construction. The deck-agnostic rule with no exception to carve.
+            card_literals.append(node)
     return _LibraryReach(
         unresolved=tuple(unresolved),
         unknown_calls=tuple(unknown_calls),
+        card_literals=tuple(card_literals),
         state_reads=frozenset(state_reads),
     )
 
@@ -394,6 +404,14 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
             f"defined in the library nor a stdlib function — a library's "
             f"definitions may not reach into the game that imports them",
             call.span,
+        )
+    for card in reach.card_literals:
+        bag.error(
+            f"library '{library.name}' names the card `{card.rank} of "
+            f"{card.suit}`, but a family library is deck-agnostic — its members "
+            f"do not share a deck, and Kuhn's holds three cards. Take the card "
+            f"as a parameter, or keep the definition that needs it in the game",
+            card.span,
         )
 
 
