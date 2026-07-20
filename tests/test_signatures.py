@@ -1,16 +1,26 @@
 """Stdlib type signatures stay in sync with the name sets, and known signatures
 are correct (cardlang/stdlib/signatures.py).
 
-property:   CALL_SIGS and the runtime `call()` dispatch are one interface:
-            same name set, same per-name arity, and — where an arm plainly
-            forwards to a named helper — Python annotations that agree with
-            the declared DSL types
-domain:     every CALL_SIGS entry × {name, arity, param annotations, return
-            annotation}
-registry:   CALL_SIGS itself for names; the dispatch's own AST for what each
-            arm consumes (derived by parsing, never hand-listed)
-covered:    names (set equality both ways), arity (all arms), annotations for
-            every plain-forward arm and its return
+property:   the stdlib name sets, the signature tables, and the runtime
+            dispatchers are one interface — every name in a *tabled*
+            registry has a signature row, every *callable* name reaches a
+            dispatch arm, and for CALL_SIGS additionally the same per-name
+            arity and, where an arm plainly forwards to a named helper,
+            Python annotations that agree with the declared DSL types
+domain:     table reconciliation — the four registries that have a
+            signature table (STDLIB_CALL_FUNCS, STDLIB_VALUE_NAMES,
+            STDLIB_EARLY_PREDICATES, LIBRARY_ZONE_TYPES) × that table;
+            dispatchability — the six callable registries (trick / auction
+            / early / climb-leads / climb-follows / call) × the dispatcher
+            serving each, climb-leads twice (its query, and the action
+            space's codec-else-universe pair); and every CALL_SIGS entry ×
+            {name, arity, param annotations, return annotation}
+registry:   the name sets themselves for names; the dispatch's own AST for
+            what each arm consumes (derived by parsing, never hand-listed)
+covered:    names (set equality both ways, the four tabled registries),
+            dispatchability (seven pins over the six callable registries),
+            arity (all arms), annotations for every plain-forward arm and
+            its return
 sampled:    none
 residual:   inline arms (an expression instead of a helper call — team_of,
             rank_value, card_value, error, peg_pair/run_points) get
@@ -18,6 +28,20 @@ residual:   inline arms (an expression instead of a helper call — team_of,
             the expression is its own statement of the types. TAny positions
             are deliberately loose (polymorphic suit_of argument; the typed
             object model's deferred edges) and skipped by the mapping.
+            STDLIB_CLIMB_LEADS / STDLIB_CLIMB_FOLLOWS have no signature
+            table and no reconciliation cell: a climb query is named in a
+            `round climb` slot and is never expression-typed (typecheck.py
+            does not reference either set), so there is no type to declare
+            — they carry dispatchability coverage only.
+            LIBRARY_ZONE_TYPES has no dispatchability cell here: zone types
+            name data, not callables, so there is no arm to reach — their
+            projection coverage is pinned in tests/test_zone_projections.py
+            and the projection-name dispatch in tests/test_partition_helpers.py.
+            Nothing forces a NEW name-set registry to acquire a
+            dispatchability pin at all — the pairing of registry to
+            dispatcher is not derivable from code, so each pin below names
+            its own registry. The manifest that would close this is
+            deferred (roadmap.md, "Registry-module manifest").
 """
 
 from __future__ import annotations
@@ -82,6 +106,44 @@ def test_climb_queries_are_dispatchable() -> None:
         assert callable(climb_lead_function(name))
     for name in STDLIB_CLIMB_FOLLOWS:
         assert callable(climb_follow_function(name))
+
+
+def test_early_predicates_are_dispatchable() -> None:
+    """Every declared early-termination predicate must resolve to a runtime
+    callback, like the outcome and climb names above. The `early` slot shares
+    `value_function` with the outcome slot (the sets stay separate — see the
+    STDLIB_EARLY_PREDICATES comment), so a name added to the set without a
+    dispatch arm passes resolve and then Assertion-fails mid-trick.
+
+    red under: delete the `case "on_play_of_tochoo"` arm from `value_function`
+    (cardlang/runtime/stdlib.py).
+    """
+    from cardlang.runtime.stdlib import value_function
+
+    for name in STDLIB_EARLY_PREDICATES:
+        assert callable(value_function(name))
+
+
+def test_climb_action_space_is_derivable() -> None:
+    """`ActionSpace.for_game` derives a climbing game's combo block from one of
+    two registries — the arithmetic codec, else the enumerable universe — so the
+    two must JOINTLY cover STDLIB_CLIMB_LEADS. A lead query in neither is
+    accepted by resolve and by both climb-query dispatchers above, and fails
+    only when the adapter first builds the action space. Replays the adapter's
+    own branch (openspiel/encoding.py) rather than a second copy of the
+    mapping. Quantifier: that the branch reaches a dispatch arm — that each
+    universe enumerates correctly is the per-game golden's property, not this
+    pin's.
+
+    red under: delete the `case "president_lead_options"` arm from
+    `climb_universe_function` (cardlang/runtime/stdlib.py).
+    """
+    from cardlang.runtime.stdlib import climb_codec_function, climb_universe_function
+    from cardlang.stdlib.functions import STDLIB_CLIMB_LEADS
+
+    for name in STDLIB_CLIMB_LEADS:
+        if climb_codec_function(name) is None:
+            assert callable(climb_universe_function(name))
 
 
 def test_call_funcs_are_dispatchable() -> None:

@@ -20,6 +20,16 @@ Things we have noted but consciously not designed yet:
   skill: the framing subagent receives the entire `cardlang/` package —
   completeness by superset, never by judgment.
 
+  The same manifest has a second client: the registry→dispatcher pins
+  (`tests/test_signatures.py`) reconcile each stdlib name set with the
+  runtime dispatcher that serves it, but which dispatcher serves which
+  registry is not derivable from code, so each pin names its own
+  registry and a NEW name set acquires no pin until someone writes one.
+  The manifest's scrape would supply the missing axis — enumerate the
+  registries, require a pin or a recorded exclusion per entry. Interim
+  wall: every dispatcher ends in a loud `case _`, so an unserved name
+  raises at first use rather than resolving to nothing.
+
 - **Named procedures — deferred cells.** Every one is a loud wall today, never a
   silent acceptance; the ledger is `tests/test_procedures.py`. (a) **`Zone`
   parameters.** The design note expected the corpus to need them; it does not — a
