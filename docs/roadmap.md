@@ -132,6 +132,29 @@ Things we have noted but consciously not designed yet:
   several passes would share. Build it before a second family library lands; the
   one-library corpus is what makes it currently harmless.
 
+- **Family libraries — zones and phases are not forced YET.** A library holds
+  definitions and state (decisions.md "Family libraries"). Two things it still
+  cannot hold, and the negative on both is weak — "no family has forced it",
+  not "settled no":
+
+  *Zones.* `poker_betting`'s state surface names none, and that is a real signal
+  for the poker family rather than an accident: its zone-touching move (`fold`)
+  is exactly the one that stayed game-local, because which cards a fold disposes
+  of is a property of the table. But the smuggling survey below found zones in
+  the irreducible shared material, so the next family may well force them.
+
+  *Phases.* Neither family forced one. Poker's shared phase material reduced to
+  statements a parameterized procedure covers (`open_street`), and so did the
+  smuggling family's.
+
+  The smuggling evidence (`experiments/green-lane/`) carries a caveat that
+  limits how far it travels: those variants are a DELTA LATTICE — v4 is v1
+  composed with v3, each delta editing disjoint rule text — so they share a
+  great deal by construction. A family of siblings rather than deltas may share
+  a differently-shaped body of material and need not reproduce the
+  zones-and-state signal. Do not promote either negative to a decision on this
+  evidence; wait for a family that forces the question, and name it.
+
 - **Packaging the corpus for distribution.** The whole project runs from a
   checkout: every `.cardlang` is loaded from `docs/games/` by repo-relative path
   (tests, CLI, and the OpenSpiel adapter's `hearts_game()` loader), and the

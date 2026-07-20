@@ -3050,7 +3050,8 @@ and struct types kept shadowing silently until the class was swept.
 
 A **library** is the import tier between game-local definitions and the stdlib.
 It holds exactly the definition forms a game already holds — move_types, rules,
-functions, procedures, types, defines — plus a `requires` block, and it lives in
+functions, procedures, types, defines — plus the two state clauses `state` and
+`requires`, and it lives in
 `docs/libraries/<name>.cardlang`, beside the corpus and maintained with it. The
 stdlib is the part maintained with the *language*; that boundary is the one
 [design-notes/primitive-sidecars.md](design-notes/primitive-sidecars.md) exists
@@ -3095,27 +3096,60 @@ That decision sets the open question for this tier: **what may a library
 contain?** Siblings can only share what a library can hold, so anything two
 variants have in common and a library cannot express comes back as duplication.
 Today a library holds definitions (move types, rules, functions, procedures,
-types, defines) and no game structure. Poker forces state; a pair of variants
-sharing a phase tree would force phases. Grow it corpus-first, one forcing game
-at a time — but do not describe a library as "a vocabulary, not a game", because
-that framing assumed a delta mechanism would cover the rest, and none is coming.
+types, defines) and state, and no other game structure. Poker forced state; a
+pair of variants sharing a phase tree would force phases. Grow it corpus-first,
+one forcing game at a time — but do not describe a library as "a vocabulary, not
+a game", because that framing assumed a delta mechanism would cover the rest, and
+none is coming.
 
-**A library declares what it requires.** Family definitions read state the
-including game must declare, and undeclared-name errors surfacing from inside
-spliced library text would be the wrong diagnostics currency — they name symbols
-the author never typed. So a library names its contract, checked at the `uses`
-line:
+**State reaches a library two ways, and the difference is ownership.** A library
+`requires` state the including GAME owns, and `state`s the state the LIBRARY
+owns. Both are checked at the `uses` line, so an unmet contract or a collision
+lands in the game's currency rather than as an undeclared name inside spliced
+library text the author never typed.
 
 ```text
 requires {
-  stack[player] : Integer
+  stack[player] : Integer   // the game declares it, sets it, writes it
   raise_cap     : Integer
+}
+
+state {
+  acted[player] : Boolean = false   // the library's own; the game may read it
+  limit         : Integer = 0
 }
 ```
 
-Deliberately a `state_decl` minus the `= <default>`: the initial value is the
-game's to choose, and a library that could set one would be configuring the game
-rather than contracting with it. What the contract checks is that **exactly one**
+`requires` is deliberately a `state_decl` minus the `= <default>`: the initial
+value is the game's to choose, and a library that could set one would be
+configuring the game rather than contracting with it. Provided `state` carries
+its default for the mirror-image reason — the library owns the variable, so it
+owns the value the variable starts at.
+
+**Provided state is read-only to the game.** It splices into the game's own
+`state { }` and the game may read it, but an assignment from game text is an
+error, reported in the GAME (the game's author wrote the assignment) and naming
+both the variable and the library that owns it. The rule is what makes
+"provided" mean anything: a variable the library maintains and the game may also
+write is not owned by either, and the library's invariants over it would hold
+only by the game's good manners. It is enforced across every write form the
+language has — `:=`/`+=`/`-=`, `rotate`, and a `turns … again <flag>`, whose flag
+the runtime clears at each turn boundary — because a rule that covered only the
+obvious one would be two thirds of a guarantee.
+
+**There is no visibility system beyond this, and that is a decision, not a
+gap.** No `private`/`public` marker on a definition, no export list, no scoped
+namespace. Two surveys over the two multi-member families in hand measured what
+sharing actually needs (recorded under "The evidence" below), and read-only
+provided state plus ordinary procedures covered every case: the variables no
+game reads become the library's, the boundary writes that remain become a
+procedure the game runs. Nothing in either family wanted a definition hidden
+from its importer. Adding a marker system now would be designing against
+imagined pressure, and this paragraph exists so the question is not silently
+reopened — reopen it when a family produces a case these two mechanisms cannot
+express, and name that case.
+
+What the `requires` contract checks is that **exactly one**
 declaration of the name exists somewhere in the game, at the library's arity and
 type. Which `state { }` block holds it is not checked: a phase's block is the
 natural home for state that resets on phase re-entry, which is what per-hand
@@ -3154,8 +3188,19 @@ reach a name a construct holds as a bare string rather than as a reference — a
 so for those slots the rule above is the design's intent rather than a
 guarantee. The gap and the shape of its fix are in [roadmap.md](roadmap.md).
 
+**Name collisions on state are walled the same way collisions on definitions
+are.** A library may not both provide and require one name — the two clauses
+point opposite ways, so no reading satisfies both. Two libraries may not provide
+one name, because resolution is flat and picking by `uses` order would make a
+game's meaning depend on the order of its import lines. A game may not declare
+what a library provides: that is the state face of "`uses` imports, it does not
+inherit". And a requirement is answered by the game's own declaration, never by
+another library's provision, which would couple two libraries through a name
+neither mentions the other in. Two libraries requiring the same name is fine —
+one game declaration answers both contracts.
+
 **What a library holds, and what stays game-local.** A library holds definitions
-and no game structure — no zones, no state defaults, no phases — because that is
+and the state its definitions own — but no zones and no phases — because that is
 as far as the corpus has forced it, not because a library is a lesser kind of
 thing than a game. The boundary moves as sibling games need to share more.
 Within today's boundary the corpus forced a sharper line: **a move that touches a
@@ -3169,11 +3214,21 @@ observation. Each game defines its own `fold` and offers it alongside the
 imported four in one vocabulary list. The signal that this factoring is natural
 rather than forced is that `poker_betting`'s contract requires no zones at all.
 
-**Parameterization rides on required state, not on the import.** Family members
-differ by constants — Stud allows three raises per street, Leduc two — and those
-differences are carried by required state the game declares and sets (`limit`,
-`raise_cap`), not by a `with` clause on `uses`. The import surface stays a bare
+**Parameterization rides on state and on procedure arguments, not on the
+import.** Family members differ by constants, and where the constant lives
+follows what it is a property of. A per-GAME constant is required state the game
+declares: Stud allows three raises per street and Leduc two, so `raise_cap` is
+`requires`d. A per-OCCASION constant belongs to the occasion, so it is a
+procedure argument: a poker bet size is a property of a street, not of a game
+(Stud runs 5/5/10/10/10), so `limit` is provided state that the library's
+`open_street(bet_size)` sets, and each street names its own size where the street
+is written. Neither difference reaches the import surface, which stays a bare
 name.
+
+The test for which of the two a constant is: could one declaration in the game
+carry it? `raise_cap` yes, `limit` no. A value that varies within a game was
+never a declaration's to hold, and making it one is how `limit := 5` came to be
+repeated at five sites that were otherwise identical.
 
 **A member offers a subset of the family vocabulary, at no cost.** Importing a
 library is not a commitment to use all of it: Kuhn's `offering` list is
@@ -3188,6 +3243,36 @@ leave a move type dead by accident: a game's own definitions are still subject
 to the ordinary totality rule above — the exemption is for *imported* text the
 author did not write, whose unused parts are the price of naming a family
 rather than a manifest.
+
+**The evidence.** Two surveys sized what a library must hold, and they are
+recorded here because the shape of this tier is an empirical claim rather than a
+deduction.
+
+*Survey 1, over the three poker games.* Every game write to `poker_betting`'s
+state is at a street boundary, with one exception: `folded`, written mid-street
+by each game's own `fold`. Four of the nine required variables — `acted`,
+`raises`, `limit`, `raise_cap` — were never READ by any of the three games. And
+all five street-reset sites (one in Leduc, four in Stud) were one shape differing
+in a single integer. That is what forced provided state and `open_street`: writes
+that cluster at boundaries are absorbable by a procedure, and a variable no game
+reads or writes has no business in a contract. Only two of the four moved,
+though, and the two that did not are as informative as the two that did —
+`raise_cap` is a per-game constant so no single provided default fits it, and
+Stud's bring-in genuinely writes `raises`, a boundary write no *shared* procedure
+absorbs because only one game in the family has a bring-in.
+
+*Survey 2, over the smuggling family* (`experiments/green-lane/`, an experiment
+rather than corpus). The shared material a library could not hold was
+irreducibly zones plus state declarations. Phases were NOT forced: the family's
+shared phase material reduced to statements a parameterized procedure covers.
+
+The second survey carries a caveat that bounds how far it generalizes. Green
+Lane's variants are a **delta lattice** — v4 is v1 composed with v3, and each
+delta edits disjoint rule text — so the family shares a great deal by
+construction. A family whose members are siblings rather than deltas may share a
+different *shape* of material, and in particular may not reproduce the
+zones-and-state signal at all. Read Survey 2 as "phases were not forced by this
+family", not as "phases are settled". The roadmap entry says the same.
 
 The tier's completeness gate is `tests/test_family_libraries.py`, whose ledger
 records the one deliberate non-cell: stdlib move types and a game's `move_type`

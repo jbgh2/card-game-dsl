@@ -11,13 +11,13 @@ Completeness ledger
 -------------------
 property: a family-library file parses as the items its author wrote; its
           `requires` contract is SUFFICIENT, so a game meeting it in full is
-          enough; and every way a `uses` line can be wrong is rejected, loudly,
-          at resolve.
+          enough; its PROVIDED state is read-only to the including game; and
+          every way a `uses` line can be wrong is rejected, loudly, at resolve.
 domain:   two layers. At PARSE, the library file's clause skeleton: the
           `?library_item` alternatives times {well-formed, truncated at their
           last required slot}, crossed with every alternative as the NEIGHBOUR
           written below — the cell that matters being a truncated item that
-          completes itself from its neighbour and drops it. At RESOLVE, three
+          completes itself from its neighbour and drops it. At RESOLVE, five
           products. (a) The library's ENCAPSULATION: each definition kind of
           `resolve._LIBRARY_DEF_KINDS` as the site a leak is written in, times
           the reference kinds a body can leak through (a state name, a function
@@ -27,6 +27,12 @@ domain:   two layers. At PARSE, the library file's clause skeleton: the
           error space — the failure modes of a `uses` line (unknown library,
           repeated import) times, for each definition kind, the three-way
           collision matrix (game/library, library/library, library/stdlib).
+          (d) PROVIDED state's read-only rule: every node kind that writes
+          persistent state, times whether the name written is provided or
+          required. (e) The STATE-CLAIM space: which claims on one state name may
+          coexist — a library's claim subset {requires, state, both} times
+          whether the game declares it, and the two-library cross of {requires,
+          state} times the same.
 registry: the ITEM axis from the grammar's `?library_item`, scraped by
           `library_item_alternatives` (shared with tests/test_game_clause_walls,
           which owns the other half of the same absorption class and pins the
@@ -41,7 +47,20 @@ registry: the ITEM axis from the grammar's `?library_item`, scraped by
           the COLLISION-SOURCE axis from the three namespaces a library name can
           land in — the game (`n.Game`'s same-named fields), another library, and
           the stdlib registries (`library_rules()`, `STDLIB_CALL_FUNCS`,
-          `LIBRARY_MOVE_TYPES`), read through `_stdlib_member`. Every axis is
+          `LIBRARY_MOVE_TYPES`), read through `_stdlib_member`;
+          the WRITE-SITE axis from the RUNTIME — `_state_write_node_kinds()`
+          scrapes every `ctx.rs.set()` call in `cardlang/runtime/execute.py` and
+          reads its handler's first-parameter annotation, because
+          `runtime/state.py`'s `Store.set` is the one door onto persistent state,
+          so the statements reaching it ARE the write sites. Pinned in both
+          directions against `resolve._STATE_WRITE_SITES` (what the wall sweeps)
+          and `_WRITE_STMT` (what this grid probes) by
+          `test_write_sites_cover_every_state_writing_node`, with
+          `test_every_write_site_field_exists_on_its_node` under it so a renamed
+          field cannot leave the wall silently covering two forms of three;
+          the CLAIM-KIND axis from `n.Library`'s state clauses — its fields minus
+          its name, its span and the definition kinds — pinned by
+          `test_claim_axis_covers_every_library_state_clause`. Every axis is
           computed, never spelled: the probe NAMES come out of the registries
           too, which is the fix for how this file's first stdlib move-type cell
           shipped vacuous (it probed `play_card`, which `stdlib/moves.py`
@@ -87,12 +106,45 @@ covered:  the parse grid — item x neighbour, all 49 truncated cells executed b
           Born-green cells carry their reddening edit as `red under:` in the
           test docstring; the move-type accept was demonstrated red by extending
           `_check_library_collisions`'s stdlib leg to move_types.
+          The read-only grid — write-site kind x state kind, 6 cells executed by
+          `test_game_text_may_not_write_library_provided_state`, the 3 provided
+          cells commanded REJECT (in the GAME's currency, naming the variable and
+          its library) and the 3 required cells commanded ACCEPT as the control
+          that keeps the wall from passing by making provided state unwritable
+          because unreachable. `test_game_text_may_read_library_provided_state`
+          is the other control: read-only has to permit the read.
+          The claim grid — 6 one-library cells
+          (`test_one_library_claiming_a_state_name`) and 6 two-library cells
+          (`test_two_libraries_claiming_one_state_name`), each asserting the
+          MESSAGE and not merely the verdict, since three of the rejecting cells
+          would also fail for the unrelated reason that the game does not declare
+          the name. Two cells accept: a contract the game meets, and two
+          libraries requiring one name. All 11 rejecting-or-newly-accepting cells
+          across both grids were commanded before the walls existed and ran red
+          under `xfail(strict=True)`; the transition is in this branch's history.
 sampled:  the `uses`-line failure modes (unknown library, repeated import) are
           one probe each — a single-axis error with no second axis to cross.
           The truncation axis takes ONE truncation per item (its last required
           slot); an item can also be cut mid-slot, but every such cut is a
           strict prefix of this one and cannot absorb more.
-residual: none of the collision grid. The stdlib row's three accepting cells are
+          Note the parse grid's counts move with `?library_item`: it is 8
+          alternatives now (`state_block` joined), so 64 truncated cells and 56
+          off-diagonal well-formed ones. The 30 `state_block` cells were green on
+          arrival — `state` was already excluded from STRUCT_TYPE_NAME as an
+          absorbable clause reachable from `?game_item` — which makes them the
+          sweep of the class rather than new coverage.
+residual: one on provided state, deliberate and named here so its absence from
+          the probes is not read as an omission. There is no DEAD-PROVISION
+          check: a `requires` entry no definition reads is dead contract and is
+          walled (`test_every_library_contracts_for_exactly_what_it_reaches`),
+          but the mirror does not hold for provided state, because a provided
+          variable exists precisely so it CAN be read from outside the library —
+          by the importing game. Whether any game reads it is not a
+          library-local question, so no library-local check can answer it, and a
+          check that only asked "does the library read it?" would reject a
+          legitimate provision. Not a gap the tier can close.
+
+          none of the collision grid. The stdlib row's three accepting cells are
           decisions, not gaps: stdlib move types and a game's `move_type`
           definitions are disjoint consult paths that never share a namespace
           (`cardlang/stdlib/moves.py`), and types/defines/procedures have no
@@ -174,6 +226,10 @@ from tests.test_game_clause_walls import library_item_alternatives
 # A minimal game that satisfies `poker_betting`'s whole `requires` contract. Every
 # probe below is this game plus exactly one thing wrong, so a failure names the
 # wall under test and nothing else.
+#
+# `acted` and `limit` are deliberately absent: the library PROVIDES those, so
+# declaring them here would be the game/provided collision rather than the
+# contract cell each probe means to test.
 _GAME = """
 game Probe {{
   uses poker_betting
@@ -185,14 +241,12 @@ game Probe {{
     stack[player]     : Integer = 2
     committed[player] : Integer = 0
     bet_by[player]    : Integer = 0
-    acted[player]     : Boolean = false
     folded[player]    : Boolean = false
     bet_to_match      : Integer = 0
     raises            : Integer = 0
-    limit             : Integer = 1
     raise_cap         : Integer = 2
 {extra_state}  }}
-  phase play {{ {phase_state} }}
+  phase play {{ {phase_state} {run} }}
   winner: highest stack
 }}
 {extra}
@@ -206,7 +260,13 @@ def _game(
     phase_state: str = "",
     uses: str = "uses poker_betting",
 ) -> n.Game:
-    text = _GAME.format(extra=extra, extra_state=extra_state, phase_state=phase_state)
+    # `poker_betting` holds a procedure, and an uninvoked procedure is its own
+    # error — so a probe importing the REAL library has to run it, while one
+    # importing a synthetic library must not, having no such procedure to run.
+    run = "run open_street(1)" if "poker_betting" in uses else ""
+    text = _GAME.format(
+        extra=extra, extra_state=extra_state, phase_state=phase_state, run=run
+    )
     text = text.replace("uses poker_betting", uses, 1)
     return parse_text(text, "probe.cardlang")
 
