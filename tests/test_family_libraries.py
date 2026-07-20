@@ -126,15 +126,21 @@ game Probe {{
     limit             : Integer = 1
     raise_cap         : Integer = 2
 {extra_state}  }}
-  phase play {{ }}
+  phase play {{ {phase_state} }}
   winner: highest stack
 }}
 {extra}
 """
 
 
-def _game(*, extra: str = "", extra_state: str = "", uses: str = "uses poker_betting") -> n.Game:
-    text = _GAME.format(extra=extra, extra_state=extra_state)
+def _game(
+    *,
+    extra: str = "",
+    extra_state: str = "",
+    phase_state: str = "",
+    uses: str = "uses poker_betting",
+) -> n.Game:
+    text = _GAME.format(extra=extra, extra_state=extra_state, phase_state=phase_state)
     text = text.replace("uses poker_betting", uses, 1)
     return parse_text(text, "probe.cardlang")
 
@@ -543,6 +549,124 @@ def test_the_accepting_move_type_cell_has_real_corpus_dependents() -> None:
 
 
 # --- the `requires` contract --------------------------------------------------
+#
+# A requirement is answered by exactly ONE declaration of the right shape. Both
+# halves of that are a grid: how MANY declarations of the name the game holds,
+# and what SHAPE the declaration answering it has. The shape axis is derived —
+# it is the field set `_check_requires` compares between a `RequireDecl` and the
+# `StateDecl` that answers it, which is `n.RequireDecl`'s own fields minus the
+# name it is keyed by and its span.
+
+# One `state { }` line declaring `raise_cap` per shape: "matching" is what
+# `poker_betting` asks for, and each other key breaks EXACTLY the field it names
+# and nothing else. Pinned to `n.RequireDecl` by the test below.
+_SHAPE_TEXT: dict[str, str] = {
+    "matching": "raise_cap : Integer = 2",
+    "type_name": "raise_cap : Boolean = false",
+    "index": "raise_cap[player] : Integer = 2",
+    "optional": "raise_cap : Integer? = none",
+}
+
+
+def test_shape_axis_covers_every_compared_field() -> None:
+    """`_check_requires` compares a requirement against a declaration field by
+    field, so the shape axis must be those fields exactly. A field added to
+    `n.RequireDecl` — a new dimension the contract can disagree on — fails here
+    until the grid gets a row that breaks it.
+
+    red under: add a field to `n.RequireDecl` without adding a `_SHAPE_TEXT`
+    row for it."""
+    compared = {f.name for f in fields(n.RequireDecl)} - {"name", "span"}
+    assert set(_SHAPE_TEXT) - {"matching"} == compared
+
+
+def _requires_cells() -> list[object]:
+    """Multiplicity x shape, where the shape is the LAST-written declaration's:
+    at multiplicity 1 that is the only one, and at multiplicity 2 it is a
+    phase-local one written under a game-level declaration left MATCHING. That
+    asymmetry is the point — a second declaration whose shape is wrong is
+    invisible to a first-wins contract precisely because the first one is
+    right. Multiplicity 0 takes one cell, not four: with no declaration at all
+    there is nothing for a shape to be wrong about."""
+    cells: list[object] = [pytest.param(0, "matching", id="absent")]
+    for shape in sorted(_SHAPE_TEXT):
+        cells.append(pytest.param(1, shape, id=f"once-{shape}"))
+        cells.append(
+            pytest.param(
+                2,
+                shape,
+                id=f"twice-{shape}",
+                marks=[pytest.mark.xfail(strict=True)],
+            )
+        )
+    return cells
+
+
+@pytest.mark.parametrize("multiplicity,shape", _requires_cells())
+def test_a_requirement_is_answered_by_exactly_one_matching_declaration(
+    multiplicity: int, shape: str
+) -> None:
+    """The one accepting cell is (exactly one declaration, matching shape).
+
+    The multiplicity-2 row is the reason this grid exists. `_check_requires`
+    used to take the FIRST declaration it walked, while `typecheck` and
+    `runtime/driver.py` both take the LAST — so a game declaring `raise_cap :
+    Integer` at game level and `raise_cap : Boolean` in a phase passed this
+    contract on the Integer and then bound the Boolean. Neither bias is the fix:
+    the question is scoped, not flat — a shadow in the phase where the library
+    runs makes last-wins right, a shadow in some other phase makes first-wins
+    right — so the contract refuses to answer it at all. Cross-block shadowing
+    stays legal in general (`_check_duplicate_names`); it is refused only for a
+    `requires`d name, which is an interface rather than game-private state
+    (decisions.md "Family libraries", the metamorphic-rename carve-out).
+
+    red under: replace the multiplicity wall in `_check_requires` with either
+    bias — `declared[want.name][0]` or `[-1]`."""
+    game = _game(
+        phase_state=f"state {{ {_SHAPE_TEXT[shape]} }}" if multiplicity == 2 else "",
+    )
+    if multiplicity == 0:
+        assert game.state is not None
+        game = replace(
+            game,
+            state=replace(
+                game.state,
+                decls=tuple(d for d in game.state.decls if d.name != "raise_cap"),
+            ),
+        )
+    elif multiplicity == 1 and shape != "matching":
+        game = _reshaped(game, shape)
+    if (multiplicity, shape) == (1, "matching"):
+        resolve(game)
+        return
+    with pytest.raises(DiagnosticError) as exc:
+        resolve(game)
+    assert "probe.cardlang:3:" in str(exc.value), (
+        "every requires failure lands on the `uses` line, in the game's currency"
+    )
+
+
+def _reshaped(game: n.Game, shape: str) -> n.Game:
+    """Re-declare the game-level `raise_cap` with the shape's own text, through a
+    real parse so the probe never hand-builds a declaration the parser would
+    not."""
+    assert game.state is not None
+    replacement = _parse_state_decl(_SHAPE_TEXT[shape])
+    decls = tuple(
+        replace(replacement, span=d.span) if d.name == "raise_cap" else d
+        for d in game.state.decls
+    )
+    return replace(game, state=replace(game.state, decls=decls))
+
+
+def _parse_state_decl(text: str) -> n.StateDecl:
+    game = parse_text(
+        f"game D {{ players: 2 cards: kuhn3 zones {{ deck : Deck }} "
+        f"state {{ {text} }} }}",
+        "decl.cardlang",
+    )
+    assert game.state is not None
+    return game.state.decls[0]
 
 
 def test_unmet_requirement_is_reported_on_the_uses_line() -> None:
