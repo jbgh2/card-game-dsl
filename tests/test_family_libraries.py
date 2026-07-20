@@ -1192,15 +1192,31 @@ def test_a_provided_default_may_not_reach_the_contract(
     a scope rule alone: the read lives in the callee's body, which the walk over
     a default never enters.
 
+    The two cells are pinned by DIFFERENT walls, and the `state` cell says which
+    on purpose. Refusal alone does not distinguish them: the general
+    declare-order wall also refuses that sentence, also with a span in this
+    file, so an assertion on span-and-raise stays green with the library check
+    deleted — verified by deleting it. What only the library check produces is
+    the word `contract`, and with it the advice decisions.md commits to. The
+    general wall can only say "declare it earlier", which is the one thing a
+    library author cannot do.
+
     red under: delete the provided-default loop from
-    `_check_library_encapsulation` (fails `state`), or the `n.Call` arm from
-    `_check_state_default_scope` (fails `call`)."""
+    `_check_library_encapsulation` (fails `state` on the message assertion, NOT
+    on the raise), or the `n.Call` arm from `_check_state_default_scope` (fails
+    `call`, which is legitimately the general wall's — the loop matches
+    `NameRef`s, not calls)."""
     _patch_libraries(monkeypatch, {"leaky": _leaky("state", kind, leaking=False)})
     with pytest.raises(DiagnosticError) as exc:
         resolve(_leak_host())
     assert "docs/libraries/leaky.cardlang:" in str(exc.value), (
         "the library author is who must fix it, so the span belongs in their file"
     )
+    if kind == "state":
+        assert "contract" in str(exc.value), (
+            "must be the library check's message, not the general wall's: only "
+            "one of them can tell the author the name is theirs to contract for"
+        )
 
 
 def test_a_provided_default_may_read_an_earlier_provided_sibling(

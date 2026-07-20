@@ -39,21 +39,33 @@ domain:     TWO axes, each read off its own registry rather than off the wall.
 registry:   `_BLOCKS` + `runtime/driver.run_phase`'s frame discipline for (1);
             `n.Expr` for (2).
 covered:    all 32 scope cells (4 reader sites x 8 targets), executed and
-            played; 19 of 20 `n.Expr` rows, executed
-            (`test_every_expression_kind_is_accounted_for_in_a_default`);
-            3 call cells; both library cells (in `test_family_libraries.py`).
-sampled:    the scope axis uses one block tree, not every shape a game can
-            build. It is chosen to contain each relation the runtime can
-            produce — enclosing, self, later-sibling, sibling-phase,
-            nested-phase — so a deeper tree adds instances of relations
-            already covered, not new relations.
-residual:   `AllPlayers` — reachable from `?primary`, so grammatically legal
-            in a default, but no spelling that TYPES in a state default was
-            found (`v : Integer = all players` parses and is accepted, which
-            is the type hole below, not a scope defect). Recorded in
-            roadmap.md, "A `state { }` default is not checked against its
-            declared type" — the wall for it is that hole's wall, not this
-            one's, and this file must not be read as covering the row.
+            played; all 19 `n.Expr` rows, executed
+            (`test_every_expression_kind_is_accounted_for_in_a_default`, whose
+            axis is pinned equal to the union itself); 3 call cells; both
+            library cells (in `test_family_libraries.py`).
+sampled:    two shapes, each a single instance standing for a family.
+            The scope axis uses one block tree, chosen to contain every
+            relation the runtime can produce — enclosing, self, later-sibling,
+            sibling-phase, nested-phase — so a deeper tree adds instances of
+            relations already covered, not new relations. The `n.Expr` axis
+            runs in one game (2 players, `standard52`, a deck and a hand), so
+            a kind whose declare-time behaviour depends on the SHAPE of the
+            game rather than on the expression — a quantifier over teams in a
+            game with no `partnerships`, a query over a positional zone — is
+            sampled by proxy, not swept. The team case was spot-checked and is
+            clean (an empty role domain evaluates to `false`, it does not
+            crash); the rest are unprobed, and belong to whatever wall owns
+            empty role domains rather than to this one.
+residual:   `AllPlayers` is EXECUTED like every other row, but it is the one
+            row whose verdict proves nothing about this property. `v : Integer
+            = all players` is accepted — not because the expression is sound at
+            declare time, but because a default is never checked against its
+            declared type at all, so the row cannot distinguish "safe here"
+            from "unchecked everywhere". Recorded in roadmap.md, "A `state { }`
+            default is not checked against its declared type"; the wall it
+            needs is that hole's, not this one's. This is the single row where
+            the ledger has a record and no wall, and it is named rather than
+            rounded up into `covered`.
 """
 
 from __future__ import annotations
