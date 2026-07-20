@@ -58,9 +58,9 @@ covered:    the parametrizations below, each over its registry --
             a driver playout whose GameResult pins the EXACT scores {0: 5,
             1: 0} -- 5 is the count of pieces the `piece.side is x` filter
             selected through the axis map, so the flavor binder, the
-            side->suit translation, and the component_deck driver reads are
-            observed, not assumed (red under the side->rank map swap, which
-            scores {0: 0, 1: 0}).
+            side->suit translation, and piece-set resolution/construction
+            (build_deck seeding the box) are observed, not assumed (red
+            under the side->rank map swap, which scores {0: 0, 1: 0}).
 sampled:    the field wall is a type-layer wall (`_check_expr`'s `Member` arm),
             so it fires in every predicate context where an item is bound, not
             only the movement filter that seeds most cells here -- sampled by
