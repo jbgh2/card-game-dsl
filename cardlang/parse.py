@@ -18,16 +18,30 @@ Establishes:  a syntactically valid frozen AST; every node carries a
               :class:`Span`. No semantic claims — names are unclassified
               (``NameRef.ref_kind`` is ``None``) and nothing is typed.
 Now illegal:  ill-formed syntax; it cannot reach any later pass. Also
-              MUTATING OR ANNOTATING A RETURNED AST: ``parse_text`` is
-              memoized, so two callers parsing the same
-              ``(text, source_name, line_offset)`` receive the SAME object.
-              Three things make that sound, and all three are walls, not
-              conventions: every node is ``frozen=True`` (no field rebinding)
-              AND ``slots=True`` (no attribute attachment — ``frozen`` alone
-              does not stop it), both enumerated over the Node registry by
-              tests/test_node_registry.py; and every downstream pass rebinds a
-              new tree rather than editing in place. A pass that wants to edit
-              a node builds a new one with ``dataclasses.replace``.
+              MUTATING A RETURNED AST: ``parse_text`` is memoized, so two
+              callers parsing the same ``(text, source_name, line_offset)``
+              receive the SAME object, and one writer would be visible to
+              every other holder. A pass that wants to change a node builds a
+              new one with ``dataclasses.replace``.
+
+              Four walls hold that, each closing a different route, all
+              enumerated in tests/test_node_registry.py: ``frozen=True``
+              refuses every ordinary ``setattr`` (CPython's frozen
+              ``__setattr__`` raises for ANY name on a direct instance, not
+              only declared fields); ``slots=True`` additionally refuses
+              ``object.__setattr__`` of a NEW name and ``__dict__``/``vars()``
+              writes, which a frozen non-slots node would accept; a scrape
+              refuses ``object.__setattr__`` of a DECLARED field, the one
+              route neither of the others can — it is the same call frozen's
+              own ``__init__`` uses, so it is walled by not appearing at all;
+              and a field-type check refuses mutable containers, since a
+              ``list`` field would be writable THROUGH the node with no
+              ``setattr`` for the other three to catch.
+
+              Sharing itself is not new — ``openspiel/replay.py``'s ``load()``
+              has been cached since 2026-06-07. Memoizing here makes it the
+              default rather than opt-in, which is what turns those four from
+              properties the code happens to have into walls.
 Verified by:  the grammar-ambiguity check (tests/test_grammar_ambiguity.py)
               and the per-construct parse tests; the memo's own liveness and
               key correctness by tests/test_parse.py's caching pins.
