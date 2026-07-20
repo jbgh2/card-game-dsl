@@ -166,10 +166,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.tichu import tichu_card_points
 
             return tichu_card_points(ctx, args[0])
-        case "tichu_hand_summary":
-            from cardlang.runtime.tichu import tichu_hand_summary
-
-            return tichu_hand_summary(ctx)
         case "president_next_holder":
             from cardlang.runtime.president import president_next_holder
 
@@ -190,10 +186,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.coup import coup_has_char
 
             return coup_has_char(ctx, args[0], args[1])
-        case "coup_note_reveal":
-            from cardlang.runtime.coup import coup_note_reveal
-
-            return coup_note_reveal(ctx, args[0])
         case "coup_game_summary":
             from cardlang.runtime.coup import coup_game_summary
 
