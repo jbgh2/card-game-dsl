@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from collections import Counter
 from itertools import combinations
-from typing import Any
+from typing import Any, Mapping, Sequence
 
 from cardlang.runtime import reads
 from cardlang.runtime.sidecar import EngineFacts
@@ -132,8 +132,8 @@ def _payouts(
     in_hand: list[Player],
     committed: dict[Player, int],
     folded: dict[Player, bool],
-    hole: Any,
-    upcards: Any,
+    hole: Mapping[Player, Sequence[Card]],
+    upcards: Mapping[Player, Sequence[Card]],
 ) -> dict[Player, int]:
     """The side-pot settlement, by amount committed: layers on the distinct
     commitment levels, each layer split among its eligible contenders holding the
