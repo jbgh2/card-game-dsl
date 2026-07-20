@@ -6,8 +6,8 @@
 // What is here is the ZONE-FREE core: check, bet, call, raise, the three ring
 // predicates that keep a betting round's `over` filter and `until` terminator
 // naming the same set, and `open_street` — the one procedure a street opens
-// with. Every one of them moves chips and nothing else, which is why this
-// library's state surface names no zone.
+// with. Every one of them touches chips and betting bookkeeping and nothing
+// else, which is why this library's state surface names no zone.
 //
 // What is deliberately NOT here is `fold`. Folding is the one betting move that
 // touches cards, and which cards — and where they go — is a property of the
