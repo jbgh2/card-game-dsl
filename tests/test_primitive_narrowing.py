@@ -74,6 +74,7 @@ from typing import Any
 import pytest
 
 from cardlang.ast import nodes as n
+from cardlang.runtime import reads as reads_mod
 from cardlang.runtime.reads import PRIMITIVE_READS
 from cardlang.runtime.state import RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating
@@ -106,6 +107,7 @@ _ENGINE_CORE: dict[str, str] = {
     "phases.py": "engine core — phase sequencing",
     "reads.py": "the declared-reads accessors (the sanctioned raw-access site)",
     "rules.py": "engine core — rule application",
+    "sidecar.py": "the binder — it BUILDS the bundles, so it holds the handle",
     "state.py": "engine core — defines RuntimeState and Ctx",
     "stdlib.py": "engine core — the dispatch layer that BUILDS the bundles",
     "values.py": "engine core — the value types",
@@ -601,7 +603,9 @@ def test_the_two_round_state_views_are_distinct() -> None:
     rs.mech_state.append({"marker": "live"})
     facts = sidecar.engine_facts(rs, actor=None)
     assert facts.round_state == {"marker": "live"}
-    assert facts.last_round_state == {"marker": "terminal"}
+    assert facts.last_round_state is not None
+    assert facts.last_round_state["marker"] == "terminal"
+    assert facts.round_state != facts.last_round_state
 
 
 def test_engine_facts_is_frozen() -> None:
@@ -609,7 +613,11 @@ def test_engine_facts_is_frozen() -> None:
     sidecar = _sidecar()
     facts = sidecar.engine_facts(_live_state(), actor=None)
     with pytest.raises((AttributeError, TypeError)):
-        facts.actor = 3  # type: ignore[misc]
+        # `facts` is typed Any here (the module is imported lazily), so this
+        # is a RUNTIME check that frozen+slots really refuses the write —
+        # which is the point: the guarantee must hold for a game module that
+        # mypy never sees as anything but values.
+        facts.actor = 3
 
 
 # --- grid (d): GameReads carries exactly the declared row -------------------
@@ -619,12 +627,11 @@ def test_game_reads_carries_exactly_the_declared_row() -> None:
     """The bundle is bounded by PRIMITIVE_READS: every declared name present,
     no undeclared name reachable. This is the property that makes the binder
     a narrowing rather than a rename of `Ctx`."""
-    sidecar = _sidecar()
     rs = _live_state()
     row = next(
         r for r in PRIMITIVE_READS if r.module == "cardlang/runtime/schnapsen.py"
     )
-    bundle = sidecar.game_reads(rs, row)
+    bundle = reads_mod.game_reads(rs, row)
     assert frozenset(bundle.singles) == row.single_zones
     assert frozenset(bundle.families) == row.zone_families
     assert frozenset(bundle.state) == row.state_vars
@@ -637,13 +644,12 @@ def test_game_reads_carries_exactly_the_declared_row() -> None:
 def test_game_reads_cards_are_immutable() -> None:
     """Zone cards arrive as tuples: a primitive cannot mutate a live zone
     through the bundle (today it receives the Zone's own mutable list)."""
-    sidecar = _sidecar()
     rs = _live_state()
     rs.zones.single("trick_pile").cards.append(Card("7", "hearts"))
     row = next(
         r for r in PRIMITIVE_READS if r.module == "cardlang/runtime/schnapsen.py"
     )
-    bundle = sidecar.game_reads(rs, row)
+    bundle = reads_mod.game_reads(rs, row)
     assert isinstance(bundle.singles["trick_pile"], tuple)
 
 

@@ -46,9 +46,11 @@ Contract:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from types import MappingProxyType
+from typing import Any, Mapping
 
 from cardlang.runtime.state import RuntimeState, Zone
+from cardlang.runtime.values import Card
 
 _REGISTRY_NAME = "PRIMITIVE_READS (cardlang/runtime/reads.py)"
 
@@ -294,6 +296,47 @@ def instance(rs: RuntimeState, r: PrimitiveReads, name: str, key: int) -> Zone:
             f"come from the game's seating/teams, so a miss is the calling "
             f"primitive's error, in the runtime's currency"
         ) from None
+
+
+@dataclass(frozen=True, slots=True)
+class GameReads:
+    """One module's declared reads, materialized as plain immutable values.
+
+    The bundle a narrowed primitive receives in place of `Ctx`. Its contents
+    are bounded by the module's `PRIMITIVE_READS` row — an undeclared name is
+    ABSENT, not merely unfetched — and zone contents arrive as tuples, so a
+    primitive cannot write back through a live `Zone.cards` list. That is the
+    narrowing: what used to be a convention enforced by review ("primitives
+    are pure reads") is now a property of what the value can express."""
+
+    state: Mapping[str, Any]
+    families: Mapping[str, Mapping[int, tuple[Card, ...]]]
+    singles: Mapping[str, tuple[Card, ...]]
+
+
+def game_reads(rs: RuntimeState, r: PrimitiveReads) -> GameReads:
+    """Materialize `r`'s whole declared row from live state.
+
+    Built here rather than in the binder because this is the sanctioned
+    raw-access site: the row's names are data, so the accessor calls below
+    are non-literal, which `tests/test_primitive_reads.py` refuses in every
+    other module precisely so a name-keyed read cannot escape the static pin.
+    The pin still holds — the names come FROM the row, so the bundle is the
+    declaration by construction."""
+    return GameReads(
+        state=MappingProxyType({n: state(rs, r, n) for n in sorted(r.state_vars)}),
+        families=MappingProxyType(
+            {
+                n: MappingProxyType(
+                    {k: tuple(z.cards) for k, z in family(rs, r, n).items()}
+                )
+                for n in sorted(r.zone_families)
+            }
+        ),
+        singles=MappingProxyType(
+            {n: tuple(single(rs, r, n).cards) for n in sorted(r.single_zones)}
+        ),
+    )
 
 
 def magic_hand(rs: RuntimeState) -> dict[int, Zone]:
