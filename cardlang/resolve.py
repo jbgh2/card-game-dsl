@@ -147,7 +147,7 @@ def _check_reserved(
 
 def resolve(game: n.Game) -> n.Game:
     bag = DiagnosticBag()
-    _resolve_deck(game, bag)
+    _resolve_component_set(game, bag)
     _resolve_direction(game, bag)
     game = _expand_ranking(game, bag)
     _resolve_ranking(game, bag)
@@ -1015,6 +1015,9 @@ class _Categories:
     functions: frozenset[str]
     ranks: frozenset[str]
     suits: frozenset[str]
+    # `Game.content_flavor` — the dispatch key for the flavor-aware walls
+    # (roadmap.md, "Piece-flavored games").
+    flavor: str = "card"
 
 
 def _walk(node: object) -> Iterator[object]:
@@ -1058,6 +1061,7 @@ def _categories(game: n.Game) -> _Categories:
         # PR #48, round 2).
         ranks=deck_ranks(game.deck) if _deck_known(game.deck) else frozenset(),
         suits=deck_suits(game.deck) if _deck_known(game.deck) else frozenset(),
+        flavor=game.content_flavor,
     )
 
 
@@ -1189,24 +1193,59 @@ def _check_reserved_binders(game: n.Game, bag: DiagnosticBag) -> None:
 
 
 def _deck_known(deck: str) -> bool:
+    """True iff `deck` names a known CARD deck — the gate on every
+    card-specific resolve path. Deliberately False for a piece-flavored set,
+    not only for an unknown name: piece vocabulary binding is not built yet
+    (roadmap.md, "Piece-flavored games"), so those paths degrade for a piece
+    game exactly as for an unknown deck, and a reference into the empty
+    namespaces fails name classification loudly. The diagnostics themselves
+    are `_resolve_component_set`'s."""
     from cardlang.runtime.values import DECKS
 
     return deck in DECKS
 
 
-def _resolve_deck(game: n.Game, bag: DiagnosticBag) -> None:
-    """An unknown deck name is a diagnostic, never a raw registry raise from
-    inside category building (the suit registry derives from the runtime deck
-    table, which fails loudly for unknown names — correct at playout time,
-    wrong as a designer-facing check). The categories fall back to an empty
-    suit namespace so the rest of the file's diagnostics still collect."""
-    if not _deck_known(game.deck):
-        from cardlang.runtime.values import DECKS
+def _resolve_component_set(game: n.Game, bag: DiagnosticBag) -> None:
+    """An unknown or wrong-flavor component-set name is a diagnostic, never a
+    raw registry raise from inside category building (the suit registry
+    derives from the runtime deck table, which fails loudly for unknown
+    names — correct at playout time, wrong as a designer-facing check); the
+    categories fall back to an empty suit namespace so the rest of the
+    file's diagnostics still collect. The unknown-name message lists only
+    the sets of the CLAUSE'S flavor; a known name of the other flavor gets
+    the cross-flavor message instead."""
+    from cardlang.runtime.values import COMPONENT_SETS, DECKS, component_set
 
-        bag.error(
-            f"unknown deck '{game.deck}' — known decks: {', '.join(sorted(DECKS))}",
-            game.span,
-        )
+    cs = component_set(game.deck)
+    if cs is None:
+        if game.content_flavor == "card":
+            bag.error(
+                f"unknown deck '{game.deck}' — known decks: "
+                f"{', '.join(sorted(DECKS))}",
+                game.span,
+            )
+        else:
+            piece_sets = sorted(
+                name for name, c in COMPONENT_SETS.items() if c.flavor == "piece"
+            )
+            bag.error(
+                f"unknown piece set '{game.deck}' — known piece sets: "
+                f"{', '.join(piece_sets)}",
+                game.span,
+            )
+    elif cs.flavor != game.content_flavor:
+        if cs.flavor == "piece":
+            bag.error(
+                f"'{game.deck}' is a piece set — declare it with "
+                f"`pieces: {game.deck}`, not `cards:`",
+                game.span,
+            )
+        else:
+            bag.error(
+                f"'{game.deck}' is a card deck — declare it with "
+                f"`cards: {game.deck}`, not `pieces:`",
+                game.span,
+            )
 
 
 def _resolve_direction(game: n.Game, bag: DiagnosticBag) -> None:
@@ -1242,7 +1281,7 @@ def _expand_ranking(game: n.Game, bag: DiagnosticBag) -> n.Game:
     silently produce a partial or empty ranking, an accepted-but-ignored
     declaration. Rejected here, in deck-membership currency, with the
     offending ranks named. An unknown deck already got its diagnostic in
-    `_resolve_deck`; the convention is left unexpanded then (empty
+    `_resolve_component_set`; the convention is left unexpanded then (empty
     `ranking`), matching how the rest of resolve degrades without a deck."""
     if game.ranking_convention is None:
         return game

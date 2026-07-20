@@ -50,6 +50,9 @@ def emit(game: n.Game) -> IRDict:
         "name": game.name,
         "players": _players(game.players),
         "deck": game.deck,
+        # Keyed ONLY for piece games — the card-game IR predates the field
+        # and its goldens are byte-stable; an absent key means "card".
+        **({"content_flavor": game.content_flavor} if game.content_flavor != "card" else {}),
         "direction": game.direction,
         "max_length": game.max_length,
         "ranking": list(game.ranking),

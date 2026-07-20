@@ -28,6 +28,7 @@ game: "game" NAME "{" game_item* "}"
 ?game_item: players
           | direction
           | cards
+          | pieces
           | ranking
           | trump
           | partnerships
@@ -44,7 +45,12 @@ players_spec: INT ".." INT   -> players_range
             | INT            -> players_fixed
 
 direction: "direction" ":" NAME
+
+// Content clauses: each names a COMPONENT_SETS entry of its flavor (`cards:`
+// a card deck, `pieces:` a piece set). Exactly one per game — both/neither
+// are parse walls (parse.py `game()`); a cross-flavor name is a resolve wall.
 cards: "cards" ":" NAME
+pieces: "pieces" ":" NAME
 
 // A per-game bound on decision/loop iterations (docs/decisions.md, "Game
 // length as a declared contract"): the runtime's non-termination backstop

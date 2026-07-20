@@ -1,0 +1,10 @@
+// Wall: resolve.py's `_resolve_component_set`, the cross-flavor arm. The
+// name is KNOWN — it is a card deck — so the unknown-name list would be the
+// wrong diagnostic; the wall names the clause that selects it instead.
+game PiecesNamesADeck {
+  players: 2
+  pieces: standard52
+  max_length: 10
+  state { score[player] : Integer = 0 }
+  winner: highest score
+}

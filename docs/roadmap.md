@@ -241,6 +241,25 @@ Things we have noted but consciously not designed yet:
     (single-deal games never gather); sampled, stated explicitly in
     decisions.md rather than assumed.
 
+- **Piece-flavored games — clause only, semantics deferred.** `pieces:`
+  selects a piece-flavored component set from the registry behind `cards:`
+  (`cardlang/runtime/values.py`, `COMPONENT_SETS`), with the structural
+  walls in place: cards/pieces mutual exclusion, per-flavor unknown-name
+  lists, cross-flavor rejection, and the parse-stamped
+  `Game.content_flavor` (threaded into resolve's categories and the
+  `TypeEnv` as the dispatch key for the walls below). Everything downstream
+  of the clause is deliberately not flavor-aware yet (the board-topology
+  ladder's next rungs, [design-notes/board-topology.md](design-notes/board-topology.md)):
+  a piece game's vocabulary (xo_marks' x/o/mark) does not bind — resolve's
+  `_deck_known` answers False for piece flavor, so the card-specific paths
+  degrade exactly as for an unknown deck and any reference to a piece value
+  fails name classification loudly; consequently `ranking:` DECLARED in a
+  piece game is currently accepted unvalidated (an enumeration's entries go
+  unchecked against the set, a convention stays unexpanded) — the flavor
+  wall lands with the piece noun semantics; and the runtime driver still
+  reads the card-flavored `DECKS` view, so a piece game compiles to IR but
+  does not run. The ledger is tests/test_game_clause_walls.py.
+
 - **Doc-snippet fragment kinds with no cheap wrapping harness.**
   `tests/test_doc_snippets.py` pipeline-checks every `cardlang`/
   `cardlang-fragment` block in decisions.md/library.md/model.md, but a

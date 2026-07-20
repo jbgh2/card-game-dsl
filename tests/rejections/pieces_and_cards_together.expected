@@ -1,0 +1,1 @@
+pieces_and_cards_together.cardlang:8:3: error: a game declares `cards:` or `pieces:`, not both — no game has witnessed needing both

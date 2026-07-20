@@ -1,0 +1,1 @@
+duplicate_pieces_clause.cardlang:7:3: error: a game declares one `pieces:` — the repeat would silently replace the first; keep one

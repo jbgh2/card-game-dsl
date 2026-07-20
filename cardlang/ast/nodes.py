@@ -1013,8 +1013,13 @@ class Game:
 
     name: str
     players: PlayersSpec
+    # The selected component-set name, for both content flavors.
     deck: str
     zones: tuple[ZoneDecl, ...]
+    # Which clause selected `deck` — "card" (`cards:`) or "piece" (`pieces:`),
+    # stamped at parse; resolve walls a cross-flavor name, so post-resolve
+    # `component_set(deck).flavor == content_flavor`.
+    content_flavor: str = "card"
     direction: str | None = None
     ranking: tuple[str, ...] = ()
     # The convention keyword `ranking:` was written with (`"aces high"` etc.,

@@ -50,9 +50,11 @@ registry:   the directory itself. `test_every_cardlang_case_has_a_matching_expec
             `tests/openspiel_ready/test_coverage.py`): an orphan `.cardlang`
             with no golden, or a golden with no source, fails the harness
             rather than being silently skipped or silently stale.
-covered:    28 cases, each independently verified (by reading the produced
-            diagnostic while authoring it, not just observing a raise) to
-            fail for its stated reason: unknown library zone type,
+covered:    one case per named wall class (the directory glob is the
+            registry; the harness floor-pins a minimum corpus size), each
+            independently verified (by reading the produced diagnostic
+            while authoring it, not just observing a raise) to fail for its
+            stated reason: unknown library zone type,
             `active_rules:` naming an undefined rule, `transition_to:` a
             non-sibling phase, duplicate zone declaration (shadowing),
             wrong argument type at a `run` call site, a non-Boolean `if`
@@ -76,8 +78,14 @@ covered:    28 cases, each independently verified (by reading the produced
             once (the bag-plus-note rendering), a repeated single-valued
             game clause (`players:` seeds the class; the closed domain is
             swept by tests/test_game_clause_walls.py), a source with no
-            `game { }` block, a source with two, and an unknown
-            `direction:` value.
+            `game { }` block, a source with two, an unknown
+            `direction:` value, and the five misuse probes of the `pieces:`
+            content clause — `cards:` and `pieces:` declared together, a
+            repeated `pieces:`, an unknown `pieces:` name (listed against
+            the piece-flavored registry rows only), a `pieces:` name that
+            is a card deck, and a `cards:` name that is a piece set (the
+            fine-grained sweep is tests/test_game_clause_walls.py's
+            content-clause section).
 sampled:    the wall-class population itself — every diagnostic emission
             site across `cardlang/resolve.py`, `cardlang/typecheck.py`, and
             `cardlang/deckcheck.py` — is open and growing as the language
@@ -122,11 +130,10 @@ BLESS = os.environ.get("REJECTIONS_BLESS") == "1"
 def _render(exc: DiagnosticError) -> str:
     """The stable rendering: `cardlang/cli.py`'s own format, reused so the
     corpus pins exactly what `cardlang <file>` prints to a designer — the
-    primary diagnostic line, then one line per attached note. The 21 current
-    cases each raise a single diagnostic, so the notes branch mirrors
-    cli.py's behavior but is not itself exercised by this corpus; a future
-    case built from a multi-error stage (deckcheck/resolve/typecheck's
-    `bag.items[1:]` -> `add_note`) would cover it."""
+    primary diagnostic line, then one line per attached note. Most cases
+    raise a single diagnostic; the multi-error bag cases (e.g.
+    missing_players_and_cards, whose stage attaches the rest of the bag as
+    a note) exercise the notes branch."""
     lines = [exc.diagnostic.format()]
     notes: list[str] = list(getattr(exc, "__notes__", None) or [])
     lines.extend(notes)

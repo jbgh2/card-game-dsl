@@ -1,0 +1,1 @@
+cards_names_a_piece_set.cardlang:4:1: error: 'xo_marks' is a piece set — declare it with `pieces: xo_marks`, not `cards:`

@@ -238,6 +238,9 @@ class TypeEnv:
     # Declared position-domain names (decisions.md "Position domains and
     # positional zones") — a parameter typed by one binds as Integer.
     positions: frozenset[str] = frozenset()
+    # `Game.content_flavor` — the dispatch key for the flavor-aware walls
+    # (roadmap.md, "Piece-flavored games").
+    flavor: str = "card"
 
     def with_local(self, name: str, t: Type) -> "TypeEnv":
         return replace(self, locals={**self.locals, name: t})
@@ -474,6 +477,7 @@ def env_from_game(game: Game) -> TypeEnv:
         structs=structs,
         has_ranking=bool(game.ranking),
         positions=positions,
+        flavor=game.content_flavor,
     )
 
 

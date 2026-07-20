@@ -24,8 +24,8 @@ Covered: unknown entry (standard52, and a non-French deck — coup15), a
 repeated entry, and acceptance of a real corpus ranking (hearts')
 per-deck-shape sample plus every full-permutation ranking in
 `docs/games/*.cardlang` (swept below). An unknown deck name is a no-op here
-(`_resolve_deck` reports it separately; `_resolve_ranking` returns early
-rather than raising from `deck_ranks` on a name it cannot look up). An
+(`_resolve_component_set` reports it separately; `_resolve_ranking` returns
+early rather than raising from `deck_ranks` on a name it cannot look up). An
 undeclared (empty) `ranking:` is likewise a no-op — nothing to validate.
 
 Sampled: not every one of the 8 decks in `DECKS` gets its own dedicated
@@ -111,8 +111,8 @@ def test_duplicate_rank_entry_rejected() -> None:
 
 
 def test_unknown_deck_does_not_crash_the_ranking_check() -> None:
-    # `_resolve_deck` reports the unknown deck; `_resolve_ranking` must not
-    # ALSO raise a raw exception from `deck_ranks` on a name it can't resolve.
+    # `_resolve_component_set` reports the unknown deck; `_resolve_ranking`
+    # must not ALSO raise raw from `deck_ranks` on a name it can't resolve.
     _rejects(_game("A K Q", deck="nope99"), "unknown deck 'nope99'")
 
 
