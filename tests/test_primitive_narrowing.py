@@ -31,7 +31,10 @@ covered:    (a) per-primitive: the implementation's signature names no
             (c) `EngineFacts`: every field populated from a NAMED engine
             expression, each pinned against a live `RuntimeState`, with
             the two round-state views proven distinct (collapsing them is
-            a behavior change, not a refactor);
+            a behavior change, not a refactor); and every field pinned to
+            a real CONSUMER in a game module — value-correctness and
+            non-speculativeness are separate properties, and only the
+            second stops the bundle growing;
             (d) `GameReads`: the bundle carries exactly the module's
             declared row and nothing else — an undeclared name is absent,
             not merely unfetched;
@@ -52,14 +55,22 @@ residual:   (1) the three auction outcomes (`bridge_`/`pinochle_`/
             (2A): a primitive receives the facts bundle whole rather than
             the per-primitive `reads` clause of the design note's §2. The
             narrowing that remains is stage 3's, and until it lands a
-            primitive can read a fact it does not need. Wall: the field set
-            is closed and every field is consumed (c), so the bundle cannot
-            grow speculatively.
+            primitive can read a fact it does not need, and every call
+            materializes its module's whole row whether or not it reads
+            any of it. Wall: the field set is closed and every field is
+            pinned to a consumer (c), so the bundle cannot grow
+            speculatively; the per-call cost is recorded in
+            docs/roadmap.md, "Primitive sidecars".
 
 red under (born-green cells):
 - `combinations.py` passes (b) on arrival: it is the Tichu combination
   engine, already pure. Reddening mutation: annotate any of its functions
-  `ctx: Ctx` and its row of (b) fails. Demonstrated and reverted.
+  `ctx: Ctx` — `test_game_module_is_free_of_engine_handle[combinations.py
+  -Ctx]` fails. Run and reverted.
+- `test_every_engine_fact_has_a_consumer` passes on arrival (all seven
+  fields have readers). Reddening mutation: add a field to `EngineFacts`
+  — it fails on the field-set comparison; give it a `_FACT_CONSUMERS` row
+  with no real reader and it fails on the unread check. Run and reverted.
 """
 
 from __future__ import annotations
@@ -567,6 +578,56 @@ _FACT_SOURCES: dict[str, str] = {
     "last_round_state": "rs.last_round_state",
     "actor": "ctx.current_player",
 }
+
+
+# Each fact's spellings in a game module: the narrowed one, and the
+# pre-migration one it replaces. Both count, so this pin stays meaningful
+# THROUGHOUT the migration — a fact whose only consumers are not yet
+# narrowed is still a consumed fact, not a speculative field.
+_FACT_CONSUMERS: dict[str, tuple[str, ...]] = {
+    "seating": ("facts.seating", "ctx.rs.seating"),
+    "teams": ("facts.teams", "ctx.rs.teams"),
+    "team_of": ("facts.team_of", "ctx.rs.team_of"),
+    "rank_index": ("facts.rank_index", "ctx.rs.rank_index"),
+    "round_state": ("facts.round_state", "ctx.rs.mech_state"),
+    "last_round_state": ("facts.last_round_state", "ctx.rs.last_round_state"),
+    "actor": ("facts.actor", "ctx.current_player"),
+}
+
+
+@lru_cache(maxsize=None)
+def _game_module_sources() -> str:
+    return "\n".join(
+        (RUNTIME_DIR / m).read_text(encoding="utf-8") for m in _GAME_MODULES
+    )
+
+
+def test_every_engine_fact_has_a_consumer() -> None:
+    """`EngineFacts` cannot grow speculatively. A field nothing reads is
+    surface a primitive can see for no reason — and since stage 3 turns this
+    set into an information-flow declaration, an unread field is a claim that
+    primitives may observe something they never needed. Without this pin the
+    ledger's "every field is consumed" would be prose, not a guarantee:
+    adding a field to the dataclass, `_FACT_SOURCES` and the value matrix
+    would leave the suite entirely green."""
+    facts_cls = _sidecar().EngineFacts
+    fields = frozenset(facts_cls.__dataclass_fields__)
+    assert fields == frozenset(_FACT_CONSUMERS), (
+        f"EngineFacts fields {sorted(fields)} disagree with the consumer map "
+        f"{sorted(_FACT_CONSUMERS)} — a new field must name how a game module "
+        f"spells its read, or be removed"
+    )
+    src = _game_module_sources()
+    unread = sorted(
+        field
+        for field, spellings in _FACT_CONSUMERS.items()
+        if not any(s in src for s in spellings)
+    )
+    assert not unread, (
+        f"EngineFacts fields no game module reads: {unread}. Remove them, or "
+        f"if a field is genuinely needed by work not yet landed, record it as "
+        f"a named residual rather than carrying it silently."
+    )
 
 
 def _live_state() -> RuntimeState:
