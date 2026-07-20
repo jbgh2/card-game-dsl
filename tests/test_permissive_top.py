@@ -23,9 +23,10 @@ property:   a name/registry lookup whose domain is closed never degrades to
             `AssertionError` naming the wall or builder that guarantees it),
             so an incomplete environment surfaces as a crash at the miss
             rather than as a silently-passing type check.
-domain:     every `TAny()` construction site in `cardlang/` (37 at the time of
-            writing), partitioned into: lookup-miss producers (raise),
-            declared-type-name positions (walled at resolve), and audited top.
+domain:     every top-construction site in `cardlang/` (27 today, counted by
+            `_count_top_constructions` under any spelling of the type's name),
+            partitioned into: lookup-miss producers (raise), declared-type-name
+            positions (walled at resolve), and audited top.
 registry:   the five role sets (`domains.BY_ID` vs the parser's quantifier
             spellings, `_ITERATION_ROLES`, `SIMULTANEOUS_ROLES`,
             `ZONE_INDEX_ROLES`, `_KNOWN_ROLES`); `CALL_SIGS` vs
@@ -35,14 +36,21 @@ registry:   the five role sets (`domains.BY_ID` vs the parser's quantifier
 covered:    the registry-closure pins below (each proves the corresponding
             raise is unreachable for a well-formed program, so the raise is a
             wall over a closed domain rather than a live failure mode); the
-            raise-behaviour tests (each producer, exercised directly); the
-            three declared-type-name walls, as rendered-diagnostic goldens in
+            five `BY_ID` lookups, exercised directly as one class
+            (`test_every_by_id_lookup_raises_on_an_unknown_role`); the three
+            declared-type-name walls, as rendered-diagnostic goldens in
             tests/rejections/unknown_type_{function_param,move_param,
-            variant_payload}.cardlang.
-sampled:    the audited-top set is asserted by ENUMERATION here (the site list
-            is pinned, so a new `TAny()` producer fails this module until it
-            is classified), not by exercising each site's semantics — those
-            are covered by their own wall modules.
+            variant_payload}.cardlang; and the position x name-source grid in
+            tests/test_type_name_positions.py, which crosses all NINE
+            declaring positions against every source a name can come from.
+sampled:    the audited-top set is a COUNT per module, not an enumeration of
+            sites: a new construction fails this module until it is classified
+            in the ledger, but the count cannot say WHICH site moved, and a
+            change that adds one site while deleting another nets to zero.
+            Four raises — the zone-content and CALL_SIGS misses, the `run`-site
+            procedure `_env_miss`, and the non-settling fixpoint refusal — have
+            registry-closure pins but no direct behaviour test, because each is
+            reachable only by mutating the registry it guards.
 residual:   (1) MERGE-failure top: `unify` returning None in `IfExpr`/`ListLit`
             falls to `TAny` (`if c then 1 else hearts` types as the top and goes
             permissive). A distinct population from the lookup misses this
@@ -51,12 +59,14 @@ residual:   (1) MERGE-failure top: `unify` returning None in `IfExpr`/`ListLit`
             (2) `max`/`min` comprehensions type as the top though `_check_agg_body`
             already forces an Integer body — a precision loss, not a miss;
             recorded in roadmap.md alongside (1).
-            (3) `type_from_name`'s unknown-name fallback stays the top because
-            `struct_registry` builds structs in source order, so a FORWARD
-            struct reference reaches it with a VALID name (documented Stage-2
-            behaviour, exercised by `test_forward_struct_reference_is_top`).
-            The three positions that reached it with an INVALID name are now
-            walled at resolve.
+            (3) CLOSED. A forward struct reference no longer reaches
+            `type_from_name`'s fallback: declared field types resolve through
+            the same merged registry map as derived bodies, so declaration
+            ORDER no longer decides a field's type or which walls fire
+            (`test_a_forward_struct_reference_types_the_same_in_either_order`).
+            The positions that reached the fallback with an INVALID name are
+            walled at resolve, and a declared POSITION domain is admitted
+            rather than called unknown.
             (4) none for the struct/function registries. They are mutually
             dependent in both directions and at arbitrary depth, so
             `struct_and_function_registries` iterates them to a FIXPOINT
@@ -95,6 +105,7 @@ from __future__ import annotations
 
 import ast
 import inspect
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -153,6 +164,42 @@ def test_every_role_set_is_a_subset_of_the_domain_registry() -> None:
         ("_KNOWN_ROLES", getattr(resolve_mod, "_KNOWN_ROLES")),
     ):
         assert set(roles) <= set(BY_ID), f"{label} escapes the domain registry"
+
+
+def test_every_by_id_lookup_raises_on_an_unknown_role() -> None:
+    """The five `BY_ID` consumers answer a registry divergence the same way.
+
+    Each has the same contract — resolve has already walled the role, so a miss
+    is a compiler bug, not a program error — so each must fail in compiler
+    currency. `binds_actor` alone used to answer `False`, which is not an
+    absence but a CLAIM: "this is a value domain", i.e. run the loop without
+    rebinding the actor. A seat domain missing from the registry would have
+    iterated with the wrong actor rather than failing.
+
+    red under: restore `return row is not None and row.binds_actor` in
+    `cardlang.domains.binds_actor`.
+    """
+    ctx = object()
+    sources = domains.DomainSources(positions={}, suits=(), ranks=(), players=(), teams=())
+
+    class _Rs:
+        # `zone_observer_key` consults `position_domains` before the registry;
+        # an unknown role is not one, so the lookup below is what answers.
+        position_domains: dict[str, object] = {}
+
+    lookups: dict[str, Callable[[], object]] = {
+        "role_type": lambda: role_type("nonrole"),
+        "binds_actor": lambda: domains.binds_actor("nonrole"),
+        "role_members": lambda: domains.role_members("nonrole", ctx),  # type: ignore[arg-type]
+        "role_static_members": lambda: domains.role_static_members("nonrole", sources),
+        "zone_observer_key": lambda: domains.zone_observer_key(
+            "nonrole", _Rs(), 0  # type: ignore[arg-type]
+        ),
+    }
+    for label, call in lookups.items():
+        with pytest.raises(AssertionError, match="nonrole"):
+            call()
+        assert "nonrole" not in str(BY_ID), f"{label}: probe name leaked into the registry"
 
 
 def test_quantifier_role_spellings_are_still_hard_coded_in_the_parser() -> None:
@@ -711,15 +758,31 @@ def test_a_derived_field_reached_through_a_function_is_assignment_checked() -> N
     assert "cannot assign Boolean to 'score' (Integer)" in str(ei.value)
 
 
-def test_forward_struct_reference_is_top_not_a_wall() -> None:
-    """The one reachable `type_from_name` fallback that is legitimately the top:
-    `struct_registry` builds in source order, so a field typed by a LATER
-    struct resolves to the permissive top. Documented Stage-2 behaviour — this
-    pins it so the fallback is not "fixed" into a raise, which would reject a
-    valid program."""
-    check_dsl(
-        _game("type A = { b : B }\ntype B = { x : Integer }"), "g.cardlang"
-    )  # must not raise
+def test_a_forward_struct_reference_types_the_same_in_either_order() -> None:
+    """Declaration ORDER does not decide a field's type, or its walls.
+
+    `struct_registry` resolves declared field types through the same merged map
+    as derived bodies, so a container declared ABOVE its member types to that
+    member rather than to the permissive top. Resolved against a partial map,
+    the two orders would disagree: the forward order would accept an Integer
+    where a struct is expected, which is a silent wall outage for every field
+    typed by a later declaration — and it would falsify this section's
+    invariant that a name the wall admits is never one the builder still maps
+    to the top.
+
+    red under: in `struct_registry`, resolve declared field types against the
+    partial `structs` map instead of the merged `known`.
+    """
+    messages = []
+    for decls in (
+        "type A = { b : B }\ntype B = { x : Integer }",
+        "type B = { x : Integer }\ntype A = { b : B }",
+    ):
+        with pytest.raises(DiagnosticError) as excinfo:
+            check_dsl(_game(f"{decls}\nfunction f() = A {{ b: 3 }}"), "g.cardlang")
+        messages.append(str(excinfo.value).split("error:", 1)[1].strip())
+    assert "expects B, got Integer" in messages[0]
+    assert messages[0] == messages[1]
 
 
 # =============================================================================
@@ -732,7 +795,7 @@ def test_forward_struct_reference_is_top_not_a_wall() -> None:
 # surviving site, so a count change can be checked against an argument rather
 # than just re-blessed:
 #
-# typecheck.py (13)
+# typecheck.py (14)
 #   legitimate top (no better type exists) — 5:
 #     `type_from_name`'s unknown name (a FORWARD struct reference, ledger
 #     residual 3); pronoun member access (deferred shape); a non-`actor`
@@ -765,22 +828,66 @@ AUDITED_TOP_SITES: dict[str, int] = {
 }
 
 
+def _top_aliases(tree: ast.Module) -> set[str]:
+    """Every local name in this module that denotes the top type.
+
+    A count keyed on the literal spelling `TAny` is defeated by one import
+    line (`from cardlang.types import TAny as _Top`), so the alias set is
+    derived from the module's own imports and assignments rather than assumed.
+    """
+    aliases = {"TAny"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            aliases |= {a.asname or a.name for a in node.names if a.name == "TAny"}
+        elif isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and (
+                    (isinstance(node.value, ast.Name) and node.value.id in aliases)
+                    or (
+                        isinstance(node.value, ast.Attribute)
+                        and node.value.attr == "TAny"
+                    )
+                ):
+                    aliases.add(target.id)
+    return aliases
+
+
 def _count_top_constructions(path: Path) -> int:
+    """Sites in one module that construct — or defer constructing — the top.
+
+    Counts every CALL form: `TAny()`, an aliased `_Top()`, and the qualified
+    `types.TAny()`. What it cannot see: a top obtained without calling the
+    type — `field(default_factory=TAny)`, or returning an existing top-valued
+    object. Those are covered by the behavioural raise tests above, not here.
+    """
     tree = ast.parse(path.read_text())
+    aliases = _top_aliases(tree)
+
+    def denotes_top(node: ast.expr) -> bool:
+        return (isinstance(node, ast.Name) and node.id in aliases) or (
+            isinstance(node, ast.Attribute) and node.attr == "TAny"
+        )
+
     return sum(
-        1
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "TAny"
+        1 for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and denotes_top(node.func)
     )
 
 
 def test_the_permissive_top_surface_is_pinned() -> None:
-    """`TAny()` may only be constructed at audited sites. This is the
-    vacuously-green guard for the whole module: without it, a future lookup
-    miss could quietly reintroduce a permissive fallback and every test above
-    would still pass."""
+    """The top may only be constructed at audited sites.
+
+    A tripwire over the whole package, not a proof: it catches a new
+    construction site under any spelling of the type's name — including an
+    aliased import, which defeated an earlier version of this counter — but it
+    cannot see a fallback that never names the type. The guarantee that a
+    lookup MISS raises rather than falling back is behavioural and lives in the
+    raise tests above; this pin's job is to force a new construction site to be
+    classified in the ledger rather than added quietly.
+
+    red under: add `TAny()` anywhere in `cardlang/` (or an aliased `_Top()`,
+    which an earlier spelling-keyed version of this counter missed).
+    """
     found = {
         str(p.relative_to(CARDLANG_ROOT)): _count_top_constructions(p)
         for p in sorted(CARDLANG_ROOT.rglob("*.py"))

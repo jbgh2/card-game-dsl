@@ -190,24 +190,25 @@ def struct_registry(
     # harmless: struct types compare NOMINALLY (`types.assignable`/`unify`), so
     # the seed `R` and the final `R` are the same type to every consumer.
     #
-    # Declared FIELD types deliberately keep the partial map: a field typed by
-    # a later struct resolving to the top is documented Stage-2 behaviour
-    # (pinned by tests/test_permissive_top.py) and is a separate question from
-    # what a body may NAME.
     ambient = base if base is not None else TypeEnv()
     seed = _provisional_structs(game)
     for tdef in game.types:
+        # Precedence, weakest first: every declared type by name (so a self- or
+        # forward-reference resolves at all), the previous fixpoint round's
+        # registry (more precise), then the types already completed in THIS
+        # round (most precise). Declared field types read the SAME map as
+        # derived bodies: resolving them against the partial map would let
+        # declaration ORDER decide a field's type, so a container declared
+        # above its member typed to the permissive top and every wall on that
+        # field went dark.
+        known = {**seed, **ambient.structs, **structs}
         fields: dict[str, Type] = {}
         for f in tdef.fields:
-            fields[f.name] = type_from_name(f.type_name, f.optional, structs)
+            fields[f.name] = type_from_name(f.type_name, f.optional, known)
         field_env = replace(
             ambient,
             locals={**ambient.locals, **fields},
-            # Precedence, weakest first: every declared type by name (so a
-            # self- or forward-reference resolves at all), the previous
-            # fixpoint round's registry (more precise), then the types already
-            # completed in THIS round (most precise).
-            structs={**seed, **ambient.structs, **structs},
+            structs=known,
             functions=functions or {},
         )
         for d in tdef.derived:

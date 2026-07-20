@@ -272,9 +272,23 @@ def role_type(role: str) -> Type:
 def binds_actor(role: str) -> bool:
     """Whether binding a member of this domain also rebinds the acting player —
     true for a seat domain, false for a value domain. The one place `for each`'s
-    seat/value asymmetry is decided."""
+    seat/value asymmetry is decided.
+
+    An unknown role raises, matching `role_type` / `role_members` /
+    `role_static_members` / `zone_observer_key` in this module: resolve has
+    already walled the role against a subset of `BY_ID`, so a miss here is a
+    registry divergence rather than a program error. Returning `False` would
+    answer "this is a value domain" — a silent wrong answer that runs the loop
+    without rebinding the actor, where the four siblings would have raised.
+    """
     row = BY_ID.get(role)
-    return row is not None and row.binds_actor
+    if row is None:
+        raise AssertionError(
+            f"'{role}' is not an iteration role (resolve rejects these) — a new "
+            f"role must declare its seat/value asymmetry here rather than "
+            f"defaulting to a value domain"
+        )
+    return row.binds_actor
 
 
 def role_members(role: str, ctx: "Ctx") -> list[Any]:
