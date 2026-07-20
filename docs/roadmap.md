@@ -262,9 +262,11 @@ Things we have noted but consciously not designed yet:
   ([design-notes/board-topology.md](design-notes/board-topology.md)), and NOT
   yet flavor-walled: (a) a card-content TYPE annotation (`Suit`/`Rank`/
   `Card`) on a state var, struct field, function parameter, or variant case
-  is accepted at the declaration in a piece game, but no piece value can
-  inhabit it (a card value never resolves in a piece namespace), so it
-  degrades loudly at every use rather than silently taking effect; (b) the
+  is silently accepted at the declaration in BOTH flavors — declarations are
+  never checked against their initializers, a pre-existing flavor-independent
+  gap, not a piece-specific acceptance; in a piece game every USE of such a
+  value fails loud (a card value never resolves in a piece namespace), so
+  nothing silently takes card meaning; (b) the
   trick-taking and rule-obligation machinery — a per-round `round ... trump`,
   the `climb`/`combinations`/`follows` forms, `demands:`/`exempts:`/`actions
   where` card predicates, an outcome-function name, and a suit argument to a

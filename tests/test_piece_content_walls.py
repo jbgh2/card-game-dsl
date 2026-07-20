@@ -54,7 +54,13 @@ covered:    the parametrizations below, each over its registry --
             test_aggregation_*, test_ranking_*, test_trump_*, test_card_literal_*,
             test_reveal_*), the axis-value positives (test_axis_value_*), the
             deck-only totality pins (subset + total partition), and the
-            end-to-end positive (test_minimal_piece_game_runs_one_playout).
+            end-to-end positive (test_minimal_piece_game_runs_one_playout):
+            a driver playout whose GameResult pins the EXACT scores {0: 5,
+            1: 0} -- 5 is the count of pieces the `piece.side is x` filter
+            selected through the axis map, so the flavor binder, the
+            side->suit translation, and the component_deck driver reads are
+            observed, not assumed (red under the side->rank map swap, which
+            scores {0: 0, 1: 0}).
 sampled:    the field wall is a type-layer wall (`_check_expr`'s `Member` arm),
             so it fires in every predicate context where an item is bound, not
             only the movement filter that seeds most cells here -- sampled by
@@ -78,9 +84,11 @@ residual:   card-content vocabulary reachable ONLY through the trick-taking and
             name-resolution / deck-only-call walls rather than silently taking
             card meaning. Likewise a card-content TYPE annotation (`Suit`/
             `Rank`/`Card`) on a state var, struct field, function parameter, or
-            variant case is not rejected AT the declaration in a piece game, but
-            cannot be inhabited by any piece value (no card value resolves in a
-            piece namespace), so it too degrades loudly at every use; a struct
+            variant case is silently accepted AT the declaration in BOTH
+            flavors -- declarations are never checked against their
+            initializers, a pre-existing flavor-independent gap, not a
+            piece-specific acceptance -- and in a piece game every USE fails
+            loud (no card value resolves in a piece namespace); a struct
             DERIVED field reading an item field (`some_card.side`) is a sub-case
             -- `struct_registry` types it against the default `CARD_FIELDS`
             (its inference env carries no game flavor), reached in a piece game
@@ -511,6 +519,21 @@ def test_pronoun_rooted_field_access() -> None:
 
 
 def test_minimal_piece_game_runs_one_playout() -> None:
-    game = check_dsl(piece_game(), "piece.cardlang")
+    """The one runtime cell: the setup movement filters the box through the
+    `piece` binder (`piece.side is x` -> Card.suit via the axis map), then the
+    body drains reserve[0] counting one point per piece actually moved --
+    score[0] IS the number of x-pieces the filter selected, observable in
+    GameResult. xo_marks holds five ("mark","x") pieces, so anything but a
+    correct axis map + binder yields a different number: red under
+    axis_attributes swapped (side->rank) -- the filter then reads the kind
+    axis, matches nothing, and scores {0: 0, 1: 0}."""
+    body = (
+        "    repeat until reserve[0] is empty {\n"
+        "      move one piece from reserve[0] to box\n"
+        "      score[0] += 1\n"
+        "    }\n"
+    )
+    game = check_dsl(piece_game(body=body), "piece.cardlang")
     result = play_game(game, random.Random(0))
-    assert result.winner is not None
+    assert result.scores == {0: 5, 1: 0}
+    assert result.winner == 0

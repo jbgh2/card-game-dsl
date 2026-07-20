@@ -45,7 +45,6 @@ from dataclasses import dataclass, fields, is_dataclass, replace
 from typing import Callable, Iterator, assert_never, cast, get_args
 
 from cardlang.ast import nodes as n
-from cardlang.ast.nodes import Flavor
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
 from cardlang.domains import CARD_AXIS_ROLES, CARD_PARAM_DOMAINS
 from cardlang.domains import ITERABLE_ROLES as _ITERATION_ROLES
@@ -66,6 +65,7 @@ from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
 from cardlang.stdlib.rules import library_rules
 from cardlang.stdlib.values import DIRECTION_VALUES, deck_ranks, deck_suits, enum_values
 from cardlang.typecheck import KNOWN_TYPE_NAMES
+from cardlang.types import Flavor
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES, ZONE_PROJECTIONS
 
 # Roles a zone may be indexed by or owned by — the `zone_key_of` column of the

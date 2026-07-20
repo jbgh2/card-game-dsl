@@ -40,7 +40,7 @@ from enum import Enum
 from typing import Iterator, Mapping, assert_never
 
 from cardlang.ast import nodes as n
-from cardlang.ast.nodes import Flavor, Game
+from cardlang.ast.nodes import Game
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError
 from cardlang.domains import role_type as _role_type
 from cardlang.runtime.values import component_set, content_kind_clause, content_noun
@@ -48,6 +48,7 @@ from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
 from cardlang.stdlib.signatures import CALL_SIGS, ZONE_CONTENT, Sig
 from cardlang.stdlib.values import DIRECTION_VALUES, deck_ranks, deck_suits
 from cardlang.types import (
+    Flavor,
     TAny,
     TBoolean,
     TCard,

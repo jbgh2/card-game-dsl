@@ -17,7 +17,14 @@ declarations; tagged-union / phase outcomes) but are not yet constructed.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping, TypeAlias
+from typing import Literal, Mapping, TypeAlias
+
+# The two content flavors a game declares (`cards:` vs `pieces:`) -- the value
+# of `Game.content_flavor` and `ComponentSet.flavor`, and the dispatch key for
+# the flavor-aware walls. Not a `Type` (it types no expression); it lives in
+# this leaf module so the AST, the resolver, the checker, and the runtime
+# registry all import it without any of them importing each other.
+Flavor: TypeAlias = Literal["card", "piece"]
 
 
 @dataclass(frozen=True, slots=True)

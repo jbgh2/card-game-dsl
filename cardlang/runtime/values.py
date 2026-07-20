@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from cardlang.ast.nodes import Flavor
+from cardlang.types import Flavor
 
 # Suits shared by the French-suited decks. Rank ordering is no longer a global:
 # it is read per game from the `ranking:` declaration (see runtime.state /

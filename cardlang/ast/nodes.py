@@ -14,14 +14,10 @@ construct at a time as more of the corpus is formalized.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, TypeAlias
+from typing import TypeAlias
 
 from cardlang.diagnostics import Span
-
-# The two content flavors a game declares (`cards:` vs `pieces:`) -- the value
-# of `Game.content_flavor` and, downstream, `ComponentSet.flavor`. Defined at
-# the AST layer, the field's home, and imported by the runtime registry.
-Flavor: TypeAlias = Literal["card", "piece"]
+from cardlang.types import Flavor
 
 # ---------------------------------------------------------------------------
 # Expressions
