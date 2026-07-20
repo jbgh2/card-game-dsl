@@ -29,10 +29,10 @@ BELOW it; the ordinal and the value never share a scale.
 from __future__ import annotations
 
 from cardlang.runtime import reads
-from cardlang.runtime.state import Ctx
+from cardlang.runtime.sidecar import EngineFacts, TraceEvent
 from cardlang.runtime.values import Card, Player
 
-_R = reads.row("cardlang/runtime/five_hundred.py", "five-hundred.cardlang")
+ROW = reads.row("cardlang/runtime/five_hundred.py", "five-hundred.cardlang")
 
 # In-suit strength, aces high (the joker and the bowers are handled above
 # this table; there is no 3 or 2 in the 43-card pack).
@@ -104,12 +104,12 @@ def five_hundred_bid_level(rank: int) -> int:
     return 6 + (rank // 10 - 1) // 5
 
 
-def _contract(ctx: Ctx) -> tuple[str | None, bool]:
+def _contract(gr: reads.GameReads) -> tuple[str | None, bool]:
     """(trump_suit, misère?) read from phase state. A misère contract is
     always no-trump; `trump_suit is None` alone means plain no-trumps."""
-    trump = reads.state(ctx.rs, _R, "trump_suit")
-    misere = bool(reads.state(ctx.rs, _R, "is_misere")) or bool(
-        reads.state(ctx.rs, _R, "is_open_misere")
+    trump = gr.state["trump_suit"]
+    misere = bool(gr.state["is_misere"]) or bool(
+        gr.state["is_open_misere"]
     )
     return trump, misere
 
@@ -146,13 +146,11 @@ def _follow_class(c: Card, trump: str | None, joker_suit: str | None) -> str:
     return c.suit
 
 
-def _pool(ctx: Ctx, p: Player) -> list[Card]:
+def _pool(gr: reads.GameReads, p: Player) -> list[Card]:
     """The cards `p` plays from: the hand, or — after an open misère
     exposure — the face-up `exposed` zone (exactly one is non-empty during
     play)."""
-    return list(reads.instance(ctx.rs, _R, "hand", p).cards) + list(
-        reads.instance(ctx.rs, _R, "exposed", p).cards
-    )
+    return list(gr.families["hand"][p]) + list(gr.families["exposed"][p])
 
 
 def follow_ok(
@@ -215,23 +213,29 @@ def trick_winner(
     )[0]
 
 
-def five_hundred_follow_ok(ctx: Ctx, p: Player, c: Card) -> bool:
+def five_hundred_follow_ok(
+    facts: EngineFacts, gr: reads.GameReads, p: Player, c: Card
+) -> bool:
     """`follow_ok` over live state: the led card is `trick_pile[0]`, the
     holder's pool his hand (or his exposed lay-down in an open misère)."""
-    trump, misere = _contract(ctx)
-    joker_suit = reads.state(ctx.rs, _R, "joker_suit")
-    led = reads.single(ctx.rs, _R, "trick_pile").cards[0]
-    return follow_ok(_pool(ctx, p), led, c, trump, misere, joker_suit)
+    trump, misere = _contract(gr)
+    joker_suit = gr.state["joker_suit"]
+    led = gr.singles["trick_pile"][0]
+    return follow_ok(_pool(gr, p), led, c, trump, misere, joker_suit)
 
 
-def five_hundred_lead_ok(ctx: Ctx, p: Player, c: Card) -> bool:
+def five_hundred_lead_ok(
+    facts: EngineFacts, gr: reads.GameReads, p: Player, c: Card
+) -> bool:
     """`lead_ok` over live state."""
-    trump, _ = _contract(ctx)
-    joker_suit = reads.state(ctx.rs, _R, "joker_suit")
-    return lead_ok(_pool(ctx, p), c, trump, joker_suit)
+    trump, _ = _contract(gr)
+    joker_suit = gr.state["joker_suit"]
+    return lead_ok(_pool(gr, p), c, trump, joker_suit)
 
 
-def five_hundred_trick_winner(ctx: Ctx, leader: Player) -> Player:
+def five_hundred_trick_winner(
+    facts: EngineFacts, gr: reads.GameReads, leader: Player
+) -> tuple[Player, tuple[TraceEvent, ...]]:
     """The completed trick's winner (`trick_pile` holds the cards in seat
     order from the leader — three cards in a misère contract, where the
     declarer's partner sits out, else four): the highest trump if any was
@@ -240,13 +244,13 @@ def five_hundred_trick_winner(ctx: Ctx, leader: Player) -> Player:
     trick it is played to, and a nominated joker is simply the highest card
     of its suit. Emits the play/trick_end/trick traces the playout harness
     recomputes winners from."""
-    trump, misere = _contract(ctx)
-    joker_suit = reads.state(ctx.rs, _R, "joker_suit")
-    cards = reads.single(ctx.rs, _R, "trick_pile").cards
-    order = ctx.rs.seating.turn_order_from(leader)
+    trump, misere = _contract(gr)
+    joker_suit = gr.state["joker_suit"]
+    cards = gr.singles["trick_pile"]
+    order = facts.seating.turn_order_from(leader)
     if misere:
-        declarer = reads.state(ctx.rs, _R, "declarer")
-        dead = ctx.rs.seating.offset_by(declarer, "across")
+        declarer = gr.state["declarer"]
+        dead = facts.seating.offset_by(declarer, "across")
         order = [q for q in order if q != dead]
     if len(cards) != len(order):
         # The pile's live size is the hosting game's runtime data, so a wrong
@@ -256,12 +260,10 @@ def five_hundred_trick_winner(ctx: Ctx, leader: Player) -> Player:
             f"expected a completed {len(order)}-card trick"
         )
     played = list(zip(order, cards))
-    for q, c in played:
-        ctx.trace("play", (q, c))
+    events: list[TraceEvent] = [("play", (q, c)) for q, c in played]
     winner = trick_winner(played, trump, joker_suit)
-    ctx.trace(
-        "trick_end",
-        {"trump": trump, "misere": misere, "joker_suit": joker_suit},
+    events.append(
+        ("trick_end", {"trump": trump, "misere": misere, "joker_suit": joker_suit})
     )
-    ctx.trace("trick", (winner, list(cards)))
-    return winner
+    events.append(("trick", (winner, list(cards))))
+    return winner, tuple(events)

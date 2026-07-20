@@ -18,10 +18,10 @@ recomputes winners from (tests/test_playout_doppelkopf.py).
 from __future__ import annotations
 
 from cardlang.runtime import reads
-from cardlang.runtime.state import Ctx
+from cardlang.runtime.sidecar import EngineFacts, TraceEvent
 from cardlang.runtime.values import Card, Player
 
-_R = reads.row("cardlang/runtime/doko.py", "doppelkopf.cardlang")
+ROW = reads.row("cardlang/runtime/doko.py", "doppelkopf.cardlang")
 
 # Plain-suit order (queens and jacks are never plain; the hearts 10 is a
 # trump, so plain hearts run A K 9 — the rank map covers the union).
@@ -50,13 +50,15 @@ def _trump_strength(c: Card) -> int:
     return _DIAMOND_RANK[c.rank]
 
 
-def doko_trick_winner(ctx: Ctx, leader: Player) -> Player:
+def doko_trick_winner(
+    facts: EngineFacts, gr: reads.GameReads, leader: Player
+) -> tuple[Player, tuple[TraceEvent, ...]]:
     """The completed four-card trick's winner (`trick_pile` holds the cards
     in seat order from the leader): the strongest trump if any was played,
     else the strongest card of the led suit — strictly-greater comparison,
     so of two identical cards the first played wins (the double-pack rule).
     """
-    cards = reads.single(ctx.rs, _R, "trick_pile").cards
+    cards = gr.singles["trick_pile"]
     if len(cards) != 4:
         # The pile's live size is the hosting game's runtime data, so a wrong
         # call site is the description's error, in the runtime's currency.
@@ -68,9 +70,8 @@ def doko_trick_winner(ctx: Ctx, leader: Player) -> Player:
     # direction) with the same step its play loop uses (`offset_by left`,
     # clockwise here). A game combining counterclockwise seating with
     # offset_by-left play order would silently mislabel the pairs.
-    played = list(zip(ctx.rs.seating.turn_order_from(leader), cards))
-    for q, c in played:
-        ctx.trace("play", (q, c))
+    played = list(zip(facts.seating.turn_order_from(leader), cards))
+    events: list[TraceEvent] = [("play", (q, c)) for q, c in played]
     trumps = [(p, c) for p, c in played if _is_trump(c)]
     if trumps:
         best = trumps[0]
@@ -84,5 +85,5 @@ def doko_trick_winner(ctx: Ctx, leader: Player) -> Player:
         for p, c in of_led[1:]:
             if _PLAIN_RANK[c.rank] > _PLAIN_RANK[best[1].rank]:
                 best = (p, c)
-    ctx.trace("trick", (best[0], list(cards)))
-    return best[0]
+    events.append(("trick", (best[0], list(cards))))
+    return best[0], tuple(events)

@@ -130,21 +130,25 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
 
             return skat_next_bid(args[0])
         case "skat_follow_ok":
-            from cardlang.runtime.skat import skat_follow_ok
+            from cardlang.runtime.skat import ROW, skat_follow_ok
 
-            return skat_follow_ok(ctx, args[0], args[1])
+            return skat_follow_ok(*_bind(ctx, ROW), args[0], args[1])
         case "skat_trick_winner":
-            from cardlang.runtime.skat import skat_trick_winner
+            from cardlang.runtime.skat import ROW, skat_trick_winner
 
-            return skat_trick_winner(ctx, args[0])
+            winner, events = skat_trick_winner(*_bind(ctx, ROW), args[0])
+            _emit(ctx, events)
+            return winner
         case "doko_trick_winner":
-            from cardlang.runtime.doko import doko_trick_winner
+            from cardlang.runtime.doko import ROW, doko_trick_winner
 
-            return doko_trick_winner(ctx, args[0])
+            winner, events = doko_trick_winner(*_bind(ctx, ROW), args[0])
+            _emit(ctx, events)
+            return winner
         case "skat_matadors":
-            from cardlang.runtime.skat import skat_matadors
+            from cardlang.runtime.skat import ROW, skat_matadors
 
-            return skat_matadors(ctx, args[0])
+            return skat_matadors(*_bind(ctx, ROW), args[0])
         case "skat_effective_loss":
             from cardlang.runtime.skat import skat_effective_loss
 
@@ -302,17 +306,19 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
 
             return five_hundred_bid_level(args[0])
         case "five_hundred_follow_ok":
-            from cardlang.runtime.five_hundred import five_hundred_follow_ok
+            from cardlang.runtime.five_hundred import ROW, five_hundred_follow_ok
 
-            return five_hundred_follow_ok(ctx, args[0], args[1])
+            return five_hundred_follow_ok(*_bind(ctx, ROW), args[0], args[1])
         case "five_hundred_lead_ok":
-            from cardlang.runtime.five_hundred import five_hundred_lead_ok
+            from cardlang.runtime.five_hundred import ROW, five_hundred_lead_ok
 
-            return five_hundred_lead_ok(ctx, args[0], args[1])
+            return five_hundred_lead_ok(*_bind(ctx, ROW), args[0], args[1])
         case "five_hundred_trick_winner":
-            from cardlang.runtime.five_hundred import five_hundred_trick_winner
+            from cardlang.runtime.five_hundred import ROW, five_hundred_trick_winner
 
-            return five_hundred_trick_winner(ctx, args[0])
+            winner, events = five_hundred_trick_winner(*_bind(ctx, ROW), args[0])
+            _emit(ctx, events)
+            return winner
         case "belote_trump_height":
             from cardlang.runtime.belote import belote_trump_height
 
