@@ -280,8 +280,8 @@ Things we have noted but consciously not designed yet:
   (`cardlang/stdlib/zones.py`) is a total registry column over
   `LIBRARY_ZONE_TYPES`: `Cell` is capacity 1, every other library zone type
   is unbounded, enforced as a runtime wall in the movement executor. The
-  `Point` row (an unbounded-height stack, backgammon's witness) is not
-  added until board-topology stage 3
+  `Point` row (an unbounded-height stack) waits on its witness —
+  backgammon, the board-topology ladder's chance rung
   ([design-notes/board-topology.md](design-notes/board-topology.md)).
 
 - **Doc-snippet fragment kinds with no cheap wrapping harness.**
