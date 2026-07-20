@@ -74,14 +74,18 @@ Completeness ledger
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from importlib import resources
 
 import pytest
 
+from cardlang import typecheck
+from cardlang.ast import nodes as n
 from cardlang.domains import PARAM_DOMAINS
 from cardlang.pipeline import check_dsl
 from cardlang.resolve import _PROCEDURE_PARAM_DOMAINS
-from cardlang.typecheck import KNOWN_TYPE_NAMES
+from cardlang.types import TInteger, TOptional, TStruct, Type
+from cardlang.typecheck import KNOWN_TYPE_NAMES, TypeEnv
 
 
 class CellMismatch(AssertionError):
@@ -245,6 +249,50 @@ def test_the_type_name_grid(cell: tuple[str, str]) -> None:
             f"{position} must not admit {name!r} — no registry backing it, so "
             f"admitting it maps the name to the permissive top"
         )
+
+
+def test_an_admitted_name_never_resolves_to_the_permissive_top() -> None:
+    """Admission is half the property; the RESULTING TYPE is the other half.
+
+    A gate that admits a name whose builder maps it to the top is worse than a
+    gate that rejects it: the name is accepted and every wall below it goes
+    off. The grid above tests the verdict, so it cannot see this — a review
+    found exactly that hole here, where position domains were admitted at the
+    payload positions while `_payload_type` still resolved them to the top.
+
+    Every resolver that turns a declared name into a type is checked, so a new
+    one arrives as a missing row rather than as a silent leak.
+
+    red under: drop the `positions` argument from any of the three calls below.
+    """
+    positions = frozenset({POSITION_DOMAIN})
+    env = TypeEnv(positions=positions)
+    structs: dict[str, TStruct] = {}
+    resolvers: dict[str, Callable[[], Type]] = {
+        "type_from_name": lambda: typecheck.type_from_name(
+            POSITION_DOMAIN, False, structs, positions
+        ),
+        "_payload_type": lambda: typecheck._payload_type(
+            POSITION_DOMAIN, structs, positions
+        ),
+        "_param_type": lambda: typecheck._param_type(
+            n.MoveParam(name="x", type_name=POSITION_DOMAIN, span=None), env
+        ),
+    }
+    for label, resolve_it in resolvers.items():
+        assert resolve_it() == TInteger(), (
+            f"{label} maps an admitted position domain to "
+            f"{resolve_it()!r} — resolve admits the name, so this is a "
+            f"permissive-top leak, not a rejection"
+        )
+    # ...and the optional spelling keeps its optionality rather than flattening.
+    optional = typecheck._param_type(
+        n.MoveParam(name="x", type_name=f"{POSITION_DOMAIN}?", span=None), env
+    )
+    assert optional == TOptional(TInteger()), (
+        f"an optional position domain flattened to {optional!r}, so a body "
+        f"would treat a nullable parameter as definitely present"
+    )
 
 
 def test_the_position_axis_is_the_grammar_s() -> None:

@@ -37,7 +37,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from enum import Enum
-from typing import Iterator, Mapping, assert_never
+from typing import AbstractSet, Iterator, Mapping, assert_never
 
 from cardlang.ast import nodes as n
 from cardlang.ast.nodes import Game
@@ -112,16 +112,28 @@ RANKING_GATED_FUNCS: frozenset[str] = frozenset({"rank_value"})
 
 
 def type_from_name(
-    name: str, optional: bool, structs: Mapping[str, TStruct] | None = None
+    name: str,
+    optional: bool,
+    structs: Mapping[str, TStruct] | None = None,
+    positions: AbstractSet[str] | None = None,
 ) -> Type:
     """Map a declared type name (a `StateDecl` `type_name`) to a `Type`.
 
     User-defined struct names resolve to their `TStruct` (via the ``structs``
-    registry); names unknown to scalars, enums, and the registry resolve to the
-    permissive `TAny`. ``optional`` wraps the result in `TOptional`.
+    registry); a declared POSITION domain resolves to the integer member of its
+    range (via ``positions``); names unknown to scalars, enums, and both
+    registries resolve to the permissive `TAny`. ``optional`` wraps the result
+    in `TOptional`.
+
+    Every position that admits a position domain passes ``positions`` here
+    rather than branching on it locally: the rule belongs to name resolution,
+    and a caller that resolved the name without it would admit `slot` at
+    resolve and then map it to the top — the leak this module walls.
     """
     base: Type
-    if name in _SCALAR_TYPES:
+    if positions is not None and name in positions:
+        base = TInteger()
+    elif name in _SCALAR_TYPES:
         base = _SCALAR_TYPES[name]()
     elif name in _ENUM_TYPES:
         base = TEnum(name)
@@ -353,33 +365,50 @@ def struct_and_function_registries(
     return structs, _function_sigs(game, env, bag)
 
 
-def _payload_type(name: str, structs: Mapping[str, TStruct]) -> "Type":
-    """Resolve a variant payload type name; a trailing `?` marks it nullable."""
+def _payload_type(
+    name: str,
+    structs: Mapping[str, TStruct],
+    positions: AbstractSet[str] | None = None,
+) -> "Type":
+    """Resolve a variant payload type name; a trailing `?` marks it nullable.
+
+    `positions` is threaded because resolve admits a declared position domain
+    here: without it the name resolves to the top, and the `produces:` arm
+    binder carrying that payload exempts its whole body from every type wall.
+    """
     if name.endswith("?"):
-        return type_from_name(name[:-1], True, structs)
-    return type_from_name(name, False, structs)
+        return type_from_name(name[:-1], True, structs, positions)
+    return type_from_name(name, False, structs, positions)
 
 
 def _variant_cases(
-    cases: tuple[n.VariantCase, ...], structs: Mapping[str, TStruct]
+    cases: tuple[n.VariantCase, ...],
+    structs: Mapping[str, TStruct],
+    positions: AbstractSet[str] | None = None,
 ) -> dict[str, tuple["Type", ...]]:
     return {
-        c.tag: tuple(_payload_type(t, structs) for t in c.payload_types) for c in cases
+        c.tag: tuple(_payload_type(t, structs, positions) for t in c.payload_types)
+        for c in cases
     }
 
 
 def variant_registry(
-    game: Game, structs: Mapping[str, TStruct]
+    game: Game,
+    structs: Mapping[str, TStruct],
+    positions: AbstractSet[str] | None = None,
 ) -> dict[str, TVariant]:
     """Build the variant-outcome type of each `define` and each outcome-declaring
     `phase`: its case tags mapped to their declared payload types."""
     variants: dict[str, TVariant] = {}
     for d in game.defines:
-        variants[d.name] = TVariant(name=d.name, cases=_variant_cases(d.cases, structs))
+        variants[d.name] = TVariant(
+            name=d.name, cases=_variant_cases(d.cases, structs, positions)
+        )
     for phase in _all_phases(game):
         if phase.outcome_cases:
             variants[phase.name] = TVariant(
-                name=phase.name, cases=_variant_cases(phase.outcome_cases, structs)
+                name=phase.name,
+                cases=_variant_cases(phase.outcome_cases, structs, positions),
             )
     return variants
 
@@ -1153,12 +1182,9 @@ def _function_sigs(game: Game, env: TypeEnv, bag: DiagnosticBag) -> dict[str, Si
 def _param_type(p: n.MoveParam, env: TypeEnv) -> Type:
     optional = p.type_name.endswith("?")
     base = p.type_name[:-1] if optional else p.type_name
-    if base in env.positions:
-        # A position-domain parameter (`src : column`) binds an integer
-        # member of the declared range; resolve's collision wall guarantees
-        # the name shadows no built-in type spelling.
-        return TInteger()
-    return type_from_name(base, optional, env.structs)
+    # Position domains resolve inside `type_from_name`, so `slot?` keeps its
+    # optionality instead of being flattened to a bare Integer.
+    return type_from_name(base, optional, env.structs, env.positions)
 
 
 def _procedure_sigs(game: Game) -> dict[str, Sig]:
@@ -2811,7 +2837,7 @@ def typecheck(game: Game) -> Game:
     structs, functions = struct_and_function_registries(game, bag)
     env = replace(env_from_game(game, structs), functions=functions)
     env = replace(env, procedures=_procedure_sigs(game))
-    variants = variant_registry(game, env.structs)
+    variants = variant_registry(game, env.structs, env.positions)
     for stmt, binders in _all_statements_scoped(game):
         senv = _scoped_env(env, binders)
         _check_stmt_exprs(stmt, senv, bag)
