@@ -394,6 +394,7 @@ class _Builder(Transformer[Token, n.Game]):
         # mirrors, down to the `else` arm's currency.
         requires: tuple[n.RequireDecl, ...] = ()
         seen_requires = False
+        state: n.StateBlock | None = None
         rules: list[n.RuleDef] = []
         move_types: list[n.MoveTypeDef] = []
         types: list[n.TypeDef] = []
@@ -417,6 +418,20 @@ class _Builder(Transformer[Token, n.Game]):
                     )
                 seen_requires = True
                 requires = item.decls
+            elif isinstance(item, n.StateBlock):
+                # Single-valued for the same reason `requires` is, and for the
+                # same reason a GAME declares one `state { }`: keeping the last
+                # would silently discard the first.
+                if state is not None:
+                    raise DiagnosticError(
+                        Diagnostic(
+                            Severity.ERROR,
+                            "a library declares one `state` block — merge the "
+                            "declarations into it",
+                            item.span,
+                        )
+                    )
+                state = item
             elif isinstance(item, n.RuleDef):
                 rules.append(item)
             elif isinstance(item, n.MoveTypeDef):
@@ -440,6 +455,7 @@ class _Builder(Transformer[Token, n.Game]):
         return n.Library(
             name=str(c[0]),
             requires=requires,
+            state=state,
             rules=tuple(rules),
             move_types=tuple(move_types),
             types=tuple(types),

@@ -12,15 +12,19 @@ start: top_item+
 library_rules: rule_def+
 
 // Alternate start for a family-library file (docs/libraries/<name>.cardlang):
-// the definition forms a game already holds, plus the `requires` contract, with
-// no enclosing game (decisions.md "Family libraries"). It holds definitions and
-// no game structure — no zones, no state defaults, no phases — as far as the
-// corpus has forced, not as a permanent boundary; what it needs from its
-// including game it names in `requires`, and a move touching a game-specific
-// zone stays game-local, which is why `requires` is state-only today.
+// the definition forms a game already holds, plus the two state clauses, with no
+// enclosing game (decisions.md "Family libraries"). It holds definitions and the
+// state its own definitions own, but no other game structure — no zones, no
+// phases — as far as the corpus has forced, not as a permanent boundary. State
+// reaches a library two ways: `state` PROVIDES it (the library owns the variable
+// and its initial value; the game may read it and may not write it) and
+// `requires` CONTRACTS for it (the game declares it, picks its initial value,
+// and writes it). A move touching a game-specific zone stays game-local, which
+// is why neither clause names a zone.
 library: "library" NAME "{" library_item* "}"
 
 ?library_item: requires_block
+             | state_block
              | rule_def
              | move_type_def
              | type_def
@@ -30,9 +34,12 @@ library: "library" NAME "{" library_item* "}"
 
 // The state the including game must declare, checked at its `uses` line so the
 // error lands in the game's currency rather than inside spliced library text.
-// Deliberately `state_decl` minus the `= <default>`: the default is the game's
-// to choose (Stud's raise cap is 3, Leduc's is 2), and a library that could set
-// one would be configuring the game rather than contracting with it.
+// Deliberately `state_decl` minus the `= <default>`: a required variable's
+// initial value is the GAME's to choose (Stud's raise cap is 3, Leduc's is 2),
+// and a library that could set one would be configuring the game rather than
+// contracting with it. The library's OWN state carries defaults, and reuses
+// `state_block` unchanged to say so — a provided variable's initial value is
+// the library's precisely because the variable is.
 requires_block: "requires" "{" require_decl* "}"
 require_decl: NAME [index] ":" type_name
 

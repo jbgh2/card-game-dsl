@@ -240,6 +240,7 @@ def test_the_probe_game_is_otherwise_valid() -> None:
 # grids stay derived from the registry; pinned by `test_library_item_registry_pin`.
 _ITEM_WELL_FORMED: dict[str, str] = {
     "requires_block": "requires { y : Integer }",
+    "state_block": "state { z : Integer = 1 }",
     "rule_def": "rule r { }",
     "move_type_def": "move_type m { effect { } }",
     "type_def": "type T = { x : Integer }",
@@ -250,6 +251,7 @@ _ITEM_WELL_FORMED: dict[str, str] = {
 
 _ITEM_TRUNCATED: dict[str, str] = {
     "requires_block": "requires {",
+    "state_block": "state {",
     "rule_def": "rule r {",
     "move_type_def": "move_type m {",
     "type_def": "type T = {",
@@ -264,6 +266,7 @@ _ITEM_TRUNCATED: dict[str, str] = {
 # than a clause dropped without a word.
 _ITEM_FIELD: dict[str, str] = {
     "requires_block": "requires",
+    "state_block": "state",
     "rule_def": "rules",
     "move_type_def": "move_types",
     "type_def": "types",
@@ -377,15 +380,31 @@ def test_a_library_naming_a_card_says_why_it_may_not(
 
 
 def test_a_repeated_requires_block_is_rejected() -> None:
-    """The `requires` diagonal of the control grid: `requires` is the library's
-    one single-valued item, so a second block is the same defect a repeated
-    game clause is — keeping the last would discard the first."""
+    """The `requires` diagonal of the control grid: `requires` is one of the
+    library's two single-valued items, so a second block is the same defect a
+    repeated game clause is — keeping the last would discard the first."""
     with pytest.raises(DiagnosticError) as exc:
         parse_library(
             "library L { requires { a : Integer } requires { b : Integer } }",
             "L.cardlang",
         )
     assert "one `requires` block" in str(exc.value)
+
+
+def test_a_repeated_state_block_is_rejected() -> None:
+    """The `state` diagonal, the other single-valued item. Swept with `requires`
+    rather than left to the day a library wants two blocks: they are the two
+    members of the same closed class (decisions.md "Closed-domain
+    completeness").
+
+    red under: delete the `if state is not None` arm from `parse.library()` —
+    the second block then silently replaces the first."""
+    with pytest.raises(DiagnosticError) as exc:
+        parse_library(
+            "library L { state { a : Integer = 1 } state { b : Integer = 2 } }",
+            "L.cardlang",
+        )
+    assert "one `state` block" in str(exc.value)
 
 
 @pytest.mark.parametrize("item", sorted(library_item_alternatives()))
@@ -471,7 +490,15 @@ def test_def_kinds_covers_every_library_field() -> None:
 
     red under: add a field to `n.Library` without adding it to
     `_LIBRARY_DEF_KINDS`."""
-    node_fields = {f.name for f in fields(n.Library)} - {"name", "requires", "span"}
+    # `state` and `requires` are excluded because neither is a DEFINITION: they
+    # are the library's two state clauses, whose own collision domain is the
+    # claim grid (`_check_state_claims`), not this definition-splice one.
+    node_fields = {f.name for f in fields(n.Library)} - {
+        "name",
+        "requires",
+        "state",
+        "span",
+    }
     assert {field for field, _ in _LIBRARY_DEF_KINDS} == node_fields
     assert set(_DEF_SOURCE) == node_fields, (
         "every definition kind needs a collision probe below"

@@ -1036,10 +1036,19 @@ class Library:
     only between parse and resolve — `resolve` splices each used library's
     definitions into the including `Game` and no `Library` survives into the IR,
     which is what makes imports pure name resolution with no runtime or
-    information-set implication."""
+    information-set implication.
+
+    ``state`` and ``requires`` are the two halves of a library's state surface
+    and are not interchangeable. ``state`` is state the library OWNS: it carries
+    defaults, splices into the game's own ``state { }``, and the including game
+    may read it but not write it. ``requires`` is state the library CONTRACTS
+    for: the game declares it, chooses its initial value, and writes it. A name
+    may appear in one or the other, never both (``resolve._check_state_claims``).
+    """
 
     name: str
     requires: tuple[RequireDecl, ...] = ()
+    state: StateBlock | None = None
     rules: tuple[RuleDef, ...] = ()
     move_types: tuple[MoveTypeDef, ...] = ()
     types: tuple[TypeDef, ...] = ()
