@@ -1123,9 +1123,11 @@ def _function_sigs(game: Game, env: TypeEnv, bag: DiagnosticBag) -> dict[str, Si
     sigs: dict[str, Sig] = {}
 
     def param_type(p: n.MoveParam) -> Type:
-        optional = p.type_name.endswith("?")
-        base = p.type_name[:-1] if optional else p.type_name
-        return type_from_name(base, optional, env.structs)
+        # The one parameter-typing rule, shared with every other parameter
+        # position. Kept as a call rather than a second copy: a local copy
+        # that missed `env.positions` would type a position-domain parameter
+        # as the permissive top, which is the hole this module walls.
+        return _param_type(p, env)
 
     def visit(name: str, on_stack: frozenset[str]) -> None:
         if name in sigs or name in on_stack:  # done, or a cycle resolve already flagged

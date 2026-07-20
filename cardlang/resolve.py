@@ -1650,7 +1650,13 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
     currencies.
     """
     defined_types = {t.name for t in game.types}
-    known = KNOWN_TYPE_NAMES | defined_types
+    # A declared position domain is a legal annotation here: the parameter or
+    # payload carries an integer member of the declared range, and the type
+    # builder resolves it to that Integer. Omitting it rejected a name
+    # declared in the same file as "unknown" while the same name stayed legal
+    # on a move parameter.
+    position_names = {p.name for p in game.positions}
+    known = KNOWN_TYPE_NAMES | defined_types | position_names
 
     def base_of(type_name: str) -> str:
         # A trailing `?` marks a nullable domain/payload (`Suit?`), not part of
