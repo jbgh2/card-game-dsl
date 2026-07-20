@@ -3048,6 +3048,25 @@ cell's designed failure, so a harness crash cannot impersonate the red
 run — that keeps the pre-push checks green while the red-to-green
 transition stays visible in the diff.
 
+**Prose names the registry, never the cardinality.** A ledger row — or any
+spec sentence — states what it quantifies over, not how many members that
+set holds today. "Every registry with a signature table" stays true as
+registries are added; "the four registries" is false the moment one is,
+and a stale tally is indistinguishable from a fresh one, so it rots in
+silence where a broken path or a failing pin would announce itself. That
+silence is what makes it the same defect as an overclaiming `covered`,
+one layer out: the count is a second statement of a fact the code already
+holds, and the two drift (`decisions.md` is not exempt from
+[maintaining.md](maintaining.md)'s cross-reference-don't-duplicate rule).
+Where the set is worth naming, name the registry that defines it — the
+prose-only game twins are `PROSE_ONLY_TWINS`, not "six twins" — so a
+reader can count it and a change that grows it cannot leave the sentence
+behind. Identifiers in prose carry the same hazard for the same reason:
+nothing checks that a backticked name still resolves, so one naming a
+deleted registry reads as authoritative forever. Numbers that are facts
+about the *domain* rather than the repo — four suits, thirteen ranks, a
+two-card trick — are not tallies and are unaffected.
+
 A wall must also speak its **layer's failure currency**: the compile
 stages fail as diagnostics (`DiagnosticBag`, with a span and a
 designer-readable message — a raw registry raise mid-resolve is loud in
