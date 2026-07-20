@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from cardlang.runtime import reads
+from cardlang.runtime import reads, sidecar
 from cardlang.runtime.state import Ctx, IllegalMove, elements
 from cardlang.runtime.values import SUITS, Card, Player
 from cardlang.stdlib.signatures import CALL_SIGS
@@ -23,6 +23,21 @@ _BRIDGE_R = reads.row("cardlang/runtime/stdlib.py", "bridge.cardlang")
 _CRIBBAGE_R = reads.row("cardlang/runtime/stdlib.py", "cribbage.cardlang")
 _PINOCHLE_R = reads.row("cardlang/runtime/stdlib.py", "pinochle.cardlang")
 _TAROT_R = reads.row("cardlang/runtime/stdlib.py", "french-tarot.cardlang")
+
+
+def _bind(
+    ctx: Ctx, row: reads.PrimitiveReads
+) -> tuple[sidecar.EngineFacts, reads.GameReads]:
+    """The two value bundles for one narrowed primitive call."""
+    return sidecar.bind(ctx.rs, ctx.current_player, row)
+
+
+def _emit(ctx: Ctx, events: tuple[sidecar.TraceEvent, ...]) -> None:
+    """Perform a narrowed primitive's deferred trace emissions. A game module
+    holds no tracer, so the events travel back as data and are emitted here,
+    in the order the primitive returned them (cardlang/runtime/sidecar.py)."""
+    for event, payload in events:
+        ctx.trace(event, payload)
 
 
 def call(name: str, args: list[Any], ctx: Ctx) -> Any:
@@ -79,33 +94,37 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
         case "bottom_of":
             return _end_card(args[0], "bottom_of", 0)
         case "pinochle_meld_value":
-            from cardlang.runtime.pinochle import pinochle_meld_value
+            from cardlang.runtime.pinochle import ROW, pinochle_meld_value
 
-            return pinochle_meld_value(ctx, args[0])
+            return pinochle_meld_value(*_bind(ctx, ROW), args[0])
         case "tarot_led_suit":
-            from cardlang.runtime.tarot import tarot_led_suit
+            from cardlang.runtime.tarot import ROW, tarot_led_suit
 
-            return tarot_led_suit(ctx)
+            return tarot_led_suit(*_bind(ctx, ROW))
         case "tarot_trump_height":
             from cardlang.runtime.tarot import tarot_trump_height
 
             return tarot_trump_height(args[0])
         case "tarot_excuse_player":
-            from cardlang.runtime.tarot import tarot_excuse_player
+            from cardlang.runtime.tarot import ROW, tarot_excuse_player
 
-            return tarot_excuse_player(ctx)
+            return tarot_excuse_player(*_bind(ctx, ROW))
         case "tarot_per_opp":
-            from cardlang.runtime.tarot import tarot_per_opp
+            from cardlang.runtime.tarot import ROW, tarot_per_opp
 
-            return tarot_per_opp(ctx, args[0])
+            return tarot_per_opp(*_bind(ctx, ROW), args[0])
         case "tarot_card_points":
             from cardlang.runtime.tarot import tarot_card_points
 
             return tarot_card_points(args[0])
         case "schnapsen_trick_winner":
-            from cardlang.runtime.schnapsen import schnapsen_trick_winner
+            from cardlang.runtime.schnapsen import ROW, schnapsen_trick_winner
 
-            return schnapsen_trick_winner(ctx, args[0], args[1])
+            winner, events = schnapsen_trick_winner(
+                *sidecar.bind(ctx.rs, ctx.current_player, ROW), args[0], args[1]
+            )
+            _emit(ctx, events)
+            return winner
         case "skat_next_bid":
             from cardlang.runtime.skat import skat_next_bid
 
@@ -163,9 +182,10 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
 
             return tichu_first_out(ctx)
         case "tichu_card_points":
+            from cardlang.runtime.tichu import ROW as TICHU_ROW
             from cardlang.runtime.tichu import tichu_card_points
 
-            return tichu_card_points(ctx, args[0])
+            return tichu_card_points(*_bind(ctx, TICHU_ROW), args[0])
         case "president_next_holder":
             from cardlang.runtime.president import president_next_holder
 
@@ -206,17 +226,17 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
                 ctx.rs.rank_index,
             )
         case "peg_origin_of":
-            from cardlang.runtime.cribbage import peg_origin_of
+            from cardlang.runtime.cribbage import ROW, peg_origin_of
 
-            return peg_origin_of(ctx, args[0])
+            return peg_origin_of(*_bind(ctx, ROW), args[0])
         case "cribbage_show_value":
-            from cardlang.runtime.cribbage import cribbage_show_value
+            from cardlang.runtime.cribbage import ROW, cribbage_show_value
 
-            return cribbage_show_value(ctx, args[0])
+            return cribbage_show_value(*_bind(ctx, ROW), args[0])
         case "cribbage_crib_value":
-            from cardlang.runtime.cribbage import cribbage_crib_value
+            from cardlang.runtime.cribbage import ROW, cribbage_crib_value
 
-            return cribbage_crib_value(ctx)
+            return cribbage_crib_value(*_bind(ctx, ROW))
         case "gin_card_points":
             from cardlang.runtime.gin import card_points
 

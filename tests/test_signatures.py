@@ -42,6 +42,7 @@ from cardlang.stdlib.signatures import (
     ZONE_CONTENT,
     Sig,
 )
+from cardlang.runtime import sidecar
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 from cardlang.types import TAny, TCard, TCollection, TEnum, TOptional, TPlayer, TTeam
 
@@ -144,6 +145,7 @@ class _DispatchFact:
     arity: int  # 1 + the highest args[i] the arm reads (0 if none)
     helper: "object | None"  # the resolved helper callable, if the arm is a plain forward
     helper_args: "tuple[object, ...]"  # per helper param: 'ctx', an int (args[i]), or None
+    traced: bool = False  # the arm unpacks (value, events) and emits via _emit
 
 
 def _call_dispatch_facts() -> dict[str, _DispatchFact]:
@@ -184,21 +186,43 @@ def _call_dispatch_facts() -> dict[str, _DispatchFact]:
                     imported[alias.asname or alias.name] = stmt.module
         helper: object | None = None
         helper_args: tuple[object, ...] = ()
+        traced = False
         ret = next((s for s in case.body if isinstance(s, ast.Return)), None)
-        if (
-            ret is not None
-            and isinstance(ret.value, ast.Call)
-            and isinstance(ret.value.func, ast.Name)
-        ):
-            fn_name = ret.value.func.id
+        # A NARROWED tracing arm does not `return f(...)`: it unpacks
+        # `(value, events)`, emits the events, then returns the value. Find
+        # the call through the assignment so the annotation check below still
+        # reaches the helper — the shape this test exists to keep honest.
+        call: ast.Call | None = None
+        if ret is not None and isinstance(ret.value, ast.Call):
+            call = ret.value
+        elif ret is not None and isinstance(ret.value, ast.Name):
+            for stmt in case.body:
+                if (
+                    isinstance(stmt, ast.Assign)
+                    and isinstance(stmt.targets[0], ast.Tuple)
+                    and isinstance(stmt.value, ast.Call)
+                    and any(
+                        isinstance(el, ast.Name) and el.id == ret.value.id
+                        for el in stmt.targets[0].elts
+                    )
+                ):
+                    call = stmt.value
+                    traced = True
+        if call is not None and isinstance(call.func, ast.Name):
+            fn_name = call.func.id
             if fn_name in imported:
                 helper = getattr(importlib.import_module(imported[fn_name]), fn_name)
             elif hasattr(rt, fn_name):
                 helper = getattr(rt, fn_name)
             if helper is not None:
                 shapes: list[object] = []
-                for arg in ret.value.args:
-                    if isinstance(arg, ast.Name) and arg.id == "ctx":
+                for arg in call.args:
+                    if isinstance(arg, ast.Starred):
+                        # `*_bind(ctx, ROW)` expands to the two value bundles
+                        # (EngineFacts, GameReads); hold their positions so the
+                        # later args still line up with the helper's params.
+                        shapes.extend([None, None])
+                    elif isinstance(arg, ast.Name) and arg.id == "ctx":
                         shapes.append("ctx")
                     elif (
                         isinstance(arg, ast.Subscript)
@@ -214,6 +238,7 @@ def _call_dispatch_facts() -> dict[str, _DispatchFact]:
             arity=(max(indices) + 1) if indices else 0,
             helper=helper,
             helper_args=helper_args,
+            traced=traced,
         )
     return facts
 
@@ -307,6 +332,18 @@ def test_helper_annotations_agree_with_call_sigs() -> None:
         expected_ret = _python_type(sig.ret)
         if expected_ret is not None:
             actual_ret = hints.get("return")
+            if fact.traced:
+                # A tracing primitive returns (declared value, events): the
+                # DECLARED type is the first element, and the second must be
+                # the trace-event tuple — checked, not waved through.
+                targs = typing.get_args(actual_ret)
+                if len(targs) != 2 or targs[1] != tuple[sidecar.TraceEvent, ...]:
+                    problems.append(
+                        f"{name}: EMITS_TRACE helper must return "
+                        f"(value, tuple[TraceEvent, ...]); got {actual_ret}"
+                    )
+                    continue
+                actual_ret = targs[0]
             if actual_ret != expected_ret:
                 problems.append(
                     f"{name}: helper returns {actual_ret}, CALL_SIGS declares "

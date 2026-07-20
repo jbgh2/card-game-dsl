@@ -52,6 +52,20 @@ from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.values import Player, Seating
 
 
+TraceEvent = tuple[str, Any]
+"""One deferred trace emission: `(event name, payload)`.
+
+A few primitives compute a real value AND emit the engine's own
+`play`/`trick`/`trick_end` vocabulary from a game-local site. Emitting needs
+`ctx.trace`, which is exactly the handle this module removes — so a narrowed
+primitive RETURNS its events alongside its value and the dispatch layer
+performs the emission. The events stay data until they cross back into the
+engine, which keeps the primitive pure without changing what is emitted, in
+what order, or when (the goldens are byte-identical either way). Which
+primitives do this is pinned both ways by `EMITS_TRACE` in
+tests/test_primitive_narrowing.py."""
+
+
 @dataclass(frozen=True, slots=True)
 class EngineFacts:
     """The engine-structural facts a game primitive may see.

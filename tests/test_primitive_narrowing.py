@@ -224,6 +224,10 @@ NARROWED: frozenset[str] = frozenset(
         "belote.py::belote_trick_winner",
         "belote.py::belote_trump_height",
         "bigtwo.py::bigtwo_universe",
+        "cribbage.py::ROW",
+        "cribbage.py::cribbage_crib_value",
+        "cribbage.py::cribbage_show_value",
+        "cribbage.py::peg_origin_of",
         "cribbage.py::peg_pair_points",
         "cribbage.py::peg_run_points",
         "cribbage.py::value",
@@ -231,18 +235,40 @@ NARROWED: frozenset[str] = frozenset(
         "five_hundred.py::five_hundred_bid_value",
         "five_hundred.py::five_hundred_next_bid",
         "gin.py::card_points",
+        "pinochle.py::ROW",
+        "pinochle.py::pinochle_meld_value",
         "president.py::president_universe",
+        "schnapsen.py::ROW",
+        "schnapsen.py::schnapsen_trick_winner",
         "skat.py::skat_effective_loss",
         "skat.py::skat_next_bid",
+        "tarot.py::ROW",
         "tarot.py::tarot_card_points",
+        "tarot.py::tarot_excuse_player",
+        "tarot.py::tarot_led_suit",
+        "tarot.py::tarot_per_opp",
         "tarot.py::tarot_trick_winner",
         "tarot.py::tarot_trump_height",
+        "tichu.py::ROW",
+        "tichu.py::tichu_card_points",
         "tichu.py::TICHU_COMBO_CODEC",
     }
 )
 
 # Primitives narrowed by stage 2 so far, for the module-level wall below.
-MIGRATED: frozenset[str] = frozenset()
+MIGRATED: frozenset[str] = frozenset(
+    {
+        "cribbage_crib_value",
+        "cribbage_show_value",
+        "peg_origin_of",
+        "pinochle_meld_value",
+        "schnapsen_trick_winner",
+        "tarot_excuse_player",
+        "tarot_led_suit",
+        "tarot_per_opp",
+        "tichu_card_points",
+    }
+)
 
 # Primitives that return `(value, events)` — they compute a real value AND
 # emit the engine's own trace vocabulary from a game-local site, so the
@@ -468,16 +494,12 @@ _STILL_REACHES: dict[str, tuple[str, ...]] = {
     "bigtwo.py": ("Ctx", "ctx.rs"),
     "canasta.py": ("Ctx", "ctx.rs"),
     "coup.py": ("Ctx", "ctx.rs", "ctx.trace"),
-    "cribbage.py": ("Ctx", "ctx.rs"),
     "doko.py": ("Ctx", "ctx.rs", "ctx.trace"),
     "five_hundred.py": ("Ctx", "ctx.rs", "ctx.trace"),
     "gin.py": ("Ctx", "ctx.rs"),
-    "pinochle.py": ("Ctx", "ctx.rs"),
     "president.py": ("Ctx", "ctx.rs"),
-    "schnapsen.py": ("Ctx", "ctx.rs", "ctx.trace"),
     "skat.py": ("Ctx", "ctx.rs", "ctx.trace"),
     "stud.py": ("Ctx", "ctx.rs"),
-    "tarot.py": ("Ctx", "ctx.rs"),
     "tichu.py": ("Ctx", "ctx.rs"),
 }
 

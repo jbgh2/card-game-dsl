@@ -24,10 +24,11 @@ from __future__ import annotations
 
 from cardlang.runtime import reads
 from cardlang.runtime.combinations import Play, _combos, _legal_follows, _points
+from cardlang.runtime.sidecar import EngineFacts
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Card, Player
 
-_R = reads.row("cardlang/runtime/tichu.py", "tichu.cardlang")
+ROW = reads.row("cardlang/runtime/tichu.py", "tichu.cardlang")
 
 
 # --- the climb queries (the monolith's candidate lists, verbatim) ---
@@ -66,7 +67,7 @@ def tichu_follows(hand: list[Card], current: Play, ctx: Ctx) -> list[Play]:
 def tichu_mahjong_holder(ctx: Ctx) -> Player:
     """Who leads the first trick: the Mahjong holder (post-push hands; the
     full deal guarantees one exists)."""
-    hands = reads.family(ctx.rs, _R, "hand")
+    hands = reads.family(ctx.rs, ROW, "hand")
     return next(
         p for p in ctx.rs.seating.players
         if any(c.rank == "Mahjong" for c in hands[p].cards)
@@ -75,14 +76,14 @@ def tichu_mahjong_holder(ctx: Ctx) -> Player:
 
 def tichu_players_holding(ctx: Ctx) -> int:
     """How many players still hold cards (the hand ends at <= 1)."""
-    hands = reads.family(ctx.rs, _R, "hand")
+    hands = reads.family(ctx.rs, ROW, "hand")
     return sum(1 for p in ctx.rs.seating.players if hands[p].cards)
 
 
 def tichu_double_victory(ctx: Ctx) -> bool:
     """Both recorded finishers are teammates (ends the hand early, +200)."""
-    first = reads.state(ctx.rs, _R, "out_first")
-    second = reads.state(ctx.rs, _R, "out_second")
+    first = reads.state(ctx.rs, ROW, "out_first")
+    second = reads.state(ctx.rs, ROW, "out_second")
     return (
         first is not None
         and second is not None
@@ -102,7 +103,7 @@ def tichu_next_holder(ctx: Ctx, p: Player) -> Player:
     """`p` if they still hold cards, else the next holder counterclockwise —
     the monolith's post-trick leader advance. Returns `p` unchanged when
     everyone is out (the hand is over; the value is never read)."""
-    hands = reads.family(ctx.rs, _R, "hand")
+    hands = reads.family(ctx.rs, ROW, "hand")
     players = list(ctx.rs.seating.players)
     if not any(hands[q].cards for q in players):
         return p
@@ -132,11 +133,11 @@ def tichu_opponent_team(ctx: Ctx, p: Player) -> int:
 def tichu_first_out(ctx: Ctx) -> Player:
     """The first player to shed out, defaulting to player 0 when nobody is
     recorded (the monolith's fallback; unreachable in a completed hand)."""
-    first = reads.state(ctx.rs, _R, "out_first")
+    first = reads.state(ctx.rs, ROW, "out_first")
     return 0 if first is None else int(first)
 
 
-def tichu_card_points(ctx: Ctx, c: Card) -> int:
+def tichu_card_points(facts: EngineFacts, gr: reads.GameReads, c: Card) -> int:
     """The card-point table (K and 10 score 10, 5 scores 5, Dragon +25,
     Phoenix -25; 100 points per hand)."""
     return _points(c)
