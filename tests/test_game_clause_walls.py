@@ -30,12 +30,23 @@ domain:     the `?game_item` alternatives of the `game` production, times
             single-entry brace clause as a `struct_lit`. The second was
             found as `function f() =` swallowing a library's `requires`
             block, and holds identically for a game's `loser:` swallowing
-            `zones { }`. Its fix is at the absorbed end — a clause keyword
-            is refused as a struct-literal type name — so its domain is the
-            clause KEYWORD registry of BOTH sibling sequences (`?game_item`
-            and `?library_item`), times {absorbed-as-a-literal,
-            declarable-as-a-type}, the second being the cost the exclusion
-            imposes on `type_def`.
+            `zones { }`. Its fix is at the absorbed end — the keyword is
+            refused as a struct-literal type name — so its domain is a
+            SHAPE, not a registry membership: every keyword opening a
+            `kw "{" <entry>* "}"` block whose entry begins with NAME,
+            wherever in the grammar it is reachable from. Reading the domain
+            off `?game_item`/`?library_item` instead was wrong twice — those
+            are a coincidental superset (2 of 21 keywords are load-bearing)
+            and a coincidental non-superset (a brace clause reachable as a
+            `?phase_item` or `?top_item` is outside them, and `derived` was
+            in fact missing). The axis is crossed with {absorbed-as-a-
+            literal, declarable-as-a-type}, the second being the cost the
+            exclusion imposes on `type_def`, which must stay symmetric with
+            `struct_lit` or a type is declarable and unusable. That
+            symmetry has a THIRD position — the type ANNOTATION slots
+            (`type_name`, `type_ref`, `payload_type`, `type_arg`), all
+            plain NAME — so the terminal must also stay a strict SUBSET of
+            NAME, whose own lookahead it repeats.
 registry:   `cardlang/grammar/cardlang.lark` (`?game_item`) — scraped here
             by `_game_item_alternatives`, so a clause added to the grammar
             fails `test_game_item_registry_pin` until it is classified
@@ -58,12 +69,18 @@ covered:    duplication — exhaustively, every single-valued clause (all
             exhaustively, every clause written after a `ranking:`
             enumeration and asserted to parse as itself, and every clause
             written after an EMPTY `loser:` and asserted to be refused at
-            the parse layer, plus the static keyword/exclusion-set pin for
-            each of the two terminals; the exclusion's cost —
-            exhaustively, `type <keyword> = { }` refused for every clause
-            keyword of both registries. `loser:` is the only game clause
-            whose last slot is a bare `expr`, checked against the grammar
-            rather than assumed: `winner:` takes `rank_dir NAME`.
+            the parse layer, plus, for STRUCT_TYPE_NAME, three static pins
+            with both sides derived: the absorbable-shape domain, the
+            subset-of-NAME invariant, and the belt-and-braces clause set
+            declared as such so it is not mistaken for the argument. The
+            LIBRARY half of the same absorber — an empty `function f() =`
+            over each `?library_item` — is executed as the 49-cell
+            truncation grid in tests/test_family_libraries.py, not
+            re-probed here. The exclusion's cost — exhaustively, `type
+            <word> = { }` refused for every word the terminal excludes.
+            `loser:` is the only game clause whose last slot is a bare
+            `expr`, checked against the grammar rather than assumed:
+            `winner:` takes `rank_dir NAME`.
 sampled:    `ranking:` omission with rank-dependent constructs in play is
             typecheck's `has_ranking` gate (tests/test_ranking_wall.py);
             zero-`phase` games are accepted with defined degenerate
@@ -71,7 +88,18 @@ sampled:    `ranking:` omission with rank-dependent constructs in play is
             verified by playout while authoring this module, not pinned
             here: the cell is "accepted", and pinning acceptance is the
             valid-BASE probe's job).
-residual:   none — every cell above is either walled or legal-by-design.
+residual:   the declaration/use symmetry the struct-literal exclusion
+            enforces on the NAME axis is not enforced on the ARITY axis:
+            `type_def` takes `struct_field*` while `struct_lit` requires at
+            least one field, so `type Bid = { }` is accepted and can never
+            be constructed — declarable-but-unusable, the same property, one
+            axis over. Pre-existing (it parses identically before and after
+            the terminal), but inside the domain this module claims, so it
+            is named rather than left to look walled. Wall: the empty type
+            is inert — nothing can construct it, so no game can depend on
+            one silently doing something. Recorded in docs/roadmap.md,
+            "An empty `type X = { }` is declarable but not constructible".
+            Every other cell above is walled or legal-by-design.
 """
 
 from __future__ import annotations
@@ -264,7 +292,6 @@ def _absorbable_clause_keywords() -> set[str]:
     return required
 
 
-@pytest.mark.xfail(strict=True, reason="terminal not yet corrected")
 def test_struct_type_name_excludes_every_absorbable_clause() -> None:
     """The completeness pin, both sides derived: the keyword set from the shape
     that makes a clause absorbable, the exclusion set from the terminal. A brace
@@ -282,7 +309,6 @@ def test_struct_type_name_excludes_every_absorbable_clause() -> None:
     )
 
 
-@pytest.mark.xfail(strict=True, reason="terminal not yet corrected")
 def test_struct_type_name_stays_a_subset_of_name() -> None:
     """A position-specific terminal may only ever REMOVE spellings. NAME carries
     its own negative lookahead (`always|all|one|some|…`), so a STRUCT_TYPE_NAME
@@ -340,13 +366,15 @@ def test_no_clause_is_absorbed_by_an_empty_expression_slot(rule_name: str) -> No
     )
 
 
-@pytest.mark.parametrize("keyword", sorted(_clause_keywords()))
-def test_a_type_may_not_be_declared_under_a_clause_keyword(keyword: str) -> None:
-    """The cost of the exclusion above, made explicit and swept over the same
-    registry. A type whose name a struct literal cannot spell would be
-    declarable but unusable — accepted-but-ignored one step removed — so the
-    DECLARATION is refused too, keeping `type_def` and `struct_lit` symmetric
-    about which names a struct type may take.
+@pytest.mark.parametrize("keyword", sorted(_struct_type_excluded()))
+def test_a_type_may_not_be_declared_under_an_excluded_word(keyword: str) -> None:
+    """The cost of the exclusion above, made explicit and swept over the
+    exclusion set ITSELF rather than over a registry that merely overlaps it —
+    so every word the terminal refuses is proven refused in declaration position
+    too. A type whose name a struct literal cannot spell would be declarable but
+    unusable — accepted-but-ignored one step removed — so the DECLARATION is
+    refused too, keeping `type_def` and `struct_lit` symmetric about which names
+    a struct type may take.
 
     red under: point `type_def`'s name back at plain `NAME` in cardlang.lark."""
     src = (

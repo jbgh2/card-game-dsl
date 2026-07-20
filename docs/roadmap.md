@@ -67,6 +67,17 @@ Things we have noted but consciously not designed yet:
   than returning a stale one from a different form. The design seam is
   [open-questions/round-state-in-information-states.md](open-questions/round-state-in-information-states.md).
 
+- **An empty `type X = { }` is declarable but not constructible.** `type_def`
+  takes `struct_field*` (zero or more) while `struct_lit` requires at least one
+  field, so an empty struct type parses, resolves, and can never be written as a
+  value. It is the declaration/use symmetry that `STRUCT_TYPE_NAME` enforces on
+  the NAME axis, unenforced on the arity axis. Harmless today — an empty type is
+  inert, so nothing can depend on one silently doing something — and the fix is
+  a one-token grammar change (`struct_field+`) plus a diagnostic for the games,
+  none of which declare one. Left for whoever next touches `type_def`, recorded
+  so the surrounding ledger in tests/test_game_clause_walls.py does not read as
+  claiming it.
+
 - **Family libraries — unchecked residuals in the `requires` contract.** Two,
   both of them the contract promising less than a reader might assume.
 

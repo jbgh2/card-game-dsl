@@ -543,13 +543,25 @@ list_lit: "[" expr ("," expr)* "]"
 // the clause below it as a struct literal, completes, and drops that clause
 // with no error and no `_ambig` node for the ambiguity budget to see. Refusing
 // the keyword closes every expression slot in the grammar at once, which is why
-// this is at the absorbed end rather than at each absorbing one. The exclusion
-// covers BOTH sibling-sequence registries (`?game_item`, `?library_item`) and
-// is pinned against them by
-// tests/test_game_clause_walls.py::test_struct_type_name_excludes_every_clause_keyword.
+// this is at the absorbed end rather than at each absorbing one.
+//
+// The exclusion is in two parts, pinned separately in
+// tests/test_game_clause_walls.py:
+//
+//   1. NAME's OWN lookahead, repeated verbatim. A position-specific terminal
+//      may only ever remove spellings: admitting a word NAME refuses would make
+//      a type declarable and constructible here but unusable in every type
+//      ANNOTATION slot, which is plain NAME
+//      (`test_struct_type_name_stays_a_subset_of_name`).
+//   2. Every keyword opening a `kw "{" <entry>* "}"` block whose ENTRY begins
+//      with NAME — the shape that makes a clause absorbable, wherever in the
+//      grammar it is reachable from
+//      (`test_struct_type_name_excludes_every_absorbable_clause`). The
+//      `?game_item`/`?library_item` keywords beyond that shape are kept as
+//      belt-and-braces, not as the completeness argument.
 struct_lit: STRUCT_TYPE_NAME "{" field_init ("," field_init)* "}"
 field_init: NAME ":" expr
-STRUCT_TYPE_NAME: /(?!(?:uses|players|direction|cards|ranking|trump|partnerships|max_length|positions|zones|state|phase|winner|loser|requires|move_type|rule|type|define|function|procedure)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+STRUCT_TYPE_NAME: /(?!(?:always|all|one|some|jointly|not|is|number|derived|uses|players|direction|cards|ranking|trump|partnerships|max_length|positions|zones|state|phase|winner|loser|requires|move_type|rule|type|define|function|procedure)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
 card_literal: card_rank "of" NAME
 // Ranks and suits are values a game's deck defines, not language keywords: a
