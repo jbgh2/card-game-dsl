@@ -130,7 +130,15 @@ covered:  the parse grid — item x neighbour, all 49 truncated cells executed b
           libraries requiring one name. All 11 rejecting-or-newly-accepting cells
           across both grids were commanded before the walls existed and ran red
           under `xfail(strict=True)`; the transition is in this branch's history.
-sampled:  the `uses`-line failure modes (unknown library, repeated import) are
+sampled:  the read-only wall's CONTAINER axis — six game-owned places a write
+          can sit (`test_the_read_only_wall_reaches_every_container`), sampled
+          rather than derived on purpose: the wall walks `_walk(game)`, total
+          dataclass recursion over the whole Game, so reachability is one
+          property of `_walk` and not a per-site dispatch that could cover some
+          containers and miss others. The cells are regression evidence for that
+          one property; the reddening edit was measured (narrowing the walk to
+          `game.phases` fails all six).
+          the `uses`-line failure modes (unknown library, repeated import) are
           one probe each — a single-axis error with no second axis to cross.
           The truncation axis takes ONE truncation per item (its last required
           slot); an item can also be cut mid-slot, but every such cut is a
@@ -1324,6 +1332,8 @@ library {name} {{
     prov_int  : Integer   = 0
     prov_dir  : Direction = left
     prov_flag : Boolean   = false
+    prov      : Integer   = 0
+    provp[player] : Integer = 0
   }}
 }}
 """
@@ -1396,6 +1406,72 @@ def test_game_text_may_not_write_library_provided_state(
     assert "writer.cardlang:" in message, (
         f"a game's illegal write is reported in the GAME's currency:\n{message}"
     )
+
+
+# Where a write can be WRITTEN — one game-owned container per cell, each holding
+# the same illegal write. Not a derived axis, and deliberately so: the wall walks
+# `_walk(game)`, which is total dataclass recursion over the whole Game, so
+# reachability is ONE property of `_walk` rather than a per-container dispatch
+# that could cover some sites and miss others. These cells are regression
+# evidence for that, not a completeness argument — the ledger records them as
+# sampled. They exist because "the wall fires at a phase statement" would
+# otherwise have been the only thing anyone had checked, and a write inside a
+# game's own move-type effect is the cell an author would actually hit.
+_WRITE_CONTAINER: dict[str, tuple[str, str]] = {
+    "phase_statement": ("    prov := 1", ""),
+    "if_branch": ("    if true { prov := 1 }", ""),
+    "for_each_body": ("    for each player p: prov := 1", ""),
+    "move_type_effect": ("", "move_type mt { effect { prov := 1 } }"),
+    "procedure_body": ("    run pr()", "procedure pr() { prov := 1 }"),
+    "indexed_target": ("    provp[0] := 1", ""),
+}
+
+_CONTAINER_HOST = """
+game Host {{
+  uses provider
+  players: 2
+  cards: kuhn3
+  max_length: 100
+  zones {{ deck : Deck }}
+  state {{ score : Integer = 0 }}
+  phase outer {{
+    phase play {{
+{body}
+    }}
+  }}
+  winner: highest score
+}}
+{extra}
+"""
+
+
+@pytest.mark.parametrize("container", sorted(_WRITE_CONTAINER))
+def test_the_read_only_wall_reaches_every_container(
+    container: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The same illegal write, moved around the game. A wall that fires at a
+    top-level phase statement and not inside a move-type effect would be a hole
+    wearing a wall's name — and the effect is where a poker author would most
+    plausibly write one, since that is where the library's own moves write it.
+
+    Note the host nests `phase play` inside `phase outer`: a sub-phase is the
+    cheapest way for a recursion bug to hide.
+
+    red under: narrow `_walk(game)` in `_check_provided_readonly` to
+    `_walk(game.phases)` — measured, not predicted: all six cells fail, because
+    the game's phase tree is reached THROUGH the Game node and a tuple of phases
+    is not the same walk."""
+    body, extra = _WRITE_CONTAINER[container]
+    _patch_libraries(monkeypatch, {"provider": _provider()})
+    game = parse_text(
+        _CONTAINER_HOST.format(body=body, extra=extra), "host.cardlang"
+    )
+    with pytest.raises(DiagnosticError) as exc:
+        resolve(game)
+    message = str(exc.value)
+    assert "cannot write" in message, message
+    assert "library 'provider' provides it" in message, message
+    assert "host.cardlang:" in message, message
 
 
 def test_game_text_may_read_library_provided_state(
