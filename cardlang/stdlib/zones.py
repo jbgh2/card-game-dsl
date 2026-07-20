@@ -75,3 +75,33 @@ def zone_projection(zone_type: str, is_owner: bool) -> str:
     projected, and silently guessing would leak information."""
     vis = ZONE_PROJECTIONS[zone_type]
     return vis.owner if is_owner else vis.others
+
+
+# library type name -> the maximum cards a zone of this type may ever hold, or
+# None for unbounded. Enforced as a runtime wall in the movement executor
+# (cardlang/runtime/execute.py) — a class of overfill the registry owns, not a
+# per-game guard.
+ZONE_CAPACITY: dict[str, int | None] = {
+    "Deck": None,
+    "Hand": None,
+    "PublicHand": None,
+    "TrickPile": None,
+    "Discard": None,
+    "Muck": None,
+    "ChipStack": None,
+    "PlayerPile": None,
+    "TeamPile": None,
+    "FaceDownPile": None,
+    "Burn": None,
+    "HiddenPile": None,
+    "Cascade": None,
+    "HiddenStack": None,
+    "Foundation": None,
+    "Cell": 1,
+}
+
+
+def zone_capacity(zone_type: str) -> int | None:
+    """The capacity of a zone of this library type, or None for unbounded.
+    Raises KeyError for an unknown type, like zone_projection."""
+    return ZONE_CAPACITY[zone_type]

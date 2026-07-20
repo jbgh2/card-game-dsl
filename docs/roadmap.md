@@ -276,6 +276,14 @@ Things we have noted but consciously not designed yet:
   Both get a declaration-site / rule-system wall naming the kind when a piece
   game needs the surface.
 
+- **Zone capacity — the `Point` row deferred.** `ZONE_CAPACITY`
+  (`cardlang/stdlib/zones.py`) is a total registry column over
+  `LIBRARY_ZONE_TYPES`: `Cell` is capacity 1, every other library zone type
+  is unbounded, enforced as a runtime wall in the movement executor. The
+  `Point` row (an unbounded-height stack, backgammon's witness) is not
+  added until board-topology stage 3
+  ([design-notes/board-topology.md](design-notes/board-topology.md)).
+
 - **Doc-snippet fragment kinds with no cheap wrapping harness.**
   `tests/test_doc_snippets.py` pipeline-checks every `cardlang`/
   `cardlang-fragment` block in decisions.md/library.md/model.md, but a
