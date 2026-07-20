@@ -3153,7 +3153,7 @@ What the `requires` contract checks is that **exactly one**
 declaration of the name exists somewhere in the game, at the library's arity and
 type. Which `state { }` block holds it is not checked: a phase's block is the
 natural home for state that resets on phase re-entry, which is what per-hand
-betting state is, and Seven-Card Stud declares all nine of `poker_betting`'s
+betting state is, and Seven-Card Stud declares all seven of `poker_betting`'s
 requirements inside `phase play`. That is weaker than "the library's definitions
 can read it where they run" — a declaration in a phase the library never runs in
 satisfies the contract and then fails at play time — and the shortfall is not the
@@ -3251,7 +3251,8 @@ deduction.
 *Survey 1, over the three poker games.* Every game write to `poker_betting`'s
 state is at a street boundary, with one exception: `folded`, written mid-street
 by each game's own `fold`. Four of the nine required variables — `acted`,
-`raises`, `limit`, `raise_cap` — were never READ by any of the three games. And
+`raises`, `limit`, `raise_cap` — were never READ by any of the three games. (Nine is what the
+contract held then; it holds seven now, which is what the survey bought.) And
 all five street-reset sites (one in Leduc, four in Stud) were one shape differing
 in a single integer. That is what forced provided state and `open_street`: writes
 that cluster at boundaries are absorbable by a procedure, and a variable no game

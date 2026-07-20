@@ -10,10 +10,13 @@ Things we have noted but consciously not designed yet:
   silent acceptance; the ledger is `tests/test_procedures.py`. (a) **`Zone`
   parameters.** The design note expected the corpus to need them; it does not — a
   `Player` parameter already carries its zone (`influence[victim]`), so the domain
-  is `Player` / `Rank` / `Rank?` and every other spelling is rejected. `Rank?`
-  rather than `Rank` is the form the corpus forces: there is no flow narrowing, so
-  a bare `Rank` parameter would reject `block_claim` at the very sites that must
-  pass it. (b) **A `round` in a procedure body.** It binds its own, round-local
+  is `Player` / `Rank` / `Rank?` / `Integer` and every other spelling is rejected.
+  `Rank?` rather than `Rank` is the form the corpus forces: there is no flow
+  narrowing, so a bare `Rank` parameter would reject `block_claim` at the very
+  sites that must pass it. `Integer` was on this deferred list until
+  `poker_betting`'s `open_street(bet_size)` forced it — the five street resets
+  across Leduc and Stud being one shape differing in one integer — which is the
+  corpus-first rule working rather than a hole closing. (b) **A `round` in a procedure body.** It binds its own, round-local
   `outcome`, and the body's pronoun wall cannot yet tell that from the caller's
   call-site `outcome`; rather than accept a `round` you may run but whose winner
   you may not route, the form is rejected whole. This is what Tichu's and Skat's
@@ -91,7 +94,7 @@ Things we have noted but consciously not designed yet:
   phase declaring what another reads — so the fix is use-site scope reachability
   for state generally, and the contract must not be dressed up as standing in for
   it. Narrowing the contract to game-level declarations would not close it and
-  would reject Seven-Card Stud, which declares all nine requirements inside
+  would reject Seven-Card Stud, which declares all seven requirements inside
   `phase play`.
 
   *A name held as a bare string is not classified.* The contract IS checked to be
@@ -700,8 +703,9 @@ work that isn't an open question, and which next game unblocks what.
 1. **Take the family-library tier to its second family.** The `uses
    <library>` mechanism is built and settled ([decisions.md](decisions.md)
    "Family libraries"): grammar surface, library loading, the flat two-level
-   splice, the three-way collision walls, the `requires` contract, and the
-   totality artifacts in `tests/test_family_libraries.py`. Its poker anchors
+   splice, the three-way collision walls, the `requires` contract, PROVIDED
+   state and its read-only rule, and the totality artifacts in
+   `tests/test_family_libraries.py`. Its poker anchors
    are landed — Seven-Card Stud as the full-scale consumer, and **Kuhn** and
    **Leduc** as the two that make the tier non-vacuous, since a library with
    one consumer is indistinguishable from game-local code. All three share
@@ -712,7 +716,10 @@ work that isn't an open question, and which next game unblocks what.
    because the action space is derived from the `offering`/`offer` lists and
    never from the game's move-type table; and `raise_cap` carries a real
    family difference (Leduc 2, Stud 3) entirely in each game's declared
-   state, with neither the library nor the `uses` line mentioning it.
+   state, with neither the library nor the `uses` line mentioning it. The
+   per-STREET bet size does not: `limit` is provided state that the library's
+   `open_street(bet_size)` sets, since no single declaration can carry a value
+   that varies within a game (decisions.md, "Family libraries").
 
    What is still unmeasured is whether that parameterization scales. Both
    anchors vary only in *scalars* on required state; the next customer is the
