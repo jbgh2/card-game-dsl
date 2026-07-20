@@ -127,12 +127,18 @@ def _clause_keyword(rule_name: str) -> str:
     return match.group(1)
 
 
-def _card_rank_excluded() -> set[str]:
-    """The words `CARD_RANK_NAME`'s negative lookahead refuses, scraped from the
-    terminal itself — the other half of the pin below."""
-    match = re.search(r"^CARD_RANK_NAME:\s*/\(\?!\(\?:([^)]+)\)", GRAMMAR, re.MULTILINE)
-    assert match is not None, "grammar lost its `CARD_RANK_NAME` terminal"
+def _terminal_excluded(terminal: str) -> set[str]:
+    """The words a terminal's negative lookahead refuses, scraped from the
+    terminal itself — the other half of each pin below."""
+    match = re.search(
+        rf"^{terminal}:\s*/\(\?!\(\?:([^)]+)\)", GRAMMAR, re.MULTILINE
+    )
+    assert match is not None, f"grammar lost its `{terminal}` terminal"
     return set(match.group(1).split("|"))
+
+
+def _card_rank_excluded() -> set[str]:
+    return _terminal_excluded("CARD_RANK_NAME")
 
 
 def test_card_rank_excludes_every_clause_keyword() -> None:
@@ -233,29 +239,75 @@ def _clause_keywords() -> set[str]:
 
 
 def _struct_type_excluded() -> set[str]:
-    """The words `STRUCT_TYPE_NAME`'s negative lookahead refuses, scraped from
-    the terminal itself — the other half of the pin below."""
-    match = re.search(
-        r"^STRUCT_TYPE_NAME:\s*/\(\?!\(\?:([^)]+)\)", GRAMMAR, re.MULTILINE
-    )
-    assert match is not None, "grammar lost its `STRUCT_TYPE_NAME` terminal"
-    return set(match.group(1).split("|"))
+    return _terminal_excluded("STRUCT_TYPE_NAME")
 
 
-def test_struct_type_name_excludes_every_clause_keyword() -> None:
-    """Both sides derived, like the `CARD_RANK_NAME` pin above: the keyword set
-    from the two clause registries, the exclusion set from the terminal. A
-    clause added to either grammar production without an entry in
-    STRUCT_TYPE_NAME fails here rather than at a designer's desk.
+def _absorbable_clause_keywords() -> set[str]:
+    """The TRUE domain of the struct-literal exclusion: every keyword opening a
+    `kw "{" <entry>* "}"` block whose ENTRY production begins with `NAME`, since
+    those are exactly the clauses whose text can match a struct literal's
+    `NAME "{" NAME ":" expr … "}"`.
 
-    red under: delete `zones` from STRUCT_TYPE_NAME's exclusion list in
-    cardlang.lark."""
-    missing = _clause_keywords() - _struct_type_excluded()
+    Derived from the block productions themselves rather than from the clause
+    registries. `?game_item`/`?library_item` are a coincidental superset — of
+    their 21 keywords only two are load-bearing — and, worse, a coincidental
+    NON-superset: a brace clause reachable as a `?phase_item` or a `?top_item`
+    would sit outside them entirely, so a pin over the registries can go green
+    while a new clause is silently absorbed."""
+    required = set()
+    for keyword, entry in re.findall(
+        r'^\w+:\s*"([a-z_]+)"\s*"\{"\s*(\w+)\*\s*"\}"', GRAMMAR, re.MULTILINE
+    ):
+        if re.search(rf"^{entry}:\s*NAME\b", GRAMMAR, re.MULTILINE):
+            required.add(keyword)
+    assert required, "scrape found no brace-clause productions at all"
+    return required
+
+
+@pytest.mark.xfail(strict=True, reason="terminal not yet corrected")
+def test_struct_type_name_excludes_every_absorbable_clause() -> None:
+    """The completeness pin, both sides derived: the keyword set from the shape
+    that makes a clause absorbable, the exclusion set from the terminal. A brace
+    clause added ANYWHERE in the grammar — game item, phase item, top item — with
+    field-init-shaped entries fails here rather than at a designer's desk.
+
+    red under: delete `zones` (or `derived`) from STRUCT_TYPE_NAME's exclusion
+    list in cardlang.lark."""
+    missing = _absorbable_clause_keywords() - _struct_type_excluded()
     assert not missing, (
-        f"clause keyword(s) {sorted(missing)} are still legal struct-literal type "
-        f"names, so an empty expression slot can absorb the clause and drop it "
-        f"silently — add them to STRUCT_TYPE_NAME's exclusion list in cardlang.lark"
+        f"brace clause(s) {sorted(missing)} have field-init-shaped entries and are "
+        f"still legal struct-literal type names, so an empty expression slot can "
+        f"absorb one and drop it silently — add them to STRUCT_TYPE_NAME's "
+        f"exclusion list in cardlang.lark"
     )
+
+
+@pytest.mark.xfail(strict=True, reason="terminal not yet corrected")
+def test_struct_type_name_stays_a_subset_of_name() -> None:
+    """A position-specific terminal may only ever REMOVE spellings. NAME carries
+    its own negative lookahead (`always|all|one|some|…`), so a STRUCT_TYPE_NAME
+    that does not repeat those words ADMITS eight spellings NAME refuses — and
+    every type-ANNOTATION position (`type_name`, `type_ref`, `payload_type`,
+    `type_arg`) is plain NAME and still refuses them. That is a type declarable
+    and constructible but never usable: the same declarable-but-unusable defect
+    the exclusion exists to prevent, reopened on the other axis.
+
+    red under: delete any word of NAME's lookahead from STRUCT_TYPE_NAME's."""
+    admitted = _terminal_excluded("NAME") - _struct_type_excluded()
+    assert not admitted, (
+        f"STRUCT_TYPE_NAME admits {sorted(admitted)}, which NAME refuses — a type "
+        f"named for one of those could be declared and written as a literal but "
+        f"never annotated, since every type-annotation slot is plain NAME"
+    )
+
+
+def test_the_clause_keyword_exclusions_are_belt_and_braces() -> None:
+    """The clause registries are NOT this exclusion's completeness argument —
+    `test_struct_type_name_excludes_every_absorbable_clause` is. They are kept
+    excluded anyway, so that a clause which later grows field-init-shaped
+    entries is already covered, and this test says so rather than letting a
+    reader mistake the wider set for the derivation."""
+    assert _clause_keywords() <= _struct_type_excluded()
 
 
 @pytest.mark.parametrize("rule_name", sorted(_game_item_alternatives()))
