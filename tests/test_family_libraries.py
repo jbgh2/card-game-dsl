@@ -214,6 +214,7 @@ action-space derivation, so it belongs in the currency of the adapter.
 from __future__ import annotations
 
 import ast as pyast
+import random
 from dataclasses import fields, replace
 from pathlib import Path
 from typing import Iterator
@@ -234,6 +235,7 @@ from cardlang.resolve import (
     _library_reach,
     resolve,
 )
+from cardlang.runtime.driver import play_game
 from cardlang.stdlib.functions import STDLIB_CALL_FUNCS
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
 from cardlang.stdlib.rules import library_rules
@@ -1127,11 +1129,29 @@ def test_a_library_may_not_reach_past_its_contract(
     assert "library 'leaky'" in message
 
 
+# The control row holds only for sites whose expression runs during PLAY, when
+# the whole contract is live. `state` is the one site that runs at DECLARE time,
+# and reaching the contract there is refused however the read is spelled — so it
+# is carved out of the row below and gets its own three-outcome test.
+#
+# Derived, not listed: the six definition kinds are the play-time sites, and
+# subtracting them from the site table leaves exactly the declare-time one. A
+# site added to `_LEAK_SITE` joins the control row automatically, and a second
+# declare-time site would have to be classified here before it could pass.
+_DECLARE_TIME_SITES = set(_LEAK_SITE) - {field for field, _ in _LIBRARY_DEF_KINDS}
+
+
+def test_exactly_one_leak_site_runs_at_declare_time() -> None:
+    """red under: add `state` back to `_LIBRARY_DEF_KINDS`, or drop the
+    subtraction and hard-code the carve-out."""
+    assert _DECLARE_TIME_SITES == {"state"}
+
+
 @pytest.mark.parametrize(
     "field,kind",
     [
         (f, k)
-        for f in sorted(_LEAK_SITE)
+        for f in sorted(set(_LEAK_SITE) - _DECLARE_TIME_SITES)
         for k in sorted(_LEAK_READS)
         if _LEAK_READS[k][1] is not None
     ],
@@ -1145,10 +1165,88 @@ def test_the_same_site_reaching_only_its_contract_is_accepted(
     function for the game's — so a rejecting leak cell can only be rejecting
     the leak and not the site.
 
+    Every cell here is a body that runs during play. The declare-time site is
+    excluded and covered by `test_a_provided_default_may_not_reach_the_contract`
+    — NOT dropped: both of its cells used to sit in this row commanding a defect
+    accepted, which is the whole reason that test exists.
+
     red under: make `_check_library_encapsulation` reject anything it classifies
     rather than only what it fails to."""
     _patch_libraries(monkeypatch, {"leaky": _leaky(field, kind, leaking=False)})
     resolve(_leak_host())
+
+
+@pytest.mark.parametrize("kind", sorted(k for k, v in _LEAK_READS.items() if v[1]))
+def test_a_provided_default_may_not_reach_the_contract(
+    kind: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The declare-time site's own row, and the correction of a wrong verdict.
+
+    Both cells shipped in the control row above, commanding ACCEPTED. Both were
+    wrong: `check_dsl` passed and the playout died on a bare `KeyError` from
+    `runtime/state.py`. Provided state is spliced in FRONT of the game's own
+    (`resolve._apply_uses`), so a required name — which only the game can
+    declare — does not exist yet when a provided default runs. Reaching it
+    directly (`state`) and reaching it through a library function that reads it
+    (`call`) are the two spellings, and the second is why the fix could not be
+    a scope rule alone: the read lives in the callee's body, which the walk over
+    a default never enters.
+
+    red under: delete the provided-default loop from
+    `_check_library_encapsulation` (fails `state`), or the `n.Call` arm from
+    `_check_state_default_scope` (fails `call`)."""
+    _patch_libraries(monkeypatch, {"leaky": _leaky("state", kind, leaking=False)})
+    with pytest.raises(DiagnosticError) as exc:
+        resolve(_leak_host())
+    assert "docs/libraries/leaky.cardlang:" in str(exc.value), (
+        "the library author is who must fix it, so the span belongs in their file"
+    )
+
+
+def test_a_provided_default_may_read_an_earlier_provided_sibling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The control the row above needs: a provided default CAN read provided
+    state declared before it, so the two refusals are refusing the contract
+    reach and not defaults-in-libraries as such.
+
+    This is the cell that shows the rule is about declaration order rather than
+    about libraries — the same shape a plain game may write.
+
+    It is PLAYED, not merely resolved, and needs its own host to be: the leak
+    grid's `_leak_host` scores on a bare Integer and cannot reach a result. An
+    accepted cell that stops at `resolve` is exactly the assertion that
+    commanded the original defect green — the front end always accepted it, and
+    the `KeyError` was waiting at declare time.
+
+    red under: widen the provided-default loop to refuse every `NameRef`."""
+    _patch_libraries(
+        monkeypatch,
+        {
+            "leaky": parse_library(
+                "library leaky { requires { declared_thing : Integer } "
+                "state { first_thing : Integer = 3 "
+                "        second_thing : Integer = first_thing } }",
+                "docs/libraries/leaky.cardlang",
+            )
+        },
+    )
+    host = parse_text(
+        """
+game SiblingHost {
+  uses leaky
+  players: 2
+  cards: standard52
+  max_length: 100
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0  declared_thing : Integer = 0 }
+  phase play { }
+  winner: highest score
+}
+""",
+        "sibling_host.cardlang",
+    )
+    play_game(resolve(host), random.Random(0))
 
 
 # A body reading its OWN parameter is the second control the encapsulation check

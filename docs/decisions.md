@@ -839,6 +839,35 @@ live in `rubber`). A phase may *not* write to a variable declared in
 a sibling or descendant scope, because that variable's owning phase
 may not be active. This is statically checkable.
 
+**A default reads only what is already declared.** The free-reads rule
+above is about a body running inside the phase, when the whole block
+exists. A `= <default>` is evaluated earlier than that — while its own
+block is still being declared, top to bottom — so it sees the enclosing
+scopes and the declarations *above it in its own block*, and nothing
+else. A default naming a variable from later in its block, from itself,
+from a sibling phase, or from a phase nested inside its own reaches a
+variable that does not exist yet, and is refused
+(`resolve._check_state_default_scope`). Without the rule these all
+parsed, type checked, and died at playout on a bare `KeyError` out of
+`runtime/state.py`.
+
+A default may not **call**, either. A call's state reads live in the
+callee's body, so admitting one would mean chasing the declare-time
+reachability of every function a default can reach. Refusing the call
+outright costs nothing measured — across the whole corpus and every
+library, defaults hold integer and enum literals, and not one reads a
+state variable — and it keeps the surface total rather than leaving a
+check that silently stops at the call boundary. Compute the value in
+the phase that needs it.
+
+Nor may a default **`choose`**. A default is evaluated outside any
+player's turn, so there is no one to make the decision; the runtime
+raised "a `choose` with no acting player" at declare time, and for the
+OpenSpiel target a decision with no actor has no information set to
+attach to. This is the same rule as the two above and not a separate
+one: what a default may do is bounded by how little of the game exists
+when it runs.
+
 **Example: Bridge state declarations.**
 
 ```text
@@ -3136,6 +3165,16 @@ only by the game's good manners. It is enforced across every write form the
 language has — `:=`/`+=`/`-=`, `rotate`, and a `turns … again <flag>`, whose flag
 the runtime clears at each turn boundary — because a rule that covered only the
 obvious one would be two thirds of a guarantee.
+
+**A provided default may not read the contract.** Provided state splices in
+front of the game's own, so a `requires` name — which only the game can declare
+— is never in scope where a provided default runs. This is the declare-order
+rule of "State scoping (lexical)" landing on the tier, and the general wall
+would catch it after the splice; it is refused before the splice as well,
+against the library alone, because the splice destroys the distinction the
+author needs. Post-splice a required name is just a variable declared later,
+and "declare it earlier" is advice a library author cannot take. Give the
+provided variable a literal default and set it from the contract in a phase.
 
 **There is no visibility system beyond this, and that is a decision, not a
 gap.** No `private`/`public` marker on a definition, no export list, no scoped

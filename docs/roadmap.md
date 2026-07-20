@@ -97,6 +97,14 @@ Things we have noted but consciously not designed yet:
   would reject Seven-Card Stud, which declares all seven requirements inside
   `phase play`.
 
+  The DECLARE-TIME slice of that class is closed
+  (`resolve._check_state_default_scope`, decisions.md "State scoping (lexical)"):
+  a `state { }` default now reaches only what is declared before it, so the
+  `KeyError` can no longer arrive while the block is being built. What remains
+  open is the PLAY-TIME half described above — a body reading, at some later
+  point in the game, a variable whose phase is not active. Do not read the
+  declare-time wall as covering it: the two share a symptom and nothing else.
+
   *A name held as a bare string is not classified.* The contract IS checked to be
   sufficient for every name the resolver classifies: free names, calls and card
   literals are checked against the library alone, so a body cannot reach past
@@ -172,6 +180,35 @@ Things we have noted but consciously not designed yet:
   a differently-shaped body of material and need not reproduce the
   zones-and-state signal. Do not promote either negative to a decision on this
   evidence; wait for a family that forces the question, and name it.
+
+- **A `state { }` default is not checked against its declared type.** An
+  accepted-but-ignored hole, found by sweeping `n.Expr` in default position
+  while walling declare-time scope, and NOT closed by that wall. `v : Integer =
+  "s"`, `v : Integer = false`, `v : Boolean = 7` and `v : Integer = all players`
+  are all accepted today; the declared `type_name` reaches `typecheck` only as
+  the variable's type for later reads, and the default expression is never
+  compared against it. No corpus game trips it — every default is an integer or
+  an enum literal of the right type — which is exactly why it survived. The fix
+  belongs in the type layer, not in `resolve._check_state_default_scope`: that
+  wall's property is declare-time reachability, and stretching it to types would
+  put the rule where nobody would look for it. It is also the wall the
+  `AllPlayers` row of `tests/test_state_default_scope.py`'s ledger is waiting
+  for — that row is currently a residual with a record and no wall, the one
+  place that ledger does not meet the surface-totality gate.
+
+- **A `state { }` default may not call a function.** A deliberate narrowing, not
+  an unimplemented case, and recorded here so it is reopened on evidence rather
+  than by accident. A default runs while its block is still being declared, and
+  a callee's state reads live in a body the default's own tree does not contain
+  — so honouring a call would mean a declare-time reachability analysis through
+  every function a default can reach, including nested and mutually recursive
+  ones. The measured price of refusing instead is zero: an AST scan of every
+  `state` default across `docs/games/` and `docs/libraries/` finds `IntLit` and
+  `NameRef` only, spelled `none`, `false`, `true` and `hold` — not one default
+  reads a state variable, let alone calls anything. Reopen when a game wants a
+  computed initial value that a phase cannot set, and name the game.
+  (decisions.md "State scoping (lexical)"; ledger
+  `tests/test_state_default_scope.py`.)
 
 - **Packaging the corpus for distribution.** The whole project runs from a
   checkout: every `.cardlang` is loaded from `docs/games/` by repo-relative path

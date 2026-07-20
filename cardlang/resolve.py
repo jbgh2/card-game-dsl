@@ -635,6 +635,33 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
             f"as a parameter, or keep the definition that needs it in the game",
             card.span,
         )
+    # A PROVIDED default reaching the contract is in scope for the general
+    # declare-order wall too (`_check_state_default_scope`), which would refuse
+    # it after the splice with a span in this same file. It is caught here as
+    # well, and first, because the splice destroys the distinction the library
+    # author needs: post-splice a required name is just a state variable
+    # declared later, so the general wall's advice — declare it earlier — is
+    # advice they cannot take. Only the game can declare required state, and it
+    # always lands after the library's own.
+    required = {r.name for r in library.requires}
+    provided = library.state.decls if library.state is not None else ()
+    for decl in provided:
+        for node in _walk(decl.default):
+            # Matched by name, not by `ref_kind`: these decls are the raw ones,
+            # classified only inside `_library_reach`. A binder inside a default
+            # shadowing a required name would be refused too — conservative, and
+            # unreachable from a default worth writing.
+            if isinstance(node, n.NameRef) and node.name in required:
+                bag.error(
+                    f"library '{library.name}' initialises provided state "
+                    f"'{decl.name}' from '{node.name}', which its `requires` "
+                    f"contract asks the game to declare — so '{node.name}' does "
+                    f"not exist yet when this default runs: provided state is "
+                    f"declared before the game's own, never after. Give "
+                    f"'{decl.name}' a literal default and set it from "
+                    f"'{node.name}' in a phase",
+                    node.span or decl.span,
+                )
 
 
 def _check_requires(
@@ -781,6 +808,7 @@ def resolve(game: n.Game) -> n.Game:
     game = _classify_names(game, cats, bag)
     _validate_refs(game, cats, bag)
     _check_position_family_refs(game, bag, position_names)
+    _check_state_default_scope(game, bag)
     _check_functions(game, bag)
     _check_procedures(game, bag)
     _check_chooses(game, bag)
@@ -1247,6 +1275,99 @@ def _validate_removes(refs: list[n.RuleRef], added: set[str], bag: DiagnosticBag
                 f"there, or delete this removal",
                 ref.span,
             )
+
+
+def _check_state_default_scope(game: n.Game, bag: DiagnosticBag) -> None:
+    """A `state { }` default is evaluated while its own block is still being
+    declared, so it may only reach state that exists by then: a name declared
+    earlier in the SAME block, or one in an ENCLOSING block. `_categories`
+    flattens every declaration into one game-wide `state_vars` set — right for
+    the rest of the language, where state is read during play and all of it is
+    live — but a default runs before its block is finished, and reading a name
+    from later in the block, from a sibling phase, or from a phase nested inside
+    this one dies at playout on `KeyError: variable '…' not in scope`.
+
+    The scope model is the runtime's, mirrored rather than re-derived: `driver`
+    pushes a frame per phase and pops it at phase end, and finds a phase's
+    nested phases by scanning `items` for `n.Phase` — so an enclosing block's
+    names are live and a sibling's are not.
+
+    This is also where a family library's provided state lands. `_apply_uses`
+    splices the provided decls in FRONT of the game's own, so a provided default
+    reading one of the library's `requires` names reaches a variable the game
+    declares strictly later — never in scope, whatever the game does. That
+    subclass is refused before the splice, in the library's own currency, by
+    `_check_library_encapsulation`; this wall is what owns the general class,
+    and would catch it here too if the library check were removed.
+
+    Two constructs are refused outright rather than analysed, both because a
+    default runs before the world a body assumes exists:
+
+    - a `Call`, whose state reads live in a body `_walk` never enters from a
+      default — so the choice is an interprocedural scope check or a ban, and no
+      default in the corpus calls anything (roadmap.md records the narrowing);
+    - a `Choose`, which needs an acting player. A default is evaluated outside
+      any turn, so the runtime raised "a `choose` with no acting player" at
+      declare time; for the OpenSpiel target a decision with no actor also has
+      no information set to attach to.
+
+    The arms are three because the domain — `n.Expr` — was swept, not because
+    three defects were reported: the `Choose` cell had no witness and was found
+    by running every member of the union in default position (the grid in
+    `tests/test_state_default_scope.py` carries the outcome per member)."""
+
+    def declared(
+        block: n.StateBlock | None, enclosing: frozenset[str]
+    ) -> frozenset[str]:
+        if block is None:
+            return enclosing
+        in_scope = enclosing
+        for decl in block.decls:
+            for node in _walk(decl.default):
+                if isinstance(node, n.Choose):
+                    bag.error(
+                        f"the default of state variable '{decl.name}' cannot "
+                        f"`choose`: a default is evaluated where it is written, "
+                        f"outside any player's turn, so there is no one to make "
+                        f"the decision — and a decision with no actor has no "
+                        f"information set to attach to. Move it into a phase",
+                        node.span or decl.span,
+                    )
+                elif isinstance(node, n.Call):
+                    bag.error(
+                        f"the default of state variable '{decl.name}' cannot "
+                        f"call '{node.func}': a default is evaluated while the "
+                        f"`state {{ }}` block is still being declared, and a "
+                        f"function body can reach a variable that does not "
+                        f"exist yet — use a literal here and compute the value "
+                        f"in the phase that needs it",
+                        node.span or decl.span,
+                    )
+                elif (
+                    isinstance(node, n.NameRef)
+                    and node.ref_kind == "state_var"
+                    and node.name not in in_scope
+                ):
+                    bag.error(
+                        f"the default of state variable '{decl.name}' reads "
+                        f"'{node.name}', which is not declared yet: a default "
+                        f"can only read state declared before it — earlier in "
+                        f"the same `state {{ }}` block, or in an enclosing one",
+                        node.span or decl.span,
+                    )
+            in_scope = in_scope | {decl.name}
+        return in_scope
+
+    def descend(phase: n.Phase, enclosing: frozenset[str]) -> None:
+        block = next((i for i in phase.items if isinstance(i, n.StateBlock)), None)
+        inner = declared(block, enclosing)
+        for item in phase.items:
+            if isinstance(item, n.Phase):
+                descend(item, inner)
+
+    top = declared(game.state, frozenset())
+    for phase in game.phases:
+        descend(phase, top)
 
 
 def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
