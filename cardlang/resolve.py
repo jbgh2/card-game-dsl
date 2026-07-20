@@ -298,22 +298,35 @@ def _check_requires(
     that line, and an undeclared-name error surfacing from inside spliced library
     text would name symbols they never typed.
 
-    Satisfied from ANY `state { }` block in the game, not just the game-level one:
+    Answered from ANY `state { }` block in the game, not just the game-level one:
     a phase's state block is the natural home for state that resets on phase
     re-entry, which is exactly what per-hand betting state is (Stud declares all
-    nine of `poker_betting`'s requirements inside `phase play`). Where the state
-    lives is the game's business; that it exists, per-player or scalar, at the
-    library's type, is the contract."""
-    declared: dict[str, n.StateDecl] = {}
+    nine of `poker_betting`'s requirements inside `phase play`). Which block the
+    declaration sits in is the game's business; that EXACTLY ONE exists, at the
+    library's arity and type, is the contract.
+
+    Exactly one, and the count is the wall — not a tie broken by declaration
+    order. Cross-block shadowing is legal in general (`_check_duplicate_names`),
+    but the two shadowed declarations are answers to different questions and no
+    fixed bias picks correctly: a shadow in the phase where the library's
+    definitions run makes last-wins right, a shadow in some other phase makes
+    first-wins right. This function used to take the first while `typecheck` and
+    `runtime/driver.py` took the last, so a game could satisfy the contract on
+    one declaration and bind the other. Refusing the shadow outright is the only
+    answer that does not depend on a scope question the contract cannot see; it
+    costs a `requires`d name nothing, because that name is the library's
+    interface rather than game-private state (decisions.md "Family libraries" —
+    the same reason the metamorphic rename transform excludes it)."""
+    declared: dict[str, list[n.StateDecl]] = {}
     for node in _walk(game):
         if isinstance(node, n.StateBlock):
             for decl in node.decls:
-                declared.setdefault(decl.name, decl)
+                declared.setdefault(decl.name, []).append(decl)
     for want in library.requires:
-        have = declared.get(want.name)
+        found = declared.get(want.name, [])
         wanted = f"{want.name}{f'[{want.index}]' if want.index else ''}"
         spelled = f"{wanted} : {want.type_name}{'?' if want.optional else ''}"
-        if have is None:
+        if not found:
             bag.error(
                 f"library '{library.name}' requires state `{spelled}`, which "
                 f"game '{game.name}' does not declare — add it to the game's "
@@ -321,6 +334,17 @@ def _check_requires(
                 use.span,
             )
             continue
+        if len(found) > 1:
+            bag.error(
+                f"library '{library.name}' requires state `{spelled}`, which "
+                f"game '{game.name}' declares {len(found)} times — a requirement "
+                f"must name ONE declaration, or which one the library's "
+                f"definitions read depends on where they run; keep a single "
+                f"declaration of '{want.name}'",
+                use.span,
+            )
+            continue
+        have = found[0]
         if have.index != want.index:
             got = "per-player" if have.index else "a scalar"
             need = "per-player" if want.index else "a scalar"

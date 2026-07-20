@@ -3103,11 +3103,15 @@ requires {
 
 Deliberately a `state_decl` minus the `= <default>`: the initial value is the
 game's to choose, and a library that could set one would be configuring the game
-rather than contracting with it. A requirement is satisfied from any `state { }`
+rather than contracting with it. A requirement is answered from any `state { }`
 block in the game — a phase's block is the natural home for state that resets on
-phase re-entry, which is what per-hand betting state is. Because the spelling is
-the interface, a `requires`d name is not game-private: the metamorphic rename
-transform excludes it for that reason.
+phase re-entry, which is what per-hand betting state is — but by **exactly one**
+declaration. Cross-block shadowing is legal for game-private state and refused
+for a `requires`d name: the two shadowed declarations answer different questions,
+and no fixed tie-break picks correctly, since a shadow in the phase where the
+library's definitions run and a shadow in some other phase want opposite winners.
+Because the spelling is the interface, a `requires`d name is not game-private:
+the metamorphic rename transform excludes it for the same reason.
 
 **What a library holds, and what stays game-local.** A library declares a
 vocabulary, not a game, so it carries no zones, no state defaults and no phases.

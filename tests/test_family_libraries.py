@@ -591,14 +591,7 @@ def _requires_cells() -> list[object]:
     cells: list[object] = [pytest.param(0, "matching", id="absent")]
     for shape in sorted(_SHAPE_TEXT):
         cells.append(pytest.param(1, shape, id=f"once-{shape}"))
-        cells.append(
-            pytest.param(
-                2,
-                shape,
-                id=f"twice-{shape}",
-                marks=[pytest.mark.xfail(strict=True)],
-            )
-        )
+        cells.append(pytest.param(2, shape, id=f"twice-{shape}"))
     return cells
 
 
@@ -708,6 +701,17 @@ def test_requirement_declared_with_the_wrong_arity_is_rejected() -> None:
         _mistyped("raise_cap", index="player"),
         "requires state `raise_cap : Integer` to be a scalar",
         "declares it as per-player",
+    )
+
+
+def test_a_requirement_declared_twice_says_so() -> None:
+    """The message half of the multiplicity grid's rejecting row: it must name
+    the count and the fix, not merely fail. A designer who shadowed on purpose
+    has to be told that this particular name may not be shadowed."""
+    _rejects(
+        _game(phase_state="state { raise_cap : Integer = 2 }"),
+        "requires state `raise_cap : Integer`, which game 'Probe' declares 2 times",
+        "keep a single declaration of 'raise_cap'",
     )
 
 
