@@ -132,6 +132,21 @@ Things we have noted but consciously not designed yet:
   several passes would share. Build it before a second family library lands; the
   one-library corpus is what makes it currently harmless.
 
+- **The inline-vs-`run` metamorphic transform does not cross the import
+  tier.** T3 (`tests/metamorphic/test_inline.py`) splices every `run` site
+  with its procedure's body, reimplemented at SOURCE-TEXT level so it is
+  independent of `cardlang.expand`. That reads one file, so a game whose
+  procedure body lives in a family library is outside its domain: Kuhn, Leduc
+  and Seven-Card Stud all `run open_street(...)` from
+  `docs/libraries/poker_betting.cardlang`, and T3's property is genuinely
+  unchecked for the three. Also reading the library file would NOT fix it —
+  the game still `uses` that library, so the then-uninvoked library procedure
+  is a resolve error and the spliced text would not compile; the splice would
+  have to rewrite the `uses` line and the library together. The gap is pinned
+  as a named list (`test_the_library_procedure_games_are_pinned_as_uncovered`)
+  so it cannot shrink or grow silently. Worth closing when a second library
+  lands, since the shape generalizes rather than being poker-specific.
+
 - **Family libraries — zones and phases are not forced YET.** A library holds
   definitions and state (decisions.md "Family libraries"). Two things it still
   cannot hold, and the negative on both is weak — "no family has forced it",

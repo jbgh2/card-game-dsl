@@ -18,8 +18,9 @@ domain:   two layers. At PARSE, the library file's clause skeleton: the
           last required slot}, crossed with every alternative as the NEIGHBOUR
           written below — the cell that matters being a truncated item that
           completes itself from its neighbour and drops it. At RESOLVE, five
-          products. (a) The library's ENCAPSULATION: each definition kind of
-          `resolve._LIBRARY_DEF_KINDS` as the site a leak is written in, times
+          products. (a) The library's ENCAPSULATION: each EXPRESSION-BEARING
+          clause of `n.Library` as the site a leak is written in — the six
+          definition kinds plus `state`, whose defaults are expressions — times
           the reference kinds a body can leak through (a state name, a function
           call). (b) The `requires` contract per name: how many declarations the
           game holds {0, 1, 2} times the shape of the last one {matching, and
@@ -38,9 +39,12 @@ registry: the ITEM axis from the grammar's `?library_item`, scraped by
           which owns the other half of the same absorption class and pins the
           `STRUCT_TYPE_NAME` terminal against both clause registries); the
           DEFINITION-KIND axis from `resolve._LIBRARY_DEF_KINDS`, pinned to
-          `n.Library`'s own fields by `test_def_kinds_covers_every_library_field`
-          and reused as the leak-site axis (`test_leak_sites_cover_every_
-          definition_kind`); the SHAPE axis from `n.RequireDecl`'s own fields
+          `n.Library`'s own fields by `test_def_kinds_covers_every_library_field`;
+          the LEAK-SITE axis from `n.Library`'s fields MINUS `requires`, which is
+          the only clause with no expression slot to leak through
+          (`test_leak_sites_cover_every_expression_bearing_clause`) — derived by
+          subtraction rather than by listing, so a clause added with an
+          expression in it joins the grid without anyone remembering to add it; the SHAPE axis from `n.RequireDecl`'s own fields
           minus its key and span — the field set `_check_requires` compares —
           pinned by `test_shape_axis_covers_every_compared_field`, which is how
           the `optional` row came to exist;
@@ -78,18 +82,22 @@ covered:  the parse grid — item x neighbour, all 49 truncated cells executed b
           `test_the_library_builder_files_every_item_kind` (7 cells, each item
           filed in its own `n.Library` field and no other) with
           `test_an_unhandled_library_item_is_loud` as the pin under it.
-          The encapsulation grid — leak site x reference kind, all 30 cells
+          The encapsulation grid — leak site x reference kind, all 35 cells
           executed by `test_a_library_may_not_reach_past_its_contract`, all
           commanded REJECT and all asserted to land in the LIBRARY file, each
           against a game that satisfies the contract AND happens to provide what
           the leak reaches for (without that second half the cells would be
           ordinary unresolved names and would prove nothing about the contract).
-          Twelve carry a control twin in `test_the_same_site_reaching_only_its_
-          contract_is_accepted`, differing by one name; the other three columns
-          have no legal counterpart to be a twin, and the two controls beside
-          them establish the site. 24 cells were open before the wall and the
-          `card_literal` column for a commit after it — both red-before-green
-          transitions are in this branch's history.
+          Fourteen carry a control twin in `test_the_same_site_reaching_only_
+          its_contract_is_accepted`, differing by one name; the other three
+          columns have no legal counterpart to be a twin, and the two controls
+          beside them establish the site. 24 cells were open before the wall and
+          the `card_literal` column for a commit after it — both red-before-green
+          transitions are in this branch's history. The `state` ROW was born
+          green (its sweep shipped with the splice, a commit ahead of its
+          cells), so it is not evidence of the same kind; its reddening edit was
+          RUN rather than reasoned about — deleting `_library_reach`'s
+          `provided_state` sweep fails those five cells and no others.
           The `requires` grid — multiplicity x shape, 9 cells executed by
           `test_a_requirement_is_answered_by_exactly_one_matching_declaration`,
           accepting in exactly one; the multiplicity-2 row was open and is the
@@ -958,6 +966,9 @@ _LEAK_SITE: dict[str, str] = {
         "procedure p() {{ declared_thing := if {read} is not none then 1 else 2 }} "
         "move_type runner {{ effect {{ run p() }} }}"
     ),
+    # The seventh site is not a definition: a PROVIDED variable's default is an
+    # expression like any other, and leaks like any other.
+    "state": "state {{ provided_thing : Integer = {read} }}",
 }
 
 # reference kind -> (the leaking spelling, the contracted spelling that is its
@@ -976,13 +987,25 @@ _LEAK_READS: dict[str, tuple[str, str | None]] = {
 }
 
 
-def test_leak_sites_cover_every_definition_kind() -> None:
-    """A library holds six definition kinds and any of them can leak, so the
-    grid's site table must cover `_LIBRARY_DEF_KINDS` exactly — the same
-    registry the collision matrix above sweeps.
+def test_leak_sites_cover_every_expression_bearing_clause() -> None:
+    """Every library clause that can hold an EXPRESSION can leak through it, so
+    the grid's site table must be exactly those clauses — the six definition
+    kinds plus `state`, whose defaults are expressions.
+
+    `requires` is the one clause excluded, and not by omission: a
+    `require_decl` is a name, an index and a type name, with no expression slot
+    to leak through. That is why the axis is derived by SUBTRACTING it from
+    `n.Library`'s fields rather than by listing the six kinds — a clause added
+    to the library with an expression in it joins this grid automatically.
 
     red under: drop a key from `_LEAK_SITE`."""
-    assert set(_LEAK_SITE) == {field for field, _ in _LIBRARY_DEF_KINDS}
+    expression_bearing = {f.name for f in fields(n.Library)} - {
+        "name",
+        "span",
+        "requires",
+    }
+    assert set(_LEAK_SITE) == expression_bearing
+    assert {field for field, _ in _LIBRARY_DEF_KINDS} < expression_bearing
 
 
 # reference kind -> the `_Categories` field(s) it reaches through. `call` has no
@@ -1067,7 +1090,7 @@ def _leak_cells() -> list[object]:
     channel of their own."""
     return [
         pytest.param(field, kind, id=f"{field}-{kind}")
-        for field, _ in _LIBRARY_DEF_KINDS
+        for field in sorted(_LEAK_SITE)
         for kind in sorted(_LEAK_READS)
     ]
 
@@ -1083,7 +1106,9 @@ def test_a_library_may_not_reach_past_its_contract(
     that made the leak invisible.
 
     red under: delete the `_check_library_encapsulation` call from
-    `_apply_uses`."""
+    `_apply_uses`. The `state` row has its own, narrower reddening edit,
+    verified rather than assumed: deleting the `provided_state` sweep from
+    `_library_reach` fails exactly those five cells and no others."""
     _patch_libraries(monkeypatch, {"leaky": _leaky(field, kind, leaking=True)})
     with pytest.raises(DiagnosticError) as exc:
         resolve(_leak_host())
@@ -1098,7 +1123,7 @@ def test_a_library_may_not_reach_past_its_contract(
     "field,kind",
     [
         (f, k)
-        for f, _ in _LIBRARY_DEF_KINDS
+        for f in sorted(_LEAK_SITE)
         for k in sorted(_LEAK_READS)
         if _LEAK_READS[k][1] is not None
     ],
@@ -1414,25 +1439,41 @@ _CLAIMED = "claimed"
 # The one-library grid: what the library claims about `claimed`, times whether
 # the game declares it. `both` is the same library provoking itself, which is why
 # the axis is the non-empty SUBSETS of the claim kinds rather than the kinds.
-_ONE_LIBRARY_CELLS: dict[tuple[str, bool], str | None] = {
+# cell -> (message needle, the FILE the diagnostic must land in), or None to
+# accept. The location is half the command, not decoration: these walls split
+# currency deliberately. A library contradicting itself is the library author's
+# to fix, so it lands in the library file; everything else is the game author's.
+_GAME_FILE = "claimer.cardlang:"
+_LIB_A_FILE = "docs/libraries/lib_a.cardlang:"
+
+_ONE_LIBRARY_CELLS: dict[tuple[str, bool], tuple[str, str] | None] = {
     ("requires", True): None,  # the contract, met
-    ("requires", False): "does not declare",
-    ("state", True): "declared by this game and also provided by library",
+    ("requires", False): ("does not declare", _GAME_FILE),
+    ("state", True): (
+        "declared by this game and also provided by library",
+        _GAME_FILE,
+    ),
     ("state", False): None,  # the library owns it and nobody argues
-    ("both", True): "both provides and requires",
-    ("both", False): "both provides and requires",
+    ("both", True): ("both provides and requires", _LIB_A_FILE),
+    ("both", False): ("both provides and requires", _LIB_A_FILE),
 }
 
 # The two-library grid: what each of two libraries claims, times the same. Only
 # the unordered pairs — the walls are symmetric and a mirrored cell would assert
 # nothing the first does not.
-_TWO_LIBRARY_CELLS: dict[tuple[str, str, bool], str | None] = {
+_TWO_LIBRARY_CELLS: dict[tuple[str, str, bool], tuple[str, str] | None] = {
     ("requires", "requires", True): None,  # one declaration answers both
-    ("requires", "requires", False): "does not declare",
-    ("requires", "state", True): "declared by this game and also provided by library",
-    ("requires", "state", False): "which library 'lib_b' provides",
-    ("state", "state", True): "declared by this game and also provided by library",
-    ("state", "state", False): "provided by both library",
+    ("requires", "requires", False): ("does not declare", _GAME_FILE),
+    ("requires", "state", True): (
+        "declared by this game and also provided by library",
+        _GAME_FILE,
+    ),
+    ("requires", "state", False): ("which library 'lib_b' provides", _GAME_FILE),
+    ("state", "state", True): (
+        "declared by this game and also provided by library",
+        _GAME_FILE,
+    ),
+    ("state", "state", False): ("provided by both library", _GAME_FILE),
 }
 
 
@@ -1494,11 +1535,11 @@ def test_one_library_claiming_a_state_name(
     face of "`uses` imports, it does not inherit"."""
     _patch_libraries(monkeypatch, {"lib_a": _claim_library("lib_a", claim)})
     game = _claim_game(["lib_a"], declares=declares)
-    needle = _ONE_LIBRARY_CELLS[(claim, declares)]
-    if needle is None:
+    cell = _ONE_LIBRARY_CELLS[(claim, declares)]
+    if cell is None:
         resolve(game)
         return
-    _rejects(game, needle)
+    _rejects(game, *cell)
 
 
 def _two_library_cells() -> list[object]:
@@ -1528,11 +1569,11 @@ def test_two_libraries_claiming_one_state_name(
         {"lib_a": _claim_library("lib_a", a), "lib_b": _claim_library("lib_b", b)},
     )
     game = _claim_game(["lib_a", "lib_b"], declares=declares)
-    needle = _TWO_LIBRARY_CELLS[(a, b, declares)]
-    if needle is None:
+    cell = _TWO_LIBRARY_CELLS[(a, b, declares)]
+    if cell is None:
         resolve(game)
         return
-    _rejects(game, needle)
+    _rejects(game, *cell)
 
 
 # --- the real corpus library --------------------------------------------------

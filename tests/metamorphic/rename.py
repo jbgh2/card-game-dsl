@@ -206,7 +206,15 @@ def _contract_names(game: n.Game) -> frozenset[str]:
     "Family libraries"), and the library text is not part of the rename domain.
     Renaming one would not be a meaning-preserving transform — it would break the
     contract, which is a real semantic change, so the name is excluded rather
-    than renamed-and-patched."""
+    than renamed-and-patched.
+
+    A library's PROVIDED state is interface for the same reason, and needs no
+    entry here: it cannot reach the rename domain at all. The domain is built
+    from DECLARATIONS the game holds, provided state is declared by the library
+    and spliced in during resolve, and this plan is built from the parsed game
+    (`_contract_names` reads `game.uses`, which `_apply_uses` empties). A game
+    that merely READS a provided name is safe for the same reason — `_rewrite`
+    only rewrites names in the map, and an undeclared name never enters it."""
     names: set[str] = set()
     for use in game.uses:
         if use.name in library_names():
