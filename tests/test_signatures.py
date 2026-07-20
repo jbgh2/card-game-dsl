@@ -7,20 +7,17 @@ property:   the stdlib name sets, the signature tables, and the runtime
             dispatch arm, and for CALL_SIGS additionally the same per-name
             arity and, where an arm plainly forwards to a named helper,
             Python annotations that agree with the declared DSL types
-domain:     table reconciliation — the four registries that have a
-            signature table (STDLIB_CALL_FUNCS, STDLIB_VALUE_NAMES,
-            STDLIB_EARLY_PREDICATES, LIBRARY_ZONE_TYPES) × that table;
-            dispatchability — the six callable registries (trick / auction
-            / early / climb-leads / climb-follows / call) × the dispatcher
-            serving each, climb-leads twice (its query, and the action
-            space's codec-else-universe pair); and every CALL_SIGS entry ×
+domain:     every registry with a signature table × that table; every
+            callable registry × the dispatcher(s) serving it (the climb
+            lead set is served twice — by its query, and by the action
+            space's codec-else-universe pair); every CALL_SIGS entry ×
             {name, arity, param annotations, return annotation}
 registry:   the name sets themselves for names; the dispatch's own AST for
             what each arm consumes (derived by parsing, never hand-listed)
-covered:    names (set equality both ways, the four tabled registries),
-            dispatchability (seven pins over the six callable registries),
-            arity (all arms), annotations for every plain-forward arm and
-            its return
+covered:    names (set equality both ways, every tabled registry),
+            dispatchability (every callable registry, against its
+            dispatcher), arity (all arms), annotations for every
+            plain-forward arm and its return
 sampled:    none
 residual:   inline arms (an expression instead of a helper call — team_of,
             rank_value, card_value, error, peg_pair/run_points) get
@@ -28,20 +25,18 @@ residual:   inline arms (an expression instead of a helper call — team_of,
             the expression is its own statement of the types. TAny positions
             are deliberately loose (polymorphic suit_of argument; the typed
             object model's deferred edges) and skipped by the mapping.
-            STDLIB_CLIMB_LEADS / STDLIB_CLIMB_FOLLOWS have no signature
-            table and no reconciliation cell: a climb query is named in a
-            `round climb` slot and is never expression-typed (typecheck.py
-            does not reference either set), so there is no type to declare
-            — they carry dispatchability coverage only.
-            LIBRARY_ZONE_TYPES has no dispatchability cell here: zone types
-            name data, not callables, so there is no arm to reach — their
-            projection coverage is pinned in tests/test_zone_projections.py
-            and the projection-name dispatch in tests/test_partition_helpers.py.
-            Nothing forces a NEW name-set registry to acquire a
-            dispatchability pin at all — the pairing of registry to
-            dispatcher is not derivable from code, so each pin below names
-            its own registry. The manifest that would close this is
-            deferred (roadmap.md, "Registry-module manifest").
+            The climb sets have no signature table and no reconciliation
+            cell: a climb query is named in a `round climb` slot and is
+            never expression-typed, so there is no type to declare — they
+            carry dispatchability only.
+            LIBRARY_ZONE_TYPES has no dispatchability cell: zone types name
+            data, not callables, so there is no arm to reach. Their
+            projection coverage is pinned by the zone-projection and
+            partition-helper tests.
+            Nothing forces a NEW registry to acquire a dispatchability pin —
+            the registry-to-dispatcher pairing is not derivable from code,
+            so each pin below names its own registry. Deferred: roadmap.md
+            "Registry-module manifest".
 """
 
 from __future__ import annotations
@@ -125,9 +120,9 @@ def test_early_predicates_are_dispatchable() -> None:
 
 
 def test_climb_action_space_is_derivable() -> None:
-    """`ActionSpace.for_game` derives a climbing game's combo block from one of
-    two registries — the arithmetic codec, else the enumerable universe — so the
-    two must JOINTLY cover STDLIB_CLIMB_LEADS. A lead query in neither is
+    """`ActionSpace.for_game` derives a climbing game's combo block from the
+    arithmetic codec, else the enumerable universe — so the codec and universe
+    registries must JOINTLY cover STDLIB_CLIMB_LEADS. A lead query in neither is
     accepted by resolve and by both climb-query dispatchers above, and fails
     only when the adapter first builds the action space. Replays the adapter's
     own branch (openspiel/encoding.py) rather than a second copy of the
