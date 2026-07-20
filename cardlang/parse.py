@@ -17,9 +17,20 @@ Assumes:      raw DSL text (Markdown extraction already applied).
 Establishes:  a syntactically valid frozen AST; every node carries a
               :class:`Span`. No semantic claims — names are unclassified
               (``NameRef.ref_kind`` is ``None``) and nothing is typed.
-Now illegal:  ill-formed syntax; it cannot reach any later pass.
+Now illegal:  ill-formed syntax; it cannot reach any later pass. Also
+              MUTATING OR ANNOTATING A RETURNED AST: ``parse_text`` is
+              memoized, so two callers parsing the same
+              ``(text, source_name, line_offset)`` receive the SAME object.
+              Three things make that sound, and all three are walls, not
+              conventions: every node is ``frozen=True`` (no field rebinding)
+              AND ``slots=True`` (no attribute attachment — ``frozen`` alone
+              does not stop it), both enumerated over the Node registry by
+              tests/test_node_registry.py; and every downstream pass rebinds a
+              new tree rather than editing in place. A pass that wants to edit
+              a node builds a new one with ``dataclasses.replace``.
 Verified by:  the grammar-ambiguity check (tests/test_grammar_ambiguity.py)
-              and the per-construct parse tests.
+              and the per-construct parse tests; the memo's own liveness and
+              key correctness by tests/test_parse.py's caching pins.
 """
 
 from __future__ import annotations
@@ -1381,12 +1392,29 @@ def parse_library_rules(text: str, source_name: str) -> tuple[n.RuleDef, ...]:
     return result
 
 
-def parse_text(text: str, source_name: str, line_offset: int = 0) -> n.Game:
-    """Parse DSL ``text`` into a :class:`~cardlang.ast.nodes.Game` AST."""
+@lru_cache(maxsize=None)
+def _parse_text_cached(text: str, source_name: str, line_offset: int) -> n.Game:
+    """The memoized body of :func:`parse_text`. Takes ``line_offset``
+    positionally and without a default so one call site cannot miss another's
+    entry over an argument spelling (``lru_cache`` keys on the call shape).
+
+    Unbounded deliberately: a corpus game is re-parsed dozens of times across
+    a suite run, interleaved with far more one-shot snippets from the
+    rejection and typecheck-error tests, so any small bound would let that
+    churn evict exactly the entries worth keeping. That trade suits every
+    caller this has today — suite, CLI, harnesses — because all are
+    short-lived. It would NOT suit a long-lived one: a caller that re-parses
+    edited text (an editor session, a watch mode) mints a fresh entry per
+    edit and never reuses it, so it must bound or clear this cache."""
     tree = parse_to_tree(text, source_name, line_offset)
     result = _transform(_Builder(source_name, line_offset), tree)
     assert isinstance(result, n.Game)
     return result
+
+
+def parse_text(text: str, source_name: str, line_offset: int = 0) -> n.Game:
+    """Parse DSL ``text`` into a :class:`~cardlang.ast.nodes.Game` AST."""
+    return _parse_text_cached(text, source_name, line_offset)
 
 
 def parse_block(block: FencedBlock) -> n.Game:

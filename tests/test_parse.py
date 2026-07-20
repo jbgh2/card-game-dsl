@@ -1,12 +1,19 @@
 """Tests for the parse stage (Lark + Transformer -> typed AST).
 
-Walking-skeleton subset only: game header, players, deck, zones.
+Walking-skeleton subset only: game header, players, deck, zones — plus the
+memoization pins `cardlang/parse.py`'s Contract block cites (see
+"the memo is sound only while" below).
 """
 
 from __future__ import annotations
 
+import dataclasses
+
+import pytest
+
 from cardlang.ast.nodes import Game, PlayersSpec, TypeArg, TypeRef, ZoneDecl
-from cardlang.parse import parse_text
+from cardlang.diagnostics import DiagnosticError
+from cardlang.parse import _parse_text_cached, parse_text
 
 SKELETON = """game Skeleton {
   players: 2
@@ -83,3 +90,86 @@ def test_comments_are_ignored() -> None:
     game = parse_text(text, "c.dsl")
     assert game.name == "C"
     assert game.zones == ()
+
+
+# ---------------------------------------------------------------------------
+# `parse_text` memoization (cardlang/parse.py, Contract "Now illegal").
+#
+# The memo is sound only while all four hold, so each gets a probe: it is
+# actually live; its key separates what changes the AST; its key does NOT
+# separate mere argument spellings; and it never caches a rejection.
+# The fifth probe pins the frozen-ness that lets two callers share one tree.
+# ---------------------------------------------------------------------------
+
+
+def _unique(name: str) -> str:
+    return f"""game {name} {{
+  players: 2
+  max_length: 1000
+  cards: standard52
+  zones {{ deck : Deck }}
+}}
+"""
+
+
+def test_repeated_parse_returns_the_identical_object() -> None:
+    # Without this the optimization is vacuous: every other claim about parse
+    # cost assumes the second call is free, and only object identity shows it.
+    text = _unique("MemoLive")
+    assert parse_text(text, "a.dsl") is parse_text(text, "a.dsl")
+
+
+def test_memo_key_separates_source_name_and_line_offset() -> None:
+    # Both feed the Span on every node, so a memo keyed on `text` alone would
+    # hand back a tree whose diagnostics point at the wrong file and line.
+    text = _unique("MemoKeyed")
+    by_name = parse_text(text, "one.dsl"), parse_text(text, "two.dsl")
+    assert by_name[0] is not by_name[1]
+    assert by_name[0].span is not None and by_name[1].span is not None
+    assert by_name[0].span.source_name == "one.dsl"
+    assert by_name[1].span.source_name == "two.dsl"
+
+    flat, offset = parse_text(text, "m.md"), parse_text(text, "m.md", line_offset=3)
+    assert flat is not offset
+    assert flat.span is not None and offset.span is not None
+    assert offset.span.line == flat.span.line + 3
+
+
+def test_argument_spelling_does_not_split_the_memo() -> None:
+    # `lru_cache` keys on the call shape, so a bare `lru_cache` on `parse_text`
+    # would file these three identical requests under three separate entries.
+    # `_parse_text_cached` takes `line_offset` positionally to normalize them.
+    text = _unique("MemoSpelling")
+    parse_text(text, "s.dsl")  # prime, so the count below is spelling-only
+    before = _parse_text_cached.cache_info().misses
+    a = parse_text(text, "s.dsl")
+    b = parse_text(text, "s.dsl", 0)
+    c = parse_text(text, "s.dsl", line_offset=0)
+    assert a is b is c
+    assert _parse_text_cached.cache_info().misses == before
+
+
+def test_a_rejection_is_re_raised_every_time_never_memoized() -> None:
+    # The whole rejection corpus (tests/rejections/) asserts on diagnostics.
+    # If a raise were cached, the second assertion in any such test would be
+    # checking a replayed object rather than a live parse. `lru_cache` stores
+    # nothing on an exception; this pins that we depend on it.
+    bad = "game Broken { players: 2"
+    with pytest.raises(DiagnosticError) as first:
+        parse_text(bad, "broken.dsl")
+    with pytest.raises(DiagnosticError) as second:
+        parse_text(bad, "broken.dsl")
+    assert first.value is not second.value
+
+
+def test_a_shared_ast_cannot_be_mutated() -> None:
+    # A BACKSTOP, not the wall: it probes one field of one node. The wall for
+    # the whole Node domain is test_node_registry.py's
+    # `test_every_node_kind_is_frozen` + `test_every_node_kind_has_slots`,
+    # enumerated from the module's own dataclass registry. This exists only to
+    # fail in the parse tests' own currency — a reader who breaks the memo's
+    # immutability premise while editing here sees it immediately, rather than
+    # in a registry test two files away.
+    game = parse_text(_unique("MemoFrozen"), "f.dsl")
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        game.name = "Renamed"  # type: ignore[misc]

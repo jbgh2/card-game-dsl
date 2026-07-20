@@ -94,3 +94,17 @@ def test_every_node_kind_is_frozen() -> None:
         if not cls.__dataclass_params__.frozen  # type: ignore[attr-defined]
     )
     assert not unfrozen, f"AST dataclasses not frozen: {unfrozen}"
+
+
+def test_every_node_kind_has_slots() -> None:
+    """`frozen=True` blocks REBINDING a declared field; it does NOT block
+    attaching a new attribute (`node.inferred_type = ...` succeeds on a frozen
+    non-slots dataclass). `slots=True` is what makes that fail, and it is
+    load-bearing now that `parse_text`/`_check` are memoized (cardlang/parse.py,
+    Contract): one caller annotating a shared tree would be visible to every
+    other holder of it. Enumerated from the same registry as the frozen check
+    above, so a new node kind cannot land without slots."""
+    slotless = sorted(
+        cls.__name__ for cls in _module_dataclasses() if not hasattr(cls, "__slots__")
+    )
+    assert not slotless, f"AST dataclasses without __slots__: {slotless}"
