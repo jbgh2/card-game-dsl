@@ -152,7 +152,80 @@ interface cannot express one.
    game-independent names. Byte-identical traces throughout, enforced by the
    existing goldens.
 
-## 5. One pressure to preserve
+## 5. Execution plan (ratified 2026-07-19: sidecars land before the
+## combinations construct — see [combination-scoring.md](combination-scoring.md))
+
+PR-sized stages, each independently green under the full gates (bare
+`mypy`, full `pytest -q`; the surface-totality audit wherever a registry
+or grammar changes). Goldens policy is stated per stage — "byte-identical"
+is the gauge except where noted.
+
+**Stage 1 — evict the trace emitters (S, one PR).** Remove
+`coup_note_reveal` and `tichu_hand_summary` from all three tables and
+their runtime modules; delete the call sites (including Coup's dead
+`let noted =` line); reproduce the trace information at the harness
+layer from the observation events the kernel already emits. Goldens:
+if trace text changes, sanctioned regeneration with the rationale in
+the commit (the gather-order precedent). Misuse probe: calling either
+removed name yields the standard unknown-function diagnostic.
+
+**Stage 2 — narrow the interface (M, 4-6 PRs by game family).** For
+each game primitive, split surface from implementation: the game-file
+call and its checker signature stay EXACTLY as they are; the
+implementation is rewritten values-in/value-out, and the dispatch
+layer fetches the primitive's declared reads (the `PRIMITIVE_READS`
+table in `cardlang/runtime/reads.py` is the authored inventory) and
+passes plain values. Scorers first, the accumulator-readers
+(`pot_share`) and trick-terminal readers (`tarot_excuse_player`)
+last. Acceptance per PR: no `Ctx` reaches any game module (grep-able
+wall), `tests/test_primitive_reads.py` stays green, goldens
+byte-identical — this stage is a pure refactor.
+
+**Stage 3 — the `primitives { }` block (L, 1-2 PRs; the audit
+stage).** Grammar: `name(param : Type, ...) -> Type reads <names>`.
+Resolve/typecheck: declared-but-unimplemented and
+implemented-but-undeclared are both errors; call sites check against
+the DECLARED signature; the reads clause validates zone and state
+names. Scope wall for v1: the reads clause is checked for name
+validity and drives what the dispatch hands over — the derived-reveal
+analysis (hidden reads flowing into public state) is recorded
+follow-on work, not silently absent. Registry, signatures, and
+dispatch DERIVE from the parsed declarations, replacing the three
+hand-maintained tables and the hand-written match; a static test pins
+corpus declarations against implementations both ways. Corpus game
+files gain their blocks in the same change (the lockstep rule);
+behavior unchanged, goldens byte-identical. Full audit artifacts:
+misuse probes (undeclared call, unimplemented declaration, wrong
+arity or types at the call site, reads naming an unknown zone,
+duplicate declaration) plus the completeness ledger.
+
+**Stage 4 — co-locate (M).** Implementations move out of
+`cardlang/runtime/` to live with their games; the loader resolves
+them from the declaration; `cardlang/stdlib` keeps only
+game-independent names (`team_of`, `player_holding`, `rank_value`,
+poker-family selectors pending their second witness). Placement of
+the moved files (a corpus-adjacent directory vs beside the game
+docs) is the implementing session's one open decision. Goldens
+byte-identical.
+
+**Stage 5 — Salvo round 5 rides it (back in the experiment).** The
+`standard54` deck row with registry-derived test coverage; salvo.cardlang
+takes the deck, an explicit ranking with `Joker`, the joker branch in
+`loc_value`, the filtered location deal, and a `primitives {
+salvo_combos(cards : collection of Card) -> Integer }` sidecar
+carrying the frequency-core table (it migrates to the `combinations`
+construct when tier 1 lands — the visible burn-down this section
+promises); the triage mirror updates alongside (its per-game mirror
+pin proves sidecar/mirror parity); arena re-runs and REPORT verdicts
+close the round.
+
+Standing risks: golden-regeneration discipline at stage 1; `pot_share`'s
+accumulator inputs may force its surface signature to change after all
+(if so, stage 2 flags it loudly instead of absorbing it); the unmerged
+family-library branch also touches stdlib surface — rebase order should
+be agreed before stage 3 lands.
+
+## 6. One pressure to preserve
 
 The declaration block doubles as a per-game inventory of exactly what is
 not yet expressible in the DSL — which is what these primitives are, and
