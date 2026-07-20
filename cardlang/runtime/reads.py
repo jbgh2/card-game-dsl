@@ -180,7 +180,7 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         module="cardlang/runtime/tichu.py",
         game_file="tichu.cardlang",
         state_vars=_fs("out_first", "out_second"),
-        zone_families=_fs("hand", "captured"),
+        zone_families=_fs("hand"),
     ),
     # stdlib.py's per-game functions: the auction outcomes and cribbage's
     # pegging-scorer call sites. One row per game served.

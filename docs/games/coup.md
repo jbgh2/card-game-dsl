@@ -153,7 +153,6 @@ procedure lose_influence(victim : Player) {
   as victim {
     if alive[victim] and influence[victim] is not empty {
       move chosen one card from influence[victim] to revealed[victim]
-      let noted = coup_note_reveal(victim)
       if influence[victim] is empty { alive[victim] := false
         treasury += coins[victim]
         coins[victim] := 0 }
