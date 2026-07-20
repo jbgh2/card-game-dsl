@@ -6,6 +6,18 @@ What's explicitly deferred, and the suggested order of next steps.
 
 Things we have noted but consciously not designed yet:
 
+- **Solver-tier throughput.** Whole-tree and sampled solvers through the
+  replay adapter are constant-factor slow even fully memoized (measured:
+  ~23 s per CFR+ iteration on a 20k-decision tree; Undertow's killed
+  MCCFR run is the probe-tier face of the same cost). Parked as its own
+  workstream with a staged plan — profile, then instrument-level fixes,
+  then per-game fast twins, then adapter-level incremental stepping — in
+  [experiments/game-to-artifact-plan.md](../experiments/game-to-artifact-plan.md),
+  "Risks and open questions" item 13. Resumes at the next genuine
+  solver-tier need; until then evaluation rounds stay at playout scale
+  plus small fixed-deal exact solves, which the Salvo experiment shows
+  answer the design-loop questions.
+
 - **Named procedures — deferred cells.** Every one is a loud wall today, never a
   silent acceptance; the ledger is `tests/test_procedures.py`. (a) **`Zone`
   parameters.** The design note expected the corpus to need them; it does not — a
