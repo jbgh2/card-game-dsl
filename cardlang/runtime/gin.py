@@ -35,13 +35,13 @@ from __future__ import annotations
 from itertools import combinations
 
 from cardlang.runtime import reads
-from cardlang.runtime.state import Ctx
+from cardlang.runtime.sidecar import EngineFacts
 from cardlang.runtime.values import Card, Player
 
 # Every zone this module reads by name is declared in PRIMITIVE_READS
 # (cardlang/runtime/reads.py) — the declared-reads coupling contract; the
 # accessors below are the only sanctioned way to touch state by name.
-_R = reads.row("cardlang/runtime/gin.py", "gin-rummy.cardlang")
+ROW = reads.row("cardlang/runtime/gin.py", "gin-rummy.cardlang")
 
 _POINTS = {"A": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8,
            "9": 9, "10": 10, "J": 10, "Q": 10, "K": 10}
@@ -180,22 +180,22 @@ GIN_MELD_CODEC = _GinMeldCodec()
 # --- ctx-adapters (the DSL-visible signatures live in stdlib/signatures.py) ---
 
 
-def _hand(ctx: Ctx, player: Player) -> list[Card]:
+def _hand(gr: reads.GameReads, player: Player) -> list[Card]:
     """The player's full private holding: `hand[p]` plus the `taken[p]`
     staging zone (the just-taken discard, held apart so the "must discard a
     different card" rule is structural — the discard/knock candidate pool is
     `hand` alone, but deadwood counts everything held)."""
-    held = list(reads.instance(ctx.rs, _R, "hand", player).cards)
-    held.extend(reads.instance(ctx.rs, _R, "taken", player).cards)
+    held = list(gr.families["hand"][player])
+    held.extend(gr.families["taken"][player])
     return held
 
 
-def gin_deadwood(ctx: Ctx, player: Player) -> int:
+def gin_deadwood(facts: EngineFacts, gr: reads.GameReads, player: Player) -> int:
     """The optimal partition's deadwood of `hand[player]`."""
-    return minimal_deadwood(_hand(ctx, player))
+    return minimal_deadwood(_hand(gr, player))
 
 
-def gin_can_knock(ctx: Ctx, player: Player) -> bool:
+def gin_can_knock(facts: EngineFacts, gr: reads.GameReads, player: Player) -> bool:
     """Knock availability — the `end_knock` announce guard: some card FROM THE
     HAND ZONE can be discarded leaving a <= 10 arrangement of everything else
     held. The discard candidates are exactly the knock movement's pool —
@@ -205,24 +205,24 @@ def gin_can_knock(ctx: Ctx, player: Player) -> bool:
     class: a hand whose ONLY knock-legal discard is the taken card offered the
     announce and then had zero movement candidates. Exactly
     `any c in hand: gin_knock_ok(c)` — the no-implicit-actions pairing."""
-    held = _hand(ctx, player)
-    hand_only = list(reads.instance(ctx.rs, _R, "hand", player).cards)
+    held = _hand(gr, player)
+    hand_only = list(gr.families["hand"][player])
     return any(minimal_deadwood([c for c in held if c != d]) <= 10 for d in hand_only)
 
 
-def gin_knock_ok(ctx: Ctx, player: Player, discard: Card) -> bool:
+def gin_knock_ok(facts: EngineFacts, gr: reads.GameReads, player: Player, discard: Card) -> bool:
     """Knock legality: discarding `discard` leaves a hand some arrangement of
     which has <= 10 deadwood (Pagat: knock after drawing, by discarding)."""
-    rest = [c for c in _hand(ctx, player) if c != discard]
+    rest = [c for c in _hand(gr, player) if c != discard]
     return minimal_deadwood(rest) <= 10
 
 
-def gin_valid_meld(ctx: Ctx, cards: list[Card]) -> bool:
+def gin_valid_meld(facts: EngineFacts, gr: reads.GameReads, cards: list[Card]) -> bool:
     """The defender's arrangement guard: any valid meld."""
     return valid_meld(list(cards))
 
 
-def gin_arrange_ok(ctx: Ctx, player: Player, cards: list[Card]) -> bool:
+def gin_arrange_ok(facts: EngineFacts, gr: reads.GameReads, player: Player, cards: list[Card]) -> bool:
     """The knocker's arrangement guard: `cards` is a valid meld AND declaring
     it keeps a legal knock reachable — the rest of the hand still arranges to
     <= 10 deadwood. Every offered arrangement decision therefore stays
@@ -232,18 +232,18 @@ def gin_arrange_ok(ctx: Ctx, player: Player, cards: list[Card]) -> bool:
     if not valid_meld(group):
         return False
     taken = set(group)
-    rest = [c for c in _hand(ctx, player) if c not in taken]
+    rest = [c for c in _hand(gr, player) if c not in taken]
     return minimal_deadwood(rest) <= 10
 
 
-def gin_can_declare(ctx: Ctx, player: Player) -> bool:
+def gin_can_declare(facts: EngineFacts, gr: reads.GameReads, player: Player) -> bool:
     """Whether any declarable meld exists — the `declare_meld` move guard:
     some meld in the hand passes `gin_arrange_ok` (valid, and the remainder
     still arranges to <= 10). Checked by direct enumeration over the hand's
     candidate melds, the same universe the joint selection enumerates, so
     the guard is true exactly when the movement would have a candidate (the
     no-implicit-actions pairing)."""
-    hand = _hand(ctx, player)
+    hand = _hand(gr, player)
     for meld in _candidate_melds(hand):
         group = [hand[i] for i in meld]
         taken = set(group)
@@ -253,24 +253,24 @@ def gin_can_declare(ctx: Ctx, player: Player) -> bool:
     return False
 
 
-def gin_can_declare_free(ctx: Ctx, player: Player) -> bool:
+def gin_can_declare_free(facts: EngineFacts, gr: reads.GameReads, player: Player) -> bool:
     """The defender's declare guard: any valid meld exists in the hand — no
     knock budget (a defender may arrange however they like; suboptimal is
     rule-legal). The no-implicit-actions pairing for `declare_meld_d`."""
-    hand = _hand(ctx, player)
+    hand = _hand(gr, player)
     return any(valid_meld([hand[i] for i in meld]) for meld in _candidate_melds(hand))
 
 
-def gin_flat_points(ctx: Ctx, player: Player) -> int:
+def gin_flat_points(facts: EngineFacts, gr: reads.GameReads, player: Player) -> int:
     """The hand counted as all-deadwood — the `finish_arranging` guard (the
     undeclared remainder IS the shown deadwood) and the scoring counts."""
-    return flat_points(_hand(ctx, player))
+    return flat_points(_hand(gr, player))
 
 
-def gin_shown_points(ctx: Ctx, player: Player) -> int:
+def gin_shown_points(facts: EngineFacts, gr: reads.GameReads, player: Player) -> int:
     """The point count of `shown_deadwood[player]` — the scoring read after
     both arrangements (and any layoffs) are on the table."""
-    return flat_points(list(reads.instance(ctx.rs, _R, "shown_deadwood", player).cards))
+    return flat_points(list(gr.families["shown_deadwood"][player]))
 
 
 def _extends_meld(card: Card, meld: list[Card]) -> bool:
@@ -279,18 +279,18 @@ def _extends_meld(card: Card, meld: list[Card]) -> bool:
     return bool(meld) and valid_meld(meld + [card])
 
 
-def gin_lay_ok_a(ctx: Ctx, card: Card, knocker: Player) -> bool:
+def gin_lay_ok_a(facts: EngineFacts, gr: reads.GameReads, card: Card, knocker: Player) -> bool:
     """Layoff legality onto the knocker's first shown meld: the extended
     group is still a valid meld. (Cards never lay off on deadwood; the gin
     case is guarded in the DSL — layoff is skipped entirely.)"""
-    return _extends_meld(card, list(reads.instance(ctx.rs, _R, "meldA", knocker).cards))
+    return _extends_meld(card, list(gr.families["meldA"][knocker]))
 
 
-def gin_lay_ok_b(ctx: Ctx, card: Card, knocker: Player) -> bool:
+def gin_lay_ok_b(facts: EngineFacts, gr: reads.GameReads, card: Card, knocker: Player) -> bool:
     """Layoff legality onto the knocker's second shown meld."""
-    return _extends_meld(card, list(reads.instance(ctx.rs, _R, "meldB", knocker).cards))
+    return _extends_meld(card, list(gr.families["meldB"][knocker]))
 
 
-def gin_lay_ok_c(ctx: Ctx, card: Card, knocker: Player) -> bool:
+def gin_lay_ok_c(facts: EngineFacts, gr: reads.GameReads, card: Card, knocker: Player) -> bool:
     """Layoff legality onto the knocker's third shown meld."""
-    return _extends_meld(card, list(reads.instance(ctx.rs, _R, "meldC", knocker).cards))
+    return _extends_meld(card, list(gr.families["meldC"][knocker]))

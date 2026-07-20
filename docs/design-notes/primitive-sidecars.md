@@ -104,19 +104,19 @@ interface cannot express one.
 
 ## 3. What blocks it today
 
-- **The `Ctx` coupling.** Most primitives self-serve from engine state
-  rather than taking arguments. Each needs its real inputs identified and
-  its signature rewritten as values — mechanical for the scorers
-  (`tichu_card_points`, `peg_value`), more involved where the function reads
-  accumulator state (`pot_share`) or trick-terminal state
-  (`tarot_excuse_player`, `tichu_dragon_won`). The self-serving is no longer
-  *undeclared*, though: every name-keyed read goes through the typed
-  accessors of `cardlang/runtime/reads.py`, whose `PRIMITIVE_READS` table is
-  the "reads" clause of §2's declaration landed at the Python layer —
-  pinned against both the game files' declarations and the modules' own
-  sources by `tests/test_primitive_reads.py`. What the table cannot yet do
-  is *bound* what an implementation touches (the interface still hands over
-  `Ctx`); that is exactly the gap the narrow interface closes.
+- **Granularity, not the handle.** The `Ctx` coupling is gone: no game
+  module names `Ctx`, `RuntimeState`, `ZoneStore` or `Chooser`, so a
+  primitive structurally cannot mutate state, make a decision, or read a
+  name its module never declared (stage 2; the crossed wall in
+  `tests/test_primitive_narrowing.py`). What it CAN still do is read a
+  declared name it does not personally need, because both bundles the
+  binder hands over — `GameReads` from `PRIMITIVE_READS`, and the closed
+  `EngineFacts` set for the engine-structural reads — are module-granular.
+  §2's declaration is per-primitive, and closing that gap is exactly what
+  the `primitives { }` block buys. It is not only precision: a call
+  currently materializes its module's whole row whether it reads any of it
+  or not, and a unit test of one primitive has to declare names that
+  primitive never touches.
 - **The trace emitters.** A function called for a side effect rather than a
   value is not a primitive and cannot be declared as one. `coup_note_reveal`
   and `tichu_hand_summary` are gone from all three tables and from both
@@ -127,17 +127,19 @@ interface cannot express one.
   because its `coup_game` payload recomputes conservation totals from engine
   state rather than from movement views — reproducing it at the harness is
   its own design step ([roadmap.md](../roadmap.md), "Primitive sidecars").
-  The game-local trick winners (`schnapsen_trick_winner`,
-  `doko_trick_winner`, `skat_trick_winner`,
-  `five_hundred_trick_winner`) return a real value AND emit the engine's
-  own `play`/`trick`/`trick_end` events from a game-local site, so the
-  narrow interface has to carry that emission as data rather than as a
-  handle.
+  The four game-local trick winners (`schnapsen_`, `doko_`, `skat_`,
+  `five_hundred_trick_winner`) compute a real value AND emit the engine's
+  own `play`/`trick`/`trick_end` events from a game-local site; they now
+  return `(value, events)` and the dispatch layer performs the emission,
+  which is how a primitive that emits stays values-out. `coup_game_summary`
+  does the same, so it is narrowed without being evicted.
 - **The climb queries and outcome functions.** `bigtwo_lead_options` /
   `tichu_follows` and the game-named outcome functions are named in `round`
-  clauses, not called as `f(...)`; they need the same declared-signature
-  treatment but their own declaration slots (their signatures are
-  mechanic-driven). Same principle, separate wiring.
+  clauses, not called as `f(...)`. Their interface is narrowed like every
+  other primitive's (the round machinery binds their bundles through
+  `stdlib.climb_row`), but they still need their own DECLARATION slots in
+  the `primitives { }` block, because their signatures are mechanic-driven
+  rather than free-form. Same principle, separate wiring.
 - **Registry derivation.** Whatever the placement, registry, signatures, and
   dispatch should derive from the declarations rather than being maintained
   as three parallel tables with a hand-written `match`; a static test pins
@@ -182,8 +184,7 @@ no regeneration was needed. The misuse probe holds: calling either removed
 name yields the standard unknown-function diagnostic. Residual:
 `coup_game_summary` (§3).
 
-**Stage 2 — narrow the interface (M, 4-6 PRs by game family). In
-progress.** For each game primitive, split surface from
+**Stage 2 — narrow the interface (M). Landed.** For each game primitive, split surface from
 implementation: the game-file call and its checker signature stay
 EXACTLY as they are; the implementation is rewritten
 values-in/value-out, and the dispatch layer binds what the
@@ -205,11 +206,13 @@ beyond precision: a primitive stops paying to materialize rows it
 never reads, and a fixture stops having to declare names its
 primitive never touches.
 
-Landed so far: the binder, the crossed wall, and the scorers —
-schnapsen, pinochle, cribbage and tarot as whole modules, plus
-`tichu_card_points`. `schnapsen_trick_winner` is the trace witness
-(see below). Remaining: belote, bigtwo, canasta, coup, doko,
-five_hundred, gin, president, skat, stud, and the rest of tichu.
+All fifteen game modules are narrowed: no `Ctx`, `RuntimeState`,
+`ZoneStore` or `Chooser` reaches any of them, pinned by the crossed
+grid in `tests/test_primitive_narrowing.py` (every module x every
+handle `Ctx` exposes, with nothing excused). The climb queries are
+included — they are invoked by the round machinery rather than
+through `call`, so `mechanics.py` binds their bundles via
+`stdlib.climb_row`. Goldens byte-identical throughout.
 
 A primitive that emits is not values-out. Four game-local trick
 winners and `coup_game_summary` compute a value AND emit the engine's

@@ -801,14 +801,12 @@ Things we have noted but consciously not designed yet:
   the execution plan in §5) evicted the two pure trace emitters from the
   stdlib registry; the harness derives their facts from observation events
   (`tests/playout_trace.py`, grid and ledger in
-  `tests/test_trace_emitter_eviction.py`). Stage 2 is in progress: the
-  binder (`cardlang/runtime/sidecar.py`) and the crossed no-`Ctx` wall
-  (`tests/test_primitive_narrowing.py`) have landed with the scorers —
-  schnapsen, pinochle, cribbage and tarot as whole modules, plus
-  `tichu_card_points`. Remaining there: belote, bigtwo, canasta, coup,
-  doko, five_hundred, gin, president, skat, stud, and the rest of tichu;
-  then the `primitives { }` declaration block and co-location, per the
-  design note's §5.
+  `tests/test_trace_emitter_eviction.py`). Stage 2 is likewise done: all
+  fifteen game modules take values rather than `Ctx`, via the binder
+  (`cardlang/runtime/sidecar.py`), pinned by the crossed wall
+  (`tests/test_primitive_narrowing.py`) with nothing excused. Remaining:
+  the `primitives { }` declaration block (stage 3) and co-location
+  (stage 4), per the design note's §5.
 
   Three residuals ride until their own steps. `coup_game_summary` is a
   third dead-`let` trace emitter by call shape, still registered because

@@ -1,5 +1,10 @@
 """The narrow primitive interface — completeness ledger.
 
+status:     stage 2 COMPLETE — all 15 game modules are free of every
+            engine handle, so the crossed grid is green with nothing
+            excused. Stage 3 (`primitives { }`) narrows the bundles from
+            module- to primitive-granularity; residual (2) is its brief.
+
 property:   a game-local primitive sees VALUES, never an engine handle. Its
             implementation names no `Ctx` and no `RuntimeState`; everything
             it may read arrives as the two bundles the binder builds — its
@@ -16,14 +21,19 @@ domain:     every game-local primitive (derived: the dispatch tables in
             today) x every `EngineFacts` field (derived: the dataclass).
 registry:   `_ENGINE_CORE` (the module axis's only hand-authored half, and
             the safe polarity — a NEW runtime module is a game module by
-            default and must pass the wall); `MIGRATED` (stage-2 progress);
+            default and must pass the wall); `NARROWED` (sites proven
+            handle-free) and `MIGRATED` (primitives), both now covering
+            everything the dispatch routes; `_STILL_REACHES` (the
+            per-cell work list, now EMPTY — stage 2 is complete);
             `EMITS_TRACE` (primitives returning events alongside a value);
             `STDLIB_*` in `cardlang/stdlib/functions.py` (the name axis).
-covered:    (a) per-primitive: the implementation's signature names no
-            forbidden handle — exhaustive over the derived name set, one
-            cell per primitive, `xfail(strict=True)` until migrated so a
-            migration that lands without updating `MIGRATED` fails LOUD as
-            an unexpected pass;
+covered:    (a) per-implementation-SITE: the site's signature names no
+            forbidden handle — exhaustive over the derived site set (one
+            cell per `module::func`, NOT per primitive: the dispatch routes
+            one name to several implementations). Stage 2 being complete,
+            every cell asserts green; the `xfail(strict=True)` machinery
+            stays as the mechanism for the next module to arrive, and a
+            site that reacquires a handle fails rather than being excused;
             (b) per-module x per-handle: the whole crossed grid, so a
             module that drops `Ctx` from its signatures but keeps an
             import, a `.chooser` reach, or a `RuntimeState` annotation
@@ -232,6 +242,16 @@ def test_the_derived_axis_is_not_empty() -> None:
 # change cannot quietly give one of them a handle.
 NARROWED: frozenset[str] = frozenset(
     {
+        "belote.py::ROW",
+        "belote.py::belote_best_is",
+        "belote.py::belote_decl_class",
+        "belote.py::belote_decl_height",
+        "belote.py::belote_decl_points",
+        "belote.py::belote_decl_size",
+        "belote.py::belote_decl_slot",
+        "belote.py::belote_decl_trump",
+        "belote.py::belote_opp_winning",
+        "belote.py::belote_royal_player",
         "belote.py::belote_trick_winner",
         "belote.py::belote_trump_height",
         "bigtwo.py::ROW",
@@ -239,6 +259,24 @@ NARROWED: frozenset[str] = frozenset(
         "bigtwo.py::bigtwo_lead_options",
         "bigtwo.py::bigtwo_universe",
         "bigtwo.py::first_leader_seat",
+        "canasta.py::ROW",
+        "canasta.py::canasta_add_ok",
+        "canasta.py::canasta_black3_ok",
+        "canasta.py::canasta_can_start",
+        "canasta.py::canasta_can_take_pile",
+        "canasta.py::canasta_canasta_bonus",
+        "canasta.py::canasta_close_ok",
+        "canasta.py::canasta_discard_ok",
+        "canasta.py::canasta_hand_points",
+        "canasta.py::canasta_is_black3",
+        "canasta.py::canasta_is_red3",
+        "canasta.py::canasta_meld_points",
+        "canasta.py::canasta_must_take_pile",
+        "canasta.py::canasta_pile_rank",
+        "canasta.py::canasta_red3_bonus",
+        "canasta.py::canasta_stage_ok",
+        "canasta.py::canasta_top_is_wild",
+        "canasta.py::canasta_top_starts_pile",
         "coup.py::ROW",
         "coup.py::coup_game_summary",
         "coup.py::coup_has_char",
@@ -260,7 +298,20 @@ NARROWED: frozenset[str] = frozenset(
         "five_hundred.py::five_hundred_lead_ok",
         "five_hundred.py::five_hundred_next_bid",
         "five_hundred.py::five_hundred_trick_winner",
+        "gin.py::ROW",
         "gin.py::card_points",
+        "gin.py::gin_arrange_ok",
+        "gin.py::gin_can_declare",
+        "gin.py::gin_can_declare_free",
+        "gin.py::gin_can_knock",
+        "gin.py::gin_deadwood",
+        "gin.py::gin_flat_points",
+        "gin.py::gin_knock_ok",
+        "gin.py::gin_lay_ok_a",
+        "gin.py::gin_lay_ok_b",
+        "gin.py::gin_lay_ok_c",
+        "gin.py::gin_shown_points",
+        "gin.py::gin_valid_meld",
         "pinochle.py::ROW",
         "pinochle.py::pinochle_meld_value",
         "president.py::ROW",
@@ -307,10 +358,36 @@ NARROWED: frozenset[str] = frozenset(
 # Primitives narrowed by stage 2 so far, for the module-level wall below.
 MIGRATED: frozenset[str] = frozenset(
     {
+        "belote_best_is",
+        "belote_decl_class",
+        "belote_decl_height",
+        "belote_decl_points",
+        "belote_decl_size",
+        "belote_decl_slot",
+        "belote_decl_trump",
+        "belote_opp_winning",
+        "belote_royal_player",
         "bigtwo_first_leader",
         "bigtwo_follows",
         "bigtwo_lead_options",
         "bring_in_seat",
+        "canasta_add_ok",
+        "canasta_black3_ok",
+        "canasta_can_start",
+        "canasta_can_take_pile",
+        "canasta_canasta_bonus",
+        "canasta_close_ok",
+        "canasta_discard_ok",
+        "canasta_hand_points",
+        "canasta_is_black3",
+        "canasta_is_red3",
+        "canasta_meld_points",
+        "canasta_must_take_pile",
+        "canasta_pile_rank",
+        "canasta_red3_bonus",
+        "canasta_stage_ok",
+        "canasta_top_is_wild",
+        "canasta_top_starts_pile",
         "coup_game_summary",
         "coup_has_char",
         "coup_next_in_game",
@@ -322,6 +399,18 @@ MIGRATED: frozenset[str] = frozenset(
         "five_hundred_follow_ok",
         "five_hundred_lead_ok",
         "five_hundred_trick_winner",
+        "gin_arrange_ok",
+        "gin_can_declare",
+        "gin_can_declare_free",
+        "gin_can_knock",
+        "gin_deadwood",
+        "gin_flat_points",
+        "gin_knock_ok",
+        "gin_lay_ok_a",
+        "gin_lay_ok_b",
+        "gin_lay_ok_c",
+        "gin_shown_points",
+        "gin_valid_meld",
         "peg_origin_of",
         "pinochle_meld_value",
         "pot_share",
@@ -569,11 +658,12 @@ _HANDLES: tuple[str, ...] = (
 # Only these (module, handle) pairs are red today; the other 332 cells are
 # pinned GREEN right now, which is what stops a migration from introducing a
 # handle a module never had.
-_STILL_REACHES: dict[str, tuple[str, ...]] = {
-    "belote.py": ("Ctx", "ctx.current_player", "ctx.rs"),
-    "canasta.py": ("Ctx", "ctx.rs"),
-    "gin.py": ("Ctx", "ctx.rs"),
-}
+# EMPTY: stage 2 is complete. Every game module is free of every engine
+# handle, so all 368 cells below assert green and none is excused. The table
+# stays because it is the mechanism, not a note — a module that reacquires a
+# handle fails its cell, and re-adding a row here is the only way to excuse
+# that, which is a visible edit rather than a silent regression.
+_STILL_REACHES: dict[str, tuple[str, ...]] = {}
 
 
 def test_the_work_list_names_real_modules() -> None:

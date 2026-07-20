@@ -48,6 +48,8 @@ from typing import cast
 
 import pytest
 
+from cardlang.runtime import reads, sidecar
+
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.belote import (
@@ -56,7 +58,6 @@ from cardlang.runtime.belote import (
     belote_trump_height,
     decomposition,
 )
-from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Card
 
 BELOTE = Path(__file__).parent.parent / "docs" / "games" / "belote.cardlang"
@@ -165,10 +166,12 @@ def test_trump_height_rejects_a_non_pack_rank() -> None:
 
 
 def test_best_is_rejects_a_non_class_argument() -> None:
-    # The class wall fires before any state read, so no runtime state is
+    # The class wall fires before any bundle read, so no runtime state is
     # needed to probe it (the argument is a literal in the game file).
     with pytest.raises(RuntimeError, match="not a declaration class"):
-        belote_best_is(cast(Ctx, None), 0, 7, "A", False)
+        belote_best_is(
+            cast(sidecar.EngineFacts, None), cast(reads.GameReads, None), 0, 7, "A", False
+        )
 
 
 # --- misuse probes: the new stdlib names, in the owning layer's currency ---

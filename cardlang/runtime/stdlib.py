@@ -248,53 +248,53 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
 
             return card_points(args[0])
         case "gin_deadwood":
-            from cardlang.runtime.gin import gin_deadwood
+            from cardlang.runtime.gin import ROW, gin_deadwood
 
-            return gin_deadwood(ctx, args[0])
+            return gin_deadwood(*_bind(ctx, ROW), args[0])
         case "gin_can_knock":
-            from cardlang.runtime.gin import gin_can_knock
+            from cardlang.runtime.gin import ROW, gin_can_knock
 
-            return gin_can_knock(ctx, args[0])
+            return gin_can_knock(*_bind(ctx, ROW), args[0])
         case "gin_knock_ok":
-            from cardlang.runtime.gin import gin_knock_ok
+            from cardlang.runtime.gin import ROW, gin_knock_ok
 
-            return gin_knock_ok(ctx, args[0], args[1])
+            return gin_knock_ok(*_bind(ctx, ROW), args[0], args[1])
         case "gin_valid_meld":
-            from cardlang.runtime.gin import gin_valid_meld
+            from cardlang.runtime.gin import ROW, gin_valid_meld
 
-            return gin_valid_meld(ctx, args[0])
+            return gin_valid_meld(*_bind(ctx, ROW), args[0])
         case "gin_arrange_ok":
-            from cardlang.runtime.gin import gin_arrange_ok
+            from cardlang.runtime.gin import ROW, gin_arrange_ok
 
-            return gin_arrange_ok(ctx, args[0], args[1])
+            return gin_arrange_ok(*_bind(ctx, ROW), args[0], args[1])
         case "gin_can_declare":
-            from cardlang.runtime.gin import gin_can_declare
+            from cardlang.runtime.gin import ROW, gin_can_declare
 
-            return gin_can_declare(ctx, args[0])
+            return gin_can_declare(*_bind(ctx, ROW), args[0])
         case "gin_can_declare_free":
-            from cardlang.runtime.gin import gin_can_declare_free
+            from cardlang.runtime.gin import ROW, gin_can_declare_free
 
-            return gin_can_declare_free(ctx, args[0])
+            return gin_can_declare_free(*_bind(ctx, ROW), args[0])
         case "gin_flat_points":
-            from cardlang.runtime.gin import gin_flat_points
+            from cardlang.runtime.gin import ROW, gin_flat_points
 
-            return gin_flat_points(ctx, args[0])
+            return gin_flat_points(*_bind(ctx, ROW), args[0])
         case "gin_shown_points":
-            from cardlang.runtime.gin import gin_shown_points
+            from cardlang.runtime.gin import ROW, gin_shown_points
 
-            return gin_shown_points(ctx, args[0])
+            return gin_shown_points(*_bind(ctx, ROW), args[0])
         case "gin_lay_ok_a":
-            from cardlang.runtime.gin import gin_lay_ok_a
+            from cardlang.runtime.gin import ROW, gin_lay_ok_a
 
-            return gin_lay_ok_a(ctx, args[0], args[1])
+            return gin_lay_ok_a(*_bind(ctx, ROW), args[0], args[1])
         case "gin_lay_ok_b":
-            from cardlang.runtime.gin import gin_lay_ok_b
+            from cardlang.runtime.gin import ROW, gin_lay_ok_b
 
-            return gin_lay_ok_b(ctx, args[0], args[1])
+            return gin_lay_ok_b(*_bind(ctx, ROW), args[0], args[1])
         case "gin_lay_ok_c":
-            from cardlang.runtime.gin import gin_lay_ok_c
+            from cardlang.runtime.gin import ROW, gin_lay_ok_c
 
-            return gin_lay_ok_c(ctx, args[0], args[1])
+            return gin_lay_ok_c(*_bind(ctx, ROW), args[0], args[1])
         case "five_hundred_next_bid":
             from cardlang.runtime.five_hundred import five_hundred_next_bid
 
@@ -326,109 +326,109 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
 
             return belote_trump_height(args[0])
         case "belote_opp_winning":
-            from cardlang.runtime.belote import belote_opp_winning
+            from cardlang.runtime.belote import ROW, belote_opp_winning
 
-            return belote_opp_winning(ctx)
+            return belote_opp_winning(*_bind(ctx, ROW))
         case "belote_royal_player":
-            from cardlang.runtime.belote import belote_royal_player
+            from cardlang.runtime.belote import ROW, belote_royal_player
 
-            return belote_royal_player(ctx)
+            return belote_royal_player(*_bind(ctx, ROW))
         case "belote_best_is":
-            from cardlang.runtime.belote import belote_best_is
+            from cardlang.runtime.belote import ROW, belote_best_is
 
-            return belote_best_is(ctx, args[0], args[1], args[2], args[3])
+            return belote_best_is(*_bind(ctx, ROW), args[0], args[1], args[2], args[3])
         case "belote_decl_points":
-            from cardlang.runtime.belote import belote_decl_points
+            from cardlang.runtime.belote import ROW, belote_decl_points
 
-            return belote_decl_points(ctx, args[0])
+            return belote_decl_points(*_bind(ctx, ROW), args[0])
         case "belote_decl_class":
-            from cardlang.runtime.belote import belote_decl_class
+            from cardlang.runtime.belote import ROW, belote_decl_class
 
-            return belote_decl_class(ctx, args[0])
+            return belote_decl_class(*_bind(ctx, ROW), args[0])
         case "belote_decl_height":
-            from cardlang.runtime.belote import belote_decl_height
+            from cardlang.runtime.belote import ROW, belote_decl_height
 
-            return belote_decl_height(ctx, args[0])
+            return belote_decl_height(*_bind(ctx, ROW), args[0])
         case "belote_decl_trump":
-            from cardlang.runtime.belote import belote_decl_trump
+            from cardlang.runtime.belote import ROW, belote_decl_trump
 
-            return belote_decl_trump(ctx, args[0])
+            return belote_decl_trump(*_bind(ctx, ROW), args[0])
         case "belote_decl_size":
-            from cardlang.runtime.belote import belote_decl_size
+            from cardlang.runtime.belote import ROW, belote_decl_size
 
-            return belote_decl_size(ctx, args[0])
+            return belote_decl_size(*_bind(ctx, ROW), args[0])
         case "belote_decl_slot":
-            from cardlang.runtime.belote import belote_decl_slot
+            from cardlang.runtime.belote import ROW, belote_decl_slot
 
-            return belote_decl_slot(ctx, args[0], args[1], args[2])
+            return belote_decl_slot(*_bind(ctx, ROW), args[0], args[1], args[2])
         case "canasta_is_red3":
-            from cardlang.runtime.canasta import canasta_is_red3
+            from cardlang.runtime.canasta import ROW, canasta_is_red3
 
-            return canasta_is_red3(ctx, args[0])
+            return canasta_is_red3(*_bind(ctx, ROW), args[0])
         case "canasta_is_black3":
-            from cardlang.runtime.canasta import canasta_is_black3
+            from cardlang.runtime.canasta import ROW, canasta_is_black3
 
-            return canasta_is_black3(ctx, args[0])
+            return canasta_is_black3(*_bind(ctx, ROW), args[0])
         case "canasta_top_starts_pile":
-            from cardlang.runtime.canasta import canasta_top_starts_pile
+            from cardlang.runtime.canasta import ROW, canasta_top_starts_pile
 
-            return canasta_top_starts_pile(ctx)
+            return canasta_top_starts_pile(*_bind(ctx, ROW))
         case "canasta_top_is_wild":
-            from cardlang.runtime.canasta import canasta_top_is_wild
+            from cardlang.runtime.canasta import ROW, canasta_top_is_wild
 
-            return canasta_top_is_wild(ctx)
+            return canasta_top_is_wild(*_bind(ctx, ROW))
         case "canasta_pile_rank":
-            from cardlang.runtime.canasta import canasta_pile_rank
+            from cardlang.runtime.canasta import ROW, canasta_pile_rank
 
-            return canasta_pile_rank(ctx)
+            return canasta_pile_rank(*_bind(ctx, ROW))
         case "canasta_can_take_pile":
-            from cardlang.runtime.canasta import canasta_can_take_pile
+            from cardlang.runtime.canasta import ROW, canasta_can_take_pile
 
-            return canasta_can_take_pile(ctx, args[0])
+            return canasta_can_take_pile(*_bind(ctx, ROW), args[0])
         case "canasta_must_take_pile":
-            from cardlang.runtime.canasta import canasta_must_take_pile
+            from cardlang.runtime.canasta import ROW, canasta_must_take_pile
 
-            return canasta_must_take_pile(ctx, args[0])
+            return canasta_must_take_pile(*_bind(ctx, ROW), args[0])
         case "canasta_can_start":
-            from cardlang.runtime.canasta import canasta_can_start
+            from cardlang.runtime.canasta import ROW, canasta_can_start
 
-            return canasta_can_start(ctx, args[0], args[1])
+            return canasta_can_start(*_bind(ctx, ROW), args[0], args[1])
         case "canasta_stage_ok":
-            from cardlang.runtime.canasta import canasta_stage_ok
+            from cardlang.runtime.canasta import ROW, canasta_stage_ok
 
-            return canasta_stage_ok(ctx, args[0], args[1])
+            return canasta_stage_ok(*_bind(ctx, ROW), args[0], args[1])
         case "canasta_close_ok":
-            from cardlang.runtime.canasta import canasta_close_ok
+            from cardlang.runtime.canasta import ROW, canasta_close_ok
 
-            return canasta_close_ok(ctx, args[0])
+            return canasta_close_ok(*_bind(ctx, ROW), args[0])
         case "canasta_add_ok":
-            from cardlang.runtime.canasta import canasta_add_ok
+            from cardlang.runtime.canasta import ROW, canasta_add_ok
 
-            return canasta_add_ok(ctx, args[0], args[1], args[2])
+            return canasta_add_ok(*_bind(ctx, ROW), args[0], args[1], args[2])
         case "canasta_discard_ok":
-            from cardlang.runtime.canasta import canasta_discard_ok
+            from cardlang.runtime.canasta import ROW, canasta_discard_ok
 
-            return canasta_discard_ok(ctx, args[0], args[1])
+            return canasta_discard_ok(*_bind(ctx, ROW), args[0], args[1])
         case "canasta_black3_ok":
-            from cardlang.runtime.canasta import canasta_black3_ok
+            from cardlang.runtime.canasta import ROW, canasta_black3_ok
 
-            return canasta_black3_ok(ctx, args[0])
+            return canasta_black3_ok(*_bind(ctx, ROW), args[0])
         case "canasta_meld_points":
-            from cardlang.runtime.canasta import canasta_meld_points
+            from cardlang.runtime.canasta import ROW, canasta_meld_points
 
-            return canasta_meld_points(ctx, args[0])
+            return canasta_meld_points(*_bind(ctx, ROW), args[0])
         case "canasta_canasta_bonus":
-            from cardlang.runtime.canasta import canasta_canasta_bonus
+            from cardlang.runtime.canasta import ROW, canasta_canasta_bonus
 
-            return canasta_canasta_bonus(ctx, args[0])
+            return canasta_canasta_bonus(*_bind(ctx, ROW), args[0])
         case "canasta_red3_bonus":
-            from cardlang.runtime.canasta import canasta_red3_bonus
+            from cardlang.runtime.canasta import ROW, canasta_red3_bonus
 
-            return canasta_red3_bonus(ctx, args[0])
+            return canasta_red3_bonus(*_bind(ctx, ROW), args[0])
         case "canasta_hand_points":
-            from cardlang.runtime.canasta import canasta_hand_points
+            from cardlang.runtime.canasta import ROW, canasta_hand_points
 
-            return canasta_hand_points(ctx, args[0])
+            return canasta_hand_points(*_bind(ctx, ROW), args[0])
         case _:
             raise AssertionError(f"unknown stdlib function '{name}'")
 
