@@ -153,6 +153,7 @@ from cardlang.parse import _Builder, _transform, parse_library, parse_text, pars
 from cardlang.resolve import (
     _LIBRARY_DEF_KINDS,
     _PARAM_BEARING,
+    _Categories,
     _library_reach,
     resolve,
 )
@@ -813,32 +814,52 @@ def parse_default(literal: str) -> n.Expr:
 #
 # The grid is definition kind x reference kind: WHERE the leak is written (the
 # six kinds of `_LIBRARY_DEF_KINDS`, so no definition form is checked less than
-# another) times WHAT it reaches for.
+# another) times WHAT it reaches for. The reference axis is derived from
+# `_Categories` — the namespaces a bare name resolves against — taking the
+# fields an importing GAME can populate but a library cannot: `state_vars`
+# beyond the contract, `zones`, and the deck-derived `enums`/`ranks`/`suits`,
+# reachable both as a bare value name and inside a card literal, whose rank and
+# suit are plain strings rather than classified names. `locals` and the stdlib
+# `functions` are not on the axis: both are the same for a library as for a
+# game, so neither is a channel the game can feed. Calls are the axis's second
+# half, since a `Call`'s func is a name the game's own definitions could supply.
 
-# One leak site per definition kind, with a `{read}` slot for the reference. The
-# `procedures` site carries a move type that runs it, because an uninvoked
-# procedure is separately an error and the cell must fail for its OWN reason.
+# One leak site per definition kind, with a `{read}` slot for the reference. Each
+# site puts `{read}` where any of the five spellings is grammatical, so the axes
+# are genuinely crossed rather than paired off. The `procedures` site carries a
+# move type that runs it, because an uninvoked procedure is separately an error
+# and the cell must fail for its OWN reason.
 _LEAK_SITE: dict[str, str] = {
-    "rules": "rule r {{ applies_when: {read} > 0 }}",
-    "move_types": "move_type m {{ effect {{ declared_thing := {read} }} }}",
+    "rules": "rule r {{ applies_when: {read} is not none }}",
+    "move_types": (
+        "move_type m {{ effect "
+        "{{ declared_thing := if {read} is not none then 1 else 2 }} }}"
+    ),
     "types": "type T = {{ x : Integer }} derived {{ y = {read} }}",
     "defines": (
         "define d -> {{ a | b }} "
-        "{{ if {read} > 0 {{ produce a }} else {{ produce b }} }}"
+        "{{ if {read} is not none {{ produce a }} else {{ produce b }} }}"
     ),
     "functions": "function f() = {read}",
     "procedures": (
-        "procedure p() {{ declared_thing := {read} }} "
+        "procedure p() {{ declared_thing := if {read} is not none then 1 else 2 }} "
         "move_type runner {{ effect {{ run p() }} }}"
     ),
 }
 
 # reference kind -> (the leaking spelling, the contracted spelling that is its
-# control). Both spellings are the same shape in the same slot, so a cell that
-# rejects can only be rejecting the leak.
-_LEAK_READS: dict[str, tuple[str, str]] = {
+# control, or None where no legal counterpart exists). Where a control exists it
+# is the same shape in the same slot, so a cell that rejects can only be
+# rejecting the leak. Three kinds have no control by construction: a library
+# holds no zones and names no deck, so there is no in-contract way to write a
+# zone name, a suit, or a card — for those the wall is total, and the site's
+# own validity is established by the `state` and `call` controls beside them.
+_LEAK_READS: dict[str, tuple[str, str | None]] = {
     "state": ("undeclared_thing", "declared_thing"),
     "call": ("undeclared_helper()", "contracted_helper()"),
+    "zone": ("hand", None),
+    "deck_value": ("hearts", None),
+    "card_literal": ("(Q of hearts)", None),
 }
 
 
@@ -851,8 +872,46 @@ def test_leak_sites_cover_every_definition_kind() -> None:
     assert set(_LEAK_SITE) == {field for field, _ in _LIBRARY_DEF_KINDS}
 
 
+# reference kind -> the `_Categories` field(s) it reaches through. `call` has no
+# entry: a `Call`'s func is not classified against `_Categories` at all, so it is
+# the axis's one non-namespace channel.
+_AXIS_NAMESPACE: dict[str, frozenset[str]] = {
+    "state": frozenset({"state_vars"}),
+    "zone": frozenset({"zones"}),
+    "deck_value": frozenset({"enums"}),
+    "card_literal": frozenset({"ranks", "suits"}),
+}
+
+
+def test_the_reference_axis_covers_every_game_fed_namespace() -> None:
+    """`_Categories` is the registry of namespaces a bare name resolves against,
+    and the grid's reference axis must cover every field of it an importing GAME
+    can feed. Two are excluded and neither is a gap: `locals` is whatever the
+    body binds for itself, and `functions` is the stdlib value set, identical for
+    a library and a game — no game can put anything into either.
+
+    Derived rather than spelled, because spelling it is how this axis went wrong:
+    it began as {state, call} and silently omitted zones, deck values and card
+    literals — three channels the design forbids a library, one of which the
+    wall did not in fact refuse.
+
+    red under: add a field to `_Categories`, or drop a key from
+    `_AXIS_NAMESPACE`."""
+    game_fed = {f.name for f in fields(_Categories)} - {"locals", "functions"}
+    covered: set[str] = set()
+    for reached in _AXIS_NAMESPACE.values():
+        covered |= reached
+    assert covered == game_fed, (
+        f"reference axis reaches {sorted(covered)}, `_Categories` offers "
+        f"{sorted(game_fed)}"
+    )
+    assert set(_AXIS_NAMESPACE) | {"call"} == set(_LEAK_READS)
+
+
 def _leaky(field: str, kind: str, *, leaking: bool) -> n.Library:
-    read = _LEAK_READS[kind][0 if leaking else 1]
+    spellings = _LEAK_READS[kind]
+    read = spellings[0] if leaking else spellings[1]
+    assert read is not None
     return parse_library(
         "library leaky { requires { declared_thing : Integer } "
         "function contracted_helper() = declared_thing "
@@ -861,21 +920,44 @@ def _leaky(field: str, kind: str, *, leaking: bool) -> n.Library:
     )
 
 
-# A game that satisfies `leaky`'s contract AND happens to provide what the leak
-# reaches for. That second half is what makes the cells meaningful: without it
-# they would fail as ordinary unresolved names and prove nothing about the
-# contract.
-_LEAK_HOST = dict(
-    uses="uses leaky",
-    extra_state="    declared_thing : Integer = 0\n"
-    "    undeclared_thing : Integer = 0\n",
-    extra="function undeclared_helper() = 1",
-)
+# A game that satisfies `leaky`'s contract AND happens to provide everything the
+# leaks reach for — the undeclared state name, the helper function, a `hand`
+# zone, and a deck holding the queen of hearts. That second half is what makes
+# the cells meaningful: without it they would fail as ordinary unresolved names
+# and prove nothing about the contract.
+_LEAK_GAME = """
+game Host {
+  uses leaky
+  players: 2
+  cards: standard52
+  max_length: 100
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state {
+    declared_thing   : Integer = 0
+    undeclared_thing : Integer = 0
+  }
+  phase play { }
+  winner: highest declared_thing
+}
+function undeclared_helper() = 1
+"""
+
+
+def _leak_host() -> n.Game:
+    return parse_text(_LEAK_GAME, "host.cardlang")
 
 
 def _leak_cells() -> list[object]:
+    """The full cross. The `card_literal` column is the one open today: a card
+    literal's rank and suit are plain strings on the node, not classified
+    `NameRef`s, so the classification sweep never saw them."""
     return [
-        pytest.param(field, kind, id=f"{field}-{kind}")
+        pytest.param(
+            field,
+            kind,
+            id=f"{field}-{kind}",
+            marks=[pytest.mark.xfail(strict=True)] if kind == "card_literal" else [],
+        )
         for field, _ in _LIBRARY_DEF_KINDS
         for kind in sorted(_LEAK_READS)
     ]
@@ -888,14 +970,14 @@ def test_a_library_may_not_reach_past_its_contract(
     """Every leak is refused, wherever it is written and whatever it reaches
     for, and refused in the LIBRARY's currency — the span is in the library
     file, because the library author is who must fix it. A game cannot: the
-    only thing it could do is declare the extra name, which is exactly the
-    accident that made the leak invisible.
+    only thing it could do is provide the name, which is exactly the accident
+    that made the leak invisible.
 
     red under: delete the `_check_library_encapsulation` call from
     `_apply_uses`."""
     _patch_libraries(monkeypatch, {"leaky": _leaky(field, kind, leaking=True)})
     with pytest.raises(DiagnosticError) as exc:
-        resolve(_game(**_LEAK_HOST))
+        resolve(_leak_host())
     message = str(exc.value)
     assert "docs/libraries/leaky.cardlang:" in message, (
         f"the failure must land in the library file, not in the game:\n{message}"
@@ -905,7 +987,12 @@ def test_a_library_may_not_reach_past_its_contract(
 
 @pytest.mark.parametrize(
     "field,kind",
-    [(f, k) for f, _ in _LIBRARY_DEF_KINDS for k in sorted(_LEAK_READS)],
+    [
+        (f, k)
+        for f, _ in _LIBRARY_DEF_KINDS
+        for k in sorted(_LEAK_READS)
+        if _LEAK_READS[k][1] is not None
+    ],
     ids=lambda v: str(v),
 )
 def test_the_same_site_reaching_only_its_contract_is_accepted(
@@ -919,7 +1006,7 @@ def test_the_same_site_reaching_only_its_contract_is_accepted(
     red under: make `_check_library_encapsulation` reject anything it classifies
     rather than only what it fails to."""
     _patch_libraries(monkeypatch, {"leaky": _leaky(field, kind, leaking=False)})
-    resolve(_game(**_LEAK_HOST))
+    resolve(_leak_host())
 
 
 # A body reading its OWN parameter is the second control the encapsulation check
