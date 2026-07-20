@@ -757,7 +757,19 @@ def _resolve_positions(game: n.Game, bag: DiagnosticBag) -> frozenset[str]:
     # KNOWN_TYPE_NAMES), and the value-position enum/type names. The pin
     # test (tests/test_positions.py) reconciles this union against the two
     # source registries so neither can grow past it silently.
-    taken = _ITERATION_ROLES | SIMULTANEOUS_ROLES | ZONE_INDEX_ROLES | KNOWN_TYPE_NAMES
+    # ...and the game's own declared type names: every position that admits a
+    # position domain also admits a declared type, and name resolution answers
+    # positions first, so a shared spelling would silently read the struct as
+    # the position's Integer — `x.a` then fails with a message about Integer.
+    # A name may not mean two things; the collision is rejected where it is
+    # declared rather than disambiguated at each use.
+    taken = (
+        _ITERATION_ROLES
+        | SIMULTANEOUS_ROLES
+        | ZONE_INDEX_ROLES
+        | KNOWN_TYPE_NAMES
+        | {t.name for t in game.types}
+    )
     for p in game.positions:
         if p.lo > p.hi:
             bag.error(
@@ -777,7 +789,7 @@ def _resolve_positions(game: n.Game, bag: DiagnosticBag) -> frozenset[str]:
         if p.name in taken:
             bag.error(
                 f"position domain '{p.name}' collides with a built-in domain "
-                f"or type name — pick another name",
+                f"or a declared type name — pick another name",
                 p.span,
             )
     return frozenset(p.name for p in game.positions)

@@ -148,6 +148,29 @@ def test_every_builtin_domain_id_and_type_spelling_is_a_rejected_position_name()
             )
 
 
+def test_a_declared_type_name_is_a_rejected_position_name() -> None:
+    """The third source of names a position may not reuse: the game's own
+    `type` declarations.
+
+    Name resolution answers positions BEFORE declared types, so a shared
+    spelling does not merely tie — the position wins and the struct becomes
+    unreachable. `function f(x : R) = x.a` then fails with "cannot read field
+    'a' of Integer", a message about a type the author never wrote. The
+    collision is rejected at the declaration, so neither name is silently
+    reinterpreted at its uses.
+
+    red under: drop `{t.name for t in game.types}` from `_resolve_positions`'s
+    `taken` set.
+    """
+    with pytest.raises(DiagnosticError, match="collides with a built-in"):
+        check_dsl(
+            _game(positions="positions { R : 1..3 }",
+                  zones="pile[R] : Cascade<R>")
+            + "\ntype R = { a : Integer }\n",
+            "t",
+        )
+
+
 # --- enumeration agreement (runtime = static) --------------------------------
 
 
