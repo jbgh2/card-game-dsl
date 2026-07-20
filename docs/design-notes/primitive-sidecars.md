@@ -117,11 +117,22 @@ interface cannot express one.
   sources by `tests/test_primitive_reads.py`. What the table cannot yet do
   is *bound* what an implementation touches (the interface still hands over
   `Ctx`); that is exactly the gap the narrow interface closes.
-- **The trace emitters.** `coup_note_reveal`, `tichu_hand_summary` (and any
-  future sibling) are not primitives and cannot be declared as such. They
-  move to the harness layer, keyed off observation events the kernel already
-  emits; their call sites (including Coup's dead `let`) leave the game
-  files.
+- **The trace emitters.** A function called for a side effect rather than a
+  value is not a primitive and cannot be declared as one. `coup_note_reveal`
+  and `tichu_hand_summary` are gone from all three tables and from both
+  games' rules text (including Coup's dead `let`); the harness derives their
+  facts from the observation events the kernel already emits
+  (`tests/playout_trace.py`). Two members of the class are still in the
+  runtime. `coup_game_summary` is a trace emitter by call shape, registered
+  because its `coup_game` payload recomputes conservation totals from engine
+  state rather than from movement views — reproducing it at the harness is
+  its own design step ([roadmap.md](../roadmap.md), "Primitive sidecars").
+  The game-local trick winners (`schnapsen_trick_winner`,
+  `doko_trick_winner`, `skat_trick_winner`,
+  `five_hundred_trick_winner`) return a real value AND emit the engine's
+  own `play`/`trick`/`trick_end` events from a game-local site, so the
+  narrow interface has to carry that emission as data rather than as a
+  handle.
 - **The climb queries and outcome functions.** `bigtwo_lead_options` /
   `tichu_follows` and the game-named outcome functions are named in `round`
   clauses, not called as `f(...)`; they need the same declared-signature
@@ -132,27 +143,104 @@ interface cannot express one.
   as three parallel tables with a hand-written `match`; a static test pins
   the derivation complete, per "Closed-domain completeness".
 
-## 4. Sequence
+## 4. Why the stages run in this order
 
-1. **Evict the trace emitters** to the harness. Independent, small, and
-   deletes the strangest lines in the corpus.
-2. **Narrow the interface**: rewrite primitive signatures as values-in /
-   value-out, engine passes arguments explicitly. No file moves yet; the
-   corpus proves the sealed signatures suffice.
-3. **Add the `primitives { }` block** to the grammar and the corpus game
-   files; derive registry/signatures/dispatch from it; static test pins
-   agreement. (This is new grammar surface and pays the
-   [decisions.md](../decisions.md) "Surface totality" tax like any other.)
-   The reads half of the declaration already exists as
-   `cardlang/runtime/reads.py`'s `PRIMITIVE_READS` (authored in Python,
-   two-way pinned); this stage moves it into the game file and derives that
-   table from the parsed block instead.
-4. **Co-locate**: move each game's implementation out of
-   `cardlang/runtime/` to live with its game; `cardlang/stdlib` keeps only
-   game-independent names. Byte-identical traces throughout, enforced by the
-   existing goldens.
+Each stage exists to shrink the problem the next one faces, which is what
+fixes the order. Evicting the trace emitters comes first because they are
+not primitives at all: removing them shrinks the domain every later stage
+quantifies over, and it is independent of the rest. Narrowing the
+interface comes before the declaration block so the corpus proves the
+sealed signatures suffice before any grammar surface is spent on them — a
+`primitives { }` block designed against signatures that turn out not to
+close would be surface totality paid twice. The block precedes
+co-location because the loader needs a declaration to resolve a moved
+implementation from. Co-location comes last because, with the interface
+sealed and the reads declared, placement no longer carries any safety
+weight — it is the payoff, not the mechanism.
 
-## 5. One pressure to preserve
+§5 is the PR-sized execution plan over this order, and is the authority on
+each stage's scope, acceptance criteria, and status.
+
+## 5. Execution plan
+
+Ratified 2026-07-19: sidecars land before the combinations construct — see
+[combination-scoring.md](combination-scoring.md).
+
+PR-sized stages, each independently green under the full gates (bare
+`mypy`, full `pytest -q`; the surface-totality audit wherever a registry
+or grammar changes). Goldens policy is stated per stage — "byte-identical"
+is the gauge except where noted.
+
+**Stage 1 — evict the trace emitters (S, one PR). Landed.**
+`coup_note_reveal` and `tichu_hand_summary` are out of all three tables and
+their runtime modules, and their call sites (including Coup's dead
+`let noted =` line) are out of the game files; the harness reproduces the
+trace information from the observation events the kernel already emits
+(`tests/playout_trace.py`, grid and ledger in
+`tests/test_trace_emitter_eviction.py`). Goldens stayed byte-identical, so
+no regeneration was needed. The misuse probe holds: calling either removed
+name yields the standard unknown-function diagnostic. Residual:
+`coup_game_summary` (§3).
+
+**Stage 2 — narrow the interface (M, 4-6 PRs by game family).** For
+each game primitive, split surface from implementation: the game-file
+call and its checker signature stay EXACTLY as they are; the
+implementation is rewritten values-in/value-out, and the dispatch
+layer fetches the primitive's declared reads (the `PRIMITIVE_READS`
+table in `cardlang/runtime/reads.py` is the authored inventory) and
+passes plain values. Scorers first, the accumulator-readers
+(`pot_share`) and trick-terminal readers (`tarot_excuse_player`)
+last. Acceptance per PR: no `Ctx` reaches any game module (grep-able
+wall), `tests/test_primitive_reads.py` stays green, goldens
+byte-identical — this stage is a pure refactor.
+
+**Stage 3 — the `primitives { }` block (L, 1-2 PRs; the audit
+stage).** Grammar: `name(param : Type, ...) -> Type reads <names>`.
+Resolve/typecheck: declared-but-unimplemented and
+implemented-but-undeclared are both errors; call sites check against
+the DECLARED signature; the reads clause validates zone and state
+names. Scope wall for v1: the reads clause is checked for name
+validity and drives what the dispatch hands over — the derived-reveal
+analysis (hidden reads flowing into public state) is recorded
+follow-on work, not silently absent. Registry, signatures, and
+dispatch DERIVE from the parsed declarations, replacing the three
+hand-maintained tables and the hand-written match; a static test pins
+corpus declarations against implementations both ways. Corpus game
+files gain their blocks in the same change (the lockstep rule);
+behavior unchanged, goldens byte-identical. Full audit artifacts:
+misuse probes (undeclared call, unimplemented declaration, wrong
+arity or types at the call site, reads naming an unknown zone,
+duplicate declaration) plus the completeness ledger.
+
+**Stage 4 — co-locate (M).** Implementations move out of
+`cardlang/runtime/` to live with their games; the loader resolves
+them from the declaration; `cardlang/stdlib` keeps only
+game-independent names (`team_of`, `player_holding`, `rank_value`,
+poker-family selectors pending their second witness). Placement of
+the moved files (a corpus-adjacent directory vs beside the game
+docs) is the implementing session's one open decision. Goldens
+byte-identical.
+
+**Stage 5 — Salvo round 5 rides it (back in the experiment).** The
+`standard54` deck row with registry-derived test coverage; salvo.cardlang
+takes the deck, an explicit ranking with `Joker`, the joker branch in
+`loc_value`, the filtered location deal, and a `primitives {
+salvo_combos(cards : collection of Card) -> Integer }` sidecar
+carrying the frequency-core table (it migrates to the `combinations`
+construct when tier 1 lands — the visible burn-down §6 promises);
+the triage mirror updates alongside (its per-game mirror pin proves
+sidecar/mirror parity); arena re-runs and REPORT verdicts close the
+round.
+
+Standing risks: `pot_share`'s accumulator inputs may force its surface
+signature to change after all — stage 2 flags it loudly instead of
+absorbing it (the shape is favourable, `_payouts` in `stud.py` is already
+a pure core taking `in_hand`/`committed`/`folded`/`hole`/`upcards`, but
+the risk stays open until stage 2 lands it); the unmerged family-library
+branch also touches stdlib surface — rebase order should be agreed before
+stage 3 lands.
+
+## 6. One pressure to preserve
 
 The declaration block doubles as a per-game inventory of exactly what is
 not yet expressible in the DSL — which is what these primitives are, and

@@ -798,7 +798,7 @@ Things we have noted but consciously not designed yet:
 - **Primitive sidecars: stages 2-5 of the migration, and the one remaining
   trace emitter.** Stage 1
   ([design-notes/primitive-sidecars.md](design-notes/primitive-sidecars.md),
-  the staged sequence in §4) evicted the two pure trace emitters from the
+  the execution plan in §5) evicted the two pure trace emitters from the
   stdlib registry; the harness derives their facts from observation events
   (`tests/playout_trace.py`, grid and ledger in
   `tests/test_trace_emitter_eviction.py`). Remaining: narrowing every

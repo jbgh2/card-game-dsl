@@ -49,7 +49,7 @@ residual:   `coup_game_summary` — a third dead-`let` trace emitter by call
             stays registered this stage: its `coup_game` payload
             recomputes conservation totals from engine state, not from
             movement views, so its harness reproduction is its own design
-            step. Wall: the staged plan (primitive-sidecars.md §4);
+            step. Wall: the staged plan (primitive-sidecars.md §5);
             record: docs/roadmap.md ("Primitive sidecars" entry). The
             prose scan deliberately covers only the spec-current surface —
             design notes and the roadmap legitimately name the evicted
