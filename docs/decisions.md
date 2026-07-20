@@ -1407,10 +1407,16 @@ fall back to it:
   the scope; binding `Any` at the failing site to quiet it restores the
   hole.
 - **A declared type name is validated where it is declared.** Every
-  position that declares a type — state variables, struct fields,
-  function parameters, move parameters, procedure parameters, variant
-  payloads — is checked by the resolver, at the declaration rather than
-  at some use. Otherwise a mere typo maps to the top and *widens* what
+  position that declares a type is checked by the resolver, at the
+  declaration rather than at some use. There are nine, and they are
+  derived from the grammar rather than listed by hand — the productions
+  referencing `type_name` or `payload_type`, plus the struct literal's
+  head — because a hand-listed enumeration of them was twice found
+  incomplete: state variables, struct fields, move parameters, procedure
+  parameters, rule-template parameters, function parameters, `define`
+  payloads, phase-outcome payloads, and struct literals. The grid that
+  crosses them against every source a name can come from is
+  `tests/test_type_name_positions.py`. Otherwise a mere typo maps to the top and *widens* what
   the checker accepts: the misspelled program passes where the
   correctly-spelled one is rejected. Exactly one wall owns each
   position, and it is the tightest one that applies — a move parameter
@@ -1422,11 +1428,10 @@ fall back to it:
   the builder still maps to the top, and no defect is reported twice in
   two currencies.
 
-  A gate belongs to the DECLARATION, not to the uses that reach it.
-  The move-parameter gate used to run from the vocabulary sites that
-  named a move, so a move type nothing offered was never gated at all —
-  and one named twice reported its defect twice. Declaring a construct
-  is what makes its parts real.
+  A gate belongs to the DECLARATION, not to the uses that reach it: a
+  gate run from the vocabulary sites that name a move would leave a move
+  type nothing offers ungated entirely, and would report one named twice
+  as two defects. Declaring a construct is what makes its parts real.
 
 **What stays permissive is a small audited set**, enumerated and pinned by a
 test so a new permissive site must be classified rather than added:

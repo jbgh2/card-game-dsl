@@ -6,6 +6,59 @@ What's explicitly deferred, and the suggested order of next steps.
 
 Things we have noted but consciously not designed yet:
 
+- **Four latent holes around the struct paths.** Each was found by adversarial
+  review of the lookup-miss walls, each is reachable only through constructs no
+  corpus game uses, and each is recorded rather than fixed because closing them
+  is a separate change with its own domain. (a) An OPTIONAL struct receiver
+  (`r : R?`) disables the struct walls: `r.flag` is accepted whatever `flag`
+  is, because the optional wrapper is not a `TStruct` and the field checks look
+  through nothing. (b) `types.assignable`'s collection arm compares element
+  types without the nominal-struct rule the scalar arm now uses, so two
+  same-named struct element types can compare unequal. (c) `_check_produces`
+  does not check a produced payload against the variant case's declared payload
+  types, so a `produce won(...)` with a wrong-typed argument is accepted.
+  (d) The declaration-DAG performance test asserts termination but not time,
+  so restoring the exponential `_type_key` — a 620x regression measured during
+  review — still passes it; a time bound belongs on that test.
+
+- **Position domains in declared-type positions.** A declared position
+  domain (`positions { slot : 1..4 }`) is a legal annotation on a move
+  parameter, a procedure-shaped parameter list, a function parameter, and both
+  payload positions, where it types as the integer member of the range. It is
+  NOT legal as a state-variable type or a struct-field type, and whether it
+  should be is undecided rather than settled: semantically such a value is an
+  Integer with a declared range, but no game wants one, so the grid
+  (`tests/test_type_name_positions.py`) records the cells as residual instead
+  of guessing an expected value nobody has chosen. The wall is loud and names
+  the position domain rather than calling a declared name unknown.
+
+- **The index position admits different domains per host.** One grammar
+  nonterminal (`index`) is reached from three hosts, and they disagree: a ZONE
+  family may be indexed by a declared position domain (`pile[slot] :
+  Cascade<slot>`), a STATE variable may not (`claimed[slot] : Integer` is
+  rejected as "not an indexable role"), and a `let` index is a binder with no
+  domain check at all. The exclusion is systematic across two passes —
+  `typecheck` gives zone families an explicit positions branch and indexed
+  state variables none, and `role_type` raises rather than falling back — so
+  relaxing resolve alone would produce a compiler-currency crash, not a silent
+  miskey. The divergence is defensible; what is not is that the state-index
+  diagnostic speaks only of value domains and never mentions position domains,
+  so a designer who hits it is told the wrong thing. Found by the
+  framing check over the type-name axes, and hit live while building
+  `tests/fixtures/struct_positions_witness.cardlang`.
+
+- **Zone-type names and role ids are not gridded.** The type-name grid covers
+  DECLARED type names. Two neighbouring namespaces have their own registries,
+  their own walls, and their own raggedness: zone type names (`Hand<player>`,
+  walled against `LIBRARY_ZONE_TYPES`) and role/domain ids (the `player` in
+  `hand[player]`, `for each player`, walled against various role subsets). The
+  framing check enumerated seven such positions. They are a different domain
+  rather than a missing part of this one, and gridding them is its own change.
+  One member is worth naming: `resolve` reads `ZONE_PROJECTIONS` with a bare
+  subscript where the sibling `ZONE_CONTENT` read raises an `AssertionError`
+  naming the drift — reachable only if the two zone registries disagree, but
+  it would surface as a `KeyError` rather than as the divergence it is.
+
 - **Registry-module manifest for the framing check**
   (surface-totality-audit, Step 1). The fresh-context framing check's
   input set — "the registry modules" — has no defining site in code:
