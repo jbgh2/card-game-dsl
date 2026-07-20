@@ -1,0 +1,1 @@
+unknown_type_move_param.cardlang:21:1: error: move 'mv' has unsupported parameter domain 'Integar' (expected Player, Suit, Suit?, Rank, or Card)

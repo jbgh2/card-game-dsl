@@ -37,7 +37,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from enum import Enum
-from typing import Iterator, Mapping, assert_never
+from typing import AbstractSet, Iterator, Mapping, assert_never
 
 from cardlang.ast import nodes as n
 from cardlang.ast.nodes import Game
@@ -112,16 +112,28 @@ RANKING_GATED_FUNCS: frozenset[str] = frozenset({"rank_value"})
 
 
 def type_from_name(
-    name: str, optional: bool, structs: Mapping[str, TStruct] | None = None
+    name: str,
+    optional: bool,
+    structs: Mapping[str, TStruct] | None = None,
+    positions: AbstractSet[str] | None = None,
 ) -> Type:
     """Map a declared type name (a `StateDecl` `type_name`) to a `Type`.
 
     User-defined struct names resolve to their `TStruct` (via the ``structs``
-    registry); names unknown to scalars, enums, and the registry resolve to the
-    permissive `TAny`. ``optional`` wraps the result in `TOptional`.
+    registry); a declared POSITION domain resolves to the integer member of its
+    range (via ``positions``); names unknown to scalars, enums, and both
+    registries resolve to the permissive `TAny`. ``optional`` wraps the result
+    in `TOptional`.
+
+    Every position that admits a position domain passes ``positions`` here
+    rather than branching on it locally: the rule belongs to name resolution,
+    and a caller that resolved the name without it would admit `slot` at
+    resolve and then map it to the top — the leak this module walls.
     """
     base: Type
-    if name in _SCALAR_TYPES:
+    if positions is not None and name in positions:
+        base = TInteger()
+    elif name in _SCALAR_TYPES:
         base = _SCALAR_TYPES[name]()
     elif name in _ENUM_TYPES:
         base = TEnum(name)
@@ -143,7 +155,7 @@ def value_enum_map(game: Game) -> dict[str, TEnum]:
     for suit in deck_suits(game.deck):
         m[suit] = TEnum("Suit")
     # Membership comes from the deck alone (Coup/Tarot declare no
-    # `ranking:`). resolve's `_resolve_ranking` guarantees ranking ⊆ deck
+    # `ranking:`). resolve's `_resolve_ranking` guarantees ranking is a subset of deck
     # ranks (an unknown rank is a resolve-time error), and resolve always
     # runs before typecheck (cardlang/pipeline.py's `_check`), so unioning
     # `game.ranking` in here would add nothing beyond order.
@@ -154,20 +166,63 @@ def value_enum_map(game: Game) -> dict[str, TEnum]:
     return m
 
 
-def struct_registry(game: Game) -> dict[str, TStruct]:
+def struct_registry(
+    game: Game,
+    functions: Mapping[str, Sig] | None = None,
+    base: "TypeEnv | None" = None,
+) -> dict[str, TStruct]:
     """Build the user-defined struct types. Declared fields resolve eagerly;
-    derived fields are typed in an env of the declared fields, so each `TStruct`
+    derived fields are typed in the AMBIENT environment (``base``) extended
+    with the declared fields and the user ``functions``, so each `TStruct`
     carries both declared and derived field types under one mapping.
+
+    ``base`` matters because resolve scopes a derived body as the game's names
+    PLUS the struct's own fields (`_classify_type_derived`), so a body may name
+    a state variable, a zone, an enum value or a pronoun — none of which a bare
+    `TypeEnv` carries. Omitting it does not merely lose precision now that a
+    lookup miss is a hard `_env_miss`: `derived { s = hearts }` would abort the
+    check outright. Callers that have the ambient environment must pass it.
 
     Structs are built in source order: a field whose type is another user type
     only resolves if that type was declared earlier (forward references resolve
-    to `TAny` — acceptable for Stage 2)."""
+    to `TAny` — acceptable for Stage 2, pinned by tests/test_permissive_top.py).
+
+    ``functions`` closes a cycle, and must be supplied by any caller that wants
+    precise derived types — see `_provisional_structs`."""
     structs: dict[str, TStruct] = {}
+    # A derived BODY may name any declared type, including its own and one
+    # declared later (`type R = { x : Integer } derived { copy = R { x: x } }`).
+    # resolve validates a struct literal against every declared type, so those
+    # are valid programs; inferring the body against the source-order-partial
+    # map alone would hand `infer` a name resolve accepted and this pass could
+    # not find, which is now a hard `_env_miss` rather than a silent top. Seed
+    # the body environment with every declared type and let the ones already
+    # completed win — a self- or forward-reference then types as the seed
+    # entry, whose derived fields are still the top. That imprecision is
+    # harmless: struct types compare NOMINALLY (`types.assignable`/`unify`), so
+    # the seed `R` and the final `R` are the same type to every consumer.
+    #
+    ambient = base if base is not None else TypeEnv()
+    seed = _provisional_structs(game)
     for tdef in game.types:
+        # Precedence, weakest first: every declared type by name (so a self- or
+        # forward-reference resolves at all), the previous fixpoint round's
+        # registry (more precise), then the types already completed in THIS
+        # round (most precise). Declared field types read the SAME map as
+        # derived bodies: resolving them against the partial map would let
+        # declaration ORDER decide a field's type, so a container declared
+        # above its member typed to the permissive top and every wall on that
+        # field went dark.
+        known = {**seed, **ambient.structs, **structs}
         fields: dict[str, Type] = {}
         for f in tdef.fields:
-            fields[f.name] = type_from_name(f.type_name, f.optional, structs)
-        field_env = TypeEnv(locals=dict(fields), structs=structs)
+            fields[f.name] = type_from_name(f.type_name, f.optional, known)
+        field_env = replace(
+            ambient,
+            locals={**ambient.locals, **fields},
+            structs=known,
+            functions=functions or {},
+        )
         for d in tdef.derived:
             fields[d.name] = infer(d.value, field_env)
         structs[tdef.name] = TStruct(
@@ -178,33 +233,182 @@ def struct_registry(game: Game) -> dict[str, TStruct]:
     return structs
 
 
-def _payload_type(name: str, structs: Mapping[str, TStruct]) -> "Type":
-    """Resolve a variant payload type name; a trailing `?` marks it nullable."""
+def _provisional_structs(game: Game) -> dict[str, TStruct]:
+    """The fixpoint's starting point: declared fields resolved, DERIVED fields
+    typed as the permissive top.
+
+    Every field NAME exists here, which is what stops a function body reading a
+    derived field from being falsely rejected as "has no field" before the
+    field's type is known. The types themselves are refined by
+    `struct_and_function_registries`.
+
+    The top here is deliberate and local — written at the site that introduces
+    it rather than reached as a lookup fallback (decisions.md, "The permissive
+    top and the lookup-miss walls") — and it does not survive the fixpoint for
+    any field whose type is derivable.
+    """
+    structs: dict[str, TStruct] = {}
+    for tdef in game.types:
+        fields: dict[str, Type] = {}
+        for f in tdef.fields:
+            fields[f.name] = type_from_name(f.type_name, f.optional, structs)
+        for d in tdef.derived:
+            fields[d.name] = TAny()
+        structs[tdef.name] = TStruct(
+            name=tdef.name,
+            fields=fields,
+            derived=frozenset(d.name for d in tdef.derived),
+        )
+    return structs
+
+
+def _type_key(t: Type) -> object:
+    """A type's identity for the fixpoint's convergence test, with any nested
+    struct reduced to its NAME.
+
+    Reducing to the name is sound only because a nested snapshot is never
+    OBSERVED: every read of a struct-typed field resolves through the registry
+    (`_canonical`), so what a round must compare is each type's OWN fields.
+    Those the key does compare, and a nested type's refinement shows up under
+    that type's own entry in the registry-wide fingerprint.
+
+    An earlier version compared nested fields structurally to a bounded depth.
+    That was two defects in one: unsound, because a RECURSIVE path stays
+    observable past any fixed cutoff (`r.copy.copy.copy.flag` decayed to the
+    permissive top); and exponential, because a declaration DAG whose types
+    each hold two fields of the previous one revisits shared children once per
+    path. Resolving reads through the registry removes the need for depth
+    entirely, so the fingerprint is linear in the declared fields again.
+    """
+    if isinstance(t, TStruct):
+        return ("struct", t.name)
+    if isinstance(t, TVariant):
+        return ("variant", t.name)
+    if isinstance(t, TOptional):
+        return ("optional", _type_key(t.inner))
+    if isinstance(t, TCollection):
+        return (
+            "collection",
+            _type_key(t.element),
+            None if t.key is None else _type_key(t.key),
+            t.zone,
+        )
+    return t
+
+
+def _registry_key(structs: Mapping[str, TStruct]) -> object:
+    """The whole registry's fingerprint: every type's own fields, nominal one
+    level down. Linear in the declared fields — see `_type_key`."""
+    return {
+        name: (s.derived, {f: _type_key(ft) for f, ft in s.fields.items()})
+        for name, s in structs.items()
+    }
+
+
+def struct_and_function_registries(
+    game: Game, bag: DiagnosticBag
+) -> tuple[dict[str, TStruct], dict[str, Sig]]:
+    """The struct and user-function registries, solved together.
+
+    The two are mutually dependent, in both directions and at arbitrary depth:
+    a derived field's body may call a function (`derived { made = tag(a) }`),
+    and a function's parameters and body may mention a struct
+    (`function f(x : R) = x.made`). A function's RETURN type can therefore
+    depend on a derived field's type, which can depend on another function's
+    return type, and so on. No fixed number of passes is enough — a chain of
+    N types and functions needs N rounds — so this iterates to a FIXPOINT.
+
+    Getting this wrong is not a precision nicety, it is the accepted-but-ignored
+    class: a derived field left at the permissive top silently exempts every
+    expression that reads it from every wall. The version of this function that
+    ran a fixed three passes accepted `score[p] := s.flag` — a Boolean into an
+    Integer-declared state variable — because `s.flag`'s type was frozen at the
+    top from the draft round.
+
+    Each round is monotone in precision (a field only moves from the top toward
+    a concrete type as the signatures feeding it sharpen), so the iteration
+    settles; the bound below is a backstop, and exceeding it is a checker bug
+    rather than a program error. Intermediate rounds report into a SCRATCH bag:
+    their diagnostics are recomputed by the final round, and reporting them per
+    round would multiply every function-body diagnostic by the round count.
+    """
+    structs = _provisional_structs(game)
+    # Each round promotes at least one derived field or one signature away from
+    # the top; +2 covers the settling round that changes nothing.
+    bound = sum(len(t.derived) for t in game.types) + len(game.functions) + 2
+    for _ in range(bound):
+        # The ambient environment for this round, which BOTH consumers need:
+        # function bodies, and derived bodies (which may name a state variable,
+        # a zone or an enum value just as any other expression can).
+        ambient = env_from_game(game, structs)
+        sigs = _function_sigs(game, ambient, DiagnosticBag())
+        settled = struct_registry(game, sigs, base=ambient)
+        done = _registry_key(settled) == _registry_key(structs)
+        # Take the newer registry ALWAYS, including on the round that settles.
+        # Testing first and keeping the older one threw away a strictly better
+        # result: the round that reports "nothing changed" is the one built
+        # against the fullest environment.
+        structs = settled
+        if done:
+            break
+    else:
+        raise AssertionError(
+            f"the struct/function type fixpoint did not settle in {bound} "
+            f"rounds — each round should only sharpen a derived field or a "
+            f"signature, so this is a checker bug (a non-monotone round), not "
+            f"a program error"
+        )
+    # The final signatures are built against the settled registry and into the
+    # REAL bag, so every function body is checked exactly once, against the
+    # types everything else sees.
+    env = env_from_game(game, structs)
+    return structs, _function_sigs(game, env, bag)
+
+
+def _payload_type(
+    name: str,
+    structs: Mapping[str, TStruct],
+    positions: AbstractSet[str] | None = None,
+) -> "Type":
+    """Resolve a variant payload type name; a trailing `?` marks it nullable.
+
+    `positions` is threaded because resolve admits a declared position domain
+    here: without it the name resolves to the top, and the `produces:` arm
+    binder carrying that payload exempts its whole body from every type wall.
+    """
     if name.endswith("?"):
-        return type_from_name(name[:-1], True, structs)
-    return type_from_name(name, False, structs)
+        return type_from_name(name[:-1], True, structs, positions)
+    return type_from_name(name, False, structs, positions)
 
 
 def _variant_cases(
-    cases: tuple[n.VariantCase, ...], structs: Mapping[str, TStruct]
+    cases: tuple[n.VariantCase, ...],
+    structs: Mapping[str, TStruct],
+    positions: AbstractSet[str] | None = None,
 ) -> dict[str, tuple["Type", ...]]:
     return {
-        c.tag: tuple(_payload_type(t, structs) for t in c.payload_types) for c in cases
+        c.tag: tuple(_payload_type(t, structs, positions) for t in c.payload_types)
+        for c in cases
     }
 
 
 def variant_registry(
-    game: Game, structs: Mapping[str, TStruct]
+    game: Game,
+    structs: Mapping[str, TStruct],
+    positions: AbstractSet[str] | None = None,
 ) -> dict[str, TVariant]:
     """Build the variant-outcome type of each `define` and each outcome-declaring
     `phase`: its case tags mapped to their declared payload types."""
     variants: dict[str, TVariant] = {}
     for d in game.defines:
-        variants[d.name] = TVariant(name=d.name, cases=_variant_cases(d.cases, structs))
+        variants[d.name] = TVariant(
+            name=d.name, cases=_variant_cases(d.cases, structs, positions)
+        )
     for phase in _all_phases(game):
         if phase.outcome_cases:
             variants[phase.name] = TVariant(
-                name=phase.name, cases=_variant_cases(phase.outcome_cases, structs)
+                name=phase.name,
+                cases=_variant_cases(phase.outcome_cases, structs, positions),
             )
     return variants
 
@@ -244,9 +448,57 @@ class TypeEnv:
         return replace(self, locals={**self.locals, name: t})
 
 
+def _canonical(t: Type, env: TypeEnv) -> Type:
+    """A struct type read out of another struct's field map, resolved to the
+    registry's entry for that name.
+
+    A struct's field map holds a SNAPSHOT of each struct-typed field, taken
+    while the registry was still being built, so a snapshot can be staler than
+    the registry — unavoidably so for a recursive type, whose unrolled value
+    has no finite form. Struct types are nominal (`types.assignable`/`unify`
+    compare by name), so the registry entry is the same type and strictly more
+    refined: resolving by name at each read keeps a traversal exact at any
+    depth, and keeps the registry's own representation finite.
+    """
+    if isinstance(t, TStruct):
+        return _canonical_struct(t, env)
+    return t
+
+
+def _canonical_struct(t: TStruct, env: TypeEnv) -> TStruct:
+    """`_canonical` for a receiver already known to be a struct, so the caller
+    keeps its narrowing (and its field map)."""
+    entry = env.structs.get(t.name)
+    return entry if entry is not None else t
+
+
+def _untyped_operator(op: str) -> AssertionError:
+    """A `BinOp` operator `infer` has no result type for.
+
+    Kept out of `infer`'s BinOp arm deliberately: that arm is scraped as the
+    operator registry (tests/test_operator_walls.py reconciles it against
+    `OP_CLASSES`), so a message with quoted text inside it would read as
+    operators. The old blanket `TAny` here meant a NEW operator typed as the
+    permissive top and passed every operand wall silently — the inference-side
+    twin of `_op_class`'s refusal on the checking side.
+    """
+    return AssertionError(
+        f"operator '{op}' has no result type in `infer` — every BinOp operator "
+        f"the parser builds must be typed here (surface totality, "
+        f"decisions.md); add it beside its OP_CLASSES entry"
+    )
+
+
 def infer(e: n.Expr, env: TypeEnv) -> Type:
     """Infer the type of an expression. Unrefined arms return `TAny` (the
-    permissive top); precision is added construct by construct."""
+    permissive top); precision is added construct by construct.
+
+    A LOOKUP that cannot legitimately miss raises instead of returning the top
+    (`_env_miss`, `_untyped_operator`): the top satisfies every constraint, so
+    missed lookup would silently switch off every wall below it rather than
+    merely losing precision. See decisions.md, "The permissive top and the
+    lookup-miss walls"; the audited top sites are pinned by
+    tests/test_permissive_top.py."""
     match e:
         case n.IntLit():
             return TInteger()
@@ -270,12 +522,32 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
             if isinstance(obj_ref, n.NameRef) and obj_ref.ref_kind == "zone":
                 family = env.zone_families.get(obj_ref.name)
                 if family is not None:
-                    return env.zones.get(obj_ref.name, TCollection(TAny(), zone=True))
+                    zone_t = env.zones.get(obj_ref.name)
+                    if zone_t is None:
+                        raise _env_miss(
+                            "zone", obj_ref.name, "zones", "`env_from_game`"
+                        )
+                    return zone_t
             obj = infer(e.obj, env)
+            # A subscript of a non-collection is REJECTED by `_check_expr`
+            # (`subscriptable`), which admits the permissive top; so the only
+            # value reaching here is one already typed as the top (or one whose error is
+            # already in the bag). Gradual, not a lookup miss.
             return obj.element if isinstance(obj, TCollection) else TAny()
         case n.Call():
             sig = CALL_SIGS.get(e.func) or env.functions.get(e.func)
-            return sig.ret if sig is not None else TAny()
+            if sig is None:
+                # `CALL_SIGS` covers `STDLIB_CALL_FUNCS` exactly (pinned by
+                # tests/test_permissive_top.py), and resolve rejects a call to
+                # any name that is neither a stdlib function nor a declared
+                # one — so a missing signature is a registry divergence.
+                raise AssertionError(
+                    f"call to '{e.func}' has no signature in CALL_SIGS and no "
+                    f"declared function — resolve rejects unknown calls before "
+                    f"this pass, so the stdlib signature registry has drifted "
+                    f"from the stdlib function registry"
+                )
+            return sig.ret
         case n.BinOp():
             if e.op in ("==", "!=", "<", ">", "<=", ">=", "and", "or", "in"):
                 return TBoolean()
@@ -287,7 +559,11 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                 # p untyped by the flat walk) must still hit the dot-form
                 # rejection rather than fall through to a runtime assert.
                 return TPlayer()
-            return TAny()  # any future operators
+            # Every operator the parser builds is typed above; an unrecognized
+            # one is loud (the message lives in `_untyped_operator` so this arm
+            # holds operator literals ONLY — tests/test_operator_walls.py
+            # scrapes it as the operator registry).
+            raise _untyped_operator(e.op)
         case n.Not() | n.IsCheck() | n.Quantifier():
             return TBoolean()
         case n.Choose():
@@ -313,7 +589,16 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
         case n.IfExpr():
             return _ifexpr_type(e, env)
         case n.StructLit():
-            return env.structs.get(e.type_name, TAny())
+            struct = env.structs.get(e.type_name)
+            if struct is None:
+                # resolve rejects a literal of an undeclared type
+                # (`_validate_refs`, "unknown type"), and `struct_registry`
+                # builds one entry per `game.types` — so a miss is a divergence
+                # between the two, not a program error.
+                raise _env_miss(
+                    "struct type", e.type_name, "structs", "`struct_registry`"
+                )
+            return struct
         case n.Member():
             # `action.card` / `action.actor`: the sound subset of the `action`
             # pronoun's shape — typed directly off the pronoun,
@@ -341,7 +626,25 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                 return ROUND_STATE_FIELDS[e.field]
             obj = infer(e.obj, env)
             if isinstance(obj, TStruct):
-                return obj.fields.get(e.field, TAny())
+                # Read struct fields through the REGISTRY, not off the snapshot
+                # embedded in whatever value produced the receiver. A recursive
+                # type (`derived { copy = R { x: x } }`) has no finite unrolled
+                # form — each embedded copy is one round staler than the last —
+                # so reading snapshots made `r.copy.flag` correct,
+                # `r.copy.copy.flag` correct, and `r.copy.copy.copy.flag` the
+                # permissive top: a wall that decayed with traversal depth.
+                # Struct types are nominal, so the registry entry IS the type
+                # and is never staler.
+                #
+                # BOTH ends are canonicalized, and each covers a different
+                # producer. The receiver, because a struct-typed value can
+                # arrive from a snapshot-bearing map (a derived body's sibling
+                # binding, a field of a field) and its own map would then be
+                # stale for SCALAR fields, which canonicalizing the result
+                # cannot repair. The result, because that is what the next hop
+                # of a chain becomes.
+                receiver = _canonical_struct(obj, env)
+                return _canonical(receiver.fields.get(e.field, TAny()), env)
             if isinstance(obj, TCard):
                 # A card's fields are a closed pair; `_check_expr` rejects
                 # anything else on a known-Card receiver.
@@ -365,16 +668,66 @@ def _ifexpr_type(e: n.IfExpr, env: TypeEnv) -> Type:
     return merged if merged is not None else TAny()
 
 
+def _env_miss(kind: str, name: str, env_field: str, builder: str) -> AssertionError:
+    """A name resolve CLASSIFIED but this pass cannot type: the type environment
+    is incomplete, which is a checker bug rather than a program error.
+
+    This is the amplifier the permissive `TAny` used to hide (decisions.md
+    "Closed-domain completeness"; the resolution recorded in decisions.md, "The
+    permissive top and the lookup-miss walls"). A miss here used to return the
+    permissive top, and `TAny` satisfies EVERY constraint — so one unthreaded
+    binder silently exempted every expression below it from every type wall,
+    and the checker reported success. Both bugs the split was motivated by had
+    exactly this shape: a move parameter whose position domain was not threaded
+    into the binder env typed `TAny`, so `src is hearts` passed.
+
+    The fix for this exception is NEVER to bind `TAny` at the raising site to
+    quiet it — that restores the hole. It is to thread the missing binder in
+    the pass that owns the scope. A binder that is genuinely untypable today is
+    a deliberate reclassification: bind it to `TAny` *explicitly* at the site
+    that introduces it, where the choice is visible and auditable.
+    """
+    return AssertionError(
+        f"{kind} '{name}' was classified by resolve but is absent from "
+        f"`TypeEnv.{env_field}` — {builder} and the resolver's classification "
+        f"have diverged, so this expression would type as the permissive top "
+        f"and every type wall below it would silently pass. This is a checker "
+        f"bug: thread the binding through, never bind `TAny` here to quiet it."
+    )
+
+
 def _name_type(e: n.NameRef, env: TypeEnv) -> Type:
     match e.ref_kind:
         case "local":
-            return env.locals.get(e.name, TAny())
+            t = env.locals.get(e.name)
+            if t is None:
+                # The headline case: a runtime binder the statement walk failed
+                # to carry into scope. `_scoped_env` folds loop/parameter/`let`
+                # binders; a construct whose binder it does not know reaches
+                # here.
+                raise _env_miss(
+                    "binder", e.name, "locals", "the statement walk's binder fold"
+                )
+            return t
         case "state_var":
-            return env.state_vars.get(e.name, TAny())
+            t = env.state_vars.get(e.name)
+            if t is None:
+                raise _env_miss(
+                    "state variable", e.name, "state_vars", "`env_from_game`"
+                )
+            return t
         case "zone":
-            return env.zones.get(e.name, TAny())
+            t = env.zones.get(e.name)
+            if t is None:
+                raise _env_miss("zone", e.name, "zones", "`env_from_game`")
+            return t
         case "enum_value":
-            return env.value_enums.get(e.name, TAny())
+            t_enum = env.value_enums.get(e.name)
+            if t_enum is None:
+                raise _env_miss(
+                    "enum value", e.name, "value_enums", "`value_enum_map`"
+                )
+            return t_enum
         case "bool":
             return TBoolean()
         case "null":
@@ -388,8 +741,25 @@ def _name_type(e: n.NameRef, env: TypeEnv) -> Type:
             # move-type/mechanic-specific (see ACTION_FIELDS for the
             # sound subset of `action` typed via Member access).
             return TPlayer() if e.name == "actor" else TAny()
+        case "function":
+            # A bare function NAME in value position (a callback handed to a
+            # round form, never applied here). Genuinely the top: its type is the
+            # signature of whatever consumes it, which no `Type` in this model
+            # can spell. One of the audited permissive sites.
+            return TAny()
         case _:
-            return TAny()  # function / unresolved
+            # Every `ref_kind` resolve stamps is handled above, and resolve
+            # RAISES on an unclassified name before this pass runs — so an
+            # unknown kind here is a resolver/checker divergence, not a program
+            # error. Loud, per the same rule as `_env_miss`: the old blanket
+            # `TAny` made a whole new ref kind type as the permissive top and
+            # sail through every wall.
+            raise AssertionError(
+                f"name '{e.name}' has ref_kind {e.ref_kind!r}, which this pass "
+                f"does not type — resolve classifies every name (and rejects "
+                f"the unclassifiable), so a new ref kind must be given a type "
+                f"here rather than defaulting to the permissive top"
+            )
 
 
 def _type_name(t: Type) -> str:
@@ -426,10 +796,42 @@ def _state_blocks(game: Game) -> list[n.StateBlock]:
     return blocks
 
 
-def env_from_game(game: Game) -> TypeEnv:
+def env_from_game(
+    game: Game, structs: Mapping[str, TStruct] | None = None
+) -> TypeEnv:
     """Build the top-level type environment: declared state vars (value types),
-    zone contents, the deck/stdlib enum value map, and the user struct types."""
-    structs = struct_registry(game)
+    zone contents, the deck/stdlib enum value map, and the user struct types.
+
+    ``structs`` lets the caller supply a registry it has already built — which
+    `struct_and_function_registries` does on every round of its fixpoint, and
+    which is the ONLY way to avoid re-solving it here.
+
+    Omitted, the registry is solved from scratch through that same builder
+    rather than a bare `struct_registry(game)` call. The bare call typed
+    derived bodies against an empty `TypeEnv`, so a derived field naming any
+    ambient thing — `derived { d = score }`, a zone, an enum value, a pronoun —
+    aborted this helper with `_env_miss` for a perfectly valid game. That is
+    the same defect the ambient-environment fix closed for the main pipeline,
+    surviving in the branch the main pipeline no longer takes: a public helper
+    is a caller too. Recursion is not a risk — the builder always calls back
+    with a registry in hand, taking the branch above.
+
+    That branch also keeps the SIGNATURES the builder solved on the way, and
+    fills in the procedure signatures. Both are free here, and an env missing
+    either silently disables a wall rather than losing precision: an empty
+    `functions` made `infer` raise on any call to a user function, and an empty
+    `procedures` made the `run`-site arity and argument-type check skip — the
+    only place a procedure's parameter annotations bite at all.
+
+    The supplied-registry branch deliberately fills in NEITHER: the fixpoint
+    uses this env as the INPUT to `_function_sigs`, so handing it a half-built
+    signature map would seed a round from itself, and `typecheck` sets both
+    once, after the registries settle."""
+    functions: Mapping[str, Sig] = {}
+    procedures: Mapping[str, Sig] = {}
+    if structs is None:
+        structs, functions = struct_and_function_registries(game, DiagnosticBag())
+        procedures = _procedure_sigs(game)
     state_vars: dict[str, Type] = {}
     for block in _state_blocks(game):
         for decl in block.decls:
@@ -445,23 +847,32 @@ def env_from_game(game: Game) -> TypeEnv:
                 if decl.index is not None
                 else t
             )
-    # The fallback carries zone=True like its twin in `infer`'s zone-family
-    # subscript arm: it describes an (unknown-typed) ZONE's contents, and an
-    # unflagged default would falsely reject every use of that zone at the
-    # endpoint walls. Unreachable today only by pass ordering (resolve raises
-    # on unknown zone types first) — kept truthful, not load-bearing.
-    zones: dict[str, Type] = {
-        z.name: ZONE_CONTENT.get(z.type_ref.name, TCollection(TAny(), zone=True))
-        for z in game.zones
-    }
+    # `ZONE_CONTENT` covers `LIBRARY_ZONE_TYPES` exactly (pinned by
+    # tests/test_permissive_top.py) and resolve rejects an unknown zone type
+    # before this pass runs, so every declared zone has a content type. The old
+    # permissive fallback here would have typed an unknown zone's contents as
+    # the top, sending every downstream Card/endpoint wall dark for that zone.
+    def zone_content(z: n.ZoneDecl) -> Type:
+        content = ZONE_CONTENT.get(z.type_ref.name)
+        if content is None:
+            raise AssertionError(
+                f"zone '{z.name}' has library type '{z.type_ref.name}' with no "
+                f"ZONE_CONTENT entry — resolve rejects unknown zone types "
+                f"before this pass, so the content registry has drifted from "
+                f"LIBRARY_ZONE_TYPES"
+            )
+        return content
+
+    zones: dict[str, Type] = {z.name: zone_content(z) for z in game.zones}
     # `ZoneDecl.index` is `None` (a singleton zone) or one of the closed index
     # roles resolve.py validates (the domain table's `ZONE_INDEX_ROLES`, plus
     # the game's declared position domains — integer-keyed); a family's
     # subscript key types as the index domain's binder type — the same
     # table cell `for each <role>` reads, so `hand[p]` and `captured[t]` key by
-    # TPlayer/TTeam without this site re-spelling the role list. (`role_type`'s
-    # TAny fallback covers the unresolved-role case, whose diagnostic resolve
-    # already owns.)
+    # TPlayer/TTeam without this site re-spelling the role list. (`role_type`
+    # RAISES on a role outside the registry rather than falling back to the
+    # permissive top; resolve rejects an unknown index role before this pass,
+    # so reaching that raise would mean the two registries had diverged.)
     positions = frozenset(p.name for p in game.positions)
     zone_families: dict[str, Type] = {
         z.name: (TInteger() if z.index in positions else _role_type(z.index))
@@ -474,6 +885,8 @@ def env_from_game(game: Game) -> TypeEnv:
         zone_families=zone_families,
         value_enums=value_enum_map(game),
         structs=structs,
+        functions=functions,
+        procedures=procedures,
         has_ranking=bool(game.ranking),
         positions=positions,
     )
@@ -740,9 +1153,11 @@ def _function_sigs(game: Game, env: TypeEnv, bag: DiagnosticBag) -> dict[str, Si
     sigs: dict[str, Sig] = {}
 
     def param_type(p: n.MoveParam) -> Type:
-        optional = p.type_name.endswith("?")
-        base = p.type_name[:-1] if optional else p.type_name
-        return type_from_name(base, optional, env.structs)
+        # The one parameter-typing rule, shared with every other parameter
+        # position. Kept as a call rather than a second copy: a local copy
+        # that missed `env.positions` would type a position-domain parameter
+        # as the permissive top, which is the hole this module walls.
+        return _param_type(p, env)
 
     def visit(name: str, on_stack: frozenset[str]) -> None:
         if name in sigs or name in on_stack:  # done, or a cycle resolve already flagged
@@ -767,12 +1182,9 @@ def _function_sigs(game: Game, env: TypeEnv, bag: DiagnosticBag) -> dict[str, Si
 def _param_type(p: n.MoveParam, env: TypeEnv) -> Type:
     optional = p.type_name.endswith("?")
     base = p.type_name[:-1] if optional else p.type_name
-    if base in env.positions:
-        # A position-domain parameter (`src : column`) binds an integer
-        # member of the declared range; resolve's collision wall guarantees
-        # the name shadows no built-in type spelling.
-        return TInteger()
-    return type_from_name(base, optional, env.structs)
+    # Position domains resolve inside `type_from_name`, so `slot?` keeps its
+    # optionality instead of being flattened to a bare Integer.
+    return type_from_name(base, optional, env.structs, env.positions)
 
 
 def _procedure_sigs(game: Game) -> dict[str, Sig]:
@@ -1614,22 +2026,37 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
         # procedure's parameter annotations can bite (after expansion, the call
         # site is gone). Resolve has already established that the procedure exists.
         sig = env.procedures.get(s.name)
-        if sig is not None:
-            if len(s.args) != len(sig.params):
-                bag.error(
-                    f"procedure '{s.name}' expects {len(sig.params)} argument(s), "
-                    f"got {len(s.args)}",
-                    s.span,
-                )
-            else:
-                for arg, param in zip(s.args, sig.params):
-                    got = infer(arg, env)
-                    if not assignable(got, param):
-                        bag.error(
-                            f"procedure '{s.name}' expects {_type_name(param)}, got "
-                            f"{_type_name(got)}",
-                            arg.span,
-                        )
+        if sig is None:
+            # Not `if sig is not None:`. The comment above states the
+            # invariant — resolve has established that the procedure exists,
+            # and `_procedure_sigs` builds one entry per declared procedure —
+            # so a miss is a divergence between the two, exactly like the name
+            # lookups in `_name_type`. Guarding leniently on an invariant you
+            # have just asserted is how the check goes dark: an env built
+            # without procedures silently skipped this arity and argument-type
+            # wall rather than failing, and it is the ONLY place a procedure's
+            # parameter annotations bite (after expansion the call site is
+            # gone). See decisions.md, "The permissive top and the lookup-miss
+            # walls" — a fallback standing in for an answer the program has is
+            # a silent wrong answer.
+            raise _env_miss(
+                "procedure", s.name, "procedures", "`_procedure_sigs`"
+            )
+        if len(s.args) != len(sig.params):
+            bag.error(
+                f"procedure '{s.name}' expects {len(sig.params)} argument(s), "
+                f"got {len(s.args)}",
+                s.span,
+            )
+        else:
+            for arg, param in zip(s.args, sig.params):
+                got = infer(arg, env)
+                if not assignable(got, param):
+                    bag.error(
+                        f"procedure '{s.name}' expects {_type_name(param)}, got "
+                        f"{_type_name(got)}",
+                        arg.span,
+                    )
     for expr in _stmt_exprs(s):
         _check_expr(expr, env, bag)
 
@@ -2405,10 +2832,12 @@ def typecheck(game: Game) -> Game:
             players.span,
         )
 
-    env = env_from_game(game)
-    env = replace(env, functions=_function_sigs(game, env, bag))
+    # Structs and user functions are solved together, to a fixpoint — they
+    # depend on each other in both directions and at arbitrary depth.
+    structs, functions = struct_and_function_registries(game, bag)
+    env = replace(env_from_game(game, structs), functions=functions)
     env = replace(env, procedures=_procedure_sigs(game))
-    variants = variant_registry(game, env.structs)
+    variants = variant_registry(game, env.structs, env.positions)
     for stmt, binders in _all_statements_scoped(game):
         senv = _scoped_env(env, binders)
         _check_stmt_exprs(stmt, senv, bag)
