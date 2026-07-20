@@ -62,14 +62,12 @@ sampled:    `ranking:` omission with rank-dependent constructs in play is
             (resolve's `_instantiate_rules`, `suits=None`) — the argument
             name itself still fails name classification in a piece game's
             namespaces, so the cell stays loud.
-residual:   `ranking:` (enumeration or convention) DECLARED in a piece
-            game: membership validation and convention expansion are gated
-            on `_deck_known`, which piece flavor deliberately fails, so the
-            clause is currently accepted unvalidated (an enumeration flows
-            through unchecked; a convention stays unexpanded). The flavor
-            wall lands with the piece noun/flavor semantics — recorded in
-            roadmap.md, "Piece-flavored games". Same record covers the
-            runtime driver (a piece game compiles to IR but does not run).
+residual:   none. `ranking:`/`trump:` DECLARED in a piece game, and every
+            other card-content surface, are rejected naming the kind by the
+            content-agreement walls (tests/test_piece_content_walls.py); the
+            runtime driver runs a piece game. This module owns the clause
+            STRUCTURE (presence/duplication/flavor selection); the vocabulary
+            walls and the piece-game playout live in that flagship ledger.
 """
 
 from __future__ import annotations

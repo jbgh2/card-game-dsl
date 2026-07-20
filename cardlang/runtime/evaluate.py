@@ -213,12 +213,18 @@ def _member_eval(e: n.Member, ctx: Ctx) -> Any:
         for k, v in obj.fields.items():
             dctx = dctx.with_local(k, v)
         return evaluate(derived.value, dctx)
+    if isinstance(obj, Card):
+        # A content item's axis field -> its `Card` attribute: identity for a
+        # card deck ("suit"->"suit"), the piece set's map for a piece
+        # ("side"->"suit", "kind"->"rank"). One source (rs.axis_attr, set by the
+        # driver) so member access matches the flavor-keyed field table.
+        return getattr(obj, ctx.rs.axis_attr.get(e.field, e.field))
     return _member(obj, e.field)
 
 
 def _member(obj: Any, field: str) -> Any:
-    if isinstance(obj, Card):
-        return getattr(obj, field)
+    # `Card` is handled in `_member_eval` (it needs the flavor axis map); this
+    # sees Move / StructValue / dict / the deliberately-loose fallbacks.
     if isinstance(obj, Move):
         return getattr(obj, field)
     if isinstance(obj, StructValue):

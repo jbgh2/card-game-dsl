@@ -45,11 +45,14 @@ from dataclasses import dataclass, fields, is_dataclass, replace
 from typing import Callable, Iterator, assert_never, cast, get_args
 
 from cardlang.ast import nodes as n
+from cardlang.ast.nodes import Flavor
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
+from cardlang.domains import CARD_AXIS_ROLES, CARD_PARAM_DOMAINS
 from cardlang.domains import ITERABLE_ROLES as _ITERATION_ROLES
 from cardlang.domains import PARAM_DOMAIN_ORDER, PARAM_DOMAINS as _FIXED_DOMAINS
 from cardlang.domains import SIMULTANEOUS_ROLES, ZONE_INDEX_ROLES
 from cardlang.stdlib.functions import (
+    DECK_ONLY_CALL_FUNCS,
     STDLIB_AUCTION_OUTCOMES,
     STDLIB_CALL_FUNCS,
     STDLIB_CLIMB_FOLLOWS,
@@ -58,6 +61,7 @@ from cardlang.stdlib.functions import (
     STDLIB_TRICK_OUTCOMES,
     STDLIB_VALUE_NAMES,
 )
+from cardlang.runtime.values import content_kind_clause, content_noun
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
 from cardlang.stdlib.rules import library_rules
 from cardlang.stdlib.values import DIRECTION_VALUES, deck_ranks, deck_suits, enum_values
@@ -148,6 +152,7 @@ def _check_reserved(
 def resolve(game: n.Game) -> n.Game:
     bag = DiagnosticBag()
     _resolve_component_set(game, bag)
+    _reject_card_content_clauses(game, bag)
     _resolve_direction(game, bag)
     game = _expand_ranking(game, bag)
     _resolve_ranking(game, bag)
@@ -203,7 +208,7 @@ def resolve(game: n.Game) -> n.Game:
 _NODE_KINDS: tuple[type, ...] = get_args(n.Node)
 
 
-def _introduced_binders(node: object) -> tuple[str, ...]:
+def _introduced_binders(node: object, flavor: Flavor = "card") -> tuple[str, ...]:
     """The single registry of "which node kinds bind names, and which names":
     every other place that needs to know (`_template_binders`'s collision
     check, `_check_functions`'s allowed-reference set, `_rewrite`'s lexical
@@ -212,15 +217,23 @@ def _introduced_binders(node: object) -> tuple[str, ...]:
     out of sync (missing the `Movement`/`EpistemicOp` filter arm in two of
     them).
 
+    `flavor` sets the ONE binder that varies with content kind — the
+    movement/reveal filter candidate, `card` vs `piece` (`content_noun`); every
+    other binder is user-chosen or a card-only construct's fixed name. The
+    scoping site passes the game's flavor so `piece` resolves in a piece game's
+    filter; the collision/reserved sweeps default `card` (the fixed nouns are
+    never reserved and a movement can only occur where the game's own flavor
+    already governs).
+
     Walks feed this every field value they meet, so non-node values (a `str`
     name, a `Span`, an `int`) answer "nothing" here; every actual node kind is
     dispatched exhaustively in `_node_binders`."""
     if not isinstance(node, _NODE_KINDS):
         return ()
-    return _node_binders(cast(n.Node, node))
+    return _node_binders(cast(n.Node, node), flavor)
 
 
-def _node_binders(node: n.Node) -> tuple[str, ...]:
+def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
     """Exhaustive over `Node` — deliberately. This registry's only two known
     escapes (`ProduceArm`, then `TypeDef`) both lived in a `case _: return ()`
     catch-all: a node kind nobody had thought about answered "no binders"
@@ -239,7 +252,12 @@ def _node_binders(node: n.Node) -> tuple[str, ...]:
     parameters scope to their own guard/effect/body only, which `_rewrite`
     implements in per-declaration arms, and `_check_reserved_params` sweeps
     them for reserved words. This registry answers for nodes a body walk can
-    encounter, where the binder scopes within the walked tree itself."""
+    encounter, where the binder scopes within the walked tree itself.
+
+    A movement/reveal filter binds the CONTENT noun (`card` for a card game,
+    `piece` for a piece game — `content_noun`); the card-query and aggregation
+    binders stay `card` because those forms are card-only (rejected in a piece
+    game), so the noun they bind is fixed."""
     match node:
         case n.Comprehension() | n.Quantifier() | n.ForEach() | n.Turns():
             return (node.binder,)
@@ -252,9 +270,9 @@ def _node_binders(node: n.Node) -> tuple[str, ...]:
         case n.Movement() if node.filter is not None:
             # `where jointly` binds the candidate SET; a per-card `where`
             # binds each candidate (decisions.md "Joint-predicate selection").
-            return ("cards",) if node.joint else ("card",)
+            return (content_noun(flavor, plural=node.joint),)
         case n.EpistemicOp() if node.filter is not None:
-            return ("card",)
+            return (content_noun(flavor, plural=False),)
         case n.LetStmt():
             return (node.name, node.index) if node.index is not None else (node.name,)
         case n.ProduceArm():
@@ -319,16 +337,17 @@ def _node_binders(node: n.Node) -> tuple[str, ...]:
             assert_never(node)
 
 
-def _template_binders(rule: n.RuleDef) -> set[str]:
+def _template_binders(rule: n.RuleDef, flavor: Flavor) -> set[str]:
     """Every binder a rule body introduces — a parameter sharing one of these
-    names would be captured by the binder instead of substituted."""
+    names would be captured by the binder instead of substituted. A rule body
+    can hold a movement, so its filter binder follows the game's flavor."""
     out: set[str] = set()
     for nd in _walk(rule):
-        out.update(_introduced_binders(nd))
+        out.update(_introduced_binders(nd, flavor))
     return out
 
 
-def _check_template(rule: n.RuleDef, bag: DiagnosticBag) -> bool:
+def _check_template(rule: n.RuleDef, bag: DiagnosticBag, flavor: Flavor) -> bool:
     """Validate a parameterized rule's declaration (Suit-only domains,
     corpus-first — recorded in roadmap.md; unique names; no binder capture).
     Returns False when instantiation cannot proceed."""
@@ -342,7 +361,7 @@ def _check_template(rule: n.RuleDef, bag: DiagnosticBag) -> bool:
             rule.span,
         )
         ok = False
-    binders = _template_binders(rule)
+    binders = _template_binders(rule, flavor)
     for p in rule.params:
         if p.type_name != "Suit":
             bag.error(
@@ -473,7 +492,7 @@ def _instantiate_rules(game: n.Game, bag: DiagnosticBag) -> n.Game:
 
     def check_template_once(name: str, template: n.RuleDef) -> bool:
         if name not in template_checked:
-            template_checked[name] = _check_template(template, bag)
+            template_checked[name] = _check_template(template, bag, game.content_flavor)
         return template_checked[name]
 
     for nd in _walk(game):
@@ -1016,8 +1035,8 @@ class _Categories:
     ranks: frozenset[str]
     suits: frozenset[str]
     # `Game.content_flavor` — the dispatch key for the flavor-aware walls
-    # (roadmap.md, "Piece-flavored games").
-    flavor: str = "card"
+    # (decisions.md, "Card is the deck flavor of Piece").
+    flavor: Flavor = "card"
 
 
 def _walk(node: object) -> Iterator[object]:
@@ -1050,7 +1069,7 @@ def _categories(game: n.Game) -> _Categories:
         locals=frozenset(),
         state_vars=frozenset(state_vars),
         zones=frozenset(z.name for z in game.zones),
-        enums=enum_values(game.deck) if _deck_known(game.deck) else DIRECTION_VALUES,
+        enums=enum_values(game.deck) if _component_known(game.deck) else DIRECTION_VALUES,
         functions=STDLIB_VALUE_NAMES,
         # Card-literal validation asks "does this card EXIST in the deck",
         # so ranks derive from the deck like `suits` below — never from
@@ -1059,8 +1078,8 @@ def _categories(game: n.Game) -> _Categories:
         # can be named). Deck-vs-ranking is the same two-source divergence
         # `_resolve_ranking` walls from the other side (Codex review of
         # PR #48, round 2).
-        ranks=deck_ranks(game.deck) if _deck_known(game.deck) else frozenset(),
-        suits=deck_suits(game.deck) if _deck_known(game.deck) else frozenset(),
+        ranks=deck_ranks(game.deck) if _component_known(game.deck) else frozenset(),
+        suits=deck_suits(game.deck) if _component_known(game.deck) else frozenset(),
         flavor=game.content_flavor,
     )
 
@@ -1193,16 +1212,26 @@ def _check_reserved_binders(game: n.Game, bag: DiagnosticBag) -> None:
 
 
 def _deck_known(deck: str) -> bool:
-    """True iff `deck` names a known CARD deck — the gate on every
-    card-specific resolve path. Deliberately False for a piece-flavored set,
-    not only for an unknown name: piece vocabulary binding is not built yet
-    (roadmap.md, "Piece-flavored games"), so those paths degrade for a piece
-    game exactly as for an unknown deck, and a reference into the empty
-    namespaces fails name classification loudly. The diagnostics themselves
-    are `_resolve_component_set`'s."""
+    """True iff `deck` names a known CARD deck — the gate on the card-specific
+    resolve paths that read a rank/suit ORDER (`ranking:` membership and
+    convention expansion). Deliberately False for a piece set, not only an
+    unknown name: those clauses are rejected outright for a piece game by
+    `_reject_card_content_clauses` before these paths run, so the gate need only
+    admit real card decks."""
     from cardlang.runtime.values import DECKS
 
     return deck in DECKS
+
+
+def _component_known(deck: str) -> bool:
+    """True iff `deck` names a known component set of EITHER flavor — the gate
+    on the flavor-agnostic namespaces (a game's suits, ranks, and bare enum
+    values), which a piece set populates from its own axes exactly as a card
+    deck does. `component_set` is the registry; an unknown name yields empty
+    namespaces (its own diagnostic is `_resolve_component_set`'s)."""
+    from cardlang.runtime.values import component_set
+
+    return component_set(deck) is not None
 
 
 def _resolve_component_set(game: n.Game, bag: DiagnosticBag) -> None:
@@ -1246,6 +1275,29 @@ def _resolve_component_set(game: n.Game, bag: DiagnosticBag) -> None:
                 f"`cards: {game.deck}`, not `pieces:`",
                 game.span,
             )
+
+
+def _reject_card_content_clauses(game: n.Game, bag: DiagnosticBag) -> None:
+    """`ranking:` and `trump:` read a deck's rank order and suits; a piece set
+    has neither, so both are rejected NAMING THE KIND in a piece game (rather
+    than the silent no-op the `_deck_known` gate on `_expand_ranking`/
+    `_resolve_ranking` would otherwise give -- accepted-but-ignored, either the
+    enumeration or the convention form). A card game is unaffected."""
+    if game.content_flavor != "piece":
+        return
+    kind = content_kind_clause(game.content_flavor, game.deck)
+    if game.ranking or game.ranking_convention is not None:
+        bag.error(
+            f"{kind} -- `ranking:` orders a deck's cards by rank, which a "
+            f"piece set has no notion of; drop the clause",
+            game.span,
+        )
+    if game.trump is not None:
+        bag.error(
+            f"{kind} -- `trump:` names the suit that beats others in a trick, "
+            f"a card-play notion; drop the clause",
+            game.span,
+        )
 
 
 def _resolve_direction(game: n.Game, bag: DiagnosticBag) -> None:
@@ -1472,11 +1524,14 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         kind = _classify(node.name, cats)
         if kind is None:
             hint = ""
-            if node.name == "card":
-                hint = (
-                    " (`card` is bound only inside a card query, an "
-                    "aggregation, or a `where` filter)"
+            noun = content_noun(cats.flavor, plural=False)
+            if node.name == noun:
+                where = (
+                    "a card query, an aggregation, or a `where` filter"
+                    if cats.flavor == "card"
+                    else "a movement's `where` filter"
                 )
+                hint = f" (`{noun}` is bound only inside {where})"
             elif node.name == "player":
                 hint = " (`player` is bound only inside a player query or quantifier)"
             bag.error(f"unresolved name '{node.name}'{hint}", node.span)
@@ -1578,7 +1633,7 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         )
     scope_fields = _BINDER_SCOPE_FIELDS.get(type(node))
     if scope_fields is not None:
-        binders = _introduced_binders(node)
+        binders = _introduced_binders(node, cats.flavor)
         if binders:  # a filter-less Movement/EpistemicOp introduces nothing
             scoped = replace(cats, locals=cats.locals | frozenset(binders))
             return _traverse(
@@ -1831,9 +1886,11 @@ def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
 
         # Binders the body introduces, and the name-capture wall: a binder
         # sharing a parameter's name would capture it instead of substituting.
+        # A procedure body can hold a movement, so its filter binder follows
+        # the game's flavor (a piece game's `piece`, not `card`).
         binders: set[str] = set()
         for nd in _walk(proc):
-            binders.update(_introduced_binders(nd))
+            binders.update(_introduced_binders(nd, game.content_flavor))
         for p in proc.params:
             if p.name in binders:
                 bag.error(
@@ -1970,6 +2027,8 @@ def _check_move_params(
     span: Span | None,
     has_ranking: bool,
     positions: frozenset[str],
+    flavor: Flavor,
+    deck: str,
 ) -> None:
     """Totality gate for a parameterized move offered/enumerated in a decision
     (an `offer` statement or a `round offering` vocabulary). Fixed-from-type
@@ -1988,6 +2047,21 @@ def _check_move_params(
     the move contributes zero candidates — a crash where a compile-time
     diagnostic belongs (CLAUDE.md "Surface totality")."""
     types = [p.type_name for p in mt.params]
+    # A piece game has no suit/rank/card domain to enumerate, so a move
+    # parameterized by one has no candidate space. Checked before the
+    # has_ranking / unsupported-domain arms so the diagnostic names the KIND
+    # (a Rank param in a piece game is a flavor error, not a missing-ranking
+    # one); Player and position domains stay legal.
+    if flavor == "piece":
+        offending = [t for t in types if t in CARD_PARAM_DOMAINS]
+        if offending:
+            bag.error(
+                f"{content_kind_clause(flavor, deck)} -- move '{mt.name}' has a "
+                f"{offending[0]} parameter, whose domain is the deck's "
+                f"suits/ranks; a piece set enumerates neither",
+                span,
+            )
+            return
     if "Card" in types and len(types) > 1:
         bag.error(
             f"move '{mt.name}' combines a Card parameter with another parameter; "
@@ -2089,6 +2163,8 @@ def _check_vocabulary_moves(
     unknown_msg: str,
     has_ranking: bool,
     positions: frozenset[str],
+    flavor: Flavor,
+    deck: str,
 ) -> None:
     """The shared body of a vocabulary's per-name loop, wherever one is
     enumerated (a plain `offer` or the auction `round offering` —
@@ -2098,14 +2174,15 @@ def _check_vocabulary_moves(
     `unknown_msg` is the caller-specific wording for an unknown name (the two
     call sites differ only in this message, "offer ..." vs "round vocabulary
     ..."). `has_ranking` (`bool(game.ranking)`) is threaded through to
-    `_check_move_params`'s Rank-needs-a-declared-ranking gate."""
+    `_check_move_params`'s Rank-needs-a-declared-ranking gate; `flavor`/`deck`
+    to its card-content-domain flavor wall."""
     for name in names:
         if name not in defined_move_types:
             bag.error(f"{unknown_msg} '{name}'", span)
             continue
         mt = move_type_defs[name]
         if mt.params:
-            _check_move_params(mt, bag, span, has_ranking, positions)
+            _check_move_params(mt, bag, span, has_ranking, positions, flavor, deck)
 
 
 def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
@@ -2128,6 +2205,19 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 nd.func not in STDLIB_CALL_FUNCS and nd.func not in defined_functions
             ):
                 bag.error(f"call to unknown function '{nd.func}'", nd.span)
+            case n.Call() if (
+                game.content_flavor == "piece" and nd.func in DECK_ONLY_CALL_FUNCS
+            ):
+                # A deck-reading stdlib call (suit_of, rank_value, a trick-
+                # winner, ...) has nothing to read in a piece game. The generic
+                # calls (top_of, team_of, ...) are absent from DECK_ONLY and
+                # stay legal.
+                bag.error(
+                    f"{content_kind_clause(game.content_flavor, game.deck)} -- "
+                    f"`{nd.func}` reads a card's suit/rank/points, which a piece "
+                    f"set has none of",
+                    nd.span,
+                )
             case n.StructLit() if nd.type_name not in defined_types:
                 bag.error(f"unknown type '{nd.type_name}'", nd.span)
             case n.NamedArg():
@@ -2218,6 +2308,19 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"{', '.join(sorted(_ITERATION_ROLES))})",
                     nd.span,
                 )
+            case (n.ForEach() | n.Quantifier()) if (
+                game.content_flavor == "piece" and nd.role in CARD_AXIS_ROLES
+            ):
+                # `for each suit` / `any rank where` enumerate the deck's axes;
+                # a piece set has no role surface for its own axes (side/kind),
+                # so the card-axis roles are rejected naming the kind. The seat
+                # roles (player/team) fall through, legal in both flavors.
+                bag.error(
+                    f"{content_kind_clause(game.content_flavor, game.deck)} -- "
+                    f"the `{nd.role}` role ranges over a deck's {nd.role}s, which "
+                    f"a piece set has none of",
+                    nd.span,
+                )
             case n.EachSimultaneous() if nd.role not in SIMULTANEOUS_ROLES:
                 # The registry's `simultaneous` column, not a bare `!= "player"`:
                 # the roles that admit a simultaneous block are exactly the seat
@@ -2250,6 +2353,18 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"applies them together (that is what makes the pass atomic — "
                     f"nobody sees a passed card before choosing their own), and a "
                     f"snapshot is only defined for that one shape",
+                    nd.span,
+                )
+            case n.CardLiteral() if game.content_flavor == "piece":
+                # `mark of x` is a well-formed literal against a piece set's own
+                # ranks/suits (the axis values populate the same namespaces), so
+                # the membership check below would ACCEPT it -- a card-literal
+                # form given piece meaning. Reject the form itself, naming the
+                # kind, before that.
+                bag.error(
+                    f"{content_kind_clause(game.content_flavor, game.deck)} -- a "
+                    f"card literal (`{nd.rank} of {nd.suit}`) names a deck card; "
+                    f"a piece has no rank-of-suit identity",
                     nd.span,
                 )
             case n.CardLiteral():
@@ -2372,6 +2487,19 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                             f"`zones {{ }}` — '{nd.dest.name}' is {what_k}",
                             nd.span,
                         )
+            case n.EpistemicOp() if (
+                game.content_flavor == "piece" and nd.op == "reveal"
+            ):
+                # `reveal one card from ...` hardcodes the noun "card"; a piece
+                # game has no such statement (the piece twin is grammatically
+                # inexpressible). `shuffle` falls through -- it moves a zone's
+                # order, no card content, legal in both flavors.
+                bag.error(
+                    f"{content_kind_clause(game.content_flavor, game.deck)} -- "
+                    f"`reveal one card` identifies a deck card; reveal a piece is "
+                    f"not expressible",
+                    nd.span,
+                )
             case n.EpistemicOp():
                 # The other member of the zone-position class: `shuffle turn` /
                 # `reveal one card from turn` checked clean and died on the
@@ -2403,6 +2531,8 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     "offer names unknown move type",
                     bool(game.ranking),
                     frozenset(p.name for p in game.positions),
+                    game.content_flavor,
+                    game.deck,
                 )
                 _check_card_vocabulary(nd.move_types, move_type_defs, game, bag, nd.span)
             case n.Round() if nd.move_types is not None:
@@ -2425,6 +2555,8 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     "round vocabulary names unknown move type",
                     bool(game.ranking),
                     frozenset(p.name for p in game.positions),
+                    game.content_flavor,
+                    game.deck,
                 )
                 _check_card_vocabulary(nd.move_types, move_type_defs, game, bag, nd.span)
                 # The betting form omits `outcome` (it mutates state directly and

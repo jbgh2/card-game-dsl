@@ -168,3 +168,127 @@ STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
         "canasta_hand_points",  # Canasta: card points left in both partners' hands
     }
 )
+
+# The classification of every STDLIB_CALL_FUNCS member by whether its semantics
+# READ deck content. A call that reads a card's suit or rank, the ranking order,
+# card-point values, or follow/trump/lead machinery cannot mean anything in a
+# piece game (no suit/rank/points), so it is a resolve-time flavor wall;
+# GENERIC_CALL_FUNCS -- functions that touch only players/teams/seats/zone
+# counts or ordered-collection POSITION (top_of/bottom_of), never a card's
+# content -- stay legal in both flavors. The two sets partition the registry,
+# pinned by tests/test_piece_content_walls.py so a newly registered call cannot
+# land unclassified (the "vacuously green" guard) and tests/test_signatures.py.
+# Derived by an audit that read every implementation; membership IS the
+# classification rationale (decisions.md "Closed-domain completeness"). The
+# organizing rule for the boundary: locating an OPAQUE caller-supplied token is
+# generic (`player_holding` matches a card by identity; `canasta_discard_ok`'s
+# card argument is unread); privileging a SPECIFIC rank/suit -- by `.rank`/
+# `.suit`, `rs.rank_index`, `rs.card_values`, a point table, or an internal
+# card literal (`bigtwo_first_leader` builds the 3 of diamonds) -- is deck-only.
+GENERIC_CALL_FUNCS: frozenset[str] = frozenset(
+    {
+        "bottom_of",
+        "canasta_discard_ok",
+        "canasta_red3_bonus",
+        "coup_game_summary",
+        "coup_next_in_game",
+        "coup_players_in",
+        "error",
+        "five_hundred_bid_level",
+        "peg_origin_of",
+        "player_holding",
+        "president_next_holder",
+        "skat_effective_loss",
+        "skat_next_bid",
+        "team_of",
+        "tichu_double_victory",
+        "tichu_first_out",
+        "tichu_next_holder",
+        "tichu_opponent_team",
+        "tichu_partner",
+        "tichu_players_holding",
+        "top_of",
+    }
+)
+
+# The complement, listed explicitly (not `STDLIB_CALL_FUNCS - GENERIC...`) so
+# the partition test can FAIL: a newly registered call absent from both sets is
+# unclassified, and the test names it rather than silently defaulting it here.
+DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
+    {
+        "belote_best_is",
+        "belote_decl_class",
+        "belote_decl_height",
+        "belote_decl_points",
+        "belote_decl_size",
+        "belote_decl_slot",
+        "belote_decl_trump",
+        "belote_opp_winning",
+        "belote_royal_player",
+        "belote_trump_height",
+        "bigtwo_first_leader",
+        "bring_in_seat",
+        "canasta_add_ok",
+        "canasta_black3_ok",
+        "canasta_can_start",
+        "canasta_can_take_pile",
+        "canasta_canasta_bonus",
+        "canasta_close_ok",
+        "canasta_hand_points",
+        "canasta_is_black3",
+        "canasta_is_red3",
+        "canasta_meld_points",
+        "canasta_must_take_pile",
+        "canasta_pile_rank",
+        "canasta_stage_ok",
+        "canasta_top_is_wild",
+        "canasta_top_starts_pile",
+        "card_value",
+        "coup_has_char",
+        "coup_note_reveal",
+        "cribbage_crib_value",
+        "cribbage_show_value",
+        "doko_trick_winner",
+        "first_to_act_seat",
+        "five_hundred_bid_value",
+        "five_hundred_follow_ok",
+        "five_hundred_lead_ok",
+        "five_hundred_next_bid",
+        "five_hundred_trick_winner",
+        "gin_arrange_ok",
+        "gin_can_declare",
+        "gin_can_declare_free",
+        "gin_can_knock",
+        "gin_card_points",
+        "gin_deadwood",
+        "gin_flat_points",
+        "gin_knock_ok",
+        "gin_lay_ok_a",
+        "gin_lay_ok_b",
+        "gin_lay_ok_c",
+        "gin_shown_points",
+        "gin_valid_meld",
+        "peg_pair_points",
+        "peg_run_points",
+        "peg_value",
+        "pinochle_meld_value",
+        "pot_share",
+        "president_is_top_rank",
+        "rank_value",
+        "schnapsen_trick_winner",
+        "skat_follow_ok",
+        "skat_matadors",
+        "skat_trick_winner",
+        "strain_index",
+        "suit_of",
+        "tarot_card_points",
+        "tarot_excuse_player",
+        "tarot_led_suit",
+        "tarot_per_opp",
+        "tarot_trump_height",
+        "tichu_card_points",
+        "tichu_dragon_won",
+        "tichu_hand_summary",
+        "tichu_mahjong_holder",
+    }
+)

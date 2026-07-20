@@ -90,7 +90,7 @@ sampled:    the wall-class population itself — every diagnostic emission
             site across `cardlang/resolve.py`, `cardlang/typecheck.py`, and
             `cardlang/deckcheck.py` — is open and growing as the language
             evolves (a new checker rule is a new wall), not a closed
-            registry this module cross-products against. The 28 cases are
+            registry this module cross-products against. The fixtures are
             representative wall classes, one seed per class named above;
             they are not exhaustive over every diagnostic call site in the
             front end (those stay covered, per-wall, by the scattered

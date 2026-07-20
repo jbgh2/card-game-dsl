@@ -22,7 +22,7 @@ from cardlang.runtime.state import (
     _SkipHand,
     elements,
 )
-from cardlang.runtime.values import Card, CardSet, Player
+from cardlang.runtime.values import Card, CardSet, Player, content_noun
 
 
 def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
@@ -165,9 +165,11 @@ def _movement(stmt: n.Movement, ctx: Ctx) -> None:
             )
 
 def _card_pred(filter_expr: n.Expr, ctx: Ctx) -> Callable[[Card], bool]:
-    """A movement/reveal `where` filter as a card predicate: an ordinary
-    expression evaluated with `card` bound per candidate."""
-    return lambda c: bool(evaluate(filter_expr, ctx.with_local("card", c)))
+    """A movement/reveal `where` filter as a candidate predicate: an ordinary
+    expression evaluated with the flavor noun (`card`/`piece`) bound per
+    candidate -- the same name resolve scoped and typecheck bound."""
+    noun = content_noun(ctx.rs.content_flavor, plural=False)
+    return lambda c: bool(evaluate(filter_expr, ctx.with_local(noun, c)))
 
 
 def _deal_round_robin(
@@ -335,11 +337,12 @@ def _select_joint(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> l
         k = _check_count(int(evaluate(amount, ctx)), stmt.mode)
         sizes = range(k, k + 1)
     assert stmt.filter is not None  # grammar: `jointly` IS a where-clause form
+    noun = content_noun(ctx.rs.content_flavor, plural=True)
     candidates: list[CardSet] = [
         CardSet(subset)
         for size in sizes
         for subset in itertools.combinations(pool, size)
-        if bool(evaluate(stmt.filter, ctx.with_local("cards", list(subset))))
+        if bool(evaluate(stmt.filter, ctx.with_local(noun, list(subset))))
     ]
     if not candidates:
         # No implicit skip (decisions.md "No implicit actions"): a decision

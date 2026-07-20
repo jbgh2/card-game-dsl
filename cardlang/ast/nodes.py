@@ -14,9 +14,14 @@ construct at a time as more of the corpus is formalized.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TypeAlias
+from typing import Literal, TypeAlias
 
 from cardlang.diagnostics import Span
+
+# The two content flavors a game declares (`cards:` vs `pieces:`) -- the value
+# of `Game.content_flavor` and, downstream, `ComponentSet.flavor`. Defined at
+# the AST layer, the field's home, and imported by the runtime registry.
+Flavor: TypeAlias = Literal["card", "piece"]
 
 # ---------------------------------------------------------------------------
 # Expressions
@@ -1019,7 +1024,7 @@ class Game:
     # Which clause selected `deck` — "card" (`cards:`) or "piece" (`pieces:`),
     # stamped at parse; resolve walls a cross-flavor name, so post-resolve
     # `component_set(deck).flavor == content_flavor`.
-    content_flavor: str = "card"
+    content_flavor: Flavor = "card"
     direction: str | None = None
     ranking: tuple[str, ...] = ()
     # The convention keyword `ranking:` was written with (`"aces high"` etc.,

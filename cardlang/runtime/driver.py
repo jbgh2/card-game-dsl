@@ -28,7 +28,15 @@ from cardlang.runtime.state import (
     _ProduceSignal,
     _SkipHand,
 )
-from cardlang.runtime.values import DECKS, Player, Seating, build_deck, deck_ranks, deck_suits
+from cardlang.runtime.values import (
+    Player,
+    Seating,
+    axis_attributes,
+    build_deck,
+    component_deck,
+    deck_ranks,
+    deck_suits,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,7 +86,9 @@ def play_game(
     # deck ranks correctly without a hardcoded order. Card values come from the
     # deck table (empty for games that score by other means).
     rs.rank_index = {r: len(game.ranking) - 1 - i for i, r in enumerate(game.ranking)}
-    rs.card_values = dict(DECKS[game.deck].values)
+    rs.card_values = dict(component_deck(game.deck).values)
+    rs.content_flavor = game.content_flavor
+    rs.axis_attr = axis_attributes(game.deck)
     rs.suits = deck_suits(game.deck)
     # Rank iteration order for `for each rank` / `any rank`: the declared
     # ranking when present, else the deck's first-appearance order.

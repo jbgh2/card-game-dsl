@@ -8,7 +8,8 @@ Hearts only needs a standard 52-card deck and a four-player ring.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+
+from cardlang.ast.nodes import Flavor
 
 # Suits shared by the French-suited decks. Rank ordering is no longer a global:
 # it is read per game from the `ranking:` declaration (see runtime.state /
@@ -52,7 +53,7 @@ class ComponentSet:
     """One `cards:`/`pieces:` registry entry. `axes` bind positionally to the
     `Deck` item slots: axes[0] is the suit slot, axes[1] the rank slot."""
 
-    flavor: Literal["card", "piece"]
+    flavor: Flavor
     axes: tuple[str, str]
     deck: Deck
 
@@ -238,17 +239,64 @@ def component_set(name: str) -> ComponentSet | None:
     return COMPONENT_SETS.get(name)
 
 
+def _require_component_set(name: str) -> ComponentSet:
+    """The named set, or a loud `NotImplementedError` — resolve walls an
+    unknown/mis-flavored name, so every runtime lookup miss is a driver bug,
+    never a designer error. One raise for `build_deck`/`component_deck`/
+    `axis_attributes`."""
+    cs = component_set(name)
+    if cs is None:
+        raise NotImplementedError(
+            f"component set '{name}' not supported by the runtime yet — "
+            f"known component sets: {', '.join(sorted(COMPONENT_SETS))}"
+        )
+    return cs
+
+
+def component_deck(name: str) -> Deck:
+    """The `Deck` backing a named component set. `DECKS[name]` for a card set,
+    generalized so a piece game reaches the same payload — the driver reads a
+    set's card-point table through this instead of `DECKS`."""
+    return _require_component_set(name).deck
+
+
+def axis_attributes(name: str) -> dict[str, str]:
+    """A component set's axis spellings mapped to the `Card` attribute each
+    backs: axes[0] (the suit slot) -> "suit", axes[1] (the rank slot) ->
+    "rank". A card set is the identity {"suit":"suit","rank":"rank"} (member
+    access byte-identical); a piece set names its axes, e.g.
+    {"side":"suit","kind":"rank"} — how `piece.side` reaches `Card.suit`."""
+    axes = _require_component_set(name).axes
+    return {axes[0]: "suit", axes[1]: "rank"}
+
+
+# The content noun a flavor spells. The one source resolve's filter binder,
+# typecheck's filter locals, and the runtime candidate binding read, so the
+# name they bind can never drift; and the movements/reveals/queries a
+# flavor-mismatch diagnostic names.
+_CONTENT_NOUNS: dict[str, tuple[str, str]] = {
+    "card": ("card", "cards"),
+    "piece": ("piece", "pieces"),
+}
+
+
+def content_noun(flavor: str, *, plural: bool) -> str:
+    """The singular/plural content noun a flavor uses ("card"/"cards" vs
+    "piece"/"pieces")."""
+    return _CONTENT_NOUNS[flavor][1 if plural else 0]
+
+
+def content_kind_clause(flavor: str, deck: str) -> str:
+    """The shared opening of a flavor-mismatch diagnostic, naming the game's
+    declared content kind and set: "this game declares pieces ('xo_marks')"."""
+    return f"this game declares {content_noun(flavor, plural=True)} ('{deck}')"
+
+
 def build_deck(deck_name: str) -> list[Card]:
     """Construct the ordered list of `Card`-shaped items a named component
     set contains -- a deck's cards, or a piece set's pieces (represented the
     same way; see `ComponentSet`)."""
-    cs = component_set(deck_name)
-    if cs is None:
-        raise NotImplementedError(
-            f"component set '{deck_name}' not supported by the runtime yet — "
-            f"known component sets: {', '.join(sorted(COMPONENT_SETS))}"
-        )
-    deck = cs.deck
+    deck = _require_component_set(deck_name).deck
     if deck.cards:  # explicit-list form
         return [Card(rank, suit) for rank, suit in deck.cards]
     return [

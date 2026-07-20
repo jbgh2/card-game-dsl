@@ -241,24 +241,38 @@ Things we have noted but consciously not designed yet:
     (single-deal games never gather); sampled, stated explicitly in
     decisions.md rather than assumed.
 
-- **Piece-flavored games — clause only, semantics deferred.** `pieces:`
-  selects a piece-flavored component set from the registry behind `cards:`
-  (`cardlang/runtime/values.py`, `COMPONENT_SETS`), with the structural
-  walls in place: cards/pieces mutual exclusion, per-flavor unknown-name
-  lists, cross-flavor rejection, and the parse-stamped
-  `Game.content_flavor` (threaded into resolve's categories and the
-  `TypeEnv` as the dispatch key for the walls below). Everything downstream
-  of the clause is deliberately not flavor-aware yet (the board-topology
-  ladder's next rungs, [design-notes/board-topology.md](design-notes/board-topology.md)):
-  a piece game's vocabulary (xo_marks' x/o/mark) does not bind — resolve's
-  `_deck_known` answers False for piece flavor, so the card-specific paths
-  degrade exactly as for an unknown deck and any reference to a piece value
-  fails name classification loudly; consequently `ranking:` DECLARED in a
-  piece game is currently accepted unvalidated (an enumeration's entries go
-  unchecked against the set, a convention stays unexpanded) — the flavor
-  wall lands with the piece noun semantics; and the runtime driver still
-  reads the card-flavored `DECKS` view, so a piece game compiles to IR but
-  does not run. The ledger is tests/test_game_clause_walls.py.
+- **Piece-flavored games — content vocabulary lands; the rule system is
+  deferred.** `pieces:` selects a piece-flavored component set (`cardlang/
+  runtime/values.py`, `COMPONENT_SETS`), and content-kind agreement is a
+  first-class wall: a piece set's own vocabulary binds (the `x`/`o`/`mark`
+  axis values, the `side`/`kind` fields, the `piece`/`pieces` movement noun
+  and filter binder), and a minimal piece game runs a playout through the
+  driver (`component_deck` generalizes the old card-only `DECKS` read;
+  `axis_attributes` maps `piece.side` -> `Card.suit`). Card vocabulary in a
+  piece game is rejected NAMING THE KIND at the layer that owns it: the
+  movement/reveal noun, `.suit`/`.rank` field access, the card-query and
+  aggregation forms, `ranking:` (both the enumeration and the convention
+  form) and `trump:`, the `suit`/`rank` quantifier and iteration roles, the
+  Suit/Suit?/Rank/Card move-parameter domains, the deck-reading stdlib calls
+  (`DECK_ONLY_CALL_FUNCS`), and card literals. The flagship ledger is
+  tests/test_piece_content_walls.py; the clause structure is
+  tests/test_game_clause_walls.py.
+
+  Deferred to a later rung of the board-topology ladder
+  ([design-notes/board-topology.md](design-notes/board-topology.md)), and NOT
+  yet flavor-walled: (a) a card-content TYPE annotation (`Suit`/`Rank`/
+  `Card`) on a state var, struct field, function parameter, or variant case
+  is accepted at the declaration in a piece game, but no piece value can
+  inhabit it (a card value never resolves in a piece namespace), so it
+  degrades loudly at every use rather than silently taking effect; (b) the
+  trick-taking and rule-obligation machinery — a per-round `round ... trump`,
+  the `climb`/`combinations`/`follows` forms, `demands:`/`exempts:`/`actions
+  where` card predicates, an outcome-function name, and a suit argument to a
+  rule template — is card-oriented and reached only through the rule system,
+  which a rung-1 board game does not use; a piece game touching it degrades
+  through the existing card-zone / name-resolution / deck-only-call walls.
+  Both get a declaration-site / rule-system wall naming the kind when a piece
+  game needs the surface.
 
 - **Doc-snippet fragment kinds with no cheap wrapping harness.**
   `tests/test_doc_snippets.py` pipeline-checks every `cardlang`/

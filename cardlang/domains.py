@@ -209,6 +209,15 @@ ITERABLE_ROLES: frozenset[str] = frozenset(d.id for d in DOMAINS if d.iterable)
 # Roles `each <role> simultaneously:` may range over — seat domains only.
 SIMULTANEOUS_ROLES: frozenset[str] = frozenset(d.id for d in DOMAINS if d.simultaneous)
 
+# Roles that enumerate deck content (`rs.suits`/`rs.ranks`) rather than seats —
+# the ones whose parameter domain is a card axis (`Suit`/`Suit?`/`Rank`). A
+# piece game has no role surface for its own axes (side/kind), so the flavor
+# walls reject these roles there; derived here so a new card-axis domain joins
+# the set rather than a hand-kept `{suit, rank}`.
+CARD_AXIS_ROLES: frozenset[str] = frozenset(
+    d.id for d in DOMAINS if any(pd.rstrip("?") in ("Suit", "Rank") for pd in d.param_domains)
+)
+
 # Roles a zone family may be indexed by / a zone type owned by (`hand[player]`,
 # `Hand<player>`, `captured[team]`): exactly the domains in which an observer
 # has a key of their own. Resolve's wall, typecheck's subscript typing, the
@@ -247,6 +256,14 @@ def zone_observer_key(role: str, rs: "RuntimeState", observer: int) -> int | Non
 PARAM_DOMAIN_ORDER: tuple[str, ...] = tuple(s for d in DOMAINS for s in d.param_domains)
 PARAM_DOMAINS: frozenset[str] = frozenset(PARAM_DOMAIN_ORDER)
 BY_PARAM_DOMAIN: dict[str, Domain] = {s: d for d in DOMAINS for s in d.param_domains}
+
+# Move-parameter domains that enumerate deck content: the card-axis roles'
+# domains (Suit/Suit?/Rank) plus the state-dependent Card. A piece game rejects
+# a move parameterized by one; Player (a seat) and declared position domains
+# stay legal in both flavors.
+CARD_PARAM_DOMAINS: frozenset[str] = frozenset(
+    pd for d in DOMAINS if d.id in CARD_AXIS_ROLES for pd in d.param_domains
+) | {"Card"}
 
 
 def role_type(role: str) -> Type:

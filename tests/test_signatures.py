@@ -29,6 +29,8 @@ import inspect
 import typing
 
 from cardlang.stdlib.functions import (
+    DECK_ONLY_CALL_FUNCS,
+    GENERIC_CALL_FUNCS,
     STDLIB_AUCTION_OUTCOMES,
     STDLIB_CALL_FUNCS,
     STDLIB_EARLY_PREDICATES,
@@ -115,6 +117,16 @@ def test_call_funcs_are_dispatchable() -> None:
         except Exception:
             pass  # dispatched: failed downstream for some other reason
 
+
+def test_deck_only_classification_partitions_call_funcs() -> None:
+    # The content-flavor classification (functions.py) partitions the call
+    # registry: every stdlib call is deck-only (rejected in a piece game) or
+    # generic (legal in both), exactly one, none omitted. A newly registered
+    # call absent from both sets fails here rather than silently defaulting --
+    # the wall's domain stays exactly STDLIB_CALL_FUNCS. (The piece-game
+    # rejection behavior itself is tests/test_piece_content_walls.py.)
+    assert DECK_ONLY_CALL_FUNCS | GENERIC_CALL_FUNCS == STDLIB_CALL_FUNCS
+    assert DECK_ONLY_CALL_FUNCS.isdisjoint(GENERIC_CALL_FUNCS)
 
 
 def test_known_call_signatures() -> None:

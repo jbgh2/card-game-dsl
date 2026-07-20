@@ -248,6 +248,12 @@ class RuntimeState:
         self.position_domains: dict[str, tuple[int, ...]] = {}
         self.max_length: int = 0  # the game's declared non-termination backstop
         self.decisions_made: int = 0  # every chooser pick, checked against max_length
+        # Content flavor ("card"/"piece") and the axis->Card-attribute map for a
+        # piece set (identity for a card deck): the driver sets both from the
+        # game's component set; `_card_pred`/`_select_joint` bind the flavor noun,
+        # `_member_eval` translates `piece.side` -> `Card.suit` (values.py).
+        self.content_flavor: str = "card"
+        self.axis_attr: dict[str, str] = {"suit": "suit", "rank": "rank"}
 
     # --- scope frames ---
 
