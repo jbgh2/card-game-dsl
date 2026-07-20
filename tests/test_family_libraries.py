@@ -161,6 +161,7 @@ from cardlang.parse import _Builder, _transform, parse_library, parse_text, pars
 from cardlang.resolve import (
     _LIBRARY_DEF_KINDS,
     _PARAM_BEARING,
+    _STATE_WRITE_SITES,
     _Categories,
     _library_reach,
     resolve,
@@ -1197,12 +1198,34 @@ _WRITE_STMT: dict[str, str] = {
 
 
 def test_write_sites_cover_every_state_writing_node() -> None:
-    """The registry pin: the grid's write-site axis must be every node kind the
-    runtime writes state from. A fourth write form added to the language fails
-    here until it is given a probe statement.
+    """The registry pin, run in both directions at once. The runtime's set of
+    state-writing statements is the authority; `resolve._STATE_WRITE_SITES` (the
+    set the read-only wall sweeps) and `_WRITE_STMT` (the set this grid probes)
+    must both equal it. A fourth write form added to the language fails here
+    until the wall covers it AND a cell exists for it — which is the point: a
+    write form the wall does not know is a hole in the read-only rule, and one
+    the grid does not know is a hole that looks closed.
 
-    red under: drop a key from `_WRITE_STMT`."""
-    assert set(_WRITE_STMT) == _state_write_node_kinds()
+    red under: drop an entry from `resolve._STATE_WRITE_SITES`, or a key from
+    `_WRITE_STMT`."""
+    writing_nodes = _state_write_node_kinds()
+    assert {cls.__name__ for cls, _ in _STATE_WRITE_SITES} == writing_nodes
+    assert set(_WRITE_STMT) == writing_nodes
+
+
+def test_every_write_site_field_exists_on_its_node() -> None:
+    """The other half of the registry: each entry names a field its node really
+    has. A renamed field would otherwise leave `_written_state_name` returning
+    None for that whole write form — the wall silently covering two of three
+    forms, with every grid cell still green because the grid asks the same
+    stale registry.
+
+    red under: point any `_STATE_WRITE_SITES` entry at a field name its node
+    does not have."""
+    for cls, field_name in _STATE_WRITE_SITES:
+        assert field_name in {f.name for f in fields(cls)}, (
+            f"{cls.__name__} has no field '{field_name}'"
+        )
 
 
 _CLAIM_LIBRARY = """
@@ -1257,11 +1280,6 @@ def _write_cells() -> list[object]:
             kind,
             var,
             id=f"{kind}-{var}",
-            marks=(
-                [pytest.mark.xfail(strict=True, reason="wall not implemented yet")]
-                if var == "prov"
-                else []
-            ),
         )
         for kind in sorted(_WRITE_STMT)
         for var in ("prov", "req")
@@ -1295,7 +1313,6 @@ def test_game_text_may_not_write_library_provided_state(
     )
 
 
-@pytest.mark.xfail(strict=True, reason="splice not implemented yet")
 def test_game_text_may_read_library_provided_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1402,11 +1419,6 @@ def _one_library_cells() -> list[object]:
             claim,
             declares,
             id=f"{claim}-{'declared' if declares else 'undeclared'}",
-            marks=(
-                [pytest.mark.xfail(strict=True, reason="wall not implemented yet")]
-                if claim in ("state", "both") and (claim == "both" or declares)
-                else []
-            ),
         )
         for claim, declares in _ONE_LIBRARY_CELLS
     ]
@@ -1436,11 +1448,6 @@ def _two_library_cells() -> list[object]:
             b,
             declares,
             id=f"{a}-{b}-{'declared' if declares else 'undeclared'}",
-            marks=(
-                [pytest.mark.xfail(strict=True, reason="wall not implemented yet")]
-                if "state" in (a, b)
-                else []
-            ),
         )
         for a, b, declares in _TWO_LIBRARY_CELLS
     ]

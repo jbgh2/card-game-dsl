@@ -163,6 +163,49 @@ _LIBRARY_DEF_KINDS: tuple[tuple[str, str], ...] = (
 )
 
 
+# Every statement that WRITES persistent state, as (node class, the field holding
+# the written name). `runtime/state.py`'s `Store.set` is the one door onto
+# persistent state, and `runtime/execute.py` reaches it from exactly these three
+# handlers — which is the direction the pin runs in:
+# `tests/test_family_libraries.py::test_write_sites_cover_every_state_writing_node`
+# scrapes the runtime and compares, so this tuple answers to the executor rather
+# than being a list maintained alongside it.
+#
+# `:=`/`+=`/`-=` and `rotate` carry a classified `NameRef`; `again` is a bare
+# string the runtime clears at each turn boundary, which is why it is a write
+# site at all and why a hand-written axis would have missed it.
+_STATE_WRITE_SITES: tuple[tuple[type[n.Stmt], str], ...] = (
+    (n.AssignStmt, "target"),
+    (n.RotateStmt, "target"),
+    (n.Turns, "again"),
+)
+
+
+def _written_state_name(node: object) -> str | None:
+    """The state name this node writes, or None if it writes no state."""
+    for cls, field_name in _STATE_WRITE_SITES:
+        if isinstance(node, cls):
+            written = getattr(node, field_name)
+            if isinstance(written, n.NameRef):
+                return written.name
+            return written if isinstance(written, str) else None
+    return None
+
+
+@dataclass(frozen=True)
+class _StateClaims:
+    """The outcome of resolving who claims which state name across a game and
+    the libraries it uses.
+
+    `provided` maps a surviving provided name to the library that owns it — the
+    input to both the read-only wall and the splice. `contested` is the names a
+    claim collision has already been reported for, which `_check_requires` skips
+    so one bad name yields one diagnostic instead of two."""
+
+    provided: dict[str, str]
+    contested: frozenset[str]
+
+
 def _apply_uses(game: n.Game, bag: DiagnosticBag) -> n.Game:
     """Resolve every `uses <library>` line: load the named libraries, wall the
     three-way collisions, check each library's `requires` contract against the
@@ -203,9 +246,12 @@ def _apply_uses(game: n.Game, bag: DiagnosticBag) -> n.Game:
         libraries.append((use, load_library(use.name)))
 
     _check_library_collisions(game, libraries, bag)
+    claims = _check_state_claims(game, libraries, bag)
+    _check_provided_readonly(game, claims.provided, bag)
+    skip = claims.contested | frozenset(claims.provided)
     for use, library in libraries:
         _check_library_encapsulation(library, bag)
-        _check_requires(game, use, library, bag)
+        _check_requires(game, use, library, bag, skip)
 
     # Imported definitions come FIRST, in `uses` order, then the game's own: the
     # import is the base a game extends, which is the order the game file itself
@@ -219,10 +265,29 @@ def _apply_uses(game: n.Game, bag: DiagnosticBag) -> n.Game:
             d for _, library in libraries for d in getattr(library, field)
         )
         spliced[field] = from_libraries + tuple(getattr(game, field))
+    # Provided state splices the same way and for the same reason: a library's
+    # `state { }` becomes part of the game's own, so no later pass can tell a
+    # provided variable from one the game declared, and the tier keeps carrying
+    # no runtime and no information-set implication. The read-only rule is
+    # therefore enforced ENTIRELY above this line — once the two are one block
+    # the distinction no longer exists to check.
+    provided_decls = tuple(
+        decl
+        for _, library in libraries
+        if library.state is not None
+        for decl in library.state.decls
+    )
+    state = game.state
+    if provided_decls:
+        state = (
+            replace(state, decls=provided_decls + state.decls)
+            if state is not None
+            else n.StateBlock(decls=provided_decls)
+        )
     # `uses` is emptied here for the same reason `procedures` is emptied by
     # `expand`: a surviving entry downstream would mean the import was parsed and
     # ignored, and `openspiel.encoding` walks every dataclass field of the Game.
-    return replace(game, uses=(), **spliced)  # type: ignore[arg-type]
+    return replace(game, uses=(), state=state, **spliced)  # type: ignore[arg-type]
 
 
 def _check_library_collisions(
@@ -287,6 +352,136 @@ def _check_library_collisions(
                 )
 
 
+def _check_state_claims(
+    game: n.Game,
+    libraries: list[tuple[n.UsesDecl, n.Library]],
+    bag: DiagnosticBag,
+) -> _StateClaims:
+    """Wall every way two claims on one state name can collide, and report which
+    names survive as PROVIDED.
+
+    A state name can be claimed from three places — the game's own `state { }`, a
+    library's `state { }`, and a library's `requires { }` — and only two
+    coexistences are legal: a requirement the game answers, and two libraries
+    requiring one name, which one game declaration answers. The rest are refused:
+
+    - A library that both provides and requires a name is incoherent, not merely
+      redundant. The two clauses point opposite ways — `state` says the library
+      owns the initial value, `requires` says the game picks it — so there is no
+      reading under which both hold.
+    - A game declaring what a library provides is the state face of "`uses`
+      imports, it does not inherit". Keeping the game's would be an override;
+      keeping the library's would discard a declaration the author wrote.
+    - Two libraries providing one name have no winner, because resolution is
+      flat. Picking one by `uses` order would make the game's meaning depend on
+      the order of its import lines.
+    - A requirement answered by ANOTHER library's provision is refused because
+      `requires` says the including GAME declares the name. Letting a second
+      library's variable answer it would couple two libraries through a name
+      neither mentions the other in, and would do it silently.
+
+    Each is reported where its author can fix it: the provision's own span when
+    the library contradicts itself, the game's declaration when the game
+    shadows, and the `uses` line when two imports disagree."""
+    declared: dict[str, n.StateDecl] = {}
+    for node in _walk(game):
+        if isinstance(node, n.StateBlock):
+            for decl in node.decls:
+                declared.setdefault(decl.name, decl)
+
+    provided: dict[str, str] = {}
+    contested: set[str] = set()
+    for use, library in libraries:
+        required = {r.name for r in library.requires}
+        for decl in library.state.decls if library.state is not None else ():
+            if decl.name in required:
+                contested.add(decl.name)
+                bag.error(
+                    f"library '{library.name}' both provides and requires state "
+                    f"'{decl.name}' — `state` owns the variable and its initial "
+                    f"value, `requires` leaves both to the including game, so a "
+                    f"name can be one or the other: drop it from whichever "
+                    f"clause is wrong",
+                    decl.span,
+                )
+            elif decl.name in provided:
+                contested.add(decl.name)
+                bag.error(
+                    f"state '{decl.name}' is provided by both library "
+                    f"'{provided[decl.name]}' and library '{library.name}' — "
+                    f"resolution is flat, so neither wins; use only one of them, "
+                    f"or rename in one library",
+                    use.span,
+                )
+            elif decl.name in declared:
+                contested.add(decl.name)
+                bag.error(
+                    f"state '{decl.name}' is declared by this game and also "
+                    f"provided by library '{library.name}' — `uses` imports, it "
+                    f"does not inherit, so there is no override: delete the "
+                    f"game's declaration and read the library's, or rename the "
+                    f"game's",
+                    declared[decl.name].span,
+                )
+            else:
+                provided[decl.name] = library.name
+
+    for use, library in libraries:
+        for want in library.requires:
+            owner = provided.get(want.name)
+            if owner is not None and owner != library.name:
+                contested.add(want.name)
+                bag.error(
+                    f"library '{library.name}' requires state '{want.name}', "
+                    f"which library '{owner}' provides — a requirement names "
+                    f"state the including GAME declares, and is not answered by "
+                    f"another library's provision; declare it in the game and "
+                    f"rename one of the two",
+                    use.span,
+                )
+    return _StateClaims(provided=provided, contested=frozenset(contested))
+
+
+def _check_provided_readonly(
+    game: n.Game, provided: dict[str, str], bag: DiagnosticBag
+) -> None:
+    """A game may READ library-provided state and may not WRITE it.
+
+    Runs BEFORE the splice, over the game's own text alone, which is the only
+    moment the distinction exists: afterwards a provided variable is one of the
+    game's own state declarations and the library's definitions — which write
+    their own state freely — are indistinguishable from the game's.
+
+    Every write form is swept, not just `:=`: `_STATE_WRITE_SITES` is the
+    executor's own set of state-writing statements, so `rotate` and a `turns …
+    again <flag>` are covered by construction rather than by remembering them.
+
+    Matched by NAME rather than by `ref_kind`, because `_apply_uses` runs before
+    classification — deliberately, since the splice is what later passes must see
+    a flat game after. That is sound for the class this wall owns: a write target
+    must classify as a state variable (`_bad_write_target`), and a provided name
+    IS one. The one case where the two readings differ is a game-local binder
+    named after a provided variable, which this wall reports as the write it
+    refuses rather than as the shadow `_bad_write_target` would call it — a
+    different sentence about the same defect, and the fix (rename) is the same.
+
+    Reported in the GAME's currency, unlike `_check_library_encapsulation` next
+    door: the game's author wrote the assignment and is the only one who can
+    withdraw it."""
+    for node in _walk(game):
+        name = _written_state_name(node)
+        if name is None or name not in provided:
+            continue
+        bag.error(
+            f"cannot write '{name}': library '{provided[name]}' provides it. "
+            f"Provided state belongs to the library — the game may read it, but "
+            f"only the library's own definitions may write it. Keep a state "
+            f"variable of the game's own for what the game must change, or have "
+            f"the library expose a procedure that makes the change",
+            getattr(node, "span", None),
+        )
+
+
 @dataclass(frozen=True)
 class _LibraryReach:
     """What a library's definitions reach for, classified against the library's
@@ -327,9 +522,15 @@ def _library_reach(library: n.Library) -> _LibraryReach:
     `Offer.move_types`/`Round.move_types` (definitions) — are a recorded
     residual, not a covered case: roadmap.md, "Family libraries — unchecked
     residuals in the `requires` contract"."""
+    provided_state = library.state.decls if library.state is not None else ()
     cats = _Categories(
         locals=frozenset(),
-        state_vars=frozenset(r.name for r in library.requires),
+        # Both halves of the library's state surface: what it contracts for and
+        # what it owns. A definition may reach either — the contract is
+        # sufficient for the library's own variables trivially, since it declares
+        # them itself.
+        state_vars=frozenset(r.name for r in library.requires)
+        | frozenset(d.name for d in provided_state),
         zones=frozenset(),
         enums=DIRECTION_VALUES,
         functions=STDLIB_VALUE_NAMES,
@@ -353,6 +554,10 @@ def _library_reach(library: n.Library) -> _LibraryReach:
             classified.extend(_classify_type_derived(t, cats, discarded) for t in value)
         else:
             classified.append(_rewrite_value(value, cats, discarded))
+    # A provided variable's DEFAULT is an expression like any other, so it can
+    # leak like any other — `limit : Integer = house_rule` would reach past the
+    # contract into the game exactly as a move-type effect would.
+    classified.append(_rewrite_value(provided_state, cats, discarded))
 
     known_calls = {f.name for f in library.functions} | set(STDLIB_CALL_FUNCS)
     unresolved: list[n.NameRef] = []
@@ -437,8 +642,14 @@ def _check_requires(
     use: n.UsesDecl,
     library: n.Library,
     bag: DiagnosticBag,
+    skip: frozenset[str] = frozenset(),
 ) -> None:
     """Check a library's `requires` contract against the game's declared state.
+
+    `skip` names the state `_check_state_claims` has already ruled on — provided
+    names and contested ones. Without it a name claimed both ways would fail
+    twice, and the second failure ("the game does not declare it") would be
+    advice pointing away from the real defect.
 
     Reported on the game's `uses` line, in the game's currency: the author wrote
     that line, and an undeclared-name error surfacing from inside spliced library
@@ -481,6 +692,8 @@ def _check_requires(
             for decl in node.decls:
                 declared.setdefault(decl.name, []).append(decl)
     for want in library.requires:
+        if want.name in skip:
+            continue
         found = declared.get(want.name, [])
         wanted = f"{want.name}{f'[{want.index}]' if want.index else ''}"
         spelled = f"{wanted} : {want.type_name}{'?' if want.optional else ''}"
