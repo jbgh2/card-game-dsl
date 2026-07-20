@@ -242,7 +242,7 @@ def _gather(stmt: n.Movement, ctx: Ctx) -> None:
     # presentational (decisions.md, the gather paragraph).
     zones = ctx.rs.zones
     for name in sorted(set(zones.singles) | set(zones.families)):
-        sources: list[tuple[tuple[str, Player | None], Zone]]
+        sources: list[tuple[tuple[str, Player | str | None], Zone]]
         if name in zones.singles:
             sources = [((name, None), zones.singles[name])]
         else:
