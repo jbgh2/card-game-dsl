@@ -3,10 +3,11 @@
 // poker" is the rulebook sentence a game's `uses poker_betting` line stands in
 // for, and this file is that sentence written out.
 //
-// What is here is the ZONE-FREE core: check, bet, call, raise, and the three
-// ring predicates that keep a betting round's `over` filter and `until`
-// terminator naming the same set. Every one of them moves chips and nothing
-// else, which is why this library's `requires` contract is state-only.
+// What is here is the ZONE-FREE core: check, bet, call, raise, the three ring
+// predicates that keep a betting round's `over` filter and `until` terminator
+// naming the same set, and `open_street` — the one procedure a street opens
+// with. Every one of them moves chips and nothing else, which is why this
+// library's state surface names no zone.
 //
 // What is deliberately NOT here is `fold`. Folding is the one betting move that
 // touches cards, and which cards — and where they go — is a property of the
@@ -17,26 +18,55 @@
 // the part that is genuinely the same. Each game defines its own `fold` and
 // offers it alongside the four imported moves in one vocabulary list.
 //
-// Variation across the family is carried by REQUIRED STATE the game sets, not by
-// parameters on the import: `limit` is the current street's bet size, and
-// `raise_cap` the number of raises allowed (Stud 3, Leduc 2). A library that
-// could set those would be configuring the game rather than contracting with it.
+// Variation across the family is carried by state the game declares and sets,
+// not by parameters on the import. `raise_cap` — the number of raises allowed
+// per street, Kuhn 1, Leduc 2, Stud 3 — is a per-GAME constant, so it is
+// required: provided state has exactly one default and no default is right for
+// three games. `limit` is not a per-game constant at all but a per-STREET one
+// (Stud runs 5/5/10/10/10), so no declaration could carry it either; it is
+// provided, and `open_street` takes it as an argument, which puts the bet size
+// at the street it belongs to rather than in a state block far away.
 
 library poker_betting {
 
+  // State this library OWNS. The game may read these — and does not, today —
+  // but may not write them: they are pure intra-street bookkeeping, maintained
+  // entirely by the move types and `open_street` below. `limit` is 0 between
+  // streets, which is the reading of "no street is open"; no move runs then.
+  state {
+    acted[player] : Boolean = false   // has acted since the last aggression
+    limit         : Integer = 0       // the open street's bet size
+  }
+
   // What the including game must declare. Checked at its `uses` line, so an
   // unmet requirement is reported in the game's currency rather than as an
-  // undeclared name inside text the author did not write.
+  // undeclared name inside text the author did not write. Each is here because
+  // a game genuinely touches it: the four chip variables and `folded` are
+  // written by antes, settlements and each game's own `fold`, and `raises` by
+  // Stud's bring-in, which counts a forced opening post as the street's first
+  // aggression. `raise_cap` is the family's one per-game constant.
   requires {
     stack[player]     : Integer   // chips held
     committed[player] : Integer   // chips put in this hand (for side pots)
     bet_by[player]    : Integer   // chips put in on the current street
-    acted[player]     : Boolean   // has acted since the last aggression
     folded[player]    : Boolean   // out of the hand
     bet_to_match      : Integer   // the street's standing bet
     raises            : Integer   // raises so far on this street
-    limit             : Integer   // this street's bet size
     raise_cap         : Integer   // raises allowed per street
+  }
+
+  // Open a betting street at a bet size of `bet_size`: no standing bet, no
+  // aggression yet, nobody owing and nobody yet acted. Every street in the
+  // family opens exactly this way and differs only in the size, which is what
+  // makes it one procedure rather than a block repeated per street. A game that
+  // opens its street with a forced post (Stud's bring-in) runs this first and
+  // then posts, so the post's own bookkeeping is not undone.
+  procedure open_street(bet_size : Integer) {
+    bet_to_match := 0
+    raises := 0
+    limit := bet_size
+    for each player p: bet_by[p] := 0
+    for each player p: acted[p] := false
   }
 
   // Betting-ring predicates. `pending` composes the others; the round's `over`
