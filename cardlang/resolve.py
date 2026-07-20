@@ -409,12 +409,24 @@ def _check_requires(
     that line, and an undeclared-name error surfacing from inside spliced library
     text would name symbols they never typed.
 
-    Answered from ANY `state { }` block in the game, not just the game-level one:
-    a phase's state block is the natural home for state that resets on phase
-    re-entry, which is exactly what per-hand betting state is (Stud declares all
-    nine of `poker_betting`'s requirements inside `phase play`). Which block the
-    declaration sits in is the game's business; that EXACTLY ONE exists, at the
-    library's arity and type, is the contract.
+    What is checked is that EXACTLY ONE declaration of the name exists somewhere
+    in the game, at the library's arity and type. Which `state { }` block holds
+    it is not checked, and deliberately so: a phase's state block is the natural
+    home for state that resets on phase re-entry, which is exactly what per-hand
+    betting state is, and Stud declares all nine of `poker_betting`'s
+    requirements inside `phase play`.
+
+    That is weaker than "the library's definitions can read it where they run",
+    and the gap is real rather than theoretical: move Kuhn's `limit` into `phase
+    deal` while the imported `bet` runs in `phase betting`, and this check passes,
+    typecheck passes, and the playout dies on a bare KeyError from
+    `runtime/state.py`. The gap is NOT the import tier's — a plain game with no
+    library reproduces it, one phase declaring what another reads — so closing it
+    means use-site scope reachability for state generally, which this contract
+    cannot stand in for. Recorded as a residual in roadmap.md, "Family libraries
+    — unchecked residuals in the `requires` contract", and in the ledger of
+    tests/test_family_libraries.py. Narrowing the contract to game-level
+    declarations would not close it either, and would reject Stud.
 
     Exactly one, and the count is the wall — not a tie broken by declaration
     order. Cross-block shadowing is legal in general (`_check_duplicate_names`),

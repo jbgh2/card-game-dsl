@@ -99,18 +99,32 @@ residual: none of the collision grid. The stdlib row's three accepting cells are
           list named four games of which three were wrong, and named Stud, which
           the same change that wrote it had just made wrong.
 
-          One residual outside it, recorded in docs/roadmap.md, "Family
-          libraries — unchecked residuals in the `requires` contract": the
-          encapsulation grid's reference axis covers what a body READS — free
-          names and calls, the two things classified against a namespace. It
-          does not cover a DEFINITION name written into a fixed slot as a bare
-          string: `constrains: <move_type>`, `run <procedure>()`,
-          `produces <define>`, `offer [<move_types>]`. Those have no namespace
-          registry to derive an axis from, so a hand-listed one would be
-          complete only by luck. The wall bounding the residual is that the
-          fully-undefined case IS rejected — resolve refuses a `constrains:`
-          naming no move type anywhere — so what is unchecked is exactly the
-          narrower case of a name only the importing game defines.
+          TWO residuals outside it, both recorded in docs/roadmap.md, "Family
+          libraries — unchecked residuals in the `requires` contract":
+
+          1. REFERENCE KIND. The encapsulation grid's reference axis covers what
+             a body READS — free names and calls, the two things classified
+             against a namespace. It does not cover a DEFINITION name written
+             into a fixed slot as a bare string: `constrains: <move_type>`,
+             `run <procedure>()`, `produces <define>`, `offer [<move_types>]`.
+             Those have no namespace registry to derive an axis from, so a
+             hand-listed one would be complete only by luck. The wall bounding
+             the residual is that the fully-undefined case IS rejected — resolve
+             refuses a `constrains:` naming no move type anywhere — so what is
+             unchecked is exactly the narrower case of a name only the importing
+             game defines.
+          2. SCOPE. The multiplicity grid proves a requirement is answered by
+             exactly one declaration of the right shape; it does NOT prove that
+             declaration is in scope where the library's definitions run. Moving
+             Kuhn's `limit` into `phase deal` while the imported `bet` runs in
+             `phase betting` passes resolve and typecheck and dies mid-playout
+             on a bare KeyError. Deliberately not walled here: the root cause is
+             the general cross-phase state-scope hole (a plain game with no
+             library reproduces it), and the wall bounding it is that a
+             requirement declared NOWHERE is rejected, so what is unchecked is a
+             declaration that exists but cannot be reached. The grid does not
+             claim this cell — `_check_requires`'s docstring says what is
+             checked and what is not, so the claim and the check agree.
 
 One deliberate NON-error, recorded here so a later reader does not mistake its
 absence from the probes for an omission: an imported definition a game never

@@ -67,12 +67,28 @@ Things we have noted but consciously not designed yet:
   than returning a stale one from a different form. The design seam is
   [open-questions/round-state-in-information-states.md](open-questions/round-state-in-information-states.md).
 
-- **Family libraries — unchecked residuals in the `requires` contract.** The
-  contract is checked to be sufficient for what a library body READS: every free
-  name and every call is classified against the library alone, so a body cannot
-  reach past `requires` into the importing game (`resolve._check_library_
-  encapsulation`, ledger `tests/test_family_libraries.py`). One reference kind
-  is outside that: a DEFINITION name written into a fixed slot as a bare string
+- **Family libraries — unchecked residuals in the `requires` contract.** Two,
+  both of them the contract promising less than a reader might assume.
+
+  *The declaration need not be in SCOPE where the library runs.* `_check_requires`
+  proves that exactly one declaration of a required name exists somewhere in the
+  game, at the right arity and type. It does not prove the library's definitions
+  can read it where they run: move Kuhn's `limit` into `phase deal` while the
+  imported `bet` runs in `phase betting` and resolve passes, typecheck passes,
+  and the playout dies on a bare `KeyError` out of `runtime/state.py`. The root
+  cause is NOT the import tier — a plain game with no library reproduces it, one
+  phase declaring what another reads — so the fix is use-site scope reachability
+  for state generally, and the contract must not be dressed up as standing in for
+  it. Narrowing the contract to game-level declarations would not close it and
+  would reject Seven-Card Stud, which declares all nine requirements inside
+  `phase play`.
+
+  *A definition name in a fixed slot is not classified.* The contract IS checked
+  to be sufficient for what a library body READS: every free name and every call
+  is classified against the library alone, so a body cannot reach past `requires`
+  into the importing game (`resolve._check_library_encapsulation`, ledger
+  `tests/test_family_libraries.py`). One reference kind is outside that: a
+  definition name written into a fixed slot as a bare string
   — `constrains: <move_type>`, `run <procedure>()`, `produces <define>`,
   `offer [<move_types>]`. Those are not classified against a namespace, so there
   is no registry to derive a grid axis from, and a hand-listed axis would be

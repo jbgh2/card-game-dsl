@@ -3103,12 +3103,21 @@ requires {
 
 Deliberately a `state_decl` minus the `= <default>`: the initial value is the
 game's to choose, and a library that could set one would be configuring the game
-rather than contracting with it. A requirement is answered from any `state { }`
-block in the game — a phase's block is the natural home for state that resets on
-phase re-entry, which is what per-hand betting state is — but by **exactly one**
-declaration. Cross-block shadowing is legal for game-private state and refused
-for a `requires`d name: the two shadowed declarations answer different questions,
-and no fixed tie-break picks correctly, since a shadow in the phase where the
+rather than contracting with it. What the contract checks is that **exactly one**
+declaration of the name exists somewhere in the game, at the library's arity and
+type. Which `state { }` block holds it is not checked: a phase's block is the
+natural home for state that resets on phase re-entry, which is what per-hand
+betting state is, and Seven-Card Stud declares all nine of `poker_betting`'s
+requirements inside `phase play`. That is weaker than "the library's definitions
+can read it where they run" — a declaration in a phase the library never runs in
+satisfies the contract and then fails at play time — and the shortfall is not the
+import tier's to close: a plain game with no library reproduces it, one phase
+declaring what another reads. It is recorded as a residual in
+[roadmap.md](roadmap.md).
+
+Cross-block shadowing is legal for game-private state and refused for a
+`requires`d name: the two shadowed declarations answer different questions, and
+no fixed tie-break picks correctly, since a shadow in the phase where the
 library's definitions run and a shadow in some other phase want opposite winners.
 Because the spelling is the interface, a `requires`d name is not game-private:
 the metamorphic rename transform excludes it for the same reason.
