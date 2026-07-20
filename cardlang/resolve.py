@@ -35,8 +35,19 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
 Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               zone/rule/move-type/phase reference reaching a later pass;
               the runtime hard-fails on an unclassified name
-              (``runtime/evaluate.py``, ``_name``) as its backstop.
+              (``runtime/evaluate.py``, ``_name``) as its backstop. Also
+              a ``state { }`` default that cannot be evaluated where it
+              is written — one reading state not yet declared, calling a
+              function, or containing a ``choose``
+              (``_check_state_default_scope``). ``runtime/driver``'s
+              ``_declare_state`` may therefore assume every default
+              evaluates against the frames standing at that moment.
 Verified by:  the per-wall diagnostic tests; the runtime backstop above.
+              For the declare-time rule, the grid in
+              ``tests/test_state_default_scope.py`` — which PLAYS every
+              accepted cell rather than only resolving it, since
+              "accepted" was exactly the assertion that hid the defect
+              the grid was written for.
 """
 
 from __future__ import annotations

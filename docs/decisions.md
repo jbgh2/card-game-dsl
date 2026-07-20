@@ -848,8 +848,8 @@ else. A default naming a variable from later in its block, from itself,
 from a sibling phase, or from a phase nested inside its own reaches a
 variable that does not exist yet, and is refused
 (`resolve._check_state_default_scope`). Without the rule these all
-parsed, type checked, and died at playout on a bare `KeyError` out of
-`runtime/state.py`.
+passed every front-end pass and died at playout on a bare `KeyError` out
+of `runtime/state.py`.
 
 A default may not **call**, either. A call's state reads live in the
 callee's body, so admitting one would mean chasing the declare-time
