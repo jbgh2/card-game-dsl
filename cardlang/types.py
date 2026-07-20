@@ -195,6 +195,15 @@ def unify(a: Type, b: Type) -> Type | None:
         return b if isinstance(b, TOptional) else TOptional(b)
     if isinstance(b, TNull):
         return a if isinstance(a, TOptional) else TOptional(a)
+    if isinstance(a, TOptional) and isinstance(b, TOptional):
+        # Reach through the wrapper before falling back to structural
+        # equality: two `R?` holding snapshots that disagree about a derived
+        # field are the same nominal type, and returning None here would send
+        # an `IfExpr` over them to the permissive top — turning a stale
+        # snapshot into a silently unchecked subtree, which is the defect the
+        # nominal rule exists to prevent.
+        inner = unify(a.inner, b.inner)
+        return TOptional(inner) if inner is not None else None
     if a == b:
         return a
     if isinstance(a, TOptional) and unify(a.inner, b) == a.inner:
@@ -242,7 +251,11 @@ def assignable(src: Type, dst: Type) -> bool:
         return True
     if isinstance(src, TCollection) and isinstance(dst, TCollection):
         # The key is how a map is ADDRESSED, not part of its value space —
-        # strip it and compare elements exactly as whole-type equality does
-        # for keyless collections.
-        return src.element == dst.element
+        # strip it and compare elements. RECURSE rather than compare with `==`:
+        # dataclass equality is structural, so two collections of the same
+        # nominal struct whose snapshots disagree about one derived field would
+        # be judged disjoint, exactly as the bare case was before the nominal
+        # rule. The rule has to reach through every wrapper, or it is a
+        # top-level special case.
+        return assignable(src.element, dst.element)
     return False

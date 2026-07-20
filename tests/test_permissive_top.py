@@ -42,7 +42,11 @@ covered:    the registry-closure pins below (each proves the corresponding
             tests/rejections/unknown_type_{function_param,move_param,
             variant_payload}.cardlang; and the position x name-source grid in
             tests/test_type_name_positions.py, which crosses all NINE
-            declaring positions against every source a name can come from.
+            declaring positions against every source a name can come from;
+            and the relation x wrapper grid over the nominal-struct rule
+            (`test_the_nominal_struct_rule_reaches_through_every_wrapper`),
+            which crosses `unify`/`assignable` against bare, optional and
+            collection shapes so the rule cannot hold only at the top level.
 sampled:    the audited-top set is a COUNT per module, not an enumeration of
             sites: a new construction fails this module until it is classified
             in the ledger, but the count cannot say WHICH site moved, and a
@@ -118,7 +122,18 @@ from cardlang.pipeline import check_dsl
 from cardlang.stdlib.functions import STDLIB_CALL_FUNCS
 from cardlang.stdlib.signatures import CALL_SIGS, ZONE_CONTENT
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
-from cardlang.types import TAny, TBoolean, TCard, TCollection, TEnum, TInteger
+from cardlang.types import (
+    TAny,
+    TBoolean,
+    TCard,
+    TCollection,
+    TEnum,
+    TInteger,
+    TOptional,
+    TStruct,
+    assignable,
+    unify,
+)
 from cardlang.typecheck import TypeEnv, infer
 
 CARDLANG_ROOT = Path(typecheck.__file__).parent
@@ -200,6 +215,50 @@ def test_every_by_id_lookup_raises_on_an_unknown_role() -> None:
         with pytest.raises(AssertionError, match="nonrole"):
             call()
         assert "nonrole" not in str(BY_ID), f"{label}: probe name leaked into the registry"
+
+
+@pytest.mark.parametrize("wrapper", ["bare", "optional", "collection"])
+@pytest.mark.parametrize("relation", ["unify", "assignable"])
+def test_the_nominal_struct_rule_reaches_through_every_wrapper(
+    relation: str, wrapper: str
+) -> None:
+    """A declared type is nominal at EVERY depth, not just at the top.
+
+    `TStruct` carries its fields, so dataclass equality is structural: two
+    snapshots of one nominal type that disagree about a derived field compare
+    unequal. The nominal rule fixes that for a bare struct — but a rule applied
+    only at the outer layer is a top-level special case, and both wrappers had
+    a hole in opposite directions: `unify` returned None for two `R?` (sending
+    an `IfExpr` over them to the permissive top, which is the silent-subtree
+    defect the rule exists to prevent), while `assignable` compared collection
+    elements with `==` and judged two `Collection<R>` disjoint.
+
+    The grid is relation x wrapper, so a new wrapper shape or a new relation
+    arrives as uncovered cells rather than as silence.
+
+    red under: in `types.unify`, delete the `TOptional`/`TOptional` arm; or in
+    `types.assignable`, restore `src.element == dst.element` in the collection
+    arm.
+    """
+    wrap = {"bare": lambda t: t, "optional": TOptional, "collection": TCollection}[
+        wrapper
+    ]
+    stale = TStruct(name="R", fields={"a": TAny()}, derived=frozenset())
+    settled = TStruct(name="R", fields={"a": TInteger()}, derived=frozenset())
+    unrelated = TStruct(name="S", fields={"a": TInteger()}, derived=frozenset())
+
+    if relation == "unify":
+        assert unify(wrap(stale), wrap(settled)) is not None, (
+            "two snapshots of one nominal type must unify; None sends an "
+            "IfExpr over them to the permissive top"
+        )
+        assert unify(wrap(stale), wrap(unrelated)) is None, (
+            "different names are different types — the rule must not buy "
+            "compatibility with permissiveness"
+        )
+    else:
+        assert assignable(wrap(stale), wrap(settled))
+        assert not assignable(wrap(stale), wrap(unrelated))
 
 
 def test_quantifier_role_spellings_are_still_hard_coded_in_the_parser() -> None:

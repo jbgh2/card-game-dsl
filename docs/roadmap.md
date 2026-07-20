@@ -12,9 +12,12 @@ Things we have noted but consciously not designed yet:
   is a separate change with its own domain. (a) An OPTIONAL struct receiver
   (`r : R?`) disables the struct walls: `r.flag` is accepted whatever `flag`
   is, because the optional wrapper is not a `TStruct` and the field checks look
-  through nothing. (b) `types.assignable`'s collection arm compares element
-  types without the nominal-struct rule the scalar arm now uses, so two
-  same-named struct element types can compare unequal. (c) `_check_produces`
+  through nothing. (b) CLOSED — the nominal-struct rule now reaches through
+  every wrapper in both relations, gridded as relation x wrapper in
+  `tests/test_permissive_top.py`. It had a hole in each direction:
+  `assignable` compared collection elements with `==`, and `unify` returned
+  None for two optionals of one nominal type, which sent an `IfExpr` over them
+  to the permissive top. (c) `_check_produces`
   does not check a produced payload against the variant case's declared payload
   types, so a `produce won(...)` with a wrong-typed argument is accepted.
   (d) The declaration-DAG performance test asserts termination but not time,
