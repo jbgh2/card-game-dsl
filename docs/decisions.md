@@ -3067,6 +3067,19 @@ deleted registry reads as authoritative forever. Numbers that are facts
 about the *domain* rather than the repo — four suits, thirteen ranks, a
 two-card trick — are not tallies and are unaffected.
 
+**Scope is the tense, not the document.** The rule binds any doc making a
+present-tense claim about the repo — `docs/`, design notes, and module
+docstrings alike — because a reader acts on the present tense wherever it
+appears, and a proposal's supporting evidence misleads exactly as a spec
+sentence does once it stops being true. The exemption is therefore not a
+document class but an explicit date: a measurement framed as a snapshot
+(the mutation sweep's operator and seed counts in
+[roadmap.md](roadmap.md)) is a historical record and stays as written,
+because it claims only what was true when it ran. A live claim that would
+be correct if dated should be dated, not deleted — the figures are
+evidence, and deleting them to satisfy this rule would cost the argument
+its support.
+
 A wall must also speak its **layer's failure currency**: the compile
 stages fail as diagnostics (`DiagnosticBag`, with a span and a
 designer-readable message — a raw registry raise mid-resolve is loud in
