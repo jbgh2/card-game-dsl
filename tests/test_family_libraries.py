@@ -145,6 +145,7 @@ action-space derivation, so it belongs in the currency of the adapter.
 
 from __future__ import annotations
 
+import ast as pyast
 from dataclasses import fields, replace
 from pathlib import Path
 from typing import Iterator
@@ -1129,6 +1130,342 @@ def _patch_libraries(
         "cardlang.resolve.library_names", lambda: frozenset(libraries)
     )
     monkeypatch.setattr("cardlang.resolve.load_library", lambda name: libraries[name])
+
+
+# --- PROVIDED state: the read-only rule ---------------------------------------
+#
+# A library's `state` block is state the library OWNS. It splices into the game
+# like the library's other definitions, and the game may READ it — but a write
+# from game text is an error, located in the GAME, because the game's author
+# wrote the assignment. The grid is write-site kind x state kind: every way the
+# language can write persistent state, crossed with whether the name written is
+# the library's (provided) or the game's (required).
+
+_EXECUTE_PY = (
+    Path(__file__).resolve().parent.parent / "cardlang" / "runtime" / "execute.py"
+)
+
+
+def _state_write_node_kinds() -> frozenset[str]:
+    """The AST node kinds that WRITE persistent state, derived from the runtime
+    that does the writing rather than spelled here.
+
+    `runtime/state.py`'s `Store.set` is the one door onto persistent state, so
+    the statement kinds reaching it ARE the write sites. This scrapes
+    `runtime/execute.py` for every `ctx.rs.set(...)` call and reads the enclosing
+    handler's first-parameter annotation, which is the node kind that handler
+    handles.
+
+    Derived because spelling it is how the axis would silently stop covering a
+    write form: `Turns.again` is a state write that nothing about `AssignStmt`
+    would suggest — the runtime clears the go-again flag at each turn boundary —
+    and a `rotate` target is a third. A hand-written axis that happened to list
+    only `:=` would look complete and prove one third of the property."""
+    tree = pyast.parse(_EXECUTE_PY.read_text())
+    kinds: set[str] = set()
+    for fn in pyast.walk(tree):
+        if not isinstance(fn, pyast.FunctionDef):
+            continue
+        writes_state = any(
+            isinstance(call, pyast.Call)
+            and isinstance(call.func, pyast.Attribute)
+            and call.func.attr == "set"
+            and isinstance(call.func.value, pyast.Attribute)
+            and call.func.value.attr == "rs"
+            for call in pyast.walk(fn)
+        )
+        if not writes_state or not fn.args.args:
+            continue
+        annotation = fn.args.args[0].annotation
+        if isinstance(annotation, pyast.Attribute):
+            kinds.add(annotation.attr)
+    assert kinds, (
+        f"the `rs.set` scrape of {_EXECUTE_PY.name} found no write sites — it has "
+        f"gone stale, and a stale scrape makes every grid below vacuous"
+    )
+    return frozenset(kinds)
+
+
+# node kind -> a game statement writing `{var}`, one per write-site kind. Each
+# picks the variable of the type its form demands (`rotate` a Direction, `again`
+# a Boolean), which is why the probe library below declares three of each.
+_WRITE_STMT: dict[str, str] = {
+    "AssignStmt": "{var}_int := 1",
+    "RotateStmt": "rotate {var}_dir through [left, right]",
+    "Turns": "turns t from 0 over all players until true again {var}_flag {{ }}",
+}
+
+
+def test_write_sites_cover_every_state_writing_node() -> None:
+    """The registry pin: the grid's write-site axis must be every node kind the
+    runtime writes state from. A fourth write form added to the language fails
+    here until it is given a probe statement.
+
+    red under: drop a key from `_WRITE_STMT`."""
+    assert set(_WRITE_STMT) == _state_write_node_kinds()
+
+
+_CLAIM_LIBRARY = """
+library {name} {{
+  requires {{
+    req_int  : Integer
+    req_dir  : Direction
+    req_flag : Boolean
+  }}
+  state {{
+    prov_int  : Integer   = 0
+    prov_dir  : Direction = left
+    prov_flag : Boolean   = false
+  }}
+}}
+"""
+
+_WRITE_HOST = """
+game Writer {
+  uses provider
+  players: 2
+  cards: kuhn3
+  max_length: 100
+  zones { deck : Deck }
+  state {
+    score    : Integer   = 0
+    req_int  : Integer   = 0
+    req_dir  : Direction = left
+    req_flag : Boolean   = false
+  }
+  phase play {
+    WRITE
+  }
+  winner: highest score
+}
+"""
+
+
+def _provider() -> n.Library:
+    return parse_library(
+        _CLAIM_LIBRARY.format(name="provider"), "docs/libraries/provider.cardlang"
+    )
+
+
+def _write_cells() -> list[object]:
+    """Write-site kind x state kind. The `provided` column is the wall; the
+    `required` column is its control — the same statement, one name over, which
+    must stay legal, since writing state the game declared is the whole point of
+    `requires`."""
+    return [
+        pytest.param(
+            kind,
+            var,
+            id=f"{kind}-{var}",
+            marks=(
+                [pytest.mark.xfail(strict=True, reason="wall not implemented yet")]
+                if var == "prov"
+                else []
+            ),
+        )
+        for kind in sorted(_WRITE_STMT)
+        for var in ("prov", "req")
+    ]
+
+
+@pytest.mark.parametrize("kind,var", _write_cells())
+def test_game_text_may_not_write_library_provided_state(
+    kind: str, var: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Provided state is the library's: the game may read it, and may not write
+    it. Refused for every write form the language has, not only `:=`.
+
+    The failure lands in the GAME, unlike the encapsulation wall next door: the
+    game's author wrote the assignment, and the only fix is theirs. It names
+    both the variable and the library, because "you may not write this" is
+    useless without "and here is who owns it"."""
+    _patch_libraries(monkeypatch, {"provider": _provider()})
+    source = _WRITE_HOST.replace("WRITE", _WRITE_STMT[kind].format(var=var))
+    game = parse_text(source, "writer.cardlang")
+    if var == "req":
+        resolve(game)
+        return
+    with pytest.raises(DiagnosticError) as exc:
+        resolve(game)
+    message = str(exc.value)
+    assert f"cannot write '{var}_" in message, message
+    assert "library 'provider' provides it" in message, message
+    assert "writer.cardlang:" in message, (
+        f"a game's illegal write is reported in the GAME's currency:\n{message}"
+    )
+
+
+@pytest.mark.xfail(strict=True, reason="splice not implemented yet")
+def test_game_text_may_read_library_provided_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The other half of read-only, and the reason the rule is not simply
+    "provided state is private": a game reads what the library provides all the
+    time — Stud's own `fold` guard reads the standing bet. Without this the wall
+    could be passing by making provided state unreachable."""
+    _patch_libraries(monkeypatch, {"provider": _provider()})
+    source = _WRITE_HOST.replace("WRITE", "score := prov_int + 1")
+    resolve(parse_text(source, "writer.cardlang"))
+
+
+# --- the claim grid: who may claim one state name -----------------------------
+#
+# A state name can be claimed from three places: the game's own `state { }`, a
+# library's `state { }` (provided), and a library's `requires { }` (required).
+# The grid is which claims coexist. Its axis is derived from `n.Library`'s
+# state-bearing fields, so a third state clause cannot join the language without
+# joining this grid.
+
+
+def _library_state_claim_kinds() -> list[str]:
+    """`n.Library`'s state clauses — the fields that are neither its name, its
+    span, nor one of the definition kinds the splice loop sweeps."""
+    return sorted(
+        {f.name for f in fields(n.Library)}
+        - {"name", "span"}
+        - {field for field, _ in _LIBRARY_DEF_KINDS}
+    )
+
+
+def test_claim_axis_covers_every_library_state_clause() -> None:
+    """red under: add a state clause to `n.Library` without adding it here."""
+    assert _library_state_claim_kinds() == ["requires", "state"]
+
+
+_CLAIMED = "claimed"
+
+# The one-library grid: what the library claims about `claimed`, times whether
+# the game declares it. `both` is the same library provoking itself, which is why
+# the axis is the non-empty SUBSETS of the claim kinds rather than the kinds.
+_ONE_LIBRARY_CELLS: dict[tuple[str, bool], str | None] = {
+    ("requires", True): None,  # the contract, met
+    ("requires", False): "does not declare",
+    ("state", True): "declared by this game and also provided by library",
+    ("state", False): None,  # the library owns it and nobody argues
+    ("both", True): "both provides and requires",
+    ("both", False): "both provides and requires",
+}
+
+# The two-library grid: what each of two libraries claims, times the same. Only
+# the unordered pairs — the walls are symmetric and a mirrored cell would assert
+# nothing the first does not.
+_TWO_LIBRARY_CELLS: dict[tuple[str, str, bool], str | None] = {
+    ("requires", "requires", True): None,  # one declaration answers both
+    ("requires", "requires", False): "does not declare",
+    ("requires", "state", True): "declared by this game and also provided by library",
+    ("requires", "state", False): "which library 'lib_b' provides",
+    ("state", "state", True): "declared by this game and also provided by library",
+    ("state", "state", False): "provided by both library",
+}
+
+
+def _claim_library(name: str, claim: str) -> n.Library:
+    """A library claiming `claimed` the way the cell says. Built by parsing real
+    source, never by hand-assembling the node, so a claim the parser would not
+    accept cannot reach the grid."""
+    parts = []
+    if claim in ("requires", "both"):
+        parts.append(f"requires {{ {_CLAIMED} : Integer }}")
+    if claim in ("state", "both"):
+        parts.append(f"state {{ {_CLAIMED} : Integer = 0 }}")
+    return parse_library(
+        f"library {name} {{ {' '.join(parts)} }}", f"docs/libraries/{name}.cardlang"
+    )
+
+
+_CLAIM_HOST = """
+game Claimer {
+  USES
+  players: 2
+  cards: kuhn3
+  max_length: 100
+  zones { deck : Deck }
+  state {
+    score : Integer = 0
+DECL  }
+  phase play { }
+  winner: highest score
+}
+"""
+
+
+def _claim_game(libraries: list[str], *, declares: bool) -> n.Game:
+    source = _CLAIM_HOST.replace(
+        "USES", "\n  ".join(f"uses {lib}" for lib in libraries)
+    ).replace("DECL", f"    {_CLAIMED} : Integer = 0\n" if declares else "")
+    return parse_text(source, "claimer.cardlang")
+
+
+def _one_library_cells() -> list[object]:
+    return [
+        pytest.param(
+            claim,
+            declares,
+            id=f"{claim}-{'declared' if declares else 'undeclared'}",
+            marks=(
+                [pytest.mark.xfail(strict=True, reason="wall not implemented yet")]
+                if claim in ("state", "both") and (claim == "both" or declares)
+                else []
+            ),
+        )
+        for claim, declares in _ONE_LIBRARY_CELLS
+    ]
+
+
+@pytest.mark.parametrize("claim,declares", _one_library_cells())
+def test_one_library_claiming_a_state_name(
+    claim: str, declares: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`provides` and `requires` are opposite directions, so claiming a name both
+    ways is incoherent — the library cannot both own the initial value and leave
+    it to the game — and a game declaring what a library provides is the state
+    face of "`uses` imports, it does not inherit"."""
+    _patch_libraries(monkeypatch, {"lib_a": _claim_library("lib_a", claim)})
+    game = _claim_game(["lib_a"], declares=declares)
+    needle = _ONE_LIBRARY_CELLS[(claim, declares)]
+    if needle is None:
+        resolve(game)
+        return
+    _rejects(game, needle)
+
+
+def _two_library_cells() -> list[object]:
+    return [
+        pytest.param(
+            a,
+            b,
+            declares,
+            id=f"{a}-{b}-{'declared' if declares else 'undeclared'}",
+            marks=(
+                [pytest.mark.xfail(strict=True, reason="wall not implemented yet")]
+                if "state" in (a, b)
+                else []
+            ),
+        )
+        for a, b, declares in _TWO_LIBRARY_CELLS
+    ]
+
+
+@pytest.mark.parametrize("a,b,declares", _two_library_cells())
+def test_two_libraries_claiming_one_state_name(
+    a: str, b: str, declares: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two libraries requiring one name is fine — one game declaration answers
+    both contracts. Everything else collides: resolution is flat, so a name two
+    libraries both provide has no winner, and a name one provides while another
+    requires it would have the second library's contract answered by the first
+    library's variable rather than by the game's declaration, which is not what
+    `requires` says."""
+    _patch_libraries(
+        monkeypatch,
+        {"lib_a": _claim_library("lib_a", a), "lib_b": _claim_library("lib_b", b)},
+    )
+    game = _claim_game(["lib_a", "lib_b"], declares=declares)
+    needle = _TWO_LIBRARY_CELLS[(a, b, declares)]
+    if needle is None:
+        resolve(game)
+        return
+    _rejects(game, needle)
 
 
 # --- the real corpus library --------------------------------------------------
