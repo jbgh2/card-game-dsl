@@ -1,0 +1,240 @@
+{
+  "game": "salvo-mini.cardlang",
+  "seeds": [
+    0
+  ],
+  "iterations_requested": 1500,
+  "census": {
+    "chance": 1,
+    "decision": 20484,
+    "terminal": 19321,
+    "max_depth": 13
+  },
+  "exploitability_trend": [
+    [
+      50,
+      0.056519847005254364
+    ],
+    [
+      100,
+      0.014269862362712715
+    ]
+  ],
+  "partial": false,
+  "iterations_done": 100,
+  "game_value_p0": 0.9975487441224556,
+  "infosets_reached": 1572,
+  "infosets_mixed": 651,
+  "mixed_share": 0.4141,
+  "first_committer_round1": [
+    {
+      "player": 0,
+      "depth": 1,
+      "reach": 1.0,
+      "strategy": {
+        "commit_a": 0.2476,
+        "commit_b": 0.7523,
+        "hold": 0.0002
+      }
+    }
+  ],
+  "top_decisions": [
+    {
+      "player": 0,
+      "depth": 1,
+      "reach": 1.0,
+      "strategy": {
+        "commit_a": 0.2476,
+        "commit_b": 0.7523,
+        "hold": 0.0002
+      }
+    },
+    {
+      "player": 0,
+      "depth": 2,
+      "reach": 0.7522620809215939,
+      "strategy": {
+        "A\u2665": 0.0003,
+        "4\u2660": 0.4811,
+        "6\u2660": 0.5185
+      }
+    },
+    {
+      "player": 1,
+      "depth": 3,
+      "reach": 0.7522620809215939,
+      "strategy": {
+        "commit_a": 0.6335,
+        "commit_b": 0.3664,
+        "hold": 0.0001
+      }
+    },
+    {
+      "player": 1,
+      "depth": 4,
+      "reach": 0.476580527275739,
+      "strategy": {
+        "4\u2665": 0.5805,
+        "5\u2665": 0.4185,
+        "3\u2660": 0.001
+      }
+    },
+    {
+      "player": 1,
+      "depth": 4,
+      "reach": 0.27563189938308774,
+      "strategy": {
+        "4\u2665": 0.0001,
+        "5\u2665": 0.0004,
+        "3\u2660": 0.9995
+      }
+    },
+    {
+      "player": 1,
+      "depth": 3,
+      "reach": 0.24757957639514303,
+      "strategy": {
+        "commit_a": 0.6476,
+        "commit_b": 0.3523,
+        "hold": 0.0001
+      }
+    },
+    {
+      "player": 0,
+      "depth": 2,
+      "reach": 0.247579576395143,
+      "strategy": {
+        "A\u2665": 0.9964,
+        "4\u2660": 0.0029,
+        "6\u2660": 0.0007
+      }
+    },
+    {
+      "player": 1,
+      "depth": 4,
+      "reach": 0.16034390191793732,
+      "strategy": {
+        "4\u2665": 0.7829,
+        "5\u2665": 0.2169,
+        "3\u2660": 0.0002
+      }
+    },
+    {
+      "player": 1,
+      "depth": 5,
+      "reach": 0.14345195788926787,
+      "strategy": {
+        "commit_a": 0.5,
+        "commit_b": 0.5,
+        "hold": 0.0
+      }
+    },
+    {
+      "player": 1,
+      "depth": 5,
+      "reach": 0.14286155357110342,
+      "strategy": {
+        "commit_a": 0.9989,
+        "commit_b": 0.0011,
+        "hold": 0.0
+      }
+    },
+    {
+      "player": 1,
+      "depth": 6,
+      "reach": 0.14269789206943917,
+      "strategy": {
+        "4\u2665": 0.6626,
+        "5\u2665": 0.3374
+      }
+    },
+    {
+      "player": 0,
+      "depth": 7,
+      "reach": 0.14269789206943917,
+      "strategy": {
+        "commit_a": 0.7065,
+        "commit_b": 0.2935,
+        "hold": 0.0
+      }
+    },
+    {
+      "player": 1,
+      "depth": 5,
+      "reach": 0.13309470812634724,
+      "strategy": {
+        "commit_a": 0.5,
+        "commit_b": 0.5,
+        "hold": 0.0
+      }
+    },
+    {
+      "player": 1,
+      "depth": 5,
+      "reach": 0.13254693107569668,
+      "strategy": {
+        "commit_a": 0.9992,
+        "commit_b": 0.0008,
+        "hold": 0.0
+      }
+    },
+    {
+      "player": 1,
+      "depth": 6,
+      "reach": 0.1324404499585588,
+      "strategy": {
+        "4\u2665": 0.7566,
+        "5\u2665": 0.2434
+      }
+    },
+    {
+      "player": 0,
+      "depth": 7,
+      "reach": 0.1324404499585588,
+      "strategy": {
+        "commit_a": 0.4534,
+        "commit_b": 0.5466,
+        "hold": 0.0
+      }
+    },
+    {
+      "player": 1,
+      "depth": 5,
+      "reach": 0.1250836239503855,
+      "strategy": {
+        "commit_a": 0.5,
+        "commit_b": 0.5,
+        "hold": 0.0
+      }
+    },
+    {
+      "player": 1,
+      "depth": 5,
+      "reach": 0.10342848921951255,
+      "strategy": {
+        "commit_a": 0.5216,
+        "commit_b": 0.4784,
+        "hold": 0.0
+      }
+    },
+    {
+      "player": 0,
+      "depth": 8,
+      "reach": 0.10080933265098332,
+      "strategy": {
+        "A\u2665": 0.9998,
+        "4\u2660": 0.0002
+      }
+    },
+    {
+      "player": 1,
+      "depth": 5,
+      "reach": 0.09596093902912103,
+      "strategy": {
+        "commit_a": 0.5203,
+        "commit_b": 0.4797,
+        "hold": 0.0
+      }
+    }
+  ]
+}

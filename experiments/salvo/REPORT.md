@@ -335,7 +335,39 @@ than amplifying it, because sighted players contest an edge the
 opponent under-commits to. No concede-the-edge degenerate pattern
 under any policy. Question 3 closes positive.
 
-## 11. Round 5 (combos + jokers) — BLOCKED on a language review, by design
+## 11. Exact tier, fixed deals: staging MIXES at equilibrium
+
+Three curated fixed-deal salvo-mini solves (seeds 0 mixed / 3 mid-pair
+/ 14 edge-pair; CFR+ to exploitability under 0.02 on the +/-48
+differential scale; `results_mini_seed{0,3,14}.json`):
+
+- **40-42% of all reached decision infosets play MIXED strategies** in
+  every deal — the staged-concealment game demands randomization at
+  equilibrium, Green Lane's "measurably interesting" bar met at ground
+  truth rather than inferred from arenas.
+- **The very first decision bluffs.** The round-1 opener — whose
+  placement the second committer will see as a staging count before
+  acting — mixes its location 75/25 (seed 0) and 78/22 (seed 3):
+  textbook unpredictability against a count-reading opponent, the
+  construct the staged-alternating design existed to produce. The
+  edge-pair deal (14) opens pure — extreme targets can force the
+  opening — with its mixing living deeper in the tree (40% overall).
+- **Values (+1.0 / +2.0 / +4.0 for the round-1 initiative holder)
+  fold dealt-hand asymmetry into themselves** — fixed deals cannot
+  separate "initiative is worth something" from "P0 drew better." The
+  deal-sampled game is the instrument that isolates the structural
+  initiative and count-channel value; it remains HELD pending the
+  designer's go.
+- **Instrument economics, corrected**: ~23 s per CFR+ iteration on one
+  deal's 20k-decision tree (about 100 iterations to converge, ~40 min
+  per deal). A 64-seed sampled game at full-tree CFR+ extrapolates to
+  roughly a day per hundred iterations — NOT an overnight run. Before
+  the sampled solve is greenlit it needs one of: fewer seeds (8-16 is
+  3-8 hours), outcome-sampling MCCFR (the probe-tier tool), or an
+  Undertow-style fast-sim speed twin with an adapter crosscheck. The
+  long-run contract's calibration-first discipline earns its keep here.
+
+## 12. Round 5 (combos + jokers) — BLOCKED on a language review, by design
 
 The round stopped before implementation. Expressing the combo bonus
 table requires combinatorial-structure queries over a zone (same-rank
