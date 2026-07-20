@@ -6,8 +6,9 @@ claims), and every action target are player decisions — `offer`s and declared
 Player move parameters — and a proven challenge `reveal`s the shown card
 publicly before returning it to the deck. Nothing here draws randomness: what
 stays game-local is the in-game/seat scans and the character lookup (pure
-reads) plus two trace primitives that keep the `coup_reveal` / `coup_game`
-events the characterization golden and the playout invariants consume.
+reads) plus the `coup_game` trace primitive the characterization golden and
+the playout invariants consume; the reveal sequence itself derives at the
+harness layer from observation events (tests/playout_trace.py).
 """
 
 from __future__ import annotations
@@ -47,14 +48,6 @@ def coup_has_char(ctx: Ctx, p: Player, rank: str | None) -> bool:
     declared semantics of proving an unset claim. The annotation (`str | None`)
     and the interface (`Rank?`) agree on exactly the value the body handles."""
     return any(c.rank == rank for c in reads.instance(ctx.rs, _R, "influence", p).cards)
-
-
-def coup_note_reveal(ctx: Ctx, p: Player) -> int:
-    """Trace the influence flip that just happened (the last card into
-    `revealed[p]`) — the per-seed reveal-sequence golden's anchor."""
-    card = reads.instance(ctx.rs, _R, "revealed", p).cards[-1]
-    ctx.trace("coup_reveal", (p, card.rank))
-    return 0
 
 
 def coup_game_summary(ctx: Ctx) -> int:

@@ -50,7 +50,7 @@ registry:   the directory itself. `test_every_cardlang_case_has_a_matching_expec
             `tests/openspiel_ready/test_coverage.py`): an orphan `.cardlang`
             with no golden, or a golden with no source, fails the harness
             rather than being silently skipped or silently stale.
-covered:    28 cases, each independently verified (by reading the produced
+covered:    30 cases, each independently verified (by reading the produced
             diagnostic while authoring it, not just observing a raise) to
             fail for its stated reason: unknown library zone type,
             `active_rules:` naming an undefined rule, `transition_to:` a
@@ -76,8 +76,12 @@ covered:    28 cases, each independently verified (by reading the produced
             once (the bag-plus-note rendering), a repeated single-valued
             game clause (`players:` seeds the class; the closed domain is
             swept by tests/test_game_clause_walls.py), a source with no
-            `game { }` block, a source with two, and an unknown
-            `direction:` value.
+            `game { }` block, a source with two, an unknown
+            `direction:` value, and a call to either evicted trace
+            emitter (`coup_note_reveal` / `tichu_hand_summary`, the
+            primitive-sidecars stage-1 removals — the standard
+            unknown-function diagnostic, pinned per name because these
+            spellings exist in the wild in pre-eviction rules text).
 sampled:    the wall-class population itself — every diagnostic emission
             site across `cardlang/resolve.py`, `cardlang/typecheck.py`, and
             `cardlang/deckcheck.py` — is open and growing as the language

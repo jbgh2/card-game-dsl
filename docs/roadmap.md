@@ -629,6 +629,22 @@ Things we have noted but consciously not designed yet:
   (`FUZZ_BUDGET_SECONDS`, the local/scheduled mode) suggests operator-level
   coverage has plateaued.
 
+- **Primitive sidecars: stages 2-5 of the migration, and the one remaining
+  trace emitter.** Stage 1
+  ([design-notes/primitive-sidecars.md](design-notes/primitive-sidecars.md),
+  the staged sequence in §4) evicted the two pure trace emitters from the
+  stdlib registry; the harness derives their facts from observation events
+  (`tests/playout_trace.py`, grid and ledger in
+  `tests/test_trace_emitter_eviction.py`). Remaining: narrowing every
+  primitive's interface to values-in/value-out, the `primitives { }`
+  declaration block, and co-location — per the design note's sequence. One
+  named residual rides until then: `coup_game_summary` is a third
+  dead-`let` trace emitter by call shape, still registered because its
+  `coup_game` payload recomputes conservation totals from engine state
+  (coins, treasury, zone censuses) rather than from movement views —
+  reproducing it at the harness is its own design step, not a mechanical
+  repeat of stage 1.
+
 ## Suggested next steps, in order
 
 [open-questions/_index.md](open-questions/_index.md) orders the open
