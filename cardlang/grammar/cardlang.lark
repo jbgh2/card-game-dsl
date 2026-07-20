@@ -13,11 +13,11 @@ library_rules: rule_def+
 
 // Alternate start for a family-library file (docs/libraries/<name>.cardlang):
 // the definition forms a game already holds, plus the `requires` contract, with
-// no enclosing game (decisions.md "Family libraries"). A library carries no
-// content forms — no zones, no state defaults, no phases — because it declares
-// a vocabulary, not a game; what it needs from its including game it names in
-// `requires`, and what it does with cards it does not do at all (a move touching
-// a game-specific zone stays game-local, which is why `requires` is state-only).
+// no enclosing game (decisions.md "Family libraries"). It holds definitions and
+// no game structure — no zones, no state defaults, no phases — as far as the
+// corpus has forced, not as a permanent boundary; what it needs from its
+// including game it names in `requires`, and a move touching a game-specific
+// zone stays game-local, which is why `requires` is state-only today.
 library: "library" NAME "{" library_item* "}"
 
 ?library_item: requires_block

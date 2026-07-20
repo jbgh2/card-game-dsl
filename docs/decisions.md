@@ -3084,9 +3084,21 @@ information-set implication.
 imported name is an error, not an override, and so is the same name from two
 libraries. Import-with-override would make the tier inheritance, and would put a
 game's meaning at the mercy of a silent redefinition — the accepted-but-ignored
-defect class at file granularity. Variants-as-deltas
-([principles.md](principles.md)) remains a separate, unbuilt mechanism; the two
-are deliberately not one.
+defect class at file granularity. Nor is there a second, override-shaped
+mechanism waiting behind it: there is no variant-delta construct and will not be
+one ([principles.md](principles.md), "Composition over inheritance"). Variants
+are sibling games over a shared core, which is this tier — so `uses` is not one
+of two ways to relate games, it is the way, and the no-override rule is
+unconditional rather than provisional.
+
+That decision sets the open question for this tier: **what may a library
+contain?** Siblings can only share what a library can hold, so anything two
+variants have in common and a library cannot express comes back as duplication.
+Today a library holds definitions (move types, rules, functions, procedures,
+types, defines) and no game structure. Poker forces state; a pair of variants
+sharing a phase tree would force phases. Grow it corpus-first, one forcing game
+at a time — but do not describe a library as "a vocabulary, not a game", because
+that framing assumed a delta mechanism would cover the rest, and none is coming.
 
 **A library declares what it requires.** Family definitions read state the
 including game must declare, and undeclared-name errors surfacing from inside
@@ -3142,9 +3154,11 @@ reach a name a construct holds as a bare string rather than as a reference — a
 so for those slots the rule above is the design's intent rather than a
 guarantee. The gap and the shape of its fix are in [roadmap.md](roadmap.md).
 
-**What a library holds, and what stays game-local.** A library declares a
-vocabulary, not a game, so it carries no zones, no state defaults and no phases.
-The corpus forced a sharper line than that: **a move that touches a
+**What a library holds, and what stays game-local.** A library holds definitions
+and no game structure — no zones, no state defaults, no phases — because that is
+as far as the corpus has forced it, not because a library is a lesser kind of
+thing than a game. The boundary moves as sibling games need to share more.
+Within today's boundary the corpus forced a sharper line: **a move that touches a
 game-specific zone stays game-local; the library holds the zone-agnostic core.**
 `poker_betting` holds check, bet, call, raise and the `can_act`/`owes`/`pending`
 ring predicates — all of which move chips and nothing else — and omits `fold`,

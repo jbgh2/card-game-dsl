@@ -151,8 +151,8 @@ def _check_reserved(
 # tier's collision walls sweep: `_apply_uses` derives its per-kind loops from it,
 # so a seventh definition form added to `Library` without an entry here is a
 # static failure in `tests/test_family_libraries.py`, not a silently unwalled
-# collision. Zones and state are absent by construction — a library declares a
-# vocabulary, not a game, and what it needs from the game it names in `requires`.
+# collision. Zones and state are absent as far as the corpus has forced, not
+# permanently — what a library needs from the game it names in `requires`.
 _LIBRARY_DEF_KINDS: tuple[tuple[str, str], ...] = (
     ("rules", "rule"),
     ("move_types", "move type"),
