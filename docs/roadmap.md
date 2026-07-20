@@ -6,6 +6,57 @@ What's explicitly deferred, and the suggested order of next steps.
 
 Things we have noted but consciously not designed yet:
 
+- **Latent holes around the struct paths.** Each was found by adversarial
+  review of the lookup-miss walls, each is reachable only through constructs no
+  corpus game uses, and each is recorded rather than fixed because closing them
+  is a separate change with its own domain. (a) An OPTIONAL struct receiver
+  (`r : R?`) disables the struct walls: `r.flag` is accepted whatever `flag`
+  is, because the optional wrapper is not a `TStruct` and the field checks look
+  through nothing. (b) `_check_produces`
+  does not check a produced payload against the variant case's declared payload
+  types, so a `produce won(...)` with a wrong-typed argument is accepted.
+  (c) The declaration-DAG performance test asserts termination but not time,
+  so restoring the exponential `_type_key` — a 620x regression measured during
+  review — still passes it; a time bound belongs on that test.
+
+- **Position domains in declared-type positions.** A declared position
+  domain (`positions { slot : 1..4 }`) is a legal annotation on a move
+  parameter, a procedure-shaped parameter list, a function parameter, and both
+  payload positions, where it types as the integer member of the range. It is
+  NOT legal as a state-variable type or a struct-field type, and whether it
+  should be is undecided rather than settled: semantically such a value is an
+  Integer with a declared range, but no game wants one, so the grid
+  (`tests/test_type_name_positions.py`) records the cells as residual instead
+  of guessing an expected value nobody has chosen. The wall is loud and names
+  the position domain rather than calling a declared name unknown.
+
+- **The index position admits different domains per host.** One grammar
+  nonterminal (`index`) is reached from three hosts, and they disagree: a ZONE
+  family may be indexed by a declared position domain (`pile[slot] :
+  Cascade<slot>`), a STATE variable may not (`claimed[slot] : Integer` is
+  rejected as "not an indexable role"), and a `let` index is a binder with no
+  domain check at all. The exclusion is systematic across two passes —
+  `typecheck` gives zone families an explicit positions branch and indexed
+  state variables none, and `role_type` raises rather than falling back — so
+  relaxing resolve alone would produce a compiler-currency crash, not a silent
+  miskey. The divergence is defensible; what is not is that the state-index
+  diagnostic speaks only of value domains and never mentions position domains,
+  so a designer who hits it is told the wrong thing. Found by the
+  framing check over the type-name axes, and hit live while building
+  `tests/fixtures/struct_positions_witness.cardlang`.
+
+- **Zone-type names and role ids are not gridded.** The type-name grid covers
+  DECLARED type names. Two neighbouring namespaces have their own registries,
+  their own walls, and their own raggedness: zone type names (`Hand<player>`,
+  walled against `LIBRARY_ZONE_TYPES`) and role/domain ids (the `player` in
+  `hand[player]`, `for each player`, walled against various role subsets). The
+  framing check enumerated seven such positions. They are a different domain
+  rather than a missing part of this one, and gridding them is its own change.
+  One member is worth naming: `resolve` reads `ZONE_PROJECTIONS` with a bare
+  subscript where the sibling `ZONE_CONTENT` read raises an `AssertionError`
+  naming the drift — reachable only if the two zone registries disagree, but
+  it would surface as a `KeyError` rather than as the divergence it is.
+
 - **Registry-module manifest for the framing check**
   (surface-totality-audit, Step 1). The fresh-context framing check's
   input set — "the registry modules" — has no defining site in code:
@@ -28,7 +79,10 @@ Things we have noted but consciously not designed yet:
   The manifest's scrape would supply the missing axis — enumerate the
   registries, require a pin or a recorded exclusion per entry. Interim
   wall: every dispatcher ends in a loud `case _`, so an unserved name
-  raises at first use rather than resolving to nothing.
+  raises at first use rather than resolving to nothing. This is the
+  hand-listed-axis shape recorded under "Grid the classes that are
+  grid-shaped but ungridded" below, in its name-source form: each pin
+  derives from its own registry, and nothing enumerates the pairings.
 
 - **Unresolvable identifiers in prose.** Nothing checks that a backticked
   name in a docstring or a `docs/` page still refers to something real, so
@@ -53,6 +107,43 @@ Things we have noted but consciously not designed yet:
   matters: an authoring rule is enforced by review, which is exactly the
   enforcement this class already escaped, so it bounds new drift rather
   than the existing kind.
+
+- **Grid the classes that are grid-shaped but ungridded.** The general
+  finding from six review rounds across PRs #79 and #80: every defect found
+  was a partial enumeration of a closed class, and none was a novel bug. The
+  classes that HAD a derived grid caught their own defects at write time; the
+  ones without needed a reviewer. Two shapes recur often enough to name, so a
+  change touching either should arrive gridded rather than waiting to be
+  reviewed:
+
+  (a) **A wall that reserves names from a namespace.** Its domain is "every
+  source of names this namespace must not collide with", and those sources
+  accumulate silently. `_resolve_positions`'s `taken` set now unions three
+  (built-in domain ids, `KNOWN_TYPE_NAMES`, the game's own `type`
+  declarations) — the third was added only after review found `positions
+  { R : 1..4 }` beside `type R` silently reading the struct as an Integer.
+  The reconciliation sweep in `tests/test_positions.py` derives from each
+  source, but nothing enumerates the SOURCES, so a fourth would be missed the
+  same way.
+
+  (b) **A type rule applied across type shapes.** The domain is relation x
+  shape, and the shape axis is the `Type` union's CONTAINER constructors, not
+  a hand-picked few. `tests/test_permissive_top.py` grids the nominal-struct
+  rule over {unify, assignable} x {bare, optional, collection} — and that
+  wrapper axis is itself hand-listed, which is the defect it exists to catch,
+  one level up. The union has more containers than three, and one is a live
+  uncovered cell: two `TVariant` of the same name whose payload snapshots
+  disagree compare UNEQUAL, exactly as bare structs did before the nominal
+  rule (`unify` returns None, `assignable` returns False). Unreachable today
+  only because `variant_registry` is built once from the settled struct
+  registry, so both sides always carry the same snapshot — an accident of
+  call order, not a wall. `TCollection`'s KEY also carries a `Type` and is
+  handled by a different rule (deliberately ignored by `assignable`, merged
+  stickily by `unify`), so the axis needs the key cell classified rather than
+  assumed.
+
+  Deliverable: derive the shape axis from the `Type` union in code, close or
+  wall the `TVariant` cell, and enumerate the name-source axis for (a).
 
 - **Named procedures — deferred cells.** Every one is a loud wall today, never a
   silent acceptance; the ledger is `tests/test_procedures.py`. (a) **`Zone`
@@ -90,6 +181,89 @@ Things we have noted but consciously not designed yet:
   and are now impossible by construction — arguments are evaluated once, by value,
   in the caller's context, and the body runs in a block (decisions.md "Named
   procedures").
+
+- **The permissive top on a MERGE failure.** The lookup-miss population of
+  `Any` is closed — a lookup whose domain is closed raises rather than
+  falling back to the top, and every declared type name is validated where it is
+  declared (decisions.md, "The permissive top and the lookup-miss walls";
+  ledger `tests/test_permissive_top.py`). A second, distinct population
+  remains: when `unify` cannot reconcile two types, the result falls to the top
+  rather than being rejected. `if c then 1 else hearts` and a mixed
+  `[1, hearts]` list literal each type as the top and go permissive from
+  there. This is not a missed lookup — both branch types are known — so it
+  wants a WALL (the branches of a conditional, and the elements of a list
+  literal, must have a common type), not a raise. It is deferred rather than
+  written because the wall is a new rejection over an existing surface, which
+  needs its own misuse-probe pass over every position a conditional
+  expression can appear in. The narrower sibling: `max`/`min` comprehensions
+  type as the top although `_check_agg_body` already forces an Integer body, so
+  their result type can simply be tightened to `Integer` — a precision fix,
+  no new rejection.
+
+- **The Card-vocabulary check is still offer-sited, and double-reports.**
+  `_check_move_params` (the move-parameter DOMAIN gate) now runs once per
+  DECLARED move type, because a parameter is a property of the declaration.
+  Its sibling `_check_card_vocabulary` was left at the `offer` / `round
+  offering` call sites, so the halves of one class now sit at two layers.
+  The visible cost: "this game declares no `hand[player]`" is a whole-GAME
+  fact, so a Card-parameterized move named by N offers reports it N times for
+  one defect. Moving it wholesale is wrong, which is why this is deferred
+  rather than done — the check is two rules wearing one name. "No
+  `hand[player]` to enumerate a Card over" belongs to the declaration; "more
+  than one Card-parameterized move in this vocabulary" is genuinely a property
+  OF the vocabulary and must stay where it is. Splitting them is the work.
+  Pre-existing (the duplication predates the move-parameter change); found by
+  the adversarial pass over that change.
+
+- **Struct and function registries are solved by a bounded fixpoint.** Not
+  deferred work — recorded because the shape is a trap worth knowing before
+  touching `typecheck.struct_and_function_registries`. The two registries
+  depend on each other in both directions and at arbitrary depth: a derived
+  field's body may call a function, a function's parameters and body may
+  mention a struct, and a function's RETURN type may therefore depend on a
+  derived field which depends on another function. No fixed pass count is
+  enough; a chain of N needs N rounds. Two fixed-pass versions each shipped a
+  defect that an adversarial probe caught and a fully green suite did not:
+  (a) `TStruct` compares STRUCTURALLY, so two registries disagreeing about one
+  derived field produced two unequal copies of one nominal type — diagnostics
+  reading `expects R, got R` at eight sites, and well-typed programs made
+  unwritable. Closed by comparing structs NOMINALLY (by name) in
+  `types.assignable`/`unify`, which is the correct semantics for a declared
+  type: identity belongs to the name, and the fields are what the name
+  resolves to. (b) A derived field whose type flowed through a function return
+  stayed frozen at the permissive top, so `score[p] := s.flag` accepted a
+  Boolean into an Integer-declared state variable — a LOST WALL, not an
+  imprecision. Closed by the fixpoint. (c) A struct's field map holds a
+  SNAPSHOT of each struct-typed field, and reading those snapshots made walls
+  decay with traversal depth — a recursive type has no finite unrolled form,
+  so `r.copy.copy.copy.flag` reached the permissive top. Closed by resolving
+  struct-typed reads through the REGISTRY by name, at both the receiver and
+  the result; a bounded comparison depth is NOT a fix, because the path stays
+  observable past any cutoff, and it is exponential on a declaration DAG
+  besides. (d) The same ambient-environment defect appeared twice, because
+  fixing the pipeline's path stopped the fix from exercising `env_from_game`'s
+  default branch — there is now ONE construction path, and adding a second is
+  the mistake to avoid. A further trap for anyone adding a pass: intermediate
+  rounds must report into a scratch `DiagnosticBag`, or every function-body
+  diagnostic is multiplied by the round count. The ledger is
+  `tests/test_permissive_top.py`.
+
+- **The corpus has no witness for user `type` declarations.** Not a design
+  question — a coverage hole, and the highest-value one this file records.
+  Every defect listed in the entry above was found by review or adversarial
+  probe, never by the suite, and they share one cause: no game in
+  `docs/games/` declares a `type` at all, so the entire struct/function
+  subsystem is exercised only by unit tests written by whoever last changed
+  it. A green suite is therefore not evidence about that code, which is
+  exactly the "vacuously green" class decisions.md ranks alongside
+  accepted-but-ignored. The fix is corpus-first as usual: a game whose scoring
+  or contract state genuinely wants a record type (the Bridge/Oh Hell family's
+  `{ tricks_required, tricks_actual } derived { made }` shape is the obvious
+  candidate, and already appears in the test fixtures) would put derived
+  fields, struct-typed state, and struct-typed function parameters on the
+  playout and golden paths. Until then, treat changes under
+  `struct_and_function_registries` as unverified by the suite and probe them
+  adversarially by hand.
 
 - **The deck-capacity gate does not see move-driven draws.** Its domain is the
   scripted deals in phase bodies (`cardlang/deckcheck.py`, module docstring):
@@ -728,5 +902,22 @@ work that isn't an open question, and which next game unblocks what.
    Coup so far; both composed the closed vocabulary without needing a
    declaration).
 
-5. **Defer Tier 5 cosmetic questions** until a real preference emerges
+5. **Sharpen the completeness machinery where it is still hand-listed** —
+   trigger-based, not blocking. The doctrine (decisions.md "Closed-domain
+   completeness", the `surface-totality-audit` and `cardlang-planning`
+   skills) is in place and demonstrably works: across six review rounds on
+   PRs #79 and #80 every defect was a partial enumeration of a closed class
+   and none was a novel bug, and the classes with a derived grid caught
+   their own defects while the ungridded ones needed a reviewer. What
+   remains is coverage of the machine itself, recorded above under "Grid
+   the classes that are grid-shaped but ungridded": derive the type-shape
+   axis from the `Type` union rather than hand-listing wrappers (which
+   leaves `TVariant` a live uncovered cell, unreachable today only by call
+   order), enumerate the name-source axis behind name-reservation walls,
+   and build the registry-module manifest the framing check's input set
+   needs. The standing trigger: a change touching a name-reservation wall
+   or a type rule applied across shapes arrives gridded, rather than
+   waiting for review to find the member nobody listed.
+
+6. **Defer Tier 5 cosmetic questions** until a real preference emerges
    from corpus pressure.
