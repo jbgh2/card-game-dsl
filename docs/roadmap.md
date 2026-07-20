@@ -76,6 +76,43 @@ Things we have noted but consciously not designed yet:
   skill: the framing subagent receives the entire `cardlang/` package —
   completeness by superset, never by judgment.
 
+- **Grid the classes that are grid-shaped but ungridded.** The general
+  finding from six review rounds across PRs #79 and #80: every defect found
+  was a partial enumeration of a closed class, and none was a novel bug. The
+  classes that HAD a derived grid caught their own defects at write time; the
+  ones without needed a reviewer. Two shapes recur often enough to name, so a
+  change touching either should arrive gridded rather than waiting to be
+  reviewed:
+
+  (a) **A wall that reserves names from a namespace.** Its domain is "every
+  source of names this namespace must not collide with", and those sources
+  accumulate silently. `_resolve_positions`'s `taken` set now unions three
+  (built-in domain ids, `KNOWN_TYPE_NAMES`, the game's own `type`
+  declarations) — the third was added only after review found `positions
+  { R : 1..4 }` beside `type R` silently reading the struct as an Integer.
+  The reconciliation sweep in `tests/test_positions.py` derives from each
+  source, but nothing enumerates the SOURCES, so a fourth would be missed the
+  same way.
+
+  (b) **A type rule applied across type shapes.** The domain is relation x
+  shape, and the shape axis is the `Type` union's CONTAINER constructors, not
+  a hand-picked few. `tests/test_permissive_top.py` grids the nominal-struct
+  rule over {unify, assignable} x {bare, optional, collection} — and that
+  wrapper axis is itself hand-listed, which is the defect it exists to catch,
+  one level up. The union has more containers than three, and one is a live
+  uncovered cell: two `TVariant` of the same name whose payload snapshots
+  disagree compare UNEQUAL, exactly as bare structs did before the nominal
+  rule (`unify` returns None, `assignable` returns False). Unreachable today
+  only because `variant_registry` is built once from the settled struct
+  registry, so both sides always carry the same snapshot — an accident of
+  call order, not a wall. `TCollection`'s KEY also carries a `Type` and is
+  handled by a different rule (deliberately ignored by `assignable`, merged
+  stickily by `unify`), so the axis needs the key cell classified rather than
+  assumed.
+
+  Deliverable: derive the shape axis from the `Type` union in code, close or
+  wall the `TVariant` cell, and enumerate the name-source axis for (a).
+
 - **Named procedures — deferred cells.** Every one is a loud wall today, never a
   silent acceptance; the ledger is `tests/test_procedures.py`. (a) **`Zone`
   parameters.** The design note expected the corpus to need them; it does not — a
@@ -835,5 +872,22 @@ work that isn't an open question, and which next game unblocks what.
    Coup are the two so far; both composed the closed vocabulary without
    needing a declaration).
 
-5. **Defer Tier 5 cosmetic questions** until a real preference emerges
+5. **Sharpen the completeness machinery where it is still hand-listed** —
+   trigger-based, not blocking. The doctrine (decisions.md "Closed-domain
+   completeness", the `surface-totality-audit` and `cardlang-planning`
+   skills) is in place and demonstrably works: across six review rounds on
+   PRs #79 and #80 every defect was a partial enumeration of a closed class
+   and none was a novel bug, and the classes with a derived grid caught
+   their own defects while the ungridded ones needed a reviewer. What
+   remains is coverage of the machine itself, recorded above under "Grid
+   the classes that are grid-shaped but ungridded": derive the type-shape
+   axis from the `Type` union rather than hand-listing wrappers (which
+   leaves `TVariant` a live uncovered cell, unreachable today only by call
+   order), enumerate the name-source axis behind name-reservation walls,
+   and build the registry-module manifest the framing check's input set
+   needs. The standing trigger: a change touching a name-reservation wall
+   or a type rule applied across shapes arrives gridded, rather than
+   waiting for review to find the member nobody listed.
+
+6. **Defer Tier 5 cosmetic questions** until a real preference emerges
    from corpus pressure.
