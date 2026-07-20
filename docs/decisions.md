@@ -3122,18 +3122,25 @@ library's definitions run and a shadow in some other phase want opposite winners
 Because the spelling is the interface, a `requires`d name is not game-private:
 the metamorphic rename transform excludes it for the same reason.
 
-**The contract is sufficient, not advisory.** A library's definitions may reach
-only its `requires` contract, its own definitions, the stdlib, and the pronouns
-and binders any body has anyway — checked against the library alone, before any
-game is consulted. Without that the contract would be a suggestion: a body
-reading past it resolves against a game that happens to declare the extra name
-and fails against a game meeting the contract in full, reporting an
-unresolved-name error inside library text the game's author never wrote. That is
-the currency failure `requires` exists to prevent, arriving by the back door, and
-it is why this check reports in the LIBRARY's currency — the library author is
-the only one who can fix it. The same rule makes a library deck-agnostic: it
-names no rank and no suit, because those exist only once an including game names
-a deck, and a family's members do not share one (Kuhn's holds three cards).
+**The contract is meant to be sufficient, not advisory.** A library's
+definitions may reach only its `requires` contract, its own definitions, the
+stdlib, and the pronouns and binders any body has anyway — checked against the
+library alone, before any game is consulted. Without that the contract would be
+a suggestion: a body reading past it resolves against a game that happens to
+declare the extra name and fails against a game meeting the contract in full,
+reporting an unresolved-name error inside library text the game's author never
+wrote. That is the currency failure `requires` exists to prevent, arriving by
+the back door, and it is why the check reports in the LIBRARY's currency — the
+library author is the only one who can fix it. The same rule makes a library
+deck-agnostic: it names no rank, no suit and no card, because those exist only
+once an including game names a deck, and a family's members do not share one
+(Kuhn's holds three cards).
+
+The check enforces this for every name the resolver classifies. It does not yet
+reach a name a construct holds as a bare string rather than as a reference — a
+`turns … again <var>`, a `round`'s source and play zones, a struct type name —
+so for those slots the rule above is the design's intent rather than a
+guarantee. The gap and the shape of its fix are in [roadmap.md](roadmap.md).
 
 **What a library holds, and what stays game-local.** A library declares a
 vocabulary, not a game, so it carries no zones, no state defaults and no phases.

@@ -308,15 +308,25 @@ def _library_reach(library: n.Library) -> _LibraryReach:
     state is the contract and which has nothing else — deliberately narrower
     than any real game's:
 
-    - `zones` is empty because a library holds no zones by construction
-      (decisions.md "Family libraries": a move touching a game-specific zone
-      stays game-local, which is why the contract is state-only);
+    - `zones` is empty because a library declares no zones (decisions.md
+      "Family libraries": a move touching a game-specific zone stays
+      game-local, which is why the contract is state-only);
     - `ranks`/`suits`/`enums` are what the unknown-deck branch of `_categories`
       leaves, because a library is deck-agnostic. `hearts` means nothing until
       an including game names a deck, and Kuhn's has none.
 
     `_Categories` is frozen with every field required, so a namespace added to
-    it is a mypy error here rather than a silently permissive hole."""
+    it is a mypy error here rather than a silently permissive hole.
+
+    What this DOES NOT see: a name held on a node as a plain `str` rather than a
+    `NameRef`. `_rewrite` classifies `NameRef`s, so a bare-string slot is
+    structurally invisible to it, and `n.CardLiteral` above is the one such slot
+    closed by hand. The rest — `Turns.again` (a state variable),
+    `Round.source_zone`/`play_zone` (zones), `StructLit.type_name` and friends
+    (types), `RuleDef.constrains`/`RunStmt.name`/`Produces.define`/
+    `Offer.move_types`/`Round.move_types` (definitions) — are a recorded
+    residual, not a covered case: roadmap.md, "Family libraries — unchecked
+    residuals in the `requires` contract"."""
     cats = _Categories(
         locals=frozenset(),
         state_vars=frozenset(r.name for r in library.requires),
@@ -373,17 +383,24 @@ def _library_reach(library: n.Library) -> _LibraryReach:
 
 
 def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None:
-    """A library's definitions may reach only its `requires` contract, its own
-    definitions, the stdlib, and the pronouns and binders any body has anyway.
+    """Every name a library's definitions reach THROUGH THE CLASSIFIER must be
+    in its `requires` contract, its own definitions, the stdlib, or the pronouns
+    and binders any body has anyway.
 
-    This is what makes the contract SUFFICIENT rather than advisory, and it is a
-    property of the library alone — so it is checked against the library alone,
-    never against the game that happens to be importing it. Without it a body
-    reading past its contract resolves against a game that happens to declare
-    the extra name and fails against a game meeting the contract in full, with
-    an unresolved-name error pointing inside library text the game's author
-    never wrote. That is the exact currency failure `_check_requires` exists to
-    prevent, arriving through the back door.
+    This is what makes the contract sufficient rather than advisory for that
+    class of reference, and it is a property of the library alone — so it is
+    checked against the library alone, never against the game that happens to be
+    importing it. Without it a body reading past its contract resolves against a
+    game that happens to declare the extra name and fails against a game meeting
+    the contract in full, with an unresolved-name error pointing inside library
+    text the game's author never wrote. That is the exact currency failure
+    `_check_requires` exists to prevent, arriving through the back door.
+
+    The class is bounded, and the boundary is not the design's — it is this
+    implementation's: a name held on a node as a plain `str` is invisible here.
+    `_library_reach`'s docstring lists the slots that escape and roadmap.md,
+    "Family libraries — unchecked residuals in the `requires` contract", records
+    the shape of the fix. Do not read this wall as proving the whole property.
 
     Reported in the LIBRARY's currency: the span is in the library file, because
     the library author is the only one who can fix it. The importing game's one

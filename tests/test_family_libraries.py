@@ -105,17 +105,21 @@ residual: none of the collision grid. The stdlib row's three accepting cells are
           TWO residuals outside it, both recorded in docs/roadmap.md, "Family
           libraries — unchecked residuals in the `requires` contract":
 
-          1. REFERENCE KIND. The encapsulation grid's reference axis covers what
-             a body READS — free names and calls, the two things classified
-             against a namespace. It does not cover a DEFINITION name written
-             into a fixed slot as a bare string: `constrains: <move_type>`,
-             `run <procedure>()`, `produces <define>`, `offer [<move_types>]`.
-             Those have no namespace registry to derive an axis from, so a
-             hand-listed one would be complete only by luck. The wall bounding
-             the residual is that the fully-undefined case IS rejected — resolve
-             refuses a `constrains:` naming no move type anywhere — so what is
-             unchecked is exactly the narrower case of a name only the importing
-             game defines.
+          1. REFERENCE FORM. The grid's axis is derived from `_Categories`, so
+             it covers every namespace — but only through the two forms the
+             resolver classifies, a `NameRef` and a `Call`, plus `CardLiteral`
+             closed by hand. A name held on a node as a plain `str` is
+             structurally invisible to the check, whatever namespace it belongs
+             to: `Turns.again` (state), `Round.source_zone`/`play_zone` (zones),
+             `StructLit.type_name` and friends (types), and the definition slots
+             `constrains:`/`run`/`produces`/`offer`/`Round.move_types`. An
+             adversarial audit confirmed all four classes reachable from a
+             library. The wall bounding the residual is that the fully-undefined
+             case IS rejected — resolve refuses a `constrains:` naming no move
+             type anywhere — so what is unchecked is the narrower case of a name
+             only the importing game provides. Its one-library blast radius, and
+             the `again`-has-no-correct-spelling corollary, are in the roadmap
+             entry; do not read this module's grid as covering that form.
           2. SCOPE. The multiplicity grid proves a requirement is answered by
              exactly one declaration of the right shape; it does NOT prove that
              declaration is in scope where the library's definitions run. Moving

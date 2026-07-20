@@ -94,22 +94,40 @@ Things we have noted but consciously not designed yet:
   would reject Seven-Card Stud, which declares all nine requirements inside
   `phase play`.
 
-  *A definition name in a fixed slot is not classified.* The contract IS checked
-  to be sufficient for what a library body READS: every free name and every call
-  is classified against the library alone, so a body cannot reach past `requires`
-  into the importing game (`resolve._check_library_encapsulation`, ledger
-  `tests/test_family_libraries.py`). One reference kind is outside that: a
-  definition name written into a fixed slot as a bare string
-  — `constrains: <move_type>`, `run <procedure>()`, `produces <define>`,
-  `offer [<move_types>]`. Those are not classified against a namespace, so there
-  is no registry to derive a grid axis from, and a hand-listed axis would be
-  complete only by luck. The residual is bounded on one side: a slot naming a
-  definition that exists NOWHERE is already rejected, so what is unchecked is
-  the narrower case of a library naming a definition only the importing game
-  provides. The fix is a reference-slot registry — the one table saying "this
-  field holds a name drawn from that namespace" — which several passes would
-  share; build it when a second library makes the coupling real, not for the
-  one-library corpus.
+  *A name held as a bare string is not classified.* The contract IS checked to be
+  sufficient for every name the resolver classifies: free names, calls and card
+  literals are checked against the library alone, so a body cannot reach past
+  `requires` into the importing game through any of them
+  (`resolve._check_library_encapsulation`, ledger
+  `tests/test_family_libraries.py`). The check is built on the `NameRef` pass, so
+  it is blind to every AST slot that holds a name as a plain `str` — the same
+  blindness `resolve.py`'s `again` handling already documents for `Winner.target`.
+  Confirmed reachable from a library, by namespace:
+
+  - state — `turns … again <var>` (`Turns.again`);
+  - zones — `round … source <zone> into <zone>` (`Round.source_zone`, `play_zone`);
+  - types — `StructLit.type_name`, `StructField.type_name`,
+    `VariantCase.payload_types`;
+  - definitions — `constrains:`, `run <proc>()`, `produces <define>`,
+    `offer […]`, `Round.move_types`.
+
+  Two consequences worth naming. A library reading a state variable through
+  `again` leaks it exactly as the wall's own docstring describes; and putting
+  that name in `requires` instead does not help, because `state_reads` also
+  accumulates only from `NameRef`s, so the minimality check
+  (`test_every_library_contracts_for_exactly_what_it_reaches`) would call the
+  entry dead. The slot has no correct spelling today. Both halves must be fixed
+  together — closing only the minimality half would make the leak easier to
+  ship, which is why neither is patched here.
+
+  The residual is bounded on one side: a slot naming something that exists
+  NOWHERE is already rejected, so what is unchecked is the narrower case of a
+  library naming something only the importing game provides. The fix is a
+  reference-slot registry — one table saying "this field holds a name drawn from
+  that namespace", total over every `str`-typed field of every `n.Node` (94 of
+  them today, so the table must be derived and pinned, not hand-listed) — which
+  several passes would share. Build it before a second family library lands; the
+  one-library corpus is what makes it currently harmless.
 
 - **Packaging the corpus for distribution.** The whole project runs from a
   checkout: every `.cardlang` is loaded from `docs/games/` by repo-relative path
