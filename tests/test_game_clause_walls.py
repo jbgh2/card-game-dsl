@@ -110,6 +110,7 @@ SINGLE_VALUED: dict[str, str] = {
     "direction": "direction:",
     "cards": "cards:",
     "pieces": "pieces:",
+    "board": "board:",
     "ranking": "ranking:",
     "trump": "trump:",
     "partnerships": "partnerships:",
@@ -147,6 +148,9 @@ _EXTRA_CLAUSE: dict[str, str] = {
     # BASE carries `cards:`, so this probe doubles as the pieces-duplicated-
     # beside-cards cell: `once()` raises before the mutual-exclusion wall.
     "pieces": "  pieces: xo_marks",
+    # Likewise duplicated beside `cards:`: `once("board:")` fires at parse,
+    # before resolve's board-requires-pieces wall ever runs.
+    "board": "  board: grid(3, 3)",
     "direction": "  direction: clockwise",
     "ranking": "  ranking: A K Q J 10 9 8 7 6 5 4 3 2",
     "trump": "  trump: spades",

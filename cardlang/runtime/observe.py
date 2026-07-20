@@ -89,7 +89,9 @@ def announce(ctx: Ctx, actor: Player, value: Any) -> None:
         ctx.observe(p, ("announce", actor, render(value)))
 
 
-def _is_owner(rs: RuntimeState, zone_name: str, key: Player | None, observer: Player) -> bool:
+def _is_owner(
+    rs: RuntimeState, zone_name: str, key: Player | str | None, observer: Player
+) -> bool:
     index = rs.zones.zone_index[zone_name]
     if key is None or index is None:
         return False
@@ -104,7 +106,7 @@ def _is_owner(rs: RuntimeState, zone_name: str, key: Player | None, observer: Pl
 def view_of(
     rs: RuntimeState,
     zone_name: str,
-    key: Player | None,
+    key: Player | str | None,
     observer: Player,
     cards: Any,
 ) -> tuple[str, ...] | int | None:
@@ -123,14 +125,14 @@ def view_of(
     raise AssertionError(f"projection '{proj}' has no declared emission rule")
 
 
-def _label(zone_name: str, key: Player | None) -> str:
+def _label(zone_name: str, key: Player | str | None) -> str:
     return zone_name if key is None else f"{zone_name}[{key}]"
 
 
 def movement(
     ctx: Ctx,
-    src: tuple[str, Player | None],
-    dst: tuple[str, Player | None],
+    src: tuple[str, Player | str | None],
+    dst: tuple[str, Player | str | None],
     cards: Any,
 ) -> None:
     """Emit a card transfer to every observer through both sides' projections

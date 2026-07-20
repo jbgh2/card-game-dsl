@@ -1,0 +1,14 @@
+// Wall: resolve.py's `_resolve_board`. A `board:` clause lays out piece
+// positions and is only valid alongside `pieces:`. Parse enforces cards XOR
+// pieces, so a board on a card deck is the same wall as a board without
+// pieces -- rejected until a game witnesses needing both.
+game BoardWithCards {
+  players: 2
+  max_length: 30
+  board: grid(3, 3)
+  cards: standard52
+  zones { deck : Deck }
+  state { score[player] : Integer = 0 }
+  phase play { shuffle deck }
+  winner: highest score
+}

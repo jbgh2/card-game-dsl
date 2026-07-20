@@ -1,0 +1,14 @@
+// Wall: resolve.py's `_resolve_board` via `board_entry`. An unknown board
+// family is a ValueError the registry raises, turned into a diagnostic at the
+// clause span. No cell-indexed zone here, so the unminted `cell` co-reports
+// nothing -- the family error stands alone.
+game BoardUnknownFamily {
+  players: 2
+  max_length: 20
+  board: hexgrid(3, 3)
+  pieces: xo_marks
+  zones { box : Deck  reserve[player] : PlayerPile<player> }
+  state { score[player] : Integer = 0 }
+  phase play { move all pieces from box where piece.side is x to reserve[0] }
+  winner: highest score
+}

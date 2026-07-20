@@ -52,6 +52,7 @@ from cardlang.types import (
     TAny,
     TBoolean,
     TCard,
+    TCell,
     TCollection,
     TEnum,
     TInteger,
@@ -264,9 +265,14 @@ class TypeEnv:
     # call site left to check.
     procedures: Mapping[str, Sig] = field(default_factory=dict)
     has_ranking: bool = False  # bool(game.ranking) — gates RANKING_GATED_FUNCS
-    # Declared position-domain names (decisions.md "Position domains and
-    # positional zones") — a parameter typed by one binds as Integer.
-    positions: frozenset[str] = frozenset()
+    # Per-game position domains (decisions.md "Position domains and positional
+    # zones", "Boards and cells") — name -> the member type a parameter, let
+    # binder or subscript key over it carries: `TInteger` for a declared
+    # integer domain (`positions { column : 1..7 }`), `TCell` for the
+    # board-minted `cell` domain. Membership (`name in env.positions`) still
+    # answers "is this a position domain?"; the value answers "of which member
+    # kind?".
+    positions: Mapping[str, Type] = field(default_factory=dict)
     # `Game.content_flavor` and `Game.deck` — the dispatch key and set name for
     # the flavor-aware walls (decisions.md, "Card is the deck flavor of Piece");
     # `deck` names the kind in a piece game's card-vocabulary diagnostics.
@@ -464,6 +470,18 @@ def _state_blocks(game: Game) -> list[n.StateBlock]:
     return blocks
 
 
+def _position_types(game: Game) -> dict[str, Type]:
+    """Each position domain's member type: `TInteger` for a declared integer
+    domain, `TCell` for the board-minted named-member `cell` domain
+    (`PositionDecl.members_named` distinguishes them). Resolve has already
+    appended the board's `cell` domain into `game.positions`, so this reads the
+    union uniformly."""
+    return {
+        p.name: (TCell() if p.members_named is not None else TInteger())
+        for p in game.positions
+    }
+
+
 def env_from_game(game: Game) -> TypeEnv:
     """Build the top-level type environment: declared state vars (value types),
     zone contents, the deck/stdlib enum value map, and the user struct types."""
@@ -499,9 +517,9 @@ def env_from_game(game: Game) -> TypeEnv:
     # TPlayer/TTeam without this site re-spelling the role list. (`role_type`'s
     # TAny fallback covers the unresolved-role case, whose diagnostic resolve
     # already owns.)
-    positions = frozenset(p.name for p in game.positions)
+    positions = _position_types(game)
     zone_families: dict[str, Type] = {
-        z.name: (TInteger() if z.index in positions else _role_type(z.index))
+        z.name: (positions[z.index] if z.index in positions else _role_type(z.index))
         for z in game.zones
         if z.index is not None
     }
@@ -663,7 +681,7 @@ def _non_define_statements(game: Game) -> Iterator[n.Stmt]:
 
 
 def _move_param_binders(
-    move_type: n.MoveTypeDef, positions: frozenset[str]
+    move_type: n.MoveTypeDef, positions: Mapping[str, Type]
 ) -> _Binders:
     """A move type's parameters, typed from their declarations — bound in its
     guard and effect exactly as procedure parameters are bound in their body.
@@ -671,19 +689,20 @@ def _move_param_binders(
     Suit) { when: s is 3 … }` passed both positions while the inline spelling
     was rejected — the let-laundering shape, one binder kind over.
 
-    `positions` (the game's declared position domains) must be threaded in: a
-    move parameter may be a position domain (`build(src : column)`), and
-    `_param_type` types those as `TInteger` only when the domain is in
-    `env.positions`. A fresh `TypeEnv()` would leave it `TAny`, so `src is
-    hearts` and other wrong-domain uses would pass — accepted-but-ignored, one
-    binder kind over yet again. (Procedure params, by contrast, resolve gates
-    to `Player`, so they never carry a position and their env needs none.)"""
+    `positions` (the game's position domains) must be threaded in: a move
+    parameter may be a position domain (`build(src : column)`, `place(at :
+    cell)`), and `_param_type` types those as their member type (`TInteger` /
+    `TCell`) only when the domain is in `env.positions`. A fresh `TypeEnv()`
+    would leave it `TAny`, so `src is hearts` and other wrong-domain uses would
+    pass — accepted-but-ignored, one binder kind over yet again. (Procedure
+    params, by contrast, resolve gates to `Player`, so they never carry a
+    position and their env needs none.)"""
     env = TypeEnv(positions=positions)
     return tuple((p.name, _param_type(p, env)) for p in move_type.params)
 
 
 def _all_statements_scoped(game: Game) -> Iterator[tuple[n.Stmt, _Binders]]:
-    positions = frozenset(p.name for p in game.positions)
+    positions = _position_types(game)
     for move_type in game.move_types:
         yield from _seq_tree_scoped(
             move_type.effect, _move_param_binders(move_type, positions)
@@ -808,10 +827,11 @@ def _param_type(p: n.MoveParam, env: TypeEnv) -> Type:
     optional = p.type_name.endswith("?")
     base = p.type_name[:-1] if optional else p.type_name
     if base in env.positions:
-        # A position-domain parameter (`src : column`) binds an integer
-        # member of the declared range; resolve's collision wall guarantees
-        # the name shadows no built-in type spelling.
-        return TInteger()
+        # A position-domain parameter (`src : column`, `at : cell`) binds a
+        # member of that domain — `TInteger` for a declared integer range,
+        # `TCell` for the board-minted domain; resolve's collision wall
+        # guarantees the name shadows no built-in type spelling.
+        return env.positions[base]
     return type_from_name(base, optional, env.structs)
 
 

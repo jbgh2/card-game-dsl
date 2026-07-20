@@ -1,0 +1,31 @@
+// Wall: typecheck.py's Subscript arm. A cell-keyed zone family (`square[cell]
+// : Cell<cell>`) subscripts only with a TCell-typed expression; a bare integer
+// index (`square[7]`) can never denote a cell, a type error.
+game BoardIntegerSubscript {
+  players: 2
+  direction: clockwise
+  max_length: 30
+  board: grid(3, 3)
+  pieces: xo_marks
+  zones {
+    box             : Deck
+    square[cell]    : Cell<cell>
+    reserve[player] : PlayerPile<player>
+  }
+  state { result[player] : Integer = 0  done : Boolean = false }
+  phase setup {
+    move all pieces from box where piece.side is x to reserve[0]
+    move all pieces from box to reserve[1]
+  }
+  phase play {
+    turns t from 0 over all players until done {
+      offer to t one of [place, stop]
+    }
+  }
+  winner: highest result
+}
+move_type place(at : cell) {
+  when: square[7] is empty
+  effect { move one piece from reserve[actor] to square[at] }
+}
+move_type stop { effect { done := true } }

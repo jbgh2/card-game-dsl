@@ -88,6 +88,12 @@ def _players(p: n.PlayersSpec) -> IRDict:
 
 
 def _position(p: n.PositionDecl) -> IRDict:
+    # A named-member domain (the board-minted `cell`) carries its members; an
+    # integer domain keeps its `lo`/`hi` form byte-for-byte (the board's IR
+    # representation is exactly this minted domain — decisions.md "Boards and
+    # cells").
+    if p.members_named is not None:
+        return {"kind": "position", "name": p.name, "members": list(p.members_named)}
     return {"kind": "position", "name": p.name, "lo": p.lo, "hi": p.hi}
 
 

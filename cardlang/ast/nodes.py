@@ -703,16 +703,44 @@ class PositionDecl:
     domain `<name> : <lo>..<hi>` (decisions.md "Position domains and
     positional zones"). Members are the inclusive integer range; the name is
     usable as a zone-family index and a move-parameter domain, and nowhere
-    else (resolve walls the rest of the role/type surface)."""
+    else (resolve walls the rest of the role/type surface).
+
+    A `board:` clause mints a NAMED-member domain by setting `members_named`
+    (decisions.md "Boards and cells"): the members are then the given cell
+    names (strings) rather than an integer range, and `lo`/`hi` are unread.
+    Resolve is the only site that constructs the named form (from a validated
+    `board_entry`); the `positions { }` grammar produces the integer form
+    exclusively."""
 
     name: str
     lo: int
     hi: int
+    members_named: tuple[str, ...] | None = None
     span: Span | None = None
 
     @property
-    def members(self) -> tuple[int, ...]:
+    def members(self) -> tuple[int, ...] | tuple[str, ...]:
+        if self.members_named is not None:
+            return self.members_named
         return tuple(range(self.lo, self.hi + 1))
+
+
+@dataclass(frozen=True, slots=True)
+class BoardDecl:
+    """The `board: <family>(<args>)` clause (decisions.md "Boards and cells").
+
+    Records only the selection — the family name and its integer arguments.
+    Resolve validates them against `BOARD_FAMILIES` (via `board_entry`) and
+    mints the `cell` position domain, injecting a named-member `PositionDecl`
+    into `Game.positions`; this node is retained on the resolved `Game` so the
+    runtime can rebuild the `BoardEntry` (`rs.board`) for the cell/line query
+    verbs. Not emitted to the IR: the board's IR representation is its minted
+    `cell` position domain (the members), as `span`/`procedures` are likewise
+    non-serialized."""
+
+    family: str
+    args: tuple[int, ...]
+    span: Span | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1035,7 +1063,14 @@ class Game:
     # Declared position domains (`positions { column : 1..7 }`) — per-game
     # integer index/parameter domains (decisions.md "Position domains and
     # positional zones"). Empty for every game with no positional layout.
+    # Resolve APPENDS the board-minted `cell` domain (a named-member
+    # `PositionDecl`) here, so a post-resolve game's positions are the union of
+    # the declared integer domains and the board's cells.
     positions: tuple[PositionDecl, ...] = ()
+    # The `board:` clause (decisions.md "Boards and cells"), or None. Retained
+    # through resolve for `rs.board`; the minted `cell` domain lives in
+    # `positions`, so this field is not itself emitted to the IR.
+    board: BoardDecl | None = None
     max_length: int | None = None
     state: StateBlock | None = None
     phases: tuple[Phase, ...] = ()
@@ -1080,6 +1115,7 @@ Node = (
     | StateBlock
     | StateDecl
     | PositionDecl
+    | BoardDecl
     | Phase
     | PhaseQualifier
     | BeforeEach

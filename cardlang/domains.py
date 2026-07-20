@@ -100,7 +100,7 @@ class DomainSources:
     # enumeration and the static action space cannot diverge. A declared
     # name can never collide with a built-in spelling (resolve rejects the
     # collision), so the lookup order below is unambiguous.
-    positions: Mapping[str, Sequence[int]] = field(default_factory=dict)
+    positions: Mapping[str, Sequence[int] | Sequence[str]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

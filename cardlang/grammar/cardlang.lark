@@ -29,6 +29,7 @@ game: "game" NAME "{" game_item* "}"
           | direction
           | cards
           | pieces
+          | board
           | ranking
           | trump
           | partnerships
@@ -86,6 +87,13 @@ team_spec: "[" INT ("," INT)* "]"
 // domain must be static, like the `choose` ceiling.
 positions: "positions" "{" position_decl* "}"
 position_decl: NAME ":" INT ".." INT
+
+// A board selects a family from the BOARDS registry (cardlang/stdlib/boards.py)
+// with integer arguments (decisions.md "Boards and cells"): `board: grid(3, 3)`.
+// It mints one named-member position domain (`cell`) whose members are the
+// board's cells. Unknown family / wrong arity / out-of-bounds args are resolve
+// diagnostics (via `board_entry`); `board:` requires `pieces:`.
+board: "board" ":" NAME ["(" INT ("," INT)* ")"]
 
 zones: "zones" "{" zone_decl* "}"
 zone_decl: NAME [index] ":" type_ref

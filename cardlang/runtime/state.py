@@ -11,11 +11,14 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass, field, replace
-from typing import Any, Callable, Iterable
+from typing import TYPE_CHECKING, Any, Callable, Iterable
 
 from cardlang.ast import nodes as n
 from cardlang.domains import ZONE_INDEX_ROLES, DomainSources, role_static_members
 from cardlang.runtime.values import Card, Player, Seating
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from cardlang.stdlib.boards import BoardEntry
 
 
 class IllegalMove(Exception):
@@ -117,10 +120,10 @@ class ZoneStore:
         decls: Iterable[n.ZoneDecl],
         players: tuple[Player, ...],
         teams: tuple[int, ...] = (),
-        positions: "dict[str, tuple[int, ...]] | None" = None,
+        positions: "dict[str, tuple[int, ...] | tuple[str, ...]] | None" = None,
     ) -> None:
         self.singles: dict[str, Zone] = {}
-        self.families: dict[str, dict[int, Zone]] = {}
+        self.families: dict[str, dict[int | str, Zone]] = {}
         # The declared library type and index kind per zone, so the observation
         # emitter and info-state builder can look up any zone's projection.
         self.zone_type: dict[str, str] = {}
@@ -175,7 +178,7 @@ class ZoneStore:
             )
         return self.singles[name]
 
-    def instance(self, name: str, key: int) -> Zone:
+    def instance(self, name: str, key: int | str) -> Zone:
         # The typed wall for the whole game-local-primitive class: every
         # per-game primitive (cribbage, gin, …) reads its zones by name
         # through here, and calling one from a game without those zones used
@@ -190,7 +193,7 @@ class ZoneStore:
             )
         return self.families[name][key]
 
-    def locate(self, zone: Zone) -> "tuple[str, Player | None]":
+    def locate(self, zone: Zone) -> "tuple[str, Player | str | None]":
         """The (name, instance-key) of a zone object — the reverse lookup the
         observation emitter needs when a movement holds only the Zone value."""
         for name, z in self.singles.items():
@@ -245,7 +248,11 @@ class RuntimeState:
         # "Position domains and positional zones"); set by the driver from
         # `game.positions`, read by `zone_observer_key` (unowned families)
         # and `mechanics.param_domain` (position move parameters).
-        self.position_domains: dict[str, tuple[int, ...]] = {}
+        self.position_domains: dict[str, tuple[int, ...] | tuple[str, ...]] = {}
+        # The instantiated `board:` entry (cells + lines), or None for a
+        # boardless game; the driver builds it from `game.board`. The cell/line
+        # query verbs read it (decisions.md "Boards and cells").
+        self.board: "BoardEntry | None" = None
         self.max_length: int = 0  # the game's declared non-termination backstop
         self.decisions_made: int = 0  # every chooser pick, checked against max_length
         # Content flavor ("card"/"piece") and the axis->Card-attribute map for a

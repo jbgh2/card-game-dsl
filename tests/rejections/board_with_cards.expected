@@ -1,0 +1,1 @@
+board_with_cards.cardlang:8:3: error: game 'BoardWithCards' declares `board:` but not `pieces:` — a board lays out piece positions and is only valid alongside `pieces:` (a card game with a board is rejected until a game witnesses needing both)

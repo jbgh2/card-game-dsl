@@ -58,6 +58,16 @@ class TCard:
 
 
 @dataclass(frozen=True, slots=True)
+class TCell:
+    """A board cell — one member of the named-member position domain a `board:`
+    clause mints (decisions.md "Boards and cells"). Distinct from ``TInteger``
+    so a named-member domain's parameters, binders and subscript keys reject
+    integer operands (`square[7]`, `at is 3`) and vice versa, while integer
+    position domains keep ``TInteger`` exactly. Its runtime representation is
+    the cell name string (`"a1"`)."""
+
+
+@dataclass(frozen=True, slots=True)
 class TEnum:
     """A deck/stdlib value enum: ``Suit``, ``Rank``, ``Direction``."""
 
@@ -146,6 +156,7 @@ Type: TypeAlias = (
     | TPlayer
     | TTeam
     | TCard
+    | TCell
     | TEnum
     | TOptional
     | TCollection

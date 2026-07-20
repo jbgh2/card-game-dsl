@@ -76,6 +76,7 @@ _PARSE_LEVEL_CASES = frozenset(
         "missing_players_and_cards",
         "duplicate_game_clause",
         "duplicate_pieces_clause",
+        "board_duplicate_clause",
         "pieces_and_cards_together",
         "no_game_block",
         "two_game_blocks",

@@ -343,6 +343,22 @@ class _Builder(Transformer[Token, n.Game]):
     def positions(self, meta: Meta, c: list[n.PositionDecl]) -> _Positions:
         return _Positions(tuple(c), span=self._span(meta))
 
+    # --- board ---
+
+    def board(self, meta: Meta, c: list[Token]) -> n.BoardDecl:
+        # `c[0]` is the family NAME; the parenthesized INT args (if any)
+        # follow (the "(", ",", ")" literals are filtered by lark). An omitted
+        # arg list arrives as one None placeholder (`maybe_placeholders`) --
+        # filtered here, so `board: grid` reaches resolve as zero args and
+        # `board_entry`'s arity diagnostic, not an int(None) crash. Family/arg
+        # validity is a resolve diagnostic via `board_entry` -- parse only
+        # shapes the declaration.
+        return n.BoardDecl(
+            family=str(c[0]),
+            args=tuple(int(x) for x in c[1:] if x is not None),
+            span=self._span(meta),
+        )
+
     # --- state ---
 
     def optional_type(self, meta: Meta, c: list[Token]) -> _TypeName:
@@ -1051,6 +1067,7 @@ class _Builder(Transformer[Token, n.Game]):
         partnerships: tuple[tuple[int, ...], ...] = ()
         max_length: int | None = None
         positions: tuple[n.PositionDecl, ...] = ()
+        board: n.BoardDecl | None = None
         zones: tuple[n.ZoneDecl, ...] = ()
         state: n.StateBlock | None = None
         phases: list[n.Phase] = []
@@ -1114,6 +1131,9 @@ class _Builder(Transformer[Token, n.Game]):
             elif isinstance(item, _Positions):
                 once("positions { }", item.span, merge_hint=True)
                 positions = item.positions
+            elif isinstance(item, n.BoardDecl):
+                once("board:", item.span)
+                board = item
             elif isinstance(item, _Zones):
                 once("zones { }", item.span, merge_hint=True)
                 zones = item.zones
@@ -1184,6 +1204,7 @@ class _Builder(Transformer[Token, n.Game]):
             trump=trump,
             partnerships=partnerships,
             positions=positions,
+            board=board,
             max_length=max_length,
             state=state,
             phases=tuple(phases),

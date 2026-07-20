@@ -61,6 +61,8 @@ from cardlang.stdlib.functions import (
     STDLIB_VALUE_NAMES,
 )
 from cardlang.runtime.values import content_kind_clause, content_noun
+from cardlang.board_domains import BOARD_DOMAIN
+from cardlang.stdlib.boards import board_entry
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
 from cardlang.stdlib.rules import library_rules
 from cardlang.stdlib.values import DIRECTION_VALUES, deck_ranks, deck_suits, enum_values
@@ -161,6 +163,13 @@ def resolve(game: n.Game) -> n.Game:
     _check_reserved_binders(game, bag)
     _resolve_max_length(game, bag)
     position_names = _resolve_positions(game, bag)
+    # The board mints its `cell` domain into `game.positions` (after the
+    # declared positions are validated, so the collision wall reads the
+    # pre-injection names); from here `game.positions` is the union and
+    # `position_names` names both kinds for the zone-index and move-parameter
+    # checks below.
+    game = _resolve_board(game, bag, position_names)
+    position_names = frozenset(p.name for p in game.positions)
     for zone in game.zones:
         _resolve_zone(zone, bag, position_names)
 
@@ -308,7 +317,7 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
             | n.DefineDef() | n.FunctionDef() | n.ProcedureDef()
             | n.VariantCase() | n.StructField() | n.DerivedField()
             | n.ZoneDecl() | n.TypeRef() | n.TypeArg()
-            | n.StateBlock() | n.StateDecl() | n.PositionDecl()
+            | n.StateBlock() | n.StateDecl() | n.PositionDecl() | n.BoardDecl()
             | n.Phase() | n.PhaseQualifier() | n.BeforeEach() | n.AfterEach()
             | n.ActiveRules() | n.LegalMoves() | n.TransitionTo() | n.MoveEvent()
         ):
@@ -761,6 +770,18 @@ def _resolve_max_length(game: n.Game, bag: DiagnosticBag) -> None:
 _POSITION_MEMBER_CEILING = 256
 
 
+def _reserved_domain_names() -> frozenset[str]:
+    """Built-in spellings a per-game position domain (declared or board-minted)
+    may not reuse: the domain ids (`player`, `suit`, …), their declared-type
+    forms (`Player`, `Suit`, …, via KNOWN_TYPE_NAMES), and the value-position
+    enum/type names. The pin test (tests/test_positions.py) reconciles this
+    union against the two source registries so neither can grow past it
+    silently. Shared by `_resolve_positions` (declared names) and
+    `_resolve_board` (the minted `cell` name), so the two definition sites
+    reject against one set."""
+    return _ITERATION_ROLES | SIMULTANEOUS_ROLES | ZONE_INDEX_ROLES | KNOWN_TYPE_NAMES
+
+
 def _resolve_positions(game: n.Game, bag: DiagnosticBag) -> frozenset[str]:
     """Wall the `positions { }` block (decisions.md "Position domains and
     positional zones"): static, non-empty, bounded ranges, and names that can
@@ -771,12 +792,7 @@ def _resolve_positions(game: n.Game, bag: DiagnosticBag) -> frozenset[str]:
     Duplicates are rejected by `_check_duplicate_names`, with every other
     declaration namespace. Returns the declared names for the consumers
     (zone indexes, move parameters, the bare-reference wall)."""
-    # Built-in spellings a position may not reuse: the domain ids (`player`,
-    # `suit`, …), their declared-type forms (`Player`, `Suit`, …, via
-    # KNOWN_TYPE_NAMES), and the value-position enum/type names. The pin
-    # test (tests/test_positions.py) reconciles this union against the two
-    # source registries so neither can grow past it silently.
-    taken = _ITERATION_ROLES | SIMULTANEOUS_ROLES | ZONE_INDEX_ROLES | KNOWN_TYPE_NAMES
+    taken = _reserved_domain_names()
     for p in game.positions:
         if p.lo > p.hi:
             bag.error(
@@ -800,6 +816,86 @@ def _resolve_positions(game: n.Game, bag: DiagnosticBag) -> frozenset[str]:
                 p.span,
             )
     return frozenset(p.name for p in game.positions)
+
+
+def _resolve_board(
+    game: n.Game, bag: DiagnosticBag, declared_positions: frozenset[str]
+) -> n.Game:
+    """Wall the `board:` clause and mint its `cell` position domain
+    (decisions.md "Boards and cells"). A board mints one named-member domain
+    (`cell`) whose members are the board's cells; it rides the `positions { }`
+    substrate, so the minted domain is injected into `game.positions` as a
+    named-member `PositionDecl` and thereafter flows through every surface the
+    integer position domains flow through (zone index, move parameter, unowned
+    projection, action space, IR).
+
+    Returns the game unchanged when there is no board, or with the minted
+    domain appended; every rejection path returns without minting (the game is
+    left boardless downstream, so a single mistake yields a single
+    diagnostic)."""
+    if game.board is None:
+        return game
+    # Idempotency: a re-resolve of an already-resolved game sees the MINTED
+    # `cell` domain (a named-member PositionDecl, `members_named` set) and must
+    # neither re-mint it nor misread it as a user collision. A user-DECLARED
+    # `cell` (integer range, `members_named is None`) is not this case — it is
+    # the collision the wall below reports.
+    if any(
+        p.name == BOARD_DOMAIN and p.members_named is not None for p in game.positions
+    ):
+        return game
+    # `board:` requires `pieces:`. Parse enforces cards XOR pieces, so a
+    # non-piece flavor here is exactly a card game — the `board: + cards:`
+    # rejection and the `board: without pieces:` one are the same wall (no game
+    # has witnessed needing a board on a card deck).
+    if game.content_flavor != "piece":
+        bag.error(
+            f"game '{game.name}' declares `board:` but not `pieces:` — a board "
+            f"lays out piece positions and is only valid alongside `pieces:` "
+            f"(a card game with a board is rejected until a game witnesses "
+            f"needing both)",
+            game.board.span,
+        )
+        return game
+    # Collision: the minted `cell` may shadow neither a declared `positions { }`
+    # name (name both sites) nor a built-in spelling (the standing wall, reused
+    # so a future built-in named `cell` cannot land silently). `declared_positions`
+    # names only the user's declared domains (this runs right after
+    # `_resolve_positions`, before the mint below appends to `game.positions`).
+    if BOARD_DOMAIN in declared_positions:
+        bag.error(
+            f"the board mints a position domain named '{BOARD_DOMAIN}', which "
+            f"collides with the declared `positions {{ {BOARD_DOMAIN} : ... }}` "
+            f"— rename the declared domain (a board already provides '{BOARD_DOMAIN}')",
+            game.board.span,
+        )
+        return game
+    if BOARD_DOMAIN in _reserved_domain_names():
+        bag.error(
+            f"the board mints a position domain named '{BOARD_DOMAIN}', which "
+            f"collides with a built-in domain or type name",
+            game.board.span,
+        )
+        return game
+    # Family/args validity is the registry's to judge: `board_entry` raises a
+    # ValueError naming the violated bound (unknown family, wrong arity,
+    # out-of-bounds arg), which becomes a diagnostic at the clause span.
+    try:
+        entry = board_entry(game.board.family, game.board.args)
+    except ValueError as exc:
+        bag.error(str(exc), game.board.span)
+        return game
+    # `lo`/`hi` are unread for a named-member domain (`.members` returns
+    # `members_named`); they carry the member count so the struct stays
+    # internally consistent if ever inspected.
+    minted = n.PositionDecl(
+        name=BOARD_DOMAIN,
+        lo=0,
+        hi=len(entry.cells) - 1,
+        members_named=entry.cells,
+        span=game.board.span,
+    )
+    return replace(game, positions=game.positions + (minted,))
 
 
 def _resolve_zone(
@@ -2295,6 +2391,32 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"unknown type '{nd.type_name}' in struct field '{nd.name}'",
                     nd.span,
                 )
+            case n.FunctionDef():
+                # The declaration-type-slot wall, same class as the StateDecl/
+                # StructField arms (unknown names would silently type TAny and
+                # skip every operand wall — for a position-domain name like
+                # `cell` that is a soundness hole, since the domain's real
+                # member type rejects arithmetic TAny permits). A function
+                # parameter types via scalars/enums/structs only; position
+                # domains are zone-index and move-parameter surface
+                # (ast/nodes.py PositionDecl).
+                for p in nd.params:
+                    base = p.type_name.rstrip("?")
+                    if base not in KNOWN_TYPE_NAMES and base not in defined_types:
+                        bag.error(
+                            f"unknown type '{p.type_name}' in parameter "
+                            f"'{p.name}' of function '{nd.name}'",
+                            nd.span,
+                        )
+            case n.VariantCase():
+                # Same wall for outcome/variant payload types (`Won(cell)`),
+                # the other unchecked declaration-type slot.
+                for t in nd.payload_types:
+                    if t.rstrip("?") not in KNOWN_TYPE_NAMES and t.rstrip("?") not in defined_types:
+                        bag.error(
+                            f"unknown type '{t}' in outcome case '{nd.tag}'",
+                            nd.span,
+                        )
             case n.Produces() if (
                 nd.define not in defined_defines and nd.define not in outcome_phases
             ):

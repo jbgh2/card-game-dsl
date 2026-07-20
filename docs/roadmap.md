@@ -240,6 +240,16 @@ Things we have noted but consciously not designed yet:
     per the canonical zone-collection rule but has no corpus witness
     (single-deal games never gather); sampled, stated explicitly in
     decisions.md rather than assumed.
+  - **Cell CONSTANTS are not expression surface.** A `board:` clause mints
+    a named-member position domain (`cell`, string members like `a1`), used
+    as a zone index and a move parameter; but a bare `a1` in an expression
+    is an unknown-name diagnostic, not a cell literal (integer position
+    domains have no such gap — an integer literal already denotes an integer
+    member). No rung-1 game names a specific cell (parameters and the
+    cell/line quantifiers cover placement and win tests); the witness is a
+    game whose setup or rules name individual cells (breakthrough). Until
+    then it is grammatically un-namable, walled by the name resolver, not
+    accepted-and-dropped (tests/test_board_clause.py names this residual).
 
 - **Piece-flavored games — content vocabulary lands; the rule system is
   deferred.** `pieces:` selects a piece-flavored component set (`cardlang/
