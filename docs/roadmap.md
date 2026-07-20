@@ -67,6 +67,23 @@ Things we have noted but consciously not designed yet:
   than returning a stale one from a different form. The design seam is
   [open-questions/round-state-in-information-states.md](open-questions/round-state-in-information-states.md).
 
+- **Family libraries — unchecked residuals in the `requires` contract.** The
+  contract is checked to be sufficient for what a library body READS: every free
+  name and every call is classified against the library alone, so a body cannot
+  reach past `requires` into the importing game (`resolve._check_library_
+  encapsulation`, ledger `tests/test_family_libraries.py`). One reference kind
+  is outside that: a DEFINITION name written into a fixed slot as a bare string
+  — `constrains: <move_type>`, `run <procedure>()`, `produces <define>`,
+  `offer [<move_types>]`. Those are not classified against a namespace, so there
+  is no registry to derive a grid axis from, and a hand-listed axis would be
+  complete only by luck. The residual is bounded on one side: a slot naming a
+  definition that exists NOWHERE is already rejected, so what is unchecked is
+  the narrower case of a library naming a definition only the importing game
+  provides. The fix is a reference-slot registry — the one table saying "this
+  field holds a name drawn from that namespace" — which several passes would
+  share; build it when a second library makes the coupling real, not for the
+  one-library corpus.
+
 - **Packaging the corpus for distribution.** The whole project runs from a
   checkout: every `.cardlang` is loaded from `docs/games/` by repo-relative path
   (tests, CLI, and the OpenSpiel adapter's `hearts_game()` loader), and the

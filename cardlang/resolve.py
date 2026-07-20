@@ -204,6 +204,7 @@ def _apply_uses(game: n.Game, bag: DiagnosticBag) -> n.Game:
 
     _check_library_collisions(game, libraries, bag)
     for use, library in libraries:
+        _check_library_encapsulation(library, bag)
         _check_requires(game, use, library, bag)
 
     # Imported definitions come FIRST, in `uses` order, then the game's own: the
@@ -284,6 +285,116 @@ def _check_library_collisions(
                     f"but run this one instead)",
                     fn.span,
                 )
+
+
+@dataclass(frozen=True)
+class _LibraryReach:
+    """What a library's definitions reach for, classified against the library's
+    OWN namespaces — the input to both directions of the `requires` contract:
+    nothing may be reached that the contract does not cover (`unresolved`,
+    `unknown_calls`), and nothing may be in the contract that is never reached
+    (`state_reads`, which the tier's ledger test reads)."""
+
+    unresolved: tuple[n.NameRef, ...]
+    unknown_calls: tuple[n.Call, ...]
+    state_reads: frozenset[str]
+
+
+def _library_reach(library: n.Library) -> _LibraryReach:
+    """Classify every definition in `library` against the library alone.
+
+    The namespaces are what `_categories` would build for a game whose entire
+    state is the contract and which has nothing else — deliberately narrower
+    than any real game's:
+
+    - `zones` is empty because a library holds no zones by construction
+      (decisions.md "Family libraries": a move touching a game-specific zone
+      stays game-local, which is why the contract is state-only);
+    - `ranks`/`suits`/`enums` are what the unknown-deck branch of `_categories`
+      leaves, because a library is deck-agnostic. `hearts` means nothing until
+      an including game names a deck, and Kuhn's has none.
+
+    `_Categories` is frozen with every field required, so a namespace added to
+    it is a mypy error here rather than a silently permissive hole."""
+    cats = _Categories(
+        locals=frozenset(),
+        state_vars=frozenset(r.name for r in library.requires),
+        zones=frozenset(),
+        enums=DIRECTION_VALUES,
+        functions=STDLIB_VALUE_NAMES,
+        ranks=frozenset(),
+        suits=frozenset(),
+    )
+    # `_rewrite` both classifies and reports, and its report ("unresolved name
+    # 'x'") is the GAME's currency — the wrong one here — so the bag is thrown
+    # away and the classified TREE is read instead. Reading `ref_kind` is the
+    # sanctioned use of what this pass stamps (see the module Contract), not a
+    # re-derivation: which names a body binds, and where, stays the property of
+    # `_introduced_binders` and `_BINDER_SCOPE_FIELDS` alone.
+    discarded = DiagnosticBag()
+    classified: list[object] = []
+    for field, _ in _LIBRARY_DEF_KINDS:
+        value = getattr(library, field)
+        if field == "types":
+            # `_rewrite` returns a `TypeDef` untouched — a derived body reads
+            # sibling fields by bare name and needs them scoped in. Split
+            # exactly as `_classify_names` splits it, for the same reason.
+            classified.extend(_classify_type_derived(t, cats, discarded) for t in value)
+        else:
+            classified.append(_rewrite_value(value, cats, discarded))
+
+    known_calls = {f.name for f in library.functions} | set(STDLIB_CALL_FUNCS)
+    unresolved: list[n.NameRef] = []
+    unknown_calls: list[n.Call] = []
+    state_reads: set[str] = set()
+    for node in _child_nodes(tuple(classified)):
+        if isinstance(node, n.NameRef):
+            if node.ref_kind is None:
+                unresolved.append(node)
+            elif node.ref_kind == "state_var":
+                state_reads.add(node.name)
+        elif isinstance(node, n.Call) and node.func not in known_calls:
+            unknown_calls.append(node)
+    return _LibraryReach(
+        unresolved=tuple(unresolved),
+        unknown_calls=tuple(unknown_calls),
+        state_reads=frozenset(state_reads),
+    )
+
+
+def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None:
+    """A library's definitions may reach only its `requires` contract, its own
+    definitions, the stdlib, and the pronouns and binders any body has anyway.
+
+    This is what makes the contract SUFFICIENT rather than advisory, and it is a
+    property of the library alone — so it is checked against the library alone,
+    never against the game that happens to be importing it. Without it a body
+    reading past its contract resolves against a game that happens to declare
+    the extra name and fails against a game meeting the contract in full, with
+    an unresolved-name error pointing inside library text the game's author
+    never wrote. That is the exact currency failure `_check_requires` exists to
+    prevent, arriving through the back door.
+
+    Reported in the LIBRARY's currency: the span is in the library file, because
+    the library author is the only one who can fix it. The importing game's one
+    available "fix" — declaring the extra name — is the accident that hid the
+    leak in the first place."""
+    reach = _library_reach(library)
+    for ref in reach.unresolved:
+        bag.error(
+            f"library '{library.name}' reads '{ref.name}', which is neither in "
+            f"its `requires` contract nor defined in the library — add it to "
+            f"`requires {{ }}` if the including game must declare it, or move "
+            f"the definition that needs it into the game",
+            ref.span,
+        )
+    for call in reach.unknown_calls:
+        bag.error(
+            f"library '{library.name}' calls '{call.func}', which is neither "
+            f"defined in the library nor a stdlib function — a library's "
+            f"definitions may not reach into the game that imports them",
+            call.span,
+        )
 
 
 def _check_requires(

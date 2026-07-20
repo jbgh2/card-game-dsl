@@ -9,25 +9,35 @@ text the author did not write.
 
 Completeness ledger
 -------------------
-property: a family-library file parses as the items its author wrote, and every
-          way a `uses` line can be wrong is rejected, loudly, at resolve.
+property: a family-library file parses as the items its author wrote; its
+          `requires` contract is SUFFICIENT, so a game meeting it in full is
+          enough; and every way a `uses` line can be wrong is rejected, loudly,
+          at resolve.
 domain:   two layers. At PARSE, the library file's clause skeleton: the
           `?library_item` alternatives times {well-formed, truncated at their
           last required slot}, crossed with every alternative as the NEIGHBOUR
           written below — the cell that matters being a truncated item that
-          completes itself from its neighbour and drops it. At RESOLVE, the
-          import tier's error space, which is the product of two closed sets —
-          the failure modes of a `uses` line (unknown library, repeated import)
-          and, for each definition kind in `resolve._LIBRARY_DEF_KINDS`, the
-          three-way collision matrix (game/library, library/library,
-          library/stdlib) — plus the three ways a `requires` entry can go unmet
-          (absent, wrong type, wrong index).
+          completes itself from its neighbour and drops it. At RESOLVE, three
+          products. (a) The library's ENCAPSULATION: each definition kind of
+          `resolve._LIBRARY_DEF_KINDS` as the site a leak is written in, times
+          the reference kinds a body can leak through (a state name, a function
+          call). (b) The `requires` contract per name: how many declarations the
+          game holds {0, 1, 2} times the shape of the last one {matching, and
+          one row per field `_check_requires` compares}. (c) The import tier's
+          error space — the failure modes of a `uses` line (unknown library,
+          repeated import) times, for each definition kind, the three-way
+          collision matrix (game/library, library/library, library/stdlib).
 registry: the ITEM axis from the grammar's `?library_item`, scraped by
           `library_item_alternatives` (shared with tests/test_game_clause_walls,
           which owns the other half of the same absorption class and pins the
           `STRUCT_TYPE_NAME` terminal against both clause registries); the
           DEFINITION-KIND axis from `resolve._LIBRARY_DEF_KINDS`, pinned to
-          `n.Library`'s own fields by `test_def_kinds_covers_every_library_field`;
+          `n.Library`'s own fields by `test_def_kinds_covers_every_library_field`
+          and reused as the leak-site axis (`test_leak_sites_cover_every_
+          definition_kind`); the SHAPE axis from `n.RequireDecl`'s own fields
+          minus its key and span — the field set `_check_requires` compares —
+          pinned by `test_shape_axis_covers_every_compared_field`, which is how
+          the `optional` row came to exist;
           the COLLISION-SOURCE axis from the three namespaces a library name can
           land in — the game (`n.Game`'s same-named fields), another library, and
           the stdlib registries (`library_rules()`, `STDLIB_CALL_FUNCS`,
@@ -49,7 +59,22 @@ covered:  the parse grid — item x neighbour, all 49 truncated cells executed b
           `test_the_library_builder_files_every_item_kind` (7 cells, each item
           filed in its own `n.Library` field and no other) with
           `test_an_unhandled_library_item_is_loud` as the pin under it.
-          The resolve grid — definition kind x collision source, all 18 cells
+          The encapsulation grid — leak site x reference kind, all 12 cells
+          executed by `test_a_library_may_not_reach_past_its_contract` and all
+          commanded REJECT, each against a game that satisfies the contract AND
+          happens to provide what the leak reaches for (without that second
+          half the cells would be ordinary unresolved names and would prove
+          nothing about the contract), each paired with a control twin in
+          `test_the_same_site_reaching_only_its_contract_is_accepted` differing
+          by one name. All 12 were open before the wall; the red-before-green
+          transition is in this branch's history.
+          The `requires` grid — multiplicity x shape, 9 cells executed by
+          `test_a_requirement_is_answered_by_exactly_one_matching_declaration`,
+          accepting in exactly one; the multiplicity-2 row was open and is the
+          reason the grid exists. The three long-standing single-axis probes
+          beside it stay, asserting the MESSAGES the grid only asserts the
+          verdict of.
+          The collision grid — definition kind x collision source, all 18 cells
           executed: `test_game_local_definition_may_not_shadow_a_library_one`
           (6), `test_two_libraries_may_not_define_the_same_name` (6), and
           `test_library_definition_against_the_stdlib_namespace` (6, of which
@@ -59,21 +84,33 @@ covered:  the parse grid — item x neighbour, all 49 truncated cells executed b
           Born-green cells carry their reddening edit as `red under:` in the
           test docstring; the move-type accept was demonstrated red by extending
           `_check_library_collisions`'s stdlib leg to move_types.
-sampled:  the `uses`-line failure modes (unknown library, repeated import) and
-          the three `requires` mismatch modes are one probe each, not a crossed
-          product — each is a single-axis error with no second axis to cross.
+sampled:  the `uses`-line failure modes (unknown library, repeated import) are
+          one probe each — a single-axis error with no second axis to cross.
           The truncation axis takes ONE truncation per item (its last required
           slot); an item can also be cut mid-slot, but every such cut is a
           strict prefix of this one and cannot absorb more.
-residual: none of the grid. The stdlib row's three accepting cells are decisions,
-          not gaps: stdlib move types and a game's `move_type` definitions are
-          disjoint consult paths that never share a namespace
+residual: none of the collision grid. The stdlib row's three accepting cells are
+          decisions, not gaps: stdlib move types and a game's `move_type`
+          definitions are disjoint consult paths that never share a namespace
           (`cardlang/stdlib/moves.py`), and types/defines/procedures have no
           stdlib registry at all. `test_the_accepting_move_type_cell_has_real_
           corpus_dependents` keeps the first decision honest by DERIVING its
           dependent games from the corpus — the hand-written version of that
           list named four games of which three were wrong, and named Stud, which
           the same change that wrote it had just made wrong.
+
+          One residual outside it, recorded in docs/roadmap.md, "Family
+          libraries — unchecked residuals in the `requires` contract": the
+          encapsulation grid's reference axis covers what a body READS — free
+          names and calls, the two things classified against a namespace. It
+          does not cover a DEFINITION name written into a fixed slot as a bare
+          string: `constrains: <move_type>`, `run <procedure>()`,
+          `produces <define>`, `offer [<move_types>]`. Those have no namespace
+          registry to derive an axis from, so a hand-listed one would be
+          complete only by luck. The wall bounding the residual is that the
+          fully-undefined case IS rejected — resolve refuses a `constrains:`
+          naming no move type anywhere — so what is unchecked is exactly the
+          narrower case of a name only the importing game defines.
 
 One deliberate NON-error, recorded here so a later reader does not mistake its
 absence from the probes for an omission: an imported definition a game never
@@ -99,7 +136,7 @@ from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticError
 from cardlang.libraries import library_names, load_library
 from cardlang.parse import _Builder, _transform, parse_library, parse_text, parse_to_tree
-from cardlang.resolve import _LIBRARY_DEF_KINDS, resolve
+from cardlang.resolve import _LIBRARY_DEF_KINDS, _library_reach, resolve
 from cardlang.stdlib.functions import STDLIB_CALL_FUNCS
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
 from cardlang.stdlib.rules import library_rules
@@ -819,12 +856,7 @@ _LEAK_HOST = dict(
 
 def _leak_cells() -> list[object]:
     return [
-        pytest.param(
-            field,
-            kind,
-            id=f"{field}-{kind}",
-            marks=[pytest.mark.xfail(strict=True)],
-        )
+        pytest.param(field, kind, id=f"{field}-{kind}")
         for field, _ in _LIBRARY_DEF_KINDS
         for kind in sorted(_LEAK_READS)
     ]
@@ -886,22 +918,40 @@ def _patch_libraries(
 # --- the real corpus library --------------------------------------------------
 
 
-def test_poker_betting_declares_only_state_it_uses() -> None:
-    """A `requires` entry nothing in the library reads is dead contract: it would
-    force every consumer to declare state for no reason. Derived from the library
-    text rather than a hand-listed set."""
-    library = load_library("poker_betting")
-    text = (
-        "docs/libraries/poker_betting.cardlang"
-    )
-    from pathlib import Path
+@pytest.mark.parametrize("name", sorted(library_names()))
+def test_every_library_contracts_for_exactly_what_it_reaches(name: str) -> None:
+    """Both directions of the contract, for every library in docs/libraries/ —
+    the registry, not the one library that exists today.
 
-    body = Path(text).read_text().split("requires {", 1)[1].split("}", 1)[1]
-    for require in library.requires:
-        assert require.name in body, (
-            f"`requires` declares {require.name!r}, which no definition in "
-            f"{text} reads — drop it from the contract"
-        )
+    Sufficiency (nothing reached past the contract) is what the wall enforces,
+    asserted here as the acceptance half: the corpus library must actually
+    satisfy the wall the grid above proves fires. Minimality (nothing in the
+    contract that is never reached) is the other direction — a `requires` entry
+    no definition reads is dead contract, forcing every consumer to declare
+    state for no reason.
+
+    Both read the classified `state_reads` set rather than the library's text.
+    The text version of the minimality half was a substring search over
+    comment-inclusive source, which a bogus entry `street` passed because the
+    word appeared in a comment, and `rais` passed as a substring of `raises`.
+
+    red under: add `unused_thing : Integer` to
+    docs/libraries/poker_betting.cardlang's `requires` block."""
+    library = load_library(name)
+    reach = _library_reach(library)
+    assert not reach.unresolved, (
+        f"library '{name}' reads "
+        f"{sorted({r.name for r in reach.unresolved})} past its contract"
+    )
+    assert not reach.unknown_calls, (
+        f"library '{name}' calls "
+        f"{sorted({c.func for c in reach.unknown_calls})} past its contract"
+    )
+    dead = {r.name for r in library.requires} - reach.state_reads
+    assert not dead, (
+        f"library '{name}' requires {sorted(dead)}, which no definition in it "
+        f"reads — drop them from the contract"
+    )
 
 
 def test_poker_betting_is_registered() -> None:
