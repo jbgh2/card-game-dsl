@@ -3238,6 +3238,26 @@ another library's provision, which would couple two libraries through a name
 neither mentions the other in. Two libraries requiring the same name is fine —
 one game declaration answers both contracts.
 
+**A library may not inject a name the game already uses for anything — in any
+namespace, not just the same kind.** The collision walls above catch a library
+definition landing on a game definition of the SAME kind (function over
+function) and a provided name landing on the game's own state. The remaining
+cases are the silent ones: a provided name, or a library definition, coinciding
+with the game's zone, a suit or rank or direction value of its deck, a position
+domain, or a definition of a DIFFERENT kind. Each is a trap because a `uses`
+import adds names without overriding and the game's author never opens the
+library file — so a bare `hearts` the author writes meaning the suit resolves to
+the library's variable instead, or a `pile` they declared as a zone is shadowed
+by a provided one they cannot see. This is where the tier parts company with the
+base language, which lets a GAME reuse one name across its own namespaces: there
+the author wrote and can see both declarations, and the precedence that resolves
+the reference is theirs to know. The refusal is deliberately conservative — a
+coincidence is refused even where precedence would make it harmless — because the
+rule a designer must hold is "a library may not bring in a name you already use",
+not a table of safe pairs. It is reported naming the library, since that is the
+half the author cannot see; the game-level face of the same clash is left to the
+author and recorded in [roadmap.md](roadmap.md).
+
 **What a library holds, and what stays game-local.** A library holds definitions
 and the state its definitions own — but no zones and no phases — because that is
 as far as the corpus has forced it, not because a library is a lesser kind of

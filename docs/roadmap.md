@@ -143,6 +143,37 @@ Things we have noted but consciously not designed yet:
   several passes would share. Build it before a second family library lands; the
   one-library corpus is what makes it currently harmless.
 
+- **Library-vs-library cross-kind name clashes are not walled.**
+  `_check_library_shadows_game` refuses a library injecting a name the GAME
+  already uses, and `_check_library_collisions` / `_check_state_claims` refuse
+  two libraries colliding on the SAME kind (both define `foo`, both provide
+  `foo`). What neither covers is two libraries whose names clash across KINDS —
+  library A provides state `foo` while library B defines `function foo` — which
+  resolves today with no diagnostic. It is unreachable in the current corpus (no
+  game `uses` two libraries; there is only one), which is why it is recorded
+  rather than walled. The honest fix is not a third bolt-on comparison but the
+  shared name registry the `requires`-contract residual above already wants:
+  fold every library's injected names into one pool and check that pool against
+  itself and the game in a single sweep. Build it when a second library lands —
+  the same event that first makes this reachable.
+
+- **A game may still reuse ONE name across its OWN namespaces.** The base
+  language accepts `state { pile }` alongside `zones { pile }`, a state variable
+  spelled like a suit (`state { hearts }`), or a function named after a rank —
+  `_classify`'s precedence silently resolves the bare reference (state variable
+  wins over zone, which wins over deck value, which wins over function), so the
+  loser is unreachable by that spelling with no diagnostic. This is deliberately
+  NOT walled: the author wrote both declarations and can see both, which is the
+  ordinary block-shadowing every language allows, and a game-level uniqueness
+  rule would be a much larger, higher-risk change than the corpus has forced.
+  It is recorded here, not silent, because the LIBRARY face of the same clash IS
+  walled (`resolve._check_library_shadows_game`, decisions.md "Family libraries")
+  precisely on the visibility asymmetry — a library injects a name the game's
+  author cannot see. If a designer is ever surprised by their own cross-namespace
+  shadow, the fix is to lift the same sweep to the game's own declarations and
+  measure the corpus cost; do not conflate it with the library wall, which turns
+  on invisibility and would be wrong to apply to names the author wrote.
+
 - **The inline-vs-`run` metamorphic transform does not cross the import
   tier.** T3 (`tests/metamorphic/test_inline.py`) splices every `run` site
   with its procedure's body, reimplemented at SOURCE-TEXT level so it is

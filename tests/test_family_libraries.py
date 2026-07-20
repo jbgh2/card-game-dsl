@@ -236,7 +236,7 @@ from cardlang.resolve import (
     resolve,
 )
 from cardlang.runtime.driver import play_game
-from cardlang.stdlib.functions import STDLIB_CALL_FUNCS
+from cardlang.stdlib.functions import STDLIB_CALL_FUNCS, STDLIB_VALUE_NAMES
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
 from cardlang.stdlib.rules import library_rules
 from tests.test_game_clause_walls import library_item_alternatives
@@ -631,6 +631,245 @@ def test_two_libraries_may_not_define_the_same_name(
         _game(uses="uses lib_a\n  uses lib_b"),
         f"{noun} 'collide' is defined by both library 'lib_a' and library 'lib_b'",
     )
+
+
+# --- A library-injected name may not coincide with ANY game name -------------
+#
+# A `uses` import adds names to the game and cannot override, and the game's
+# author never opens the library file. So a name the library injects that the
+# game already uses for something ELSE is a silent trap: a bare reference the
+# author writes meaning their own zone / suit / function resolves to the
+# library's variable instead, or the other way about. The base language allows
+# a game to reuse one name across its own namespaces (the author wrote both and
+# can see both); the library case is refused precisely because one side is
+# invisible.
+#
+# Completeness ledger (decisions.md "Closed-domain completeness")
+# ---------------------------------------------------------------
+# property:   for every way a library injects a name and every way a game binds
+#             that same name, resolve refuses it, names the library, and is
+#             located. One uniform verdict across the whole matrix — there is no
+#             "harmless" coincidence, by design (see `residual`).
+# domain:     INJECT x TARGET.
+#             INJECT = the namespaces a library contributes to the game: its
+#               provided `state`, plus every kind in `_LIBRARY_DEF_KINDS`.
+#             TARGET = every namespace a bare name can resolve against, read off
+#               `resolve._classify`'s precedence chain — state / zone / deck value
+#               (suit|rank|direction) / the `function` bucket, which is
+#               `STDLIB_VALUE_NAMES`, NOT the game's own functions (those resolve
+#               as `Call`s, never bare) — plus the def kinds and position domains
+#               that own a name without going through `_classify`.
+# registry:   `_INJECT` is derived from `{"state"} | _LIBRARY_DEF_KINDS`. The
+#               TARGET buckets are pinned two ways: `_game_bindings` is checked to
+#               cover every value bucket `_categories` exposes
+#               (`test_game_bindings_covers_every_resolvable_value_bucket` — the
+#               pin that would have caught the `function`=STDLIB_VALUE_NAMES hole
+#               by construction), and the grid's `_TARGET_NAME` is checked against
+#               those buckets plus def kinds and positions
+#               (`test_target_axis_names_every_resolvable_bucket`). Neither axis is
+#               a hand-list compared to another hand-list.
+# covered:    the full INJECT x TARGET cross, executed. Three walls share it and
+#             the grid does not care which fires: same-kind def collisions are
+#             `_check_library_collisions`, provided-vs-game-state is
+#             `_check_state_claims`, and every off-diagonal cell (D3 = deck /
+#             stdlib values, D4 = zones / positions / cross-kind definitions) is
+#             `_check_library_shadows_game`. All three name the library.
+# sampled:    none — every cell is executed.
+# residual:   library-vs-LIBRARY cross-kind. The property is injected-vs-GAME;
+#             two libraries whose injected names cross KINDS (lib A provides
+#             `foo`, lib B defines `function foo`) are not compared — only
+#             same-kind lib-vs-lib is, by `_check_library_collisions` /
+#             `_check_state_claims`. It is unreachable in the one-library corpus
+#             (no game `uses` two), so it is recorded in roadmap.md against the
+#             shared name-registry deferral rather than walled now: the honest
+#             fix folds every library's injected names into one pool and is the
+#             same table the `requires`-residual wants, not a second bolt-on.
+#             The refusal that IS built is CONSERVATIVE by decision, like the
+#             `Call` ban in `test_state_default_scope.py`: a coincidence is
+#             refused even where precedence would make it harmless (a library
+#             `function` named after a game `state` var, which `_classify` never
+#             confuses), because the rule a designer holds is "a library may not
+#             bring in a name you already use", not a table of safe pairs. No
+#             corpus game pays for it — poker_betting's injected names touch none
+#             of Kuhn/Leduc/Stud's.
+
+# INJECT axis: name -> a library body binding NAME in that namespace. `filler`
+# keeps the library non-trivial where the injected form alone would be empty.
+_INJECT: dict[str, str] = {
+    "state": "state {{ {n} : Integer = 0 }} function filler() = 1",
+    "rules": "rule {n} {{ }} function filler() = 1",
+    "move_types": "move_type {n} {{ effect {{ }} }} function filler() = 1",
+    "types": "type {n} = {{ x : Integer }} function filler() = 1",
+    "defines": "define {n} -> {{ a | b }} {{ }} function filler() = 1",
+    "functions": "function {n}() = 1",
+    "procedures": "procedure {n}() {{ }} function filler() = 1",
+}
+
+
+def _target_game(target: str, name: str) -> str:
+    """A game that binds `name` in namespace `target`, imports `lib`, and is
+    otherwise valid. Deck-value targets need a real deck value as the name and
+    bind nothing extra — the clash is the injected name against the deck."""
+    deck = "standard52"
+    extra_zone = extra_state = extra_pos = tail = ""
+    if target == "zone":
+        extra_zone = f"{name} : Discard"
+    elif target == "state":
+        extra_state = f"{name} : Integer = 0"
+    elif target == "position":
+        extra_pos = f"positions {{ {name} : 1..4 }}"
+    elif target in ("functions", "types", "move_types", "rules", "defines", "procedures"):
+        tail = {
+            "functions": f"function {name}() = 1",
+            "types": f"type {name} = {{ x : Integer }}",
+            "move_types": f"move_type {name} {{ effect {{ }} }}",
+            "rules": f"rule {name} {{ }}",
+            "defines": f"define {name} -> {{ a | b }} {{ }}",
+            "procedures": f"procedure {name}() {{ }}",
+        }[target]
+    # target in {suit, rank, direction, stdlib_value}: name IS a value the game
+    # resolves against (deck / direction / stdlib), and it binds nothing extra.
+    return f"""
+game G {{
+  uses lib
+  players: 2
+  cards: {deck}
+  max_length: 100
+  {extra_pos}
+  zones {{ deck : Deck  {extra_zone}  hand[player] : Hand<player> }}
+  state {{ score[player] : Integer = 0  {extra_state} }}
+  phase play {{ }}
+  winner: highest score
+}}
+{tail}
+"""
+
+
+# TARGET axis: namespace -> the NAME to collide on. Most reuse one spelling;
+# the deck-value and stdlib-value targets must use a real member of the bucket
+# they probe, so the name is drawn from the registry, not invented.
+_STDLIB_VALUE_NAME = min(STDLIB_VALUE_NAMES)
+_TARGET_NAME: dict[str, str] = {
+    "state": "collide",
+    "zone": "collide",
+    "position": "collide",
+    "functions": "collide",
+    "types": "collide",
+    "move_types": "collide",
+    "rules": "collide",
+    "defines": "collide",
+    "procedures": "collide",
+    "suit": "hearts",
+    "rank": "Q",  # standard52 ranks are single glyphs (2..10, J, Q, K, A)
+    "direction": "left",
+    "stdlib_value": _STDLIB_VALUE_NAME,  # `_classify`'s `function` bucket
+}
+
+
+def test_injectable_targets_cover_every_def_kind() -> None:
+    """`_game_bindings`'s definition-kind targets must be exactly the kinds a
+    library can inject, or a library could shadow the one game def kind the
+    binding map forgot — which is how the `procedures` target first shipped
+    unwalled here.
+
+    red under: drop a def kind from `_INJECTABLE_TARGETS`."""
+    from cardlang.resolve import _INJECTABLE_TARGETS, _LIBRARY_DEF_KINDS
+
+    target_fields = {field for field, _ in _INJECTABLE_TARGETS}
+    assert {field for field, _ in _LIBRARY_DEF_KINDS} <= target_fields
+    # the two non-definition targets a bare name also resolves against
+    assert {"zones", "positions"} <= target_fields
+    # nouns agree, so the same-kind skip in `_check_library_shadows_game` lines up
+    target_nouns = dict(_INJECTABLE_TARGETS)
+    for field, noun in _LIBRARY_DEF_KINDS:
+        assert target_nouns[field] == noun
+
+
+def test_inject_axis_is_derived_not_listed() -> None:
+    """The INJECT axis is exactly what a library can contribute: its provided
+    state, plus every definition kind.
+
+    red under: drop a kind from `_INJECT`."""
+    from cardlang.resolve import _LIBRARY_DEF_KINDS as DEFS
+
+    assert set(_INJECT) == {"state"} | {f for f, _ in DEFS}
+
+
+def test_game_bindings_covers_every_resolvable_value_bucket() -> None:
+    """The registry pin the TARGET axis answers to: every bare name `_categories`
+    resolves for a game must appear in `_game_bindings`, so a value bucket added
+    to `_categories` (a new deck-derived namespace, another stdlib table wired
+    into `functions`) cannot slip past the shadow wall uncovered. This is the
+    check that would have caught the `functions`-bucket = `STDLIB_VALUE_NAMES`
+    hole by construction, rather than by an audit noticing a hand-list lied.
+
+    red under: delete the `STDLIB_VALUE_NAMES` loop from `_game_bindings` (drops
+    the stdlib-value bucket), or a deck-value loop (drops ranks/suits)."""
+    from cardlang.resolve import _categories, _game_bindings
+
+    probe = parse_text(
+        """
+game Cover {
+  players: 2
+  cards: standard52
+  ranking: aces high
+  positions { slot : 1..4 }
+  zones { deck : Deck  discard : Discard  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0  marker : Integer = 0 }
+  phase play { }
+  winner: highest score
+}
+""",
+        "cover.cardlang",
+    )
+    cats = _categories(probe)
+    resolvable = (
+        cats.state_vars
+        | cats.zones
+        | cats.enums
+        | cats.functions
+        | cats.ranks
+        | cats.suits
+    )
+    bindings = set(_game_bindings(probe))
+    missing = resolvable - bindings
+    assert not missing, f"_game_bindings misses resolvable names: {sorted(missing)}"
+
+
+def test_target_axis_names_every_resolvable_bucket() -> None:
+    """The grid's TARGET axis is the resolvable buckets (state / zone / deck
+    values / stdlib values) plus the def kinds and positions that own a name
+    outside `_classify`. Stated against the buckets, not a bare re-listing, so a
+    new target the wall gains is a failure here until the grid exercises it.
+
+    red under: drop a namespace from `_TARGET_NAME`."""
+    from cardlang.resolve import _LIBRARY_DEF_KINDS as DEFS
+
+    resolvable = {"state", "zone", "suit", "rank", "direction", "stdlib_value"}
+    structural = {"position"} | {f for f, _ in DEFS}
+    assert set(_TARGET_NAME) == resolvable | structural
+
+
+@pytest.mark.parametrize("inject", sorted(_INJECT))
+@pytest.mark.parametrize("target", sorted(_TARGET_NAME))
+def test_a_library_may_not_inject_a_name_the_game_already_uses(
+    inject: str, target: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every cell of INJECT x TARGET: a library injecting NAME while the game
+    already uses NAME is refused, and the message names the library — the half
+    D4a got wrong, blaming the game's own declaration and never mentioning the
+    import.
+
+    red under: delete `_check_library_shadows_game` (fails every off-diagonal
+    cell); the same-kind and provided-vs-state cells stay green on their own
+    walls, which is why this grid does not stand in for their red-unders."""
+    name = _TARGET_NAME[target]
+    lib = parse_library(
+        "library lib { " + _INJECT[inject].format(n=name) + " }",
+        "docs/libraries/lib.cardlang",
+    )
+    _patch_libraries(monkeypatch, {"lib": lib})
+    _rejects(parse_text(_target_game(target, name), "probe.cardlang"), "library 'lib'")
 
 
 def _stdlib_member(field: str) -> str | None:

@@ -258,6 +258,7 @@ def _apply_uses(game: n.Game, bag: DiagnosticBag) -> n.Game:
 
     _check_library_collisions(game, libraries, bag)
     claims = _check_state_claims(game, libraries, bag)
+    _check_library_shadows_game(game, libraries, bag)
     _check_provided_readonly(game, claims.provided, bag)
     skip = claims.contested | frozenset(claims.provided)
     for use, library in libraries:
@@ -361,6 +362,140 @@ def _check_library_collisions(
                     f"but run this one instead)",
                     fn.span,
                 )
+
+
+# Where a name a library injects can land in the game, as (game field, the noun
+# a diagnostic calls it). Read off `_classify`'s precedence chain plus the
+# namespaces that own a name outside it (positions; the definition kinds). This
+# is the axis `_game_bindings` sweeps, so a namespace added to `_classify` or a
+# def kind added to `_LIBRARY_DEF_KINDS` without an entry here fails a static
+# test rather than silently leaving a hole a library could inject through.
+_INJECTABLE_TARGETS: tuple[tuple[str, str], ...] = (
+    ("zones", "zone"),
+    ("positions", "position domain"),
+    # The six definition kinds, with the SAME nouns as `_LIBRARY_DEF_KINDS` so
+    # the same-kind skip below matches by noun. Pinned equal to it by
+    # `tests/test_family_libraries.py::test_injectable_targets_cover_every_def_kind`.
+    ("functions", "function"),
+    ("types", "type"),
+    ("defines", "define"),
+    ("move_types", "move type"),
+    ("rules", "rule"),
+    ("procedures", "procedure"),
+)
+
+
+def _game_bindings(game: n.Game) -> dict[str, tuple[str, Span | None]]:
+    """Every name the game binds that a bare reference could resolve to, mapped
+    to (the noun for a diagnostic, the span to point at). Built in `_classify`
+    precedence order with `setdefault`, so when a game reuses one name across its
+    own namespaces (which the base language allows — the author wrote both and
+    can see both) the reported noun is the one a reference actually resolves to.
+
+    Deck values have no declaration site, so their span is None; the caller
+    points at the library's injected declaration instead, which is the only text
+    an author can edit to fix the clash."""
+    bindings: dict[str, tuple[str, Span | None]] = {}
+    for nd in _walk(game):
+        if isinstance(nd, n.StateDecl):
+            bindings.setdefault(nd.name, ("state variable", nd.span))
+    for zone in game.zones:
+        bindings.setdefault(zone.name, ("zone", zone.span))
+    deck = game.deck
+    if _deck_known(deck):
+        for suit in deck_suits(deck):
+            bindings.setdefault(suit, ("suit value", None))
+        for rank in deck_ranks(deck):
+            bindings.setdefault(rank, ("rank value", None))
+    for direction in DIRECTION_VALUES:
+        bindings.setdefault(direction, ("direction value", None))
+    for pos in game.positions:
+        bindings.setdefault(pos.name, ("position domain", pos.span))
+    for field, noun in _INJECTABLE_TARGETS:
+        if field in ("zones", "positions"):
+            continue  # already added above, with their own spans
+        for definition in getattr(game, field):
+            bindings.setdefault(definition.name, (noun, definition.span))
+    # `_classify`'s `function` bucket is the STDLIB value names, not the game's
+    # own functions (those resolve as `Call`s, never as bare names) — so a
+    # provided variable spelled like a stdlib value shadows it exactly as a
+    # deck-value clash does, `state_vars` winning over `functions`. Lowest
+    # precedence, added last, so a real game binding keeps the reported noun.
+    # `test_game_bindings_covers_every_resolvable_value_bucket` pins this against
+    # `_categories` so a value bucket added there cannot slip past uncovered.
+    for value_fn in STDLIB_VALUE_NAMES:
+        bindings.setdefault(value_fn, ("standard-library value", None))
+    return bindings
+
+
+def _check_library_shadows_game(
+    game: n.Game,
+    libraries: list[tuple[n.UsesDecl, n.Library]],
+    bag: DiagnosticBag,
+) -> None:
+    """A name a library injects into the game must not already name something in
+    the game — in ANY namespace, not merely the same kind.
+
+    `_check_library_collisions` owns the same-kind diagonal (a library function
+    over a game function is an attempted override) and `_check_state_claims` owns
+    provided-over-game-state; this owns everything off both — a provided name or
+    a library definition landing on the game's zones, deck values, positions, or
+    definitions of a DIFFERENT kind. Those are the silent traps: a `uses` import
+    adds names and cannot override, and the game's author never opens the library
+    file, so a bare reference they write meaning their own zone or the suit
+    `hearts` would resolve to the library's variable instead, or the reverse. The
+    base language lets a game reuse one name across its own namespaces because the
+    author wrote and can see both; here one side is invisible, which is the whole
+    difference.
+
+    The refusal is deliberately CONSERVATIVE: a coincidence is refused even where
+    `_classify` precedence would keep it harmless (a library `function` named
+    after a game `state` variable, which a reference never confuses), because the
+    rule a designer holds is "a library may not bring in a name you already use",
+    not a table of safe precedence pairs. No corpus game pays for it.
+
+    Matched by NAME, not `ref_kind`: this runs before classification (like
+    `_check_provided_readonly`), which is what lets it see a zone reached only
+    through the bare-string `round … into <zone>` slot that classification never
+    stamps — the silent half of the collision matrix that a classify-based check
+    would leave open.
+
+    Reported naming the library, because the game author cannot see what they
+    collided with. The span points at the game's own declaration when it has one
+    (a zone, a definition), and at the library's injected declaration for a deck
+    value, which has none."""
+    game_names = _game_bindings(game)
+    def_nouns = {noun for _, noun in _LIBRARY_DEF_KINDS}
+    for use, library in libraries:
+        injected: list[tuple[str, str, Span | None]] = [
+            (decl.name, "provided state", decl.span)
+            for decl in (library.state.decls if library.state is not None else ())
+        ]
+        for field, noun in _LIBRARY_DEF_KINDS:
+            for definition in getattr(library, field):
+                injected.append((definition.name, noun, definition.span))
+
+        for name, inject_noun, inject_span in injected:
+            hit = game_names.get(name)
+            if hit is None:
+                continue
+            game_noun, game_span = hit
+            # The two pairs other walls already report — skip them so one clash
+            # yields one diagnostic. Same-kind definition collisions are
+            # `_check_library_collisions` ("does not inherit"); a provided name
+            # over the game's own state is `_check_state_claims`.
+            if inject_noun == game_noun and inject_noun in def_nouns:
+                continue
+            if inject_noun == "provided state" and game_noun == "state variable":
+                continue
+            bag.error(
+                f"library '{library.name}' brings in {inject_noun} '{name}', but "
+                f"this game already uses '{name}' as a {game_noun} — a `uses` "
+                f"import adds names without overriding, and the game's author "
+                f"cannot see the library's, so the two would silently mean "
+                f"different things: rename one",
+                game_span if game_span is not None else inject_span,
+            )
 
 
 def _check_state_claims(
