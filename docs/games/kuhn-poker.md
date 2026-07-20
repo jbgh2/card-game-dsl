@@ -61,7 +61,7 @@ betting comes entirely from
 [poker_betting](../libraries/poker_betting.cardlang) — `check`, `bet`,
 `call`, `raise`, and the `can_act`/`owes`/`pending` ring predicates — shared
 verbatim with Leduc and Seven-Card Stud, three games whose *tables* have
-nothing else in common. Two things about that sharing are visible here:
+nothing else in common. Three things about that sharing are visible here:
 
 - **`fold` is Kuhn's own.** Folding touches cards, and where the folded card
   goes is a property of the game: Stud mucks the folder's *upcards*, which
@@ -74,6 +74,12 @@ nothing else in common. Two things about that sharing are visible here:
   guard-false as well as unoffered. Nothing about it reaches OpenSpiel: the
   action space is derived from the `offering` lists, not from the game's
   move-type table, so a whole-library import costs no action ids.
+- **A library owns some of its state, and contracts for the rest.** Kuhn
+  declares seven of `poker_betting`'s variables and never mentions `acted`
+  or `limit`: those the library *provides*, with its own defaults, and Kuhn
+  may read them but not write them. That is why Kuhn's one street is opened
+  with `run open_street(1)` — the bet size is the argument, since a bet size
+  is a property of a street rather than of a game.
 
 ```
 game KuhnPoker {
@@ -98,14 +104,14 @@ game KuhnPoker {
     stack[player]     : Integer = 8
     net[player]       : Integer = 0        // terminal score: chips won or lost
 
-    // The library's contract (poker_betting `requires`).
+    // The library's contract (poker_betting `requires`). `acted` and `limit`
+    // are absent: the library provides those, and Kuhn's bet size of 1 is
+    // named at the street instead.
     committed[player] : Integer = 0
     bet_by[player]    : Integer = 0
-    acted[player]     : Boolean = false
     folded[player]    : Boolean = false
     bet_to_match      : Integer = 0
     raises            : Integer = 0
-    limit             : Integer = 1        // the bet size
     raise_cap         : Integer = 1        // no raises: a bet sets raises to 1
 
     first_actor       : Player = 0         // Kuhn's non-dealer convention: P0 opens
@@ -119,6 +125,7 @@ game KuhnPoker {
   }
 
   phase betting {
+    run open_street(1)
     round offering [check, bet, call, fold] from first_actor
           over players where pending(player)
           order priority

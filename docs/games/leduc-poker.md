@@ -59,11 +59,14 @@ betting comes entirely from
 [poker_betting](../libraries/poker_betting.cardlang) — `check`, `bet`,
 `call`, `raise`, and the `can_act`/`owes`/`pending` ring predicates — shared
 verbatim with Kuhn and Seven-Card Stud. Leduc is the member that exercises
-the tier's **parameterization** claim: the family's constants ride on
-required state the game declares, not on arguments to the import. `limit`
-carries the bet size and is reassigned from 2 to 4 between the streets;
-`raise_cap` is **2** where Stud's is **3**, and neither the library text nor
-the `uses` line mentions the difference. `fold` is Leduc's own, as in every
+the tier's **parameterization** claim: the family's constants ride on state,
+not on arguments to the import. The two halves of that are visible side by
+side here. `raise_cap` is **2** where Stud's is **3** — a per-game constant,
+so it is `requires`d and Leduc declares it. The bet size is not a per-game
+constant at all (it is **2** then **4**), so no declaration could carry it:
+`limit` is state the library *provides*, and each street names its own size
+by opening with `run open_street(2)` / `run open_street(4)`. Neither the
+library text nor the `uses` line mentions the difference. `fold` is Leduc's own, as in every
 poker game — folding touches cards, and where the folded card goes is a
 property of the table, not of the betting.
 
@@ -91,14 +94,13 @@ game LeducPoker {
     stack[player]     : Integer = 40
     net[player]       : Integer = 0        // terminal score: chips won or lost
 
-    // The library's contract (poker_betting `requires`).
+    // The library's contract (poker_betting `requires`). `acted` and `limit`
+    // are absent: the library provides those, and the streets name the sizes.
     committed[player] : Integer = 0
     bet_by[player]    : Integer = 0
-    acted[player]     : Boolean = false
     folded[player]    : Boolean = false
     bet_to_match      : Integer = 0
     raises            : Integer = 0
-    limit             : Integer = 2        // the first street's bet size
     raise_cap         : Integer = 2        // two aggressive actions per street
 
     first_actor       : Player = 0         // P0 opens both streets
@@ -112,6 +114,7 @@ game LeducPoker {
   }
 
   phase first_street {
+    run open_street(2)
     round offering [check, bet, call, fold, raise] from first_actor
           over players where pending(player)
           order priority
@@ -123,11 +126,7 @@ game LeducPoker {
   phase second_street {
     if (number of players where not folded[player]) > 1 {
       deal 1 card from deck to board
-      bet_to_match := 0
-      raises := 0
-      limit := 4
-      for each player p: bet_by[p] := 0
-      for each player p: acted[p] := false
+      run open_street(4)
       round offering [check, bet, call, fold, raise] from first_actor
             over players where pending(player)
             order priority

@@ -32,10 +32,13 @@ door-card seat selectors (`bring_in_seat` / `first_to_act_seat`) and the
 side-pot query (`pot_share`); the poker evaluator behind them is unit-tested.
 The 4th-street open-pair limit doubling is simplified out.
 
-The betting state is carried as ordinary phase state (`bet_to_match`, `raises`,
-per-player `bet_by`/`acted`/`folded`/`committed`); a `check`/`bet`/`call`/`raise`/
-`fold` move type writes it (a bet or raise is a partial all-in when the actor
-can't cover it, and resets every other player's `acted` so action re-opens). The
+The betting state splits two ways. What Stud touches it declares itself
+(`bet_to_match`, `raises`, `raise_cap`, per-player `bet_by`/`folded`/`committed`);
+the pure intra-street bookkeeping — `acted`, and the street's `limit` — the
+library *provides*, so Stud never names it and could not write it if it tried. A
+`check`/`bet`/`call`/`raise`/`fold` move type writes both (a bet or raise is a
+partial all-in when the actor can't cover it, and resets every other player's
+`acted` so action re-opens). The
 `until` predicate closes a street when no live player still owes or has yet to act
 (or one lone contender remains, already matched). The 3rd street is shown in full;
 streets 4–7 repeat the same betting round after a burn and a dealt card.
@@ -48,7 +51,9 @@ predicates — from the family library shared with Kuhn and Leduc
 rulebook sentence "betting proceeds as in standard fixed-limit poker". Stud's
 own contribution is `fold`, which mucks the folder's **upcards** — a fact about
 Stud's zones, and an observation opponents' information sets carry — and the
-`raise_cap` of 3 it declares as ordinary state, where Leduc declares 2.
+`raise_cap` of 3 it declares as required state, where Leduc declares 2. Every
+street opens with the library's `open_street(<size>)`, which is where Stud's
+5 / 5 / 10 / 10 / 10 limits are written.
 
 ```
 game SevenCardStud {
@@ -82,8 +87,7 @@ game SevenCardStud {
       state {
         in_hand[player] : Boolean = false   committed[player] : Integer = 0
         folded[player]  : Boolean = false   bet_by[player]    : Integer = 0
-        acted[player]   : Boolean = false   bet_to_match : Integer = 0
-        raises : Integer = 0   limit : Integer = 0
+        bet_to_match : Integer = 0          raises : Integer = 0
         raise_cap : Integer = 3            // fixed-limit Stud allows three
       }
 
@@ -93,11 +97,12 @@ game SevenCardStud {
 
       // Bring-in (a forced post) + 3rd street.
       if (number of players where stack[player] > 0) >= 2 {
+        run open_street(5)
         let bringer = bring_in_seat()
         bet_by[bringer] := if 2 < stack[bringer] then 2 else stack[bringer]
         stack[bringer] := stack[bringer] - bet_by[bringer]
         committed[bringer] := committed[bringer] + bet_by[bringer]
-        bet_to_match := 2   raises := 1   limit := 5
+        bet_to_match := 2   raises := 1     // the post is the street's first aggression
         round offering [check, bet, call, fold, raise] from bringer offset_by left
               over players where pending(player)
               order priority
@@ -106,8 +111,9 @@ game SevenCardStud {
                      and (number of players where can_act(player) and owes(player)) is 0)
       }
       // ... 4th–7th streets: four flat `if (contenders > 1) { ... }` blocks — a burn
-      // + a dealt card (upcard on 4th/5th/6th, hole on 7th), then the same betting
-      // round with limits 5 / 10 / 10 / 10 and `from first_to_act_seat()`. The
+      // + a dealt card (upcard on 4th/5th/6th, hole on 7th), then `run
+      // open_street(5 / 10 / 10 / 10)` and the same betting round `from
+      // first_to_act_seat()`. The
       // contender count is monotonic, so the flat guards short-circuit exactly as
       // nesting would (see seven-card-stud.cardlang).
 

@@ -2251,7 +2251,13 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
 # `Rank?` parameter accepts both (`assignable(Rank, Rank?)`), which is why the
 # optional form is the one the corpus forces. Bare `Rank` rides along: it is the
 # same domain minus the null, meaningful on its own, and free to support.
-_PROCEDURE_PARAM_DOMAINS = frozenset({"Player", "Rank", "Rank?"})
+#
+# `Integer` is forced by poker_betting's `open_street(bet_size)`: the five street
+# resets across Leduc and Stud are one shape differing in one integer. It strains
+# nothing — an argument is an expression the caller evaluates once, not a value
+# the action space enumerates, and `function` parameters have always taken
+# Integer. The gap was which games existed, not a design position.
+_PROCEDURE_PARAM_DOMAINS = frozenset({"Player", "Rank", "Rank?", "Integer"})
 
 
 # POSITION-DEPENDENT STATEMENTS: the closed class a procedure body may not hold.
