@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import random
+
 import pytest
 
 from cardlang.openspiel.encoding import (
@@ -9,7 +11,25 @@ from cardlang.openspiel.encoding import (
     action_to_card,
     card_to_action,
 )
-from cardlang.runtime.values import RANKS, SUITS, Card
+from cardlang.runtime import reads, sidecar
+from cardlang.runtime.state import RuntimeState, ZoneStore
+from cardlang.runtime.tichu import ROW as TICHU_ROW
+from cardlang.runtime.values import RANKS, SUITS, Card, Seating
+
+
+def _tichu_bundles() -> tuple[sidecar.EngineFacts, reads.GameReads]:
+    """The bundles a tichu climb query receives. The lead query ignores them
+    (Tichu leads depend only on the hand), but they are built for real rather
+    than faked: a None would only typecheck behind an ignore, and the next
+    query to actually read them would fail at runtime instead of here."""
+    from cardlang.ast import nodes as n
+
+    decls = (n.ZoneDecl(name="hand", index="player", type_ref=n.TypeRef(name="Hand")),)
+    rs = RuntimeState(Seating(4), ZoneStore(decls, (0, 1, 2, 3)), random.Random(0))
+    rs.push_frame()
+    rs.declare("out_first", False, None)
+    rs.declare("out_second", False, None)
+    return sidecar.bind(rs, None, TICHU_ROW)
 
 
 def test_round_trip_all_52() -> None:
@@ -325,7 +345,7 @@ def test_tichu_combo_codec_round_trips_engine_emissions() -> None:
     checked = 0
     for _ in range(50):
         hand = rng.sample(deck, 14)
-        for play in tichu_lead_options(list(hand), None):  # type: ignore[arg-type]
+        for play in tichu_lead_options(*_tichu_bundles(), list(hand)):
             aid = space.encode(play)
             assert 57 <= aid < space.num_distinct_actions
             decoded = space.decode(aid)

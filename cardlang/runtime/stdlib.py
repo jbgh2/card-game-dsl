@@ -70,21 +70,21 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
         case "error":
             raise IllegalMove(args[0] if args else "illegal move")
         case "bring_in_seat":
-            from cardlang.runtime.stud import bring_in_seat
+            from cardlang.runtime.stud import ROW, bring_in_seat
 
-            return bring_in_seat(ctx)
+            return bring_in_seat(*_bind(ctx, ROW))
         case "first_to_act_seat":
-            from cardlang.runtime.stud import first_to_act_seat
+            from cardlang.runtime.stud import ROW, first_to_act_seat
 
-            return first_to_act_seat(ctx)
+            return first_to_act_seat(*_bind(ctx, ROW))
         case "pot_share":
-            from cardlang.runtime.stud import pot_share
+            from cardlang.runtime.stud import ROW, pot_share
 
-            return pot_share(ctx, args[0])
+            return pot_share(*_bind(ctx, ROW), args[0])
         case "bigtwo_first_leader":
-            from cardlang.runtime.bigtwo import first_leader_seat
+            from cardlang.runtime.bigtwo import ROW, first_leader_seat
 
-            return first_leader_seat(ctx)
+            return first_leader_seat(*_bind(ctx, ROW))
         case "rank_value":
             return ctx.rs.rank_index[args[0].rank]
         case "card_value":
@@ -154,66 +154,68 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
 
             return skat_effective_loss(args[0], args[1], args[2])
         case "tichu_mahjong_holder":
-            from cardlang.runtime.tichu import tichu_mahjong_holder
+            from cardlang.runtime.tichu import ROW, tichu_mahjong_holder
 
-            return tichu_mahjong_holder(ctx)
+            return tichu_mahjong_holder(*_bind(ctx, ROW))
         case "tichu_players_holding":
-            from cardlang.runtime.tichu import tichu_players_holding
+            from cardlang.runtime.tichu import ROW, tichu_players_holding
 
-            return tichu_players_holding(ctx)
+            return tichu_players_holding(*_bind(ctx, ROW))
         case "tichu_double_victory":
-            from cardlang.runtime.tichu import tichu_double_victory
+            from cardlang.runtime.tichu import ROW, tichu_double_victory
 
-            return tichu_double_victory(ctx)
+            return tichu_double_victory(*_bind(ctx, ROW))
         case "tichu_partner":
-            from cardlang.runtime.tichu import tichu_partner
+            from cardlang.runtime.tichu import ROW, tichu_partner
 
-            return tichu_partner(ctx, args[0])
+            return tichu_partner(*_bind(ctx, ROW), args[0])
         case "tichu_next_holder":
-            from cardlang.runtime.tichu import tichu_next_holder
+            from cardlang.runtime.tichu import ROW, tichu_next_holder
 
-            return tichu_next_holder(ctx, args[0])
+            return tichu_next_holder(*_bind(ctx, ROW), args[0])
         case "tichu_dragon_won":
-            from cardlang.runtime.tichu import tichu_dragon_won
+            from cardlang.runtime.tichu import ROW, tichu_dragon_won
 
-            return tichu_dragon_won(ctx)
+            return tichu_dragon_won(*_bind(ctx, ROW))
         case "tichu_opponent_team":
-            from cardlang.runtime.tichu import tichu_opponent_team
+            from cardlang.runtime.tichu import ROW, tichu_opponent_team
 
-            return tichu_opponent_team(ctx, args[0])
+            return tichu_opponent_team(*_bind(ctx, ROW), args[0])
         case "tichu_first_out":
-            from cardlang.runtime.tichu import tichu_first_out
+            from cardlang.runtime.tichu import ROW, tichu_first_out
 
-            return tichu_first_out(ctx)
+            return tichu_first_out(*_bind(ctx, ROW))
         case "tichu_card_points":
             from cardlang.runtime.tichu import ROW as TICHU_ROW
             from cardlang.runtime.tichu import tichu_card_points
 
             return tichu_card_points(*_bind(ctx, TICHU_ROW), args[0])
         case "president_next_holder":
-            from cardlang.runtime.president import president_next_holder
+            from cardlang.runtime.president import ROW, president_next_holder
 
-            return president_next_holder(ctx, args[0])
+            return president_next_holder(*_bind(ctx, ROW), args[0])
         case "president_is_top_rank":
-            from cardlang.runtime.president import president_is_top_rank
+            from cardlang.runtime.president import ROW, president_is_top_rank
 
-            return president_is_top_rank(ctx, args[0], args[1])
+            return president_is_top_rank(*_bind(ctx, ROW), args[0], args[1])
         case "coup_players_in":
-            from cardlang.runtime.coup import coup_players_in
+            from cardlang.runtime.coup import ROW, coup_players_in
 
-            return coup_players_in(ctx)
+            return coup_players_in(*_bind(ctx, ROW))
         case "coup_next_in_game":
-            from cardlang.runtime.coup import coup_next_in_game
+            from cardlang.runtime.coup import ROW, coup_next_in_game
 
-            return coup_next_in_game(ctx, args[0])
+            return coup_next_in_game(*_bind(ctx, ROW), args[0])
         case "coup_has_char":
-            from cardlang.runtime.coup import coup_has_char
+            from cardlang.runtime.coup import ROW, coup_has_char
 
-            return coup_has_char(ctx, args[0], args[1])
+            return coup_has_char(*_bind(ctx, ROW), args[0], args[1])
         case "coup_game_summary":
-            from cardlang.runtime.coup import coup_game_summary
+            from cardlang.runtime.coup import ROW, coup_game_summary
 
-            return coup_game_summary(ctx)
+            total, events = coup_game_summary(*_bind(ctx, ROW))
+            _emit(ctx, events)
+            return total
         case "peg_value":
             from cardlang.runtime.cribbage import value
 
@@ -532,7 +534,36 @@ def value_function(name: str) -> Callable[..., Any]:
 # game-local, so these dispatch to per-game modules.
 
 
-def climb_lead_function(name: str) -> Callable[[list[Card], Ctx], list[Any]]:
+ClimbLeadFn = Callable[[sidecar.EngineFacts, reads.GameReads, list[Card]], list[Any]]
+ClimbFollowFn = Callable[
+    [sidecar.EngineFacts, reads.GameReads, list[Card], Any], list[Any]
+]
+
+
+def climb_row(name: str) -> reads.PrimitiveReads:
+    """The declared-reads row of the module implementing a climb query.
+    Climb queries are named on a `round climb` and invoked by the round
+    machinery rather than through `call`, so the binder needs their row
+    from here — keyed by the LEAD query's name, the same key
+    `climb_universe_function` uses."""
+    match name:
+        case "bigtwo_lead_options" | "bigtwo_follows":
+            from cardlang.runtime.bigtwo import ROW
+
+            return ROW
+        case "tichu_lead_options" | "tichu_follows":
+            from cardlang.runtime.tichu import ROW
+
+            return ROW
+        case "president_lead_options" | "president_follows":
+            from cardlang.runtime.president import ROW
+
+            return ROW
+        case _:
+            raise AssertionError(f"unknown climb query '{name}'")
+
+
+def climb_lead_function(name: str) -> ClimbLeadFn:
     match name:
         case "bigtwo_lead_options":
             from cardlang.runtime.bigtwo import bigtwo_lead_options
@@ -550,7 +581,7 @@ def climb_lead_function(name: str) -> Callable[[list[Card], Ctx], list[Any]]:
             raise AssertionError(f"unknown climb lead query '{name}'")
 
 
-def climb_follow_function(name: str) -> Callable[[list[Card], Any, Ctx], list[Any]]:
+def climb_follow_function(name: str) -> ClimbFollowFn:
     match name:
         case "bigtwo_follows":
             from cardlang.runtime.bigtwo import bigtwo_follows

@@ -17,7 +17,7 @@ from typing import Any, Protocol
 
 from cardlang.ast import nodes as n
 from cardlang.domains import DomainSources, enumerate_domain
-from cardlang.runtime import observe, phases, rules
+from cardlang.runtime import observe, phases, rules, sidecar
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, Move
 from cardlang.runtime.values import Player
@@ -459,6 +459,7 @@ class ClimbForm:
         self.leader: Player = evaluate(stmt.leader, ctx)
         self.lead_query = stdlib.climb_lead_function(stmt.combos_fn)
         self.follow_query = stdlib.climb_follow_function(stmt.follows_fn)
+        self.climb_row = stdlib.climb_row(stmt.combos_fn)
         self.hands = ctx.rs.zones.families[stmt.source_zone]
         self.pile = ctx.rs.zones.single(stmt.play_zone)
         self.source_name: str = stmt.source_zone
@@ -516,9 +517,15 @@ class ClimbForm:
             return turn
 
     def candidates(self, actor: Player, state: State, ctx: Ctx) -> list[Any]:
+        # The climb engines are game-local, so they get the same value
+        # bundles every other primitive does rather than the live ctx.
+        facts, gr = sidecar.bind(ctx.rs, ctx.current_player, self.climb_row)
         if state["current"] is None:  # the leader must lead
-            return self.lead_query(self.hands[actor].cards, ctx)
-        return [*self.follow_query(self.hands[actor].cards, state["current"], ctx), "pass"]
+            return self.lead_query(facts, gr, self.hands[actor].cards)
+        return [
+            *self.follow_query(facts, gr, self.hands[actor].cards, state["current"]),
+            "pass",
+        ]
 
     def apply(self, actor: Player, choice: Any, state: State, ctx: Ctx) -> State:
         if choice == "pass":
