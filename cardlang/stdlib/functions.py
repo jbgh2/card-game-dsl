@@ -1,9 +1,11 @@
-"""Standard-library functions, value-callbacks, and zone-query methods.
+"""Standard-library function and value-callback names.
 
-The name resolver checks bare-name function references (e.g. a `round`'s
-`outcome` / `early` function), `f(...)` calls, and `zone.method(...)` queries
-against these sets, so the IR can mark them as functions and unknown calls are
-caught. Seeded for the formalized corpus; extended corpus-first.
+The name resolver checks bare-name references (a `round`'s `outcome` / `early`
+function, a climbing round's `combinations` / `follows` query) and `f(...)`
+calls against these sets, so the IR can mark them as functions and unknown
+names are caught. There is no zone-method namespace here: the expression layer
+has no method register (decisions.md "The expression register"). Seeded for the
+formalized corpus; extended corpus-first.
 """
 
 from __future__ import annotations
@@ -38,6 +40,10 @@ STDLIB_VALUE_NAMES: frozenset[str] = STDLIB_TRICK_OUTCOMES | STDLIB_AUCTION_OUTC
 # Early-termination predicates a `round`'s `early` clause may name. Distinct from
 # outcome callbacks above — a different signature, (card, led_suit) -> Boolean —
 # so they validate against their own set, not the outcome-function namespace.
+# Slot-only, deliberately outside STDLIB_VALUE_NAMES: an early predicate is
+# unreachable as a bare NameRef and rejected in an `outcome` slot, even though
+# the runtime dispatches both through `value_function`. Sharing the dispatcher
+# is an implementation detail of the runtime, not a shared namespace.
 STDLIB_EARLY_PREDICATES: frozenset[str] = frozenset(
     {
         "on_play_of_tochoo",  # Getaway: a tochoo (off-suit play when void) ends the trick

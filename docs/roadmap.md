@@ -6,21 +6,16 @@ What's explicitly deferred, and the suggested order of next steps.
 
 Things we have noted but consciously not designed yet:
 
-- **Four latent holes around the struct paths.** Each was found by adversarial
+- **Latent holes around the struct paths.** Each was found by adversarial
   review of the lookup-miss walls, each is reachable only through constructs no
   corpus game uses, and each is recorded rather than fixed because closing them
   is a separate change with its own domain. (a) An OPTIONAL struct receiver
   (`r : R?`) disables the struct walls: `r.flag` is accepted whatever `flag`
   is, because the optional wrapper is not a `TStruct` and the field checks look
-  through nothing. (b) CLOSED — the nominal-struct rule now reaches through
-  every wrapper in both relations, gridded as relation x wrapper in
-  `tests/test_permissive_top.py`. It had a hole in each direction:
-  `assignable` compared collection elements with `==`, and `unify` returned
-  None for two optionals of one nominal type, which sent an `IfExpr` over them
-  to the permissive top. (c) `_check_produces`
+  through nothing. (b) `_check_produces`
   does not check a produced payload against the variant case's declared payload
   types, so a `produce won(...)` with a wrong-typed argument is accepted.
-  (d) The declaration-DAG performance test asserts termination but not time,
+  (c) The declaration-DAG performance test asserts termination but not time,
   so restoring the exponential `_type_key` — a 620x regression measured during
   review — still passes it; a time bound belongs on that test.
 
@@ -75,6 +70,43 @@ Things we have noted but consciously not designed yet:
   listed or excluded with a reason. The interim wall, stated in the
   skill: the framing subagent receives the entire `cardlang/` package —
   completeness by superset, never by judgment.
+
+  The same manifest has a second client: the registry→dispatcher pins
+  (`tests/test_signatures.py`) reconcile each stdlib name set with the
+  runtime dispatcher that serves it, but which dispatcher serves which
+  registry is not derivable from code, so each pin names its own
+  registry and a NEW name set acquires no pin until someone writes one.
+  The manifest's scrape would supply the missing axis — enumerate the
+  registries, require a pin or a recorded exclusion per entry. Interim
+  wall: every dispatcher ends in a loud `case _`, so an unserved name
+  raises at first use rather than resolving to nothing. This is the
+  hand-listed-axis shape recorded under "Grid the classes that are
+  grid-shaped but ungridded" below, in its name-source form: each pin
+  derives from its own registry, and nothing enumerates the pairings.
+
+- **Unresolvable identifiers in prose.** Nothing checks that a backticked
+  name in a docstring or a `docs/` page still refers to something real, so
+  one naming a deleted or never-built construct reads as authoritative
+  indefinitely: `ZONE_METHODS` sat in
+  [design-notes/domain-map.md](design-notes/domain-map.md) as a
+  registry→dispatcher pin for a registry that existed in no module, beside
+  a `zone.method(...)` query surface that decisions.md "The expression
+  register" rules out. Both were prose contradicting the spec, invisible
+  because prose has no compiler. Deliverable: a scrape over backticked
+  UPPERCASE identifiers in docstrings and `docs/`, asserting each resolves
+  in `cardlang/` or sits on a declared exception list with a reason —
+  the same shape as the registry-module manifest above, one currency over.
+  The exception list is load-bearing, not a convenience: prose
+  legitimately names constructs that do not exist yet (a deferred
+  `CellMismatch` before it landed), and a scrape that cannot express
+  "named deliberately, not yet built" would push authors toward deleting
+  the forward reference — losing the record the deferral exists to keep.
+  Interim wall: doctrine, not mechanism — decisions.md "Closed-domain
+  completeness" states the authoring rule (prose names the registry, never
+  the cardinality) that keeps new instances out. Naming that honestly
+  matters: an authoring rule is enforced by review, which is exactly the
+  enforcement this class already escaped, so it bounds new drift rather
+  than the existing kind.
 
 - **Grid the classes that are grid-shaped but ungridded.** The general
   finding from six review rounds across PRs #79 and #80: every defect found
@@ -135,13 +167,13 @@ Things we have noted but consciously not designed yet:
   next hand`): inline text targets exactly one enclosing construct, and a body may
   be spliced into two different ones.
 
-  These are one class, not five accidents: a procedure body may not hold a statement
+  These are one class, not separate accidents: a procedure body may not hold a statement
   whose VALIDITY depends on where it sits, because the checker sees the body once, at
   its declaration, and the spliced copies are never re-checked (expansion runs after
   typecheck, which is what makes the parameter types enforceable). The class is closed
   by enumerating the position-dependent CHECKS — `_check_outcome_scope`,
   `_check_single_outcome_consumer`, `_check_misplaced_produce`, and outcome binding —
-  rather than by intuition. The two other position-sensitive passes, deck-capacity and
+  rather than by intuition. The other position-sensitive passes, deck-capacity and
   the OpenSpiel action space, both run after expansion and see the real tree.
 
   Note what is NOT on this list: argument capture, actor capture, and a body
@@ -363,8 +395,8 @@ Things we have noted but consciously not designed yet:
   cardlang/resolve.py) to require `X` added by a `plain`/`add` reference in
   the same runtime-consulted scope: a phase's own `active_rules:`, or that
   list unioned with one direct rule-delta sub-phase's own list —
-  `runtime/phases.py`'s `compute_active_rules` shape. Two narrower gaps are
-  accepted, both unexercised by the corpus (no game uses `-X` at all): the
+  `runtime/phases.py`'s `compute_active_rules` shape. Narrower gaps are
+  accepted, all unexercised by the corpus (no game uses `-X` at all): the
   check does not model order WITHIN one list (an add-then-remove of the same
   name earlier in a parent's own list still counts as "added" for a later
   delta-child cluster check, even though the runtime would have already
@@ -410,8 +442,8 @@ Things we have noted but consciously not designed yet:
 
 - **Positional zones — walled residuals.** Positional layouts are live
   ([decisions.md](decisions.md) "Position domains and positional zones";
-  Klondike and FreeCell are the corpus anchors). Four cells of the position
-  design stay deferred, each behind a wall:
+  Klondike and FreeCell are the corpus anchors). The position design's
+  remaining cells stay deferred, each behind a wall:
   - `for each <position>` iteration and position-indexed `state` stores —
     both rejected at resolve with diagnostics
     (tests/rejections/positions_for_each,
@@ -461,19 +493,18 @@ Things we have noted but consciously not designed yet:
   the same but already recorded under "`scoring_component` / triggered
   components (runtime)".
 
-- **Six `.md` twins carry no DSL block, so the type-checker corpus net skips
-  them.** `tests/test_typecheck_corpus.py` holds every `docs/games/*.md`
-  twin that carries a fenced block to the same bar as the `.cardlang`
-  files, which is what keeps a twin from rotting into obsolete syntax
-  unnoticed (the `hearts.md` case that motivated the gate). Six twins carry
-  no block at all and are skipped rather than failed: belote, canasta,
-  doppelkopf, five-hundred, gin-rummy, president. Skipping is right —
-  there is nothing to check — but the set is a coverage hole that grew
-  from two to six behind a hand-written count in prose, so it is now pinned
-  by name in that module (`PROSE_ONLY_TWINS`): a seventh has to be added
-  deliberately, and a twin that gains a block has to be removed. Closing
-  the hole means giving those six twins DSL blocks, which is corpus work,
-  not checker work.
+- **Some `.md` twins carry no DSL block, so the type-checker corpus net
+  skips them.** `tests/test_typecheck_corpus.py` holds every
+  `docs/games/*.md` twin that carries a fenced block to the same bar as the
+  `.cardlang` files, which is what keeps a twin from rotting into obsolete
+  syntax unnoticed (the `hearts.md` case that motivated the gate). The
+  twins carrying no block at all are skipped rather than failed. Skipping
+  is right — there is nothing to check — but the set is a coverage hole
+  that once grew silently behind a hand-written count in prose, so it is
+  now pinned by name in that module (`PROSE_ONLY_TWINS`): an addition has
+  to be made deliberately, and a twin that gains a block has to be
+  removed. Closing the hole means giving those twins DSL blocks, which is
+  corpus work, not checker work.
 
 - **OpenSpiel compilation (general pass).** A per-game *runtime adapter* now
   validates the target: Hearts is a registered `pyspiel.Game` passing OpenSpiel's
@@ -717,8 +748,7 @@ Things we have noted but consciously not designed yet:
   just per-kind legality (sort/filter/take as expressions over
   zone-vs-list-vs-map).
 
-- **Semantic invariance: three of four transforms landed; suit relabeling
-  (T4) is deferred.** `tests/metamorphic/` (design plan:
+- **Semantic invariance: suit relabeling (T4) is deferred.** `tests/metamorphic/` (design plan:
   [design-notes/metamorphic-suite.md](design-notes/metamorphic-suite.md))
   runs T1 (the pairing harness), T2 (α-rename), T3 (inline-vs-`run`), and T5
   (declaration reorder) over the corpus, each with its own completeness
@@ -779,7 +809,7 @@ Things we have noted but consciously not designed yet:
   escapes `check_dsl`) and five accepted-then-crashes-at-playout findings
   (a mutant passes every static wall but breaks a runtime-net invariant —
   a hand drained faster than the loop reading it, a non-terminating
-  `repeat until`, a short trick). All six are recorded, not fixed, in
+  `repeat until`, a short trick). All are recorded, not fixed, in
   `tests/fuzz/findings.py`'s `KNOWN_FINDINGS` ledger — concurrent work was
   touching resolve/typecheck when this landed — and pinned loud (a
   dedicated test replays each frozen minimal repro and fails if the crash
@@ -869,8 +899,8 @@ work that isn't an open question, and which next game unblocks what.
 
 4. **Pin down [memory-event-syntax](open-questions/memory-event-syntax.md)**
    when three or four examples exist beyond stdlib operations (Stud and
-   Coup are the two so far; both composed the closed vocabulary without
-   needing a declaration).
+   Coup so far; both composed the closed vocabulary without needing a
+   declaration).
 
 5. **Sharpen the completeness machinery where it is still hand-listed** —
    trigger-based, not blocking. The doctrine (decisions.md "Closed-domain
