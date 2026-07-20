@@ -150,7 +150,12 @@ from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticError
 from cardlang.libraries import library_names, load_library
 from cardlang.parse import _Builder, _transform, parse_library, parse_text, parse_to_tree
-from cardlang.resolve import _LIBRARY_DEF_KINDS, _library_reach, resolve
+from cardlang.resolve import (
+    _LIBRARY_DEF_KINDS,
+    _PARAM_BEARING,
+    _library_reach,
+    resolve,
+)
 from cardlang.stdlib.functions import STDLIB_CALL_FUNCS
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
 from cardlang.stdlib.rules import library_rules
@@ -915,6 +920,77 @@ def test_the_same_site_reaching_only_its_contract_is_accepted(
     rather than only what it fails to."""
     _patch_libraries(monkeypatch, {"leaky": _leaky(field, kind, leaking=False)})
     resolve(_game(**_LEAK_HOST))
+
+
+# A body reading its OWN parameter is the second control the encapsulation check
+# needs: a parameter is bound, so counting it as a leak would refuse a perfectly
+# ordinary library. The axis is `resolve._PARAM_BEARING` — the registry of
+# declaration kinds that HAVE parameters — filtered to the kinds a library can
+# hold, so a new parameterized declaration form joins this sweep automatically.
+_PARAM_SITE: dict[str, str] = {
+    "rules": (
+        "rule NoLead(suit : Suit) {{ constrains: play_to_trick "
+        "applies_when: {read} is not none }}"
+    ),
+    "move_types": "move_type m(s : Suit) {{ when: {read} is not none effect {{ }} }}",
+    "functions": "function fn(x : Integer) = {read} + 1",
+    "procedures": "procedure pr(y : Integer) {{ declared_thing := {read} }}",
+}
+
+# Which parameter each site reads, keyed the same way.
+_PARAM_READ: dict[str, str] = {
+    "rules": "suit",
+    "move_types": "s",
+    "functions": "x",
+    "procedures": "y",
+}
+
+
+def _param_bearing_library_kinds() -> list[str]:
+    """The `_PARAM_BEARING` collections a library can hold — all of them, since a
+    library holds every definition kind a game does. Derived so the sweep below
+    cannot silently stop covering one."""
+    kinds = {collection for collection, _, _ in _PARAM_BEARING.values()}
+    return sorted(kinds & {field for field, _ in _LIBRARY_DEF_KINDS})
+
+
+def test_param_sites_cover_every_parameterized_kind() -> None:
+    """red under: drop a key from `_PARAM_SITE`."""
+    assert set(_PARAM_SITE) == set(_param_bearing_library_kinds())
+    assert set(_PARAM_READ) == set(_PARAM_SITE)
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        pytest.param(f, marks=[pytest.mark.xfail(strict=True)])
+        if f == "rules"
+        else f
+        for f in _param_bearing_library_kinds()
+    ],
+)
+def test_a_body_reading_its_own_parameter_is_not_a_leak(field: str) -> None:
+    """A parameter is bound in the body it belongs to, so it is not something the
+    contract has to cover — for every kind that has parameters, not the three
+    whose scoping happened to be implemented.
+
+    `rules` was the open cell: `_rewrite` scoped move-type, function and
+    procedure parameters but not a rule template's, because the game path
+    instantiates templates (substituting the arguments away) before it
+    classifies, so it never needed the arm. Reading a library's definitions
+    directly is the first caller that does.
+
+    red under: delete the `n.RuleDef` arm from `_rewrite`."""
+    source = _PARAM_SITE[field].format(read=_PARAM_READ[field])
+    library = parse_library(
+        f"library probe {{ requires {{ declared_thing : Integer }} {source} }}",
+        "docs/libraries/probe.cardlang",
+    )
+    reach = _library_reach(library)
+    assert not reach.unresolved, (
+        f"a {field} parameter is bound, not a leak: "
+        f"{sorted({r.name for r in reach.unresolved})}"
+    )
 
 
 def _patch_libraries(
