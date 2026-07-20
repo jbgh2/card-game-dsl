@@ -960,15 +960,7 @@ def test_param_sites_cover_every_parameterized_kind() -> None:
     assert set(_PARAM_READ) == set(_PARAM_SITE)
 
 
-@pytest.mark.parametrize(
-    "field",
-    [
-        pytest.param(f, marks=[pytest.mark.xfail(strict=True)])
-        if f == "rules"
-        else f
-        for f in _param_bearing_library_kinds()
-    ],
-)
+@pytest.mark.parametrize("field", _param_bearing_library_kinds())
 def test_a_body_reading_its_own_parameter_is_not_a_leak(field: str) -> None:
     """A parameter is bound in the body it belongs to, so it is not something the
     contract has to cover — for every kind that has parameters, not the three

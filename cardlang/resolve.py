@@ -1817,6 +1817,18 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         # move's effect scopes to the statements after it, like everywhere else.
         effect = _rewrite_value(node.effect, scoped, bag)
         return replace(node, guard=guard, effect=effect)  # type: ignore[arg-type]
+    if isinstance(node, n.RuleDef) and node.params:
+        # A template's parameters bind in its clauses, exactly as a move type's do
+        # in its guard and effect. The GAME path never reaches this arm — a
+        # template is instantiated (arguments substituted for parameters) before
+        # `_classify_names` runs, and a template no reference instantiates is
+        # already its own diagnostic from `_instantiate_rules` — so this exists
+        # for the callers that classify a declaration where it is WRITTEN rather
+        # than where it is used: `_library_reach`, which reads a family library's
+        # definitions against the library alone. Without it, `_PARAM_BEARING`'s
+        # four kinds would be scoped three-and-a-bit.
+        scoped = replace(cats, locals=cats.locals | {p.name for p in node.params})
+        return _traverse(node, lambda _field, v: _rewrite_value(v, scoped, bag))
     if isinstance(node, n.FunctionDef):
         # The parameters bind only in this function's body — scope them here rather
         # than the game-wide `locals` set (mirrors the move-type/produce-arm binders
