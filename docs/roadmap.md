@@ -113,12 +113,15 @@ Things we have noted but consciously not designed yet:
 
   Two consequences worth naming. A library reading a state variable through
   `again` leaks it exactly as the wall's own docstring describes; and putting
-  that name in `requires` instead does not help, because `state_reads` also
-  accumulates only from `NameRef`s, so the minimality check
+  that name in `requires` instead does not help either, because `state_reads`
+  also accumulates only from `NameRef`s, so the minimality check
   (`test_every_library_contracts_for_exactly_what_it_reaches`) would call the
-  entry dead. The slot has no correct spelling today. Both halves must be fixed
-  together — closing only the minimality half would make the leak easier to
-  ship, which is why neither is patched here.
+  entry dead. The slot has no correct spelling today. The two halves are
+  independent code paths — teaching `state_reads` about `again` would fix the
+  minimality trap on its own and could not make a leak easier to ship — but
+  neither is patched here for the same reason: a hand-added arm for one slot is
+  precisely the by-luck hand-list this residual exists to avoid, and the slot
+  registry below closes both at once.
 
   The residual is bounded on one side: a slot naming something that exists
   NOWHERE is already rejected, so what is unchecked is the narrower case of a

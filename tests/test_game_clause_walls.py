@@ -281,7 +281,13 @@ def _absorbable_clause_keywords() -> set[str]:
     their 21 keywords only two are load-bearing — and, worse, a coincidental
     NON-superset: a brace clause reachable as a `?phase_item` or a `?top_item`
     would sit outside them entirely, so a pin over the registries can go green
-    while a new clause is silently absorbed."""
+    while a new clause is silently absorbed.
+
+    One stated assumption: the scrape reads the `<entry>*` form only, not
+    `<entry> ("," <entry>)*`. Every brace clause in the grammar uses the star
+    form today (checked by `test_every_brace_clause_uses_the_star_form` below),
+    and a comma-form clause would be MORE absorbable, not less, since
+    `struct_lit`'s own field list is comma-separated."""
     required = set()
     for keyword, entry in re.findall(
         r'^\w+:\s*"([a-z_]+)"\s*"\{"\s*(\w+)\*\s*"\}"', GRAMMAR, re.MULTILINE
@@ -290,6 +296,23 @@ def _absorbable_clause_keywords() -> set[str]:
             required.add(keyword)
     assert required, "scrape found no brace-clause productions at all"
     return required
+
+
+def test_every_brace_clause_uses_the_star_form() -> None:
+    """The assumption `_absorbable_clause_keywords`'s scrape rests on. A brace
+    clause written `kw "{" <entry> ("," <entry>)* "}"` would be invisible to that
+    scrape and MORE absorbable than the star form, since `struct_lit`'s own field
+    list is comma-separated — so the tripwire has to be here rather than in a
+    comment nobody re-checks.
+
+    red under: rewrite any `kw "{" X* "}"` production in the comma form."""
+    comma_form = re.findall(
+        r'^(\w+):\s*"[a-z_]+"\s*"\{"\s*\w+\s*\("," ?\s*\w+\)\*', GRAMMAR, re.MULTILINE
+    )
+    assert not comma_form, (
+        f"brace clause(s) {comma_form} use the comma form, which "
+        f"`_absorbable_clause_keywords` does not scrape — widen it"
+    )
 
 
 def test_struct_type_name_excludes_every_absorbable_clause() -> None:
