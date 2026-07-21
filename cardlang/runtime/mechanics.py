@@ -533,7 +533,11 @@ class ClimbForm:
         hand = reads.deep_freeze(self.hands[actor].cards)
         if state["current"] is None:  # the leader must lead
             return self.lead_query(facts, gr, hand)
-        return [*self.follow_query(facts, gr, hand, state["current"]), "pass"]
+        # `state["current"]` is the live standing `Play` in the round
+        # accumulator; freeze it too, or a follow query could object.__setattr__
+        # its key/kind/cards and corrupt the engine's standing play.
+        standing = reads.deep_freeze(state["current"])
+        return [*self.follow_query(facts, gr, hand, standing), "pass"]
 
     def apply(self, actor: Player, choice: Any, state: State, ctx: Ctx) -> State:
         if choice == "pass":

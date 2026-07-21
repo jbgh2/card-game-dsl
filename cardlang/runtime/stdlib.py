@@ -14,7 +14,7 @@ from cardlang.runtime import reads, sidecar
 from cardlang.runtime.state import Ctx, IllegalMove, elements
 from cardlang.runtime.values import SUITS, Card, Player
 from cardlang.stdlib.signatures import CALL_SIGS
-from cardlang.types import TCollection
+from cardlang.types import TAny, TCollection
 
 # This module's per-game functions (the auction outcomes; the pegging-scorer
 # call sites) read state on behalf of specific games — one declared-reads row
@@ -51,16 +51,27 @@ def _coerce_args(sig: Any, args: list[Any]) -> list[Any]:
     `deep_freeze`s it: the positional args are the second channel a primitive
     can touch (the bundles are the first), and `cards.clear()` on a live zone
     list would corrupt engine state exactly as a bundle write would. The
-    freeze is SIGNATURE-DRIVEN, not blanket: a TAny param passes raw, because
-    its adapter dispatches on the shape itself (`suit_of`: a card or a
-    single-card zone — blanket coercion broke the schnapsen trump indicator).
-    The registry side is pinned by tests/test_stdlib_boundary.py (every
-    TCollection param probed with a Zone, the TAny set pinned, no param
-    zone=True)."""
-    return [
-        reads.deep_freeze(elements(a)) if isinstance(p, TCollection) else a
-        for p, a in zip(sig.params, args)
-    ] + args[len(sig.params) :]
+    A SCALAR `Card` argument (a `TCard` param — `canasta_stage_ok(p, card)`,
+    `president_is_top_rank(p, c)`) is frozen too: evaluation preserves the
+    engine's `Card` by identity, and a frozen+slots `Card` is still mutable
+    via `object.__setattr__`, so an unfrozen scalar card is the same leak as
+    an unfrozen collection. The freeze is SIGNATURE-DRIVEN, not blanket: a
+    TAny param passes RAW, because its adapter dispatches on the shape itself
+    (`suit_of`: a card or a single-card zone — blanket coercion broke the
+    schnapsen trump indicator, and `deep_freeze` would refuse a Zone). Every
+    other param is `deep_freeze`d: a copy for a `Card`, a no-op for the
+    immutable scalars (`Player`, `Integer`, `Rank`, ...). The registry side is
+    pinned by tests/test_stdlib_boundary.py (every TCollection param probed
+    with a Zone, the TAny set pinned, no param zone=True)."""
+    coerced: list[Any] = []
+    for p, a in zip(sig.params, args):
+        if isinstance(p, TCollection):
+            coerced.append(reads.deep_freeze(elements(a)))
+        elif isinstance(p, TAny):
+            coerced.append(a)  # raw: the adapter dispatches on the shape
+        else:
+            coerced.append(reads.deep_freeze(a))  # copies a Card, no-ops scalars
+    return coerced + args[len(sig.params) :]
 
 
 def call(name: str, args: list[Any], ctx: Ctx) -> Any:

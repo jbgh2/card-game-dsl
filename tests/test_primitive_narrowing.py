@@ -74,11 +74,14 @@ covered:    (a) per-implementation-SITE: the site's signature names no
             bundles above, and the positional COLLECTION arguments — a
             collection arg from a zone reaches a primitive as the zone's
             live `.cards` list (`elements()` returns it by reference), so
-            EVERY site handing a narrowed primitive a collection freezes
-            it: the generic `call()` coercion (`_coerce_args`), the climb
-            hand, and the direct sites that read live engine state rather
-            than a bundle — the two cribbage peg arms and the trick
-            `outcome_fn` (`played` + `rank_index`). Keys are frozen with
+            EVERY site handing a narrowed primitive a value that could be
+            (or contain) a mutable engine object freezes it: the generic
+            `call()` coercion (`_coerce_args`, which copies both TCollection
+            args AND scalar `TCard` args — a frozen+slots `Card` is still
+            mutable via `object.__setattr__`), the climb hand AND the
+            standing `Play` (`state["current"]`), and the direct sites that
+            read live engine state rather than a bundle — the two cribbage
+            peg arms and the trick `outcome_fn` (`played` + `rank_index`). Keys are frozen with
             values, so a mutable-hashable key cannot be recovered by
             iterating a proxy. Each channel is proven: the boundary
             snapshot is a tuple not the live list (captured at the peg and
@@ -1215,6 +1218,56 @@ def test_collection_args_are_frozen_at_the_call_boundary() -> None:
     assert isinstance(coerced, tuple)  # an immutable snapshot
     assert list(coerced) == [Card("7", "clubs"), Card("8", "clubs")]  # same contents
     assert not _reachable_mutable(coerced)  # deeply immutable, like the bundles
+
+
+def test_scalar_card_args_are_copied_at_the_call_boundary() -> None:
+    """A scalar `Card` argument (a `TCard` param) is the same leak as a
+    collection: a frozen+slots Card is mutable via `object.__setattr__`, so
+    `_coerce_args` copies it rather than passing the engine's live card.
+    Immutable scalars (`Player`, ...) pass through unchanged."""
+    from cardlang.runtime import stdlib
+    from cardlang.stdlib.signatures import CALL_SIGS
+
+    card = Card("3", "hearts")  # a red three
+    (coerced,) = stdlib._coerce_args(CALL_SIGS["canasta_is_red3"], [card])
+    assert coerced == card and coerced is not card, "the live engine Card leaked"
+    object.__setattr__(coerced, "rank", "K")  # back door, on the copy
+    assert card.rank == "3", "mutating the copy reached the engine's Card"
+
+    # An immutable scalar (a TPlayer int) is a no-op, not refused.
+    p_sig = CALL_SIGS["president_is_top_rank"]  # [TPlayer, TCard]
+    assert stdlib._coerce_args(p_sig, [1, card])[0] == 1
+
+
+def test_climb_follow_freezes_the_standing_play() -> None:
+    """`ClimbForm.candidates` passes the live standing `Play` (`state["current"]`)
+    to the follow query; freeze it there, or a follow primitive could
+    `object.__setattr__` its key/kind/cards and corrupt the engine's play.
+    Driven via `object.__new__` with a capturing follow query."""
+    from cardlang.runtime import reads as reads_mod2
+    from cardlang.runtime.bigtwo import Play
+    from cardlang.runtime.mechanics import ClimbForm
+    from cardlang.runtime.state import Ctx, RuntimeState, Zone, ZoneStore
+
+    seen: dict[str, Any] = {}
+
+    def follow(facts: Any, gr: Any, hand: Any, current: Any) -> list[Any]:
+        seen["current"] = current
+        return []
+
+    form = object.__new__(ClimbForm)
+    form.climb_row = reads_mod2.PrimitiveReads(module="x", game_file="y")  # empty
+    form.hands = {0: Zone([Card("7", "hearts")])}
+    form.lead_query = lambda f, g, h: []
+    form.follow_query = follow
+    rs = RuntimeState(Seating(2), ZoneStore((), (0, 1)), random.Random(0))
+    ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]))
+    standing = Play("single", 1, (5,), (Card("8", "spades"),))
+    form.candidates(0, {"current": standing, "last": 0}, ctx)
+
+    assert seen["current"] == standing and seen["current"] is not standing, (
+        "the follow query received the engine's live standing Play"
+    )
 
 
 def test_peg_direct_arm_args_are_frozen(monkeypatch: Any) -> None:
