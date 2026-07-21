@@ -127,6 +127,12 @@ DECKS: dict[str, Deck] = {
     # its game-local primitive (cardlang/runtime/canasta.py), not a deck
     # property — the deck is also used with other point tables in principle.
     "canasta108": Deck(suits=SUITS, ranks=(), values={}, cards=_canasta108()),
+    # 3-card Kuhn deck: J Q K in one suit, one copy each — the whole pack of the
+    # OpenSpiel poker anchor. One suit because Kuhn has no notion of suit at all.
+    "kuhn3": Deck(suits=("spades",), ranks=("J", "Q", "K"), values={}),
+    # 6-card Leduc deck: the Kuhn ranks in two suits, so a pair with the public
+    # card is possible — the whole point of Leduc over Kuhn.
+    "leduc6": Deck(suits=("spades", "hearts"), ranks=("J", "Q", "K"), values={}),
     # 15-card Coup deck: five characters (the "rank") under one suit, three each.
     "coup15": Deck(
         suits=("court",),

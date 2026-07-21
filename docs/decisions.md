@@ -839,6 +839,46 @@ live in `rubber`). A phase may *not* write to a variable declared in
 a sibling or descendant scope, because that variable's owning phase
 may not be active. This is statically checkable.
 
+**A default reads only what is already declared.** The free-reads rule
+above is about a body running inside the phase, when the whole block
+exists. A `= <default>` is evaluated earlier than that — while its own
+block is still being declared, top to bottom — so it sees the enclosing
+scopes and the declarations *above it in its own block*, and nothing
+else. A default naming a variable from later in its block, from itself,
+from a sibling phase, or from a phase nested inside its own reaches a
+variable that does not exist yet, and is refused
+(`resolve._check_state_default_scope`). Without the rule these all
+passed every front-end pass and died at playout on a bare `KeyError` out
+of `runtime/state.py`.
+
+A default may not **call**, either. A call's state reads live in the
+callee's body, so admitting one would mean chasing the declare-time
+reachability of every function a default can reach. Refusing the call
+outright costs nothing measured — across the whole corpus and every
+library, defaults hold integer and enum literals, and not one reads a
+state variable — and it keeps the surface total rather than leaving a
+check that silently stops at the call boundary. Compute the value in
+the phase that needs it.
+
+Nor may a default **`choose`**. A default is evaluated outside any
+player's turn, so there is no one to make the decision; the runtime
+raised "a `choose` with no acting player" at declare time, and for the
+OpenSpiel target a decision with no actor has no information set to
+attach to. This is the same rule as the two above and not a separate
+one: what a default may do is bounded by how little of the game exists
+when it runs.
+
+**A default must fit its declared type.** `v : Integer = "s"` is refused,
+not silently stored: the default's inferred type must be assignable to the
+variable's declared type — the same `assignable` relation an ordinary
+assignment uses (`typecheck._check_state_default_type`, the initial-value
+twin of `_check_assign`). For an indexed variable the default is checked
+against the element type, since `score[player] : Integer = 0` broadcasts
+one value to every key. The check is as sharp as the inferencer and no
+sharper: a default whose type the inferencer leaves as the permissive top
+is accepted whatever the declaration, which is the type system's design
+rather than a hole here — no corpus default is untyped.
+
 **Example: Bridge state declarations.**
 
 ```text
@@ -3236,3 +3276,267 @@ misleading implication that nothing can catch. The subjunctive says
 something about the code as it stands, which means a reader can check it
 and the claim can be found wrong — the same reason walls beat prose
 everywhere else in this document.
+
+## Family libraries
+
+A **library** is the import tier between game-local definitions and the stdlib.
+It holds exactly the definition forms a game already holds — move_types, rules,
+functions, procedures, types, defines — plus the two state clauses `state` and
+`requires`, and it lives in
+`docs/libraries/<name>.cardlang`, beside the corpus and maintained with it. The
+stdlib is the part maintained with the *language*; that boundary is the one
+[design-notes/primitive-sidecars.md](design-notes/primitive-sidecars.md) exists
+to defend, and the tier exists so a family of related games need neither paste
+shared machinery per game nor promote domain knowledge into the stdlib.
+
+A game names one whole library at a time:
+
+```text
+game SevenCardStud {
+  uses poker_betting
+  ...
+}
+```
+
+Whole-library, never a named-definitions manifest: the line stands in for the
+rulebook sentence it replaces ("betting proceeds as in standard poker" is
+Pagat's own practice), and that is what keeps the read-cold acceptance test
+intact — the readable unit becomes the game file plus its *named* libraries. A
+game may `uses` several libraries; repeating one is an error, because the
+repeat imports nothing further.
+
+Resolution is flat and two-level: game, then the named libraries, then the
+stdlib. There is no library-imports-library. Imports are pure name resolution —
+`resolve` splices each named library's definitions into the game before any
+other name check runs, so what flows on is one flat game and no later pass knows
+imports exist. That is what makes an import carry no runtime and no
+information-set implication.
+
+**`uses` imports; it does not inherit.** A game-local definition under an
+imported name is an error, not an override, and so is the same name from two
+libraries. Import-with-override would make the tier inheritance, and would put a
+game's meaning at the mercy of a silent redefinition — the accepted-but-ignored
+defect class at file granularity. Nor is there a second, override-shaped
+mechanism waiting behind it: there is no variant-delta construct and will not be
+one ([principles.md](principles.md), "Composition over inheritance"). Variants
+are sibling games over a shared core, which is this tier — so `uses` is not one
+of two ways to relate games, it is the way, and the no-override rule is
+unconditional rather than provisional.
+
+That decision sets the open question for this tier: **what may a library
+contain?** Siblings can only share what a library can hold, so anything two
+variants have in common and a library cannot express comes back as duplication.
+Today a library holds definitions (move types, rules, functions, procedures,
+types, defines) and state, and no other game structure. Poker forced state; a
+pair of variants sharing a phase tree would force phases. Grow it corpus-first,
+one forcing game at a time — but do not describe a library as "a vocabulary, not
+a game", because that framing assumed a delta mechanism would cover the rest, and
+none is coming.
+
+**State reaches a library two ways, and the difference is ownership.** A library
+`requires` state the including GAME owns, and `state`s the state the LIBRARY
+owns. Both are checked at the `uses` line, so an unmet contract or a collision
+lands in the game's currency rather than as an undeclared name inside spliced
+library text the author never typed.
+
+```text
+requires {
+  stack[player] : Integer   // the game declares it, sets it, writes it
+  raise_cap     : Integer
+}
+
+state {
+  acted[player] : Boolean = false   // the library's own; the game may read it
+  limit         : Integer = 0
+}
+```
+
+`requires` is deliberately a `state_decl` minus the `= <default>`: the initial
+value is the game's to choose, and a library that could set one would be
+configuring the game rather than contracting with it. Provided `state` carries
+its default for the mirror-image reason — the library owns the variable, so it
+owns the value the variable starts at.
+
+**Provided state is read-only to the game.** It splices into the game's own
+`state { }` and the game may read it, but an assignment from game text is an
+error, reported in the GAME (the game's author wrote the assignment) and naming
+both the variable and the library that owns it. The rule is what makes
+"provided" mean anything: a variable the library maintains and the game may also
+write is not owned by either, and the library's invariants over it would hold
+only by the game's good manners. It is enforced across every write form the
+language has — `:=`/`+=`/`-=`, `rotate`, and a `turns … again <flag>`, whose flag
+the runtime clears at each turn boundary — because a rule that covered only the
+obvious one would be two thirds of a guarantee.
+
+**A provided default may not read the contract.** Provided state splices in
+front of the game's own, so a `requires` name — which only the game can declare
+— is never in scope where a provided default runs. This is the declare-order
+rule of "State scoping (lexical)" landing on the tier, and the general wall
+would catch it after the splice; it is refused before the splice as well,
+against the library alone, because the splice destroys the distinction the
+author needs. Post-splice a required name is just a variable declared later,
+and "declare it earlier" is advice a library author cannot take. Give the
+provided variable a literal default and set it from the contract in a phase.
+
+**There is no visibility system beyond this, and that is a decision, not a
+gap.** No `private`/`public` marker on a definition, no export list, no scoped
+namespace. Two surveys over the two multi-member families in hand measured what
+sharing actually needs (recorded under "The evidence" below), and read-only
+provided state plus ordinary procedures covered every case: the variables no
+game reads become the library's, the boundary writes that remain become a
+procedure the game runs. Nothing in either family wanted a definition hidden
+from its importer. Adding a marker system now would be designing against
+imagined pressure, and this paragraph exists so the question is not silently
+reopened — reopen it when a family produces a case these two mechanisms cannot
+express, and name that case.
+
+What the `requires` contract checks is that **exactly one**
+declaration of the name exists somewhere in the game, at the library's arity and
+type. Which `state { }` block holds it is not checked: a phase's block is the
+natural home for state that resets on phase re-entry, which is what per-hand
+betting state is, and Seven-Card Stud declares all seven of `poker_betting`'s
+requirements inside `phase play`. That is weaker than "the library's definitions
+can read it where they run" — a declaration in a phase the library never runs in
+satisfies the contract and then fails at play time — and the shortfall is not the
+import tier's to close: a plain game with no library reproduces it, one phase
+declaring what another reads. It is recorded as a residual in
+[roadmap.md](roadmap.md).
+
+Cross-block shadowing is legal for game-private state and refused for a
+`requires`d name: the two shadowed declarations answer different questions, and
+no fixed tie-break picks correctly, since a shadow in the phase where the
+library's definitions run and a shadow in some other phase want opposite winners.
+Because the spelling is the interface, a `requires`d name is not game-private:
+the metamorphic rename transform excludes it for the same reason.
+
+**The contract is meant to be sufficient, not advisory.** A library's
+definitions may reach only its `requires` contract, its own definitions, the
+stdlib, and the pronouns and binders any body has anyway — checked against the
+library alone, before any game is consulted. Without that the contract would be
+a suggestion: a body reading past it resolves against a game that happens to
+declare the extra name and fails against a game meeting the contract in full,
+reporting an unresolved-name error inside library text the game's author never
+wrote. That is the currency failure `requires` exists to prevent, arriving by
+the back door, and it is why the check reports in the LIBRARY's currency — the
+library author is the only one who can fix it. The same rule makes a library
+deck-agnostic: it names no rank, no suit and no card, because those exist only
+once an including game names a deck, and a family's members do not share one
+(Kuhn's holds three cards).
+
+The check enforces this for every name the resolver classifies. It does not yet
+reach a name a construct holds as a bare string rather than as a reference — a
+`turns … again <var>`, a `round`'s source and play zones, a struct type name —
+so for those slots the rule above is the design's intent rather than a
+guarantee. The gap and the shape of its fix are in [roadmap.md](roadmap.md).
+
+**Name collisions on state are walled the same way collisions on definitions
+are.** A library may not both provide and require one name — the two clauses
+point opposite ways, so no reading satisfies both. Two libraries may not provide
+one name, because resolution is flat and picking by `uses` order would make a
+game's meaning depend on the order of its import lines. A game may not declare
+what a library provides: that is the state face of "`uses` imports, it does not
+inherit". And a requirement is answered by the game's own declaration, never by
+another library's provision, which would couple two libraries through a name
+neither mentions the other in. Two libraries requiring the same name is fine —
+one game declaration answers both contracts.
+
+**A library may not inject a name the game already uses for anything — in any
+namespace, not just the same kind.** The collision walls above catch a library
+definition landing on a game definition of the SAME kind (function over
+function) and a provided name landing on the game's own state. The remaining
+cases are the silent ones: a provided name, or a library definition, coinciding
+with the game's zone, a suit or rank or direction value of its deck, a position
+domain, or a definition of a DIFFERENT kind. Each is a trap because a `uses`
+import adds names without overriding and the game's author never opens the
+library file — so a bare `hearts` the author writes meaning the suit resolves to
+the library's variable instead, or a `pile` they declared as a zone is shadowed
+by a provided one they cannot see. This is where the tier parts company with the
+base language, which lets a GAME reuse one name across its own namespaces: there
+the author wrote and can see both declarations, and the precedence that resolves
+the reference is theirs to know. The refusal is deliberately conservative — a
+coincidence is refused even where precedence would make it harmless — because the
+rule a designer must hold is "a library may not bring in a name you already use",
+not a table of safe pairs. It is reported naming the library, since that is the
+half the author cannot see; the game-level face of the same clash is left to the
+author and recorded in [roadmap.md](roadmap.md).
+
+**What a library holds, and what stays game-local.** A library holds definitions
+and the state its definitions own — but no zones and no phases — because that is
+as far as the corpus has forced it, not because a library is a lesser kind of
+thing than a game. The boundary moves as sibling games need to share more.
+Within today's boundary the corpus forced a sharper line: **a move that touches a
+game-specific zone stays game-local; the library holds the zone-agnostic core.**
+`poker_betting` holds check, bet, call, raise and the `can_act`/`owes`/`pending`
+ring predicates — all of which move chips and nothing else — and omits `fold`,
+the one betting move that touches cards. Which cards a fold disposes of, and
+where they go, is a property of the game: Stud sends the folder's upcards to the
+muck the instant they fold, and opponents' information sets carry that
+observation. Each game defines its own `fold` and offers it alongside the
+imported four in one vocabulary list. The signal that this factoring is natural
+rather than forced is that `poker_betting`'s contract requires no zones at all.
+
+**Parameterization rides on state and on procedure arguments, not on the
+import.** Family members differ by constants, and where the constant lives
+follows what it is a property of. A per-GAME constant is required state the game
+declares: Stud allows three raises per street and Leduc two, so `raise_cap` is
+`requires`d. A per-OCCASION constant belongs to the occasion, so it is a
+procedure argument: a poker bet size is a property of a street, not of a game
+(Stud runs 5/5/10/10/10), so `limit` is provided state that the library's
+`open_street(bet_size)` sets, and each street names its own size where the street
+is written. Neither difference reaches the import surface, which stays a bare
+name.
+
+The test for which of the two a constant is: could one declaration in the game
+carry it? `raise_cap` yes, `limit` no. A value that varies within a game was
+never a declaration's to hold, and making it one is how `limit := 5` came to be
+repeated at five sites that were otherwise identical.
+
+**A member offers a subset of the family vocabulary, at no cost.** Importing a
+library is not a commitment to use all of it: Kuhn's `offering` list is
+`[check, bet, call, fold]`, so the imported `raise` is never offered — standard
+Kuhn has no raise. That costs nothing at the OpenSpiel target, because the
+action space is derived from the `offering` / `offer` lists, never from the
+game's move-type table, so an imported-but-unoffered move type mints no action
+id and cannot widen `num_distinct_actions`. This is what makes whole-library
+import affordable for a small family member, and it is pinned rather than
+assumed (`tests/openspiel_ready/test_kuhn_poker.py`). It is not a licence to
+leave a move type dead by accident: a game's own definitions are still subject
+to the ordinary totality rule above — the exemption is for *imported* text the
+author did not write, whose unused parts are the price of naming a family
+rather than a manifest.
+
+**The evidence.** Two surveys sized what a library must hold, and they are
+recorded here because the shape of this tier is an empirical claim rather than a
+deduction.
+
+*Survey 1, over the three poker games.* Every game write to `poker_betting`'s
+state is at a street boundary, with one exception: `folded`, written mid-street
+by each game's own `fold`. Four of the nine required variables — `acted`,
+`raises`, `limit`, `raise_cap` — were never READ by any of the three games. (Nine is what the
+contract held then; it holds seven now, which is what the survey bought.) And
+all five street-reset sites (one in Leduc, four in Stud) were one shape differing
+in a single integer. That is what forced provided state and `open_street`: writes
+that cluster at boundaries are absorbable by a procedure, and a variable no game
+reads or writes has no business in a contract. Only two of the four moved,
+though, and the two that did not are as informative as the two that did —
+`raise_cap` is a per-game constant so no single provided default fits it, and
+Stud's bring-in genuinely writes `raises`, a boundary write no *shared* procedure
+absorbs because only one game in the family has a bring-in.
+
+*Survey 2, over the smuggling family* (`experiments/green-lane/`, an experiment
+rather than corpus). The shared material a library could not hold was
+irreducibly zones plus state declarations. Phases were NOT forced: the family's
+shared phase material reduced to statements a parameterized procedure covers.
+
+The second survey carries a caveat that bounds how far it generalizes. Green
+Lane's variants are a **delta lattice** — v4 is v1 composed with v3, and each
+delta edits disjoint rule text — so the family shares a great deal by
+construction. A family whose members are siblings rather than deltas may share a
+different *shape* of material, and in particular may not reproduce the
+zones-and-state signal at all. Read Survey 2 as "phases were not forced by this
+family", not as "phases are settled". The roadmap entry says the same.
+
+The tier's completeness gate is `tests/test_family_libraries.py`, whose ledger
+records the one deliberate non-cell: stdlib move types and a game's `move_type`
+definitions are disjoint consult paths that never share a namespace, so there is
+no collision there to wall.

@@ -28,9 +28,13 @@ procedures", "Surface totality", "Closed-domain completeness").
 
     covered:    A — exhaustive, derived from KNOWN_TYPE_NAMES x {plain, optional}
                     by `test_every_declarable_type_name_as_a_parameter`: 18 cells,
-                    of which `Player`, `Rank` and `Rank?` are accepted and the other
-                    15 (plus an unknown name) are rejected at resolve. A new entry
-                    in KNOWN_TYPE_NAMES fails this test until it is classified.
+                    of which `Player`, `Rank`, `Rank?` and `Integer` are accepted
+                    and the other 14 (plus an unknown name) are rejected at
+                    resolve. That sweep READS the registry to decide each cell, so
+                    the registry itself is commanded separately by
+                    `test_the_supported_domains_are_exactly_player_rank_and_integer`
+                    — a member may not join by editing one line. A new entry in
+                    KNOWN_TYPE_NAMES fails this test until it is classified.
                 B — exhaustive, pinned by `test_stmt_union_is_fully_classified`:
                     11 accepted, 5 rejected, 16 total, and every accepted kind is
                     actually exercised in a body. A new `Stmt` member fails that test
@@ -66,11 +70,14 @@ procedures", "Surface totality", "Closed-domain completeness").
                   - `Zone` parameters. The design note guessed the corpus would
                     need them; it does not (a Player parameter already carries its
                     zone: `influence[victim]`). Wall: unsupported-domain error.
-                  - Every other domain (Suit, Card, Integer, Boolean, String, Team,
+                  - Every other domain (Suit, Card, Boolean, String, Team,
                     Direction, and the optional form of each bar `Rank?`). Same
                     wall. `Rank?` rather than `Rank` is what the corpus forces:
                     there is no flow narrowing, so a bare `Rank` parameter would
                     reject `block_claim` at the very sites that must pass it.
+                    `Integer` LEFT this list when poker_betting's `open_street`
+                    forced it — the set grows one forcing game at a time, which
+                    is the deferral working rather than a hole closing.
                   - a `round` in a body. It binds its own `outcome`, which the
                     body's pronoun wall cannot yet tell from the caller's.
                   - a `produces:` over a PHASE OUTCOME in a body. Its consumer must be
@@ -234,7 +241,7 @@ def _walk(node: object) -> typing.Iterator[object]:
 
 # A well-typed argument for each supported domain, so the domain sweep below tests
 # the DOMAIN cell and not, accidentally, the argument-type cell.
-_SAMPLE_ARG = {"Player": "0", "Rank": "A", "Rank?": "A"}
+_SAMPLE_ARG = {"Player": "0", "Rank": "A", "Rank?": "A", "Integer": "1"}
 
 
 @pytest.mark.parametrize(
@@ -244,7 +251,7 @@ def test_every_declarable_type_name_as_a_parameter(type_name: str) -> None:
     """The closed-domain sweep, derived from the registry that defines the universe
     of declarable type names — NOT from the domains the wall happens to handle.
     `payload_type` makes every name generically optional-able, so the domain is
-    KNOWN_TYPE_NAMES x {plain, optional}: 18 cells, of which exactly three are
+    KNOWN_TYPE_NAMES x {plain, optional}: 18 cells, of which exactly four are
     supported. A new entry in KNOWN_TYPE_NAMES lands here as a failure until it is
     classified as supported or walled."""
     procs = f"procedure f(p : {type_name}) {{ score[0] += 1 }}"
@@ -254,13 +261,26 @@ def test_every_declarable_type_name_as_a_parameter(type_name: str) -> None:
         rejects("    run f(0)", procs, "has an unsupported domain")
 
 
-def test_the_supported_domains_are_exactly_player_and_rank() -> None:
-    """`Rank?` is the form the corpus forces, not `Rank`: Coup's proven-claim swap
+def test_the_supported_domains_are_exactly_player_rank_and_integer() -> None:
+    """The commanded column for the sweep above, which reads the registry to
+    decide each cell and so cannot command it. Every member is here because a
+    corpus game forces it; the set grows one forcing game at a time.
+
+    `Rank?` is the form the corpus forces, not `Rank`: Coup's proven-claim swap
     takes both a literal character (`run prove_claim(actor, Duke)`) and the block
     claim, which is `Rank?` because "no block" is a real state. The call sites sit
     inside `if block_claim is not none`, but there is no flow narrowing, so a bare
-    `Rank` parameter would reject the very argument the block sites must pass."""
-    assert _PROCEDURE_PARAM_DOMAINS == {"Player", "Rank", "Rank?"}
+    `Rank` parameter would reject the very argument the block sites must pass.
+
+    `Integer` is forced by `poker_betting`'s `open_street(bet_size)`, the
+    procedure that opens a betting street at a given bet size — the five street
+    resets across Leduc and Stud are one shape differing in one integer, which is
+    a parameter or it is nothing. Nothing about an Integer argument strains the
+    construct: a procedure argument is an arbitrary expression the caller
+    evaluates once, never a value an action space enumerates, and a `function`
+    parameter has always accepted Integer. The gap was which games existed, not a
+    design position."""
+    assert _PROCEDURE_PARAM_DOMAINS == {"Player", "Rank", "Rank?", "Integer"}
 
 
 def test_an_unknown_parameter_type_is_rejected() -> None:

@@ -149,10 +149,13 @@ Things we have noted but consciously not designed yet:
   silent acceptance; the ledger is `tests/test_procedures.py`. (a) **`Zone`
   parameters.** The design note expected the corpus to need them; it does not — a
   `Player` parameter already carries its zone (`influence[victim]`), so the domain
-  is `Player` / `Rank` / `Rank?` and every other spelling is rejected. `Rank?`
-  rather than `Rank` is the form the corpus forces: there is no flow narrowing, so
-  a bare `Rank` parameter would reject `block_claim` at the very sites that must
-  pass it. (b) **A `round` in a procedure body.** It binds its own, round-local
+  is `Player` / `Rank` / `Rank?` / `Integer` and every other spelling is rejected.
+  `Rank?` rather than `Rank` is the form the corpus forces: there is no flow
+  narrowing, so a bare `Rank` parameter would reject `block_claim` at the very
+  sites that must pass it. `Integer` was on this deferred list until
+  `poker_betting`'s `open_street(bet_size)` forced it — the five street resets
+  across Leduc and Stud being one shape differing in one integer — which is the
+  corpus-first rule working rather than a hole closing. (b) **A `round` in a procedure body.** It binds its own, round-local
   `outcome`, and the body's pronoun wall cannot yet tell that from the caller's
   call-site `outcome`; rather than accept a `round` you may run but whose winner
   you may not route, the form is rejected whole. This is what Tichu's and Skat's
@@ -288,6 +291,199 @@ Things we have noted but consciously not designed yet:
   wall is that a read with no live or just-completed frame now fails loudly rather
   than returning a stale one from a different form. The design seam is
   [open-questions/round-state-in-information-states.md](open-questions/round-state-in-information-states.md).
+
+- **An empty `type X = { }` is declarable but not constructible.** `type_def`
+  takes `struct_field*` (zero or more) while `struct_lit` requires at least one
+  field, so an empty struct type parses, resolves, and can never be written as a
+  value. It is the declaration/use symmetry that `STRUCT_TYPE_NAME` enforces on
+  the NAME axis, unenforced on the arity axis. Harmless today — an empty type is
+  inert, so nothing can depend on one silently doing something — and the fix is
+  a one-token grammar change (`struct_field+`) plus a diagnostic for the games,
+  none of which declare one. Left for whoever next touches `type_def`, recorded
+  so the surrounding ledger in tests/test_game_clause_walls.py does not read as
+  claiming it.
+
+- **Family libraries — unchecked residuals in the `requires` contract.** Two,
+  both of them the contract promising less than a reader might assume.
+
+  *The declaration need not be in SCOPE where the library runs.* `_check_requires`
+  proves that exactly one declaration of a required name exists somewhere in the
+  game, at the right arity and type. It does not prove the library's definitions
+  can read it where they run: move Kuhn's `limit` into `phase deal` while the
+  imported `bet` runs in `phase betting` and resolve passes, typecheck passes,
+  and the playout dies on a bare `KeyError` out of `runtime/state.py`. The root
+  cause is NOT the import tier — a plain game with no library reproduces it, one
+  phase declaring what another reads — so the fix is use-site scope reachability
+  for state generally, and the contract must not be dressed up as standing in for
+  it. Narrowing the contract to game-level declarations would not close it and
+  would reject Seven-Card Stud, which declares all seven requirements inside
+  `phase play`.
+
+  The DECLARE-TIME slice of that class is closed
+  (`resolve._check_state_default_scope`, decisions.md "State scoping (lexical)"):
+  a `state { }` default now reaches only what is declared before it, so the
+  `KeyError` can no longer arrive while the block is being built. What remains
+  open is the PLAY-TIME half described above — a body reading, at some later
+  point in the game, a variable whose phase is not active. Do not read the
+  declare-time wall as covering it: the two share a symptom and nothing else.
+
+  *A name held as a bare string is not classified.* The contract IS checked to be
+  sufficient for every name the resolver classifies: free names, calls and card
+  literals are checked against the library alone, so a body cannot reach past
+  `requires` into the importing game through any of them
+  (`resolve._check_library_encapsulation`, ledger
+  `tests/test_family_libraries.py`). The check is built on the `NameRef` pass, so
+  it is blind to every AST slot that holds a name as a plain `str` — the same
+  blindness `resolve.py`'s `again` handling already documents for `Winner.target`.
+  Confirmed reachable from a library, by namespace:
+
+  - state — `turns … again <var>` (`Turns.again`);
+  - zones — `round … source <zone> into <zone>` (`Round.source_zone`, `play_zone`);
+  - types — `StructLit.type_name`, `StructField.type_name`,
+    `VariantCase.payload_types`;
+  - definitions — `constrains:`, `run <proc>()`, `produces <define>`,
+    `offer […]`, `Round.move_types`.
+
+  Two consequences worth naming. A library reading a state variable through
+  `again` leaks it exactly as the wall's own docstring describes; and putting
+  that name in `requires` instead does not help either, because `state_reads`
+  also accumulates only from `NameRef`s, so the minimality check
+  (`test_every_library_contracts_for_exactly_what_it_reaches`) would call the
+  entry dead. The slot has no correct spelling today. The two halves are
+  independent code paths — teaching `state_reads` about `again` would fix the
+  minimality trap on its own and could not make a leak easier to ship — but
+  neither is patched here for the same reason: a hand-added arm for one slot is
+  precisely the by-luck hand-list this residual exists to avoid, and the slot
+  registry below closes both at once.
+
+  The residual is bounded on one side: a slot naming something that exists
+  NOWHERE is already rejected, so what is unchecked is the narrower case of a
+  library naming something only the importing game provides. The fix is a
+  reference-slot registry — one table saying "this field holds a name drawn from
+  that namespace", total over every `str`-typed field of every `n.Node` (94 of
+  them today, so the table must be derived and pinned, not hand-listed) — which
+  several passes would share. Build it before a second family library lands; the
+  one-library corpus is what makes it currently harmless.
+
+- **A `requires` type typo is reported on the game's `uses` line, not the
+  library's.** A library's `requires { x : type_name }` is the one type-name
+  position not gridded by `tests/test_type_name_positions.py` — it cannot appear
+  in a standalone game, so that grid carves it out. Its type is validated
+  transitively and loudly: the including game must declare the same name, and
+  `_check_requires` rejects a require type that does not match the game's
+  declaration, naming the library and quoting the type — so a library-side typo
+  (`Integar`) is surfaced, never silently dropped. What is imperfect is only the
+  SPAN: the diagnostic lands on the game's `uses` line, so a library author
+  fixing their own typo is pointed at a file they did not write. Closing it is
+  one library-currency check in `_check_requires`
+  (`base_of(req.type_name) not in KNOWN_TYPE_NAMES`, reported in the library
+  file, and suppressing the mirror mismatch for that name so it is not reported
+  twice). Deferred, not silent — the current diagnostic is loud and names the
+  library, so this is a precision fix, not a hole.
+
+- **Library-vs-library cross-kind name clashes are not walled.**
+  `_check_library_shadows_game` refuses a library injecting a name the GAME
+  already uses, and `_check_library_collisions` / `_check_state_claims` refuse
+  two libraries colliding on the SAME kind (both define `foo`, both provide
+  `foo`). What neither covers is two libraries whose names clash across KINDS —
+  library A provides state `foo` while library B defines `function foo` — which
+  resolves today with no diagnostic. It is unreachable in the current corpus (no
+  game `uses` two libraries; there is only one), which is why it is recorded
+  rather than walled. The honest fix is not a third bolt-on comparison but the
+  shared name registry the `requires`-contract residual above already wants:
+  fold every library's injected names into one pool and check that pool against
+  itself and the game in a single sweep. Build it when a second library lands —
+  the same event that first makes this reachable.
+
+- **A game may still reuse ONE name across its OWN namespaces.** The base
+  language accepts `state { pile }` alongside `zones { pile }`, a state variable
+  spelled like a suit (`state { hearts }`), or a function named after a rank —
+  `_classify`'s precedence silently resolves the bare reference (state variable
+  wins over zone, which wins over deck value, which wins over function), so the
+  loser is unreachable by that spelling with no diagnostic. This is deliberately
+  NOT walled: the author wrote both declarations and can see both, which is the
+  ordinary block-shadowing every language allows, and a game-level uniqueness
+  rule would be a much larger, higher-risk change than the corpus has forced.
+  It is recorded here, not silent, because the LIBRARY face of the same clash IS
+  walled (`resolve._check_library_shadows_game`, decisions.md "Family libraries")
+  precisely on the visibility asymmetry — a library injects a name the game's
+  author cannot see. If a designer is ever surprised by their own cross-namespace
+  shadow, the fix is to lift the same sweep to the game's own declarations and
+  measure the corpus cost; do not conflate it with the library wall, which turns
+  on invisibility and would be wrong to apply to names the author wrote.
+
+- **A game-local BINDER may shadow a provided state name.** The read-only wall
+  (`resolve._check_provided_readonly`) refuses a game WRITING provided state, and
+  `_check_library_shadows_game` refuses a library injecting a name the game
+  already binds at declaration level. What neither covers is a binder or
+  parameter the game introduces — `for each player limit:`, `function
+  f(limit : Integer)`, a comprehension or quantifier binder — spelled like a
+  provided variable: inside its scope the bare name is the binder, not the
+  provided read, with no diagnostic. It is the binder face of the same
+  visibility asymmetry the injection wall turns on (the author cannot see that
+  `limit` is provided), and it is genuinely open — `_check_reserved_binders`
+  refuses only `RESERVED_VALUE_NAMES`, whose carve-out is justified by "a binder
+  is always scoped strictly narrower than a same-named outer declaration the
+  author WROTE", which does not hold for a declaration in a file they never open.
+  Severity is low: it needs a binder named exactly after a provided variable AND
+  an intent to read the provided one inside that scope. Wall it by extending the
+  binder-introduction sweep (`_introduced_binders` / `_BINDER_SCOPE_FIELDS`) to
+  refuse a provided name, the same registry the reserved-binder check already
+  walks — a bounded change, deferred only because no corpus game names a binder
+  after a library variable. The WRITE case is already safe: `let limit = 5` then
+  `limit := 6` is refused.
+
+- **The inline-vs-`run` metamorphic transform does not cross the import
+  tier.** T3 (`tests/metamorphic/test_inline.py`) splices every `run` site
+  with its procedure's body, reimplemented at SOURCE-TEXT level so it is
+  independent of `cardlang.expand`. That reads one file, so a game whose
+  procedure body lives in a family library is outside its domain: Kuhn, Leduc
+  and Seven-Card Stud all `run open_street(...)` from
+  `docs/libraries/poker_betting.cardlang`, and T3's property is genuinely
+  unchecked for the three. Also reading the library file would NOT fix it —
+  the game still `uses` that library, so the then-uninvoked library procedure
+  is a resolve error and the spliced text would not compile; the splice would
+  have to rewrite the `uses` line and the library together. The gap is pinned
+  as a named list (`test_the_library_procedure_games_are_pinned_as_uncovered`)
+  so it cannot shrink or grow silently. Worth closing when a second library
+  lands, since the shape generalizes rather than being poker-specific.
+
+- **Family libraries — zones and phases are not forced YET.** A library holds
+  definitions and state (decisions.md "Family libraries"). Two things it still
+  cannot hold, and the negative on both is weak — "no family has forced it",
+  not "settled no":
+
+  *Zones.* `poker_betting`'s state surface names none, and that is a real signal
+  for the poker family rather than an accident: its zone-touching move (`fold`)
+  is exactly the one that stayed game-local, because which cards a fold disposes
+  of is a property of the table. But the smuggling survey below found zones in
+  the irreducible shared material, so the next family may well force them.
+
+  *Phases.* Neither family forced one. Poker's shared phase material reduced to
+  statements a parameterized procedure covers (`open_street`), and so did the
+  smuggling family's.
+
+  The smuggling evidence (`experiments/green-lane/`) carries a caveat that
+  limits how far it travels: those variants are a DELTA LATTICE — v4 is v1
+  composed with v3, each delta editing disjoint rule text — so they share a
+  great deal by construction. A family of siblings rather than deltas may share
+  a differently-shaped body of material and need not reproduce the
+  zones-and-state signal. Do not promote either negative to a decision on this
+  evidence; wait for a family that forces the question, and name it.
+
+- **A `state { }` default may not call a function.** A deliberate narrowing, not
+  an unimplemented case, and recorded here so it is reopened on evidence rather
+  than by accident. A default runs while its block is still being declared, and
+  a callee's state reads live in a body the default's own tree does not contain
+  — so honouring a call would mean a declare-time reachability analysis through
+  every function a default can reach, including nested and mutually recursive
+  ones. The measured price of refusing instead is zero: an AST scan of every
+  `state` default across `docs/games/` and `docs/libraries/` finds `IntLit` and
+  `NameRef` only, spelled `none`, `false`, `true` and `hold` — not one default
+  reads a state variable, let alone calls anything. Reopen when a game wants a
+  computed initial value that a phase cannot set, and name the game.
+  (decisions.md "State scoping (lexical)"; ledger
+  `tests/test_state_default_scope.py`.)
 
 - **Packaging the corpus for distribution.** The whole project runs from a
   checkout: every `.cardlang` is loaded from `docs/games/` by repo-relative path
@@ -848,16 +1044,34 @@ questions by impact × actionability and is the authority on question
 priority. This section adds what that list doesn't carry: the cross-cutting
 work that isn't an open question, and which next game unblocks what.
 
-1. **Design and build the family-library import tier**
-   ([open-questions/family-libraries.md](open-questions/family-libraries.md),
-   Tier 1). The `uses <library>` mechanism between game-local and stdlib:
-   the definition forms it needs all exist, the front end holds a working
-   single instance of each mechanism it generalizes, and two families pin
-   the surface — the poker anchors (Kuhn/Leduc, small enough to test the
-   sharing mechanism rather than the games) and the smuggling family, whose
-   five sibling rulesets measured the copy-drift and parameterization cost
-   the tier removes. Landing Kuhn or Leduc alongside the mechanism gives it
-   a corpus anchor in the same change.
+1. **Take the family-library tier to its second family.** The `uses
+   <library>` mechanism is built and settled ([decisions.md](decisions.md)
+   "Family libraries"): grammar surface, library loading, the flat two-level
+   splice, the three-way collision walls, the `requires` contract, PROVIDED
+   state and its read-only rule, and the totality artifacts in
+   `tests/test_family_libraries.py`. Its poker anchors
+   are landed — Seven-Card Stud as the full-scale consumer, and **Kuhn** and
+   **Leduc** as the two that make the tier non-vacuous, since a library with
+   one consumer is indistinguishable from game-local code. All three share
+   `docs/libraries/poker_betting.cardlang` verbatim and each defines its own
+   `fold`. Both edges the anchors existed to check came out clean, and are
+   now pinned by their proof modules rather than assumed: an
+   imported-but-unoffered move type (Kuhn's `raise`) mints no action id,
+   because the action space is derived from the `offering`/`offer` lists and
+   never from the game's move-type table; and `raise_cap` carries a real
+   family difference (Leduc 2, Stud 3) entirely in each game's declared
+   state, with neither the library nor the `uses` line mentioning it. The
+   per-STREET bet size does not: `limit` is provided state that the library's
+   `open_street(bet_size)` sets, since no single declaration can carry a value
+   that varies within a game (decisions.md, "Family libraries").
+
+   What is still unmeasured is whether that parameterization scales. Both
+   anchors vary only in *scalars* on required state; the next customer is the
+   smuggling family
+   (`experiments/green-lane/`), whose five sibling rulesets share ~90% of
+   their text and are kept aligned by hand-diffing — the copy-drift the tier
+   removes, and the case that will test whether parameterization can keep
+   riding on required state or genuinely needs a `with` clause.
 
 2. **Pick the next game for its unblocks.** The six-game wave (Cheat, 500,
    Belote, Canasta, Klondike, FreeCell) cleared the candidates that each
@@ -874,9 +1088,11 @@ work that isn't an open question, and which next game unblocks what.
    - **Hold'em** — the "show one, show all" showdown rule is the per-observer
      move-level override that
      [move-level-visibility](open-questions/move-level-visibility.md) awaits
-     (exercisable in the existing poker corpus), and as the second poker game
-     it is the data point [family-libraries](open-questions/family-libraries.md)
-     is blocked on.
+     (exercisable in the existing poker corpus), and it would be the poker
+     family's fourth `uses poker_betting` consumer — the first whose betting
+     structure (blinds, a four-street board) differs from Stud's streets and
+     the toys' single-card hands ([decisions.md](decisions.md) "Family
+     libraries").
    - **Spider** — the third positional game and the forcing candidate for the
      deferred positional slice movement ("Positional zones — walled
      residuals", above): its mid-game deals break the run-monotonicity that

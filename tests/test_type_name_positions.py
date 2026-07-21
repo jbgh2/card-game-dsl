@@ -28,7 +28,11 @@ Completeness ledger
                      `type_name` (93) or `payload_type` (360), plus
                      `struct_lit` (502) whose head NAME is a type name in
                      EXPRESSION position. Nine cells today; pinned against the
-                     grammar by `test_the_position_axis_is_the_grammar_s`.
+                     grammar by `test_the_position_axis_is_the_grammar_s`, which
+                     also carves out the one type-name carrier that cannot
+                     appear in a standalone game — a library's `require_decl`,
+                     validated transitively by `_check_requires` and covered in
+                     `test_family_libraries.py`, not here.
                   B. name sources — `KNOWN_TYPE_NAMES`, `PARAM_DOMAINS`,
                      `_PROCEDURE_PARAM_DOMAINS`, the two bare inline literals
                      (`Card` at a move param, `Suit` at a rule param), per-game
@@ -320,7 +324,20 @@ def test_the_position_axis_is_the_grammar_s() -> None:
     # HOSTS, not productions, and the scrape's `move_param` expands to three.
     gridded = {production for production, _ in POSITIONS.values()}
     expanded = (gridded - {"move_type_def", "procedure_def", "rule_params"}) | {"move_param"}
-    missing = carriers - expanded
+    # `require_decl` (a library's `requires { x : type_name }`) is the one
+    # type-name carrier outside this grid's domain, and structurally so: every
+    # POSITIONS cell emits a STANDALONE game string, but a `require_decl` can
+    # appear only inside `library { }`, loaded by name — so there is no game to
+    # put it in, and mirroring the type on a game `state` var would test the P1
+    # gate, not this one. Its type is validated transitively and loudly instead:
+    # the including game must declare the same name, and `_check_requires`
+    # rejects a require type that does not match the game's declaration — naming
+    # the library and quoting the type, so a library-side typo (`Integar`) is
+    # surfaced, not silently dropped. The residual is span PRECISION only (the
+    # diagnostic lands on the game's `uses` line, not the library's `requires`),
+    # recorded in roadmap.md; the coverage lives in test_family_libraries.py.
+    library_only = {"require_decl"}
+    missing = carriers - expanded - library_only
     assert not missing, (
         f"grammar productions carrying a type name with no grid row: {sorted(missing)}"
     )

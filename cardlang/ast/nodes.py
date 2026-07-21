@@ -1008,6 +1008,57 @@ class Loser:
 
 
 @dataclass(frozen=True, slots=True)
+class UsesDecl:
+    """`uses <library>` — one family-library import. Carries its own span so the
+    requires-contract failure lands on the line the author wrote, not inside the
+    library text they did not write."""
+
+    name: str
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RequireDecl:
+    """One entry of a library's `requires` block: the state variable the
+    including game must declare, with the type the library's bodies read it at.
+    A `StateDecl` minus the default, which the game owns."""
+
+    name: str
+    index: str | None
+    type_name: str
+    optional: bool
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Library:
+    """A family library: the definition forms of a game, minus the game. Held
+    only between parse and resolve — `resolve` splices each used library's
+    definitions into the including `Game` and no `Library` survives into the IR,
+    which is what makes imports pure name resolution with no runtime or
+    information-set implication.
+
+    ``state`` and ``requires`` are the two halves of a library's state surface
+    and are not interchangeable. ``state`` is state the library OWNS: it carries
+    defaults, splices into the game's own ``state { }``, and the including game
+    may read it but not write it. ``requires`` is state the library CONTRACTS
+    for: the game declares it, chooses its initial value, and writes it. A name
+    may appear in one or the other, never both (``resolve._check_state_claims``).
+    """
+
+    name: str
+    requires: tuple[RequireDecl, ...] = ()
+    state: StateBlock | None = None
+    rules: tuple[RuleDef, ...] = ()
+    move_types: tuple[MoveTypeDef, ...] = ()
+    types: tuple[TypeDef, ...] = ()
+    defines: tuple[DefineDef, ...] = ()
+    functions: tuple[FunctionDef, ...] = ()
+    procedures: tuple[ProcedureDef, ...] = ()
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Game:
     """A whole game plus the rules defined alongside it."""
 
@@ -1047,6 +1098,12 @@ class Game:
     # decision sites a second time, on top of the copies spliced at the call
     # sites, and size the action space wrong.
     procedures: tuple[ProcedureDef, ...] = ()
+    # Emptied by `resolve`, which splices each named library's definitions in:
+    # like `procedures`, a surviving entry downstream would mean the import was
+    # parsed and ignored. Order is source order, and resolution is flat and
+    # two-level (game -> named libraries -> stdlib) with no library-imports-
+    # library — see decisions.md "Family libraries".
+    uses: tuple[UsesDecl, ...] = ()
     span: Span | None = None
 
 
@@ -1057,6 +1114,9 @@ class Game:
 # nothing noticed, because the only consumer was a docstring).
 Node = (
     Game
+    | Library
+    | UsesDecl
+    | RequireDecl
     | PlayersSpec
     | Winner
     | Loser

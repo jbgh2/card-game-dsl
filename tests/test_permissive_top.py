@@ -484,7 +484,7 @@ def test_a_derived_body_calling_a_user_function_is_typed() -> None:
         "type R = { a : Integer } derived { made = tag(a) }\n"
         + _game(
             decls="function tag(p : Integer) = p > 0",
-            state="score[player] : Integer = 0  r : R = none",
+            state="score[player] : Integer = 0  r : R? = none",
         ),
         "g.cardlang",
     )
@@ -501,7 +501,7 @@ def test_a_function_returning_a_derived_field_keeps_its_real_type() -> None:
     again."""
     src = "type R = { a : Integer } derived { made = a > 0 }\n" + _game(
         decls="function reads(x : R) = x.made",
-        state="score[player] : Integer = 0  r : R = none",
+        state="score[player] : Integer = 0  r : R? = none",
     ).replace(
         "phase play { for each player p: score[p] := 1 }",
         "phase play { let bad = reads(r) is hearts }",

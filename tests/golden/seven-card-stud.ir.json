@@ -90,6 +90,29 @@
     "decls": [
       {
         "kind": "state_decl",
+        "name": "acted",
+        "index": "player",
+        "type": "Boolean",
+        "optional": false,
+        "default": {
+          "kind": "name",
+          "name": "false",
+          "ref": "bool"
+        }
+      },
+      {
+        "kind": "state_decl",
+        "name": "limit",
+        "index": null,
+        "type": "Integer",
+        "optional": false,
+        "default": {
+          "kind": "int",
+          "value": 0
+        }
+      },
+      {
+        "kind": "state_decl",
         "name": "stack",
         "index": "player",
         "type": "Integer",
@@ -267,18 +290,6 @@
                 },
                 {
                   "kind": "state_decl",
-                  "name": "acted",
-                  "index": "player",
-                  "type": "Boolean",
-                  "optional": false,
-                  "default": {
-                    "kind": "name",
-                    "name": "false",
-                    "ref": "bool"
-                  }
-                },
-                {
-                  "kind": "state_decl",
                   "name": "bet_to_match",
                   "index": null,
                   "type": "Integer",
@@ -301,13 +312,13 @@
                 },
                 {
                   "kind": "state_decl",
-                  "name": "limit",
+                  "name": "raise_cap",
                   "index": null,
                   "type": "Integer",
                   "optional": false,
                   "default": {
                     "kind": "int",
-                    "value": 0
+                    "value": 3
                   }
                 }
               ]
@@ -557,6 +568,90 @@
               },
               "then": [
                 {
+                  "kind": "block",
+                  "body": [
+                    {
+                      "kind": "let",
+                      "name": "@open_street.bet_size",
+                      "index": null,
+                      "value": {
+                        "kind": "int",
+                        "value": 5
+                      }
+                    },
+                    {
+                      "kind": "assign",
+                      "name": "bet_to_match",
+                      "index": null,
+                      "op": ":=",
+                      "value": {
+                        "kind": "int",
+                        "value": 0
+                      }
+                    },
+                    {
+                      "kind": "assign",
+                      "name": "raises",
+                      "index": null,
+                      "op": ":=",
+                      "value": {
+                        "kind": "int",
+                        "value": 0
+                      }
+                    },
+                    {
+                      "kind": "assign",
+                      "name": "limit",
+                      "index": null,
+                      "op": ":=",
+                      "value": {
+                        "kind": "name",
+                        "name": "@open_street.bet_size",
+                        "ref": "local"
+                      }
+                    },
+                    {
+                      "kind": "for_each",
+                      "role": "player",
+                      "binder": "p",
+                      "body": {
+                        "kind": "assign",
+                        "name": "bet_by",
+                        "index": {
+                          "kind": "name",
+                          "name": "p",
+                          "ref": "local"
+                        },
+                        "op": ":=",
+                        "value": {
+                          "kind": "int",
+                          "value": 0
+                        }
+                      }
+                    },
+                    {
+                      "kind": "for_each",
+                      "role": "player",
+                      "binder": "p",
+                      "body": {
+                        "kind": "assign",
+                        "name": "acted",
+                        "index": {
+                          "kind": "name",
+                          "name": "p",
+                          "ref": "local"
+                        },
+                        "op": ":=",
+                        "value": {
+                          "kind": "name",
+                          "name": "false",
+                          "ref": "bool"
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
                   "kind": "let",
                   "name": "bringer",
                   "index": null,
@@ -716,16 +811,6 @@
                   "value": {
                     "kind": "int",
                     "value": 1
-                  }
-                },
-                {
-                  "kind": "assign",
-                  "name": "limit",
-                  "index": null,
-                  "op": ":=",
-                  "value": {
-                    "kind": "int",
-                    "value": 5
                   }
                 },
                 {
@@ -1044,73 +1129,88 @@
                   },
                   "then": [
                     {
-                      "kind": "assign",
-                      "name": "bet_to_match",
-                      "index": null,
-                      "op": ":=",
-                      "value": {
-                        "kind": "int",
-                        "value": 0
-                      }
-                    },
-                    {
-                      "kind": "assign",
-                      "name": "raises",
-                      "index": null,
-                      "op": ":=",
-                      "value": {
-                        "kind": "int",
-                        "value": 0
-                      }
-                    },
-                    {
-                      "kind": "assign",
-                      "name": "limit",
-                      "index": null,
-                      "op": ":=",
-                      "value": {
-                        "kind": "int",
-                        "value": 5
-                      }
-                    },
-                    {
-                      "kind": "for_each",
-                      "role": "player",
-                      "binder": "p",
-                      "body": {
-                        "kind": "assign",
-                        "name": "bet_by",
-                        "index": {
-                          "kind": "name",
-                          "name": "p",
-                          "ref": "local"
+                      "kind": "block",
+                      "body": [
+                        {
+                          "kind": "let",
+                          "name": "@open_street.bet_size",
+                          "index": null,
+                          "value": {
+                            "kind": "int",
+                            "value": 5
+                          }
                         },
-                        "op": ":=",
-                        "value": {
-                          "kind": "int",
-                          "value": 0
-                        }
-                      }
-                    },
-                    {
-                      "kind": "for_each",
-                      "role": "player",
-                      "binder": "p",
-                      "body": {
-                        "kind": "assign",
-                        "name": "acted",
-                        "index": {
-                          "kind": "name",
-                          "name": "p",
-                          "ref": "local"
+                        {
+                          "kind": "assign",
+                          "name": "bet_to_match",
+                          "index": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
                         },
-                        "op": ":=",
-                        "value": {
-                          "kind": "name",
-                          "name": "false",
-                          "ref": "bool"
+                        {
+                          "kind": "assign",
+                          "name": "raises",
+                          "index": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "name": "limit",
+                          "index": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "name",
+                            "name": "@open_street.bet_size",
+                            "ref": "local"
+                          }
+                        },
+                        {
+                          "kind": "for_each",
+                          "role": "player",
+                          "binder": "p",
+                          "body": {
+                            "kind": "assign",
+                            "name": "bet_by",
+                            "index": {
+                              "kind": "name",
+                              "name": "p",
+                              "ref": "local"
+                            },
+                            "op": ":=",
+                            "value": {
+                              "kind": "int",
+                              "value": 0
+                            }
+                          }
+                        },
+                        {
+                          "kind": "for_each",
+                          "role": "player",
+                          "binder": "p",
+                          "body": {
+                            "kind": "assign",
+                            "name": "acted",
+                            "index": {
+                              "kind": "name",
+                              "name": "p",
+                              "ref": "local"
+                            },
+                            "op": ":=",
+                            "value": {
+                              "kind": "name",
+                              "name": "false",
+                              "ref": "bool"
+                            }
+                          }
                         }
-                      }
+                      ]
                     },
                     {
                       "kind": "round",
@@ -1422,73 +1522,88 @@
                   },
                   "then": [
                     {
-                      "kind": "assign",
-                      "name": "bet_to_match",
-                      "index": null,
-                      "op": ":=",
-                      "value": {
-                        "kind": "int",
-                        "value": 0
-                      }
-                    },
-                    {
-                      "kind": "assign",
-                      "name": "raises",
-                      "index": null,
-                      "op": ":=",
-                      "value": {
-                        "kind": "int",
-                        "value": 0
-                      }
-                    },
-                    {
-                      "kind": "assign",
-                      "name": "limit",
-                      "index": null,
-                      "op": ":=",
-                      "value": {
-                        "kind": "int",
-                        "value": 10
-                      }
-                    },
-                    {
-                      "kind": "for_each",
-                      "role": "player",
-                      "binder": "p",
-                      "body": {
-                        "kind": "assign",
-                        "name": "bet_by",
-                        "index": {
-                          "kind": "name",
-                          "name": "p",
-                          "ref": "local"
+                      "kind": "block",
+                      "body": [
+                        {
+                          "kind": "let",
+                          "name": "@open_street.bet_size",
+                          "index": null,
+                          "value": {
+                            "kind": "int",
+                            "value": 10
+                          }
                         },
-                        "op": ":=",
-                        "value": {
-                          "kind": "int",
-                          "value": 0
-                        }
-                      }
-                    },
-                    {
-                      "kind": "for_each",
-                      "role": "player",
-                      "binder": "p",
-                      "body": {
-                        "kind": "assign",
-                        "name": "acted",
-                        "index": {
-                          "kind": "name",
-                          "name": "p",
-                          "ref": "local"
+                        {
+                          "kind": "assign",
+                          "name": "bet_to_match",
+                          "index": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
                         },
-                        "op": ":=",
-                        "value": {
-                          "kind": "name",
-                          "name": "false",
-                          "ref": "bool"
+                        {
+                          "kind": "assign",
+                          "name": "raises",
+                          "index": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "name": "limit",
+                          "index": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "name",
+                            "name": "@open_street.bet_size",
+                            "ref": "local"
+                          }
+                        },
+                        {
+                          "kind": "for_each",
+                          "role": "player",
+                          "binder": "p",
+                          "body": {
+                            "kind": "assign",
+                            "name": "bet_by",
+                            "index": {
+                              "kind": "name",
+                              "name": "p",
+                              "ref": "local"
+                            },
+                            "op": ":=",
+                            "value": {
+                              "kind": "int",
+                              "value": 0
+                            }
+                          }
+                        },
+                        {
+                          "kind": "for_each",
+                          "role": "player",
+                          "binder": "p",
+                          "body": {
+                            "kind": "assign",
+                            "name": "acted",
+                            "index": {
+                              "kind": "name",
+                              "name": "p",
+                              "ref": "local"
+                            },
+                            "op": ":=",
+                            "value": {
+                              "kind": "name",
+                              "name": "false",
+                              "ref": "bool"
+                            }
+                          }
                         }
-                      }
+                      ]
                     },
                     {
                       "kind": "round",
@@ -1800,73 +1915,88 @@
                   },
                   "then": [
                     {
-                      "kind": "assign",
-                      "name": "bet_to_match",
-                      "index": null,
-                      "op": ":=",
-                      "value": {
-                        "kind": "int",
-                        "value": 0
-                      }
-                    },
-                    {
-                      "kind": "assign",
-                      "name": "raises",
-                      "index": null,
-                      "op": ":=",
-                      "value": {
-                        "kind": "int",
-                        "value": 0
-                      }
-                    },
-                    {
-                      "kind": "assign",
-                      "name": "limit",
-                      "index": null,
-                      "op": ":=",
-                      "value": {
-                        "kind": "int",
-                        "value": 10
-                      }
-                    },
-                    {
-                      "kind": "for_each",
-                      "role": "player",
-                      "binder": "p",
-                      "body": {
-                        "kind": "assign",
-                        "name": "bet_by",
-                        "index": {
-                          "kind": "name",
-                          "name": "p",
-                          "ref": "local"
+                      "kind": "block",
+                      "body": [
+                        {
+                          "kind": "let",
+                          "name": "@open_street.bet_size",
+                          "index": null,
+                          "value": {
+                            "kind": "int",
+                            "value": 10
+                          }
                         },
-                        "op": ":=",
-                        "value": {
-                          "kind": "int",
-                          "value": 0
-                        }
-                      }
-                    },
-                    {
-                      "kind": "for_each",
-                      "role": "player",
-                      "binder": "p",
-                      "body": {
-                        "kind": "assign",
-                        "name": "acted",
-                        "index": {
-                          "kind": "name",
-                          "name": "p",
-                          "ref": "local"
+                        {
+                          "kind": "assign",
+                          "name": "bet_to_match",
+                          "index": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
                         },
-                        "op": ":=",
-                        "value": {
-                          "kind": "name",
-                          "name": "false",
-                          "ref": "bool"
+                        {
+                          "kind": "assign",
+                          "name": "raises",
+                          "index": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "name": "limit",
+                          "index": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "name",
+                            "name": "@open_street.bet_size",
+                            "ref": "local"
+                          }
+                        },
+                        {
+                          "kind": "for_each",
+                          "role": "player",
+                          "binder": "p",
+                          "body": {
+                            "kind": "assign",
+                            "name": "bet_by",
+                            "index": {
+                              "kind": "name",
+                              "name": "p",
+                              "ref": "local"
+                            },
+                            "op": ":=",
+                            "value": {
+                              "kind": "int",
+                              "value": 0
+                            }
+                          }
+                        },
+                        {
+                          "kind": "for_each",
+                          "role": "player",
+                          "binder": "p",
+                          "body": {
+                            "kind": "assign",
+                            "name": "acted",
+                            "index": {
+                              "kind": "name",
+                              "name": "p",
+                              "ref": "local"
+                            },
+                            "op": ":=",
+                            "value": {
+                              "kind": "name",
+                              "name": "false",
+                              "ref": "bool"
+                            }
+                          }
                         }
-                      }
+                      ]
                     },
                     {
                       "kind": "round",
@@ -2178,73 +2308,88 @@
                   },
                   "then": [
                     {
-                      "kind": "assign",
-                      "name": "bet_to_match",
-                      "index": null,
-                      "op": ":=",
-                      "value": {
-                        "kind": "int",
-                        "value": 0
-                      }
-                    },
-                    {
-                      "kind": "assign",
-                      "name": "raises",
-                      "index": null,
-                      "op": ":=",
-                      "value": {
-                        "kind": "int",
-                        "value": 0
-                      }
-                    },
-                    {
-                      "kind": "assign",
-                      "name": "limit",
-                      "index": null,
-                      "op": ":=",
-                      "value": {
-                        "kind": "int",
-                        "value": 10
-                      }
-                    },
-                    {
-                      "kind": "for_each",
-                      "role": "player",
-                      "binder": "p",
-                      "body": {
-                        "kind": "assign",
-                        "name": "bet_by",
-                        "index": {
-                          "kind": "name",
-                          "name": "p",
-                          "ref": "local"
+                      "kind": "block",
+                      "body": [
+                        {
+                          "kind": "let",
+                          "name": "@open_street.bet_size",
+                          "index": null,
+                          "value": {
+                            "kind": "int",
+                            "value": 10
+                          }
                         },
-                        "op": ":=",
-                        "value": {
-                          "kind": "int",
-                          "value": 0
-                        }
-                      }
-                    },
-                    {
-                      "kind": "for_each",
-                      "role": "player",
-                      "binder": "p",
-                      "body": {
-                        "kind": "assign",
-                        "name": "acted",
-                        "index": {
-                          "kind": "name",
-                          "name": "p",
-                          "ref": "local"
+                        {
+                          "kind": "assign",
+                          "name": "bet_to_match",
+                          "index": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
                         },
-                        "op": ":=",
-                        "value": {
-                          "kind": "name",
-                          "name": "false",
-                          "ref": "bool"
+                        {
+                          "kind": "assign",
+                          "name": "raises",
+                          "index": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "name": "limit",
+                          "index": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "name",
+                            "name": "@open_street.bet_size",
+                            "ref": "local"
+                          }
+                        },
+                        {
+                          "kind": "for_each",
+                          "role": "player",
+                          "binder": "p",
+                          "body": {
+                            "kind": "assign",
+                            "name": "bet_by",
+                            "index": {
+                              "kind": "name",
+                              "name": "p",
+                              "ref": "local"
+                            },
+                            "op": ":=",
+                            "value": {
+                              "kind": "int",
+                              "value": 0
+                            }
+                          }
+                        },
+                        {
+                          "kind": "for_each",
+                          "role": "player",
+                          "binder": "p",
+                          "body": {
+                            "kind": "assign",
+                            "name": "acted",
+                            "index": {
+                              "kind": "name",
+                              "name": "p",
+                              "ref": "local"
+                            },
+                            "op": ":=",
+                            "value": {
+                              "kind": "name",
+                              "name": "false",
+                              "ref": "bool"
+                            }
+                          }
                         }
-                      }
+                      ]
                     },
                     {
                       "kind": "round",
@@ -3232,8 +3377,9 @@
             "ref": "state_var"
           },
           "right": {
-            "kind": "int",
-            "value": 3
+            "kind": "name",
+            "name": "raise_cap",
+            "ref": "state_var"
           }
         }
       },

@@ -31,6 +31,8 @@ _DECK_SIZE: dict[str, int] = {
     "five_hundred43": 43,
     "coup15": 15,
     "canasta108": 108,
+    "kuhn3": 3,
+    "leduc6": 6,
 }
 
 
