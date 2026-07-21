@@ -17,7 +17,7 @@ from typing import Any, Protocol
 
 from cardlang.ast import nodes as n
 from cardlang.domains import DomainSources, enumerate_domain
-from cardlang.runtime import observe, phases, rules, sidecar
+from cardlang.runtime import observe, phases, reads, rules, sidecar
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, Move
 from cardlang.runtime.values import Player
@@ -518,14 +518,15 @@ class ClimbForm:
 
     def candidates(self, actor: Player, state: State, ctx: Ctx) -> list[Any]:
         # The climb engines are game-local, so they get the same value
-        # bundles every other primitive does rather than the live ctx.
+        # bundles every other primitive does rather than the live ctx — and
+        # their hand argument is deep_frozen for the same reason `call()`
+        # freezes collection args: it is `self.hands[actor].cards`, a live
+        # zone list a query could otherwise mutate.
         facts, gr = sidecar.bind(ctx.rs, ctx.current_player, self.climb_row)
+        hand = reads.deep_freeze(self.hands[actor].cards)
         if state["current"] is None:  # the leader must lead
-            return self.lead_query(facts, gr, self.hands[actor].cards)
-        return [
-            *self.follow_query(facts, gr, self.hands[actor].cards, state["current"]),
-            "pass",
-        ]
+            return self.lead_query(facts, gr, hand)
+        return [*self.follow_query(facts, gr, hand, state["current"]), "pass"]
 
     def apply(self, actor: Player, choice: Any, state: State, ctx: Ctx) -> State:
         if choice == "pass":

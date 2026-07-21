@@ -92,7 +92,14 @@ def deep_freeze(value: Any) -> Any:
     if isinstance(value, _ATOMIC):
         return value
     if isinstance(value, _Mapping):
-        return MappingProxyType({k: deep_freeze(v) for k, v in value.items()})
+        # Keys are frozen too, not just values: a mapping keyed by a
+        # mutable-but-hashable object (a dataclass with `unsafe_hash=True`)
+        # would otherwise hand the live key back through iteration. A frozen
+        # key (int/str/tuple/frozen dataclass) comes back equal with the same
+        # hash, so lookups are unaffected; a mutable one is refused.
+        return MappingProxyType(
+            {deep_freeze(k): deep_freeze(v) for k, v in value.items()}
+        )
     if isinstance(value, _Set):
         return frozenset(deep_freeze(v) for v in value)
     if isinstance(value, bytearray):

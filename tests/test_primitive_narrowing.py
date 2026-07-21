@@ -63,6 +63,14 @@ covered:    (a) per-implementation-SITE: the site's signature names no
             (indexed state dict, round-state `played` list, StructValue
             fields, bytearray, and the non-frozen-dataclass identity fast
             path) were each reproduced before the fix closed them;
+            (d') the primitive boundary is TWO channels, both frozen: the
+            bundles above, and the positional COLLECTION arguments — a
+            collection arg from a zone reaches a primitive as the zone's
+            live `.cards` list (`elements()` returns it by reference), so
+            `call()` and the climb site `deep_freeze` it; keys are frozen
+            with values, so a mutable-hashable key cannot be recovered by
+            iterating a proxy. Both proven: the boundary snapshot is a
+            tuple not the live list, and a mutable key/arg is refused;
             (e) `EMITS_TRACE` two ways: every listed primitive returns
             `(value, events)`, no unlisted migrated primitive does.
 sampled:    behavioral identity rides the byte-identical goldens and the
@@ -976,6 +984,10 @@ def _reachable_mutable(value: Any, path: str = "") -> list[str]:
         if not isinstance(value, MappingProxyType):
             bad.append(f"{path}: mutable mapping {type(value).__name__}")
         for k, v in value.items():
+            # KEYS are traversed too, not just values — a mutable-hashable key
+            # is reachable by iterating the proxy, deep_freeze's former blind
+            # spot. Descending each key catches it independently.
+            bad += _reachable_mutable(k, f"{path}.key({k!r})")
             bad += _reachable_mutable(v, f"{path}[{k!r}]")
     elif isinstance(value, _Set):
         if not isinstance(value, frozenset):
@@ -1086,6 +1098,47 @@ def test_deep_freeze_and_walker_reject_a_non_frozen_dataclass() -> None:
     assert any("non-frozen" in b for b in _reachable_mutable(box, "box")), (
         "the walker treated a writable dataclass as an immutable leaf"
     )
+
+
+def test_deep_freeze_freezes_mapping_keys_not_just_values() -> None:
+    """A mapping keyed by a mutable-but-hashable object (a dataclass with
+    `unsafe_hash=True`) would hand the live key back through iteration. Freezing
+    values only left that key writable — deep_freeze refuses the key too, and
+    the walker traverses keys so it doesn't share the blind spot. A safe key
+    (str/tuple) is preserved, so lookups still work."""
+    from dataclasses import dataclass as _dataclass
+
+    @_dataclass(unsafe_hash=True)
+    class MutableKey:  # hashable, but its fields can be reassigned
+        n: int
+
+    with pytest.raises(TypeError, match="non-frozen dataclass"):
+        reads_mod.deep_freeze({MutableKey(1): "v"})
+    assert any("non-frozen" in b for b in _reachable_mutable({MutableKey(1): "v"}))
+
+    # A safe key survives with lookups intact.
+    frozen = reads_mod.deep_freeze({("a", 1): {"x": [2]}})
+    assert not _reachable_mutable(frozen)
+    assert frozen[("a", 1)]["x"] == (2,)
+
+
+def test_collection_args_are_frozen_at_the_call_boundary() -> None:
+    """The positional-argument channel, not just the bundles: a collection
+    argument from a zone reaches a primitive as the zone's LIVE `.cards` list
+    (`elements()` returns it by reference), so `call()` freezes it. Without
+    this a primitive could `cards.clear()` the argument and empty the zone."""
+    from cardlang.runtime import stdlib
+    from cardlang.runtime.state import Zone
+    from cardlang.stdlib.signatures import CALL_SIGS
+
+    sig = CALL_SIGS["gin_valid_meld"]  # its one parameter is a TCollection
+    z = Zone()
+    z.cards.extend([Card("7", "clubs"), Card("8", "clubs")])
+    coerced = stdlib._coerce_args(sig, [z])[0]
+    assert coerced is not z.cards, "the argument is still the live zone list"
+    assert isinstance(coerced, tuple)  # an immutable snapshot
+    assert list(coerced) == [Card("7", "clubs"), Card("8", "clubs")]  # same contents
+    assert not _reachable_mutable(coerced)  # deeply immutable, like the bundles
 
 
 def test_every_engine_facts_field_is_deeply_immutable() -> None:
