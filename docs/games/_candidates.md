@@ -451,20 +451,14 @@ differential oracle. Not card games — precedent for that is
 these are real pipeline candidates: the dream goal on the project's own
 table is all fixed-outcome board games.
 
-### tic-tac-toe
-
-2 players, 3×3 grid, 5+4 marks. Alternate placing on empty cells;
-three in a line wins; full board draws.
-
-**Why interesting.** The walking skeleton for the whole axis: board
-declaration, the `Cell` parameter domain, cell-indexed zone families,
-the placement vocabulary, declared line patterns, `turns` on a board,
-draw-on-full-board. Perfect information and monotone, so the
-observation model does not move at all — which is the point: every
-later rung changes one thing against this baseline.
-
-**Notes.** Rules are common knowledge; OpenSpiel `tic_tac_toe`
-(thoroughly tested) is the oracle.
+(Tic-tac-toe, the ladder's first rung, is now in the corpus
+([tic-tac-toe.md](tic-tac-toe.md)): the walking skeleton for the whole
+axis — board declaration, the minted `cell` domain, cell-indexed zone
+families, the placement vocabulary, declared line patterns, `turns` on a
+board, and draw-on-full-board — perfect information and monotone, the
+baseline every later rung changes exactly one thing against. Rules are
+common knowledge; OpenSpiel's native `tic_tac_toe` is the differential
+oracle.)
 
 ### breakthrough
 
