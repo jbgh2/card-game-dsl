@@ -1,0 +1,64 @@
+// Witness for two constructs the corpus does not exercise: a user `type`
+// declaration (no game in docs/games/ declares one, recorded in roadmap.md as
+// the highest-value coverage hole) and a declared POSITION domain used as a
+// parameter of a function and of a move type.
+//
+// Both defects behind the struct/function fixpoint reached the permissive top
+// through paths only unit tests touched; a fixture that runs end to end is
+// what makes those paths integration-visible. Two players race to claim
+// columns: each turn a player claims one, scoring its declared weight.
+game StructPositionsWitness {
+  players: 2
+  direction: clockwise
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+
+  positions { slot : 1..4 }
+
+  // A position-indexed ZONE family. The same index on a STATE variable is
+  // rejected (`claimed[slot] : Integer`) — one nonterminal, two verdicts,
+  // recorded in roadmap.md, "The index position admits different domains per
+  // host". Claiming is tracked by a pile being non-empty for that reason.
+  zones {
+    deck  : Deck
+    hand[player] : Hand<player>
+    pile[slot]   : Cascade<slot>
+  }
+
+  state {
+    score[player]  : Integer = 0
+    turns          : Integer = 0
+  }
+
+  phase play repeat until turns >= 2 {
+    before_each { turns += 1 }
+    for each player p: offer to p one of [claim]
+  }
+
+  winner: highest score
+}
+
+// A struct with a DERIVED field whose body calls a function: the shape whose
+// registry is solved by a fixpoint, and whose earlier fixed-pass versions lost
+// walls silently.
+type Weight = { base : Integer } derived { doubled = twice(base) }
+
+function twice(n : Integer) = n * 2
+
+// A position domain as a FUNCTION parameter: legal, and typed as the integer
+// member of the declared range rather than the permissive top.
+function slot_bonus(s : slot) = if s > 2 then 2 else 1
+
+// ...and as a MOVE parameter, where the action space enumerates the range.
+move_type claim(s : slot) {
+  when: pile[s] is empty
+  effect {
+    move one card from deck to pile[s]
+    score[actor] := score[actor] + slot_bonus(s) + weight_of(s).doubled
+  }
+}
+
+// A struct literal read through a derived field, so the fixpoint's result is
+// observed by a running game rather than only by a unit test.
+function weight_of(s : slot) = Weight { base: s }

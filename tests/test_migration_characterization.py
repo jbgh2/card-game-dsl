@@ -132,9 +132,10 @@ def test_migration_preserves_per_seed_results(name: str) -> None:
 #
 # Anchored on the driver's own `hand_end` trace (driver.py, emitted once per hand
 # as `dict(rs.get(score_var))` — for Stud's `winner: highest stack`, that is
-# `dict(stack)`) rather than the mechanic-local `stud_hand` trace the showdown
-# used to emit: same values, same count, but a signal that survives the showdown
-# leaving `instantiate` for the kernel (docs/kernel-migration.md).
+# `dict(stack)`) rather than any trace the showdown itself could emit: same
+# values, same count, but a signal that does not depend on how the showdown is
+# implemented. That independence is what makes this a net across a
+# reimplementation of it rather than a restatement of one.
 _STUD_CAPTURE = """
 import json, random, sys
 from pathlib import Path
@@ -246,19 +247,23 @@ def test_tichu_ws5_pins_per_seed_results() -> None:
 # Tichu's finals accumulate ~100 card points a hand, so a late divergence could
 # in principle be masked by an offsetting one; like Stud/Cribbage/Schnapsen/Skat
 # we also pin the full per-hand vector — the sorted per-team score (the driver's
-# own `hand_end` trace) plus the hand's double-victory flag and card-point total
-# (the game's own `tichu_hand` trace, emitted by the monolith and by the kernel
-# migration's `tichu_hand_summary` alike) — so a divergence surfaces at the hand
-# it first perturbs. The monolith iterates no sets (measured: ZERO divergent
-# seeds across PYTHONHASHSEED {0,1,2,3,7} x 50 seeds), so this golden pinned
-# pre-migration with nothing sanctioned; any diff is a real draw divergence.
+# own `hand_end` trace) plus the hand's double-victory flag and card-point total,
+# derived at the harness from observation events (tests/playout_trace.py; the
+# golden's values were pinned while the game's own `tichu_hand` trace still
+# emitted them, so byte-identity here doubles as the derivation's standing
+# witness) — so a divergence surfaces at the hand it first perturbs. The
+# monolith iterated no sets (measured: ZERO divergent seeds across
+# PYTHONHASHSEED {0,1,2,3,7} x 50 seeds), so this golden pinned pre-migration
+# with nothing sanctioned; any diff is a real draw divergence.
 _TICHU_HANDS_CAPTURE = """
 import json, random, sys
 from pathlib import Path
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
+from tests.playout_trace import TichuHands
 
 game = check_dsl(Path("docs/games/tichu.cardlang").read_text(), "tichu.cardlang")
+team_of = {p: ti for ti, members in enumerate(game.partnerships) for p in members}
 
 def policy(rng):
     from cardlang.runtime.chooser import random_chooser
@@ -275,17 +280,14 @@ def policy(rng):
 out = {}
 for seed in range(50):
     hands = []
-    pending = []
+    log = TichuHands(team_of)
 
-    def tracer(event, data, _h=hands, _p=pending):
-        if event == "tichu_hand":
-            _p.append([int(data["double_victory"]), data["card_points"]])
-        elif event == "hand_end":
-            summary = _p.pop() if _p else [None, None]
-            _h.append([data[t] for t in sorted(data)] + summary)
+    def tracer(event, data, _h=hands, _log=log):
+        if event == "hand_end":
+            _h.append([data[t] for t in sorted(data)] + _log.hand_summary())
 
     rng = random.Random(seed)
-    play_game(game, rng, tracer, policy(rng))
+    play_game(game, rng, tracer, policy(rng), observer=log.observer)
     out[str(seed)] = hands
 print(json.dumps(out))
 """
@@ -366,9 +368,8 @@ def test_bigtwo_migration_preserves_per_seed_results() -> None:
 # just `scores`/`winner`: a chooser-draw divergence surfaces at the hand it
 # first perturbs. Anchored on the driver's own `hand_end` trace (driver.py,
 # `dict(rs.get(score_var))` — for Cribbage's `winner: highest score`, that is
-# `dict(score)`), a signal that survives the migration (no mechanic-local trace
-# is read by any test — the old `cribbage_show` trace's only occurrence was its
-# own emission). `hands_played` is NOT pinned: Cribbage has no phase named
+# `dict(score)`), a signal that does not depend on how the scoring mechanic is
+# implemented — no mechanic-local trace is read by any test. `hands_played` is NOT pinned: Cribbage has no phase named
 # `scoring`, so the driver's hand counter reads 0 both before and after — the
 # per-hand vector list length already carries that information. Cribbage's
 # chooser candidate lists are hand-ordered lists (never sets), so this capture
@@ -520,36 +521,38 @@ def test_skat_migration_preserves_per_hand_scores() -> None:
 # Coup at real interactive scope (WS5): every challenge, block, claimed
 # character, and action target is a chooser decision, so random play decides
 # them uniformly at the offers. This golden pins the strongest per-seed
-# discriminator the game emits: the full reveal sequence (every influence
-# flip, in order, with its character — where every elimination happens) plus
-# final coins, the alive vector, and the winner, over 40 seeds under
-# PYTHONHASHSEED=0 (the WS5 behaviour-change re-pin — see kernel-migration.md,
-# Workstream 5). Regenerate by running _COUP_CAPTURE exactly as _capture_coup
-# does.
+# discriminator the playout yields: the full reveal sequence (every influence
+# flip, in order, with its character — where every elimination happens),
+# derived at the harness from the flips' observation events
+# (tests/playout_trace.py; the golden's values were pinned while the game's
+# own `coup_reveal` trace still emitted them, so byte-identity here doubles
+# as the derivation's standing witness), plus final coins, the alive vector,
+# and the winner, over 40 seeds under PYTHONHASHSEED=0 (the WS5
+# behaviour-change re-pin — see kernel-migration.md, Workstream 5).
+# Regenerate by running _COUP_CAPTURE exactly as _capture_coup does.
 _COUP_CAPTURE = """
 import json, random, sys
 from pathlib import Path
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
+from tests.playout_trace import CoupReveals
 
 game = check_dsl(Path("docs/games/coup.cardlang").read_text(), "coup.cardlang")
 out = {}
 for seed in range(40):
-    reveals = []
+    log = CoupReveals()
     summary = {}
 
-    def tracer(event, data, _r=reveals, _s=summary):
-        if event == "coup_reveal":
-            _r.append([data[0], data[1]])
-        elif event == "coup_game":
+    def tracer(event, data, _s=summary):
+        if event == "coup_game":
             _s.update(
                 coins={str(k): v for k, v in sorted(data["coins"].items())},
                 alive={str(k): v for k, v in sorted(data["alive"].items())},
             )
 
-    r = play_game(game, random.Random(seed), tracer)
+    r = play_game(game, random.Random(seed), tracer, observer=log.observer)
     out[str(seed)] = {
-        "reveals": reveals,
+        "reveals": log.reveals,
         "coins": summary["coins"],
         "alive": summary["alive"],
         "winner": r.winner,

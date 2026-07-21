@@ -115,8 +115,8 @@ def test_a_published_field_is_accepted() -> None:
 
 
 def test_rejects_a_misspelled_field() -> None:
-    """Before the wall this reached the runtime as a bare `KeyError: 'lead_suit'`,
-    with no span — and only if the line happened to execute."""
+    """Without the wall a misspelled field is a check-time silence: it reaches
+    the runtime with no span, and only if the line happens to execute."""
     rejects("state.lead_suit is none", "a round publishes no `lead_suit`")
 
 
@@ -169,9 +169,9 @@ def test_published_fields_carry_their_declared_types() -> None:
 
 
 def test_a_typed_member_reaches_the_enum_wall() -> None:
-    """`state.led_suit` used to infer `TAny`, and `TAny` is contagious: comparing it
-    to anything slipped past the enum-comparison wall. Now that it is `Suit?`, that
-    wall reaches through it."""
+    """Without a declared type, `state.led_suit` would infer `TAny`, and `TAny` is
+    contagious: comparing it to anything would slip past the enum-comparison wall.
+    Because it is `Suit?`, that wall reaches through it."""
     rejects("state.led_suit is 10", "comparing Suit with Integer can never be equal")
 
 
@@ -242,10 +242,11 @@ def test_every_form_key_is_classified() -> None:
 
 
 def test_auction_does_not_leave_a_stale_trick_frame() -> None:
-    """The frame axis, walled as far as it can be. `state.` read during or after an
-    auction used to find `mech_state` empty, fall through to the fallback, and
-    silently return the state of whatever trick ran LAST — a live frame from a
-    different form. The auction now clears it, so the read fails loudly instead."""
+    """The frame axis, walled as far as it can be. Without this, a `state.` read
+    during or after an auction would find `mech_state` empty, fall through to the
+    fallback, and silently return the state of whatever trick ran LAST — a live
+    frame from a different form. The auction clears it, so the read fails loudly
+    instead."""
     import inspect
 
     from cardlang.runtime import mechanics

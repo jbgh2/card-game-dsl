@@ -28,6 +28,7 @@ from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.combinations import Play, _combos, _legal_follows
 from cardlang.runtime.values import Card, Player
+from tests.playout_trace import TichuHands
 
 TICHU = Path(__file__).parent.parent / "docs" / "games" / "tichu.cardlang"
 SUITS = ("clubs", "diamonds", "hearts", "spades")
@@ -94,22 +95,29 @@ def test_climbing_legality() -> None:
 
 def test_30_random_games_satisfy_invariants() -> None:
     game = check_source(TICHU)
+    team_of = {
+        p: ti for ti, members in enumerate(game.partnerships) for p in members
+    }
     calls: dict[str, int] = {}
     for seed in range(30):
         bad_points = 0
         census: dict[str, int] = {}
+        log = TichuHands(team_of)
 
-        def tracer(event: str, data: Any) -> None:
+        def tracer(event: str, data: Any, _log: TichuHands = log) -> None:
             nonlocal bad_points
-            if event == "tichu_hand":
-                if not data["double_victory"] and data["card_points"] != 100:
+            if event == "hand_end":
+                double_victory, card_points = _log.hand_summary()
+                if not double_victory and card_points != 100:
                     bad_points += 1
             elif event == "game_end":
                 census.clear()
                 census.update(data)
 
         rng = random.Random(seed)
-        result = play_game(game, rng, tracer, tichu_reference_policy(rng, calls))
+        result = play_game(
+            game, rng, tracer, tichu_reference_policy(rng, calls), observer=log.observer
+        )
 
         assert bad_points == 0, f"seed {seed}: a hand miscounted card points"
         assert census["total"] == 56, f"seed {seed}: {census}"

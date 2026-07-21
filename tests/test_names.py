@@ -32,8 +32,8 @@ def test_hearts_name_classifications() -> None:
     assert kinds["state"] == "pronoun"
     assert kinds["action"] == "pronoun"
     assert kinds["outcome"] == "pronoun"
-    # (Outcome functions like highest_of_led_suit are now `round` string fields,
-    # not bare-name NameRefs, so Hearts no longer carries a "function" ref_kind.)
+    # (Outcome functions like highest_of_led_suit are `round` string fields,
+    # not bare-name NameRefs, so Hearts carries no "function" ref_kind.)
     assert kinds["p"] == "local"  # the `let base[p]` / `for each player p` binder
     assert kinds["card"] == "local"  # the card-query/comprehension binder
     assert kinds["player"] == "local"  # the `any player where ...` binder

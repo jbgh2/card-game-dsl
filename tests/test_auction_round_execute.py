@@ -55,8 +55,8 @@ def test_participant_ring_re_evaluated_each_turn() -> None:
     # Player 0 bids on its first turn (becoming the standing leader); everyone
     # else — and player 0 if it is ever re-offered — passes. With per-turn
     # re-evaluation the leader is excluded from every later ring step, so it is
-    # asked exactly once. Under the old once-at-entry snapshot, player 0 stays in
-    # the ring and is re-offered on each wrap (asks.count(0) > 1).
+    # asked exactly once. Under a once-at-entry snapshot, player 0 would stay in
+    # the ring and be re-offered on each wrap (asks.count(0) > 1).
     game = check_dsl(SHRINKING_RING_SRC, "g.cardlang")
     asks: list[int] = []
     bid_made = [False]

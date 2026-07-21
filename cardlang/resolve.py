@@ -77,8 +77,7 @@ from cardlang.typecheck import KNOWN_TYPE_NAMES
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES, ZONE_PROJECTIONS
 
 # Roles a zone may be indexed by or owned by — the `zone_key_of` column of the
-# domain table, not a local list (it used to be a hand-written {player, team}
-# here, re-spelled as `== "team"` at four more sites downstream).
+# domain table, not a hand-written local list.
 _KNOWN_ROLES = ZONE_INDEX_ROLES
 
 # Domain nouns that mislead as an indexed-`let` binder. `let x[i] = …` builds a
@@ -934,7 +933,7 @@ def resolve(game: n.Game) -> n.Game:
     # template that fails to instantiate): a name is "undefined" only when no
     # template exists for it anywhere, never merely because its own
     # instantiation attempt hit some OTHER, already-separately-reported
-    # mismatch (arity, missing arguments, …) — that conflation used to pile a
+    # mismatch (arity, missing arguments, …) — that conflation would pile a
     # spurious "undefined rule" note onto every such mismatch.
     known_rule_names = {r.name for r in game.rules} | set(library_rules())
 
@@ -949,11 +948,12 @@ def resolve(game: n.Game) -> n.Game:
     _check_rule_delta_subphases(game.phases, bag)
 
     # Deep name resolution: classify every bare name and validate calls,
-    # methods, card literals, and the rotate/winner targets.
+    # card literals, and the rotate/winner targets.
     cats = _categories(game)
     game = _classify_names(game, cats, bag)
     _validate_refs(game, cats, bag)
     _check_position_family_refs(game, bag, position_names)
+    _check_declared_type_names(game, bag)
     _check_state_default_scope(game, bag)
     _check_functions(game, bag)
     _check_procedures(game, bag)
@@ -977,9 +977,9 @@ def _introduced_binders(node: object) -> tuple[str, ...]:
     every other place that needs to know (`_template_binders`'s collision
     check, `_check_functions`'s allowed-reference set, `_rewrite`'s lexical
     scoping via `_BINDER_SCOPE_FIELDS`) reads this instead of re-enumerating
-    the node-kind match itself — three copies of that match previously drifted
-    out of sync (missing the `Movement`/`EpistemicOp` filter arm in two of
-    them).
+    the node-kind match itself — separate copies of that match would drift out
+    of sync, the `Movement`/`EpistemicOp` filter arm being especially easy to
+    miss.
 
     Walks feed this every field value they meet, so non-node values (a `str`
     name, a `Span`, an `int`) answer "nothing" here; every actual node kind is
@@ -1240,9 +1240,9 @@ def _instantiate_rules(game: n.Game, bag: DiagnosticBag) -> n.Game:
     lib_order: list[str] = []
     # Each DISTINCT template's declaration validates once total, however many
     # refs instantiate it (or attempt to) — never once per activating phase
-    # (a defective template referenced from two phases previously repeated its
-    # diagnostics; `_check_template` is also the bottom loop's "never
-    # instantiated" fallback below, so the cache spans both call sites).
+    # (without the cache, a defective template referenced from two phases would
+    # repeat its diagnostics; `_check_template` is also the bottom loop's
+    # "never instantiated" fallback below, so the cache spans both call sites).
     template_checked: dict[str, bool] = {}
 
     def check_template_once(name: str, template: n.RuleDef) -> bool:
@@ -1573,9 +1573,9 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
 
 def _resolve_winner_loser(game: n.Game, bag: DiagnosticBag) -> None:
     """A game names its result. `winner:` and `loser:` are each optional
-    grammar positions, so their joint absence is checked here; before this
-    wall a game with neither compiled clean and died on a driver assert
-    before its first decision."""
+    grammar positions, so their joint absence is checked here; without this
+    wall a game with neither would compile clean and then reach a driver that
+    requires at least one of them before it can play a single decision."""
     if game.winner is None and game.loser is None:
         bag.error(
             f"game '{game.name}' must declare `winner: <rank-dir> <var>` or "
@@ -1624,7 +1624,19 @@ def _resolve_positions(game: n.Game, bag: DiagnosticBag) -> frozenset[str]:
     # KNOWN_TYPE_NAMES), and the value-position enum/type names. The pin
     # test (tests/test_positions.py) reconciles this union against the two
     # source registries so neither can grow past it silently.
-    taken = _ITERATION_ROLES | SIMULTANEOUS_ROLES | ZONE_INDEX_ROLES | KNOWN_TYPE_NAMES
+    # ...and the game's own declared type names: every position that admits a
+    # position domain also admits a declared type, and name resolution answers
+    # positions first, so a shared spelling would silently read the struct as
+    # the position's Integer — `x.a` then fails with a message about Integer.
+    # A name may not mean two things; the collision is rejected where it is
+    # declared rather than disambiguated at each use.
+    taken = (
+        _ITERATION_ROLES
+        | SIMULTANEOUS_ROLES
+        | ZONE_INDEX_ROLES
+        | KNOWN_TYPE_NAMES
+        | {t.name for t in game.types}
+    )
     for p in game.positions:
         if p.lo > p.hi:
             bag.error(
@@ -1644,7 +1656,7 @@ def _resolve_positions(game: n.Game, bag: DiagnosticBag) -> frozenset[str]:
         if p.name in taken:
             bag.error(
                 f"position domain '{p.name}' collides with a built-in domain "
-                f"or type name — pick another name",
+                f"or a declared type name — pick another name",
                 p.span,
             )
     return frozenset(p.name for p in game.positions)
@@ -1857,9 +1869,9 @@ def _resolve_phase_item(
         # `item` is a statement — nothing to resolve at phase-item level. The
         # annotated assignment is the exhaustiveness pin: a new PhaseItem block
         # kind falls here and fails mypy until this function decides what to do
-        # with it. (A statement walk used to hang off this arm; its one leaf
-        # check died with the `instantiate` construct and the walk sat vacuous —
-        # recursing into every body, checking nothing. Deleted, not kept.)
+        # with it. (No statement walk hangs off this arm: with nothing to check
+        # at the leaves, a walk recursing into every body would be vacuously
+        # green — checking nothing while presenting as a guarantee.)
         _only_statements_reach_here: n.Stmt = item
 
 
@@ -1921,8 +1933,7 @@ def _categories(game: n.Game) -> _Categories:
         # `ranking:`, which is an ORDERING (optional, and legitimately
         # partial: it narrows the Rank move-param domain, not which cards
         # can be named). Deck-vs-ranking is the same two-source divergence
-        # `_resolve_ranking` walls from the other side (Codex review of
-        # PR #48, round 2).
+        # `_resolve_ranking` walls from the other side.
         ranks=deck_ranks(game.deck) if _deck_known(game.deck) else frozenset(),
         suits=deck_suits(game.deck) if _deck_known(game.deck) else frozenset(),
     )
@@ -2380,10 +2391,11 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         # first); a transition predicate is CONFIGURATION collected
         # position-independently and evaluated with the context captured at
         # whichever round fires it — which may run before the `let`. The
-        # generic tuple fold used to scope all three anyway, so `let z = 5`
+        # generic tuple fold would scope all three anyway, so `let z = 5`
         # followed by `before_each { n[1] := z }` (or a transition reading a
-        # body let, fired by an earlier round) resolved, type-checked, and
-        # died mid-playout on a raw KeyError for a binding that did not exist.
+        # body let, fired by an earlier round) would resolve, type-check, and
+        # then ask the runtime's scope stack for a binding no live frame holds
+        # — a lookup it requires to succeed, mid-playout.
         entry = cats
         current = cats
         out_items: list[object] = []
@@ -2499,6 +2511,86 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
             )
 
 
+def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
+    """A function parameter's and a variant payload's declared type name names
+    a real type.
+
+    Validating a declared type name is resolve's job, and it was being done in
+    only some of the positions that declare one: `StateDecl` and `StructField`
+    were walled and move parameters had their own domain gate, while function
+    parameters and variant payloads were not checked at all.
+    `typecheck.type_from_name` maps an unknown name to the permissive `TAny`,
+    so a mere TYPO exempted the annotated value from every downstream wall —
+    `function f(x : Integar) = x is hearts` was accepted while the
+    correctly-spelled `Integer` version was rejected. Making a type name worse
+    must never make the checker more permissive (decisions.md "Surface
+    totality"; "The permissive top and the lookup-miss walls").
+
+    Both positions here are built with the struct registry threaded
+    (`type_from_name(..., structs)`), so a user-declared `type` is legal
+    alongside the built-ins — the allowed set mirrors exactly what the builder
+    can resolve, since a wall admitting a name its builder still maps to
+    `TAny` would trade one silent hole for another.
+
+    The other declaring positions are deliberately absent, each already owned
+    by a wall at least as tight: move parameters by `_check_move_params`
+    (which additionally requires an ENUMERABLE domain, and now runs for every
+    declared move type), procedure parameters by `_PROCEDURE_DOMAINS`, and
+    rule-template parameters by `_check_template`'s Suit-only gate. Adding a
+    second name check over any of them would report one defect twice, in two
+    currencies.
+    """
+    defined_types = {t.name for t in game.types}
+    # A declared position domain is a legal annotation here: the parameter or
+    # payload carries an integer member of the declared range, and the type
+    # builder resolves it to that Integer. Omitting it rejected a name
+    # declared in the same file as "unknown" while the same name stayed legal
+    # on a move parameter.
+    position_names = {p.name for p in game.positions}
+    known = KNOWN_TYPE_NAMES | defined_types | position_names
+
+    def base_of(type_name: str) -> str:
+        # A trailing `?` marks a nullable domain/payload (`Suit?`), not part of
+        # the name — strip it before the lookup, never by a blanket rstrip.
+        return type_name[:-1] if type_name.endswith("?") else type_name
+
+    for fn in game.functions:
+        for p in fn.params:
+            if base_of(p.type_name) not in known:
+                bag.error(
+                    f"unknown type '{p.type_name}' in parameter '{p.name}' of "
+                    f"function '{fn.name}'",
+                    fn.span,
+                )
+    for define in game.defines:
+        for case in define.cases:
+            for payload in case.payload_types:
+                if base_of(payload) not in known:
+                    bag.error(
+                        f"unknown type '{payload}' in payload of case "
+                        f"'{case.tag}'",
+                        case.span or define.span,
+                    )
+    for phase in _walk(game):
+        if not isinstance(phase, n.Phase) or not phase.outcome_cases:
+            continue
+        for case in phase.outcome_cases:
+            for payload in case.payload_types:
+                if base_of(payload) not in known:
+                    bag.error(
+                        f"unknown type '{payload}' in payload of case "
+                        f"'{case.tag}'",
+                        case.span or phase.span,
+                    )
+    # Move parameters are deliberately NOT checked here: `_check_move_params`
+    # already owns them with a stricter, better-worded gate (it names the legal
+    # domains, including the game's declared position domains). Its gap was
+    # REACH, not strength — it ran only for a move a vocabulary enumerates —
+    # and the fix is to run it for every declared move type, at its own call
+    # site, rather than to shadow it with a second diagnostic in a different
+    # currency (two messages for one defect is noise).
+
+
 # The closed set of procedure-parameter domains (decisions.md "Named
 # procedures"), corpus-first. Unlike a move parameter, a procedure argument is
 # an arbitrary expression rather than a value the action space must enumerate,
@@ -2565,14 +2657,14 @@ _OUTCOME_BINDING_STMTS = (n.Round,)
 #
 # This is one rule and not three walls because the target is a `NameRef`: it goes
 # through `_classify` like every read, so "what is this name?" is already answered by
-# the time we get here. Before, it was a bare `str` that no name check ever saw, and
-# the three ways it could go wrong needed three separate hand-written checks — one of
-# which (the plain typo) nobody had written, so `totaly_score := 1` reached the runtime
-# as a bare KeyError.
+# the time we get here. Were it a bare `str` that no name check ever saw, the three
+# ways it can go wrong would need three separate hand-written checks — and the easiest
+# to omit is the plain typo, so `totaly_score := 1` would reach the runtime, which
+# requires every name it writes to have been declared.
 #
 # The subtle one is a binder shadowing a state variable. A READ resolves binders BEFORE
 # state variables; a write goes to state regardless. So `let turn = …` followed by
-# `turn := 1` used to write the state variable while every `turn` around it meant the
+# `turn := 1` would write the state variable while every `turn` around it meant the
 # binder — one name, two things, silently. Classifying the target makes that impossible
 # rather than merely detected: the target resolves to the binder, and a binder is not
 # assignable.
@@ -2611,9 +2703,9 @@ def _bad_zone_endpoint(expr: n.Expr | None, what: str) -> str | None:
     name-shaped (the grammar rejects literals there), so its ROOT name has a
     classification, and most classifications cannot possibly be a zone.
     `deal 1 cards from turn to each hand` and `shuffle turn` (with
-    `turn : Integer`) both used to check clean and die mid-playout on a bare
-    AssertionError in the executor — a statically nameable error in the wrong
-    currency at the wrong time.
+    `turn : Integer`) would otherwise both check clean and reach the executor,
+    which requires an actual Zone in this position and refuses anything else at
+    play time — a statically nameable error deferred to the wrong time.
 
     A `local` root stays accepted HERE: a binder may legitimately hold a zone
     value (`let h = hand[0]`), and which one it holds is a TYPE question —
@@ -2928,30 +3020,27 @@ def _check_card_vocabulary(
 
 def _check_vocabulary_moves(
     names: tuple[str, ...],
-    move_type_defs: dict[str, n.MoveTypeDef],
     defined_move_types: set[str],
     bag: DiagnosticBag,
     span: Span | None,
     unknown_msg: str,
-    has_ranking: bool,
-    positions: frozenset[str],
 ) -> None:
     """The shared body of a vocabulary's per-name loop, wherever one is
     enumerated (a plain `offer` or the auction `round offering` —
     `_check_card_vocabulary`'s docstring has the same "wherever one is
-    enumerated" rationale): every named move type must be defined, and a
-    defined, parameterized one passes `_check_move_params`'s totality gate.
+    enumerated" rationale): every named move type must be defined.
     `unknown_msg` is the caller-specific wording for an unknown name (the two
     call sites differ only in this message, "offer ..." vs "round vocabulary
-    ..."). `has_ranking` (`bool(game.ranking)`) is threaded through to
-    `_check_move_params`'s Rank-needs-a-declared-ranking gate."""
+    ...").
+
+    Parameter DOMAINS are deliberately not checked here. They are a property
+    of the move type's DECLARATION, so `_validate_refs` gates every declared
+    move type once — which both closes the old gap (a move type no vocabulary
+    named was never gated at all) and stops a move type named by two
+    vocabularies from reporting the same defect once per mention."""
     for name in names:
         if name not in defined_move_types:
             bag.error(f"{unknown_msg} '{name}'", span)
-            continue
-        mt = move_type_defs[name]
-        if mt.params:
-            _check_move_params(mt, bag, span, has_ranking, positions)
 
 
 def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
@@ -2968,6 +3057,21 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     outcome_phases = {
         nd.name for nd in _walk(game) if isinstance(nd, n.Phase) and nd.outcome_cases
     }
+    # Every DECLARED move type's parameter domains, gated exactly once. The
+    # gate itself is unchanged; its REACH was the hole. It used to run from the
+    # vocabulary call sites, so a move type no `offer`/`round offering` names
+    # had its parameter domains unchecked entirely — and an unchecked domain
+    # name falls through `typecheck.type_from_name` to the permissive top,
+    # which silently exempts the parameter from every downstream wall
+    # (decisions.md, "The permissive top and the lookup-miss walls"). Declaring
+    # a move type is what makes its parameters real; whether some phase happens
+    # to offer it is not the checker's business — and gating at the declaration
+    # also stops a move named by two vocabularies from reporting one defect
+    # twice.
+    declared_positions = frozenset(p.name for p in game.positions)
+    for mt in game.move_types:
+        if mt.params:
+            _check_move_params(mt, bag, mt.span, bool(game.ranking), declared_positions)
     for nd in _walk(game):
         match nd:
             case n.Call() if (
@@ -3170,7 +3274,8 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     # The executor keys the family by BARE name per seat, so a
                     # subscripted or computed destination has no meaning under
                     # `each`. Before this wall, `to each hand[0]` checked
-                    # clean and died on the executor's NameRef assert.
+                    # clean and reached an executor that requires this
+                    # destination to be a bare name it can key per seat.
                     bag.error(
                         "`to each` deals into a player-indexed family named "
                         "bare (like `to each hand`) — a subscripted or "
@@ -3182,7 +3287,9 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     # `to each X` deals one parcel per PLAYER (the executor
                     # iterates seats and keys `X[player]`), so X must be a
                     # player-indexed family. Before this wall, `to each deck`
-                    # (a singleton) checked clean and died on a raw KeyError,
+                    # (a singleton) checked clean and then asked the zone store
+                    # for a player-keyed family of that name, which it requires
+                    # to be declared and refuses at play time;
                     # and `to each captured` (a TEAM family) silently dealt
                     # into team slots AS IF team ids were seats before crashing
                     # — player keying was assumed, not checked, the same class
@@ -3205,9 +3312,10 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         # The executor consumes the NAME (`zones.instance(X,
                         # player)`), not a zone value — so unlike the generic
                         # endpoints, a binder can never stand here even when it
-                        # HOLDS a zone: `let h = hand[0]` / `to each h` typed
-                        # clean (h is a zone) and died on `KeyError: 'h'`
-                        # hunting a family by that name (Codex review of #51).
+                        # HOLDS a zone: `let h = hand[0]` / `to each h` would
+                        # type clean (h is a zone) and then ask the zone store
+                        # for a family literally named 'h', which requires a
+                        # declared family of that name and refuses at play time.
                         what_k = _WRITE_TARGET_KINDS.get(
                             nd.dest.ref_kind, f"a {nd.dest.ref_kind}"
                         )
@@ -3220,8 +3328,9 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         )
             case n.EpistemicOp():
                 # The other member of the zone-position class: `shuffle turn` /
-                # `reveal one card from turn` checked clean and died on the
-                # executor's Zone assert, exactly like the movement endpoints.
+                # `reveal one card from turn` checked clean and then reached an
+                # executor that requires an actual Zone as the op's target and
+                # refuses anything else, exactly like the movement endpoints.
                 bad = _bad_zone_endpoint(nd.target, nd.op)
                 if bad is not None:
                     bag.error(bad, nd.span)
@@ -3231,8 +3340,9 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # The go-again flag is ordinary game state the body's effects
                 # write (decisions.md "The `turns` form") — a plain string
                 # field like `Winner.target`, so the generic NameRef pass
-                # never sees it; validate it here or it fails only as a
-                # runtime KeyError at the first turn boundary.
+                # never sees it; validate it here or it fails only at the
+                # first turn boundary, where the executor reads it out of
+                # round state — which requires the name to be in scope.
                 bag.error(
                     f"`again {nd.again}`: names no declared state variable — "
                     f"the go-again flag is ordinary Boolean game state the "
@@ -3242,13 +3352,10 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
             case n.Offer():
                 _check_vocabulary_moves(
                     nd.move_types,
-                    move_type_defs,
                     defined_move_types,
                     bag,
                     nd.span,
                     "offer names unknown move type",
-                    bool(game.ranking),
-                    frozenset(p.name for p in game.positions),
                 )
                 _check_card_vocabulary(nd.move_types, move_type_defs, game, bag, nd.span)
             case n.Round() if nd.move_types is not None:
@@ -3261,16 +3368,15 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # `Player` statically and `Card` over the actor's live hand —
                 # any other type, or a domain combination `_check_move_params`
                 # rejects, would crash `enumerate_domain`/produce an
-                # indistinguishable action id mid-playout, so reject it here.
+                # indistinguishable action id mid-playout. That gate now runs
+                # over every DECLARED move type (above), which covers these and
+                # the ones no vocabulary names.
                 _check_vocabulary_moves(
                     nd.move_types,
-                    move_type_defs,
                     defined_move_types,
                     bag,
                     nd.span,
                     "round vocabulary names unknown move type",
-                    bool(game.ranking),
-                    frozenset(p.name for p in game.positions),
                 )
                 _check_card_vocabulary(nd.move_types, move_type_defs, game, bag, nd.span)
                 # The betting form omits `outcome` (it mutates state directly and

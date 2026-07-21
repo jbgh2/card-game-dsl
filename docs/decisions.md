@@ -1412,6 +1412,80 @@ complex-receiver dot form exists. Koenigrufen's runtime-chosen
 called king is the named reopener if a future game's relational
 subject resists this flattening.
 
+## The permissive top and the lookup-miss walls
+
+`Any` is the type checker's top: it is compatible with every type in
+both directions, and every operand wall short-circuits on it. That is
+correct for a value whose type genuinely cannot be narrowed, and it is
+the mechanism that keeps typing *gradual* — an unrefined corner of the
+object model must not manufacture errors in expressions that touch it.
+
+The same permissiveness is a defect when it stands for "the checker
+failed to look this up". A value that satisfies every constraint
+silently exempts everything below it from every wall, so a single
+missed lookup turns a whole subtree's type checking off and the checker
+still reports success. This is the "accepted-but-ignored" class
+(see "Surface totality") in its most damaging form, because it is
+invisible: nothing in the program looks wrong.
+
+**The two roles are separated at the producers, not in the type.** There
+is one `Any`, and it means the top. A lookup whose domain is closed does not
+fall back to it:
+
+- **A closed-registry lookup raises.** Binder roles, stdlib call
+  signatures, zone content types, struct types, operator result types,
+  and `ref_kind` dispatch each have a registry that an earlier pass
+  validates against. A miss is a divergence between two registries —
+  a compiler bug, not a program error — so it fails in compiler
+  currency (an `AssertionError` naming the wall or builder that
+  guarantees it), exactly as the runtime's `role_members` and
+  `zone_observer_key` already did.
+- **An environment lookup raises.** A name resolve classified but the
+  type environment does not bind means the environment was built
+  incompletely — most often a binder a statement walk failed to
+  thread. The fix is always to thread the binding in the pass that owns
+  the scope; binding `Any` at the failing site to quiet it restores the
+  hole.
+- **A declared type name is validated where it is declared.** Every
+  position that declares a type is checked by the resolver, at the
+  declaration rather than at some use. There are nine, and they are
+  derived from the grammar rather than listed by hand — the productions
+  referencing `type_name` or `payload_type`, plus the struct literal's
+  head — because a hand-listed enumeration of them was twice found
+  incomplete: state variables, struct fields, move parameters, procedure
+  parameters, rule-template parameters, function parameters, `define`
+  payloads, phase-outcome payloads, and struct literals. The grid that
+  crosses them against every source a name can come from is
+  `tests/test_type_name_positions.py`. Otherwise a mere typo maps to the top and *widens* what
+  the checker accepts: the misspelled program passes where the
+  correctly-spelled one is rejected. Exactly one wall owns each
+  position, and it is the tightest one that applies — a move parameter
+  answers to the enumerable-domain gate (which subsumes name validity,
+  since an unknown name is not an enumerable domain), a procedure
+  parameter to its own domain set, and the remaining positions to a
+  plain name check. Each position's allowed set mirrors exactly what
+  its type builder can resolve, so a name the wall admits is never one
+  the builder still maps to the top, and no defect is reported twice in
+  two currencies.
+
+  A gate belongs to the DECLARATION, not to the uses that reach it: a
+  gate run from the vocabulary sites that name a move would leave a move
+  type nothing offers ungated entirely, and would report one named twice
+  as two defects. Declaring a construct is what makes its parts real.
+
+**What stays permissive is a small audited set**, enumerated and pinned by a
+test so a new permissive site must be classified rather than added:
+values with no better type (a diverging `error()`, context-dependent
+stdlib returns the signature model cannot express, deferred pronoun
+shapes, a forward struct reference), and propagation downstream of a
+wall that already fired. Gradual typing is preserved — the top still flows
+and still suppresses errors where it is deliberate.
+
+The general rule this instantiates: **a fallback is only legitimate
+when no better answer exists.** A fallback standing in for an answer
+the program *does* have is a silent wrong answer, and belongs upstream
+as a wall (see "Closed-domain completeness", write-time triage).
+
 ## Resource amount syntax
 
 A resource quantity in a `transfer` is written `<count> <type>` — the
@@ -1935,7 +2009,7 @@ Six projections, ordered by informativeness:
 These form a lattice ordered by informativeness:
 
 ```text
-identity ⊐ identity_set ⊐ count_by_type ⊐ count_only ⊐ existence_only ⊐ trivial
+identity > identity_set > count_by_type > count_only > existence_only > trivial
 ```
 
 Each step down "forgets" some structure of the full contents.
@@ -2300,7 +2374,7 @@ contribute to a single applied write.
 partnership because the game-win threshold cares specifically about
 below-the-line accumulation. Stud has a different shape: a list of
 pots with per-pot eligibility, length data-dependent on all-in
-history. The four games whose score is a single integer per player
+history. The games whose score is a single integer per player
 — Cribbage, Skat, Oh Hell, Pinochle (final team score) — don't have
 a "structure" at all; the structure lives in the *computation*
 (Skat's `base × multiplier`, Cribbage's pegging stream + show), not
@@ -2437,7 +2511,7 @@ game's scoring code rather than shared via a mechanic parameter.
 | Oh Hell | inline per-player, dealer-hook constraint | per-player exact-tricks target (= bid succeeds) |
 | Bridge | structured contract bidding (level + suit + doubling) | structured Contract value, not an Integer |
 
-The four games don't share a common bid type or interpretation.
+The games above don't share a common bid type or interpretation.
 Bridge's contract is a structured value rather than an integer;
 Oh Hell's bid is per-player; Spades and Pinochle differ on
 threshold vs total-points. A `bid_meaning:` parameter on Auction
@@ -3018,33 +3092,120 @@ clause. A check cited as a guarantee states its quantifier (exhaustive over
 what; sampled how); where it cannot cover its domain, it records the gap
 (the coverage-record obligation in
 [open-questions/structural-infoset-proofs.md](open-questions/structural-infoset-proofs.md))
-rather than reading as if it did. The crime is never incompleteness; it is
-*silent* incompleteness.
+rather than reading as if it did. A check born green — a pin over behavior
+already correct when the pin was written — additionally records and
+demonstrates the one-line mutation that turns it red (`red under: <the
+edit>` in its docstring), the mutation planting the fault in the code
+under guard — never in the pin's own assertions or expected values; a
+guarantee whose author cannot name a reddening edit, or can name only an
+edit to the pin itself, is this defect class wearing a test's name. The crime is never
+incompleteness; it is *silent* incompleteness.
 
 Acceptance for changes to rigor-critical machinery — anything the
 information-set guarantees, the encodings, or the invariants rest on — is
-therefore a stated completeness argument, not a green suite. The argument
-has a fixed shape, the **completeness ledger**, shipped in the change itself
-(the commit message, or the covering test module's docstring — somewhere a
-reviewer sees without asking):
+therefore a stated completeness argument, not a green suite. For an
+enumerable domain the argument's canonical form is the **grid**: the
+domain's axes derived in code from their defining registries — an axis with
+no defining site gets its derivation built as the change's first
+deliverable, because a hand-listed axis is complete only by luck and goes
+stale silently when a parallel change extends the surface — crossed into a
+parametrized test whose expected-outcome column is authored **before the
+implementation exists** and run red first. Every cell is a design decision
+(accept, or reject with a named diagnostic), so a cell that flips
+uncommanded is a regression caught at write time, and a commanded cell that
+stays green means the test does not reach the behavior. A cell whose
+correct outcome is not yet decided is never guessed into the grid — a
+guess pinned by a passing row carries the authority of a decision nobody
+made; it goes to residual with its wall and its record. The grid pins
+decisions that have been made; it is not a device for making them.
+`covered` means an executed grid row; prose describes only what the grid
+does not run.
+
+**Unsure is a legal state everywhere in this process; the silent guess is
+not.** Every mandate above names its uncertainty exit: an undecided cell
+goes to residual, an open design question to its open-questions/ file, a
+guard that cannot be classified does not land until it can, a review
+claim rests at PLAUSIBLE without executed evidence. The imperatives here
+prohibit manufactured certainty, never hesitation — a stated "not
+decided" with a wall is the process working; a guessed answer wearing a
+green row is the defect. The tie-breaker runs the same way: when unsure
+whether a gate applies, it applies — the superset is cheap, the guess is
+not. The
+judgment columns ship as the **completeness ledger** in the grid module's
+docstring:
 
 ```text
 property:   <the guarantee, one line>
 domain:     <what is quantified over>
-registry:   <where that domain is defined in code>
-covered:    <cells exhaustively handled, and by which layer>
+registry:   <where each axis is derived in code — the grid reads these>
+covered:    <the grid: module + parametrization, not a prose cell list>
 sampled:    <cells covered by example only, and why that suffices>
-residual:   <cells NOT covered — each with its wall and its roadmap.md line>
+residual:   <cells NOT in the grid, uncovered or not-yet-decided — each with its wall and its roadmap.md line>
 ```
 
-A residual row without both a wall and a record fails the gate; "no corpus
-witness" is never by itself a reason to leave a residual cell silent, because
-corpus-first governs which mechanisms exist, not how completely a mechanism
-covers its own domain. A wall guards its whole class at the layer that owns
-the class: an operand-compatibility rule lives in the type layer consulted by
-every comparison-shaped context, not at the first site that motivated it.
-The `surface-totality-audit` skill (`.claude/skills/`) operationalizes this
-section and "Surface totality" as a pre-commit gate.
+The gate is symmetric: a residual row without both a wall and a record
+fails it, and a `covered` claim without an executed grid row fails it
+equally. "No corpus witness" is never by itself a reason to leave a
+residual cell silent, because corpus-first governs which mechanisms exist,
+not how completely a mechanism covers its own domain — and when the
+construct itself has no corpus witness, the change ships a minimal witness
+fixture (a complete game exercising the construct end to end): a corpus
+hole is an integration blind spot, not an exemption. A wall guards its
+whole class at the layer that owns the class: an operand-compatibility rule
+lives in the type layer consulted by every comparison-shaped context, not
+at the first site that motivated it. The `surface-totality-audit` skill
+(`.claude/skills/`) operationalizes this section and "Surface totality" as
+a pre-commit gate, including the red-first order (axes -> framing check ->
+expected column -> red -> implement -> green) and the
+`xfail(strict=True, raises=...)` mechanism — each mark constrained to the
+cell's designed failure, so a harness crash cannot impersonate the red
+run — that keeps the pre-push checks green while the red-to-green
+transition stays visible in the diff.
+
+**Prose names the registry, never the cardinality.** A ledger row — or any
+spec sentence — states what it quantifies over, not how many members that
+set holds today. "Every registry with a signature table" stays true as
+registries are added; "the four registries" is false the moment one is,
+and a stale tally is indistinguishable from a fresh one, so it rots in
+silence where a broken path or a failing pin would announce itself. That
+silence is what makes it the same defect as an overclaiming `covered`,
+one layer out: the count is a second statement of a fact the code already
+holds, and the two drift (`decisions.md` is not exempt from
+[maintaining.md](maintaining.md)'s cross-reference-don't-duplicate rule).
+Where the set is worth naming, name the registry that defines it — the
+prose-only game twins are `PROSE_ONLY_TWINS`, not "six twins" — so a
+reader can count it and a change that grows it cannot leave the sentence
+behind. Identifiers in prose carry the same hazard for the same reason:
+nothing checks that a backticked name still resolves, so one naming a
+deleted registry reads as authoritative forever. Numbers that are facts
+about the *domain* rather than the repo — four suits, thirteen ranks, a
+two-card trick — are not tallies and are unaffected.
+
+**The test is whether the count can go stale in silence.** A sentence
+counting the language's own designed surface — a sub-phase's three exit
+forms, the two shapes of a `demands:` clause, the four suits — is safe,
+and this rule does not touch it: adding a fourth exit form *is* a spec
+edit, so the sentence is revisited by the very change that would falsify
+it. What rots is a count of a set that accumulates through routine work —
+registry entries, corpus games, deferred cells, review findings — because
+nothing about adding one prompts anyone to revisit the prose, and the
+count and the set drift apart unwitnessed. Count a designed surface
+freely; never count an accumulating one. Read the other way, this rule
+applied bluntly would strip the spec of sentences that state the design,
+which is the opposite of what it is for.
+
+**Scope is the tense, not the document.** The rule binds any doc making a
+present-tense claim about the repo — `docs/`, design notes, and module
+docstrings alike — because a reader acts on the present tense wherever it
+appears, and a proposal's supporting evidence misleads exactly as a spec
+sentence does once it stops being true. The exemption is therefore not a
+document class but an explicit date: a measurement framed as a snapshot
+(the mutation sweep's operator and seed counts in
+[roadmap.md](roadmap.md)) is a historical record and stays as written,
+because it claims only what was true when it ran. A live claim that would
+be correct if dated should be dated, not deleted — the figures are
+evidence, and deleting them to satisfy this rule would cost the argument
+its support.
 
 A wall must also speak its **layer's failure currency**: the compile
 stages fail as diagnostics (`DiagnosticBag`, with a span and a
@@ -3084,7 +3245,37 @@ and close or wall the whole class in one change. A lone patch converts a
 class defect into a recurring one — the corpus's duplicate-name
 shadowing sat for months as exactly this: the duplicate-move-parameter
 instance was fixed while duplicate zones, state variables, move types,
-and struct types kept shadowing silently until the class was swept.
+and struct types kept shadowing silently until the class was swept. The
+sweep binds at find time, not fix time: a *report* of one cell of a
+crossable product is an incomplete report — cross the product and report
+the pattern, whoever holds the finding.
+
+**A check's comment names the downstream contract, never the downstream
+exception type.** A wall is most naturally justified by what goes wrong
+without it, and the temptation is to name the crash: "without this wall,
+`to each hand[0]` would die on the executor's `NameRef` assert". That
+couples the comment to another module's current implementation — the one
+detail a reader editing *this* file never sees, and the one most likely to
+move. Failure currency is deliberately mobile here: a bare `KeyError`
+becomes a typed `RuntimeError`, a backstop assert becomes a wall one layer
+up. Every comment naming the old type is then confidently wrong while still
+reading as precise, which is worse than vague. Name instead what the
+downstream layer *requires* — the thing that actually justifies the wall:
+"without this wall, it would reach the executor, which requires a zone in
+this position and refuses anything else at play time". The warning survives
+a change of currency; the coupling does not. The exception type is
+load-bearing in exactly one place: an argument *about* failure currency
+("a typed error, not a bare `KeyError`"), where the type is the subject
+rather than incidental colour.
+
+State the consequence in the subjunctive — "would check clean and die" —
+not as a past event ("checked clean and died") and not as a present claim
+("checks clean and dies"). The past tense is unfalsifiable: it stays
+literally true after the behaviour it describes is gone, so it rots into a
+misleading implication that nothing can catch. The subjunctive says
+something about the code as it stands, which means a reader can check it
+and the claim can be found wrong — the same reason walls beat prose
+everywhere else in this document.
 
 ## Family libraries
 

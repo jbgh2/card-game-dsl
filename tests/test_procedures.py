@@ -348,10 +348,10 @@ def test_a_run_is_capacity_checked_exactly_as_the_inline_text() -> None:
     """The property this whole file names, at the one gate that reasons about the
     SHAPE of a statement rather than its contents.
 
-    An expansion used to be encoded as `if true { … }`, which told the deck-capacity
-    gate the body was CONDITIONAL — it carries `max(then, else)` across a conditional,
-    because one may be skipped. So a procedure that refilled the deck did not reset
-    the gate's running total, and the same program was ACCEPTED written inline and
+    Encoding an expansion as `if true { … }` would tell the deck-capacity gate the
+    body was CONDITIONAL — it carries `max(then, else)` across a conditional, because
+    one may be skipped. So a procedure that refilled the deck would not reset the
+    gate's running total, and the same program would be ACCEPTED written inline and
     REJECTED written as a `run`. A real `Block` node says what is true: an
     unconditional sequence."""
     game = """
@@ -540,9 +540,8 @@ def test_run_expands_in_a_move_type_effect() -> None:
 
 def test_any_procedure_fits_a_for_each_slot() -> None:
     """`for each <role> <b>: <stmt>` holds ONE statement, not a braced block. That
-    used to constrain what could be run there; it no longer does, because an
-    expansion IS one statement — a block. A procedure of any length fits, with no
-    special case and no wall."""
+    does not constrain what can be run there, because an expansion IS one statement
+    — a block. A procedure of any length fits, with no special case and no wall."""
     game = check(
         "    for each player q: run bump(q)",
         "procedure bump(who : Player) { score[who] += 1  score[who] += 2 }",
@@ -552,19 +551,19 @@ def test_any_procedure_fits_a_for_each_slot() -> None:
 
 def test_a_run_may_not_be_an_each_simultaneously_body() -> None:
     """...but NOT `each <role> simultaneously:`, and that is not a special case for
-    procedures — it is the form's own body rule, which nothing had ever enforced.
+    procedures — it is the form's own body rule, enforced at the surface.
 
     The form runs exactly one chosen movement per player: it must snapshot every
     player's selection against the state BEFORE the block and apply them together
     (that is what makes a Hearts pass atomic — nobody sees a passed card before
     choosing their own), and a snapshot is only defined for a chosen movement. The
-    executor asserted that and nothing checked it, so any other body compiled and
-    died on a bare assert. An expansion is a block, never a bare movement, so `run`
-    made that reachable from a program that looks entirely reasonable:
-    `each player simultaneously: run pass_card(player)`.
+    executor asserts that; without this wall nothing would check it, so any other
+    body would compile and die on a bare assert. An expansion is a block, never a
+    bare movement, so `run` makes that reachable from a program that looks entirely
+    reasonable: `each player simultaneously: run pass_card(player)`.
 
-    The earlier version of this test asserted that exact line COMPILED — and never
-    ran it. A test that pins the bug is worse than no test."""
+    Pinning that exact line as COMPILING — and never running it — would pin the
+    bug. A test that pins the bug is worse than no test."""
     rejects(
         "    each player simultaneously: run bump(player)",
         "procedure bump(who : Player) { score[who] += 1 }",
@@ -808,10 +807,10 @@ def test_wrong_argument_type_is_rejected() -> None:
 
 
 def test_a_run_argument_is_typed_through_a_let() -> None:
-    """The ledger's former residual, closed: `let z = hearts` used to launder
-    the argument to `TAny` and the `run`-site check passed it — the same wall
-    that had just rejected the inline spelling. Lets are typed at declaration
-    now, so the two spellings agree."""
+    """Without typed lets, `let z = hearts` would launder the argument to
+    `TAny` and the `run`-site check would pass it — the same wall that had
+    just rejected the inline spelling. Lets are typed at declaration, so the
+    two spellings agree."""
     rejects(
         "    let z = hearts\n    run f(z)",
         "procedure f(who : Player) { score[who] += 1 }",
@@ -852,7 +851,7 @@ def test_a_procedure_that_is_never_run_is_rejected() -> None:
 
 
 def test_a_produces_over_a_phase_outcome_is_rejected_in_a_body() -> None:
-    """The member of the position-dependent class I missed (Codex found it).
+    """The member of the position-dependent class a first pass missed.
 
     A phase outcome's consumer must be an EARLIER-executed sibling of the producing
     phase, and there must be exactly ONE of them. Both are facts about *where the
@@ -901,8 +900,7 @@ procedure consume() {
 
 
 def test_a_write_target_must_classify_as_a_state_variable() -> None:
-    """One rule, where there used to be three bespoke walls — and one of the three
-    nobody had written.
+    """One rule in place of three bespoke walls — one of which nobody had written.
 
     `:=` / `+=` / `rotate` write persistent state, and that is the only thing they can
     write. Since `AssignStmt.target` is now a `NameRef`, it is classified like every

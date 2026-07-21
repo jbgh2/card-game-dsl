@@ -445,7 +445,7 @@ def test_magic_hand_backstop() -> None:
 
 
 def test_probe_game_side_rename_fails_the_row_pin() -> None:
-    """P1 — the task's reproducer, statically: a game file that no longer
+    """The rename reproducer, statically: a game file that no longer
     declares `influence` (renamed) makes coup's row dangle."""
     decls = _declared_names("coup.cardlang")
     renamed = DeclaredNames(

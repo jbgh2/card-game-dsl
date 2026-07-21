@@ -20,6 +20,7 @@ callers decide how to render it.
 
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 
 from cardlang.ast.nodes import Game
@@ -32,8 +33,18 @@ from cardlang.resolve import resolve
 from cardlang.typecheck import typecheck
 
 
+@lru_cache(maxsize=None)
 def _check(game: Game) -> Game:
-    """Run the post-parse stages (resolve -> typecheck -> expand -> deck capacity)."""
+    """Run the post-parse stages (resolve -> typecheck -> expand -> deck capacity).
+
+    Memoized on the parsed tree, which composes with `parse_text`'s own memo:
+    the same source text yields the same `Game` object, so a repeat check is a
+    dict lookup. Sound for the same reason the parse memo is — the AST is
+    frozen and each stage rebinds a new tree (cardlang/parse.py, Contract) —
+    and hashing a `Game` costs two orders of magnitude less than re-running
+    the stages. Note this deliberately does NOT make the stages idempotent:
+    `resolve` still may not be applied to its own output (metamorphic-suite.md),
+    and the memo never does so, since it is keyed on the PRE-check tree."""
     game = resolve(game)
     game = typecheck(game)
     game = expand(game)

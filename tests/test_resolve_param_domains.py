@@ -120,9 +120,8 @@ def test_player_rank_round_offering_accepted() -> None:
 
 
 # --- the two Card-vocabulary guards apply to `offer` too, not just `round` --
-# `offer` used to reject every parameterized move outright, so a single Card
-# param via `offer` (accepted as of this change, "as today") never reached
-# these checks before; both are load-bearing (a missing `hand[player]` zone
+# `offer` accepts a single Card param, so it reaches these checks the same way
+# `round` does; both are load-bearing (a missing `hand[player]` zone
 # crashes `param_domain` at runtime; two Card-parameterized moves in one
 # vocabulary collapse onto the same OpenSpiel action id, per
 # cardlang/openspiel/encoding.py's handling of `n.Offer`).
@@ -149,13 +148,13 @@ def test_offer_of_two_card_parameterized_moves_rejected() -> None:
 # --- a Rank parameter needs a non-empty declared `ranking:` --------------
 # `ranking:` is optional (`game.ranking: tuple[str, ...] = ()` by default,
 # cardlang/parse.py) but `Rank` is in `_FIXED_DOMAINS`, so a game with no
-# `ranking:` could previously declare a Rank-parameterized move and pass
-# resolve clean. At runtime `ctx.rs.rank_index` is then built from the empty
-# `game.ranking` (driver.py), so `param_domain` returns an empty domain for
-# that parameter, the move contributes zero candidates to the cross-product,
-# and — if it is the only move in the vocabulary — the decision crashes with
-# "none ... is legal": a runtime crash where a compile-time diagnostic
-# belongs (CLAUDE.md "Surface totality").
+# `ranking:` would otherwise declare a Rank-parameterized move and pass
+# resolve clean. At runtime `ctx.rs.rank_index` would then be built from the
+# empty `game.ranking` (driver.py), so `param_domain` would return an empty
+# domain for that parameter, the move would contribute zero candidates to the
+# cross-product, and — if it were the only move in the vocabulary — the
+# decision would crash with "none ... is legal": a runtime crash where a
+# compile-time diagnostic belongs (CLAUDE.md "Surface totality").
 
 
 def test_rank_param_without_declared_ranking_rejected() -> None:

@@ -1,0 +1,21 @@
+// Wall: resolve.py's unknown-call check. `tichu_hand_summary` was Tichu's
+// trace emitter, evicted to the harness layer (primitive-sidecars stage 1;
+// tests/playout_trace.py derives the hand summary instead). An author copying
+// the old rules text's `let summary = tichu_hand_summary()` gets the standard
+// unknown-function diagnostic, not a silent no-op.
+game CallEvictedTraceEmitterTichu {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+  }
+  state { score[player] : Integer = 0 }
+  phase play {
+    deal 3 cards from deck to each hand
+    let summary = tichu_hand_summary()
+  }
+  winner: highest score
+}

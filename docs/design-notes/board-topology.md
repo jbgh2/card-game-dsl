@@ -669,10 +669,11 @@ not re-litigated:
 
 Each stage is one PR-train: its registries and pins land together
 (closed-domain completeness — registry, static pin, runtime wall, on
-day one), its surface passes the totality audit (misuse-probe
-rejection tests + completeness ledger), and its witness's proof module
-+ differential check close it. Later-stage names are rejected loudly
-from the first stage that could parse them.
+day one), its surface passes the totality audit (the grid authored red
+before the implementation + misuse-probe rejection tests + completeness
+ledger), and its witness's proof module + differential check close it.
+Later-stage names are rejected loudly from the first stage that could
+parse them.
 
 - **Stage 1 — structure.** Grammar: `board:` and `pieces:` as
   `game_item` alternatives (docking at the existing skeleton-clause

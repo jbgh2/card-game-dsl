@@ -368,9 +368,9 @@ match) and so must trump if able, a quirk the split preserves precisely.
   quiescence-lap poll before the push / after it / before each trick, and a
   Dragon-won trick is given by an announced `dragon_to_left` /
   `dragon_to_right` choice; the partnership/finishing lookups and card-point
-  table are pure primitives; and
-  `tichu_hand_summary` emits the hand's conservation trace. Scoring writes
-  `score[team]` directly.
+  table are pure primitives. Scoring writes `score[team]` directly, and the
+  playout harness derives its conservation audit from observation events
+  (tests/playout_trace.py), not from the rules text.
 - **Coup's game** runs on the kernel with no mechanic, at real interactive
   scope: each turn is one `offer` over the seven coin-guarded actions (the
   forced coup at ten coins falls out of the `when:` guards; `steal` /
@@ -829,21 +829,19 @@ all reading `cardlang/runtime/tichu.py` (the combination engine itself stays
   pronoun.
 - `tichu_card_points(c: Card) → Integer` — K/10 = 10, 5 = 5, Dragon +25,
   Phoenix −25 (100 per hand).
-- `tichu_hand_summary() → Integer` — emits the `tichu_hand` trace (double
-  victory, captured card points) the playout harness audits conservation
-  against.
 
-Coup's bookkeeping is five game-local primitives in
-`cardlang/runtime/coup.py`, all pure reads or trace emitters (every window
+Coup's bookkeeping is four game-local primitives in
+`cardlang/runtime/coup.py`, pure reads plus one trace emitter (every window
 response, claim, and target is a chooser decision in the DSL body — see the
 Mechanics entry):
 
 - `coup_players_in() → Integer`, `coup_next_in_game(p: Player) → Player`,
   `coup_has_char(p: Player, r: String) → Boolean` — in-game scans and the
   challenge-proof lookup (pure reads).
-- `coup_note_reveal(p: Player) → Integer`, `coup_game_summary() → Integer` —
-  the `coup_reveal` / `coup_game` trace emitters (the reveal-sequence golden
-  and the 50-coin / 15-card conservation invariants).
+- `coup_game_summary() → Integer` — the `coup_game` trace emitter (the
+  50-coin / 15-card conservation invariants and the finals). The
+  reveal-sequence golden derives from observation events at the harness
+  layer instead (tests/playout_trace.py).
 
 French Tarot's non-uniform 78-card deck (suit×rank card points that vary by
 suit, an effective led suit that isn't the kernel's own, and a settlement the

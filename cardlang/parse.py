@@ -17,9 +17,34 @@ Assumes:      raw DSL text (Markdown extraction already applied).
 Establishes:  a syntactically valid frozen AST; every node carries a
               :class:`Span`. No semantic claims — names are unclassified
               (``NameRef.ref_kind`` is ``None``) and nothing is typed.
-Now illegal:  ill-formed syntax; it cannot reach any later pass.
+Now illegal:  ill-formed syntax; it cannot reach any later pass. Also
+              MUTATING A RETURNED AST: ``parse_text`` is memoized, so two
+              callers parsing the same ``(text, source_name, line_offset)``
+              receive the SAME object, and one writer would be visible to
+              every other holder. A pass that wants to change a node builds a
+              new one with ``dataclasses.replace``.
+
+              Four walls hold that, each closing a different route, all
+              enumerated in tests/test_node_registry.py: ``frozen=True``
+              refuses every ordinary ``setattr`` (CPython's frozen
+              ``__setattr__`` raises for ANY name on a direct instance, not
+              only declared fields); ``slots=True`` additionally refuses
+              ``object.__setattr__`` of a NEW name and ``__dict__``/``vars()``
+              writes, which a frozen non-slots node would accept; a scrape
+              refuses ``object.__setattr__`` of a DECLARED field, the one
+              route neither of the others can — it is the same call frozen's
+              own ``__init__`` uses, so it is walled by not appearing at all;
+              and a field-type check refuses mutable containers, since a
+              ``list`` field would be writable THROUGH the node with no
+              ``setattr`` for the other three to catch.
+
+              Sharing itself is not new — ``openspiel/replay.py``'s ``load()``
+              has been cached since 2026-06-07. Memoizing here makes it the
+              default rather than opt-in, which is what turns those four from
+              properties the code happens to have into walls.
 Verified by:  the grammar-ambiguity check (tests/test_grammar_ambiguity.py)
-              and the per-construct parse tests.
+              and the per-construct parse tests; the memo's own liveness and
+              key correctness by tests/test_parse.py's caching pins.
 """
 
 from __future__ import annotations
@@ -1400,9 +1425,10 @@ class _Builder(Transformer[Token, n.Game]):
 
     def start(self, meta: Meta, c: list[object]) -> n.Game:
         # `start: top_item+` accepts any mix of definitions, so game-count
-        # errors are reachable from source: zero games used to escape as a
-        # raw StopIteration, and a second game would be silently discarded
-        # (decisions.md "Surface totality"). One game per source.
+        # errors are reachable from source: without these walls a source with
+        # no game would fail as an index error rather than a diagnostic, and a
+        # second game would be silently discarded (decisions.md "Surface
+        # totality"). One game per source.
         games = [x for x in c if isinstance(x, n.Game)]
         if not games:
             raise DiagnosticError(
@@ -1503,12 +1529,29 @@ def parse_library(text: str, source_name: str) -> n.Library:
     return result
 
 
-def parse_text(text: str, source_name: str, line_offset: int = 0) -> n.Game:
-    """Parse DSL ``text`` into a :class:`~cardlang.ast.nodes.Game` AST."""
+@lru_cache(maxsize=None)
+def _parse_text_cached(text: str, source_name: str, line_offset: int) -> n.Game:
+    """The memoized body of :func:`parse_text`. Takes ``line_offset``
+    positionally and without a default so one call site cannot miss another's
+    entry over an argument spelling (``lru_cache`` keys on the call shape).
+
+    Unbounded deliberately: a corpus game is re-parsed dozens of times across
+    a suite run, interleaved with far more one-shot snippets from the
+    rejection and typecheck-error tests, so any small bound would let that
+    churn evict exactly the entries worth keeping. That trade suits every
+    caller this has today — suite, CLI, harnesses — because all are
+    short-lived. It would NOT suit a long-lived one: a caller that re-parses
+    edited text (an editor session, a watch mode) mints a fresh entry per
+    edit and never reuses it, so it must bound or clear this cache."""
     tree = parse_to_tree(text, source_name, line_offset)
     result = _transform(_Builder(source_name, line_offset), tree)
     assert isinstance(result, n.Game)
     return result
+
+
+def parse_text(text: str, source_name: str, line_offset: int = 0) -> n.Game:
+    """Parse DSL ``text`` into a :class:`~cardlang.ast.nodes.Game` AST."""
+    return _parse_text_cached(text, source_name, line_offset)
 
 
 def parse_block(block: FencedBlock) -> n.Game:
