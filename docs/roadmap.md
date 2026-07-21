@@ -174,6 +174,27 @@ Things we have noted but consciously not designed yet:
   measure the corpus cost; do not conflate it with the library wall, which turns
   on invisibility and would be wrong to apply to names the author wrote.
 
+- **A game-local BINDER may shadow a provided state name.** The read-only wall
+  (`resolve._check_provided_readonly`) refuses a game WRITING provided state, and
+  `_check_library_shadows_game` refuses a library injecting a name the game
+  already binds at declaration level. What neither covers is a binder or
+  parameter the game introduces — `for each player limit:`, `function
+  f(limit : Integer)`, a comprehension or quantifier binder — spelled like a
+  provided variable: inside its scope the bare name is the binder, not the
+  provided read, with no diagnostic. It is the binder face of the same
+  visibility asymmetry the injection wall turns on (the author cannot see that
+  `limit` is provided), and it is genuinely open — `_check_reserved_binders`
+  refuses only `RESERVED_VALUE_NAMES`, whose carve-out is justified by "a binder
+  is always scoped strictly narrower than a same-named outer declaration the
+  author WROTE", which does not hold for a declaration in a file they never open.
+  Severity is low: it needs a binder named exactly after a provided variable AND
+  an intent to read the provided one inside that scope. Wall it by extending the
+  binder-introduction sweep (`_introduced_binders` / `_BINDER_SCOPE_FIELDS`) to
+  refuse a provided name, the same registry the reserved-binder check already
+  walks — a bounded change, deferred only because no corpus game names a binder
+  after a library variable. The WRITE case is already safe: `let limit = 5` then
+  `limit := 6` is refused.
+
 - **The inline-vs-`run` metamorphic transform does not cross the import
   tier.** T3 (`tests/metamorphic/test_inline.py`) splices every `run` site
   with its procedure's body, reimplemented at SOURCE-TEXT level so it is
