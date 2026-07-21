@@ -71,6 +71,7 @@ STDLIB_CLIMB_FOLLOWS: frozenset[str] = frozenset(
 # Stdlib functions invoked with arguments: `f(...)`.
 STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
     {
+        "lines",  # the board's length-k lines (cell-name tuples); reads the `board:`
         "player_holding",
         "team_of",  # the partnership a player belongs to
         "suit_of",  # the suit of a card, or of a single-card zone (trump indicator)
@@ -169,15 +170,19 @@ STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
     }
 )
 
-# The classification of every STDLIB_CALL_FUNCS member by whether its semantics
-# READ deck content. A call that reads a card's suit or rank, the ranking order,
+# The classification of every STDLIB_CALL_FUNCS member by the game feature its
+# semantics READ. A call that reads a card's suit or rank, the ranking order,
 # card-point values, or follow/trump/lead machinery cannot mean anything in a
-# piece game (no suit/rank/points), so it is a resolve-time flavor wall;
-# GENERIC_CALL_FUNCS -- functions that touch only players/teams/seats/zone
-# counts or ordered-collection POSITION (top_of/bottom_of), never a card's
-# content -- stay legal in both flavors. The two sets partition the registry,
-# pinned by tests/test_piece_content_walls.py so a newly registered call cannot
-# land unclassified (the "vacuously green" guard) and tests/test_signatures.py.
+# piece game (no suit/rank/points), so it is a resolve-time FLAVOR wall
+# (DECK_ONLY_CALL_FUNCS); a call that reads the `board:` entry cannot mean
+# anything in a boardless game, so it is a resolve-time BOARD wall
+# (BOARD_ONLY_CALL_FUNCS -- the deck-only classification's board twin, keyed on
+# `game.board is None` rather than the flavor); GENERIC_CALL_FUNCS -- functions
+# that touch only players/teams/seats/zone counts or ordered-collection POSITION
+# (top_of/bottom_of), never a card's content or a board -- stay legal
+# everywhere. The three sets partition the registry, pinned by
+# tests/test_piece_content_walls.py so a newly registered call cannot land
+# unclassified (the "vacuously green" guard) and tests/test_signatures.py.
 # Derived by an audit that read every implementation; membership IS the
 # classification rationale (decisions.md "Closed-domain completeness"). The
 # organizing rule for the boundary: locating an OPAQUE caller-supplied token is
@@ -290,5 +295,15 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "tichu_dragon_won",
         "tichu_hand_summary",
         "tichu_mahjong_holder",
+    }
+)
+
+# Board-reading calls: rejected in a boardless game (no `board:` to read), the
+# board twin of DECK_ONLY above. Listed explicitly (not derived by subtraction)
+# so the partition test can name a newly registered board call that nobody
+# classified, rather than silently absorbing it here.
+BOARD_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
+    {
+        "lines",  # the board's length-k lines -- reads ctx.rs.board
     }
 )

@@ -2119,14 +2119,19 @@ rejects it, because its owner projection would be silently unreachable.
 Uniform-projection types (`Cascade`, `HiddenStack`, `Foundation`,
 `Cell`, `PlayerPile`, …) may.
 
-**Everything else rejects loudly.** A position domain is not a seat and
-not an iteration role: `for each column c`, `each column simultaneously`,
-a position-indexed `state` variable, and a position-typed `state`
-declaration are all rejected with diagnostics (deferred, recorded in
-[roadmap.md](roadmap.md)); quantifiers (`any column where …`) are
-grammatically inexpressible. A position-indexed family must always be
-subscripted — the bare-family actor sugar (`hand` = the acting player's
-hand) is meaningless for an unowned family and is rejected.
+**Iteration and state-indexing reject loudly; quantification is admitted.**
+A position domain is not a seat and not an iteration role: `for each
+column c`, `each column simultaneously`, a position-indexed `state`
+variable, and a position-typed `state` declaration are all rejected with
+diagnostics (deferred, recorded in [roadmap.md](roadmap.md)). Quantifiers
+range over a position domain's members like any other quantifiable
+domain — `any column where …`, `all cells where …`, `number of columns
+where …` — and, where the domain is a board's `cell`, two collection forms
+iterate an evaluated line/cell collection — `any line in lines(3) where
+…`, `all cells in <line> where …` (tests/test_cell_queries.py). A
+position-indexed family must always be subscripted — the bare-family
+actor sugar (`hand` = the acting player's hand) is meaningless for an
+unowned family and is rejected.
 
 **Mixed-facing piles are two zones.** Per-position visibility inside one
 physical pile (Klondike's columns: face-down below, face-up above) is

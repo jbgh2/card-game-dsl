@@ -216,14 +216,37 @@ Things we have noted but consciously not designed yet:
 
 - **Positional zones — walled residuals.** Positional layouts are live
   ([decisions.md](decisions.md) "Position domains and positional zones";
-  Klondike and FreeCell are the corpus anchors). Four cells of the position
-  design stay deferred, each behind a wall:
+  Klondike and FreeCell are the corpus anchors). Several cells of the
+  position design stay deferred, each behind a wall:
   - `for each <position>` iteration and position-indexed `state` stores —
     both rejected at resolve with diagnostics
     (tests/rejections/positions_for_each,
     positions_state_indexed_by_position); no corpus game addresses columns
     by loop or keeps per-column scalar state (guards + parameters cover
-    both games). Implement when a game needs one.
+    both games). Implement when a game needs one. (Quantification over a
+    position domain — `any cell where …`, `all columns where …`, `number
+    of cells where …`, and the `any line in …`/`all cells in …` collection
+    forms — is a separate surface and is live: tests/test_cell_queries.py.)
+  - The collection-quantifier noun is fixed to `{cell, line}` at rung 1
+    (`cardlang/resolve.py::_COLLECTION_NOUNS`); a future collection-typed
+    domain (a region, a hand of pieces) gets no `any <noun> in <expr>
+    where …` form until a witness needs one.
+  - The collection register has only the boolean `any`/`all` shapes.
+    `number of <noun> in <expr> where …` (the collection twin of `number of
+    cells where …`) and a bare set-materializing `<noun>s in <expr> where
+    …` (the collection twin of `cards in <zone> where …`) are both
+    grammatically inexpressible — no production admits `in` after the
+    `number of`/bare forms. Numeric aggregation over a line/cell collection
+    (`sum of … over cells in <line> where …`) is likewise inexpressible:
+    `agg_query` stays fixed to `"sum" "of" expr "over" "cards" "in"
+    zone_expr`, never extended to a position collection. Implement when a
+    game needs a cell/line count or sum, not a boolean test
+    (tests/rejections/cell_count_in_collection_not_admitted).
+  - A literal-`k` `lines(k)` call is bounds-checked statically (resolve,
+    against the board's own span); a NON-literal `k` (a variable or
+    computed expression) has no static check and surfaces an out-of-range
+    value as a runtime `RuntimeError` instead
+    (`cardlang/runtime/stdlib.py::_lines`). No rung-1 game computes `k`.
   - A **positional slice movement** ("card X and everything above it" as
     surface). Klondike's run move is denoted by a rank filter because a
     cascade's face-up run is rank-monotone (the run invariant); Spider's
@@ -525,15 +548,21 @@ Things we have noted but consciously not designed yet:
   registry (`cardlang/domains.py`) is the one table behind binder typing,
   iteration, actorhood, member enumeration, and the move-parameter/action-space
   domains: a new domain row arrives with every one of those *semantic* columns
-  already green. The **grammar surface does not follow**. `cardlang.lark` still
-  hardcodes the 8 quantifier productions (`any player where` / `all suits where`
-  / …) and the player/card query families as literal nouns, so a 5th row would
-  type, iterate, bind and enumerate correctly and still have no `any <noun>
-  where` production. The wall is loud (a syntax error on the unknown noun, not a
-  silent acceptance), so this is a scope limit rather than a defect — but until
+  already green. The **grammar surface does not follow** — a 5th row would type,
+  iterate, bind and enumerate correctly and still have no dedicated `any <noun>
+  where` production. Since the position-domain / cell-line query register (Task
+  7, decisions.md "Boards and cells") this is no longer a syntax error, though:
+  `any QNOUN where` now parses ANY noun, but for a *different* registry
+  (`game.positions`, gating the board/positional-cell forms — not
+  `cardlang/domains.py`). A 5th DOMAINS row's `any <noun> where` therefore
+  parses, then is rejected by `resolve.py::_check_domain_query` as an "unknown
+  position domain" — a diagnostic naming the wrong universe, not the DOMAINS
+  rows it was actually competing with. Still loud (a resolve diagnostic, not a
+  silent acceptance), so still a scope limit rather than a defect — but until
   the productions are generated from the registry, "a new domain registers
-  itself" is true of the semantics and false of the syntax. Ledger:
-  tests/test_domain_registry.py.
+  itself" stays true of the semantics and false of the syntax, and the
+  false-of-the-syntax failure is now a misleading diagnostic rather than a
+  parse error. Ledger: tests/test_domain_registry.py.
 
 - **Collection facets vs nominal kinds — the promotion tripwire.**
   `TCollection` stands in for several runtime kinds (a `Zone`, a computed

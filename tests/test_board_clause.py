@@ -73,10 +73,13 @@ residual:   * cell CONSTANTS in expressions (a bare `a1`) are not
               diagnostic (proven below); witness = a game naming specific
               cells (breakthrough). roadmap.md "cell literals in
               expressions".
-            * quantifiers/`for each` over `cell` (`any cell where`) are the
-              Task-7 wall-lift, grammatically inexpressible at rung 1
-              (proven rejected below). roadmap.md "cell/line query
-              register" (Task 7).
+            * quantifiers over `cell`/`line` (`any cell where`, `any line in
+              lines(3) where`) LANDED in Task 7 -- the cell/line query
+              register (tests/test_cell_queries.py owns that grid); the
+              board-clause marker that the residual retired is
+              test_quantifier_over_cell_is_accepted_after_the_task_7_lift
+              below. `for each cell` STAYS rejected (no iteration witness;
+              tests/test_cell_queries.py pins the standing diagnostic).
             * an INTEGER position-domain name (`column`) in a function-
               parameter or variant-payload slot rejects as an unknown type by
               the same declaration-type-slot wall that covers `cell` (the
@@ -497,18 +500,22 @@ def test_bare_cell_constant_is_an_unknown_name() -> None:
     assert _reject(_place_guard("at is a1"))
 
 
-def test_quantifier_over_cell_is_rejected_at_rung_1() -> None:
-    # `any cell where ...` is the Task-7 wall-lift; rejected today.
-    src = board_game(
-        moves=(
-            "move_type place(at : cell) {\n"
-            "  when: any cell where square[cell] is empty\n"
-            "  effect { move one piece from reserve[actor] to square[at] }\n"
-            "}\n"
-            "move_type stop { effect { done := true } }\n"
-        )
+def test_quantifier_over_cell_is_accepted_after_the_task_7_lift() -> None:
+    # `any cell where ...` was the Task-7 wall-lift; it is now LIVE (the
+    # cell/line query register, tests/test_cell_queries.py). Kept here as the
+    # cross-module marker that this board-clause residual retired.
+    check_dsl(
+        board_game(
+            moves=(
+                "move_type place(at : cell) {\n"
+                "  when: any cell where square[cell] is empty\n"
+                "  effect { move one piece from reserve[actor] to square[at] }\n"
+                "}\n"
+                "move_type stop { effect { done := true } }\n"
+            )
+        ),
+        "board.cardlang",
     )
-    assert _reject(src)
 
 
 # --- byte-identity: integer positions untouched -------------------------------

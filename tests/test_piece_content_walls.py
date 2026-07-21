@@ -115,6 +115,7 @@ from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.values import content_kind_clause
 from cardlang.stdlib.functions import (
+    BOARD_ONLY_CALL_FUNCS,
     DECK_ONLY_CALL_FUNCS,
     GENERIC_CALL_FUNCS,
     STDLIB_CALL_FUNCS,
@@ -445,14 +446,20 @@ def test_move_param_domain_flavor(domain: str) -> None:
 
 
 def test_stdlib_call_funcs_totally_classified() -> None:
-    # Non-vacuous: both sets are explicit, so a call in NEITHER (a newly
+    # Non-vacuous: all three sets are explicit, so a call in NONE (a newly
     # registered function nobody classified) makes the union fall short and this
-    # names it; a call in BOTH breaks disjointness. The wall's domain is exactly
-    # STDLIB_CALL_FUNCS, partitioned.
+    # names it; a call in two breaks disjointness. The wall's domain is exactly
+    # STDLIB_CALL_FUNCS, partitioned into deck-only / board-only / generic.
     assert GENERIC_CALL_FUNCS <= STDLIB_CALL_FUNCS
     assert DECK_ONLY_CALL_FUNCS <= STDLIB_CALL_FUNCS
-    assert DECK_ONLY_CALL_FUNCS | GENERIC_CALL_FUNCS == STDLIB_CALL_FUNCS
+    assert BOARD_ONLY_CALL_FUNCS <= STDLIB_CALL_FUNCS
+    assert (
+        DECK_ONLY_CALL_FUNCS | BOARD_ONLY_CALL_FUNCS | GENERIC_CALL_FUNCS
+        == STDLIB_CALL_FUNCS
+    )
     assert DECK_ONLY_CALL_FUNCS.isdisjoint(GENERIC_CALL_FUNCS)
+    assert BOARD_ONLY_CALL_FUNCS.isdisjoint(DECK_ONLY_CALL_FUNCS)
+    assert BOARD_ONLY_CALL_FUNCS.isdisjoint(GENERIC_CALL_FUNCS)
 
 
 @pytest.mark.parametrize("fn", sorted(DECK_ONLY_CALL_FUNCS))

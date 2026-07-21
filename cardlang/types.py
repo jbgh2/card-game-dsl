@@ -68,6 +68,17 @@ class TCell:
 
 
 @dataclass(frozen=True, slots=True)
+class TLine:
+    """A board line -- one member of the collection ``lines(k)`` returns
+    (decisions.md "Boards and cells"), itself an ordered collection of
+    ``TCell`` members. Distinct from ``TCollection(TCell())`` so the two
+    collection quantifier forms stay type-directed: ``any line in <expr>``
+    demands a collection of lines, ``all cells in <expr>`` demands a single
+    line, and neither can be spelled with a bare card/zone collection. Its
+    runtime representation is the cell-name tuple (`("a1", "b1", "c1")`)."""
+
+
+@dataclass(frozen=True, slots=True)
 class TEnum:
     """A deck/stdlib value enum: ``Suit``, ``Rank``, ``Direction``."""
 
@@ -157,6 +168,7 @@ Type: TypeAlias = (
     | TTeam
     | TCard
     | TCell
+    | TLine
     | TEnum
     | TOptional
     | TCollection

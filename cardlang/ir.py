@@ -537,6 +537,18 @@ def _expr(e: n.Expr) -> IRDict:
             if e.default is not None:
                 comp["default"] = _expr(e.default)
             return comp
+        case n.DomainQuery():
+            dq: IRDict = {
+                "kind": "domain_query",
+                "query": e.kind,
+                "binder": e.binder,
+                "pred": _expr(e.pred),
+            }
+            # Emitted only for the collection forms (the bare forms enumerate a
+            # declared domain and have no source), keeping the key set minimal.
+            if e.source is not None:
+                dq["source"] = _expr(e.source)
+            return dq
         case n.PlayerQuery():
             return {"kind": "player_query", "query": e.kind, "pred": _expr(e.pred)}
         case n.CardQuery():

@@ -51,6 +51,7 @@ from cardlang.domains import ITERABLE_ROLES as _ITERATION_ROLES
 from cardlang.domains import PARAM_DOMAIN_ORDER, PARAM_DOMAINS as _FIXED_DOMAINS
 from cardlang.domains import SIMULTANEOUS_ROLES, ZONE_INDEX_ROLES
 from cardlang.stdlib.functions import (
+    BOARD_ONLY_CALL_FUNCS,
     DECK_ONLY_CALL_FUNCS,
     STDLIB_AUCTION_OUTCOMES,
     STDLIB_CALL_FUNCS,
@@ -194,6 +195,15 @@ def resolve(game: n.Game) -> n.Game:
     _resolve_phase_level(game.phases, known_rule_names, bag)
     _check_rule_delta_subphases(game.phases, bag)
 
+    # DomainQuery nouns validate BEFORE deep name resolution: a typo'd noun
+    # (`any cel where square[cell] …`) changes the binder name, so the body's
+    # `cell` reference would classify as unresolved first and mask the sharper
+    # unknown-noun diagnostic (bag order is report order). After
+    # `_instantiate_rules`, so instantiated rule bodies are covered too.
+    for dq in _walk(game):
+        if isinstance(dq, n.DomainQuery):
+            _check_domain_query(dq, game, bag)
+
     # Deep name resolution: classify every bare name and validate calls,
     # methods, card literals, and the rotate/winner targets.
     cats = _categories(game)
@@ -268,7 +278,7 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
     binders stay `card` because those forms are card-only (rejected in a piece
     game), so the noun they bind is fixed."""
     match node:
-        case n.Comprehension() | n.Quantifier() | n.ForEach() | n.Turns():
+        case n.Comprehension() | n.Quantifier() | n.ForEach() | n.Turns() | n.DomainQuery():
             return (node.binder,)
         case n.EachSimultaneous():
             return (node.role,)
@@ -1604,6 +1614,10 @@ _BINDER_SCOPE_FIELDS: dict[type, tuple[str, ...]] = {
     n.Comprehension: ("filter", "body"),
     n.CardQuery: ("pred",),
     n.PlayerQuery: ("pred",),
+    # A DomainQuery's binder scopes to its `pred` only; the `in` source is
+    # evaluated in the enclosing scope (mirrors Comprehension/CardQuery, whose
+    # source field is likewise absent here).
+    n.DomainQuery: ("pred",),
     n.Movement: ("filter",),
     n.EpistemicOp: ("filter",),
     n.ForEach: ("body",),
@@ -2281,6 +2295,86 @@ def _check_vocabulary_moves(
             _check_move_params(mt, bag, span, has_ranking, positions, flavor, deck)
 
 
+# The collection quantifier nouns admitted at rung 1 (decisions.md "Boards and
+# cells"): `any line in …` / `all cells in …`. Any other `in` noun is rejected
+# naming these two; further nouns are a recorded residual (roadmap.md).
+_COLLECTION_NOUNS: frozenset[str] = frozenset({"line", "cell"})
+
+# The keyword phrase each DomainQuery kind spells, for its diagnostics.
+_DOMAIN_KIND_PHRASE: dict[str, str] = {"any": "any", "all": "all", "count": "number of"}
+
+
+def _check_domain_query(nd: n.DomainQuery, game: n.Game, bag: DiagnosticBag) -> None:
+    """Validate a positional-quantifier noun (decisions.md "Boards and cells").
+
+    A BARE form (`source is None`) ranges over a declared position domain; a
+    COLLECTION form (`in <expr>`) over one of the rung-1 collection nouns
+    {line, cell}. The plural convention is a resolve wall, not a grammar one:
+    `any` takes the singular noun, `all`/`number of` the plural (singular +
+    "s"); a singular where the plural is required is guided to the plural
+    spelling, an unknown noun to the declared universe.
+
+    suit/rank quantifiers never reach here: QNOUN excludes those spellings, so
+    `any suit where …` is the fixed `Quantifier` form (walled in a piece game
+    by the CARD_AXIS_ROLES case below) -- the noun exclusion IS that wall."""
+    phrase = _DOMAIN_KIND_PHRASE[nd.kind]
+    if nd.source is None:
+        declared = {p.name for p in game.positions}
+        universe = (
+            f"declared position domains: {', '.join(sorted(declared))}"
+            if declared
+            else "this game declares no position domains"
+        )
+        if nd.binder in _COLLECTION_NOUNS and nd.binder not in declared:
+            # A bare `any line where …`: the noun is a collection noun, so the
+            # designer almost certainly dropped the `in <collection>` clause.
+            universe += (
+                f" (a `{nd.binder}` is quantified from a collection: "
+                f"`{phrase} {nd.spelled} in <collection> where ...`)"
+            )
+        target_ok = nd.binder in declared
+        noun_kind = "position domain"
+    else:
+        universe = "the `in` forms iterate a `line` or a `cell` collection"
+        target_ok = nd.binder in _COLLECTION_NOUNS
+        noun_kind = "collection noun"
+    if nd.kind != "any" and not nd.spelled.endswith("s"):
+        # A singular noun under `all`/`number of`: guide to the plural if the
+        # singular names a real target, else fall through to unknown-noun.
+        if target_ok:
+            bag.error(
+                f"`{phrase} {nd.spelled}` needs the plural noun -- write "
+                f"`{phrase} {nd.spelled}s`",
+                nd.span,
+            )
+            return
+        bag.error(f"unknown {noun_kind} '{nd.spelled}' -- {universe}", nd.span)
+        return
+    if not target_ok:
+        bag.error(f"unknown {noun_kind} '{nd.binder}' -- {universe}", nd.span)
+
+
+def _check_board_call(nd: n.Call, game: n.Game, bag: DiagnosticBag) -> None:
+    """The board-reading stdlib calls (`lines`, BOARD_ONLY_CALL_FUNCS): a
+    boardless game has no board to read, and a literal `k` outside the board's
+    line span is a static error. The bound is reused from the board entry's own
+    `lines()` (cardlang/stdlib/boards.py), so resolve and the runtime share one
+    definition of it; a NON-literal `k` (no rung-1 witness) is left to that
+    runtime bound, surfaced as a typed error (recorded residual, roadmap.md)."""
+    if game.board is None:
+        bag.error(
+            f"`{nd.func}` reads the board's lines, but the game declares no `board:`",
+            nd.span,
+        )
+        return
+    pos_args = [a for a in nd.args if not isinstance(a, n.NamedArg)]
+    if nd.func == "lines" and len(pos_args) == 1 and isinstance(pos_args[0], n.IntLit):
+        try:
+            board_entry(game.board.family, game.board.args).lines(pos_args[0].value)
+        except ValueError as exc:
+            bag.error(str(exc), nd.span)
+
+
 def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     move_type_defs = {m.name: m for m in game.move_types}
     defined_move_types = set(move_type_defs)
@@ -2314,6 +2408,13 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"set has none of",
                     nd.span,
                 )
+            case n.Call() if nd.func in BOARD_ONLY_CALL_FUNCS:
+                # A board-reading call (lines) in a boardless game, or a literal
+                # out-of-range k. The DECK_ONLY twin above (`game.board is None`
+                # keyed instead of the flavor). DomainQuery noun validation runs
+                # earlier (in `resolve`, before deep name resolution) so its
+                # diagnostic is not masked by the pred's unresolved binder.
+                _check_board_call(nd, game, bag)
             case n.StructLit() if nd.type_name not in defined_types:
                 bag.error(f"unknown type '{nd.type_name}'", nd.span)
             case n.NamedArg():

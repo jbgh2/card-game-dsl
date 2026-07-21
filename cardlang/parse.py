@@ -839,6 +839,42 @@ class _Builder(Transformer[Token, n.Game]):
     def q_all_rank(self, meta: Meta, c: list[object]) -> n.Quantifier:
         return self._implicit_quantifier("all", "rank", meta, c)
 
+    def _domain_query(
+        self, kind: str, meta: Meta, noun: object, source: object, pred: object
+    ) -> n.DomainQuery:
+        # The plural convention is fixed by kind: `any` takes the singular
+        # noun, `all`/`number of` the plural. The binder (the scoped name, and
+        # for a bare form the domain to enumerate) is the singular, derived by
+        # stripping a trailing `s` from a plural spelling; `spelled` keeps the
+        # raw noun so resolve can quote it in the plural-mismatch diagnostic.
+        # Whether the plural was actually well-formed is resolve's wall — this
+        # only recovers the intended singular so the body's binder resolves.
+        spelled = str(noun)
+        binder = spelled[:-1] if kind != "any" and spelled.endswith("s") else spelled
+        return n.DomainQuery(
+            kind=kind,
+            binder=binder,
+            spelled=spelled,
+            source=_as_expr(source) if source is not None else None,
+            pred=_as_expr(pred),
+            span=self._span(meta),
+        )
+
+    def q_any_domain(self, meta: Meta, c: list[object]) -> n.DomainQuery:
+        return self._domain_query("any", meta, c[0], None, c[1])
+
+    def q_all_domain(self, meta: Meta, c: list[object]) -> n.DomainQuery:
+        return self._domain_query("all", meta, c[0], None, c[1])
+
+    def q_count_domain(self, meta: Meta, c: list[object]) -> n.DomainQuery:
+        return self._domain_query("count", meta, c[0], None, c[1])
+
+    def q_any_in(self, meta: Meta, c: list[object]) -> n.DomainQuery:
+        return self._domain_query("any", meta, c[0], c[1], c[2])
+
+    def q_all_in(self, meta: Meta, c: list[object]) -> n.DomainQuery:
+        return self._domain_query("all", meta, c[0], c[1], c[2])
+
     def cq_set(self, meta: Meta, c: list[object]) -> n.CardQuery:
         return n.CardQuery(
             kind="set", source=_as_expr(c[0]), pred=_as_expr(c[1]), span=self._span(meta)

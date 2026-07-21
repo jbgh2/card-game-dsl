@@ -56,6 +56,7 @@ from cardlang.types import (
     TCollection,
     TEnum,
     TInteger,
+    TLine,
     TNull,
     TOptional,
     TPlayer,
@@ -354,6 +355,9 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                     return TInteger()
                 case _:  # "any" | "all"
                     return TBoolean()
+        case n.DomainQuery():
+            # `number of <domain>s where …` counts; `any`/`all` are Boolean.
+            return TInteger() if e.kind == "count" else TBoolean()
         case n.IfExpr():
             return _ifexpr_type(e, env)
         case n.StructLit():
@@ -767,6 +771,8 @@ def _child_exprs(e: n.Expr) -> list[n.Expr]:
             return [e.pred]
         case n.CardQuery():
             return [e.source, e.pred] if e.pred is not None else [e.source]
+        case n.DomainQuery():
+            return [e.source, e.pred] if e.source is not None else [e.pred]
         case n.IfExpr():
             out = [e.cond, e.then]
             for cond, branch in e.elifs:
@@ -1357,6 +1363,39 @@ def _check_is_check(e: n.IsCheck, env: TypeEnv, bag: DiagnosticBag) -> None:
         )
 
 
+# The two collection quantifier nouns and the member type each binds
+# (decisions.md "Boards and cells"): `any line in <lines> …` walks a
+# collection of lines binding `line`:TLine; `all cells in <line> …` walks one
+# line binding `cell`:TCell. Fixed at rung 1; resolve rejects any other noun.
+_COLLECTION_BINDER_TYPES: Mapping[str, Type] = {"line": TLine(), "cell": TCell()}
+
+
+def _domain_query_binder_type(
+    e: n.DomainQuery, env: TypeEnv, bag: DiagnosticBag
+) -> Type:
+    """The type a DomainQuery binds its element to, plus (for collection forms)
+    the source-shape wall. A BARE form binds the position domain's member type
+    (`TCell` for a board's `cell`, `TInteger` for an integer domain -- resolve
+    validated the noun, so a lookup miss falls back to the permissive top). A
+    COLLECTION form's noun fixes BOTH the binder type and the required source
+    type: `line` iterates a collection of lines, `cell` iterates one line."""
+    if e.source is None:
+        return env.positions.get(e.binder, TAny())
+    want, desc = (
+        (TCollection(TLine()), "a collection of lines (e.g. `lines(3)`)")
+        if e.binder == "line"
+        else (TLine(), "a single line")  # e.binder == "cell" (resolve gates the rest)
+    )
+    src_t = infer(e.source, env)
+    if not assignable(src_t, want):
+        bag.error(
+            f"`{e.kind} {e.spelled} in …` iterates {desc}, but the source is "
+            f"{_type_name(src_t)}",
+            e.span,
+        )
+    return _COLLECTION_BINDER_TYPES.get(e.binder, TAny())
+
+
 def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
     """Recursively validate a single expression: stdlib argument types and
     subscript legality. Types of unrefined sub-parts are `TAny` (permissive).
@@ -1393,6 +1432,15 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
             scoped = env.with_local("card", TCard())
             _check_expr(e.pred, scoped, bag)
             _check_bool(e.pred, scoped, bag, "card-query predicate")
+        return
+    if isinstance(e, n.DomainQuery):
+        binder_t = _domain_query_binder_type(e, env, bag)
+        if e.source is not None:
+            _check_expr(e.source, env, bag)  # the `in` source is in enclosing scope
+        scoped = env.with_local(e.binder, binder_t)
+        _check_expr(e.pred, scoped, bag)
+        phrase = {"any": "any", "all": "all", "count": "number of"}[e.kind]
+        _check_bool(e.pred, scoped, bag, f"`{phrase} {e.spelled}` predicate")
         return
     if isinstance(e, n.Comprehension):
         if env.flavor == "piece":

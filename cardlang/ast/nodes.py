@@ -220,6 +220,38 @@ class CardQuery:
 
 
 @dataclass(frozen=True, slots=True)
+class DomainQuery:
+    """The generic position-domain / collection quantifier register
+    (decisions.md "Boards and cells"), the positional twin of the fixed
+    `Quantifier` forms. Five surface spellings, one node:
+
+    - BARE, over a declared position domain (`source is None`):
+      `any <domain> where <pred>`      (kind "any")
+      `all <domain>s where <pred>`     (kind "all")
+      `number of <domain>s where <pred>` (kind "count")
+      -- `binder` is the singular domain noun, bound per member of the
+      domain's ordered members (`cell` for a board, an integer `positions {}`
+      name like `column`).
+
+    - COLLECTION, over an evaluated collection (`source` present):
+      `any line in <source> where <pred>`  (noun `line`, binds each line)
+      `all cells in <source> where <pred>` (noun `cell`, binds each cell)
+      -- `binder` is the singular noun (`line` / `cell`), fixed at rung 1.
+
+    `spelled` is the noun exactly as written (plural for `all`/`count`),
+    kept only so resolve's plural-mismatch diagnostic can quote it; `binder`
+    is the derived singular (the scoped name and, for bare forms, the domain
+    to enumerate)."""
+
+    kind: str  # "any" | "all" | "count"
+    binder: str  # the singular noun: binder name + (bare) domain to enumerate
+    spelled: str  # the noun as written (for the plural diagnostic)
+    source: Expr | None  # None for bare forms; the iterated collection for `in`
+    pred: Expr
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Choose:
     """`choose integer in <lo> .. <hi> [up to <ceiling>]` — a decision that
     resolves to a value via the chooser (e.g. a bid). ``domain`` names the
@@ -319,6 +351,7 @@ Expr = (
     | Choose
     | PlayerQuery
     | CardQuery
+    | DomainQuery
 )
 
 
@@ -1170,4 +1203,5 @@ Node = (
     | Choose
     | PlayerQuery
     | CardQuery
+    | DomainQuery
 )

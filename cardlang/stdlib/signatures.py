@@ -22,6 +22,7 @@ from cardlang.types import (
     TCollection,
     TEnum,
     TInteger,
+    TLine,
     TOptional,
     TPlayer,
     TString,
@@ -39,6 +40,9 @@ class Sig:
 
 
 CALL_SIGS: dict[str, Sig] = {
+    # The board's length-k lines (decisions.md "Boards and cells"): each a
+    # `TLine` (a cell tuple), for the `any line in lines(k) where …` register.
+    "lines": Sig((TInteger(),), TCollection(TLine())),
     "player_holding": Sig((TCard(),), TPlayer()),
     "team_of": Sig((TPlayer(),), TTeam()),
     # `suit_of` accepts a card or a single-card zone (polymorphic arg -> TAny)
