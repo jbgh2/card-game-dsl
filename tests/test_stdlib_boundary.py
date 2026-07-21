@@ -85,7 +85,16 @@ def _game(body: str) -> str:
         "  cards: standard52\n"
         "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
         "  zones { deck : Deck  hand[player] : Hand<player>\n"
-        "          taken[player] : HiddenPile<player>  discard : Discard }\n"
+        "          taken[player] : HiddenPile<player>  discard : Discard\n"
+        # The gin probes call gin primitives, and the binder materialises the
+        # implementing module's WHOLE declared row (PRIMITIVE_READS) before
+        # entering it — so a probe game must declare gin's row even though
+        # these two predicates read only `hand`/`taken`. Module-granular
+        # bundles are the ratified stage-2 scope; the per-primitive `reads`
+        # clause (stage 3) is what lets a probe declare only what it probes.
+        "          shown_deadwood[player] : Discard\n"
+        "          meldA[player] : Discard  meldB[player] : Discard\n"
+        "          meldC[player] : Discard }\n"
         "  state { dealer : Player = 0\n"
         "          score[player] : Integer = 0 }\n"
         "  winner: highest score\n"

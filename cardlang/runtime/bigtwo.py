@@ -29,10 +29,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from cardlang.runtime import reads
-from cardlang.runtime.state import Ctx
+from cardlang.runtime.sidecar import EngineFacts
 from cardlang.runtime.values import Card, Player
 
-_R = reads.row("cardlang/runtime/bigtwo.py", "big-two.cardlang")
+ROW = reads.row("cardlang/runtime/bigtwo.py", "big-two.cardlang")
 
 # Big Two rank order for singles / pairs / triples / quads / full houses and a
 # flush's top card: the 2 is the highest rank, the 3 the lowest.
@@ -64,7 +64,7 @@ _STRAIGHTS: tuple[tuple[str, ...], ...] = (
 )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Play:
     """A playable combination. `key` is a tuple comparing plays *of the same
     size*; for five-card plays its first element is the type rank, so a stronger
@@ -180,7 +180,9 @@ def _legal_follows(hand: list[Card], led: Play) -> list[Play]:
 # ---------------------------------------------------------------------------
 
 
-def bigtwo_lead_options(hand: list[Card], ctx: Ctx) -> list[Play]:
+def bigtwo_lead_options(
+    facts: EngineFacts, gr: reads.GameReads, hand: list[Card]
+) -> list[Play]:
     """The combinations a leader may lead. On the opening lead of the match (game
     state `opened` still false) only those containing the 3♦ are offered — the
     holder of the 3♦ leads the first hand and must include it.
@@ -193,24 +195,27 @@ def bigtwo_lead_options(hand: list[Card], ctx: Ctx) -> list[Play]:
     correctness bug — exhaustive opening coverage means dropping representatives
     (full per-suit enumeration), a global change deferred for random play."""
     combos = _combos(hand)
-    if not reads.state(ctx.rs, _R, "opened"):
+    if not gr.state["opened"]:
         three = Card("3", "diamonds")
         combos = [p for p in combos if three in p.cards]
     return combos
 
 
-def bigtwo_follows(hand: list[Card], current: Play, ctx: Ctx) -> list[Play]:
+def bigtwo_follows(
+    facts: EngineFacts, gr: reads.GameReads, hand: list[Card], current: Play
+) -> list[Play]:
     """The combinations that legally beat the standing play (same size, higher
-    key). `ctx` is unused — Big Two follows depend only on the hand and the led
-    play — but the climb round passes it uniformly with the lead query."""
+    key). The bundles are unused — Big Two follows depend only on the hand and
+    the led play — but the climb round passes them uniformly with the lead
+    query."""
     return _legal_follows(hand, current)
 
 
-def first_leader_seat(ctx: Ctx) -> Player:
+def first_leader_seat(facts: EngineFacts, gr: reads.GameReads) -> Player:
     """The seat holding the 3♦, who leads the first hand of the match."""
     three = Card("3", "diamonds")
-    hands = reads.family(ctx.rs, _R, "hand")
-    return next(p for p in ctx.rs.seating.players if three in hands[p].cards)
+    hands = gr.families["hand"]
+    return next(p for p in facts.seating.players if three in hands[p])
 
 
 def bigtwo_universe() -> list[Play]:

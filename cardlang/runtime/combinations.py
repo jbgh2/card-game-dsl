@@ -38,7 +38,7 @@ def _points(c: Card) -> int:
     return 0
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Play:
     kind: str       # single|pair|triple|fullhouse|straight|pairseq|bomb|dog
     length: int
