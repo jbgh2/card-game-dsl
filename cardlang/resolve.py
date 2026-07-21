@@ -180,7 +180,7 @@ def resolve(game: n.Game) -> n.Game:
     _check_rule_delta_subphases(game.phases, bag)
 
     # Deep name resolution: classify every bare name and validate calls,
-    # methods, card literals, and the rotate/winner targets.
+    # card literals, and the rotate/winner targets.
     cats = _categories(game)
     game = _classify_names(game, cats, bag)
     _validate_refs(game, cats, bag)

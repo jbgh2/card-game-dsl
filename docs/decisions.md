@@ -2334,7 +2334,7 @@ contribute to a single applied write.
 partnership because the game-win threshold cares specifically about
 below-the-line accumulation. Stud has a different shape: a list of
 pots with per-pot eligibility, length data-dependent on all-in
-history. The four games whose score is a single integer per player
+history. The games whose score is a single integer per player
 — Cribbage, Skat, Oh Hell, Pinochle (final team score) — don't have
 a "structure" at all; the structure lives in the *computation*
 (Skat's `base × multiplier`, Cribbage's pegging stream + show), not
@@ -2471,7 +2471,7 @@ game's scoring code rather than shared via a mechanic parameter.
 | Oh Hell | inline per-player, dealer-hook constraint | per-player exact-tricks target (= bid succeeds) |
 | Bridge | structured contract bidding (level + suit + doubling) | structured Contract value, not an Integer |
 
-The four games don't share a common bid type or interpretation.
+The games above don't share a common bid type or interpretation.
 Bridge's contract is a structured value rather than an integer;
 Oh Hell's bid is per-player; Spades and Pinochle differ on
 threshold vs total-points. A `bid_meaning:` parameter on Auction
@@ -3121,6 +3121,51 @@ expected column -> red -> implement -> green) and the
 cell's designed failure, so a harness crash cannot impersonate the red
 run — that keeps the pre-push checks green while the red-to-green
 transition stays visible in the diff.
+
+**Prose names the registry, never the cardinality.** A ledger row — or any
+spec sentence — states what it quantifies over, not how many members that
+set holds today. "Every registry with a signature table" stays true as
+registries are added; "the four registries" is false the moment one is,
+and a stale tally is indistinguishable from a fresh one, so it rots in
+silence where a broken path or a failing pin would announce itself. That
+silence is what makes it the same defect as an overclaiming `covered`,
+one layer out: the count is a second statement of a fact the code already
+holds, and the two drift (`decisions.md` is not exempt from
+[maintaining.md](maintaining.md)'s cross-reference-don't-duplicate rule).
+Where the set is worth naming, name the registry that defines it — the
+prose-only game twins are `PROSE_ONLY_TWINS`, not "six twins" — so a
+reader can count it and a change that grows it cannot leave the sentence
+behind. Identifiers in prose carry the same hazard for the same reason:
+nothing checks that a backticked name still resolves, so one naming a
+deleted registry reads as authoritative forever. Numbers that are facts
+about the *domain* rather than the repo — four suits, thirteen ranks, a
+two-card trick — are not tallies and are unaffected.
+
+**The test is whether the count can go stale in silence.** A sentence
+counting the language's own designed surface — a sub-phase's three exit
+forms, the two shapes of a `demands:` clause, the four suits — is safe,
+and this rule does not touch it: adding a fourth exit form *is* a spec
+edit, so the sentence is revisited by the very change that would falsify
+it. What rots is a count of a set that accumulates through routine work —
+registry entries, corpus games, deferred cells, review findings — because
+nothing about adding one prompts anyone to revisit the prose, and the
+count and the set drift apart unwitnessed. Count a designed surface
+freely; never count an accumulating one. Read the other way, this rule
+applied bluntly would strip the spec of sentences that state the design,
+which is the opposite of what it is for.
+
+**Scope is the tense, not the document.** The rule binds any doc making a
+present-tense claim about the repo — `docs/`, design notes, and module
+docstrings alike — because a reader acts on the present tense wherever it
+appears, and a proposal's supporting evidence misleads exactly as a spec
+sentence does once it stops being true. The exemption is therefore not a
+document class but an explicit date: a measurement framed as a snapshot
+(the mutation sweep's operator and seed counts in
+[roadmap.md](roadmap.md)) is a historical record and stays as written,
+because it claims only what was true when it ran. A live claim that would
+be correct if dated should be dated, not deleted — the figures are
+evidence, and deleting them to satisfy this rule would cost the argument
+its support.
 
 A wall must also speak its **layer's failure currency**: the compile
 stages fail as diagnostics (`DiagnosticBag`, with a span and a

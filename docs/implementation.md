@@ -14,7 +14,7 @@ architecture, disciplined workflow, and CI gates — lives in
 Prove the spec is **buildable as a DSL** — precise enough that a parser
 plus a static checker can accept the whole corpus with no hand-waving.
 
-The corpus ([games/](games/), 14 games today) is the test suite. Every
+The corpus ([games/](games/)) is the test suite. Every
 game that fails to parse or type-check points at exactly the place where
 the spec
 is still vague. This is deliberately a **compile-time net**: it catches

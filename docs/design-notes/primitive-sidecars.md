@@ -20,14 +20,18 @@ One remains open; the migration has closed the other two, and each is
 marked with what closed it so this section states the live problem rather
 than the original one:
 
-1. **The language package contains game knowledge.** Nine game modules sit in
-   `cardlang/runtime/` beside the engine core, and of the ~50 names in
-   `STDLIB_CALL_FUNCS` (`cardlang/stdlib/functions.py`), roughly 40 are
-   game-prefixed (`tichu_*` ×12, `skat_*` ×5, `tarot_*` ×5, `coup_*` ×5,
-   cribbage's six, Stud's three, the climb queries, three game-named auction
-   outcomes). "Stdlib" is a misnomer for most of its contents. Adding a
-   corpus game means editing three language-package files: the name
-   registry, `signatures.py`, and a hand-written `match` arm in
+1. **The language package contains game knowledge.** Game modules sit in
+   `cardlang/runtime/` beside the engine core, and the large majority of
+   `STDLIB_CALL_FUNCS` (`cardlang/stdlib/functions.py`) is game-prefixed —
+   a cluster per corpus game that needs primitives (`tichu_*`, `canasta_*`,
+   `skat_*`, `gin_*`, ...), against a remainder of genuinely general names.
+   That split is a proportion, not a tally, on purpose: the stages below
+   move primitives out of the registry, so an exact count would rot behind
+   them ([decisions.md](../decisions.md) "Prose names the registry, never
+   the cardinality"). "Stdlib" is a misnomer for most of its contents.
+   Adding a corpus game
+   means editing three language-package files: the name registry,
+   `signatures.py`, and a hand-written `match` arm in
    `cardlang/runtime/stdlib.py` — a hand-enumerated dispatch over what
    should be a registry-derived one, the shape
    [decisions.md](../decisions.md) "Closed-domain completeness" warns
@@ -39,12 +43,14 @@ than the original one:
    it had no business seeing. It now receives values only, so those are
    not expressible. What survives is a granularity question, not a safety
    one (§3).
-3. **Two primitives were not reads at all — CLOSED by stage 1.**
-   `coup_note_reveal` and `tichu_hand_summary` were trace emitters for the
-   playout harness, one of them called as `let noted = coup_note_reveal(q)`
-   — a dead variable, purely for the side effect. Both are gone from the
-   rules text and the harness derives their facts from observation events.
-   `coup_game_summary` remains registered for the reason §3 gives.
+3. **A registered primitive is not a read at all.** `coup_game_summary` is
+   a trace emitter for the playout harness, called as `let summary =
+   coup_game_summary()` — a dead variable, purely for the side effect. That
+   is harness instrumentation leaking into the rules text. It is what §4's
+   first stage left behind when it evicted the emitters that could be
+   derived from movement views; why this one could not ride with them, and
+   what its own eviction needs, are recorded in
+   [roadmap.md](../roadmap.md) ("Primitive sidecars").
 
 That leaves item 1, which is stage 4's, and it is the reason this note
 exists: the central placement is not protecting anything. It is a
@@ -61,9 +67,9 @@ The target model has three parts.
 **Narrow interface — values in, value out.** A primitive's signature names
 value types (`Card`, `Player`, `Integer`, card collections); it never
 receives `Ctx` or any engine-internal handle. A function that computes a
-cribbage show score from fifteen cards cannot participate in mechanics,
-mutate state, or observe anything it was not handed — the property is
-structural, so it holds for game sixteen without review.
+cribbage show score from a hand and its starter cannot participate in
+mechanics, mutate state, or observe anything it was not handed — the
+property is structural, so it holds for the next game without review.
 
 **A `primitives { }` declaration block in the game file.** The `.cardlang`
 declares what it borrows from outside the DSL:
@@ -96,7 +102,8 @@ file, the implementation's location stops mattering for safety — so it moves
 next to the game it serves, and the language package
 (`cardlang/stdlib`, `cardlang/runtime`) becomes game-independent. The
 genuinely general names stay in the stdlib: `team_of`, `player_holding`,
-`suit_of`, `rank_value`, `card_value`, `error`, `best_five_card_hand` — and
+`suit_of`, `rank_value`, `card_value`, `error` (and `best_five_card_hand`,
+specified in [library.md](../library.md) but not yet wired) — and
 the poker-*family* selectors (`bring_in_seat`, `first_to_act_seat`,
 `pot_share`) graduate there when a second poker game lands, per the usual
 corpus-first promotion.
@@ -133,7 +140,7 @@ interface cannot express one.
   because its `coup_game` payload recomputes conservation totals from engine
   state rather than from movement views — reproducing it at the harness is
   its own design step ([roadmap.md](../roadmap.md), "Primitive sidecars").
-  The four game-local trick winners (`schnapsen_`, `doko_`, `skat_`,
+  The game-local trick winners (`schnapsen_`, `doko_`, `skat_`,
   `five_hundred_trick_winner`) compute a real value AND emit the engine's
   own `play`/`trick`/`trick_end` events from a game-local site; they now
   return `(value, events)` and the dispatch layer performs the emission,
