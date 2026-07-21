@@ -241,6 +241,21 @@ def test_placements_are_public_identity_events() -> None:
     )
 
 
+def _first_step_divergence(
+    reference: list[tuple[str, ...]], states: list[tuple[str, ...]]
+) -> tuple[int, str, str]:
+    """The first (step, reference-render, actual-render) where two per-step
+    render lists differ, so the witness points at the real divergence rather
+    than always at step 0."""
+    for i in range(min(len(reference), len(states))):
+        if states[i] != reference[i]:
+            for q in range(min(len(reference[i]), len(states[i]))):
+                if states[i][q] != reference[i][q]:
+                    return i, reference[i][q], states[i][q]
+            return i, str(reference[i]), str(states[i])
+    return 0, str(reference), str(states)
+
+
 def test_no_shuffle_means_seed_degeneracy() -> None:
     """A fixed action history renders byte-identically for both players across
     three seeds. The degeneracy is OVER-DETERMINED (fungible marks +
@@ -280,10 +295,11 @@ def test_no_shuffle_means_seed_degeneracy() -> None:
         if reference is None:
             reference = states
         else:
+            step, ref_cell, got_cell = _first_step_divergence(reference, states)
             assert states == reference, (
                 f"cardlang_tic_tac_toe: seed {seed} renders differently from the "
                 f"reference seed — the info state is seed-sensitive\n"
-                f"witness: {first_divergence(states[0][0], reference[0][0])}"
+                f"witness (step {step}): {first_divergence(ref_cell, got_cell)}"
             )
     assert reference is not None
     record(
