@@ -45,12 +45,48 @@ Contract:
 
 from __future__ import annotations
 
+from collections.abc import Mapping as _Mapping
+from collections.abc import Sequence as _Sequence
+from collections.abc import Set as _Set
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any, Mapping
 
 from cardlang.runtime.state import RuntimeState, Zone
 from cardlang.runtime.values import Card
+
+# Container types whose contents must be frozen; atomics are sequences too
+# (a str is a sequence of chars) but are leaves — never descended.
+_ATOMIC: tuple[type, ...] = (str, bytes, bytearray)
+
+
+def deep_freeze(value: Any) -> Any:
+    """A structurally-immutable SNAPSHOT of `value`, recursively, to any depth.
+
+    The bundles a primitive receives must expose nothing it can mutate: not
+    just the outer container, but every mapping, sequence and set nested
+    inside it, to the bottom. A shallow freeze is a false guarantee — an
+    indexed state variable is a live `{player: value}` dict and a round-state
+    frame nests a `played` list, so wrapping only the top level lets
+    `gr.state["coins"][p] = 0` and `facts.round_state["played"].append(...)`
+    reach straight through and corrupt engine state.
+
+    Every level is REBUILT, so the result is a snapshot rather than a chain of
+    read-only views over live objects: a later engine mutation cannot leak in,
+    and the primitive cannot write out. Mappings become `MappingProxyType`,
+    sequences tuples, sets frozensets; atomics (`str`/`bytes`) and leaf value
+    types (frozen dataclasses like `Card`/`Play`, scalars) pass through
+    unchanged. Keys are left as-is — a mapping key is already hashable, hence
+    immutable."""
+    if isinstance(value, _ATOMIC):
+        return value
+    if isinstance(value, _Mapping):
+        return MappingProxyType({k: deep_freeze(v) for k, v in value.items()})
+    if isinstance(value, _Set):
+        return frozenset(deep_freeze(v) for v in value)
+    if isinstance(value, _Sequence):
+        return tuple(deep_freeze(v) for v in value)
+    return value
 
 _REGISTRY_NAME = "PRIMITIVE_READS (cardlang/runtime/reads.py)"
 
@@ -304,10 +340,12 @@ class GameReads:
 
     The bundle a narrowed primitive receives in place of `Ctx`. Its contents
     are bounded by the module's `PRIMITIVE_READS` row — an undeclared name is
-    ABSENT, not merely unfetched — and zone contents arrive as tuples, so a
-    primitive cannot write back through a live `Zone.cards` list. That is the
-    narrowing: what used to be a convention enforced by review ("primitives
-    are pure reads") is now a property of what the value can express."""
+    ABSENT, not merely unfetched — and every value is `deep_freeze`d, so a
+    primitive can write back through nothing: not a `Zone.cards` list, not an
+    indexed state variable's `{player: value}` dict, not anything nested
+    inside them. That is the narrowing: what used to be a convention enforced
+    by review ("primitives are pure reads") is now a property of what the
+    value can express."""
 
     state: Mapping[str, Any]
     families: Mapping[str, Mapping[int, tuple[Card, ...]]]
@@ -322,19 +360,20 @@ def game_reads(rs: RuntimeState, r: PrimitiveReads) -> GameReads:
     are non-literal, which `tests/test_primitive_reads.py` refuses in every
     other module precisely so a name-keyed read cannot escape the static pin.
     The pin still holds — the names come FROM the row, so the bundle is the
-    declaration by construction."""
+    declaration by construction. Every materialized value is `deep_freeze`d,
+    so an indexed state variable's `{player: value}` dict — and anything
+    nested inside a state value — is a snapshot the primitive cannot mutate,
+    not the live engine object."""
     return GameReads(
-        state=MappingProxyType({n: state(rs, r, n) for n in sorted(r.state_vars)}),
-        families=MappingProxyType(
+        state=deep_freeze({n: state(rs, r, n) for n in sorted(r.state_vars)}),
+        families=deep_freeze(
             {
-                n: MappingProxyType(
-                    {k: tuple(z.cards) for k, z in family(rs, r, n).items()}
-                )
+                n: {k: list(z.cards) for k, z in family(rs, r, n).items()}
                 for n in sorted(r.zone_families)
             }
         ),
-        singles=MappingProxyType(
-            {n: tuple(single(rs, r, n).cards) for n in sorted(r.single_zones)}
+        singles=deep_freeze(
+            {n: list(single(rs, r, n).cards) for n in sorted(r.single_zones)}
         ),
     )
 

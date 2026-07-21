@@ -44,7 +44,6 @@ Contract:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from types import MappingProxyType
 from typing import Any, Mapping
 
 from cardlang.runtime import reads
@@ -106,14 +105,22 @@ class EngineFacts:
 
 
 def engine_facts(rs: RuntimeState, actor: Player | None) -> EngineFacts:
-    """Snapshot the engine-structural facts for one primitive call."""
+    """Snapshot the engine-structural facts for one primitive call.
+
+    Every mapping/sequence fact is `deep_freeze`d, so a round-state frame's
+    nested `played` list — and anything under it, at any depth — is a
+    snapshot rather than the live `rs.mech_state` object. `seating` is a
+    frozen dataclass and `actor` a scalar, so both pass through the freeze
+    unchanged; the recursion only rebuilds containers."""
     return EngineFacts(
         seating=rs.seating,
-        teams=rs.teams,
-        team_of=MappingProxyType(rs.team_of),
-        rank_index=MappingProxyType(rs.rank_index),
-        round_state=rs.mech_state[-1] if rs.mech_state else rs.last_round_state,
-        last_round_state=rs.last_round_state,
+        teams=reads.deep_freeze(rs.teams),
+        team_of=reads.deep_freeze(rs.team_of),
+        rank_index=reads.deep_freeze(rs.rank_index),
+        round_state=reads.deep_freeze(
+            rs.mech_state[-1] if rs.mech_state else rs.last_round_state
+        ),
+        last_round_state=reads.deep_freeze(rs.last_round_state),
         actor=actor,
     )
 

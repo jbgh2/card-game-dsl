@@ -47,7 +47,12 @@ covered:    (a) per-implementation-SITE: the site's signature names no
             second stops the bundle growing;
             (d) `GameReads`: the bundle carries exactly the module's
             declared row and nothing else — an undeclared name is absent,
-            not merely unfetched;
+            not merely unfetched; and NOTHING mutable is reachable through
+            either bundle at any depth or shape (`deep_freeze`), proven by
+            descending the whole materialized structure over a
+            mixed-container nested fixture rather than checking the shapes
+            we happen to know — a shallow freeze exposed an indexed state
+            dict and a round-state `played` list to direct mutation;
             (e) `EMITS_TRACE` two ways: every listed primitive returns
             `(value, events)`, no unlisted migrated primitive does.
 sampled:    behavioral identity rides the byte-identical goldens and the
@@ -90,6 +95,7 @@ import random
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 import pytest
@@ -810,17 +816,20 @@ def test_every_engine_fact_is_pinned() -> None:
 @pytest.mark.parametrize("field", sorted(_FACT_SOURCES), ids=lambda f: f)
 def test_engine_fact_carries_the_engine_value(field: str) -> None:
     """One cell per fact: the binder's bundle equals the engine expression
-    `_FACT_SOURCES` names."""
+    `_FACT_SOURCES` names — compared as the deep-frozen SNAPSHOT the fact now
+    is, so a round-state frame's `played: []` reads as the `played: ()` the
+    freeze produces (same value, immutable shape) rather than failing on the
+    list-vs-tuple the purity guarantee deliberately introduces."""
     sidecar = _sidecar()
     rs = _live_state()
     facts = sidecar.engine_facts(rs, actor=1)
     expected: dict[str, Any] = {
         "seating": rs.seating,
-        "teams": rs.teams,
-        "team_of": rs.team_of,
-        "rank_index": rs.rank_index,
-        "round_state": rs.last_round_state,
-        "last_round_state": rs.last_round_state,
+        "teams": reads_mod.deep_freeze(rs.teams),
+        "team_of": reads_mod.deep_freeze(rs.team_of),
+        "rank_index": reads_mod.deep_freeze(rs.rank_index),
+        "round_state": reads_mod.deep_freeze(rs.last_round_state),
+        "last_round_state": reads_mod.deep_freeze(rs.last_round_state),
         "actor": 1,
     }
     assert getattr(facts, field) == expected[field]
@@ -885,6 +894,145 @@ def test_game_reads_cards_are_immutable() -> None:
     )
     bundle = reads_mod.game_reads(rs, row)
     assert isinstance(bundle.singles["trick_pile"], tuple)
+
+
+# --- grid (d'): NOTHING mutable is reachable through a bundle, at any depth --
+#
+# A shallow freeze (proxy the outer dict only) is a false guarantee: an
+# indexed state variable is a live `{player: value}` dict, and a round-state
+# frame nests a `played` list, so `gr.state["coins"][p] = 0` or
+# `facts.round_state["played"].append(...)` reaches straight through and
+# corrupts engine state. The property is deep and shape-agnostic, so the
+# check walks the WHOLE materialized structure rather than the two shapes we
+# happen to know about today.
+
+_ATOMIC: tuple[type, ...] = (str, bytes, bytearray)
+
+# A deliberately deep, mixed-shape value: dict -> list -> dict -> set/tuple,
+# with atomics (str) that must NOT be shredded into characters, and BOTH a
+# plain `set` (must be converted) and a `frozenset` (passes through) so the
+# set branch is exercised on a genuinely mutable container. Injected into both
+# bundles so the walker has real nesting to descend.
+_NESTED: dict[int, Any] = {
+    0: {
+        "layer": [1, {"deep": (2, 3), "mset": {4, 5}, "fset": frozenset({6, 7})}],
+        "tag": "keep",
+    },
+    1: [{"pair": (8, 9)}, [10, [11, {"k": [12]}]]],
+}
+
+
+def _reachable_mutable(value: Any, path: str = "") -> list[str]:
+    """Every path at which a MUTABLE container is reachable inside `value`.
+    Empty means the whole structure is immutable at every depth. Atomics
+    (str/bytes) are leaves, never descended as sequences."""
+    from collections.abc import Mapping as _Map
+    from collections.abc import Sequence as _Seq
+    from collections.abc import Set as _Set
+
+    bad: list[str] = []
+    if isinstance(value, _ATOMIC):
+        return bad
+    if isinstance(value, _Map):
+        if not isinstance(value, MappingProxyType):
+            bad.append(f"{path}: mutable mapping {type(value).__name__}")
+        for k, v in value.items():
+            bad += _reachable_mutable(v, f"{path}[{k!r}]")
+    elif isinstance(value, _Set):
+        if not isinstance(value, frozenset):
+            bad.append(f"{path}: mutable set {type(value).__name__}")
+        for i, v in enumerate(sorted(value, key=repr)):
+            bad += _reachable_mutable(v, f"{path}{{{i}}}")
+    elif isinstance(value, _Seq):
+        if not isinstance(value, tuple):
+            bad.append(f"{path}: mutable sequence {type(value).__name__}")
+        for i, v in enumerate(value):
+            bad += _reachable_mutable(v, f"{path}[{i}]")
+    return bad
+
+
+_COUP_ROW = reads_mod.row("cardlang/runtime/coup.py", "coup.cardlang")
+
+
+def _coup_row_state() -> RuntimeState:
+    """A state populated for the WHOLE of coup's declared row — `game_reads`
+    materializes every declared name, so a partial fixture would fail the
+    read before the immutability check it exists to make."""
+    decls = (
+        n.ZoneDecl(name="influence", index="player", type_ref=n.TypeRef(name="Hand")),
+        n.ZoneDecl(name="revealed", index="player", type_ref=n.TypeRef(name="Pile")),
+        n.ZoneDecl(name="court_deck", index=None, type_ref=n.TypeRef(name="Deck")),
+    )
+    rs = RuntimeState(Seating(2), ZoneStore(decls, (0, 1)), random.Random(0))
+    rs.push_frame()
+    rs.declare("coins", False, {0: 2, 1: 2})
+    rs.declare("alive", False, {0: True, 1: True})
+    rs.declare("treasury", False, 44)
+    return rs
+
+
+def test_game_reads_is_deeply_immutable_at_any_depth() -> None:
+    """A primitive cannot mutate engine state through GameReads at ANY depth
+    or shape — not just the zone-card list. Inject arbitrary nesting into a
+    declared state variable and prove nothing mutable survives, and that the
+    bundle is a SNAPSHOT (mutating the live source afterward does not leak)."""
+    from copy import deepcopy
+
+    rs = _coup_row_state()
+    live = deepcopy(_NESTED)
+    rs.set("coins", live)  # coins is a declared indexed state var of coup's row
+    bundle = reads_mod.game_reads(rs, _COUP_ROW)
+
+    # Walk EVERY field of the bundle, not just the one carrying the nesting —
+    # state, families and singles all go through the same freeze.
+    bad: list[str] = []
+    for fname in ("state", "families", "singles"):
+        bad += _reachable_mutable(getattr(bundle, fname), f"gr.{fname}")
+    assert not bad, "mutable containers reachable through GameReads:\n" + "\n".join(bad)
+
+    before = repr(bundle.state["coins"])
+    live[0]["layer"].append("intrusion")  # mutate the ORIGINAL after building
+    assert repr(bundle.state["coins"]) == before, (
+        "the bundle tracked a later mutation of live engine state — it is a "
+        "view, not the snapshot the purity guarantee requires"
+    )
+
+
+def test_engine_facts_round_state_is_deeply_immutable_at_any_depth() -> None:
+    """Both round-state facts are deep snapshots: a primitive cannot mutate
+    `rs.mech_state` / `rs.last_round_state` through them at any depth."""
+    from copy import deepcopy
+
+    sidecar = _sidecar()
+    rs = _live_state()
+    rs.mech_state.append({"played": [(0, "a"), (1, "b")], "nest": deepcopy(_NESTED)})
+    rs.last_round_state = {"played": [], "nest": deepcopy(_NESTED)}
+    facts = sidecar.engine_facts(rs, actor=0)
+
+    for name in ("round_state", "last_round_state"):
+        bad = _reachable_mutable(getattr(facts, name), f"facts.{name}")
+        assert not bad, f"mutable through facts.{name}:\n" + "\n".join(bad)
+
+    before = repr(facts.round_state)
+    rs.mech_state[-1]["played"].append((2, "c"))  # mutate live frame after bind
+    assert repr(facts.round_state) == before, (
+        "facts.round_state tracked a later mutation of rs.mech_state — a view, "
+        "not a snapshot"
+    )
+
+
+def test_every_engine_facts_field_is_deeply_immutable() -> None:
+    """The whole bundle, not two chosen fields: EVERY EngineFacts field is
+    immutable at every depth. Nested data is injected into the round-state
+    frames; the scalar/tuple/frozen-dataclass fields pass by construction."""
+    sidecar = _sidecar()
+    rs = _live_state()
+    rs.mech_state.append({"played": [(0, "a")], "nest": _NESTED})
+    facts = sidecar.engine_facts(rs, actor=1)
+    offenders: list[str] = []
+    for name in facts.__dataclass_fields__:
+        offenders += _reachable_mutable(getattr(facts, name), f"facts.{name}")
+    assert not offenders, "mutable containers in EngineFacts:\n" + "\n".join(offenders)
 
 
 # --- grid (e): the trace-returning registry, two ways -----------------------
