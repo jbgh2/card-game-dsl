@@ -50,7 +50,7 @@ covered:    the parametrizations below, each over its registry --
             test_quantifier_role_flavor / test_for_each_role_flavor (DOMAINS
             roles x flavor), test_deck_only_call_rejected_in_piece_game
             (DECK_ONLY_CALL_FUNCS), plus the hand-listed grammar-anchored
-            surfaces (test_item_noun_*, test_field_access_*, test_card_query_*,
+            surfaces (test_item_noun_*, test_field_*, test_card_query_*,
             test_aggregation_*, test_ranking_*, test_trump_*, test_card_literal_*,
             test_reveal_*), the axis-value positives (test_axis_value_*), the
             deck-only totality pins (subset + total partition), and the
@@ -83,12 +83,20 @@ residual:   card-content vocabulary reachable ONLY through the trick-taking and
             reaching it degrades loudly through the existing card-zone /
             name-resolution / deck-only-call walls rather than silently taking
             card meaning. Likewise a card-content TYPE annotation (`Suit`/
-            `Rank`/`Card`) on a state var, struct field, function parameter, or
-            variant case is silently accepted AT the declaration in BOTH
-            flavors -- declarations are never checked against their
-            initializers, a pre-existing flavor-independent gap, not a
-            piece-specific acceptance -- and in a piece game every USE fails
-            loud (no card value resolves in a piece namespace); a struct
+            `Rank`/`Card`) at a declaration site is accepted AT the annotation
+            in BOTH flavors (the name is a known type); loudness then comes
+            from two places, not a silent gap. A state var carries an
+            initializer, and the merged default-type pass
+            (typecheck.py `_check_state_default_type`) rejects a piece value
+            under a card-typed var -- `foo : Suit = x` in a piece game fails
+            "declared Suit ... default has type side". The initializer-less
+            slots (struct field, function parameter, variant case) accept the
+            annotation and fail at every USE in a piece game (no card value
+            resolves in a piece namespace). Position-domain names at the
+            function-parameter and variant-payload slots ADMIT and resolve to
+            their member type (the merge's payload-admit policy,
+            tests/test_type_name_positions.py; the board `cell` -> TCell
+            extension is pinned in tests/test_board_clause.py). A struct
             DERIVED field reading an item field (`some_card.side`) is a sub-case
             -- `struct_registry` types it against the default `CARD_FIELDS`
             (its inference env carries no game flavor), reached in a piece game
@@ -423,9 +431,10 @@ _CARD_CONTENT_DOMAINS: frozenset[str] = frozenset({"Suit", "Suit?", "Rank", "Car
 
 
 def _param_game(build: Callable[..., str], domain: str) -> str:
-    # A move typed by `domain`, offered once so the totality gate runs. The
-    # move_type is a top-level declaration (after the game); the offer is a
-    # phase statement.
+    # A move typed by `domain`. The move type is a top-level declaration;
+    # `offer` is incidental -- the merged relocation gates every DECLARED move
+    # type (resolve `_validate_refs`), offered or not (probed directly by
+    # test_move_param_domain_flavor_gates_declared_but_unoffered below).
     top = f"move_type act(v : {domain}) {{ effect {{ n += 1 }} }}\n"
     body = "    for each player p: offer to p one of [act]\n"
     return build(body=body, top=top)
@@ -433,11 +442,24 @@ def _param_game(build: Callable[..., str], domain: str) -> str:
 
 @pytest.mark.parametrize("domain", sorted(_PARAM_DOMAINS))
 def test_move_param_domain_flavor(domain: str) -> None:
+    # The piece-reject limb of the property. The card-game-legal limb (a) is
+    # corpus-sampled, not re-probed here: each card-content domain needs its
+    # own card-game setup (Rank a `ranking:`, Card a `hand[player]` zone), and
+    # the corpus exercises them all -- Go Fish's `ask(rank : Rank)`, Schnapsen's
+    # `play_card(c : Card)`, Bridge's `submit_bid(strain : Suit?)`.
     if domain in _CARD_CONTENT_DOMAINS:
         assert PIECE_KIND in _reject(_param_game(piece_game, domain))
     else:  # Player: a seat domain, legal in both flavors
         _accept(_param_game(piece_game, domain))
         _accept(_param_game(card_game, domain))
+
+
+def test_move_param_domain_flavor_gates_declared_but_unoffered() -> None:
+    # The merged relocation gates a move type by its DECLARATION, so a
+    # card-content param in a piece game is rejected even when no vocabulary
+    # offers it -- the reach main's move-param relocation added.
+    top = "move_type act(v : Suit) { effect { n += 1 } }\n"
+    assert PIECE_KIND in _reject(piece_game(top=top))
 
 
 # --- deck-reading stdlib calls ---------------------------------------------
@@ -446,10 +468,17 @@ def test_move_param_domain_flavor(domain: str) -> None:
 
 
 def test_stdlib_call_funcs_totally_classified() -> None:
-    # Non-vacuous: all three sets are explicit, so a call in NONE (a newly
+    # Non-vacuous: all three sets are explicit literals (functions.py:223 keeps
+    # them so, not derived by subtraction), so a call in NONE (a newly
     # registered function nobody classified) makes the union fall short and this
     # names it; a call in two breaks disjointness. The wall's domain is exactly
     # STDLIB_CALL_FUNCS, partitioned into deck-only / board-only / generic.
+    #
+    # red under: add a name to STDLIB_CALL_FUNCS (or drop one from a
+    # classification set) without classifying it -- the union assertion below
+    # then falls short of STDLIB_CALL_FUNCS. Demonstrated by the merge itself:
+    # coup_note_reveal/tichu_hand_summary evicted from STDLIB_CALL_FUNCS left
+    # DECK_ONLY as a strict superset until they were dropped from it here.
     assert GENERIC_CALL_FUNCS <= STDLIB_CALL_FUNCS
     assert DECK_ONLY_CALL_FUNCS <= STDLIB_CALL_FUNCS
     assert BOARD_ONLY_CALL_FUNCS <= STDLIB_CALL_FUNCS

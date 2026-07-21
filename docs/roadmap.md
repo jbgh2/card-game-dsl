@@ -25,10 +25,14 @@ Things we have noted but consciously not designed yet:
   payload positions, where it types as the integer member of the range. It is
   NOT legal as a state-variable type or a struct-field type, and whether it
   should be is undecided rather than settled: semantically such a value is an
-  Integer with a declared range, but no game wants one, so the grid
-  (`tests/test_type_name_positions.py`) records the cells as residual instead
-  of guessing an expected value nobody has chosen. The wall is loud and names
-  the position domain rather than calling a declared name unknown.
+  Integer with a declared range (or, for a board's `cell`, a TCell), but no
+  game wants one, so the grid (`tests/test_type_name_positions.py`) records
+  the cells as residual instead of guessing an expected value nobody has
+  chosen. The wall is loud -- the name is rejected, never silently accepted --
+  though the message currently spells it `unknown type '<name>'`; naming the
+  sharper reason (a position domain is not a declared type in this slot) is a
+  message-quality residual, and the grid asserts admit-vs-reject only, not the
+  message text.
 
 - **The index position admits different domains per host.** One grammar
   nonterminal (`index`) is reached from three hosts, and they disagree: a ZONE
@@ -716,20 +720,25 @@ Things we have noted but consciously not designed yet:
   Deferred to a later rung of the board-topology ladder
   ([design-notes/board-topology.md](design-notes/board-topology.md)), and NOT
   yet flavor-walled: (a) a card-content TYPE annotation (`Suit`/`Rank`/
-  `Card`) on a state var, struct field, function parameter, or variant case
-  is silently accepted at the declaration in BOTH flavors — declarations are
-  never checked against their initializers, a pre-existing flavor-independent
-  gap, not a piece-specific acceptance; in a piece game every USE of such a
-  value fails loud (a card value never resolves in a piece namespace), so
-  nothing silently takes card meaning; (b) the
+  `Card`) at a declaration site is accepted at the annotation in BOTH flavors
+  (the name is a known type); loudness then comes from two places, not a
+  silent gap. A state var carries an initializer, and the state-default type
+  pass (`typecheck.py` `_check_state_default_type`) rejects a piece value
+  under a card-typed var; the initializer-less slots (struct field, function
+  parameter, variant case) accept the annotation and fail at every USE in a
+  piece game (a card value never resolves in a piece namespace). (b) the
   trick-taking and rule-obligation machinery — a per-round `round ... trump`,
   the `climb`/`combinations`/`follows` forms, `demands:`/`exempts:`/`actions
   where` card predicates, an outcome-function name, and a suit argument to a
   rule template — is card-oriented and reached only through the rule system,
   which a rung-1 board game does not use; a piece game touching it degrades
   through the existing card-zone / name-resolution / deck-only-call walls.
-  Both get a declaration-site / rule-system wall naming the kind when a piece
-  game needs the surface.
+  (c) a piece game that `uses` a family library is unwitnessed (no piece game
+  imports one today) and not flavor-walled: the libraries are card-oriented,
+  and a piece game importing one degrades loudly through the library's
+  `requires` state contract (the missing card-shaped state is reported), not
+  through a flavor wall. All get a declaration-site / rule-system / import
+  wall naming the kind when a piece game needs the surface.
 
 - **Zone capacity — the `Point` row deferred.** `ZONE_CAPACITY`
   (`cardlang/stdlib/zones.py`) is a total registry column over

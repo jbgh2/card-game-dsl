@@ -24,11 +24,10 @@ covered:    all rows, exhaustively parametrized below; DECKS-view equality;
             two distinct miss behaviors, each pinned as itself
 sampled:    build_deck ordering, pinned against frozen expected values on
             standard52 (the suits x ranks cross-product path, first suit)
-            and xo_marks (the explicit-list path, verbatim) — 5 of the
-            other 9 card decks (schnapsen20, pinochle48, doppelkopf48,
-            skat32, coup15) share standard52's cross-product path and the
-            remaining 4 (tarot78, tichu56, five_hundred43, canasta108)
-            share xo_marks's explicit-list path, so both paths are sampled
+            and xo_marks (the explicit-list path, verbatim) — every other
+            component set takes one of these two paths (a `ranks` cross
+            product, or an explicit `cards` list for the non-uniform sets),
+            so both build_deck order paths are sampled
 residual:   none
 """
 

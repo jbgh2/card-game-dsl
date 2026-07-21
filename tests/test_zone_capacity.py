@@ -5,7 +5,7 @@ property:   every LIBRARY_ZONE_TYPES row declares a capacity (an int or None
             for unbounded); every runtime append to a zone routes through the
             one capacity-checked helper, so a finite-capacity zone type
             (Cell) can never end up holding more than its declared capacity
-domain:     LIBRARY_ZONE_TYPES rows (16) x the runtime's zone-append call
+domain:     every LIBRARY_ZONE_TYPES row x the runtime's zone-append call
             sites
 registry:   cardlang/stdlib/zones.py::ZONE_CAPACITY
 covered:    the registry-total pin (set(ZONE_CAPACITY) == set(

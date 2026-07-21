@@ -56,14 +56,17 @@ Completeness ledger
                 base x optional is not a full sub-product.
 
     residual:   1. A POSITION DOMAIN AS A STATE-VAR OR STRUCT-FIELD TYPE
-                   (P1/P2 x a `positions {}` name) is rejected, and whether it
-                   SHOULD be admitted is undecided — semantically such a value
-                   is an Integer with a declared range, but no corpus game wants
+                   (P1/P2 x a `positions {}` name, and a board `cell`) is
+                   rejected, and whether it SHOULD be admitted is undecided —
+                   semantically such a value is an Integer with a declared
+                   range (a TCell for a board cell), but no corpus game wants
                    one, so this grid does not guess a cell nobody has decided.
-                   The wall is loud and now names the real reason (a position
-                   domain is not a declared type here) instead of calling a
-                   declared name unknown. Recorded in docs/roadmap.md,
-                   "Position domains in declared-type positions".
+                   The wall is loud but the message spells it `unknown type
+                   '<name>'`; naming the sharper reason (a position domain is
+                   not a declared type in this slot) is a message-quality
+                   residual, and the grid asserts admit-vs-reject only, not the
+                   message text. Recorded in docs/roadmap.md, "Position domains
+                   in declared-type positions".
                 2. NAMESPACES B AND C ARE NOT IN THIS GRID. Zone type names
                    (`Hand<player>`) and role/domain ids (the `player` in
                    `hand[player]`, `for each player`) are type-ish names with

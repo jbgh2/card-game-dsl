@@ -537,7 +537,12 @@ REPEATABLE: dict[str, str] = {
 def test_game_item_registry_pin() -> None:
     """The domain this module quantifies over IS the grammar's clause list:
     a new `?game_item` alternative must be classified here (single-valued or
-    repeatable) before it can land."""
+    repeatable) before it can land.
+
+    red under: add an alternative to `?game_item` in the grammar without
+    listing it in SINGLE_VALUED/REPEATABLE (the scraped set then exceeds the
+    classified union). Demonstrated by the merge: `board`/`pieces` entered
+    `?game_item` and this pin stayed red until both were classified below."""
     alternatives = _game_item_alternatives()
     assert alternatives == set(SINGLE_VALUED) | set(REPEATABLE), (
         "the `game` production's clause list changed — classify the new "
