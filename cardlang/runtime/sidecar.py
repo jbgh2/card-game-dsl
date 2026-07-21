@@ -107,22 +107,25 @@ class EngineFacts:
 def engine_facts(rs: RuntimeState, actor: Player | None) -> EngineFacts:
     """Snapshot the engine-structural facts for one primitive call.
 
-    Every mapping/sequence fact is `deep_freeze`d, so a round-state frame's
-    nested `played` list — and anything under it, at any depth — is a
-    snapshot rather than the live `rs.mech_state` object. `seating` is a
-    frozen dataclass and `actor` a scalar, so both pass through the freeze
-    unchanged; the recursion only rebuilds containers."""
-    return EngineFacts(
-        seating=rs.seating,
-        teams=reads.deep_freeze(rs.teams),
-        team_of=reads.deep_freeze(rs.team_of),
-        rank_index=reads.deep_freeze(rs.rank_index),
-        round_state=reads.deep_freeze(
-            rs.mech_state[-1] if rs.mech_state else rs.last_round_state
-        ),
-        last_round_state=reads.deep_freeze(rs.last_round_state),
-        actor=actor,
-    )
+    EVERY field goes through `deep_freeze`, uniformly — not a hand-picked
+    subset. `seating` is the reason: it is a frozen+slots `Seating`, which
+    `object.__setattr__` can still mutate (see `deep_freeze`), so passing it
+    by identity would expose the live `rs.seating` — the same identity leak
+    `deep_freeze` copies away for every other engine dataclass. Building the
+    bundle by freezing a dict of raw values (rather than freezing a chosen
+    few by hand) makes it structurally impossible to forget a field: a
+    scalar `actor` frozen is a no-op, a `Seating` frozen is a copy, a
+    round-state dict frozen is a deep snapshot."""
+    raw: dict[str, Any] = {
+        "seating": rs.seating,
+        "teams": rs.teams,
+        "team_of": rs.team_of,
+        "rank_index": rs.rank_index,
+        "round_state": rs.mech_state[-1] if rs.mech_state else rs.last_round_state,
+        "last_round_state": rs.last_round_state,
+        "actor": actor,
+    }
+    return EngineFacts(**{name: reads.deep_freeze(value) for name, value in raw.items()})
 
 
 def bind(

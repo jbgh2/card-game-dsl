@@ -44,7 +44,12 @@ covered:    (a) per-implementation-SITE: the site's signature names no
             a behavior change, not a refactor); and every field pinned to
             a real CONSUMER in a game module — value-correctness and
             non-speculativeness are separate properties, and only the
-            second stops the bundle growing;
+            second stops the bundle growing. engine_facts freezes EVERY
+            field uniformly (not a hand-picked subset), and a separate
+            guard pins that no field is the engine's live object by
+            identity — the immutability WALK cannot catch that (a
+            frozen+slots value passed by identity looks safe to it but is
+            an `object.__setattr__` leak), which is how `seating` slipped;
             (d) `GameReads`: the bundle carries exactly the module's
             declared row and nothing else — an undeclared name is absent,
             not merely unfetched; and NOTHING mutable is reachable through
@@ -882,6 +887,31 @@ def test_engine_fact_carries_the_engine_value(field: str) -> None:
         "actor": 1,
     }
     assert getattr(facts, field) == expected[field]
+
+
+def test_engine_facts_holds_no_live_engine_object_by_identity() -> None:
+    """The immutability walk is NOT enough on its own: post the copy rule, a
+    frozen+slots value passed by identity is still a leak (`object.__setattr__`
+    reaches the engine's object), yet the walker treats frozen+slots as safe.
+    So pin the copy directly — engine_facts freezes every field, so no
+    dataclass/mapping fact is the engine's live object. This is the guard that
+    would have caught `seating` being passed by identity. (An immutable tuple
+    of scalars like `teams` may keep identity — safe, nothing to setattr.)"""
+    sidecar = _sidecar()
+    rs = _live_state()
+    facts = sidecar.engine_facts(rs, actor=0)
+    sources = {
+        "seating": rs.seating,  # a frozen+slots dataclass -> must be a copy
+        "team_of": rs.team_of,
+        "rank_index": rs.rank_index,
+        "last_round_state": rs.last_round_state,
+    }
+    for field, src in sources.items():
+        got = getattr(facts, field)
+        assert got is not src, f"engine_facts exposed the live rs {field} by identity"
+        # value-equal to the FROZEN form (a round-state `played` list reads as
+        # a tuple after the freeze, so compare against deep_freeze, not src).
+        assert got == reads_mod.deep_freeze(src), f"the {field} copy changed value"
 
 
 def test_the_two_round_state_views_are_distinct() -> None:
