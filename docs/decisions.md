@@ -868,6 +868,17 @@ attach to. This is the same rule as the two above and not a separate
 one: what a default may do is bounded by how little of the game exists
 when it runs.
 
+**A default must fit its declared type.** `v : Integer = "s"` is refused,
+not silently stored: the default's inferred type must be assignable to the
+variable's declared type — the same `assignable` relation an ordinary
+assignment uses (`typecheck._check_state_default_type`, the initial-value
+twin of `_check_assign`). For an indexed variable the default is checked
+against the element type, since `score[player] : Integer = 0` broadcasts
+one value to every key. The check is as sharp as the inferencer and no
+sharper: a default whose type the inferencer leaves as the permissive top
+is accepted whatever the declaration, which is the type system's design
+rather than a hole here — no corpus default is untyped.
+
 **Example: Bridge state declarations.**
 
 ```text

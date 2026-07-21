@@ -1678,6 +1678,32 @@ def _check_assign(stmt: n.AssignStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
         )
 
 
+def _check_state_default_type(
+    decl: n.StateDecl, env: TypeEnv, bag: DiagnosticBag
+) -> None:
+    """A state variable's default must be assignable to its declared type. The
+    twin of `_check_assign` for the initial value: `env_from_game` reads the
+    declared `type_name` for later reads but never checks the default against
+    it, so `v : Integer = "s"` typed the variable Integer and ignored the
+    String default.
+
+    Compared against `type_from_name` — the VALUE type, not the collection an
+    indexed var is stored in — because an indexed default (`score[player] = 0`)
+    broadcasts one value to every key, so it is the element type it must fit.
+    As sharp as `infer` and no sharper: a default whose inferred type is `TAny`
+    (an unrefined `infer` arm) passes, which is the type system's permissive top
+    at work, not a hole here (see the ledger in
+    `tests/test_state_default_type.py`)."""
+    declared = type_from_name(decl.type_name, decl.optional, env.structs)
+    got = infer(decl.default, env)
+    if not assignable(got, declared):
+        bag.error(
+            f"state variable '{decl.name}' is declared {_type_name(declared)}, "
+            f"but its default has type {_type_name(got)}",
+            decl.span,
+        )
+
+
 def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
     """The non-expression checks a statement carries: assignment compatibility,
     Boolean conditions, and movement-combination validity. Used by the flat walk
@@ -2457,6 +2483,7 @@ def typecheck(game: Game) -> Game:
                     entry_env = _scoped_env(env, binders)
                     for decl in item.decls:
                         _check_expr(decl.default, entry_env, bag)
+                        _check_state_default_type(decl, entry_env, bag)
                 case n.LetStmt():
                     current = current + ((item.name, item),)
                 case _:
@@ -2502,6 +2529,7 @@ def typecheck(game: Game) -> Game:
     if game.state is not None:
         for decl in game.state.decls:
             _check_expr(decl.default, env, bag)
+            _check_state_default_type(decl, env, bag)
     for tdef in game.types:
         # A derived body reads sibling fields by bare name (resolve scopes
         # them); their declared types are in the struct registry, so bind

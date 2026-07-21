@@ -56,16 +56,14 @@ sampled:    two shapes, each a single instance standing for a family.
             clean (an empty role domain evaluates to `false`, it does not
             crash); the rest are unprobed, and belong to whatever wall owns
             empty role domains rather than to this one.
-residual:   `AllPlayers` is EXECUTED like every other row, but it is the one
-            row whose verdict proves nothing about this property. `v : Integer
-            = all players` is accepted — not because the expression is sound at
-            declare time, but because a default is never checked against its
-            declared type at all, so the row cannot distinguish "safe here"
-            from "unchecked everywhere". Recorded in roadmap.md, "A `state { }`
-            default is not checked against its declared type"; the wall it
-            needs is that hole's, not this one's. This is the single row where
-            the ledger has a record and no wall, and it is named rather than
-            rounded up into `covered`.
+residual:   none. `AllPlayers` was this grid's one open row — `v : Integer =
+            all players` was accepted because a default was never checked
+            against its declared type — and it is now closed by the type wall
+            (`test_state_default_type.py`, decisions.md "State scoping
+            (lexical)"), which refuses it along with the other precisely-typed
+            mismatches (`StrLit`, `ListLit`). Those three appear in
+            `_EXPR_REFUSED` above, refused before declare order is reached; the
+            record that named this residual has moved to the type wall's ledger.
 """
 
 from __future__ import annotations
@@ -280,15 +278,23 @@ _EXPR_CELLS: dict[str, tuple[str, str, str]] = {
     "AllPlayers": ("Integer", "all players", ""),
 }
 
-# The three that must be REFUSED, and by whose wall. Everything else in the
-# union must survive declare time — asserted by PLAYING it, not by accepting it.
-# `Member` is not this wall's: `state.` names a round's published values, and
-# the pre-existing check refuses it long before declare order is reached. It is
-# listed so the row is accounted for, not claimed.
+# Every kind that must be REFUSED, and by whose wall — the grid's property is
+# "accounted for", not "refused by THIS wall", so a cell a sibling default-check
+# owns is listed with the message that check emits. Everything else must survive
+# declare time, asserted by PLAYING it, not by accepting it.
+#   - Call / Choose: this file's `_check_state_default_scope`.
+#   - Member: the pre-existing `state.`-publishes check, long before declare order.
+#   - StrLit / ListLit / AllPlayers: the TYPE wall
+#     (`test_state_default_type.py`) — a `String` / collection default cannot fit
+#     the `Integer` these cells declare, so they never reach declare time. This
+#     is where the `AllPlayers` row that was this grid's one residual is closed.
 _EXPR_REFUSED = {
     "Call": "cannot call",
     "Choose": "cannot `choose`",
     "Member": "publishes no",
+    "StrLit": "is declared",
+    "ListLit": "is declared",
+    "AllPlayers": "is declared",
 }
 
 
@@ -312,13 +318,14 @@ def test_every_expression_kind_is_accounted_for_in_a_default(kind: str) -> None:
     forbidden outcome is the middle one this whole change exists to remove:
     accepted by `check_dsl`, then dead at declare time.
 
-    `AllPlayers` is the one row that neither refuses nor is meaningfully typed —
-    `v : Integer = all players` is accepted because a default is not checked
-    against its declared type at all. It is asserted here as it actually
-    behaves, with the gap recorded in roadmap.md rather than papered over: a
-    cell quietly dropped is how the defect above shipped.
+    A refusal may come from any wall a default passes through — this grid asserts
+    the kind is ACCOUNTED FOR, not that this file's wall is the one that fires.
+    `StrLit`, `ListLit` and `AllPlayers` on an `Integer` var are refused by the
+    type wall (`test_state_default_type.py`), which is where the `AllPlayers` row
+    that was once this grid's lone residual is now closed.
 
-    red under: delete any arm of `_check_state_default_scope`."""
+    red under: delete any arm of `_check_state_default_scope` (the Call/Choose
+    rows redden); the type-wall rows have their own red-under in their file."""
     type_name, default, tail = _EXPR_CELLS[kind]
     source = f"""
 game Probe {{
