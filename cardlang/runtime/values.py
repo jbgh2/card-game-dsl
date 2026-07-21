@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 from cardlang.types import Flavor
 
-# Suits shared by the French-suited decks. Rank ordering is no longer a global:
+# Suits shared by the French-suited decks. Rank ordering is not a global:
 # it is read per game from the `ranking:` declaration (see runtime.state /
 # driver, `rank_index`), so a deck like schnapsen20 (A 10 K Q J) ranks correctly
 # without a second source of truth. `Card.rank_order` is kept only as a
@@ -170,6 +170,16 @@ COMPONENT_SETS: dict[str, ComponentSet] = {
     # property — the deck is also used with other point tables in principle.
     "canasta108": ComponentSet(
         "card", ("suit", "rank"), Deck(suits=SUITS, ranks=(), values={}, cards=_canasta108())
+    ),
+    # 3-card Kuhn deck: J Q K in one suit, one copy each — the whole pack of the
+    # OpenSpiel poker anchor. One suit because Kuhn has no notion of suit at all.
+    "kuhn3": ComponentSet(
+        "card", ("suit", "rank"), Deck(suits=("spades",), ranks=("J", "Q", "K"), values={})
+    ),
+    # 6-card Leduc deck: the Kuhn ranks in two suits, so a pair with the public
+    # card is possible — the whole point of Leduc over Kuhn.
+    "leduc6": ComponentSet(
+        "card", ("suit", "rank"), Deck(suits=("spades", "hearts"), ranks=("J", "Q", "K"), values={})
     ),
     # 15-card Coup deck: five characters (the "rank") under one suit, three each.
     "coup15": ComponentSet(

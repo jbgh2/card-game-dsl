@@ -62,11 +62,10 @@ def first_divergence(a: str, b: str, context: int = 40) -> str:
 def _is_owner(rs: RuntimeState, name: str, key: int | str | None, observer: int) -> bool:
     """Mirrors runtime/observe.py::_is_owner — and reads the SAME domain-table
     column (`zone_key_of`) it does, so the proof oracle cannot drift from the
-    thing it proves. This used to be a private `== "team"` copy of the
-    ownership rule with a silent default-to-player else branch: a third
-    indexable role would have been projected by the runtime through the table
-    while the proofs silently player-keyed it — the corpus checked against a
-    stale oracle."""
+    thing it proves. Were this a private `== "team"` copy of the ownership
+    rule with a silent default-to-player else branch, a third indexable role
+    would be projected by the runtime through the table while the proofs
+    silently player-keyed it — the corpus checked against a stale oracle."""
     index = rs.zones.zone_index[name]
     if key is None or index is None:
         return False

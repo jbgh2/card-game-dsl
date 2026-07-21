@@ -1,9 +1,11 @@
-"""Standard-library functions, value-callbacks, and zone-query methods.
+"""Standard-library function and value-callback names.
 
-The name resolver checks bare-name function references (e.g. a `round`'s
-`outcome` / `early` function), `f(...)` calls, and `zone.method(...)` queries
-against these sets, so the IR can mark them as functions and unknown calls are
-caught. Seeded for the formalized corpus; extended corpus-first.
+The name resolver checks bare-name references (a `round`'s `outcome` / `early`
+function, a climbing round's `combinations` / `follows` query) and `f(...)`
+calls against these sets, so the IR can mark them as functions and unknown
+names are caught. There is no zone-method namespace here: the expression layer
+has no method register (decisions.md "The expression register"). Seeded for the
+formalized corpus; extended corpus-first.
 """
 
 from __future__ import annotations
@@ -38,6 +40,10 @@ STDLIB_VALUE_NAMES: frozenset[str] = STDLIB_TRICK_OUTCOMES | STDLIB_AUCTION_OUTC
 # Early-termination predicates a `round`'s `early` clause may name. Distinct from
 # outcome callbacks above — a different signature, (card, led_suit) -> Boolean —
 # so they validate against their own set, not the outcome-function namespace.
+# Slot-only, deliberately outside STDLIB_VALUE_NAMES: an early predicate is
+# unreachable as a bare NameRef and rejected in an `outcome` slot, even though
+# the runtime dispatches both through `value_function`. Sharing the dispatcher
+# is an implementation detail of the runtime, not a shared namespace.
 STDLIB_EARLY_PREDICATES: frozenset[str] = frozenset(
     {
         "on_play_of_tochoo",  # Getaway: a tochoo (off-suit play when void) ends the trick
@@ -107,13 +113,11 @@ STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
         "tichu_opponent_team",  # Tichu: the team a player does not belong to
         "tichu_first_out",  # Tichu: the first finisher (defaults to player 0)
         "tichu_card_points",  # Tichu: the card-point table (K/10 = 10, 5 = 5, Dragon +25, Phoenix -25)
-        "tichu_hand_summary",  # Tichu: emit the tichu_hand trace; the captured card points
         "president_next_holder",  # President: the arg if holding, else the next holder cw
         "president_is_top_rank",  # President: is the card the player's highest rank (2 high)?
         "coup_players_in",  # Coup: players still holding influence (game ends at 1)
         "coup_next_in_game",  # Coup: the next in-game player clockwise
         "coup_has_char",  # Coup: does a player hold the claimed character (a proof)?
-        "coup_note_reveal",  # Coup: trace the influence flip that just happened
         "coup_game_summary",  # Coup: emit the conservation/finals trace at game end
         "peg_value",  # Cribbage: pegging/fifteens value of a card (A=1, faces 10)
         "peg_pair_points",  # Cribbage: pairs points at the tail of the live pegging count
@@ -250,7 +254,6 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "canasta_top_starts_pile",
         "card_value",
         "coup_has_char",
-        "coup_note_reveal",
         "cribbage_crib_value",
         "cribbage_show_value",
         "doko_trick_winner",
@@ -293,7 +296,6 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "tarot_trump_height",
         "tichu_card_points",
         "tichu_dragon_won",
-        "tichu_hand_summary",
         "tichu_mahjong_holder",
     }
 )

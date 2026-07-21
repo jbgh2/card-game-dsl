@@ -2,7 +2,7 @@
 
 These pin the "no implicit actions" contract (decisions.md "No implicit actions"):
 a decision with no legal move is a malformed game, reported as an error — never a
-silent skip or an implicit default. A regression that restored the old silent
+silent skip or an implicit default. A regression that reintroduced a silent
 no-op would make one of these tests fail.
 """
 
@@ -357,8 +357,8 @@ game G {
 
 def test_suit_of_a_non_card_raises_a_typed_error() -> None:
     # suit_of's argument is TAny (deliberately polymorphic: card or zone), so a
-    # wrong-typed value is user-reachable and must get a typed error, not the
-    # bare assert that used to sit here.
+    # wrong-typed value is user-reachable and must get a typed error, not a
+    # bare assert.
     with pytest.raises(RuntimeError, match="expects a card or a zone"):
         _run(SUIT_OF_A_NON_CARD)
 
@@ -405,9 +405,9 @@ game G {
 
 def test_bare_family_read_without_an_actor_raises() -> None:
     # `hand` bare is the acting player's hand — sugar with no referent in a
-    # phase body, where nobody is acting. It used to be a bare AssertionError;
-    # the static wall needs statement-position context resolve does not thread
-    # yet, so the runtime error carries the fix instead.
+    # phase body, where nobody is acting. The static wall needs
+    # statement-position context resolve does not thread yet, so the runtime
+    # error carries the fix instead.
     with pytest.raises(RuntimeError, match="no acting player"):
         _run(BARE_FAMILY_WITHOUT_AN_ACTOR)
 
@@ -426,10 +426,10 @@ game G {
 
 
 def test_a_write_outside_the_declared_key_set_raises() -> None:
-    # `n[9] := 1` in a 4-player game used to mint a phantom seat silently —
-    # and `winner: highest n` then crowned player 9. The store's key set is
-    # the index domain's member set; a write outside it is a runtime error at
-    # the write.
+    # Without this wall, `n[9] := 1` in a 4-player game would mint a phantom
+    # seat silently — and `winner: highest n` would crown player 9. The
+    # store's key set is the index domain's member set; a write outside it is
+    # a runtime error at the write.
     with pytest.raises(RuntimeError, match="outside the variable's declared domain"):
         _run(PHANTOM_KEY_WRITE)
 
@@ -440,8 +440,8 @@ def test_a_non_zone_value_at_a_movement_endpoint_raises_a_typed_error() -> None:
     # typed), so reaching this branch from a checked program needs a value
     # the checker deliberately leaves loose (`outcome`, an unregistered
     # action field) — hence a constructed statement: the backstop is not a
-    # dead branch, and it must answer in the runtime's currency, not the
-    # bare assert that used to sit here.
+    # dead branch, and it must answer in the runtime's currency, not with a
+    # bare assert.
     import random
 
     from cardlang.runtime.execute import execute
@@ -479,6 +479,6 @@ game G {
 def test_a_non_player_loser_selection_raises_a_typed_error() -> None:
     # `loser:` takes any expression and the checker leaves its type open, so
     # the player-ness of the selected value is checked at the driver, in the
-    # runtime's currency — this used to be a bare assert.
+    # runtime's currency.
     with pytest.raises(RuntimeError, match="not a player"):
         _run(LOSER_NOT_A_PLAYER)

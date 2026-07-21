@@ -277,7 +277,7 @@ game G {
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck }
-  state { r : R = none  score[player] : Integer = 0 }
+  state { r : R? = none  score[player] : Integer = 0 }
   phase p { }
   winner: highest score
 }

@@ -90,7 +90,13 @@ def test_rejects_non_boolean_condition() -> None:
 def _typed_game(body_play: str) -> str:
     """Like `_game`, but prefixed with a `Contract` struct type so the body can
     construct struct literals. Struct literals are validated in statement
-    position (the checker walks statements, not state defaults)."""
+    position (the checker walks statements, not state defaults).
+
+    `deal` is `Contract?` so its `= none` initial value is valid: a non-optional
+    struct cannot be `none`, and the state-default type wall
+    (`_check_state_default_type`) rightly rejects it — a `Contract = none` here
+    would trip that wall before the body's struct-literal check, muddying every
+    case below with a second, unrelated error."""
     return f"""
 type Contract = {{ level : Integer  suit : Suit }}
 game G {{
@@ -99,7 +105,7 @@ game G {{
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones {{ deck : Deck  hand[player] : Hand<player> }}
-  state {{ score[player] : Integer = 0  deal : Contract = none }}
+  state {{ score[player] : Integer = 0  deal : Contract? = none }}
   phase play {{ {body_play} }}
   winner: highest score
 }}
@@ -235,8 +241,8 @@ game G {
 def test_rejects_dot_form_on_loop_and_quantifier_binders() -> None:
     # Binder-introducing constructs type their binders (for-each and
     # quantifier binders are seats/teams by their role), so the dot-form
-    # rejection fires on binder-rooted receivers too — previously they
-    # inferred TAny and only failed loud at runtime.
+    # rejection fires on binder-rooted receivers too — untyped, they would
+    # infer TAny and only fail loud at runtime.
     header = """
 game G {
   players: 2

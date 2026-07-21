@@ -57,14 +57,42 @@ loud failure is the system working; silence is the enemy.
 3. **Artifact gate — run before any finder.** If the diff adds or extends
    grammar surface, a checker wall or diagnostic, a stdlib registry, or any
    closed-domain mechanism (the `surface-totality-audit` trigger), the change
-   must ship that skill's two artifacts: misuse-probe **rejection tests** and
-   the **completeness ledger**. Their absence is a severity-2 finding
-   reported first — never a below-the-fold conventions note. If the ledger
-   exists, use it: sample 3–5 `covered` cells and confirm a named test
-   actually pins each (a ledger nothing pins is finding class 4), then take
-   the `residual` rows as the review's priority slice. The review checks and
-   samples the artifacts; it never re-derives them, and it never substitutes
-   for a missing ledger.
+   must ship that skill's artifacts: the **grid** (the crossed coverage
+   domain as an executable parametrized test — axes derived in code, born
+   red before the implementation), misuse-probe **rejection tests**, and
+   the **completeness ledger** (judgment columns in the grid module's
+   docstring). Absence of any is a severity-2 finding reported first —
+   never a below-the-fold conventions note. When the artifacts exist, use
+   them:
+   - **Run the grid against the merge base — with the HEAD-derived cell
+     set.** Derive the cell list on the proposed tree and carry it to the
+     merge-base worktree as data; never let the base re-derive it (a
+     change that ADDS a production or registry member would have its new
+     cells silently vanish from the base's derivation — the gate would
+     then under-report the delta or misread an absent cell as a green
+     one). The delta is the cells that fail on the base PLUS the cells
+     that cannot exist there (added cells); classify each failure before
+     counting it — an outcome-mismatch (the cell's own assertion) is
+     delta, while an ERROR is either an added cell failing to construct
+     (delta) or a grid defect (class 4), never silently assumed to be
+     the former. Diff that set against what the change claims. An unclaimed flip is a finding (class 3 —
+     behavior changed silently); a claimed flip whose cell RUNS green on
+     the base means the grid does not reach the behavior (class 4) — an
+     added cell is part of the delta, never evidence of vacuity.
+   - **Check each axis is derived, not hand-listed.** A hand-listed axis is
+     the tell the framing check was skipped, and it goes stale silently
+     when a parallel branch extends the surface.
+   - **Replay `red under:` witnesses per credited CLAIM, not per
+     module.** Every guard the ledger credits is a pin with its own
+     witness; a module-level witness proves the module can fail, not that
+     each credited assertion can — a dead assert hides behind a live
+     neighbor. A pin with no named witness, one its named mutation leaves
+     green, or one whose witness edits the pin itself (its assertion, its
+     expected literal — a fault planted in the test proves nothing about
+     the code under guard) is class 4.
+   - Take the `residual` rows as the review's priority slice.
+   The review checks and samples the artifacts; it never re-derives them,
+   and it never substitutes for a missing grid or ledger.
 
 ## Phase 1 — Finder angles
 
@@ -137,7 +165,10 @@ dominant cause of misses.
 - **G. Test-integrity auditor** *(test, golden, or construct-retiring
   changes)*. Hunt vacuous tests: assertion loops whose trigger condition a
   retired construct can no longer produce, guards over deleted grammar,
-  tests green by construction. A retirement creates vacuous guards **at a
+  tests green by construction. A pin born green must name its reddening
+  mutation (`red under:` in its docstring, per the surface-totality-audit);
+  no witness, or a witness that leaves the pin green when replayed, is
+  class 4. A retirement creates vacuous guards **at a
   distance**: for every construct the diff deletes (grammar production, AST
   node, registry entry), grep the whole test suite for tests conditioned on
   it — a guard whose trigger can no longer occur is vacuously green even
@@ -174,6 +205,13 @@ PLAUSIBLE / REFUTED**.
 - **REFUTED only constructively**: quote the guard, the type, or the
   invariant that makes the scenario impossible, or show the diff already
   handles it.
+- **Sweep at report time.** A CONFIRMED finding that is one cell of a
+  crossable product — an axis a registry or the grammar defines — is an
+  incomplete finding until the product is crossed: build the small grid and
+  report the pattern (which rows, which columns), not the instance.
+  Sweep-the-class (decisions.md "Closed-domain completeness") binds the
+  reporter, not only the fixer; the cost is minutes, and the alternative is
+  a review that certifies one cell of a four-cell defect.
 
 Keep CONFIRMED and PLAUSIBLE; drop REFUTED.
 
@@ -183,8 +221,8 @@ Rank by the severity order above, at most 15 findings. If the
 `ReportFindings` tool is available, report through it; otherwise output the
 JSON array (`file`, `line`, `summary`, `failure_scenario`, `verdict`,
 `category`). State the Phase-0 artifact-gate verdict explicitly (artifacts
-present / absent / ledger sampled OK or not) even when it produced no
-finding. List cut findings one line each — a silent cap reads as "covered
+present / absent; grid run against the merge base or not; witnesses
+replayed or not) even when it produced no finding. List cut findings one line each — a silent cap reads as "covered
 everything".
 
 ## Effort scaling

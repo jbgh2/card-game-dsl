@@ -75,11 +75,11 @@ def _derived_card_block(deck_name: str) -> list[Card] | None:
     exactly, since `build_deck` for a `ranks`-cross-product deck iterates
     suit-major/rank-minor — the SAME order `card_to_action` assumes — so every
     currently-registered game's ids hold verbatim (a subset deck like
-    pinochle48 or schnapsen20 just leaves some of the 52 slots unused, exactly
-    as before this function existed). Only a deck that needs MORE than the
-    standard catalogue (French Tarot's atouts/Excuse; a future Tichu/Coup
-    migration) gets its own from-scratch numbering, over its full distinct-card
-    list — never a hybrid of the two schemes."""
+    pinochle48 or schnapsen20 just leaves some of the 52 slots unused). Only a
+    deck that needs MORE than the standard catalogue (French Tarot's
+    atouts/Excuse; a future Tichu/Coup migration) gets its own from-scratch
+    numbering, over its full distinct-card list — never a hybrid of the two
+    schemes."""
     distinct = _dedup_deck_cards(deck_name)
     if all(_is_standard_card(c) for c in distinct):
         return None
@@ -210,13 +210,11 @@ class ActionSpace:
                 int_ceiling = ceiling if int_ceiling is None else max(int_ceiling, ceiling)
             elif isinstance(node, n.Offer):
                 # Routed by arity, same rule the round vocabulary below uses:
-                # nullary keeps today's bare-name representation in `names`
-                # (every offer-using corpus game today — Coup, Skat — names
-                # only nullary moves, so this is unchanged for them); a
-                # parameterized, non-Card move type now contributes its
-                # cross-product to `vocab` instead of the stray, never-used
-                # bare name it used to get (a parameterized `offer` move, like
-                # Go Fish's `ask`, was silently mis-routed before this).
+                # a nullary offer keeps the bare-name representation in
+                # `names`; a parameterized, non-Card move type contributes its
+                # cross-product to `vocab` instead of a stray, never-used bare
+                # name. Without this routing, a parameterized `offer` move,
+                # like Go Fish's `ask`, would be silently mis-routed.
                 for mt_name in node.move_types:
                     mt = mt_index[mt_name]
                     if not mt.params:

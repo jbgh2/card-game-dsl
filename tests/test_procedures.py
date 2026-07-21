@@ -28,9 +28,13 @@ procedures", "Surface totality", "Closed-domain completeness").
 
     covered:    A — exhaustive, derived from KNOWN_TYPE_NAMES x {plain, optional}
                     by `test_every_declarable_type_name_as_a_parameter`: 18 cells,
-                    of which `Player`, `Rank` and `Rank?` are accepted and the other
-                    15 (plus an unknown name) are rejected at resolve. A new entry
-                    in KNOWN_TYPE_NAMES fails this test until it is classified.
+                    of which `Player`, `Rank`, `Rank?` and `Integer` are accepted
+                    and the other 14 (plus an unknown name) are rejected at
+                    resolve. That sweep READS the registry to decide each cell, so
+                    the registry itself is commanded separately by
+                    `test_the_supported_domains_are_exactly_player_rank_and_integer`
+                    — a member may not join by editing one line. A new entry in
+                    KNOWN_TYPE_NAMES fails this test until it is classified.
                 B — exhaustive, pinned by `test_stmt_union_is_fully_classified`:
                     11 accepted, 5 rejected, 16 total, and every accepted kind is
                     actually exercised in a body. A new `Stmt` member fails that test
@@ -66,11 +70,14 @@ procedures", "Surface totality", "Closed-domain completeness").
                   - `Zone` parameters. The design note guessed the corpus would
                     need them; it does not (a Player parameter already carries its
                     zone: `influence[victim]`). Wall: unsupported-domain error.
-                  - Every other domain (Suit, Card, Integer, Boolean, String, Team,
+                  - Every other domain (Suit, Card, Boolean, String, Team,
                     Direction, and the optional form of each bar `Rank?`). Same
                     wall. `Rank?` rather than `Rank` is what the corpus forces:
                     there is no flow narrowing, so a bare `Rank` parameter would
                     reject `block_claim` at the very sites that must pass it.
+                    `Integer` LEFT this list when poker_betting's `open_street`
+                    forced it — the set grows one forcing game at a time, which
+                    is the deferral working rather than a hole closing.
                   - a `round` in a body. It binds its own `outcome`, which the
                     body's pronoun wall cannot yet tell from the caller's.
                   - a `produces:` over a PHASE OUTCOME in a body. Its consumer must be
@@ -234,7 +241,7 @@ def _walk(node: object) -> typing.Iterator[object]:
 
 # A well-typed argument for each supported domain, so the domain sweep below tests
 # the DOMAIN cell and not, accidentally, the argument-type cell.
-_SAMPLE_ARG = {"Player": "0", "Rank": "A", "Rank?": "A"}
+_SAMPLE_ARG = {"Player": "0", "Rank": "A", "Rank?": "A", "Integer": "1"}
 
 
 @pytest.mark.parametrize(
@@ -244,7 +251,7 @@ def test_every_declarable_type_name_as_a_parameter(type_name: str) -> None:
     """The closed-domain sweep, derived from the registry that defines the universe
     of declarable type names — NOT from the domains the wall happens to handle.
     `payload_type` makes every name generically optional-able, so the domain is
-    KNOWN_TYPE_NAMES x {plain, optional}: 18 cells, of which exactly three are
+    KNOWN_TYPE_NAMES x {plain, optional}: 18 cells, of which exactly four are
     supported. A new entry in KNOWN_TYPE_NAMES lands here as a failure until it is
     classified as supported or walled."""
     procs = f"procedure f(p : {type_name}) {{ score[0] += 1 }}"
@@ -254,13 +261,26 @@ def test_every_declarable_type_name_as_a_parameter(type_name: str) -> None:
         rejects("    run f(0)", procs, "has an unsupported domain")
 
 
-def test_the_supported_domains_are_exactly_player_and_rank() -> None:
-    """`Rank?` is the form the corpus forces, not `Rank`: Coup's proven-claim swap
+def test_the_supported_domains_are_exactly_player_rank_and_integer() -> None:
+    """The commanded column for the sweep above, which reads the registry to
+    decide each cell and so cannot command it. Every member is here because a
+    corpus game forces it; the set grows one forcing game at a time.
+
+    `Rank?` is the form the corpus forces, not `Rank`: Coup's proven-claim swap
     takes both a literal character (`run prove_claim(actor, Duke)`) and the block
     claim, which is `Rank?` because "no block" is a real state. The call sites sit
     inside `if block_claim is not none`, but there is no flow narrowing, so a bare
-    `Rank` parameter would reject the very argument the block sites must pass."""
-    assert _PROCEDURE_PARAM_DOMAINS == {"Player", "Rank", "Rank?"}
+    `Rank` parameter would reject the very argument the block sites must pass.
+
+    `Integer` is forced by `poker_betting`'s `open_street(bet_size)`, the
+    procedure that opens a betting street at a given bet size — the five street
+    resets across Leduc and Stud are one shape differing in one integer, which is
+    a parameter or it is nothing. Nothing about an Integer argument strains the
+    construct: a procedure argument is an arbitrary expression the caller
+    evaluates once, never a value an action space enumerates, and a `function`
+    parameter has always accepted Integer. The gap was which games existed, not a
+    design position."""
+    assert _PROCEDURE_PARAM_DOMAINS == {"Player", "Rank", "Rank?", "Integer"}
 
 
 def test_an_unknown_parameter_type_is_rejected() -> None:
@@ -328,10 +348,10 @@ def test_a_run_is_capacity_checked_exactly_as_the_inline_text() -> None:
     """The property this whole file names, at the one gate that reasons about the
     SHAPE of a statement rather than its contents.
 
-    An expansion used to be encoded as `if true { … }`, which told the deck-capacity
-    gate the body was CONDITIONAL — it carries `max(then, else)` across a conditional,
-    because one may be skipped. So a procedure that refilled the deck did not reset
-    the gate's running total, and the same program was ACCEPTED written inline and
+    Encoding an expansion as `if true { … }` would tell the deck-capacity gate the
+    body was CONDITIONAL — it carries `max(then, else)` across a conditional, because
+    one may be skipped. So a procedure that refilled the deck would not reset the
+    gate's running total, and the same program would be ACCEPTED written inline and
     REJECTED written as a `run`. A real `Block` node says what is true: an
     unconditional sequence."""
     game = """
@@ -520,9 +540,8 @@ def test_run_expands_in_a_move_type_effect() -> None:
 
 def test_any_procedure_fits_a_for_each_slot() -> None:
     """`for each <role> <b>: <stmt>` holds ONE statement, not a braced block. That
-    used to constrain what could be run there; it no longer does, because an
-    expansion IS one statement — a block. A procedure of any length fits, with no
-    special case and no wall."""
+    does not constrain what can be run there, because an expansion IS one statement
+    — a block. A procedure of any length fits, with no special case and no wall."""
     game = check(
         "    for each player q: run bump(q)",
         "procedure bump(who : Player) { score[who] += 1  score[who] += 2 }",
@@ -532,19 +551,19 @@ def test_any_procedure_fits_a_for_each_slot() -> None:
 
 def test_a_run_may_not_be_an_each_simultaneously_body() -> None:
     """...but NOT `each <role> simultaneously:`, and that is not a special case for
-    procedures — it is the form's own body rule, which nothing had ever enforced.
+    procedures — it is the form's own body rule, enforced at the surface.
 
     The form runs exactly one chosen movement per player: it must snapshot every
     player's selection against the state BEFORE the block and apply them together
     (that is what makes a Hearts pass atomic — nobody sees a passed card before
     choosing their own), and a snapshot is only defined for a chosen movement. The
-    executor asserted that and nothing checked it, so any other body compiled and
-    died on a bare assert. An expansion is a block, never a bare movement, so `run`
-    made that reachable from a program that looks entirely reasonable:
-    `each player simultaneously: run pass_card(player)`.
+    executor asserts that; without this wall nothing would check it, so any other
+    body would compile and die on a bare assert. An expansion is a block, never a
+    bare movement, so `run` makes that reachable from a program that looks entirely
+    reasonable: `each player simultaneously: run pass_card(player)`.
 
-    The earlier version of this test asserted that exact line COMPILED — and never
-    ran it. A test that pins the bug is worse than no test."""
+    Pinning that exact line as COMPILING — and never running it — would pin the
+    bug. A test that pins the bug is worse than no test."""
     rejects(
         "    each player simultaneously: run bump(player)",
         "procedure bump(who : Player) { score[who] += 1 }",
@@ -788,10 +807,10 @@ def test_wrong_argument_type_is_rejected() -> None:
 
 
 def test_a_run_argument_is_typed_through_a_let() -> None:
-    """The ledger's former residual, closed: `let z = hearts` used to launder
-    the argument to `TAny` and the `run`-site check passed it — the same wall
-    that had just rejected the inline spelling. Lets are typed at declaration
-    now, so the two spellings agree."""
+    """Without typed lets, `let z = hearts` would launder the argument to
+    `TAny` and the `run`-site check would pass it — the same wall that had
+    just rejected the inline spelling. Lets are typed at declaration, so the
+    two spellings agree."""
     rejects(
         "    let z = hearts\n    run f(z)",
         "procedure f(who : Player) { score[who] += 1 }",
@@ -832,7 +851,7 @@ def test_a_procedure_that_is_never_run_is_rejected() -> None:
 
 
 def test_a_produces_over_a_phase_outcome_is_rejected_in_a_body() -> None:
-    """The member of the position-dependent class I missed (Codex found it).
+    """The member of the position-dependent class a first pass missed.
 
     A phase outcome's consumer must be an EARLIER-executed sibling of the producing
     phase, and there must be exactly ONE of them. Both are facts about *where the
@@ -881,8 +900,7 @@ procedure consume() {
 
 
 def test_a_write_target_must_classify_as_a_state_variable() -> None:
-    """One rule, where there used to be three bespoke walls — and one of the three
-    nobody had written.
+    """One rule in place of three bespoke walls — one of which nobody had written.
 
     `:=` / `+=` / `rotate` write persistent state, and that is the only thing they can
     write. Since `AssignStmt.target` is now a `NameRef`, it is classified like every

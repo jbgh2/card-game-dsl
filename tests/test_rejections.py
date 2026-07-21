@@ -79,13 +79,17 @@ covered:    one case per named wall class (the directory glob is the
             game clause (`players:` seeds the class; the closed domain is
             swept by tests/test_game_clause_walls.py), a source with no
             `game { }` block, a source with two, an unknown
-            `direction:` value, and the five misuse probes of the `pieces:`
+            `direction:` value, the five misuse probes of the `pieces:`
             content clause — `cards:` and `pieces:` declared together, a
             repeated `pieces:`, an unknown `pieces:` name (listed against
             the piece-flavored registry rows only), a `pieces:` name that
             is a card deck, and a `cards:` name that is a piece set (the
             fine-grained sweep is tests/test_game_clause_walls.py's
-            content-clause section).
+            content-clause section), and a call to either evicted trace
+            emitter (`coup_note_reveal` / `tichu_hand_summary`, the
+            primitive-sidecars stage-1 removals — the standard
+            unknown-function diagnostic, pinned per name because these
+            spellings exist in the wild in pre-eviction rules text).
 sampled:    the wall-class population itself — every diagnostic emission
             site across `cardlang/resolve.py`, `cardlang/typecheck.py`, and
             `cardlang/deckcheck.py` — is open and growing as the language

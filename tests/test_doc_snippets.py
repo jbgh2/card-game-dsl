@@ -58,14 +58,10 @@ property:   every fenced block in docs/{decisions,library,model}.md carries
             its tag, and not merely "rejected" as an artifact of not being
             a whole game or of the pipeline crashing.
 domain:     the fenced blocks `cardlang.extract.extract_blocks` finds in
-            docs/decisions.md, docs/library.md, docs/model.md — 44 + 10 + 4
-            = 58 blocks as of this change. (An earlier plan for this task
-            cited 88/10/8, i.e. `grep -c '^```'` — fence *lines*, not
-            blocks: 88 = 44*2, 8 = 4*2; library.md's "10" underequal already
-            counted blocks because five of its ten blocks are indented
-            inside list items and a column-anchored grep misses them.
-            `extract_blocks` is the authority; block counts, not fence-line
-            counts, are what this module classifies.)
+            docs/decisions.md, docs/library.md, docs/model.md. The per-doc
+            and total counts are asserted, not stated, by
+            test_the_block_domain_is_the_size_the_ledger_claims — a count in
+            prose drifts silently as the docs grow.
 registry:   KNOWN_TAGS (below) is the closed tag vocabulary — six tags:
             cardlang, cardlang-fragment, cardlang-bad, cardlang-bad-
             fragment, text, ebnf. The three docs are the block source.
@@ -79,7 +75,7 @@ registry:   KNOWN_TAGS (below) is the closed tag vocabulary — six tags:
             of benign fillers keyed by the same label, paired 1:1 with
             cardlang-bad-fragment blocks, each proven to PASS through that
             block's wrapper before the block's own (bad) text is checked.
-covered:    all 58 blocks carry a recognized tag
+covered:    every block in the domain carries a recognized tag
             (test_every_block_is_classified, parametrized over every
             block). All 8 `cardlang-fragment` blocks execute through their
             registered wrapper and are proven to pass
@@ -142,11 +138,10 @@ residual:   fragment KINDS with no cheap wrapping harness. These are never
                 form — superseded by the `round offering [...]` kernel
                 construct and plain function calls (`team_of(outcome)`);
                 no corpus game uses either retired form today.
-              - the old `move_type X { source: ... destination: ...
+              - the retired `move_type X { source: ... destination: ...
                 emits: ... }` shape — superseded by `when:` / `effect {}`.
             Each kind above is `text`-tagged at every site it appears in
-            the three docs today (see the per-block classification in the
-            commit that introduced this module).
+            the three docs today.
 """
 
 from __future__ import annotations
@@ -446,13 +441,28 @@ def _load_blocks() -> list[FencedBlock]:
 _BLOCKS: list[FencedBlock] = _load_blocks()
 
 
+def test_the_block_domain_is_the_size_the_ledger_claims() -> None:
+    """The `domain:` cell above, as an assertion rather than a sentence.
+    A count stated in prose drifts silently as the docs grow; stated here it
+    fails the day it does, and whoever adds a block updates the ledger in the
+    same change. (Counting fences with `grep -c '^```'` gives a different,
+    wrong answer — it counts fence LINES, and misses blocks indented inside
+    list items. `extract_blocks` is the authority.)"""
+    per_doc = {
+        name: len(extract_blocks((DOCS_DIR / name).read_text(), name))
+        for name in DOC_NAMES
+    }
+    assert per_doc == {"decisions.md": 50, "library.md": 12, "model.md": 4}
+    assert len(_BLOCKS) == 66
+
+
 def _block_id(block: FencedBlock) -> str:
     return f"{block.source_name}:{block.start_line}"
 
 
 # A fence info string is `<tag>` or, for the fragment tags, `<tag> <label>`.
 # The tag classifies the block; the label (a stable name) keys its wrapper
-# recipe, so the registry no longer depends on the block's line number.
+# recipe, so the registry does not depend on the block's line number.
 _FRAGMENT_TAGS = frozenset({"cardlang-fragment", "cardlang-bad-fragment"})
 
 

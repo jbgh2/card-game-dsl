@@ -1,8 +1,11 @@
 // Wall: resolve.py `_resolve_positions`. A declared position may not
-// reuse a built-in domain id or type spelling: the reconciliation
-// between the closed domains registry and the per-game block is
-// rejection, so lookups that consult positions first can never
-// shadow a built-in row.
+// reuse a built-in domain id or type spelling, nor a name the game
+// declares as a `type`: the reconciliation between those sources and
+// the per-game block is rejection, so lookups that consult positions
+// first can never shadow a row or a struct. Three sources, one wall —
+// the declared-type source was added after a review found `positions
+// { R : 1..4 }` beside `type R` silently reading the struct as the
+// position's Integer.
 game PositionsBuiltinCollision {
   players: 1
   direction: clockwise

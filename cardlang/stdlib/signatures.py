@@ -90,7 +90,6 @@ CALL_SIGS: dict[str, Sig] = {
     "tichu_opponent_team": Sig((TPlayer(),), TTeam()),  # Tichu: the other team
     "tichu_first_out": Sig((), TPlayer()),  # Tichu: the first finisher (default 0)
     "tichu_card_points": Sig((TCard(),), TInteger()),  # Tichu: the card-point table
-    "tichu_hand_summary": Sig((), TInteger()),  # Tichu: emit tichu_hand; captured points
     "president_next_holder": Sig((TPlayer(),), TPlayer()),  # President: next holder cw (or arg)
     "president_is_top_rank": Sig(
         (TPlayer(), TCard()), TBoolean()
@@ -100,7 +99,6 @@ CALL_SIGS: dict[str, Sig] = {
     "coup_has_char": Sig(
         (TPlayer(), TOptional(TEnum("Rank"))), TBoolean()
     ),  # Coup: proof lookup (an unset claim matches no card)
-    "coup_note_reveal": Sig((TPlayer(),), TInteger()),  # Coup: trace the flip
     "coup_game_summary": Sig((), TInteger()),  # Coup: conservation/finals trace
     "peg_value": Sig((TCard(),), TInteger()),  # Cribbage: pegging/fifteens value
     "peg_pair_points": Sig((), TInteger()),  # Cribbage: live pegging-count pair points

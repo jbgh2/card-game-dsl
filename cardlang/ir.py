@@ -265,8 +265,8 @@ def _stmt(s: n.Stmt) -> IRDict:
             # which uses `where`) stays byte-identical in its golden — this is
             # the whole point of the conditional key (plan §2e/§4). `joint`
             # rides the same convention: without it, a subset decision binding
-            # `cards` was IR-indistinguishable from a per-card filter binding
-            # `card` (Codex P2 on #67) — wrong semantics for any IR consumer.
+            # `cards` would be IR-indistinguishable from a per-card filter
+            # binding `card` — wrong semantics for any IR consumer.
             if s.filter is not None:
                 movement["filter"] = _expr(s.filter)
                 if s.joint:

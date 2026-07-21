@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass, field, replace
-from typing import TYPE_CHECKING, Any, Callable, Iterable
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping
 
 from cardlang.ast import nodes as n
 from cardlang.domains import ZONE_INDEX_ROLES, DomainSources, role_static_members
@@ -120,7 +120,7 @@ class ZoneStore:
         decls: Iterable[n.ZoneDecl],
         players: tuple[Player, ...],
         teams: tuple[int, ...] = (),
-        positions: "dict[str, tuple[int, ...] | tuple[str, ...]] | None" = None,
+        positions: "Mapping[str, tuple[int, ...] | tuple[str, ...]] | None" = None,
     ) -> None:
         self.singles: dict[str, Zone] = {}
         self.families: dict[str, dict[int | str, Zone]] = {}
@@ -138,13 +138,14 @@ class ZoneStore:
                 # The family's key set is the index domain's member set, read
                 # from the domain table (or the game's declared position
                 # domains — decisions.md "Position domains and positional
-                # zones"). The old `teams if index == "team" else players`
-                # silently keyed ANY other role by players. The gate
+                # zones"). A `teams if index == "team" else players` rule
+                # would silently key ANY other role by players. The gate
                 # below is what makes the backstop REAL: an unknown role
                 # raises inside `role_static_members`, but a known
                 # non-indexable row (suit/rank) would quietly enumerate the
                 # deliberately-empty () sources and build a zero-instance
-                # family whose every access key-errors far from the cause.
+                # family — every later access would then be refused for a
+                # missing key, far from the declaration that caused it.
                 # Resolve walls these declarations; reaching this raise means
                 # a construction path bypassed it.
                 if decl.index not in ZONE_INDEX_ROLES and decl.index not in positions:
@@ -172,26 +173,47 @@ class ZoneStore:
     def single(self, name: str) -> Zone:
         if name not in self.singles:
             raise RuntimeError(
-                f"no zone '{name}' in this game — a game-local stdlib "
-                f"primitive that reads it was called from a game without "
-                f"its zones"
+                f"no single zone '{name}' in this game — this asks for a zone "
+                f"the game never declared"
             )
         return self.singles[name]
 
     def instance(self, name: str, key: int | str) -> Zone:
-        # The typed wall for the whole game-local-primitive class: every
-        # per-game primitive (cribbage, gin, …) reads its zones by name
-        # through here, and calling one from a game without those zones used
-        # to die as a bare KeyError naming only the zone. (DSL-side zone
-        # references are resolve-walled long before this; only primitives
-        # and driver internals reach here with a foreign name.)
+        # Both lookups fail in the runtime's typed currency, never as a bare
+        # KeyError — the name and the key are equally capable of missing, so
+        # neither is left to the raw dict.
+        #
+        # Names arriving here are engine-core's: read off the resolved AST,
+        # or the language-wide magic `hand` that `mechanics.py`/`rules.py`
+        # spell literally (walled by resolve's Card-vocabulary hand-family
+        # rule, not by an AST provenance). Game-local primitives do not reach
+        # here at all — cardlang/runtime/reads.py is their sanctioned path,
+        # holding both lookups to this same currency against its
+        # declared-reads registry.
+        #
+        # KEYS, by contrast, are author-reachable: a zone-family subscript's
+        # index is checked with `types.assignable`, which admits a bare
+        # Integer literal, so `hand[9]` in a 4-player game type-checks and
+        # arrives here (roadmap.md, "Zone-family index strictness (deferred
+        # re-audit)"). That deferral is what makes this wall reachable rather
+        # than a backstop, and why the key branch owes a typed error. A
+        # board-minted family keys by a cell name (str), so the key is
+        # `int | str`.
         if name not in self.families:
             raise RuntimeError(
-                f"no zone family '{name}' in this game — a game-local stdlib "
-                f"primitive that reads it was called from a game without "
-                f"its zones"
+                f"no zone family '{name}' in this game — this asks for a "
+                f"family the game never declared"
             )
-        return self.families[name][key]
+        family = self.families[name]
+        if key not in family:
+            role = self.zone_index.get(name)
+            indexed = f"indexed by '{role}'" if role else "indexed"
+            raise RuntimeError(
+                f"zone family '{name}' is {indexed} and has no instance "
+                f"keyed {key!r} — its instances are keyed "
+                f"{sorted(family)}"
+            )
+        return family[key]
 
     def locate(self, zone: Zone) -> "tuple[str, Player | str | None]":
         """The (name, instance-key) of a zone object — the reverse lookup the

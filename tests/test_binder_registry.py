@@ -1,8 +1,9 @@
 """Pins `resolve._introduced_binders`, the single registry of "which AST node
-kinds bind names, and which names" — the fix for a confirmed drift class:
-three hand-written copies of this match (`_categories`, `_template_binders`,
-`_check_functions`) used to exist, and two of them were already missing the
-`Movement`/`EpistemicOp`-with-filter arm the third had. This table is the pin
+kinds bind names, and which names" — the fix for a confirmed drift class: were
+this match hand-written in three copies (`_categories`, `_template_binders`,
+`_check_functions`), those copies would drift — as they did, two of them
+missing the `Movement`/`EpistemicOp`-with-filter arm the third had. This table
+is the pin
 that stops that class of drift: one row per binder-introducing node kind
 (constructed directly, not parsed — a table test on the registry itself, not
 on the language surface), plus a handful of ordinary node kinds asserted to
@@ -108,8 +109,9 @@ def test_movement_with_filter_binds_card() -> None:
 
 def test_movement_without_filter_binds_nothing() -> None:
     # The negative case within the SAME node kind: a filter-less movement
-    # introduces no binder — this is the exact drift `_categories` and
-    # `_template_binders`/`_check_functions` used to disagree about.
+    # introduces no binder — this is the exact drift hand-written copies
+    # (`_categories`, `_template_binders`/`_check_functions`) would disagree
+    # about.
     node = n.Movement(
         verb="deal",
         mode=None,

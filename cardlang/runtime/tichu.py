@@ -142,20 +142,6 @@ def tichu_card_points(ctx: Ctx, c: Card) -> int:
     return _points(c)
 
 
-def tichu_hand_summary(ctx: Ctx) -> int:
-    """Emit the hand's `tichu_hand` trace — the double-victory flag and the
-    card points sitting in the two captured piles after routing — and return
-    the card points. The playout harness asserts every non-double-victory hand
-    distributes exactly 100 (tests/test_playout_tichu.py)."""
-    captured = reads.family(ctx.rs, _R, "captured")
-    pts = sum(_points(c) for t in ctx.rs.teams for c in captured[t].cards)
-    ctx.trace(
-        "tichu_hand",
-        {"double_victory": tichu_double_victory(ctx), "card_points": pts},
-    )
-    return pts
-
-
 # ---------------------------------------------------------------------------
 # The combo codec: card-set <-> action-index, computed, never enumerated
 # ---------------------------------------------------------------------------

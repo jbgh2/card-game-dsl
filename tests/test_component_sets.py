@@ -44,7 +44,6 @@ def test_decks_is_the_card_flavored_projection() -> None:
     assert DECKS == {
         n: cs.deck for n, cs in COMPONENT_SETS.items() if cs.flavor == "card"
     }
-    assert len(DECKS) == 10  # the pre-refactor deck census, unchanged
 
 
 @pytest.mark.parametrize("name", sorted(COMPONENT_SETS))

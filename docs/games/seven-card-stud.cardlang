@@ -21,6 +21,12 @@
 
 game SevenCardStud {
 
+  // Betting proceeds as in standard fixed-limit poker: check/bet/call/raise and
+  // the ring predicates come from the family library shared with Kuhn and Leduc
+  // (docs/libraries/poker_betting.cardlang). `fold` is Stud's own — it mucks the
+  // folder's upcards, which is a fact about Stud's zones, not about betting.
+  uses poker_betting
+
   players: 4
   direction: clockwise
   max_length: 30000
@@ -54,15 +60,19 @@ game SevenCardStud {
 
     phase play {
       state {
-        // Per-hand betting state, reset each hand on phase re-entry.
+        // Per-hand betting state, reset each hand on phase re-entry. `acted`
+        // and `limit` are not here because poker_betting provides them: they
+        // live at game level and carry across hands, which is harmless because
+        // every street opens with `open_street`, and a hand that opens no
+        // street (everyone all-in on the ante) runs no round and reads
+        // neither.
         in_hand[player]   : Boolean = false   // entered the hand holding chips
         committed[player] : Integer = 0       // chips put in this hand (for side pots)
         folded[player]    : Boolean = false
         bet_by[player]    : Integer = 0        // chips put in on the current street
-        acted[player]     : Boolean = false    // has acted since the last aggression
         bet_to_match      : Integer = 0        // the street's standing bet
-        raises            : Integer = 0        // raises so far (cap of 3)
-        limit             : Integer = 0        // the current street's bet size
+        raises            : Integer = 0        // raises so far on this street
+        raise_cap         : Integer = 3        // fixed-limit Stud allows three
       }
 
       // Snapshot the entrants (held chips); ante and deal follow this set.
@@ -84,15 +94,18 @@ game SevenCardStud {
       // Bring-in + 3rd street. Skipped only when fewer than two entrants can act
       // (everyone all-in on the ante); then the hand is dealt straight to showdown.
       if (number of players where stack[player] > 0) >= 2 {
+        run open_street(5)
         let bringer = bring_in_seat()
         // The bring-in is a forced post (no decision): the lowest door puts 2 — a
         // partial all-in if it holds only one chip — and stands as the opening bet.
+        // It posts AFTER the street is opened, so opening does not clear it, and
+        // it counts as the street's first aggression, leaving two raises of the
+        // three the cap allows.
         bet_by[bringer] := if 2 < stack[bringer] then 2 else stack[bringer]
         stack[bringer] := stack[bringer] - bet_by[bringer]
         committed[bringer] := committed[bringer] + bet_by[bringer]
         bet_to_match := 2
         raises := 1
-        limit := 5
         round offering [check, bet, call, fold, raise] from bringer offset_by left
               over players where pending(player)
               order priority
@@ -115,11 +128,7 @@ game SevenCardStud {
         deal 1 card from deck to burn
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
         if (number of players where can_act(player)) >= 2 {
-          bet_to_match := 0
-          raises := 0
-          limit := 5
-          for each player p: bet_by[p] := 0
-          for each player p: acted[p] := false
+          run open_street(5)
           round offering [check, bet, call, fold, raise] from first_to_act_seat()
                 over players where pending(player)
                 order priority
@@ -134,11 +143,7 @@ game SevenCardStud {
         deal 1 card from deck to burn
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
         if (number of players where can_act(player)) >= 2 {
-          bet_to_match := 0
-          raises := 0
-          limit := 10
-          for each player p: bet_by[p] := 0
-          for each player p: acted[p] := false
+          run open_street(10)
           round offering [check, bet, call, fold, raise] from first_to_act_seat()
                 over players where pending(player)
                 order priority
@@ -153,11 +158,7 @@ game SevenCardStud {
         deal 1 card from deck to burn
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
         if (number of players where can_act(player)) >= 2 {
-          bet_to_match := 0
-          raises := 0
-          limit := 10
-          for each player p: bet_by[p] := 0
-          for each player p: acted[p] := false
+          run open_street(10)
           round offering [check, bet, call, fold, raise] from first_to_act_seat()
                 over players where pending(player)
                 order priority
@@ -172,11 +173,7 @@ game SevenCardStud {
         deal 1 card from deck to burn
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to hole[p] }
         if (number of players where can_act(player)) >= 2 {
-          bet_to_match := 0
-          raises := 0
-          limit := 10
-          for each player p: bet_by[p] := 0
-          for each player p: acted[p] := false
+          run open_street(10)
           round offering [check, bet, call, fold, raise] from first_to_act_seat()
                 over players where pending(player)
                 order priority
@@ -216,59 +213,13 @@ game SevenCardStud {
   winner: highest stack
 }
 
-// Stud-local betting vocabulary. Both moves of each decision are always offered
-// in `offering [check, bet, call, fold, raise]` order; the `when:` guards filter
-// to the monolith's exact option list per decision: free-to-act -> [check(, bet)],
-// facing a bet -> [call, fold(, raise)]. A bet/raise is a partial all-in when the
-// actor cannot cover it (`if want < stack then want else stack`), and resets every
-// other player's `acted` so action re-opens.
-
-move_type check {
-  when: bet_to_match <= bet_by[actor]
-  effect { acted[actor] := true }
-}
-
-move_type bet {
-  when: bet_to_match is 0
-  effect {
-    let post = if limit < stack[actor] then limit else stack[actor]
-    stack[actor] := stack[actor] - post
-    committed[actor] := committed[actor] + post
-    bet_by[actor] := bet_by[actor] + post
-    bet_to_match := bet_by[actor]
-    raises := 1
-    for each player p: acted[p] := false
-    acted[actor] := true
-  }
-}
-
-move_type call {
-  when: bet_to_match > bet_by[actor]
-  effect {
-    let owed = bet_to_match - bet_by[actor]
-    let pay = if owed < stack[actor] then owed else stack[actor]
-    stack[actor] := stack[actor] - pay
-    committed[actor] := committed[actor] + pay
-    bet_by[actor] := bet_by[actor] + pay
-    acted[actor] := true
-  }
-}
-
-move_type raise {
-  when: bet_to_match > bet_by[actor] and raises < 3
-  effect {
-    let owed = bet_to_match - bet_by[actor]
-    let want = owed + limit
-    let pay = if want < stack[actor] then want else stack[actor]
-    stack[actor] := stack[actor] - pay
-    committed[actor] := committed[actor] + pay
-    bet_by[actor] := bet_by[actor] + pay
-    bet_to_match := if bet_to_match > bet_by[actor] then bet_to_match else bet_by[actor]
-    raises := raises + 1
-    for each player p: acted[p] := false
-    acted[actor] := true
-  }
-}
+// Stud's own betting move. check/bet/call/raise and the can_act/owes/pending ring
+// predicates come from `uses poker_betting` above; `fold` stays here because it
+// touches Stud's zones — the folder's upcards go straight to the muck, so
+// opponents stop seeing them, and that is an observation their information sets
+// carry. All five are offered together in `offering [check, bet, call, fold,
+// raise]` order; the `when:` guards filter to the exact option list per decision:
+// free-to-act -> [check(, bet)], facing a bet -> [call, fold(, raise)].
 
 move_type fold {
   when: bet_to_match > bet_by[actor]
@@ -277,10 +228,3 @@ move_type fold {
     move all cards from upcards[actor] to muck
   }
 }
-
-// Betting-ring predicates, factored with named functions so the `over` filter and
-// the `until` terminator stay in lockstep (they must name the same set for the
-// priority ring to close exactly when it empties). `pending` composes the others.
-function can_act(p : Player) = not folded[p] and stack[p] > 0
-function owes(p : Player)    = bet_by[p] < bet_to_match
-function pending(p : Player) = can_act(p) and (not acted[p] or owes(p))

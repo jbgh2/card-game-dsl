@@ -59,11 +59,12 @@ covered:    clause axis, each cell proven by a run probe below --
               arithmetic `at + 1`                    -> reject (typecheck)
               state decl type `foo : cell`           -> reject (resolve)
               state decl index `r[cell] : Integer`   -> reject (resolve)
-              function parameter `f(x : cell)`       -> reject (resolve --
-                                                the declaration-type-slot
-                                                wall; used to type TAny)
-              variant payload `Won(cell)`            -> reject (resolve, same
-                                                wall)
+              function parameter `f(x : cell)`       -> ADMIT, types as TCell
+                                                (the payload-admit policy of
+                                                `_check_declared_type_names`;
+                                                x + 1 then rejects, proving it
+                                                is TCell, not a TAny leak)
+              variant payload `Won(cell)`            -> ADMIT, same policy
 sampled:    the action-space round-trip (encode/decode) is proven on the
             nine `place` vocab ids of grid(3,3); the members-in-order
             property is proven on grid(3,3)'s row-major order (the registry
@@ -80,13 +81,12 @@ residual:   * cell CONSTANTS in expressions (a bare `a1`) are not
               test_quantifier_over_cell_is_accepted_after_the_task_7_lift
               below. `for each cell` STAYS rejected (no iteration witness;
               tests/test_cell_queries.py pins the standing diagnostic).
-            * an INTEGER position-domain name (`column`) in a function-
-              parameter or variant-payload slot rejects as an unknown type by
-              the same declaration-type-slot wall that covers `cell` (the
-              wall sweeps the class, not the instance); its own grid row
-              lives with the wall's tests here rather than in
-              tests/test_positions.py. Not a residual gap -- listed for the
-              cross-module reader.
+            * an INTEGER position-domain name (`lane`/`column`) in a function-
+              parameter or variant-payload slot ADMITS identically, resolving
+              to TInteger -- main's type-name grid
+              (tests/test_type_name_positions.py) owns the integer cell; the
+              board `cell` extension (TCell) is pinned here. Not a residual
+              gap -- listed for the cross-module reader.
 """
 
 from __future__ import annotations
@@ -467,29 +467,34 @@ def test_cell_indexed_state_variable_is_rejected() -> None:
     )
 
 
-def test_cell_function_parameter_is_rejected() -> None:
-    # A function parameter types via scalars/enums/structs only; an unwalled
-    # `x : cell` used to type TAny and skip every TCell operand wall (found by
-    # the adversarial probe run -- the declaration-type-slot class).
-    src = board_game() + "function f(x : cell) = 1\n"
-    assert "unknown type 'cell'" in _reject(src)
+def test_cell_function_parameter_admits_and_types_as_tcell() -> None:
+    # A position domain is ADMITTED at a function parameter, resolving to its
+    # member type rather than the permissive TAny (`_check_declared_type_names`;
+    # tests/test_type_name_positions.py P6). For a board `cell` that member
+    # type is TCell -- so `f(x : cell)` checks clean, and TCell's operand walls
+    # fire (arithmetic on x is a type error), which is the leak-free guarantee
+    # main's grid cannot reach (it exercises the integer `column`, not `cell`).
+    check_dsl(board_game() + "function f(x : cell) = 1\n", "b.cardlang")
+    assert "got Cell" in _reject(board_game() + "function f(x : cell) = x + 1\n")
 
 
-def test_cell_variant_payload_is_rejected() -> None:
-    # Same declaration-type-slot class, the outcome/variant payload position.
-    src = board_game() + "define D -> { Won(cell) | Lost } { produce Lost }\n"
-    assert "unknown type 'cell'" in _reject(src)
-
-
-def test_integer_position_function_parameter_is_rejected() -> None:
-    # The wall sweeps the class: an INTEGER position domain in the same slot
-    # rejects identically (it used to type TAny too -- invisible only because
-    # TInteger and TAny permit the same operations).
-    src = (
-        board_game(positions="  positions { lane : 1..2 }\n")
-        + "function f(x : lane) = 1\n"
+def test_cell_variant_payload_admits() -> None:
+    # The outcome/variant payload slot admits a position domain too -- the
+    # sibling of the function-parameter slot, same policy (P7 in the grid).
+    check_dsl(
+        board_game() + "define D -> { Won(cell) | Lost } { produce Lost }\n",
+        "b.cardlang",
     )
-    assert "unknown type 'lane'" in _reject(src)
+
+
+def test_integer_position_function_parameter_admits() -> None:
+    # An INTEGER position domain in the same slot admits identically,
+    # resolving to TInteger (main's grid covers this cell with `column`).
+    check_dsl(
+        board_game(positions="  positions { lane : 1..2 }\n")
+        + "function f(x : lane) = 1\n",
+        "b.cardlang",
+    )
 
 
 # --- residuals proven rejected (recorded above) -------------------------------

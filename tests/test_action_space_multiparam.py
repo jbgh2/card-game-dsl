@@ -53,11 +53,12 @@ move_type play_card(c : Card) { effect { done := 1 } }
 
 def test_single_card_param_via_plain_offer_encodes_to_the_card_block() -> None:
     """The accept+encode happy path for a single-`Card`-param move under a
-    PLAIN `offer` (previously only its rejection cases were tested —
+    PLAIN `offer` (its rejection cases live in
     test_resolve_param_domains.py's `test_offer_of_a_card_param_without_a_hand_zone_rejected`
-    and `test_offer_of_two_card_parameterized_moves_rejected` — and the
-    accept+encode path was only exercised via a `round offering` vocabulary,
-    Schnapsen's `play_card` in test_openspiel_encoding.py). `check_dsl` (not
+    and `test_offer_of_two_card_parameterized_moves_rejected`, and the
+    accept+encode path is otherwise exercised only via a `round offering`
+    vocabulary, Schnapsen's `play_card` in test_openspiel_encoding.py).
+    `check_dsl` (not
     bare `parse_text`) proves the game is actually ACCEPTED — a `hand[player]`
     zone is declared, so `_check_card_vocabulary` (resolve.py) has nothing to
     reject. `ActionSpace` mints no vocab id for `play_card`: its candidates
@@ -88,12 +89,13 @@ move_type ask(target : Player, rank : Rank) { when: target is not actor effect {
 
 
 def test_rank_domain_sourced_from_game_ranking_not_deck() -> None:
-    """Regression for the Codex P2 finding (PR #36): `ActionSpace.for_game`
+    """Regression test for a param-domain sourcing divergence: `ActionSpace.for_game`
     must source the `Rank` parameter domain from `game.ranking` — the SAME
     origin `mechanics.param_domain` reads at runtime (`ctx.rs.rank_index`,
     which `driver.py` builds from `game.ranking`) — never from the deck's own
-    ranks. Before the fix the two sourcings coincided only by accident
-    (`ranking ⊆ deck ranks`, unenforced); a game whose `ranking:` is a strict
+    ranks. Sourced separately the two would coincide only by accident
+    (`ranking is a subset of deck ranks`, unenforced); a game whose
+    `ranking:` is a strict
     SUBSET of its deck's ranks exposes the divergence directly: `ranking: A K
     Q` under `cards: standard52` (13 ranks) resolves cleanly via `check_dsl`
     — nothing requires a `ranking:` to cover every deck rank — so this is a
@@ -137,7 +139,7 @@ move_type declare_suit(s : Suit) { effect { done[actor] := 1 } }
 
 
 def test_suit_domain_sourced_from_deck_cards_not_declared_deck_suits() -> None:
-    """Regression for the Codex P2 finding (PR #36): the Suit parameter domain
+    """Regression test for a param-domain sourcing divergence: the Suit parameter domain
     must be sourced identically at compile time (`ActionSpace.for_game`) and at
     runtime (`driver.play_game`'s `rs.suits`, read by `mechanics.param_domain`)
     — both from `runtime.values.deck_suits` (the deck's ACTUAL card suits),
@@ -164,9 +166,9 @@ def test_suit_domain_sourced_from_deck_cards_not_declared_deck_suits() -> None:
 
     play_game(game, random.Random(0), on_first_decision=hook)
     # The runtime domain (driver.py's `rs.suits`) must be the SAME set the
-    # compile-time action space advertises — before the fix, `rs.suits` was
-    # the deck's declared French-4 `Deck.suits`, missing "special" entirely,
-    # so a legal `declare_suit(special)` decision would never be enumerated
-    # as a live candidate even though `ActionSpace` had already minted it an
+    # compile-time action space advertises — were `rs.suits` the deck's
+    # declared French-4 `Deck.suits`, "special" would be missing entirely, so
+    # a legal `declare_suit(special)` decision would never be enumerated as a
+    # live candidate even though `ActionSpace` has already minted it an
     # action id.
     assert captured["suits"] == deck_suits("tichu56")

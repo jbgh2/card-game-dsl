@@ -182,7 +182,6 @@ game Tichu {
           if out_first is not none and p is out_first { score[team_of(p)] += called[p] }
           else { score[team_of(p)] -= called[p] }
         }
-      let summary = tichu_hand_summary()   // the tichu_hand trace (invariant: 100 card points)
     }
   }
 
