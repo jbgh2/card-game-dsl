@@ -40,14 +40,16 @@ cells, our game reports a win the native oracle does not. The trip-wire feeds
 exactly such a bijection (center<->corner swap) to a scripted X-win and asserts
 the terminal check reddens.
 
-Residual — the differential pins `to_native` only up to the board's automorphism
-group (the square's dihedral group, 8 elements): a line-preserving relabeling
-produces an isomorphic, line-agreeing tree and is CORRECTLY indistinguishable
-here. The specific orientation is fixed only by the scripted-line return
-assertions in layer (b), which name concrete cells (a1 is bottom-left, so its
-row is native's bottom row {6,7,8}). This is a stated coverage boundary, not a
-gap: any of the 8 orientations would be an equally valid oracle mapping; layer
-(b) selects the one our board actually uses.
+Residual — NO differential layer pins `to_native`'s orientation. A
+line-preserving relabeling (any of the square's 8 dihedral automorphisms)
+produces an isomorphic, line-agreeing tree that every layer (a/b/c) accepts
+unchanged, because the win condition is symmetric under that group. The
+concrete orientation is pinned ONLY by `test_mapping_is_a_bijection`'s two
+anchor assertions (a1 -> 6, a3 -> 0), and those are grounded against pyspiel's
+own board rendering there so they are not bare magic numbers. This is intrinsic
+to a fully-symmetric board, not a coverage gap: any of the 8 orientations would
+be an equally valid oracle mapping, and the anchors select the one our board
+actually uses.
 """
 
 from __future__ import annotations
@@ -162,6 +164,17 @@ def test_mapping_is_a_bijection() -> None:
     assert to_native(("place", "a3")) == 0
     for c in NINE_CELLS:
         assert from_native(to_native(("place", c))) == c
+
+    # Ground the two anchors against native's own board geometry, so the
+    # orientation is verified rather than a bare literal: a1 is bottom-left,
+    # a3 is top-left, and native renders row 0 at the top.
+    for cell, expected_row in (("a1", 2), ("a3", 0)):
+        s = pyspiel.load_game(NATIVE).new_initial_state()
+        s.apply_action(to_native(("place", cell)))
+        rows = str(s).split("\n")
+        assert rows[expected_row][0] == "x" and str(s).count("x") == 1, (
+            f"{cell} should mark native row {expected_row} column 0; got:\n{s}"
+        )
 
 
 def _dfs(
