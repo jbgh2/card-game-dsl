@@ -64,7 +64,7 @@ _STRAIGHTS: tuple[tuple[str, ...], ...] = (
 )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Play:
     """A playable combination. `key` is a tuple comparing plays *of the same
     size*; for five-card plays its first element is the type rank, so a stronger

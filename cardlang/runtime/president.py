@@ -56,7 +56,7 @@ _STRENGTH: dict[str, int] = {r: len(_RANKING) - 1 - i for i, r in enumerate(_RAN
 _SUITS_DESC: tuple[str, ...] = tuple(reversed(SUITS))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Play:
     """A playable set of equal-ranked cards. `key` is the play's EFFECTIVE rank
     strength: the cards' own rank for a natural set, the absorbed standing rank

@@ -55,14 +55,18 @@ covered:    (a) per-implementation-SITE: the site's signature names no
             `bytearray` (a mutable builtin), and a `StructValue` whose
             `.fields` is a live dict behind a frozen dataclass (a mutable
             WRAPPER, not a leaf). The walker recurses dataclass fields AND
-            checks the wrapper's own frozen-ness, so it cannot share
+            checks the wrapper is both frozen AND slotted, so it cannot share
             deep_freeze's blind spots, and deep_freeze REFUSES any leaf it
-            cannot prove immutable — including a NON-frozen dataclass, which
-            a field-frozen `replace` copy could not have fixed — rather than
-            passing a possibly-mutable object through. The holes Codex found
-            (indexed state dict, round-state `played` list, StructValue
-            fields, bytearray, and the non-frozen-dataclass identity fast
-            path) were each reproduced before the fix closed them;
+            cannot prove immutable — a non-frozen dataclass, OR a frozen but
+            non-SLOTTED one (whose `__dict__` stays writable, so
+            `obj.__dict__[f] = …` bypasses frozen), neither fixable by a
+            field-frozen `replace` copy — rather than passing a
+            possibly-mutable object through. The holes Codex found (indexed
+            state dict, round-state `played` list, StructValue fields,
+            bytearray, the non-frozen-dataclass identity fast path, and the
+            frozen-but-non-slotted `Play`) were each reproduced before the
+            fix closed them; the three climb `Play` types are now
+            frozen+slots so they pass by identity;
             (d') the primitive boundary is TWO channels, both frozen: the
             bundles above, and the positional COLLECTION arguments — a
             collection arg from a zone reaches a primitive as the zone's
@@ -1008,11 +1012,15 @@ def _reachable_mutable(value: Any, path: str = "") -> list[str]:
         for i, v in enumerate(value):
             bad += _reachable_mutable(v, f"{path}[{i}]")
     elif _dc.is_dataclass(value) and not isinstance(value, type):
-        # A non-frozen dataclass is itself writable (`box.value = …`) even
-        # when every field is immutable — descending fields without checking
-        # the wrapper is deep_freeze's own former blind spot, so flag it here.
+        # A dataclass is writable unless it is BOTH frozen AND slotted: a
+        # non-frozen one takes `box.value = …`; a frozen-but-non-slotted one
+        # takes `box.__dict__["value"] = …` (a writable __dict__ bypasses
+        # frozen). Descending fields without checking the wrapper is
+        # deep_freeze's own former blind spot, so flag both here.
         if not getattr(value, "__dataclass_params__").frozen:
             bad.append(f"{path}: mutable (non-frozen) dataclass {type(value).__name__}")
+        elif hasattr(value, "__dict__"):
+            bad.append(f"{path}: frozen-but-non-slotted dataclass {type(value).__name__}")
         for f in _dc.fields(value):
             bad += _reachable_mutable(getattr(value, f.name), f"{path}.{f.name}")
     return bad
@@ -1106,6 +1114,42 @@ def test_deep_freeze_and_walker_reject_a_non_frozen_dataclass() -> None:
     assert any("non-frozen" in b for b in _reachable_mutable(box, "box")), (
         "the walker treated a writable dataclass as an immutable leaf"
     )
+
+
+def test_deep_freeze_and_walker_reject_a_frozen_but_non_slotted_dataclass() -> None:
+    """`frozen=True` alone is not immutability: without `slots=True` the
+    instance keeps a writable `__dict__`, so `obj.__dict__[f] = …` bypasses
+    frozen. deep_freeze refuses it (a `replace` copy is the same mutable
+    class) and the walker flags it — the corpus `Play` types were the real
+    instance, now slotted, so this only fires on a new one."""
+    from dataclasses import dataclass as _dataclass
+
+    @_dataclass(frozen=True)  # frozen, but NOT slotted
+    class LooseFrozen:
+        value: int
+
+    obj = LooseFrozen(1)
+    assert hasattr(obj, "__dict__")  # the writable escape hatch
+    with pytest.raises(TypeError, match="WITHOUT slots"):
+        reads_mod.deep_freeze(obj)
+    assert any("non-slotted" in b for b in _reachable_mutable(obj))
+
+
+def test_corpus_play_types_are_slotted() -> None:
+    """The three climb `Play` types flow through `round_state["current"]`, so
+    they must be truly immutable (frozen AND slotted), not just frozen —
+    otherwise deep_freeze would refuse them mid-playout."""
+    from cardlang.runtime.bigtwo import Play as BigTwoPlay
+    from cardlang.runtime.combinations import Play as CombinationsPlay
+    from cardlang.runtime.president import Play as PresidentPlay
+
+    for cls in (BigTwoPlay, CombinationsPlay, PresidentPlay):
+        # The `key` field types differ across the three (tuple/float/int); the
+        # values are irrelevant to the slots check, so ignore the arg types.
+        inst = cls("single", 1, 5, ())  # type: ignore[arg-type]
+        assert not hasattr(inst, "__dict__"), f"{cls.__module__}.Play is not slotted"
+        # deep_freeze accepts it by identity (immutable), does not refuse it.
+        assert reads_mod.deep_freeze(inst) is inst
 
 
 def test_deep_freeze_freezes_mapping_keys_not_just_values() -> None:

@@ -79,14 +79,16 @@ def deep_freeze(value: Any) -> Any:
     Every mutable level is REBUILT, so the result is a snapshot rather than a
     chain of read-only views over live objects. Mappings become
     `MappingProxyType`, sequences tuples, sets frozensets, `bytearray` bytes;
-    a FROZEN dataclass is rebuilt with each field frozen (`StructValue.fields`
-    is where this bites — the class is not assumed to be an immutable leaf
-    just because it is a container of nothing), and one whose fields are all
-    already immutable (`Card`, `Play`, `Seating`) is returned UNCHANGED by
-    identity so the common per-bind path allocates nothing new. A NON-frozen
-    dataclass is refused, not returned by identity: its attributes stay
-    reassignable, so it is no safer than any other mutable leaf. Anything that
-    is neither a container nor a frozen dataclass must be a known-immutable
+    a frozen+SLOTTED dataclass is rebuilt with each field frozen
+    (`StructValue.fields` is where this bites — the class is not assumed to be
+    an immutable leaf just because it is a container of nothing), and one whose
+    fields are all already immutable (`Card`, `Play`, `Seating`) is returned
+    UNCHANGED by identity so the common per-bind path allocates nothing new. A
+    dataclass that is NOT frozen, or is frozen but NOT slotted (so its
+    `__dict__` stays writable and `obj.__dict__[f] = …` bypasses frozen), is
+    refused rather than returned by identity — neither is actually immutable,
+    and a field-frozen `replace` copy is the same mutable class. Anything that
+    is neither a container nor an immutable dataclass must be a known
     atomic, or `deep_freeze` refuses it rather than passing a possibly-mutable
     object through as a false leaf."""
     if isinstance(value, _ATOMIC):
@@ -120,6 +122,19 @@ def deep_freeze(value: Any) -> Any:
                 f"deep_freeze cannot snapshot the non-frozen dataclass "
                 f"{type(value).__name__} — its attributes stay reassignable. "
                 f"Make it frozen, or add a case."
+            )
+        if hasattr(value, "__dict__"):
+            # `frozen=True` WITHOUT `slots=True` leaves a writable instance
+            # `__dict__`: `obj.__setattr__` is blocked, but `obj.__dict__[f] =
+            # …` bypasses it, so the object is not actually immutable and the
+            # identity fast path would leak it. A field-frozen `replace` copy
+            # is the same class, so it does not help — the fix is `slots=True`
+            # on the type. Refuse rather than hand back a false-frozen object.
+            raise TypeError(
+                f"deep_freeze cannot treat {type(value).__name__} as immutable: "
+                f"it is a frozen dataclass WITHOUT slots, so its __dict__ stays "
+                f"writable (obj.__dict__[...] = ... bypasses frozen). Add "
+                f"slots=True to the type."
             )
         frozen: dict[str, Any] = {}
         changed = False
