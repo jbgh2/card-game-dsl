@@ -251,6 +251,11 @@ class DomainQuery:
     span: Span | None = None
 
 
+# The keyword phrase each DomainQuery kind spells in a diagnostic. Owned here
+# beside the node so resolve and typecheck read one table, not two.
+DOMAIN_QUERY_KIND_PHRASE: dict[str, str] = {"any": "any", "all": "all", "count": "number of"}
+
+
 @dataclass(frozen=True, slots=True)
 class Choose:
     """`choose integer in <lo> .. <hi> [up to <ceiling>]` — a decision that

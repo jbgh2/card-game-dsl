@@ -2300,10 +2300,6 @@ def _check_vocabulary_moves(
 # naming these two; further nouns are a recorded residual (roadmap.md).
 _COLLECTION_NOUNS: frozenset[str] = frozenset({"line", "cell"})
 
-# The keyword phrase each DomainQuery kind spells, for its diagnostics.
-_DOMAIN_KIND_PHRASE: dict[str, str] = {"any": "any", "all": "all", "count": "number of"}
-
-
 def _check_domain_query(nd: n.DomainQuery, game: n.Game, bag: DiagnosticBag) -> None:
     """Validate a positional-quantifier noun (decisions.md "Boards and cells").
 
@@ -2317,7 +2313,7 @@ def _check_domain_query(nd: n.DomainQuery, game: n.Game, bag: DiagnosticBag) -> 
     suit/rank quantifiers never reach here: QNOUN excludes those spellings, so
     `any suit where …` is the fixed `Quantifier` form (walled in a piece game
     by the CARD_AXIS_ROLES case below) -- the noun exclusion IS that wall."""
-    phrase = _DOMAIN_KIND_PHRASE[nd.kind]
+    phrase = n.DOMAIN_QUERY_KIND_PHRASE[nd.kind]
     if nd.source is None:
         declared = {p.name for p in game.positions}
         universe = (

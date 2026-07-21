@@ -1439,7 +1439,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
             _check_expr(e.source, env, bag)  # the `in` source is in enclosing scope
         scoped = env.with_local(e.binder, binder_t)
         _check_expr(e.pred, scoped, bag)
-        phrase = {"any": "any", "all": "all", "count": "number of"}[e.kind]
+        phrase = n.DOMAIN_QUERY_KIND_PHRASE[e.kind]
         _check_bool(e.pred, scoped, bag, f"`{phrase} {e.spelled}` predicate")
         return
     if isinstance(e, n.Comprehension):

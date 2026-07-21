@@ -455,14 +455,14 @@ def test_duplicate_board_clause_is_rejected() -> None:
 
 def test_cell_typed_state_variable_is_rejected() -> None:
     # `foo : cell` -- a position domain is not a declarable state TYPE.
-    assert "cell" in _reject(
+    assert "unknown type 'cell' in declaration of 'foo'" in _reject(
         board_game(state="    result[player] : Integer = 0\n    foo : cell = a1\n")
     )
 
 
 def test_cell_indexed_state_variable_is_rejected() -> None:
     # `r[cell] : Integer` -- cell is not a zone-index role for state either.
-    assert "cell" in _reject(
+    assert "state variable 'r' is indexed by 'cell', which is not an indexable role" in _reject(
         board_game(state="    result[player] : Integer = 0\n    r[cell] : Integer = 0\n")
     )
 

@@ -154,6 +154,7 @@ from cardlang.runtime.driver import play_game
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating, axis_attributes
+from cardlang.runtime.stdlib import _lines
 from cardlang.stdlib.boards import board_entry
 
 TreeNode = Tree[Token]
@@ -801,6 +802,16 @@ def test_lines_out_of_range_literal_is_a_static_resolve_error() -> None:
         )
     )
     assert "lines(k) requires k in 1..3 for grid(3, 3), got 99" in _reject(src)
+
+
+def test_lines_out_of_range_at_runtime_is_a_typed_error() -> None:
+    """The resolve wall covers a LITERAL out-of-range k; a k only knowable at
+    runtime reaches the `_lines` backstop, which must raise a typed
+    RuntimeError, never let the underlying ValueError escape the boundary."""
+    game = check_dsl(_board_probe_src("done"), "probe.cardlang")
+    ctx = _board_ctx(game, {})
+    with pytest.raises(RuntimeError, match=r"lines\(k\) requires k in 1\.\.3"):
+        _lines(ctx, 99)
 
 
 def test_binder_escapes_its_quantifier_scope() -> None:
