@@ -17,7 +17,9 @@ import random
 
 import pytest
 
-from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
+from cardlang.runtime import reads, sidecar
+from cardlang.runtime.state import RuntimeState, ZoneStore
+from cardlang.runtime.tarot import ROW
 from cardlang.runtime.tarot import (
     tarot_card_points,
     tarot_excuse_player,
@@ -69,35 +71,58 @@ def test_trump_height_is_zero_for_non_atouts() -> None:
     assert tarot_trump_height(EXCUSE) == 0
 
 
-# --- tarot_led_suit ---
+
+# The bundle materialises tarot.py's WHOLE declared row (taker, bid_level;
+# captured, discard; trick_pile, chien), so every fixture declares all of it —
+# a partial fixture is indistinguishable from the game file and the module
+# having drifted apart, which is exactly what the registry refuses.
+_Bundles = tuple[sidecar.EngineFacts, reads.GameReads]
 
 
-def _pile_ctx(cards: list[Card]) -> Ctx:
+def _tarot_rs() -> RuntimeState:
     from cardlang.ast import nodes as n
 
     zone_decls = (
         n.ZoneDecl(name="trick_pile", index=None, type_ref=n.TypeRef(name="TrickPile")),
+        n.ZoneDecl(name="chien", index=None, type_ref=n.TypeRef(name="FaceDownPile")),
+        n.ZoneDecl(
+            name="captured", index="player", type_ref=n.TypeRef(name="PlayerPile")
+        ),
+        n.ZoneDecl(
+            name="discard", index="player", type_ref=n.TypeRef(name="HiddenPile")
+        ),
     )
     rs = RuntimeState(Seating(4), ZoneStore(zone_decls, (0, 1, 2, 3)), random.Random(0))
+    rs.push_frame()
+    rs.declare("taker", False, 0)
+    rs.declare("bid_level", False, 1)
+    return rs
+
+
+# --- tarot_led_suit ---
+
+
+def _pile_ctx(cards: list[Card]) -> _Bundles:
+    rs = _tarot_rs()
     rs.zones.single("trick_pile").add_all(cards)
-    return Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]))
+    return sidecar.bind(rs, None, ROW)
 
 
 def test_led_suit_is_the_first_non_excuse_card() -> None:
     ctx = _pile_ctx([Card("5", "hearts"), Card("K", "clubs")])
-    assert tarot_led_suit(ctx) == "hearts"
+    assert tarot_led_suit(*ctx) == "hearts"
 
 
 def test_led_suit_when_the_excuse_is_led() -> None:
     # The Excuse alone: no non-Excuse card yet -> "excuse" (the quirk that
     # forces the second player to trump if able).
     ctx = _pile_ctx([EXCUSE])
-    assert tarot_led_suit(ctx) == "excuse"
+    assert tarot_led_suit(*ctx) == "excuse"
 
 
 def test_led_suit_skips_the_excuse_when_led_then_a_real_card_follows() -> None:
     ctx = _pile_ctx([EXCUSE, Card("9", "atouts")])
-    assert tarot_led_suit(ctx) == "atouts"
+    assert tarot_led_suit(*ctx) == "atouts"
 
 
 # --- tarot_trick_winner ---
@@ -131,32 +156,32 @@ def test_excuse_never_wins_against_a_lone_atout() -> None:
 # --- tarot_excuse_player ---
 
 
-def _excuse_ctx(played: list[tuple[int, Card]], live_round: bool) -> Ctx:
-    rs = RuntimeState(Seating(4), ZoneStore((), (0, 1, 2, 3)), random.Random(0))
+def _excuse_ctx(played: list[tuple[int, Card]], live_round: bool) -> _Bundles:
+    rs = _tarot_rs()
     state = {"played": played}
     if live_round:
         rs.mech_state.append(state)
     else:
         rs.last_round_state = state
-    return Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]))
+    return sidecar.bind(rs, None, ROW)
 
 
 def test_excuse_player_found_via_last_round_state() -> None:
     played = [(0, Card("K", "clubs")), (1, EXCUSE), (2, Card("2", "hearts"))]
     ctx = _excuse_ctx(played, live_round=False)
-    assert tarot_excuse_player(ctx) == 1
+    assert tarot_excuse_player(*ctx) == 1
 
 
 def test_excuse_player_found_via_live_mech_state() -> None:
     played = [(0, EXCUSE), (1, Card("2", "hearts"))]
     ctx = _excuse_ctx(played, live_round=True)
-    assert tarot_excuse_player(ctx) == 0
+    assert tarot_excuse_player(*ctx) == 0
 
 
 def test_excuse_player_none_when_nobody_played_it() -> None:
     played = [(0, Card("K", "clubs")), (1, Card("2", "hearts"))]
     ctx = _excuse_ctx(played, live_round=False)
-    assert tarot_excuse_player(ctx) is None
+    assert tarot_excuse_player(*ctx) is None
 
 
 # --- tarot_per_opp ---
@@ -168,27 +193,15 @@ def _scoring_ctx(
     captured_taker: list[Card],
     chien: list[Card],
     discard_taker: list[Card] | None = None,
-) -> Ctx:
-    from cardlang.ast import nodes as n
-
-    zone_decls = (
-        n.ZoneDecl(name="chien", index=None, type_ref=n.TypeRef(name="FaceDownPile")),
-        n.ZoneDecl(
-            name="captured", index="player", type_ref=n.TypeRef(name="PlayerPile")
-        ),
-        n.ZoneDecl(
-            name="discard", index="player", type_ref=n.TypeRef(name="HiddenPile")
-        ),
-    )
-    rs = RuntimeState(Seating(4), ZoneStore(zone_decls, (0, 1, 2, 3)), random.Random(0))
-    rs.push_frame()
-    rs.declare("taker", False, taker)
-    rs.declare("bid_level", False, bid_level)
+) -> _Bundles:
+    rs = _tarot_rs()
+    rs.set("taker", taker)
+    rs.set("bid_level", bid_level)
     rs.zones.single("chien").add_all(chien)
     rs.zones.instance("captured", taker).add_all(captured_taker)
     if discard_taker is not None:
         rs.zones.instance("discard", taker).add_all(discard_taker)
-    return Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]))
+    return sidecar.bind(rs, None, ROW)
 
 
 def test_per_opp_at_petite_threshold_with_three_bouts() -> None:
@@ -204,7 +217,7 @@ def test_per_opp_at_petite_threshold_with_three_bouts() -> None:
     ]
     assert sum(tarot_card_points(c) for c in captured) == 36
     ctx = _scoring_ctx(taker=0, bid_level=1, captured_taker=captured, chien=[])
-    assert tarot_per_opp(ctx, pb=0) == 7
+    assert tarot_per_opp(*ctx, pb=0) == 7
 
 
 def test_per_opp_garde_sans_counts_the_chien() -> None:
@@ -219,7 +232,7 @@ def test_per_opp_garde_sans_counts_the_chien() -> None:
         tarot_card_points(c) for c in chien
     ) == 30
     ctx = _scoring_ctx(taker=0, bid_level=3, captured_taker=captured, chien=chien)
-    assert tarot_per_opp(ctx, pb=0) == 16
+    assert tarot_per_opp(*ctx, pb=0) == 16
 
 
 def test_per_opp_counts_the_taker_discard() -> None:
@@ -238,7 +251,7 @@ def test_per_opp_counts_the_taker_discard() -> None:
     ctx = _scoring_ctx(
         taker=0, bid_level=1, captured_taker=captured, chien=[], discard_taker=discard
     )
-    assert tarot_per_opp(ctx, pb=0) == 7  # identical to the all-in-captured case
+    assert tarot_per_opp(*ctx, pb=0) == 7  # identical to the all-in-captured case
 
 
 def test_per_opp_petit_au_bout_adjustment() -> None:
@@ -246,8 +259,8 @@ def test_per_opp_petit_au_bout_adjustment() -> None:
         Card(r, "clubs") for r in ("2", "3", "4", "5", "6", "7", "8", "9", "10")
     ]
     ctx = _scoring_ctx(taker=0, bid_level=1, captured_taker=captured, chien=[])
-    assert tarot_per_opp(ctx, pb=10) == 17  # round((25 - 18 + 10) * 1)
-    assert tarot_per_opp(ctx, pb=-10) == -3  # round((25 - 18 - 10) * 1)
+    assert tarot_per_opp(*ctx, pb=10) == 17  # round((25 - 18 + 10) * 1)
+    assert tarot_per_opp(*ctx, pb=-10) == -3  # round((25 - 18 - 10) * 1)
 
 
 def test_per_opp_banker_rounding_at_petite() -> None:
@@ -257,7 +270,7 @@ def test_per_opp_banker_rounding_at_petite() -> None:
     # pt = 1/2 - 56 = -55.5 -> (25 - 55.5) = -30.5 -> round(-30.5) == -30
     # (round-to-even: -30 is even, -31 is odd).
     ctx = _scoring_ctx(taker=0, bid_level=1, captured_taker=[Card("2", "clubs")], chien=[])
-    assert tarot_per_opp(ctx, pb=0) == -30  # round(-30.5) == -30, round-half-to-even
+    assert tarot_per_opp(*ctx, pb=0) == -30  # round(-30.5) == -30, round-half-to-even
 
 
 # --- Card.__str__ glyphs ---

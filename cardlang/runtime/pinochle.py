@@ -8,7 +8,7 @@ cascade. This module holds only what is not expressible there: `pinochle_meld`
 — the pure, RNG-free Counter-based meld tally (runs, marriages, dix, pinochle,
 and the four-around sets; doubles score the published double values; the only
 intra-class overlap handled is the trump run subsuming its own marriage) — and
-`pinochle_meld_value`, the ctx-reading stdlib-call wrapper the DSL's `for each
+`pinochle_meld_value`, the declared-reads stdlib-call wrapper the DSL's `for each
 player p: meld_score[team_of(p)] += pinochle_meld_value(p)` calls. Melding is
 forced (a rational player melds everything), so it is a pure computation, not
 a choice.
@@ -19,10 +19,10 @@ from __future__ import annotations
 from collections import Counter
 
 from cardlang.runtime import reads
-from cardlang.runtime.state import Ctx
+from cardlang.runtime.sidecar import EngineFacts
 from cardlang.runtime.values import SUITS, Card, Player
 
-_R = reads.row("cardlang/runtime/pinochle.py", "pinochle.cardlang")
+ROW = reads.row("cardlang/runtime/pinochle.py", "pinochle.cardlang")
 
 
 def pinochle_meld(cards: list[Card], trump: str) -> int:
@@ -54,13 +54,15 @@ def pinochle_meld(cards: list[Card], trump: str) -> int:
     return score
 
 
-def pinochle_meld_value(ctx: Ctx, player: Player) -> int:
+def pinochle_meld_value(
+    facts: EngineFacts, gr: reads.GameReads, player: Player
+) -> int:
     """The meld points `player`'s hand is worth under this hand's declared
     trump — a pure read of the live `hand` zone and the `trump_suit` state (no
     RNG, no mutation); the DSL statement `meld_score[team_of(p)] +=
     pinochle_meld_value(p)` is what actually credits it to the team."""
-    hand = reads.instance(ctx.rs, _R, "hand", player).cards
-    trump = reads.state(ctx.rs, _R, "trump_suit")
+    hand = gr.families["hand"][player]
+    trump = gr.state["trump_suit"]
     if not isinstance(trump, str):
         # Whether trump has been declared yet is live game state, so scoring
         # meld before it is the description's error, in the runtime's currency.

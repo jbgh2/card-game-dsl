@@ -17,7 +17,7 @@ from typing import Any, Protocol
 
 from cardlang.ast import nodes as n
 from cardlang.domains import DomainSources, enumerate_domain
-from cardlang.runtime import observe, phases, rules
+from cardlang.runtime import observe, phases, reads, rules, sidecar
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, Move
 from cardlang.runtime.values import Player
@@ -187,8 +187,15 @@ class TrickForm:
         ctx.trace(
             "trick_end", {"early": state["trick_terminated_early"], "trump": self.trump}
         )
+        # The outcome callback (a game-local trick winner, or an engine-core
+        # `highest_*`) reads its plays and rank strengths as arguments, not
+        # through a bundle, so the live `played` list and `rank_index` dict are
+        # frozen here — the direct-call-site analogue of `_coerce_args`.
         outcome = self.outcome_fn(
-            state["played"], state["led_suit"], self.trump, ctx.rs.rank_index
+            reads.deep_freeze(state["played"]),
+            state["led_suit"],
+            self.trump,
+            reads.deep_freeze(ctx.rs.rank_index),
         )
         # every function in the stdlib trick-outcome registry returns a seat
         assert isinstance(outcome, int)
@@ -459,6 +466,7 @@ class ClimbForm:
         self.leader: Player = evaluate(stmt.leader, ctx)
         self.lead_query = stdlib.climb_lead_function(stmt.combos_fn)
         self.follow_query = stdlib.climb_follow_function(stmt.follows_fn)
+        self.climb_row = stdlib.climb_row(stmt.combos_fn)
         self.hands = ctx.rs.zones.families[stmt.source_zone]
         self.pile = ctx.rs.zones.single(stmt.play_zone)
         self.source_name: str = stmt.source_zone
@@ -516,9 +524,20 @@ class ClimbForm:
             return turn
 
     def candidates(self, actor: Player, state: State, ctx: Ctx) -> list[Any]:
+        # The climb engines are game-local, so they get the same value
+        # bundles every other primitive does rather than the live ctx — and
+        # their hand argument is deep_frozen for the same reason `call()`
+        # freezes collection args: it is `self.hands[actor].cards`, a live
+        # zone list a query could otherwise mutate.
+        facts, gr = sidecar.bind(ctx.rs, ctx.current_player, self.climb_row)
+        hand = reads.deep_freeze(self.hands[actor].cards)
         if state["current"] is None:  # the leader must lead
-            return self.lead_query(self.hands[actor].cards, ctx)
-        return [*self.follow_query(self.hands[actor].cards, state["current"], ctx), "pass"]
+            return self.lead_query(facts, gr, hand)
+        # `state["current"]` is the live standing `Play` in the round
+        # accumulator; freeze it too, or a follow query could object.__setattr__
+        # its key/kind/cards and corrupt the engine's standing play.
+        standing = reads.deep_freeze(state["current"])
+        return [*self.follow_query(facts, gr, hand, standing), "pass"]
 
     def apply(self, actor: Player, choice: Any, state: State, ctx: Ctx) -> State:
         if choice == "pass":

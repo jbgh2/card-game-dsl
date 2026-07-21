@@ -1024,18 +1024,29 @@ Things we have noted but consciously not designed yet:
 - **Primitive sidecars: stages 2-5 of the migration, and the one remaining
   trace emitter.** Stage 1
   ([design-notes/primitive-sidecars.md](design-notes/primitive-sidecars.md),
-  the staged sequence in §4) evicted the two pure trace emitters from the
+  the execution plan in §5) evicted the two pure trace emitters from the
   stdlib registry; the harness derives their facts from observation events
   (`tests/playout_trace.py`, grid and ledger in
-  `tests/test_trace_emitter_eviction.py`). Remaining: narrowing every
-  primitive's interface to values-in/value-out, the `primitives { }`
-  declaration block, and co-location — per the design note's sequence. One
-  named residual rides until then: `coup_game_summary` is a third
-  dead-`let` trace emitter by call shape, still registered because its
-  `coup_game` payload recomputes conservation totals from engine state
+  `tests/test_trace_emitter_eviction.py`). Stage 2 is likewise done: all
+  fifteen game modules take values rather than `Ctx`, via the binder
+  (`cardlang/runtime/sidecar.py`), pinned by the crossed wall
+  (`tests/test_primitive_narrowing.py`) with nothing excused. Remaining:
+  the `primitives { }` declaration block (stage 3) and co-location
+  (stage 4), per the design note's §5.
+
+  Three residuals ride until their own steps. `coup_game_summary` is a
+  third dead-`let` trace emitter by call shape, still registered because
+  its `coup_game` payload recomputes conservation totals from engine state
   (coins, treasury, zone censuses) rather than from movement views —
   reproducing it at the harness is its own design step, not a mechanical
-  repeat of stage 1.
+  repeat of stage 1. The three auction outcomes (`bridge_`/`pinochle_`/
+  `tarot_auction_outcome`) are implemented inside `cardlang/runtime/
+  stdlib.py`, so the game-module wall does not reach them; stage 4
+  (co-location) owns their move. And both bundles the binder hands over
+  are module-granular, so a primitive can still see a declared name it
+  does not need — the per-primitive `reads` clause of stage 3 is what
+  closes that, and it also removes the cost of materializing a whole row
+  per call.
 
 ## Suggested next steps, in order
 

@@ -189,6 +189,26 @@ class ScanResult:
     problems: list[str] = field(default_factory=list)
 
 
+# The GameReads bundle's fields, mapped to the declaration kind each holds.
+# A narrowed primitive reads `gr.state["x"]` / `gr.families["x"][k]` /
+# `gr.singles["x"]` where it used to call `reads.state(...)` etc.
+_BUNDLE_KINDS: dict[str, str] = {
+    "state": "state",
+    "families": "family",
+    "singles": "single",
+}
+
+# The bundle parameter's mandated name. The scan keys on it, because these
+# field names are ordinary English that other classes use too (`ZoneStore`
+# has its own `.singles`/`.families`), and a scan that matched every such
+# subscript anywhere would report the engine's internals as declared reads.
+# Keying on a name would normally open a silent hole — a primitive that named
+# its bundle something else would go unscanned — so
+# `test_bundle_parameter_is_named_consistently` closes it: any parameter
+# annotated `GameReads` MUST be spelled this.
+_BUNDLE_PARAM = "gr"
+
+
 def _is_named(node: ast.expr, name: str) -> bool:
     """Is this expression a reference spelled `name` (bare or as the last
     attribute of a chain) — `rs` / `ctx.rs` / `self.rs`, `zones` / `rs.zones`?"""
@@ -260,6 +280,27 @@ def _scan_source(source: str, where: str) -> ScanResult:
             result.raw_hits.append(
                 f"{where}:{node.lineno}: zones.{node.value.attr}[...]"
             )
+        elif (
+            isinstance(node, ast.Subscript)
+            and isinstance(node.value, ast.Attribute)
+            and node.value.attr in _BUNDLE_KINDS
+            and isinstance(node.value.value, ast.Name)
+            and node.value.value.id == _BUNDLE_PARAM
+        ):
+            # A NARROWED primitive's read: `gr.singles["trick_pile"]` off the
+            # GameReads bundle the binder built. Same coupling to the game
+            # file's declared names as the accessor call it replaces, so the
+            # same pin applies — the spelling changed, the property did not.
+            kind = _BUNDLE_KINDS[node.value.attr]
+            idx = node.slice
+            if isinstance(idx, ast.Constant) and isinstance(idx.value, str):
+                result.reads[kind].add(idx.value)
+            else:
+                result.problems.append(
+                    f"{where}:{node.lineno}: {node.value.attr}[...] whose key "
+                    f"is not a string literal — the scan cannot pin it against "
+                    f"PRIMITIVE_READS"
+                )
     return result
 
 
@@ -324,6 +365,56 @@ def test_module_source_agrees_with_registry(path: Path) -> None:
         f"{module_key}: reads.row(...) lookups {sorted(scan.rows)} disagree "
         f"with the registry's rows for this module {sorted(expected_rows)}"
     )
+
+
+def _bundle_param_problems(source: str, where: str) -> list[str]:
+    """Every parameter annotated `GameReads` that is not spelled `gr`."""
+    problems: list[str] = []
+    for node in ast.walk(ast.parse(source, filename=where)):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for arg in [*node.args.args, *node.args.kwonlyargs]:
+            ann = arg.annotation
+            name = (
+                ann.attr
+                if isinstance(ann, ast.Attribute)
+                else ann.id
+                if isinstance(ann, ast.Name)
+                else None
+            )
+            if name == "GameReads" and arg.arg != _BUNDLE_PARAM:
+                problems.append(
+                    f"{where}:{node.lineno}: {node.name}() names its GameReads "
+                    f"parameter {arg.arg!r}; it must be {_BUNDLE_PARAM!r} so the "
+                    f"declared-reads scan can attribute its reads"
+                )
+    return problems
+
+
+@pytest.mark.parametrize("path", _ALL_RUNTIME_MODULES, ids=lambda p: p.name)
+def test_bundle_parameter_is_named_consistently(path: Path) -> None:
+    """The scan keys the bundle reads on the parameter's NAME, so an
+    off-convention name would be silently unscanned — a read escaping the
+    registry, which is the whole class this module exists to prevent."""
+    problems = _bundle_param_problems(path.read_text(encoding="utf-8"), path.name)
+    assert not problems, "\n".join(problems)
+
+
+def test_probe_off_convention_bundle_name_is_refused_loud() -> None:
+    """The misuse probe for the wall above: naming the bundle anything else
+    fails loudly rather than quietly dropping that function's reads."""
+    problems = _bundle_param_problems(
+        "def f(facts, bundle: reads.GameReads) -> int:\n"
+        '    return bundle.state["x"]\n',
+        "probe.py",
+    )
+    assert problems and "must be 'gr'" in problems[0]
+    # and the reads of an off-convention bundle are indeed invisible to the
+    # scan — which is exactly why the wall above has to exist.
+    scan = _scan_source(
+        'def f(facts, bundle):\n    return bundle.state["x"]\n', "probe.py"
+    )
+    assert scan.reads["state"] == set()
 
 
 def test_raw_access_is_confined_to_the_exemptions() -> None:

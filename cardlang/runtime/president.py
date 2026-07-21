@@ -12,7 +12,7 @@ President's combination model is the simplest of the three engines: a play is
 1-4 cards of EQUAL rank, suits are entirely irrelevant (no tie-breaks, no
 flushes, no straights), there are no bombs, and a follow must be the same size
 and strictly higher rank. The rank order is 2 high, 3 low; the live queries
-read it from `ctx.rs.rank_index` (built by the driver from the game's
+read it from the engine facts' `rank_index` (built by the driver from the game's
 `ranking:`), so the engine and the declaration cannot drift.
 
 The one variant carried (Pagat "Transparent cards"): a set made entirely of
@@ -38,15 +38,15 @@ import itertools
 from dataclasses import dataclass
 
 from cardlang.runtime import reads
-from cardlang.runtime.state import Ctx
+from cardlang.runtime.sidecar import EngineFacts
 from cardlang.runtime.values import SUITS, Card, Player
 
-_R = reads.row("cardlang/runtime/president.py", "president.cardlang")
+ROW = reads.row("cardlang/runtime/president.py", "president.cardlang")
 
 # The rank order (high to low) — exactly president.cardlang's `ranking:` line,
 # mapped to strengths by the driver's formula (first-listed strongest). The
-# live queries use `ctx.rs.rank_index`; this module-level table serves the
-# ctx-free universe enumeration. tests/test_playout_president.py pins the two
+# live queries use the engine facts' `rank_index`; this module-level table
+# serves the bundle-free universe enumeration. tests/test_playout_president.py pins the two
 # against each other, so the table and the declaration cannot drift.
 _RANKING: tuple[str, ...] = ("2", "A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3")
 _STRENGTH: dict[str, int] = {r: len(_RANKING) - 1 - i for i, r in enumerate(_RANKING)}
@@ -56,7 +56,7 @@ _STRENGTH: dict[str, int] = {r: len(_RANKING) - 1 - i for i, r in enumerate(_RAN
 _SUITS_DESC: tuple[str, ...] = tuple(reversed(SUITS))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Play:
     """A playable set of equal-ranked cards. `key` is the play's EFFECTIVE rank
     strength: the cards' own rank for a natural set, the absorbed standing rank
@@ -84,12 +84,14 @@ def _by_rank(hand: list[Card]) -> dict[str, list[Card]]:
 # ---------------------------------------------------------------------------
 
 
-def president_lead_options(hand: list[Card], ctx: Ctx) -> list[Play]:
+def president_lead_options(
+    facts: EngineFacts, gr: reads.GameReads, hand: list[Card]
+) -> list[Play]:
     """Every set the leader may lead: for each rank held, one representative
     set of each size 1..count. A led set of threes is a natural lead — its key
     is the threes' own (lowest) strength; transparency applies only when
     threes BEAT a standing set (the follows query)."""
-    strength = ctx.rs.rank_index
+    strength = facts.rank_index
     leads: list[Play] = []
     for r, cs in _by_rank(hand).items():
         for size in range(1, len(cs) + 1):
@@ -97,7 +99,9 @@ def president_lead_options(hand: list[Card], ctx: Ctx) -> list[Play]:
     return leads
 
 
-def president_follows(hand: list[Card], current: Play, ctx: Ctx) -> list[Play]:
+def president_follows(
+    facts: EngineFacts, gr: reads.GameReads, hand: list[Card], current: Play
+) -> list[Play]:
     """The plays that legally beat the standing play: a natural equal-rank set
     of the SAME size with strictly higher rank strength than the standing
     play's EFFECTIVE rank, plus — the transparent-threes variant — a pure set
@@ -108,7 +112,7 @@ def president_follows(hand: list[Card], current: Play, ctx: Ctx) -> list[Play]:
     anything (3 is the lowest rank), and a mixed set is impossible (sets are
     equal-rank by construction), so threes appear in a follow pool only via
     the transparent path. Passing is provided by the climb form itself."""
-    strength = ctx.rs.rank_index
+    strength = facts.rank_index
     follows: list[Play] = []
     for r, cs in _by_rank(hand).items():
         if len(cs) >= current.size and strength[r] > current.key:
@@ -142,27 +146,31 @@ def president_universe() -> list[Play]:
 # --- zone / seating / state reads (pure) ---
 
 
-def president_next_holder(ctx: Ctx, p: Player) -> Player:
+def president_next_holder(
+    facts: EngineFacts, gr: reads.GameReads, p: Player
+) -> Player:
     """`p` if they still hold cards, else the next holder clockwise (President
     plays clockwise, so the ring advances by +1 — Tichu's counterclockwise
     advance mirrored). Returns `p` unchanged when everyone is out (the hand is
     over; the value is never read)."""
-    hands = reads.family(ctx.rs, _R, "hand")
-    players = list(ctx.rs.seating.players)
-    if not any(hands[q].cards for q in players):
+    hands = gr.families["hand"]
+    players = list(facts.seating.players)
+    if not any(hands[q] for q in players):
         return p
     q = p
-    while not hands[q].cards:
+    while not hands[q]:
         q = (q + 1) % len(players)
     return q
 
 
-def president_is_top_rank(ctx: Ctx, p: Player, c: Card) -> bool:
+def president_is_top_rank(
+    facts: EngineFacts, gr: reads.GameReads, p: Player, c: Card
+) -> bool:
     """Is `c` of the highest rank in `p`'s hand (2 high, 3 low)? The
     between-hands exchange filter: the Scum's give is their single
     highest-ranked card. Suits are irrelevant in President, so when several
     cards tie at the top rank any of them is a faithful give — the filtered
     movement takes the first match in hand order."""
-    strength = ctx.rs.rank_index
-    hand = reads.instance(ctx.rs, _R, "hand", p).cards
+    strength = facts.rank_index
+    hand = gr.families["hand"][p]
     return strength[c.rank] == max(strength[x.rank] for x in hand)

@@ -23,7 +23,7 @@ holds only what is not expressible there:
   the trump/over-trump obligations ("if an opponent is currently winning the
   trick, he must trump if he can … if his partner is currently winning he is
   free"). Read off the live round accumulator exactly as the `state` pronoun
-  is, plus the acting player the rules engine bound (`ctx.acting_as`).
+  is, plus the acting player the rules engine bound (the engine facts' `actor`).
 - `belote_royal_player` — who (if anyone) played a trump King or Queen in the
   trick that just completed, while the Belote-Rebelote window is still open.
   A PUBLIC fact (trick plays are identity to all): the DSL uses it only to
@@ -56,11 +56,13 @@ Announcing is scoped to that one best combination per player (belote.md,
 
 from __future__ import annotations
 
+from typing import Mapping
+
 from cardlang.runtime import reads
-from cardlang.runtime.state import Ctx
+from cardlang.runtime.sidecar import EngineFacts
 from cardlang.runtime.values import SUITS, Card, Player
 
-_R = reads.row("cardlang/runtime/belote.py", "belote.cardlang")
+ROW = reads.row("cardlang/runtime/belote.py", "belote.cardlang")
 
 # Trump-suit strength, strongest 8: J > 9 > A > 10 > K > Q > 8 > 7. Nonzero
 # for every trump rank so the demand's `or 0` empty-pile default sits below
@@ -111,27 +113,27 @@ def belote_trick_winner(
     return max(of_led, key=lambda pc: rank_index[pc[1].rank])[0]
 
 
-def _round_state(ctx: Ctx, caller: str) -> dict[str, object]:
+def _round_state(facts: EngineFacts, caller: str) -> Mapping[str, object]:
     """The live round accumulator, or the just-completed round's terminal
     state — exactly the `state` pronoun's view (`mech_state[-1]` while a round
     runs, else `last_round_state`). Whether a round is live is game flow, so a
     premature call is the description's error, in the runtime's currency."""
-    state = ctx.rs.mech_state[-1] if ctx.rs.mech_state else ctx.rs.last_round_state
+    state = facts.round_state
     if state is None:
         raise RuntimeError(f"{caller}() called with no active or just-completed round")
     return state
 
 
-def belote_opp_winning(ctx: Ctx) -> bool:
+def belote_opp_winning(facts: EngineFacts, gr: reads.GameReads) -> bool:
     """Is the current winner of the live, partial trick an opponent of the
     acting player? False while nothing has been played. The rules engine binds
-    the candidate actor (`ctx.acting_as`) before evaluating `applies_when`, so
-    `current_player` is the player whose legality is being computed."""
-    state = _round_state(ctx, "belote_opp_winning")
+    the candidate actor before evaluating `applies_when`, so the facts'
+    `actor` is the player whose legality is being computed."""
+    state = _round_state(facts, "belote_opp_winning")
     played: list[tuple[Player, Card]] = state["played"]  # type: ignore[assignment]
     if not played:
         return False
-    actor = ctx.current_player
+    actor = facts.actor
     if actor is None:
         raise RuntimeError(
             "belote_opp_winning() evaluated with no acting player — it belongs "
@@ -139,17 +141,19 @@ def belote_opp_winning(ctx: Ctx) -> bool:
         )
     trump: str | None = state["trump"]  # type: ignore[assignment]
     led: str = played[0][1].suit
-    winner = belote_trick_winner(played, led, trump, ctx.rs.rank_index)
-    return ctx.rs.team_of[winner] != ctx.rs.team_of[actor]
+    winner = belote_trick_winner(played, led, trump, dict(facts.rank_index))
+    return facts.team_of[winner] != facts.team_of[actor]
 
 
-def belote_royal_player(ctx: Ctx) -> Player | None:
+def belote_royal_player(
+    facts: EngineFacts, gr: reads.GameReads
+) -> Player | None:
     """The player who played a trump King or Queen in the trick that just
     completed (the first of them in play order), or None. A pure read of
     public facts — the trick's plays and the declared trump — used by the DSL
     to aim the Belote-Rebelote window's offer; the announcing move's own
     guard checks the private partner-card holding."""
-    state = _round_state(ctx, "belote_royal_player")
+    state = _round_state(facts, "belote_royal_player")
     played: list[tuple[Player, Card]] = state["played"]  # type: ignore[assignment]
     trump: str | None = state["trump"]  # type: ignore[assignment]
     return next(
@@ -216,9 +220,9 @@ def _run_combo(run: list[Card], is_trump: bool) -> list[_Combo]:
     ]
 
 
-def _best_combo(ctx: Ctx, p: Player) -> _Combo | None:
-    hand = reads.instance(ctx.rs, _R, "hand", p).cards
-    trump = reads.state(ctx.rs, _R, "trump_suit")
+def _best_combo(facts: EngineFacts, gr: reads.GameReads, p: Player) -> _Combo | None:
+    hand = gr.families["hand"][p]
+    trump = gr.state["trump_suit"]
     combos = decomposition(list(hand), trump)
     return combos[0] if combos else None
 
@@ -229,7 +233,7 @@ def _best_combo(ctx: Ctx, p: Player) -> _Combo | None:
 _HEIGHT_OF_CLASS = {1: _NATURAL, 2: _NATURAL, 3: _NATURAL, 4: _CARRE_HEIGHT}
 
 
-def belote_best_is(ctx: Ctx, p: Player, cls: int, rank: str, trump_flag: bool) -> bool:
+def belote_best_is(facts: EngineFacts, gr: reads.GameReads, p: Player, cls: int, rank: str, trump_flag: bool) -> bool:
     """Does `p`'s best combination have exactly this class, top rank, and
     trump flag? The declaration moves' guard: a player may announce their
     best combination or stay silent, never a weaker or absent one. A class
@@ -243,51 +247,51 @@ def belote_best_is(ctx: Ctx, p: Player, cls: int, rank: str, trump_flag: bool) -
             f"belote_best_is: class {cls!r} is not a declaration class "
             f"(1 tierce, 2 quarte, 3 quinte, 4 carré)"
         )
-    best = _best_combo(ctx, p)
+    best = _best_combo(facts, gr, p)
     if best is None:
         return False
     height = heights.get(rank)
     return best[0] == cls and best[1] == height and best[2] == trump_flag
 
 
-def belote_decl_points(ctx: Ctx, p: Player) -> int:
+def belote_decl_points(facts: EngineFacts, gr: reads.GameReads, p: Player) -> int:
     """The best combination's points (0 with none) — what a declaration
     scores for the entitled side."""
-    best = _best_combo(ctx, p)
+    best = _best_combo(facts, gr, p)
     return best[3] if best is not None else 0
 
 
-def belote_decl_class(ctx: Ctx, p: Player) -> int:
+def belote_decl_class(facts: EngineFacts, gr: reads.GameReads, p: Player) -> int:
     """The best combination's class (4 carré > 3 quinte > 2 quarte >
     1 tierce; 0 with no combination)."""
-    best = _best_combo(ctx, p)
+    best = _best_combo(facts, gr, p)
     return best[0] if best is not None else 0
 
 
-def belote_decl_height(ctx: Ctx, p: Player) -> int:
+def belote_decl_height(facts: EngineFacts, gr: reads.GameReads, p: Player) -> int:
     """The best combination's height: the top card's natural-order strength
     for a sequence, the carré rank's strength for a carré; 0 with none."""
-    best = _best_combo(ctx, p)
+    best = _best_combo(facts, gr, p)
     return best[1] if best is not None else 0
 
 
-def belote_decl_trump(ctx: Ctx, p: Player) -> bool:
+def belote_decl_trump(facts: EngineFacts, gr: reads.GameReads, p: Player) -> bool:
     """Is the best combination a sequence in the trump suit? (False for a
     carré — carré heights are unique, so the tie-break never needs it.)"""
-    best = _best_combo(ctx, p)
+    best = _best_combo(facts, gr, p)
     return best[2] if best is not None else False
 
 
-def belote_decl_size(ctx: Ctx, p: Player) -> int:
+def belote_decl_size(facts: EngineFacts, gr: reads.GameReads, p: Player) -> int:
     """How many cards `p`'s best combination comprises — the showing bound."""
-    best = _best_combo(ctx, p)
+    best = _best_combo(facts, gr, p)
     return len(best[4]) if best is not None else 0
 
 
-def belote_decl_slot(ctx: Ctx, p: Player, k: int, c: Card) -> bool:
+def belote_decl_slot(facts: EngineFacts, gr: reads.GameReads, p: Player, k: int, c: Card) -> bool:
     """Is `c` the `k`-th card of `p`'s best combination (strongest first)?
     The showing walks k = 0..size-1, revealing one card per step."""
-    best = _best_combo(ctx, p)
+    best = _best_combo(facts, gr, p)
     if best is None:
         return False
     return 0 <= k < len(best[4]) and best[4][k] == c

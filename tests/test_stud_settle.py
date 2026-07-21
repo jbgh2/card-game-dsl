@@ -9,15 +9,17 @@ landing in a pot others win.
 
 from __future__ import annotations
 
-from cardlang.runtime.state import Zone
 from cardlang.runtime.stud import _payouts
 from cardlang.runtime.values import Card
 
 _SUIT = {"C": "clubs", "D": "diamonds", "H": "hearts", "S": "spades"}
 
 
-def _hand(*specs: str) -> Zone:
-    return Zone([Card(s[:-1], _SUIT[s[-1]]) for s in specs])
+def _hand(*specs: str) -> tuple[Card, ...]:
+    """A holding as the binder delivers it: a plain tuple of cards, not a
+    live `Zone`. `_payouts` is values-in now, so the fixture hands it the
+    same shape the GameReads bundle does."""
+    return tuple(Card(s[:-1], _SUIT[s[-1]]) for s in specs)
 
 
 # Distinct seven-card hands of known strength (each evaluated independently, so
@@ -32,10 +34,10 @@ def _settle_deltas(
     in_hand: list[int],
     committed: dict[int, int],
     folded: dict[int, bool],
-    hands: dict[int, Zone],
+    hands: dict[int, tuple[Card, ...]],
 ) -> dict[int, int]:
     hole = {p: hands[p] for p in in_hand}
-    upcards = {p: Zone() for p in in_hand}
+    upcards: dict[int, tuple[Card, ...]] = {p: () for p in in_hand}
     return _payouts(in_hand, committed, folded, hole, upcards)
 
 
