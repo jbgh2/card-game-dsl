@@ -67,10 +67,18 @@ covered:    (a) per-implementation-SITE: the site's signature names no
             bundles above, and the positional COLLECTION arguments — a
             collection arg from a zone reaches a primitive as the zone's
             live `.cards` list (`elements()` returns it by reference), so
-            `call()` and the climb site `deep_freeze` it; keys are frozen
-            with values, so a mutable-hashable key cannot be recovered by
-            iterating a proxy. Both proven: the boundary snapshot is a
-            tuple not the live list, and a mutable key/arg is refused;
+            EVERY site handing a narrowed primitive a collection freezes
+            it: the generic `call()` coercion (`_coerce_args`), the climb
+            hand, and the direct sites that read live engine state rather
+            than a bundle — the two cribbage peg arms and the trick
+            `outcome_fn` (`played` + `rank_index`). Keys are frozen with
+            values, so a mutable-hashable key cannot be recovered by
+            iterating a proxy. Each channel is proven: the boundary
+            snapshot is a tuple not the live list (captured at the peg and
+            outcome sites), and a mutable key/arg is refused. The auction
+            outcomes are excluded on purpose — they are residual (1),
+            still holding `ctx`, so freezing one of their args would be
+            theater;
             (e) `EMITS_TRACE` two ways: every listed primitive returns
             `(value, events)`, no unlisted migrated primitive does.
 sampled:    behavioral identity rides the byte-identical goldens and the
@@ -1139,6 +1147,73 @@ def test_collection_args_are_frozen_at_the_call_boundary() -> None:
     assert isinstance(coerced, tuple)  # an immutable snapshot
     assert list(coerced) == [Card("7", "clubs"), Card("8", "clubs")]  # same contents
     assert not _reachable_mutable(coerced)  # deeply immutable, like the bundles
+
+
+def test_peg_direct_arm_args_are_frozen(monkeypatch: Any) -> None:
+    """The two cribbage peg arms read live engine state directly (not through
+    a bundle), so `call()` freezes their collection args at the site. Capture
+    what the primitive actually receives and prove it is immutable."""
+    from cardlang.runtime import cribbage, stdlib
+    from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
+
+    decls = (n.ZoneDecl(name="play_pile", index=None, type_ref=n.TypeRef(name="Pile")),)
+    rs = RuntimeState(Seating(2), ZoneStore(decls, (0, 1)), random.Random(0))
+    rs.zones.single("play_pile").cards.extend([Card("7", "clubs"), Card("7", "hearts")])
+    rs.rank_index = {"7": 0}
+    ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]))
+
+    seen: dict[str, Any] = {}
+
+    def capture_pair(seq: Any) -> int:
+        seen["pair"] = seq
+        return 0
+
+    def capture_run(seq: Any, order: Any) -> int:
+        seen["seq"], seen["order"] = seq, order
+        return 0
+
+    monkeypatch.setattr(cribbage, "peg_pair_points", capture_pair)
+    monkeypatch.setattr(cribbage, "peg_run_points", capture_run)
+    stdlib.call("peg_pair_points", [], ctx)
+    stdlib.call("peg_run_points", [], ctx)
+
+    live_cards = rs.zones.single("play_pile").cards
+    for key in ("pair", "seq", "order"):
+        assert not _reachable_mutable(seen[key], f"peg {key}"), f"{key} not frozen"
+    assert seen["pair"] is not live_cards and seen["seq"] is not live_cards  # snapshots
+    assert isinstance(seen["order"], MappingProxyType)  # rank_index frozen too
+
+
+def test_trick_outcome_freezes_its_collection_args() -> None:
+    """TrickForm.outcome hands the outcome callback its plays and rank index
+    directly, so both are frozen at the site — the direct-call analogue of the
+    argument boundary. Driven via `object.__new__` so no full form is built."""
+    from cardlang.runtime.mechanics import TrickForm
+    from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
+
+    seen: dict[str, Any] = {}
+
+    def capture(played: Any, led_suit: Any, trump: Any, rank_index: Any) -> int:
+        seen["played"], seen["rank_index"] = played, rank_index
+        return 0  # a seat, satisfying the `isinstance(outcome, int)` assert
+
+    form = object.__new__(TrickForm)
+    form.outcome_fn = capture
+    form.trump = None
+    rs = RuntimeState(Seating(2), ZoneStore((), (0, 1)), random.Random(0))
+    rs.rank_index = {"7": 0}
+    rs.mech_state.append({"terminal": True})
+    ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]))
+    state = {
+        "trick_terminated_early": False,
+        "led_suit": "hearts",
+        "played": [(0, Card("7", "hearts"))],
+    }
+    form.outcome(state, ctx)
+
+    assert not _reachable_mutable(seen["played"], "played"), "played not frozen"
+    assert not _reachable_mutable(seen["rank_index"], "rank_index"), "rank_index not frozen"
+    assert seen["played"] is not state["played"]  # a snapshot, not the live list
 
 
 def test_every_engine_facts_field_is_deeply_immutable() -> None:

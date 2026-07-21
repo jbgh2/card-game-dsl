@@ -232,13 +232,18 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
         case "peg_pair_points":
             from cardlang.runtime.cribbage import peg_pair_points
 
-            return peg_pair_points(reads.single(ctx.rs, _CRIBBAGE_R, "play_pile").cards)
+            # These two read live engine state directly rather than through a
+            # bundle, so their collection args are frozen here at the call site
+            # (the same boundary `_coerce_args` enforces for DSL arguments).
+            return peg_pair_points(
+                reads.deep_freeze(reads.single(ctx.rs, _CRIBBAGE_R, "play_pile").cards)
+            )
         case "peg_run_points":
             from cardlang.runtime.cribbage import peg_run_points
 
             return peg_run_points(
-                reads.single(ctx.rs, _CRIBBAGE_R, "play_pile").cards,
-                ctx.rs.rank_index,
+                reads.deep_freeze(reads.single(ctx.rs, _CRIBBAGE_R, "play_pile").cards),
+                reads.deep_freeze(ctx.rs.rank_index),
             )
         case "peg_origin_of":
             from cardlang.runtime.cribbage import ROW, peg_origin_of

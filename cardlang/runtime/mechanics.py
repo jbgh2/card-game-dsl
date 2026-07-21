@@ -187,8 +187,15 @@ class TrickForm:
         ctx.trace(
             "trick_end", {"early": state["trick_terminated_early"], "trump": self.trump}
         )
+        # The outcome callback (a game-local trick winner, or an engine-core
+        # `highest_*`) reads its plays and rank strengths as arguments, not
+        # through a bundle, so the live `played` list and `rank_index` dict are
+        # frozen here — the direct-call-site analogue of `_coerce_args`.
         outcome = self.outcome_fn(
-            state["played"], state["led_suit"], self.trump, ctx.rs.rank_index
+            reads.deep_freeze(state["played"]),
+            state["led_suit"],
+            self.trump,
+            reads.deep_freeze(ctx.rs.rank_index),
         )
         # every function in the stdlib trick-outcome registry returns a seat
         assert isinstance(outcome, int)
