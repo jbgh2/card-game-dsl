@@ -49,10 +49,18 @@ covered:    (a) per-implementation-SITE: the site's signature names no
             declared row and nothing else — an undeclared name is absent,
             not merely unfetched; and NOTHING mutable is reachable through
             either bundle at any depth or shape (`deep_freeze`), proven by
-            descending the whole materialized structure over a
-            mixed-container nested fixture rather than checking the shapes
-            we happen to know — a shallow freeze exposed an indexed state
-            dict and a round-state `played` list to direct mutation;
+            descending the whole materialized structure over a fixture that
+            crosses every mutable shape the DSL can produce — nested
+            dict/list/set/tuple, a plain `set` AND a `frozenset`, a
+            `bytearray` (a mutable builtin), and a `StructValue` whose
+            `.fields` is a live dict behind a frozen dataclass (a mutable
+            WRAPPER, not a leaf). The walker recurses dataclass fields so it
+            cannot share deep_freeze's blind spots, and deep_freeze REFUSES
+            any leaf it cannot prove immutable rather than passing a
+            possibly-mutable object through — the three holes Codex found
+            (indexed state dict, round-state `played` list, StructValue
+            fields) plus bytearray were each reproduced against the shallow
+            freeze before the deep one closed them;
             (e) `EMITS_TRACE` two ways: every listed primitive returns
             `(value, events)`, no unlisted migrated primitive does.
 sampled:    behavioral identity rides the byte-identical goldens and the
@@ -86,6 +94,13 @@ red under (born-green cells):
   fields have readers). Reddening mutation: add a field to `EngineFacts`
   — it fails on the field-set comparison; give it a `_FACT_CONSUMERS` row
   with no real reader and it fails on the unread check. Run and reverted.
+- the deep-immutability walk is only as honest as its fixture reaches: a
+  `deep_freeze` that dropped the `bytearray` or dataclass-recursion branch
+  leaves those cells vacuous. Reddening mutation (RUN, not stated): freeze
+  `_nested()` with a blind version missing those two branches — the walker
+  flags `[…]['raw']: mutable sequence bytearray` and `[…]['sv'].fields:
+  mutable mapping dict` (descending into the wrapper), so the fixture's
+  extra shapes are load-bearing, not decoration.
 """
 
 from __future__ import annotations
@@ -906,26 +921,42 @@ def test_game_reads_cards_are_immutable() -> None:
 # check walks the WHOLE materialized structure rather than the two shapes we
 # happen to know about today.
 
-_ATOMIC: tuple[type, ...] = (str, bytes, bytearray)
+# str/bytes are the ONLY atomic sequences; `bytearray` is deliberately absent
+# — it is mutable and must be flagged if it survives unfrozen (deep_freeze's
+# blind spot the first time, so the walker must NOT share it).
+_ATOMIC: tuple[type, ...] = (str, bytes)
 
 # A deliberately deep, mixed-shape value: dict -> list -> dict -> set/tuple,
-# with atomics (str) that must NOT be shredded into characters, and BOTH a
-# plain `set` (must be converted) and a `frozenset` (passes through) so the
-# set branch is exercised on a genuinely mutable container. Injected into both
-# bundles so the walker has real nesting to descend.
-_NESTED: dict[int, Any] = {
-    0: {
-        "layer": [1, {"deep": (2, 3), "mset": {4, 5}, "fset": frozenset({6, 7})}],
-        "tag": "keep",
-    },
-    1: [{"pair": (8, 9)}, [10, [11, {"k": [12]}]]],
-}
+# with atomics (str) that must NOT be shredded into characters; BOTH a plain
+# `set` (must be converted) and a `frozenset` (passes through); a `bytearray`
+# (a mutable builtin the freeze must convert); and a `StructValue` whose
+# `.fields` is a live dict behind a frozen dataclass (a mutable WRAPPER, not a
+# leaf). Injected into both bundles so the walker has every shape to descend.
+def _nested() -> dict[int, Any]:
+    from cardlang.runtime.state import StructValue
+
+    return {
+        0: {
+            "layer": [1, {"deep": (2, 3), "mset": {4, 5}, "fset": frozenset({6, 7})}],
+            "raw": bytearray(b"ab"),
+            "sv": StructValue("Contract", {"level": 3, "nest": [8, {"z": {9}}]}),
+            "tag": "keep",
+        },
+        1: [{"pair": (10, 11)}, [12, [13, {"k": [14]}]]],
+    }
+
+
+_NESTED: dict[int, Any] = _nested()
 
 
 def _reachable_mutable(value: Any, path: str = "") -> list[str]:
-    """Every path at which a MUTABLE container is reachable inside `value`.
-    Empty means the whole structure is immutable at every depth. Atomics
-    (str/bytes) are leaves, never descended as sequences."""
+    """Every path at which a MUTABLE container — or a mutable field behind a
+    value WRAPPER — is reachable inside `value`. Empty means the whole
+    structure is immutable at every depth and through every dataclass. This
+    walker recurses into dataclass fields on purpose: a `StructValue` is not a
+    Mapping/Sequence/Set, so a walker that stopped at it (as deep_freeze first
+    did) would call its live `.fields` dict a leaf and stay vacuously green."""
+    import dataclasses as _dc
     from collections.abc import Mapping as _Map
     from collections.abc import Sequence as _Seq
     from collections.abc import Set as _Set
@@ -943,11 +974,14 @@ def _reachable_mutable(value: Any, path: str = "") -> list[str]:
             bad.append(f"{path}: mutable set {type(value).__name__}")
         for i, v in enumerate(sorted(value, key=repr)):
             bad += _reachable_mutable(v, f"{path}{{{i}}}")
-    elif isinstance(value, _Seq):
+    elif isinstance(value, _Seq):  # bytearray lands here (not atomic) -> flagged
         if not isinstance(value, tuple):
             bad.append(f"{path}: mutable sequence {type(value).__name__}")
         for i, v in enumerate(value):
             bad += _reachable_mutable(v, f"{path}[{i}]")
+    elif _dc.is_dataclass(value) and not isinstance(value, type):
+        for f in _dc.fields(value):
+            bad += _reachable_mutable(getattr(value, f.name), f"{path}.{f.name}")
     return bad
 
 

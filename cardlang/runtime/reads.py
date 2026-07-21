@@ -45,48 +45,77 @@ Contract:
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Mapping as _Mapping
 from collections.abc import Sequence as _Sequence
 from collections.abc import Set as _Set
 from dataclasses import dataclass, field
+from enum import Enum
 from types import MappingProxyType
 from typing import Any, Mapping
 
 from cardlang.runtime.state import RuntimeState, Zone
 from cardlang.runtime.values import Card
 
-# Container types whose contents must be frozen; atomics are sequences too
-# (a str is a sequence of chars) but are leaves — never descended.
-_ATOMIC: tuple[type, ...] = (str, bytes, bytearray)
+# Atomic leaves: immutable, never descended. `str`/`bytes` are sequences (of
+# chars/ints) but must NOT be shredded; `bytearray` is deliberately ABSENT —
+# it is a MUTABLE sequence and gets converted, not passed through.
+_ATOMIC: tuple[type, ...] = (str, bytes, bool, int, float, type(None), Enum)
 
 
 def deep_freeze(value: Any) -> Any:
     """A structurally-immutable SNAPSHOT of `value`, recursively, to any depth.
 
     The bundles a primitive receives must expose nothing it can mutate: not
-    just the outer container, but every mapping, sequence and set nested
-    inside it, to the bottom. A shallow freeze is a false guarantee — an
-    indexed state variable is a live `{player: value}` dict and a round-state
-    frame nests a `played` list, so wrapping only the top level lets
-    `gr.state["coins"][p] = 0` and `facts.round_state["played"].append(...)`
-    reach straight through and corrupt engine state.
+    just the outer container, but every mapping, sequence, set — and the
+    mutable internals of any value WRAPPER — nested inside it, to the bottom.
+    A shallow freeze is a false guarantee: an indexed state variable is a live
+    `{player: value}` dict, a round-state frame nests a `played` list, and a
+    `StructValue`'s `.fields` is a live dict behind a frozen dataclass, so
+    `gr.state["coins"][p] = 0`, `facts.round_state["played"].append(...)` and
+    `gr.state["contract"].fields[k] = ...` would each reach straight through
+    and corrupt engine state.
 
-    Every level is REBUILT, so the result is a snapshot rather than a chain of
-    read-only views over live objects: a later engine mutation cannot leak in,
-    and the primitive cannot write out. Mappings become `MappingProxyType`,
-    sequences tuples, sets frozensets; atomics (`str`/`bytes`) and leaf value
-    types (frozen dataclasses like `Card`/`Play`, scalars) pass through
-    unchanged. Keys are left as-is — a mapping key is already hashable, hence
-    immutable."""
+    Every mutable level is REBUILT, so the result is a snapshot rather than a
+    chain of read-only views over live objects. Mappings become
+    `MappingProxyType`, sequences tuples, sets frozensets, `bytearray` bytes;
+    a dataclass is rebuilt with each field frozen (`StructValue.fields` is
+    where this bites — the class is not assumed to be an immutable leaf just
+    because it is a container of nothing). A dataclass whose fields are all
+    already immutable (`Card`, `Play`, `Seating`) is returned UNCHANGED by
+    identity, so the common per-bind path allocates nothing new. Anything that
+    is neither a container nor a dataclass must be a known-immutable atomic,
+    or `deep_freeze` refuses it rather than passing a possibly-mutable object
+    through as a false leaf."""
     if isinstance(value, _ATOMIC):
         return value
     if isinstance(value, _Mapping):
         return MappingProxyType({k: deep_freeze(v) for k, v in value.items()})
     if isinstance(value, _Set):
         return frozenset(deep_freeze(v) for v in value)
+    if isinstance(value, bytearray):
+        return bytes(value)  # a mutable builtin sequence -> immutable snapshot
     if isinstance(value, _Sequence):
-        return tuple(deep_freeze(v) for v in value)
-    return value
+        items = [deep_freeze(v) for v in value]
+        if isinstance(value, tuple) and all(a is b for a, b in zip(items, value)):
+            return value  # already an immutable tuple, unchanged: keep identity
+        return tuple(items)
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        frozen: dict[str, Any] = {}
+        changed = False
+        for f in dataclasses.fields(value):
+            old = getattr(value, f.name)
+            new = deep_freeze(old)
+            frozen[f.name] = new
+            changed = changed or new is not old
+        if not changed:
+            return value  # every field already immutable (Card/Play/Seating/…)
+        return dataclasses.replace(value, **frozen)
+    raise TypeError(
+        f"deep_freeze cannot prove {type(value).__name__} immutable — it is "
+        f"neither a known atomic, a container, nor a dataclass, so passing it "
+        f"through as a leaf could expose mutable engine state. Add a case."
+    )
 
 _REGISTRY_NAME = "PRIMITIVE_READS (cardlang/runtime/reads.py)"
 
