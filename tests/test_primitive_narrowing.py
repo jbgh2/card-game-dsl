@@ -65,8 +65,11 @@ covered:    (a) per-implementation-SITE: the site's signature names no
             state dict, round-state `played` list, StructValue fields,
             bytearray, the non-frozen-dataclass identity fast path, and the
             frozen-but-non-slotted `Play`) were each reproduced before the
-            fix closed them; the three climb `Play` types are now
-            frozen+slots so they pass by identity;
+            fix closed them. deep_freeze never returns a dataclass by
+            identity, even frozen+slots: `object.__setattr__` bypasses
+            `frozen`, so it COPIES (a `replace`), and the back door then
+            hits the primitive's copy, not the value in engine state — the
+            three climb `Play` types are frozen+slots so they copy cleanly;
             (d') the primitive boundary is TWO channels, both frozen: the
             bundles above, and the positional COLLECTION arguments — a
             collection arg from a zone reaches a primitive as the zone's
@@ -1148,8 +1151,29 @@ def test_corpus_play_types_are_slotted() -> None:
         # values are irrelevant to the slots check, so ignore the arg types.
         inst = cls("single", 1, 5, ())  # type: ignore[arg-type]
         assert not hasattr(inst, "__dict__"), f"{cls.__module__}.Play is not slotted"
-        # deep_freeze accepts it by identity (immutable), does not refuse it.
-        assert reads_mod.deep_freeze(inst) is inst
+        # deep_freeze does not refuse it (frozen+slots), but COPIES it — never
+        # returns the engine's live object by identity (see the confinement
+        # test below for why).
+        frozen = reads_mod.deep_freeze(inst)
+        assert frozen == inst and frozen is not inst
+
+
+def test_deep_freeze_copies_frozen_dataclasses_to_confine_object_setattr() -> None:
+    """`frozen=True, slots=True` blocks `c.rank = …` but NOT
+    `object.__setattr__(c, "rank", …)`. So deep_freeze must not return the
+    live engine object by identity: it copies, and the back door then hits the
+    copy, leaving the original (the one in engine state) untouched."""
+    original = Card("7", "hearts")
+    frozen = reads_mod.deep_freeze(original)
+    assert frozen is not original, "deep_freeze returned the live engine object"
+    object.__setattr__(frozen, "rank", "K")  # the back door, on the copy
+    assert original.rank == "7", "mutating the copy reached the engine's Card"
+
+    # And the same inside a bundle-shaped structure: the Card in the frozen
+    # snapshot is a distinct object from the one in the source list.
+    src = [Card("8", "spades")]
+    snap = reads_mod.deep_freeze({0: src})
+    assert snap[0][0] is not src[0]
 
 
 def test_deep_freeze_freezes_mapping_keys_not_just_values() -> None:

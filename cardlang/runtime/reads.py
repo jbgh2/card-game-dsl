@@ -79,18 +79,18 @@ def deep_freeze(value: Any) -> Any:
     Every mutable level is REBUILT, so the result is a snapshot rather than a
     chain of read-only views over live objects. Mappings become
     `MappingProxyType`, sequences tuples, sets frozensets, `bytearray` bytes;
-    a frozen+SLOTTED dataclass is rebuilt with each field frozen
-    (`StructValue.fields` is where this bites — the class is not assumed to be
-    an immutable leaf just because it is a container of nothing), and one whose
-    fields are all already immutable (`Card`, `Play`, `Seating`) is returned
-    UNCHANGED by identity so the common per-bind path allocates nothing new. A
-    dataclass that is NOT frozen, or is frozen but NOT slotted (so its
-    `__dict__` stays writable and `obj.__dict__[f] = …` bypasses frozen), is
-    refused rather than returned by identity — neither is actually immutable,
-    and a field-frozen `replace` copy is the same mutable class. Anything that
-    is neither a container nor an immutable dataclass must be a known
-    atomic, or `deep_freeze` refuses it rather than passing a possibly-mutable
-    object through as a false leaf."""
+    a frozen+SLOTTED dataclass is rebuilt (never returned by identity) with
+    each field frozen — `StructValue.fields` is where the field recursion
+    bites, and the rebuild itself matters because `object.__setattr__` bypasses
+    `frozen`, so returning the live `Card`/`Play` would let a primitive mutate
+    the engine's value through that back door; a `replace` copy takes the hit
+    on the copy instead. A dataclass that is NOT frozen, or is frozen but NOT
+    slotted (so its `__dict__` stays writable and `obj.__dict__[f] = …`
+    bypasses frozen), is refused. Anything that is neither a container nor a
+    frozen+slotted dataclass must be a known atomic, or `deep_freeze` refuses
+    it rather than passing a possibly-mutable object through as a false leaf.
+    (Copying costs an allocation per value; the module-granular bundles make
+    that a per-bind cost that stage 3's per-primitive `reads` will shrink.)"""
     if isinstance(value, _ATOMIC):
         return value
     if isinstance(value, _Mapping):
@@ -126,26 +126,25 @@ def deep_freeze(value: Any) -> Any:
         if hasattr(value, "__dict__"):
             # `frozen=True` WITHOUT `slots=True` leaves a writable instance
             # `__dict__`: `obj.__setattr__` is blocked, but `obj.__dict__[f] =
-            # …` bypasses it, so the object is not actually immutable and the
-            # identity fast path would leak it. A field-frozen `replace` copy
-            # is the same class, so it does not help — the fix is `slots=True`
-            # on the type. Refuse rather than hand back a false-frozen object.
+            # …` bypasses it. Refuse rather than snapshot — the corpus value
+            # types are all frozen+slots, so this only fires on a new one.
             raise TypeError(
                 f"deep_freeze cannot treat {type(value).__name__} as immutable: "
                 f"it is a frozen dataclass WITHOUT slots, so its __dict__ stays "
                 f"writable (obj.__dict__[...] = ... bypasses frozen). Add "
                 f"slots=True to the type."
             )
-        frozen: dict[str, Any] = {}
-        changed = False
-        for f in dataclasses.fields(value):
-            old = getattr(value, f.name)
-            new = deep_freeze(old)
-            frozen[f.name] = new
-            changed = changed or new is not old
-        if not changed:
-            return value  # frozen wrapper, every field already immutable
-        return dataclasses.replace(value, **frozen)
+        # ALWAYS rebuild, never return by identity: `frozen=True, slots=True`
+        # blocks `obj.field = …` but NOT `object.__setattr__(obj, field, …)`,
+        # so returning the live object would let a primitive mutate the value
+        # in engine state through that back door. A `replace` copy is a
+        # distinct object — the same back door then hits the primitive's copy,
+        # not `rs.mech_state`. (Python cannot fully sandbox a primitive, which
+        # could `import` engine state or use `gc`; this closes the reachable-
+        # through-a-handed-value channel, the one deep_freeze owns.)
+        return dataclasses.replace(
+            value, **{f.name: deep_freeze(getattr(value, f.name)) for f in dataclasses.fields(value)}
+        )
     raise TypeError(
         f"deep_freeze cannot prove {type(value).__name__} immutable — it is "
         f"neither a known atomic, a container, nor a dataclass, so passing it "
