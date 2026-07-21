@@ -317,6 +317,48 @@ Things we have noted but consciously not designed yet:
   backgammon, the board-topology ladder's chance rung
   ([design-notes/board-topology.md](design-notes/board-topology.md)).
 
+- **Board topology — later-rung surface walled at rung 1.** Rung 1 landed
+  the board declaration, the `cell` domain, the cell/line query register,
+  `Cell` capacity, and `Card` as the deck specialization of `Piece`
+  ([decisions.md](decisions.md) "Boards and cells", "Component sets: cards
+  and pieces", "Zone capacity"; tic-tac-toe is the corpus witness). The
+  ladder's later rungs
+  ([design-notes/board-topology.md](design-notes/board-topology.md)) are
+  walled until their witnesses:
+  - **Movement-direction domains** — a piece's board orientation, the
+    forward/back a draughts man or breakthrough pawn advances along
+    (distinct from the seat-relative turn-order `direction:` and the
+    passing `Direction` enum, which are unchanged). No rung-1 game moves
+    along a board direction, and no board-direction construct exists in the
+    surface, so one is un-namable — grammatically inexpressible, not
+    accepted-and-dropped. Witness: breakthrough.
+  - **The `HiddenCell` zone-type row** — identity to owner, trivial to
+    others (a board cell whose very occupancy is the secret, pairing with
+    `Cell` as `HiddenStack` pairs with `Cascade`). Absent from
+    `LIBRARY_ZONE_TYPES` (`cardlang/stdlib/zones.py`) until its witness; a
+    game cannot select a type the registry does not hold. Witness:
+    battleship.
+  - **Double-indexed zone families** (`ocean[player][cell]` — a board per
+    player, where the positions-are-unowned wall gains its amendment that a
+    compound index may carry an owner key). Grammatically inexpressible:
+    `zone_decl` admits a single `[index]` only
+    (`cardlang/grammar/cardlang.lark`), so a second index does not parse.
+    Witness: battleship.
+  - **In-file board syntax** — a board declared inline (its cells,
+    relations, regions) rather than selected from the closed `BOARDS`
+    registry, for a Catan-class map no family generates. Grammatically
+    inexpressible: the `board:` clause names a registry family with integer
+    arguments only, so an inline board does not parse. Witness: a
+    Catan-class game.
+  - **Adapter root-chance collapse for chance-free games.** A game the
+    kernel proves consumes no randomness (tic-tac-toe: no `shuffle`, a
+    fixed piece seeding) still compiles to an OpenSpiel tree whose root is a
+    chance node sampling a seed — every branch provably identical
+    (`tests/openspiel_ready/test_tic_tac_toe.py`'s seed-degeneracy proof).
+    Collapsing that degenerate node for a proven-chance-free game is the
+    ladder's stage-3 chance workstream, not an info-set gap: the proof
+    module records the honest caveat and defers the collapse here.
+
 - **Doc-snippet fragment kinds with no cheap wrapping harness.**
   `tests/test_doc_snippets.py` pipeline-checks every `cardlang`/
   `cardlang-fragment` block in decisions.md/library.md/model.md, but a
@@ -342,6 +384,18 @@ Things we have noted but consciously not designed yet:
   recorded above under "Grammar surface deferred by the checker"; `apply_components`
   the same but already recorded under "`scoring_component` / triggered
   components (runtime)".
+
+- **No automated `.md` / `.cardlang` byte-identity check for `docs/games/`
+  twins.** Each corpus game is a `.cardlang` formal file plus a `.md`
+  readable twin that embeds the same source in a fenced block; the twin's
+  block and the formal file are kept identical by review, not by a test.
+  `tests/test_doc_snippets.py` pipeline-checks the fenced blocks in the
+  three prose specs (decisions/library/model), and the corpus proof
+  modules run the `.cardlang` files, but nothing asserts a game's `.md`
+  block matches its sibling `.cardlang` byte-for-byte — a stale twin would
+  pass CI. The check is cheap (extract the game block, diff against the
+  sibling file) and unwritten; recorded so the manual discipline is not
+  silent.
 
 - **OpenSpiel compilation (general pass).** A per-game *runtime adapter* now
   validates the target: Hearts is a registered `pyspiel.Game` passing OpenSpiel's

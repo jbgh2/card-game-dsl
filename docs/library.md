@@ -507,7 +507,7 @@ type ChipStack<Owner: Player>        = Zone<Resource<chip>>   { composition: cou
 type Cascade<At: position>           = Zone<Card>             { composition: identity to all, ordered: yes }   // a face-up ordered pile; order public via arrival events (tableau runs, FreeCell columns)
 type HiddenStack<At: position>       = Zone<Card>             { composition: count_only to all, ordered: yes } // a face-down pile family (Klondike's tableau_down)
 type Foundation<At: position>        = Zone<Card>             { composition: identity to all, ordered: yes }   // an ascending suit pile, A up to K
-type Cell<At: position>              = Zone<Card>             { composition: identity to all }                 // a one-card holding space (FreeCell's free cells)
+type Cell<At: position>              = Zone<Card>             { composition: identity to all, capacity: 1 }    // a one-card holding space (FreeCell's free cells) — the one capacity-bounded row
 
 // A "pot" in poker is not just a chip zone — it carries an eligibility
 // set determining who can win it. There is no library Pot type: the
@@ -515,6 +515,11 @@ type Cell<At: position>              = Zone<Card>             { composition: ide
 // game-level state alongside its chip zones rather than a dedicated
 // type.
 ```
+
+Each type also carries a **capacity** (see [decisions.md](decisions.md),
+"Zone capacity"): `Cell` holds one card, shown above; every other row is
+unbounded and omits it. A movement that would overfill a bounded
+destination is a loud runtime error.
 
 These get the corpus's zone declarations down to one line each, with
 no loss of meaning. A game's `zones { }` block reads like the rulebook
@@ -597,13 +602,16 @@ is the first game to exercise the full vocabulary in non-trivial ways.
 Resource-using games (Catan and similar, when they enter scope) use
 `transfer` as the primary movement op.
 
-## Stdlib decks
+## Stdlib component sets
 
-The decks a game can name in its `cards:` line (see
-[decisions.md](decisions.md), "Deck declaration"). A game names one
-directly — `cards: standard52` — and does not compose or extend it in
-the surface; each entry below shows the deck's card set, which lives in
-the stdlib registry.
+The component sets a game can name — the individuated content of its
+zones (see [decisions.md](decisions.md), "Component sets: cards and
+pieces"). A game names one directly in its `cards:` line (a card deck)
+or `pieces:` line (a piece set) and does not compose or extend it in the
+surface; each entry below shows the set's content, which lives in the
+stdlib registry. A **deck** is the card-flavored set, its two axes named
+`suit` and `rank` (see also [decisions.md](decisions.md), "Deck
+declaration"); these are the card entries:
 
 - `standard52` = the 52-card Anglo-American deck.
   ```text
@@ -645,9 +653,40 @@ the stdlib registry.
   ```
   Used by French Tarot.
 
-Each constant captures a deck's *composition* only. Card-point
-values, ranking for play, follow-suit semantics, and trump status
-are all per-game declarations on top.
+A **piece set** names its own two axes and carries none of the card
+conventions:
+
+- `xo_marks` = tic-tac-toe's nine marks: five X, four O. Axis `side`
+  occupies a card's suit slot, axis `kind` its rank slot.
+  ```text
+  { side: [x, o], kind: [mark], copies: { x: 5, o: 4 } }
+  ```
+  Used by tic-tac-toe.
+
+Each entry captures a set's *composition* only. Card-point values,
+ranking for play, follow-suit semantics, and trump status are all
+per-game declarations on a deck; a piece set carries none of them.
+
+## Stdlib boards
+
+The spatial boards a game can name in its `board:` line (see
+[decisions.md](decisions.md), "Boards and cells"). A game names a
+**family** with integer arguments — `board: grid(3, 3)` — and the
+closed `BOARDS` registry instantiates it into a fixed set of cells and
+lines; unknown family, wrong arity, or out-of-bounds arguments are
+rejected at resolve.
+
+- `grid(width, height)` = a rectangular board, `width` files (`a`, `b`,
+  … from the left) by `height` ranks (`1`, `2`, … from the bottom),
+  each argument in `1..16`. Cells are named file+rank, ordered row-major
+  from `a1` (`a1 b1 c1 a2 …`); `lines(k)` returns every straight run of
+  `k` consecutive cells along a row, a column, or either diagonal.
+  `grid(3, 3)`'s `lines(3)` is the eight tic-tac-toe lines.
+  Used by tic-tac-toe.
+
+A board mints a named-member position domain (`cell`) whose members are
+its cells, on the declared-position substrate (see
+[decisions.md](decisions.md), "Boards and cells").
 
 ## Stdlib state
 
@@ -725,6 +764,12 @@ mid-playout.
   sequence orientation). A loud runtime error on an empty collection: guard
   the read (`Z is not empty`). Used throughout Klondike and FreeCell (build
   targets, foundation progression, the moving run's split rank).
+- `lines(k) → Collection<Line>` — the board's straight lines of exactly `k`
+  cells: every run of `k` consecutive cells along a row, a column, or either
+  diagonal (decisions.md "Boards and cells"), for the `any line in lines(k)
+  where …` register. A resolve error in a game with no `board:`, and for a
+  literal `k` outside the board's span. Used by tic-tac-toe (`lines(3)`, the
+  eight winning lines).
 
 Cribbage's pegging and show scoring, plus the pegging count's card provenance,
 are six game-local primitives reading `cardlang/runtime/cribbage.py` — game-local

@@ -1326,8 +1326,9 @@ not share a single rank list: French Tarot's 78 (four 14-card suits, a
 21-card trump suit, and the Excuse) and Tichu's 56 (the standard 52
 plus the four special cards Mahjong, Dog, Phoenix, Dragon). Those
 compositions live in the registry, not in per-game syntax;
-[library.md](library.md) "Stdlib decks" catalogues them, and adding a
-deck is a stdlib registry addition. Tichu's non-(suit, rank) specials
+[library.md](library.md) "Stdlib component sets" catalogues them
+(decks are its card-flavored entries), and adding a deck is a stdlib
+registry addition. Tichu's non-(suit, rank) specials
 are a separate question from the registry itself; see
 [open-questions/special-cards-declaration.md](open-questions/special-cards-declaration.md).
 
@@ -2108,7 +2109,9 @@ declaration error, not an action-space explosion). A declared name may
 not collide with a built-in domain id or type name (`player`, `suit`,
 `Rank`, `Card`, `Integer`, …) — the built-in registry and the declared
 block are reconciled by rejection, so the two sources can never disagree
-about a name.
+about a name. A `board:` clause mints a **named-member** domain (`cell`,
+string members) on this same substrate — same collision wall, same cap,
+same two surface slots — detailed in "Boards and cells" below.
 
 **Positions are unowned.** No observer *is* a column, so a
 position-indexed family has no owner: every observer receives the zone
@@ -2125,11 +2128,11 @@ column c`, `each column simultaneously`, a position-indexed `state`
 variable, and a position-typed `state` declaration are all rejected with
 diagnostics (deferred, recorded in [roadmap.md](roadmap.md)). Quantifiers
 range over a position domain's members like any other quantifiable
-domain — `any column where …`, `all cells where …`, `number of columns
-where …` — and, where the domain is a board's `cell`, two collection forms
-iterate an evaluated line/cell collection — `any line in lines(3) where
-…`, `all cells in <line> where …` (tests/test_cell_queries.py). A
-position-indexed family must always be subscripted — the bare-family
+domain — `any column where …`, `all columns where …`, `number of columns
+where …`; for a board's `cell` domain the register adds two collection
+forms over lines and cells, detailed with `lines(k)` in "Boards and
+cells" below (tests/test_cell_queries.py). A position-indexed family
+must always be subscripted — the bare-family
 actor sugar (`hand` = the acting player's hand) is meaningless for an
 unowned family and is rejected.
 
@@ -2164,6 +2167,199 @@ first — `Z is not empty`). Their use in a move *guard* is subject to the
 same discipline as every guard expression: legality must not read
 information the decider is not entitled to, which the per-game
 legal-action-agreement proofs police (`tests/openspiel_ready/`).
+
+## Component sets: cards and pieces
+
+A game's individuated zone content is declared with exactly one head
+clause — `cards: <deck>` (a card deck) or `pieces: <set>` (a piece set)
+— naming one entry of the closed component-set registry
+([library.md](library.md), "Stdlib component sets"). The two are
+mutually exclusive and one is required; a game declaring both, or
+neither, is rejected (no game has witnessed needing both).
+
+The individuated content kind is the **Piece**: an identity of two
+enumerable axes (with per-set declared names) times multiplicities, plus
+the per-game attributes and optional facing of the typed object model
+("Typed object model"; "Knowledge, visibility, and the projection
+model"). A **Card is the deck specialization of a Piece** — a component
+set whose two axes are named `suit` and `rank` and which carries the
+card-only conventions (`ranking:`, the follow/trump rule family,
+hand-order enumeration, the `Card` move-parameter domain). A piece set
+names its own two axes and carries none of them; `xo_marks`
+(tic-tac-toe's marks) names them `side` (`x`/`o`) and `kind` (`mark`).
+
+The axes bind positionally: a piece's first axis occupies the slot a
+card's `suit` occupies, its second the `rank` slot. Field access types
+against the game's declared axis names — `card.suit`/`card.rank` in a
+card game, `piece.side`/`piece.kind` in a piece game — each axis a
+distinct enum, so a cross-axis comparison (`piece.side is mark`) is
+rejected exactly as `card.rank is spades` is. The axis values (`x`, `o`,
+`mark`) enter the enum-value namespace exactly as a deck's suits and
+ranks do.
+
+**Noun/content agreement is a typecheck wall.** Every surface that
+spells card-content vocabulary demands the deck flavor and, in a piece
+game, is rejected with a diagnostic naming the game's declared kind
+("this game declares pieces ('xo_marks')") — and symmetrically the
+`piece`/`pieces` noun is rejected in a card game. The walled surfaces
+are the movement/reveal item noun, the filter binder, `.suit`/`.rank`
+field access, the card-query and aggregation forms, the `ranking:` and
+`trump:` clauses, the `suit`/`rank` quantifier and iteration roles, the
+`Card`/`Suit`/`Suit?`/`Rank` move-parameter domains, the deck-reading
+stdlib calls, and card literals. Each rejection sits at the layer that
+owns the operand-kind class (the typechecker), naming the kind rather
+than parsing the construct and silently giving it card meaning — the
+"accepted-but-ignored" failure this wall exists to prevent.
+
+```text
+pieces: xo_marks                        // axes: side = [x, o], kind = [mark]; 5 x + 4 o
+move all pieces from box where piece.side is x to reserve[0]
+```
+
+**Seeding reuses the Deck-typed-zone rule** — the one existing "initial
+contents" concept, one spelling per concept. A game's `Deck`-typed zone
+is seeded with its component set at game start; tic-tac-toe names that
+zone `box` and drains it in setup. A piece game with no `shuffle`
+consumes no randomness — every seed yields the identical game.
+
+The acceptance property for `Card`-as-a-specialization-of-`Piece` is
+that **the card corpus cannot tell**: every card game keeps `cards:`,
+its card queries, and byte-identical behavior. Piece twins of the
+card-query and aggregation forms are deliberately absent from the
+grammar (a piece game counts and aggregates through the generic
+collection surfaces a card game shares); the deferred declaration-site
+and rule-system walls are recorded in [roadmap.md](roadmap.md),
+"Piece-flavored games".
+
+## Zone capacity
+
+Each library zone type carries a **capacity** — a column of the
+zone-type registry ([library.md](library.md), "Library zone types"),
+total over every row. `Cell` (the one-card holding space) has capacity
+1; every other library zone type is unbounded.
+
+A movement whose destination would exceed its type's finite capacity
+fails loudly at runtime with a typed error naming the zone, its type,
+the capacity, and the guard to write:
+
+```text
+zone 'slot[0]' is a Cell (capacity 1) and already holds 1 — the move
+would overfill it; guard the move (`slot[0] is empty`)
+```
+
+The wall **backstops** the game's own guards; the registry owns the
+capacity class, so the check lives at the single movement-executor
+append rather than being re-derived per move type. An honest game guards
+its placements (FreeCell's `cells[slot] is empty`, tic-tac-toe's
+`square[at] is empty`), so the wall never fires on a correct game — it
+converts a rules bug into a loud failure at the overfilling move, not a
+silently dropped card. The `Point` row (an unbounded stack) is deferred
+to its witness; see [roadmap.md](roadmap.md).
+
+## Boards and cells
+
+A game with a spatial board declares it with a `board: <family>(<args>)`
+clause: it selects a family from the closed `BOARDS` registry
+([library.md](library.md), "Stdlib boards") and gives its integer
+arguments.
+
+```text
+board: grid(3, 3)
+```
+
+The `grid` family builds a rectangular board; unknown family, wrong
+arity, or out-of-bounds arguments are resolve diagnostics (the registry
+declares each family's arity and bounds). A `board:` clause **requires
+`pieces:`** — a board holds pieces, not cards — so `board:` in a card
+game is rejected, and the board-plus-`cards:` combination waits on a
+witnessed need.
+
+**The board mints one named-member position domain, `cell`.** It rides
+the same substrate declared position domains do ("Position domains and
+positional zones"): the minted domain is injected alongside any
+`positions { }` block and flows through every surface an integer
+position domain flows through — zone-family index, move-parameter
+domain, the unowned projection, the action space, the IR — under the
+same collision wall, the same 256-member cap, and the same
+"always subscripted" rule. What differs is the member kind: a board's
+members are **string cell names** (`a1`, `b1`, …, row-major from `a1`;
+the file letter is the column from the left, the number the row from the
+bottom — `grid(3, 3)`'s nine cells are `a1 b1 c1 a2 b2 c2 a3 b3 c3`),
+not an integer range. The names and their order are the board entry's,
+fixed in the registry.
+
+```text
+zones {
+  square[cell]    : Cell<cell>          // nine one-card cells, keyed a1..c3
+  reserve[player] : PlayerPile<player>
+}
+move_type place(at : cell) { when: square[at] is empty  effect { … } }
+```
+
+**Cells type as `TCell`, distinct from `TInteger`.** A parameter, `let`
+binder, or subscript key over the `cell` domain carries `TCell`; a zone
+family indexed by a named-member domain (`square[cell] : Cell<cell>`)
+subscripts only with `TCell`-typed expressions (`square[at]`, never
+`square[7]`), while an integer-keyed family keeps the `TInteger` rule
+(`cascade[3]`) — one mechanism, both member kinds, each rejecting the
+other's key. Two cells compare by equality (`at is at2`); a cell against
+an integer (`at is 3`), cell ordering (`at < at2`), and cell arithmetic
+(`at + 1`) are type errors — a cell name is an opaque member, with no
+order, successor, or arithmetic (adjacency, where a game needs it,
+arrives as declared board data, not an algebra on cell names —
+[design-notes/positional-zones.md](design-notes/positional-zones.md),
+"Adjacency"). `place(at : cell)` enumerates one placement action per
+cell, in member order, exactly as an integer position parameter
+enumerates its range.
+
+**The cell/line query register.** The bare quantifier forms range a
+binder over any declared position domain ("Position domains and
+positional zones"); the board adds two collection forms and the
+`lines(k)` call that feeds them. A bare form's noun is the domain name,
+validated against the game's declared domains (a board's `cell`, an
+integer `positions { }` name), with `any` taking the singular noun and
+`all`/`number of` the plural:
+
+```text
+any cell where square[cell] is empty
+all cells where square[cell] is not empty
+number of cells where <pred>
+```
+
+An unknown noun is a diagnostic naming the declared domains; a
+boardless, positionless game naming `cell` is guided to the collection
+escape instead. Where a collection value exists, two collection forms
+iterate it: `any line in <lines> where <pred>` walks a collection of
+lines (binder `line`, type `TLine`), and `all cells in <line> where
+<pred>` walks the cells of one line (binder `cell`, type `TCell`).
+`lines(k)` is the stdlib call the board's declared length-`k` lines are
+read through — every straight run of `k` cells along a row, column, or
+diagonal — returning a collection of `TLine`, each an ordered tuple of
+cells; `grid(3, 3)`'s `lines(3)` is the eight tic-tac-toe lines. A
+literal `k` outside the board's span is a resolve error; `lines(…)` in a
+boardless game is rejected naming `board:`.
+
+```text
+any line in lines(3) where all cells in line where square[cell] is not empty
+```
+
+Tic-tac-toe is the corpus witness
+([games/tic-tac-toe.md](games/tic-tac-toe.md)): `board: grid(3, 3)`,
+`pieces: xo_marks`, the nine `square[cell]` cells, `place(at : cell)`,
+and the win test `any line in lines(3) where all cells in line where …`.
+
+**Walls stated as behavior.** A bare cell name in an expression (`a1`)
+is an unknown name, not a cell literal — a cell is named only through a
+parameter or a quantifier binder at rung 1; naming a specific cell in a
+setup or rule waits on its witness ([roadmap.md](roadmap.md)). A
+position domain is still not a declarable `state` type, a `for each`
+role, or a state index — `cell` in those slots rejects exactly as an
+integer position domain does ("Position domains and positional zones").
+The remaining board-topology surface — movement-direction enums, the
+`HiddenCell` and `Point` zone-type rows, double-indexed families, in-file
+boards — is walled per rung of the board-topology ladder
+([design-notes/board-topology.md](design-notes/board-topology.md);
+[roadmap.md](roadmap.md)).
 
 ## Game result: `winner:` and `loser:`
 

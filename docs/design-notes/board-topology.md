@@ -686,8 +686,11 @@ from the first stage that could parse them.
   landed declared-domain machinery (same collision wall; deliberately
   no new row in the built-in domains registry, per the alternative
   positional-zones.md already rejected); capacity as a typed
-  zone-type property on the existing `Cell` row plus the new `Point`
-  row, with probe rows.
+  zone-type property on the existing `Cell` row (`Cell` = 1, every
+  other row unbounded), enforced as a loud movement wall. The `Point`
+  row (an unbounded stack) and the `HiddenCell` probe row are deferred
+  to their witnesses (backgammon at stage 3, battleship at stage 4),
+  not bundled here.
 - **Stage 2 — decisions, movement, classes 1–4.** Board domains ride
   the landed position-parameter enumeration (ids from the declared
   domain, no new action-space block kind) plus the small direction
@@ -748,13 +751,14 @@ the corpus one.
 Ratifying this note means opening (or updating) exactly these
 questions, not silently deciding them:
 
-- **The board/piece surface details**: the content-kind direction is
-  §2.3's commitment (`Card ⊂ Piece`), but its surface residue is open —
-  how a component-set entry declares its axis names, how
-  noun/content agreement is enforced (resolver vs typechecker), the
-  board-declaration argument forms, and cell-constant lexing (`a1` as
-  a minted constant vs a name). One-spelling-per-concept is the
-  criterion throughout.
+- **The board/piece surface details** are specified in
+  [decisions.md](../decisions.md) "Boards and cells" and "Component sets:
+  cards and pieces": a component set's two axes bind positionally (axis 1
+  = the suit slot, axis 2 = the rank slot); noun/content agreement is a
+  typecheck wall; the board declaration is `board: <family>(<args>)`
+  selecting a `BOARDS` family; and a bare `a1` stays a name, not a minted
+  cell constant (cell literals are a recorded residual,
+  [roadmap.md](../roadmap.md)). One-spelling-per-concept held throughout.
 - **Position-typed state**: currently rejected surface with a
   recorded residual ([roadmap.md](../roadmap.md) "Positional zones —
   walled residuals"); stage 5 lifts it against its first witness
