@@ -79,14 +79,16 @@ def deep_freeze(value: Any) -> Any:
     Every mutable level is REBUILT, so the result is a snapshot rather than a
     chain of read-only views over live objects. Mappings become
     `MappingProxyType`, sequences tuples, sets frozensets, `bytearray` bytes;
-    a dataclass is rebuilt with each field frozen (`StructValue.fields` is
-    where this bites — the class is not assumed to be an immutable leaf just
-    because it is a container of nothing). A dataclass whose fields are all
+    a FROZEN dataclass is rebuilt with each field frozen (`StructValue.fields`
+    is where this bites — the class is not assumed to be an immutable leaf
+    just because it is a container of nothing), and one whose fields are all
     already immutable (`Card`, `Play`, `Seating`) is returned UNCHANGED by
-    identity, so the common per-bind path allocates nothing new. Anything that
-    is neither a container nor a dataclass must be a known-immutable atomic,
-    or `deep_freeze` refuses it rather than passing a possibly-mutable object
-    through as a false leaf."""
+    identity so the common per-bind path allocates nothing new. A NON-frozen
+    dataclass is refused, not returned by identity: its attributes stay
+    reassignable, so it is no safer than any other mutable leaf. Anything that
+    is neither a container nor a frozen dataclass must be a known-immutable
+    atomic, or `deep_freeze` refuses it rather than passing a possibly-mutable
+    object through as a false leaf."""
     if isinstance(value, _ATOMIC):
         return value
     if isinstance(value, _Mapping):
@@ -101,6 +103,17 @@ def deep_freeze(value: Any) -> Any:
             return value  # already an immutable tuple, unchanged: keep identity
         return tuple(items)
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        if not getattr(value, "__dataclass_params__").frozen:
+            # A non-frozen dataclass cannot be snapshotted: even a field-frozen
+            # `replace` copy stays writable (`box.value = …`), and the identity
+            # fast path below would hand back the live object outright. Refuse,
+            # same as a non-dataclass mutable leaf — the corpus value types are
+            # all frozen, so this only fires on a NEW mutable one.
+            raise TypeError(
+                f"deep_freeze cannot snapshot the non-frozen dataclass "
+                f"{type(value).__name__} — its attributes stay reassignable. "
+                f"Make it frozen, or add a case."
+            )
         frozen: dict[str, Any] = {}
         changed = False
         for f in dataclasses.fields(value):
@@ -109,7 +122,7 @@ def deep_freeze(value: Any) -> Any:
             frozen[f.name] = new
             changed = changed or new is not old
         if not changed:
-            return value  # every field already immutable (Card/Play/Seating/…)
+            return value  # frozen wrapper, every field already immutable
         return dataclasses.replace(value, **frozen)
     raise TypeError(
         f"deep_freeze cannot prove {type(value).__name__} immutable — it is "

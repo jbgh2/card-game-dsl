@@ -54,13 +54,15 @@ covered:    (a) per-implementation-SITE: the site's signature names no
             dict/list/set/tuple, a plain `set` AND a `frozenset`, a
             `bytearray` (a mutable builtin), and a `StructValue` whose
             `.fields` is a live dict behind a frozen dataclass (a mutable
-            WRAPPER, not a leaf). The walker recurses dataclass fields so it
-            cannot share deep_freeze's blind spots, and deep_freeze REFUSES
-            any leaf it cannot prove immutable rather than passing a
-            possibly-mutable object through — the three holes Codex found
+            WRAPPER, not a leaf). The walker recurses dataclass fields AND
+            checks the wrapper's own frozen-ness, so it cannot share
+            deep_freeze's blind spots, and deep_freeze REFUSES any leaf it
+            cannot prove immutable — including a NON-frozen dataclass, which
+            a field-frozen `replace` copy could not have fixed — rather than
+            passing a possibly-mutable object through. The holes Codex found
             (indexed state dict, round-state `played` list, StructValue
-            fields) plus bytearray were each reproduced against the shallow
-            freeze before the deep one closed them;
+            fields, bytearray, and the non-frozen-dataclass identity fast
+            path) were each reproduced before the fix closed them;
             (e) `EMITS_TRACE` two ways: every listed primitive returns
             `(value, events)`, no unlisted migrated primitive does.
 sampled:    behavioral identity rides the byte-identical goldens and the
@@ -101,6 +103,12 @@ red under (born-green cells):
   flags `[…]['raw']: mutable sequence bytearray` and `[…]['sv'].fields:
   mutable mapping dict` (descending into the wrapper), so the fixture's
   extra shapes are load-bearing, not decoration.
+- the non-frozen-dataclass case can't live in the fixture (deep_freeze
+  refuses it, so `game_reads` would raise): it is a rejection test
+  (`test_deep_freeze_and_walker_reject_a_non_frozen_dataclass`), and the
+  reddening is the pre-fix behavior itself — `deep_freeze(Box(1)) is Box(1)`
+  with the field-frozen result still writable, RUN and shown before the
+  frozen-check landed.
 """
 
 from __future__ import annotations
@@ -980,6 +988,11 @@ def _reachable_mutable(value: Any, path: str = "") -> list[str]:
         for i, v in enumerate(value):
             bad += _reachable_mutable(v, f"{path}[{i}]")
     elif _dc.is_dataclass(value) and not isinstance(value, type):
+        # A non-frozen dataclass is itself writable (`box.value = …`) even
+        # when every field is immutable — descending fields without checking
+        # the wrapper is deep_freeze's own former blind spot, so flag it here.
+        if not getattr(value, "__dataclass_params__").frozen:
+            bad.append(f"{path}: mutable (non-frozen) dataclass {type(value).__name__}")
         for f in _dc.fields(value):
             bad += _reachable_mutable(getattr(value, f.name), f"{path}.{f.name}")
     return bad
@@ -1052,6 +1065,26 @@ def test_engine_facts_round_state_is_deeply_immutable_at_any_depth() -> None:
     assert repr(facts.round_state) == before, (
         "facts.round_state tracked a later mutation of rs.mech_state — a view, "
         "not a snapshot"
+    )
+
+
+def test_deep_freeze_and_walker_reject_a_non_frozen_dataclass() -> None:
+    """A non-frozen dataclass whose fields are already immutable would pass
+    the identity fast path (`deep_freeze(box) is box`) and stay writable.
+    deep_freeze refuses it, and the walker flags it independently — neither
+    shares the blind spot, so the immutability guarantee is not vacuous for
+    the one wrapper shape a `replace` copy could not have fixed."""
+    from dataclasses import dataclass as _dataclass
+
+    @_dataclass
+    class Box:  # deliberately NOT frozen
+        value: int
+
+    box = Box(1)
+    with pytest.raises(TypeError, match="non-frozen dataclass"):
+        reads_mod.deep_freeze(box)
+    assert any("non-frozen" in b for b in _reachable_mutable(box, "box")), (
+        "the walker treated a writable dataclass as an immutable leaf"
     )
 
 
