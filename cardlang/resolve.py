@@ -1141,7 +1141,7 @@ class _Categories:
     ranks: frozenset[str]
     suits: frozenset[str]
     # `Game.content_flavor` — the dispatch key for the flavor-aware walls
-    # (decisions.md, "Card is the deck flavor of Piece").
+    # (decisions.md, "Component sets: cards and pieces").
     flavor: Flavor = "card"
 
 
