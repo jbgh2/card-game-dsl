@@ -4,7 +4,8 @@
 // draw. Rules are common knowledge; the differential oracle is OpenSpiel's
 // native `tic_tac_toe`.
 //
-// Perfect information throughout — every zone projects identity to all, so
+// Perfect information throughout — the board and reserves are public, and the
+// one count-projected zone (box) empties at setup, so no zone conceals a mark:
 // information sets are singletons and the observation model does not move.
 //
 // result[player] in {+1, 0, -1} (win/draw/loss) so the OpenSpiel returns match

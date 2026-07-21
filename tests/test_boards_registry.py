@@ -29,7 +29,10 @@ covered:    the bad-args rejection grid (unknown family, arity 1, arity 3,
             cross-checked against lines(k) for the four small grids (1x1,
             2x5, 5x2, 3x3); the k-boundary cases (k=0 and k=17 on grid(3,3)
             raise; k=1 on grid(1,1) returns the single cell; k=5 on
-            grid(2,5) returns the 2 vertical-only lines).
+            grid(2,5) returns the 2 vertical-only lines); and `lines()` is
+            total over BOARD_FAMILIES — every registered family produces
+            `lines(1)` without raising, args derived per row, pinning the
+            second family-set enumeration in `BoardEntry.lines` to the registry.
 sampled:    16x16 relies on the closed-form count only (brute force over
             every k-combination of 256 cells is infeasible); the closed-form
             itself is cross-checked against true brute force on the four
@@ -170,6 +173,22 @@ def test_board_families_has_exactly_grid() -> None:
     assert BOARD_FAMILIES["grid"].arity == 2
     assert BOARD_FAMILIES["grid"].lo == 1
     assert BOARD_FAMILIES["grid"].hi == 16
+
+
+def test_lines_is_total_over_the_family_registry() -> None:
+    # `BoardEntry.lines()` dispatches on `self.family` with a hardcoded
+    # `if self.family == "grid": … else: raise` — a SECOND enumeration of the
+    # family set beside BOARD_FAMILIES, unlike cell generation which is
+    # registry-driven (`spec.build`). A family added to the registry but not to
+    # `lines()` would mint cells yet raise "unknown board family" the first time
+    # a game asks for its win-lines. This pins `lines()` total over the
+    # registry: every family produces `lines(1)` without raising. The args are
+    # the minimal valid ones, derived per row (`lo` repeated `arity` times), so
+    # a new family is covered without hand-listing.
+    # red under: narrowing `BoardEntry.lines`'s `if self.family == "grid"` to a
+    # name no family uses reddens this — grid's `lines(1)` then hits the raise.
+    for family, spec in BOARD_FAMILIES.items():
+        board_entry(family, (spec.lo,) * spec.arity).lines(1)
 
 
 # ---------------------------------------------------------------------------

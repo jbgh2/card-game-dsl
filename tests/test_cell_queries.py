@@ -37,7 +37,10 @@ domain:     {bare, collection} x {kind: any, all, count (bare only)} x
             literal k out of range}; plus the grammar-precedence axis (does
             a QNOUN production capture a keyword-form noun).
 registry:   cardlang/resolve.py::_COLLECTION_NOUNS (the closed {cell, line}
-            set); game.positions (the bare-form universe: declared
+            set, the admitting gate) pinned equal to its typing consumer
+            cardlang/typecheck.py::_COLLECTION_BINDER_TYPES by
+            test_collection_noun_registries_agree (one domain, two sites);
+            game.positions (the bare-form universe: declared
             `positions {}` unioned with the board-minted `cell`, Task 6);
             cardlang/stdlib/functions.py::BOARD_ONLY_CALL_FUNCS (the `lines`
             row); cardlang/stdlib/boards.py::BoardEntry.lines (the k bound
@@ -155,7 +158,9 @@ from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating, axis_attributes
 from cardlang.runtime.stdlib import _lines
+from cardlang.resolve import _COLLECTION_NOUNS
 from cardlang.stdlib.boards import board_entry
+from cardlang.typecheck import _COLLECTION_BINDER_TYPES
 
 TreeNode = Tree[Token]
 
@@ -876,3 +881,16 @@ def test_suit_quantifier_in_a_piece_game_still_hits_the_task_3_flavor_wall() -> 
     msg = _reject(src)
     assert "declares pieces ('xo_marks')" in msg
     assert "the `suit` role ranges over a deck's suits" in msg
+
+
+def test_collection_noun_registries_agree() -> None:
+    # The {cell, line} collection-noun universe is enumerated at two sites in
+    # two passes: resolve's `_COLLECTION_NOUNS` (admits a collection `in`-noun)
+    # and typecheck's `_COLLECTION_BINDER_TYPES` (types the admitted binder, via
+    # a `.get(noun, TAny())` recovery fallback). A noun added to the resolve
+    # gate alone would be admitted, then silently typed `TAny` — the permissive
+    # top quieting every downstream wall on it. This pins the two sites to one
+    # domain so the drift reddens here instead.
+    # red under: adding `"region"` to `_COLLECTION_NOUNS` without a matching
+    # `_COLLECTION_BINDER_TYPES` row reddens this assertion.
+    assert set(_COLLECTION_BINDER_TYPES) == set(_COLLECTION_NOUNS)
