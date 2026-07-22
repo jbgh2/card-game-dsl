@@ -1,0 +1,1 @@
+pieces_names_a_deck.cardlang:4:1: error: 'standard52' is a card deck — declare it with `cards: standard52`, not `pieces:`

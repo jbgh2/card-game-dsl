@@ -1,0 +1,15 @@
+// Wall: resolve.py's `_resolve_board`. The board mints a position domain
+// named `cell`; a declared `positions { cell : ... }` claims the same name.
+// The reconciliation between the two definition sites is rejection, naming
+// both sites.
+game BoardCollidesWithPositions {
+  players: 2
+  max_length: 20
+  board: grid(3, 3)
+  pieces: xo_marks
+  positions { cell : 1..9 }
+  zones { box : Deck  reserve[player] : PlayerPile<player> }
+  state { score[player] : Integer = 0 }
+  phase play { move all pieces from box where piece.side is x to reserve[0] }
+  winner: highest score
+}

@@ -1,1 +1,1 @@
-missing_cards_declaration.cardlang:7:1: error: game 'X' must declare `cards: <deck>` — the deck it is played with (e.g. `cards: standard52`)
+missing_cards_declaration.cardlang:7:1: error: game 'X' must declare `cards: <deck>` or `pieces: <set>` — the components it is played with (e.g. `cards: standard52`)

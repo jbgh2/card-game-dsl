@@ -276,6 +276,7 @@ _EXPR_CELLS: dict[str, tuple[str, str, str]] = {
     "PlayerQuery": ("Integer", "number of players where score[player] > 0", ""),
     "CardQuery": ("Integer", "number of cards in deck", ""),
     "AllPlayers": ("Integer", "all players", ""),
+    "DomainQuery": ("Boolean", "any column where first > 0", ""),
 }
 
 # Every kind that must be REFUSED, and by whose wall — the grid's property is
@@ -295,6 +296,7 @@ _EXPR_REFUSED = {
     "StrLit": "is declared",
     "ListLit": "is declared",
     "AllPlayers": "is declared",
+    "DomainQuery": "unknown position domain",
 }
 
 

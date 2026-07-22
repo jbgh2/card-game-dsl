@@ -25,10 +25,14 @@ Things we have noted but consciously not designed yet:
   payload positions, where it types as the integer member of the range. It is
   NOT legal as a state-variable type or a struct-field type, and whether it
   should be is undecided rather than settled: semantically such a value is an
-  Integer with a declared range, but no game wants one, so the grid
-  (`tests/test_type_name_positions.py`) records the cells as residual instead
-  of guessing an expected value nobody has chosen. The wall is loud and names
-  the position domain rather than calling a declared name unknown.
+  Integer with a declared range (or, for a board's `cell`, a TCell), but no
+  game wants one, so the grid (`tests/test_type_name_positions.py`) records
+  the cells as residual instead of guessing an expected value nobody has
+  chosen. The wall is loud -- the name is rejected, never silently accepted --
+  though the message currently spells it `unknown type '<name>'`; naming the
+  sharper reason (a position domain is not a declared type in this slot) is a
+  message-quality residual, and the grid asserts admit-vs-reject only, not the
+  message text.
 
 - **The index position admits different domains per host.** One grammar
   nonterminal (`index`) is reached from three hosts, and they disagree: a ZONE
@@ -645,7 +649,30 @@ Things we have noted but consciously not designed yet:
     (tests/rejections/positions_for_each,
     positions_state_indexed_by_position); no corpus game addresses columns
     by loop or keeps per-column scalar state (guards + parameters cover
-    both games). Implement when a game needs one.
+    both games). Implement when a game needs one. (Quantification over a
+    position domain — `any cell where …`, `all columns where …`, `number
+    of cells where …`, and the `any line in …`/`all cells in …` collection
+    forms — is a separate surface and is live: tests/test_cell_queries.py.)
+  - The collection-quantifier noun is fixed to `{cell, line}` at rung 1
+    (`cardlang/resolve.py::_COLLECTION_NOUNS`); a future collection-typed
+    domain (a region, a hand of pieces) gets no `any <noun> in <expr>
+    where …` form until a witness needs one.
+  - The collection register has only the boolean `any`/`all` shapes.
+    `number of <noun> in <expr> where …` (the collection twin of `number of
+    cells where …`) and a bare set-materializing `<noun>s in <expr> where
+    …` (the collection twin of `cards in <zone> where …`) are both
+    grammatically inexpressible — no production admits `in` after the
+    `number of`/bare forms. Numeric aggregation over a line/cell collection
+    (`sum of … over cells in <line> where …`) is likewise inexpressible:
+    `agg_query` stays fixed to `"sum" "of" expr "over" "cards" "in"
+    zone_expr`, never extended to a position collection. Implement when a
+    game needs a cell/line count or sum, not a boolean test
+    (tests/rejections/cell_count_in_collection_not_admitted).
+  - A literal-`k` `lines(k)` call is bounds-checked statically (resolve,
+    against the board's own span); a NON-literal `k` (a variable or
+    computed expression) has no static check and surfaces an out-of-range
+    value as a runtime `RuntimeError` instead
+    (`cardlang/runtime/stdlib.py::_lines`). No rung-1 game computes `k`.
   - A **positional slice movement** ("card X and everything above it" as
     surface). Klondike's run move is denoted by a rank filter because a
     cascade's face-up run is rank-monotone (the run invariant); Spider's
@@ -662,6 +689,106 @@ Things we have noted but consciously not designed yet:
     per the canonical zone-collection rule but has no corpus witness
     (single-deal games never gather); sampled, stated explicitly in
     decisions.md rather than assumed.
+  - **Cell CONSTANTS are not expression surface.** A `board:` clause mints
+    a named-member position domain (`cell`, string members like `a1`), used
+    as a zone index and a move parameter; but a bare `a1` in an expression
+    is an unknown-name diagnostic, not a cell literal (integer position
+    domains have no such gap — an integer literal already denotes an integer
+    member). No rung-1 game names a specific cell (parameters and the
+    cell/line quantifiers cover placement and win tests); the witness is a
+    game whose setup or rules name individual cells (breakthrough). Until
+    then it is grammatically un-namable, walled by the name resolver, not
+    accepted-and-dropped (tests/test_board_clause.py names this residual).
+
+- **Piece-flavored games — content vocabulary lands; the rule system is
+  deferred.** `pieces:` selects a piece-flavored component set (`cardlang/
+  runtime/values.py`, `COMPONENT_SETS`), and content-kind agreement is a
+  first-class wall: a piece set's own vocabulary binds (the `x`/`o`/`mark`
+  axis values, the `side`/`kind` fields, the `piece`/`pieces` movement noun
+  and filter binder), and a minimal piece game runs a playout through the
+  driver (`component_deck` generalizes the old card-only `DECKS` read;
+  `axis_attributes` maps `piece.side` -> `Card.suit`). Card vocabulary in a
+  piece game is rejected NAMING THE KIND at the layer that owns it: the
+  movement/reveal noun, `.suit`/`.rank` field access, the card-query and
+  aggregation forms, `ranking:` (both the enumeration and the convention
+  form) and `trump:`, the `suit`/`rank` quantifier and iteration roles, the
+  Suit/Suit?/Rank/Card move-parameter domains, the deck-reading stdlib calls
+  (`DECK_ONLY_CALL_FUNCS`), and card literals. The flagship ledger is
+  tests/test_piece_content_walls.py; the clause structure is
+  tests/test_game_clause_walls.py.
+
+  Deferred to a later rung of the board-topology ladder
+  ([design-notes/board-topology.md](design-notes/board-topology.md)), and NOT
+  yet flavor-walled: (a) a card-content TYPE annotation (`Suit`/`Rank`/
+  `Card`) at a declaration site is accepted at the annotation in BOTH flavors
+  (the name is a known type); loudness then comes from two places, not a
+  silent gap. A state var carries an initializer, and the state-default type
+  pass (`typecheck.py` `_check_state_default_type`) rejects a piece value
+  under a card-typed var; the initializer-less slots (struct field, function
+  parameter, variant case) accept the annotation and fail at every USE in a
+  piece game (a card value never resolves in a piece namespace). (b) the
+  trick-taking and rule-obligation machinery — a per-round `round ... trump`,
+  the `climb`/`combinations`/`follows` forms, `demands:`/`exempts:`/`actions
+  where` card predicates, an outcome-function name, and a suit argument to a
+  rule template — is card-oriented and reached only through the rule system,
+  which a rung-1 board game does not use; a piece game touching it degrades
+  through the existing card-zone / name-resolution / deck-only-call walls.
+  (c) a piece game that `uses` a family library is unwitnessed (no piece game
+  imports one today) and not flavor-walled: the libraries are card-oriented,
+  and a piece game importing one degrades loudly through the library's
+  `requires` state contract (the missing card-shaped state is reported), not
+  through a flavor wall. All get a declaration-site / rule-system / import
+  wall naming the kind when a piece game needs the surface.
+
+- **Zone capacity — the `Point` row deferred.** `ZONE_CAPACITY`
+  (`cardlang/stdlib/zones.py`) is a total registry column over
+  `LIBRARY_ZONE_TYPES`: `Cell` is capacity 1, every other library zone type
+  is unbounded, enforced as a runtime wall in the movement executor. The
+  `Point` row (an unbounded-height stack) waits on its witness —
+  backgammon, the board-topology ladder's chance rung
+  ([design-notes/board-topology.md](design-notes/board-topology.md)).
+
+- **Board topology — later-rung surface walled at rung 1.** Rung 1 landed
+  the board declaration, the `cell` domain, the cell/line query register,
+  `Cell` capacity, and `Card` as the deck specialization of `Piece`
+  ([decisions.md](decisions.md) "Boards and cells", "Component sets: cards
+  and pieces", "Zone capacity"; tic-tac-toe is the corpus witness). The
+  ladder's later rungs
+  ([design-notes/board-topology.md](design-notes/board-topology.md)) are
+  walled until their witnesses:
+  - **Movement-direction domains** — a piece's board orientation, the
+    forward/back a draughts man or breakthrough pawn advances along
+    (distinct from the seat-relative turn-order `direction:` and the
+    passing `Direction` enum, which are unchanged). No rung-1 game moves
+    along a board direction, and no board-direction construct exists in the
+    surface, so one is un-namable — grammatically inexpressible, not
+    accepted-and-dropped. Witness: breakthrough.
+  - **The `HiddenCell` zone-type row** — identity to owner, trivial to
+    others (a board cell whose very occupancy is the secret, pairing with
+    `Cell` as `HiddenStack` pairs with `Cascade`). Absent from
+    `LIBRARY_ZONE_TYPES` (`cardlang/stdlib/zones.py`) until its witness; a
+    game cannot select a type the registry does not hold. Witness:
+    battleship.
+  - **Double-indexed zone families** (`ocean[player][cell]` — a board per
+    player, where the positions-are-unowned wall gains its amendment that a
+    compound index may carry an owner key). Grammatically inexpressible:
+    `zone_decl` admits a single `[index]` only
+    (`cardlang/grammar/cardlang.lark`), so a second index does not parse.
+    Witness: battleship.
+  - **In-file board syntax** — a board declared inline (its cells,
+    relations, regions) rather than selected from the closed `BOARDS`
+    registry, for a Catan-class map no family generates. Grammatically
+    inexpressible: the `board:` clause names a registry family with integer
+    arguments only, so an inline board does not parse. Witness: a
+    Catan-class game.
+  - **Adapter root-chance collapse for chance-free games.** A game the
+    kernel proves consumes no randomness (tic-tac-toe: no `shuffle`, a
+    fixed piece seeding) still compiles to an OpenSpiel tree whose root is a
+    chance node sampling a seed — every branch provably identical
+    (`tests/openspiel_ready/test_tic_tac_toe.py`'s seed-degeneracy proof).
+    Collapsing that degenerate node for a proven-chance-free game is the
+    ladder's stage-3 chance workstream, not an info-set gap: the proof
+    module records the honest caveat and defers the collapse here.
 
 - **Doc-snippet fragment kinds with no cheap wrapping harness.**
   `tests/test_doc_snippets.py` pipeline-checks every `cardlang`/
@@ -688,6 +815,18 @@ Things we have noted but consciously not designed yet:
   recorded above under "Grammar surface deferred by the checker"; `apply_components`
   the same but already recorded under "`scoring_component` / triggered
   components (runtime)".
+
+- **No automated `.md` / `.cardlang` byte-identity check for `docs/games/`
+  twins.** Each corpus game is a `.cardlang` formal file plus a `.md`
+  readable twin that embeds the same source in a fenced block; the twin's
+  block and the formal file are kept identical by review, not by a test.
+  `tests/test_doc_snippets.py` pipeline-checks the fenced blocks in the
+  three prose specs (decisions/library/model), and the corpus proof
+  modules run the `.cardlang` files, but nothing asserts a game's `.md`
+  block matches its sibling `.cardlang` byte-for-byte — a stale twin would
+  pass CI. The check is cheap (extract the game block, diff against the
+  sibling file) and unwritten; recorded so the manual discipline is not
+  silent.
 
 - **Some `.md` twins carry no DSL block, so the type-checker corpus net
   skips them.** `tests/test_typecheck_corpus.py` holds every
@@ -907,15 +1046,21 @@ Things we have noted but consciously not designed yet:
   registry (`cardlang/domains.py`) is the one table behind binder typing,
   iteration, actorhood, member enumeration, and the move-parameter/action-space
   domains: a new domain row arrives with every one of those *semantic* columns
-  already green. The **grammar surface does not follow**. `cardlang.lark` still
-  hardcodes the 8 quantifier productions (`any player where` / `all suits where`
-  / …) and the player/card query families as literal nouns, so a 5th row would
-  type, iterate, bind and enumerate correctly and still have no `any <noun>
-  where` production. The wall is loud (a syntax error on the unknown noun, not a
-  silent acceptance), so this is a scope limit rather than a defect — but until
+  already green. The **grammar surface does not follow** — a 5th row would type,
+  iterate, bind and enumerate correctly and still have no dedicated `any <noun>
+  where` production. Since the position-domain / cell-line query register (Task
+  7, decisions.md "Boards and cells") this is no longer a syntax error, though:
+  `any QNOUN where` now parses ANY noun, but for a *different* registry
+  (`game.positions`, gating the board/positional-cell forms — not
+  `cardlang/domains.py`). A 5th DOMAINS row's `any <noun> where` therefore
+  parses, then is rejected by `resolve.py::_check_domain_query` as an "unknown
+  position domain" — a diagnostic naming the wrong universe, not the DOMAINS
+  rows it was actually competing with. Still loud (a resolve diagnostic, not a
+  silent acceptance), so still a scope limit rather than a defect — but until
   the productions are generated from the registry, "a new domain registers
-  itself" is true of the semantics and false of the syntax. Ledger:
-  tests/test_domain_registry.py.
+  itself" stays true of the semantics and false of the syntax, and the
+  false-of-the-syntax failure is now a misleading diagnostic rather than a
+  parse error. Ledger: tests/test_domain_registry.py.
 
 - **Collection facets vs nominal kinds — the promotion tripwire.**
   `TCollection` stands in for several runtime kinds (a `Zone`, a computed

@@ -1,0 +1,11 @@
+// Wall: resolve.py's `_resolve_component_set`. An unknown name in `pieces:`
+// is diagnosed against the PIECE-flavored rows of the component-set registry
+// only — a designer who wrote `pieces:` is choosing among piece sets, so
+// the card-deck list would be noise.
+game UnknownPieceSet {
+  players: 2
+  pieces: chess_men
+  max_length: 10
+  state { score[player] : Integer = 0 }
+  winner: highest score
+}

@@ -1,0 +1,13 @@
+// Wall: resolve.py's `_resolve_board` via `board_entry`. The grid family's
+// arguments must lie in 1..16; `grid(0, 3)` violates the lower bound, a
+// ValueError naming the bound.
+game BoardBadArgs {
+  players: 2
+  max_length: 20
+  board: grid(0, 3)
+  pieces: xo_marks
+  zones { box : Deck  reserve[player] : PlayerPile<player> }
+  state { score[player] : Integer = 0 }
+  phase play { move all pieces from box where piece.side is x to reserve[0] }
+  winner: highest score
+}

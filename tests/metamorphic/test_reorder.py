@@ -72,14 +72,22 @@ _PARSE_LEVEL_CASES = frozenset(
     {
         "syntax_error",
         # The game-skeleton walls in parse.py's `game()`/`start()` builders
-        # (missing/duplicated single-valued clauses, game-count errors) —
-        # rejected before any tree exists to reorder.
+        # (missing/duplicated single-valued clauses, content-clause mutual
+        # exclusion, game-count errors) — rejected before any tree exists to
+        # reorder.
         "missing_cards_declaration",
         "missing_players_declaration",
         "missing_players_and_cards",
         "duplicate_game_clause",
+        "duplicate_pieces_clause",
+        "board_duplicate_clause",
+        "pieces_and_cards_together",
         "no_game_block",
         "two_game_blocks",
+        # The collection-quantifier register has no `number of <noun> in
+        # <expr> where ...` production -- a raw grammar dead end, not a
+        # resolve wall (roadmap.md "Positional zones -- walled residuals").
+        "cell_count_in_collection_not_admitted",
     }
 )
 

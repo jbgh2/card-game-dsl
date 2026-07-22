@@ -22,7 +22,8 @@ from cardlang.runtime.state import (
     _SkipHand,
     elements,
 )
-from cardlang.runtime.values import Card, CardSet, Player
+from cardlang.runtime.values import Card, CardSet, Player, content_noun
+from cardlang.stdlib.zones import zone_capacity
 
 
 def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
@@ -118,6 +119,26 @@ def run_body(stmts: tuple[n.Stmt, ...], ctx: Ctx) -> None:
 # --- movement ---
 
 
+def _deposit(ctx: Ctx, dest: Zone, cards: list[Card]) -> None:
+    """The one choke point every destination append (movement, gather, deal,
+    simultaneous pass) routes through, so a finite-capacity zone type can
+    never be silently overfilled. The zone-type registry (cardlang/stdlib/
+    zones.py ZONE_CAPACITY) owns which types are bounded; this backstops a
+    game's own guards (`cells[slot] is empty`) rather than replacing them."""
+    name, key = ctx.rs.zones.locate(dest)
+    label = name if key is None else f"{name}[{key}]"
+    ztype = ctx.rs.zones.zone_type[name]
+    cap = zone_capacity(ztype)
+    held = len(dest.cards)
+    if cap is not None and held + len(cards) > cap:
+        raise RuntimeError(
+            f"zone '{label}' is a {ztype} (capacity {cap}) and already holds "
+            f"{held} — the move would overfill it; guard the move "
+            f"(`{label} is empty`)"
+        )
+    dest.add_all(cards)
+
+
 def _movement(stmt: n.Movement, ctx: Ctx) -> None:
     if stmt.source is None:
         _gather(stmt, ctx)  # `move all cards to <zone>` — collect from everywhere
@@ -139,7 +160,7 @@ def _movement(stmt: n.Movement, ctx: Ctx) -> None:
         else:
             for player in ctx.rs.seating.players:
                 cards = _select(source, stmt, ctx, player)
-                ctx.rs.zones.instance(stmt.dest.name, player).add_all(cards)
+                _deposit(ctx, ctx.rs.zones.instance(stmt.dest.name, player), cards)
                 if ctx.observer is not None:
                     observe.movement(
                         ctx, ctx.rs.zones.locate(source), (stmt.dest.name, player), cards
@@ -158,16 +179,18 @@ def _movement(stmt: n.Movement, ctx: Ctx) -> None:
             else ctx.current_player or 0
         )
         selected = _select(source, stmt, ctx, player)
-        dest.add_all(selected)
+        _deposit(ctx, dest, selected)
         if ctx.observer is not None:
             observe.movement(
                 ctx, ctx.rs.zones.locate(source), ctx.rs.zones.locate(dest), selected
             )
 
 def _card_pred(filter_expr: n.Expr, ctx: Ctx) -> Callable[[Card], bool]:
-    """A movement/reveal `where` filter as a card predicate: an ordinary
-    expression evaluated with `card` bound per candidate."""
-    return lambda c: bool(evaluate(filter_expr, ctx.with_local("card", c)))
+    """A movement/reveal `where` filter as a candidate predicate: an ordinary
+    expression evaluated with the flavor noun (`card`/`piece`) bound per
+    candidate -- the same name resolve scoped and typecheck bound."""
+    noun = content_noun(ctx.rs.content_flavor, plural=False)
+    return lambda c: bool(evaluate(filter_expr, ctx.with_local(noun, c)))
 
 
 def _deal_round_robin(
@@ -184,7 +207,7 @@ def _deal_round_robin(
         i = 0
         while source.cards:
             card = source.cards.pop(0)
-            ctx.rs.zones.instance(dest_family, players[i % len(players)]).add(card)
+            _deposit(ctx, ctx.rs.zones.instance(dest_family, players[i % len(players)]), [card])
             dealt[players[i % len(players)]].append(card)
             i += 1
     else:
@@ -192,7 +215,7 @@ def _deal_round_robin(
         pool = [c for c in source.cards if pred(c)]
         for i, card in enumerate(pool):
             source.remove(card)
-            ctx.rs.zones.instance(dest_family, players[i % len(players)]).add(card)
+            _deposit(ctx, ctx.rs.zones.instance(dest_family, players[i % len(players)]), [card])
             dealt[players[i % len(players)]].append(card)
     if ctx.observer is not None:
         src = ctx.rs.zones.locate(source)
@@ -219,7 +242,7 @@ def _gather(stmt: n.Movement, ctx: Ctx) -> None:
     # presentational (decisions.md, the gather paragraph).
     zones = ctx.rs.zones
     for name in sorted(set(zones.singles) | set(zones.families)):
-        sources: list[tuple[tuple[str, Player | None], Zone]]
+        sources: list[tuple[tuple[str, Player | str | None], Zone]]
         if name in zones.singles:
             sources = [((name, None), zones.singles[name])]
         else:
@@ -230,7 +253,7 @@ def _gather(stmt: n.Movement, ctx: Ctx) -> None:
             taken = zone.take_all()
             if ctx.observer is not None:
                 observe.movement(ctx, loc, zones.locate(dest), taken)
-            dest.add_all(taken)
+            _deposit(ctx, dest, taken)
 
 
 def _check_count(count: int, mode: str | None) -> int:
@@ -335,11 +358,12 @@ def _select_joint(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> l
         k = _check_count(int(evaluate(amount, ctx)), stmt.mode)
         sizes = range(k, k + 1)
     assert stmt.filter is not None  # grammar: `jointly` IS a where-clause form
+    noun = content_noun(ctx.rs.content_flavor, plural=True)
     candidates: list[CardSet] = [
         CardSet(subset)
         for size in sizes
         for subset in itertools.combinations(pool, size)
-        if bool(evaluate(stmt.filter, ctx.with_local("cards", list(subset))))
+        if bool(evaluate(stmt.filter, ctx.with_local(noun, list(subset))))
     ]
     if not candidates:
         # No implicit skip (decisions.md "No implicit actions"): a decision
@@ -758,7 +782,7 @@ def _apply_pass(
         )
     for card in selections[player]:
         source.remove(card)
-        dest.add(card)
+        _deposit(ctx, dest, [card])
     if ctx.observer is not None:
         observe.movement(
             ctx, ctx.rs.zones.locate(source), ctx.rs.zones.locate(dest), selections[player]

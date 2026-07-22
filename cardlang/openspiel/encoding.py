@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from typing import Any, Iterator
 
 from cardlang.ast import nodes as n
+from cardlang.board_domains import position_domains_of
 from cardlang.domains import DomainSources, enumerate_domain
 from cardlang.runtime.mechanics import _pack
 from cardlang.runtime.observe import render_candidate
@@ -194,9 +195,11 @@ class ActionSpace:
             suits=list(deck_suits(game.deck)),
             ranks=list(game.ranking),
             players=list(range(game.players.low)),
-            # Position move-parameter domains, from the same PositionDecl
-            # members the driver hands the runtime — identical by construction.
-            positions={p.name: p.members for p in game.positions},
+            # Position move-parameter domains, from the same union function the
+            # driver hands the runtime (`position_domains_of`) — declared
+            # integer domains plus the board-minted `cell`, identical by
+            # construction.
+            positions=dict(position_domains_of(game)),
         )
         for node in _walk(game):
             if isinstance(node, n.Choose):

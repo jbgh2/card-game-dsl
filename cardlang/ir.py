@@ -50,6 +50,9 @@ def emit(game: n.Game) -> IRDict:
         "name": game.name,
         "players": _players(game.players),
         "deck": game.deck,
+        # Keyed ONLY for piece games — the card-game IR predates the field
+        # and its goldens are byte-stable; an absent key means "card".
+        **({"content_flavor": game.content_flavor} if game.content_flavor != "card" else {}),
         "direction": game.direction,
         "max_length": game.max_length,
         "ranking": list(game.ranking),
@@ -85,6 +88,12 @@ def _players(p: n.PlayersSpec) -> IRDict:
 
 
 def _position(p: n.PositionDecl) -> IRDict:
+    # A named-member domain (the board-minted `cell`) carries its members; an
+    # integer domain keeps its `lo`/`hi` form byte-for-byte (the board's IR
+    # representation is exactly this minted domain — decisions.md "Boards and
+    # cells").
+    if p.members_named is not None:
+        return {"kind": "position", "name": p.name, "members": list(p.members_named)}
     return {"kind": "position", "name": p.name, "lo": p.lo, "hi": p.hi}
 
 
@@ -528,6 +537,18 @@ def _expr(e: n.Expr) -> IRDict:
             if e.default is not None:
                 comp["default"] = _expr(e.default)
             return comp
+        case n.DomainQuery():
+            dq: IRDict = {
+                "kind": "domain_query",
+                "query": e.kind,
+                "binder": e.binder,
+                "pred": _expr(e.pred),
+            }
+            # Emitted only for the collection forms (the bare forms enumerate a
+            # declared domain and have no source), keeping the key set minimal.
+            if e.source is not None:
+                dq["source"] = _expr(e.source)
+            return dq
         case n.PlayerQuery():
             return {"kind": "player_query", "query": e.kind, "pred": _expr(e.pred)}
         case n.CardQuery():

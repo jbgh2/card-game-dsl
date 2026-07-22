@@ -854,17 +854,20 @@ def test_a_forward_struct_reference_types_the_same_in_either_order() -> None:
 # surviving site, so a count change can be checked against an argument rather
 # than just re-blessed:
 #
-# typecheck.py (14)
+# typecheck.py (16)
 #   legitimate top (no better type exists) — 5:
 #     `type_from_name`'s unknown name (a FORWARD struct reference, ledger
 #     residual 3); pronoun member access (deferred shape); a non-`actor`
 #     pronoun; a bare function NAME in value position; a procedure `Sig.ret`
 #     (a procedure is a statement — the field is never read).
-#   gradual propagation, downstream of a wall that already fired — 4:
+#   gradual propagation, downstream of a wall that already fired — 6:
 #     a subscript of a non-collection (`subscriptable`), a comprehension
 #     element off a bad source (`_check_card_source`), an unknown struct field
-#     and an unknown Card field (both rejected in `_check_expr`). Each is
-#     reached only with an error already in the bag, or with a top receiver.
+#     and an unknown item/Card field (both rejected in `_check_expr`), and the
+#     two `DomainQuery` binder-type lookups (a bare position-domain binder, a
+#     `line`/`cell` collection binder), each reached only after resolve's
+#     `_check_domain_query` validated the noun. Each is reached only with an
+#     error already in the bag, or with a top receiver.
 #   recorded residual, merge failure — 3: `ListLit` and the two `IfExpr` arms,
 #     where `unify` returns None (ledger residual 1).
 #   recorded residual, precision — 1: `max`/`min` (ledger residual 2).
@@ -881,7 +884,7 @@ def test_a_forward_struct_reference_types_the_same_in_either_order() -> None:
 #   trick-winner and auction-outcome callbacks whose real type the `Sig` model
 #   cannot express, and the `ChipStack` resource zone's element.
 AUDITED_TOP_SITES: dict[str, int] = {
-    "typecheck.py": 14,
+    "typecheck.py": 16,
     "types.py": 2,
     "stdlib/signatures.py": 11,
 }

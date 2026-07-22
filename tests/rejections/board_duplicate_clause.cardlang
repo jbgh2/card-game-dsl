@@ -1,0 +1,15 @@
+// Wall: parse.py's `game()` `once("board:")`. A game declares one `board:`
+// clause; a repeat is rejected before any tree exists (a parse-level
+// rejection -- pinned in tests/metamorphic/test_reorder.py's
+// _PARSE_LEVEL_CASES).
+game BoardDuplicateClause {
+  players: 2
+  max_length: 20
+  board: grid(3, 3)
+  board: grid(3, 3)
+  pieces: xo_marks
+  zones { box : Deck  reserve[player] : PlayerPile<player> }
+  state { score[player] : Integer = 0 }
+  phase play { move all pieces from box where piece.side is x to reserve[0] }
+  winner: highest score
+}

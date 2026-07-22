@@ -37,22 +37,26 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from enum import Enum
-from typing import AbstractSet, Iterator, Mapping, assert_never
+from typing import Iterator, Mapping, assert_never
 
 from cardlang.ast import nodes as n
 from cardlang.ast.nodes import Game
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError
 from cardlang.domains import role_type as _role_type
+from cardlang.runtime.values import component_set, content_kind_clause, content_noun
 from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
 from cardlang.stdlib.signatures import CALL_SIGS, ZONE_CONTENT, Sig
 from cardlang.stdlib.values import DIRECTION_VALUES, deck_ranks, deck_suits
 from cardlang.types import (
+    Flavor,
     TAny,
     TBoolean,
     TCard,
+    TCell,
     TCollection,
     TEnum,
     TInteger,
+    TLine,
     TNull,
     TOptional,
     TPlayer,
@@ -90,6 +94,32 @@ KNOWN_TYPE_NAMES: frozenset[str] = frozenset(_SCALAR_TYPES) | _ENUM_TYPES
 # two hand-enumerated pairs that could drift.
 CARD_FIELDS: dict[str, Type] = {"rank": TEnum("Rank"), "suit": TEnum("Suit")}
 
+
+def _axis_enum_names(game: Game) -> tuple[str, str]:
+    """The enum type names for a game's two content axes (the suit slot, then
+    the rank slot). A card game keeps the fixed `Suit`/`Rank` so its
+    diagnostics and IR stay byte-stable; a piece set names its enums after its
+    own axes (`side`/`kind`), which is also how its axis VALUES type in
+    `value_enum_map` -- so a same-axis compare unifies and a cross-axis one
+    (`piece.side is mark`) hits the existing cross-enum wall."""
+    cs = component_set(game.deck)
+    if game.content_flavor == "card" or cs is None:
+        return ("Suit", "Rank")
+    return cs.axes
+
+
+def item_field_table(game: Game) -> dict[str, Type]:
+    """The content item's field table -- what `<binder>.<field>` may name and
+    types to. A card game reproduces CARD_FIELDS exactly (`rank`/`suit` ->
+    `Rank`/`Suit`); a piece set's axes ARE its fields (`side`/`kind`), each
+    typed to its own enum. One source for `infer`'s field typing and
+    `_check_expr`'s unknown-field wall, keyed off the game's flavor."""
+    cs = component_set(game.deck)
+    if cs is None:  # unknown set -- unreachable past resolve's component wall
+        return dict(CARD_FIELDS)
+    e0, e1 = _axis_enum_names(game)
+    return {cs.axes[0]: TEnum(e0), cs.axes[1]: TEnum(e1)}
+
 # `action` fields whose type is the same for every move type: the runtime
 # `Move` payload (cardlang/runtime/state.py) carries exactly `card: Card` and
 # `actor: Player`, always both present, for every move type. This is the
@@ -115,15 +145,16 @@ def type_from_name(
     name: str,
     optional: bool,
     structs: Mapping[str, TStruct] | None = None,
-    positions: AbstractSet[str] | None = None,
+    positions: Mapping[str, Type] | None = None,
 ) -> Type:
     """Map a declared type name (a `StateDecl` `type_name`) to a `Type`.
 
     User-defined struct names resolve to their `TStruct` (via the ``structs``
-    registry); a declared POSITION domain resolves to the integer member of its
-    range (via ``positions``); names unknown to scalars, enums, and both
-    registries resolve to the permissive `TAny`. ``optional`` wraps the result
-    in `TOptional`.
+    registry); a declared POSITION domain resolves to its member type (via
+    ``positions``, which maps each domain name to `TInteger` or, for the
+    board-minted `cell` domain, `TCell`); names unknown to scalars, enums, and
+    both registries resolve to the permissive `TAny`. ``optional`` wraps the
+    result in `TOptional`.
 
     Every position that admits a position domain passes ``positions`` here
     rather than branching on it locally: the rule belongs to name resolution,
@@ -132,7 +163,10 @@ def type_from_name(
     """
     base: Type
     if positions is not None and name in positions:
-        base = TInteger()
+        # A declared integer domain's member is `TInteger`; the board-minted
+        # `cell` domain's is `TCell`. `positions` carries the member type so
+        # the two are distinct (`at is 3` on a cell param is a type error).
+        base = positions[name]
     elif name in _SCALAR_TYPES:
         base = _SCALAR_TYPES[name]()
     elif name in _ENUM_TYPES:
@@ -152,15 +186,16 @@ def value_enum_map(game: Game) -> dict[str, TEnum]:
     `Suit` is not confused with an `Integer` or a `Direction`.
     """
     m: dict[str, TEnum] = {}
+    suit_enum, rank_enum = _axis_enum_names(game)
     for suit in deck_suits(game.deck):
-        m[suit] = TEnum("Suit")
+        m[suit] = TEnum(suit_enum)
     # Membership comes from the deck alone (Coup/Tarot declare no
     # `ranking:`). resolve's `_resolve_ranking` guarantees ranking is a subset of deck
     # ranks (an unknown rank is a resolve-time error), and resolve always
     # runs before typecheck (cardlang/pipeline.py's `_check`), so unioning
     # `game.ranking` in here would add nothing beyond order.
     for rank in deck_ranks(game.deck):
-        m[rank] = TEnum("Rank")
+        m[rank] = TEnum(rank_enum)
     for direction in DIRECTION_VALUES:
         m[direction] = TEnum("Direction")
     return m
@@ -368,7 +403,7 @@ def struct_and_function_registries(
 def _payload_type(
     name: str,
     structs: Mapping[str, TStruct],
-    positions: AbstractSet[str] | None = None,
+    positions: Mapping[str, Type] | None = None,
 ) -> "Type":
     """Resolve a variant payload type name; a trailing `?` marks it nullable.
 
@@ -384,7 +419,7 @@ def _payload_type(
 def _variant_cases(
     cases: tuple[n.VariantCase, ...],
     structs: Mapping[str, TStruct],
-    positions: AbstractSet[str] | None = None,
+    positions: Mapping[str, Type] | None = None,
 ) -> dict[str, tuple["Type", ...]]:
     return {
         c.tag: tuple(_payload_type(t, structs, positions) for t in c.payload_types)
@@ -395,7 +430,7 @@ def _variant_cases(
 def variant_registry(
     game: Game,
     structs: Mapping[str, TStruct],
-    positions: AbstractSet[str] | None = None,
+    positions: Mapping[str, Type] | None = None,
 ) -> dict[str, TVariant]:
     """Build the variant-outcome type of each `define` and each outcome-declaring
     `phase`: its case tags mapped to their declared payload types."""
@@ -440,9 +475,24 @@ class TypeEnv:
     # call site left to check.
     procedures: Mapping[str, Sig] = field(default_factory=dict)
     has_ranking: bool = False  # bool(game.ranking) — gates RANKING_GATED_FUNCS
-    # Declared position-domain names (decisions.md "Position domains and
-    # positional zones") — a parameter typed by one binds as Integer.
-    positions: frozenset[str] = frozenset()
+    # Per-game position domains (decisions.md "Position domains and positional
+    # zones", "Boards and cells") — name -> the member type a parameter, let
+    # binder or subscript key over it carries: `TInteger` for a declared
+    # integer domain (`positions { column : 1..7 }`), `TCell` for the
+    # board-minted `cell` domain. Membership (`name in env.positions`) still
+    # answers "is this a position domain?"; the value answers "of which member
+    # kind?".
+    positions: Mapping[str, Type] = field(default_factory=dict)
+    # `Game.content_flavor` and `Game.deck` — the dispatch key and set name for
+    # the flavor-aware walls (decisions.md, "Component sets: cards and pieces");
+    # `deck` names the kind in a piece game's card-vocabulary diagnostics.
+    flavor: Flavor = "card"
+    deck: str = ""
+    # The content item's field table (`item_field_table`) -- `card.suit` types
+    # off this, not the module CARD_FIELDS, so a piece's `side`/`kind` are its
+    # only fields. Default is the card pair for envs built ad hoc (struct
+    # inference), which `env_from_game` overrides per flavor.
+    item_fields: Mapping[str, Type] = field(default_factory=lambda: dict(CARD_FIELDS))
 
     def with_local(self, name: str, t: Type) -> "TypeEnv":
         return replace(self, locals={**self.locals, name: t})
@@ -586,6 +636,9 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                     return TInteger()
                 case _:  # "any" | "all"
                     return TBoolean()
+        case n.DomainQuery():
+            # `number of <domain>s where …` counts; `any`/`all` are Boolean.
+            return TInteger() if e.kind == "count" else TBoolean()
         case n.IfExpr():
             return _ifexpr_type(e, env)
         case n.StructLit():
@@ -646,9 +699,9 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                 receiver = _canonical_struct(obj, env)
                 return _canonical(receiver.fields.get(e.field, TAny()), env)
             if isinstance(obj, TCard):
-                # A card's fields are a closed pair; `_check_expr` rejects
-                # anything else on a known-Card receiver.
-                return CARD_FIELDS.get(e.field, TAny())
+                # The content item's fields are a closed pair (flavor-keyed);
+                # `_check_expr` rejects anything else on a known-item receiver.
+                return env.item_fields.get(e.field, TAny())
             return TAny()  # pronoun member access / sugar: deferred
         case n.ListLit():
             elem: Type | None = infer(e.elements[0], env)
@@ -796,6 +849,18 @@ def _state_blocks(game: Game) -> list[n.StateBlock]:
     return blocks
 
 
+def _position_types(game: Game) -> dict[str, Type]:
+    """Each position domain's member type: `TInteger` for a declared integer
+    domain, `TCell` for the board-minted named-member `cell` domain
+    (`PositionDecl.members_named` distinguishes them). Resolve has already
+    appended the board's `cell` domain into `game.positions`, so this reads the
+    union uniformly."""
+    return {
+        p.name: (TCell() if p.members_named is not None else TInteger())
+        for p in game.positions
+    }
+
+
 def env_from_game(
     game: Game, structs: Mapping[str, TStruct] | None = None
 ) -> TypeEnv:
@@ -873,9 +938,9 @@ def env_from_game(
     # RAISES on a role outside the registry rather than falling back to the
     # permissive top; resolve rejects an unknown index role before this pass,
     # so reaching that raise would mean the two registries had diverged.)
-    positions = frozenset(p.name for p in game.positions)
+    positions = _position_types(game)
     zone_families: dict[str, Type] = {
-        z.name: (TInteger() if z.index in positions else _role_type(z.index))
+        z.name: (positions[z.index] if z.index in positions else _role_type(z.index))
         for z in game.zones
         if z.index is not None
     }
@@ -889,6 +954,9 @@ def env_from_game(
         procedures=procedures,
         has_ranking=bool(game.ranking),
         positions=positions,
+        flavor=game.content_flavor,
+        deck=game.deck,
+        item_fields=item_field_table(game),
     )
 
 
@@ -1036,7 +1104,7 @@ def _non_define_statements(game: Game) -> Iterator[n.Stmt]:
 
 
 def _move_param_binders(
-    move_type: n.MoveTypeDef, positions: frozenset[str]
+    move_type: n.MoveTypeDef, positions: Mapping[str, Type]
 ) -> _Binders:
     """A move type's parameters, typed from their declarations — bound in its
     guard and effect exactly as procedure parameters are bound in their body.
@@ -1044,19 +1112,20 @@ def _move_param_binders(
     Suit) { when: s is 3 … }` pass both positions while the inline spelling
     was rejected — the let-laundering shape, one binder kind over.
 
-    `positions` (the game's declared position domains) must be threaded in: a
-    move parameter may be a position domain (`build(src : column)`), and
-    `_param_type` types those as `TInteger` only when the domain is in
-    `env.positions`. A fresh `TypeEnv()` would leave it `TAny`, so `src is
-    hearts` and other wrong-domain uses would pass — accepted-but-ignored, one
-    binder kind over yet again. (Procedure params, by contrast, resolve gates
-    to `Player`, so they never carry a position and their env needs none.)"""
+    `positions` (the game's position domains) must be threaded in: a move
+    parameter may be a position domain (`build(src : column)`, `place(at :
+    cell)`), and `_param_type` types those as their member type (`TInteger` /
+    `TCell`) only when the domain is in `env.positions`. A fresh `TypeEnv()`
+    would leave it `TAny`, so `src is hearts` and other wrong-domain uses would
+    pass — accepted-but-ignored, one binder kind over yet again. (Procedure
+    params, by contrast, resolve gates to `Player`, so they never carry a
+    position and their env needs none.)"""
     env = TypeEnv(positions=positions)
     return tuple((p.name, _param_type(p, env)) for p in move_type.params)
 
 
 def _all_statements_scoped(game: Game) -> Iterator[tuple[n.Stmt, _Binders]]:
-    positions = frozenset(p.name for p in game.positions)
+    positions = _position_types(game)
     for move_type in game.move_types:
         yield from _seq_tree_scoped(
             move_type.effect, _move_param_binders(move_type, positions)
@@ -1121,6 +1190,8 @@ def _child_exprs(e: n.Expr) -> list[n.Expr]:
             return [e.pred]
         case n.CardQuery():
             return [e.source, e.pred] if e.pred is not None else [e.source]
+        case n.DomainQuery():
+            return [e.source, e.pred] if e.source is not None else [e.pred]
         case n.IfExpr():
             out = [e.cond, e.then]
             for cond, branch in e.elifs:
@@ -1182,8 +1253,9 @@ def _function_sigs(game: Game, env: TypeEnv, bag: DiagnosticBag) -> dict[str, Si
 def _param_type(p: n.MoveParam, env: TypeEnv) -> Type:
     optional = p.type_name.endswith("?")
     base = p.type_name[:-1] if optional else p.type_name
-    # Position domains resolve inside `type_from_name`, so `slot?` keeps its
-    # optionality instead of being flattened to a bare Integer.
+    # Position domains resolve inside `type_from_name`, which maps `column` to
+    # `TInteger` and the board-minted `cell` to `TCell`, and keeps `slot?`
+    # optional instead of flattening it.
     return type_from_name(base, optional, env.structs, env.positions)
 
 
@@ -1708,6 +1780,39 @@ def _check_is_check(e: n.IsCheck, env: TypeEnv, bag: DiagnosticBag) -> None:
         )
 
 
+# The two collection quantifier nouns and the member type each binds
+# (decisions.md "Boards and cells"): `any line in <lines> …` walks a
+# collection of lines binding `line`:TLine; `all cells in <line> …` walks one
+# line binding `cell`:TCell. Fixed at rung 1; resolve rejects any other noun.
+_COLLECTION_BINDER_TYPES: Mapping[str, Type] = {"line": TLine(), "cell": TCell()}
+
+
+def _domain_query_binder_type(
+    e: n.DomainQuery, env: TypeEnv, bag: DiagnosticBag
+) -> Type:
+    """The type a DomainQuery binds its element to, plus (for collection forms)
+    the source-shape wall. A BARE form binds the position domain's member type
+    (`TCell` for a board's `cell`, `TInteger` for an integer domain -- resolve
+    validated the noun, so a lookup miss falls back to the permissive top). A
+    COLLECTION form's noun fixes BOTH the binder type and the required source
+    type: `line` iterates a collection of lines, `cell` iterates one line."""
+    if e.source is None:
+        return env.positions.get(e.binder, TAny())
+    want, desc = (
+        (TCollection(TLine()), "a collection of lines (e.g. `lines(3)`)")
+        if e.binder == "line"
+        else (TLine(), "a single line")  # e.binder == "cell" (resolve gates the rest)
+    )
+    src_t = infer(e.source, env)
+    if not assignable(src_t, want):
+        bag.error(
+            f"`{e.kind} {e.spelled} in …` iterates {desc}, but the source is "
+            f"{_type_name(src_t)}",
+            e.span,
+        )
+    return _COLLECTION_BINDER_TYPES.get(e.binder, TAny())
+
+
 def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
     """Recursively validate a single expression: stdlib argument types and
     subscript legality. Types of unrefined sub-parts are `TAny` (permissive).
@@ -1727,6 +1832,17 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         _check_bool(e.pred, scoped, bag, "player-query predicate")
         return
     if isinstance(e, n.CardQuery):
+        if env.flavor == "piece":
+            # `cards in ... / any card in ... / number of cards in ...` all
+            # hardcode the card noun; a piece game has no such form (the piece
+            # twin is grammatically inexpressible -- a recorded residual).
+            bag.error(
+                f"{content_kind_clause(env.flavor, env.deck)} -- a card query "
+                f"(`{e.kind}`) reads a zone as cards; count/scan pieces with the "
+                f"generic collection forms",
+                e.span,
+            )
+            return
         _check_expr(e.source, env, bag)
         _check_card_source(e.source, env, bag)
         if e.pred is not None:
@@ -1734,7 +1850,26 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
             _check_expr(e.pred, scoped, bag)
             _check_bool(e.pred, scoped, bag, "card-query predicate")
         return
+    if isinstance(e, n.DomainQuery):
+        binder_t = _domain_query_binder_type(e, env, bag)
+        if e.source is not None:
+            _check_expr(e.source, env, bag)  # the `in` source is in enclosing scope
+        scoped = env.with_local(e.binder, binder_t)
+        _check_expr(e.pred, scoped, bag)
+        phrase = n.DOMAIN_QUERY_KIND_PHRASE[e.kind]
+        _check_bool(e.pred, scoped, bag, f"`{phrase} {e.spelled}` predicate")
+        return
     if isinstance(e, n.Comprehension):
+        if env.flavor == "piece":
+            # `sum of ... over cards in ...` and the RANK_DIR order aggregators
+            # hardcode "cards"; rejected in a piece game (no piece twin form).
+            bag.error(
+                f"{content_kind_clause(env.flavor, env.deck)} -- an aggregation "
+                f"over `cards in ...` reads a zone as cards; a piece set has no "
+                f"such form",
+                e.span,
+            )
+            return
         _check_expr(e.source, env, bag)
         _check_card_source(e.source, env, bag)
         src = infer(e.source, env)
@@ -1851,12 +1986,15 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         bare = obj.inner if isinstance(obj, TOptional) else obj
         if isinstance(obj, TStruct) and e.field not in obj.fields:
             bag.error(f"{obj.name} has no field '{e.field}'", e.span)
-        elif isinstance(bare, TCard) and e.field not in CARD_FIELDS:
-            # A card's fields are a closed pair — an unknown one would read
-            # as `TAny` and only fail (or worse, not fail) at play time.
-            field_list = " and ".join(f"`{f}`" for f in sorted(CARD_FIELDS))
+        elif isinstance(bare, TCard) and e.field not in env.item_fields:
+            # The content item's fields are a closed pair — an unknown one (a
+            # card axis on a piece, or vice versa) would read as `TAny` and only
+            # fail (or worse, not fail) at play time. Noun and fields are
+            # flavor-keyed; a card game reproduces the CARD_FIELDS message.
+            noun = content_noun(env.flavor, plural=False).capitalize()
+            field_list = " and ".join(f"`{f}`" for f in sorted(env.item_fields))
             bag.error(
-                f"Card has no field '{e.field}' (its fields are {field_list})",
+                f"{noun} has no field '{e.field}' (its fields are {field_list})",
                 e.span,
             )
         elif isinstance(bare, TCollection):
@@ -2003,9 +2141,9 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
         # (runtime `_select_joint` vs `_card_pred`; decisions.md
         # "Joint-predicate selection").
         if isinstance(s, n.Movement) and s.joint:
-            scoped = env.with_local("cards", TCollection(TCard()))
+            scoped = env.with_local(content_noun(env.flavor, plural=True), TCollection(TCard()))
         else:
-            scoped = env.with_local("card", TCard())
+            scoped = env.with_local(content_noun(env.flavor, plural=False), TCard())
         _check_expr(s.filter, scoped, bag)
         verb = s.verb if isinstance(s, n.Movement) else s.op
         _check_bool(s.filter, scoped, bag, f"'{verb}' filter")
@@ -2279,7 +2417,19 @@ def _check_movement(stmt: n.Movement, env: TypeEnv, bag: DiagnosticBag) -> None:
                 f"{_type_name(t)}{_zone_hint(t, filterable)}",
                 stmt.span,
             )
-    if stmt.item not in ("card", "cards"):
+    own = (content_noun(env.flavor, plural=False), content_noun(env.flavor, plural=True))
+    other_flavor: Flavor = "card" if env.flavor == "piece" else "piece"
+    other = (content_noun(other_flavor, plural=False), content_noun(other_flavor, plural=True))
+    if stmt.item in other:
+        # The other flavor's content noun: name the kind and the right spelling.
+        bag.error(
+            f"{content_kind_clause(env.flavor, env.deck)} -- move its {own[1]} "
+            f"(`move ... {own[1]} ...`), not '{stmt.item}'",
+            stmt.span,
+        )
+    elif stmt.item not in own:
+        # A truly unknown noun (`chips`, `coins`): the deferred-resource wall,
+        # unchanged (card games are byte-identical -- own is card/cards there).
         bag.error(
             f"movements move cards; '{stmt.item}' is not a supported item noun "
             "(resource movements are deferred — roadmap.md)",

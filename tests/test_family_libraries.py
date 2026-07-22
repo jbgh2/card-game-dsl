@@ -1282,7 +1282,10 @@ def test_the_reference_axis_covers_every_game_fed_namespace() -> None:
 
     red under: add a field to `_Categories`, or drop a key from
     `_AXIS_NAMESPACE`."""
-    game_fed = {f.name for f in fields(_Categories)} - {"locals", "functions"}
+    # `flavor` joins locals/functions as a non-channel: it is the game's
+    # scalar content flavor ("card"/"piece"), not a namespace of names a
+    # library reference could reach or shadow.
+    game_fed = {f.name for f in fields(_Categories)} - {"locals", "functions", "flavor"}
     covered: set[str] = set()
     for reached in _AXIS_NAMESPACE.values():
         covered |= reached

@@ -59,7 +59,7 @@ def first_divergence(a: str, b: str, context: int = 40) -> str:
     )
 
 
-def _is_owner(rs: RuntimeState, name: str, key: int | None, observer: int) -> bool:
+def _is_owner(rs: RuntimeState, name: str, key: int | str | None, observer: int) -> bool:
     """Mirrors runtime/observe.py::_is_owner — and reads the SAME domain-table
     column (`zone_key_of`) it does, so the proof oracle cannot drift from the
     thing it proves. Were this a private `== "team"` copy of the ownership
@@ -72,16 +72,18 @@ def _is_owner(rs: RuntimeState, name: str, key: int | None, observer: int) -> bo
     return zone_observer_key(index, rs, observer) == key
 
 
-def projection_for(rs: RuntimeState, name: str, key: int | None, observer: int) -> str:
+def projection_for(
+    rs: RuntimeState, name: str, key: int | str | None, observer: int
+) -> str:
     return zone_projection(rs.zones.zone_type[name], _is_owner(rs, name, key, observer))
 
 
-def zone_instances(rs: RuntimeState) -> list[tuple[str, int | None, Zone]]:
+def zone_instances(rs: RuntimeState) -> list[tuple[str, int | str | None, Zone]]:
     """Every zone instance, in the deterministic order the info state renders."""
-    singles: list[tuple[str, int | None, Zone]] = [
+    singles: list[tuple[str, int | str | None, Zone]] = [
         (name, None, rs.zones.single(name)) for name in sorted(rs.zones.singles)
     ]
-    fams: list[tuple[str, int | None, Zone]] = [
+    fams: list[tuple[str, int | str | None, Zone]] = [
         (name, key, rs.zones.instance(name, key))
         for name in sorted(rs.zones.families)
         for key in sorted(rs.zones.families[name])

@@ -52,7 +52,7 @@ from collections.abc import Set as _Set
 from dataclasses import dataclass, field
 from enum import Enum
 from types import MappingProxyType
-from typing import Any, Mapping
+from typing import Any, Mapping, cast
 
 from cardlang.runtime.state import RuntimeState, Zone
 from cardlang.runtime.values import Card
@@ -360,7 +360,7 @@ def state(rs: RuntimeState, r: PrimitiveReads, name: str) -> Any:
         raise _missing(r, "state variable", name) from None
 
 
-def family(rs: RuntimeState, r: PrimitiveReads, name: str) -> dict[int, Zone]:
+def family(rs: RuntimeState, r: PrimitiveReads, name: str) -> dict[int | str, Zone]:
     """A declared zone-family read (the accessor form of `zones.families[...]`)."""
     if name not in r.zone_families:
         raise _undeclared(r, "zone family", name, r.zone_families)
@@ -380,7 +380,7 @@ def single(rs: RuntimeState, r: PrimitiveReads, name: str) -> Zone:
     return z
 
 
-def instance(rs: RuntimeState, r: PrimitiveReads, name: str, key: int) -> Zone:
+def instance(rs: RuntimeState, r: PrimitiveReads, name: str, key: int | str) -> Zone:
     """A declared read of one instance of a zone family (the accessor form
     of `zones.instance`). The instance KEY is engine data (a seat or team id
     from `rs.seating`/`rs.teams`), not part of the declared coupling, but a
@@ -449,7 +449,14 @@ def magic_hand(rs: RuntimeState) -> dict[int, Zone]:
     the same failure currency: a game that declares no `hand[player]` family
     gets a typed error naming the rule, not a `KeyError`. (resolve's magic-
     name wall only covers games with `Card`-typed move parameters, so this
-    backstop is reachable.)"""
+    backstop is reachable.)
+
+    Returns player-keyed instances: `hand` is a `hand[player]` family by the
+    magic-name rule, so its keys are seats even though the generic zone store
+    types every family's keys as `int | str` (a board's cell family is keyed by
+    name — a different family). The cast localizes that invariant here, where
+    the rule is known, so `player_holding` returns a `Player` without a
+    per-caller narrowing."""
     fam = rs.zones.families.get("hand")
     if fam is None:
         raise PrimitiveReadError(
@@ -457,4 +464,4 @@ def magic_hand(rs: RuntimeState) -> dict[int, Zone]:
             "— `hand` is the language-wide magic name (decisions.md "
             '"Declared parameter domains") this stdlib function reads'
         )
-    return fam
+    return cast("dict[int, Zone]", fam)

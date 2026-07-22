@@ -1,5 +1,6 @@
 """Game-clause structural walls: omission and duplication over the whole
-clause domain of the `game` production.
+clause domain of the `game` production, plus the content-clause axis
+(`cards:` / `pieces:` — which component set a game plays with).
 
 Seeded by the fuzz finding `missing_cards_declaration` (a missing `cards:`
 escaping `check_dsl` as a raw lark ``VisitError`` around a bare assert) and
@@ -12,12 +13,17 @@ Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
 property:   a structurally invalid game skeleton — a mandatory clause
             omitted, a single-valued clause repeated, a source with zero or
-            multiple `game { }` blocks, or a `direction:` outside its value
-            set — fails `check_dsl` with a located `DiagnosticError`, never
-            a bare assert / raw lark error / silently different meaning.
+            multiple `game { }` blocks, a `direction:` outside its value
+            set, or a content clause whose name is unknown or of the wrong
+            flavor — fails `check_dsl` with a located `DiagnosticError`,
+            never a bare assert / raw lark error / silently different
+            meaning.
 domain:     the `?game_item` alternatives of the `game` production, times
             {omitted, duplicated, ABSORBED}; plus the game-count axis of
-            `start` (zero / one / many); plus the `direction:` value axis.
+            `start` (zero / one / many); plus the `direction:` value axis;
+            plus the content-clause axis — clause presence {cards only,
+            pieces only, both, neither} at parse, times name flavor {card
+            deck, piece set, unknown} at resolve.
             The absorption axis was added after `uses <library>` was found
             to vanish when written below `ranking:` — `ranking:` takes an
             unbounded `card_rank+` run, so a clause spelled as two bare
@@ -53,19 +59,31 @@ registry:   `cardlang/grammar/cardlang.lark` (`?game_item`) — scraped here
             below; `?library_item` likewise by `library_item_alternatives`,
             which the import tier's own module reuses; `GAME_DIRECTIONS` in
             `cardlang/runtime/values.py` for the direction value set;
-            `CARD_RANK_NAME`'s and `STRUCT_TYPE_NAME`'s negative lookaheads
-            for the two absorption legs, scraped by `_card_rank_excluded`
-            and `_struct_type_excluded` so both sides of each pin stay
-            derived.
+            `COMPONENT_SETS` (same module, the `flavor` column) for the
+            content-clause name axis; `CARD_RANK_NAME`'s and
+            `STRUCT_TYPE_NAME`'s negative lookaheads for the two absorption
+            legs, scraped by `_card_rank_excluded` and `_struct_type_excluded`
+            so both sides of each pin stay derived.
 covered:    duplication — exhaustively, every single-valued clause (all
-            alternatives except `phase`), one probe each, parse-layer wall;
-            omission — `players:`/`cards:` (parse wall, including the
+            alternatives except `phase`), one probe each, parse-layer wall
+            (the `pieces` probe doubles as the pieces-duplicated-beside-
+            `cards:` cell: BASE carries `cards:`, and the duplicate wall
+            deterministically fires before the mutual-exclusion wall);
+            omission — `players:`/content clause (parse wall, including the
             both-at-once bag rendering), `max_length:` and joint
             `winner:`/`loser:` (resolve walls, pinned by their own
             rejection fixtures), `state`/`zones`/`trump`/`partnerships`/
             `direction`/`ranking` omission is legal by design (probed by
             the valid BASE game here, which omits four of them);
-            game-count — zero and two, parse wall; absorption —
+            game-count — zero and two, parse wall;
+            content clause — both-present (parse wall), each cell of the
+            clause x name-flavor matrix at resolve: cross-flavor names
+            rejected with the right clause named, unknown names listed
+            against the clause's own flavor only (both directions probed),
+            and the pieces-only acceptance cell (PIECE_BASE compiles end to
+            end through IR, with the parse-stamped `content_flavor` and the
+            piece-only IR key pinned);
+            absorption —
             exhaustively, every clause written after a `ranking:`
             enumeration and asserted to parse as itself, and every clause
             written after an EMPTY `loser:` and asserted to be refused at
@@ -87,7 +105,13 @@ sampled:    `ranking:` omission with rank-dependent constructs in play is
             semantics (no decisions; result read from initial state —
             verified by playout while authoring this module, not pinned
             here: the cell is "accepted", and pinning acceptance is the
-            valid-BASE probe's job).
+            valid-BASE probe's job); both-content-clauses co-reporting with
+            a missing `players:` rides the same bag the neither-present
+            probe pins, not a separate probe; a Suit-parameterized rule in
+            a piece game skips only the suit-membership refinement
+            (resolve's `_instantiate_rules`, `suits=None`) — the argument
+            name itself still fails name classification in a piece game's
+            namespaces, so the cell stays loud.
 residual:   the declaration/use symmetry the struct-literal exclusion
             enforces on the NAME axis is not enforced on the ARITY axis:
             `type_def` takes `struct_field*` while `struct_lit` requires at
@@ -99,7 +123,13 @@ residual:   the declaration/use symmetry the struct-literal exclusion
             is inert — nothing can construct it, so no game can depend on
             one silently doing something. Recorded in docs/roadmap.md,
             "An empty `type X = { }` is declarable but not constructible".
-            Every other cell above is walled or legal-by-design.
+            The content-clause surface adds no residual: `ranking:`/`trump:`
+            DECLARED in a piece game, and every other card-content surface,
+            are rejected naming the kind by the content-agreement walls
+            (tests/test_piece_content_walls.py), and the runtime driver runs
+            a piece game — this module owns the clause STRUCTURE, while the
+            vocabulary walls and the piece-game playout live in that flagship
+            ledger. Every other cell above is walled or legal-by-design.
 """
 
 from __future__ import annotations
@@ -112,6 +142,7 @@ from lark import Tree
 
 import cardlang
 from cardlang.diagnostics import DiagnosticError
+from cardlang.ir import emit
 from cardlang.parse import parse_text, parse_to_tree
 from cardlang.pipeline import check_dsl
 
@@ -228,6 +259,8 @@ _CLAUSE_TEXT: dict[str, str] = {
     "players": "players: 3",
     "direction": "direction: clockwise",
     "cards": "cards: skat32",
+    "pieces": "pieces: xo_marks",
+    "board": "board: grid(3, 3)",
     "ranking": "ranking: K Q J",
     "trump": "trump: hearts",
     "partnerships": "partnerships: [[0, 2], [1, 3]]",
@@ -419,6 +452,8 @@ SINGLE_VALUED: dict[str, str] = {
     "players": "players:",
     "direction": "direction:",
     "cards": "cards:",
+    "pieces": "pieces:",
+    "board": "board:",
     "ranking": "ranking:",
     "trump": "trump:",
     "partnerships": "partnerships:",
@@ -453,6 +488,12 @@ BASE = "\n".join(BASE_LINES) + "\n"
 # time, before resolve, so these only need to be grammatical.
 _EXTRA_CLAUSE: dict[str, str] = {
     "positions": "  positions { column : 1..3 }",
+    # BASE carries `cards:`, so this probe doubles as the pieces-duplicated-
+    # beside-cards cell: `once()` raises before the mutual-exclusion wall.
+    "pieces": "  pieces: xo_marks",
+    # Likewise duplicated beside `cards:`: `once("board:")` fires at parse,
+    # before resolve's board-requires-pieces wall ever runs.
+    "board": "  board: grid(3, 3)",
     "direction": "  direction: clockwise",
     "ranking": "  ranking: A K Q J 10 9 8 7 6 5 4 3 2",
     "trump": "  trump: spades",
@@ -496,7 +537,12 @@ REPEATABLE: dict[str, str] = {
 def test_game_item_registry_pin() -> None:
     """The domain this module quantifies over IS the grammar's clause list:
     a new `?game_item` alternative must be classified here (single-valued or
-    repeatable) before it can land."""
+    repeatable) before it can land.
+
+    red under: add an alternative to `?game_item` in the grammar without
+    listing it in SINGLE_VALUED/REPEATABLE (the scraped set then exceeds the
+    classified union). Demonstrated by the merge: `board`/`pieces` entered
+    `?game_item` and this pin stayed red until both were classified below."""
     alternatives = _game_item_alternatives()
     assert alternatives == set(SINGLE_VALUED) | set(REPEATABLE), (
         "the `game` production's clause list changed — classify the new "
@@ -528,11 +574,13 @@ def test_missing_players_names_the_clause() -> None:
     assert "must declare `players: <n>`" in exc.value.diagnostic.message
 
 
-def test_missing_cards_names_the_clause() -> None:
+def test_missing_content_clause_names_both_spellings() -> None:
+    """A game with neither content clause is told about both, so the fix is
+    visible whichever flavor the designer meant."""
     text = BASE.replace("  cards: standard52\n", "")
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(text, "probe.cardlang")
-    assert "must declare `cards: <deck>`" in exc.value.diagnostic.message
+    assert "must declare `cards: <deck>` or `pieces: <set>`" in exc.value.diagnostic.message
 
 
 def test_missing_players_and_cards_reports_both() -> None:
@@ -543,7 +591,9 @@ def test_missing_players_and_cards_reports_both() -> None:
         check_dsl(text, "probe.cardlang")
     assert "must declare `players: <n>`" in exc.value.diagnostic.message
     notes = getattr(exc.value, "__notes__", [])
-    assert any("must declare `cards: <deck>`" in note for note in notes)
+    assert any(
+        "must declare `cards: <deck>` or `pieces: <set>`" in note for note in notes
+    )
 
 
 def test_no_game_block_rejected() -> None:
@@ -580,3 +630,108 @@ def test_unknown_direction_rejected() -> None:
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(text, "probe.cardlang")
     assert "unknown direction 'anticlockwise'" in exc.value.diagnostic.message
+
+
+# --- the content-clause axis: `cards:` / `pieces:` -------------------------
+# Rejection-corpus twins of these probes: tests/rejections/
+# {pieces_and_cards_together, pieces_unknown_set, pieces_names_a_deck,
+# cards_names_a_piece_set, duplicate_pieces_clause}.
+
+# The piece mirror of BASE. Deliberately free of card-noun constructs
+# (movements, card queries, ranking): the clause is live before the piece
+# noun/flavor semantics, so this pins the surface that must already compile.
+PIECE_BASE_LINES: tuple[str, ...] = (
+    "game PieceProbe {",
+    "  players: 2",
+    "  pieces: xo_marks",
+    "  max_length: 10",
+    "  state { score[player] : Integer = 0 }",
+    "  winner: highest score",
+    "}",
+)
+PIECE_BASE = "\n".join(PIECE_BASE_LINES) + "\n"
+
+
+def test_piece_probe_is_accepted() -> None:
+    check_dsl(PIECE_BASE, "piece.cardlang")
+
+
+def test_content_flavor_stamped_from_clause() -> None:
+    """`Game.content_flavor` records WHICH clause appeared — stamped at
+    parse, the single source resolve's flavor walls dispatch on. `Game.deck`
+    holds the selected set name for both flavors."""
+    assert parse_text(BASE, "base.cardlang").content_flavor == "card"
+    game = parse_text(PIECE_BASE, "piece.cardlang")
+    assert game.content_flavor == "piece"
+    assert game.deck == "xo_marks"
+
+
+def test_both_content_clauses_rejected() -> None:
+    """`cards:` and `pieces:` both select the game's one component set; a
+    game declaring both is rejected at parse, pointing at the later clause."""
+    text = BASE.replace("  max_length", "  pieces: xo_marks\n  max_length")
+    with pytest.raises(DiagnosticError) as exc:
+        check_dsl(text, "probe.cardlang")
+    message = exc.value.diagnostic.message
+    assert "a game declares `cards:` or `pieces:`, not both" in message
+    span = exc.value.diagnostic.span
+    assert span is not None and span.line == BASE_LINES.index("  max_length: 10") + 1
+
+
+def test_cards_naming_a_piece_set_rejected() -> None:
+    """A piece-flavored name under `cards:` gets the cross-flavor wall with
+    the right clause named — never the unknown-deck list (the name IS
+    known, just not a deck)."""
+    text = BASE.replace("cards: standard52", "cards: xo_marks")
+    with pytest.raises(DiagnosticError) as exc:
+        check_dsl(text, "probe.cardlang")
+    message = exc.value.diagnostic.message
+    assert "'xo_marks' is a piece set" in message
+    assert "`pieces: xo_marks`" in message
+
+
+def test_pieces_naming_a_card_deck_rejected() -> None:
+    text = PIECE_BASE.replace("pieces: xo_marks", "pieces: standard52")
+    with pytest.raises(DiagnosticError) as exc:
+        check_dsl(text, "probe.cardlang")
+    message = exc.value.diagnostic.message
+    assert "'standard52' is a card deck" in message
+    assert "`cards: standard52`" in message
+
+
+def test_unknown_piece_set_lists_piece_sets_only() -> None:
+    """The unknown-name diagnostic lists the sets of the CLAUSE'S flavor: a
+    designer who wrote `pieces:` is choosing among piece sets, and the deck
+    list would be noise."""
+    text = PIECE_BASE.replace("pieces: xo_marks", "pieces: chess_men")
+    with pytest.raises(DiagnosticError) as exc:
+        check_dsl(text, "probe.cardlang")
+    message = exc.value.diagnostic.message
+    assert "unknown piece set 'chess_men'" in message
+    assert "xo_marks" in message
+    assert "standard52" not in message
+
+
+def test_unknown_deck_lists_card_decks_only() -> None:
+    """The card-side twin: the pre-`pieces:` message survives verbatim, and
+    the piece sets never leak into its list."""
+    text = BASE.replace("cards: standard52", "cards: nosuch99")
+    with pytest.raises(DiagnosticError) as exc:
+        check_dsl(text, "probe.cardlang")
+    message = exc.value.diagnostic.message
+    assert "unknown deck 'nosuch99'" in message
+    assert "standard52" in message
+    assert "xo_marks" not in message
+
+
+def test_content_flavor_in_ir_only_for_piece_games() -> None:
+    """The IR keys `content_flavor` only when it is "piece": the card-game
+    IR predates the field and its goldens are byte-stable, so an absent key
+    means "card". The deck key carries the selected set name for both
+    flavors, unchanged."""
+    card_ir = emit(check_dsl(BASE, "base.cardlang"))
+    assert "content_flavor" not in card_ir
+    assert card_ir["deck"] == "standard52"
+    piece_ir = emit(check_dsl(PIECE_BASE, "piece.cardlang"))
+    assert piece_ir["content_flavor"] == "piece"
+    assert piece_ir["deck"] == "xo_marks"

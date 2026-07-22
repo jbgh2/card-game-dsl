@@ -17,7 +17,14 @@ declarations; tagged-union / phase outcomes) but are not yet constructed.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping, TypeAlias
+from typing import Literal, Mapping, TypeAlias
+
+# The two content flavors a game declares (`cards:` vs `pieces:`) -- the value
+# of `Game.content_flavor` and `ComponentSet.flavor`, and the dispatch key for
+# the flavor-aware walls. Not a `Type` (it types no expression); it lives in
+# this leaf module so the AST, the resolver, the checker, and the runtime
+# registry all import it without any of them importing each other.
+Flavor: TypeAlias = Literal["card", "piece"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +55,27 @@ class TTeam:
 @dataclass(frozen=True, slots=True)
 class TCard:
     pass
+
+
+@dataclass(frozen=True, slots=True)
+class TCell:
+    """A board cell — one member of the named-member position domain a `board:`
+    clause mints (decisions.md "Boards and cells"). Distinct from ``TInteger``
+    so a named-member domain's parameters, binders and subscript keys reject
+    integer operands (`square[7]`, `at is 3`) and vice versa, while integer
+    position domains keep ``TInteger`` exactly. Its runtime representation is
+    the cell name string (`"a1"`)."""
+
+
+@dataclass(frozen=True, slots=True)
+class TLine:
+    """A board line -- one member of the collection ``lines(k)`` returns
+    (decisions.md "Boards and cells"), itself an ordered collection of
+    ``TCell`` members. Distinct from ``TCollection(TCell())`` so the two
+    collection quantifier forms stay type-directed: ``any line in <expr>``
+    demands a collection of lines, ``all cells in <expr>`` demands a single
+    line, and neither can be spelled with a bare card/zone collection. Its
+    runtime representation is the cell-name tuple (`("a1", "b1", "c1")`)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,6 +167,8 @@ Type: TypeAlias = (
     | TPlayer
     | TTeam
     | TCard
+    | TCell
+    | TLine
     | TEnum
     | TOptional
     | TCollection

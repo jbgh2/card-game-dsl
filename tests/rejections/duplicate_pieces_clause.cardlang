@@ -1,0 +1,11 @@
+// Wall: parse.py's `game()` builder — the single-valued-clause sweep of
+// tests/test_game_clause_walls.py, in the piece flavor. The repeat would
+// silently replace the first selection; rejected at the second occurrence.
+game DuplicatePieces {
+  players: 2
+  pieces: xo_marks
+  pieces: xo_marks
+  max_length: 10
+  state { score[player] : Integer = 0 }
+  winner: highest score
+}

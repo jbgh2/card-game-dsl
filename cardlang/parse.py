@@ -79,6 +79,12 @@ class _Deck:
 
 
 @dataclass(frozen=True, slots=True)
+class _Pieces:
+    name: str
+    span: Span
+
+
+@dataclass(frozen=True, slots=True)
 class _Direction:
     value: str
     span: Span
@@ -282,6 +288,9 @@ class _Builder(Transformer[Token, n.Game]):
     def cards(self, meta: Meta, c: list[Token]) -> _Deck:
         return _Deck(str(c[0]), span=self._span(meta))
 
+    def pieces(self, meta: Meta, c: list[Token]) -> _Pieces:
+        return _Pieces(str(c[0]), span=self._span(meta))
+
     def ranking(self, meta: Meta, c: list[object]) -> _Ranking:
         # The convention forms: `ace-ten` arrives as the RANK_CONV terminal
         # (its hyphen has no enumeration derivation); the space forms
@@ -365,6 +374,22 @@ class _Builder(Transformer[Token, n.Game]):
 
     def positions(self, meta: Meta, c: list[n.PositionDecl]) -> _Positions:
         return _Positions(tuple(c), span=self._span(meta))
+
+    # --- board ---
+
+    def board(self, meta: Meta, c: list[Token]) -> n.BoardDecl:
+        # `c[0]` is the family NAME; the parenthesized INT args (if any)
+        # follow (the "(", ",", ")" literals are filtered by lark). An omitted
+        # arg list arrives as one None placeholder (`maybe_placeholders`) --
+        # filtered here, so `board: grid` reaches resolve as zero args and
+        # `board_entry`'s arity diagnostic, not an int(None) crash. Family/arg
+        # validity is a resolve diagnostic via `board_entry` -- parse only
+        # shapes the declaration.
+        return n.BoardDecl(
+            family=str(c[0]),
+            args=tuple(int(x) for x in c[1:] if x is not None),
+            span=self._span(meta),
+        )
 
     # --- state ---
 
@@ -945,6 +970,42 @@ class _Builder(Transformer[Token, n.Game]):
     def q_all_rank(self, meta: Meta, c: list[object]) -> n.Quantifier:
         return self._implicit_quantifier("all", "rank", meta, c)
 
+    def _domain_query(
+        self, kind: str, meta: Meta, noun: object, source: object, pred: object
+    ) -> n.DomainQuery:
+        # The plural convention is fixed by kind: `any` takes the singular
+        # noun, `all`/`number of` the plural. The binder (the scoped name, and
+        # for a bare form the domain to enumerate) is the singular, derived by
+        # stripping a trailing `s` from a plural spelling; `spelled` keeps the
+        # raw noun so resolve can quote it in the plural-mismatch diagnostic.
+        # Whether the plural was actually well-formed is resolve's wall — this
+        # only recovers the intended singular so the body's binder resolves.
+        spelled = str(noun)
+        binder = spelled[:-1] if kind != "any" and spelled.endswith("s") else spelled
+        return n.DomainQuery(
+            kind=kind,
+            binder=binder,
+            spelled=spelled,
+            source=_as_expr(source) if source is not None else None,
+            pred=_as_expr(pred),
+            span=self._span(meta),
+        )
+
+    def q_any_domain(self, meta: Meta, c: list[object]) -> n.DomainQuery:
+        return self._domain_query("any", meta, c[0], None, c[1])
+
+    def q_all_domain(self, meta: Meta, c: list[object]) -> n.DomainQuery:
+        return self._domain_query("all", meta, c[0], None, c[1])
+
+    def q_count_domain(self, meta: Meta, c: list[object]) -> n.DomainQuery:
+        return self._domain_query("count", meta, c[0], None, c[1])
+
+    def q_any_in(self, meta: Meta, c: list[object]) -> n.DomainQuery:
+        return self._domain_query("any", meta, c[0], c[1], c[2])
+
+    def q_all_in(self, meta: Meta, c: list[object]) -> n.DomainQuery:
+        return self._domain_query("all", meta, c[0], c[1], c[2])
+
     def cq_set(self, meta: Meta, c: list[object]) -> n.CardQuery:
         return n.CardQuery(
             kind="set", source=_as_expr(c[0]), pred=_as_expr(c[1]), span=self._span(meta)
@@ -1164,7 +1225,8 @@ class _Builder(Transformer[Token, n.Game]):
     def game(self, meta: Meta, c: list[object]) -> n.Game:
         name = str(c[0])
         players: n.PlayersSpec | None = None
-        deck: str | None = None
+        deck: _Deck | None = None
+        pieces: _Pieces | None = None
         direction: str | None = None
         ranking: tuple[str, ...] = ()
         ranking_convention: str | None = None
@@ -1172,6 +1234,7 @@ class _Builder(Transformer[Token, n.Game]):
         partnerships: tuple[tuple[int, ...], ...] = ()
         max_length: int | None = None
         positions: tuple[n.PositionDecl, ...] = ()
+        board: n.BoardDecl | None = None
         zones: tuple[n.ZoneDecl, ...] = ()
         state: n.StateBlock | None = None
         phases: list[n.Phase] = []
@@ -1213,7 +1276,10 @@ class _Builder(Transformer[Token, n.Game]):
                 players = item
             elif isinstance(item, _Deck):
                 once("cards:", item.span)
-                deck = item.name
+                deck = item
+            elif isinstance(item, _Pieces):
+                once("pieces:", item.span)
+                pieces = item
             elif isinstance(item, _Direction):
                 once("direction:", item.span)
                 direction = item.value
@@ -1233,6 +1299,9 @@ class _Builder(Transformer[Token, n.Game]):
             elif isinstance(item, _Positions):
                 once("positions { }", item.span, merge_hint=True)
                 positions = item.positions
+            elif isinstance(item, n.BoardDecl):
+                once("board:", item.span)
+                board = item
             elif isinstance(item, _Zones):
                 once("zones { }", item.span, merge_hint=True)
                 zones = item.zones
@@ -1255,13 +1324,13 @@ class _Builder(Transformer[Token, n.Game]):
             else:
                 raise AssertionError(f"unexpected game item: {item!r}")
 
-        # `players:` and `cards:` are the two clauses the AST itself makes
-        # mandatory (`Game.players` / `Game.deck` are non-optional), so this
-        # builder is the last layer where their absence exists to report —
-        # the optionally-representable mandatory clauses (`max_length:`,
-        # `winner:`/`loser:`) are walled in resolve instead. Bag-first so a
-        # game missing both hears about both at once (resolve's
-        # `_raise_if_errors` idiom).
+        # `players:` and a content clause (`cards:`/`pieces:`) are the
+        # clauses the AST itself makes mandatory (`Game.players` /
+        # `Game.deck` are non-optional), so this builder is the last layer
+        # where their absence exists to report — the optionally-representable
+        # mandatory clauses (`max_length:`, `winner:`/`loser:`) are walled in
+        # resolve instead. Bag-first so a game missing both hears about both
+        # at once (resolve's `_raise_if_errors` idiom).
         bag = DiagnosticBag()
         game_span = self._span(meta)
         if players is None:
@@ -1271,10 +1340,19 @@ class _Builder(Transformer[Token, n.Game]):
                 f"zone and the turn ring",
                 game_span,
             )
-        if deck is None:
+        if deck is not None and pieces is not None:
+            # Span on whichever clause appears later, as `once()` points at
+            # the repeat.
             bag.error(
-                f"game '{name}' must declare `cards: <deck>` — the deck it "
-                f"is played with (e.g. `cards: standard52`)",
+                "a game declares `cards:` or `pieces:`, not both — no game "
+                "has witnessed needing both",
+                pieces.span if pieces.span.start > deck.span.start else deck.span,
+            )
+        elif deck is None and pieces is None:
+            bag.error(
+                f"game '{name}' must declare `cards: <deck>` or `pieces: "
+                f"<set>` — the components it is played with (e.g. `cards: "
+                f"standard52`)",
                 game_span,
             )
         if bag.has_errors:
@@ -1282,12 +1360,16 @@ class _Builder(Transformer[Token, n.Game]):
             if len(bag.items) > 1:
                 error.add_note(bag.format())
             raise error
-        # Backstop for mypy narrowing only: the bag raise above is the wall.
-        assert players is not None and deck is not None
+        # Backstop for mypy narrowing only: the bag raise above is the wall
+        # (players present, and exactly one content clause).
+        assert players is not None
+        content: _Deck | _Pieces | None = deck if deck is not None else pieces
+        assert content is not None
         return n.Game(
             name=name,
             players=players,
-            deck=deck,
+            deck=content.name,
+            content_flavor="card" if isinstance(content, _Deck) else "piece",
             zones=zones,
             direction=direction,
             ranking=ranking,
@@ -1295,6 +1377,7 @@ class _Builder(Transformer[Token, n.Game]):
             trump=trump,
             partnerships=partnerships,
             positions=positions,
+            board=board,
             max_length=max_length,
             state=state,
             phases=tuple(phases),

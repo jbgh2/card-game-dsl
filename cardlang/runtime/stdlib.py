@@ -79,6 +79,8 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
     if sig is not None:
         args = _coerce_args(sig, args)
     match name:
+        case "lines":
+            return _lines(ctx, args[0])
         case "player_holding":
             return _player_holding(args[0], ctx)
         case "team_of":
@@ -456,6 +458,29 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             return canasta_hand_points(*_bind(ctx, ROW), args[0])
         case _:
             raise AssertionError(f"unknown stdlib function '{name}'")
+
+
+def _lines(ctx: Ctx, k: int) -> tuple[tuple[str, ...], ...]:
+    """The board's length-`k` lines (cell-name tuples) -- the source the
+    `any line in lines(k) where …` register iterates. Reads the board entry
+    T5 already computed (`cardlang/stdlib/boards.py`), never re-derives the
+    geometry."""
+    board = ctx.rs.board
+    if board is None:
+        # Resolve walls `lines()` in a boardless game (BOARD_ONLY_CALL_FUNCS);
+        # this backstops that wall in the runtime's own currency, should the
+        # call ever reach here without a board.
+        raise RuntimeError(
+            "lines() reads the board's lines, but the game declares no `board:`"
+        )
+    try:
+        return board.lines(k)
+    except ValueError as exc:
+        # A LITERAL out-of-range `k` is a resolve diagnostic (static bounds
+        # check at the call site); a non-literal `k` (no rung-1 witness) is
+        # only knowable at runtime, so its out-of-range value surfaces here as
+        # a typed runtime error, never a bare ValueError escaping the boundary.
+        raise RuntimeError(str(exc)) from exc
 
 
 def _strain_index(strain: str | None) -> int:

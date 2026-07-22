@@ -13,7 +13,9 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from cardlang.ast import nodes as n
+from cardlang.board_domains import position_domains_of
 from cardlang.domains import role_members
+from cardlang.stdlib.boards import board_entry
 from cardlang.runtime import phases
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.evaluate import evaluate
@@ -28,7 +30,15 @@ from cardlang.runtime.state import (
     _ProduceSignal,
     _SkipHand,
 )
-from cardlang.runtime.values import DECKS, Player, Seating, build_deck, deck_ranks, deck_suits
+from cardlang.runtime.values import (
+    Player,
+    Seating,
+    axis_attributes,
+    build_deck,
+    component_deck,
+    deck_ranks,
+    deck_suits,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,20 +75,25 @@ def play_game(
     team_of = {
         p: ti for ti, members in enumerate(game.partnerships) for p in members
     }
-    positions = {p.name: p.members for p in game.positions}
+    positions = dict(position_domains_of(game))
     zones = ZoneStore(game.zones, seating.players, teams, positions=positions)
     rs = RuntimeState(seating, zones, rng)
     rs.trump = game.trump
     rs.teams = teams
     rs.team_of = team_of
     rs.position_domains = positions
+    # The instantiated board (cells + lines) for the cell/line query verbs;
+    # `board_entry` is total on a resolved game (resolve validated it).
+    rs.board = board_entry(game.board.family, game.board.args) if game.board is not None else None
     assert game.max_length is not None, "resolve() must reject a missing max_length"
     rs.max_length = game.max_length
     # Rank strength is read from the game's `ranking:` (high to low), so every
     # deck ranks correctly without a hardcoded order. Card values come from the
     # deck table (empty for games that score by other means).
     rs.rank_index = {r: len(game.ranking) - 1 - i for i, r in enumerate(game.ranking)}
-    rs.card_values = dict(DECKS[game.deck].values)
+    rs.card_values = dict(component_deck(game.deck).values)
+    rs.content_flavor = game.content_flavor
+    rs.axis_attr = axis_attributes(game.deck)
     rs.suits = deck_suits(game.deck)
     # Rank iteration order for `for each rank` / `any rank`: the declared
     # ranking when present, else the deck's first-appearance order.

@@ -11,11 +11,14 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass, field, replace
-from typing import Any, Callable, Iterable
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping
 
 from cardlang.ast import nodes as n
 from cardlang.domains import ZONE_INDEX_ROLES, DomainSources, role_static_members
 from cardlang.runtime.values import Card, Player, Seating
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from cardlang.stdlib.boards import BoardEntry
 
 
 class IllegalMove(Exception):
@@ -117,10 +120,10 @@ class ZoneStore:
         decls: Iterable[n.ZoneDecl],
         players: tuple[Player, ...],
         teams: tuple[int, ...] = (),
-        positions: "dict[str, tuple[int, ...]] | None" = None,
+        positions: "Mapping[str, tuple[int, ...] | tuple[str, ...]] | None" = None,
     ) -> None:
         self.singles: dict[str, Zone] = {}
-        self.families: dict[str, dict[int, Zone]] = {}
+        self.families: dict[str, dict[int | str, Zone]] = {}
         # The declared library type and index kind per zone, so the observation
         # emitter and info-state builder can look up any zone's projection.
         self.zone_type: dict[str, str] = {}
@@ -175,7 +178,7 @@ class ZoneStore:
             )
         return self.singles[name]
 
-    def instance(self, name: str, key: int) -> Zone:
+    def instance(self, name: str, key: int | str) -> Zone:
         # Both lookups fail in the runtime's typed currency, never as a bare
         # KeyError — the name and the key are equally capable of missing, so
         # neither is left to the raw dict.
@@ -193,7 +196,9 @@ class ZoneStore:
         # Integer literal, so `hand[9]` in a 4-player game type-checks and
         # arrives here (roadmap.md, "Zone-family index strictness (deferred
         # re-audit)"). That deferral is what makes this wall reachable rather
-        # than a backstop, and why the key branch owes a typed error.
+        # than a backstop, and why the key branch owes a typed error. A
+        # board-minted family keys by a cell name (str), so the key is
+        # `int | str`.
         if name not in self.families:
             raise RuntimeError(
                 f"no zone family '{name}' in this game — this asks for a "
@@ -210,7 +215,7 @@ class ZoneStore:
             )
         return family[key]
 
-    def locate(self, zone: Zone) -> "tuple[str, Player | None]":
+    def locate(self, zone: Zone) -> "tuple[str, Player | str | None]":
         """The (name, instance-key) of a zone object — the reverse lookup the
         observation emitter needs when a movement holds only the Zone value."""
         for name, z in self.singles.items():
@@ -265,9 +270,19 @@ class RuntimeState:
         # "Position domains and positional zones"); set by the driver from
         # `game.positions`, read by `zone_observer_key` (unowned families)
         # and `mechanics.param_domain` (position move parameters).
-        self.position_domains: dict[str, tuple[int, ...]] = {}
+        self.position_domains: dict[str, tuple[int, ...] | tuple[str, ...]] = {}
+        # The instantiated `board:` entry (cells + lines), or None for a
+        # boardless game; the driver builds it from `game.board`. The cell/line
+        # query verbs read it (decisions.md "Boards and cells").
+        self.board: "BoardEntry | None" = None
         self.max_length: int = 0  # the game's declared non-termination backstop
         self.decisions_made: int = 0  # every chooser pick, checked against max_length
+        # Content flavor ("card"/"piece") and the axis->Card-attribute map for a
+        # piece set (identity for a card deck): the driver sets both from the
+        # game's component set; `_card_pred`/`_select_joint` bind the flavor noun,
+        # `_member_eval` translates `piece.side` -> `Card.suit` (values.py).
+        self.content_flavor: str = "card"
+        self.axis_attr: dict[str, str] = {"suit": "suit", "rank": "rank"}
 
     # --- scope frames ---
 

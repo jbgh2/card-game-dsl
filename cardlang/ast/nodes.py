@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from typing import TypeAlias
 
 from cardlang.diagnostics import Span
+from cardlang.types import Flavor
 
 # ---------------------------------------------------------------------------
 # Expressions
@@ -219,6 +220,43 @@ class CardQuery:
 
 
 @dataclass(frozen=True, slots=True)
+class DomainQuery:
+    """The generic position-domain / collection quantifier register
+    (decisions.md "Boards and cells"), the positional twin of the fixed
+    `Quantifier` forms. Five surface spellings, one node:
+
+    - BARE, over a declared position domain (`source is None`):
+      `any <domain> where <pred>`      (kind "any")
+      `all <domain>s where <pred>`     (kind "all")
+      `number of <domain>s where <pred>` (kind "count")
+      -- `binder` is the singular domain noun, bound per member of the
+      domain's ordered members (`cell` for a board, an integer `positions {}`
+      name like `column`).
+
+    - COLLECTION, over an evaluated collection (`source` present):
+      `any line in <source> where <pred>`  (noun `line`, binds each line)
+      `all cells in <source> where <pred>` (noun `cell`, binds each cell)
+      -- `binder` is the singular noun (`line` / `cell`), fixed at rung 1.
+
+    `spelled` is the noun exactly as written (plural for `all`/`count`),
+    kept only so resolve's plural-mismatch diagnostic can quote it; `binder`
+    is the derived singular (the scoped name and, for bare forms, the domain
+    to enumerate)."""
+
+    kind: str  # "any" | "all" | "count"
+    binder: str  # the singular noun: binder name + (bare) domain to enumerate
+    spelled: str  # the noun as written (for the plural diagnostic)
+    source: Expr | None  # None for bare forms; the iterated collection for `in`
+    pred: Expr
+    span: Span | None = None
+
+
+# The keyword phrase each DomainQuery kind spells in a diagnostic. Owned here
+# beside the node so resolve and typecheck read one table, not two.
+DOMAIN_QUERY_KIND_PHRASE: dict[str, str] = {"any": "any", "all": "all", "count": "number of"}
+
+
+@dataclass(frozen=True, slots=True)
 class Choose:
     """`choose integer in <lo> .. <hi> [up to <ceiling>]` — a decision that
     resolves to a value via the chooser (e.g. a bid). ``domain`` names the
@@ -318,6 +356,7 @@ Expr = (
     | Choose
     | PlayerQuery
     | CardQuery
+    | DomainQuery
 )
 
 
@@ -702,16 +741,44 @@ class PositionDecl:
     domain `<name> : <lo>..<hi>` (decisions.md "Position domains and
     positional zones"). Members are the inclusive integer range; the name is
     usable as a zone-family index and a move-parameter domain, and nowhere
-    else (resolve walls the rest of the role/type surface)."""
+    else (resolve walls the rest of the role/type surface).
+
+    A `board:` clause mints a NAMED-member domain by setting `members_named`
+    (decisions.md "Boards and cells"): the members are then the given cell
+    names (strings) rather than an integer range, and `lo`/`hi` are unread.
+    Resolve is the only site that constructs the named form (from a validated
+    `board_entry`); the `positions { }` grammar produces the integer form
+    exclusively."""
 
     name: str
     lo: int
     hi: int
+    members_named: tuple[str, ...] | None = None
     span: Span | None = None
 
     @property
-    def members(self) -> tuple[int, ...]:
+    def members(self) -> tuple[int, ...] | tuple[str, ...]:
+        if self.members_named is not None:
+            return self.members_named
         return tuple(range(self.lo, self.hi + 1))
+
+
+@dataclass(frozen=True, slots=True)
+class BoardDecl:
+    """The `board: <family>(<args>)` clause (decisions.md "Boards and cells").
+
+    Records only the selection — the family name and its integer arguments.
+    Resolve validates them against `BOARD_FAMILIES` (via `board_entry`) and
+    mints the `cell` position domain, injecting a named-member `PositionDecl`
+    into `Game.positions`; this node is retained on the resolved `Game` so the
+    runtime can rebuild the `BoardEntry` (`rs.board`) for the cell/line query
+    verbs. Not emitted to the IR: the board's IR representation is its minted
+    `cell` position domain (the members), as `span`/`procedures` are likewise
+    non-serialized."""
+
+    family: str
+    args: tuple[int, ...]
+    span: Span | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1064,8 +1131,13 @@ class Game:
 
     name: str
     players: PlayersSpec
+    # The selected component-set name, for both content flavors.
     deck: str
     zones: tuple[ZoneDecl, ...]
+    # Which clause selected `deck` — "card" (`cards:`) or "piece" (`pieces:`),
+    # stamped at parse; resolve walls a cross-flavor name, so post-resolve
+    # `component_set(deck).flavor == content_flavor`.
+    content_flavor: Flavor = "card"
     direction: str | None = None
     ranking: tuple[str, ...] = ()
     # The convention keyword `ranking:` was written with (`"aces high"` etc.,
@@ -1080,7 +1152,14 @@ class Game:
     # Declared position domains (`positions { column : 1..7 }`) — per-game
     # integer index/parameter domains (decisions.md "Position domains and
     # positional zones"). Empty for every game with no positional layout.
+    # Resolve APPENDS the board-minted `cell` domain (a named-member
+    # `PositionDecl`) here, so a post-resolve game's positions are the union of
+    # the declared integer domains and the board's cells.
     positions: tuple[PositionDecl, ...] = ()
+    # The `board:` clause (decisions.md "Boards and cells"), or None. Retained
+    # through resolve for `rs.board`; the minted `cell` domain lives in
+    # `positions`, so this field is not itself emitted to the IR.
+    board: BoardDecl | None = None
     max_length: int | None = None
     state: StateBlock | None = None
     phases: tuple[Phase, ...] = ()
@@ -1134,6 +1213,7 @@ Node = (
     | StateBlock
     | StateDecl
     | PositionDecl
+    | BoardDecl
     | Phase
     | PhaseQualifier
     | BeforeEach
@@ -1188,4 +1268,5 @@ Node = (
     | Choose
     | PlayerQuery
     | CardQuery
+    | DomainQuery
 )
