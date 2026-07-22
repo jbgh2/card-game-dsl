@@ -580,7 +580,9 @@ the parameter. (Minting per-card vocabulary ids instead would give one card
 play two representations.) This is also why at most one Card-parameterized
 move may appear per vocabulary: the card id alone must name the move.
 
-**The integer `choose` domain.** `choose integer in <lo> .. <hi>` is the
+### The integer `choose` domain
+
+`choose integer in <lo> .. <hi>` is the
 numeric decision form (a bid — Spades' `0 .. 13`, Oh Hell's `0 .. hand_size`).
 Its domain is a bounded integer interval, and it satisfies the same
 closed-contract-plus-mask rule as the fixed domains above: the OpenSpiel action
