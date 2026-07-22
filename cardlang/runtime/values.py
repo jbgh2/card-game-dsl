@@ -197,6 +197,17 @@ COMPONENT_SETS: dict[str, ComponentSet] = {
         ("side", "kind"),
         Deck(suits=(), ranks=(), values={}, cards=(("mark", "x"),) * 5 + (("mark", "o"),) * 4),
     ),
+    # 32 breakthrough men: sixteen a side, one kind, distinguished only by side.
+    "breakthrough_men": ComponentSet(
+        "piece",
+        ("side", "kind"),
+        Deck(
+            suits=(),
+            ranks=(),
+            values={},
+            cards=(("man", "light"),) * 16 + (("man", "dark"),) * 16,
+        ),
+    ),
 }
 
 # The card-flavored projection every pre-existing deck consumer reads;

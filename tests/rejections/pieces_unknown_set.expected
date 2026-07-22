@@ -1,1 +1,1 @@
-pieces_unknown_set.cardlang:5:1: error: unknown piece set 'chess_men' — known piece sets: xo_marks
+pieces_unknown_set.cardlang:5:1: error: unknown piece set 'chess_men' — known piece sets: breakthrough_men, xo_marks

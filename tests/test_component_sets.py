@@ -16,7 +16,10 @@ registry:   cardlang.runtime.values.COMPONENT_SETS,
             cardlang.runtime.values.build_deck,
             cardlang.runtime.values.component_set
 covered:    all rows, exhaustively parametrized below; DECKS-view equality;
-            xo_marks composition pinned card-by-card; each of the wall's
+            each piece set's composition pinned item-by-item (xo_marks,
+            breakthrough_men — the flavor whose axes are per-set, so a
+            miscounted side would otherwise reach only its own game);
+            each of the wall's
             three branches fired directly (duplicate axes, non-identifier
             axis, piece flavor spelling "suit"/"rank"); build_deck's
             unknown-name refusal (message pinned to name component sets and
@@ -67,6 +70,14 @@ def test_xo_marks_composition() -> None:
     assert sum(1 for m in marks if m.suit == "x") == 5
     assert sum(1 for m in marks if m.suit == "o") == 4
     assert all(m.rank == "mark" for m in marks)
+
+
+def test_breakthrough_men_composition() -> None:
+    men = build_deck("breakthrough_men")
+    assert len(men) == 32
+    assert sum(1 for m in men if m.suit == "light") == 16
+    assert sum(1 for m in men if m.suit == "dark") == 16
+    assert all(m.rank == "man" for m in men)
 
 
 def test_build_deck_preserves_registry_literal_order() -> None:

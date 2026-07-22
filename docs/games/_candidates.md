@@ -460,21 +460,16 @@ baseline every later rung changes exactly one thing against. Rules are
 common knowledge; OpenSpiel's native `tic_tac_toe` is the differential
 oracle.)
 
-### breakthrough
-
-2 players, 8×8 grid, 16 pawn-like pieces each. Move one piece one
-square straight or diagonally forward; capture diagonally only; first
-to reach the opponent's back row wins.
-
-**Why interesting.** The movement rung: per-player direction frames
-("forward" as a declared per-seat transform over one shared board),
-the step/capture vocabulary with `Cell` (or cell × direction)
-parameters, displacement capture into a captured pile, reach-region
-win. Still monotone — pieces only advance, so no draw machinery.
-
-**Notes.** Invented by Dan Troyka, 2000; rules on the inventor's and
-standard abstract-games references. OpenSpiel `breakthrough`
-(thoroughly tested; `rows`/`columns` parameters) is the oracle.
+(Breakthrough, the ladder's second rung, is now in the corpus
+([breakthrough.md](breakthrough.md)): the movement rung — per-player
+direction frames ("forward" as a per-seat transform over one shared
+board), the minted `dir` domain and the `step(from, along)` vocabulary,
+the neighbor/region query verbs, `for each cell` setup over `home`,
+displacement capture into a public captured pile, and two termini
+(reach `far_row`, or take the last enemy man). Still monotone — every
+move advances or removes a man — so no draw machinery. Invented by Dan
+Troyka, 2000; OpenSpiel's native `breakthrough` is the differential
+oracle.)
 
 ### backgammon
 

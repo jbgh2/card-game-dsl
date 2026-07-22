@@ -796,6 +796,23 @@ Things we have noted but consciously not designed yet:
     Collapsing that degenerate node for a proven-chance-free game is the
     ladder's stage-3 chance workstream, not an info-set gap: the proof
     module records the honest caveat and defers the collapse here.
+  - **A decider with men but no legal move.** Breakthrough's `until`
+    predicate names the two termini its oracle names (someone has won,
+    someone has no men); it does not name "the player to move has men but
+    every step is blocked". OpenSpiel's `breakthrough` leaves that state
+    non-terminal with an empty action list; the DSL fires the
+    no-implicit-actions wall instead
+    (`cardlang/runtime/execute.py::_offer`), so the two are broken
+    differently rather than agreeing, and no differential walk can reach the
+    disagreement. It did not arise in 400 random games — the smallest offer
+    ever made was nine steps
+    (`tests/test_playout_breakthrough.py`) — so no machinery is built for an
+    unreached state, and the game says nothing it cannot back. The forcing
+    witness is a game whose rules make blocking ordinary:
+    [english-draughts](games/_candidates.md#english-draughts), where a
+    player with no move LOSES, and
+    [nine-mens-morris](games/_candidates.md#nine-mens-morris), where a
+    blocked player is a real position.
 
 - **Doc-snippet fragment kinds with no cheap wrapping harness.**
   `tests/test_doc_snippets.py` pipeline-checks every `cardlang`/
