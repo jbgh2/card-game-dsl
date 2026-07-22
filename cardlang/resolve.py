@@ -3357,7 +3357,7 @@ def _check_board_call(nd: n.Call, game: n.Game, bag: DiagnosticBag) -> None:
     runtime bound, surfaced as a typed error (recorded residual, roadmap.md)."""
     if game.board is None:
         bag.error(
-            f"`{nd.func}` reads the board's lines, but the game declares no `board:`",
+            f"`{nd.func}` reads the board, but the game declares no `board:`",
             nd.span,
         )
         return

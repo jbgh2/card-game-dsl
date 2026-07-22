@@ -788,7 +788,7 @@ def test_wrong_type_collection_source_all_cells_in_a_zone() -> None:
 
 def test_lines_in_a_boardless_game_is_rejected() -> None:
     msg = _reject(card_game(body="    if any line in lines(3) where n is 0 { n := 1 }\n"))
-    assert "`lines` reads the board's lines, but the game declares no `board:`" in msg
+    assert "`lines` reads the board, but the game declares no `board:`" in msg
 
 
 def test_lines_out_of_range_literal_is_a_static_resolve_error() -> None:

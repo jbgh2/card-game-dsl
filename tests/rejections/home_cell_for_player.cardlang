@@ -1,0 +1,33 @@
+// Wall: typecheck's Call arg-type check. home(Player)->Collection<Cell>; a `cell`-typed
+// argument is a TCell where a TPlayer is required, a type error.
+game HomeCellForPlayer {
+  players: 2
+  direction: clockwise
+  max_length: 30
+  board: grid(8, 8)
+  pieces: xo_marks
+  zones {
+    box             : Deck
+    square[cell]    : Cell<cell>
+    reserve[player] : PlayerPile<player>
+  }
+  state { done : Boolean = false }
+  phase setup {
+    move all pieces from box where piece.side is x to reserve[0]
+    move all pieces from box to reserve[1]
+  }
+  phase play {
+    turns t from 0 over all players until done {
+      offer to t one of [step, stop]
+    }
+  }
+  winner: highest done
+}
+move_type step(from : cell, along : dir) {
+  when: has_step(from, along, actor)
+  effect {
+    let x = home(from)
+    move one piece from reserve[actor] to square[from]
+  }
+}
+move_type stop { effect { done := true } }

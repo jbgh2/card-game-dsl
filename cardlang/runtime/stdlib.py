@@ -13,6 +13,7 @@ from typing import Any, Callable
 from cardlang.runtime import reads, sidecar
 from cardlang.runtime.state import Ctx, IllegalMove, elements
 from cardlang.runtime.values import SUITS, Card, Player
+from cardlang.stdlib.boards import BoardEntry
 from cardlang.stdlib.signatures import CALL_SIGS
 from cardlang.types import TAny, TCollection
 
@@ -81,6 +82,16 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
     match name:
         case "lines":
             return _lines(ctx, args[0])
+        case "neighbor":
+            return _neighbor(ctx, args[0], args[1], args[2])
+        case "has_step":
+            return _has_step(ctx, args[0], args[1], args[2])
+        case "is_diagonal":
+            return _is_diagonal(ctx, args[0])
+        case "home":
+            return _home(ctx, args[0])
+        case "far_row":
+            return _far_row(ctx, args[0])
         case "player_holding":
             return _player_holding(args[0], ctx)
         case "team_of":
@@ -481,6 +492,59 @@ def _lines(ctx: Ctx, k: int) -> tuple[tuple[str, ...], ...]:
         # only knowable at runtime, so its out-of-range value surfaces here as
         # a typed runtime error, never a bare ValueError escaping the boundary.
         raise RuntimeError(str(exc)) from exc
+
+
+def _board_of(ctx: Ctx, fn: str) -> BoardEntry:
+    """The instantiated `board:` entry the class-1 movement/region verbs read
+    (the `_lines` twin). Resolve walls a board-only call in a boardless game
+    (BOARD_ONLY_CALL_FUNCS); this backstops that resolve wall in the runtime's
+    own currency, naming the missing `board:`, should such a call ever reach
+    here without a board."""
+    board = ctx.rs.board
+    if board is None:
+        raise RuntimeError(
+            f"{fn}() reads the `board:`, but the game declares no `board:`"
+        )
+    return board
+
+
+def _neighbor(ctx: Ctx, cell: str, direction: str, player: int) -> str:
+    """The cell one step along `direction` in `player`'s frame -- the geometry
+    the `step` move reads (cardlang/stdlib/boards.py). Total by contract: every
+    call site is `has_step`-gated (the guard short-circuits before any off-board
+    `neighbor` runs; the effect runs only after that guard passed), so an
+    off-board result is unreachable from a game. The None-return raise is a
+    backstop of that `has_step` guard, in the runtime's currency -- not a
+    game-reachable error."""
+    dest = _board_of(ctx, "neighbor").neighbor(cell, direction, player)
+    if dest is None:
+        raise RuntimeError(
+            f"neighbor({cell!r}, {direction!r}, {player}) stepped off the board "
+            "-- a total neighbor must be has_step-gated at its call site"
+        )
+    return dest
+
+
+def _has_step(ctx: Ctx, cell: str, direction: str, player: int) -> bool:
+    """Whether the step along `direction` stays on the board -- the guard
+    predicate that gates the total `neighbor`."""
+    return _board_of(ctx, "has_step").has_step(cell, direction, player)
+
+
+def _is_diagonal(ctx: Ctx, direction: str) -> bool:
+    """Whether a step along `direction` captures (changes file)."""
+    return _board_of(ctx, "is_diagonal").is_diagonal(direction)
+
+
+def _home(ctx: Ctx, player: int) -> tuple[str, ...]:
+    """A player's home region (back two ranks) -- a Collection<Cell>."""
+    return _board_of(ctx, "home").home(player)
+
+
+def _far_row(ctx: Ctx, player: int) -> tuple[str, ...]:
+    """The rank at the far edge of `player`'s frame (the reach-to-win goal)
+    -- a Collection<Cell>."""
+    return _board_of(ctx, "far_row").far_row(player)
 
 
 def _strain_index(strain: str | None) -> int:

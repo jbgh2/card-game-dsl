@@ -1,0 +1,1 @@
+far_row_boardless.cardlang:23:13: error: `far_row` reads the board, but the game declares no `board:`

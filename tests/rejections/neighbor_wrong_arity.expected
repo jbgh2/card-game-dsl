@@ -1,0 +1,1 @@
+neighbor_wrong_arity.cardlang:29:13: error: neighbor() expects 3 argument(s), got 1

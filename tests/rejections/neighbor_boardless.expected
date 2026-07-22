@@ -1,0 +1,1 @@
+neighbor_boardless.cardlang:23:13: error: `neighbor` reads the board, but the game declares no `board:`

@@ -19,7 +19,9 @@ from cardlang.types import (
     TAny,
     TBoolean,
     TCard,
+    TCell,
     TCollection,
+    TDir,
     TEnum,
     TInteger,
     TLine,
@@ -43,6 +45,18 @@ CALL_SIGS: dict[str, Sig] = {
     # The board's length-k lines (decisions.md "Boards and cells"): each a
     # `TLine` (a cell tuple), for the `any line in lines(k) where …` register.
     "lines": Sig((TInteger(),), TCollection(TLine())),
+    # The class-1 movement/region verbs (decisions.md "Boards and cells", rung-2
+    # movement): `neighbor` the destination cell one step along a direction in a
+    # player's frame, `has_step` the guard that gates it, `is_diagonal` whether
+    # the step captures, `home`/`far_row` the setup and reach-goal cell regions.
+    # Each reads the `board:` entry (the `lines` twin, BOARD_ONLY). `home`/
+    # `far_row` return `Collection<Cell>` -- the shape the `cell in <cellset>`
+    # membership consumes.
+    "neighbor": Sig((TCell(), TDir(), TPlayer()), TCell()),
+    "has_step": Sig((TCell(), TDir(), TPlayer()), TBoolean()),
+    "is_diagonal": Sig((TDir(),), TBoolean()),
+    "home": Sig((TPlayer(),), TCollection(TCell())),
+    "far_row": Sig((TPlayer(),), TCollection(TCell())),
     "player_holding": Sig((TCard(),), TPlayer()),
     "team_of": Sig((TPlayer(),), TTeam()),
     # `suit_of` accepts a card or a single-card zone (polymorphic arg -> TAny)
