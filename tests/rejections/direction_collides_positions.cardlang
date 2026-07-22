@@ -1,0 +1,32 @@
+// Wall: resolve's `_resolve_board` mint-site collision (the `cell` collision's
+// twin). The board mints a movement-direction domain named `dir`, so a
+// declared `positions { dir : ... }` clashes with it and is rejected. `dir` is
+// a separate source from `game.positions`, but the mint site still guards the
+// name so a game cannot bind `dir` to two different domains.
+game DirCollidesPositions {
+  players: 2
+  max_length: 20
+  board: grid(3, 3)
+  pieces: xo_marks
+  positions { dir : 1..3 }
+  zones {
+    box             : Deck
+    square[cell]    : Cell<cell>
+    reserve[player] : PlayerPile<player>
+  }
+  state {
+    result[player] : Integer = 0
+    done : Boolean = false
+  }
+  phase setup {
+    move all pieces from box where piece.side is x to reserve[0]
+    move all pieces from box to reserve[1]
+  }
+  phase play {
+    turns t from 0 over all players until done {
+      offer to t one of [stop]
+    }
+  }
+  winner: highest result
+}
+move_type stop { effect { done := true } }

@@ -73,7 +73,7 @@ from cardlang.stdlib.functions import (
     STDLIB_VALUE_NAMES,
 )
 from cardlang.runtime.values import content_kind_clause, content_noun
-from cardlang.board_domains import BOARD_DOMAIN
+from cardlang.board_domains import BOARD_DOMAIN, DIRECTION_DOMAIN, directions_of
 from cardlang.stdlib.boards import board_entry
 from cardlang.libraries import library_names, load_library
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
@@ -1766,6 +1766,21 @@ def _resolve_board(
             game.board.span,
         )
         return game
+    # The board mints a SECOND domain, `dir` (the movement directions), as a
+    # separate source (`directions_of`) rather than a `game.positions` entry.
+    # A declared `positions { dir : ... }` clashes with it -- the `cell`
+    # collision's twin. No early return: unlike a `cell` clash, a declared
+    # `dir` does not block minting `cell` (they are different names), so the
+    # error is emitted and cell minting proceeds; the bag halts the pipeline
+    # either way.
+    if DIRECTION_DOMAIN in declared_positions:
+        bag.error(
+            f"the board mints a movement-direction domain named "
+            f"'{DIRECTION_DOMAIN}', which collides with the declared "
+            f"`positions {{ {DIRECTION_DOMAIN} : ... }}` — rename the declared "
+            f"domain (a board already provides '{DIRECTION_DOMAIN}')",
+            game.board.span,
+        )
     # Family/args validity is the registry's to judge: `board_entry` raises a
     # ValueError naming the violated bound (unknown family, wrong arity,
     # out-of-bounds arg), which becomes a diagnostic at the clause span.
@@ -3114,6 +3129,7 @@ def _check_move_params(
     span: Span | None,
     has_ranking: bool,
     positions: frozenset[str],
+    directions: frozenset[str],
     flavor: Flavor,
     deck: str,
 ) -> None:
@@ -3175,10 +3191,21 @@ def _check_move_params(
                 f"open-questions/move-parameter-domains.md)",
                 span,
             )
-        elif t not in _FIXED_DOMAINS and t != "Card" and t not in positions:
+        elif (
+            t not in _FIXED_DOMAINS
+            and t != "Card"
+            and t not in positions
+            and t not in directions
+        ):
             expected = _LEGAL_PARAM_DOMAINS
             if positions:
                 expected += ", or a declared position domain (" + ", ".join(sorted(positions)) + ")"
+            if directions:
+                expected += (
+                    ", or a movement direction domain ("
+                    + ", ".join(sorted(directions))
+                    + ")"
+                )
             bag.error(
                 f"move '{mt.name}' has unsupported parameter domain '{t}' "
                 f"(expected {expected})",
@@ -3368,11 +3395,24 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     # also stops a move named by two vocabularies from reporting one defect
     # twice.
     declared_positions = frozenset(p.name for p in game.positions)
+    # The board-minted `dir` domain, a SEPARATE source from `game.positions`
+    # (decisions.md "Boards and cells"): `{dir}` for a board game, `{}` for a
+    # boardless one, so a `dir` move parameter is admitted only where a board
+    # mints it. Gated on the board having MINTED (`cell` present as a
+    # named-member domain): an INVALID board (`_resolve_board` already emitted
+    # its diagnostic and minted nothing) leaves `directions_of` -- which
+    # re-derives from `board_entry` -- unsafe to call, and admitting `dir` off
+    # a board that failed validation would be wrong anyway. So `cell` and `dir`
+    # stand or fall together.
+    board_minted = any(
+        p.name == BOARD_DOMAIN and p.members_named is not None for p in game.positions
+    )
+    move_directions = frozenset(directions_of(game)) if board_minted else frozenset()
     for mt in game.move_types:
         if mt.params:
             _check_move_params(
                 mt, bag, mt.span, bool(game.ranking),
-                declared_positions, game.content_flavor, game.deck,
+                declared_positions, move_directions, game.content_flavor, game.deck,
             )
     for nd in _walk(game):
         match nd:

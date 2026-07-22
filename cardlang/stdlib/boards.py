@@ -14,6 +14,12 @@ from typing import Callable
 
 _FILES = "abcdefghijklmnop"  # grid's declared arg ceiling is 16
 
+# The seat-relative forward directions a grid mints, in fixed order (decisions.md
+# "Boards and cells", rung-2 movement). One member per forward direction a piece
+# may step; the per-player absolute offsets and the diagonal flag are a later
+# task's addition to BoardEntry. `directions()` returns these NAMES only.
+_GRID_DIRECTIONS = ("ahead", "ahead_left", "ahead_right")
+
 
 def _cell_name(column: int, row: int) -> str:
     # column, row are 0-based. File (column) runs a..p left to right; rank
@@ -72,6 +78,17 @@ class BoardEntry:
         if self.family == "grid":
             width, height = self.args
             return _grid_lines(width, height, k)
+        raise ValueError(
+            f"unknown board family {self.family!r} (registry only mints: {sorted(BOARD_FAMILIES)})"
+        )
+
+    def directions(self) -> tuple[str, ...]:
+        """The seat-relative forward directions this board mints, in fixed
+        order -- the members of the `dir` move-parameter domain (decisions.md
+        "Boards and cells", rung-2 movement). Names only at this task; the
+        per-player offsets are a later addition."""
+        if self.family == "grid":
+            return _GRID_DIRECTIONS
         raise ValueError(
             f"unknown board family {self.family!r} (registry only mints: {sorted(BOARD_FAMILIES)})"
         )

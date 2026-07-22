@@ -1,0 +1,1 @@
+direction_collides_positions.cardlang:9:3: error: the board mints a movement-direction domain named 'dir', which collides with the declared `positions { dir : ... }` — rename the declared domain (a board already provides 'dir')

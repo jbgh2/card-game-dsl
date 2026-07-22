@@ -1,0 +1,35 @@
+// Wall: typecheck's zone-family subscript-key check. A movement direction
+// (`along : dir`, TDir) cannot index a cell-keyed zone family (`square`,
+// keyed by TCell): `assignable(TDir, TCell)` is False, so `square[along]`
+// rejects rather than falling through permissively. `dir` gets this exclusion
+// for FREE -- it is a separate source, never a zone index.
+game DirZoneIndex {
+  players: 2
+  max_length: 20
+  board: grid(3, 3)
+  pieces: xo_marks
+  zones {
+    box             : Deck
+    square[cell]    : Cell<cell>
+    reserve[player] : PlayerPile<player>
+  }
+  state {
+    result[player] : Integer = 0
+    done : Boolean = false
+  }
+  phase setup {
+    move all pieces from box where piece.side is x to reserve[0]
+    move all pieces from box to reserve[1]
+  }
+  phase play {
+    turns t from 0 over all players until done {
+      offer to t one of [pick, stop]
+    }
+  }
+  winner: highest result
+}
+move_type pick(along : dir) {
+  when: square[along] is empty
+  effect { done := true }
+}
+move_type stop { effect { done := true } }

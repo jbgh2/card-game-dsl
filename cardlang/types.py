@@ -68,6 +68,18 @@ class TCell:
 
 
 @dataclass(frozen=True, slots=True)
+class TDir:
+    """A movement direction -- one member of the named-member `dir` domain a
+    `board:` clause mints (decisions.md "Boards and cells", rung-2 movement).
+    Distinct from ``TCell`` and from ``TEnum("Direction")`` (the turn-order
+    ring direction) so a direction move parameter, binder or comparison rejects
+    a cell (`along is a1`), an integer (`along is 3`), an ordering
+    (`along < along2`), a subscript, and an `offset_by` operand -- riding only
+    the generic type chains, never a permissive fall-through. Its runtime
+    representation is the direction name string (`"ahead"`)."""
+
+
+@dataclass(frozen=True, slots=True)
 class TLine:
     """A board line -- one member of the collection ``lines(k)`` returns
     (decisions.md "Boards and cells"), itself an ordered collection of
@@ -168,6 +180,7 @@ Type: TypeAlias = (
     | TTeam
     | TCard
     | TCell
+    | TDir
     | TLine
     | TEnum
     | TOptional
