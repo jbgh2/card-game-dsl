@@ -699,22 +699,6 @@ Things we have noted but consciously not designed yet:
     game whose setup or rules name individual cells (breakthrough). Until
     then it is grammatically un-namable, walled by the name resolver, not
     accepted-and-dropped (tests/test_board_clause.py names this residual).
-  - **Field access on a position/board type is a SILENT permissive
-    fall-through, not yet walled.** The typecheck `Member` arm
-    (`cardlang/typecheck.py::_check_expr`) rejects a `.field` on a
-    `TCard`/`TCollection`/`TPlayer`/`TTeam`/`TInteger`/`TBoolean` receiver but
-    has no arm for the position/board value types `TCell`/`TDir`/`TLine` (nor
-    `TEnum`/`TString`/`TNull`), so `from.foo` (a `cell` binder), `along.foo`
-    (a `dir` binder), or `neighbor(...).foo` (the rung-2 verb's `TCell`
-    return) infers `TAny` with NO diagnostic and only fails, or worse silently
-    reads, at play time. Pre-existing since rung 1 (cell binders) and Task 1
-    (dir binders); the rung-2 movement verbs' `TCell` return newly reaches it.
-    The fix is class-wide -- add the no-`Member`-arm `Type` members to the
-    arm's rejection (the "dot form is object-member access only" wall), swept
-    as one, not per-producer -- so it is deferred out of the five-verb rung-2
-    change rather than patched at the one new instance. Until then it is
-    accepted-and-`TAny`'d, the permissive-top gap this section records so it is
-    loud in the ledger even while silent in the checker.
 
 - **Piece-flavored games — content vocabulary lands; the rule system is
   deferred.** `pieces:` selects a piece-flavored component set (`cardlang/

@@ -357,3 +357,109 @@ game G {
 }
 """
     check_dsl(src, "g.cardlang")  # no raise
+
+
+# --- The fieldless value types: dot-form rejection swept across the class -----
+# TCell/TDir/TLine/TEnum/TString have no user-accessible fields, so a dot form on
+# one otherwise reaches no Member arm and infers TAny with no diagnostic (the
+# permissive-top gap a `cell`/`dir` binder or a movement verb's TCell return
+# could slip through). The whole class is walled at the Member arm, at the layer
+# that owns operand kinds, not per producer (decisions.md "Closed-domain
+# completeness"; the TCard/struct/collection positives above are the negative
+# controls that fielded receivers still work). Each cell below is red before the
+# sweep -- the dot form checked clean, silently TAny -- and green after.
+# TNull is in the swept isinstance defensively: `none` is a comparison-only
+# operand, not a bare primary, so `none.foo` does not parse -- unreachable from
+# user syntax, covered by the same arm, not independently probed.
+
+
+def _board_member_probe(move: str) -> str:
+    return (
+        "game G {\n"
+        "  players: 2\n"
+        "  direction: clockwise\n"
+        "  max_length: 30\n"
+        "  board: grid(3, 3)\n"
+        "  pieces: xo_marks\n"
+        "  zones { box : Deck  square[cell] : Cell<cell>  reserve[player] : PlayerPile<player> }\n"
+        "  state { n : Integer = 0 }\n"
+        "  phase setup {\n"
+        "    move all pieces from box where piece.side is x to reserve[0]\n"
+        "    move all pieces from box to reserve[1]\n"
+        "  }\n"
+        "  phase play { turns t from 0 over all players until (n is 1) { offer to t one of [m] } }\n"
+        "  winner: highest n\n"
+        "}\n"
+        + move
+    )
+
+
+def test_rejects_dot_form_on_a_cell_binder() -> None:
+    src = _board_member_probe(
+        "move_type m(at : cell) { when: at.file is 1 effect { n := 1 } }\n"
+    )
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "object-member" in str(ei.value) and "Cell" in str(ei.value)
+
+
+def test_rejects_dot_form_on_a_dir_binder() -> None:
+    src = _board_member_probe(
+        "move_type m(along : dir) { when: along.name is 1 effect { n := 1 } }\n"
+    )
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "object-member" in str(ei.value) and "Dir" in str(ei.value)
+
+
+def test_rejects_dot_form_on_a_line_binder() -> None:
+    src = _board_member_probe(
+        "move_type m(at : cell) {\n"
+        "  when: any line in lines(3) where line.file is 1\n"
+        "  effect { n := 1 }\n"
+        "}\n"
+    )
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "object-member" in str(ei.value) and "Line" in str(ei.value)
+
+
+def test_rejects_dot_form_on_an_enum_value() -> None:
+    # `card.suit` is TEnum("Suit"); a dot on it (`card.suit.name`) is fieldless.
+    src = """
+game G {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0  x : Integer = 0 }
+  phase play {
+    x := sum of (if card.suit.name is 1 then 1 else 0) over cards in deck
+  }
+  winner: highest score
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "object-member" in str(ei.value)
+
+
+def test_rejects_dot_form_on_a_string_literal() -> None:
+    src = """
+game G {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0  x : Integer = 0 }
+  phase play {
+    x := (if "y".size is 1 then 1 else 0)
+  }
+  winner: highest score
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "object-member" in str(ei.value) and "String" in str(ei.value)

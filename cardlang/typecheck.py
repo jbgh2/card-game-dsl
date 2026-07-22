@@ -2055,6 +2055,21 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 f"('{e.field}[...]') instead",
                 e.span,
             )
+        elif isinstance(bare, (TCell, TDir, TLine, TEnum, TString, TNull)):
+            # The fieldless value types: a position (TCell), a movement
+            # direction (TDir), a line/region (TLine), an enum value, a string,
+            # or none. None has user-accessible fields, so a dot form on one
+            # would otherwise reach no arm and infer TAny with no diagnostic --
+            # the permissive-top gap a `cell`/`dir` binder or a movement verb's
+            # TCell return could slip through. The whole fieldless class is
+            # walled here, at the layer that owns operand kinds, not per
+            # producer (decisions.md "Closed-domain completeness").
+            bag.error(
+                f"cannot read field '{e.field}' of {_type_name(obj)}: the dot "
+                f"form is object-member access only (Card, Move, and struct "
+                f"fields) — a {_type_name(obj)} has no fields",
+                e.span,
+            )
     elif isinstance(e, n.BinOp):
         _check_binop(e, env, bag)
     elif isinstance(e, n.IsCheck):
