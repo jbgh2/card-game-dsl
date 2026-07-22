@@ -523,7 +523,18 @@ def _for_each(stmt: n.ForEach, ctx: Ctx) -> None:
     domain's member IS an actor, so the body also runs `acting_as(member)` and a
     decision inside it (`bid[p] := choose …`) knows who is choosing; a VALUE
     domain's member is a bare enum value and carries no actor. A new domain row
-    therefore arrives here already implemented."""
+    therefore arrives here already implemented.
+
+    A POSITION-domain role (a board's `cell`) is the one arm outside that
+    registry: its members are per-game, so it enumerates `rs.position_domains`
+    directly — the `_domain_query` twin in `runtime/evaluate.py` — and never
+    reaches `role_members`, whose closed registry deliberately raises for a
+    role it does not hold. A position is a value, not a seat: it binds no
+    actor."""
+    if stmt.role in ctx.rs.position_domains:
+        for position in ctx.rs.position_domains[stmt.role]:
+            execute(stmt.body, ctx.with_local(stmt.binder, position))
+        return
     actor_bound = binds_actor(stmt.role)  # resolve rejects roles outside the registry
     for member in role_members(stmt.role, ctx):
         body_ctx = ctx.with_local(stmt.binder, member)

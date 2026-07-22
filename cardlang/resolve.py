@@ -3395,6 +3395,16 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     # also stops a move named by two vocabularies from reporting one defect
     # twice.
     declared_positions = frozenset(p.name for p in game.positions)
+    # `for each <role>` iterates the closed seat/axis roles plus a board's
+    # NAMED-MEMBER position domain (`cell`) -- breakthrough's fixed setup array
+    # is the witness that lifts it. Integer `positions {}` domains stay walled:
+    # no game addresses columns by loop (guards and parameters cover both
+    # solitaires), so they stay rejected rather than accepted-and-unwitnessed
+    # (roadmap.md, "Positional zones -- walled residuals"). A boardless game
+    # therefore reports the unchanged closed-role list.
+    iterable_positions = frozenset(
+        p.name for p in game.positions if p.members_named is not None
+    )
     # The board-minted `dir` domain, a SEPARATE source from `game.positions`
     # (decisions.md "Boards and cells"): `{dir}` for a board game, `{}` for a
     # boardless one, so a `dir` move parameter is admitted only where a board
@@ -3532,10 +3542,12 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"produces names unknown define or outcome phase '{nd.define}'",
                     nd.span,
                 )
-            case n.ForEach() if nd.role not in _ITERATION_ROLES:
+            case n.ForEach() if (
+                nd.role not in _ITERATION_ROLES and nd.role not in iterable_positions
+            ):
                 bag.error(
                     f"unknown `for each` role '{nd.role}' (expected one of "
-                    f"{', '.join(sorted(_ITERATION_ROLES))})",
+                    f"{', '.join(sorted(_ITERATION_ROLES | iterable_positions))})",
                     nd.span,
                 )
             case (n.ForEach() | n.Quantifier()) if (

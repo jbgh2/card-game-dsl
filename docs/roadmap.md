@@ -644,15 +644,22 @@ Things we have noted but consciously not designed yet:
   ([decisions.md](decisions.md) "Position domains and positional zones";
   Klondike and FreeCell are the corpus anchors). The position design's
   remaining cells stay deferred, each behind a wall:
-  - `for each <position>` iteration and position-indexed `state` stores —
-    both rejected at resolve with diagnostics
+  - `for each <INTEGER position>` iteration and position-indexed `state`
+    stores — both rejected at resolve with diagnostics
     (tests/rejections/positions_for_each,
     positions_state_indexed_by_position); no corpus game addresses columns
     by loop or keeps per-column scalar state (guards + parameters cover
-    both games). Implement when a game needs one. (Quantification over a
-    position domain — `any cell where …`, `all columns where …`, `number
-    of cells where …`, and the `any line in …`/`all cells in …` collection
-    forms — is a separate surface and is live: tests/test_cell_queries.py.)
+    both games). Implement when a game needs one. Iteration over a board's
+    NAMED-MEMBER domain (`for each cell`) is live from rung 2 —
+    breakthrough's fixed setup array is the witness that lifted it — and
+    the named-member/integer split is exactly what the remaining wall turns
+    on (tests/test_cell_iteration.py). A collection-restricted
+    `for each cell c in <expr>` form stays grammatically inexpressible: the
+    bare role form plus a membership guard (`if c in home(actor)`) covers
+    the setup witness. (Quantification over a position domain — `any cell
+    where …`, `all columns where …`, `number of cells where …`, and the
+    `any line in …`/`all cells in …` collection forms — is a separate
+    surface and is live: tests/test_cell_queries.py.)
   - The collection-quantifier noun is fixed to `{cell, line}` at rung 1
     (`cardlang/resolve.py::_COLLECTION_NOUNS`); a future collection-typed
     domain (a region, a hand of pieces) gets no `any <noun> in <expr>

@@ -990,11 +990,13 @@ def env_from_game(
     )
 
 
-# A statement's enclosing binders, outermost first. A loop or parameter binder
-# carries its Type directly; a `let` binder carries its `LetStmt` NODE, because
-# its type is its initializer's inferred type *in the environment at that
-# point* — which only the consumer holds. `_scoped_env` resolves both kinds.
-_Binders = tuple[tuple[str, "Type | n.LetStmt"], ...]
+# A statement's enclosing binders, outermost first. A parameter binder carries
+# its Type directly; a `let` binder carries its `LetStmt` NODE and a `for each`
+# binder its `ForEach` NODE, because their types are known only to the consumer
+# — a let's is its initializer's type inferred *in the environment at that
+# point*, and a for-each's is its role's member type, which for a position
+# domain (a board's `cell`) is per-game. `_scoped_env` resolves all three.
+_Binders = tuple[tuple[str, "Type | n.LetStmt | n.ForEach"], ...]
 
 
 def _scoped_env(env: TypeEnv, binders: _Binders) -> TypeEnv:
@@ -1014,6 +1016,15 @@ def _scoped_env(env: TypeEnv, binders: _Binders) -> TypeEnv:
                 env = env.with_local(name, TCollection(element, key=TPlayer()))
             else:
                 env = env.with_local(name, infer(bound.value, env))
+        elif isinstance(bound, n.ForEach):
+            # A position-domain role (a board's `cell`) takes its member type
+            # from the game's declared domains, which only this consumer holds;
+            # every other role is a closed registry row `role_type` answers.
+            role = bound.role
+            env = env.with_local(
+                name,
+                env.positions[role] if role in env.positions else _role_type(role),
+            )
         else:
             env = env.with_local(name, bound)
     return env
@@ -1032,9 +1043,7 @@ def _stmt_tree_scoped(
     yield s, binders
     match s:
         case n.ForEach():
-            yield from _stmt_tree_scoped(
-                s.body, binders + ((s.binder, _role_type(s.role)),)
-            )
+            yield from _stmt_tree_scoped(s.body, binders + ((s.binder, s),))
         case n.EachSimultaneous():
             yield from _stmt_tree_scoped(
                 s.body, binders + ((s.role, _role_type(s.role)),)

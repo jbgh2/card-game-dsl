@@ -84,8 +84,7 @@ covered:    grammar precedence — every fixed keyword form (any player/all
             cells in <zone> where` (typecheck), boardless `lines(3)`
             (resolve, BOARD_ONLY_CALL_FUNCS), `lines(99)` on grid(3,3)
             (resolve, the literal-k static bound), binder escape (resolve,
-            plain unresolved-name), `for each cell` (resolve, the standing
-            `_ITERATION_ROLES` wall — unchanged by this register); the
+            plain unresolved-name); the
             missing collection-count form `number of cells in <expr> where
             …` (grammar — tests/rejections/
             cell_count_in_collection_not_admitted.cardlang); a cross-
@@ -837,26 +836,10 @@ def test_binder_escapes_its_quantifier_scope() -> None:
     assert "unresolved name 'cell'" in _reject(src)
 
 
-def test_for_each_cell_stays_rejected_the_standing_wall_is_unchanged() -> None:
-    # `for each <position>` is a DIFFERENT residual (roadmap.md "Positional
-    # zones -- walled residuals") from the quantifier register this module
-    # proves live; this pins that the standing `_ITERATION_ROLES` wall did
-    # not move when the quantifier wall lifted.
-    src = board_game(
-        moves=(
-            "move_type place(at : cell) {\n"
-            "  when: square[at] is empty\n"
-            "  effect {\n"
-            "    for each cell c: done := true\n"
-            "    move one piece from reserve[actor] to square[at]\n"
-            "  }\n"
-            "}\n"
-            "move_type stop { effect { done := true } }\n"
-        )
-    )
-    msg = _reject(src)
-    assert "unknown `for each` role 'cell'" in msg
-    assert "expected one of" in msg and "player" in msg
+# `for each cell` -- the STATEMENT twin of this module's quantifier register --
+# is live from rung 2 (breakthrough's setup array is the witness that lifted the
+# `for each <position>` residual). Its grid, and the integer-position wall that
+# did NOT lift with it, are tests/test_cell_iteration.py.
 
 
 def test_suit_quantifier_in_a_piece_game_still_hits_the_task_3_flavor_wall() -> None:
