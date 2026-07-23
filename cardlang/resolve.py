@@ -1738,11 +1738,14 @@ def _sweep_aliases(
             bound = node.player.name if named and isinstance(node.player, n.NameRef) else None
             _sweep_stmt_seq(node.body, _rebound(bound, f"`as {bound}`"), flavor, bag)
             return
-        case n.LetStmt() if node.index is not None:
-            # The index binder scopes to this let's own `value` and nowhere
-            # else, so it shadows an alias of the same name there — the other
-            # half of the rule `_sweep_stmt_seq` applies to the let's NAME.
-            _sweep_aliases(node.value, aliases.shadowed((node.index,)), flavor, bag)
+        case n.LetStmt():
+            # The value is evaluated in the ENCLOSING scope, before the name is
+            # bound — so it sees the aliases as they stand, and `let p = p`
+            # reads the old `p`. (Rebinding the name for the statements that
+            # FOLLOW is `_sweep_stmt_seq`'s half of the rule.) An index binder
+            # scopes to this value and nowhere else.
+            index = (node.index,) if node.index is not None else ()
+            _sweep_aliases(node.value, aliases.shadowed(index), flavor, bag)
             return
         case _:
             pass
@@ -1755,9 +1758,18 @@ def _sweep_aliases(
         return
     if is_dataclass(node) and not isinstance(node, type):
         introduced = _introduced_binders(node, flavor)
-        scope_fields = _BINDER_SCOPE_FIELDS.get(type(node), ())
+        scope_fields = _BINDER_SCOPE_FIELDS.get(type(node))
         for f in fields(node):
-            inner = aliases.shadowed(introduced) if f.name in scope_fields else aliases
+            # `_BINDER_SCOPE_FIELDS` is not the whole scoping story: `_rewrite`
+            # scopes some binder-introducing kinds itself and so leaves them out
+            # of the table (a `produces:` arm's payload binders, a struct's
+            # derived-field names). Absent an entry, shadow the node's binders in
+            # EVERY field — the safe direction, since over-shadowing can only
+            # miss a degenerate comparison, while under-shadowing REFUSES a
+            # sound one (`for each player p: … produces: won(p) { p is actor }`,
+            # where the arm's `p` is the payload, not the acting player).
+            shadowed = scope_fields is None or f.name in scope_fields
+            inner = aliases.shadowed(introduced) if shadowed else aliases
             _sweep_aliases(getattr(node, f.name), inner, flavor, bag)
 
 
@@ -1769,24 +1781,30 @@ def _sweep_stmt_seq(
     where `p` already denotes the actor) makes `me` a further name for the
     same player, for the statements that follow it.
 
-    A `let` REBINDS its name, so it is subtracted first and re-added only when
-    its value denotes the acting player. Without the subtraction, `let p =
-    <someone else>` inside `for each player p` would leave `p` in the set and
-    refuse the perfectly good `p is actor` after it — the same shadowing rule
-    the generic walk applies through `_introduced_binders`, which does not
-    reach `let` (its name scopes forward to later siblings, not to a field of
-    its own node)."""
+    A `let` REBINDS its name, so the name is dropped and re-added only when the
+    value denotes the acting player. Both halves matter, and their ORDER is the
+    whole rule: the value is read against the set as it stands BEFORE the
+    binding (so `let p = p` keeps the alias — the right-hand `p` is the old
+    one), and the name is dropped after (so `let p = <someone else>` inside
+    `for each player p` frees `p`, and the honest `p is actor` after it is not
+    refused). This is the same "initializer runs in the enclosing scope" rule
+    `as`'s player expression and `turns`' leader already follow; `let` needs it
+    spelled out here because its name scopes forward to later siblings rather
+    than to a field of its own node, which is why `_introduced_binders` and the
+    generic walk do not reach it."""
     for stmt in stmts:
         _sweep_aliases(stmt, aliases, flavor, bag)
         if not isinstance(stmt, n.LetStmt):
             continue
+        source = (
+            stmt.value.name
+            if stmt.index is None and isinstance(stmt.value, n.NameRef)
+            else None
+        )
+        binds_the_actor = source is not None and source in aliases.names
+        origin = aliases.origin or f"`let {stmt.name} = {source}`"
         aliases = aliases.shadowed((stmt.name,))
-        if (
-            stmt.index is None
-            and isinstance(stmt.value, n.NameRef)
-            and stmt.value.name in aliases.names
-        ):
-            origin = aliases.origin or f"`let {stmt.name} = {stmt.value.name}`"
+        if binds_the_actor:
             aliases = _ActorAliases(aliases.names | {stmt.name}, origin)
 
 

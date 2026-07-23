@@ -835,9 +835,12 @@ operand orders are refused alike, since the degeneracy is in the operands rather
 than in the spelling.
 
 Binding is the only thing that grants a name, and it is also the only thing that
-takes one away: a name rebound by an inner construct — a query binder, a `let`
-assigning it something else — stops denoting the acting player from that point,
-and comparing it becomes ordinary again.
+takes one away: a name rebound by an inner construct — a query binder, a
+`produces:` arm's payload, a `let` assigning it something else — stops denoting
+the acting player from that point, and comparing it becomes ordinary again. A
+binding's right-hand side is read *before* it takes effect, as everywhere else
+in the language, so `let p = p` re-binds `p` to the player it already named and
+keeps the comparison refused.
 
 The **innermost** binding is the one that counts, and that is what keeps the
 useful idioms legal:

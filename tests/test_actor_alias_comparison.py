@@ -38,6 +38,17 @@ domain:     THREE axes, each read off its own registry rather than off the wall.
             transitive `let` in the grid: neither was in the report that
             opened the question, both are the same defect.
 
+            `Stmt` is the right registry for what REBINDS the acting player —
+            only a statement can — but it is the wrong one for what SHADOWS an
+            alias, and reading it for both is how a false positive shipped:
+            `ProduceArm` belongs to neither the `Expr` nor the `Stmt` union (it
+            hangs off `Produces`), so a `Stmt`-derived domain cannot see that a
+            `produces:` arm binds names at all, and the sweep kept the outer
+            alias inside an arm that had rebound the name. Shadowing is
+            therefore derived from `_introduced_binders` over the whole `Node`
+            union instead — the same registry, and the same node kind, whose
+            escape `tests/test_binder_registry.py` already records.
+
             (2) The OPERATOR axis: the equality operators, derived from
             `typecheck.OP_CLASSES` (`OpClass.EQUALITY`) — the same registry
             the type layer's own always-false wall dispatches through — crossed
@@ -113,7 +124,7 @@ from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticError
 from cardlang.domains import binds_actor
 from cardlang.pipeline import check_dsl
-from cardlang.resolve import _PRONOUNS
+from cardlang.resolve import _BINDER_SCOPE_FIELDS, _PRONOUNS, _introduced_binders
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx
@@ -225,7 +236,31 @@ def test_only_a_seat_role_binder_aliases_the_actor() -> None:
     assert not any(binds_actor(role) for role in ("team", "suit", "rank"))
 
 
-def test_the_acting_player_pronoun_is_the_one_that_tracks_acting_as() -> None:
+def test_a_binder_kind_can_be_absent_from_the_scope_field_table() -> None:
+    """Why the sweep shadows in EVERY field when `_BINDER_SCOPE_FIELDS` has no
+    entry for a node — the combination that produced a false positive, pinned
+    as two facts about the live registries rather than as a remembered story.
+
+    A `produces:` arm binds its payload names, but `_rewrite` scopes arm bodies
+    through a path of its own, so `ProduceArm` carries no row in the
+    scope-field table. Reading that table as the whole scoping story left the
+    arm's binder aliasing the acting player and REFUSED the sound `won(p) { p
+    is actor }`. `ProduceArm` also belongs to neither the `Expr` nor the `Stmt`
+    union (it hangs off `Produces`), which is how a `Stmt`-derived domain — the
+    alias-source axis in this module's ledger — cannot see it at all; the same
+    lesson `tests/test_binder_registry.py` records for the same node kind.
+
+    red under: give `ProduceArm` an entry in `_BINDER_SCOPE_FIELDS` while the
+    sweep's fallback stays conservative (this pin goes red where the behaviour
+    cell would not, since precise and conservative agree for that node)."""
+    arm = n.ProduceArm(tag="won", binders=("p",), body=())
+    assert _introduced_binders(arm) == ("p",), "a produces: arm binds its payloads"
+    assert n.ProduceArm not in _BINDER_SCOPE_FIELDS, (
+        "`ProduceArm` gained a scope-field entry — the sweep's conservative "
+        "all-fields default is no longer what shadows it; re-check the "
+        "`produce_arm_binder_shadows` cell against the new entry"
+    )
+    assert n.ProduceArm not in get_args(n.Stmt) and n.ProduceArm not in get_args(n.Expr)
     """The pronoun axis, checked as BEHAVIOUR rather than asserted: a pronoun
     is an acting-player pronoun exactly when its value FOLLOWS `acting_as`. So
     evaluate every pronoun in two contexts that differ in nothing but the
@@ -294,8 +329,36 @@ move_type mark(target : Player) {{
 """
 
 
+def _arm_game(filled: str) -> str:
+    """A `produces:` arm nested under a seat loop, its payload binder REUSING
+    the loop binder's name. The arm's `p` is the produced player, not the
+    acting one, so a comparison against `actor` inside it is contingent."""
+    return f"""
+define pick -> {{ won(Player) }} {{
+  produce won(0)
+}}
+game G {{
+  players: 2
+  max_length: 200
+  cards: standard52
+  zones {{ deck : Deck  hand[player] : Hand<player>  bid[player] : Hand<player> }}
+  state {{ hits[player] : Integer = 0  taker : Player = 0 }}
+  phase play {{
+    as 0 {{
+      for each player p:
+        pick produces:
+          won(p) {{ {filled} }}
+    }}
+  }}
+  winner: highest hits
+}}
+"""
+
+
 def _spliced(slot: str, filled: str) -> str:
     """The fixture with `filled` in the named slot."""
+    if slot == "arm":
+        return _arm_game(filled)
     return _game(body=filled) if slot == "body" else _game(effect=filled)
 
 
@@ -331,6 +394,16 @@ _REFUSED_SITES: dict[str, tuple[str, str, str, str]] = {
         "body",
         "let q = 0  as q {{ if {cmp} {{ hits[q] += 1 }} }}",
         "q",
+        "actor",
+    ),
+    # A `let` reads its value in the scope BEFORE it binds, so `let p = p`
+    # re-binds `p` to the very player it already named. The mirror of
+    # `let_rebinds_the_alias_name` in the accepted grid: same statement, and
+    # only the right-hand side decides.
+    "let_rebinds_itself": (
+        "body",
+        "for each player p: if true {{ let p = p  if {cmp} {{ hits[0] += 1 }} }}",
+        "p",
         "actor",
     ),
     # The transitive cell: `me` denotes the actor, and inside the loop so does
@@ -447,6 +520,17 @@ _ACCEPTED_SITES: dict[str, tuple[str, str, str, str]] = {
         "effect",
         "if {cmp} {{ hits[target] += 1 }}",
         "target",
+        "actor",
+    ),
+    # A `produces:` arm binder shadows the alias: the arm's `p` is the produced
+    # PAYLOAD, which need not be the acting player. Its scope lives outside
+    # `_BINDER_SCOPE_FIELDS` (name classification handles arms specially), so
+    # this cell is the witness for the sweep's conservative default — under the
+    # table alone the sound comparison was refused.
+    "produce_arm_binder_shadows": (
+        "arm",
+        "if {cmp} {{ hits[p] += 1 }}",
+        "p",
         "actor",
     ),
     # A `let` REBINDING an alias name drops it: after `let p = taker`, `p` is
