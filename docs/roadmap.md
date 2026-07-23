@@ -6,6 +6,20 @@ What's explicitly deferred, and the suggested order of next steps.
 
 Things we have noted but consciously not designed yet:
 
+- **An acting-player alias created by procedure expansion.** The wall on
+  comparing the acting player against a second name for them (decisions.md
+  "Naming the acting player twice") quantifies over one declaration body, and
+  runs before `expand` splices procedure bodies into their call sites. A
+  procedure body cannot read `actor` at all (`resolve._check_procedures`), so
+  the pronoun cannot travel across the boundary; what survives is a body
+  comparing two of its own parameters (`q is r`) that one call site supplies
+  from the same seat — `run f(p, actor)` inside `for each player p`. That
+  comparison is a tautology at THAT call site and meaningful at others, so
+  catching it means either an interprocedural pass or re-running the sweep on
+  the expanded tree; both are more machinery than one exotic shape has earned.
+  Recorded, not walled — the grid's ledger
+  (`tests/test_actor_alias_comparison.py`) names it as its one residual.
+
 - **Latent holes around the struct paths.** Each was found by adversarial
   review of the lookup-miss walls, each is reachable only through constructs no
   corpus game uses, and each is recorded rather than fixed because closing them

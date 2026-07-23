@@ -41,7 +41,15 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               function, or containing a ``choose``
               (``_check_state_default_scope``). ``runtime/driver``'s
               ``_declare_state`` may therefore assume every default
-              evaluates against the frames standing at that moment.
+              evaluates against the frames standing at that moment. And an
+              equality comparison whose two operands are names that
+              provably denote the same acting player — the binder of a
+              construct that rebinds ``acting_as`` against the ``actor``
+              pronoun, or against a ``let`` transitively bound to either
+              (``_check_actor_alias_comparisons``, decisions.md "Naming
+              the acting player twice"). This is a scope fact, not a type
+              fact — both operands are ``Player`` — so it is settled here
+              rather than in the type layer.
 Verified by:  the per-wall diagnostic tests; the runtime backstop above.
               For the declare-time rule, the grid in
               ``tests/test_state_default_scope.py`` — which PLAYS every
@@ -57,7 +65,7 @@ from typing import Callable, Iterator, assert_never, cast, get_args
 
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
-from cardlang.domains import CARD_AXIS_ROLES, CARD_PARAM_DOMAINS
+from cardlang.domains import CARD_AXIS_ROLES, CARD_PARAM_DOMAINS, binds_actor
 from cardlang.domains import ITERABLE_ROLES as _ITERATION_ROLES
 from cardlang.domains import PARAM_DOMAIN_ORDER, PARAM_DOMAINS as _FIXED_DOMAINS
 from cardlang.domains import SIMULTANEOUS_ROLES, ZONE_INDEX_ROLES
@@ -982,6 +990,7 @@ def resolve(game: n.Game) -> n.Game:
     _check_functions(game, bag)
     _check_procedures(game, bag)
     _check_chooses(game, bag)
+    _check_actor_alias_comparisons(game, bag)
     # Last, so a fixture missing its result clause still surfaces the
     # sharper diagnostic it was aimed at first (bag order is report order).
     _resolve_winner_loser(game, bag)
@@ -1607,6 +1616,233 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
                 f"value can ever be chosen — lower the start or raise the bound",
                 node.span,
             )
+
+
+@dataclass(frozen=True)
+class _ActorAliases:
+    """The names that provably denote the acting player at a point in the tree.
+
+    `names` always holds the `actor` pronoun itself (it denotes the acting
+    player by definition) plus every binder a construct bound to that same
+    seat; `origin` describes the construct that did the binding, for the
+    diagnostic. A rebind REPLACES the set rather than extending it: once
+    `as q { … }` names a new acting player, the enclosing loop's binder no
+    longer denotes them."""
+
+    names: frozenset[str] = frozenset({"actor"})
+    origin: str | None = None
+
+    def shadowed(self, bound: tuple[str, ...]) -> "_ActorAliases":
+        """Drop names a nested construct rebinds to something else — an inner
+        `for each suit p` makes `p` a suit, whatever the outer loop bound."""
+        if not bound:
+            return self
+        return _ActorAliases(self.names - set(bound), self.origin)
+
+
+def _rebound(name: str | None, origin: str) -> _ActorAliases:
+    """The alias set inside a construct that binds the acting player: the
+    pronoun, plus the construct's own name for them when it has one. With no
+    name (`as <expression>`) there is nothing to describe, so no origin —
+    only the pronoun denotes the new acting player."""
+    if name is None:
+        return _ActorAliases()
+    return _ActorAliases(frozenset({"actor", name}), origin)
+
+
+def _check_actor_alias_comparisons(game: n.Game, bag: DiagnosticBag) -> None:
+    """A comparison between two names that provably denote the same acting
+    player is dead code, and is refused here.
+
+    `for each player p:` binds the acting player to `p` for its body (the
+    `binds_actor` column of the domain registry), and the `actor` pronoun reads
+    the acting player — so `p is actor` is true for every `p`, and `p is not
+    actor` guards a body that never runs. Both operands are `Player`, so no
+    type wall can see it (`typecheck`'s always-false wall compares TYPES, and
+    these agree); and a branch that is never taken cannot fail at runtime
+    either. That leaves it silently accepted, which for a designer tool is the
+    worst outcome — "an operand comparing as always-false", decisions.md
+    "Surface totality".
+
+    The class is the aliasing, not the `for each` spelling, so this sweeps
+    every construct that binds a seat AND rebinds the acting player to it
+    (`for each` over a `binds_actor` role, `turns`, `each … simultaneously`,
+    `as <name>`), plus the transitive `let me = actor`. The innermost rebind
+    wins: inside a nested `as`/seat loop the outer binder no longer denotes
+    the acting player, so the corpus idiom — capture the outer actor ABOVE the
+    loop (`let w = actor`), compare against `w` inside — stays legal, which is
+    the whole point of hoisting it.
+
+    Runs after `_classify_names`, so it reads the `ref_kind` the resolver
+    stamped rather than re-deciding what a name is.
+
+    One walk from the game root, rather than a list of the declaration kinds
+    that hold statements: an alias can only be established by a construct with
+    an arm below, so every tree starts with the pronoun alone and a declaration
+    form added later is swept without being enumerated here. (Each declaration
+    body is nonetheless independent, which is the correct reading: the acting
+    player inside a move effect or a rule body comes from the CALL site, so
+    nothing lexically above it can have bound a second name to them.)"""
+    _sweep_aliases(game, _ActorAliases(), game.content_flavor, bag)
+
+
+def _sweep_aliases(
+    node: object, aliases: _ActorAliases, flavor: Flavor, bag: DiagnosticBag
+) -> None:
+    """Walk `node`, threading the set of names that denote the acting player.
+
+    Generic over the tree — a field walk driven by `_introduced_binders` and
+    `_BINDER_SCOPE_FIELDS`, the same two registries lexical scoping already
+    reads — with an arm per construct that rebinds the actor. A new binding
+    construct therefore inherits correct shadowing for free, and only a
+    construct that binds a SEAT needs an arm here."""
+    if isinstance(node, n.BinOp):
+        _check_alias_operands(node, aliases, bag)
+    match node:
+        # Both role tests are membership-guarded before the registry lookup:
+        # `_resolve_phase_level` walls these roles against the same two sets,
+        # but it reports into the SAME bag rather than halting, so this sweep
+        # still walks a tree holding a role no row defines (`for each column
+        # c`, a declared position domain). The registry answers such a role
+        # with a compiler-currency raise — correct for a registry divergence,
+        # wrong here, where it would replace the located diagnostic the author
+        # needs with an assert and suppress every other diagnostic in the file.
+        # Backstop, not a wall: the role's legality is decided above.
+        case n.ForEach() if node.role in _ITERATION_ROLES and binds_actor(node.role):
+            # A SEAT role: the body's acting player IS the binder.
+            _sweep_aliases(node.body, _rebound(node.binder, f"`for each {node.role} {node.binder}`"), flavor, bag)
+            return
+        case n.EachSimultaneous() if node.role in SIMULTANEOUS_ROLES:
+            # Binds the role noun itself as the local (`runtime/execute`).
+            _sweep_aliases(node.body, _rebound(node.role, f"`each {node.role} simultaneously`"), flavor, bag)
+            return
+        case n.Turns():
+            # leader/participants/termination evaluate OUTSIDE the turn, in the
+            # enclosing scope — the binder does not exist there yet.
+            for outer in (node.leader, node.participants, node.termination):
+                _sweep_aliases(outer, aliases, flavor, bag)
+            turn = _rebound(node.binder, f"`turns {node.binder}`")
+            _sweep_stmt_seq(node.body, turn, flavor, bag)
+            return
+        case n.AsBlock():
+            # The player expression is evaluated in the OUTER context, so it
+            # sees the enclosing aliases; the body sees a new acting player. It
+            # keeps a name only when the expression IS one that already denotes
+            # a seat immutably — a state variable can be reassigned in the
+            # body, so it is not provably the acting player there.
+            _sweep_aliases(node.player, aliases, flavor, bag)
+            named = isinstance(node.player, n.NameRef) and node.player.ref_kind in (
+                "local",
+                "pronoun",
+            )
+            bound = node.player.name if named and isinstance(node.player, n.NameRef) else None
+            _sweep_stmt_seq(node.body, _rebound(bound, f"`as {bound}`"), flavor, bag)
+            return
+        case n.LetStmt():
+            # The value is evaluated in the ENCLOSING scope, before the name is
+            # bound — so it sees the aliases as they stand, and `let p = p`
+            # reads the old `p`. (Rebinding the name for the statements that
+            # FOLLOW is `_sweep_stmt_seq`'s half of the rule.) An index binder
+            # scopes to this value and nowhere else.
+            index = (node.index,) if node.index is not None else ()
+            _sweep_aliases(node.value, aliases.shadowed(index), flavor, bag)
+            return
+        case _:
+            pass
+    if isinstance(node, tuple) and any(_is_stmt(item) for item in node):
+        _sweep_stmt_seq(node, aliases, flavor, bag)
+        return
+    if isinstance(node, (list, tuple)):
+        for item in node:
+            _sweep_aliases(item, aliases, flavor, bag)
+        return
+    if is_dataclass(node) and not isinstance(node, type):
+        introduced = _introduced_binders(node, flavor)
+        scope_fields = _BINDER_SCOPE_FIELDS.get(type(node))
+        for f in fields(node):
+            # `_BINDER_SCOPE_FIELDS` is not the whole scoping story: `_rewrite`
+            # scopes some binder-introducing kinds itself and so leaves them out
+            # of the table (a `produces:` arm's payload binders, a struct's
+            # derived-field names). Absent an entry, shadow the node's binders in
+            # EVERY field — the safe direction, since over-shadowing can only
+            # miss a degenerate comparison, while under-shadowing REFUSES a
+            # sound one (`for each player p: … produces: won(p) { p is actor }`,
+            # where the arm's `p` is the payload, not the acting player).
+            shadowed = scope_fields is None or f.name in scope_fields
+            inner = aliases.shadowed(introduced) if shadowed else aliases
+            _sweep_aliases(getattr(node, f.name), inner, flavor, bag)
+
+
+def _sweep_stmt_seq(
+    stmts: tuple[object, ...], aliases: _ActorAliases, flavor: Flavor, bag: DiagnosticBag
+) -> None:
+    """A statement tuple, with `let` threading forward exactly as the runtime
+    threads `ctx.locals` through a body: `let me = actor` (or `let me = p`,
+    where `p` already denotes the actor) makes `me` a further name for the
+    same player, for the statements that follow it.
+
+    A `let` REBINDS its name, so the name is dropped and re-added only when the
+    value denotes the acting player. Both halves matter, and their ORDER is the
+    whole rule: the value is read against the set as it stands BEFORE the
+    binding (so `let p = p` keeps the alias — the right-hand `p` is the old
+    one), and the name is dropped after (so `let p = <someone else>` inside
+    `for each player p` frees `p`, and the honest `p is actor` after it is not
+    refused). This is the same "initializer runs in the enclosing scope" rule
+    `as`'s player expression and `turns`' leader already follow; `let` needs it
+    spelled out here because its name scopes forward to later siblings rather
+    than to a field of its own node, which is why `_introduced_binders` and the
+    generic walk do not reach it."""
+    for stmt in stmts:
+        _sweep_aliases(stmt, aliases, flavor, bag)
+        if not isinstance(stmt, n.LetStmt):
+            continue
+        source = (
+            stmt.value.name
+            if stmt.index is None and isinstance(stmt.value, n.NameRef)
+            else None
+        )
+        binds_the_actor = source is not None and source in aliases.names
+        origin = aliases.origin or f"`let {stmt.name} = {source}`"
+        aliases = aliases.shadowed((stmt.name,))
+        if binds_the_actor:
+            aliases = _ActorAliases(aliases.names | {stmt.name}, origin)
+
+
+def _is_stmt(node: object) -> bool:
+    return isinstance(node, get_args(n.Stmt))
+
+
+def _check_alias_operands(
+    node: n.BinOp, aliases: _ActorAliases, bag: DiagnosticBag
+) -> None:
+    """Refuse `<alias> is <alias>` / `<alias> is not <alias>`: both operands
+    name the acting player, so the comparison is a constant."""
+    if node.op not in ("==", "!="):
+        return
+    left, right = node.left, node.right
+    if not (isinstance(left, n.NameRef) and isinstance(right, n.NameRef)):
+        return
+    if not all(
+        ref.name in aliases.names and ref.ref_kind in ("local", "pronoun")
+        for ref in (left, right)
+    ):
+        return
+    word = "is" if node.op == "==" else "is not"
+    verdict = "always true" if node.op == "==" else "never true"
+    where = (
+        f"{aliases.origin} binds the acting player, so "
+        if aliases.origin is not None
+        else ""
+    )
+    bag.error(
+        f"`{left.name} {word} {right.name}` is {verdict}: {where}"
+        f"`{left.name}` and `{right.name}` are the same player here. "
+        f"To compare against a DIFFERENT player, bind them outside the "
+        f"construct that rebinds the acting player (`let w = actor` above the "
+        f"loop, then `{left.name} is not w`); to act as one named player, use "
+        f"`as <player> {{ … }}`.",
+        node.span,
+    )
 
 
 def _resolve_winner_loser(game: n.Game, bag: DiagnosticBag) -> None:
