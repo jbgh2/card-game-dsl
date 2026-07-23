@@ -88,8 +88,21 @@ from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
 from cardlang.stdlib.rules import library_rules
 from cardlang.stdlib.values import DIRECTION_VALUES, deck_ranks, deck_suits, enum_values
 from cardlang.typecheck import KNOWN_TYPE_NAMES
-from cardlang.types import Flavor
+from cardlang.types import Flavor, TPlayer
+from cardlang.stdlib.signatures import CALL_SIGS
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES, ZONE_PROJECTIONS
+
+# The board-only calls that read a grid's PER-PLAYER frame -- one seat's forward
+# is the other's backward, the 180-degree opposite (cardlang/stdlib/boards.py).
+# Derived as exactly the board verbs taking a player argument, so a later
+# player-taking board verb joins this set (and its two-seat wall) by
+# construction rather than by a hand-list that would drift. The player-free
+# board calls (`lines`, `is_diagonal`) are not frame reads and stay unaffected.
+_FRAME_CALL_FUNCS = frozenset(
+    fn
+    for fn in BOARD_ONLY_CALL_FUNCS
+    if any(isinstance(p, TPlayer) for p in CALL_SIGS[fn].params)
+)
 
 # Roles a zone may be indexed by or owned by — the `zone_key_of` column of the
 # domain table, not a hand-written local list.
@@ -2017,6 +2030,19 @@ def _resolve_board(
             f"domain (a board already provides '{DIRECTION_DOMAIN}')",
             game.board.span,
         )
+    # The `cell` clash above is checked against BOTH declared positions and the
+    # reserved set (built-ins + declared type names); `dir` gets the same second
+    # check, or a `type dir = { … }` would resolve clean while `along : dir`
+    # silently read as the minted domain (direction lookup precedes struct
+    # lookup) -- one spelling, two meanings.
+    if DIRECTION_DOMAIN in _reserved_domain_names(game):
+        bag.error(
+            f"the board mints a movement-direction domain named "
+            f"'{DIRECTION_DOMAIN}', which collides with a built-in domain or "
+            f"type name — rename the declared type (a board already provides "
+            f"'{DIRECTION_DOMAIN}')",
+            game.board.span,
+        )
     # Family/args validity is the registry's to judge: `board_entry` raises a
     # ValueError naming the violated bound (unknown family, wrong arity,
     # out-of-bounds arg), which becomes a diagnostic at the clause span.
@@ -3597,6 +3623,23 @@ def _check_board_call(nd: n.Call, game: n.Game, bag: DiagnosticBag) -> None:
             nd.span,
         )
         return
+    # A frame verb reads the grid's two-seat per-player frame, defined only for
+    # players 0 and 1. Without this wall a game with three-plus (or one) seats
+    # resolves clean and then dies at setup/play with the frame's registry-bug
+    # `ValueError` when a verb is called for seat 2 -- a typechecked game
+    # failing at runtime, in the wrong currency. Require exactly two players (a
+    # RANGE is refused even where it includes two, since the game may be
+    # instantiated with more).
+    players = game.players
+    if nd.func in _FRAME_CALL_FUNCS and (players.is_range or players.low != 2):
+        count = f"{players.low}-{players.high}" if players.is_range else str(players.low)
+        bag.error(
+            f"`{nd.func}` reads a grid's two-player movement frame (one seat's "
+            f"forward is the other's, the 180-degree opposite), but the game "
+            f"declares {count} players — the frame is defined for two seats "
+            f"(design-notes/board-topology.md); name seats directly for more",
+            nd.span,
+        )
     pos_args = [a for a in nd.args if not isinstance(a, n.NamedArg)]
     if nd.func == "lines" and len(pos_args) == 1 and isinstance(pos_args[0], n.IntLit):
         try:

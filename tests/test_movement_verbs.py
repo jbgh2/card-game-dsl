@@ -66,6 +66,16 @@ covered:    the grid below, each a running row --
             is_diagonal,home,far_row}_boardless;
             boardless backstop (runtime): test_verb_runtime_boardless_backstop_
             raises (all five, typed RuntimeError naming `board:`);
+            frame verb x player count: the per-player frame is two-seat, so a
+            frame verb (the player-taking board verbs, DERIVED into
+            _FRAME_CALL_FUNCS -- pinned by test_frame_call_funcs_is_the_player_
+            taking_board_verbs) is rejected in a non-two-player game
+            (test_frame_verb_in_a_non_two_player_game_is_rejected: 3, 4, and a
+            RANGE) and accepted at exactly two
+            (test_frame_verb_in_a_two_player_game_is_accepted); the wall is
+            VERB-level not board-level (test_non_two_player_grid_without_a_
+            frame_verb_is_accepted) and player-free board verbs are untouched
+            (test_player_free_board_verb_in_a_non_two_player_game_is_accepted);
             arity + arg-type: test_wrong_arity_is_rejected,
             test_is_diagonal_cell_for_dir_is_rejected (TCell for TDir),
             test_home_cell_for_player_is_rejected (TCell for TPlayer),
@@ -429,6 +439,131 @@ def test_verb_runtime_boardless_backstop_raises(verb: str) -> None:
     }
     with pytest.raises(RuntimeError, match=r"declares no `board:`"):
         call(verb, args_by_verb[verb], ctx)
+
+
+# =============================================================================
+# FRAME VERBS x PLAYER COUNT (Codex P2, PR #92): a grid's per-player frame is
+# defined for two opposed seats (one's forward is the other's, the 180-degree
+# opposite), so the board-only verbs that read it -- the ones taking a player --
+# are rejected in a game that is not exactly two players. Without the wall a
+# 3-plus-player game resolves clean and then dies at play with the frame's
+# registry-bug ValueError for seat 2. `_FRAME_CALL_FUNCS` is DERIVED from the
+# signatures (board-only + a player param), so the wall's domain cannot drift.
+# =============================================================================
+
+
+def test_frame_call_funcs_is_the_player_taking_board_verbs() -> None:
+    # The wall's domain, pinned to its derivation rather than hand-listed: the
+    # board-only calls whose Sig takes a player. A new player-taking board verb
+    # joins _FRAME_CALL_FUNCS -- and the two-seat wall -- by construction; a new
+    # player-free one (a second `lines`/`is_diagonal`) does not.
+    from cardlang.resolve import _FRAME_CALL_FUNCS
+    from cardlang.stdlib.functions import BOARD_ONLY_CALL_FUNCS
+    from cardlang.stdlib.signatures import CALL_SIGS
+    from cardlang.types import TPlayer
+
+    assert _FRAME_CALL_FUNCS == {"neighbor", "has_step", "home", "far_row"}
+    assert _FRAME_CALL_FUNCS <= BOARD_ONLY_CALL_FUNCS
+    assert _FRAME_CALL_FUNCS == {
+        fn
+        for fn in BOARD_ONLY_CALL_FUNCS
+        if any(isinstance(p, TPlayer) for p in CALL_SIGS[fn].params)
+    }
+
+
+def _grid_game(players_line: str, setup_extra: str = "") -> str:
+    """A grid(8, 8) board game with a chosen `players:` line; `setup_extra`
+    runs after the deal, where a frame call lands."""
+    return (
+        "game FrameCount {\n"
+        f"{players_line}"
+        "  direction: clockwise\n"
+        "  max_length: 30\n"
+        "  board: grid(8, 8)\n"
+        "  pieces: xo_marks\n"
+        "  zones {\n"
+        "    box             : Deck\n"
+        "    square[cell]    : Cell<cell>\n"
+        "    reserve[player] : PlayerPile<player>\n"
+        "  }\n"
+        "  state { done : Boolean = false }\n"
+        "  phase setup {\n"
+        "    move all pieces from box where piece.side is x to reserve[0]\n"
+        "    move all pieces from box to reserve[1]\n"
+        f"{setup_extra}"
+        "  }\n"
+        "  phase play { turns t from 0 over all players until done "
+        "{ offer to t one of [stop] } }\n"
+        "  winner: highest done\n"
+        "}\n"
+        "move_type stop { effect { done := true } }\n"
+    )
+
+
+_HOME_SETUP = (
+    "    for each cell c: if c in home(0) "
+    "{ move one piece from reserve[0] to square[c] }\n"
+)
+
+
+@pytest.mark.parametrize(
+    "players_line, count",
+    [("  players: 3\n", "3"), ("  players: 4\n", "4"), ("  players: 2..4\n", "2-4")],
+)
+def test_frame_verb_in_a_non_two_player_game_is_rejected(players_line: str, count: str) -> None:
+    # 3+, or a RANGE (refused even though it includes two -- the game may be
+    # instantiated with more).
+    msg = _reject(_grid_game(players_line, _HOME_SETUP))
+    assert "`home` reads a grid's two-player movement frame" in msg
+    assert f"declares {count} players" in msg
+
+
+def test_frame_verb_in_a_two_player_game_is_accepted() -> None:
+    # The witness count: exactly two, the frame's domain. (breakthrough itself.)
+    check_dsl(_grid_game("  players: 2\n", _HOME_SETUP), "frame2.cardlang")
+
+
+def test_non_two_player_grid_without_a_frame_verb_is_accepted() -> None:
+    # The wall is VERB-level, not board-level: a 3-player grid game that reads
+    # no frame (empty `setup_extra`, so no `home`/`neighbor`/... call) is
+    # legitimate and stays accepted -- the frame's two-seat limit binds only
+    # where the frame is actually consulted.
+    check_dsl(_grid_game("  players: 3\n", setup_extra=""), "frame3place.cardlang")
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "  when: is_diagonal(along)\n",  # is_diagonal takes a dir, not a player
+    ],
+)
+def test_player_free_board_verb_in_a_non_two_player_game_is_accepted(body: str) -> None:
+    # is_diagonal / lines read no frame (no player arg), so the two-seat limit
+    # does not touch them: a 3-player grid game may call them.
+    src = (
+        "game FreeVerb {\n"
+        "  players: 3\n"
+        "  direction: clockwise\n"
+        "  max_length: 30\n"
+        "  board: grid(8, 8)\n"
+        "  pieces: xo_marks\n"
+        "  zones { box : Deck  square[cell] : Cell<cell>  reserve[player] : PlayerPile<player> }\n"
+        "  state { done : Boolean = false }\n"
+        "  phase setup {\n"
+        "    move all pieces from box where piece.side is x to reserve[0]\n"
+        "    move all pieces from box to reserve[1]\n"
+        "  }\n"
+        "  phase play { turns t from 0 over all players until done "
+        "{ offer to t one of [step, stop] } }\n"
+        "  winner: highest done\n"
+        "}\n"
+        "move_type step(from : cell, along : dir) {\n"
+        f"{body}"
+        "  effect { move one piece from reserve[actor] to square[from] }\n"
+        "}\n"
+        "move_type stop { effect { done := true } }\n"
+    )
+    check_dsl(src, "freeverb.cardlang")
 
 
 # =============================================================================

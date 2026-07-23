@@ -98,6 +98,8 @@ covered:    GRID 1 -- each cell a run probe below --
               scripted playout picks a direction     -> the move applies
               `positions { dir : 1..3 }` (board game) -> reject (mint-site,
                                                 mirrors the `cell` collision)
+              `type dir = { … }` (board game)         -> reject (mint-site vs
+                                                the reserved set, `cell`'s twin)
               boardless `foo(x : dir)`               -> reject (unsupported
                                                 param domain -- no board, no
                                                 `dir` source)
@@ -504,6 +506,16 @@ def test_dir_collides_with_a_declared_position_name() -> None:
     # the `cell` collision in test_board_clause.py).
     msg = _reject(direction_game(positions="  positions { dir : 1..3 }\n"))
     assert "dir" in msg
+
+
+def test_dir_collides_with_a_declared_type_name() -> None:
+    # `type dir = { … }` in a board game: the board mints `dir`, and direction
+    # lookup precedes struct lookup, so without this wall `along : dir` reads
+    # the minted domain while `dir` elsewhere denotes the struct -- one spelling,
+    # two meanings. The `cell` mint already rejected this via the reserved set
+    # (which includes declared type names); `dir` gets the same second check.
+    msg = _reject(direction_game(extra="type dir = { x : Integer }\n"))
+    assert "dir" in msg and ("built-in domain or type name" in msg)
 
 
 def test_boardless_dir_parameter_is_unsupported() -> None:
