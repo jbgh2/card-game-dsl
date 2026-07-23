@@ -441,6 +441,24 @@ def test_verb_runtime_boardless_backstop_raises(verb: str) -> None:
         call(verb, args_by_verb[verb], ctx)
 
 
+@pytest.mark.parametrize("verb", ("neighbor", "has_step", "home", "far_row"))
+def test_frame_verb_runtime_seat_backstop(verb: str) -> None:
+    """The runtime companion to the static player-literal wall
+    (tests/test_player_literal_range.py): a COMPUTED out-of-range seat reaching
+    a frame verb is a typed, game-facing RuntimeError naming the seat count, not
+    the frame's internal `_player_sign` registry-bug ValueError. On a 2-seat
+    board ctx, seat 5 is out of range."""
+    ctx = _board_ctx("grid", (8, 8))  # Seating(2)
+    args_by_verb: dict[str, list[Any]] = {
+        "neighbor": ["a1", "ahead", 5],
+        "has_step": ["a1", "ahead", 5],
+        "home": [5],
+        "far_row": [5],
+    }
+    with pytest.raises(RuntimeError, match=r"seat 5, not a seat of this 2-player game"):
+        call(verb, args_by_verb[verb], ctx)
+
+
 # =============================================================================
 # FRAME VERBS x PLAYER COUNT (Codex P2, PR #92): a grid's per-player frame is
 # defined for two opposed seats (one's forward is the other's, the 180-degree

@@ -488,6 +488,7 @@ class TypeEnv:
     # call site left to check.
     procedures: Mapping[str, Sig] = field(default_factory=dict)
     has_ranking: bool = False  # bool(game.ranking) — gates RANKING_GATED_FUNCS
+    max_players: int = 0  # the game's maximum seat count — bounds player literals
     # Per-game position domains (decisions.md "Position domains and positional
     # zones", "Boards and cells") — name -> the member type a parameter, let
     # binder or subscript key over it carries: `TInteger` for a declared
@@ -982,6 +983,9 @@ def env_from_game(
         functions=functions,
         procedures=procedures,
         has_ranking=bool(game.ranking),
+        max_players=(
+            game.players.high if game.players.high is not None else game.players.low
+        ),
         positions=positions,
         directions=_direction_types(game),
         flavor=game.content_flavor,
@@ -1869,6 +1873,31 @@ def _domain_query_binder_type(
     return _COLLECTION_BINDER_TYPES.get(e.binder, TAny())
 
 
+def _check_player_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """A player literal names a seat, so it must be one the game has. An integer
+    literal coerces to Player (`assignable(Integer, Player)`) at every
+    player-indexed subscript, player-keyed state index, and player-typed
+    argument; unchecked, `reserve[2]` / `result[2] := 1` / `home(2)` in a
+    two-seat game name a seat with no player, and the reader -- a zone family
+    with no such instance, or a board frame's per-seat sign -- then fails at
+    runtime, a typechecked game crashing. Checked once here, where the coercion
+    is accepted, so the whole class of player positions is walled rather than
+    any single one. The bound is the game's MAXIMUM seat count (a range game's
+    `high`): a literal legal at the largest table is legal. A `Team` literal is
+    the parallel case, not yet swept (roadmap.md: no crash witness); a NEGATIVE
+    literal is a distinct AST node (`NegIntLit`) and never a real seat, likewise
+    recorded rather than walled here."""
+    if env.max_players <= 0 or not isinstance(expected, TPlayer) or not isinstance(index, n.IntLit):
+        return
+    if not 0 <= index.value < env.max_players:
+        seats = f"0..{env.max_players - 1}" if env.max_players > 1 else "0"
+        bag.error(
+            f"seat {index.value} is out of range: the game has "
+            f"{env.max_players} player(s) ({seats})",
+            index.span,
+        )
+
+
 def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
     """Recursively validate a single expression: stdlib argument types and
     subscript legality. Types of unrefined sub-parts are `TAny` (permissive).
@@ -1959,6 +1988,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                             f"{e.func}() expects {_type_name(param)}, got {_type_name(got)}",
                             e.span,
                         )
+                    _check_player_literal(arg, param, env, bag)
         if e.func in RANKING_GATED_FUNCS and not env.has_ranking:
             bag.error(
                 f"{e.func}() reads a card's rank strength from ranking:, "
@@ -1983,6 +2013,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 )
             else:
                 idx_t = infer(e.index, env)
+                _check_player_literal(e.index, family, env, bag)
                 if not assignable(idx_t, family):
                     bag.error(
                         f"`{obj_ref.name}` is keyed by {_type_name(family)}"
@@ -2000,6 +2031,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 # runtime that indexes the map directly and requires the key
                 # to be one it actually holds.
                 idx_t = infer(e.index, env)
+                _check_player_literal(e.index, obj.key, env, bag)
                 if not assignable(idx_t, obj.key):
                     what = (
                         f"`{obj_ref.name}`"
@@ -2301,6 +2333,7 @@ def _check_assign(stmt: n.AssignStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
             # player-keyed store is a check-time error here; the runtime's
             # domain wall (execute._assign) stays behind it for computed keys.
             idx_t = infer(stmt.index, env)
+            _check_player_literal(stmt.index, target.key, env, bag)
             if not assignable(idx_t, target.key):
                 bag.error(
                     f"`{name}` is keyed by {_type_name(target.key)} — got "

@@ -508,6 +508,22 @@ def _board_of(ctx: Ctx, fn: str) -> BoardEntry:
     return board
 
 
+def _seat(ctx: Ctx, fn: str, player: int) -> int:
+    """A frame verb's player argument must be a seat of this game. The resolve
+    wall (typecheck `_check_player_literal`) rejects a LITERAL out-of-range seat
+    statically, and the frame verbs are two-player-only (resolve), so a bad seat
+    is unreachable from a well-formed game -- this backstops the COMPUTED case
+    in the runtime's currency (a typed, game-facing rejection) in place of the
+    frame's internal `_player_sign` `ValueError`, which reads as a registry bug
+    rather than a game one."""
+    if player not in ctx.rs.seating.players:
+        raise RuntimeError(
+            f"`{fn}` reads seat {player!r}, not a seat of this "
+            f"{len(ctx.rs.seating.players)}-player game"
+        )
+    return player
+
+
 def _neighbor(ctx: Ctx, cell: str, direction: str, player: int) -> str:
     """The cell one step along `direction` in `player`'s frame -- the geometry
     the `step` move reads (cardlang/stdlib/boards.py). Total by contract: every
@@ -516,7 +532,7 @@ def _neighbor(ctx: Ctx, cell: str, direction: str, player: int) -> str:
     off-board result is unreachable from a game. The None-return raise is a
     backstop of that `has_step` guard, in the runtime's currency -- not a
     game-reachable error."""
-    dest = _board_of(ctx, "neighbor").neighbor(cell, direction, player)
+    dest = _board_of(ctx, "neighbor").neighbor(cell, direction, _seat(ctx, "neighbor", player))
     if dest is None:
         raise RuntimeError(
             f"neighbor({cell!r}, {direction!r}, {player}) stepped off the board "
@@ -528,7 +544,7 @@ def _neighbor(ctx: Ctx, cell: str, direction: str, player: int) -> str:
 def _has_step(ctx: Ctx, cell: str, direction: str, player: int) -> bool:
     """Whether the step along `direction` stays on the board -- the guard
     predicate that gates the total `neighbor`."""
-    return _board_of(ctx, "has_step").has_step(cell, direction, player)
+    return _board_of(ctx, "has_step").has_step(cell, direction, _seat(ctx, "has_step", player))
 
 
 def _is_diagonal(ctx: Ctx, direction: str) -> bool:
@@ -538,13 +554,13 @@ def _is_diagonal(ctx: Ctx, direction: str) -> bool:
 
 def _home(ctx: Ctx, player: int) -> tuple[str, ...]:
     """A player's home region (back two ranks) -- a Collection<Cell>."""
-    return _board_of(ctx, "home").home(player)
+    return _board_of(ctx, "home").home(_seat(ctx, "home", player))
 
 
 def _far_row(ctx: Ctx, player: int) -> tuple[str, ...]:
     """The rank at the far edge of `player`'s frame (the reach-to-win goal)
     -- a Collection<Cell>."""
-    return _board_of(ctx, "far_row").far_row(player)
+    return _board_of(ctx, "far_row").far_row(_seat(ctx, "far_row", player))
 
 
 def _strain_index(strain: str | None) -> int:

@@ -6,6 +6,17 @@ What's explicitly deferred, and the suggested order of next steps.
 
 Things we have noted but consciously not designed yet:
 
+- **Out-of-range TEAM and negative seat literals.** A player literal out of
+  range for the seat count is walled at every Player-coercion position
+  (`typecheck._check_player_literal`; `reserve[2]`/`result[2]`/`home(2)` in a
+  two-seat game reject, tests/test_player_literal_range.py). Two neighbours in
+  the same class are not: a `Team` literal out of range for the partnership
+  count (`team[2]` in a two-team game -- teams also coerce from `Integer`), and
+  a NEGATIVE literal (`reserve[-1]`, a distinct `NegIntLit` node the
+  `IntLit`-keyed helper does not see). Neither has a crash witness in the
+  corpus, so each is recorded rather than walled; the helper generalizes to a
+  team bound and a lower check when one arrives.
+
 - **An acting-player alias created by procedure expansion.** The wall on
   comparing the acting player against a second name for them (decisions.md
   "Naming the acting player twice") quantifies over one declaration body, and
@@ -1004,6 +1015,13 @@ Things we have noted but consciously not designed yet:
   `dealer : Player = 0` default a state var — accepts a literal Integer
   standing for the identity. This means `hand[0]` typechecks, pinned by
   `tests/test_zone_family_typing.py::test_accepts_an_integer_literal_zone_family_index`.
+  That leniency is now BOUNDED: an out-of-range integer literal (`hand[9]` in a
+  four-player game) is rejected by the player-literal range wall
+  (typecheck `_check_player_literal`, tests/test_player_literal_range.py), so
+  only an in-range literal coerces, and a computed out-of-range index
+  (`hand[0 + 9]`) is left to the runtime key wall. What stays deferred is the
+  orthogonal question this residual owns: whether a literal should coerce AT
+  ALL, or a zone-family index be required to be exactly Player/Team-typed.
   gops.md's asymmetric two-hand setup
   (`move ... to hand[0]` / `hand[1]`, `reveal one card from bid[0]` /
   `bid[1]`, `captured[0]` / `captured[1]` routing) is the corpus's one user
