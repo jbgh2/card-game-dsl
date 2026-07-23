@@ -3,9 +3,12 @@ decisions: the `as` block").
 
 `as <player-expr> { … }` evaluates its player expression in the OUTER context,
 binds the acting player to that one player, and runs its body once as a block
-scope. It replaces the `for each player p: if p is <who> { … }` idiom, which
-silently captures `actor` (true for every `p`) and — when the body mutates the
-guard variable — re-matches a later player mid-pass.
+scope. It replaces the `for each player p: if p is <who> { … }` idiom, whose two
+latent failures it forecloses: capturing `actor` (the guard would be true for
+every `p` — now refused outright, decisions.md "Naming the acting player twice",
+`tests/test_actor_alias_comparison.py`), and — when the body mutates the guard
+variable — re-matching a later player mid-pass, which stays a live hazard no
+wall can see.
 
 property:   `as <p> { … }` binds the acting player to exactly one evaluated
             Player, runs its body once, in a block scope whose `let`s do not
