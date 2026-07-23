@@ -580,7 +580,9 @@ the parameter. (Minting per-card vocabulary ids instead would give one card
 play two representations.) This is also why at most one Card-parameterized
 move may appear per vocabulary: the card id alone must name the move.
 
-**The integer `choose` domain.** `choose integer in <lo> .. <hi>` is the
+### The integer `choose` domain
+
+`choose integer in <lo> .. <hi>` is the
 numeric decision form (a bid — Spades' `0 .. 13`, Oh Hell's `0 .. hand_size`).
 Its domain is a bounded integer interval, and it satisfies the same
 closed-contract-plus-mask rule as the fixed domains above: the OpenSpiel action
@@ -795,14 +797,17 @@ each` stays correct — and stays in the language — for genuine per-player wor
 a scoring pass or a deal to everyone):
 
 - **It captures `actor`.** `for each player p:` rebinds the acting player for its
-  body, and `actor` *reads* the acting player, so `if p is actor { … }` is true for
-  **every** `p`. `as` evaluates its player *before* the rebind, so `as actor { … }`
-  is idempotent and `as challenger { … }` reads the state variable — neither can be
-  captured.
+  body, and `actor` *reads* the acting player, so `if p is actor { … }` would be
+  true for **every** `p` — which is why the comparison is refused outright (see
+  "Naming the acting player twice", below). `as` evaluates its player *before* the
+  rebind, so `as actor { … }` is idempotent and `as challenger { … }` reads the
+  state variable — neither can be captured.
 - **It re-reads its guard mid-pass.** When the body mutates the guard variable, a
   later player in the same pass re-matches and takes a second turn — an
   order-dependent double-execution. `as` runs its body once, so one written turn is
-  one turn.
+  one turn. This one no wall can catch — whether the body writes the guard is a
+  question about paths, not names — so it remains the reason to reach for `as`
+  even where the comparison would be legal.
 
 `as` uses the same actor-binding runtime path the loop reached indirectly, so it
 emits no new observations. Its gain for the OpenSpiel target is that the decision
@@ -812,6 +817,55 @@ parameter inside an `as` block is safe for the same reason it is inside any
 actor-rebinding body: arguments are evaluated once in the caller's context
 ([Named procedures](#named-procedures)), so Coup's `lose_influence(victim)` runs
 `as victim { … }` with no capture.
+
+## Naming the acting player twice
+
+A construct that binds a seat *and* makes that seat the acting player gives the
+same player two names: its own binder, and the `actor` pronoun. Inside such a
+body the two are interchangeable, so an equality comparison between them is a
+constant — `p is actor` always true, `p is not actor` guarding a body that never
+runs. **Both operands naming the acting player is refused at resolve time.**
+
+The rule is about *provable identity*, not about the `for each` spelling, so it
+covers every construct that binds the acting player to a name — `for each` over a
+seat role (the `binds_actor` column of the domain registry), `turns`, `each …
+simultaneously`, and `as <name>` — and the transitive `let me = actor`, which
+merely adds a third name for the same seat. Both equality operators and both
+operand orders are refused alike, since the degeneracy is in the operands rather
+than in the spelling.
+
+Binding is the only thing that grants a name, and it is also the only thing that
+takes one away: a name rebound by an inner construct — a query binder, a
+`produces:` arm's payload, a `let` assigning it something else — stops denoting
+the acting player from that point, and comparing it becomes ordinary again. A
+binding's right-hand side is read *before* it takes effect, as everywhere else
+in the language, so `let p = p` re-binds `p` to the player it already named and
+keeps the comparison refused.
+
+The **innermost** binding is the one that counts, and that is what keeps the
+useful idioms legal:
+
+```cardlang-fragment actor_alias
+let w = actor
+for each player p:
+  if p is w { result[p] := 1 } else { result[p] := -1 }
+```
+
+Capturing the acting player *above* the loop is the way to compare against them
+*inside* it: `w` is bound before the rebind, so it still names the player who
+acted while `p` walks the seats. Written inside the loop the same `let` would
+name whichever seat the loop had just bound, and the comparison would be refused
+along with the direct one. Symmetrically, a nested rebind frees the outer
+binder — inside `for each player p: as <someone> { … }`, `actor` is that someone,
+so `p is actor` is an ordinary contingent test again.
+
+Two boundaries are deliberate. A **state variable** is never treated as provably
+the actor, even directly inside `as taker { … }`: the body may reassign it, so
+the comparison can genuinely differ, and the wall refuses only what it can prove.
+And a merely **redundant** read is not an error — `hand[actor]` where `hand[p]`
+would do is accepted, because it does exactly what it says. The defect being
+walled is a comparison whose answer is fixed before the game runs, not a
+roundabout way of writing a correct one.
 
 ## State scoping (lexical)
 
@@ -2525,9 +2579,11 @@ against `far_row(actor)`; a wipe-out win reads the opponent's piece
 count. **The opponent of the actor is a game `function`, e.g.
 `function opponent_of(p : Player) = if p is 0 then 1 else 0`, not a `for
 each player p: if p is not actor` guard: inside a `for each player` body
-the acting player IS the bound seat, so `p is not actor` is always false
-and its body never runs** (the same reason a two-outcome effect binds
-`let w = actor` before the loop). Breakthrough is the corpus witness
+the acting player IS the bound seat `p`, so `p is not actor` compares the
+actor against a second name for the actor** — refused at resolve as an
+always-false comparison ("Naming the acting player twice"), which is why a
+"the other seats" idiom names a seat directly (`opponent_of`) or captures
+the actor first (`let w = actor`, tic-tac-toe's spelling). Breakthrough is the corpus witness
 ([games/breakthrough.md](games/breakthrough.md)): 8x8, sixteen pieces a
 side, `step` with diagonal-only capture, and the two termini its oracle
 names.

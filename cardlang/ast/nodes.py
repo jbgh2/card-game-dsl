@@ -29,8 +29,8 @@ class NameRef:
     """A bare identifier. ``ref_kind`` is filled by the resolver, classifying
     the name as one of: ``local`` (a binder/let), ``state_var``, ``zone``,
     ``enum_value``, ``function``, ``null`` (the absence literal `none`), or a
-    ``pronoun`` (`state`/`action`/`outcome`/`active_rules`). ``None`` until
-    resolved."""
+    ``pronoun`` (``resolve._PRONOUNS`` — the context namespaces, `actor` among
+    them). ``None`` until resolved."""
 
     name: str
     span: Span | None = None

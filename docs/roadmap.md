@@ -6,18 +6,19 @@ What's explicitly deferred, and the suggested order of next steps.
 
 Things we have noted but consciously not designed yet:
 
-- **A `for each player` body that tests `actor` reads always-false.** Inside a
-  `for each player p:` body the runtime rebinds the acting player to `p`
-  (`runtime/execute.py::_for_each` runs a seat-role body under
-  `acting_as(member)`), so `if p is not actor { … }` never runs its body and
-  `if p is actor { A } else { B }` silently drops `B`. It typechecks and runs;
-  it is simply dead — the accepted-but-ignored class. A game that means "the
-  other players" captures the actor first (`let w = actor`, tic-tac-toe's
-  spelling) or names a seat directly (breakthrough's `opponent_of` function).
-  Whether the always-false guard deserves a resolve wall (a comparison of a
-  binder against the pronoun it shadows) is a separate change with its own
-  domain; recorded here so the trap is loud in the record even while silent in
-  the checker. Surfaced building breakthrough's wipe-out win.
+- **An acting-player alias created by procedure expansion.** The wall on
+  comparing the acting player against a second name for them (decisions.md
+  "Naming the acting player twice") quantifies over one declaration body, and
+  runs before `expand` splices procedure bodies into their call sites. A
+  procedure body cannot read `actor` at all (`resolve._check_procedures`), so
+  the pronoun cannot travel across the boundary; what survives is a body
+  comparing two of its own parameters (`q is r`) that one call site supplies
+  from the same seat — `run f(p, actor)` inside `for each player p`. That
+  comparison is a tautology at THAT call site and meaningful at others, so
+  catching it means either an interprocedural pass or re-running the sweep on
+  the expanded tree; both are more machinery than one exotic shape has earned.
+  Recorded, not walled — the grid's ledger
+  (`tests/test_actor_alias_comparison.py`) names it as its one residual.
 
 - **Latent holes around the struct paths.** Each was found by adversarial
   review of the lookup-miss walls, each is reachable only through constructs no

@@ -77,8 +77,8 @@ registry:   KNOWN_TAGS (below) is the closed tag vocabulary — six tags:
             block's wrapper before the block's own (bad) text is checked.
 covered:    every block in the domain carries a recognized tag
             (test_every_block_is_classified, parametrized over every
-            block). All 8 `cardlang-fragment` blocks execute through their
-            registered wrapper and are proven to pass
+            block). Every `cardlang-fragment` block executes through its
+            registered WRAPPER_RECIPES entry and is proven to pass
             (test_fragment_blocks_pass_when_wrapped). The
             classify/cardlang/cardlang-bad/fragment/bad-fragment code paths
             are each independently proven with synthetic fixtures
@@ -312,6 +312,37 @@ def _wrap_passing_phase(frag: str) -> str:
     return _game(f"{frag}\n  winner: highest score", top_level=rule)
 
 
+def _wrap_actor_alias(frag: str) -> str:
+    # decisions.md "Naming the acting player twice": the hoist that keeps a
+    # comparison against the acting player legal inside a loop that rebinds
+    # them. It has to sit where an acting player exists AND where the hoisted
+    # `let` is outside the loop — a move effect, which is where the corpus
+    # writes it (docs/games/tic-tac-toe.cardlang). Wrapping it anywhere the
+    # `let` fell inside the loop would make this block prove the opposite of
+    # what the section claims.
+    return f"""
+game Skeleton {{
+  players: 2
+  max_length: 1000
+  cards: standard52
+  zones {{ deck : Deck  hand[player] : Hand<player> }}
+  state {{ result[player] : Integer = 0 }}
+  phase main {{
+    deal 2 cards from deck to each hand
+    as 0 {{ offer to 0 one of [decide] }}
+  }}
+  winner: highest result
+}}
+
+move_type decide {{
+  when: true
+  effect {{
+{frag}
+  }}
+}}
+"""
+
+
 def _wrap_as_taker(frag: str) -> str:
     # decisions.md "Single-actor decisions: the `as` block": the French Tarot
     # chien discard quoted as the motivating example. The fragment references
@@ -400,6 +431,7 @@ game Skeleton {{
 # carries a unique label and every non-fragment block carries none;
 # `test_no_orphan_recipes` pins that every label here is claimed by a block.
 WRAPPER_RECIPES: dict[str, Callable[[str], str]] = {
+    "actor_alias": _wrap_actor_alias,
     "active_rules_shadowing": _wrap_active_rules_shadowing,
     "first_trick_phase": _wrap_first_trick_phase,
     "play_phase": _wrap_play_phase,
@@ -452,8 +484,8 @@ def test_the_block_domain_is_the_size_the_ledger_claims() -> None:
         name: len(extract_blocks((DOCS_DIR / name).read_text(), name))
         for name in DOC_NAMES
     }
-    assert per_doc == {"decisions.md": 52, "library.md": 13, "model.md": 4}
-    assert len(_BLOCKS) == 69
+    assert per_doc == {"decisions.md": 53, "library.md": 13, "model.md": 4}
+    assert len(_BLOCKS) == 70
 
 
 def _block_id(block: FencedBlock) -> str:
