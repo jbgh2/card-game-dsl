@@ -46,7 +46,18 @@ covered:    the registry-closure pins below (each proves the corresponding
             and the relation x wrapper grid over the nominal-struct rule
             (`test_the_nominal_struct_rule_reaches_through_every_wrapper`),
             which crosses `unify`/`assignable` against bare, optional and
-            collection shapes so the rule cannot hold only at the top level.
+            collection shapes so the rule cannot hold only at the top level;
+            and the fail-closed pin over the `Type` CONSUMERS
+            (`test_every_type_consumer_fails_closed_on_an_unfamiliar_type`),
+            which probes `subscriptable`/`assignable`/`unify`/`_type_name` with
+            a type outside the union — the way a newly declared, not-yet-
+            threaded type behaves — and pins that each refuses it by
+            construction (allow-lists) rather than falling through to
+            acceptance. Its companion is the Member-arm classification pin in
+            tests/test_typecheck_errors.py, which covers the one consumer
+            shaped as a DENY-list and therefore the one that needs every union
+            member enumerated; that pin derives its domain from
+            `get_args(Type)`, so a new type fails it automatically.
 sampled:    the audited-top set is a COUNT per module, not an enumeration of
             sites: a new construction fails this module until it is classified
             in the ledger, but the count cannot say WHICH site moved, and a
@@ -977,3 +988,64 @@ def test_the_audited_top_still_flows_where_it_is_legitimate() -> None:
     from cardlang.types import unify
 
     assert unify(TCollection(TAny()), TCollection(TCard())) is not None
+
+
+def test_every_type_consumer_fails_closed_on_an_unfamiliar_type() -> None:
+    """The generalization of the Member-arm classification pin
+    (tests/test_typecheck_errors.py): that one proves every `Type` union member
+    earns a dot-form arm; this one proves the REST of the `Type` consumers need
+    no such enumeration, because they are allow-lists that reject a type they
+    have never seen rather than deny-lists that fall through to acceptance.
+
+    The distinction is the whole reason the Member arm was the one that leaked:
+    it enumerated what to REJECT, so an unenumerated type reached no arm and
+    inferred the permissive top with no diagnostic. `subscriptable`,
+    `assignable` and `unify` instead enumerate what to ACCEPT, so an unfamiliar
+    type is refused by construction -- no arm to forget. Equality still carries
+    the same-type cases, so failing closed costs them no legitimate answer.
+
+    Pinned because that safety is structural, not declared: nothing stops a
+    later change from "fixing" a spurious rejection by giving one of these a
+    permissive default, which would reopen the leak everywhere at once and
+    without a diagnostic. An unfamiliar type -- deliberately outside the union,
+    which is what a not-yet-classified new type behaves like -- is the probe.
+
+    red under: three, each run and observed, then reverted --
+      * `subscriptable` given a permissive default
+        (`return not isinstance(t, (TInteger, TBoolean))`);
+      * `assignable`'s FINAL `return False` flipped to `return True`;
+      * `unify`'s FINAL `return None` flipped to `return a`.
+    "Final" is load-bearing in the last two: `unify` has an earlier `return
+    None` inside its optional branch, and mutating THAT leaves this pin green --
+    a plant that never armed. A replay must hit the fall-through (the last
+    `return` in the function), or it proves nothing.
+    """
+    from dataclasses import dataclass
+    from typing import cast
+
+    from cardlang.types import Type, subscriptable
+
+    @dataclass(frozen=True, slots=True)
+    class TUnfamiliar:
+        """Stands in for a type a later change adds to the union but has not
+        yet threaded through the consumers."""
+
+    # `cast` is the point of the probe, not a workaround: the checker's own
+    # types say this cannot happen, and the pin exists for the moment it does.
+    unknown = cast(Type, TUnfamiliar())
+
+    # Refused by construction, with no arm naming it.
+    assert subscriptable(unknown) is False
+    assert assignable(unknown, TInteger()) is False
+    assert assignable(TInteger(), unknown) is False
+    assert unify(unknown, TInteger()) is None
+    assert unify(TInteger(), unknown) is None
+
+    # ...while the same-type cases equality already covers still answer, so
+    # failing closed is conservative rather than wrong.
+    assert assignable(unknown, unknown) is True
+    assert unify(unknown, unknown) == unknown
+
+    # And rendering degrades gracefully: a diagnostic naming an unfamiliar type
+    # still reads, rather than crashing the checker mid-report.
+    assert typecheck._type_name(unknown) == "Unfamiliar"

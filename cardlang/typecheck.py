@@ -1831,6 +1831,17 @@ def _check_is_check(e: n.IsCheck, env: TypeEnv, bag: DiagnosticBag) -> None:
 # line binding `cell`:TCell. Fixed at rung 1; resolve rejects any other noun.
 _COLLECTION_BINDER_TYPES: Mapping[str, Type] = {"line": TLine(), "cell": TCell()}
 
+# The dot-form (`Member`) receiver classes, by the diagnostic each earns. They
+# are module constants, not inline `isinstance` tuples, because
+# tests/test_typecheck_errors.py cross-checks them against `get_args(Type)`:
+# every member of the `Type` union must be classified by exactly one arm, so a
+# newly declared type fails that pin instead of silently reaching no arm and
+# inferring `TAny` (the permissive-top gap this class of wall exists to close).
+# Adding a type means classifying it here -- or, if it genuinely carries fields,
+# giving it its own arm beside `TStruct`/`TCard` and recording it there.
+_INDEXABLE_RECEIVERS = (TPlayer, TTeam, TInteger, TBoolean)
+_FIELDLESS_RECEIVERS = (TCell, TDir, TLine, TEnum, TString, TNull, TVariant)
+
 
 def _domain_query_binder_type(
     e: n.DomainQuery, env: TypeEnv, bag: DiagnosticBag
@@ -2053,7 +2064,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 "over cards in …') or take a specific card",
                 e.span,
             )
-        elif isinstance(bare, (TPlayer, TTeam, TInteger, TBoolean)):
+        elif isinstance(bare, _INDEXABLE_RECEIVERS):
             # The dot form is object-member access only (Card, Move, and
             # struct fields). Zone/state indexing is the bracket form, and
             # relational chains derive through functions and state
@@ -2064,15 +2075,21 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 f"('{e.field}[...]') instead",
                 e.span,
             )
-        elif isinstance(bare, (TCell, TDir, TLine, TEnum, TString, TNull)):
+        elif isinstance(bare, _FIELDLESS_RECEIVERS):
             # The fieldless value types: a position (TCell), a movement
             # direction (TDir), a line/region (TLine), an enum value, a string,
-            # or none. None has user-accessible fields, so a dot form on one
-            # would otherwise reach no arm and infer TAny with no diagnostic --
-            # the permissive-top gap a `cell`/`dir` binder or a movement verb's
-            # TCell return could slip through. The whole fieldless class is
-            # walled here, at the layer that owns operand kinds, not per
-            # producer (decisions.md "Closed-domain completeness").
+            # none, or a variant outcome. None has user-accessible fields, so a
+            # dot form on one would otherwise reach no arm and infer TAny with
+            # no diagnostic -- the permissive-top gap a `cell`/`dir` binder or a
+            # movement verb's TCell return could slip through. The whole
+            # fieldless class is walled here, at the layer that owns operand
+            # kinds, not per producer (decisions.md "Closed-domain
+            # completeness"). TNull and TVariant are classified rather than
+            # probed: `none` is a comparison-only operand and no `infer` arm
+            # returns a variant (it is a registry entry for `produce` /
+            # `produces:` checking), so neither is reachable from a receiver
+            # position today -- they are walled ahead of the reach, so a later
+            # arm that does return one cannot reopen the gap.
             bag.error(
                 f"cannot read field '{e.field}' of {_type_name(obj)}: the dot "
                 f"form is object-member access only (Card, Move, and struct "

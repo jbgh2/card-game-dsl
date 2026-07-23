@@ -10,6 +10,7 @@ import pytest
 
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
+from cardlang.types import Type
 
 
 def _game(body_state: str, body_play: str) -> str:
@@ -357,6 +358,67 @@ game G {
 }
 """
     check_dsl(src, "g.cardlang")  # no raise
+
+
+# --- The Member arm's coverage of the Type union, DERIVED ---------------------
+
+
+def test_every_type_union_member_is_classified_by_the_member_arm() -> None:
+    """Every `Type` the checker can infer earns a dot-form arm, and the domain
+    is read from `get_args(Type)` rather than restated here -- so a newly
+    declared type fails THIS test rather than silently reaching no arm and
+    inferring `TAny`. That silent fall-through is the permissive-top gap the
+    fieldless sweep closed for six types at once; a hand-listed wall would
+    reopen it the day someone adds a seventh, which is exactly what this pin
+    prevents. The reject classes are IMPORTED from the checker, not copied, so
+    the arm and this pin cannot drift apart.
+
+    Adding a type means putting it in one bucket below: give it its own
+    field-checking arm (like `TStruct`/`TCard`), classify it as a reject, or
+    justify it as structural/permissive.
+
+    red under: delete any member from `_FIELDLESS_RECEIVERS` (or add a member
+    to the `Type` union without classifying it here) -- run and observed, both
+    directions.
+    """
+    from typing import get_args
+
+    from cardlang.typecheck import _FIELDLESS_RECEIVERS, _INDEXABLE_RECEIVERS
+
+    declared = {t.__name__ for t in get_args(Type)}
+
+    # Types carrying user-accessible fields: each has its own arm that checks
+    # the field name against the declared set.
+    fielded = {"TStruct", "TCard"}
+    # Its own arm, with an aggregate-instead message.
+    collection = {"TCollection"}
+    # Structural: unwrapped to its payload before the chain, so a bare
+    # TOptional never reaches an arm -- its payload is classified instead.
+    structural = {"TOptional"}
+    # The permissive top, by design (docs: the deferred parts of the typed
+    # object model propagate through it without error).
+    permissive = {"TAny"}
+    rejected = {t.__name__ for t in _INDEXABLE_RECEIVERS + _FIELDLESS_RECEIVERS}
+
+    buckets = [fielded, collection, structural, permissive, rejected]
+    classified: set[str] = set().union(*buckets)
+
+    unclassified = declared - classified
+    assert not unclassified, (
+        f"Type member(s) {sorted(unclassified)} reach the dot-form (Member) arm "
+        "with no case, so `<expr>.field` on one infers TAny with NO diagnostic. "
+        "Classify each in tests/test_typecheck_errors.py and give it an arm in "
+        "cardlang/typecheck.py::_check_expr."
+    )
+    assert not classified - declared, (
+        f"classified name(s) {sorted(classified - declared)} are not in the Type "
+        "union -- a stale entry outliving the type it named."
+    )
+    # Exactly one bucket each: a type in two classes would take whichever arm
+    # the chain reaches first, making the other silently dead.
+    for i, bucket in enumerate(buckets):
+        for other in buckets[i + 1 :]:
+            assert not bucket & other, f"classified twice: {sorted(bucket & other)}"
 
 
 # --- The fieldless value types: dot-form rejection swept across the class -----
