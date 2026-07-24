@@ -30,7 +30,8 @@ covered:    - omitted player-expr / malformed → parse error [grammar]
               keeping the Integer-stands-for-player leniency of
               `dealer : Player = 0`) [typecheck]
             - a player-expr that is a valid TYPE but binds a non-seat VALUE at
-              runtime (`as 5` in a 2-player game; a TAny pronoun like
+              runtime (a COMPUTED `as (0 + 5)` in a 2-player game -- a literal
+              `as 5` is rejected statically now; or a TAny pronoun like
               `as active_rules`) → loud RuntimeError at `acting_as` — the
               acting-player analogue of the phantom-key write wall, so `as` is
               never more dangerous than the guarded loop it replaces [runtime]
@@ -153,9 +154,12 @@ def test_out_of_range_player_is_a_loud_runtime_error() -> None:
     # The regression the `as` block must NOT introduce: the guarded loop it
     # replaces (`for each p: if p is 5`) never matches a non-seat and drops the
     # decision; `as` binds unconditionally, so a phantom seat must fail loudly at
-    # bind time rather than reach the chooser as a bogus decider.
+    # bind time rather than reach the chooser as a bogus decider. A LITERAL `as 5`
+    # is rejected statically now (the operand choke point ranges it); the seat
+    # here is COMPUTED (`0 + 5`, a BinOp the checker leaves Integer, like the
+    # phantom-key `n[0 + 9]`), so it reaches this runtime bind-time wall.
     game = _decision_game(
-        "as 5 { move chosen 1 cards from hand[dealer] to discard }"
+        "as (0 + 5) { move chosen 1 cards from hand[dealer] to discard }"
     )
     with pytest.raises(RuntimeError, match="not a seat"):
         _run_capturing(game)

@@ -37,7 +37,7 @@ residual:   the key branch is reachable from a checker-accepted game, not
             type-checks and arrives here (roadmap.md, "Zone-family index
             strictness (deferred re-audit)"). An out-of-range player LITERAL
             (`hand[9]`) is now caught earlier by the static player-literal
-            wall (typecheck `_check_player_literal`,
+            wall (typecheck `_check_role_literal`,
             tests/test_player_literal_range.py) — that tightened the literal
             half of the deferral; the computed half is why this is still a
             wall owing a typed error rather than a backstop. Probed below.
@@ -191,7 +191,7 @@ def test_a_checker_accepted_game_can_reach_the_key_wall() -> None:
     arrives here — the wall is author-reachable and owes a typed error rather
     than an assert. The index is COMPUTED (`0 + 9`), not the literal `9`: an
     out-of-range player LITERAL is caught earlier by the static wall
-    (typecheck `_check_player_literal`, tests/test_player_literal_range.py),
+    (typecheck `_check_role_literal`, tests/test_player_literal_range.py),
     which tightened exactly the literal half of this residual; the computed
     half is what keeps this a reachable wall. If the index rule is tightened
     further (computed keys too), this test fails and the residual — and the
