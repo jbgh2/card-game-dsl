@@ -6,16 +6,34 @@ What's explicitly deferred, and the suggested order of next steps.
 
 Things we have noted but consciously not designed yet:
 
-- **Out-of-range TEAM and negative seat literals.** A player literal out of
-  range for the seat count is walled at every Player-coercion position
-  (`typecheck._check_player_literal`; `reserve[2]`/`result[2]`/`home(2)` in a
-  two-seat game reject, tests/test_player_literal_range.py). Two neighbours in
-  the same class are not: a `Team` literal out of range for the partnership
-  count (`team[2]` in a two-team game -- teams also coerce from `Integer`), and
-  a NEGATIVE literal (`reserve[-1]`, a distinct `NegIntLit` node the
-  `IntLit`-keyed helper does not see). Neither has a crash witness in the
-  corpus, so each is recorded rather than walled; the helper generalizes to a
-  team bound and a lower check when one arrives.
+- **Out-of-range player literals in declaration/binding positions.** A player
+  literal out of range for the seat count is walled at the EXPRESSION and CALL
+  positions -- a player-indexed subscript, a keyed-state index read/write, a
+  stdlib/game-function/procedure call argument -- by calling one helper
+  (`typecheck._check_player_literal`) from each; both an over-high literal and a
+  negative one reject there (`reserve[5]`/`result[5] := 1`/`home(5)`/`reserve[-1]`
+  in a two-seat game, tests/test_player_literal_range.py). The helper is called
+  from those sites, not placed at one choke point every `assignable(_, Player)`
+  coercion passes through, so the DECLARATION and BINDING positions are NOT
+  walled and still accept an out-of-range literal: a `state` default
+  (`dealer : Player = 5`), a scalar assignment (`dealer := 5`), an `as` binding,
+  a `turns from`/`over` seat, a struct Player field, a variant Player payload,
+  and the clauses that carry no Player type-check at all (`loser:`, `round`).
+  Most were run and confirmed accepted while writing this (`dealer : Player = 5`,
+  `dealer := 5`, `turns from 5`, `offer to 5`, `turns over [5]`, `as 5`, a struct
+  field, `loser: 5` and even `loser: "x"`); the variant-payload and `round` cases
+  are audit-identified, confirmed red-first by the follow-up. A `Team` literal is
+  the parallel case on the team axis (`team[2]` in a two-team game -- teams also
+  coerce from `Integer`). These are closed together, by
+  construction rather than by hooking each site, in
+  docs/superpowers/plans/2026-07-23-player-literal-operand-choke-point.md: one
+  operand check (`assignable` + the range check) that every coercion routes
+  through, plus a pin that no `assignable(_, Player)` escapes it, which also
+  brings `loser:`/`round` into Player type-checking. Until then the runtime
+  fails loud in the common consuming paths -- a zone-family subscript miss and
+  the frame-verb `_seat` backstop both raise (tests/test_zone_store_lookups.py,
+  tests/test_movement_verbs.py) -- but a bad seat consumed only arithmetically
+  can be carried silently, which is why this is deferred, not dismissed.
 
 - **An acting-player alias created by procedure expansion.** The wall on
   comparing the acting player against a second name for them (decisions.md

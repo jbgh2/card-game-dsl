@@ -1875,19 +1875,34 @@ def _domain_query_binder_type(
 
 def _check_player_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: DiagnosticBag) -> None:
     """A player literal names a seat, so it must be one the game has. An integer
-    literal coerces to Player (`assignable(Integer, Player)`) at every
-    player-indexed subscript, player-keyed state index, and player-typed
-    argument; unchecked, `reserve[2]` / `result[2] := 1` / `home(2)` in a
-    two-seat game name a seat with no player, and the reader -- a zone family
-    with no such instance, or a board frame's per-seat sign -- then fails at
-    runtime, a typechecked game crashing. Checked once here, where the coercion
-    is accepted, so the whole class of player positions is walled rather than
-    any single one. The bound is the game's MAXIMUM seat count (a range game's
-    `high`): a literal legal at the largest table is legal. A `Team` literal is
-    the parallel case, not yet swept (roadmap.md: no crash witness); a NEGATIVE
-    literal is a distinct AST node (`NegIntLit`) and never a real seat, likewise
-    recorded rather than walled here."""
-    if env.max_players <= 0 or not isinstance(expected, TPlayer) or not isinstance(index, n.IntLit):
+    literal coerces to Player (`assignable(Integer, Player)`), and in a
+    player-indexed subscript, a player-keyed state index, or a player-typed
+    argument an unchecked out-of-range literal -- `reserve[2]` / `result[2] := 1`
+    / `home(2)` in a two-seat game -- names a seat with no player, and the reader
+    (a zone family with no such instance, or a board frame's per-seat sign) then
+    fails at runtime, a typechecked game crashing. The bound is the game's
+    MAXIMUM seat count (a range game's `high`): a literal legal at the largest
+    table is legal. The bound is two-sided: the `0 <=` lower bound rejects a
+    NEGATIVE literal, which is an `IntLit` with a negative value (there is no
+    separate negative-literal node), so `reserve[-1]` is caught here too.
+
+    This helper is CALLED FROM the expression and call coercion sites -- the
+    subscript, keyed-state read/write, call-argument, and procedure-argument
+    positions -- not from one choke point every `assignable(_, Player)` coercion
+    passes through. The DECLARATION and BINDING positions (`state` defaults,
+    scalar `:=`, `as`, `turns from`/`over`, struct fields, variant payloads) and
+    the clauses carrying no Player type-check at all (`loser:`, `round`) do NOT
+    route through it yet and still accept an out-of-range literal. That residual,
+    and the plan that closes it by unifying every operand check behind one call
+    (with a pin that no `assignable(_, Player)` escapes it), are recorded in
+    roadmap.md ("Out-of-range player literals in declaration/binding positions").
+    A `Team` literal is the parallel case on the team axis, recorded there too.
+
+    An OPTIONAL player expectation (`Player?`) is unwrapped first: `assignable`
+    coerces an Integer into `Player?` by reaching its payload, so a literal in a
+    `Player?` position is the same seat a bare `Player` position is."""
+    bare = expected.inner if isinstance(expected, TOptional) else expected
+    if env.max_players <= 0 or not isinstance(bare, TPlayer) or not isinstance(index, n.IntLit):
         return
     if not 0 <= index.value < env.max_players:
         seats = f"0..{env.max_players - 1}" if env.max_players > 1 else "0"
@@ -2304,6 +2319,11 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
                         f"{_type_name(got)}",
                         arg.span,
                     )
+                # Procedure expansion runs AFTER typechecking, so an out-of-range
+                # seat literal in a Player param becomes an unchecked
+                # `score[5] := 1` in the spliced body -- the same coercion the
+                # call-arg and subscript sites wall, reached one construct later.
+                _check_player_literal(arg, param, env, bag)
     for expr in _stmt_exprs(s):
         _check_expr(expr, env, bag)
 
