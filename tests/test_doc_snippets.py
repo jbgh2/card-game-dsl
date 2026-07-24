@@ -484,8 +484,8 @@ def test_the_block_domain_is_the_size_the_ledger_claims() -> None:
         name: len(extract_blocks((DOCS_DIR / name).read_text(), name))
         for name in DOC_NAMES
     }
-    assert per_doc == {"decisions.md": 51, "library.md": 12, "model.md": 4}
-    assert len(_BLOCKS) == 67
+    assert per_doc == {"decisions.md": 53, "library.md": 13, "model.md": 4}
+    assert len(_BLOCKS) == 70
 
 
 def _block_id(block: FencedBlock) -> str:

@@ -6,6 +6,35 @@ What's explicitly deferred, and the suggested order of next steps.
 
 Things we have noted but consciously not designed yet:
 
+- **Out-of-range player literals in declaration/binding positions.** A player
+  literal out of range for the seat count is walled at the EXPRESSION and CALL
+  positions -- a player-indexed subscript, a keyed-state index read/write, a
+  stdlib/game-function/procedure call argument -- by calling one helper
+  (`typecheck._check_player_literal`) from each; both an over-high literal and a
+  negative one reject there (`reserve[5]`/`result[5] := 1`/`home(5)`/`reserve[-1]`
+  in a two-seat game, tests/test_player_literal_range.py). The helper is called
+  from those sites, not placed at one choke point every `assignable(_, Player)`
+  coercion passes through, so the DECLARATION and BINDING positions are NOT
+  walled and still accept an out-of-range literal: a `state` default
+  (`dealer : Player = 5`), a scalar assignment (`dealer := 5`), an `as` binding,
+  a `turns from`/`over` seat, a struct Player field, a variant Player payload,
+  and the clauses that carry no Player type-check at all (`loser:`, `round`).
+  Most were run and confirmed accepted while writing this (`dealer : Player = 5`,
+  `dealer := 5`, `turns from 5`, `offer to 5`, `turns over [5]`, `as 5`, a struct
+  field, `loser: 5` and even `loser: "x"`); the variant-payload and `round` cases
+  are audit-identified, confirmed red-first by the follow-up. A `Team` literal is
+  the parallel case on the team axis (`team[2]` in a two-team game -- teams also
+  coerce from `Integer`). These are closed together, by
+  construction rather than by hooking each site, in
+  docs/superpowers/plans/2026-07-23-player-literal-operand-choke-point.md: one
+  operand check (`assignable` + the range check) that every coercion routes
+  through, plus a pin that no `assignable(_, Player)` escapes it, which also
+  brings `loser:`/`round` into Player type-checking. Until then the runtime
+  fails loud in the common consuming paths -- a zone-family subscript miss and
+  the frame-verb `_seat` backstop both raise (tests/test_zone_store_lookups.py,
+  tests/test_movement_verbs.py) -- but a bad seat consumed only arithmetically
+  can be carried silently, which is why this is deferred, not dismissed.
+
 - **An acting-player alias created by procedure expansion.** The wall on
   comparing the acting player against a second name for them (decisions.md
   "Naming the acting player twice") quantifies over one declaration body, and
@@ -658,15 +687,22 @@ Things we have noted but consciously not designed yet:
   ([decisions.md](decisions.md) "Position domains and positional zones";
   Klondike and FreeCell are the corpus anchors). The position design's
   remaining cells stay deferred, each behind a wall:
-  - `for each <position>` iteration and position-indexed `state` stores —
-    both rejected at resolve with diagnostics
+  - `for each <INTEGER position>` iteration and position-indexed `state`
+    stores — both rejected at resolve with diagnostics
     (tests/rejections/positions_for_each,
     positions_state_indexed_by_position); no corpus game addresses columns
     by loop or keeps per-column scalar state (guards + parameters cover
-    both games). Implement when a game needs one. (Quantification over a
-    position domain — `any cell where …`, `all columns where …`, `number
-    of cells where …`, and the `any line in …`/`all cells in …` collection
-    forms — is a separate surface and is live: tests/test_cell_queries.py.)
+    both games). Implement when a game needs one. Iteration over a board's
+    NAMED-MEMBER domain (`for each cell`) is live from rung 2 —
+    breakthrough's fixed setup array is the witness that lifted it — and
+    the named-member/integer split is exactly what the remaining wall turns
+    on (tests/test_cell_iteration.py). A collection-restricted
+    `for each cell c in <expr>` form stays grammatically inexpressible: the
+    bare role form plus a membership guard (`if c in home(actor)`) covers
+    the setup witness. (Quantification over a position domain — `any cell
+    where …`, `all columns where …`, `number of cells where …`, and the
+    `any line in …`/`all cells in …` collection forms — is a separate
+    surface and is live: tests/test_cell_queries.py.)
   - The collection-quantifier noun is fixed to `{cell, line}` at rung 1
     (`cardlang/resolve.py::_COLLECTION_NOUNS`); a future collection-typed
     domain (a region, a hand of pieces) gets no `any <noun> in <expr>
@@ -803,6 +839,23 @@ Things we have noted but consciously not designed yet:
     Collapsing that degenerate node for a proven-chance-free game is the
     ladder's stage-3 chance workstream, not an info-set gap: the proof
     module records the honest caveat and defers the collapse here.
+  - **A decider with men but no legal move.** Breakthrough's `until`
+    predicate names the two termini its oracle names (someone has won,
+    someone has no men); it does not name "the player to move has men but
+    every step is blocked". OpenSpiel's `breakthrough` leaves that state
+    non-terminal with an empty action list; the DSL fires the
+    no-implicit-actions wall instead
+    (`cardlang/runtime/execute.py::_offer`), so the two are broken
+    differently rather than agreeing, and no differential walk can reach the
+    disagreement. It did not arise in 400 random games — the smallest offer
+    ever made was nine steps
+    (`tests/test_playout_breakthrough.py`) — so no machinery is built for an
+    unreached state, and the game says nothing it cannot back. The forcing
+    witness is a game whose rules make blocking ordinary:
+    [english-draughts](games/_candidates.md#english-draughts), where a
+    player with no move LOSES, and
+    [nine-mens-morris](games/_candidates.md#nine-mens-morris), where a
+    blocked player is a real position.
 
 - **Doc-snippet fragment kinds with no cheap wrapping harness.**
   `tests/test_doc_snippets.py` pipeline-checks every `cardlang`/
@@ -980,6 +1033,13 @@ Things we have noted but consciously not designed yet:
   `dealer : Player = 0` default a state var — accepts a literal Integer
   standing for the identity. This means `hand[0]` typechecks, pinned by
   `tests/test_zone_family_typing.py::test_accepts_an_integer_literal_zone_family_index`.
+  That leniency is now BOUNDED: an out-of-range integer literal (`hand[9]` in a
+  four-player game) is rejected by the player-literal range wall
+  (typecheck `_check_player_literal`, tests/test_player_literal_range.py), so
+  only an in-range literal coerces, and a computed out-of-range index
+  (`hand[0 + 9]`) is left to the runtime key wall. What stays deferred is the
+  orthogonal question this residual owns: whether a literal should coerce AT
+  ALL, or a zone-family index be required to be exactly Player/Team-typed.
   gops.md's asymmetric two-hand setup
   (`move ... to hand[0]` / `hand[1]`, `reveal one card from bid[0]` /
   `bid[1]`, `captured[0]` / `captured[1]` routing) is the corpus's one user

@@ -32,13 +32,16 @@ sampled:    nothing on the failure matrix. The message's key LIST is asserted
 
 residual:   the key branch is reachable from a checker-accepted game, not
             only from an engine bug: a zone-family subscript's index is
-            checked with `types.assignable`, which admits a bare Integer
-            literal, so `hand[9]` in a 4-player game type-checks and arrives
-            here (roadmap.md, "Zone-family index strictness (deferred
-            re-audit)", pinned by
-            tests/test_zone_family_typing.py::test_accepts_an_integer_literal_zone_family_index).
-            That deferral is why this is a wall owing a typed error rather
-            than a backstop. Probed below. Game-local primitives are outside
+            checked with `types.assignable`, which admits an Integer, so a
+            COMPUTED out-of-range key like `hand[0 + 9]` in a 4-player game
+            type-checks and arrives here (roadmap.md, "Zone-family index
+            strictness (deferred re-audit)"). An out-of-range player LITERAL
+            (`hand[9]`) is now caught earlier by the static player-literal
+            wall (typecheck `_check_player_literal`,
+            tests/test_player_literal_range.py) — that tightened the literal
+            half of the deferral; the computed half is why this is still a
+            wall owing a typed error rather than a backstop. Probed below.
+            Game-local primitives are outside
             this module's domain — they reach zones through
             cardlang/runtime/reads.py, whose registry and currency are
             pinned by tests/test_primitive_reads.py.
@@ -182,10 +185,16 @@ def test_instance_refuses_a_key_a_position_family_does_not_cover() -> None:
 
 
 def test_a_checker_accepted_game_can_reach_the_key_wall() -> None:
-    """The `residual:` cell above, made real. `hand[9]` in a 4-player game
-    type-checks (roadmap.md "Zone-family index strictness"), so this wall is
-    author-reachable and owes a typed error rather than an assert. If the
-    index rule is ever tightened, this test fails and the residual — and the
+    """The `residual:` cell above, made real. A zone-family index is checked
+    with `types.assignable`, which admits an Integer, so `hand[0 + 9]` in a
+    4-player game type-checks (roadmap.md "Zone-family index strictness") and
+    arrives here — the wall is author-reachable and owes a typed error rather
+    than an assert. The index is COMPUTED (`0 + 9`), not the literal `9`: an
+    out-of-range player LITERAL is caught earlier by the static wall
+    (typecheck `_check_player_literal`, tests/test_player_literal_range.py),
+    which tightened exactly the literal half of this residual; the computed
+    half is what keeps this a reachable wall. If the index rule is tightened
+    further (computed keys too), this test fails and the residual — and the
     currency argument resting on it — must be revisited."""
     game = check_dsl(
         """game G {
@@ -195,7 +204,7 @@ def test_a_checker_accepted_game_can_reach_the_key_wall() -> None:
   cards: standard52
   zones { deck : Deck  hand[player] : Hand<player> }
   state { n[player] : Integer = 0 }
-  phase p { move 1 cards from deck to hand[9] }
+  phase p { move 1 cards from deck to hand[0 + 9] }
   winner: highest n
 }""",
         "reachable.cardlang",

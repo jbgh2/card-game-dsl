@@ -100,6 +100,17 @@ class DomainSources:
     # name can never collide with a built-in spelling (resolve rejects the
     # collision), so the lookup order below is unambiguous.
     positions: Mapping[str, Sequence[int] | Sequence[str]] = field(default_factory=dict)
+    # The board-minted movement-direction domain (decisions.md "Boards and
+    # cells", rung-2 movement): name -> ordered members. A SEPARATE source
+    # from `positions` (the `dir` domain is deliberately absent from
+    # `game.positions`), consulted ONLY by the move-parameter enumeration --
+    # never a zone index, quantifier binder or `for each` role. Both builders
+    # read it off the same board family entry (`board_domains.directions_of`):
+    # `driver.py` via `rs.direction_domains`, `openspiel/encoding.py` from the
+    # game AST -- so the runtime candidate enumeration and the static action
+    # space cannot diverge. A minted name can never collide with `positions`
+    # or a built-in spelling (resolve rejects the collision).
+    directions: Mapping[str, Sequence[str]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -356,9 +367,13 @@ def enumerate_domain(type_name: str, sources: DomainSources) -> list[Any]:
 
     A declared position domain (`src : column`) enumerates its declared
     members, checked ahead of the table — resolve's collision wall guarantees
-    a declared name never shadows a built-in spelling."""
+    a declared name never shadows a built-in spelling. A board-minted direction
+    domain (`along : dir`) is the SIBLING branch: a separate source, checked
+    the same way, so it enumerates its members without riding `positions`."""
     if type_name in sources.positions:
         return list(sources.positions[type_name])
+    if type_name in sources.directions:
+        return list(sources.directions[type_name])
     row = BY_PARAM_DOMAIN.get(type_name)
     if row is None:
         raise NotImplementedError(f"move parameter domain '{type_name}' not supported")

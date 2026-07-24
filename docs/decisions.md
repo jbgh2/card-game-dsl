@@ -2516,17 +2516,88 @@ Tic-tac-toe is the corpus witness
 `pieces: xo_marks`, the nine `square[cell]` cells, `place(at : cell)`,
 and the win test `any line in lines(3) where all cells in line where …`.
 
-**Walls stated as behavior.** A bare cell name in an expression (`a1`)
-is an unknown name, not a cell literal — a cell is named only through a
-parameter or a quantifier binder at rung 1; naming a specific cell in a
-setup or rule waits on its witness ([roadmap.md](roadmap.md)). A
-position domain is still not a declarable `state` type, a `for each`
-role, or a state index — `cell` in those slots rejects exactly as an
-integer position domain does ("Position domains and positional zones").
-The remaining board-topology surface — movement-direction enums, the
-`HiddenCell` and `Point` zone-type rows, double-indexed families, in-file
-boards — is walled per rung of the board-topology ladder
-([design-notes/board-topology.md](design-notes/board-topology.md);
+### Movement: directions, frames, and the class-1 verbs
+
+Where tic-tac-toe only *places* pieces, a game whose pieces *move*
+declares a move parameterized by a **movement direction** as well as a
+cell. A grid mints a second named-member domain, `dir`, whose members
+are the seat-relative forward directions `ahead`, `ahead_left`,
+`ahead_right`:
+
+```text
+move_type step(from : cell, along : dir) { when: … effect { … } }
+```
+
+`dir` is a **move-parameter domain only** — a separate source from the
+`positions { }` union, so it never reaches the zone-index, quantifier, or
+`for each` surfaces (a direction is not a position). It types as `TDir`,
+distinct from `TCell`: `along is a1` (direction against cell), `along is
+3`, `along < along2`, and `along[…]` are all type errors, and a direction
+member is not expression-nameable — naming `ahead` in an expression is an
+unknown name, exactly as a cell name is (the meaning of a direction is
+read through the verbs below, never a literal). `step(from : cell, along
+: dir)` enumerates one action per (cell, direction) pair, in member
+order.
+
+**Per-player frames.** A grid's directions are seat-relative: `ahead` is
+one player's forward and the other's backward, because the second seat's
+frame is the 180-degree rotation of the first's — one shared board, a
+declared per-player transform, never a second board. The transform is
+folded into the class-1 verbs, which take the acting player and resolve
+the direction in that player's frame. Five closed stdlib verbs read the
+board entry (rejected in a boardless game naming `board:`, the `lines(k)`
+twins):
+
+- `neighbor(from, along, player)` — the cell one step along `along` in
+  `player`'s frame, a `TCell`. It is **total**: an off-board step is a
+  guarded contract, not a return value, so a guard demands `has_step`
+  before reading `neighbor` (`and` short-circuits, so `neighbor` is never
+  evaluated off the board).
+- `has_step(from, along, player)` — whether that step stays on the board.
+- `is_diagonal(along)` — whether a step along `along` changes file (the
+  capturing directions on a grid, where straight steps do not capture).
+- `home(player)` and `far_row(player)` — a player's back-two-ranks setup
+  region and the opposite edge (its reach-to-win goal), each a
+  `Collection<Cell>` the cell membership and quantifier forms consume.
+
+**`for each cell` and cell membership.** Setup that fills a region
+iterates it: `for each cell c: <stmt>` runs the body once per board cell,
+binding `c` as a `TCell`, and a membership guard narrows it to a region.
+This lifts the `for each <position>` residual for a board's named-member
+domain only — an integer `positions { }` domain (`for each column`) stays
+walled, the split being named-member versus integer:
+
+```text
+for each cell c: if c in home(0) { move one piece from reserve[0] to square[c] }
+```
+
+**Displacement capture and reach.** Capture is two ordinary kernel
+movements — the captured piece to a `captured[player]` pile, then the
+mover — so it emits through the existing observation sites with no new
+machinery. A reach-to-win test reads the just-moved piece's destination
+against `far_row(actor)`; a wipe-out win reads the opponent's piece
+count. **The opponent of the actor is a game `function`, e.g.
+`function opponent_of(p : Player) = if p is 0 then 1 else 0`, not a `for
+each player p: if p is not actor` guard: inside a `for each player` body
+the acting player IS the bound seat `p`, so `p is not actor` compares the
+actor against a second name for the actor** — refused at resolve as an
+always-false comparison ("Naming the acting player twice"), which is why a
+"the other seats" idiom names a seat directly (`opponent_of`) or captures
+the actor first (`let w = actor`, tic-tac-toe's spelling). Breakthrough is the corpus witness
+([games/breakthrough.md](games/breakthrough.md)): 8x8, sixteen pieces a
+side, `step` with diagonal-only capture, and the two termini its oracle
+names.
+
+**Walls stated as behavior.** A bare cell name in an expression (`a1`),
+and now a direction name (`ahead`), is an unknown name, not a literal —
+named only through a parameter or a quantifier binder; naming a specific
+cell in a setup or rule waits on its witness ([roadmap.md](roadmap.md)).
+A position domain is still not a declarable `state` type or a state
+index, and an integer position domain is still not a `for each` role.
+The remaining board-topology surface — the `HiddenCell` and `Point`
+zone-type rows, double-indexed families, `roll` chance, probes,
+`reachable`, in-file boards — is walled per rung of the board-topology
+ladder ([design-notes/board-topology.md](design-notes/board-topology.md);
 [roadmap.md](roadmap.md)).
 
 ## Game result: `winner:` and `loser:`

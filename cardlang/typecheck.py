@@ -41,6 +41,7 @@ from typing import Iterator, Mapping, assert_never
 
 from cardlang.ast import nodes as n
 from cardlang.ast.nodes import Game
+from cardlang.board_domains import directions_of
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError
 from cardlang.domains import role_type as _role_type
 from cardlang.runtime.values import component_set, content_kind_clause, content_noun
@@ -54,6 +55,7 @@ from cardlang.types import (
     TCard,
     TCell,
     TCollection,
+    TDir,
     TEnum,
     TInteger,
     TLine,
@@ -146,20 +148,23 @@ def type_from_name(
     optional: bool,
     structs: Mapping[str, TStruct] | None = None,
     positions: Mapping[str, Type] | None = None,
+    directions: Mapping[str, Type] | None = None,
 ) -> Type:
     """Map a declared type name (a `StateDecl` `type_name`) to a `Type`.
 
     User-defined struct names resolve to their `TStruct` (via the ``structs``
     registry); a declared POSITION domain resolves to its member type (via
     ``positions``, which maps each domain name to `TInteger` or, for the
-    board-minted `cell` domain, `TCell`); names unknown to scalars, enums, and
-    both registries resolve to the permissive `TAny`. ``optional`` wraps the
-    result in `TOptional`.
+    board-minted `cell` domain, `TCell`); a board-minted DIRECTION domain
+    resolves to `TDir` (via ``directions``, the separate `dir` source);
+    names unknown to scalars, enums, and every registry resolve to the
+    permissive `TAny`. ``optional`` wraps the result in `TOptional`.
 
-    Every position that admits a position domain passes ``positions`` here
-    rather than branching on it locally: the rule belongs to name resolution,
-    and a caller that resolved the name without it would admit `slot` at
-    resolve and then map it to the top — the leak this module walls.
+    Every position that admits a position/direction domain passes ``positions``/
+    ``directions`` here rather than branching on it locally: the rule belongs to
+    name resolution, and a caller that resolved the name without it would admit
+    `slot`/`dir` at resolve and then map it to the top — the leak this module
+    walls.
     """
     base: Type
     if positions is not None and name in positions:
@@ -167,6 +172,11 @@ def type_from_name(
         # `cell` domain's is `TCell`. `positions` carries the member type so
         # the two are distinct (`at is 3` on a cell param is a type error).
         base = positions[name]
+    elif directions is not None and name in directions:
+        # The board-minted `dir` domain's member is `TDir` (the SEPARATE
+        # source, so a direction parameter rejects a cell/integer/subscript
+        # rather than reading as the permissive top).
+        base = directions[name]
     elif name in _SCALAR_TYPES:
         base = _SCALAR_TYPES[name]()
     elif name in _ENUM_TYPES:
@@ -410,6 +420,9 @@ def _payload_type(
     `positions` is threaded because resolve admits a declared position domain
     here: without it the name resolves to the top, and the `produces:` arm
     binder carrying that payload exempts its whole body from every type wall.
+    The board-minted `dir` domain is deliberately NOT admitted here: `dir` is a
+    move-parameter domain only, so resolve rejects a `dir` payload (`unknown
+    type 'dir'`) before this pass -- the reason `directions` is not threaded.
     """
     if name.endswith("?"):
         return type_from_name(name[:-1], True, structs, positions)
@@ -475,6 +488,7 @@ class TypeEnv:
     # call site left to check.
     procedures: Mapping[str, Sig] = field(default_factory=dict)
     has_ranking: bool = False  # bool(game.ranking) — gates RANKING_GATED_FUNCS
+    max_players: int = 0  # the game's maximum seat count — bounds player literals
     # Per-game position domains (decisions.md "Position domains and positional
     # zones", "Boards and cells") — name -> the member type a parameter, let
     # binder or subscript key over it carries: `TInteger` for a declared
@@ -483,6 +497,14 @@ class TypeEnv:
     # answers "is this a position domain?"; the value answers "of which member
     # kind?".
     positions: Mapping[str, Type] = field(default_factory=dict)
+    # The board-minted movement-direction domains (decisions.md "Boards and
+    # cells", rung-2 movement) — name -> the member type a `dir` move parameter,
+    # let binder or payload carries: `TDir`. A SEPARATE map from `positions`
+    # (the `dir` domain is deliberately absent from `game.positions`), so a
+    # direction is admitted only at a move parameter / payload and the position
+    # walls never see it. Membership (`name in env.directions`) answers "is this
+    # a direction domain?".
+    directions: Mapping[str, Type] = field(default_factory=dict)
     # `Game.content_flavor` and `Game.deck` — the dispatch key and set name for
     # the flavor-aware walls (decisions.md, "Component sets: cards and pieces");
     # `deck` names the kind in a piece game's card-vocabulary diagnostics.
@@ -861,6 +883,14 @@ def _position_types(game: Game) -> dict[str, Type]:
     }
 
 
+def _direction_types(game: Game) -> dict[str, Type]:
+    """Each board-minted direction domain's member type: `TDir`. The `dir`
+    source is SEPARATE from `game.positions` (`board_domains.directions_of`),
+    so this is the sibling of `_position_types` -- the domain NAMES come from
+    the seam (no drift), each mapped to its one member type."""
+    return {name: TDir() for name in directions_of(game)}
+
+
 def env_from_game(
     game: Game, structs: Mapping[str, TStruct] | None = None
 ) -> TypeEnv:
@@ -953,18 +983,24 @@ def env_from_game(
         functions=functions,
         procedures=procedures,
         has_ranking=bool(game.ranking),
+        max_players=(
+            game.players.high if game.players.high is not None else game.players.low
+        ),
         positions=positions,
+        directions=_direction_types(game),
         flavor=game.content_flavor,
         deck=game.deck,
         item_fields=item_field_table(game),
     )
 
 
-# A statement's enclosing binders, outermost first. A loop or parameter binder
-# carries its Type directly; a `let` binder carries its `LetStmt` NODE, because
-# its type is its initializer's inferred type *in the environment at that
-# point* — which only the consumer holds. `_scoped_env` resolves both kinds.
-_Binders = tuple[tuple[str, "Type | n.LetStmt"], ...]
+# A statement's enclosing binders, outermost first. A parameter binder carries
+# its Type directly; a `let` binder carries its `LetStmt` NODE and a `for each`
+# binder its `ForEach` NODE, because their types are known only to the consumer
+# — a let's is its initializer's type inferred *in the environment at that
+# point*, and a for-each's is its role's member type, which for a position
+# domain (a board's `cell`) is per-game. `_scoped_env` resolves all three.
+_Binders = tuple[tuple[str, "Type | n.LetStmt | n.ForEach"], ...]
 
 
 def _scoped_env(env: TypeEnv, binders: _Binders) -> TypeEnv:
@@ -984,6 +1020,15 @@ def _scoped_env(env: TypeEnv, binders: _Binders) -> TypeEnv:
                 env = env.with_local(name, TCollection(element, key=TPlayer()))
             else:
                 env = env.with_local(name, infer(bound.value, env))
+        elif isinstance(bound, n.ForEach):
+            # A position-domain role (a board's `cell`) takes its member type
+            # from the game's declared domains, which only this consumer holds;
+            # every other role is a closed registry row `role_type` answers.
+            role = bound.role
+            env = env.with_local(
+                name,
+                env.positions[role] if role in env.positions else _role_type(role),
+            )
         else:
             env = env.with_local(name, bound)
     return env
@@ -1002,9 +1047,7 @@ def _stmt_tree_scoped(
     yield s, binders
     match s:
         case n.ForEach():
-            yield from _stmt_tree_scoped(
-                s.body, binders + ((s.binder, _role_type(s.role)),)
-            )
+            yield from _stmt_tree_scoped(s.body, binders + ((s.binder, s),))
         case n.EachSimultaneous():
             yield from _stmt_tree_scoped(
                 s.body, binders + ((s.role, _role_type(s.role)),)
@@ -1104,7 +1147,9 @@ def _non_define_statements(game: Game) -> Iterator[n.Stmt]:
 
 
 def _move_param_binders(
-    move_type: n.MoveTypeDef, positions: Mapping[str, Type]
+    move_type: n.MoveTypeDef,
+    positions: Mapping[str, Type],
+    directions: Mapping[str, Type],
 ) -> _Binders:
     """A move type's parameters, typed from their declarations — bound in its
     guard and effect exactly as procedure parameters are bound in their body.
@@ -1112,23 +1157,26 @@ def _move_param_binders(
     Suit) { when: s is 3 … }` pass both positions while the inline spelling
     was rejected — the let-laundering shape, one binder kind over.
 
-    `positions` (the game's position domains) must be threaded in: a move
-    parameter may be a position domain (`build(src : column)`, `place(at :
-    cell)`), and `_param_type` types those as their member type (`TInteger` /
-    `TCell`) only when the domain is in `env.positions`. A fresh `TypeEnv()`
-    would leave it `TAny`, so `src is hearts` and other wrong-domain uses would
-    pass — accepted-but-ignored, one binder kind over yet again. (Procedure
-    params, by contrast, resolve gates to `Player`, so they never carry a
-    position and their env needs none.)"""
-    env = TypeEnv(positions=positions)
+    `positions`/`directions` (the game's position and direction domains) must
+    be threaded in: a move parameter may be a position domain (`build(src :
+    column)`, `place(at : cell)`) or the board-minted direction domain
+    (`step(along : dir)`), and `_param_type` types those as their member type
+    (`TInteger` / `TCell` / `TDir`) only when the domain is in `env.positions`/
+    `env.directions`. A fresh `TypeEnv()` would leave it `TAny`, so `src is
+    hearts` / `along is a1` and other wrong-domain uses would pass —
+    accepted-but-ignored, one binder kind over yet again. (Procedure params,
+    by contrast, resolve gates to `Player`, so they never carry a position and
+    their env needs none.)"""
+    env = TypeEnv(positions=positions, directions=directions)
     return tuple((p.name, _param_type(p, env)) for p in move_type.params)
 
 
 def _all_statements_scoped(game: Game) -> Iterator[tuple[n.Stmt, _Binders]]:
     positions = _position_types(game)
+    directions = _direction_types(game)
     for move_type in game.move_types:
         yield from _seq_tree_scoped(
-            move_type.effect, _move_param_binders(move_type, positions)
+            move_type.effect, _move_param_binders(move_type, positions, directions)
         )
     for phase in game.phases:
         yield from _phase_statements_scoped(phase)
@@ -1254,9 +1302,10 @@ def _param_type(p: n.MoveParam, env: TypeEnv) -> Type:
     optional = p.type_name.endswith("?")
     base = p.type_name[:-1] if optional else p.type_name
     # Position domains resolve inside `type_from_name`, which maps `column` to
-    # `TInteger` and the board-minted `cell` to `TCell`, and keeps `slot?`
-    # optional instead of flattening it.
-    return type_from_name(base, optional, env.structs, env.positions)
+    # `TInteger` and the board-minted `cell` to `TCell`; a board-minted `dir`
+    # maps to `TDir` via `env.directions`; and it keeps `slot?`/`dir?` optional
+    # instead of flattening it.
+    return type_from_name(base, optional, env.structs, env.positions, env.directions)
 
 
 def _procedure_sigs(game: Game) -> dict[str, Sig]:
@@ -1786,6 +1835,17 @@ def _check_is_check(e: n.IsCheck, env: TypeEnv, bag: DiagnosticBag) -> None:
 # line binding `cell`:TCell. Fixed at rung 1; resolve rejects any other noun.
 _COLLECTION_BINDER_TYPES: Mapping[str, Type] = {"line": TLine(), "cell": TCell()}
 
+# The dot-form (`Member`) receiver classes, by the diagnostic each earns. They
+# are module constants, not inline `isinstance` tuples, because
+# tests/test_typecheck_errors.py cross-checks them against `get_args(Type)`:
+# every member of the `Type` union must be classified by exactly one arm, so a
+# newly declared type fails that pin instead of silently reaching no arm and
+# inferring `TAny` (the permissive-top gap this class of wall exists to close).
+# Adding a type means classifying it here -- or, if it genuinely carries fields,
+# giving it its own arm beside `TStruct`/`TCard` and recording it there.
+_INDEXABLE_RECEIVERS = (TPlayer, TTeam, TInteger, TBoolean)
+_FIELDLESS_RECEIVERS = (TCell, TDir, TLine, TEnum, TString, TNull, TVariant)
+
 
 def _domain_query_binder_type(
     e: n.DomainQuery, env: TypeEnv, bag: DiagnosticBag
@@ -1811,6 +1871,46 @@ def _domain_query_binder_type(
             e.span,
         )
     return _COLLECTION_BINDER_TYPES.get(e.binder, TAny())
+
+
+def _check_player_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """A player literal names a seat, so it must be one the game has. An integer
+    literal coerces to Player (`assignable(Integer, Player)`), and in a
+    player-indexed subscript, a player-keyed state index, or a player-typed
+    argument an unchecked out-of-range literal -- `reserve[2]` / `result[2] := 1`
+    / `home(2)` in a two-seat game -- names a seat with no player, and the reader
+    (a zone family with no such instance, or a board frame's per-seat sign) then
+    fails at runtime, a typechecked game crashing. The bound is the game's
+    MAXIMUM seat count (a range game's `high`): a literal legal at the largest
+    table is legal. The bound is two-sided: the `0 <=` lower bound rejects a
+    NEGATIVE literal, which is an `IntLit` with a negative value (there is no
+    separate negative-literal node), so `reserve[-1]` is caught here too.
+
+    This helper is CALLED FROM the expression and call coercion sites -- the
+    subscript, keyed-state read/write, call-argument, and procedure-argument
+    positions -- not from one choke point every `assignable(_, Player)` coercion
+    passes through. The DECLARATION and BINDING positions (`state` defaults,
+    scalar `:=`, `as`, `turns from`/`over`, struct fields, variant payloads) and
+    the clauses carrying no Player type-check at all (`loser:`, `round`) do NOT
+    route through it yet and still accept an out-of-range literal. That residual,
+    and the plan that closes it by unifying every operand check behind one call
+    (with a pin that no `assignable(_, Player)` escapes it), are recorded in
+    roadmap.md ("Out-of-range player literals in declaration/binding positions").
+    A `Team` literal is the parallel case on the team axis, recorded there too.
+
+    An OPTIONAL player expectation (`Player?`) is unwrapped first: `assignable`
+    coerces an Integer into `Player?` by reaching its payload, so a literal in a
+    `Player?` position is the same seat a bare `Player` position is."""
+    bare = expected.inner if isinstance(expected, TOptional) else expected
+    if env.max_players <= 0 or not isinstance(bare, TPlayer) or not isinstance(index, n.IntLit):
+        return
+    if not 0 <= index.value < env.max_players:
+        seats = f"0..{env.max_players - 1}" if env.max_players > 1 else "0"
+        bag.error(
+            f"seat {index.value} is out of range: the game has "
+            f"{env.max_players} player(s) ({seats})",
+            index.span,
+        )
 
 
 def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
@@ -1903,6 +2003,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                             f"{e.func}() expects {_type_name(param)}, got {_type_name(got)}",
                             e.span,
                         )
+                    _check_player_literal(arg, param, env, bag)
         if e.func in RANKING_GATED_FUNCS and not env.has_ranking:
             bag.error(
                 f"{e.func}() reads a card's rank strength from ranking:, "
@@ -1927,6 +2028,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 )
             else:
                 idx_t = infer(e.index, env)
+                _check_player_literal(e.index, family, env, bag)
                 if not assignable(idx_t, family):
                     bag.error(
                         f"`{obj_ref.name}` is keyed by {_type_name(family)}"
@@ -1944,6 +2046,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 # runtime that indexes the map directly and requires the key
                 # to be one it actually holds.
                 idx_t = infer(e.index, env)
+                _check_player_literal(e.index, obj.key, env, bag)
                 if not assignable(idx_t, obj.key):
                     what = (
                         f"`{obj_ref.name}`"
@@ -2008,7 +2111,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 "over cards in …') or take a specific card",
                 e.span,
             )
-        elif isinstance(bare, (TPlayer, TTeam, TInteger, TBoolean)):
+        elif isinstance(bare, _INDEXABLE_RECEIVERS):
             # The dot form is object-member access only (Card, Move, and
             # struct fields). Zone/state indexing is the bracket form, and
             # relational chains derive through functions and state
@@ -2017,6 +2120,27 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 f"cannot read field '{e.field}' of {_type_name(obj)}: the dot "
                 f"form is object-member access only — index with brackets "
                 f"('{e.field}[...]') instead",
+                e.span,
+            )
+        elif isinstance(bare, _FIELDLESS_RECEIVERS):
+            # The fieldless value types: a position (TCell), a movement
+            # direction (TDir), a line/region (TLine), an enum value, a string,
+            # none, or a variant outcome. None has user-accessible fields, so a
+            # dot form on one would otherwise reach no arm and infer TAny with
+            # no diagnostic -- the permissive-top gap a `cell`/`dir` binder or a
+            # movement verb's TCell return could slip through. The whole
+            # fieldless class is walled here, at the layer that owns operand
+            # kinds, not per producer (decisions.md "Closed-domain
+            # completeness"). TNull and TVariant are classified rather than
+            # probed: `none` is a comparison-only operand and no `infer` arm
+            # returns a variant (it is a registry entry for `produce` /
+            # `produces:` checking), so neither is reachable from a receiver
+            # position today -- they are walled ahead of the reach, so a later
+            # arm that does return one cannot reopen the gap.
+            bag.error(
+                f"cannot read field '{e.field}' of {_type_name(obj)}: the dot "
+                f"form is object-member access only (Card, Move, and struct "
+                f"fields) — a {_type_name(obj)} has no fields",
                 e.span,
             )
     elif isinstance(e, n.BinOp):
@@ -2195,6 +2319,11 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
                         f"{_type_name(got)}",
                         arg.span,
                     )
+                # Procedure expansion runs AFTER typechecking, so an out-of-range
+                # seat literal in a Player param becomes an unchecked
+                # `score[5] := 1` in the spliced body -- the same coercion the
+                # call-arg and subscript sites wall, reached one construct later.
+                _check_player_literal(arg, param, env, bag)
     for expr in _stmt_exprs(s):
         _check_expr(expr, env, bag)
 
@@ -2224,6 +2353,7 @@ def _check_assign(stmt: n.AssignStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
             # player-keyed store is a check-time error here; the runtime's
             # domain wall (execute._assign) stays behind it for computed keys.
             idx_t = infer(stmt.index, env)
+            _check_player_literal(stmt.index, target.key, env, bag)
             if not assignable(idx_t, target.key):
                 bag.error(
                     f"`{name}` is keyed by {_type_name(target.key)} — got "
@@ -3093,7 +3223,9 @@ def typecheck(game: Game) -> Game:
         if move_type.guard is not None:
             _check_expr(
                 move_type.guard,
-                _scoped_env(env, _move_param_binders(move_type, env.positions)),
+                _scoped_env(
+                    env, _move_param_binders(move_type, env.positions, env.directions)
+                ),
                 bag,
             )
     for rule in game.rules:

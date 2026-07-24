@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from cardlang.ast import nodes as n
-from cardlang.board_domains import position_domains_of
+from cardlang.board_domains import directions_of, position_domains_of
 from cardlang.domains import role_members
 from cardlang.stdlib.boards import board_entry
 from cardlang.runtime import phases
@@ -82,6 +82,11 @@ def play_game(
     rs.teams = teams
     rs.team_of = team_of
     rs.position_domains = positions
+    # The board-minted `dir` move-parameter domain (decisions.md "Boards and
+    # cells"): built from the same `board:` clause as `cell`, via the seam the
+    # OpenSpiel encoding also reads, so the live candidate enumeration and the
+    # static action space cannot diverge. Empty for a boardless game.
+    rs.direction_domains = dict(directions_of(game))
     # The instantiated board (cells + lines) for the cell/line query verbs;
     # `board_entry` is total on a resolved game (resolve validated it).
     rs.board = board_entry(game.board.family, game.board.args) if game.board is not None else None

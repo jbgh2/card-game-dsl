@@ -9,9 +9,17 @@ Scope today is pragmatic: enough to type the corpus and catch real type errors.
 Collections and zone contents are typed loosely (`TCollection`, often of
 `TCard`); `TAny` is the permissive top that propagates through every operation
 without error, used for the deferred parts of the typed object model (the full
-`ZoneContents` query API, `Resource` generics, card attributes/facing). `TStruct`
-and `TVariant` are declared as seams for later stages (user-defined `type`
-declarations; tagged-union / phase outcomes) but are not yet constructed.
+`ZoneContents` query API, `Resource` generics, card attributes/facing).
+`TStruct` types a declared `type`, and `TVariant` a `define`'s or an outcome
+phase's cases; both are constructed (`typecheck.py`), but only `TStruct` is
+reachable as an expression's inferred type -- a variant is a registry entry
+consulted when checking `produce` / `produces:`, never returned by `infer`.
+
+Adding a member here is not local: every consumer that dispatches over `Type`
+must gain an arm. The dispatches are isinstance chains rather than
+`match` + `assert_never`, so mypy does NOT force that sweep -- the
+`Member`-arm classification pin in `tests/test_typecheck_errors.py` is what
+fails loudly instead, by deriving its domain from `get_args(Type)`.
 """
 
 from __future__ import annotations
@@ -65,6 +73,18 @@ class TCell:
     integer operands (`square[7]`, `at is 3`) and vice versa, while integer
     position domains keep ``TInteger`` exactly. Its runtime representation is
     the cell name string (`"a1"`)."""
+
+
+@dataclass(frozen=True, slots=True)
+class TDir:
+    """A movement direction -- one member of the named-member `dir` domain a
+    `board:` clause mints (decisions.md "Boards and cells", rung-2 movement).
+    Distinct from ``TCell`` and from ``TEnum("Direction")`` (the turn-order
+    ring direction) so a direction move parameter, binder or comparison rejects
+    a cell (`along is a1`), an integer (`along is 3`), an ordering
+    (`along < along2`), a subscript, and an `offset_by` operand -- riding only
+    the generic type chains, never a permissive fall-through. Its runtime
+    representation is the direction name string (`"ahead"`)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,6 +188,7 @@ Type: TypeAlias = (
     | TTeam
     | TCard
     | TCell
+    | TDir
     | TLine
     | TEnum
     | TOptional

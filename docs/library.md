@@ -663,6 +663,13 @@ conventions:
   ```
   Used by tic-tac-toe.
 
+- `breakthrough_men` = breakthrough's thirty-two pawns: sixteen light,
+  sixteen dark, all one kind. Same two-axis shape as `xo_marks`.
+  ```text
+  { side: [light, dark], kind: [man], copies: { light: 16, dark: 16 } }
+  ```
+  Used by breakthrough.
+
 Each entry captures a set's *composition* only. Card-point values,
 ranking for play, follow-suit semantics, and trump status are all
 per-game declarations on a deck; a piece set carries none of them.
@@ -681,12 +688,19 @@ rejected at resolve.
   each argument in `1..16`. Cells are named file+rank, ordered row-major
   from `a1` (`a1 b1 c1 a2 …`); `lines(k)` returns every straight run of
   `k` consecutive cells along a row, a column, or either diagonal.
-  `grid(3, 3)`'s `lines(3)` is the eight tic-tac-toe lines.
-  Used by tic-tac-toe.
+  `grid(3, 3)`'s `lines(3)` is the eight tic-tac-toe lines. A grid also
+  carries the movement data the class-1 verbs read: the three
+  seat-relative forward **directions** `ahead`, `ahead_left`,
+  `ahead_right` (its `dir` domain); the per-player **frame** (the second
+  seat's is the first's 180-degree rotation); and the **regions**
+  `home(player)` (the back two ranks) and `far_row(player)` (the opposite
+  edge). Used by tic-tac-toe (placement only) and breakthrough (the full
+  movement set).
 
-A board mints a named-member position domain (`cell`) whose members are
-its cells, on the declared-position substrate (see
-[decisions.md](decisions.md), "Boards and cells").
+A board mints two named-member domains: the position domain `cell`
+(its cells, on the declared-position substrate) and, for movement, the
+move-parameter domain `dir` (its directions). See
+[decisions.md](decisions.md), "Boards and cells".
 
 ## Stdlib state
 
@@ -770,6 +784,19 @@ mid-playout.
   where …` register. A resolve error in a game with no `board:`, and for a
   literal `k` outside the board's span. Used by tic-tac-toe (`lines(3)`, the
   eight winning lines).
+- `neighbor(from, along, player) → Cell` — the cell one step along direction
+  `along` in `player`'s frame. Total by contract: an off-board step is guarded
+  by `has_step`, not returned (decisions.md "Boards and cells", movement).
+- `has_step(from, along, player) → Boolean` — whether that step stays on the
+  board (the guard that gates `neighbor`).
+- `is_diagonal(along) → Boolean` — whether a step along `along` changes file
+  (a grid's capturing directions).
+- `home(player) → Collection<Cell>` — a player's back two ranks (its setup
+  region).
+- `far_row(player) → Collection<Cell>` — the far edge of `player`'s frame (its
+  reach-to-win goal).
+  These five read the `board:` entry (a resolve error in a boardless game, like
+  `lines`). Used by breakthrough.
 
 Cribbage's pegging and show scoring, plus the pegging count's card provenance,
 are six game-local primitives reading `cardlang/runtime/cribbage.py` — game-local

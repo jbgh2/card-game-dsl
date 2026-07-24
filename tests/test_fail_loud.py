@@ -412,6 +412,10 @@ def test_bare_family_read_without_an_actor_raises() -> None:
         _run(BARE_FAMILY_WITHOUT_AN_ACTOR)
 
 
+# The index is COMPUTED (`0 + 9`), not a literal `9`: an out-of-range player
+# LITERAL is caught statically now (typecheck `_check_player_literal`,
+# tests/test_player_literal_range.py), so reaching this runtime wall from a
+# checked game needs a key the literal wall does not see -- a computed one.
 PHANTOM_KEY_WRITE = """
 game G {
   players: 4
@@ -419,17 +423,18 @@ game G {
   cards: standard52
   zones { deck : Deck  hand[player] : Hand<player> }
   state { n[player] : Integer = 0 }
-  phase play { n[9] := 1 }
+  phase play { n[0 + 9] := 1 }
   winner: highest n
 }
 """
 
 
 def test_a_write_outside_the_declared_key_set_raises() -> None:
-    # Without this wall, `n[9] := 1` in a 4-player game would mint a phantom
+    # Without this wall, `n[0 + 9] := 1` in a 4-player game would mint a phantom
     # seat silently — and `winner: highest n` would crown player 9. The
     # store's key set is the index domain's member set; a write outside it is
-    # a runtime error at the write.
+    # a runtime error at the write. A LITERAL seat 9 is rejected earlier (the
+    # static player-literal wall); this is the backstop for the computed key.
     with pytest.raises(RuntimeError, match="outside the variable's declared domain"):
         _run(PHANTOM_KEY_WRITE)
 

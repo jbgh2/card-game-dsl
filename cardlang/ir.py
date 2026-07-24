@@ -35,6 +35,7 @@ import json
 from typing import TypeAlias, assert_never
 
 from cardlang.ast import nodes as n
+from cardlang.board_domains import directions_of
 
 IR_VERSION = 1
 
@@ -62,6 +63,16 @@ def emit(game: n.Game) -> IRDict:
         "trump": game.trump,
         "partnerships": [list(t) for t in game.partnerships],
         "positions": [_position(p) for p in game.positions],
+        # The board-minted movement-direction domain (decisions.md "Boards and
+        # cells", rung-2 movement). Keyed ONLY for a board game, like
+        # `content_flavor`: a boardless game mints no `dir` source, and an
+        # absent key keeps the card-game IR byte-stable.
+        **(
+            {"directions": [_direction(name, members)
+                            for name, members in directions_of(game).items()]}
+            if game.board is not None
+            else {}
+        ),
         "zones": [_zone(z) for z in game.zones],
         "state": _state_block(game.state) if game.state else None,
         "phases": [_phase(p) for p in game.phases],
@@ -95,6 +106,12 @@ def _position(p: n.PositionDecl) -> IRDict:
     if p.members_named is not None:
         return {"kind": "position", "name": p.name, "members": list(p.members_named)}
     return {"kind": "position", "name": p.name, "lo": p.lo, "hi": p.hi}
+
+
+def _direction(name: str, members: tuple[str, ...]) -> IRDict:
+    # The board-minted `dir` domain rendered like a named-member `_position`,
+    # but a SEPARATE top-level key: `dir` is not in `game.positions`.
+    return {"kind": "direction", "name": name, "members": list(members)}
 
 
 def _winner(w: n.Winner) -> IRDict:

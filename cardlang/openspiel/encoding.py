@@ -31,7 +31,7 @@ from dataclasses import dataclass
 from typing import Any, Iterator
 
 from cardlang.ast import nodes as n
-from cardlang.board_domains import position_domains_of
+from cardlang.board_domains import directions_of, position_domains_of
 from cardlang.domains import DomainSources, enumerate_domain
 from cardlang.runtime.mechanics import _pack
 from cardlang.runtime.observe import render_candidate
@@ -200,6 +200,10 @@ class ActionSpace:
             # integer domains plus the board-minted `cell`, identical by
             # construction.
             positions=dict(position_domains_of(game)),
+            # The board-minted `dir` domain, from the same seam the driver reads
+            # (`directions_of`) — so a `dir` move parameter's vocab ids match
+            # the runtime's live candidates. Empty for a boardless game.
+            directions=dict(directions_of(game)),
         )
         for node in _walk(game):
             if isinstance(node, n.Choose):

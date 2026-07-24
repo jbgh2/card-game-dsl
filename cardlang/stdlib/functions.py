@@ -78,6 +78,11 @@ STDLIB_CLIMB_FOLLOWS: frozenset[str] = frozenset(
 STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
     {
         "lines",  # the board's length-k lines (cell-name tuples); reads the `board:`
+        "neighbor",  # rung-2 movement: the cell one step along a dir in a player's frame
+        "has_step",  # rung-2 movement: whether that step stays on the board (gates neighbor)
+        "is_diagonal",  # rung-2 movement: whether a dir captures (changes file)
+        "home",  # rung-2 movement: a player's back-two-ranks setup region (Collection<Cell>)
+        "far_row",  # rung-2 movement: the opponent's back row, the reach-to-win goal
         "player_holding",
         "team_of",  # the partnership a player belongs to
         "suit_of",  # the suit of a card, or of a single-card zone (trump indicator)
@@ -307,5 +312,10 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
 BOARD_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
     {
         "lines",  # the board's length-k lines -- reads ctx.rs.board
+        "neighbor",  # the destination cell one step along a dir -- reads ctx.rs.board
+        "has_step",  # whether a step stays on the board -- reads ctx.rs.board
+        "is_diagonal",  # whether a dir captures -- reads the board's direction data
+        "home",  # a player's home region -- reads ctx.rs.board
+        "far_row",  # the far rank (reach goal) -- reads ctx.rs.board
     }
 )

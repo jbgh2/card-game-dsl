@@ -1,0 +1,1 @@
+is_diagonal_cell_for_dir.cardlang:30:13: error: is_diagonal() expects Dir, got Cell
