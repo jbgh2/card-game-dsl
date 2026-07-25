@@ -1902,15 +1902,25 @@ def _check_role_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: Diagno
     if not isinstance(index, n.IntLit):
         return
     if isinstance(bare, TPlayer):
+        # A game always declares `players:`, so `max_players` is the real seat
+        # count; 0 would mean "no player info" (a partial env, not reached in a
+        # real check) and is skipped defensively.
+        if env.max_players <= 0:
+            return
         bound, noun, label = env.max_players, "player", "seat"
     elif isinstance(bare, TTeam):
+        # `max_teams == 0` is the COMMON no-`partnerships:` case: a KNOWN EMPTY
+        # team domain, NOT an unknown bound -- so it is NOT skipped, and every
+        # team literal (even `0`) is rejected as naming a team the game has none
+        # of (`0 <= k < 0` is always false). A team-KEYED zone/state already
+        # requires partnerships at resolve, but a Team-TYPED operand -- a `state`
+        # default, a Team call arg, a struct field, a variant payload -- does
+        # not, and reaches here.
         bound, noun, label = env.max_teams, "team", "team"
     else:
         return
-    if bound <= 0:
-        return
     if not 0 <= index.value < bound:
-        ids = f"0..{bound - 1}" if bound > 1 else "0"
+        ids = f"0..{bound - 1}" if bound > 1 else ("0" if bound == 1 else "none")
         bag.error(
             f"{label} {index.value} is out of range: the game has "
             f"{bound} {noun}(s) ({ids})",

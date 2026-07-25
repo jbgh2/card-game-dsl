@@ -40,7 +40,8 @@ domain:     {position} x {in range | over high} x role {Player | Team}, plus the
             formerly-untyped clauses. Player positions run on a fixed 2-seat game
             (plus a `players: 2..4` range-count boundary: seat 3 accepted, seat 4
             rejected); Team positions on a 2-team (`partnerships: [[0,2],[1,3]]`)
-            game.
+            game, plus the empty-team boundary -- a TEAMLESS game (`max_teams ==
+            0`) is a KNOWN empty domain, so every team literal, even `0`, rejects.
 registry:   the range check is `_check_role_literal`, called from the ONE choke
             point `_check_operand`. The pin `tests/test_operand_choke_point.py`
             derives the coercion set from the `assignable(...)` CALL nodes in
@@ -54,7 +55,9 @@ covered:    the grid below -- `_PLAYER_BUILDERS` x {over high rejected, in range
             `_TEAM_BUILDERS` likewise; a negative literal rejected (`score[-1]`,
             the lower bound); the range-count boundary; the formerly-untyped
             clauses additionally rejecting a non-player String
-            (`test_untyped_clause_now_rejects_a_non_player`). The pin proves no
+            (`test_untyped_clause_now_rejects_a_non_player`); a team literal in a
+            TEAMLESS game rejected as an empty domain
+            (`test_team_literal_in_a_teamless_game_is_rejected`). The pin proves no
             coercion escapes the choke point. Runtime backstops behind the static
             wall stay covered: a COMPUTED out-of-range frame-verb seat
             (tests/test_movement_verbs.py::test_frame_verb_runtime_seat_backstop),
@@ -464,6 +467,50 @@ def test_choke_point_rejects_out_of_range_team(pid: str) -> None:
 @pytest.mark.parametrize("pid", sorted(_TEAM_BUILDERS))
 def test_choke_point_accepts_in_range_team(pid: str) -> None:
     assert _diagnose(_TEAM_BUILDERS[pid](1)) is None
+
+
+# A game with NO `partnerships:` has ZERO teams -- `max_teams == 0` is a KNOWN
+# EMPTY domain, not an unknown bound. A Team-KEYED zone/state requires
+# partnerships (resolve walls it), but a Team-TYPED OPERAND -- a `state` default,
+# a Team call argument -- does not, and reaches the range check, where every team
+# literal (even `0`) names a team the game does not have.
+def _teamless_game(*, extra_state: str = "", body: str = "") -> str:
+    return (
+        "game Teamless {\n"
+        "  players: 4\n"  # players, but NO partnerships => 0 teams
+        "  max_length: 20\n"
+        "  cards: standard52\n"
+        "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
+        "  zones { deck : Deck  hand[player] : Hand<player> }\n"
+        f"  state {{ score[player] : Integer = 0 {extra_state} }}\n"
+        "  phase play {\n"
+        f"{body}"
+        "    turns t from 0 over all players until (any player where score[player] is 1) {\n"
+        "      offer to t one of [pass]\n"
+        "    }\n"
+        "  }\n"
+        "  winner: highest score\n"
+        "}\n"
+        "move_type pass { effect { score[actor] := 1 } }\n"
+    )
+
+
+_TEAMLESS_TEAM_LITERAL = {
+    "team_state_default": lambda: _teamless_game(extra_state="owner : Team = 0"),
+    "team_call_arg": lambda: _teamless_game(body="    score[0] := canasta_meld_points(0)\n"),
+}
+
+
+@pytest.mark.parametrize("pid", sorted(_TEAMLESS_TEAM_LITERAL))
+def test_team_literal_in_a_teamless_game_is_rejected(pid: str) -> None:
+    # 0 teams => the domain is empty => even team 0 is out of range (Codex P2:
+    # `max_teams == 0` must read as an empty domain, not an unknown bound). This
+    # position needs NO partnerships to be written, so it is not walled at resolve
+    # like a team-keyed subscript -- the range check is the only wall it hits.
+    msg = _diagnose(_TEAMLESS_TEAM_LITERAL[pid]())
+    assert msg is not None, f"{pid}: a team literal was accepted in a teamless game"
+    assert "team 0 is out of range" in msg
+    assert "0 team(s)" in msg
 
 
 # The untyped clauses (`offer to`, `loser:`, `round … from`) carried NO player
