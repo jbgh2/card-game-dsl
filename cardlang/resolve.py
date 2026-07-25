@@ -108,6 +108,24 @@ _FRAME_CALL_FUNCS = frozenset(
 # domain table, not a hand-written local list.
 _KNOWN_ROLES = ZONE_INDEX_ROLES
 
+# The EMPTY-DOMAIN walls below (a team-indexed state/zone declaration in a game
+# that declares no `partnerships:`) implement the `team` row only, because
+# `team` is the one role domain a game can leave undeclared: seats come from the
+# mandatory `players:` clause, the card axes from the deck. That is a fact about
+# the registry, so it is pinned against the registry rather than assumed — the
+# same contract `runtime/execute.py` keeps for `SIMULTANEOUS_ROLES`. Without
+# this, adding a zone-indexable role whose domain can also be empty would slip
+# past those walls silently, which is the drift the domain table exists to end
+# (domains.py, `zone_key_of`).
+# role-compare-ok: this IS the registry reconciliation — the assert exists so a
+# new zone-indexable role fails here by name rather than escaping the walls below.
+assert ZONE_INDEX_ROLES == {"player", "team"}, (
+    f"resolve's empty-domain walls implement the `team` row only; "
+    f"ZONE_INDEX_ROLES is {sorted(ZONE_INDEX_ROLES)} — decide whether the new "
+    f"role's domain can be empty, and extend those walls, before widening the "
+    f"domain table"
+)
+
 # Domain nouns that mislead as an indexed-`let` binder. `let x[i] = …` builds a
 # per-PLAYER map — the index is a binder bound to each player in turn, whatever
 # it is named — so a binder named after a NON-player domain reads as a
@@ -2797,6 +2815,8 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
                     else "a movement's `where` filter"
                 )
                 hint = f" (`{noun}` is bound only inside {where})"
+            # role-compare-ok: not a role dispatch — `player` is the
+            # unresolved NAME this hint is about.
             elif node.name == "player":
                 hint = " (`player` is bound only inside a player query or quantifier)"
             bag.error(f"unresolved name '{node.name}'{hint}", node.span)
@@ -3520,6 +3540,8 @@ def _check_card_vocabulary(
             span,
         )
     if card_param_moves and not any(
+        # role-compare-ok: intrinsic — a Card parameter enumerates the
+        # ACTOR's hand, which is player-keyed by definition.
         z.name == "hand" and z.index == "player" for z in game.zones
     ):
         bag.error(
@@ -3768,6 +3790,8 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         f"(roadmap.md records the extension)",
                         nd.span,
                     )
+                # role-compare-ok: the `team` row of the empty-domain wall, pinned
+                # against ZONE_INDEX_ROLES at module level.
                 elif nd.index == "team" and not game.partnerships:
                     # A team-indexed store in a game with no partnerships has
                     # an EMPTY key set: it declares fine, holds nothing, and
@@ -3779,6 +3803,8 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         f"teams to key it by",
                         nd.span,
                     )
+            # role-compare-ok: the zone twin of the same `team` row, pinned
+            # against ZONE_INDEX_ROLES at module level.
             case n.ZoneDecl() if nd.index == "team" and not game.partnerships:
                 bag.error(
                     f"zone '{nd.name}' is indexed by 'team' but the game "
@@ -3981,6 +4007,9 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     # — player keying was assumed, not checked, the same class
                     # as the `== "team"` defaults the domain table replaced.
                     idx = zone_index.get(nd.dest.name)
+                    # role-compare-ok: intrinsic — `to each` deals one
+                    # share per PLAYER, so the destination family must be
+                    # player-keyed whatever else the table gains.
                     if nd.dest.ref_kind == "zone" and idx != "player":
                         what_z = (
                             "a singleton zone"

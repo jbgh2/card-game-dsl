@@ -3576,6 +3576,30 @@ sweep binds at find time, not fix time: a *report* of one cell of a
 crossable product is an incomplete report — cross the product and report
 the pattern, whoever holds the finding.
 
+**The sweep is hardest, and most often skipped, when someone else holds
+the finding.** Self-found gaps get swept because finding one already
+required asking what the domain was. A finding that ARRIVES — from a
+reviewer, a bot, a bug report — arrives pre-scoped, and its scope is the
+thing most likely to be wrong about it: it names a line, so the line reads
+as the job; it lands while the work is closing a loop rather than opening a
+problem; and its specificity reads as a specification, so "at minimum
+handle X and Y" gets answered with exactly X and Y. This rule was read and
+violated three times in a single branch on exactly that path — each fix
+correct about the instance named, silent about the class, and each reopened
+by the next reviewer.
+
+Prose did not prevent that, so the rule carries an artifact. A change
+answering a finding on a closed-domain mechanism writes a **class ledger**
+before the fix — `finding` / `class` / `members` / `covered` / `residual`,
+with `members` DERIVED from the registry that defines them (the
+`surface-totality-audit` skill owns the form). It cannot be satisfied by
+intending to sweep: a `members` line narrower than its own `class` line is
+visibly wrong on the page, which is the one thing the exhortation could
+never be. State `class` as the position or property — "every way a role id
+is consulted" — never as the syntax the finding happened to use, because
+the narrow spelling is how the next member escapes. A class of exactly one
+member is a legitimate answer; an unexamined class is not.
+
 **A check's comment names the downstream contract, never the downstream
 exception type.** A wall is most naturally justified by what goes wrong
 without it, and the temptation is to name the crash: "without this wall,
@@ -3602,6 +3626,90 @@ misleading implication that nothing can catch. The subjunctive says
 something about the code as it stands, which means a reader can check it
 and the claim can be found wrong — the same reason walls beat prose
 everywhere else in this document.
+
+### Allow-list, never deny-list
+
+A consumer of a closed domain enumerates the members it **handles** and
+makes everything else fail loudly. It never enumerates the members it
+treats specially and lets the rest fall through to a default. The first is
+an allow-list; the second is a deny-list, and a deny-list over a closed
+domain is prohibited.
+
+The reason is an asymmetry in what happens when the registry grows, which
+is the only moment either shape is tested:
+
+- Under an **allow-list**, a new member breaks every consumer that has not
+  been extended, by name, at build time. The cost is a loud failure in
+  code someone is already editing.
+- Under a **deny-list**, a new member silently acquires the default's
+  behaviour at every consumer at once. Nothing fails; the game runs; the
+  answer is wrong. The author of the registry change never learns which
+  consumers assumed something about the members that existed when they
+  were written.
+
+This is not a preference between equally valid styles. A deny-list encodes
+"every member I did not name behaves like this one" — a claim about
+members that do not exist yet, which no author is in a position to make.
+
+**Enforcement follows the domain's visibility to the type checker.** Where
+a closed domain is a Python union, the allow-list is a type error: every
+consumer dispatches with a structural `match` ending in
+`typing.assert_never`, so under `mypy --strict` adding a node without
+handling it everywhere fails to compile (docs/building.md, "Typed-AST
+discipline"). Where the domain is a registry of strings — the domain
+table's role ids, the stdlib registries — the type checker cannot see it,
+so a pin substitutes for it: `tests/test_role_comparison_pin.py` requires
+every role-id comparison outside the table to carry a marker naming why it
+is not drift, and `tests/test_operand_choke_point.py` requires every
+operand coercion to route through one check. Both derive their own axes
+from the registry they guard, so they widen with it rather than going
+stale. A closed domain with neither an `assert_never` nor a pin is
+unenforced, whatever its consumers currently do.
+
+### Pin the derivation, not just the instance
+
+Deriving a fact from a registry is half the rule. The other half is that
+the derivation must be **pinned**, because a registry only prevents drift
+in the consumers that actually consult it, and nothing stops the next
+consumer from re-spelling the fact locally.
+
+The evidence is this repo's own history. `domains.zone_key_of` was
+introduced to replace an `== "team"` re-spelling at five consumer sites,
+"each of which silently defaulted every non-team role to player keying".
+That cleanup fixed five instances and left no guard — so the class
+regenerated: a per-site enumeration of Player positions with no pin (the
+positions the enumeration missed went unchecked), an empty team domain read
+as an unknown bound (the check skipped itself), and a sixth `== "team"` in
+a new consumer (every future role read as player-keyed). Three findings,
+one shape — the deny-list above, three times. Five separate files carry
+comments narrating earlier rounds of the same cleanup, which is what a
+convention without a mechanism looks like.
+
+So a closed domain gets both halves:
+
+- **Derive** the fact from the registry wherever a consumer can.
+- **Pin** it where a consumer cannot. A consumer that legitimately
+  implements one row reconciles itself against the registry beside the
+  branch, so widening the table fails *there*, by name —
+  `runtime/execute.py` pins its player-only simultaneous executor against
+  `SIMULTANEOUS_ROLES`; `resolve` pins its empty-domain walls against
+  `ZONE_INDEX_ROLES`; `openspiel/replay` pins its returns keying against
+  the same set and raises for a role it cannot invert, exactly as
+  `domains.zone_observer_key` does rather than guessing player keying.
+
+**The boundary is closed versus open, and it is load-bearing.** Everything
+above applies to a domain whose membership is enumerable — a union, a
+registry, a table. Over an OPEN domain the same shape is a defect in the
+other direction: an allow-list there would refuse values the language is
+deliberately permissive about, and a wall that manufactures an error is
+exactly what the gradual-typing promise forbids (see "The permissive top
+and the lookup-miss walls", which owns that case — `TAny` passes, and a
+*lookup miss* against a table the program does have raises rather than
+falling back). The two rules meet at the same principle: a fallback
+standing in for an answer the program could have looked up is a silent
+wrong answer. Deciding which side a domain sits on is therefore the first
+question, not an afterthought — and "unsure" resolves to closed, because
+an unnecessary loud failure is cheap and a silent default is not.
 
 ## Family libraries
 

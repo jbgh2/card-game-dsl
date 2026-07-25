@@ -726,6 +726,8 @@ def _each_simultaneous(stmt: n.EachSimultaneous, ctx: Ctx) -> None:
     # to that fact: widening SIMULTANEOUS_ROLES in the domain table without
     # extending this loop must fail here by name, not silently iterate players
     # for some other role.
+    # role-compare-ok: this IS the registry reconciliation — the branch
+    # pins itself against SIMULTANEOUS_ROLES so widening the table fails here.
     assert SIMULTANEOUS_ROLES == {"player"} and stmt.role == "player", (
         f"_each_simultaneous implements the player row only; SIMULTANEOUS_ROLES "
         f"is {sorted(SIMULTANEOUS_ROLES)} and this block names '{stmt.role}' — "

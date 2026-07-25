@@ -6,6 +6,31 @@ What's explicitly deferred, and the suggested order of next steps.
 
 Things we have noted but consciously not designed yet:
 
+- **Role drift through a variable, an unread reason, or the test tree.** Every
+  construct that BRANCHES on a role-id literal carries a marker saying why it is
+  not registry drift, and every role literal that does NOT branch is authorized
+  in a per-module multiset — both pinned by tests/test_role_comparison_pin.py.
+  The position axis is the branch itself, not one spelling: any comparison
+  operator, at any depth in an operand (so a role inside a set or tuple counts),
+  plus `match` patterns. That axis is a PROXY for "the literal participates in a
+  decision", so the band it cannot see is walled rather than trusted: 14 role
+  literals branch and 54 do not, and a decision that moves OUT of a comparison —
+  a role set hoisted to a module constant, a `role.startswith("team")` — changes
+  the multiset and reddens. Requiring a marker on all 68 was rejected
+  deliberately: a marker demanded where nothing is decided trains the marker into
+  noise, which is how a pin stops being read. Three things stay outside all of
+  it. A role reached through a VARIABLE rather than a literal is out of reach of
+  any scrape; only a type would catch it (a `Role` enum in place of `str`), which
+  is a larger change than the drift so far justifies. A marker's REASON is prose:
+  `.` satisfies "nonempty", and a reason asserting a registry pin beside it stays
+  green when that pin is later deleted — a tag vocabulary (`intrinsic:` /
+  `not-a-role:` / `pinned:`) derived from one named constant would make the
+  reason's CLASS machine-checkable, and is the next step here. And `tests/` is
+  not swept at all, though it carries 37 branching sites to production's 14,
+  including `openspiel_ready/harness.py` in the proof layer; that is a separate
+  domain needing its own framing check and probes, and the precedent cuts toward
+  doing it — mypy already holds `tests/` to the same strict bar.
+
 - **A scalar `winner:` target crashes instead of being refused.** `winner:
   highest <var>` names the score variable a game is ranked by, and the runtime
   builds its score dict with `dict(rs.get(target))` — which requires the target
@@ -26,7 +51,7 @@ Things we have noted but consciously not designed yet:
   spades, pinochle, tichu) the field holds a TEAM index wearing a player's type.
   Nothing reads it as a seat today: the OpenSpiel returns path maps scores
   through `team_of` on the target's declared index
-  (`openspiel/replay._winner_target_is_team_keyed`) and never consults
+  (`openspiel/replay._score_key_by_seat`) and never consults
   `winner`, and the characterization goldens only record it. So this is a
   mislabelling, not a wrong answer — but it is the same team-keys-are-not-seats
   confusion that silently paid the wrong seats before that structural read
