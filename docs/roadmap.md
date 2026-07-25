@@ -6,6 +6,35 @@ What's explicitly deferred, and the suggested order of next steps.
 
 Things we have noted but consciously not designed yet:
 
+- **A scalar `winner:` target crashes instead of being refused.** `winner:
+  highest <var>` names the score variable a game is ranked by, and the runtime
+  builds its score dict with `dict(rs.get(target))` — which requires the target
+  to be an INDEXED variable (`score[player]`, `score[team]`). A scalar target
+  (`state { pot : Integer = 0 }` + `winner: highest pot`) type-checks and then
+  dies with a bare `TypeError: 'int' object is not iterable` inside
+  `driver.play_game` — a Python error, not a diagnostic, on a game the checker
+  accepted. Run and confirmed 2026-07-25. The wall is a checker rule that a
+  `winner:` target names an indexed state variable (and the matching
+  `loser:`-style message); deferred only because no corpus game writes one, and
+  it is a distinct rule from the returns KEYING this class otherwise covers
+  (tests/test_openspiel_returns_keying.py).
+
+- **A team-scored game's `winner` is a team index.** `GameResult.winner` is
+  typed `Player | None` but is picked out of `scores`
+  (`driver.play_game`: `pick(scores, …)`), and `scores` is keyed by the
+  `winner:` target's own index domain — so in a team-scored game (bridge,
+  spades, pinochle, tichu) the field holds a TEAM index wearing a player's type.
+  Nothing reads it as a seat today: the OpenSpiel returns path maps scores
+  through `team_of` on the target's declared index
+  (`openspiel/replay._winner_target_is_team_keyed`) and never consults
+  `winner`, and the characterization goldens only record it. So this is a
+  mislabelling, not a wrong answer — but it is the same team-keys-are-not-seats
+  confusion that silently paid the wrong seats before that structural read
+  landed. Closing it means deciding what a team-scored `winner` should BE (the
+  team, a representative seat, or every member) and retyping the field to say
+  so; deferred because the answer is a small design question, not a bug, and
+  moving it would move the characterization goldens.
+
 - **Unvalidated `partnerships:` list contents.** An integer literal in any
   Player or Team *operand* position -- a subscript, a call argument, a `state`
   default, a scalar `:=`, an `as`/`turns`/`round`/`offer to`/`loser:` seat, a
