@@ -48,9 +48,14 @@ registry:   `cardlang.domains.DOMAINS` for the role ids; `cardlang/**/*.py` for
             the modules; `_dispatch_nodes` for the position axis.
 covered:    the scrape below, over every module, every role id, and every
             branching shape -- plus `test_the_scrape_can_see_an_unmarked_
-            comparison`, which feeds it all seven shapes (plain, mixed chain,
+            comparison`, which feeds it all nine shapes (plain, mixed chain,
             bare marker, marker-in-a-string, membership, container operand,
-            match pattern) and requires exactly the unmarked lines back.
+            match pattern, NEGATED marker `not-role-compare-ok`, and a
+            comparison under a `#`-leading line inside a string) and requires
+            exactly the unmarked lines back; and
+            `test_the_role_axis_is_derived_in_source_not_listed`, whose two
+            sides are the module's SOURCE and its runtime value, so it reddens
+            on a frozen axis the old value-vs-value form could not see.
 sampled:    none -- the scrape is exhaustive over its derived domain.
 residual:   a role literal in a DATA position -- a key in a mapping table, a
             keyword argument, an axis name -- is not flagged, because it selects
@@ -78,33 +83,50 @@ import pytest
 from cardlang.domains import DOMAINS
 
 _MARKER = "role-compare-ok"
-# The marker is only a marker as a COMMENT carrying a NONEMPTY reason. A bare
-# `# role-compare-ok` would let a placeholder stand in for the reasoning the
-# marker exists to force, which is the same "a check that cannot fail" defect
-# this module guards against one level down.
-_MARKER_RE = re.compile(rf"{_MARKER}\s*:\s*\S")
+# A marker is a COMMENT, carrying a NONEMPTY reason, at a token boundary. Each
+# clause earns its place: a bare `# role-compare-ok` would let a placeholder
+# stand in for the reasoning the marker exists to force, and an unanchored match
+# would let `# not-role-compare-ok:` -- prose SAYING the opposite -- license the
+# very thing it denies. Both are the "a check that cannot fail" defect this
+# module guards against, one level down.
+_MARKER_RE = re.compile(rf"(?<![\w-]){_MARKER}\s*:\s*\S")
 _ROLE_IDS = frozenset(d.id for d in DOMAINS)
 _PACKAGE = pathlib.Path(__file__).resolve().parent.parent / "cardlang"
 # The table itself: it is where a role id is DEFINED, so comparing one there is
-# the point, not a re-spelling.
-_REGISTRY_MODULE = "domains.py"
+# the point, not a re-spelling. Matched by FULL PATH, not basename -- only
+# `cardlang/domains.py` is the table, and a subpackage's own `domains.py` is an
+# ordinary module that a name match would drop from the sweep while the ledger
+# still claimed every module.
+_REGISTRY_MODULE = _PACKAGE / "domains.py"
 
 
 def _modules() -> list[pathlib.Path]:
-    return sorted(p for p in _PACKAGE.rglob("*.py") if p.name != _REGISTRY_MODULE)
+    return sorted(p for p in _PACKAGE.rglob("*.py") if p != _REGISTRY_MODULE)
 
 
-def _marker_lines(source: str) -> set[int]:
-    """The line numbers carrying a well-formed marker.
+def _comment_lines(source: str) -> tuple[set[int], set[int]]:
+    """(lines carrying a well-formed marker, lines that are a STANDALONE comment).
 
-    Read from the TOKEN stream, not by substring, so the marker counts only as a
-    real comment: the same text inside a string literal is not a licence, and the
-    reason after the colon must be nonempty."""
-    lines: set[int] = set()
+    Both read from the TOKEN stream rather than from the text, so neither is
+    satisfied by something that merely looks the part: the marker text inside a
+    string literal is not a comment and licenses nothing, and a line inside a
+    multi-line string that happens to begin with `#` is not a comment line, so
+    it cannot extend a comment block upward and drag in a marker written for
+    something else. A standalone comment is one with nothing but whitespace
+    before it -- a trailing comment ends its own line and does not continue a
+    block above."""
+    text = source.splitlines()
+    markers: set[int] = set()
+    standalone: set[int] = set()
     for tok in tokenize.generate_tokens(io.StringIO(source).readline):
-        if tok.type == tokenize.COMMENT and _MARKER_RE.search(tok.string):
-            lines.add(tok.start[0])
-    return lines
+        if tok.type != tokenize.COMMENT:
+            continue
+        row, col = tok.start
+        if _MARKER_RE.search(tok.string):
+            markers.add(row)
+        if row <= len(text) and not text[row - 1][:col].strip():
+            standalone.add(row)
+    return markers, standalone
 
 
 def _is_role_literal(node: ast.AST) -> bool:
@@ -153,7 +175,7 @@ def _dispatch_nodes(tree: ast.AST) -> list[ast.expr | ast.pattern]:
 def _unmarked_role_comparisons(path: pathlib.Path) -> list[tuple[int, str]]:
     source = path.read_text()
     lines = source.splitlines()
-    markers = _marker_lines(source)
+    markers, standalone = _comment_lines(source)
     found: list[tuple[int, str]] = []
     for node in _dispatch_nodes(ast.parse(source)):
         end = node.end_lineno or node.lineno
@@ -161,7 +183,7 @@ def _unmarked_role_comparisons(path: pathlib.Path) -> list[tuple[int, str]]:
         # A reason worth reading rarely fits on the comparison's own line, so the
         # contiguous comment block immediately above it counts too.
         ln = node.lineno - 1
-        while not marked and ln >= 1 and lines[ln - 1].strip().startswith("#"):
+        while not marked and ln in standalone:
             marked = ln in markers
             ln -= 1
         if not marked:
@@ -187,13 +209,41 @@ def test_role_comparisons_are_marked(path: pathlib.Path) -> None:
     )
 
 
-def test_the_pin_watches_a_registry_derived_role_set() -> None:
-    """The role axis is read from `DOMAINS`, not re-spelled here -- otherwise
-    this pin would be the very thing it forbids.
+def test_the_role_axis_is_derived_in_source_not_listed() -> None:
+    """The role axis must be READ from `DOMAINS`, not re-spelled here -- a
+    hand-written set would freeze the axis at today's registry and this whole
+    module would be the drift it forbids.
 
-    red under: replace `_ROLE_IDS` with a hand-written literal set and add a
-    domain to `DOMAINS`; the sets diverge and this reddens."""
-    assert _ROLE_IDS == {d.id for d in DOMAINS}
+    The two sides are independent ON PURPOSE: the SOURCE TEXT of this module
+    (does `_ROLE_IDS`'s assignment mention `DOMAINS`?) against the runtime value
+    (is it exactly what the registry yields?). Comparing the runtime value with
+    a second computation over the same object -- `_ROLE_IDS == {d.id for d in
+    DOMAINS}` -- was the earlier form of this pin and could not fail for ANY
+    production change, including replacing the derivation with today's
+    handwritten set: two readings of one source prove nothing about it.
+
+    red under: rewrite the assignment as a literal
+    `frozenset({"player", "team", "suit", "rank"})`. The source check reddens
+    while the value stays equal to the registry -- which is exactly the fault
+    the old form could not see."""
+    tree = ast.parse(pathlib.Path(__file__).read_text())
+    assignment = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(t, ast.Name) and t.id == "_ROLE_IDS" for t in node.targets
+        )
+    )
+    mentions_registry = any(
+        isinstance(sub, ast.Name) and sub.id == "DOMAINS"
+        for sub in ast.walk(assignment.value)
+    )
+    assert mentions_registry, (
+        "_ROLE_IDS must be derived from `DOMAINS` in source, not spelled as a "
+        "literal: a frozen list keeps this module green while the registry moves "
+        "underneath it"
+    )
     assert _ROLE_IDS, "the registry yielded no roles — the derivation is broken"
 
 
@@ -239,6 +289,16 @@ def test_the_scrape_can_see_an_unmarked_comparison() -> None:
         "    match role:\n"
         '        case "team":\n'
         "            return 8\n"
+        # A NEGATED marker: contains the token as a substring, licenses nothing.
+        '    if role == "suit":  # not-role-compare-ok: accidental\n'
+        "        return 9\n"
+        # A `#`-leading line inside a STRING is not a comment, so it cannot
+        # extend a block upward and drag in the marker written above it.
+        "    doc = '''\n"
+        "# role-compare-ok: inside a string, not a comment\n"
+        "'''\n"
+        '    if role == "rank":\n'
+        "        return len(doc)\n"
         "    return 0\n"
     )
     tmp = pathlib.Path(__file__).resolve().parent / "_role_pin_probe.py.txt"
@@ -248,5 +308,6 @@ def test_the_scrape_can_see_an_unmarked_comparison() -> None:
     finally:
         tmp.unlink()
     # 2 plain, 9 mixed chain, 11 bare marker, 14 marker-in-a-string,
-    # 15 membership, 17 container operand, 20 match pattern.
-    assert [ln for ln, _ in found] == [2, 9, 11, 14, 15, 17, 20], found
+    # 15 membership, 17 container operand, 20 match pattern, 22 negated marker
+    # (`not-role-compare-ok`), 27 comparison under a `#`-leading STRING line.
+    assert [ln for ln, _ in found] == [2, 9, 11, 14, 15, 17, 20, 22, 27], found
