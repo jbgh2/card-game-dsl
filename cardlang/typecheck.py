@@ -42,7 +42,7 @@ from typing import Iterator, Mapping, assert_never
 from cardlang.ast import nodes as n
 from cardlang.ast.nodes import Game
 from cardlang.board_domains import directions_of
-from cardlang.diagnostics import DiagnosticBag, DiagnosticError
+from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
 from cardlang.domains import role_type as _role_type
 from cardlang.runtime.values import component_set, content_kind_clause, content_noun
 from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
@@ -489,6 +489,7 @@ class TypeEnv:
     procedures: Mapping[str, Sig] = field(default_factory=dict)
     has_ranking: bool = False  # bool(game.ranking) — gates RANKING_GATED_FUNCS
     max_players: int = 0  # the game's maximum seat count — bounds player literals
+    max_teams: int = 0  # len(game.partnerships) — bounds team literals (0: no teams)
     # Per-game position domains (decisions.md "Position domains and positional
     # zones", "Boards and cells") — name -> the member type a parameter, let
     # binder or subscript key over it carries: `TInteger` for a declared
@@ -986,6 +987,7 @@ def env_from_game(
         max_players=(
             game.players.high if game.players.high is not None else game.players.low
         ),
+        max_teams=len(game.partnerships),
         positions=positions,
         directions=_direction_types(game),
         flavor=game.content_flavor,
@@ -1514,8 +1516,8 @@ def _check_equality_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> No
     if isinstance(lbare, TAny) or isinstance(rbare, TAny):
         return
     compatible = (
-        assignable(lbare, rbare)
-        or assignable(rbare, lbare)
+        assignable(lbare, rbare)  # choke-point-exempt: symmetric equality, two operands and no single `expected` — not an operand coercion
+        or assignable(rbare, lbare)  # choke-point-exempt: the reverse direction of the same symmetric check
         # `unify` as well as `assignable`, because `assignable` honours `TAny` only at
         # the TOP level: a deliberately-unrefined element type (a chip stack is
         # `Collection<Any>` precisely because that part of the object model is
@@ -1864,52 +1866,132 @@ def _domain_query_binder_type(
         else (TLine(), "a single line")  # e.binder == "cell" (resolve gates the rest)
     )
     src_t = infer(e.source, env)
-    if not assignable(src_t, want):
-        bag.error(
-            f"`{e.kind} {e.spelled} in …` iterates {desc}, but the source is "
-            f"{_type_name(src_t)}",
-            e.span,
-        )
+    _check_operand(
+        e.source, src_t, want, env, bag,
+        f"`{e.kind} {e.spelled} in …` iterates {desc}, but the source is "
+        f"{_type_name(src_t)}",
+        e.span,
+    )
     return _COLLECTION_BINDER_TYPES.get(e.binder, TAny())
 
 
-def _check_player_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: DiagnosticBag) -> None:
-    """A player literal names a seat, so it must be one the game has. An integer
-    literal coerces to Player (`assignable(Integer, Player)`), and in a
-    player-indexed subscript, a player-keyed state index, or a player-typed
-    argument an unchecked out-of-range literal -- `reserve[2]` / `result[2] := 1`
-    / `home(2)` in a two-seat game -- names a seat with no player, and the reader
-    (a zone family with no such instance, or a board frame's per-seat sign) then
-    fails at runtime, a typechecked game crashing. The bound is the game's
-    MAXIMUM seat count (a range game's `high`): a literal legal at the largest
-    table is legal. The bound is two-sided: the `0 <=` lower bound rejects a
-    NEGATIVE literal, which is an `IntLit` with a negative value (there is no
-    separate negative-literal node), so `reserve[-1]` is caught here too.
+def _check_role_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """A `Player`/`Team` literal names a 0-based identity, so it must be one the
+    game has. An integer literal coerces to both (`assignable(Integer, Player)`,
+    `assignable(Integer, Team)` -- both are int identities), and an unchecked
+    out-of-range literal -- `reserve[2]`/`home(2)` on a two-seat game, `melds[2]`
+    on a two-team game -- names a seat or team with no member; the reader (a zone
+    family with no such instance, a board frame's per-seat sign, a per-team score)
+    then fails at runtime, a typechecked game crashing. The bound is the game's
+    MAXIMUM count -- a range game's `high` for players, `len(partnerships)` for
+    teams -- and is two-sided: the `0 <=` lower bound rejects a NEGATIVE literal
+    (an `IntLit` with a negative value; there is no separate negative-literal
+    node), so `reserve[-1]` is caught too.
 
-    This helper is CALLED FROM the expression and call coercion sites -- the
-    subscript, keyed-state read/write, call-argument, and procedure-argument
-    positions -- not from one choke point every `assignable(_, Player)` coercion
-    passes through. The DECLARATION and BINDING positions (`state` defaults,
-    scalar `:=`, `as`, `turns from`/`over`, struct fields, variant payloads) and
-    the clauses carrying no Player type-check at all (`loser:`, `round`) do NOT
-    route through it yet and still accept an out-of-range literal. That residual,
-    and the plan that closes it by unifying every operand check behind one call
-    (with a pin that no `assignable(_, Player)` escapes it), are recorded in
-    roadmap.md ("Out-of-range player literals in declaration/binding positions").
-    A `Team` literal is the parallel case on the team axis, recorded there too.
+    Called from ONE place -- `_check_operand`, the choke point every operand
+    coercion routes through -- so the check applies at EVERY position an integer
+    literal reaches a Player or Team, by construction (the pin
+    tests/test_operand_choke_point.py enforces it). A non-role `expected` is a
+    no-op, and a count of 0 (a game with no partnerships has `max_teams == 0`)
+    disables the team bound, mirroring `max_players <= 0`.
 
-    An OPTIONAL player expectation (`Player?`) is unwrapped first: `assignable`
-    coerces an Integer into `Player?` by reaching its payload, so a literal in a
-    `Player?` position is the same seat a bare `Player` position is."""
+    An OPTIONAL expectation (`Player?`/`Team?`) is unwrapped first: `assignable`
+    coerces an Integer into the optional by reaching its payload, so a literal in
+    a `Player?` position is the same seat a bare `Player` position is."""
     bare = expected.inner if isinstance(expected, TOptional) else expected
-    if env.max_players <= 0 or not isinstance(bare, TPlayer) or not isinstance(index, n.IntLit):
+    if not isinstance(index, n.IntLit):
         return
-    if not 0 <= index.value < env.max_players:
-        seats = f"0..{env.max_players - 1}" if env.max_players > 1 else "0"
+    if isinstance(bare, TPlayer):
+        # A game always declares `players:`, so `max_players` is the real seat
+        # count; 0 would mean "no player info" (a partial env, not reached in a
+        # real check) and is skipped defensively.
+        if env.max_players <= 0:
+            return
+        bound, noun, label = env.max_players, "player", "seat"
+    elif isinstance(bare, TTeam):
+        # `max_teams == 0` is the COMMON no-`partnerships:` case: a KNOWN EMPTY
+        # team domain, NOT an unknown bound -- so it is NOT skipped, and every
+        # team literal (even `0`) is rejected as naming a team the game has none
+        # of (`0 <= k < 0` is always false). A team-KEYED zone/state already
+        # requires partnerships at resolve, but a Team-TYPED operand -- a `state`
+        # default, a Team call arg, a struct field, a variant payload -- does
+        # not, and reaches here.
+        bound, noun, label = env.max_teams, "team", "team"
+    else:
+        return
+    if not 0 <= index.value < bound:
+        ids = f"0..{bound - 1}" if bound > 1 else ("0" if bound == 1 else "none")
         bag.error(
-            f"seat {index.value} is out of range: the game has "
-            f"{env.max_players} player(s) ({seats})",
+            f"{label} {index.value} is out of range: the game has "
+            f"{bound} {noun}(s) ({ids})",
             index.span,
+        )
+
+
+def _check_operand(
+    node: n.Expr,
+    got: Type,
+    expected: Type,
+    env: TypeEnv,
+    bag: DiagnosticBag,
+    msg: str,
+    span: Span | None,
+) -> None:
+    """The ONE operand-coercion check every `assignable(_, expected)` site routes
+    through, so the seat-range check is applied at EVERY position an integer
+    literal reaches a Player (or Team), not at a hand-picked subset. Two things
+    happen here and nowhere else:
+
+      1. the assignability wall -- if `got` cannot stand where `expected` is
+         wanted, the site's own `msg` is reported at `span`; and
+      2. the role-literal range check -- an out-of-range integer literal
+         (`hand[5]` on a two-seat game) is rejected, a non-role `expected` making
+         it a no-op so every operand routes through uniformly.
+
+    `node` (the operand, for the literal check) and `span` (the error location)
+    are separate arguments BECAUSE they differ at nearly every site: an operand's
+    assignability error belongs to its ENCLOSING construct -- the call, the
+    assignment, the struct literal -- whose span the caller passes, while the
+    range error fires at the literal WITHIN it (`node.span`, inside the helper).
+    Passing `node.span` as the error span would move ~every assignability
+    diagnostic; keeping them separate means routing a site through here moves no
+    diagnostic.
+
+    Keeping the two checks together at one call is what lets the completeness pin
+    (tests/test_operand_choke_point.py) enforce by construction that no
+    `assignable(_, Player)` coercion escapes the range check: the pin reddens the
+    day a new operand position calls `assignable` directly instead of routing
+    here."""
+    if not assignable(got, expected):
+        bag.error(msg, span)
+    _check_role_literal(node, expected, env, bag)
+
+
+def _check_participants(
+    node: n.Expr, env: TypeEnv, bag: DiagnosticBag, where: str, span: Span | None
+) -> None:
+    """A `turns`/`round` `over <participants>` names a player COLLECTION. A LIST
+    literal (`over [0, 2]`) is checked element by element -- each element is a
+    Player operand, so an out-of-range seat in `over [5]` is caught by the same
+    range check every other operand gets. Any other collection expression
+    (`all players`, a player-collection variable) is checked whole against
+    `Collection<Player>`. The two are split, not merged, so a mistyped element in
+    a literal draws ONE error -- its own -- not both a per-element and a
+    whole-collection one."""
+    if isinstance(node, n.ListLit):
+        for elem in node.elements:
+            et = infer(elem, env)
+            _check_operand(
+                elem, et, TPlayer(), env, bag,
+                f"{where} — expected players, got {_type_name(et)}",
+                elem.span,
+            )
+    else:
+        pt = infer(node, env)
+        _check_operand(
+            node, pt, TCollection(TPlayer()), env, bag,
+            f"{where} — expected a collection of players, got {_type_name(pt)}",
+            span,
         )
 
 
@@ -1998,12 +2080,11 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
             else:
                 for arg, param in zip(args, sig.params):
                     got = infer(arg, env)
-                    if not assignable(got, param):
-                        bag.error(
-                            f"{e.func}() expects {_type_name(param)}, got {_type_name(got)}",
-                            e.span,
-                        )
-                    _check_player_literal(arg, param, env, bag)
+                    _check_operand(
+                        arg, got, param, env, bag,
+                        f"{e.func}() expects {_type_name(param)}, got {_type_name(got)}",
+                        e.span,
+                    )
         if e.func in RANKING_GATED_FUNCS and not env.has_ranking:
             bag.error(
                 f"{e.func}() reads a card's rank strength from ranking:, "
@@ -2028,13 +2109,12 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 )
             else:
                 idx_t = infer(e.index, env)
-                _check_player_literal(e.index, family, env, bag)
-                if not assignable(idx_t, family):
-                    bag.error(
-                        f"`{obj_ref.name}` is keyed by {_type_name(family)}"
-                        f" — got {_type_name(idx_t)}",
-                        e.span,
-                    )
+                _check_operand(
+                    e.index, idx_t, family, env, bag,
+                    f"`{obj_ref.name}` is keyed by {_type_name(family)}"
+                    f" — got {_type_name(idx_t)}",
+                    e.span,
+                )
         else:
             obj = infer(e.obj, env)
             if not subscriptable(obj):
@@ -2046,18 +2126,17 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 # runtime that indexes the map directly and requires the key
                 # to be one it actually holds.
                 idx_t = infer(e.index, env)
-                _check_player_literal(e.index, obj.key, env, bag)
-                if not assignable(idx_t, obj.key):
-                    what = (
-                        f"`{obj_ref.name}`"
-                        if isinstance(obj_ref, n.NameRef)
-                        else "this map"
-                    )
-                    bag.error(
-                        f"{what} is keyed by {_type_name(obj.key)} — got "
-                        f"{_type_name(idx_t)}",
-                        e.span,
-                    )
+                what = (
+                    f"`{obj_ref.name}`"
+                    if isinstance(obj_ref, n.NameRef)
+                    else "this map"
+                )
+                _check_operand(
+                    e.index, idx_t, obj.key, env, bag,
+                    f"{what} is keyed by {_type_name(obj.key)} — got "
+                    f"{_type_name(idx_t)}",
+                    e.span,
+                )
     elif isinstance(e, n.StructLit):
         _check_struct_lit(e, env, bag)
     elif isinstance(e, n.Member):
@@ -2170,12 +2249,12 @@ def _check_struct_lit(e: n.StructLit, env: TypeEnv, bag: DiagnosticBag) -> None:
         if expected is None or fi.name in struct.derived:
             continue
         got = infer(fi.value, env)
-        if not assignable(got, expected):
-            bag.error(
-                f"field '{fi.name}' expects {_type_name(expected)}, "
-                f"got {_type_name(got)}",
-                e.span,
-            )
+        _check_operand(
+            fi.value, got, expected, env, bag,
+            f"field '{fi.name}' expects {_type_name(expected)}, "
+            f"got {_type_name(got)}",
+            e.span,
+        )
 
 
 def _check_bool(e: n.Expr, env: TypeEnv, bag: DiagnosticBag, where: str) -> None:
@@ -2313,17 +2392,16 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
         else:
             for arg, param in zip(s.args, sig.params):
                 got = infer(arg, env)
-                if not assignable(got, param):
-                    bag.error(
-                        f"procedure '{s.name}' expects {_type_name(param)}, got "
-                        f"{_type_name(got)}",
-                        arg.span,
-                    )
                 # Procedure expansion runs AFTER typechecking, so an out-of-range
                 # seat literal in a Player param becomes an unchecked
                 # `score[5] := 1` in the spliced body -- the same coercion the
                 # call-arg and subscript sites wall, reached one construct later.
-                _check_player_literal(arg, param, env, bag)
+                _check_operand(
+                    arg, got, param, env, bag,
+                    f"procedure '{s.name}' expects {_type_name(param)}, got "
+                    f"{_type_name(got)}",
+                    arg.span,
+                )
     for expr in _stmt_exprs(s):
         _check_expr(expr, env, bag)
 
@@ -2353,23 +2431,23 @@ def _check_assign(stmt: n.AssignStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
             # player-keyed store is a check-time error here; the runtime's
             # domain wall (execute._assign) stays behind it for computed keys.
             idx_t = infer(stmt.index, env)
-            _check_player_literal(stmt.index, target.key, env, bag)
-            if not assignable(idx_t, target.key):
-                bag.error(
-                    f"`{name}` is keyed by {_type_name(target.key)} — got "
-                    f"{_type_name(idx_t)}",
-                    stmt.span,
-                )
+            _check_operand(
+                stmt.index, idx_t, target.key, env, bag,
+                f"`{name}` is keyed by {_type_name(target.key)} — got "
+                f"{_type_name(idx_t)}",
+                stmt.span,
+            )
         target = target.element  # an indexed assignment writes one element
     rhs = infer(stmt.value, env)
     if stmt.op in ("+=", "-="):
-        if not assignable(rhs, TInteger()):
-            bag.error(
-                f"'{name}' {stmt.op} expects an Integer, got {_type_name(rhs)}",
-                stmt.span,
-            )
-    elif not assignable(rhs, target):
-        bag.error(
+        _check_operand(
+            stmt.value, rhs, TInteger(), env, bag,
+            f"'{name}' {stmt.op} expects an Integer, got {_type_name(rhs)}",
+            stmt.span,
+        )
+    else:
+        _check_operand(
+            stmt.value, rhs, target, env, bag,
             f"cannot assign {_type_name(rhs)} to '{name}' ({_type_name(target)})",
             stmt.span,
         )
@@ -2393,12 +2471,12 @@ def _check_state_default_type(
     `tests/test_state_default_type.py`)."""
     declared = type_from_name(decl.type_name, decl.optional, env.structs)
     got = infer(decl.default, env)
-    if not assignable(got, declared):
-        bag.error(
-            f"state variable '{decl.name}' is declared {_type_name(declared)}, "
-            f"but its default has type {_type_name(got)}",
-            decl.span,
-        )
+    _check_operand(
+        decl.default, got, declared, env, bag,
+        f"state variable '{decl.name}' is declared {_type_name(declared)}, "
+        f"but its default has type {_type_name(got)}",
+        decl.span,
+    )
 
 
 def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
@@ -2416,8 +2494,25 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
             _check_bool(stmt.cond, env, bag, "if condition")
         case n.RepeatUntil():
             _check_bool(stmt.cond, env, bag, "repeat-until condition")
-        case n.Round() if stmt.termination is not None:
-            _check_bool(stmt.termination, env, bag, "round `until` condition")
+        case n.Round():
+            # `round … from <leader> over <participants>` carries the same
+            # first-player / participant-collection contract as `turns`, but
+            # before the operand choke point neither was type- or range-checked
+            # (only `until` was): `round … from 5` on a two-seat game passed.
+            lt = infer(stmt.leader, env)
+            _check_operand(
+                stmt.leader, lt, TPlayer(), env, bag,
+                f"`round … from` names the first player — expected a Player, "
+                f"got {_type_name(lt)}",
+                stmt.span,
+            )
+            _check_participants(
+                stmt.participants, env, bag,
+                "`round … over` names the participants",
+                stmt.span,
+            )
+            if stmt.termination is not None:
+                _check_bool(stmt.termination, env, bag, "round `until` condition")
         case n.Movement():
             _check_movement(stmt, env, bag)
         case n.EpistemicOp():
@@ -2431,19 +2526,17 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
                     f"{_type_name(t)}{_zone_hint(t, filterable=False)}",
                     stmt.span,
                 )
-        case n.Round():
-            pass  # a round without `until` has no Boolean position to check
         case n.AsBlock():
             # The block binds the acting player to one player, so its expression
             # must BE a player. Integer stands for player (`assignable`), like
             # `dealer : Player = 0` and a zone-family index.
             t = infer(stmt.player, env)
-            if not assignable(t, TPlayer()):
-                bag.error(
-                    f"`as` binds one player — its expression must be a Player, "
-                    f"got {_type_name(t)}",
-                    stmt.span,
-                )
+            _check_operand(
+                stmt.player, t, TPlayer(), env, bag,
+                f"`as` binds one player — its expression must be a Player, "
+                f"got {_type_name(t)}",
+                stmt.span,
+            )
         case n.Turns():
             # The form's three expression positions carry its contract: `from`
             # is the first player, `over` the participants (a player
@@ -2451,34 +2544,43 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
             # termination. `again`, when present, is a declared Boolean state
             # var (resolve walls the declaration; the TYPE is checked here).
             lt = infer(stmt.leader, env)
-            if not assignable(lt, TPlayer()):
-                bag.error(
-                    f"`turns … from` names the first player — expected a "
-                    f"Player, got {_type_name(lt)}",
-                    stmt.span,
-                )
-            pt = infer(stmt.participants, env)
-            if not (
-                isinstance(pt, TAny)
-                or (isinstance(pt, TCollection) and assignable(pt.element, TPlayer()))
-            ):
-                bag.error(
-                    f"`turns … over` names the participants — expected a "
-                    f"collection of players, got {_type_name(pt)}",
-                    stmt.span,
-                )
+            _check_operand(
+                stmt.leader, lt, TPlayer(), env, bag,
+                f"`turns … from` names the first player — expected a "
+                f"Player, got {_type_name(lt)}",
+                stmt.span,
+            )
+            _check_participants(
+                stmt.participants, env, bag,
+                "`turns … over` names the participants",
+                stmt.span,
+            )
             _check_bool(stmt.termination, env, bag, "turns `until` condition")
             if stmt.again is not None:
                 at = env.state_vars.get(stmt.again)
-                if at is not None and not assignable(at, TBoolean()):
+                # choke-point-exempt: `again` is a state-var NAME resolved to a
+                # type, not an operand expression — a name->declared-type check,
+                # Boolean-expected, with no literal to range.
+                if at is not None and not assignable(at, TBoolean()):  # choke-point-exempt
                     bag.error(
                         f"`again {stmt.again}`: the go-again flag must be "
                         f"Boolean, got {_type_name(at)}",
                         stmt.span,
                     )
+        case n.Offer():
+            # `offer to <player>` names the acting player. Before the operand
+            # choke point this carried NO player check at all -- `offer to 5` and
+            # even `offer to "x"` passed -- so it both types and ranges here now.
+            pl = infer(stmt.player, env)
+            _check_operand(
+                stmt.player, pl, TPlayer(), env, bag,
+                f"`offer to` names the acting player — expected a Player, "
+                f"got {_type_name(pl)}",
+                stmt.span,
+            )
         case (
             n.RotateStmt() | n.EachSimultaneous() | n.ForEach()
-            | n.LetStmt() | n.Offer() | n.Produce() | n.Produces()
+            | n.LetStmt() | n.Produce() | n.Produces()
             | n.ContinueTo() | n.SkipToNextHand() | n.RunStmt() | n.Block()
         ):
             # No statement-level semantics beyond what resolve walls (write
@@ -2636,12 +2738,12 @@ def _check_produce_stmt(
         return
     for expr, expected in zip(sub.payloads, payload_types):
         got = infer(expr, env)
-        if not assignable(got, expected):
-            bag.error(
-                f"variant '{sub.tag}' expects {_type_name(expected)}, "
-                f"got {_type_name(got)}",
-                sub.span,
-            )
+        _check_operand(
+            expr, got, expected, env, bag,
+            f"variant '{sub.tag}' expects {_type_name(expected)}, "
+            f"got {_type_name(got)}",
+            sub.span,
+        )
 
 
 def _check_define_outcomes(
@@ -3212,6 +3314,16 @@ def typecheck(game: Game) -> Game:
         check_phase_positions(phase, ())
     if game.loser is not None:
         _check_expr(game.loser.selection, env, bag)
+        # `loser:` names a player directly (unlike `winner:`, which ranks a score
+        # variable). Before the operand choke point it carried NO player check --
+        # `loser: 5` and even `loser: "x"` passed -- so it types and ranges here.
+        lsel = infer(game.loser.selection, env)
+        _check_operand(
+            game.loser.selection, lsel, TPlayer(), env, bag,
+            f"`loser:` names the losing player — expected a Player, got "
+            f"{_type_name(lsel)}",
+            game.loser.span,
+        )
 
     # The remaining expression positions: a function call in any of these needs the
     # same arity/type validation as one in a statement, but the statement walk above

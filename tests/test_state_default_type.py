@@ -51,9 +51,14 @@ from cardlang.types import assignable
 
 
 def _game(state_decls: str, tail: str = "", *, deck: str = "standard52") -> str:
+    # 8 seats so the breadth sweep's fixed integer default (`7`) is a VALID seat
+    # for a `Player`-typed cell: this test isolates ASSIGNABILITY, and the
+    # operand choke point additionally range-checks a Player/Team literal (that
+    # wall is `tests/test_player_literal_range.py`). Keeping 7 in range makes the
+    # range check a no-op here, so `assignable` stays the sweep's complete model.
     return f"""
 game Probe {{
-  players: 2
+  players: 8
   cards: {deck}
   max_length: 100
   zones {{ deck : Deck  hand[player] : Hand<player> }}

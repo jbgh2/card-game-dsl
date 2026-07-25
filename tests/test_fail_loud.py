@@ -413,7 +413,7 @@ def test_bare_family_read_without_an_actor_raises() -> None:
 
 
 # The index is COMPUTED (`0 + 9`), not a literal `9`: an out-of-range player
-# LITERAL is caught statically now (typecheck `_check_player_literal`,
+# LITERAL is caught statically now (typecheck `_check_role_literal`,
 # tests/test_player_literal_range.py), so reaching this runtime wall from a
 # checked game needs a key the literal wall does not see -- a computed one.
 PHANTOM_KEY_WRITE = """
@@ -469,21 +469,29 @@ def test_a_non_zone_value_at_a_movement_endpoint_raises_a_typed_error() -> None:
         execute(stmt, ctx)
 
 
+# The selection is UNREFINED (a mixed `if` whose branches disagree, so `infer`
+# gives `TAny`), not a literal `"oops"`: a statically-typed non-player loser is
+# rejected at check time now (the operand choke point types `loser:` as a
+# Player, tests/test_player_literal_range.py), so reaching this runtime backstop
+# from a checked game needs a selection the type wall cannot see through -- the
+# permissive top. The `else` branch is taken at runtime (no player has `x == 1`).
 LOSER_NOT_A_PLAYER = """
 game G {
   players: 2
   max_length: 1000
   cards: standard52
   zones { deck : Deck  hand[player] : Hand<player> }
+  state { x[player] : Integer = 0 }
   phase play { shuffle deck }
-  loser: "oops"
+  loser: if (any player where x[player] is 1) then (the player where x[player] is 1) else "oops"
 }
 """
 
 
 def test_a_non_player_loser_selection_raises_a_typed_error() -> None:
-    # `loser:` takes any expression and the checker leaves its type open, so
-    # the player-ness of the selected value is checked at the driver, in the
-    # runtime's currency.
+    # The runtime backstop behind the static `loser:` type wall. A non-player
+    # selection the checker CAN type (`loser: "oops"`) is rejected statically; a
+    # selection typed `TAny` slips past, and the driver checks the value's
+    # player-ness in the runtime's currency.
     with pytest.raises(RuntimeError, match="not a player"):
         _run(LOSER_NOT_A_PLAYER)

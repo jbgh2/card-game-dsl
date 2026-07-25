@@ -6,34 +6,33 @@ What's explicitly deferred, and the suggested order of next steps.
 
 Things we have noted but consciously not designed yet:
 
-- **Out-of-range player literals in declaration/binding positions.** A player
-  literal out of range for the seat count is walled at the EXPRESSION and CALL
-  positions -- a player-indexed subscript, a keyed-state index read/write, a
-  stdlib/game-function/procedure call argument -- by calling one helper
-  (`typecheck._check_player_literal`) from each; both an over-high literal and a
-  negative one reject there (`reserve[5]`/`result[5] := 1`/`home(5)`/`reserve[-1]`
-  in a two-seat game, tests/test_player_literal_range.py). The helper is called
-  from those sites, not placed at one choke point every `assignable(_, Player)`
-  coercion passes through, so the DECLARATION and BINDING positions are NOT
-  walled and still accept an out-of-range literal: a `state` default
-  (`dealer : Player = 5`), a scalar assignment (`dealer := 5`), an `as` binding,
-  a `turns from`/`over` seat, a struct Player field, a variant Player payload,
-  and the clauses that carry no Player type-check at all (`loser:`, `round`).
-  Most were run and confirmed accepted while writing this (`dealer : Player = 5`,
-  `dealer := 5`, `turns from 5`, `offer to 5`, `turns over [5]`, `as 5`, a struct
-  field, `loser: 5` and even `loser: "x"`); the variant-payload and `round` cases
-  are audit-identified, confirmed red-first by the follow-up. A `Team` literal is
-  the parallel case on the team axis (`team[2]` in a two-team game -- teams also
-  coerce from `Integer`). These are closed together, by
-  construction rather than by hooking each site, in
-  docs/superpowers/plans/2026-07-23-player-literal-operand-choke-point.md: one
-  operand check (`assignable` + the range check) that every coercion routes
-  through, plus a pin that no `assignable(_, Player)` escapes it, which also
-  brings `loser:`/`round` into Player type-checking. Until then the runtime
-  fails loud in the common consuming paths -- a zone-family subscript miss and
-  the frame-verb `_seat` backstop both raise (tests/test_zone_store_lookups.py,
-  tests/test_movement_verbs.py) -- but a bad seat consumed only arithmetically
-  can be carried silently, which is why this is deferred, not dismissed.
+- **Unvalidated `partnerships:` list contents.** An integer literal in any
+  Player or Team *operand* position -- a subscript, a call argument, a `state`
+  default, a scalar `:=`, an `as`/`turns`/`round`/`offer to`/`loser:` seat, a
+  struct field, a variant payload -- is range-checked by construction: every
+  coercion routes through one operand check (`typecheck._check_operand`), which
+  bounds the literal against the seat count (`max_players`) or team count
+  (`max_teams`), two-sided (a negative literal rejects too). The wall is closed
+  by construction, not by enumerating sites, and pinned: no `assignable(...)`
+  coercion in typecheck.py escapes the choke point
+  (tests/test_operand_choke_point.py), and every position is a grid row
+  (tests/test_player_literal_range.py). The ONE place a raw seat/team integer
+  still escapes is the `partnerships:` declaration itself: `partnerships:
+  [[0, 5]]` in a four-player game names a non-existent seat 5 (and each bracket's
+  position is a team index), but those ints are parsed straight into
+  `Game.partnerships` (`tuple[tuple[int, ...], ...]`) and reach the IR and
+  deckcheck without ever becoming an operand expression, so `_check_operand`
+  never sees them -- and NOTHING else validates their CONTENTS either. Three
+  distinct malformations are all accepted silently, the worse kind of residual:
+  an OUT-OF-RANGE seat (`partnerships: [[0, 2], [1, 5]]` in a four-player game
+  type-checks AND plays to completion, the phantom seat 5 simply never matching),
+  a DUPLICATE seat (`[[0, 0]]`), and a seat on MULTIPLE teams (`[[0, 1], [0, 2]]`
+  -- seat 0 belongs to two partnerships). Only a NEGATIVE seat is caught, and
+  only because the grammar's `INT` terminal has no `-`. The wall would be a
+  resolve-time check that every partnership seat is `0 <= s < player_count`,
+  appears at most once, and (the game defines it) the teams partition the seats;
+  it is deferred because no corpus game writes a malformed partnership, and these
+  are declaration integers, not the operand coercions the choke point closes.
 
 - **An acting-player alias created by procedure expansion.** The wall on
   comparing the acting player against a second name for them (decisions.md
@@ -1034,10 +1033,11 @@ Things we have noted but consciously not designed yet:
   standing for the identity. This means `hand[0]` typechecks, pinned by
   `tests/test_zone_family_typing.py::test_accepts_an_integer_literal_zone_family_index`.
   That leniency is now BOUNDED: an out-of-range integer literal (`hand[9]` in a
-  four-player game) is rejected by the player-literal range wall
-  (typecheck `_check_player_literal`, tests/test_player_literal_range.py), so
-  only an in-range literal coerces, and a computed out-of-range index
-  (`hand[0 + 9]`) is left to the runtime key wall. What stays deferred is the
+  four-player game) is rejected by the role-literal range wall
+  (typecheck `_check_role_literal`, reached through the operand choke point
+  `_check_operand`, tests/test_player_literal_range.py), so only an in-range
+  literal coerces, and a computed out-of-range index (`hand[0 + 9]`) is left to
+  the runtime key wall. What stays deferred is the
   orthogonal question this residual owns: whether a literal should coerce AT
   ALL, or a zone-family index be required to be exactly Player/Team-typed.
   gops.md's asymmetric two-hand setup

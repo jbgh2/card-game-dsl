@@ -510,7 +510,7 @@ def _board_of(ctx: Ctx, fn: str) -> BoardEntry:
 
 def _seat(ctx: Ctx, fn: str, player: int) -> int:
     """A frame verb's player argument must be a seat of this game. The resolve
-    wall (typecheck `_check_player_literal`) rejects a LITERAL out-of-range seat
+    wall (typecheck `_check_role_literal`) rejects a LITERAL out-of-range seat
     statically, and the frame verbs are two-player-only (resolve), so a bad seat
     is unreachable from a well-formed game -- this backstops the COMPUTED case
     in the runtime's currency (a typed, game-facing rejection) in place of the
