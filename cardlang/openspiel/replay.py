@@ -98,6 +98,30 @@ class ReplayChooser:
 RANK_DIR_TO_SIGN: dict[str, float] = {"highest": 1.0, "lowest": -1.0}
 
 
+def _winner_target_is_team_keyed(game: n.Game) -> bool:
+    """Whether the `winner:` target's score variable is keyed by TEAM.
+
+    Read from the variable's own DECLARATION (`StateDecl.index`), never inferred
+    from the shape of the score dict. The shape cannot tell: a game whose team
+    count equals its player count has team keys (`{0, 1}` for two teams) that are
+    indistinguishable from player keys, so a key-set test read team scores as
+    player scores and paid the wrong seats — silently, since nothing about
+    `partnerships: [[1], [0]]` on two seats is malformed. `driver` builds the
+    score dict from exactly this variable (`rs.get(game.winner.target)`), so its
+    declared index IS the keying.
+
+    A target that names no declaration, or one indexed by anything other than
+    `team` (a player index, or no index at all), is not team-keyed: the identity
+    mapping applies, which is what a player-indexed or scalar score wants."""
+    assert game.winner is not None  # callers check; keeps mypy and intent aligned
+    target = game.winner.target
+    for block in n.state_blocks(game):
+        for decl in block.decls:
+            if decl.name == target:
+                return decl.index == "team"
+    return False
+
+
 def returns_for(game: n.Game, result: GameResult) -> list[float]:
     """General-sum returns from the game's own result (SP1 spec, component 6):
     true scores, sign-adjusted so higher is better (negated for `lowest`
@@ -120,13 +144,10 @@ def returns_for(game: n.Game, result: GameResult) -> list[float]:
         )
     sign = RANK_DIR_TO_SIGN[game.winner.rank_dir]
     scores = result.scores
-    if set(scores) == set(range(n_players)):
+    if not _winner_target_is_team_keyed(game):
         return [sign * scores[p] for p in range(n_players)]
-    # Team-keyed scores (Bridge, Spades): scores are keyed by team index, not
-    # player. The player-keyed branch above already handled every player-keyed
-    # game (including 2-player Cribbage); a game reaches here only when its
-    # team-key set differs from its player-key set — true for the corpus's team
-    # games, which all have 4 players and 2 teams.
+    # Team-keyed scores (Bridge, Spades): one score per TEAM, handed to every
+    # member of that team.
     team_of = {p: ti for ti, members in enumerate(game.partnerships) for p in members}
     return [sign * scores[team_of[p]] for p in range(n_players)]
 

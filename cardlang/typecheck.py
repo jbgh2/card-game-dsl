@@ -856,20 +856,10 @@ def _type_name(t: Type) -> str:
 
 
 def _state_blocks(game: Game) -> list[n.StateBlock]:
-    blocks: list[n.StateBlock] = []
-    if game.state is not None:
-        blocks.append(game.state)
-
-    def rec(phase: n.Phase) -> None:
-        for item in phase.items:
-            if isinstance(item, n.StateBlock):
-                blocks.append(item)
-            elif isinstance(item, n.Phase):
-                rec(item)
-
-    for phase in game.phases:
-        rec(phase)
-    return blocks
+    # The walk lives with the AST (`nodes.state_blocks`) because it answers a
+    # structural question two passes ask — this table, and the OpenSpiel returns
+    # mapping reading a `winner:` target's declared index.
+    return n.state_blocks(game)
 
 
 def _position_types(game: Game) -> dict[str, Type]:

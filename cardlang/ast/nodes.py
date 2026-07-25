@@ -1270,3 +1270,29 @@ Node = (
     | CardQuery
     | DomainQuery
 )
+
+
+def state_blocks(game: "Game") -> list["StateBlock"]:
+    """Every state block a game declares: the game-level one and every phase's,
+    nested phases included.
+
+    One walk, because "where can state be declared" is one fact: the typechecker
+    builds its state-variable table from this, and `openspiel/replay` reads a
+    `winner:` target's declaration through it to learn whether the target is
+    keyed by team. A second copy of the walk would drift the day state becomes
+    declarable somewhere new, and the two readers would disagree about what a
+    game declares."""
+    blocks: list["StateBlock"] = []
+    if game.state is not None:
+        blocks.append(game.state)
+
+    def rec(phase: "Phase") -> None:
+        for item in phase.items:
+            if isinstance(item, StateBlock):
+                blocks.append(item)
+            elif isinstance(item, Phase):
+                rec(item)
+
+    for phase in game.phases:
+        rec(phase)
+    return blocks
