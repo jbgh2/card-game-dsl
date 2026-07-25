@@ -6,6 +6,20 @@ What's explicitly deferred, and the suggested order of next steps.
 
 Things we have noted but consciously not designed yet:
 
+- **Role drift that is not a literal comparison.** Every `==`/`!=` against a
+  string naming a domain-table role now carries a marker saying why it is not
+  registry drift, pinned by tests/test_role_comparison_pin.py (both axes
+  derived: the comparison set by walking each module's AST, the role ids from
+  `domains.DOMAINS`). That catches the shape that actually recurred three times.
+  It does NOT catch the same defect wearing different syntax — a role id held in
+  a variable, used as a dict key, or tested with `in {"player", "team"}` against
+  a hand-written set. Those are rarer and read as deliberate, but they default
+  silently in exactly the same way. Widening the scrape means teaching it which
+  string sets are role sets (a set literal whose members are all role ids is a
+  decent signal); deferred until one is found in the wild, because a scrape that
+  flags every set of strings would train the marker into noise, which is how a
+  pin stops being read.
+
 - **A scalar `winner:` target crashes instead of being refused.** `winner:
   highest <var>` names the score variable a game is ranked by, and the runtime
   builds its score dict with `dict(rs.get(target))` — which requires the target
@@ -26,7 +40,7 @@ Things we have noted but consciously not designed yet:
   spades, pinochle, tichu) the field holds a TEAM index wearing a player's type.
   Nothing reads it as a seat today: the OpenSpiel returns path maps scores
   through `team_of` on the target's declared index
-  (`openspiel/replay._winner_target_is_team_keyed`) and never consults
+  (`openspiel/replay._score_key_by_seat`) and never consults
   `winner`, and the characterization goldens only record it. So this is a
   mislabelling, not a wrong answer — but it is the same team-keys-are-not-seats
   confusion that silently paid the wrong seats before that structural read

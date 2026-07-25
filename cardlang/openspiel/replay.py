@@ -140,12 +140,16 @@ def _score_key_by_seat(game: n.Game, n_players: int) -> list[int]:
     That is precisely the per-consumer role drift `zone_key_of` was introduced to
     end (domains.py), so an unhandled role raises instead of defaulting."""
     role = _winner_target_index(game)
+    # role-compare-ok: an ALLOW-LIST — the arms below enumerate what this mapping
+    # inverts, the fallback RAISES for anything else, and `_RETURNS_KEYED_ROLES`
+    # is reconciled against ZONE_INDEX_ROLES by
+    # tests/test_openspiel_returns_keying.py. Adding a role reddens that pin.
     if role is None or role == "player":
         # Player-indexed, or unindexed — a scalar target never reaches here at
         # all (`driver` fails building a dict from an int first; roadmap.md).
         # Either way the seat IS its own key.
         return list(range(n_players))
-    if role == "team":
+    if role == "team":  # role-compare-ok: the second arm of the same allow-list
         team_of = {
             p: ti for ti, members in enumerate(game.partnerships) for p in members
         }
