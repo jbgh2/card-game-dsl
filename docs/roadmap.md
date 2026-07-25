@@ -6,7 +6,7 @@ What's explicitly deferred, and the suggested order of next steps.
 
 Things we have noted but consciously not designed yet:
 
-- **Out-of-range seats in a `partnerships:` list.** An integer literal in any
+- **Unvalidated `partnerships:` list contents.** An integer literal in any
   Player or Team *operand* position -- a subscript, a call argument, a `state`
   default, a scalar `:=`, an `as`/`turns`/`round`/`offer to`/`loser:` seat, a
   struct field, a variant payload -- is range-checked by construction: every
@@ -22,13 +22,17 @@ Things we have noted but consciously not designed yet:
   position is a team index), but those ints are parsed straight into
   `Game.partnerships` (`tuple[tuple[int, ...], ...]`) and reach the IR and
   deckcheck without ever becoming an operand expression, so `_check_operand`
-  never sees them. Today this is carried SILENTLY, the worse kind of residual:
-  `partnerships: [[0, 2], [1, 5]]` in a four-player game type-checks AND plays to
-  completion, the phantom seat 5 simply never matching -- no loud failure marks
-  it. The wall would be a resolve-time range check over the partnership seats
-  (against the player count) and the team indices; it is deferred because no
-  corpus game writes an out-of-range partnership, and these are declaration
-  integers, not the operand coercions the choke point closes.
+  never sees them -- and NOTHING else validates their CONTENTS either. Three
+  distinct malformations are all accepted silently, the worse kind of residual:
+  an OUT-OF-RANGE seat (`partnerships: [[0, 2], [1, 5]]` in a four-player game
+  type-checks AND plays to completion, the phantom seat 5 simply never matching),
+  a DUPLICATE seat (`[[0, 0]]`), and a seat on MULTIPLE teams (`[[0, 1], [0, 2]]`
+  -- seat 0 belongs to two partnerships). Only a NEGATIVE seat is caught, and
+  only because the grammar's `INT` terminal has no `-`. The wall would be a
+  resolve-time check that every partnership seat is `0 <= s < player_count`,
+  appears at most once, and (the game defines it) the teams partition the seats;
+  it is deferred because no corpus game writes a malformed partnership, and these
+  are declaration integers, not the operand coercions the choke point closes.
 
 - **An acting-player alias created by procedure expansion.** The wall on
   comparing the acting player against a second name for them (decisions.md
