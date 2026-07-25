@@ -6,24 +6,30 @@ What's explicitly deferred, and the suggested order of next steps.
 
 Things we have noted but consciously not designed yet:
 
-- **Role drift in a DATA position, or through a variable.** Every construct that
-  BRANCHES on a role-id literal carries a marker saying why it is not registry
-  drift, pinned by tests/test_role_comparison_pin.py. The position axis is the
-  branch itself, not one spelling: any comparison operator, at any depth in an
-  operand (so a role inside a set or tuple counts), plus `match` patterns. Two
-  things stay outside it. A role literal in a DATA position — a key in a mapping
-  table, a keyword argument, an axis name — is not flagged, because it selects
-  nothing: it is the value stored, not a branch on which value arrived. That is
-  a real residual, not a proof: a mapping table CAN encode a per-role decision,
-  and one that grows a wrong row would not be caught. Measured rather than
-  assumed — 14 role literals sit in branching positions, 54 in data positions,
-  the bulk in `runtime/values.py`'s component-set tables — so the day a data
-  table starts deciding something, the count is the place to look. Requiring a
-  marker on all 68 was rejected deliberately: a marker demanded where nothing is
-  decided trains the marker into noise, which is how a pin stops being read. And
-  a role reached through a VARIABLE rather than a literal is out of reach of any
-  scrape; only a type would catch it (a `Role` enum in place of `str`), which is
-  a larger change than the drift so far justifies.
+- **Role drift through a variable, an unread reason, or the test tree.** Every
+  construct that BRANCHES on a role-id literal carries a marker saying why it is
+  not registry drift, and every role literal that does NOT branch is authorized
+  in a per-module multiset — both pinned by tests/test_role_comparison_pin.py.
+  The position axis is the branch itself, not one spelling: any comparison
+  operator, at any depth in an operand (so a role inside a set or tuple counts),
+  plus `match` patterns. That axis is a PROXY for "the literal participates in a
+  decision", so the band it cannot see is walled rather than trusted: 14 role
+  literals branch and 54 do not, and a decision that moves OUT of a comparison —
+  a role set hoisted to a module constant, a `role.startswith("team")` — changes
+  the multiset and reddens. Requiring a marker on all 68 was rejected
+  deliberately: a marker demanded where nothing is decided trains the marker into
+  noise, which is how a pin stops being read. Three things stay outside all of
+  it. A role reached through a VARIABLE rather than a literal is out of reach of
+  any scrape; only a type would catch it (a `Role` enum in place of `str`), which
+  is a larger change than the drift so far justifies. A marker's REASON is prose:
+  `.` satisfies "nonempty", and a reason asserting a registry pin beside it stays
+  green when that pin is later deleted — a tag vocabulary (`intrinsic:` /
+  `not-a-role:` / `pinned:`) derived from one named constant would make the
+  reason's CLASS machine-checkable, and is the next step here. And `tests/` is
+  not swept at all, though it carries 37 branching sites to production's 14,
+  including `openspiel_ready/harness.py` in the proof layer; that is a separate
+  domain needing its own framing check and probes, and the precedent cuts toward
+  doing it — mypy already holds `tests/` to the same strict bar.
 
 - **A scalar `winner:` target crashes instead of being refused.** `winner:
   highest <var>` names the score variable a game is ranked by, and the runtime
