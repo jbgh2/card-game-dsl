@@ -98,28 +98,65 @@ class ReplayChooser:
 RANK_DIR_TO_SIGN: dict[str, float] = {"highest": 1.0, "lowest": -1.0}
 
 
-def _winner_target_is_team_keyed(game: n.Game) -> bool:
-    """Whether the `winner:` target's score variable is keyed by TEAM.
+# The index roles the seat -> score-key mapping below knows how to invert.
+# Reconciled against `domains.ZONE_INDEX_ROLES` by
+# tests/test_openspiel_returns_keying.py, so a new seat-anchored role has to be
+# handled here rather than silently read as player keying.
+_RETURNS_KEYED_ROLES: frozenset[str] = frozenset({"player", "team"})
 
-    Read from the variable's own DECLARATION (`StateDecl.index`), never inferred
-    from the shape of the score dict. The shape cannot tell: a game whose team
-    count equals its player count has team keys (`{0, 1}` for two teams) that are
-    indistinguishable from player keys, so a key-set test read team scores as
-    player scores and paid the wrong seats — silently, since nothing about
-    `partnerships: [[1], [0]]` on two seats is malformed. `driver` builds the
-    score dict from exactly this variable (`rs.get(game.winner.target)`), so its
-    declared index IS the keying.
 
-    A target that names no declaration, or one indexed by anything other than
-    `team` (a player index, or no index at all), is not team-keyed: the identity
-    mapping applies, which is what a player-indexed or scalar score wants."""
+def _winner_target_index(game: n.Game) -> str | None:
+    """The `winner:` target's declared index role (`score[team]` -> `"team"`),
+    or None when it is unindexed or names no declaration.
+
+    The walk covers everywhere state may be declared (`nodes.state_blocks`): a
+    winner target may be declared in a nested phase block, not only at game
+    level."""
     assert game.winner is not None  # callers check; keeps mypy and intent aligned
     target = game.winner.target
     for block in n.state_blocks(game):
         for decl in block.decls:
             if decl.name == target:
-                return decl.index == "team"
-    return False
+                return decl.index
+    return None
+
+
+def _score_key_by_seat(game: n.Game, n_players: int) -> list[int]:
+    """Seat -> the key that seat's score lives under in `result.scores`.
+
+    `driver` builds that dict from the `winner:` target (`rs.get(target)`), so
+    the variable's DECLARED index is the keying. It is never inferred from the
+    shape of the dict, which cannot distinguish the two: a game whose team count
+    equals its player count has team keys (`{0, 1}`) indistinguishable from
+    player keys, so a key-set test read team scores as player scores and paid the
+    wrong seats — silently, nothing about `partnerships: [[1], [0]]` on two seats
+    being malformed.
+
+    Dispatched over the role and LOUD for one it does not handle, the same
+    contract as `domains.zone_observer_key`. `ZONE_INDEX_ROLES` is DERIVED from
+    the domain registry (a row with a `zone_key_of`), so the day a new
+    seat-anchored role is added, resolve and the zone store accept and key it —
+    and reading it here as player-keyed would silently pay the wrong seats again.
+    That is precisely the per-consumer role drift `zone_key_of` was introduced to
+    end (domains.py), so an unhandled role raises instead of defaulting."""
+    role = _winner_target_index(game)
+    if role is None or role == "player":
+        # Player-indexed, or unindexed — a scalar target never reaches here at
+        # all (`driver` fails building a dict from an int first; roadmap.md).
+        # Either way the seat IS its own key.
+        return list(range(n_players))
+    if role == "team":
+        team_of = {
+            p: ti for ti, members in enumerate(game.partnerships) for p in members
+        }
+        return [team_of[p] for p in range(n_players)]
+    raise AssertionError(
+        f"returns_for: the `winner:` target is indexed by '{role}', which this "
+        f"mapping does not invert (it handles {sorted(_RETURNS_KEYED_ROLES)}) — "
+        f"those seats' returns would be silently read as player-keyed. Add the "
+        f"role here, mapping a seat to its key as that domain's `zone_key_of` "
+        f"does (cardlang/domains.py)"
+    )
 
 
 def returns_for(game: n.Game, result: GameResult) -> list[float]:
@@ -144,12 +181,10 @@ def returns_for(game: n.Game, result: GameResult) -> list[float]:
         )
     sign = RANK_DIR_TO_SIGN[game.winner.rank_dir]
     scores = result.scores
-    if not _winner_target_is_team_keyed(game):
-        return [sign * scores[p] for p in range(n_players)]
-    # Team-keyed scores (Bridge, Spades): one score per TEAM, handed to every
-    # member of that team.
-    team_of = {p: ti for ti, members in enumerate(game.partnerships) for p in members}
-    return [sign * scores[team_of[p]] for p in range(n_players)]
+    # One score per KEY of the target's index domain — its own seat for a
+    # player-indexed score, its team's for a team-indexed one (Bridge, Spades),
+    # so every member of a team receives that team's score.
+    return [sign * scores[key] for key in _score_key_by_seat(game, n_players)]
 
 
 def run(

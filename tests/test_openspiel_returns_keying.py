@@ -30,13 +30,25 @@ domain:     {V player-indexed | V team-indexed} x {team count == player count |
             (no `winner:`) form, which has no score variable at all.
 registry:   the keying comes from the `winner:` target's `StateDecl.index`
             (`nodes.state_blocks` walks the game-level block and every nested
-            phase block -- a winner target may be declared in either); the sign
-            axis is `replay.RANK_DIR_TO_SIGN`; `team_of` is built from
+            phase block -- a winner target may be declared in either), and the
+            set of roles that index is allowed to take is `domains.
+            ZONE_INDEX_ROLES`, DERIVED from the domain registry (the rows with a
+            `zone_key_of`). `replay._RETURNS_KEYED_ROLES` names the roles the
+            mapping inverts and is reconciled against that registry below, so a
+            new seat-anchored domain cannot be silently read as player keying --
+            an unhandled role raises, the same contract as
+            `domains.zone_observer_key`. The sign axis is
+            `replay.RANK_DIR_TO_SIGN`; `team_of` is built from
             `game.partnerships` exactly as `runtime/driver` builds it.
 covered:    the grid below -- every {keying x coincidence} cell with its
             expected returns computed from the game's own structure (the
             authored decision), including the two cells the key-set guess got
-            wrong; both signs; and the `loser:` form.
+            wrong; both signs; and the `loser:` form. Plus the registry pin
+            (`test_the_mapping_covers_every_zone_index_role`, red under dropping
+            a role from `_RETURNS_KEYED_ROLES` or adding a `zone_key_of` domain
+            -- RUN) and its loud half
+            (`test_an_unhandled_index_role_raises_rather_than_defaulting`,
+            which plants an unhandled role in the declaration the mapping reads).
 sampled:    the end-to-end path (a real playout reaching `returns_for` through
             `replay.run`) is exercised by the existing
             tests/test_openspiel_replay.py and the per-game proof modules in
@@ -55,9 +67,16 @@ residual:   none for the keying itself -- every game that REACHES `returns_for`
 """
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
 
-from cardlang.openspiel.replay import RANK_DIR_TO_SIGN, returns_for
+from cardlang.domains import ZONE_INDEX_ROLES
+from cardlang.openspiel.replay import (
+    _RETURNS_KEYED_ROLES,
+    RANK_DIR_TO_SIGN,
+    returns_for,
+)
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import GameResult
 
@@ -182,6 +201,45 @@ def test_returns_follow_the_score_variables_key_domain(
         game, GameResult(scores=scores, winner=0, loser=None, hands_played=1)
     )
     assert got == expected
+
+
+def test_the_mapping_covers_every_zone_index_role() -> None:
+    """Closed-domain pin: the seat -> score-key mapping must invert EVERY role a
+    state variable can be indexed by.
+
+    `ZONE_INDEX_ROLES` is derived from the domain registry (the rows carrying a
+    `zone_key_of`), so the day a seat-anchored domain is added, resolve accepts
+    `score[newrole]` and the zone store keys it — while a mapping that only knows
+    `team` would read it as player-keyed and silently pay the wrong seats. That
+    per-consumer role drift is exactly what `zone_key_of` was introduced to end
+    (domains.py names five sites it replaced); this pin keeps this consumer from
+    becoming a sixth.
+
+    red under: drop `"team"` from `replay._RETURNS_KEYED_ROLES`, or add a
+    `Domain(..., zone_key_of=...)` row to `domains.DOMAINS` — either way the
+    sets diverge and this reddens."""
+    assert set(_RETURNS_KEYED_ROLES) == set(ZONE_INDEX_ROLES)
+
+
+def test_an_unhandled_index_role_raises_rather_than_defaulting() -> None:
+    """The loud half of the same contract, exercised: a `winner:` target indexed
+    by a role the mapping does not invert must RAISE, not fall through to player
+    keying. Planted by re-indexing the target's declaration to a role this
+    mapping has no arm for -- the fault goes in the data the function reads, not
+    in the assertion."""
+    game = check_dsl(_team_game(players=2, partnerships="[[1], [0]]"), "x.cardlang")
+    assert game.state is not None and game.winner is not None
+    decls = tuple(
+        dataclasses.replace(d, index="column") if d.name == game.winner.target else d
+        for d in game.state.decls
+    )
+    planted = dataclasses.replace(
+        game, state=dataclasses.replace(game.state, decls=decls)
+    )
+    with pytest.raises(AssertionError, match="does not invert"):
+        returns_for(
+            planted, GameResult(scores={0: 10, 1: 20}, winner=0, loser=None, hands_played=1)
+        )
 
 
 def test_loser_game_returns_are_unaffected() -> None:
