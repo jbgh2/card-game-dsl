@@ -117,6 +117,8 @@ _KNOWN_ROLES = ZONE_INDEX_ROLES
 # this, adding a zone-indexable role whose domain can also be empty would slip
 # past those walls silently, which is the drift the domain table exists to end
 # (domains.py, `zone_key_of`).
+# role-compare-ok: this IS the registry reconciliation — the assert exists so a
+# new zone-indexable role fails here by name rather than escaping the walls below.
 assert ZONE_INDEX_ROLES == {"player", "team"}, (
     f"resolve's empty-domain walls implement the `team` row only; "
     f"ZONE_INDEX_ROLES is {sorted(ZONE_INDEX_ROLES)} — decide whether the new "

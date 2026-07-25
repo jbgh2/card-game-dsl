@@ -1,6 +1,6 @@
 ---
 name: surface-totality-audit
-description: "MANDATORY completeness gate for any change that adds or extends grammar surface, a checker wall or diagnostic, a stdlib registry, or any closed-domain mechanism. Run BEFORE writing the implementation — the grid is authored red first — and again before committing. Produces the artifacts the change must ship with: the grid (the crossed coverage domain as an executable test), the misuse-probe rejection tests, and the completeness ledger. A green suite is a regression gate, not a completeness gate; this skill is the completeness gate."
+description: "MANDATORY completeness gate for any change that adds or extends grammar surface, a checker wall or diagnostic, a stdlib registry, or any closed-domain mechanism — INCLUDING a change made in response to a review finding on one, where the finding is a sample of a class and never the spec for the fix. Run BEFORE writing the implementation — the grid is authored red first — and again before committing. Produces the artifacts the change must ship with: the grid (the crossed coverage domain as an executable test), the misuse-probe rejection tests, the completeness ledger, and — when answering a finding — the class ledger. A green suite is a regression gate, not a completeness gate; this skill is the completeness gate."
 ---
 
 # Surface-totality audit
@@ -227,6 +227,42 @@ A grid born red needs no witness —
 its red run is the witness. A pin whose author cannot name a reddening edit
 is not a pin; it is the vacuously-green class wearing a test's name.
 
+## Step 2b — Answering a review finding: the class ledger
+
+A review finding arrives pre-scoped, and that is the trap. It names a line,
+so the line reads as the job; it arrives while you are closing a loop rather
+than opening a problem; and its specificity reads as a specification —
+"at minimum handle X and Y" invites doing exactly X and Y. **A finding is
+one row of a class. It is never the spec for the fix.** decisions.md already
+requires the sweep ("When a wall fails or a gap is found, sweep the class
+before patching the instance … the sweep binds at find time, not fix time");
+this step exists because that rule has been read and violated anyway, three
+times in one branch, each violation shipped as a fix that a later reviewer
+reopened. A rule with no artifact is a rule that decays.
+
+So a change answering a finding on an audit-triggering mechanism writes a
+**class ledger** BEFORE the fix, in the commit message or the PR body:
+
+```
+finding:  <what the reviewer named, verbatim in one line>
+class:    <the closed domain that finding is one member of>
+members:  <the members, DERIVED from the registry that defines them>
+covered:  <which the fix closes>
+residual: <which it does not, each with its wall and roadmap line>
+```
+
+The value is that it cannot be satisfied by intending to sweep. Writing
+`members:` forces the derivation, and a `members:` line narrower than its
+own `class:` line is visibly wrong on the page — which is exactly the
+mistake that keeps shipping. `class:` is the load-bearing row: state the
+domain in terms of the POSITION or PROPERTY, never of the syntax the finding
+happened to use ("every way a role id is consulted", not "`==` against a
+role string"), because the narrow spelling is how the next member escapes.
+
+If deriving the class shows the finding is genuinely a one-off — the class
+has exactly one member — say so in `class:` and why. That is a legitimate
+outcome; an unexamined one is not.
+
 ## Step 3 — The completeness ledger
 
 The `covered` column is not prose — it is the grid: Step 1's executable
@@ -266,7 +302,10 @@ one).
 
 The order is: derive the axes -> framing check -> author the expected
 column -> run the grid red -> implement -> green -> re-check the ledger
-before committing. Run this audit before writing the implementation, not
+before committing. Answering a review finding inserts one step at the
+front: derive the CLASS and write its ledger (Step 2b) before deciding what
+the fix even is, because the finding's own scope is the thing most likely to
+be wrong about it. Run this audit before writing the implementation, not
 merely before writing the tests — the grid IS the tests, and a grid
 authored after the implementation exists degrades into a transcript of
 whatever the code already does, expected column included. `mypy` + full

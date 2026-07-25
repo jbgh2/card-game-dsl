@@ -6,19 +6,24 @@ What's explicitly deferred, and the suggested order of next steps.
 
 Things we have noted but consciously not designed yet:
 
-- **Role drift that is not a literal comparison.** Every `==`/`!=` against a
-  string naming a domain-table role now carries a marker saying why it is not
-  registry drift, pinned by tests/test_role_comparison_pin.py (both axes
-  derived: the comparison set by walking each module's AST, the role ids from
-  `domains.DOMAINS`). That catches the shape that actually recurred three times.
-  It does NOT catch the same defect wearing different syntax — a role id held in
-  a variable, used as a dict key, or tested with `in {"player", "team"}` against
-  a hand-written set. Those are rarer and read as deliberate, but they default
-  silently in exactly the same way. Widening the scrape means teaching it which
-  string sets are role sets (a set literal whose members are all role ids is a
-  decent signal); deferred until one is found in the wild, because a scrape that
-  flags every set of strings would train the marker into noise, which is how a
-  pin stops being read.
+- **Role drift in a DATA position, or through a variable.** Every construct that
+  BRANCHES on a role-id literal carries a marker saying why it is not registry
+  drift, pinned by tests/test_role_comparison_pin.py. The position axis is the
+  branch itself, not one spelling: any comparison operator, at any depth in an
+  operand (so a role inside a set or tuple counts), plus `match` patterns. Two
+  things stay outside it. A role literal in a DATA position — a key in a mapping
+  table, a keyword argument, an axis name — is not flagged, because it selects
+  nothing: it is the value stored, not a branch on which value arrived. That is
+  a real residual, not a proof: a mapping table CAN encode a per-role decision,
+  and one that grows a wrong row would not be caught. Measured rather than
+  assumed — 14 role literals sit in branching positions, 54 in data positions,
+  the bulk in `runtime/values.py`'s component-set tables — so the day a data
+  table starts deciding something, the count is the place to look. Requiring a
+  marker on all 68 was rejected deliberately: a marker demanded where nothing is
+  decided trains the marker into noise, which is how a pin stops being read. And
+  a role reached through a VARIABLE rather than a literal is out of reach of any
+  scrape; only a type would catch it (a `Role` enum in place of `str`), which is
+  a larger change than the drift so far justifies.
 
 - **A scalar `winner:` target crashes instead of being refused.** `winner:
   highest <var>` names the score variable a game is ranked by, and the runtime

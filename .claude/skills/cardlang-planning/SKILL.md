@@ -37,7 +37,11 @@ grammar surface, parse builder, AST, resolve, typecheck, IR, runtime,
 stdlib registry, corpus game, docs, tests/goldens. The classification
 decides which gates the plan must SCHEDULE — if the change adds or
 extends surface, a wall, a diagnostic, a registry, or any closed-domain
-mechanism, the surface-totality-audit fires and Gate 4 applies.
+mechanism, the surface-totality-audit fires and Gate 4 applies. It fires
+just as hard when the work ANSWERS A REVIEW FINDING on such a mechanism:
+that path is where the gate has actually been skipped, because a finding
+names a line and the line reads as the whole job (see the audit's
+"class ledger" step).
 Misclassifying here is how audit-triggering work ships ungated — so the
 tie-breaker is fixed: when unsure whether the trigger matches, it
 matches. Unsure is a legal state throughout this process (decisions.md

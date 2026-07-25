@@ -28,37 +28,61 @@ widening the table fails loudly here).
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
-property:   every `==`/`!=` comparison in `cardlang/` whose operand is a string
-            literal naming a domain-registry role is either inside
-            `cardlang/domains.py` (the table itself) or carries a
-            `# role-compare-ok: <reason>` marker on one of its lines.
-domain:     the `ast.Compare` nodes of every module under `cardlang/`, crossed
-            with the registry's role ids. Both axes are DERIVED: the node set by
-            walking each module's AST (so a comment mentioning `== "team"` is
-            not a hit, and a new module is covered the day it lands), the role
-            ids by reading `domains.DOMAINS` (so adding a domain widens what
-            this pin watches without editing it).
-registry:   `cardlang.domains.DOMAINS` for the role ids; the filesystem glob
-            `cardlang/**/*.py` for the module set.
-covered:    the scrape below, over every module and every role id.
+property:   every construct in `cardlang/` that BRANCHES on a role-id string
+            literal is either inside `cardlang/domains.py` (the table itself) or
+            carries a `# role-compare-ok: <reason>` marker. The marker is read
+            from the token stream and must carry a nonempty reason, so neither a
+            bare marker nor the text inside a string literal licenses anything.
+domain:     the branching POSITION, not one spelling of it (`_dispatch_nodes`):
+            a role literal anywhere inside a comparison's operands under ANY
+            operator -- equality, inequality, membership, and at any depth, so a
+            role inside a container literal counts -- and a role literal in a
+            `match` pattern, which is not a `Compare` at all and is this repo's
+            house dispatch style. Crossed with every module under `cardlang/`.
+            All three axes are DERIVED: the node set by walking each module's
+            AST (so a comment mentioning `== "team"` is not a hit, and a new
+            module is covered the day it lands), the role ids from
+            `domains.DOMAINS` (so adding a domain widens the pin without editing
+            it), the module set from the filesystem glob.
+registry:   `cardlang.domains.DOMAINS` for the role ids; `cardlang/**/*.py` for
+            the modules; `_dispatch_nodes` for the position axis.
+covered:    the scrape below, over every module, every role id, and every
+            branching shape -- plus `test_the_scrape_can_see_an_unmarked_
+            comparison`, which feeds it all seven shapes (plain, mixed chain,
+            bare marker, marker-in-a-string, membership, container operand,
+            match pattern) and requires exactly the unmarked lines back.
 sampled:    none -- the scrape is exhaustive over its derived domain.
-residual:   a role id reached WITHOUT a literal comparison -- held in a variable,
-            a dict key, or compared via `in {...}` -- is not flagged. The pin
-            catches the shape that actually recurred (the bare literal test); a
-            set-membership test against a hand-written role set is the same
-            defect wearing different syntax, and is left to review. Recorded in
-            roadmap.md.
+residual:   a role literal in a DATA position -- a key in a mapping table, a
+            keyword argument, an axis name -- is not flagged, because it selects
+            nothing: it is the value being stored, not a branch on which value
+            arrived. Measured, not assumed: of the role literals outside
+            domains.py, 14 sit in branching positions (all marked or in the
+            table) and 54 in data positions, the bulk of them in
+            `runtime/values.py`'s component-set tables. The boundary is a real
+            residual rather than a proof -- a mapping table CAN encode a
+            per-role decision, and one that grows a wrong row would not be
+            caught here. Recorded in roadmap.md; a role id reached through a
+            VARIABLE rather than a literal is out of reach of any scrape and is
+            recorded there too.
 """
 from __future__ import annotations
 
 import ast
+import io
 import pathlib
+import re
+import tokenize
 
 import pytest
 
 from cardlang.domains import DOMAINS
 
 _MARKER = "role-compare-ok"
+# The marker is only a marker as a COMMENT carrying a NONEMPTY reason. A bare
+# `# role-compare-ok` would let a placeholder stand in for the reasoning the
+# marker exists to force, which is the same "a check that cannot fail" defect
+# this module guards against one level down.
+_MARKER_RE = re.compile(rf"{_MARKER}\s*:\s*\S")
 _ROLE_IDS = frozenset(d.id for d in DOMAINS)
 _PACKAGE = pathlib.Path(__file__).resolve().parent.parent / "cardlang"
 # The table itself: it is where a role id is DEFINED, so comparing one there is
@@ -70,31 +94,75 @@ def _modules() -> list[pathlib.Path]:
     return sorted(p for p in _PACKAGE.rglob("*.py") if p.name != _REGISTRY_MODULE)
 
 
+def _marker_lines(source: str) -> set[int]:
+    """The line numbers carrying a well-formed marker.
+
+    Read from the TOKEN stream, not by substring, so the marker counts only as a
+    real comment: the same text inside a string literal is not a licence, and the
+    reason after the colon must be nonempty."""
+    lines: set[int] = set()
+    for tok in tokenize.generate_tokens(io.StringIO(source).readline):
+        if tok.type == tokenize.COMMENT and _MARKER_RE.search(tok.string):
+            lines.add(tok.start[0])
+    return lines
+
+
+def _is_role_literal(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Constant)
+        and isinstance(node.value, str)
+        and node.value in _ROLE_IDS
+    )
+
+
+def _dispatch_nodes(tree: ast.AST) -> list[ast.expr | ast.pattern]:
+    """Every construct that BRANCHES on a role id, in source order.
+
+    The domain is the position, not one syntactic spelling of it, because
+    enumerating spellings is the same deny-list this module exists to forbid --
+    and it silently missed four shapes before review caught it. A role id
+    branches when it appears anywhere inside:
+
+    - a COMPARISON, under any operator and at any depth in an operand, so
+      `role == "team"`, `role != "team"`, `role in ("team", "player")` and
+      `ZONE_INDEX_ROLES == {"player", "team"}` are all one case. Depth matters:
+      a role inside a container literal is doing the same work as a bare one,
+      and looking only at direct operands is how the set-literal form escaped.
+    - a MATCH PATTERN (`case "team":`), which is not a `Compare` at all, and is
+      this repo's house dispatch style -- so restricting to comparisons would
+      have left the most idiomatic spelling of the defect unwatched.
+
+    A role literal OUTSIDE any of these is data, not a branch -- a key in a
+    mapping table, a keyword argument, an axis name -- and is a recorded
+    residual rather than a silent omission (see the ledger)."""
+    found: list[ast.expr | ast.pattern] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Compare):
+            probes: list[ast.AST] = [node.left, *node.comparators]
+        elif isinstance(node, ast.match_case):
+            probes = [node.pattern]
+        else:
+            continue
+        if any(_is_role_literal(sub) for probe in probes for sub in ast.walk(probe)):
+            # `match_case` is not an expr/stmt; report the pattern, which carries
+            # the position the marker attaches to.
+            found.append(node.pattern if isinstance(node, ast.match_case) else node)
+    return sorted(found, key=lambda n: (n.lineno, n.col_offset))
+
+
 def _unmarked_role_comparisons(path: pathlib.Path) -> list[tuple[int, str]]:
     source = path.read_text()
     lines = source.splitlines()
+    markers = _marker_lines(source)
     found: list[tuple[int, str]] = []
-    for node in ast.walk(ast.parse(source)):
-        if not isinstance(node, ast.Compare):
-            continue
-        if not all(isinstance(op, (ast.Eq, ast.NotEq)) for op in node.ops):
-            continue
-        operands = [node.left, *node.comparators]
-        if not any(
-            isinstance(o, ast.Constant)
-            and isinstance(o.value, str)
-            and o.value in _ROLE_IDS
-            for o in operands
-        ):
-            continue
+    for node in _dispatch_nodes(ast.parse(source)):
         end = node.end_lineno or node.lineno
-        on_the_comparison = range(node.lineno, min(end, len(lines)) + 1)
-        marked = any(_MARKER in lines[ln - 1] for ln in on_the_comparison)
+        marked = any(ln in markers for ln in range(node.lineno, min(end, len(lines)) + 1))
         # A reason worth reading rarely fits on the comparison's own line, so the
         # contiguous comment block immediately above it counts too.
         ln = node.lineno - 1
         while not marked and ln >= 1 and lines[ln - 1].strip().startswith("#"):
-            marked = _MARKER in lines[ln - 1]
+            marked = ln in markers
             ln -= 1
         if not marked:
             found.append((node.lineno, lines[node.lineno - 1].strip()))
@@ -133,16 +201,44 @@ def test_the_scrape_can_see_an_unmarked_comparison() -> None:
     """The scrape itself is load-bearing, so prove it FIRES rather than trusting
     a green run over the swept tree (a scrape that matched nothing would also be
     green). Feeds it a synthetic module containing one unmarked comparison and
-    one marked one, and requires exactly the unmarked line back."""
+    one marked one, and requires exactly the unmarked line back.
+
+    It also pins the two ways the scrape could quietly stop seeing things, both
+    of which it did before review caught them: an equality inside a MIXED chained
+    comparison (`role == "rank" in supported` holds an `Eq` and an `In`, and a
+    gate over every operator skipped the whole node), and a marker that is not
+    really one -- a bare `# role-compare-ok` with no reason, or the text sitting
+    in a string literal rather than a comment. Each is a case where the pin would
+    have gone green while the guarantee it states was false."""
     probe = (
-        "def f(role):\n"
-        '    if role == "team":\n'
+        "def f(role, supported):\n"
+        '    if role == "team":\n'                       # 2: plain, unmarked
         "        return 1\n"
         '    if role == "player":  # role-compare-ok: marked inline\n'
         "        return 2\n"
         "    # role-compare-ok: marked by the comment block above\n"
         '    if role == "suit":\n'
         "        return 3\n"
+        # A MIXED chained comparison: the node holds an `Eq` and an `In`, so a
+        # gate over every operator would skip it and let the equality through.
+        '    if role == "rank" in supported:\n'
+        "        return 4\n"
+        # A BARE marker with no reason is not a marker.
+        '    if role == "team":  # role-compare-ok\n'
+        "        return 5\n"
+        # The marker text inside a STRING is not a comment, so not a licence.
+        '    msg = "role-compare-ok: not a real marker"\n'
+        '    if role == "player": return msg\n'
+        # Membership, not equality — the same branch in another spelling.
+        '    if role in ("team", "suit"):\n'
+        "        return 6\n"
+        # A role inside a CONTAINER operand, not a direct one.
+        '    if supported == {"player", "team"}:\n'
+        "        return 7\n"
+        # A MATCH PATTERN — not a `Compare` at all, and this repo's house style.
+        "    match role:\n"
+        '        case "team":\n'
+        "            return 8\n"
         "    return 0\n"
     )
     tmp = pathlib.Path(__file__).resolve().parent / "_role_pin_probe.py.txt"
@@ -151,4 +247,6 @@ def test_the_scrape_can_see_an_unmarked_comparison() -> None:
         found = _unmarked_role_comparisons(tmp)
     finally:
         tmp.unlink()
-    assert [ln for ln, _ in found] == [2], found
+    # 2 plain, 9 mixed chain, 11 bare marker, 14 marker-in-a-string,
+    # 15 membership, 17 container operand, 20 match pattern.
+    assert [ln for ln, _ in found] == [2, 9, 11, 14, 15, 17, 20], found

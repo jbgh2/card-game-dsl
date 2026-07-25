@@ -56,7 +56,10 @@ loud failure is the system working; silence is the enemy.
    angles below — do not run angles whose trigger the diff does not match.
 3. **Artifact gate — run before any finder.** If the diff adds or extends
    grammar surface, a checker wall or diagnostic, a stdlib registry, or any
-   closed-domain mechanism (the `surface-totality-audit` trigger), the change
+   closed-domain mechanism (the `surface-totality-audit` trigger) — including
+   a diff that ANSWERS AN EARLIER FINDING on one, which must additionally
+   carry that skill's **class ledger** showing the finding was swept as a
+   class rather than patched as an instance — the change
    must ship that skill's artifacts: the **grid** (the crossed coverage
    domain as an executable parametrized test — axes derived in code, born
    red before the implementation), misuse-probe **rejection tests**, and

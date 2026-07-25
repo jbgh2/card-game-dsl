@@ -152,7 +152,9 @@ Run them as written. In particular:
 
 **These two checks are regression gates, not completeness gates.** A change
 that adds or extends grammar surface, a checker wall or diagnostic, a stdlib
-registry, or any closed-domain mechanism additionally passes the
+registry, or any closed-domain mechanism — **including a change answering a
+review finding on one**, where the finding is a sample of a class and never
+the spec for the fix — additionally passes the
 **surface-totality audit** — run the `surface-totality-audit` skill
 (`.claude/skills/`), the mechanized form of decisions.md "Surface totality"
 and "Closed-domain completeness". Its artifacts are mandatory in the change:

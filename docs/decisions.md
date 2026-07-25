@@ -3576,6 +3576,30 @@ sweep binds at find time, not fix time: a *report* of one cell of a
 crossable product is an incomplete report — cross the product and report
 the pattern, whoever holds the finding.
 
+**The sweep is hardest, and most often skipped, when someone else holds
+the finding.** Self-found gaps get swept because finding one already
+required asking what the domain was. A finding that ARRIVES — from a
+reviewer, a bot, a bug report — arrives pre-scoped, and its scope is the
+thing most likely to be wrong about it: it names a line, so the line reads
+as the job; it lands while the work is closing a loop rather than opening a
+problem; and its specificity reads as a specification, so "at minimum
+handle X and Y" gets answered with exactly X and Y. This rule was read and
+violated three times in a single branch on exactly that path — each fix
+correct about the instance named, silent about the class, and each reopened
+by the next reviewer.
+
+Prose did not prevent that, so the rule carries an artifact. A change
+answering a finding on a closed-domain mechanism writes a **class ledger**
+before the fix — `finding` / `class` / `members` / `covered` / `residual`,
+with `members` DERIVED from the registry that defines them (the
+`surface-totality-audit` skill owns the form). It cannot be satisfied by
+intending to sweep: a `members` line narrower than its own `class` line is
+visibly wrong on the page, which is the one thing the exhortation could
+never be. State `class` as the position or property — "every way a role id
+is consulted" — never as the syntax the finding happened to use, because
+the narrow spelling is how the next member escapes. A class of exactly one
+member is a legitimate answer; an unexamined class is not.
+
 **A check's comment names the downstream contract, never the downstream
 exception type.** A wall is most naturally justified by what goes wrong
 without it, and the temptation is to name the crash: "without this wall,
