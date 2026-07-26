@@ -3,8 +3,8 @@ info-state regression tests (leakage, mid-pass hiding, perfect recall,
 own-action distinction) — now against DERIVED observations.
 
 API conformance is NOT here. `pyspiel.random_sim_test` exercises the adapter,
-not the game, and 15 of the 29 registered games run it in full through
-`tests/openspiel_ready/` (hearts itself walks a bounded conformance line
+not the game, and the registered games with a full-sim proof module under
+`tests/openspiel_ready/` run it there in full (hearts walks a bounded line
 there); hearts' own action-space shape — the bare 52-card block — is pinned by
 `tests/test_openspiel_encoding.py`. A hearts-specific full sim re-bought the
 adapter's conformance at the price of two more quadratic 52-trick
@@ -22,7 +22,7 @@ import pytest
 
 pyspiel = pytest.importorskip("pyspiel")
 
-import cardlang.openspiel.game  # noqa: F401  (registers all six games on import)
+import cardlang.openspiel.game  # noqa: F401  (importing it registers every game in `openspiel.registry.GAMES`)
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import Pause, run
 

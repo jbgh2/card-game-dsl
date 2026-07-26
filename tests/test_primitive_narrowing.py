@@ -1,6 +1,6 @@
 """The narrow primitive interface — completeness ledger.
 
-status:     stage 2 COMPLETE — all 15 game modules are free of every
+status:     stage 2 COMPLETE — every module in `_GAME_MODULES` is free of every
             engine handle, so the crossed grid is green with nothing
             excused. Stage 3 (`primitives { }`) narrows the bundles from
             module- to primitive-granularity; residual (2) is its brief.

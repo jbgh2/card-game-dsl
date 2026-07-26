@@ -16,8 +16,8 @@ someone fixes the underlying wall without updating this ledger, that test
 starts failing, which is the intended prompt to do the other half of the
 feed-forward rule below.
 
-Two classes (only `delete_line` has produced findings across the 450-mutant
-discovery sweep this ledger is built from — 18 corpus games x 5 operators x
+Two classes (only `delete_line` has produced findings across the discovery
+sweep this ledger is built from — the whole corpus x every operator x
 seeds 0..4; every finding currently recorded is playout-class, the
 wrong-currency entries having been fixed and fed forward to
 `tests/rejections/`):

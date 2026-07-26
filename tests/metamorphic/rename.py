@@ -78,8 +78,8 @@ defect this transform papers over. `_GLOBAL_EXCLUSIONS` below excludes it
 corpus-wide.
 
 **Game-local runtime primitives are written against ONE game's specific
-declared spelling.** Eleven corpus games ship a `cardlang/runtime/<game>.py`
-module of bespoke Python (kernel-migration.md's sanctioned "game-local
+declared spelling.** A corpus game with a bespoke mechanic ships a
+`cardlang/runtime/<game>.py` module of Python (kernel-migration.md's sanctioned "game-local
 stdlib primitive" pattern — Stud's `pot_share`, Skat's `skat_matadors`,
 Tichu's `tichu_mahjong_holder`, …) that reads live `RuntimeState` by the
 zone/state-variable name ITS AUTHOR gave it — a Python string literal, never
