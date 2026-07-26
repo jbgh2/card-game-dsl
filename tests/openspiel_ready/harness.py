@@ -46,7 +46,14 @@ pyspiel = pytest.importorskip("pyspiel")
 
 import cardlang.openspiel.game as ogame  # noqa: E402  (registers on import)
 from cardlang.openspiel.infostate import information_state  # noqa: E402
-from cardlang.openspiel.replay import Pause, load, run  # noqa: E402
+from cardlang.openspiel.replay import (  # noqa: E402
+    Pause,
+    Terminal,
+    load,
+    returns_for,
+    run,
+)
+from cardlang.runtime.driver import play_game  # noqa: E402
 
 from .partition import (  # noqa: E402
     all_hidden,
@@ -249,6 +256,52 @@ def bounded_walk(short_name: str, path: str, steps: int) -> BoundedWalk:
         walked,
         terminal,
     )
+
+
+class _GreedyCap(Exception):
+    """The greedy line ran past its cap without terminating."""
+
+
+@lru_cache(maxsize=None)
+def greedy_line(path: str, seed: int, cap: int) -> tuple[tuple[int, ...], list[float] | None]:
+    """The `legal[0]` line, walked ONCE and linearly: the action ids it takes,
+    and the terminal returns if it ends within `cap`.
+
+    Identical to the line a caller gets by repeatedly replaying a growing
+    history and taking `Pause.legal[0]` — `legal` is `sorted({encode(c) for c in
+    pool})`, so its head is the lowest-encoded candidate, which is what the
+    chooser below picks. `test_adapter_agrees_with_the_dsl_information_state`
+    asserts that agreement on the prefix it walks both ways, so the equivalence
+    is checked rather than argued.
+
+    Walking it linearly matters because the replay-per-step form is quadratic:
+    every `run(path, seed, history)` re-simulates from step 0, so a 418-step
+    line costs 418 re-simulations (44.4s on belote) to learn a line one
+    simulation already knows.
+
+    red under: pick `max` instead of `min` — every game with
+    `adapter_terminal_steps` fails the prefix cross-check at step 0."""
+    game, space = load(path)
+    ids: list[int] = []
+
+    def chooser(player: int, candidates: list[Any], k: int) -> list[Any]:
+        pool = list(candidates)
+        picked: list[Any] = []
+        for _ in range(k):
+            aid = min(space.encode(c) for c in pool)
+            choice = space.match(aid, pool)
+            pool.remove(choice)
+            picked.append(choice)
+            ids.append(aid)
+            if len(ids) > cap:
+                raise _GreedyCap
+        return picked
+
+    try:
+        result = play_game(game, random.Random(seed), chooser=chooser)
+    except _GreedyCap:
+        return tuple(ids), None
+    return tuple(ids), returns_for(game, result)
 
 
 def verb_status(verb: str, applied: frozenset[str], exempt: frozenset[str]) -> str:
@@ -607,29 +660,37 @@ class ReadinessProofs:
             r = run(spec.path, seed, tuple(history))
             steps += 1
         cap = spec.adapter_terminal_steps
+        dsl_returns = r.returns if isinstance(r, Terminal) else None
         if cap is not None:
-            # Continue the greedy line to the end of the game. Cheap phase: no
-            # per-step pyspiel queries (each would re-simulate), just action
-            # application; the DSL side needs one `run` per step regardless.
-            while isinstance(r, Pause) and steps < cap:
-                action = r.legal[0]
-                state.apply_action(action)
-                history.append(action)
-                r = run(spec.path, seed, tuple(history))
-                steps += 1
-            assert not isinstance(r, Pause), (
+            # Continue the greedy line to the end of the game. The line comes
+            # from ONE linear walk rather than a replay per step (`greedy_line`
+            # explains why), and its prefix is asserted to be the very line the
+            # expensive phase above walked — so the terminal returns compared
+            # below belong to the line whose information states were checked,
+            # not merely to a line derived the same way.
+            line, returns = greedy_line(spec.path, seed, cap)
+            assert list(line[: len(history)]) == history, (
+                f"{spec.short_name}: the linear greedy walk diverges from the "
+                f"replayed one at step "
+                f"{next(i for i, (a, b) in enumerate(zip(line, history)) if a != b)}"
+            )
+            assert returns is not None, (
                 f"{spec.short_name}: greedy line no longer reaches Terminal "
                 f"within adapter_terminal_steps={cap} — re-measure the line "
                 f"and adjust the spec (do not silently drop the returns check)"
             )
-        if not isinstance(r, Pause):
+            for action in line[len(history):]:
+                state.apply_action(action)
+            steps = len(line)
+            dsl_returns = returns
+        if dsl_returns is not None:
             assert state.is_terminal(), (
                 f"{spec.short_name}: DSL line terminal but adapter is not"
             )
-            assert state.returns() == r.returns, (
+            assert state.returns() == dsl_returns, (
                 f"{spec.short_name}: terminal returns disagree — "
-                f"adapter {state.returns()} != DSL {r.returns}"
+                f"adapter {state.returns()} != DSL {dsl_returns}"
             )
         record(spec.short_name, "adapter", seed=seed, steps=steps,
-               terminal=not isinstance(r, Pause),
-               returns_compared=not isinstance(r, Pause))
+               terminal=dsl_returns is not None,
+               returns_compared=dsl_returns is not None)
