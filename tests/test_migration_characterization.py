@@ -58,6 +58,72 @@ import pytest
 REPO = Path(__file__).parent.parent
 GOLDEN = Path(__file__).parent / "golden"
 
+# Each capture sweeps this many seeds. A game may choose its own — the sweeps
+# differ in what a single seed is worth (Stud plays ~170 hands per match,
+# Schnapsen ~5), and a game whose divergences concentrate in a rare branch can
+# buy detection here rather than argue for it.
+#
+# WHY 10 IS THE DEFAULT. A seed catches a divergence iff that divergence fires
+# at least once in that seed's match — the goldens pin cumulative results, so
+# there is no partial credit. Detection over N seeds is 1-(1-q)^N for q = the
+# chance of firing at least once in one match. N=10 gives 95% detection for
+# q >= 0.259; N=50 gives it for q >= 0.058. So the seeds beyond ten buy exactly
+# the band q in [0.06, 0.26] — for French Tarot's 36-hand match, a divergence
+# confined to between 0.17% and 0.83% of hands (1 hand in 600 to 1 in 120).
+# Above that band ten seeds suffice; below it fifty do not reach 95% either.
+# Every divergence this file has actually caught sat at q = 1.0: the
+# gather-order canonicalization moved every gather-using golden, and Coup's
+# `alive[p]` int -> bool changed the payload of every seed.
+#
+# RAISING A COUNT NEEDS NO REGENERATION. The goldens on disk keep every seed
+# they were pinned with; a capture compares against the slice it swept. Raise a
+# number here and the extra seeds are already recorded and waiting. Lowering is
+# equally free. The pin at the foot of this module rejects a count larger than
+# the golden holds, and a key naming a game this module does not capture.
+DEFAULT_SEEDS = 10
+SEEDS_BY_GAME: dict[str, int] = {}
+
+# The games captured here, and the goldens each one's captures compare against
+# — the domain the table above is keyed over.
+CAPTURE_GOLDENS: dict[str, tuple[str, ...]] = {
+    "bridge": ("bridge_scores.json",),
+    "schnapsen": ("schnapsen_scores.json", "schnapsen_hands.json"),
+    "pinochle": ("pinochle_scores.json",),
+    "french-tarot": ("french-tarot_scores.json",),
+    "skat": ("skat_scores.json", "skat_hands.json"),
+    "seven-card-stud": ("seven-card-stud_hands.json",),
+    "tichu": ("tichu_scores.json", "tichu_hands.json"),
+    "bigtwo": ("bigtwo_scores.json",),
+    "cribbage": ("cribbage_hands.json",),
+    "coup": ("coup_scores.json",),
+}
+
+
+def seeds_for(game: str) -> int:
+    return SEEDS_BY_GAME.get(game, DEFAULT_SEEDS)
+
+
+def assert_golden_seeds(game: str, captured: Any, expected: Any) -> None:
+    """Compare a capture against the corresponding SLICE of its golden.
+
+    The count is a sampling dial (see `DEFAULT_SEEDS`), so the golden holds more
+    seeds than a run sweeps. Two things have to be checked before the slice is
+    honest: that the capture actually produced the seeds it was asked for — a
+    capture that swept none would otherwise compare an empty dict against an
+    empty slice and pass — and that every seed it produced is one the golden
+    records, so a count raised past the golden fails loudly instead of
+    comparing fewer."""
+    want = seeds_for(game)
+    assert len(captured) == want, (
+        f"{game}: captured {len(captured)} seeds, asked for {want}"
+    )
+    unpinned = sorted(set(captured) - set(expected), key=int)
+    assert not unpinned, (
+        f"{game}: seeds {unpinned} are not in the golden — it was pinned with "
+        f"{len(expected)}, so a count above that has nothing to compare against"
+    )
+    assert_golden(captured, {s: expected[s] for s in captured})
+
 
 def assert_golden(captured: Any, expected: Any) -> None:
     """Compare a capture against its golden — including the TYPE of every scalar.
@@ -93,7 +159,7 @@ from cardlang.runtime.driver import play_game
 name = sys.argv[1]
 game = check_dsl(Path(f"docs/games/{name}.cardlang").read_text(), f"{name}.cardlang")
 out = {}
-for seed in range(50):
+for seed in range(int(sys.argv[2])):
     r = play_game(game, random.Random(seed))
     out[str(seed)] = {
         "scores": {str(k): v for k, v in sorted(r.scores.items())},
@@ -107,7 +173,7 @@ print(json.dumps(out))
 def _capture_pinned(name: str) -> dict[str, Any]:
     env = dict(os.environ, PYTHONHASHSEED="0")
     proc = subprocess.run(
-        [sys.executable, "-c", _CAPTURE, name],
+        [sys.executable, "-c", _CAPTURE, name, str(seeds_for(name))],
         cwd=REPO,
         env=env,
         capture_output=True,
@@ -121,7 +187,7 @@ def _capture_pinned(name: str) -> dict[str, Any]:
 @pytest.mark.parametrize("name", ["bridge", "schnapsen", "pinochle", "french-tarot", "skat"])
 def test_migration_preserves_per_seed_results(name: str) -> None:
     expected = json.loads((GOLDEN / f"{name}_scores.json").read_text())
-    assert_golden(_capture_pinned(name), expected)
+    assert_golden_seeds(name, _capture_pinned(name), expected)
 
 
 # Stud's end-of-game scores are degenerate — the winner always holds all 400
@@ -146,7 +212,7 @@ game = check_dsl(
     Path("docs/games/seven-card-stud.cardlang").read_text(), "seven-card-stud.cardlang"
 )
 out = {}
-for seed in range(50):
+for seed in range(int(sys.argv[1])):
     hands = []
 
     def tracer(event, data, _h=hands):
@@ -162,7 +228,7 @@ print(json.dumps(out))
 def _capture_stud_hands() -> dict[str, Any]:
     env = dict(os.environ, PYTHONHASHSEED="0")
     proc = subprocess.run(
-        [sys.executable, "-c", _STUD_CAPTURE],
+        [sys.executable, "-c", _STUD_CAPTURE, str(seeds_for("seven-card-stud"))],
         cwd=REPO,
         env=env,
         capture_output=True,
@@ -175,7 +241,7 @@ def _capture_stud_hands() -> dict[str, Any]:
 
 def test_stud_migration_preserves_per_hand_stacks() -> None:
     expected = json.loads((GOLDEN / "seven-card-stud_hands.json").read_text())
-    assert_golden(_capture_stud_hands(), expected)
+    assert_golden_seeds("seven-card-stud", _capture_stud_hands(), expected)
 
 
 # Tichu (climbing + the combination model) moves its whole hand — pushing, the
@@ -214,7 +280,7 @@ def policy(rng):
     return chooser
 
 out = {}
-for seed in range(50):
+for seed in range(int(sys.argv[1])):
     rng = random.Random(seed)
     r = play_game(game, rng, None, policy(rng))
     out[str(seed)] = {
@@ -228,7 +294,7 @@ print(json.dumps(out))
 def _capture_tichu() -> dict[str, Any]:
     env = dict(os.environ, PYTHONHASHSEED="0")
     proc = subprocess.run(
-        [sys.executable, "-c", _TICHU_CAPTURE],
+        [sys.executable, "-c", _TICHU_CAPTURE, str(seeds_for("tichu"))],
         cwd=REPO,
         env=env,
         capture_output=True,
@@ -241,7 +307,7 @@ def _capture_tichu() -> dict[str, Any]:
 
 def test_tichu_ws5_pins_per_seed_results() -> None:
     expected = json.loads((GOLDEN / "tichu_scores.json").read_text())
-    assert_golden(_capture_tichu(), expected)
+    assert_golden_seeds("tichu", _capture_tichu(), expected)
 
 
 # Tichu's finals accumulate ~100 card points a hand, so a late divergence could
@@ -278,7 +344,7 @@ def policy(rng):
     return chooser
 
 out = {}
-for seed in range(50):
+for seed in range(int(sys.argv[1])):
     hands = []
     log = TichuHands(team_of)
 
@@ -296,7 +362,7 @@ print(json.dumps(out))
 def _capture_tichu_hands() -> dict[str, Any]:
     env = dict(os.environ, PYTHONHASHSEED="0")
     proc = subprocess.run(
-        [sys.executable, "-c", _TICHU_HANDS_CAPTURE],
+        [sys.executable, "-c", _TICHU_HANDS_CAPTURE, str(seeds_for("tichu"))],
         cwd=REPO,
         env=env,
         capture_output=True,
@@ -309,7 +375,7 @@ def _capture_tichu_hands() -> dict[str, Any]:
 
 def test_tichu_ws5_pins_per_hand_results() -> None:
     expected = json.loads((GOLDEN / "tichu_hands.json").read_text())
-    assert_golden(_capture_tichu_hands(), expected)
+    assert_golden_seeds("tichu", _capture_tichu_hands(), expected)
 
 
 # Big Two (the second climbing instance) moves its whole hand — the climbing
@@ -328,7 +394,7 @@ from cardlang.runtime.driver import play_game
 
 game = check_dsl(Path("docs/games/big-two.cardlang").read_text(), "big-two.cardlang")
 out = {}
-for seed in range(50):
+for seed in range(int(sys.argv[1])):
     r = play_game(game, random.Random(seed))
     out[str(seed)] = {
         "scores": {str(k): v for k, v in sorted(r.scores.items())},
@@ -341,7 +407,7 @@ print(json.dumps(out))
 def _capture_bigtwo() -> dict[str, Any]:
     env = dict(os.environ, PYTHONHASHSEED="0")
     proc = subprocess.run(
-        [sys.executable, "-c", _BIGTWO_CAPTURE],
+        [sys.executable, "-c", _BIGTWO_CAPTURE, str(seeds_for("bigtwo"))],
         cwd=REPO,
         env=env,
         capture_output=True,
@@ -354,7 +420,7 @@ def _capture_bigtwo() -> dict[str, Any]:
 
 def test_bigtwo_migration_preserves_per_seed_results() -> None:
     expected = json.loads((GOLDEN / "bigtwo_scores.json").read_text())
-    assert_golden(_capture_bigtwo(), expected)
+    assert_golden_seeds("bigtwo", _capture_bigtwo(), expected)
 
 
 # Cribbage moves the whole hand — crib discards, the starter cut and his heels,
@@ -383,7 +449,7 @@ from cardlang.runtime.driver import play_game
 
 game = check_dsl(Path("docs/games/cribbage.cardlang").read_text(), "cribbage.cardlang")
 out = {}
-for seed in range(50):
+for seed in range(int(sys.argv[1])):
     hands = []
 
     def tracer(event, data, _h=hands):
@@ -399,7 +465,7 @@ print(json.dumps(out))
 def _capture_cribbage_hands() -> dict[str, Any]:
     env = dict(os.environ, PYTHONHASHSEED="0")
     proc = subprocess.run(
-        [sys.executable, "-c", _CRIBBAGE_CAPTURE],
+        [sys.executable, "-c", _CRIBBAGE_CAPTURE, str(seeds_for("cribbage"))],
         cwd=REPO,
         env=env,
         capture_output=True,
@@ -412,7 +478,7 @@ def _capture_cribbage_hands() -> dict[str, Any]:
 
 def test_cribbage_migration_preserves_per_hand_scores() -> None:
     expected = json.loads((GOLDEN / "cribbage_hands.json").read_text())
-    assert_golden(_capture_cribbage_hands(), expected)
+    assert_golden_seeds("cribbage", _capture_cribbage_hands(), expected)
 
 
 # Schnapsen moves the whole hand — the leader's mixed lead decision (play a
@@ -435,7 +501,7 @@ from cardlang.runtime.driver import play_game
 
 game = check_dsl(Path("docs/games/schnapsen.cardlang").read_text(), "schnapsen.cardlang")
 out = {}
-for seed in range(50):
+for seed in range(int(sys.argv[1])):
     hands = []
 
     def tracer(event, data, _h=hands):
@@ -451,7 +517,7 @@ print(json.dumps(out))
 def _capture_schnapsen_hands() -> dict[str, Any]:
     env = dict(os.environ, PYTHONHASHSEED="0")
     proc = subprocess.run(
-        [sys.executable, "-c", _SCHNAPSEN_CAPTURE],
+        [sys.executable, "-c", _SCHNAPSEN_CAPTURE, str(seeds_for("schnapsen"))],
         cwd=REPO,
         env=env,
         capture_output=True,
@@ -464,7 +530,7 @@ def _capture_schnapsen_hands() -> dict[str, Any]:
 
 def test_schnapsen_migration_preserves_per_hand_scores() -> None:
     expected = json.loads((GOLDEN / "schnapsen_hands.json").read_text())
-    assert_golden(_capture_schnapsen_hands(), expected)
+    assert_golden_seeds("schnapsen", _capture_schnapsen_hands(), expected)
 
 
 # Skat moves the whole hand — the Reizen call-and-response (a role-guarded
@@ -486,7 +552,7 @@ from cardlang.runtime.driver import play_game
 
 game = check_dsl(Path("docs/games/skat.cardlang").read_text(), "skat.cardlang")
 out = {}
-for seed in range(50):
+for seed in range(int(sys.argv[1])):
     hands = []
 
     def tracer(event, data, _h=hands):
@@ -502,7 +568,7 @@ print(json.dumps(out))
 def _capture_skat_hands() -> dict[str, Any]:
     env = dict(os.environ, PYTHONHASHSEED="0")
     proc = subprocess.run(
-        [sys.executable, "-c", _SKAT_CAPTURE],
+        [sys.executable, "-c", _SKAT_CAPTURE, str(seeds_for("skat"))],
         cwd=REPO,
         env=env,
         capture_output=True,
@@ -515,7 +581,7 @@ def _capture_skat_hands() -> dict[str, Any]:
 
 def test_skat_migration_preserves_per_hand_scores() -> None:
     expected = json.loads((GOLDEN / "skat_hands.json").read_text())
-    assert_golden(_capture_skat_hands(), expected)
+    assert_golden_seeds("skat", _capture_skat_hands(), expected)
 
 
 # Coup at real interactive scope (WS5): every challenge, block, claimed
@@ -539,7 +605,7 @@ from tests.playout_trace import CoupReveals
 
 game = check_dsl(Path("docs/games/coup.cardlang").read_text(), "coup.cardlang")
 out = {}
-for seed in range(40):
+for seed in range(int(sys.argv[1])):
     log = CoupReveals()
     summary = {}
 
@@ -564,7 +630,7 @@ print(json.dumps(out))
 def _capture_coup() -> dict[str, Any]:
     env = dict(os.environ, PYTHONHASHSEED="0")
     proc = subprocess.run(
-        [sys.executable, "-c", _COUP_CAPTURE],
+        [sys.executable, "-c", _COUP_CAPTURE, str(seeds_for("coup"))],
         cwd=REPO,
         env=env,
         capture_output=True,
@@ -577,4 +643,35 @@ def _capture_coup() -> dict[str, Any]:
 
 def test_coup_migration_preserves_per_seed_results() -> None:
     expected = json.loads((GOLDEN / "coup_scores.json").read_text())
-    assert_golden(_capture_coup(), expected)
+    assert_golden_seeds("coup", _capture_coup(), expected)
+
+
+# --- the seed table's own pin ------------------------------------------------
+
+
+def test_every_seed_override_is_usable() -> None:
+    """`SEEDS_BY_GAME` is a table of numbers with no other consumer, so nothing
+    else would notice a key naming a game this module stopped capturing, or a
+    count larger than the golden it will be compared against. Both would read as
+    a deliberate choice while quietly doing something else — a raised count
+    would compare against every seed the golden HAS and pass, looking like more
+    coverage than it bought.
+
+    red under: add `SEEDS_BY_GAME["hearts"] = 10` (hearts is captured by
+    tests/test_playout_hearts.py, not here), or set any game's count above the
+    seeds its golden records.
+    """
+    unknown = sorted(set(SEEDS_BY_GAME) - set(CAPTURE_GOLDENS))
+    assert not unknown, (
+        f"{unknown} name no capture in this module — the counts do nothing"
+    )
+    for game, count in sorted(SEEDS_BY_GAME.items()):
+        assert count >= 1, f"{game}: a sweep of {count} seeds checks nothing"
+    for game in sorted(CAPTURE_GOLDENS):
+        want = seeds_for(game)
+        for name in CAPTURE_GOLDENS[game]:
+            pinned = len(json.loads((GOLDEN / name).read_text()))
+            assert want <= pinned, (
+                f"{game}: asks for {want} seeds but {name} pins {pinned} — "
+                f"regenerate the golden before raising the count"
+            )
