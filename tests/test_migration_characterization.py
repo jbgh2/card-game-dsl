@@ -658,17 +658,21 @@ def test_every_seed_override_is_usable() -> None:
     coverage than it bought.
 
     red under: add `SEEDS_BY_GAME["hearts"] = 10` (hearts is captured by
-    tests/test_playout_hearts.py, not here), or set any game's count above the
-    seeds its golden records.
+    tests/test_playout_hearts.py, not here); set any game's count above the
+    seeds its golden records; or set `DEFAULT_SEEDS = 0`.
     """
     unknown = sorted(set(SEEDS_BY_GAME) - set(CAPTURE_GOLDENS))
     assert not unknown, (
         f"{unknown} name no capture in this module — the counts do nothing"
     )
-    for game, count in sorted(SEEDS_BY_GAME.items()):
-        assert count >= 1, f"{game}: a sweep of {count} seeds checks nothing"
     for game in sorted(CAPTURE_GOLDENS):
         want = seeds_for(game)
+        # The EFFECTIVE count, not the override table's entries: a zero
+        # reached through `DEFAULT_SEEDS` empties every capture, and
+        # `assert_golden_seeds` would accept it — nothing captured equals
+        # nothing expected. Checking the table alone leaves that unguarded
+        # while the table is empty, which is exactly its state today.
+        assert want >= 1, f"{game}: a sweep of {want} seeds checks nothing"
         for name in CAPTURE_GOLDENS[game]:
             pinned = len(json.loads((GOLDEN / name).read_text()))
             assert want <= pinned, (

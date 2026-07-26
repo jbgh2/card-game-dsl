@@ -54,7 +54,10 @@ def test_out_of_range_raises() -> None:
 
 from pathlib import Path
 
-import cardlang.openspiel.game as ogame  # the registry of registered games
+# `registry`, NOT `openspiel.game`: game.py registers against pyspiel at
+# import time, and this module must stay collectable on a core install
+# without the optional extra (tests/test_optional_pyspiel.py).
+from cardlang.openspiel.registry import GAMES as REGISTERED
 from cardlang.openspiel.encoding import (
     CARD_VERB,
     COMBO_VERB,
@@ -443,7 +446,7 @@ def _verb_image(space: ActionSpace) -> set[str]:
     return {space.verb_of(a) for a in ids}
 
 
-@pytest.mark.parametrize("filename", sorted(set(ogame.GAMES.values())))
+@pytest.mark.parametrize("filename", sorted(set(REGISTERED.values())))
 def test_declared_verbs_are_exactly_the_verbs_ids_produce(filename: str) -> None:
     """red under: drop `out.update(self._names)` from `ActionSpace.verbs()` —
     12 of the 29 games fail (the 17 with no bare-name block stay green, which
