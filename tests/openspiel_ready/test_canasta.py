@@ -10,13 +10,32 @@ hand (no Go-Fish-style transfer-count ask). A swap between two bystander
 hands touches no publicly-observed card, and the pauser's guards read only
 their own hand plus public state.
 
-`conformance_steps=400`: the full random_sim_test re-simulates the whole
+`conformance_steps=150`: the full random_sim_test re-simulates the whole
 (seed, history) state per action — a four-deal match runs ~1200 decisions,
 the multi-hand score-target class (Bridge, Hearts, Gin) — so the bounded
 random API walk is the sanctioned fallback. `adapter_terminal_steps=None`
 for the same reason: the greedy line (draw + discard every turn, never
 melding — the discard announce's action id sorts below every meld
 announce) completes all four deals only after hundreds of steps.
+
+The bound was 400 and is now 150. Canasta's per-decision cost is the
+corpus's highest (its primitives read 15 zone families), and the walk is
+quadratic in depth because each query re-simulates, so this one test was
+311s — a quarter of the whole suite. Measured on the seed-7 line this walk
+actually takes: **150 steps costs 35.8s against 400 at 311.3s**.
+
+Coverage residual, measured rather than asserted. Every VERB the game
+offers is exercised well inside the new bound — `draw_stock` step 1,
+`start_meld` 2, `stage_card` 3, `close_meld` 11, `end_discard` 20,
+`add_to_meld` 26, `take_pile` 55. What steps 150-400 add is only further
+CARD IDS in the action space (`3♠` first at 155, `A♠` at 211, `J♠` at 377):
+the same announce shapes carrying a different card. Action-id round-tripping
+over the whole space is owned by `tests/test_openspiel_encoding.py`, not by
+this walk, so the deeper steps were re-exercising a covered axis at
+quadratic cost. What is genuinely given up is API conformance in LATE
+multi-deal states — recorded in issue #83 rather than implied here, and
+removed outright by issue #139 (the adapter re-simulates per query, so the
+bound exists to buy back a quadratic, not to express a coverage judgement).
 
 Per-game caveat (recorded, not hidden): the greedy line never melds nor
 takes the pile, so the meld/take projections are asserted by the dedicated
@@ -42,7 +61,7 @@ class TestReadiness(ReadinessProofs):
         "canasta.cardlang",
         depth=12,
         swap_axis="any",
-        conformance_steps=400,
+        conformance_steps=150,
     )
 
 
