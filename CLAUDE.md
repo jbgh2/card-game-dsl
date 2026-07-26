@@ -85,6 +85,18 @@ criterion** — alongside "does it run" and "is it byte-identical":
   `Contract` block of its module docstring — read the owning pass's contract
   before placing a check.
 
+**Execution finds what enumeration cannot.** Every silent-wrong-answer
+and wrong-semantics defect this project has found came from an execution
+oracle — building a game, a differential against a native implementation,
+a metamorphic transform, an instrumented run — and none from inspection,
+the audits included. Enumeration proves the domain is covered; only
+execution can show the domain was the wrong one, or an assumption inside
+a total enumeration was false. So when a choice exists between building
+enforcement machinery and building a witness — a game, a differential, a
+playout policy that reaches unexercised branches — build the witness.
+Implemented-but-never-executed code is where the next silent defect is
+already sitting.
+
 ## What's here
 
 ```
@@ -195,6 +207,11 @@ covers retrieval, so wait for the problem before adding a label.
 so an issue carrying only that label is still unclassified. File the kind with
 the issue; if you genuinely cannot pick one yet, add `needs-triage` and say why
 in the body.
+
+Every issue also states its reachability (R1–R4 — `docs/decisions.md`,
+"Reachability ranks the work") in the body. The tracker exists to order
+work; an issue that does not say who can meet the defect cannot be
+ordered.
 
 The sweep is a **derived query**, not a promise to remember the label — an
 issue filed with no labels at all is exactly the case a `needs-triage`

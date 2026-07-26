@@ -3466,7 +3466,10 @@ domain:     <what is quantified over>
 registry:   <where each axis is derived in code — the grid reads these>
 covered:    <the grid: module + parametrization, not a prose cell list>
 sampled:    <cells covered by example only, and why that suffices>
-residual:   <cells NOT in the grid, uncovered or not-yet-decided — each with its wall and its tracker record (issue #N)>
+residual:   <cells NOT in the grid, uncovered or not-yet-decided — each with
+             its wall, its reachability (R1–R4, "Reachability ranks the
+             work"), and its tracker record (issue #N; R4 records here and
+             needs no issue unless the guarantee is rigor-critical)>
 ```
 
 The gate is symmetric: a residual row without both a wall and a record
@@ -3663,8 +3666,12 @@ every role-id comparison outside the table to carry a marker naming why it
 is not drift, and `tests/test_operand_choke_point.py` requires every
 operand coercion to route through one check. Both derive their own axes
 from the registry they guard, so they widen with it rather than going
-stale. A closed domain with neither an `assert_never` nor a pin is
-unenforced, whatever its consumers currently do.
+stale. Visibility is itself a choice, not a fact of nature: a string
+domain the checker cannot see can usually be promoted to one it can (see
+"Prefer the wall you cannot need"), and the pin is the right mechanism
+only where that promotion is genuinely priced and declined. A closed
+domain with neither an `assert_never` nor a pin is unenforced, whatever
+its consumers currently do.
 
 ### Pin the derivation, not just the instance
 
@@ -3710,6 +3717,87 @@ standing in for an answer the program could have looked up is a silent
 wrong answer. Deciding which side a domain sits on is therefore the first
 question, not an afterthought — and "unsure" resolves to closed, because
 an unnecessary loud failure is cheap and a silent default is not.
+
+### Prefer the wall you cannot need
+
+Enforcement has a ladder, and each rung down costs more to hold:
+
+1. **Unrepresentable** — the illegal state cannot be written: a union the
+   type checker dispatches over, a grammar that cannot produce the
+   combination, a fact derived from one defining site so a second copy
+   cannot exist.
+2. **Derived and pinned** — the fact has one source; consumers derive from
+   it, and a pin catches the consumer that re-spells it.
+3. **A born-green pin with its witness** — behavior already correct,
+   guarded by a check that names its reddening mutation.
+4. **Review-enforced prose** — an authoring rule, held by whoever happens
+   to read it.
+
+Every claim on a lower rung is machinery that must itself be kept honest —
+markers need reasons, reasons need vocabularies, scrapes need manifests —
+and that maintenance is where enforcement findings breed. So a proposed
+pin carries one more line in its ledger: **why the fact cannot live a rung
+higher.** "The domain is strings the checker cannot see" is an answer only
+after asking whether the strings should be a union the checker can see —
+a registry of role ids is a closed domain by definition, which is exactly
+the shape an enum holds for free. A pin whose fact could have been a type
+is built on the wrong rung, and the findings it later generates are the
+interest on that choice.
+
+The rung is a design decision and gets recorded like one: when rung 3 or 4
+is chosen over an available rung 1 or 2, the ledger says why (a subtype
+relation the type system deliberately lacks, a migration priced and
+deferred with its tracker record) — so the next reader finds a decision,
+not a default.
+
+### The machinery is guarded once
+
+These rules bind the shipping surface — grammar, checker, registries,
+runtime, the adapter — and the rigor-critical machinery the
+information-set guarantee rests on: the proof harness, the projections,
+the encodings, the invariants. For those, completeness is measured against
+the domain, as this whole section says.
+
+Enforcement *scaffolding* — the pins, scrapes, hygiene tests, and audit
+tooling built to hold the rules above — is a different case, and the
+difference is load-bearing: every layer of guarding is itself a closed
+domain, so applying this section to its own machinery recurses without a
+base case, and each layer added is new surface for the next audit to find
+wanting. The base case is: **scaffolding carries exactly one level of
+guarding** — a grid's red run, a pin's `red under:` witness — and receives
+no preemptive machinery of its own. A defect *in* scaffolding is fixed
+when it bites (a finding it should have caught and did not), or in a named
+integrity sweep with its own scope, and is filed with its reachability
+stated — never as routine finding fodder. This is corpus-first applied to
+the machine: the witness for meta-machinery is a failure, and waiting for
+it is cheap because the shipping surface underneath is still guarded.
+
+The test for which side something is on: if it fails silently, is a wrong
+game trusted, or a wrong *audit* trusted? The first is rigor-critical.
+The second is scaffolding.
+
+### Reachability ranks the work
+
+Severity says what kind of defect; reachability says who can meet it.
+Every finding, residual cell, and tracker issue states one:
+
+- **R1 — corpus-reachable.** A game in `docs/games/` (or anything trained
+  or proven against one) meets it today.
+- **R2 — designer-reachable.** A checker-green sentence a designer could
+  plausibly write meets it. The design-tool promise binds here: R2 silence
+  is how a designer ships a wrong game.
+- **R3 — witness-gated.** Reaching it requires a construct no corpus game
+  uses; the witness is named.
+- **R4 — auditor-only.** Reaching it requires planting a mutation,
+  widening a registry, or editing the machinery itself.
+
+Disposition follows the tag: R1 is fixed now; R2 is fixed or filed with a
+kind; R3 is a residual with its wall and its record, per the symmetric
+gate; R4 is recorded in the owning ledger and files an issue only when the
+guarded guarantee is rigor-critical. And effort follows it the same way:
+a fix whose size is out of proportion to its reachability routes to
+record-and-file, not to fix-now — the proportionality call is made in
+planning, out loud, not discovered in review.
 
 ## Family libraries
 
