@@ -146,8 +146,7 @@ def _score_key_by_seat(game: n.Game, n_players: int) -> list[int]:
     # tests/test_openspiel_returns_keying.py. Adding a role reddens that pin.
     if role is None or role == "player":
         # Player-indexed, or unindexed — a scalar target never reaches here at
-        # all (`driver` fails building a dict from an int first; roadmap.md,
-        # "Not yet migrated").
+        # all (`driver` fails building a dict from an int first; issue #153).
         # Either way the seat IS its own key.
         return list(range(n_players))
     if role == "team":  # role-compare-ok: the second arm of the same allow-list
