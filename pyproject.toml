@@ -75,6 +75,16 @@ testpaths = ["tests"]
 # default: designed-to-flip cells ride as xfail marks, and a bare mark cannot
 # opt out of failing loud when its cell starts passing.
 xfail_strict = true
+# A parametrization whose axis DERIVES to nothing is a defect, not a skip. The
+# default (`skip`) retires the sweep silently and reports success: an audit of
+# tests/test_role_comparison_pin.py pointed its module glob at a directory that
+# does not exist and the run was `2 passed, 1 skipped`, exit 0 — the whole
+# guarantee gone, green. Every parameter set pytest creates funnels through one
+# choke point, so this covers `parametrize` marks, `metafunc.parametrize` and
+# `fixture(params=)` alike. Axes that are legitimately empty say so at the call
+# site with tests/empty_axis.py's `may_be_empty`, pinned by
+# tests/test_empty_axis_wall.py.
+empty_parameter_set_mark = "fail_at_collect"
 
 [tool.mypy]
 python_version = "3.11"
