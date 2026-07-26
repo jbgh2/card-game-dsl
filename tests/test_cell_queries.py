@@ -109,8 +109,7 @@ residual:   collection-noun quantifiers beyond {cell, line}; the missing
             zone_expr`); the non-literal-`k` `lines(k)` static bound (only
             a literal integer argument is resolve-walled; a computed `k`'s
             out-of-range value surfaces as a runtime `RuntimeError` instead)
-            — all four recorded in roadmap.md "Positional zones — walled
-            residuals", each with the wall that makes it loud rather than
+            — all four recorded in issue #111, each with the wall that makes it loud rather than
             silent (a syntax error, or the runtime refusal) rather than a
             TODO.
 

@@ -38,8 +38,7 @@ Not covered here, and recorded rather than machined: a player who still holds
 men but has no legal step. OpenSpiel's breakthrough leaves such a state
 non-terminal with an empty action list; the DSL would raise instead. It did not
 arise in 400 random games (the smallest offer ever made was 9 steps), so no
-machinery is built for it — see roadmap.md, "Board topology — later-rung
-surface walled at rung 1".
+machinery is built for it — see issue #124.
 """
 
 from __future__ import annotations

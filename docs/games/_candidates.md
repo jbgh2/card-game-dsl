@@ -434,7 +434,7 @@ scale, plus a genuine test of the run-invariant assumption: Spider's
 mid-game deals drop a fresh row onto the piles, so a face-up pile is
 NOT rank-monotone and the rank-filter suffix denotation no longer
 covers every legal unit move — the positional-slice movement
-recorded as deferred in [roadmap.md](../roadmap.md).
+recorded as deferred in issue #111.
 
 ## Boards: the topology witness ladder
 

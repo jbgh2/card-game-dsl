@@ -23,7 +23,7 @@ cannot reproduce, so the iteration was normalized to deck-suit order (the `Suit`
 domain order the auction form enumerates) and the two hash-sensitive seeds (32,
 41 — measured across PYTHONHASHSEED 0..23) regenerated. Any other diff is a
 settlement bug (its six-way settlement has no other independent-recompute net —
-see roadmap.md).
+see issue #83).
 
 `rules.legal_cards` returns a `set`, so the chooser sees candidates in
 hash-dependent order — the per-seed scores vary with `PYTHONHASHSEED`. We capture

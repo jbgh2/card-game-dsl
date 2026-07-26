@@ -263,7 +263,7 @@ def _check_count(count: int, mode: str | None) -> int:
     Negative is never meaningful; zero under `chosen` is a vacuous decision
     node (no-implicit-actions); zero under dealt/`random` is an allowed
     no-op (a computed "deal what remains" may legitimately be zero —
-    recorded in roadmap.md)."""
+    recorded in roadmap.md, "Grammar surface deferred by the checker")."""
     if count < 0:
         raise RuntimeError(
             f"movement amount evaluated to {count} — a negative amount is "

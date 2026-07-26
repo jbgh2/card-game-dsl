@@ -68,8 +68,8 @@ sampled:   Quantifier's four roles (`player`/`team`/`suit`/`rank`) all route
 residual:  same let-bound-locals residual as test_operator_walls.py (a
            `let`-derived aggregation source/body/filter/default stays
            `TAny` and passes every wall here vacuously) — not re-derived,
-           see that module's ledger and roadmap.md, "Let-bound local typing
-           across statements". No new residual is introduced by this
+           see that module's ledger, which owns it. No new residual is
+           introduced by this
            module: the Boolean-default misparse wall is deliberately
            over-broad by design (a `where`-clause-adjacent Boolean default
            is flagged even in the vanishingly unlikely case that a

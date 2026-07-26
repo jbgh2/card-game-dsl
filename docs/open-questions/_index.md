@@ -103,8 +103,23 @@ or when a game forces the issue.
 - [round-state-in-information-states](round-state-in-information-states.md) —
   active `round` state (`state.x` mid-round) appears in no information state;
   harmless while round state stays derivable from the observation log, but
-  nothing enforces that. Data point: the first round state written from
-  hidden contents.
+  nothing enforces that. Carries a sibling axis on the checker's side: a
+  `state.` read is validated against the UNION of every form's published
+  fields, because a rule is not statically attached to a form, so
+  `state.shed_first` inside a trick phase type-checks (loud at runtime, not
+  silent). Data point: the first round state written from hidden contents.
+- [melding-combination-model](melding-combination-model.md) — melding is a
+  game-local primitive per game (Pinochle's flat tally, Canasta's zone
+  censuses), with the one real category overlap resolved by hand. Should the
+  language own a combination model whose *conflict resolution* is declared?
+  Data point: a third melding game whose categories overlap in a way a
+  hand-picked subtraction does not cover (a Rummy-family scorer).
+- [variant-delta-syntax](variant-delta-syntax.md) — "X is Y but with deltas"
+  is how the literature and designers describe variants; the design supports
+  it implicitly (a variant adds/removes rules and phases) but has no syntax,
+  and `uses` shares material rather than expressing overrides. Data point: the
+  smuggling family (`experiments/green-lane/`), a genuine delta lattice, once
+  the family-library tier is measured against it.
 - [special-cards-declaration](special-cards-declaration.md) — `specials:`
   block and contextual-rank cards (Tichu's Mahjong, Dog, Phoenix, Dragon).
 - [out-of-turn-moves](out-of-turn-moves.md) — `out_of_turn_legal`

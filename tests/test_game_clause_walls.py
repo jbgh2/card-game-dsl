@@ -121,8 +121,7 @@ residual:   the declaration/use symmetry the struct-literal exclusion
             the terminal), but inside the domain this module claims, so it
             is named rather than left to look walled. Wall: the empty type
             is inert — nothing can construct it, so no game can depend on
-            one silently doing something. Recorded in docs/roadmap.md,
-            "An empty `type X = { }` is declarable but not constructible".
+            one silently doing something. Recorded in issue #125.
             The content-clause surface adds no residual: `ranking:`/`trump:`
             DECLARED in a piece game, and every other card-content surface,
             are rejected naming the kind by the content-agreement walls

@@ -3,8 +3,7 @@
 
 The playout invariants (test_playout_french_tarot.py) cannot catch a misvalued
 primitive on their own — a wrong `tarot_per_opp` could still zero-sum by
-construction. These pin the published values directly (docs/roadmap.md,
-"Test-depth regression nets"), following the test_pinochle_meld.py /
+construction. These pin the published values directly (issue #83), following the test_pinochle_meld.py /
 test_stud_settle.py precedent for a migrated game's pure-primitive module.
 `tarot_per_opp`'s synthetic `_scoring_ctx` also declares the fidelity stage's
 `discard[player]` zone, so a hand with (or without) taker discards can be

@@ -374,8 +374,7 @@ the `turns` form's `again` axis ([decisions.md](../decisions.md) "The
 `turns` form") plus a position-typed chain-anchor state variable
 (public, as all state is) expresses "same piece continues" —
 position-typed `state` is currently **rejected surface** (a recorded
-walled residual, [roadmap.md](../roadmap.md) "Positional zones —
-walled residuals"); the wall lifts at stage 5, whose Barrage shuttle
+walled residual, issue #111); the wall lifts at stage 5, whose Barrage shuttle
 rule is its first forcing witness, and the chain anchor reuses the
 lift. Mandatory capture is a reusable declarative rule — and that is
 a commitment about where rules are *going*, not a description of
@@ -417,8 +416,8 @@ only declared topology data and zone contents:
   in … where` — one spelling per concept, lifted to positions. This
   is a deliberate **wall-lift**: quantifiers and iteration over
   position domains are currently rejected surface with recorded
-  residuals ([roadmap.md](../roadmap.md) "Positional zones — walled
-  residuals" — no solitaire addressed columns by loop or quantifier);
+  residuals (issue #111 — no solitaire addressed columns by loop
+  or quantifier);
   board win predicates ("any line…", "board full") and fixed setup
   arrays (breakthrough's 16 pieces on two rows) are the witnesses
   those records were waiting for, so the lifts land here with the
@@ -759,10 +758,9 @@ questions, not silently deciding them:
   typecheck wall; the board declaration is `board: <family>(<args>)`
   selecting a `BOARDS` family; and a bare `a1` stays a name, not a minted
   cell constant (cell literals are a recorded residual,
-  [roadmap.md](../roadmap.md)). One-spelling-per-concept held throughout.
+  issue #111). One-spelling-per-concept held throughout.
 - **Position-typed state**: currently rejected surface with a
-  recorded residual ([roadmap.md](../roadmap.md) "Positional zones —
-  walled residuals"); stage 5 lifts it against its first witness
+  recorded residual (issue #111); stage 5 lifts it against its first witness
   (Barrage's two-square tracking), and the draughts chain anchor
   reuses it — public like all state, with the state-type set growing
   by declared position domains.
@@ -780,8 +778,7 @@ questions, not silently deciding them:
   iteration at stage 2, position-typed state at stage 5). The others
   stay walled on their own witnesses — the positional slice movement
   on Spider, the position-family gather on a first gathering layout
-  ([roadmap.md](../roadmap.md) "Positional zones — walled
-  residuals") — and nothing here re-sequences them.
+  (issue #111) — and nothing here re-sequences them.
 
 The ladder's candidates entries are in
 [games/_candidates.md](../games/_candidates.md); per corpus-first

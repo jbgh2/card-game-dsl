@@ -47,9 +47,8 @@ residual:  (a) `action`'s move-type-specific fields (`action.amount`,
            `action.card_count` — named in the grammar comment at
            cardlang/grammar/cardlang.lark:320, used in
            tests/test_construct_combination_validity.py) stay `TAny` —
-           full move-type-aware typing of `action` is out of scope
-           (roadmap.md, "Action-field typing beyond the universal
-           card/actor pair"). (b) The zone-family index check uses
+           full move-type-aware typing of `action` is out of scope, and
+           this ledger is its record. (b) The zone-family index check uses
            `assignable`, which (by an existing, pre-dating-this-change rule
            in `types.assignable`) lets a literal Integer stand for a
            Player/Team identity — so `hand[0]` is ACCEPTED, not rejected.
@@ -60,8 +59,8 @@ residual:  (a) `action`'s move-type-specific fields (`action.amount`,
            alternative for its asymmetric two-hand deal and relies on this
            coercion — a stricter rule would make that corpus file
            inexpressible. Flagged here for a human to overrule if a
-           stricter rule (and a gops.md rewrite) is actually wanted; see
-           roadmap.md, "Zone-family index strictness (deferred re-audit)".
+           stricter rule (and a gops.md rewrite) is actually wanted. This
+           ledger is the record of that deferred re-audit.
 """
 
 from __future__ import annotations

@@ -65,8 +65,7 @@ Completeness ledger
                    '<name>'`; naming the sharper reason (a position domain is
                    not a declared type in this slot) is a message-quality
                    residual, and the grid asserts admit-vs-reject only, not the
-                   message text. Recorded in docs/roadmap.md, "Position domains
-                   in declared-type positions".
+                   message text. Recorded in issue #133.
                 2. NAMESPACES B AND C ARE NOT IN THIS GRID. Zone type names
                    (`Hand<player>`) and role/domain ids (the `player` in
                    `hand[player]`, `for each player`) are type-ish names with
@@ -74,8 +73,7 @@ Completeness ledger
                    enumerated seven such positions. They are a different
                    domain, not a missing part of this one. Their own raggedness
                    -- a zone index admits position domains where a state index
-                   does not -- is recorded in docs/roadmap.md, "The index
-                   position admits different domains per host".
+                   does not -- is recorded in issue #98.
 """
 
 from __future__ import annotations
@@ -338,7 +336,7 @@ def test_the_position_axis_is_the_grammar_s() -> None:
     # the library and quoting the type, so a library-side typo (`Integar`) is
     # surfaced, not silently dropped. The residual is span PRECISION only (the
     # diagnostic lands on the game's `uses` line, not the library's `requires`),
-    # recorded in roadmap.md; the coverage lives in test_family_libraries.py.
+    # recorded in issue #128; the coverage lives in test_family_libraries.py.
     library_only = {"require_decl"}
     missing = carriers - expanded - library_only
     assert not missing, (

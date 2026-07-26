@@ -22,8 +22,8 @@ here where importing it cannot fail on a core install. The derivation reads the
 directory but imports nothing third-party, so that property still holds — in a
 checkout, where `docs/games/` is present. A packaged (wheel) install ships only
 `cardlang*` + grammar/stdlib data, not `docs/games/`, so the corpus is absent
-and the registry cannot be built; that is the standing "Packaging the corpus
-for distribution" residual (docs/roadmap.md), and the empty-directory raise
+and the registry cannot be built; that is the standing corpus-packaging
+residual (issue #97), and the empty-directory raise
 below turns it from a silent no-op into a loud, self-explaining error.
 """
 
@@ -50,7 +50,7 @@ def _derive_games(games_dir: Path) -> dict[str, str]:
       would drop a game from the map — a `dict` keeps the last silently.
     - an EMPTY result means the corpus directory is missing or unpopulated. In
       a checkout the path is wrong; in a packaged install `docs/games/` was not
-      shipped (docs/roadmap.md, "Packaging the corpus for distribution").
+      shipped (issue #97).
       Registering zero games silently is the failure this check exists to catch
       quickly, at adapter import.
     """

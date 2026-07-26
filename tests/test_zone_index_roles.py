@@ -54,8 +54,8 @@ sampled:    the owner==index rule is uniform over domains, so the unequal case
             is probed by representative pairs per category (role/role,
             position/position, position/role, role/position), not every pair
 residual:   value-domain-indexed state (`x[rank]` as a per-rank tally) —
-            walled here, recorded in roadmap.md ("Value-domain-indexed
-            state")
+            walled here, recorded in
+            roadmap.md, "Grammar surface deferred by the checker"
 """
 
 from __future__ import annotations

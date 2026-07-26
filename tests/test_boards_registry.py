@@ -81,7 +81,7 @@ sampled:    16x16 relies on the closed-form count only (brute force over
 residual:   relations (adjacency graphs), jump triples (draughts), track
             frames (backgammon), crownhead / arbitrary-depth home regions, and
             frames for more than two seats are absent from BoardEntry until a
-            witness game needs them (docs/roadmap.md) -- not a gap in this
+            witness game needs them (issue #124) -- not a gap in this
             registry's own domain. The two-seat 180 frame, the seat-relative
             forward directions, and the back-two-ranks / far-rank regions are
             present because breakthrough witnesses them; non-grid families

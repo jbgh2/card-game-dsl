@@ -63,7 +63,8 @@ direction rather than picking a new one.
   values with the enum-comparison wall; suit/rank quantifier and `for each`
   domains; membership `in` with list literals
   ([decisions.md](../decisions.md) "The expression register",
-  [roadmap.md](../roadmap.md) for the walls).
+  [roadmap.md](../roadmap.md), "Grammar surface deferred by the checker",
+  for the walls).
 - **The `count`-body defect** — closed first, independently (the evaluator
   discarded a `count` body silently); the whole aggregator class was swept
   and the retired spelling is now unparseable.
@@ -131,7 +132,7 @@ direction rather than picking a new one.
    not) is now a `binds_actor` column rather than an if-chain, so a new domain
    arrives with its semantic column green. The *grammar* does not yet follow —
    the quantifier productions are still hardcoded nouns — which is the recorded
-   residual in [../roadmap.md](../roadmap.md), and the thing the board-game
+   residual in issue #112, and the thing the board-game
    expansion would need.
 
 Two findings from that work are worth keeping, because both are cases where the

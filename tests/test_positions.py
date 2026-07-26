@@ -46,8 +46,7 @@ sampled:    the canonical gather over a position family (order-preserving
             per the canonical zone-collection rule; no corpus game gathers
             one — decisions.md states the interaction explicitly).
 residual:   `for each <position>` and position-indexed state stores are
-            walled with diagnostics (roadmap.md, "Positional zones —
-            walled residuals"); `top_of`/`bottom_of` in a move GUARD over
+            walled with diagnostics (issue #111); `top_of`/`bottom_of` in a move GUARD over
             a non-identity zone is policed per game by the openspiel_ready
             legal-action-agreement proofs, not statically (same roadmap
             entry).

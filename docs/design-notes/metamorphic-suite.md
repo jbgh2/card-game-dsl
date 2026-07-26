@@ -1,9 +1,8 @@
 # The metamorphic suite: transformations the spec says are meaningless
 
 **Status: implemented (T1/T2/T3/T5); T4 deferred.** This was the
-implementation plan for the metamorphic testing entry in roadmap.md
-("Explicitly deferred"); the suite now lives at `tests/metamorphic/` — see
-roadmap.md's "Semantic invariance" bullet for landed status, the two real
+implementation plan for the metamorphic testing work; the suite now lives
+at `tests/metamorphic/` — see issue #127 for T4's deferral, the two real
 findings the suite surfaced (both real `cardlang/` behaviors, not fixed by
 this suite), and the reasoning for deferring T4 (suit relabeling cannot be a
 pure `Game -> Game` AST transform — a suit's card membership lives in a

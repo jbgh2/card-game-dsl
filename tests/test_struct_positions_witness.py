@@ -5,8 +5,7 @@ No game in `docs/games/` declares a `type`, and none uses a declared position
 domain as a function or move parameter — so both construct families were
 exercised only by unit tests written alongside the code they check. Every
 defect behind the struct/function fixpoint was found by review or adversarial
-probe and none by the suite, for exactly that reason (docs/roadmap.md, "The
-corpus has no witness for user `type` declarations"). This fixture closes the
+probe and none by the suite, for exactly that reason (issue #122). This fixture closes the
 integration half of that hole: the struct registry, a derived field whose body
 calls a function, a struct literal read through that derived field, and a
 position domain in both parameter positions all execute in a played game.

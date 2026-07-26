@@ -19,8 +19,7 @@ the boundary design-notes/primitive-sidecars.md exists to defend). The lookup is
 repo-relative and glob-derived, mirroring ``openspiel/registry.py`` — and it
 inherits that module's packaging limitation unchanged: a wheel install ships
 ``cardlang*`` but not ``docs/``, so this directory would be absent. That is the
-one already-recorded issue in roadmap.md, "Packaging the corpus for
-distribution"; it is a project-level decision (ship both corpus and libraries as
+one already-recorded corpus-packaging issue (#97); it is a project-level decision (ship both corpus and libraries as
 package data, load via ``importlib.resources``) and is deliberately NOT patched
 here, because patching one loader while ``docs/games/`` stays checkout-relative
 would leave the two inconsistent.

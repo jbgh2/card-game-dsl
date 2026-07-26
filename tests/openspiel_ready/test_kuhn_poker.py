@@ -133,8 +133,8 @@ def test_adapter_agrees_over_the_whole_kuhn_tree() -> None:
 
 
 def test_the_imported_raise_is_absent_from_the_action_space() -> None:
-    """Whole-library import does NOT inflate the action space (roadmap.md's
-    first edge on the family-library anchors). `raise` arrives with `uses
+    """Whole-library import does NOT inflate the action space (the family-
+    library tier's first anchor edge, issue #143). `raise` arrives with `uses
     poker_betting` and lands in the game's move-type table, but Kuhn's
     `offering` list omits it — and the OpenSpiel action space is derived from
     the `offering`/`offer` lists, never from the move-type table

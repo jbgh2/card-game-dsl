@@ -46,8 +46,8 @@ below pins each partial's omission set EXACTLY
 (`_DELIBERATE_PARTIAL_OMISSIONS`), so an accidental omission in any game
 still fails. A card whose rank falls outside a partial ranking still
 crashes `rank_value`'s `ctx.rs.rank_index[...]` lookup at runtime instead
-of erroring at resolve time — recorded in docs/roadmap.md ("`ranking:`
-coverage is unchecked"), walled only by that runtime KeyError, not by this
+of erroring at resolve time — recorded HERE, in this module's ledger and
+the strict xfail below, walled only by that runtime KeyError, not by this
 check.
 
 Adjacent cell closed here (same two-source domain, opposite direction):
@@ -257,14 +257,14 @@ def test_card_literal_with_a_nondeck_rank_still_rejected() -> None:
 
 # --- the recorded gap, as an expectation rather than a sentence ------------
 #
-# roadmap.md, "`ranking:` coverage is unchecked": a PARTIAL `ranking:` is a
+# `ranking:` coverage is unchecked: a PARTIAL `ranking:` is a
 # deliberate feature, but a card whose rank falls outside it crashes
 # `rank_value`'s `rank_index` lookup at play time in the wrong currency. The
-# roadmap entry records that half as having no pinning test. This is it.
+# ledger above records that half as having no pinning test. This is it.
 #
 # `xfail_strict` is on (pyproject.toml), so when that lookup is given the
 # runtime's typed currency this test XPASSES and FAILS the build — forcing
-# the roadmap entry to be retired in the same change that closes the gap.
+# the ledger above to be retired in the same change that closes the gap.
 # A prose residual cannot do that; it just quietly stops being true.
 
 
@@ -289,13 +289,13 @@ game Mini {
 def test_a_partial_ranking_accepts_at_check_time() -> None:
     """The deliberate half: a partial `ranking:` is legal, and stays legal.
     If this ever rejects, the runtime gap below is unreachable and both this
-    test and the roadmap entry need revisiting."""
+    test and the ledger above need revisiting."""
     assert check_dsl(_PARTIAL_RANKING_GAME, "partial.cardlang") is not None
 
 
 @pytest.mark.xfail(
     raises=KeyError,
-    reason="roadmap.md '`ranking:` coverage is unchecked': rank_value's "
+    reason="`ranking:` coverage is unchecked: rank_value's "
     "rank_index lookup has no wall, so a rank outside a partial ranking "
     "surfaces as a bare KeyError instead of the runtime's typed currency",
 )

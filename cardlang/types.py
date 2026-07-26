@@ -134,8 +134,7 @@ class TCollection:
     be PRESERVED by every site that rebuilds one — an obligation that already
     bit once (`unify` dropped both facets; see its docstring). The promotion
     path to real nominal kinds (`TZone`, `TMap`), and the three named
-    triggers that would fire it, are recorded in roadmap.md, "Collection
-    facets vs nominal kinds"."""
+    triggers that would fire it, are recorded in issue #123."""
 
     element: "Type"
     key: "Type | None" = None

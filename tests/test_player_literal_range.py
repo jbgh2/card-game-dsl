@@ -73,10 +73,10 @@ sampled:    the Team axis runs two positions (a team-keyed index, a Team call
 residual:   `partnerships:` seat/team lists (`partnerships: [[0, 5]]` on a
             two-seat game) are raw parse-time integers OUTSIDE the type system --
             they never become an operand expression, so the choke point cannot
-            reach them (roadmap.md, "Out-of-range seats in a `partnerships:`
-            list"). A COMPUTED out-of-range index (`hand[0 + 9]`) is the separate
-            "Zone-family index strictness" roadmap entry, backstopped at runtime
-            by the typed `ZoneStore` miss.
+            reach them (roadmap.md, "Not yet migrated"). A COMPUTED
+            out-of-range index (`hand[0 + 9]`) is the separate zone-family
+            index-strictness residual (ledger tests/test_zone_family_typing.py),
+            backstopped at runtime by the typed `ZoneStore` miss.
 """
 
 from __future__ import annotations

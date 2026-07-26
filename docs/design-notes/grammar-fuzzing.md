@@ -1,11 +1,10 @@
 # Grammar fuzzing: mechanized surface totality
 
 **Status: implemented (T1/T2/T3); T4/T5 deferred.** This was the
-implementation plan for the fuzzing entry in roadmap.md ("Explicitly
-deferred") — corpus mutation and grammar-directed generation behind one
-oracle. The suite now lives at `tests/fuzz/` — see roadmap.md's "Mechanized
-surface totality" bullet for landed status, the six findings the discovery
-sweep surfaced (recorded, not fixed, in `tests/fuzz/findings.py`'s
+implementation plan for the fuzzing work — corpus mutation and
+grammar-directed generation behind one oracle. The suite now lives at
+`tests/fuzz/` — see issue #109 for T4/T5's deferral and the six findings
+the discovery sweep surfaced (recorded, not fixed, in `tests/fuzz/findings.py`'s
 `KNOWN_FINDINGS`), and the reasoning for deferring T4 (grammar-directed
 generation) and T5 (mechanized shrinking — every finding above was shrunk by
 hand instead). This file stays as the design record; `tests/fuzz/oracle.py`,

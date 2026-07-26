@@ -110,16 +110,15 @@ Completeness ledger
                    resolve, unchanged. Witnessed by
                    `test_a_non_row_noun_parses_but_is_rejected_at_resolve`, which
                    pins the current mechanism in place of the retired one.
-                   Recorded in docs/roadmap.md ("Quantifier productions are not
-                   registry-derived").
+                   Recorded in issue #112.
                 2. `each player simultaneously` accepts a body that is not a
                    `chosen` movement (`marker[0] += 1`, or a plain `move one card
                    …`), then dies on a BARE ASSERT in `execute._pass_selection`.
                    Pre-existing, and on the form's BODY axis rather than this
                    module's domain axis — the domain gate is total; the body gate
                    is missing. Wrong failure currency (a bare assert, not a
-                   diagnostic). Recorded in docs/roadmap.md ("`each …
-                   simultaneously` body shape is unchecked").
+                   diagnostic). Recorded here, in this ledger, which owns
+                   it: the form's BODY axis has no other home.
 """
 
 from __future__ import annotations

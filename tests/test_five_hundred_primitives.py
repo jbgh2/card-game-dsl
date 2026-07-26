@@ -28,8 +28,7 @@ residual:   the lead-time joker nomination Pagat allows when leading an
             un-nominated joker (modelled as "not before the holder's last
             card" — the wall is `lead_ok` returning False, loud as an empty
             candidate set never arises and the restriction is documented in
-            five-hundred.md "Chosen ruleset"; recorded in roadmap.md,
-            "Deferred work")
+            five-hundred.md "Chosen ruleset"; recorded in issue #106)
 """
 
 from __future__ import annotations

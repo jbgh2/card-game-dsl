@@ -93,7 +93,7 @@ docs/
   model.md               Primitives + phase/state/move-type/rule relationship
   library.md             The Trick mechanic + standard library catalogue
   decisions.md           Settled design decisions (the load-bearing spec)
-  roadmap.md             Explicitly deferred work + suggested next steps
+  roadmap.md             Out-of-scope list + the checker's walls ledger
   implementation.md      Plan for building the parser + static checker (tooling)
   building.md            Front-end execution blueprint (pipeline, triage, gates)
   kernel-migration.md    Stage plan: remove per-game Python mechanics → DSL kernel
@@ -118,7 +118,7 @@ docs/
 - **"How do I start a new piece of work?"** → the `cardlang-planning` skill (`.claude/skills/`) — the ordered planning gates; run it before exploring or entering plan mode
 - **"How complete must a new construct be?"** → `docs/decisions.md`, "Surface totality" (grammar surface) and "Closed-domain completeness" (the machinery beneath it); the mechanized gate is the `surface-totality-audit` skill (`.claude/skills/`)
 - **"What's still being decided?"** → `docs/open-questions/_index.md` then the named file
-- **"What should we build next?" / "In what order?"** → `docs/roadmap.md`, "Suggested next steps, in order" — the authority on cross-cutting task sequence. `docs/open-questions/_index.md` owns question *priority*; `docs/games/_candidates.md` holds the full game pipeline.
+- **"What should we build next?" / "In what order?"** → the GitHub tracker: [issue #143](https://github.com/jbgh2/card-game-dsl/issues/143), the pinned ordering issue, is the authority on cross-cutting task sequence. `docs/open-questions/_index.md` owns question *priority*; `docs/games/_candidates.md` holds the full game pipeline.
 - **"How do we build the tooling (parser/checker)?"** → `docs/implementation.md`, `docs/building.md`
 - **"How do we remove the per-game Python mechanics?"** → `docs/kernel-migration.md`
 - **"Which game uses which state variable?"** → `docs/appendix.md` (corpus catalogue)
@@ -163,10 +163,42 @@ test — axes derived in code, expected outcomes authored red BEFORE the
 implementation exists), misuse-probe **rejection tests** (the most plausible
 wrong sentences, each proven loud in the right layer's currency), and the
 **completeness ledger** (judgment columns in the grid module's docstring —
-`covered` IS the grid; no residual cell without both a wall and a roadmap.md
-record; born-green pins name their reddening mutation). A green suite
-must never stand in for this gate: the suite proves nothing about cells no
-test names.
+`covered` IS the grid; no residual cell without both a wall and a tracker
+record, cited as `issue #N`; born-green pins name their reddening
+mutation). A green suite must never stand in for this gate: the suite proves
+nothing about cells no test names.
+
+## The tracker
+
+Deferred **work** lives in GitHub issues
+(<https://github.com/jbgh2/card-game-dsl/issues>), not in `docs/`.
+Two sections stay behind, and neither is work: `docs/roadmap.md`, "Out of
+scope", and `docs/roadmap.md`, "Grammar surface deferred by the checker".
+When you defer a cell, file an issue and cite it as `issue #N` in the
+completeness ledger — a residual with no tracker record does not land.
+
+One carve-out, because it is what the repo actually does: a residual that is
+**not work** — a recorded constraint or trap, deliberately not-to-be-fixed
+(`hand[0]` coercing, `action`'s move-type-specific fields staying `TAny`) —
+records in its own ledger and needs no issue. The ledger must then SAY it owns
+the record, so "no issue" reads as a decision rather than an omission. If the
+cell is something anyone might one day build, it is work: file the issue.
+
+Keep the label set minimal. The whole vocabulary is `bug`, `enhancement`,
+`documentation`, `epic`, `tech-debt`, and `blocked:needs-witness`; area
+labels (checker/runtime/testing) were rejected deliberately — semantic issue
+search covers retrieval, so wait for the problem before adding a label.
+
+- **`blocked:needs-witness`** requires the body to NAME the game or data
+  point that unblocks it. A witness-gated issue with no named witness is the
+  corpus-first rule stated without its evidence, so the label does not apply.
+- **`epic`** issues are checklist containers for multi-stage workstreams;
+  they hold sub-items, not work of their own.
+- Every migrated issue carries a `## Provenance` line naming its source.
+  Keep that habit for new issues that split off an existing one.
+
+[Issue #143](https://github.com/jbgh2/card-game-dsl/issues/143) is the pinned
+ordering issue and the authority on cross-cutting task sequence.
 
 ## Operating rules (load-bearing)
 
@@ -218,7 +250,7 @@ cold and play a hand. That's the acceptance test for clarity.
 
 When you need to look up a game's rules — to check a detail of a game
 already in `docs/games/`, or to size up a candidate game from
-`docs/roadmap.md` — **Pagat.com (https://www.pagat.com/) is the
+`docs/games/_candidates.md` — **Pagat.com (https://www.pagat.com/) is the
 authoritative source**. Fetch the page live rather than reconstructing
 rules from memory; trick-taking variants drift in small ways that matter
 to the DSL (lead order, exact scoring, partnership choice). Don't mirror
@@ -226,6 +258,6 @@ or scrape the site — use it on demand, like any other reference.
 
 ## Out of scope (current phase)
 
-CCG-style card effects (Magic, Yu-Gi-Oh!), deck-builders, and solitaire
-positional layouts are deferred. See `docs/roadmap.md` for the full list of
-explicitly deferred work and the ordered next steps.
+CCG-style card effects (Magic, Yu-Gi-Oh!) and deck-builders are deferred.
+See `docs/roadmap.md` for the full list of what is out of scope and which
+grammar surface the checker defers; the tracker holds the deferred *work*.

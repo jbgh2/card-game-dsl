@@ -106,7 +106,8 @@ def test_declared_struct_type_is_accepted() -> None:
 def test_named_call_arguments_are_rejected() -> None:
     # The grammar admits f(x = 1); typecheck skipped the value expression and
     # the runtime crashed with NotImplementedError. Statically rejected until
-    # a game needs the surface (Surface totality; recorded in roadmap.md).
+    # a game needs the surface (Surface totality; recorded in
+    # roadmap.md, "Grammar surface deferred by the checker").
     with pytest.raises(DiagnosticError) as e:
         resolve(parse_text(_game("team_of(x = 1)"), "t.cardlang"))
     assert "named call arguments are not supported" in e.value.diagnostic.message

@@ -170,7 +170,8 @@ Defining a game-local rule under a library name is rejected (a local copy
 would drift from the shared body silently). A parameterized rule is a
 template: the reference passes arguments (`NoLeadingSuitUntilBroken(hearts)`)
 and the resolver substitutes them into the body. Template parameter domains
-are `Suit` only, corpus-first ([roadmap.md](roadmap.md)); games may declare
+are `Suit` only, corpus-first
+([roadmap.md](roadmap.md), "Grammar surface deferred by the checker"); games may declare
 their own parameterized rules with the same instantiation semantics.
 
 The library:
@@ -471,7 +472,7 @@ visibility, and the projection model".
   - emptiness is `<zone> is empty` / `is not empty`.
   Resource queries (`amount_of(type)`, `total_amount`, `types_present`)
   are unbuilt — the corpus keeps chips as Integer state
-  ([roadmap.md](roadmap.md), resource movements).
+  ([roadmap.md](roadmap.md), "Grammar surface deferred by the checker" — resource movements).
 
 ### Library zone types
 
@@ -726,7 +727,7 @@ the variable is not allocated.
   in-rules opener (Coup) relies directly on the runtime seed.
   Pre-game randomization (low-cut, coin-flip, "winner of the last
   game") is the runtime's concern, not the rules engine's. A dedicated
-  first-player syntax is deferred — see [roadmap.md](roadmap.md).
+  first-player syntax is deferred — see issue #120.
 
 ## Stdlib functions
 

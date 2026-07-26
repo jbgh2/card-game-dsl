@@ -50,10 +50,9 @@ residual:   `coup_game_summary` — a third dead-`let` trace emitter by call
             recomputes conservation totals from engine state, not from
             movement views, so its harness reproduction is its own design
             step. Wall: the staged plan (primitive-sidecars.md §5);
-            record: docs/roadmap.md ("Primitive sidecars" entry). The
-            prose scan deliberately covers only the spec-current surface —
-            design notes and the roadmap legitimately name the evicted
-            names when describing this very migration.
+            record: issue #142. The prose scan deliberately covers only
+            the spec-current surface — design notes legitimately name the
+            evicted names when describing this very migration.
 
 red under (born-green cells):
 - test_never_in_other_namespaces: adding "coup_note_reveal" to

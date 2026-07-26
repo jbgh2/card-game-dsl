@@ -123,7 +123,7 @@ residual:   * `role_static_members` (cardlang/domains.py) grows NO `dir` branch:
               fire -- the loud signal to wire the branch honestly.
             * a member name (`ahead`) as an expression stays an unknown-name
               diagnostic (no direction literals); witness for direction
-              constants is deferred (roadmap.md), the cell-literal twin.
+              constants is deferred (issue #124), the cell-literal twin.
             * the movement VERBS (`neighbor`/`has_step`/`is_diagonal`) and the
               per-player frame offsets are later tasks; `BoardEntry.directions()`
               returns only the member NAMES here.

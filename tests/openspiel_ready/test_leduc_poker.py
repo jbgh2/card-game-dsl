@@ -87,7 +87,7 @@ def _seed_for(match: Any) -> int:
     raise AssertionError("no seed produced the requested Leduc deal within 400 tries")
 
 
-# --- the family-varying raise cap (roadmap.md's second anchor edge) ---
+# --- the family-varying raise cap (the tier's second anchor edge, #143) ---
 
 
 def test_the_raise_cap_is_family_varying_required_state() -> None:

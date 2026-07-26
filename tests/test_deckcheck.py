@@ -30,8 +30,7 @@ sampled:    the inert group (let/assign/rotate/offer/round/produce/jumps) is
             asserted inert by the match arms' own comments; no per-kind probe,
             since inertness is "no Movement reachable", a structural fact
 residual:   draws inside MOVE effects (via `offer`/rounds) are outside the
-            gate's domain — not statically boundable; recorded in roadmap.md
-            ("The deck-capacity gate does not see move-driven draws")
+            gate's domain — not statically boundable; recorded in issue #135
 """
 
 from __future__ import annotations
