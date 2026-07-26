@@ -285,7 +285,7 @@ def test_a_binder_kind_can_be_absent_from_the_scope_field_table() -> None:
         ref = n.NameRef(pronoun, ref_kind="pronoun")
         try:
             return evaluate(ref, base.acting_as(seat))
-        except Exception as exc:  # a pronoun undefined here is a stable answer
+        except Exception as exc:  # noqa: BLE001 -- a pronoun undefined here is a stable answer; narrowing makes the grid vacuous for every pronoun that refuses
             return f"{type(exc).__name__}"
 
     tracking = {p for p in _PRONOUNS if read(p, 0) != read(p, 1)}

@@ -55,8 +55,27 @@ cardlang = ["grammar/*.lark", "stdlib/*.cardlang"]
 #         tests/test_assert_triage.py is the gate that enforces it. All 13
 #         sites already raise one of those two, so the rule asks for a third
 #         currency the repo's own wall forbids.
-# Nothing else is silenced: the rest of the version's defaults are in force.
-ignore = ["B009", "B010", "PLC0414", "TRY004"]
+#   PLC0206 wants `.items()` where a loop iterates keys and indexes the dict.
+#         Every site either uses the key to build a value (`Card(tr, s)`) or
+#         indexes a SECOND dict by the same key, so `.items()` removes at most
+#         one lookup of two and costs a loop variable. No correctness content.
+# Nothing else is silenced repo-wide: the rest of the version's defaults are
+# in force, and the handful of deliberate one-off sites carry a `noqa` naming
+# the reason (RUF100 fails the lint if one of those ever stops applying).
+ignore = ["B009", "B010", "PLC0206", "PLC0414", "TRY004"]
+
+[tool.ruff.lint.per-file-ignores]
+# B023 fires on the tracer idiom the playout suite is built from: a per-seed
+# accumulator list, a closure over it, and `play_game(game, rng, tracer)` on
+# the next line. The closure never outlives its iteration, so the late-binding
+# bug B023 exists to catch cannot occur — 62 sites across 18 files, swept by
+# AST (every load of the closure name is an argument of a call inside the same
+# loop) before this line was written. Production code keeps the rule: nothing
+# under `cardlang/` trips it today, and a closure stored there would be real.
+# NOTE: that sweep was a one-time check, not a standing one. Mechanizing it as
+# a pin (no closure defined in a loop is stored, returned, or appended) is the
+# honest follow-up; until then this ignore rests on a comment.
+"tests/*" = ["B023"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

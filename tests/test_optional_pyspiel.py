@@ -57,7 +57,7 @@ print("CORE-OK", len(GAMES))
 
 
 def test_core_path_runs_without_pyspiel() -> None:
-    proc = subprocess.run(
+    proc = subprocess.run(  # noqa: PLW1510 -- the returncode assert below carries proc.stderr; CalledProcessError would not
         [sys.executable, "-c", _SCRIPT],
         cwd=REPO,
         capture_output=True,
