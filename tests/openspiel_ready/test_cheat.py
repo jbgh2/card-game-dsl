@@ -54,7 +54,7 @@ from cardlang.runtime.values import Card, build_deck
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 from .partition import first_divergence, record
-from .worlds import plan_worlds, permuted_replay
+from .worlds import permuted_replay, plan_worlds
 
 PATH = str(GAMES_DIR / "cheat.cardlang")
 
@@ -279,7 +279,7 @@ def test_decode_pin_violation_trips_the_replay_wall() -> None:
     hist = _challenge_rich_line(seed)
     pause_a, plan = plan_worlds(PATH, seed, hist, 0, "hand")
     initial = _initial_hands(seed)
-    _, space = load(PATH)
+    _, _space = load(PATH)
     by_render = {str(c): c for c in build_deck("standard52")}
 
     flipped = [

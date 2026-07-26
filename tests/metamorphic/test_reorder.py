@@ -53,7 +53,6 @@ from cardlang.diagnostics import DiagnosticError
 from cardlang.parse import parse_text
 from cardlang.pipeline import _check
 from cardlang.resolve import _walk
-
 from tests.metamorphic import pairing
 from tests.metamorphic.reorder import reorder_declarations
 

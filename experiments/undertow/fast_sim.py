@@ -35,7 +35,14 @@ class Sim:
     """One hand of Undertow. Mutable; copy() before speculative play."""
 
     __slots__ = (
-        "hands", "trump", "leader", "to_play", "trick", "tricks_won", "played", "history",
+        "hands",
+        "history",
+        "leader",
+        "played",
+        "to_play",
+        "trick",
+        "tricks_won",
+        "trump",
     )
 
     def __init__(self, hands: list[list[int]], leader: int | None = None) -> None:
@@ -52,7 +59,7 @@ class Sim:
         self.played: list[int] = []              # all cards played, in order
         self.history: list[list[tuple[int, int]]] = []  # completed tricks
 
-    def copy(self) -> "Sim":
+    def copy(self) -> Sim:
         s = Sim.__new__(Sim)
         s.hands = [list(h) for h in self.hands]
         s.trump = self.trump

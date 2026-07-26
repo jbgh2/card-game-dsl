@@ -186,7 +186,7 @@ def _hand_value(h: _Hand) -> tuple[dict[int, int], str]:
     trump = h.trump
     takes = [(p, name, param) for p, name, param in h.bids if name != "pass"]
     assert len(takes) == 1, f"expected exactly one take, got {takes}"
-    taker, take_name, take_param = takes[0]
+    taker, _take_name, _take_param = takes[0]
     taking = TEAM_OF[taker]
 
     # The deal reconstructs from the plays; conservation over the pack.

@@ -91,7 +91,7 @@ from pathlib import Path
 
 import pytest
 
-from .findings import KNOWN_FINDINGS, FINDINGS_DIR, Finding
+from .findings import FINDINGS_DIR, KNOWN_FINDINGS, Finding
 from .mutate import MUTATORS, mutate_text
 from .oracle import OracleOutcome, PlayoutOutcome, run_oracle, run_playout
 

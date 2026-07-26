@@ -88,8 +88,7 @@ import pytest
 
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
-from cardlang.typecheck import KNOWN_TYPE_NAMES
-from cardlang.typecheck import OP_CLASSES, infer
+from cardlang.typecheck import KNOWN_TYPE_NAMES, OP_CLASSES, infer
 
 # --- shared minimal-game builder (mirrors test_zone_family_typing.py) ---
 
@@ -149,7 +148,7 @@ def test_op_classes_is_exactly_infers_binop_registry() -> None:
 def test_an_unclassified_operator_fails_loud_not_silent() -> None:
     """`_op_class` itself, exercised directly: every real operator classifies
     (no AssertionError) — the runtime backstop behind the static pin above."""
-    from cardlang.typecheck import _op_class  # noqa: PLC0415
+    from cardlang.typecheck import _op_class
 
     for op in OP_CLASSES:
         _op_class(op)  # must not raise

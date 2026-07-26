@@ -84,7 +84,6 @@ import pytest
 
 from cardlang.ast import nodes as n
 from cardlang.resolve import _walk
-
 from tests.metamorphic import pairing
 from tests.metamorphic.inline import splice_procedures
 

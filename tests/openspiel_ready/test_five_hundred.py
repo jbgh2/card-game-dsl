@@ -38,7 +38,7 @@ class TestReadiness(ReadinessProofs):
     )
 
 
-def _drive_open_misere(seed: int) -> "tuple[list[int], Pause] | None":
+def _drive_open_misere(seed: int) -> tuple[list[int], Pause] | None:
     """Drive: dealer 1, opener P2 bids open misère, the rest pass; P2 takes
     the kitty (three greedy discard picks), declines the nomination, and
     trick 1 is steered to make the DECLARER LOSE it (he leads his lowest;
@@ -46,7 +46,7 @@ def _drive_open_misere(seed: int) -> "tuple[list[int], Pause] | None":
     misère survives into trick 2 — where the exposure fires. Returns None
     when the steering fails for this seed (the declarer's lowest card still
     won the trick)."""
-    game, space = load(PATH)
+    _game, space = load(PATH)
     om = space.encode(("bid_open_misere", None))
     pa = space.encode(("pass", None))
     decline = space.encode("decline_nomination")
@@ -88,7 +88,7 @@ def test_auction_masks_are_the_ladder_rules() -> None:
     misère and every real strain are open, and the deck-derived "joker"
     pseudo-strain is masked. After ♠6-♠7, misère opens; above its rung it
     closes again."""
-    game, space = load(PATH)
+    _game, space = load(PATH)
     bid_s = space.encode(("submit_bid", "spades"))
 
     r = run(PATH, 3, ())
@@ -175,11 +175,11 @@ def test_plain_misere_never_exposes_the_declarer() -> None:
     declarer's hand stays a count to the defenders for the whole contract,
     and the exposed zone stays empty. Line: ♠6 (P2), ♠7 (P3), misère (P0),
     pass, pass, pass -> P0 declares misère; P2 (P0's partner) sits out."""
-    game, space = load(PATH)
+    _game, space = load(PATH)
     bid_s = space.encode(("submit_bid", "spades"))
     mis = space.encode(("bid_misere", None))
     pa = space.encode(("pass", None))
-    declarer, partner = 0, 2
+    declarer, _partner = 0, 2
     seed = 11
 
     hist = [bid_s, bid_s, mis, pa, pa, pa]
@@ -215,7 +215,7 @@ def test_joker_suit_is_never_nominable() -> None:
     joker is held) and the deck-derived "joker" suit never is. Seed 3's
     declarer holds the joker (the driven reveal line relies on it), so the
     positive arm is exercised, not vacuous."""
-    game, space = load(PATH)
+    _game, space = load(PATH)
     om = space.encode(("bid_open_misere", None))
     pa = space.encode(("pass", None))
     seed = 3

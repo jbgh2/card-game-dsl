@@ -44,7 +44,7 @@ def test_discard_derives_hidden_observations() -> None:
     event's *shape*, per the Pinochle/Stud precedent).
     """
     path = str(GAMES_DIR / "french-tarot.cardlang")
-    game, space = load(path)
+    _game, space = load(path)
     seed = 0
 
     history: list[int] = []

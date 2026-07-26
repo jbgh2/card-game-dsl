@@ -47,7 +47,6 @@ residual:   a `direction` override clause — not grammar (no corpus user);
 from __future__ import annotations
 
 import random
-from typing import Any
 
 import pytest
 

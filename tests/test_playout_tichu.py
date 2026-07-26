@@ -20,13 +20,14 @@ call profile), uniform otherwise.
 from __future__ import annotations
 
 import random
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from cardlang.pipeline import check_source
 from cardlang.runtime.chooser import random_chooser
-from cardlang.runtime.driver import play_game
 from cardlang.runtime.combinations import Play, _combos, _legal_follows
+from cardlang.runtime.driver import play_game
 from cardlang.runtime.values import Card, Player
 from tests.playout_trace import TichuHands
 

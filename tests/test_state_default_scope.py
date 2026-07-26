@@ -202,13 +202,13 @@ def test_the_grid_commands_both_outcomes() -> None:
 # prove nothing.
 _CALL_CELLS: dict[str, tuple[str, str]] = {
     "reads-later-var": (
-        "state { score[player] : Integer = 0"
-        "  b : Integer = helper()  a : Integer = 7 }",
+        ("state { score[player] : Integer = 0"
+         "  b : Integer = helper()  a : Integer = 7 }"),
         "a",
     ),
     "reads-earlier-var": (
-        "state { score[player] : Integer = 0"
-        "  a : Integer = 7  b : Integer = helper() }",
+        ("state { score[player] : Integer = 0"
+         "  a : Integer = 7  b : Integer = helper() }"),
         "a",
     ),
     "reads-no-state": (

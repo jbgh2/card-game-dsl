@@ -28,7 +28,7 @@ would leave the two inconsistent.
 
 from __future__ import annotations
 
-from functools import lru_cache
+from functools import cache, lru_cache
 from pathlib import Path
 
 from cardlang.ast import nodes as n
@@ -57,7 +57,7 @@ def library_names() -> frozenset[str]:
     return frozenset(p.stem for p in _libraries_dir().glob("*.cardlang"))
 
 
-@lru_cache(maxsize=None)
+@cache
 def load_library(name: str) -> n.Library:
     """Parse the named family library. Callers check `name in library_names()`
     first: an unknown library is an author error carrying the game's `uses`

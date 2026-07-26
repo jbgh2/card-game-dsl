@@ -11,9 +11,9 @@ import pytest
 
 pyspiel = pytest.importorskip("pyspiel")
 
-import cardlang.openspiel.game  # noqa: E402  (registers all six games on import)
-from cardlang.openspiel.infostate import information_state  # noqa: E402
-from cardlang.openspiel.replay import Pause, run  # noqa: E402
+import cardlang.openspiel.game  # noqa: F401  (registers all six games on import)
+from cardlang.openspiel.infostate import information_state
+from cardlang.openspiel.replay import Pause, run
 
 HEARTS = str(Path(__file__).resolve().parent.parent / "docs" / "games" / "hearts.cardlang")
 

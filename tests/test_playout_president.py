@@ -24,16 +24,16 @@ from pathlib import Path
 from typing import Any
 
 from cardlang.pipeline import check_source
+from cardlang.runtime import reads, sidecar
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.president import (
     _STRENGTH,
+    ROW,
     Play,
     president_follows,
     president_lead_options,
     president_universe,
 )
-from cardlang.runtime import reads, sidecar
-from cardlang.runtime.president import ROW
 from cardlang.runtime.state import RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating
 

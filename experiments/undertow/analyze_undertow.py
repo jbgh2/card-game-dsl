@@ -24,7 +24,6 @@ from collections import defaultdict
 from typing import Any
 
 import pyspiel
-
 import utcommon
 
 N_SEEDS = 2048

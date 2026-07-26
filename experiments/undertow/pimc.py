@@ -238,7 +238,6 @@ def bench(n_games: int) -> None:
         means.append(tot / (n_games // 4))
         print(f"  seat {seat}: PIMC mean tricks {means[-1]:.3f} (random baseline 3.25)")
     overall = sum(means) / 4
-    sd = statistics.pstdev(means)
     out = {
         "pimc_vs_3_random_mean_tricks": round(overall, 3),
         "by_seat": [round(m, 3) for m in means],

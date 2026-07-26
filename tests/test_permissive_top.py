@@ -133,6 +133,7 @@ from cardlang.pipeline import check_dsl
 from cardlang.stdlib.functions import STDLIB_CALL_FUNCS
 from cardlang.stdlib.signatures import CALL_SIGS, ZONE_CONTENT
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
+from cardlang.typecheck import TypeEnv, infer
 from cardlang.types import (
     TAny,
     TBoolean,
@@ -145,7 +146,6 @@ from cardlang.types import (
     assignable,
     unify,
 )
-from cardlang.typecheck import TypeEnv, infer
 
 CARDLANG_ROOT = Path(typecheck.__file__).parent
 

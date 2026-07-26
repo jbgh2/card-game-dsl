@@ -276,7 +276,7 @@ class Choose:
     span: Span | None = None
 
 
-def simultaneous_body_error(body: "Stmt") -> str | None:
+def simultaneous_body_error(body: Stmt) -> str | None:
     """Why `body` cannot be the body of `each <role> simultaneously:`, or None if it
     can. THE single statement of that requirement.
 
@@ -309,7 +309,7 @@ def simultaneous_body_error(body: "Stmt") -> str | None:
     return None
 
 
-def static_ceiling(choose: "Choose") -> int | None:
+def static_ceiling(choose: Choose) -> int | None:
     """The choose's static upper bound: its declared ``up to N`` ceiling if
     present, else the value of a literal ``hi``. ``None`` when neither yields a
     static integer — a choose the resolver rejects (surface totality) and that
@@ -666,7 +666,7 @@ class Block:
     running total, and the very same program was accepted written inline and rejected
     written as a `run`. That is the one property the construct exists to guarantee."""
 
-    body: tuple["Stmt", ...]
+    body: tuple[Stmt, ...]
     span: Span | None = None
 
 
@@ -1272,7 +1272,7 @@ Node = (
 )
 
 
-def state_blocks(game: "Game") -> list["StateBlock"]:
+def state_blocks(game: Game) -> list[StateBlock]:
     """Every state block a game declares: the game-level one and every phase's,
     nested phases included.
 
@@ -1282,11 +1282,11 @@ def state_blocks(game: "Game") -> list["StateBlock"]:
     keyed by team. A second copy of the walk would drift the day state becomes
     declarable somewhere new, and the two readers would disagree about what a
     game declares."""
-    blocks: list["StateBlock"] = []
+    blocks: list[StateBlock] = []
     if game.state is not None:
         blocks.append(game.state)
 
-    def rec(phase: "Phase") -> None:
+    def rec(phase: Phase) -> None:
         for item in phase.items:
             if isinstance(item, StateBlock):
                 blocks.append(item)

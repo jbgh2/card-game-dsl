@@ -9,17 +9,18 @@
 from __future__ import annotations
 
 import random
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 from cardlang.ast import nodes as n
 from cardlang.board_domains import directions_of, position_domains_of
 from cardlang.domains import role_members
-from cardlang.stdlib.boards import board_entry
 from cardlang.runtime import phases
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.evaluate import evaluate
-from cardlang.runtime.execute import execute, run_body as run_stmts
+from cardlang.runtime.execute import execute
+from cardlang.runtime.execute import run_body as run_stmts
 from cardlang.runtime.state import (
     Chooser,
     ChooserAbort,
@@ -39,6 +40,7 @@ from cardlang.runtime.values import (
     deck_ranks,
     deck_suits,
 )
+from cardlang.stdlib.boards import board_entry
 
 
 @dataclass(frozen=True, slots=True)

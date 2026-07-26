@@ -190,7 +190,7 @@ def test_belote_rebelote_reveals_exactly_the_partner_card() -> None:
             if e[0] == "announce" and e[2] == "say_belote"
         )
         sayer = log[idx][1]
-        assert sayer == 2, f"the pinned seed-0 belote line changed — re-pin"
+        assert sayer == 2, "the pinned seed-0 belote line changed — re-pin"
         # No reveal from the sayer's hand before the announcement.
         assert not any(
             e[0] == "reveal" and e[1] == "hand[2]" for e in log[:idx]

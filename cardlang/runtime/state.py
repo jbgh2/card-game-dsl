@@ -10,8 +10,9 @@ local bindings (lambda/comprehension/for-each binders), and the bound
 from __future__ import annotations
 
 import random
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field, replace
-from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping
+from typing import TYPE_CHECKING, Any
 
 from cardlang.ast import nodes as n
 from cardlang.domains import ZONE_INDEX_ROLES, DomainSources, role_static_members
@@ -58,11 +59,11 @@ class ChooserAbort(Exception):
     as ``rs`` before re-raising, so the caller can inspect the paused world.
     """
 
-    def __init__(self, player: "Player", legal: object) -> None:
+    def __init__(self, player: Player, legal: object) -> None:
         super().__init__("chooser aborted the playout (steppable adapter)")
         self.player = player
         self.legal = legal
-        self.rs: "RuntimeState | None" = None
+        self.rs: RuntimeState | None = None
 
 
 class Zone:
@@ -120,7 +121,7 @@ class ZoneStore:
         decls: Iterable[n.ZoneDecl],
         players: tuple[Player, ...],
         teams: tuple[int, ...] = (),
-        positions: "Mapping[str, tuple[int, ...] | tuple[str, ...]] | None" = None,
+        positions: Mapping[str, tuple[int, ...] | tuple[str, ...]] | None = None,
     ) -> None:
         self.singles: dict[str, Zone] = {}
         self.families: dict[str, dict[int | str, Zone]] = {}
@@ -215,7 +216,7 @@ class ZoneStore:
             )
         return family[key]
 
-    def locate(self, zone: Zone) -> "tuple[str, Player | str | None]":
+    def locate(self, zone: Zone) -> tuple[str, Player | str | None]:
         """The (name, instance-key) of a zone object — the reverse lookup the
         observation emitter needs when a movement holds only the Zone value."""
         for name, z in self.singles.items():
@@ -280,7 +281,7 @@ class RuntimeState:
         # The instantiated `board:` entry (cells + lines), or None for a
         # boardless game; the driver builds it from `game.board`. The cell/line
         # query verbs read it (decisions.md "Boards and cells").
-        self.board: "BoardEntry | None" = None
+        self.board: BoardEntry | None = None
         self.max_length: int = 0  # the game's declared non-termination backstop
         self.decisions_made: int = 0  # every chooser pick, checked against max_length
         # Content flavor ("card"/"piece") and the axis->Card-attribute map for a
@@ -364,10 +365,10 @@ class Ctx:
         if self.observer is not None:
             self.observer(player, event)
 
-    def with_local(self, name: str, value: Any) -> "Ctx":
+    def with_local(self, name: str, value: Any) -> Ctx:
         return replace(self, locals={**self.locals, name: value})
 
-    def acting_as(self, player: Player) -> "Ctx":
+    def acting_as(self, player: Player) -> Ctx:
         """Bind the acting player for a body. The player MUST be a real seat.
         `as <expr>` and `offer to <expr>` evaluate an arbitrary expression here,
         and a player expression is runtime data: an off-by-one at a ring's edge,
@@ -403,14 +404,14 @@ class Ctx:
             )
         return self.current_player
 
-    def in_phase(self, phase: n.Phase) -> "Ctx":
+    def in_phase(self, phase: n.Phase) -> Ctx:
         return replace(self, current_phase=phase)
 
-    def with_outcome(self, player: Player) -> "Ctx":
+    def with_outcome(self, player: Player) -> Ctx:
         return replace(self, outcome=player)
 
-    def with_action(self, action: Move) -> "Ctx":
+    def with_action(self, action: Move) -> Ctx:
         return replace(self, action=action)
 
-    def with_rules(self, rules: tuple[n.RuleDef, ...]) -> "Ctx":
+    def with_rules(self, rules: tuple[n.RuleDef, ...]) -> Ctx:
         return replace(self, active_rules=rules)

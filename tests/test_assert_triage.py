@@ -149,9 +149,7 @@ def _sites_in_source(source: str, module: str) -> list[Site]:
 
     sites: list[Site] = []
     for node in ast.walk(tree):
-        if isinstance(node, ast.Assert):
-            pass
-        elif isinstance(node, ast.Raise) and _is_assertion_raise(node):
+        if isinstance(node, ast.Assert) or isinstance(node, ast.Raise) and _is_assertion_raise(node):
             pass
         else:
             continue

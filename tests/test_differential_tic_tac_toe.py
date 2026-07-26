@@ -55,15 +55,16 @@ actually uses.
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import pytest
 
 pyspiel = pytest.importorskip("pyspiel")
 
-from cardlang.openspiel.replay import Pause, Terminal, load, run  # noqa: E402
-from tests.native_oracle import (  # noqa: E402
+from cardlang.openspiel.replay import Pause, Terminal, load, run
+from tests.native_oracle import (
     assert_node_agrees,
     assert_outcomes_agree,
     classify,

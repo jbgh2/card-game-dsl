@@ -64,7 +64,11 @@ import pytest
 from cardlang.diagnostics import DiagnosticError
 from cardlang.parse import parse_text
 from cardlang.resolve import resolve
-from cardlang.runtime.values import DECKS, RANKING_CONVENTIONS, expand_ranking_convention
+from cardlang.runtime.values import (
+    DECKS,
+    RANKING_CONVENTIONS,
+    expand_ranking_convention,
+)
 
 GAMES = Path(__file__).parent.parent / "docs" / "games"
 
@@ -143,8 +147,8 @@ def _probe_source(deck: str, ranking_clause: str) -> str:
     """The deck's corpus game with its `ranking:` clause replaced by (or, for
     the games that declare none, inserted as) `ranking_clause`."""
     text = (GAMES / _DECK_GAME[deck]).read_text()
-    if re.search(r"^\s*ranking:.*$", text, flags=re.M):
-        return re.sub(r"^(\s*)ranking:.*$", rf"\g<1>{ranking_clause}", text, count=1, flags=re.M)
+    if re.search(r"^\s*ranking:.*$", text, flags=re.MULTILINE):
+        return re.sub(r"^(\s*)ranking:.*$", rf"\g<1>{ranking_clause}", text, count=1, flags=re.MULTILINE)
     return text.replace(f"cards: {deck}", f"cards: {deck}\n  {ranking_clause}", 1)
 
 
@@ -222,7 +226,7 @@ def test_every_grammar_convention_terminal_is_a_registry_key() -> None:
     registry key — a terminal spelling the registry doesn't know would
     parse to a convention `_expand_ranking` KeyErrors on."""
     grammar = resources.files("cardlang.grammar").joinpath("cardlang.lark").read_text()
-    m = re.search(r"^RANK_CONV[^:]*:\s*/(.+)/\s*$", grammar, flags=re.M)
+    m = re.search(r"^RANK_CONV[^:]*:\s*/(.+)/\s*$", grammar, flags=re.MULTILINE)
     assert m is not None, "RANK_CONV terminal not found in grammar"
     body = re.sub(r"\(\?!.*?\)", "", m.group(1))  # strip the anchor lookahead
     literals = {w for w in re.split(r"[^A-Za-z0-9-]+", body) if w}

@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from cardlang.pipeline import check_source
+from cardlang.typecheck import type_from_name, value_enum_map
 from cardlang.types import (
     TAny,
     TBoolean,
@@ -13,7 +14,6 @@ from cardlang.types import (
     TOptional,
     TPlayer,
 )
-from cardlang.typecheck import type_from_name, value_enum_map
 
 HEARTS = Path(__file__).parent.parent / "docs" / "games" / "hearts.cardlang"
 

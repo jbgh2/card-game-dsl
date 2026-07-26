@@ -34,7 +34,7 @@ def test_declaration_and_lead_derive_observations() -> None:
     lowest-id enumerated Suit candidate (clubs) is taken.
     """
     path = str(GAMES_DIR / "pinochle.cardlang")
-    game, space = load(path)
+    _game, space = load(path)
     seed = 5
 
     history: list[int] = []

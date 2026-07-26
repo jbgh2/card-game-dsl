@@ -36,7 +36,7 @@ def test_pickup_and_discard_derive_hidden_observations() -> None:
     the discard, whose picks we take from the live legal actions.
     """
     path = str(GAMES_DIR / "skat.cardlang")
-    game, space = load(path)
+    _game, space = load(path)
     seed = 3
     declarer, defenders = 2, (0, 1)
 

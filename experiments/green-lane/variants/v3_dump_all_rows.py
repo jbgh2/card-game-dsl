@@ -16,11 +16,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import pyspiel
-from open_spiel.python.algorithms import cfr
-
 import glcommon
+import pyspiel
 from analyze_mini import expected_value, reach_weighted_strategies
+from open_spiel.python.algorithms import cfr
 
 ITERATIONS = 300
 HERE = Path(__file__).resolve().parent

@@ -9,9 +9,8 @@ like `repeat_until` (not a colon-single body), which keeps it unambiguous agains
 from __future__ import annotations
 
 from importlib import resources
-from pathlib import Path
 
-from lark import Lark, Token, Tree
+from lark import Lark, Tree
 
 from cardlang.ast import nodes as n
 from cardlang.parse import parse_text

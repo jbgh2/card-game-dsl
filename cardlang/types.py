@@ -24,8 +24,9 @@ fails loudly instead, by deriving its domain from `get_args(Type)`.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Literal, Mapping, TypeAlias
+from typing import Literal, TypeAlias
 
 # The two content flavors a game declares (`cards:` vs `pieces:`) -- the value
 # of `Game.content_flavor` and `ComponentSet.flavor`, and the dispatch key for
@@ -109,7 +110,7 @@ class TEnum:
 class TOptional:
     """``T?`` — a ``T`` or the absence value ``none``."""
 
-    inner: "Type"
+    inner: Type
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,8 +138,8 @@ class TCollection:
     triggers that would fire it, are recorded in roadmap.md, "Collection
     facets vs nominal kinds"."""
 
-    element: "Type"
-    key: "Type | None" = None
+    element: Type
+    key: Type | None = None
     # True for a value that IS a zone at runtime (`ZONE_CONTENT`'s types, a
     # zone-family subscript) — as opposed to a COMPUTED card collection (a
     # query result, a list literal), which types identically by element but
@@ -168,7 +169,7 @@ class TStruct:
     """A user-defined struct type (Stage 2: `type Name = { … } derived { … }`)."""
 
     name: str
-    fields: Mapping[str, "Type"]
+    fields: Mapping[str, Type]
     derived: frozenset[str]
 
 
@@ -177,7 +178,7 @@ class TVariant:
     """A tagged-union / phase-outcome type (Stage 2/3: `{ a(T) | b }`)."""
 
     name: str
-    cases: Mapping[str, tuple["Type", ...]]
+    cases: Mapping[str, tuple[Type, ...]]
 
 
 Type: TypeAlias = (

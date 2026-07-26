@@ -91,8 +91,8 @@ from cardlang.ast import nodes as n
 from cardlang.domains import PARAM_DOMAINS
 from cardlang.pipeline import check_dsl
 from cardlang.resolve import _PROCEDURE_PARAM_DOMAINS
-from cardlang.types import TInteger, TOptional, TStruct, Type
 from cardlang.typecheck import KNOWN_TYPE_NAMES, TypeEnv
+from cardlang.types import TInteger, TOptional, TStruct, Type
 
 
 class CellMismatch(AssertionError):

@@ -147,7 +147,7 @@ from __future__ import annotations
 import ast
 import random
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any
@@ -233,7 +233,7 @@ def _dispatch_imports(body: list[ast.stmt]) -> list[tuple[str, str]]:
     return out
 
 
-@lru_cache(maxsize=None)
+@cache
 def _implementations() -> tuple[Impl, ...]:
     """Derive name -> implementation by parsing the dispatch layer's `match`
     arms. Derived, not listed: a primitive added to the dispatch enters this
@@ -536,7 +536,7 @@ def test_emits_trace_names_are_real_primitives() -> None:
 # is added to Ctx later joins this axis automatically.
 
 
-@lru_cache(maxsize=None)
+@cache
 def _ctx_surface() -> tuple[str, ...]:
     """`Ctx`'s own attribute names, read off state.py's class body."""
     tree = ast.parse((RUNTIME_DIR / "state.py").read_text(encoding="utf-8"))
@@ -622,7 +622,7 @@ def _scan(path: Path) -> ModuleScan:
     return ModuleScan(hits=hits, ctx_params=ctx_params, symbols=symbols)
 
 
-@lru_cache(maxsize=None)
+@cache
 def _scan_module(name: str) -> ModuleScan:
     return _scan(RUNTIME_DIR / name)
 
@@ -806,7 +806,7 @@ _FACT_CONSUMERS: dict[str, tuple[str, ...]] = {
 }
 
 
-@lru_cache(maxsize=None)
+@cache
 def _game_module_sources() -> str:
     return "\n".join(
         (RUNTIME_DIR / m).read_text(encoding="utf-8") for m in _GAME_MODULES
@@ -1023,7 +1023,7 @@ def _reachable_mutable(value: Any, path: str = "") -> list[str]:
     import dataclasses as _dc
     from collections.abc import Mapping as _Map
     from collections.abc import Sequence as _Seq
-    from collections.abc import Set as _Set
+    from collections.abc import Set as AbstractSet
 
     bad: list[str] = []
     if isinstance(value, _ATOMIC):
@@ -1037,7 +1037,7 @@ def _reachable_mutable(value: Any, path: str = "") -> list[str]:
             # spot. Descending each key catches it independently.
             bad += _reachable_mutable(k, f"{path}.key({k!r})")
             bad += _reachable_mutable(v, f"{path}[{k!r}]")
-    elif isinstance(value, _Set):
+    elif isinstance(value, AbstractSet):
         if not isinstance(value, frozenset):
             bad.append(f"{path}: mutable set {type(value).__name__}")
         for i, v in enumerate(sorted(value, key=repr)):

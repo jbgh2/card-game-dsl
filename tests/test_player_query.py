@@ -13,10 +13,8 @@ elimination game selects the player who still holds cards.
 
 from __future__ import annotations
 
-from importlib import resources
-from pathlib import Path
-
 import random
+from importlib import resources
 
 from lark import Lark, Tree
 

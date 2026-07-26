@@ -27,8 +27,9 @@ from __future__ import annotations
 
 import dataclasses
 import itertools
+from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any, Iterator
+from typing import Any
 
 from cardlang.ast import nodes as n
 from cardlang.board_domains import directions_of, position_domains_of
@@ -170,7 +171,7 @@ class ActionSpace:
         assert len(self._combo_ids) == len(combos), "combo card-sets must be unique"
 
     @staticmethod
-    def for_game(game: n.Game) -> "ActionSpace":
+    def for_game(game: n.Game) -> ActionSpace:
         from cardlang.runtime import stdlib
 
         names: list[str] = []

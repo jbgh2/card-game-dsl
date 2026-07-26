@@ -6,7 +6,6 @@ from __future__ import annotations
 import random
 
 from cardlang.pipeline import check_dsl
-from cardlang.runtime.driver import play_game
 
 # 5 players, 52 cards -> 11, 11, 10, 10, 10 (the first two get the remainder).
 DEAL_GAME = """
@@ -36,11 +35,10 @@ def test_round_robin_spreads_the_remainder() -> None:
     zones = ZoneStore(game.zones, seating.players)
     rs = RuntimeState(seating, zones, random.Random(0))
     rs.zones.single("deck").add_all(build_deck("standard52"))
+    from cardlang.ast import nodes as n
     from cardlang.runtime.chooser import random_chooser
     from cardlang.runtime.execute import execute
     from cardlang.runtime.state import Ctx
-
-    from cardlang.ast import nodes as n
 
     ctx = Ctx(rs=rs, chooser=random_chooser(random.Random(0)))
     rs.push_frame()

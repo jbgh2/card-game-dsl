@@ -92,16 +92,17 @@ from __future__ import annotations
 
 import random
 from collections import Counter
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Sequence
+from typing import Any
 
 import pytest
 
 pyspiel = pytest.importorskip("pyspiel")
 
-from cardlang.openspiel.replay import Pause, Terminal, load, run  # noqa: E402
-from tests.native_oracle import (  # noqa: E402
+from cardlang.openspiel.replay import Pause, Terminal, load, run
+from tests.native_oracle import (
     assert_node_agrees,
     assert_outcomes_agree,
     classify,

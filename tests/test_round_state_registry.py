@@ -198,8 +198,9 @@ def test_every_form_key_is_classified() -> None:
     write), or through a variable, or as the second target of a tuple-unpack, was
     invisible to it — the pin would stay green while the language quietly grew."""
     import random
+    from collections.abc import Callable
     from pathlib import Path
-    from typing import Any, Callable
+    from typing import Any
 
     from cardlang.pipeline import check_source
     from cardlang.runtime import mechanics

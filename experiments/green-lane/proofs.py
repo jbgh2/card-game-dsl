@@ -28,10 +28,10 @@ import itertools
 import random
 from typing import Any
 
+import glcommon
+
 from cardlang.openspiel import replay
 from cardlang.openspiel.infostate import information_state
-
-import glcommon
 
 RESPONSE_LABELS = {"inspect", "wave"}
 

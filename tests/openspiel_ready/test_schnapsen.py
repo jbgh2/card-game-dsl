@@ -44,7 +44,7 @@ def test_lead_actions_derive_hidden_observations() -> None:
     leader round.
     """
     path = str(GAMES_DIR / "schnapsen.cardlang")
-    game, space = load(path)
+    _game, space = load(path)
     seed = 10
 
     r = run(path, seed, ())

@@ -12,10 +12,9 @@ from __future__ import annotations
 import json
 import sys
 
+import glcommon
 import pyspiel
 from open_spiel.python.algorithms import cfr
-
-import glcommon
 
 SHORT_NAME = "greenlane_mini"
 DEFAULT_ITERATIONS = 400

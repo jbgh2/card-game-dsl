@@ -42,8 +42,8 @@ from __future__ import annotations
 from typing import assert_never
 
 from cardlang.ast import nodes as n
-from cardlang.domains import DomainSources, ITERABLE_ROLES, role_static_members
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError
+from cardlang.domains import ITERABLE_ROLES, DomainSources, role_static_members
 from cardlang.stdlib.values import deck_ranks, deck_size, deck_suits
 
 # (peak usage reached, deck usage carried out) for a walked fragment, given the

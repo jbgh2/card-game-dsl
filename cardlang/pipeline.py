@@ -20,7 +20,7 @@ callers decide how to render it.
 
 from __future__ import annotations
 
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 
 from cardlang.ast.nodes import Game
@@ -33,7 +33,7 @@ from cardlang.resolve import resolve
 from cardlang.typecheck import typecheck
 
 
-@lru_cache(maxsize=None)
+@cache
 def _check(game: Game) -> Game:
     """Run the post-parse stages (resolve -> typecheck -> expand -> deck capacity).
 
