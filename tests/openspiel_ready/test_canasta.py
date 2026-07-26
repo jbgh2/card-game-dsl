@@ -24,18 +24,19 @@ quadratic in depth because each query re-simulates, so this one test was
 311s — a quarter of the whole suite. Measured on the seed-7 line this walk
 actually takes: **150 steps costs 35.8s against 400 at 311.3s**.
 
-Coverage residual, measured rather than asserted. Every VERB the game
-offers is exercised well inside the new bound — `draw_stock` step 1,
-`start_meld` 2, `stage_card` 3, `close_meld` 11, `end_discard` 20,
-`add_to_meld` 26, `take_pile` 55. What steps 150-400 add is only further
-CARD IDS in the action space (`3♠` first at 155, `A♠` at 211, `J♠` at 377):
-the same announce shapes carrying a different card. Action-id round-tripping
+What the bound covers is ASSERTED, not measured once and written down:
+`test_conformance_bounds.py` walks this line and fails loudly if any verb
+outside `conformance_verbs_unreached` stops being applied, so a game-file
+change that pushes a mechanic past step 150 reddens instead of quietly
+covering less. The frontier has margin — the last new verb (`take_pile`)
+lands at step 55. What steps 150-400 added was only further CARD IDS in the
+action space (`3♠` first at 155, `A♠` at 211, `J♠` at 377): the same
+announce shapes carrying a different card, and action-id round-tripping
 over the whole space is owned by `tests/test_openspiel_encoding.py`, not by
-this walk, so the deeper steps were re-exercising a covered axis at
-quadratic cost. What is genuinely given up is API conformance in LATE
-multi-deal states — recorded in issue #83 rather than implied here, and
-removed outright by issue #139 (the adapter re-simulates per query, so the
-bound exists to buy back a quadratic, not to express a coverage judgement).
+this walk. What is genuinely given up is API conformance in LATE multi-deal
+states — removed outright by issue #139 (the adapter re-simulates per
+query, so the bound exists to buy back a quadratic, not to express a
+coverage judgement).
 
 Per-game caveat (recorded, not hidden): the greedy line never melds nor
 takes the pile, so the meld/take projections are asserted by the dedicated
@@ -62,6 +63,16 @@ class TestReadiness(ReadinessProofs):
         depth=12,
         swap_axis="any",
         conformance_steps=150,
+        conformance_verbs_unreached=(
+            ("decline_pile", "the pile-take offer only arises when the discard "
+                             "pile is takeable; the seed-7 line declines no "
+                             "such offer within the bound. Both arms of the "
+                             "offer are exercised by the 30-seed match sweep "
+                             "in tests/test_playout_canasta.py"),
+            ("meld_black3", "melding black threes is legal only when going "
+                            "out, which the bound stops well short of "
+                            "(the same sweep plays four full deals per seed)"),
+        ),
     )
 
 

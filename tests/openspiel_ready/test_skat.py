@@ -17,7 +17,21 @@ from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
 
 class TestReadiness(ReadinessProofs):
-    spec = GameSpec("cardlang_skat", "skat.cardlang", conformance_steps=120)
+    spec = GameSpec(
+        "cardlang_skat",
+        "skat.cardlang",
+        conformance_steps=120,
+        conformance_verbs_unreached=(
+            (
+                "throw_in",
+                "the hand is thrown in only when all three players pass the "
+                "Reizen, which the seed-7 line does not do (and no bound makes "
+                "reliable — the outcome is a property of the deal, not of "
+                "depth); the 50-seed sweep in tests/test_playout_skat.py plays "
+                "enough deals to hit it",
+            ),
+        ),
+    )
 
 
 def test_pickup_and_discard_derive_hidden_observations() -> None:

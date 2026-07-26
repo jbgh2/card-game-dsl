@@ -15,7 +15,22 @@ from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
 
 class TestReadiness(ReadinessProofs):
-    spec = GameSpec("cardlang_tichu", "tichu.cardlang", conformance_steps=120)
+    spec = GameSpec(
+        "cardlang_tichu",
+        "tichu.cardlang",
+        conformance_steps=120,
+        conformance_verbs_unreached=(
+            (
+                "dragon_to_right",
+                "the mirror arm of the dragon gift: `dragon_to_left` IS applied "
+                "within the bound, and which opponent the trick is given to is "
+                "the same move with the other target. Reaching the right arm on "
+                "this line costs 178 steps (measured), and the arms diverge "
+                "wildly by rng (337 on seed 0, past 400 on seed 1) — depth buys "
+                "a coin flip here, not coverage",
+            ),
+        ),
+    )
 
 
 def _decline_ids(space: object) -> set[int]:

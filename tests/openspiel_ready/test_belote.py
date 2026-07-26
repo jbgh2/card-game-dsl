@@ -60,6 +60,23 @@ class TestReadiness(ReadinessProofs):
         "belote.cardlang",
         conformance_steps=150,
         adapter_terminal_steps=500,
+        # The seed-7 conformance line takes the turn-up in the auction's first
+        # round and declares nothing all game, so it never applies:
+        conformance_verbs_unreached=(
+            ("pass", "the auction's second round: no one passes on this line"),
+            ("take_suit", "same — the turn-up suit was taken in round 1"),
+            ("say_belote", "driven deliberately by test_belote_rebelote_"
+                           "reveals_exactly_the_partner_card below"),
+            ("declare_carre", "the declaration poll declines throughout this "
+                              "line; the poll's announce arms are driven by "
+                              "test_declaration_line_derives_announced_content"
+                              "_and_showing below"),
+            ("declare_quarte_trump", "as declare_carre"),
+            ("declare_quinte", "as declare_carre"),
+            ("declare_quinte_trump", "as declare_carre"),
+            ("declare_tierce", "as declare_carre"),
+            ("declare_tierce_trump", "as declare_carre"),
+        ),
     )
 
 

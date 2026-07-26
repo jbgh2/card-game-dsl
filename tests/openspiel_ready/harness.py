@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
@@ -45,7 +46,7 @@ pyspiel = pytest.importorskip("pyspiel")
 
 import cardlang.openspiel.game as ogame  # noqa: E402  (registers on import)
 from cardlang.openspiel.infostate import information_state  # noqa: E402
-from cardlang.openspiel.replay import Pause, run  # noqa: E402
+from cardlang.openspiel.replay import Pause, load, run  # noqa: E402
 
 from .partition import (  # noqa: E402
     all_hidden,
@@ -95,7 +96,25 @@ class GameSpec:
     # that many random legal actions checking current_player/legal-actions
     # consistency, info-state string non-crash, chance-node handling, and
     # terminal handling if reached.
+    #
+    # A bound is a BUDGET WITH A CHECKED CLAIM: `test_conformance_bounds.py`
+    # asserts that the walk applies every verb of the game's declared action
+    # space (`ActionSpace.verbs()`) except those listed below. Without that
+    # claim a bound set too low under-covers SILENTLY — nothing notices when a
+    # walk stops reaching a mechanic. Derive a bound as the worst
+    # last-new-verb step observed across several rngs, plus margin; the pinned
+    # `Random(7)` line is what the assertion then checks.
     conformance_steps: int | None = None
+
+    # The PINNED COMPLEMENT of that claim: (verb, why) for every verb the walk
+    # does not apply — typically a mechanic a uniform random policy reaches too
+    # rarely to bound affordably, exercised elsewhere. The reason travels with
+    # the verb rather than in prose someone must find, and is asserted
+    # non-empty. The pin is TIGHT in both directions: a verb here that the walk
+    # DOES reach fails just as loudly as one missing that is not here, so
+    # neither the list nor the bound can drift silently. Only meaningful with a
+    # bound: an unbounded game plays a full random_sim_test and declares none.
+    conformance_verbs_unreached: tuple[tuple[str, str], ...] = ()
 
     # Which equivalence class a hidden swap must stay within so the swapped
     # world is genuinely indistinguishable to the observer (the swap must not
@@ -121,6 +140,10 @@ class GameSpec:
     def path(self) -> str:
         return str(GAMES_DIR / self.filename)
 
+    @property
+    def unreached_verbs(self) -> frozenset[str]:
+        return frozenset(v for v, _ in self.conformance_verbs_unreached)
+
     def swap_pairs(self, hand1: list[Any], hand2: list[Any]) -> list[Any]:
         """Swappable hidden-card pairs that keep the swapped world indistinguishable."""
         if self.swap_axis == "rank":
@@ -141,6 +164,108 @@ class GameSpec:
             ]
         else:
             raise ValueError(f"unknown swap_axis {self.swap_axis!r}")
+
+
+@dataclass(frozen=True)
+class BoundedWalk:
+    """What one bounded conformance walk observed. Gathering facts rather than
+    asserting them lets the API-conformance proof and the bound's coverage grid
+    read the SAME walk — the walk is O(n^2) in its own length, so running it
+    twice is the whole cost of the check."""
+
+    # (verb, the step that first applied it), ascending — the derivation a
+    # bound is set from, kept as data rather than re-measured by hand: the
+    # last entry's step is the smallest bound that still covers this line, and
+    # the distance from there to `conformance_steps` is the margin.
+    first_applied: tuple[tuple[str, int], ...]
+    violations: tuple[str, ...]
+    steps: int
+    terminal: bool
+
+    @property
+    def verbs_applied(self) -> frozenset[str]:
+        return frozenset(v for v, _ in self.first_applied)
+
+    @property
+    def last_new_verb(self) -> int | None:
+        return self.first_applied[-1][1] if self.first_applied else None
+
+
+@lru_cache(maxsize=None)
+def bounded_walk(short_name: str, path: str, steps: int) -> BoundedWalk:
+    """`steps` random legal actions from a pinned rng, checking the pyspiel API
+    invariants and recording the verb of every action APPLIED (offered-only
+    would not exercise the mechanic behind the verb, which is what a bound is
+    bought to reach). Cached: one walk per game per session."""
+    _, space = load(path)
+    game = pyspiel.load_game(short_name)
+    rng = random.Random(7)
+    state = game.new_initial_state()
+    applied: dict[str, int] = {}
+    violations: list[str] = []
+
+    def check(ok: bool, msg: str) -> None:
+        if not ok:
+            violations.append(f"step {taken}: {msg}")
+
+    taken = walked = 0
+    terminal = False
+    for taken in range(steps):
+        if state.is_terminal():
+            terminal = True
+            check(
+                len(state.returns()) == game.num_players(),
+                f"terminal returns has {len(state.returns())} entries, "
+                f"expected {game.num_players()}",
+            )
+            break
+        if state.is_chance_node():
+            outcomes = state.chance_outcomes()
+            check(
+                abs(sum(p for _, p in outcomes) - 1.0) < 1e-9,
+                "chance outcome probabilities do not sum to 1",
+            )
+            action = rng.choice([a for a, _ in outcomes])
+        else:
+            player = state.current_player()
+            check(0 <= player < game.num_players(), f"current_player {player} out of range")
+            legal = state.legal_actions(player)
+            check(bool(legal), "a decision node must offer at least one action")
+            check(legal == sorted(set(legal)), "legal actions must be sorted, unique")
+            check(
+                all(0 <= a < game.num_distinct_actions() for a in legal),
+                "a legal action is outside the action space",
+            )
+            check(bool(state.information_state_string(player)), "empty information state")
+            if not legal:
+                break
+            action = rng.choice(legal)
+            applied.setdefault(space.verb_of(action), taken)
+        state.apply_action(action)
+        walked += 1
+    return BoundedWalk(
+        tuple(sorted(applied.items(), key=lambda kv: kv[1])),
+        tuple(violations),
+        walked,
+        terminal,
+    )
+
+
+def verb_status(verb: str, applied: frozenset[str], exempt: frozenset[str]) -> str:
+    """One declared verb's coverage cell, total over the 2x2 of (the walk
+    applied it?, the spec exempts it?):
+
+      applied & not exempt -> "covered"    the bound reaches the mechanic
+      not applied & exempt -> "exempt"     declared missing, with a reason
+      applied & exempt     -> "stale"      the reason outlived itself
+      neither              -> "uncovered"  the bound under-covers SILENTLY
+
+    Only the first two pass. "stale" is the cell that makes the exemption list
+    self-cleaning: a verb the walk starts reaching fails until its exemption
+    (and the prose justifying it) comes out."""
+    if verb in applied:
+        return "stale" if verb in exempt else "covered"
+    return "exempt" if verb in exempt else "uncovered"
 
 
 def _advance(path: str, seed: int, depth: int) -> tuple[list[int], Pause]:
@@ -184,31 +309,17 @@ class ReadinessProofs:
     spec: ClassVar[GameSpec]
 
     def test_pyspiel_conformance(self) -> None:
-        game = pyspiel.load_game(self.spec.short_name)
-        steps = self.spec.conformance_steps
+        spec = self.spec
+        steps = spec.conformance_steps
         if steps is None:
+            game = pyspiel.load_game(spec.short_name)
             pyspiel.random_sim_test(game, num_sims=1, serialize=False, verbose=False)
             return
-        rng = random.Random(7)
-        state = game.new_initial_state()
-        for _ in range(steps):
-            if state.is_terminal():
-                assert len(state.returns()) == game.num_players()
-                break
-            if state.is_chance_node():
-                outcomes = state.chance_outcomes()
-                assert abs(sum(p for _, p in outcomes) - 1.0) < 1e-9
-                action = rng.choice([a for a, _ in outcomes])
-            else:
-                player = state.current_player()
-                assert 0 <= player < game.num_players()
-                legal = state.legal_actions(player)
-                assert legal, "a decision node must offer at least one action"
-                assert legal == sorted(set(legal)), "legal actions must be sorted, unique"
-                assert all(0 <= a < game.num_distinct_actions() for a in legal)
-                assert state.information_state_string(player)  # derives, non-crash
-                action = rng.choice(legal)
-            state.apply_action(action)
+        walk = bounded_walk(spec.short_name, spec.path, steps)
+        assert not walk.violations, (
+            f"{spec.short_name}: pyspiel API conformance failed on the bounded "
+            f"walk:\n  " + "\n  ".join(walk.violations)
+        )
 
     def test_indistinguishability_under_hidden_swap(self) -> None:
         spec = self.spec

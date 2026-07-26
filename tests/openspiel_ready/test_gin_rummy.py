@@ -43,6 +43,25 @@ class TestReadiness(ReadinessProofs):
         # bounded random API walk is the sanctioned fallback for the
         # score-target class (harness.py, `conformance_steps`).
         conformance_steps=400,
+        # The showdown cluster, the same surface the module caveat above
+        # names: a random line knocks about as rarely as the greedy one does,
+        # so every verb behind the knock stays unapplied within any affordable
+        # bound. `test_knock_line_derives_showdown_observations` below drives a
+        # knock deliberately, and tests/test_playout_gin_rummy.py routes every
+        # knocked hand of a 30-seed sweep through the arrangement and lay-off
+        # decisions.
+        conformance_verbs_unreached=(
+            ("end_knock", "the knock itself — see above"),
+            ("finish_arranging", "post-knock: the knocker arranges melds"),
+            ("finish_defense", "post-knock: the defender lays off"),
+            ("declare_meld", "post-knock arrangement"),
+            ("declare_meld_d", "post-knock defence arrangement"),
+            ("lay_off_a", "post-knock lay-off"),
+            ("lay_off_b", "post-knock lay-off"),
+            ("lay_off_c", "post-knock lay-off"),
+            ("<combo>", "the joint meld-arrangement subsets, offered only "
+                        "inside the post-knock arrangement"),
+        ),
     )
 
 
