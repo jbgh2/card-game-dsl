@@ -175,8 +175,10 @@ test — axes derived in code, expected outcomes authored red BEFORE the
 implementation exists), misuse-probe **rejection tests** (the most plausible
 wrong sentences, each proven loud in the right layer's currency), and the
 **completeness ledger** (judgment columns in the grid module's docstring —
-`covered` IS the grid; no residual cell without both a wall and a tracker
-record, cited as `issue #N`; born-green pins name their reddening
+`covered` IS the grid; no residual cell without both a wall and a record —
+a tracker issue cited as `issue #N`, or the ledger row alone for an R4
+auditor-only cell guarding nothing rigor-critical (`docs/decisions.md`,
+"Reachability ranks the work"); born-green pins name their reddening
 mutation). A green suite must never stand in for this gate: the suite proves
 nothing about cells no test names.
 
@@ -187,7 +189,10 @@ Deferred **work** lives in GitHub issues
 Two sections stay behind, and neither is work: `docs/roadmap.md`, "Out of
 scope", and `docs/roadmap.md`, "Grammar surface deferred by the checker".
 When you defer a cell, file an issue and cite it as `issue #N` in the
-completeness ledger — a residual with no tracker record does not land.
+completeness ledger — a residual with no record does not land. R4
+auditor-only residuals guarding nothing rigor-critical are the exception
+(`docs/decisions.md`, "Reachability ranks the work"): like the carve-out
+below, they record in the owning ledger and need no issue.
 
 One carve-out, because it is what the repo actually does: a residual that is
 **not work** — a recorded constraint or trap, deliberately not-to-be-fixed
