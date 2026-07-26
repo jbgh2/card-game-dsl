@@ -10,22 +10,23 @@ totality claim — an open meld attempt always closes legally, random play
 included — is exercised implicitly by every completing seed: a wedged
 window would raise the offer's loud no-legal-move error mid-playout.
 
-Coverage note (measured over seeds 0..29): pile takes fire hundreds of
-times, canastas complete, red threes route to the team rows, go-outs end
-hands, and seed 19 exercises the no-stock decline. The black-three go-out
-meld is rarer — seed 30 pins it below. The 90/120 initial-meld brackets are
-unreachable in a four-deal random match (cumulative 1500+ before the last
-deal); they are pinned at the table level in
-tests/test_canasta_primitives.py.
+What the sweep covers is ASSERTED, not measured once and written down: the
+recompute's arms (a team that melded and one that never did, a completed
+canasta, a go-out and a hand that ended without one, red threes on the row)
+must each fire on `WITNESS_SEEDS` distinct seeds, so a seed count that stops
+carrying an arm reddens by name. The rarer paths keep their own pinned
+seeds: the black-three go-out meld (seed 30) and the no-stock decline
+(seed 19), both below. The 90/120 initial-meld brackets are unreachable in a
+four-deal random match (cumulative 1500+ before the last deal); they are
+pinned at the table level in tests/test_canasta_primitives.py.
 """
 
 from __future__ import annotations
 
 import random
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
-
-import pytest
 
 from cardlang.pipeline import check_source
 from cardlang.runtime.canasta import (
@@ -44,6 +45,7 @@ _MELD_FAMILIES = (
 )
 
 
+@lru_cache(maxsize=None)
 def _run(seed: int) -> tuple[Any, Any, list[dict[int, int]]]:
     game = check_source(CANASTA)
     rs_box: list[Any] = []
@@ -62,9 +64,52 @@ def _run(seed: int) -> tuple[Any, Any, list[dict[int, int]]]:
     return result, rs_box[0], hand_ends
 
 
-@pytest.mark.parametrize("seed", range(30))
-def test_random_matches_satisfy_invariants(seed: int) -> None:
+# The arms of the per-seed assertions below — each a branch that would
+# otherwise be checked vacuously (a recompute that never sees a go-out has
+# not exercised the 100-point bonus; one that never sees an unmelded team has
+# not exercised the hand-points penalty against a team with nothing down).
+RECOMPUTE_ARMS = frozenset(
+    {"team_melded", "team_never_melded", "canasta_completed",
+     "went_out", "did_not_go_out", "red3_row_used"}
+)
+
+# Every arm on at least this many DISTINCT seeds: one witness is satisfiable
+# by a single lucky deal, which is what makes a seed count unfalsifiable.
+WITNESS_SEEDS = 3
+
+# Derived from that, not chosen. Five of the six arms fire on seed 0; the
+# binding one is `team_never_melded` (a partnership that never gets down),
+# which lands on seeds 2, 3 and 4 — so five seeds is the minimum that
+# witnesses every arm three times, and ten leaves headroom for a game change
+# that shifts an arm off the early seeds. Each seed is a full four-deal
+# match, the corpus's most expensive playout.
+#
+# red under: SEEDS = 4 (`team_never_melded` drops to two witness seeds).
+SEEDS = 10
+
+
+def test_random_matches_satisfy_invariants() -> None:
+    witnesses: dict[str, set[int]] = {}
+    for seed in range(SEEDS):
+        _one_match(seed, witnesses)
+
+    assert set(witnesses) == RECOMPUTE_ARMS, (
+        f"the {SEEDS}-seed sweep no longer exercises "
+        f"{sorted(RECOMPUTE_ARMS - set(witnesses))} — the recompute below "
+        f"still passes, but it no longer checks those arms"
+    )
+    thin = {a: sorted(w) for a, w in witnesses.items() if len(w) < WITNESS_SEEDS}
+    assert not thin, (
+        f"{thin} fire on fewer than {WITNESS_SEEDS} of the {SEEDS} seeds — the "
+        f"seed count no longer carries the arm it was derived from"
+    )
+
+
+def _one_match(seed: int, witnesses: dict[str, set[int]]) -> None:
     result, rs, hand_ends = _run(seed)
+
+    def witness(arm: str) -> None:
+        witnesses.setdefault(arm, set()).add(seed)
 
     # A fixed four-deal match: four scoring phases, team-keyed scores, and
     # the winner is the higher cumulative total.
@@ -99,6 +144,16 @@ def test_random_matches_satisfy_invariants(seed: int) -> None:
             list(rs.zones.instance(name, team).cards) for name in _MELD_FAMILIES
         ]
         melded = any(m for m in melds)
+        witness("team_melded" if melded else "team_never_melded")
+        if any(canasta_bonus_for(m) for m in melds):
+            witness("canasta_completed")
+        if rs.zones.instance("red3", team).cards:
+            witness("red3_row_used")
+        witness(
+            "went_out"
+            if any(not rs.zones.instance("hand", p).cards for p in members)
+            else "did_not_go_out"
+        )
         expected = (
             sum(card_points(c) for m in melds for c in m)
             + sum(canasta_bonus_for(m) for m in melds)

@@ -8,7 +8,8 @@ the on-ramp may not pour concrete the ceiling would need removed.*
 
 ## The reframe
 
-`roadmap.md` defers deck-builders alongside CCGs. The deferral is really
+[roadmap.md](../roadmap.md), "Out of scope", defers deck-builders
+alongside CCGs. The deferral is really
 about one thing, and it is narrower than the grouping suggests. Everything
 else in a deck-builder already exists: deck, hand, discard, market row, and
 trash are ordinary zones; the cycle-discard-into-deck loop is zone movement

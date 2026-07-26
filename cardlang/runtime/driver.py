@@ -48,7 +48,7 @@ class GameResult:
     # `scores` is keyed by the `winner:` target's OWN index domain — by player
     # for `score[player]`, by TEAM for `score[team]` — so a key is not always a
     # seat, and `winner`, picked from it, is a team index in a team-scored game
-    # (roadmap.md, "A team-scored game's `winner` is a team index"). A reader
+    # (issue #154). A reader
     # deciding which it holds must consult the target's declaration, never the
     # key set: the two are indistinguishable whenever a game's team count equals
     # its player count (`openspiel/replay._winner_target_is_team_keyed`).

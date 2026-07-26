@@ -36,6 +36,32 @@ derivability, and the per-visible-fact soundness matrix
 (`tests/openspiel_ready/partition.py`) deliberately enumerates declared
 frames only.
 
+## The sibling axis: which round FRAME a `state.` read sees
+
+The same construct carries a second undecided axis, on the checker's side
+rather than the encoding's. A round publishes a declared, typed set of fields,
+and the **name** axis is closed: the checker rejects every name outside that
+set, so a form's private working memory is not reachable from the DSL
+(`cardlang/stdlib/round_state.py`, ledger
+`tests/test_round_state_registry.py`).
+
+The **frame** axis is not. A reference is not statically attached to a form —
+`MustFollowSuit` lives once in `stdlib/rules.cardlang` and games activate it in
+context — so the checker validates a `state.` read against the UNION of every
+form's published set, and cannot prove that the round actually running
+publishes the field being read. `state.shed_first` (a climb field) inside a
+trick phase type-checks.
+
+The runtime is walled: a read with no live or just-completed frame now fails
+loudly rather than returning a stale one from a different form (the
+`AuctionForm` `last_round_state` clear, pinned by
+`test_auction_does_not_leave_a_stale_trick_frame`). So this is a static
+imprecision with a loud runtime backstop, not a silent miss — but the
+diagnostic a designer wants ("this phase runs a trick, and `shed_first` is a
+climb field") is not available, and giving it means attaching references to
+forms, which is the same static-context question the encoding axis above turns
+on. Settle the two together.
+
 ## Why it could bite
 
 Both failure directions become live the moment a round body writes `state.x`

@@ -6,7 +6,8 @@ a standing play, and the card-point table. Extracted from the Tichu monolith so 
 kernel migration can call them as stdlib primitives — ported *verbatim* so the
 candidate-list order matches the monolith's chooser draws exactly.
 
-Scope reductions (random play; see docs/roadmap.md): the Phoenix is a wildcard in
+Scope reductions (random play; see docs/kernel-migration.md, Workstream 5,
+and issue #140): the Phoenix is a wildcard in
 pairs / triples / full houses (not straights / consecutive pairs / bombs);
 straight-flush bombs are omitted (four-of-a-kind bombs only); the Mahjong wish is
 omitted.

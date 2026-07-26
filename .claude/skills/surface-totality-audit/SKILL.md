@@ -103,7 +103,7 @@ the only illegal move.
 The definition-source set is itself an axis and gets no author-side
 selection: it comes from the pinned registry-module manifest (a
 checked-in list, itself pinned by a scrape over module-level registry
-constants — recorded in roadmap.md until it lands), and until that
+constants — tracked as issue #108 until it lands), and until that
 manifest exists the subagent gets the ENTIRE `cardlang/` package.
 Completeness by superset, never by judgment: a hand-picked subset
 smuggles your framing back in through the input list. Diff its list against yours: every discrepancy is a new axis for the
@@ -278,7 +278,10 @@ domain:     <what is quantified over>
 registry:   <where each axis is derived in code — the grid reads these>
 covered:    <the grid: module + parametrization, not a prose cell list>
 sampled:    <cells covered by example only, and why that is enough>
-residual:   <cells NOT in the grid, uncovered or not-yet-decided — each with its wall and its roadmap.md line>
+residual:   <cells NOT in the grid, uncovered or not-yet-decided — each with
+             its wall, its reachability (R1–R4, decisions.md "Reachability
+             ranks the work"), and its tracker record (issue #N; R4 records
+             here and needs no issue unless the guarantee is rigor-critical)>
 ```
 
 (`registry` names the derivation sites the grid reads; `covered` names the

@@ -34,7 +34,13 @@ class TestReadiness(ReadinessProofs):
         "cardlang_president",
         "president.cardlang",
         swap_axis="rank",
-        conformance_steps=120,
+        # 190, not the 120 default: the card-exchange between president and
+        # scum is the game's only card-VALUED decision (`_hand_to_hand` below),
+        # and it happens between hands — first reached at step 131 on the
+        # seed-7 line, worst 143 across rngs 0-6, so 190 clears the worst
+        # observed with margin. Costs ~0.5s; below 150 the exchange drops out
+        # of the walk entirely and test_conformance_bounds.py says so.
+        conformance_steps=190,
     )
 
 

@@ -66,7 +66,7 @@ procedures", "Surface totality", "Closed-domain completeness").
                 but it is one game, so it is sampled, not covered.
 
     residual:   Every cell below is REJECTED (never silently accepted), and each
-                has a roadmap.md record under "Named procedures — deferred cells":
+                has a tracker record under issue #134:
                   - `Zone` parameters. The design note guessed the corpus would
                     need them; it does not (a Player parameter already carries its
                     zone: `influence[victim]`). Wall: unsupported-domain error.
@@ -91,6 +91,24 @@ procedures", "Surface totality", "Closed-domain completeness").
                   - `actor` / `action` in a body: rejected unconditionally, even
                     where a `for each player` in the body would bind one, because
                     it would silently mean the loop's player.
+                  These are ONE class, not separate accidents: a procedure body
+                  may not hold a statement whose VALIDITY depends on where it
+                  sits, because the checker sees the body once, at its
+                  declaration, and the spliced copies are never re-checked
+                  (expansion runs after typecheck, which is what makes the
+                  parameter types enforceable). The class is closed by
+                  enumerating the position-dependent CHECKS —
+                  `_check_outcome_scope`, `_check_single_outcome_consumer`,
+                  `_check_misplaced_produce`, and outcome binding — rather than
+                  by intuition. The other position-sensitive passes,
+                  deck-capacity and the OpenSpiel action space, both run AFTER
+                  expansion and see the real tree, so neither joins the class.
+                  Not on the list, and impossible by construction rather than
+                  walled: argument capture, actor capture, and a body binding
+                  leaking into the caller — arguments are evaluated once, by
+                  value, in the caller's context, and the body runs in a block
+                  (decisions.md "Named procedures").
+
                   (The former residual here — a `let`-laundered argument type,
                   `let z = hearts` then `run bump(z)` passing a `Player`
                   parameter — is CLOSED: lets are typed at declaration and the

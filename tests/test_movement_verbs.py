@@ -116,8 +116,8 @@ residual:   FIELD ACCESS on a position/board type is a SILENT permissive
             binders, Task-1 dir binders); the rung-2 verbs' TCell return newly
             reaches it. NOT walled here -- the fix is class-wide (the
             no-Member-arm Type members swept as one), out of the five-verb
-            scope. Recorded in docs/roadmap.md ("Positional zones -- walled
-            residuals", the field-access bullet) and spawned as a follow-up.
+            scope. Recorded in issue #111 (the field-access bullet) and
+            spawned as a follow-up.
             Positional subscript index-type unchecked -- `home(p)[<anything>]`
             typechecks (home/far_row produce key=None positional collections;
             the Subscript key-check runs only when key is not None) --

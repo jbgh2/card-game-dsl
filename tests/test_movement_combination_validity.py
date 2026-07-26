@@ -90,7 +90,8 @@ def test_rejects_gather_to_each() -> None:
 
 
 # --- deferred surface: the `in <zone>` form, visibility overrides, and
-# resource nouns are rejected until built (roadmap.md) ---
+# resource nouns are rejected until built
+# (roadmap.md, "Grammar surface deferred by the checker") ---
 
 
 def test_rejects_the_in_zone_form() -> None:

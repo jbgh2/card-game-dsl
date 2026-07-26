@@ -21,7 +21,7 @@ locate it:
 
 - settled -> decisions.md (search the section titles first)
 - open -> docs/open-questions/_index.md, then the named file (cite by slug)
-- sequenced -> docs/roadmap.md, "Suggested next steps, in order"
+- sequenced -> the GitHub tracker; issue #143 orders the cross-cutting work
 - sketched -> docs/design-notes/ (proposals, not settled spec)
 - witnessed -> docs/games/ (which corpus games exercise the area today)
 
@@ -67,6 +67,33 @@ a minimal witness fixture is a plan step, not a hope (decisions.md
 hatch, recording the info-set debt in kernel-migration.md is part of the
 plan; the kernel path is the default (CLAUDE.md).
 
+## Gate 3.5 — Who reaches it, and is the fix proportionate?
+
+Before the task list: state the change's reachability (R1–R4, decisions.md
+"Reachability ranks the work") — who meets the defect it fixes or the
+surface it adds — and check the effort against it. An R1/R2 defect
+justifies what it costs. An R3/R4 whose fix is more than small routes to
+record-and-file: the wall, the ledger row, and the record its tag calls
+for — an issue for R3, the ledger alone for a non-rigor-critical R4
+(decisions.md, "Reachability ranks the work") — not the fix. This
+gate exists because locally-correct choices compound: each finding
+honestly pursued, each class honestly swept, and the portfolio quietly
+reallocates itself toward the machinery and away from the games. The
+plan is where that gets caught, because no later gate sees more than one
+change.
+
+Four shapes end the planning turn and surface to the operator instead of
+proceeding — not because the work is forbidden, but because the decision
+is not the implementing context's to make:
+
+- the plan edits doctrine — decisions.md's completeness sections,
+  CLAUDE.md's load-bearing section, or a skill;
+- the plan adds enforcement scaffolding whose expected findings are all
+  R4 (decisions.md, "The machinery is guarded once");
+- the plan reverts or overrides a settled decision;
+- the plan's only justification is that a gate requires it, with no R1/R2
+  defect anywhere in sight.
+
 ## Gate 4 — For audit-triggering work, the audit's Step 1 happens NOW
 
 Planning is when the surface-totality-audit's Step 1 runs, not
@@ -85,8 +112,8 @@ without the check having run.
 
 A cardlang plan is a list of red things to make green. Each step names
 the artifact that proves it — a grid row, a rejection golden, a proof
-module, a byte-identical trace, a wall plus roadmap record for anything
-deferred — and where the artifact can exist at plan time, it exists and
+module, a byte-identical trace, a wall plus a tracker record (issue #N) for
+anything deferred — and where the artifact can exist at plan time, it exists and
 is red (`xfail(strict=True)` for grid cells, a failing test for
 behavior). A step with no named artifact is not a plan step; it is a
 hope. "Done" is defined before work starts, so the review's merge-base
@@ -101,3 +128,8 @@ land in `docs/plans/` (dated, one file per plan); existing plan records
 stay where they are. The audit and review skills own their stages — this
 skill only guarantees they fire at the right moment, with an unframed
 domain.
+
+Ordering across changes is not this skill's call either: issue #143 owns
+the sequence, and the direction review (the `cardlang-direction-review`
+skill) owns rebalancing it. A plan that would change the ordering argues
+to the review, not around it.

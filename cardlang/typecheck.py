@@ -27,8 +27,8 @@ Establishes:  type validity only. The inferred :class:`~cardlang.types.Type`
               a signal to materialize it in this pass, never to re-infer it
               there.
 Now illegal:  a type-invalid program, per the walls above and their
-              completeness ledgers. Recorded residuals live in roadmap.md,
-              "Explicitly deferred".
+              completeness ledgers. Recorded residuals live in the tracker
+              (issue #143 orders them) and in each wall module's ledger.
 Verified by:  the wall test modules (operator, aggregation, context,
               ranking, rule-ref) and their ledgers.
 """
@@ -130,7 +130,7 @@ def item_field_table(game: Game) -> dict[str, Type]:
 # per-move-type params reachable only as `action.<param name>`, e.g. an
 # auction bid's `action.amount`) is out of scope; a field not in this
 # registry stays `TAny` (residual — see the ledger in
-# tests/test_zone_family_typing.py and roadmap.md).
+# tests/test_zone_family_typing.py, which records it).
 ACTION_FIELDS: dict[str, Type] = {"card": TCard(), "actor": TPlayer()}
 
 # stdlib functions whose result depends on a declared `ranking:` (they index

@@ -49,7 +49,7 @@ def test_discard_and_pegging_derive_observations() -> None:
     The crib's contents are never revealed even at the show (only the score
     delta signals it, matching the deleted monolith, which never moved the
     crib either) — a faithful table reveal is deferred fidelity work, not
-    this migration (docs/roadmap.md).
+    this migration.
     """
     path = str(GAMES_DIR / "cribbage.cardlang")
     _game, _space = load(path)

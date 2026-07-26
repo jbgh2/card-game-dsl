@@ -1,5 +1,11 @@
 # 500 vs Belote as the next corpus game — a decision brief
 
+*Dated record. This brief argues about a roadmap line as it stood when the
+brief was written, so its quotations stay verbatim. That line has since moved
+to the tracker — the ordering it belonged to is now
+[issue #143](https://github.com/jbgh2/card-game-dsl/issues/143), and both games
+are in the corpus. Read the roadmap citations below as historical.*
+
 A decision-grade comparison of the two candidates
 [roadmap.md](../roadmap.md) "Suggested next steps" item 1 offers as the
 "one game, two unblocks" pick: 500 and Belote. The two questions at stake are

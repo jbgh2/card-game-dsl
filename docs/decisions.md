@@ -1352,7 +1352,7 @@ rewrites to underlying forms.
   `any/all card(s) in … where`, `sum of … over cards in …`,
   `highest/lowest … over cards in … or <default>`, and the emptiness
   checks `is empty` / `is not empty`. Resource queries are unbuilt
-  ([roadmap.md](roadmap.md)).
+  ([roadmap.md](roadmap.md), "Grammar surface deferred by the checker").
 - Phase outcomes — tagged-union values; pattern-matched, not
   dot-accessed.
 
@@ -1428,8 +1428,7 @@ are a separate question from the registry itself; see
 
 Per-card mutable attributes (tapping, counters, status effects) are
 not part of the surface — the oriented- and CCG-style card state they
-would serve is deferred ([roadmap.md](roadmap.md), out of scope for
-the current phase).
+would serve is deferred ([roadmap.md](roadmap.md), "Out of scope").
 
 **Convenience sugar (rewrites that compile away):**
 
@@ -1619,8 +1618,8 @@ item noun is `cards`/`card` today; the noun stays open in the grammar so a
 resource transfer (coins, chips) can one day be the *same* construct as a
 card deal rather than separate syntax — but resource movements and the
 grammar's per-movement `visibility =` override are deferred surface, rejected
-by the checker ([roadmap.md](roadmap.md)) rather than left for the runtime to
-silently ignore.
+by the checker ([roadmap.md](roadmap.md), "Grammar surface deferred by the checker")
+rather than left for the runtime to silently ignore.
 
 A `to each` deal distributes the stated amount to every recipient. When the
 amount is `all` and the deck does not divide evenly, `as-equally-as-possible`
@@ -1635,7 +1634,7 @@ round-robin); `deal all … to each` *without* it is rejected as a trap (the
 first recipient would drain the source); a gather (`move all cards to
 <zone>`, no `from`) collects everything into a single zone — counted,
 selected, or `to each` gathers are rejected; and the `in <zone>` form is
-deferred ([roadmap.md](roadmap.md)).
+deferred ([roadmap.md](roadmap.md), "Grammar surface deferred by the checker").
 
 **Movement `where` filter.** The `from` form of a movement (any destination
 shape) takes an optional `where <lambda>` clause, narrowing the *source pool*
@@ -1717,7 +1716,8 @@ walled at evaluation: a negative amount is a typed runtime error everywhere
 `chosen` amount is a vacuous decision node, also refused.) `jointly`
 requires `chosen` — the selection is a player decision over subsets; a
 dealt joint selection has no decider and a `random` one has no corpus user
-(both rejected loudly, recorded in [roadmap.md](roadmap.md)) — `some`
+(both rejected loudly, recorded in
+[roadmap.md](roadmap.md), "Grammar surface deferred by the checker") — `some`
 requires `jointly`, and `to each` is rejected under `jointly` (it would
 silently make every destination seat its own subset decider; recorded).
 Enumeration is deterministic (sizes ascending, combinations in source
@@ -1773,7 +1773,8 @@ machinery, and two rummy-family games prove the two halves:
 - **Joint formation legality** is either a joint selection ("Joint-predicate
   selection" above — Gin's one-shot arrangements) or, where the action
   space cannot carry subset ids (a duplicate-card deck's multisets —
-  [roadmap.md](roadmap.md)), an announce-then-stage decomposition whose
+  [roadmap.md](roadmap.md), "Grammar surface deferred by the checker"),
+  an announce-then-stage decomposition whose
   per-card guards keep a legal completion reachable from every offered
   state (Canasta's `stage_card`/`close_meld`, the arrange-guard totality
   trick per card).
@@ -1988,7 +1989,7 @@ domain is rejected. A procedure may not run another procedure, hold a `round`
 (which binds its own `outcome`), or contain non-local control flow (`produce`,
 `continue to`, `skip to next hand`), and one that is never run is an error, since
 its body would be spliced nowhere and checked by nothing. Every one of those is a
-loud wall with a recorded deferral ([roadmap.md](roadmap.md)); none is silently
+loud wall with a recorded deferral (issue #134); none is silently
 accepted.
 
 ## Knowledge, visibility, and the projection model
@@ -2232,7 +2233,7 @@ information states. It works by re-simulation — the OpenSpiel state is
 protocol. This makes the state trivially cloneable (the property OpenSpiel
 exercises most) and confirms the finite-action-space anchor end to end. The
 adapter is per-game and proof-scoped; the general, all-corpus path remains the
-eventual compilation pass (see [roadmap.md](roadmap.md)).
+eventual compilation pass (see issue #139).
 
 Info-set derivation is uniform across the corpus: every game's decisions run
 on kernel sites that emit observation events, no Python mechanic exists (the
@@ -2294,7 +2295,7 @@ Uniform-projection types (`Cascade`, `HiddenStack`, `Foundation`,
 A position domain is not a seat and not an iteration role: `for each
 column c`, `each column simultaneously`, a position-indexed `state`
 variable, and a position-typed `state` declaration are all rejected with
-diagnostics (deferred, recorded in [roadmap.md](roadmap.md)). Quantifiers
+diagnostics (deferred, recorded in issue #111). Quantifiers
 range over a position domain's members like any other quantifiable
 domain — `any column where …`, `all columns where …`, `number of columns
 where …`; for a board's `cell` domain the register adds two collection
@@ -2396,8 +2397,7 @@ its card queries, and byte-identical behavior. Piece twins of the
 card-query and aggregation forms are deliberately absent from the
 grammar (a piece game counts and aggregates through the generic
 collection surfaces a card game shares); the deferred declaration-site
-and rule-system walls are recorded in [roadmap.md](roadmap.md),
-"Piece-flavored games".
+and rule-system walls are recorded in issue #114.
 
 ## Zone capacity
 
@@ -2422,7 +2422,7 @@ its placements (FreeCell's `cells[slot] is empty`, tic-tac-toe's
 `square[at] is empty`), so the wall never fires on a correct game — it
 converts a rules bug into a loud failure at the overfilling move, not a
 silently dropped card. The `Point` row (an unbounded stack) is deferred
-to its witness; see [roadmap.md](roadmap.md).
+to its witness; see issue #118.
 
 ## Boards and cells
 
@@ -2591,14 +2591,14 @@ names.
 **Walls stated as behavior.** A bare cell name in an expression (`a1`),
 and now a direction name (`ahead`), is an unknown name, not a literal —
 named only through a parameter or a quantifier binder; naming a specific
-cell in a setup or rule waits on its witness ([roadmap.md](roadmap.md)).
+cell in a setup or rule waits on its witness (issue #111).
 A position domain is still not a declarable `state` type or a state
 index, and an integer position domain is still not a `for each` role.
 The remaining board-topology surface — the `HiddenCell` and `Point`
 zone-type rows, double-indexed families, `roll` chance, probes,
 `reachable`, in-file boards — is walled per rung of the board-topology
 ladder ([design-notes/board-topology.md](design-notes/board-topology.md);
-[roadmap.md](roadmap.md)).
+issue #124).
 
 ## Game result: `winner:` and `loser:`
 
@@ -3306,7 +3306,7 @@ participant-filter axis is built — the ring is re-evaluated each turn, so it
 shrinks as players drop out (Pinochle's passed bidders and standing high bidder,
 Tarot's seats dropping after one bid). The remaining work (the challenge /
 block vocabulary; promoting the shared `auction` definition
-at its third instance) is the in-flight build (see [roadmap.md](roadmap.md) and
+at its third instance) is the in-flight build (see issue #140 and
 [kernel-migration.md](kernel-migration.md)).
 
 ## Surface totality
@@ -3325,8 +3325,8 @@ each cell in exactly one of three states:
 1. **Implemented** — defined semantics, with a test.
 2. **Statically rejected** — resolve/typecheck refuses the combination with a
    clear message, with a test asserting the rejection. The rejected combination
-   is recorded in [roadmap.md](roadmap.md) so a future game can lift it when it
-   needs the cell.
+   gets a tracker record — a GitHub issue, cited in the ledger as
+   `issue #N` — so a future game can lift it when it needs the cell.
 3. **Grammatically inexpressible** — the grammar itself cannot produce the
    combination.
 
@@ -3466,7 +3466,10 @@ domain:     <what is quantified over>
 registry:   <where each axis is derived in code — the grid reads these>
 covered:    <the grid: module + parametrization, not a prose cell list>
 sampled:    <cells covered by example only, and why that suffices>
-residual:   <cells NOT in the grid, uncovered or not-yet-decided — each with its wall and its roadmap.md line>
+residual:   <cells NOT in the grid, uncovered or not-yet-decided — each with
+             its wall, its reachability (R1–R4, "Reachability ranks the
+             work"), and its tracker record (issue #N; R4 records here and
+             needs no issue unless the guarantee is rigor-critical)>
 ```
 
 The gate is symmetric: a residual row without both a wall and a record
@@ -3526,8 +3529,8 @@ docstrings alike — because a reader acts on the present tense wherever it
 appears, and a proposal's supporting evidence misleads exactly as a spec
 sentence does once it stops being true. The exemption is therefore not a
 document class but an explicit date: a measurement framed as a snapshot
-(the mutation sweep's operator and seed counts in
-[roadmap.md](roadmap.md)) is a historical record and stays as written,
+(the mutation sweep's operator and seed counts, now carried by issue #109)
+is a historical record and stays as written,
 because it claims only what was true when it ran. A live claim that would
 be correct if dated should be dated, not deleted — the figures are
 evidence, and deleting them to satisfy this rule would cost the argument
@@ -3663,8 +3666,12 @@ every role-id comparison outside the table to carry a marker naming why it
 is not drift, and `tests/test_operand_choke_point.py` requires every
 operand coercion to route through one check. Both derive their own axes
 from the registry they guard, so they widen with it rather than going
-stale. A closed domain with neither an `assert_never` nor a pin is
-unenforced, whatever its consumers currently do.
+stale. Visibility is itself a choice, not a fact of nature: a string
+domain the checker cannot see can usually be promoted to one it can (see
+"Prefer the wall you cannot need"), and the pin is the right mechanism
+only where that promotion is genuinely priced and declined. A closed
+domain with neither an `assert_never` nor a pin is unenforced, whatever
+its consumers currently do.
 
 ### Pin the derivation, not just the instance
 
@@ -3710,6 +3717,94 @@ standing in for an answer the program could have looked up is a silent
 wrong answer. Deciding which side a domain sits on is therefore the first
 question, not an afterthought — and "unsure" resolves to closed, because
 an unnecessary loud failure is cheap and a silent default is not.
+
+### Prefer the wall you cannot need
+
+Enforcement has a ladder, and each rung down costs more to hold:
+
+1. **Unrepresentable** — the illegal state cannot be written: a union the
+   type checker dispatches over, a grammar that cannot produce the
+   combination, a fact derived from one defining site so a second copy
+   cannot exist.
+2. **Derived and pinned** — the fact has one source; consumers derive from
+   it, and a pin catches the consumer that re-spells it.
+3. **A born-green pin with its witness** — behavior already correct,
+   guarded by a check that names its reddening mutation.
+4. **Review-enforced prose** — an authoring rule, held by whoever happens
+   to read it.
+
+Every claim on a lower rung is machinery that must itself be kept honest —
+markers need reasons, reasons need vocabularies, scrapes need manifests —
+and that maintenance is where enforcement findings breed. So a proposed
+pin carries one more line in its ledger: **why the fact cannot live a rung
+higher.** "The domain is strings the checker cannot see" is an answer only
+after asking whether the strings should be a union the checker can see —
+a registry of role ids is a closed domain by definition, which is exactly
+the shape an enum holds for free. A pin whose fact could have been a type
+is built on the wrong rung, and the findings it later generates are the
+interest on that choice.
+
+The rung is a design decision and gets recorded like one: when rung 3 or 4
+is chosen over an available rung 1 or 2, the ledger says why (a subtype
+relation the type system deliberately lacks, a migration priced and
+deferred with its tracker record) — so the next reader finds a decision,
+not a default.
+
+### The machinery is guarded once
+
+These rules bind the shipping surface — grammar, checker, registries,
+runtime, the adapter — and the rigor-critical machinery the
+information-set guarantee rests on: the proof harness, the projections,
+the encodings, the invariants. For those, completeness is measured against
+the domain, as this whole section says.
+
+Enforcement *scaffolding* — the pins, scrapes, hygiene tests, and audit
+tooling built to hold the rules above — is a different case, and the
+difference is load-bearing: every layer of guarding is itself a closed
+domain, so applying this section to its own machinery recurses without a
+base case, and each layer added is new surface for the next audit to find
+wanting. The base case is: **scaffolding carries exactly one level of
+guarding** — a grid's red run, a pin's `red under:` witness — and receives
+no preemptive machinery of its own. A defect *in* scaffolding is fixed
+when it bites (a finding it should have caught and did not), or in a named
+integrity sweep with its own scope, and is filed with its reachability
+stated — never as routine finding fodder. This is corpus-first applied to
+the machine: the witness for meta-machinery is a failure, and waiting for
+it is cheap because the shipping surface underneath is still guarded.
+
+The test for which side something is on: if it fails silently, is a wrong
+game trusted, or a wrong *audit* trusted? The first is rigor-critical.
+The second is scaffolding.
+
+### Reachability ranks the work
+
+Severity says what kind of defect; reachability says who can meet it.
+Every finding, residual cell, and tracker issue states one:
+
+- **R1 — corpus-reachable.** A game in `docs/games/` (or anything trained
+  or proven against one) meets it today.
+- **R2 — designer-reachable.** A checker-green sentence a designer could
+  plausibly write meets it. The design-tool promise binds here: R2 silence
+  is how a designer ships a wrong game.
+- **R3 — witness-gated.** Reaching it requires surface the language does
+  not yet accept — a cell deferred behind a wall, lifted only when its
+  named witness lands. A construct that is accepted today but unused by
+  the corpus is R2, not R3: the corpus gates which mechanisms exist, not
+  what a designer may write.
+- **R4 — auditor-only.** Reaching it requires planting a mutation,
+  widening a registry, or editing the machinery itself.
+
+The tags are exclusive by precedence: assign the lowest-numbered tag
+whose condition holds — reachability names the *closest* party who can
+meet the defect, never the typical one.
+
+Disposition follows the tag: R1 is fixed now; R2 is fixed or filed with a
+kind; R3 is a residual with its wall and its record, per the symmetric
+gate; R4 is recorded in the owning ledger and files an issue only when the
+guarded guarantee is rigor-critical. And effort follows it the same way:
+a fix whose size is out of proportion to its reachability routes to
+record-and-file, not to fix-now — the proportionality call is made in
+planning, out loud, not discovered in review.
 
 ## Family libraries
 
@@ -3834,7 +3929,7 @@ can read it where they run" — a declaration in a phase the library never runs 
 satisfies the contract and then fails at play time — and the shortfall is not the
 import tier's to close: a plain game with no library reproduces it, one phase
 declaring what another reads. It is recorded as a residual in
-[roadmap.md](roadmap.md).
+issue #138.
 
 Cross-block shadowing is legal for game-private state and refused for a
 `requires`d name: the two shadowed declarations answer different questions, and
@@ -3861,7 +3956,7 @@ The check enforces this for every name the resolver classifies. It does not yet
 reach a name a construct holds as a bare string rather than as a reference — a
 `turns … again <var>`, a `round`'s source and play zones, a struct type name —
 so for those slots the rule above is the design's intent rather than a
-guarantee. The gap and the shape of its fix are in [roadmap.md](roadmap.md).
+guarantee. The gap and the shape of its fix are in issue #138.
 
 **Name collisions on state are walled the same way collisions on definitions
 are.** A library may not both provide and require one name — the two clauses
@@ -3891,8 +3986,18 @@ the reference is theirs to know. The refusal is deliberately conservative — a
 coincidence is refused even where precedence would make it harmless — because the
 rule a designer must hold is "a library may not bring in a name you already use",
 not a table of safe pairs. It is reported naming the library, since that is the
-half the author cannot see; the game-level face of the same clash is left to the
-author and recorded in [roadmap.md](roadmap.md).
+half the author cannot see. The game-level face of the same clash is left to
+the author deliberately, and is not deferred work: `state { pile }` beside
+`zones { pile }`, a state variable spelled like a suit, or a function named
+after a rank all resolve by `_classify`'s precedence (state variable over
+zone over deck value over function), which makes the loser unreachable by
+that spelling with no diagnostic. That is the ordinary block shadowing every
+language allows, and a game-level uniqueness rule would be a far larger,
+higher-risk change than the corpus has forced. The library wall turns on
+INVISIBILITY — a name the author cannot see — so it would be wrong to apply
+to names they wrote; if a designer is ever surprised by their own
+cross-namespace shadow, the fix is to lift the same sweep to the game's own
+declarations and measure the corpus cost.
 
 **What a library holds, and what stays game-local.** A library holds definitions
 and the state its definitions own — but no zones and no phases — because that is

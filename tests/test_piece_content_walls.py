@@ -102,7 +102,7 @@ residual:   card-content vocabulary reachable ONLY through the trick-taking and
             (its inference env carries no game flavor), reached in a piece game
             only through a card-content struct field, itself a loud residual. A
             declaration-site / rule-system wall naming the kind is deferred and
-            recorded in roadmap.md, "Piece-flavored games". Piece TWINS of the
+            recorded in issue #114. Piece TWINS of the
             card-query and aggregation forms are grammatically inexpressible (no
             `pieces in ...` / `over pieces in ...` productions -- deliberately
             not added), so those forms have no piece-flavor accept cell; the

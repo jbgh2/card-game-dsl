@@ -223,7 +223,8 @@ def test_a_default_may_not_call(cell: str) -> None:
     """The indirect channel, refused outright rather than followed into the
     callee. All three cells are refused, including the two that would run clean
     today — this is a deliberate narrowing, not an approximation of a
-    reachability analysis, and it is recorded as one in roadmap.md.
+    reachability analysis, and it is recorded as one in decisions.md
+    "State scoping (lexical)".
 
     Following the body instead would mean an interprocedural scope check
     (nested calls, mutual recursion) bought for a capability no game in the

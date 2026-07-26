@@ -195,8 +195,8 @@ class ZoneStore:
         # KEYS, by contrast, are author-reachable: a zone-family subscript's
         # index is checked with `types.assignable`, which admits a bare
         # Integer literal, so `hand[9]` in a 4-player game type-checks and
-        # arrives here (roadmap.md, "Zone-family index strictness (deferred
-        # re-audit)"). That deferral is what makes this wall reachable rather
+        # arrives here (the ledger in tests/test_zone_family_typing.py
+        # records the deferred re-audit). That deferral is what makes this wall reachable rather
         # than a backstop, and why the key branch owes a typed error. A
         # board-minted family keys by a cell name (str), so the key is
         # `int | str`.

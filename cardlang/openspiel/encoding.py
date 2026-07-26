@@ -40,6 +40,17 @@ from cardlang.runtime.values import RANKS, SUITS, Card, build_deck, deck_suits
 
 NUM_DISTINCT_ACTIONS = len(SUITS) * len(RANKS)  # 52 — the standard card block
 
+# The verb names for the three blocks whose ids carry a parameter VALUE rather
+# than a move-type name: a Card-parameterized move's ids are the card block's
+# (see the module docstring), an integer `choose`'s id is the chosen value, and
+# a combination id is the card-set. Nothing in the encoding recovers a name
+# from those ids, so the block itself is the finest verb they can support.
+# Angle brackets keep them disjoint from move-type names, which the grammar
+# restricts to identifiers.
+CARD_VERB = "<card>"
+INT_VERB = "<int>"
+COMBO_VERB = "<combo>"
+
 
 def card_to_action(card: Card) -> int:
     return SUITS.index(card.suit) * len(RANKS) + RANKS.index(card.rank)
@@ -270,7 +281,7 @@ class ActionSpace:
                     key=lambda p: (p.size, p.kind, sorted(card_to_action(c) for c in p.cards)),
                 )
         if joint_engines:
-            # Corpus-first walls, all loud (roadmap.md records the deferrals):
+            # Corpus-first walls, all loud (issue #139 records the deferrals):
             # the combo block serves one subset universe per game, so a game
             # mixing climb and joint selections — or two joint predicates with
             # different universes — needs a codec-composition design no game
@@ -417,6 +428,37 @@ class ActionSpace:
                 f"recorded action {aid} ({self.to_string(aid)}) is not among the live candidates"
             )
         return found
+
+    def verb_of(self, aid: int) -> str:
+        """The move-type name `aid` denotes, at the granularity the encoding
+        preserves: a bare-name or vocabulary id names its move type; a card,
+        integer or combination id names its block (`CARD_VERB` etc.).
+        Partitions `0..num_distinct_actions` exactly — same block boundaries as
+        `decode`, which raises on an out-of-range id."""
+        value = self.decode(aid)
+        if isinstance(value, Card):
+            return CARD_VERB
+        if isinstance(value, ComboAction):
+            return COMBO_VERB
+        if isinstance(value, tuple):
+            return str(value[0])
+        if isinstance(value, str):
+            return value
+        return INT_VERB
+
+    def verbs(self) -> frozenset[str]:
+        """Every verb this game's action space DECLARES — the universe
+        `verb_of` can return, derived from the blocks rather than enumerated
+        over ids (the combination block is up to 211M ids wide). A bounded
+        conformance walk's coverage claim is stated against this set."""
+        out = {CARD_VERB}  # the card block is always present (see `_name_base`)
+        out.update(self._names)
+        if self._int_ceiling is not None:
+            out.add(INT_VERB)
+        out.update(name for name, _ in self._vocab)
+        if self._combos or self._combo_codec is not None:
+            out.add(COMBO_VERB)
+        return frozenset(out)
 
     def to_string(self, aid: int) -> str:
         value = self.decode(aid)

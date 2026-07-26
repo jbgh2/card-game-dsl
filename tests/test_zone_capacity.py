@@ -38,7 +38,7 @@ covered:    the registry-total pin (set(ZONE_CAPACITY) == set(
 sampled:    none
 residual:   the `Point` row (an unbounded stack, backgammon's witness — see
             docs/design-notes/board-topology.md) is not added until board-
-            topology stage 3; docs/roadmap.md records it.
+            topology stage 3; issue #118 records it.
 
             Two zone-append call sites are NOT routed through `_deposit`,
             and are out of this task's lane (cardlang/runtime/mechanics.py):
@@ -49,7 +49,7 @@ residual:   the `Point` row (an unbounded stack, backgammon's witness — see
             checks) — so a future game pointing a round's play zone at a
             Cell is reachable IN PRINCIPLE, not statically walled. It is not
             corpus-reachable today: every round/trick/climb form is card-
-            flavored (docs/roadmap.md, "Piece-flavored games"), and Cell is
+            flavored (issue #114), and Cell is
             used by exactly one corpus game (FreeCell), which uses no round
             form. This is a genuine gap, not a proven-safe exclusion.
 

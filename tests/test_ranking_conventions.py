@@ -40,7 +40,7 @@ sampled:    the "did you mean" hint is probed on four representative
             key — the hint is advisory text on an already-loud diagnostic.
 residual:   partial-enumeration runtime KeyError (`rank_value` on a rank
             outside a partial `ranking:`) is the standing recorded residual
-            (docs/roadmap.md, "`ranking:` coverage is unchecked") and is
+            (the ledger in tests/test_ranking_wall.py) and is
             unreachable from a convention, which is always a full
             permutation of its deck by construction. (A duplicated
             `ranking:` clause — convention or enumeration — is walled at

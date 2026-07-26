@@ -71,7 +71,7 @@ These hold for every step; they are what make a 1,800-line deletion safe.
   redesign.
 - **Test-depth nets before risky migrations.** Random playouts never reach
   skill-gated branches (Spades nil/+500, Coup
-  challenge-loser — see [roadmap.md](roadmap.md), "Test-depth regression nets").
+  challenge-loser — see issue #83).
   Where a game has such a branch, add an independent-recompute test **before**
   migrating it, or the migration can pass playouts while being subtly wrong.
 - **One construct per commit**, red fixture → minimal kernel/grammar/checker
@@ -93,7 +93,7 @@ Spades, Getaway, Bridge, Oh Hell) runs on the kernel `round`, the built-in
 `Trick` mechanic and the routing-def construct are retired, and `round` carries
 the termination axis (`early`) plus round-state exposure. The remaining axes
 below (accumulator, order, move vocabulary) land with the workstreams that first
-need them — see [roadmap.md](roadmap.md).*
+need them — see issue #140.*
 
 The `Round` node (`cardlang/ast/nodes.py`) is trick-shaped: one card play per
 participant plus an `outcome` function. Everything below composes on a
@@ -390,7 +390,7 @@ The design the construct settled:
 
 This workstream builds the **`scoring_component` runtime subsystem**
 ([decisions.md](decisions.md), "Scoring composition" / "Triggered scoring
-components"), which the runtime has so far folded inline ([roadmap.md](roadmap.md)).
+components"), which the runtime has so far folded inline (issue #115).
 
 - **Cribbage** — *done, ahead of this workstream.* The whole hand landed on the
   kernel without the `scoring_component` subsystem this workstream builds: the

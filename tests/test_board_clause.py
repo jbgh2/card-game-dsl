@@ -72,8 +72,7 @@ sampled:    the action-space round-trip (encode/decode) is proven on the
 residual:   * cell CONSTANTS in expressions (a bare `a1`) are not
               expression surface at rung 1 -- `a1` stays an unknown-name
               diagnostic (proven below); witness = a game naming specific
-              cells (breakthrough). roadmap.md "cell literals in
-              expressions".
+              cells (breakthrough); issue #111.
             * quantifiers over `cell`/`line` (`any cell where`, `any line in
               lines(3) where`) LANDED in Task 7 -- the cell/line query
               register (tests/test_cell_queries.py owns that grid); the

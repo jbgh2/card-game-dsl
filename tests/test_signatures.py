@@ -35,8 +35,7 @@ residual:   inline arms (an expression instead of a helper call — team_of,
             partition-helper tests.
             Nothing forces a NEW registry to acquire a dispatchability pin —
             the registry-to-dispatcher pairing is not derivable from code,
-            so each pin below names its own registry. Deferred: roadmap.md
-            "Registry-module manifest".
+            so each pin below names its own registry. Deferred: issue #108.
 """
 
 from __future__ import annotations
