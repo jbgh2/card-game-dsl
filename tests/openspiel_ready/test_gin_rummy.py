@@ -59,8 +59,8 @@ class TestReadiness(ReadinessProofs):
             ("lay_off_a", "post-knock lay-off"),
             ("lay_off_b", "post-knock lay-off"),
             ("lay_off_c", "post-knock lay-off"),
-            ("<combo>", "the joint meld-arrangement subsets, offered only "
-                        "inside the post-knock arrangement"),
+            ("<combo>", ("the joint meld-arrangement subsets, offered only "
+                        "inside the post-knock arrangement")),
         ),
     )
 

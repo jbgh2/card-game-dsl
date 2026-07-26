@@ -24,11 +24,11 @@ class TestReadiness(ReadinessProofs):
         conformance_verbs_unreached=(
             (
                 "throw_in",
-                "the hand is thrown in only when all three players pass the "
+                ("the hand is thrown in only when all three players pass the "
                 "Reizen, which the seed-7 line does not do (and no bound makes "
                 "reliable — the outcome is a property of the deal, not of "
                 "depth); the 50-seed sweep in tests/test_playout_skat.py plays "
-                "enough deals to hit it",
+                "enough deals to hit it"),
             ),
         ),
     )

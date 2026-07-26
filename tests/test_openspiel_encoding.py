@@ -54,10 +54,6 @@ def test_out_of_range_raises() -> None:
 
 from pathlib import Path
 
-# `registry`, NOT `openspiel.game`: game.py registers against pyspiel at
-# import time, and this module must stay collectable on a core install
-# without the optional extra (tests/test_optional_pyspiel.py).
-from cardlang.openspiel.registry import GAMES as REGISTERED
 from cardlang.openspiel.encoding import (
     CARD_VERB,
     COMBO_VERB,
@@ -65,6 +61,11 @@ from cardlang.openspiel.encoding import (
     ActionSpace,
     ComboAction,
 )
+
+# `registry`, NOT `openspiel.game`: game.py registers against pyspiel at
+# import time, and this module must stay collectable on a core install
+# without the optional extra (tests/test_optional_pyspiel.py).
+from cardlang.openspiel.registry import GAMES as REGISTERED
 from cardlang.pipeline import check_source
 
 GAMES = Path(__file__).resolve().parent.parent / "docs" / "games"

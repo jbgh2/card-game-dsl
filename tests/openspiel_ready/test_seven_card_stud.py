@@ -33,10 +33,10 @@ class TestReadiness(ReadinessProofs):
         conformance_verbs_unreached=(
             (
                 "<card>",
-                "STRUCTURAL, not a depth shortfall: Stud deals cards and bets "
+                ("STRUCTURAL, not a depth shortfall: Stud deals cards and bets "
                 "on them — no decision is ever card-valued, so the reserved "
                 "card block is dead (measured unapplied on lines that reach "
-                "Terminal). Issue #157 owns deriving the block away",
+                "Terminal). Issue #157 owns deriving the block away"),
             ),
         ),
     )

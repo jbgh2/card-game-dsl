@@ -64,14 +64,14 @@ class TestReadiness(ReadinessProofs):
         swap_axis="any",
         conformance_steps=150,
         conformance_verbs_unreached=(
-            ("decline_pile", "the pile-take offer only arises when the discard "
+            ("decline_pile", ("the pile-take offer only arises when the discard "
                              "pile is takeable; the seed-7 line declines no "
                              "such offer within the bound. Both arms of the "
                              "offer are exercised by the 30-seed match sweep "
-                             "in tests/test_playout_canasta.py"),
-            ("meld_black3", "melding black threes is legal only when going "
+                             "in tests/test_playout_canasta.py")),
+            ("meld_black3", ("melding black threes is legal only when going "
                             "out, which the bound stops well short of "
-                            "(the same sweep plays four full deals per seed)"),
+                            "(the same sweep plays four full deals per seed)")),
         ),
     )
 

@@ -125,7 +125,7 @@ def test_every_test_module_imports_without_pyspiel() -> None:
     """red under: import `cardlang.openspiel.game` at the top of any test
     module outside tests/openspiel_ready/ — e.g. tests/test_openspiel_encoding.py,
     where exactly that regressed and was caught in review rather than here."""
-    proc = subprocess.run(
+    proc = subprocess.run(  # noqa: PLW1510 -- the returncode assert below carries proc.stderr; CalledProcessError would not
         [sys.executable, "-c", _COLLECT_SCRIPT],
         cwd=REPO,
         capture_output=True,

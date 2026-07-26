@@ -77,7 +77,8 @@ the cut costs in coverage.
 from __future__ import annotations
 
 import importlib
-from typing import Any, Iterator
+from collections.abc import Iterator
+from typing import Any
 
 import pytest
 

@@ -22,12 +22,12 @@ class TestReadiness(ReadinessProofs):
         conformance_verbs_unreached=(
             (
                 "dragon_to_right",
-                "the mirror arm of the dragon gift: `dragon_to_left` IS applied "
+                ("the mirror arm of the dragon gift: `dragon_to_left` IS applied "
                 "within the bound, and which opponent the trick is given to is "
                 "the same move with the other target. Reaching the right arm on "
                 "this line costs 178 steps (measured), and the arms diverge "
                 "wildly by rng (337 on seed 0, past 400 on seed 1) — depth buys "
-                "a coin flip here, not coverage",
+                "a coin flip here, not coverage"),
             ),
         ),
     )

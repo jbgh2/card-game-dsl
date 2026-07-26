@@ -24,7 +24,7 @@ pinned at the table level in tests/test_canasta_primitives.py.
 from __future__ import annotations
 
 import random
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 from typing import Any
 
@@ -45,7 +45,7 @@ _MELD_FAMILIES = (
 )
 
 
-@lru_cache(maxsize=None)
+@cache
 def _run(seed: int) -> tuple[Any, Any, list[dict[int, int]]]:
     game = check_source(CANASTA)
     rs_box: list[Any] = []

@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
@@ -198,7 +198,7 @@ class BoundedWalk:
         return self.first_applied[-1][1] if self.first_applied else None
 
 
-@lru_cache(maxsize=None)
+@cache
 def bounded_walk(short_name: str, path: str, steps: int) -> BoundedWalk:
     """`steps` random legal actions from a pinned rng, checking the pyspiel API
     invariants and recording the verb of every action APPLIED (offered-only
@@ -262,7 +262,7 @@ class _GreedyCap(Exception):
     """The greedy line ran past its cap without terminating."""
 
 
-@lru_cache(maxsize=None)
+@cache
 def greedy_line(path: str, seed: int, cap: int) -> tuple[tuple[int, ...], list[float] | None]:
     """The `legal[0]` line, walked ONCE and linearly: the action ids it takes,
     and the terminal returns if it ends within `cap`.
