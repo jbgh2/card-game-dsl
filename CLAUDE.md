@@ -184,14 +184,36 @@ records in its own ledger and needs no issue. The ledger must then SAY it owns
 the record, so "no issue" reads as a decision rather than an omission. If the
 cell is something anyone might one day build, it is work: file the issue.
 
-Keep the label set minimal. The whole vocabulary is `bug`, `enhancement`,
-`documentation`, `epic`, `tech-debt`, and `blocked:needs-witness`; area
-labels (checker/runtime/testing) were rejected deliberately — semantic issue
-search covers retrieval, so wait for the problem before adding a label.
+Keep the label set minimal. The whole vocabulary is five **kinds** — `bug`,
+`enhancement`, `documentation`, `tech-debt`, `epic` — plus two **modifiers**,
+`blocked:needs-witness` and `needs-triage`. Area labels
+(checker/runtime/testing) were rejected deliberately — semantic issue search
+covers retrieval, so wait for the problem before adding a label.
+
+**Every issue carries at least one KIND.** A modifier never stands in for one:
+`blocked:needs-witness` says *when* an issue can be worked, not *what it is*,
+so an issue carrying only that label is still unclassified. File the kind with
+the issue; if you genuinely cannot pick one yet, add `needs-triage` and say why
+in the body.
+
+The sweep is a **derived query**, not a promise to remember the label — an
+issue filed with no labels at all is exactly the case a `needs-triage`
+convention cannot catch, so the sweep asks for the absence of a kind rather
+than the presence of a marker (completeness by superset, never by judgment):
+
+```bash
+gh issue list --repo jbgh2/card-game-dsl --state open --limit 200 \
+  --json number,title,labels --jq '.[] | select([.labels[].name] | any(. == "bug" or . == "enhancement" or . == "documentation" or . == "tech-debt" or . == "epic") | not) | "\(.number) \(.title)"'
+```
+
+Empty output is the clean state. Run it when sweeping the tracker; it needs no
+discipline upstream to be correct, which is the point.
 
 - **`blocked:needs-witness`** requires the body to NAME the game or data
   point that unblocks it. A witness-gated issue with no named witness is the
   corpus-first rule stated without its evidence, so the label does not apply.
+- **`needs-triage`** means "filed fast, kind not yet decided" — a deliberate,
+  visible state, not a resting place. It comes off when a kind goes on.
 - **`epic`** issues are checklist containers for multi-stage workstreams;
   they hold sub-items, not work of their own.
 - Every migrated issue carries a `## Provenance` line naming its source.
