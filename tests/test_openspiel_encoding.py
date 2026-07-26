@@ -445,6 +445,9 @@ def _verb_image(space: ActionSpace) -> set[str]:
 
 @pytest.mark.parametrize("filename", sorted(set(ogame.GAMES.values())))
 def test_declared_verbs_are_exactly_the_verbs_ids_produce(filename: str) -> None:
+    """red under: drop `out.update(self._names)` from `ActionSpace.verbs()` —
+    12 of the 29 games fail (the 17 with no bare-name block stay green, which
+    is itself the shape of the claim)."""
     space = _space(filename)
     assert space.verbs() == _verb_image(space)
 

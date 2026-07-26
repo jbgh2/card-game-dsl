@@ -38,6 +38,13 @@ covered:   the grid IS the coverage — one parametrized cell per (game, verb)
            (applied, recorded-unreached) and all four of its cells are probed
            below. Every unreached cell carries its reason IN the spec, checked
            non-empty, so no cell can be dark.
+sampled:   the claim is made on ONE line — the walk's pinned `Random(7)`. A
+           verb reachable on other lines but not this one reads as unreached
+           here, which is why an unreached entry states where the mechanic IS
+           exercised rather than asserting it is unreachable. Sampling one line
+           is what makes the check deterministic and free; the per-game margin
+           between the last new verb and the bound is the guard against a game
+           change shifting the line (`last_new_verb` in the coverage record).
 residual:  (a) UNBOUNDED games (`conformance_steps=None`) get no verb claim.
            There is no bound to justify — the full `random_sim_test` plays one
            random line to Terminal, and pyspiel chooses its actions internally,
@@ -139,7 +146,7 @@ def test_the_bound_covers_every_declared_verb(
 @pytest.mark.parametrize(
     ("short_name", "spec"), [pytest.param(s, sp, id=s.removeprefix("cardlang_")) for s, sp in SPECS]
 )
-def test_exemptions_are_declared_verbs_of_a_bounded_walk(
+def test_the_unreached_pin_is_well_formed(
     short_name: str, spec: GameSpec
 ) -> None:
     """The well-formedness the per-verb grid cannot see (`harness.pin_failures`,
