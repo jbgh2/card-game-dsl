@@ -112,8 +112,8 @@ def test_30_random_games_satisfy_invariants() -> None:
                 if not double_victory and card_points != 100:
                     bad_points += 1
             elif event == "game_end":
-                census.clear()
-                census.update(data)
+                census.clear()  # noqa: B023 -- consumed before the loop advances
+                census.update(data)  # noqa: B023 -- consumed before the loop advances
 
         rng = random.Random(seed)
         result = play_game(

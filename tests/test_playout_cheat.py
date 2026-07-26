@@ -77,7 +77,7 @@ def test_all_three_adjudication_branches_fire() -> None:
 
         def observer(player: int, event: tuple[Any, ...]) -> None:
             if player == 0:
-                events.append(event)
+                events.append(event)  # noqa: B023 -- consumed before the loop advances
 
         play_game(game, random.Random(seed), observer=observer)
 

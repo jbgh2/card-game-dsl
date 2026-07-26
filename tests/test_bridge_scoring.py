@@ -36,7 +36,7 @@ def test_bridge_scoring_matches_independent_recompute() -> None:
 
         def tracer(event: str, data: Any) -> None:
             if event in ("bridge_contract", "trick", "hand_end"):
-                events.append((event, data))
+                events.append((event, data))  # noqa: B023 -- consumed before the loop advances
 
         play_game(game, random.Random(seed), tracer)
 

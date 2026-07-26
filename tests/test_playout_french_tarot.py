@@ -80,15 +80,15 @@ def test_random_games_satisfy_invariants() -> None:
         def tracer(event: str, data: Any) -> None:
             nonlocal hand_ends
             if event == "play":
-                plays.append(data)
+                plays.append(data)  # noqa: B023 -- consumed before the loop advances
             elif event == "trick":
-                tricks.append(data)
+                tricks.append(data)  # noqa: B023 -- consumed before the loop advances
             elif event == "hand_end":
                 hand_ends += 1
-                hand_end_scores.append(dict(data))
+                hand_end_scores.append(dict(data))  # noqa: B023 -- consumed before the loop advances
             elif event == "game_end":
-                census.clear()
-                census.update(data)
+                census.clear()  # noqa: B023 -- consumed before the loop advances
+                census.update(data)  # noqa: B023 -- consumed before the loop advances
 
         result = play_game(game, random.Random(seed), tracer)
 

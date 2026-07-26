@@ -26,7 +26,7 @@ def test_40_random_games_satisfy_invariants() -> None:
 
         def tracer(event: str, data: Any) -> None:
             if event == "coup_game":
-                info.update(data)
+                info.update(data)  # noqa: B023 -- consumed before the loop advances
 
         result = play_game(game, random.Random(seed), tracer)
 

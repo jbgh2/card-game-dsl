@@ -108,10 +108,10 @@ def test_random_games_satisfy_invariants() -> None:
 
         def tracer(event: str, data: Any) -> None:
             if event == "hand_end":
-                hand_totals.append(dict(data))
+                hand_totals.append(dict(data))  # noqa: B023 -- consumed before the loop advances
             elif event == "game_end":
-                census.clear()
-                census.update(data)
+                census.clear()  # noqa: B023 -- consumed before the loop advances
+                census.update(data)  # noqa: B023 -- consumed before the loop advances
 
         result = play_game(game, random.Random(seed), tracer)
 
