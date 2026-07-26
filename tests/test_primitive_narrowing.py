@@ -610,9 +610,8 @@ def _scan(path: Path) -> ModuleScan:
         # A reach through a value spelled `ctx` for any of Ctx's own surface.
         elif isinstance(node, ast.Attribute):
             base = node.value
-            if isinstance(base, ast.Name) and base.id == "ctx":
-                if node.attr in _ctx_surface():
-                    note(f"ctx.{node.attr}", node.lineno)
+            if isinstance(base, ast.Name) and base.id == "ctx" and node.attr in _ctx_surface():
+                note(f"ctx.{node.attr}", node.lineno)
         # A parameter annotated with a forbidden type.
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             for arg in [*node.args.args, *node.args.kwonlyargs]:

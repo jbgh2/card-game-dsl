@@ -319,9 +319,12 @@ def test_the_position_axis_is_the_grammar_s() -> None:
         if not s or s.startswith("//"):
             continue
         m = re.match(r"^([a-z_]+):", s)
-        if m and re.search(r"\b(type_name|payload_type)\b", s):
-            if m.group(1) not in ("type_name", "payload_type"):
-                carriers.add(m.group(1))
+        if (
+            m
+            and re.search(r"\b(type_name|payload_type)\b", s)
+            and m.group(1) not in ("type_name", "payload_type")
+        ):
+            carriers.add(m.group(1))
     # `move_param` is one production reached from three hosts (move type,
     # procedure, rule), and each host gates it differently — so the axis counts
     # HOSTS, not productions, and the scrape's `move_param` expands to three.
