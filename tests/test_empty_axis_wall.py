@@ -79,7 +79,10 @@ covered:    the grid — `test_the_wall_holds_at_every_birth_site`, ten cells
             (`test_the_authorization_scrape_can_see_a_call`); the door's two
             refusals — staleness
             (`test_an_authorization_that_is_no_longer_empty_is_loud`) and a
-            placeholder reason (`test_a_blank_reason_is_not_a_reason`); the
+            placeholder reason (`test_a_blank_reason_is_not_a_reason`) — each
+            proven to stop the BUILD at the decorator site where it really
+            fires, not merely to raise when called
+            (`test_a_refused_authorization_stops_collection`, two cells); the
             arity backstop pytest owns (`test_an_argcount_mismatch_is_loud`);
             and the core-install config
             (`test_the_suite_collects_clean_without_pyspiel`), which is the only
@@ -367,12 +370,23 @@ _HELPER = "may_be_empty"
 
 
 def _helper_calls(tree: ast.AST) -> list[ast.Call]:
+    """Every call to the helper, under either spelling.
+
+    `ast.Attribute` counts: `ea.may_be_empty(...)` after `import
+    tests.empty_axis as ea` is the same call, and matching only the bare name
+    would hide it from BOTH the attribution table and the stray wall — an
+    authorized axis with no row anywhere, which is a hole rather than an
+    under-report. Enumerating one spelling is the deny-list this repo forbids,
+    and `tests/test_role_comparison_pin.py` records it missing four shapes that
+    way before review caught it."""
     return [
         n
         for n in ast.walk(tree)
         if isinstance(n, ast.Call)
-        and isinstance(n.func, ast.Name)
-        and n.func.id == _HELPER
+        and (
+            (isinstance(n.func, ast.Name) and n.func.id == _HELPER)
+            or (isinstance(n.func, ast.Attribute) and n.func.attr == _HELPER)
+        )
     ]
 
 
@@ -475,13 +489,17 @@ def test_the_authorization_scrape_can_see_a_call(tmp_path: pathlib.Path) -> None
 
     A scrape that matched nothing would also be green against the real tree —
     `_AUTHORIZED_EMPTY_AXES` would just be `{}`, and the wall would be a check
-    that cannot fail. Fed a synthetic tree carrying one attributed call, one
-    stray call, and one decorated test that does not use the helper."""
+    that cannot fail. Fed a synthetic tree carrying an attributed call under
+    each of the helper's two spellings — bare name, and qualified through a
+    module alias — plus one stray call and one decorated test that does not use
+    the helper at all."""
     (tmp_path / "sub").mkdir()
     (tmp_path / "test_attributed.py").write_text(
         "import pytest\n"
         "@pytest.mark.parametrize('x', may_be_empty([], reason='r'))\n"
         "def test_yes(x): pass\n"
+        "@pytest.mark.parametrize('x', ea.may_be_empty([], reason='r'))\n"
+        "def test_yes_qualified(x): pass\n"
         "@pytest.mark.parametrize('x', [1])\n"
         "def test_no(x): pass\n"
     )
@@ -489,7 +507,9 @@ def test_the_authorization_scrape_can_see_a_call(tmp_path: pathlib.Path) -> None
         "_AXIS = may_be_empty([], reason='r')\n"
         "def test_plain(): pass\n"
     )
-    assert _authorized_empty_axes(tmp_path) == {"test_attributed.py": ["test_yes"]}
+    assert _authorized_empty_axes(tmp_path) == {
+        "test_attributed.py": ["test_yes", "test_yes_qualified"]
+    }
     assert _unattributed_helper_calls(tmp_path) == ["sub/test_stray.py:1"]
 
 
@@ -523,6 +543,54 @@ def test_a_blank_reason_is_not_a_reason() -> None:
     with pytest.raises(BaseException) as excinfo:
         may_be_empty([], reason="   ")
     assert "needs a reason" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    ("values", "reason", "expected"),
+    [
+        ("[1]", "stale", "no longer empty"),
+        ("[]", "   ", "needs a reason"),
+    ],
+    ids=["stale-authorization", "blank-reason"],
+)
+def test_a_refused_authorization_stops_collection(
+    values: str, reason: str, expected: str
+) -> None:
+    """The refusals must fail the BUILD, at the site they actually fire.
+
+    Both live in a decorator argument, so they raise during module import —
+    collection, not a test run. `pytest.fail` raises `Failed`, whose base class
+    `OutcomeException` pytest deliberately special-cases at import time: that is
+    how `importorskip` retires a whole module quietly. Asserting the function
+    raises when called from a test body (the two tests below) proves the
+    function raises; it does not prove the currency survives the trip. If it did
+    not, this whole mechanism would be the vacuously-green class it exists to
+    stop.
+
+    red under: swap either refusal in `tests/empty_axis.py` for
+    `pytest.skip(reason=..., allow_module_level=True)`, the currency
+    `importorskip` uses — the module retires itself, the reason never reaches
+    the output, and the run reports no tests collected instead of the refusal.
+    Note which assertion catches that: the returncode one does NOT, because
+    "no tests ran" is itself a nonzero exit. The message assertion is what
+    makes this pin discriminate, which is why both are here."""
+    proc = _run_probe(
+        "import sys\n"
+        f"sys.path.insert(0, {str(_REPO)!r})\n"
+        "import pytest\n"
+        "from tests.empty_axis import may_be_empty\n\n"
+        f"@pytest.mark.parametrize('a0', may_be_empty({values}, reason={reason!r}))\n"
+        "def test_cell(a0):\n"
+        "    assert True\n"
+    )
+    assert proc.returncode != 0, (
+        f"a refused authorization collected cleanly — {expected!r} never "
+        f"reached the build.\n{proc.text}"
+    )
+    assert expected in proc.text, (
+        f"the run failed, but without saying {expected!r} — red for the wrong "
+        f"reason, and the author is told nothing.\n{proc.text}"
+    )
 
 
 def test_an_argcount_mismatch_is_loud() -> None:
