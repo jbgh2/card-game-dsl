@@ -3786,10 +3786,17 @@ Every finding, residual cell, and tracker issue states one:
 - **R2 — designer-reachable.** A checker-green sentence a designer could
   plausibly write meets it. The design-tool promise binds here: R2 silence
   is how a designer ships a wrong game.
-- **R3 — witness-gated.** Reaching it requires a construct no corpus game
-  uses; the witness is named.
+- **R3 — witness-gated.** Reaching it requires surface the language does
+  not yet accept — a cell deferred behind a wall, lifted only when its
+  named witness lands. A construct that is accepted today but unused by
+  the corpus is R2, not R3: the corpus gates which mechanisms exist, not
+  what a designer may write.
 - **R4 — auditor-only.** Reaching it requires planting a mutation,
   widening a registry, or editing the machinery itself.
+
+The tags are exclusive by precedence: assign the lowest-numbered tag
+whose condition holds — reachability names the *closest* party who can
+meet the defect, never the typical one.
 
 Disposition follows the tag: R1 is fixed now; R2 is fixed or filed with a
 kind; R3 is a residual with its wall and its record, per the symmetric
