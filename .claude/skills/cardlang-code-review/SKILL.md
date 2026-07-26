@@ -45,6 +45,13 @@ loud failure is the system working; silence is the enemy.
    corpus games out of lockstep (CLAUDE.md operating rules 1–2).
 9. **Cleanup** — reuse / simplification / efficiency.
 
+Reachability (decisions.md, "Reachability ranks the work") orders findings
+*within* a class and tempers the order across classes: an R4 finding of
+any silent class ranks below an R2 finding of any class at all. The
+severity inversion this prevents is real — a vacuously-green pin over
+scaffolding outranking a designer-reachable crash reads as rigor and
+allocates backwards.
+
 ## Phase 0 — Scope, classify, and gate on artifacts
 
 1. Gather the diff: `git diff main...HEAD` (or upstream range), plus
@@ -224,7 +231,8 @@ Keep CONFIRMED and PLAUSIBLE; drop REFUTED.
 Rank by the severity order above, at most 15 findings. If the
 `ReportFindings` tool is available, report through it; otherwise output the
 JSON array (`file`, `line`, `summary`, `failure_scenario`, `verdict`,
-`category`). State the Phase-0 artifact-gate verdict explicitly (artifacts
+`category`, `reaches` — the R1–R4 reachability tag).
+State the Phase-0 artifact-gate verdict explicitly (artifacts
 present / absent; grid run against the merge base or not; witnesses
 replayed or not) even when it produced no finding. List cut findings one line each — a silent cap reads as "covered
 everything".
