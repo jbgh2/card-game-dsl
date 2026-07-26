@@ -69,7 +69,7 @@ binder strictly narrower than any same-named outer declaration), matching
 `_check_duplicate_names`'s own "legitimately shadow ACROSS levels" carve-out
 — not a defect this reservation needs to close. Probed directly below
 (`test_card_and_player_shadowing_stays_legal`): a declared `card`/`player`
-name resolves clean and does not misbehave, so no roadmap.md line is
+name resolves clean and does not misbehave, so no tracker record is
 needed for it.
 """
 

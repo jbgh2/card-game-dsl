@@ -51,9 +51,9 @@
                 field read. `state.shed_first` inside a trick phase type-checks.
                 Wall: the runtime now fails loudly rather than returning a stale or
                 foreign frame (the AuctionForm `last_round_state` clear, pinned by
-                `test_auction_does_not_leave_a_stale_trick_frame`). Recorded in
-                roadmap.md; the design seam is
-                open-questions/round-state-in-information-states.md.
+                `test_auction_does_not_leave_a_stale_trick_frame`). The design seam
+                is open-questions/round-state-in-information-states.md, which
+                records the frame axis.
 """
 
 from __future__ import annotations

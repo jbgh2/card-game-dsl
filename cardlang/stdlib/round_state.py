@@ -53,7 +53,8 @@ AUCTION_INTERNAL: frozenset[str] = frozenset({"i", "guard", "history"})
 # once in stdlib/rules.cardlang and is activated by games in context, so the
 # checker cannot know which `round` will be running when its `state.led_suit`
 # evaluates. Narrowing that — "this rule reads trick state, so it may only be
-# active in a trick phase" — is the standing residual (roadmap.md).
+# active in a trick phase" — is the standing residual
+# (open-questions/round-state-in-information-states.md).
 ROUND_STATE_FIELDS: dict[str, Type] = {
     **TRICK_PUBLISHED,
     **CLIMB_PUBLISHED,

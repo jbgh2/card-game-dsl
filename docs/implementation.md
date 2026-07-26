@@ -1,8 +1,7 @@
 # Implementation plan
 
 The language is designed independently of any runtime (see
-[principles.md](principles.md) and [roadmap.md](roadmap.md), "OpenSpiel
-compilation"). This file covers the first tooling built *for* the
+[principles.md](principles.md) and issue #139). This file covers the first tooling built *for* the
 language: the parser and static checker that make the spec executable
 enough to verify it is precise. It records the decisions behind that
 tooling so they don't have to be re-derived. The execution blueprint —
@@ -43,7 +42,7 @@ Out of scope, deferred (with why):
   milestone, not this one.
 - **OpenSpiel integration** — `pyspiel` game registration,
   `information_state_tensor`, `chance_outcomes`. Deferred per
-  [roadmap.md](roadmap.md); reached through the IR (see decision 2),
+  issue #139; reached through the IR (see decision 2),
   not coupled to the front end.
 - **Performance work** — codegen, an RBG-style compiled core. Far later;
   irrelevant at corpus scale.

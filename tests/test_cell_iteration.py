@@ -4,8 +4,7 @@ The statement twin of the landed cell QUANTIFIER register (tests/
 test_cell_queries.py). A `for each <role> <binder>` may range over the closed
 seat/axis roles and, from rung 2, over a board's NAMED-MEMBER position domain
 (`cell`) -- breakthrough's fixed setup array is the witness that lifts the
-recorded `for each <position>` residual (roadmap.md, "Positional zones --
-walled residuals"). Integer `positions {}` domains stay walled: no game
+recorded `for each <position>` residual (issue #111). Integer `positions {}` domains stay walled: no game
 addresses columns by loop, so they remain rejected rather than
 accepted-and-unwitnessed.
 

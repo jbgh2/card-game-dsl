@@ -21,7 +21,7 @@ locate it:
 
 - settled -> decisions.md (search the section titles first)
 - open -> docs/open-questions/_index.md, then the named file (cite by slug)
-- sequenced -> docs/roadmap.md, "Suggested next steps, in order"
+- sequenced -> the GitHub tracker; issue #143 orders the cross-cutting work
 - sketched -> docs/design-notes/ (proposals, not settled spec)
 - witnessed -> docs/games/ (which corpus games exercise the area today)
 
@@ -85,8 +85,8 @@ without the check having run.
 
 A cardlang plan is a list of red things to make green. Each step names
 the artifact that proves it — a grid row, a rejection golden, a proof
-module, a byte-identical trace, a wall plus roadmap record for anything
-deferred — and where the artifact can exist at plan time, it exists and
+module, a byte-identical trace, a wall plus a tracker record (issue #N) for
+anything deferred — and where the artifact can exist at plan time, it exists and
 is red (`xfail(strict=True)` for grid cells, a failing test for
 behavior). A step with no named artifact is not a plan step; it is a
 hope. "Done" is defined before work starts, so the review's merge-base

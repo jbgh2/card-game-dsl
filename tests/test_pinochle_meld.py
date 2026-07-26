@@ -5,8 +5,7 @@ computation — `pinochle_meld_value`, a game-local stdlib primitive like Stud's
 `pot_share` — since it is forced (a rational player melds everything), not a
 choice. The playout invariants (conservation, per-trick winner correctness;
 tests/test_playout_pinochle.py) cannot catch a misvalued combination, so these
-pin the published point values directly (docs/roadmap.md, "Test-depth
-regression nets").
+pin the published point values directly (issue #83).
 """
 
 from __future__ import annotations

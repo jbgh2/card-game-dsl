@@ -184,8 +184,9 @@ dominant cause of misses.
 - **H. Spec-lockstep sweeper** *(docs or surface changes)*. The corpus
   (`docs/games/`) and every doc table/example use the current register —
   where cheap, parse doc examples rather than eyeballing them. The docs that
-  describe a changed surface (decisions.md, library.md, roadmap.md) moved in
-  the same change. No history voice in `docs/` (maintaining.md rule 1).
+  describe a changed surface (decisions.md, library.md, and roadmap.md,
+  "Grammar surface deferred by the checker") moved in the same change, and a newly deferred cell got its
+  tracker record. No history voice in `docs/` (maintaining.md rule 1).
 - **I. Info-set / observation checker** *(movement, visibility,
   decision-site, or adapter changes)*. The change emits per-observer
   observations through declared zone projections; no decision runs outside

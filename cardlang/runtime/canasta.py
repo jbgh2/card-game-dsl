@@ -30,7 +30,8 @@ OpenSpiel combo block canonicalizes joint subsets by frozenset — a
 different actions. The staged per-card encoding uses only card-block ids,
 which duplicate copies share soundly (identical cards are interchangeable).
 The combo-block limitation itself is walled loudly at
-`ActionSpace.for_game` and recorded in roadmap.md.
+`ActionSpace.for_game` and recorded in roadmap.md, "Grammar surface
+deferred by the checker".
 
 Every adapter is a pure function of the game state it reads — no hidden
 state, no RNG (decisions.md kernel doctrine: meaning never state).

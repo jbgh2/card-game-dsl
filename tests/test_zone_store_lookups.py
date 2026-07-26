@@ -34,8 +34,8 @@ residual:   the key branch is reachable from a checker-accepted game, not
             only from an engine bug: a zone-family subscript's index is
             checked with `types.assignable`, which admits an Integer, so a
             COMPUTED out-of-range key like `hand[0 + 9]` in a 4-player game
-            type-checks and arrives here (roadmap.md, "Zone-family index
-            strictness (deferred re-audit)"). An out-of-range player LITERAL
+            type-checks and arrives here (the index-strictness residual in
+            tests/test_zone_family_typing.py's ledger). An out-of-range player LITERAL
             (`hand[9]`) is now caught earlier by the static player-literal
             wall (typecheck `_check_role_literal`,
             tests/test_player_literal_range.py) — that tightened the literal
@@ -187,7 +187,8 @@ def test_instance_refuses_a_key_a_position_family_does_not_cover() -> None:
 def test_a_checker_accepted_game_can_reach_the_key_wall() -> None:
     """The `residual:` cell above, made real. A zone-family index is checked
     with `types.assignable`, which admits an Integer, so `hand[0 + 9]` in a
-    4-player game type-checks (roadmap.md "Zone-family index strictness") and
+    4-player game type-checks (the index-strictness residual in this
+    module's ledger) and
     arrives here — the wall is author-reachable and owes a typed error rather
     than an assert. The index is COMPUTED (`0 + 9`), not the literal `9`: an
     out-of-range player LITERAL is caught earlier by the static wall

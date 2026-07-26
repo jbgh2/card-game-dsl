@@ -60,9 +60,8 @@ tree, so referent kind cannot affect its outcome.
 
 Residual: `_check_remove_reachability`'s cluster precision is coarser than
 full runtime precision in two narrow, corpus-unexercised ways (order within
-one list; cross-sibling delta references) — recorded in docs/roadmap.md
-("`active_rules:` remove-reachability is cluster-precise, not fully
-runtime-precise"), not walled further here.
+one list; cross-sibling delta references) — recorded in issue #103, not
+walled further here.
 """
 
 from __future__ import annotations

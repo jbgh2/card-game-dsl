@@ -170,8 +170,7 @@ residual: one on provided state, deliberate and named here so its absence from
           list named four games of which three were wrong, and named Stud, which
           the same change that wrote it had just made wrong.
 
-          TWO residuals outside it, both recorded in docs/roadmap.md, "Family
-          libraries — unchecked residuals in the `requires` contract":
+          TWO residuals outside it, both recorded in issue #138:
 
           1. REFERENCE FORM. The grid's axis is derived from `_Categories`, so
              it covers every namespace — but only through the two forms the
@@ -680,7 +679,7 @@ def test_two_libraries_may_not_define_the_same_name(
 #             `foo`, lib B defines `function foo`) are not compared — only
 #             same-kind lib-vs-lib is, by `_check_library_collisions` /
 #             `_check_state_claims`. It is unreachable in the one-library corpus
-#             (no game `uses` two), so it is recorded in roadmap.md against the
+#             (no game `uses` two), so it is recorded in issue #136 against the
 #             shared name-registry deferral rather than walled now: the honest
 #             fix folds every library's injected names into one pool and is the
 #             same table the `requires`-residual wants, not a second bolt-on.

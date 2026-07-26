@@ -84,8 +84,8 @@ Honest caveats
   chance-free games"); it is not an info-set gap.
 - A decider holding men with every step blocked is not modelled (the DSL would
   raise where the oracle returns an empty action list). It did not arise in 400
-  random games and no machinery is built for it — roadmap.md, "Board topology
-  — later-rung surface walled at rung 1". Nothing in this module depends on it.
+  random games and no machinery is built for it — issue #124. Nothing in this
+  module depends on it.
 """
 
 from __future__ import annotations

@@ -99,7 +99,7 @@ residual:   fragment KINDS with no cheap wrapping harness. These are never
             in the docs (they are `text` instead, so
             `test_every_block_is_classified` still covers them as a tag,
             just not as an execution) — each kind is listed here and
-            recorded in roadmap.md "Explicitly deferred":
+            recorded here, in this ledger, which owns them:
               - phase-outcome pattern matches (`<phase> produces:` /
                 `continue to <phase>`) — need a sibling phase declaring a
                 matching `-> outcome {...}` variant set plus the variant's
@@ -114,14 +114,15 @@ residual:   fragment KINDS with no cheap wrapping harness. These are never
               - the `override` rule-delta (`active_rules: [override X]`)
                 — grammatically accepted, rejected at resolve time
                 (cardlang/resolve.py, `_resolve_phase_item`) as "not yet
-                supported by the runtime"; roadmap.md already records it.
+                supported by the runtime"; roadmap.md, "Grammar surface
+                deferred by the checker", already records it.
               - `legal_moves:` with `+`/`-`/`override` deltas — the
                 `legal_moves` grammar production takes a bare NAME list
                 only; those operators exist solely on `rule_ref`
                 (`active_rules:`).
               - `scoring_component` / `apply_components` — decisions.md's
                 own "Scoring composition" section discloses "designed, not
-                yet built"; roadmap.md already records it.
+                yet built"; issue #115 already records it.
               - user-facing `Zone<ContentType> { composition: ... }`
                 declarations — no such production exists; per-observer
                 projection is a closed Python registry

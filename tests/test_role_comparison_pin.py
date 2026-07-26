@@ -75,17 +75,18 @@ sampled:    none -- the scrape is exhaustive over its derived domain, and the
             band outside that domain is walled rather than sampled.
 residual:   THREE, each a wall this mechanism cannot build:
             (1) a role id reached through a VARIABLE rather than a literal is
-            out of reach of any scrape (roadmap.md).
+            out of reach of any scrape (issue #152).
             (2) a marker's REASON is prose. `.` satisfies "nonempty", and a
             reason asserting a registry pin ("pinned against SIMULTANEOUS_ROLES
             beside it") stays green when that pin is later deleted. The
             tag-vocabulary upgrade that would make the reason's CLASS
-            machine-checkable is recorded in roadmap.md.
+            machine-checkable is recorded in issue #152.
             (3) `tests/` is NOT swept, though it carries 37 branching sites --
             more than production's 14 -- including `openspiel_ready/harness.py`,
             the proof layer. Sweeping it is a new domain needing its own framing
             check and probes, so it is deferred loudly rather than bolted on
-            (roadmap.md). The precedent cuts the other way and is recorded as
+            (issue #152). The precedent cuts the other
+            way and is recorded as
             such: mypy holds `tests/` to the same strict bar.
 """
 from __future__ import annotations

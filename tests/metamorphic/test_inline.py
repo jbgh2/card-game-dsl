@@ -33,7 +33,7 @@ residual:   THREE GAMES ARE OUT OF DOMAIN, and named rather than absent
             procedure is a resolve error, so the spliced text would not
             compile. T3's property is genuinely UNCHECKED for these three;
             covering them means teaching inline.py the import tier
-            (roadmap.md). This gap arrived with provided state and is the
+            (issue #132). This gap arrived with provided state and is the
             price of the poker family sharing a procedure at all.
             inline.py's splice is also deliberately NOT a general procedure
             inliner (its module docstring lists exactly the shape envelope
@@ -112,7 +112,7 @@ PROCEDURE_GAMES = tuple(p for p in pairing.CORPUS if _declares_procedure(p))
 # cannot reach it, and could not be fixed by also reading the library file — the
 # game would still `uses` that library, so the library's now-uninvoked procedure
 # would be a resolve error and the spliced text would not compile. Generalizing
-# T3 across the import tier is the real work; roadmap.md records it.
+# T3 across the import tier is the real work; issue #132 records it.
 LIBRARY_PROCEDURE_GAMES = tuple(
     p for p in pairing.CORPUS if _runs_procedure(p) and not _declares_procedure(p)
 )
@@ -172,7 +172,7 @@ def test_the_library_procedure_games_are_pinned_as_uncovered() -> None:
         f"the set of games running an IMPORTED procedure changed: {names} — "
         f"T3 does not cover these (inline.py splices one file's text and the "
         f"body is in docs/libraries/), so the list is a recorded gap and must "
-        f"be updated deliberately, with roadmap.md kept in step"
+        f"be updated deliberately, with issue #132 kept in step"
     )
 
 

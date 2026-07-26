@@ -50,7 +50,7 @@ than the original one:
    first stage left behind when it evicted the emitters that could be
    derived from movement views; why this one could not ride with them, and
    what its own eviction needs, are recorded in
-   [roadmap.md](../roadmap.md) ("Primitive sidecars").
+   issue #142.
 
 That leaves item 1, which is stage 4's, and it is the reason this note
 exists: the central placement is not protecting anything. It is a
@@ -139,7 +139,7 @@ interface cannot express one.
   rather than evicted. `coup_game_summary` is a trace emitter by call shape, registered
   because its `coup_game` payload recomputes conservation totals from engine
   state rather than from movement views — reproducing it at the harness is
-  its own design step ([roadmap.md](../roadmap.md), "Primitive sidecars").
+  its own design step (issue #142).
   The game-local trick winners (`schnapsen_`, `doko_`, `skat_`,
   `five_hundred_trick_winner`) compute a real value AND emit the engine's
   own `play`/`trick`/`trick_end` events from a game-local site; they now
@@ -285,7 +285,7 @@ surface — rebase order should be agreed before stage 3 lands.
 
 The declaration block doubles as a per-game inventory of exactly what is
 not yet expressible in the DSL — which is what these primitives are, and
-why [roadmap.md](../roadmap.md)'s generalization work (the
+why the tracker's generalization work (issues #115 and #140 — the
 `scoring_component` subsystem, the shared combination model, in-DSL outcome
 expressions) should keep burning them down. Sidecars being well-designed
 must not make them so comfortable that the burn-down stops: a shrinking

@@ -19,7 +19,7 @@ adds nothing. Specifically it SKIPS
 - deals inside a `repeat until` (the iteration count is a runtime value),
 - draws inside a MOVE effect (`offer`/rounds run moves, and a move can fire
   arbitrarily many times per hand — not statically boundable; the gate's
-  domain is the scripted deals in phase bodies, recorded in roadmap.md),
+  domain is the scripted deals in phase bodies, recorded in issue #135),
 
 and counts the bounded forms at their worst case: an `if` contributes the larger
 of its branches (a guarded deal is *taken*), and a `for each player` /
@@ -258,7 +258,7 @@ def _stmt_usage(
             # are outside this gate's domain entirely (it walks phase bodies,
             # and a move can be offered arbitrarily many times, so its draws
             # are not statically boundable — same currency as repeat-until).
-            # Recorded as a domain limit in the module docstring and roadmap.md.
+            # Recorded as a domain limit in the module docstring and issue #135.
             return carry, carry
         case (
             n.EpistemicOp() | n.RotateStmt() | n.LetStmt() | n.AssignStmt()

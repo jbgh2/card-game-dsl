@@ -69,11 +69,10 @@ sampled:    the audited-top set is a COUNT per module, not an enumeration of
 residual:   (1) MERGE-failure top: `unify` returning None in `IfExpr`/`ListLit`
             falls to `TAny` (`if c then 1 else hearts` types as the top and goes
             permissive). A distinct population from the lookup misses this
-            module closes — wall recorded in roadmap.md, "Explicitly
-            deferred".
+            module closes — wall recorded in issue #116.
             (2) `max`/`min` comprehensions type as the top though `_check_agg_body`
             already forces an Integer body — a precision loss, not a miss;
-            recorded in roadmap.md alongside (1).
+            recorded in issue #116 alongside (1).
             (3) CLOSED. A forward struct reference no longer reaches
             `type_from_name`'s fallback: declared field types resolve through
             the same merged registry map as derived bodies, so declaration

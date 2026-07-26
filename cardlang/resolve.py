@@ -711,8 +711,7 @@ def _library_reach(library: n.Library) -> _LibraryReach:
     `Round.source_zone`/`play_zone` (zones), `StructLit.type_name` and friends
     (types), `RuleDef.constrains`/`RunStmt.name`/`Produces.define`/
     `Offer.move_types`/`Round.move_types` (definitions) — are a recorded
-    residual, not a covered case: roadmap.md, "Family libraries — unchecked
-    residuals in the `requires` contract"."""
+    residual, not a covered case: issue #138."""
     provided_state = library.state.decls if library.state is not None else ()
     cats = _Categories(
         locals=frozenset(),
@@ -794,9 +793,8 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
 
     The class is bounded, and the boundary is not the design's — it is this
     implementation's: a name held on a node as a plain `str` is invisible here.
-    `_library_reach`'s docstring lists the slots that escape and roadmap.md,
-    "Family libraries — unchecked residuals in the `requires` contract", records
-    the shape of the fix. Do not read this wall as proving the whole property.
+    `_library_reach`'s docstring lists the slots that escape and issue #138
+    records the shape of the fix. Do not read this wall as proving the whole property.
 
     Reported in the LIBRARY's currency: the span is in the library file, because
     the library author is the only one who can fix it. The importing game's one
@@ -887,8 +885,7 @@ def _check_requires(
     `runtime/state.py`. The gap is NOT the import tier's — a plain game with no
     library reproduces it, one phase declaring what another reads — so closing it
     means use-site scope reachability for state generally, which this contract
-    cannot stand in for. Recorded as a residual in roadmap.md, "Family libraries
-    — unchecked residuals in the `requires` contract", and in the ledger of
+    cannot stand in for. Recorded as a residual in issue #138, and in the ledger of
     tests/test_family_libraries.py. Narrowing the contract to game-level
     declarations would not close it either, and would reject Stud.
 
@@ -1182,7 +1179,8 @@ def _template_binders(rule: n.RuleDef, flavor: Flavor) -> set[str]:
 
 def _check_template(rule: n.RuleDef, bag: DiagnosticBag, flavor: Flavor) -> bool:
     """Validate a parameterized rule's declaration (Suit-only domains,
-    corpus-first — recorded in roadmap.md; unique names; no binder capture).
+    corpus-first — recorded in roadmap.md, "Grammar surface deferred by the
+    checker"; unique names; no binder capture).
     Returns False when instantiation cannot proceed."""
     ok = True
     names = [p.name for p in rule.params]
@@ -1444,7 +1442,7 @@ def _check_rule_delta_subphases(phases: tuple[n.Phase, ...], bag: DiagnosticBag)
     one list (an add-then-remove of the same name earlier in a parent's own
     list still counts as "added" for a child's cluster check below) — an
     accepted imprecision for a construct the corpus does not use at all
-    (docs/roadmap.md records the residual)."""
+    (issue #103 records the residual)."""
     from cardlang.runtime.phases import _is_rule_delta
 
     for phase in phases:
@@ -1529,7 +1527,8 @@ def _check_state_default_scope(game: n.Game, bag: DiagnosticBag) -> None:
 
     - a `Call`, whose state reads live in a body `_walk` never enters from a
       default — so the choice is an interprocedural scope check or a ban, and no
-      default in the corpus calls anything (roadmap.md records the narrowing);
+      default in the corpus calls anything (decisions.md "State scoping
+      (lexical)" records the narrowing; ledger tests/test_state_default_scope.py);
     - a `Choose`, which needs an acting player. A default is evaluated outside
       any turn, so the runtime raised "a `choose` with no acting player" at
       declare time; for the OpenSpiel target a decision with no actor also has
@@ -2662,8 +2661,8 @@ def _resolve_ranking(game: n.Game, bag: DiagnosticBag) -> None:
     move-parameter domain to fewer than the deck's ranks. A card whose rank
     falls outside a partial ranking still crashes `rank_value`'s
     `ctx.rs.rank_index[...]` lookup at runtime instead of erroring here — an
-    accepted residual (docs/roadmap.md), walled only by that runtime
-    KeyError, not by this check."""
+    accepted residual, walled only by that runtime KeyError, not by this
+    check; the ledger is tests/test_ranking_wall.py."""
     if game.ranking_convention is not None:
         # Convention arm: `_expand_ranking` built the tuple from the deck's
         # own ranks filtered through a registry template — unique and
@@ -3100,7 +3099,7 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
 # slice of it. `Zone` is deliberately absent: the design note guessed the corpus
 # would need it, and the corpus disagreed (Coup's blocks reach their zones by
 # indexing a zone family with the player parameter — `influence[victim]` — so a
-# Player parameter already carries the zone). Recorded in roadmap.md; extend
+# Player parameter already carries the zone). Recorded in issue #134; extend
 # when a game forces it.
 #
 # `Rank?` and not `Rank`: Coup's proven-claim swap is called both with a literal
@@ -3579,7 +3578,7 @@ def _check_vocabulary_moves(
 
 # The collection quantifier nouns admitted at rung 1 (decisions.md "Boards and
 # cells"): `any line in …` / `all cells in …`. Any other `in` noun is rejected
-# naming these two; further nouns are a recorded residual (roadmap.md).
+# naming these two; further nouns are a recorded residual (issue #111).
 _COLLECTION_NOUNS: frozenset[str] = frozenset({"line", "cell"})
 
 def _check_domain_query(nd: n.DomainQuery, game: n.Game, bag: DiagnosticBag) -> None:
@@ -3638,7 +3637,7 @@ def _check_board_call(nd: n.Call, game: n.Game, bag: DiagnosticBag) -> None:
     line span is a static error. The bound is reused from the board entry's own
     `lines()` (cardlang/stdlib/boards.py), so resolve and the runtime share one
     definition of it; a NON-literal `k` (no rung-1 witness) is left to that
-    runtime bound, surfaced as a typed error (recorded residual, roadmap.md)."""
+    runtime bound, surfaced as a typed error (recorded residual, issue #111)."""
     if game.board is None:
         bag.error(
             f"`{nd.func}` reads the board, but the game declares no `board:`",
@@ -3701,7 +3700,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     # is the witness that lifts it. Integer `positions {}` domains stay walled:
     # no game addresses columns by loop (guards and parameters cover both
     # solitaires), so they stay rejected rather than accepted-and-unwitnessed
-    # (roadmap.md, "Positional zones -- walled residuals"). A boardless game
+    # (issue #111). A boardless game
     # therefore reports the unchanged closed-role list.
     iterable_positions = frozenset(
         p.name for p in game.positions if p.members_named is not None
@@ -3757,7 +3756,8 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # Accepted-but-crashing surface walled off (Surface totality):
                 # the grammar admits `f(x = 1)`, but typecheck skips the value
                 # expression and the runtime raises. Reject until a game needs
-                # named arguments (recorded in roadmap.md).
+                # named arguments (recorded in roadmap.md, "Grammar surface
+                # deferred by the checker").
                 bag.error(
                     "named call arguments are not supported; pass arguments "
                     "positionally",
@@ -3952,7 +3952,8 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # selection"): `jointly` is a DECISION over subsets, so it
                 # requires `chosen` — a dealt jointly-selection has no
                 # decider and a `random` one has no corpus user (both
-                # recorded in roadmap.md); `some` (any-size) is meaningless
+                # recorded in roadmap.md, "Grammar surface deferred by
+                # the checker"); `some` (any-size) is meaningless
                 # without a joint predicate to own the size.
                 if nd.joint and nd.mode != "chosen":
                     bag.error(
@@ -3966,7 +3967,8 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     # `to each` would silently make EACH destination seat its
                     # own subset-decider over the shrinking pool — the decider
                     # identity is info-set-load-bearing, and no corpus game
-                    # wants the shape (recorded in roadmap.md).
+                    # wants the shape (recorded in roadmap.md, "Grammar
+                    # surface deferred by the checker").
                     bag.error(
                         "`where jointly` with `to each` is not implemented — "
                         "each destination seat would become its own subset "

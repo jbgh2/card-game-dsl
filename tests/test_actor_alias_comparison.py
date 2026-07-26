@@ -104,7 +104,7 @@ residual:   an alias created by `expand`, not by the source: `run f(p, actor)`
             the surviving shape needs two parameters both bound to the acting
             player at one call site. It is interprocedural and call-site
             dependent, the sweep runs pre-expansion, and it is recorded in
-            roadmap.md, "Explicitly deferred". Deliberately NOT residual, and
+            this ledger, which owns it. Deliberately NOT residual, and
             NOT a gap: a comparison whose operands are equal only through a
             call (`team_of(p) is team_of(actor)`) is outside the property
             above, which quantifies over NAMES; and a merely redundant read

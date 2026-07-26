@@ -57,7 +57,8 @@ sampled:    the end-to-end path (a real playout reaching `returns_for` through
 residual:   none for the keying itself -- every game that REACHES `returns_for`
             is covered, because the keying axis is binary and both values are
             executed at both count relations. Adjacent, NOT closed here and
-            recorded in roadmap.md instead: a `winner:` target that is a SCALAR
+            recorded in issue #153 instead: a `winner:`
+            target that is a SCALAR
             (`winner: highest pot`, no index) never reaches this function at all
             -- it type-checks, then `driver` dies building the score dict
             (`dict(rs.get(target))` on an int) with a bare `TypeError`, the

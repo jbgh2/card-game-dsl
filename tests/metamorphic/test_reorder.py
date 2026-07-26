@@ -86,7 +86,7 @@ _PARSE_LEVEL_CASES = frozenset(
         "two_game_blocks",
         # The collection-quantifier register has no `number of <noun> in
         # <expr> where ...` production -- a raw grammar dead end, not a
-        # resolve wall (roadmap.md "Positional zones -- walled residuals").
+        # resolve wall (issue #111).
         "cell_count_in_collection_not_admitted",
     }
 )

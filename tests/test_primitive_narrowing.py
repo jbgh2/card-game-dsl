@@ -106,7 +106,7 @@ residual:   (1) the three auction outcomes (`bridge_`/`pinochle_`/
             in the language package and stage 4 (co-location) owns their
             move. Wall: `test_engine_core_game_knowledge_is_named`, which
             fails if that set changes without this ledger changing.
-            Record: docs/roadmap.md, "Primitive sidecars".
+            Record: issue #142.
             (2) `EngineFacts` is MODULE-granular by ratified stage-2 scope
             (2A): a primitive receives the facts bundle whole rather than
             the per-primitive `reads` clause of the design note's §2. The
@@ -116,7 +116,7 @@ residual:   (1) the three auction outcomes (`bridge_`/`pinochle_`/
             any of it. Wall: the field set is closed and every field is
             pinned to a consumer (c), so the bundle cannot grow
             speculatively; the per-call cost is recorded in
-            docs/roadmap.md, "Primitive sidecars".
+            issue #142.
 
 red under (born-green cells):
 - `combinations.py` passes (b) on arrival: it is the Tichu combination

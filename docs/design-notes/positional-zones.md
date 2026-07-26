@@ -110,7 +110,7 @@ position domains and keeps movement closed.
 (Games whose piles are not rank-monotone runs — Spider's same-suit
 removal is close but still monotone — would force a positional slice
 ("from card X up") as real surface. That is recorded as deferred in
-[roadmap.md](../roadmap.md), behind the existing movement-filter wall: a
+issue #111, behind the existing movement-filter wall: a
 non-denotable selection simply has no sentence that expresses it.)
 
 ## Adjacency
