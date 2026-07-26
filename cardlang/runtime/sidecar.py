@@ -43,13 +43,13 @@ Contract:
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any
 
 from cardlang.runtime import reads
 from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.values import Player, Seating
-
 
 TraceEvent = tuple[str, Any]
 """One deferred trace emission: `(event name, payload)`.

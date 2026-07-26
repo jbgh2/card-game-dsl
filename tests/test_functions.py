@@ -11,7 +11,6 @@ typecheck checks call arity and infers the body's type.
 from __future__ import annotations
 
 import random
-from typing import Any
 
 import pytest
 

@@ -50,7 +50,7 @@ Verified by:  the grammar-ambiguity check (tests/test_grammar_ambiguity.py)
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from functools import lru_cache
+from functools import cache, lru_cache
 from importlib import resources
 
 from lark import Lark, Token, Tree
@@ -67,7 +67,6 @@ from cardlang.diagnostics import (
     Span,
 )
 from cardlang.extract import FencedBlock
-
 
 # --- private intermediate markers (never leave this module) ---
 
@@ -1612,7 +1611,7 @@ def parse_library(text: str, source_name: str) -> n.Library:
     return result
 
 
-@lru_cache(maxsize=None)
+@cache
 def _parse_text_cached(text: str, source_name: str, line_offset: int) -> n.Game:
     """The memoized body of :func:`parse_text`. Takes ``line_offset``
     positionally and without a default so one call site cannot miss another's

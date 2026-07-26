@@ -8,7 +8,8 @@ the (possibly extended) context the caller threads into subsequent statements.
 from __future__ import annotations
 
 import itertools
-from typing import Any, Callable, assert_never
+from collections.abc import Callable
+from typing import Any, assert_never
 
 from cardlang.ast import nodes as n
 from cardlang.domains import SIMULTANEOUS_ROLES, binds_actor, role_members

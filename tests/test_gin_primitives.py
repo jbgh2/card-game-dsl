@@ -126,13 +126,13 @@ def test_can_knock_quantifies_the_discard_over_the_hand_zone_only() -> None:
     hand 2♣3♣4♣ + 8♣8♦8♥8♠ + A♠4♥5♥ (every hand discard leaves 15+), taken
     K♦ (discarding IT would leave exactly 10)."""
     import random
+    from pathlib import Path
 
     from cardlang.pipeline import check_source
     from cardlang.runtime import sidecar
     from cardlang.runtime.gin import ROW, gin_can_knock, gin_knock_ok
     from cardlang.runtime.state import RuntimeState, ZoneStore
     from cardlang.runtime.values import Seating
-    from pathlib import Path
 
     game = check_source(
         Path(__file__).parent.parent / "docs" / "games" / "gin-rummy.cardlang"

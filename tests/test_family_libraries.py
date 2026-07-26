@@ -214,9 +214,9 @@ from __future__ import annotations
 
 import ast as pyast
 import random
+from collections.abc import Iterator
 from dataclasses import fields, replace
 from pathlib import Path
-from typing import Iterator
 
 import pytest
 from lark import Tree
@@ -225,7 +225,13 @@ from lark.exceptions import VisitError
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticError
 from cardlang.libraries import library_names, load_library
-from cardlang.parse import _Builder, _transform, parse_library, parse_text, parse_to_tree
+from cardlang.parse import (
+    _Builder,
+    _transform,
+    parse_library,
+    parse_text,
+    parse_to_tree,
+)
 from cardlang.resolve import (
     _LIBRARY_DEF_KINDS,
     _PARAM_BEARING,

@@ -109,7 +109,7 @@ class _State(CardlangState):
         p = 1.0 / self._num_seeds
         return [(i, p) for i in range(self._num_seeds)]
 
-    def clone(self) -> "_State":
+    def clone(self) -> _State:
         copy = _State(self.get_game(), self._path, self._num_players, self._num_seeds)
         copy._seed = self._seed
         copy._history_ids = list(self._history_ids)
@@ -151,7 +151,7 @@ def register(
 
     class _Game(pyspiel.Game):
         def __init__(self, params: Any = None) -> None:
-            super().__init__(game_type, game_info, params or dict())
+            super().__init__(game_type, game_info, params or {})
 
         def new_initial_state(self) -> _State:
             return _State(self, path, num_players, num_seeds)

@@ -233,10 +233,13 @@ def _diagnostic_lines(text: str) -> set[int]:
     for node in ast.walk(tree):
         if isinstance(node, ast.Raise):
             cover(node)
-        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
-            if node.func.attr in DIAGNOSTIC_METHODS:
-                for argument in [*node.args, *(kw.value for kw in node.keywords)]:
-                    cover(argument)
+        elif (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr in DIAGNOSTIC_METHODS
+        ):
+            for argument in [*node.args, *(kw.value for kw in node.keywords)]:
+                cover(argument)
     return spanned
 
 

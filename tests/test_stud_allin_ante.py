@@ -27,8 +27,8 @@ def test_ante_all_in_hand_settles_without_crashing() -> None:
 
         def tracer(event: str, data: Any) -> None:
             if event == "game_end":
-                census.clear()
-                census.update(data)
+                census.clear()  # noqa: B023 -- consumed before the loop advances
+                census.update(data)  # noqa: B023 -- consumed before the loop advances
 
         result = play_game(game, random.Random(seed))  # must not raise
         # Two chips total, always; the game ends with one player holding them.

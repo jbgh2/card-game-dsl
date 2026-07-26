@@ -34,7 +34,6 @@ subset of the same rank and size would beat.
 from __future__ import annotations
 
 import itertools
-
 from dataclasses import dataclass
 
 from cardlang.runtime import reads

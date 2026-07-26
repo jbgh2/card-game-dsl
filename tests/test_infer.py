@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from cardlang.ast import nodes as n
+from cardlang.typecheck import TypeEnv, infer
 from cardlang.types import (
     TAny,
     TBoolean,
@@ -13,7 +14,6 @@ from cardlang.types import (
     TPlayer,
     TString,
 )
-from cardlang.typecheck import TypeEnv, infer
 
 
 def test_infer_literals() -> None:

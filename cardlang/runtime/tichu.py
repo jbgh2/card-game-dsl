@@ -165,7 +165,7 @@ def tichu_card_points(facts: EngineFacts, gr: reads.GameReads, c: Card) -> int:
 # so a Phoenix+Mahjong pair and Mahjong-filled phoenix fullhouses are
 # emittable). Pinned by tests/test_openspiel_encoding.py.
 
-from cardlang.runtime.values import SUITS, build_deck  # noqa: E402
+from cardlang.runtime.values import SUITS, build_deck
 
 _VAL = {"2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9,
         "10": 10, "J": 11, "Q": 12, "K": 13, "A": 14}

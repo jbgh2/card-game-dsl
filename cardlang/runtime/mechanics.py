@@ -22,7 +22,6 @@ from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, Move
 from cardlang.runtime.values import Player
 
-
 # ---------------------------------------------------------------------------
 # The parameterized decision interpreter
 # ---------------------------------------------------------------------------
@@ -206,7 +205,7 @@ class TrickForm:
         return outcome
 
 
-def param_domain(p: "n.MoveParam", actor: Player, ctx: Ctx) -> list[Any]:
+def param_domain(p: n.MoveParam, actor: Player, ctx: Ctx) -> list[Any]:
     """One parameter's value-domain for the acting player. `Card` is the actor's
     live hand, in hand order — the state-dependent outlier, handled here ahead of
     the domain table (cardlang/domains.py) rather than as a row in it. Every
@@ -245,7 +244,7 @@ def param_domain(p: "n.MoveParam", actor: Player, ctx: Ctx) -> list[Any]:
     )
 
 
-def _pack(combo: "tuple[Any, ...]") -> Any:
+def _pack(combo: tuple[Any, ...]) -> Any:
     """A candidate's value: None (nullary), the bare value (arity 1), or the
     tuple (arity >= 2). Arity 1 stays bare so existing vocab keys are unchanged."""
     if not combo:
@@ -253,7 +252,7 @@ def _pack(combo: "tuple[Any, ...]") -> Any:
     return combo[0] if len(combo) == 1 else combo
 
 
-def bind_params(ctx: Ctx, params: "tuple[n.MoveParam, ...]", value: Any) -> Ctx:
+def bind_params(ctx: Ctx, params: tuple[n.MoveParam, ...], value: Any) -> Ctx:
     """Bind a candidate's value(s) as locals for the guard/effect that reads
     them. Arity comes from `params`, never guessed from `value`: a `Suit?`
     domain's `None` (no-trump) is a legitimate arity-1 VALUE, distinct from a
@@ -269,7 +268,7 @@ def bind_params(ctx: Ctx, params: "tuple[n.MoveParam, ...]", value: Any) -> Ctx:
     return ctx
 
 
-def concrete_moves(mt: "n.MoveTypeDef", actor: Player, ctx: Ctx) -> list[tuple[str, Any]]:
+def concrete_moves(mt: n.MoveTypeDef, actor: Player, ctx: Ctx) -> list[tuple[str, Any]]:
     """The guard-filtered candidate list for one move type: the cross-product of
     its parameters' domains, in declaration order, each combo guard-checked with
     all parameters bound. Nullary is the empty-product case (one empty combo).

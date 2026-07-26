@@ -11,9 +11,9 @@ offer a legal value with no action id.
 from __future__ import annotations
 
 import random
+from collections.abc import Iterator
 from dataclasses import fields, is_dataclass
 from pathlib import Path
-from typing import Iterator
 
 import pytest
 

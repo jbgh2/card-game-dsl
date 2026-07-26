@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
@@ -44,18 +44,18 @@ import pytest
 
 pyspiel = pytest.importorskip("pyspiel")
 
-import cardlang.openspiel.game as ogame  # noqa: E402  (registers on import)
-from cardlang.openspiel.infostate import information_state  # noqa: E402
-from cardlang.openspiel.replay import (  # noqa: E402
+import cardlang.openspiel.game as ogame  # registers on import
+from cardlang.openspiel.infostate import information_state
+from cardlang.openspiel.replay import (
     Pause,
     Terminal,
     load,
     returns_for,
     run,
 )
-from cardlang.runtime.driver import play_game  # noqa: E402
+from cardlang.runtime.driver import play_game
 
-from .partition import (  # noqa: E402
+from .partition import (
     all_hidden,
     check_visible_facts,
     first_divergence,
@@ -198,7 +198,7 @@ class BoundedWalk:
         return self.first_applied[-1][1] if self.first_applied else None
 
 
-@lru_cache(maxsize=None)
+@cache
 def bounded_walk(short_name: str, path: str, steps: int) -> BoundedWalk:
     """`steps` random legal actions from a pinned rng, checking the pyspiel API
     invariants and recording the verb of every action APPLIED (offered-only
@@ -262,7 +262,7 @@ class _GreedyCap(Exception):
     """The greedy line ran past its cap without terminating."""
 
 
-@lru_cache(maxsize=None)
+@cache
 def greedy_line(path: str, seed: int, cap: int) -> tuple[tuple[int, ...], list[float] | None]:
     """The `legal[0]` line, walked ONCE and linearly: the action ids it takes,
     and the terminal returns if it ends within `cap`.
@@ -367,7 +367,7 @@ def _advance(path: str, seed: int, depth: int) -> tuple[list[int], Pause]:
     return history, r
 
 
-def _side_zone(rs: Any, side: tuple[str, "int | None"]) -> Any:
+def _side_zone(rs: Any, side: tuple[str, int | None]) -> Any:
     """A swap side: a (family, key) pair (a per-player zone) or (name, None)
     (a single zone, e.g. Cribbage's `deck` — the other side of a 2-player
     swap when there is no second opponent hand to pair against)."""
@@ -375,7 +375,7 @@ def _side_zone(rs: Any, side: tuple[str, "int | None"]) -> Any:
     return rs.zones.single(name) if key is None else rs.zones.instance(name, key)
 
 
-def _swap_fn(side1: tuple[str, "int | None"], side2: tuple[str, "int | None"], x: Any, y: Any) -> Any:
+def _swap_fn(side1: tuple[str, int | None], side2: tuple[str, int | None], x: Any, y: Any) -> Any:
     def swap(rs: Any) -> None:
         h1, h2 = _side_zone(rs, side1), _side_zone(rs, side2)
         h1.remove(x)
@@ -424,8 +424,8 @@ class ReadinessProofs:
             hand1 = pause_a.rs.zones.instance(hz, opp1).cards
             hand2 = pause_a.rs.zones.instance(hz, opp2).cards
             candidates = spec.swap_pairs(hand1, hand2)
-            side1: tuple[str, "int | None"] = (hz, opp1)
-            side2: tuple[str, "int | None"] = (hz, opp2)
+            side1: tuple[str, int | None] = (hz, opp1)
+            side2: tuple[str, int | None] = (hz, opp2)
             who = f"players {opp1},{opp2}"
         else:
             # 2-player games: there is only ever one opponent, so the harness

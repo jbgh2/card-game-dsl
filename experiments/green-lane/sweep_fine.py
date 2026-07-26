@@ -13,10 +13,9 @@ import tempfile
 import time
 from pathlib import Path
 
+import glcommon
 import pyspiel
 from open_spiel.python.algorithms import cfr, exploitability
-
-import glcommon
 
 FINES = (0, 2, 4, 8)
 DEFAULT_ITERATIONS = 250

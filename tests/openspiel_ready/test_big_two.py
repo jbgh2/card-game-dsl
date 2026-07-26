@@ -28,11 +28,11 @@ class TestReadiness(ReadinessProofs):
         conformance_verbs_unreached=(
             (
                 "<card>",
-                "STRUCTURAL, not a depth shortfall: every Big Two play is a "
+                ("STRUCTURAL, not a depth shortfall: every Big Two play is a "
                 "combination — a singleton is a size-1 combo — so plays encode "
                 "through the combo block and the reserved card block is dead "
                 "(measured unapplied over 600 steps on three rngs). Issue #157 "
-                "owns deriving the block away",
+                "owns deriving the block away"),
             ),
         ),
     )

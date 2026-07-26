@@ -11,10 +11,11 @@ is a pure function of ``seed``."""
 from __future__ import annotations
 
 import random
+from collections.abc import Callable
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
-from typing import Any, Callable, cast
+from typing import Any, cast
 
 from cardlang.ast import nodes as n
 from cardlang.openspiel.encoding import ActionSpace
@@ -24,7 +25,7 @@ from cardlang.runtime.observe import render
 from cardlang.runtime.state import ChooserAbort, RuntimeState
 
 
-@lru_cache(maxsize=None)
+@cache
 def load(path_str: str) -> tuple[n.Game, ActionSpace]:
     """Parse + check a game and derive its action space (cached per path)."""
     game = check_source(Path(path_str))

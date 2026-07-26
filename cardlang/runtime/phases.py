@@ -26,7 +26,7 @@ def compute_active_rules(phase: n.Phase | None, rs: RuntimeState) -> tuple[n.Rul
                 _apply_ref(names, ref)
 
     for item in phase.items:
-        if isinstance(item, n.Phase) and _is_rule_delta(item):
+        if isinstance(item, n.Phase) and _is_rule_delta(item):  # noqa: SIM102 -- the inner `if` carries the comment that explains it
             if _delta_active(item, rs):
                 # Only `active_rules` is folded. A `legal_moves` here would have
                 # no effect, which is exactly why resolve rejects one

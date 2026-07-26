@@ -64,10 +64,11 @@ cells plus a lie in the `members` column.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Mapping, Sequence
+from typing import TYPE_CHECKING, Any
 
-from cardlang.types import TAny, TEnum, TPlayer, TTeam, Type
+from cardlang.types import TEnum, TPlayer, TTeam, Type
 
 if TYPE_CHECKING:  # pragma: no cover - typing only, no runtime import cycle
     from cardlang.runtime.state import Ctx, RuntimeState
@@ -139,7 +140,7 @@ class Domain:
     # rejected rather than silently read as its plain form.
     param_domains: tuple[str, ...]
     # The domain's members at runtime, in iteration order.
-    members: Callable[["Ctx"], list[Any]]
+    members: Callable[[Ctx], list[Any]]
     # The domain's members at declaration time, for the static action space.
     static_members: Callable[[DomainSources], list[Any]]
     # The observer's own key in a zone family indexed by this domain — their seat
@@ -152,7 +153,7 @@ class Domain:
     # replaces an `== "team"` re-spelling at five consumer sites (resolve,
     # typecheck, state, driver, observe), each of which silently defaulted every
     # non-team role to player keying.
-    zone_key_of: Callable[["RuntimeState", int], int | None] | None = None
+    zone_key_of: Callable[[RuntimeState, int], int | None] | None = None
 
 
 DOMAINS: tuple[Domain, ...] = (
@@ -237,7 +238,7 @@ ZONE_INDEX_ROLES: frozenset[str] = frozenset(
 )
 
 
-def zone_observer_key(role: str, rs: "RuntimeState", observer: int) -> int | None:
+def zone_observer_key(role: str, rs: RuntimeState, observer: int) -> int | None:
     """The observer's own key in a zone family indexed by `role` — their seat,
     their team. The ownership half of `zone_key_of`; raises (rather than guessing
     player keying) for a role no row marks zone-indexable, because resolve
@@ -319,7 +320,7 @@ def binds_actor(role: str) -> bool:
     return row.binds_actor
 
 
-def role_members(role: str, ctx: "Ctx") -> list[Any]:
+def role_members(role: str, ctx: Ctx) -> list[Any]:
     """The runtime domain of one role: the players/teams/suits/ranks a `for each
     <role>` or a quantifier binds over, in iteration order. The ONE runtime
     member enumerator — `runtime/evaluate.py` (quantifiers) and

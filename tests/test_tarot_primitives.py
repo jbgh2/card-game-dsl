@@ -14,12 +14,10 @@ from __future__ import annotations
 
 import random
 
-import pytest
-
 from cardlang.runtime import reads, sidecar
 from cardlang.runtime.state import RuntimeState, ZoneStore
-from cardlang.runtime.tarot import ROW
 from cardlang.runtime.tarot import (
+    ROW,
     tarot_card_points,
     tarot_excuse_player,
     tarot_led_suit,

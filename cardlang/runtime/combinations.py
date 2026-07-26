@@ -111,7 +111,7 @@ def _combos(hand: list[Card]) -> list[Play]:
             run.append(run[-1] + 1)
         if len(run) >= 5:
             for length in range(5, len(run) + 1):
-                for s in range(0, len(run) - length + 1):
+                for s in range(len(run) - length + 1):
                     seg = run[s:s + length]
                     cards = tuple(by_rank[r][0] for r in seg)
                     out.append(Play("straight", length, seg[-1], cards))
@@ -124,7 +124,7 @@ def _combos(hand: list[Card]) -> list[Play]:
             run.append(run[-1] + 1)
         if len(run) >= 2:
             for length in range(2, len(run) + 1):
-                for s in range(0, len(run) - length + 1):
+                for s in range(len(run) - length + 1):
                     seg = run[s:s + length]
                     cards = tuple(c for r in seg for c in by_rank[r][:2])
                     out.append(Play("pairseq", length, seg[-1], cards))

@@ -17,7 +17,7 @@ the runtime and the OpenSpiel front end read it without a cycle.
 
 from __future__ import annotations
 
-from typing import Mapping
+from collections.abc import Mapping
 
 from cardlang.ast import nodes as n
 from cardlang.stdlib.boards import board_entry

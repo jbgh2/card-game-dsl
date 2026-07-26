@@ -9,10 +9,9 @@ import json
 import time
 from collections import defaultdict
 
+import glcommon
 import pyspiel
 from open_spiel.python.algorithms import cfr, exploitability
-
-import glcommon
 
 SHORT_NAME = "greenlane_mini"
 CFR_ITERATIONS = 400

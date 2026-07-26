@@ -113,7 +113,7 @@ residual:   card-content vocabulary reachable ONLY through the trick-taking and
 from __future__ import annotations
 
 import random
-from typing import Callable
+from collections.abc import Callable
 
 import pytest
 

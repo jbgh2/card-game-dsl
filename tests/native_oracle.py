@@ -39,14 +39,15 @@ Contract:
 from __future__ import annotations
 
 import random
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import pytest
 
 pyspiel = pytest.importorskip("pyspiel")
 
-from cardlang.openspiel.encoding import ActionSpace  # noqa: E402
-from cardlang.openspiel.replay import Pause, Terminal, load, run  # noqa: E402
+from cardlang.openspiel.encoding import ActionSpace
+from cardlang.openspiel.replay import Pause, Terminal, load, run
 
 
 def assert_node_agrees(

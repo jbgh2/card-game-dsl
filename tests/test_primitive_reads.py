@@ -56,7 +56,7 @@ from __future__ import annotations
 import ast
 import random
 from dataclasses import dataclass, field, replace
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 
 import pytest
@@ -106,7 +106,7 @@ class DeclaredNames:
     single_zones: frozenset[str]  # declared without one
 
 
-@lru_cache(maxsize=None)
+@cache
 def _declared_names(game_file: str) -> DeclaredNames:
     game = parse_corpus_game(GAMES_DIR / game_file)
     return DeclaredNames(
@@ -304,7 +304,7 @@ def _scan_source(source: str, where: str) -> ScanResult:
     return result
 
 
-@lru_cache(maxsize=None)
+@cache
 def _scan_module(path: Path) -> ScanResult:
     return _scan_source(path.read_text(encoding="utf-8"), path.name)
 

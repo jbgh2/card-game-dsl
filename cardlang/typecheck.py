@@ -35,9 +35,10 @@ Verified by:  the wall test modules (operator, aggregation, context,
 
 from __future__ import annotations
 
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field, replace
 from enum import Enum
-from typing import Iterator, Mapping, assert_never
+from typing import assert_never
 
 from cardlang.ast import nodes as n
 from cardlang.ast.nodes import Game
@@ -214,7 +215,7 @@ def value_enum_map(game: Game) -> dict[str, TEnum]:
 def struct_registry(
     game: Game,
     functions: Mapping[str, Sig] | None = None,
-    base: "TypeEnv | None" = None,
+    base: TypeEnv | None = None,
 ) -> dict[str, TStruct]:
     """Build the user-defined struct types. Declared fields resolve eagerly;
     derived fields are typed in the AMBIENT environment (``base``) extended
@@ -414,7 +415,7 @@ def _payload_type(
     name: str,
     structs: Mapping[str, TStruct],
     positions: Mapping[str, Type] | None = None,
-) -> "Type":
+) -> Type:
     """Resolve a variant payload type name; a trailing `?` marks it nullable.
 
     `positions` is threaded because resolve admits a declared position domain
@@ -433,7 +434,7 @@ def _variant_cases(
     cases: tuple[n.VariantCase, ...],
     structs: Mapping[str, TStruct],
     positions: Mapping[str, Type] | None = None,
-) -> dict[str, tuple["Type", ...]]:
+) -> dict[str, tuple[Type, ...]]:
     return {
         c.tag: tuple(_payload_type(t, structs, positions) for t in c.payload_types)
         for c in cases
@@ -517,7 +518,7 @@ class TypeEnv:
     # inference), which `env_from_game` overrides per flavor.
     item_fields: Mapping[str, Type] = field(default_factory=lambda: dict(CARD_FIELDS))
 
-    def with_local(self, name: str, t: Type) -> "TypeEnv":
+    def with_local(self, name: str, t: Type) -> TypeEnv:
         return replace(self, locals={**self.locals, name: t})
 
 
@@ -2581,7 +2582,7 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
             assert_never(stmt)
 
 
-def _is_zone_type(t: "Type") -> bool:
+def _is_zone_type(t: Type) -> bool:
     """Whether a value of this type IS a zone at runtime: the `zone` marker
     (`ZONE_CONTENT`, a zone-family subscript), or TAny (a deliberately-loose
     value the runtime backstop owns). The marker matters twice over: `all
@@ -2593,7 +2594,7 @@ def _is_zone_type(t: "Type") -> bool:
     return isinstance(t, TCollection) and t.zone
 
 
-def _zone_hint(t: "Type", filterable: bool) -> str:
+def _zone_hint(t: Type, filterable: bool) -> str:
     """A computed card collection fails the zone check with the RIGHT element,
     which reads as a contradiction without this: say why it is still not a
     zone, and what to write instead. The `where`-filter suggestion is offered
@@ -2780,7 +2781,7 @@ def _produces_in(stmt: n.Stmt) -> Iterator[n.Produces]:
                     yield from _produces_in(s)
 
 
-def _continue_targets_in_item(item: "n.PhaseItem") -> set[str]:
+def _continue_targets_in_item(item: n.PhaseItem) -> set[str]:
     """Every `continue to` target reachable while executing one phase-body item,
     recursing into nested phases (a jump there can unwind to this body) and
     statement bodies. Hooks/config carry none (control flow in hooks is rejected)."""
@@ -2803,7 +2804,7 @@ def _continue_targets_in_item(item: "n.PhaseItem") -> set[str]:
     return targets
 
 
-def _item_can_skip(item: "n.PhaseItem") -> bool:
+def _item_can_skip(item: n.PhaseItem) -> bool:
     """Whether executing one phase-body item can `skip to next hand` against *this*
     body's hand loop. A nested `repeat until` catches its own skips, so they don't
     unwind here."""

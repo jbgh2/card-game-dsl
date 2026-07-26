@@ -125,12 +125,12 @@ import typing
 import pytest
 
 import cardlang.ast.nodes as n
+import cardlang.resolve as resolve_module
 from cardlang.diagnostics import DiagnosticError
 from cardlang.ir import emit
 from cardlang.pipeline import check_dsl
-from cardlang.runtime.driver import play_game
-import cardlang.resolve as resolve_module
 from cardlang.resolve import _PROCEDURE_PARAM_DOMAINS
+from cardlang.runtime.driver import play_game
 from cardlang.typecheck import KNOWN_TYPE_NAMES
 
 # A minimal game with the pieces every probe needs: a player-indexed state var to

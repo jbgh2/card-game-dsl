@@ -24,8 +24,8 @@ omitted (lower limit on 3rd/4th, upper on 5th–7th).
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Mapping, Sequence
 from itertools import combinations
-from typing import Any, Mapping, Sequence
 
 from cardlang.runtime import reads
 from cardlang.runtime.sidecar import EngineFacts

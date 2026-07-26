@@ -46,14 +46,14 @@ def test_40_random_rubbers_satisfy_invariants() -> None:
 
         def tracer(event: str, data: Any) -> None:
             if event == "play":
-                plays.append(data)
+                plays.append(data)  # noqa: B023 -- consumed before the loop advances
             elif event == "trick":
-                tricks.append(data)
+                tricks.append(data)  # noqa: B023 -- consumed before the loop advances
             elif event == "trick_end":
-                trumps.append(data["trump"])
+                trumps.append(data["trump"])  # noqa: B023 -- consumed before the loop advances
             elif event == "game_end":
-                census.clear()
-                census.update(data)
+                census.clear()  # noqa: B023 -- consumed before the loop advances
+                census.update(data)  # noqa: B023 -- consumed before the loop advances
 
         result = play_game(game, random.Random(seed), tracer)
 

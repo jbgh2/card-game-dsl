@@ -48,10 +48,9 @@ from typing import cast
 
 import pytest
 
-from cardlang.runtime import reads, sidecar
-
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
+from cardlang.runtime import reads, sidecar
 from cardlang.runtime.belote import (
     belote_best_is,
     belote_trick_winner,

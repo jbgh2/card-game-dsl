@@ -1,4 +1,7 @@
+import pytest
+
 from cardlang.ast import nodes as n
+from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
 
 SRC = """
@@ -36,8 +39,6 @@ def test_actor_classified_as_pronoun() -> None:
 
 def test_offer_unknown_move_type_errors() -> None:
     bad = SRC.replace("[take_one, take_two]", "[take_one, nope]")
-    try:
+    with pytest.raises(DiagnosticError) as ei:
         check_dsl(bad, "g.cardlang")
-        assert False, "expected a resolve error for unknown move type"
-    except Exception as exc:  # DiagnosticError
-        assert "nope" in str(exc)
+    assert "nope" in str(ei.value)

@@ -123,13 +123,13 @@ def test_a_non_zone_endpoint_is_rejected_at_resolve(body: str, expected: str) ->
     [
         (
             "deal 1 cards from deck to each pile",
-            "`to each pile` deals one parcel per player, but 'pile' is a "
-            "singleton zone",
+            ("`to each pile` deals one parcel per player, but 'pile' is a "
+             "singleton zone"),
         ),
         (
             "deal 1 cards from deck to each captured",
-            "`to each captured` deals one parcel per player, but 'captured' "
-            "is a family keyed by team",
+            ("`to each captured` deals one parcel per player, but 'captured' "
+             "is a family keyed by team"),
         ),
         (
             # The non-NameRef cell of the same wall: a subscripted destination

@@ -46,6 +46,7 @@ import importlib
 import inspect
 import typing
 
+from cardlang.runtime import sidecar
 from cardlang.stdlib.functions import (
     BOARD_ONLY_CALL_FUNCS,
     DECK_ONLY_CALL_FUNCS,
@@ -63,7 +64,6 @@ from cardlang.stdlib.signatures import (
     ZONE_CONTENT,
     Sig,
 )
-from cardlang.runtime import sidecar
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 from cardlang.types import TAny, TCard, TCollection, TEnum, TOptional, TPlayer, TTeam
 
@@ -172,8 +172,8 @@ def test_call_funcs_are_dispatchable() -> None:
             assert "unknown stdlib function" not in str(e), (
                 f"{name!r} falls through call()'s default arm: {e}"
             )
-        except Exception:
-            pass  # dispatched: failed downstream for some other reason
+        except Exception:  # noqa: BLE001, S110 -- any non-AssertionError means it
+            pass  # dispatched; the currency split is walled by test_assert_triage.py
 
 
 def test_deck_only_classification_partitions_call_funcs() -> None:
@@ -218,8 +218,8 @@ def test_known_call_signatures() -> None:
 @dataclasses.dataclass(frozen=True)
 class _DispatchFact:
     arity: int  # 1 + the highest args[i] the arm reads (0 if none)
-    helper: "object | None"  # the resolved helper callable, if the arm is a plain forward
-    helper_args: "tuple[object, ...]"  # per helper param: 'ctx', an int (args[i]), or None
+    helper: object | None  # the resolved helper callable, if the arm is a plain forward
+    helper_args: tuple[object, ...]  # per helper param: 'ctx', an int (args[i]), or None
     traced: bool = False  # the arm unpacks (value, events) and emits via _emit
 
 

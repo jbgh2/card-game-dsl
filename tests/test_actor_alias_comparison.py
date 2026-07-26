@@ -285,7 +285,7 @@ def test_a_binder_kind_can_be_absent_from_the_scope_field_table() -> None:
         ref = n.NameRef(pronoun, ref_kind="pronoun")
         try:
             return evaluate(ref, base.acting_as(seat))
-        except Exception as exc:  # a pronoun undefined here is a stable answer
+        except Exception as exc:  # noqa: BLE001 -- a pronoun undefined here is a stable answer; narrowing makes the grid vacuous for every pronoun that refuses
             return f"{type(exc).__name__}"
 
     tracking = {p for p in _PRONOUNS if read(p, 0) != read(p, 1)}
@@ -385,8 +385,8 @@ _REFUSED_SITES: dict[str, tuple[str, str, str, str]] = {
     ),
     "each_simultaneously": (
         "body",
-        "each player simultaneously: "
-        "move chosen 1 card from hand[player] where {cmp} to bid[player]",
+        ("each player simultaneously: "
+         "move chosen 1 card from hand[player] where {cmp} to bid[player]"),
         "player",
         "actor",
     ),
@@ -546,8 +546,8 @@ _ACCEPTED_SITES: dict[str, tuple[str, str, str, str]] = {
     # Same rule for a let's INDEX binder, which scopes to its own value only.
     "let_index_binder_shadows": (
         "body",
-        "for each player p: if true {{ let seen[p] = (if {cmp} then 1 else 0)  "
-        "if seen[0] > 0 {{ hits[0] += 1 }} }}",
+        ("for each player p: if true {{ let seen[p] = (if {cmp} then 1 else 0)  "
+         "if seen[0] > 0 {{ hits[0] += 1 }} }}"),
         "p",
         "actor",
     ),
@@ -558,8 +558,8 @@ _ACCEPTED_SITES: dict[str, tuple[str, str, str, str]] = {
     # proves the wall reads that registry rather than matching on the name.
     "inner_binder_shadows_the_alias": (
         "body",
-        "each player simultaneously: move chosen 1 card from hand[player] "
-        "where (the player where {cmp}) is not taker to bid[player]",
+        ("each player simultaneously: move chosen 1 card from hand[player] "
+         "where (the player where {cmp}) is not taker to bid[player]"),
         "player",
         "actor",
     ),

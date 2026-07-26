@@ -8,7 +8,8 @@ bare `f(...)` calls and the value-callbacks.
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from cardlang.runtime import reads, sidecar
 from cardlang.runtime.state import Ctx, IllegalMove, elements

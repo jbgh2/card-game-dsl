@@ -56,7 +56,7 @@ Announcing is scoped to that one best combination per player (belote.md,
 
 from __future__ import annotations
 
-from typing import Mapping
+from collections.abc import Mapping
 
 from cardlang.runtime import reads
 from cardlang.runtime.sidecar import EngineFacts

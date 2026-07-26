@@ -19,14 +19,14 @@ import random
 import pytest
 
 from cardlang.ast import nodes as n
+from cardlang.runtime import reads, sidecar
 from cardlang.runtime.cribbage import (
+    ROW,
     cribbage_crib_value,
     cribbage_show_value,
     peg_origin,
     peg_origin_of,
 )
-from cardlang.runtime import reads, sidecar
-from cardlang.runtime.cribbage import ROW
 from cardlang.runtime.state import RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating, expand_ranking_convention
 

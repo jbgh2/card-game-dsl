@@ -15,10 +15,9 @@ import sys
 import time
 from collections import defaultdict
 
+import glcommon
 import pyspiel
 from open_spiel.python.algorithms import outcome_sampling_mccfr
-
-import glcommon
 
 SHORT_NAME = "greenlane"
 DEFAULT_ITERATIONS = 120_000

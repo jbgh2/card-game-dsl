@@ -45,9 +45,10 @@ from __future__ import annotations
 
 import random
 from collections import Counter
-from functools import lru_cache
+from collections.abc import Callable
+from functools import cache
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import pytest
 
@@ -296,12 +297,12 @@ def _playout(seed: int, policy_for: Callable[[random.Random], Policy] = _random_
     return Playout(result, final, plies[0], _terminus(result.scores, final), offsets)
 
 
-@lru_cache(maxsize=None)
+@cache
 def _random_run(seed: int) -> Playout:
     return _playout(seed)
 
 
-@lru_cache(maxsize=None)
+@cache
 def _grind_run(seed: int) -> Playout:
     return _playout(seed, _capture_seeking_policy)
 

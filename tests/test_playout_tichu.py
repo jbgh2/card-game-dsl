@@ -20,13 +20,14 @@ call profile), uniform otherwise.
 from __future__ import annotations
 
 import random
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from cardlang.pipeline import check_source
 from cardlang.runtime.chooser import random_chooser
-from cardlang.runtime.driver import play_game
 from cardlang.runtime.combinations import Play, _combos, _legal_follows
+from cardlang.runtime.driver import play_game
 from cardlang.runtime.values import Card, Player
 from tests.playout_trace import TichuHands
 
@@ -111,8 +112,8 @@ def test_30_random_games_satisfy_invariants() -> None:
                 if not double_victory and card_points != 100:
                     bad_points += 1
             elif event == "game_end":
-                census.clear()
-                census.update(data)
+                census.clear()  # noqa: B023 -- consumed before the loop advances
+                census.update(data)  # noqa: B023 -- consumed before the loop advances
 
         rng = random.Random(seed)
         result = play_game(

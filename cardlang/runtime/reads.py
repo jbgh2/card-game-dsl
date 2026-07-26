@@ -46,13 +46,14 @@ Contract:
 from __future__ import annotations
 
 import dataclasses
+from collections.abc import Mapping
 from collections.abc import Mapping as _Mapping
 from collections.abc import Sequence as _Sequence
-from collections.abc import Set as _Set
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass, field
 from enum import Enum
 from types import MappingProxyType
-from typing import Any, Mapping, cast
+from typing import Any, cast
 
 from cardlang.runtime.state import RuntimeState, Zone
 from cardlang.runtime.values import Card
@@ -102,7 +103,7 @@ def deep_freeze(value: Any) -> Any:
         return MappingProxyType(
             {deep_freeze(k): deep_freeze(v) for k, v in value.items()}
         )
-    if isinstance(value, _Set):
+    if isinstance(value, AbstractSet):
         return frozenset(deep_freeze(v) for v in value)
     if isinstance(value, bytearray):
         return bytes(value)  # a mutable builtin sequence -> immutable snapshot

@@ -88,13 +88,13 @@ def test_round_early_termination_fires_only_on_a_tochoo() -> None:
         def tr(e: str, d: Any) -> None:
             nonlocal checked
             if e == "play":
-                plays.append(d[1])  # (player, card) -> the card
+                plays.append(d[1])  # (player, card) -> the card  # noqa: B023 -- consumed before the loop advances
             elif e == "trick_end":
                 if d["early"]:
-                    led = plays[0].suit
-                    assert plays[-1].suit != led  # the tochoo is off-suit
+                    led = plays[0].suit  # noqa: B023 -- consumed before the loop advances
+                    assert plays[-1].suit != led  # the tochoo is off-suit  # noqa: B023 -- consumed before the loop advances
                     checked += 1
-                plays.clear()
+                plays.clear()  # noqa: B023 -- consumed before the loop advances
 
         play_game(game, random.Random(seed), tr)
     assert checked > 0
@@ -184,9 +184,9 @@ def test_round_plays_full_tricks_and_conserves_cards() -> None:
         census: dict[str, Any] = {}
 
         def tr(e: str, d: Any) -> None:
-            if e == "play": plays.append(d)
-            elif e == "trick": tricks.append(d)
-            elif e == "game_end": census.clear(); census.update(d)
+            if e == "play": plays.append(d)  # noqa: B023 -- consumed before the loop advances
+            elif e == "trick": tricks.append(d)  # noqa: B023 -- consumed before the loop advances
+            elif e == "game_end": census.clear(); census.update(d)  # noqa: B023 -- consumed before the loop advances
         result = play_game(game, random.Random(seed), tr)
         assert len(tricks) == 13 and len(plays) == 52
         assert census["total"] == 52 and census["hands_with_cards"] == 0

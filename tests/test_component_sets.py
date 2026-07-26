@@ -38,7 +38,13 @@ from __future__ import annotations
 
 import pytest
 
-from cardlang.runtime.values import COMPONENT_SETS, DECKS, ComponentSet, build_deck, component_set
+from cardlang.runtime.values import (
+    COMPONENT_SETS,
+    DECKS,
+    ComponentSet,
+    build_deck,
+    component_set,
+)
 from cardlang.stdlib.values import deck_size
 
 

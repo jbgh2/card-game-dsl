@@ -11,7 +11,6 @@ from typing import Any
 from cardlang.ast import nodes as n
 from cardlang.runtime.state import RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating
-
 from tests.openspiel_ready.partition import (
     RECORDS,
     SYNTHETIC,

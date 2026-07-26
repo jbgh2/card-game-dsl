@@ -4,8 +4,8 @@ import random
 
 import pytest
 
-import cardlang.runtime.state as state
 from cardlang.pipeline import check_dsl
+from cardlang.runtime import state
 from cardlang.runtime.driver import play_game
 
 

@@ -12,10 +12,10 @@ from typing import Any, assert_never
 
 from cardlang.ast import nodes as n
 from cardlang.domains import role_members
-from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
 from cardlang.runtime import observe, stdlib
 from cardlang.runtime.state import Ctx, Move, StructValue, elements
 from cardlang.runtime.values import Card
+from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
 
 
 def evaluate(e: n.Expr, ctx: Ctx) -> Any:

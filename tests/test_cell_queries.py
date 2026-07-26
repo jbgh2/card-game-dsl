@@ -151,12 +151,12 @@ from cardlang.board_domains import position_domains_of
 from cardlang.diagnostics import DiagnosticError
 from cardlang.ir import emit
 from cardlang.pipeline import check_dsl
+from cardlang.resolve import _COLLECTION_NOUNS
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
-from cardlang.runtime.values import Card, Seating, axis_attributes
 from cardlang.runtime.stdlib import _lines
-from cardlang.resolve import _COLLECTION_NOUNS
+from cardlang.runtime.values import Card, Seating, axis_attributes
 from cardlang.stdlib.boards import board_entry
 from cardlang.typecheck import _COLLECTION_BINDER_TYPES
 
@@ -604,7 +604,7 @@ def test_scripted_full_board_draw_flips_all_cells_and_count_at_nine() -> None:
     assert filled_counts == [0, 1, 2, 3, 4, 5, 6, 7, 8]
     assert result.scores == {0: 0, 1: 0}
 
-    game, all_expr = _checked_board_expr(ALL_CELLS_PRED)
+    _game, all_expr = _checked_board_expr(ALL_CELLS_PRED)
     _, count_expr = _checked_board_expr(NUM_CELLS_PRED)
     final_ctx = Ctx(rs=final_rs, chooser=_unused_chooser).acting_as(0)
     assert evaluate(count_expr, final_ctx) == 9

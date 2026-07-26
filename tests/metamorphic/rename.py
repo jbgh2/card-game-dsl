@@ -78,8 +78,8 @@ defect this transform papers over. `_GLOBAL_EXCLUSIONS` below excludes it
 corpus-wide.
 
 **Game-local runtime primitives are written against ONE game's specific
-declared spelling.** Eleven corpus games ship a `cardlang/runtime/<game>.py`
-module of bespoke Python (kernel-migration.md's sanctioned "game-local
+declared spelling.** A corpus game with a bespoke mechanic ships a
+`cardlang/runtime/<game>.py` module of Python (kernel-migration.md's sanctioned "game-local
 stdlib primitive" pattern — Stud's `pot_share`, Skat's `skat_matadors`,
 Tichu's `tichu_mahjong_holder`, …) that reads live `RuntimeState` by the
 zone/state-variable name ITS AUTHOR gave it — a Python string literal, never
@@ -109,16 +109,17 @@ not stepping around — see `test_rename.py`.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, fields, is_dataclass, replace
 from pathlib import Path
-from typing import Callable, cast
+from typing import cast
 
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import Span
 from cardlang.libraries import library_names, load_library
-from cardlang.resolve import _introduced_binders, _walk as _resolve_walk
+from cardlang.resolve import _introduced_binders
+from cardlang.resolve import _walk as _resolve_walk
 from cardlang.runtime.reads import PRIMITIVE_READS
-
 from tests.metamorphic.pairing import Event
 
 _PREFIX = "_mt_"
@@ -278,11 +279,7 @@ def _rewrite(node: object, name_map: dict[str, str]) -> object:
     if isinstance(node, n.NameRef):
         new = name_map.get(node.name)
         return node if new is None else replace(node, name=new)
-    if isinstance(node, n.ZoneDecl):
-        new = name_map.get(node.name)
-        if new is not None:
-            node = replace(node, name=new)
-    elif isinstance(node, n.StateDecl):
+    if isinstance(node, (n.ZoneDecl, n.StateDecl)):
         new = name_map.get(node.name)
         if new is not None:
             node = replace(node, name=new)

@@ -60,15 +60,26 @@ Verified by:  the per-wall diagnostic tests; the runtime backstop above.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, fields, is_dataclass, replace
-from typing import Callable, Iterator, assert_never, cast, get_args
+from typing import assert_never, cast, get_args
 
 from cardlang.ast import nodes as n
+from cardlang.board_domains import BOARD_DOMAIN, DIRECTION_DOMAIN, directions_of
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
-from cardlang.domains import CARD_AXIS_ROLES, CARD_PARAM_DOMAINS, binds_actor
+from cardlang.domains import (
+    CARD_AXIS_ROLES,
+    CARD_PARAM_DOMAINS,
+    PARAM_DOMAIN_ORDER,
+    SIMULTANEOUS_ROLES,
+    ZONE_INDEX_ROLES,
+    binds_actor,
+)
 from cardlang.domains import ITERABLE_ROLES as _ITERATION_ROLES
-from cardlang.domains import PARAM_DOMAIN_ORDER, PARAM_DOMAINS as _FIXED_DOMAINS
-from cardlang.domains import SIMULTANEOUS_ROLES, ZONE_INDEX_ROLES
+from cardlang.domains import PARAM_DOMAINS as _FIXED_DOMAINS
+from cardlang.libraries import library_names, load_library
+from cardlang.runtime.values import content_kind_clause, content_noun
+from cardlang.stdlib.boards import board_entry
 from cardlang.stdlib.functions import (
     BOARD_ONLY_CALL_FUNCS,
     DECK_ONLY_CALL_FUNCS,
@@ -80,17 +91,13 @@ from cardlang.stdlib.functions import (
     STDLIB_TRICK_OUTCOMES,
     STDLIB_VALUE_NAMES,
 )
-from cardlang.runtime.values import content_kind_clause, content_noun
-from cardlang.board_domains import BOARD_DOMAIN, DIRECTION_DOMAIN, directions_of
-from cardlang.stdlib.boards import board_entry
-from cardlang.libraries import library_names, load_library
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
 from cardlang.stdlib.rules import library_rules
+from cardlang.stdlib.signatures import CALL_SIGS
 from cardlang.stdlib.values import DIRECTION_VALUES, deck_ranks, deck_suits, enum_values
+from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES, ZONE_PROJECTIONS
 from cardlang.typecheck import KNOWN_TYPE_NAMES
 from cardlang.types import Flavor, TPlayer
-from cardlang.stdlib.signatures import CALL_SIGS
-from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES, ZONE_PROJECTIONS
 
 # The board-only calls that read a grid's PER-PLAYER frame -- one seat's forward
 # is the other's backward, the 180-degree opposite (cardlang/stdlib/boards.py).
@@ -1662,7 +1669,7 @@ class _ActorAliases:
     names: frozenset[str] = frozenset({"actor"})
     origin: str | None = None
 
-    def shadowed(self, bound: tuple[str, ...]) -> "_ActorAliases":
+    def shadowed(self, bound: tuple[str, ...]) -> _ActorAliases:
         """Drop names a nested construct rebinds to something else — an inner
         `for each suit p` makes `p` a suit, whatever the outer loop bound."""
         if not bound:
@@ -2382,7 +2389,7 @@ def _check_duplicate_names(game: n.Game, bag: DiagnosticBag) -> None:
 
     def check(
         kind: str,
-        named: "Iterator[object] | tuple[object, ...] | list[object]",
+        named: Iterator[object] | tuple[object, ...] | list[object],
         reserved: bool = False,
     ) -> None:
         seen: dict[str, object] = {}
@@ -3052,7 +3059,7 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
     def base_of(type_name: str) -> str:
         # A trailing `?` marks a nullable domain/payload (`Suit?`), not part of
         # the name — strip it before the lookup, never by a blanket rstrip.
-        return type_name[:-1] if type_name.endswith("?") else type_name
+        return type_name.removesuffix("?")
 
     for fn in game.functions:
         for p in fn.params:

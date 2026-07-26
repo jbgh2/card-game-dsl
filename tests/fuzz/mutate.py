@@ -44,7 +44,7 @@ from __future__ import annotations
 
 import random
 import re
-from typing import Callable
+from collections.abc import Callable
 
 Mutator = Callable[[str, random.Random], "str | None"]
 
@@ -90,7 +90,7 @@ def swap_adjacent_tokens(text: str, rng: random.Random) -> str | None:
     lines = text.splitlines(keepends=True)
     eligible: list[tuple[int, list[int]]] = []
     for i, line in enumerate(lines):
-        body = line[:-1] if line.endswith("\n") else line
+        body = line.removesuffix("\n")
         tokens = body.split(" ")
         nonempty = [j for j, t in enumerate(tokens) if t]
         if len(nonempty) >= 2:

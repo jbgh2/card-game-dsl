@@ -132,6 +132,7 @@ from cardlang.pipeline import check_dsl
 from cardlang.stdlib.functions import STDLIB_CALL_FUNCS
 from cardlang.stdlib.signatures import CALL_SIGS, ZONE_CONTENT
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
+from cardlang.typecheck import TypeEnv, infer
 from cardlang.types import (
     TAny,
     TBoolean,
@@ -144,7 +145,6 @@ from cardlang.types import (
     assignable,
     unify,
 )
-from cardlang.typecheck import TypeEnv, infer
 
 CARDLANG_ROOT = Path(typecheck.__file__).parent
 
@@ -210,7 +210,7 @@ def test_every_by_id_lookup_raises_on_an_unknown_role() -> None:
     class _Rs:
         # `zone_observer_key` consults `position_domains` before the registry;
         # an unknown role is not one, so the lookup below is what answers.
-        position_domains: dict[str, object] = {}
+        position_domains: dict[str, object] = {}  # noqa: RUF012 -- one inline instance of a throwaway RuntimeState stub, never mutated
 
     lookups: dict[str, Callable[[], object]] = {
         "role_type": lambda: role_type("nonrole"),

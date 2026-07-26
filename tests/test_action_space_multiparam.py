@@ -2,9 +2,9 @@ import random
 
 import pytest
 
+from cardlang.openspiel.encoding import ActionSpace
 from cardlang.parse import parse_text
 from cardlang.pipeline import check_dsl
-from cardlang.openspiel.encoding import ActionSpace
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.values import Card, deck_suits
