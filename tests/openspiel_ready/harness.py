@@ -268,6 +268,38 @@ def verb_status(verb: str, applied: frozenset[str], exempt: frozenset[str]) -> s
     return "exempt" if verb in exempt else "uncovered"
 
 
+def pin_failures(spec: GameSpec, declared: frozenset[str]) -> list[str]:
+    """Everything wrong with a spec's unreached-verb pin that the per-verb grid
+    cannot see, because each is a way the pin fails to correspond to any cell:
+    an entry naming a verb the game does not declare (no cell can ever clear
+    it), an entry with no reason (an unexplained hole reads as a covered one),
+    and any entry at all on an unbounded game (nothing walks, so nothing checks
+    it). A pure function so the probes can exercise each arm on a synthetic
+    spec — these guards fire on no game in the corpus, and a guard nothing
+    executes is not a guard."""
+    out: list[str] = []
+    if spec.conformance_steps is None:
+        if spec.conformance_verbs_unreached:
+            out.append(
+                "conformance_verbs_unreached is only checkable against a "
+                "bounded walk; this game runs the full random_sim_test"
+            )
+        return out
+    unknown = sorted(spec.unreached_verbs - declared)
+    if unknown:
+        out.append(
+            f"conformance_verbs_unreached names {unknown}, which the action "
+            f"space does not declare — no cell can ever clear them"
+        )
+    unreasoned = sorted(v for v, why in spec.conformance_verbs_unreached if not why.strip())
+    if unreasoned:
+        out.append(
+            f"{unreasoned} are recorded as unreached with no reason — an "
+            f"unexplained hole reads as a covered one"
+        )
+    return out
+
+
 def _advance(path: str, seed: int, depth: int) -> tuple[list[int], Pause]:
     history: list[int] = []
     r = run(path, seed, ())

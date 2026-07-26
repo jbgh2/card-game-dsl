@@ -76,7 +76,13 @@ import pytest
 
 from cardlang.openspiel.replay import load
 
-from .harness import GameSpec, REGISTERED_GAMES, bounded_walk, verb_status
+from .harness import (
+    REGISTERED_GAMES,
+    GameSpec,
+    bounded_walk,
+    pin_failures,
+    verb_status,
+)
 from .partition import record
 
 
@@ -136,26 +142,11 @@ def test_the_bound_covers_every_declared_verb(
 def test_exemptions_are_declared_verbs_of_a_bounded_walk(
     short_name: str, spec: GameSpec
 ) -> None:
-    """The three halves the per-verb grid cannot see: an entry naming a verb the
-    game does not declare (a typo, or a move type since renamed — it would sit
-    in the list forever, matching no cell), an entry with no reason, and any
-    entry at all on an unbounded game (nothing walks, so nothing checks it)."""
-    if spec.conformance_steps is None:
-        assert not spec.conformance_verbs_unreached, (
-            f"{short_name}: conformance_verbs_unreached is only checkable "
-            f"against a bounded walk; this game runs the full random_sim_test"
-        )
-        return
-    unknown = sorted(spec.unreached_verbs - _declared(spec))
-    assert not unknown, (
-        f"{short_name}: conformance_verbs_unreached names {unknown}, which the "
-        f"action space does not declare — no cell can ever clear them"
-    )
-    unreasoned = sorted(v for v, why in spec.conformance_verbs_unreached if not why.strip())
-    assert not unreasoned, (
-        f"{short_name}: {unreasoned} are recorded as unreached with no reason "
-        f"— an unexplained hole reads as a covered one"
-    )
+    """The well-formedness the per-verb grid cannot see (`harness.pin_failures`,
+    whose arms are probed one by one below)."""
+    declared = _declared(spec) if spec.conformance_steps is not None else frozenset()
+    failures = pin_failures(spec, declared)
+    assert not failures, f"{short_name}: " + "; ".join(failures)
 
 
 @pytest.mark.parametrize(
@@ -180,15 +171,57 @@ def test_record_the_bound_and_what_it_reached(short_name: str, spec: GameSpec) -
     )
 
 
-# --- misuse probes: verb_status is total, and every cell is reachable ------
+# --- misuse probes ---------------------------------------------------------
+#
+# The guards above fire on no game in the corpus — every registered spec is
+# well-formed, so their assertions run green without ever having been shown a
+# violation. A guard nothing executes is not a guard, so each arm gets a
+# synthetic spec that trips exactly it.
 
 
 def test_verb_status_covers_the_applied_exempt_square() -> None:
     """All four cells of the 2x2, named. A classifier that collapsed `stale`
-    into `exempt` would let an exemption outlive its reason silently — the
-    exact failure class this module exists to remove."""
+    into `exempt` would let a recorded-unreached verb outlive its reason
+    silently — the exact failure class this module exists to remove."""
     a, e = frozenset({"play"}), frozenset({"pass"})
     assert verb_status("play", a, frozenset()) == "covered"
     assert verb_status("pass", a, e) == "exempt"
     assert verb_status("play", a, frozenset({"play"})) == "stale"
     assert verb_status("draw", a, e) == "uncovered"
+
+
+def _probe(steps: int | None, entries: tuple[tuple[str, str], ...]) -> list[str]:
+    return pin_failures(
+        GameSpec(
+            "cardlang_probe",
+            "hearts.cardlang",
+            conformance_steps=steps,
+            conformance_verbs_unreached=entries,
+        ),
+        frozenset({"<card>", "pass"}),
+    )
+
+
+def test_a_well_formed_pin_has_no_complaints() -> None:
+    """The control: without it, a `pin_failures` that returned a complaint for
+    everything would pass all three probes below."""
+    assert _probe(120, (("pass", "the auction never passes on this line"),)) == []
+
+
+def test_a_pin_naming_an_undeclared_verb_is_rejected() -> None:
+    """The renamed / mistyped move type: the entry matches no cell, so nothing
+    else in this module would ever look at it again."""
+    failures = _probe(120, (("pas", "typo for pass"),))
+    assert len(failures) == 1 and "does not declare" in failures[0]
+
+
+def test_a_pin_with_no_reason_is_rejected() -> None:
+    failures = _probe(120, (("pass", "   "),))
+    assert len(failures) == 1 and "no reason" in failures[0]
+
+
+def test_a_pin_on_an_unbounded_game_is_rejected() -> None:
+    """Nothing walks an unbounded game from here, so an entry on one is a
+    claim no run can contradict."""
+    failures = _probe(None, (("pass", "a reason nothing checks"),))
+    assert len(failures) == 1 and "bounded walk" in failures[0]

@@ -41,9 +41,36 @@ def _winner(group: list[tuple[int, Card]]) -> int:
     return max(of_led, key=lambda pc: _suit_strength(pc[1]))[0]
 
 
-def test_40_random_games_satisfy_invariants() -> None:
+# What the sweep's own assertions BRANCH on. Each is a distinct arm some
+# assertion below would otherwise check vacuously — an all-zero hand delta
+# never seen means the thrown-in arm went unexercised, no Excuse ever played
+# means "the Excuse never wins" proved nothing. Asserted exhaustively after
+# the sweep, so the seed count is a claim rather than a habit.
+SETTLEMENT_ARMS = frozenset(
+    {"hand_thrown_in", "taker_made_it", "taker_missed",
+     "trick_won_on_atout", "trick_won_on_led_suit", "excuse_played"}
+)
+
+# Every arm must fire on at least this many DISTINCT seeds. One witness would
+# be satisfiable by a single lucky deal, which is what makes a seed count
+# unfalsifiable — with three, the count is load-bearing and a cut reddens.
+WITNESS_SEEDS = 3
+
+# Derived from that: a 36-hand match saturates five of the six arms on its
+# first seed, so the binding arm is `hand_thrown_in` (an all-pass auction),
+# which lands in 15 of 40 seeds — here on seeds 0, 4, 5, 6 and 9. Six seeds is
+# the minimum that witnesses it three times; ten leaves headroom for a game
+# change that shifts one arm off the early seeds.
+#
+# red under: SEEDS = 5 (`hand_thrown_in` drops to two witness seeds).
+SEEDS = 10
+
+
+def test_random_games_satisfy_invariants() -> None:
     game = _tarot()
-    for seed in range(40):
+    witnesses: dict[str, set[int]] = {}
+    for seed in range(SEEDS):
+        arms: set[str] = set()
         plays: list[tuple[int, Card]] = []
         tricks: list[tuple[int, list[Card]]] = []
         hand_ends = 0
@@ -83,6 +110,7 @@ def test_40_random_games_satisfy_invariants() -> None:
             delta = {p: snapshot[p] - prev[p] for p in range(4)}
             prev = snapshot
             if all(d == 0 for d in delta.values()):
+                arms.add("hand_thrown_in")
                 continue
             counts: dict[int, int] = {}
             for d in delta.values():
@@ -92,12 +120,38 @@ def test_40_random_games_satisfy_invariants() -> None:
             per_opp = shared[0]
             taker = next(p for p, d in delta.items() if d != per_opp)
             assert delta[taker] == -3 * per_opp, (seed, hand_no, delta)
+            # `per_opp` is what each opponent's score MOVED by, so a negative
+            # one is the taker collecting: both arms, never presupposed.
+            arms.add("taker_made_it" if per_opp < 0 else "taker_missed")
 
         assert len(plays) == 4 * len(tricks)
         for i, (winner, cards) in enumerate(tricks):
             group = plays[i * 4 : (i + 1) * 4]
             assert {p for p, _ in group} == {0, 1, 2, 3}
             assert winner == _winner(group), f"seed {seed} trick {i}"
-            # The Excuse never wins a trick.
+            arms.add(
+                "trick_won_on_atout"
+                if any(c.suit == "atouts" for _, c in group)
+                else "trick_won_on_led_suit"
+            )
+            # The Excuse never wins a trick — vacuous unless one was played,
+            # which the arm below is what makes checkable.
+            if any(c.suit == "excuse" for _, c in group):
+                arms.add("excuse_played")
             won_card = next(c for p, c in group if p == winner)
             assert won_card.suit != "excuse"
+
+        for arm in arms:
+            witnesses.setdefault(arm, set()).add(seed)
+
+    assert set(witnesses) == SETTLEMENT_ARMS, (
+        f"the {SEEDS}-seed sweep no longer exercises "
+        f"{sorted(SETTLEMENT_ARMS - set(witnesses))} — the assertions guarding "
+        f"those arms are now vacuous. Raise SEEDS until they fire again, or, if "
+        f"an arm has become unreachable, say why here rather than dropping it."
+    )
+    thin = {a: sorted(s) for a, s in witnesses.items() if len(s) < WITNESS_SEEDS}
+    assert not thin, (
+        f"{thin} fire on fewer than {WITNESS_SEEDS} of the {SEEDS} seeds — the "
+        f"seed count no longer carries the arm it was derived from"
+    )
