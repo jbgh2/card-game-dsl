@@ -1,6 +1,17 @@
-"""Hearts on the GENERAL OpenSpiel adapter: API conformance, a full rollout,
-and the ported info-state regression tests (leakage, mid-pass hiding, perfect
-recall, own-action distinction) — now against DERIVED observations."""
+"""Hearts on the GENERAL OpenSpiel adapter: a full rollout and the ported
+info-state regression tests (leakage, mid-pass hiding, perfect recall,
+own-action distinction) — now against DERIVED observations.
+
+API conformance is NOT here. `pyspiel.random_sim_test` exercises the adapter,
+not the game, and 15 of the 29 registered games run it in full through
+`tests/openspiel_ready/` (hearts itself walks a bounded conformance line
+there); hearts' own action-space shape — the bare 52-card block — is pinned by
+`tests/test_openspiel_encoding.py`. A hearts-specific full sim re-bought the
+adapter's conformance at the price of two more quadratic 52-trick
+re-simulations. What is unique to this module stays: the rollout below is the
+only test driving hearts to Terminal through the pyspiel `State`, and
+`test_perfect_recall_no_duplicate_infostates_in_a_game` holds the suite's only
+no-duplicate-information-state assertion."""
 
 from __future__ import annotations
 
@@ -16,12 +27,6 @@ from cardlang.openspiel.infostate import information_state  # noqa: E402
 from cardlang.openspiel.replay import Pause, run  # noqa: E402
 
 HEARTS = str(Path(__file__).resolve().parent.parent / "docs" / "games" / "hearts.cardlang")
-
-
-def test_random_sim_conformance() -> None:
-    game = pyspiel.load_game("cardlang_hearts")
-    assert game.num_distinct_actions() == 52
-    pyspiel.random_sim_test(game, num_sims=2, serialize=False, verbose=False)
 
 
 def test_full_rollout_returns_negated_scores() -> None:

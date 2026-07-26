@@ -32,7 +32,12 @@ def test_every_registered_game_has_a_proof_module(short_name: str, filename: str
 
 def test_no_proof_module_without_a_registered_game() -> None:
     here = Path(__file__).resolve().parent
-    modules = {p.stem for p in here.glob("test_*.py")} - {"test_coverage"}
+    # The two package-wide modules, which target the registry itself rather
+    # than any one game: this completeness guard, and the bound-coverage grid.
+    modules = {p.stem for p in here.glob("test_*.py")} - {
+        "test_coverage",
+        "test_conformance_bounds",
+    }
     expected = {_module_for(short) for short, _ in REGISTERED_GAMES}
     assert modules == expected, (
         "proof modules and the adapter registry disagree: "
