@@ -85,6 +85,18 @@ criterion** — alongside "does it run" and "is it byte-identical":
   `Contract` block of its module docstring — read the owning pass's contract
   before placing a check.
 
+**Execution finds what enumeration cannot.** Every silent-wrong-answer
+and wrong-semantics defect this project has found came from an execution
+oracle — building a game, a differential against a native implementation,
+a metamorphic transform, an instrumented run — and none from inspection,
+the audits included. Enumeration proves the domain is covered; only
+execution can show the domain was the wrong one, or an assumption inside
+a total enumeration was false. So when a choice exists between building
+enforcement machinery and building a witness — a game, a differential, a
+playout policy that reaches unexercised branches — build the witness.
+Implemented-but-never-executed code is where the next silent defect is
+already sitting.
+
 ## What's here
 
 ```
@@ -163,8 +175,10 @@ test — axes derived in code, expected outcomes authored red BEFORE the
 implementation exists), misuse-probe **rejection tests** (the most plausible
 wrong sentences, each proven loud in the right layer's currency), and the
 **completeness ledger** (judgment columns in the grid module's docstring —
-`covered` IS the grid; no residual cell without both a wall and a tracker
-record, cited as `issue #N`; born-green pins name their reddening
+`covered` IS the grid; no residual cell without both a wall and a record —
+a tracker issue cited as `issue #N`, or the ledger row alone for an R4
+auditor-only cell guarding nothing rigor-critical (`docs/decisions.md`,
+"Reachability ranks the work"); born-green pins name their reddening
 mutation). A green suite must never stand in for this gate: the suite proves
 nothing about cells no test names.
 
@@ -175,7 +189,10 @@ Deferred **work** lives in GitHub issues
 Two sections stay behind, and neither is work: `docs/roadmap.md`, "Out of
 scope", and `docs/roadmap.md`, "Grammar surface deferred by the checker".
 When you defer a cell, file an issue and cite it as `issue #N` in the
-completeness ledger — a residual with no tracker record does not land.
+completeness ledger — a residual with no record does not land. R4
+auditor-only residuals guarding nothing rigor-critical are the exception
+(`docs/decisions.md`, "Reachability ranks the work"): like the carve-out
+below, they record in the owning ledger and need no issue.
 
 One carve-out, because it is what the repo actually does: a residual that is
 **not work** — a recorded constraint or trap, deliberately not-to-be-fixed
@@ -195,6 +212,11 @@ covers retrieval, so wait for the problem before adding a label.
 so an issue carrying only that label is still unclassified. File the kind with
 the issue; if you genuinely cannot pick one yet, add `needs-triage` and say why
 in the body.
+
+Every issue also states its reachability (R1–R4 — `docs/decisions.md`,
+"Reachability ranks the work") in the body. The tracker exists to order
+work; an issue that does not say who can meet the defect cannot be
+ordered.
 
 The sweep is a **derived query**, not a promise to remember the label — an
 issue filed with no labels at all is exactly the case a `needs-triage`

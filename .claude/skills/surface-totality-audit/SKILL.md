@@ -278,7 +278,10 @@ domain:     <what is quantified over>
 registry:   <where each axis is derived in code — the grid reads these>
 covered:    <the grid: module + parametrization, not a prose cell list>
 sampled:    <cells covered by example only, and why that is enough>
-residual:   <cells NOT in the grid, uncovered or not-yet-decided — each with its wall and its tracker record (issue #N)>
+residual:   <cells NOT in the grid, uncovered or not-yet-decided — each with
+             its wall, its reachability (R1–R4, decisions.md "Reachability
+             ranks the work"), and its tracker record (issue #N; R4 records
+             here and needs no issue unless the guarantee is rigor-critical)>
 ```
 
 (`registry` names the derivation sites the grid reads; `covered` names the
