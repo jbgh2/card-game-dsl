@@ -48,7 +48,7 @@
 // where Coup's challengeable claims are five characters — making this the
 // second challenge-window instance after Coup toward the `challenge` stdlib
 // promotion at a third instance (decisions.md "Interactive decisions";
-// roadmap.md). The window stays a game-local procedure until then.
+// issue #140). The window stays a game-local procedure until then.
 
 game Cheat {
 

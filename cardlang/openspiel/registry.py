@@ -69,8 +69,7 @@ def _derive_games(games_dir: Path) -> dict[str, str]:
             f"no .cardlang games found under {games_dir} — the OpenSpiel "
             f"registry derives from that directory and would otherwise register "
             f"nothing. In a checkout the path is wrong; in a packaged install "
-            f"docs/games/ was not shipped (docs/roadmap.md, 'Packaging the "
-            f"corpus for distribution')."
+            f"docs/games/ was not shipped — see issue #97."
         )
     return games
 

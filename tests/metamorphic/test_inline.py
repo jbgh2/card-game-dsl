@@ -172,7 +172,7 @@ def test_the_library_procedure_games_are_pinned_as_uncovered() -> None:
         f"the set of games running an IMPORTED procedure changed: {names} — "
         f"T3 does not cover these (inline.py splices one file's text and the "
         f"body is in docs/libraries/), so the list is a recorded gap and must "
-        f"be updated deliberately, with roadmap.md kept in step"
+        f"be updated deliberately, with issue #132 kept in step"
     )
 
 

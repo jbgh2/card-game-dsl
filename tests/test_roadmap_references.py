@@ -27,9 +27,12 @@ property:  every mention of roadmap.md outside roadmap.md itself either quotes
            a section title that file still carries, or is a listed whole-file
            pointer whose reason is recorded here.
 domain:    every ``.py`` under ``cardlang/`` and ``tests/``, every ``.md``
-           under ``docs/`` and ``.claude/skills/``, and ``CLAUDE.md`` — times
-           every line mentioning ``roadmap.md``. Files are enumerated by glob,
-           so a new module or doc is in-domain the day it exists.
+           under ``docs/`` and ``.claude/skills/``, every ``.cardlang`` in the
+           repo (corpus games, fixtures and rejection cases carry
+           developer-facing ``//`` prose exactly as the Python and Markdown do),
+           and ``CLAUDE.md`` — times every line mentioning ``roadmap.md``.
+           Files are enumerated by glob, so a new module, doc or game is
+           in-domain the day it exists.
 registry:  roadmap.md's own headings, parsed from the file at test time (``##``
            sections and ``**bold**`` item lead-ins, at any nesting depth), so
            renaming a section reddens every reference to the old name and no
@@ -48,14 +51,22 @@ residual:  ``docs/superpowers/plans/`` and ``docs/research/`` are outside the
            (decisions.md "Closed-domain completeness", the DATE-don't-DELETE
            carve-out), and rewriting their references would falsify the record
            rather than repair it.
-           Python DIAGNOSTIC text — every string literal that is not a
-           docstring — is carved out as a DERIVED class (`_diagnostic_lines`),
-           not enumerated: a designer who hits a wall offline can open a repo
-           doc and cannot open a tracker issue, so those messages keep naming
-           roadmap.md. Deriving the class is what keeps a new diagnostic
-           exempt the day it is written while a new *comment* is not; a
-           hand-list would be the partial enumeration this repo treats as the
-           defect.
+           Python DIAGNOSTIC text is carved out as a DERIVED class
+           (`_diagnostic_lines`): the argument of a diagnostic-bag call
+           (`DIAGNOSTIC_METHODS`) or anything inside a `raise`. A designer who
+           hits a wall offline can open a repo doc and cannot open a tracker
+           issue, so those messages keep naming roadmap.md. Deriving the class
+           keeps a new diagnostic exempt the day it is written while a new
+           comment is not; a hand-list would be the partial enumeration this
+           repo treats as the defect.
+
+           The exemption waives the REQUIREMENT to name a section, never the
+           CHECK on a section that is named — an exempt line quoting a dead
+           heading still fails. Both halves were wrong in the first version and
+           were caught by review, not by this module: the carve-out read "every
+           non-docstring string literal", which swept in assertion messages,
+           and it skipped exempt lines entirely, which hid a dangling
+           `registry.py` pointer inside the declared domain (Codex, PR #151).
 """
 
 from __future__ import annotations
@@ -90,11 +101,38 @@ WHOLE_FILE_POINTERS: tuple[tuple[str, str], ...] = (
     ("CLAUDE.md", "for the full list of"),
 )
 
+# The bag methods that emit designer-facing text. A string reaching one of
+# these is a diagnostic; a string anywhere else in a module is not.
+DIAGNOSTIC_METHODS = frozenset({"error", "warn", "warning"})
+
 _MENTION = re.compile(r"roadmap\.md")
 # A quoted title must follow the mention closely — within the connective text
-# a citation uses (", ", " (", "'s ", ", item "). Anything longer is an
-# unrelated quote later in the sentence, not a section name.
-_QUOTED_TITLE = re.compile(r"roadmap\.md[^\"“]{0,24}[\"“]([^\"”]{4,120})[\"”]")
+# a citation uses (", ", " (", ", item "). Anything longer is an unrelated
+# quote later in the sentence, not a section name.
+#
+# Two delimiters, tried independently. Double quotes are the repo's citation
+# convention; single quotes also count because an f-string diagnostic nests
+# them inside its own double quotes (`f"... (docs/roadmap.md, 'Title')"`) — the
+# shape that hid a dangling pointer in cardlang/openspiel/registry.py.
+#
+# Neither pattern alone is sound: the single-quote class truncates a title that
+# CONTAINS an apostrophe ("A team-scored game's `winner` …"), and the
+# double-quote class mis-reads the f-string shape. So both are extracted and a
+# reference is live when ANY candidate resolves — a reference is only stale
+# when no reading of it names a section that exists.
+_QUOTED_TITLES = (
+    re.compile(r"roadmap\.md[^\"“]{0,24}[\"“]([^\"”]{4,120})[\"”]"),
+    re.compile(r"roadmap\.md(?!'s)[^']{0,24}'([^']{4,120})'"),
+)
+
+
+def _candidate_titles(window: str) -> list[str]:
+    return [
+        found.group(1)
+        for pattern in _QUOTED_TITLES
+        for found in [pattern.search(window)]
+        if found is not None
+    ]
 
 _SECTION = re.compile(r"^#{2,4}\s+(.+?)\s*$")
 _BOLD_LEAD = re.compile(r"^\s*(?:[-*]\s+)?\*\*(.+?)\*\*")
@@ -121,7 +159,7 @@ def _live_titles() -> set[str]:
 def _in_domain() -> list[Path]:
     paths: list[Path] = [REPO_ROOT / "CLAUDE.md"]
     for pattern in ("cardlang/**/*.py", "tests/**/*.py", "docs/**/*.md",
-                    ".claude/skills/**/*.md"):
+                    ".claude/skills/**/*.md", "**/*.cardlang"):
         paths.extend(REPO_ROOT.glob(pattern))
     return sorted(
         p for p in paths
@@ -162,39 +200,43 @@ def _allowed(relative: str, line: str) -> bool:
 
 
 def _diagnostic_lines(text: str) -> set[int]:
-    """Line numbers spanned by user-facing message text in a Python module.
+    """Line numbers spanned by user-facing DIAGNOSTIC text in a Python module.
 
-    A diagnostic names a repo doc because a designer who hits the wall can
-    open `docs/roadmap.md` from their checkout and cannot open a tracker issue
-    offline. The class is DERIVED — every string literal that is not a
-    docstring — rather than enumerated, so a new diagnostic is carved out the
-    day it is written and a new *comment* is not. Comments and docstrings are
-    developer-facing and stay under the title rule.
+    A diagnostic names a repo doc because a designer who hits the wall can open
+    `docs/roadmap.md` from their checkout and cannot open a tracker issue
+    offline. The class is DERIVED rather than enumerated, so a new diagnostic
+    is carved out the day it is written — but it is derived from what makes a
+    string a diagnostic, not from where it is not: the argument of a
+    diagnostic-bag call (`bag.error(...)`), or anything inside a `raise`.
+
+    Every OTHER string literal stays under the title rule. An assertion message
+    telling a maintainer to keep a doc in step is developer prose that happens
+    to be quoted, and treating "not a docstring" as "user-facing" swept those
+    in — which let genuinely stale references sit inside the declared domain
+    while the sweep reported clean.
     """
     try:
         tree = ast.parse(text)
     except SyntaxError:  # not importable Python; nothing is carved out
         return set()
-    docstrings = {
-        id(node.body[0].value)
-        for node in ast.walk(tree)
-        if isinstance(
-            node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
-        )
-        and node.body
-        and isinstance(node.body[0], ast.Expr)
-        and isinstance(node.body[0].value, ast.Constant)
-        and isinstance(node.body[0].value.value, str)
-    }
     spanned: set[int] = set()
+
+    def cover(node: ast.AST) -> None:
+        for inner in ast.walk(node):
+            if (
+                isinstance(inner, ast.Constant)
+                and isinstance(inner.value, str)
+                and inner.end_lineno is not None
+            ):
+                spanned.update(range(inner.lineno, inner.end_lineno + 1))
+
     for node in ast.walk(tree):
-        if (
-            isinstance(node, ast.Constant)
-            and isinstance(node.value, str)
-            and id(node) not in docstrings
-            and node.end_lineno is not None
-        ):
-            spanned.update(range(node.lineno, node.end_lineno + 1))
+        if isinstance(node, ast.Raise):
+            cover(node)
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            if node.func.attr in DIAGNOSTIC_METHODS:
+                for argument in [*node.args, *(kw.value for kw in node.keywords)]:
+                    cover(argument)
     return spanned
 
 
@@ -206,10 +248,15 @@ def test_every_roadmap_reference_names_a_live_section() -> None:
         text = path.read_text()
         diagnostics = _diagnostic_lines(text) if path.suffix == ".py" else set()
         for number, line in _mentions(text):
-            if _allowed(relative, line) or number in diagnostics:
+            candidates = _candidate_titles(line)
+            # An exemption waives the REQUIREMENT to name a section, never the
+            # check on a section it does name: a diagnostic quoting a heading
+            # that no longer exists is exactly the dangling pointer this module
+            # exists to catch, and skipping it wholesale made the carve-out a
+            # blind spot rather than a carve-out.
+            if not candidates and (_allowed(relative, line) or number in diagnostics):
                 continue
-            quoted = _QUOTED_TITLE.search(line)
-            if quoted is None:
+            if not candidates:
                 unresolved.append(
                     f"{relative}:{number}: names roadmap.md with no section "
                     f"title — re-anchor it to its tracker issue, quote a "
@@ -219,10 +266,10 @@ def test_every_roadmap_reference_names_a_live_section() -> None:
                     f"title further into the sentence is not read as one"
                     f"\n    {line.strip()}"
                 )
-            elif _normalize(quoted.group(1)) not in live:
+            elif not any(_normalize(c) in live for c in candidates):
                 unresolved.append(
                     f"{relative}:{number}: quotes roadmap.md section "
-                    f"{quoted.group(1)!r}, which roadmap.md no longer carries "
+                    f"{candidates[0]!r}, which roadmap.md no longer carries "
                     f"— it moved to the tracker\n    {line.strip()}"
                 )
     assert not unresolved, (
@@ -267,27 +314,53 @@ def test_both_dash_spellings_normalize_to_one_title() -> None:
 def test_a_quote_far_from_the_mention_is_not_read_as_a_title() -> None:
     """The window keeps an unrelated later quote from masking a bare mention."""
     far = 'see roadmap.md, and separately the rule that a game is "complete"'
-    assert _QUOTED_TITLE.search(far) is None
+    assert _candidate_titles(far) == []
     near = 'recorded in roadmap.md, "Grammar surface deferred by the checker"'
-    found = _QUOTED_TITLE.search(near)
-    assert found is not None
-    assert found.group(1) == "Grammar surface deferred by the checker"
+    assert "Grammar surface deferred by the checker" in _candidate_titles(near)
 
 
-def test_diagnostic_text_is_carved_out_but_comments_and_docstrings_are_not() -> None:
-    """The carve-out must separate user-facing output from developer prose."""
+def test_both_quote_delimiters_yield_a_candidate() -> None:
+    """An f-string diagnostic nests single quotes; a title may contain one."""
+    nested = "f\"... (docs/roadmap.md, 'Packaging the corpus for distribution').\""
+    assert "Packaging the corpus for distribution" in _candidate_titles(nested)
+    # A title containing an apostrophe must survive: the single-quote reading
+    # truncates it, so the double-quote reading has to be offered alongside.
+    apostrophe = "(roadmap.md, \"A team-scored game's `winner` is a team index\")"
+    assert (
+        "A team-scored game's `winner` is a team index"
+        in _candidate_titles(apostrophe)
+    )
+
+
+def test_the_possessive_is_not_read_as_a_quote_delimiter() -> None:
+    assert _candidate_titles("roadmap.md's own wording, not a cited section") == []
+
+
+def test_diagnostic_text_is_carved_out_but_other_strings_are_not() -> None:
+    """The carve-out separates designer-facing output from developer prose.
+
+    The failure this pins: treating "not a docstring" as "user-facing" swept in
+    assertion messages, which let stale references sit inside the declared
+    domain while the sweep reported clean (Codex, PR #151).
+    """
     source = (
         '"""A docstring naming roadmap.md."""\n'
         "# A comment naming roadmap.md.\n"
         "def f() -> None:\n"
         '    """An inner docstring naming roadmap.md."""\n'
         '    bag.error("resource movements are deferred — roadmap.md")\n'
+        '    raise RuntimeError("not shipped — roadmap.md")\n'
+        '    assert x, "keep roadmap.md in step"\n'
+        '    label = "see roadmap.md"\n'
     )
     carved = _diagnostic_lines(source)
-    assert 5 in carved, "a diagnostic message string must be carved out"
+    assert 5 in carved, "a bag.error message must be carved out"
+    assert 6 in carved, "a raise message must be carved out"
     assert 1 not in carved, "a module docstring must stay under the title rule"
     assert 2 not in carved, "a comment must stay under the title rule"
     assert 4 not in carved, "a function docstring must stay under the title rule"
+    assert 7 not in carved, "an assertion message is developer prose, not output"
+    assert 8 not in carved, "a plain string binding is not a diagnostic"
 
 
 def test_a_partial_quote_of_a_live_heading_does_not_resolve() -> None:

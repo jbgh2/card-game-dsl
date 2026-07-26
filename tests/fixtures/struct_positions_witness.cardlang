@@ -1,6 +1,6 @@
 // Witness for two constructs the corpus does not exercise: a user `type`
-// declaration (no game in docs/games/ declares one, recorded in roadmap.md as
-// the highest-value coverage hole) and a declared POSITION domain used as a
+// declaration (no game in docs/games/ declares one — issue #122, recorded
+// there as the highest-value coverage hole) and a declared POSITION domain used as a
 // parameter of a function and of a move type.
 //
 // Both defects behind the struct/function fixpoint reached the permissive top
@@ -18,8 +18,7 @@ game StructPositionsWitness {
 
   // A position-indexed ZONE family. The same index on a STATE variable is
   // rejected (`claimed[slot] : Integer`) — one nonterminal, two verdicts,
-  // recorded in roadmap.md, "The index position admits different domains per
-  // host". Claiming is tracked by a pile being non-empty for that reason.
+  // recorded in issue #98. Claiming is tracked by a pile being non-empty for that reason.
   zones {
     deck  : Deck
     hand[player] : Hand<player>
