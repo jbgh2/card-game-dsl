@@ -202,8 +202,9 @@ the record, so "no issue" reads as a decision rather than an omission. If the
 cell is something anyone might one day build, it is work: file the issue.
 
 Keep the label set minimal. The whole vocabulary is five **kinds** — `bug`,
-`enhancement`, `documentation`, `tech-debt`, `epic` — plus two **modifiers**,
-`blocked:needs-witness` and `needs-triage`. Area labels
+`enhancement`, `documentation`, `tech-debt`, `epic` — two **modifiers**,
+`blocked:needs-witness` and `needs-triage`, and the four **reachability**
+labels, `reachability:R1`–`R4` (below). Area labels
 (checker/runtime/testing) were rejected deliberately — semantic issue search
 covers retrieval, so wait for the problem before adding a label.
 
