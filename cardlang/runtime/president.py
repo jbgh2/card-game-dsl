@@ -4,9 +4,11 @@ The corpus's third climbing game (after Tichu and Big Two). The whole hand runs
 on `round climb` (`docs/games/president.cardlang`); this module is the RNG-free
 combination engine plus the queries the climb round and the game body name:
 `president_lead_options` (lead candidates), `president_follows` (legal follows,
-including the transparent-threes variant), `president_next_holder` (the
-post-trick leader advance), and `president_is_top_rank` (the between-hands
-exchange filter: is this card the Scum's highest?).
+including the transparent-threes variant), and `president_is_top_rank` (the
+between-hands exchange filter: is this card the Scum's highest?). The
+post-trick leader advance is NOT here: the kernel's `round climb` starts its
+ring at the first participant at or after the named leader, so a winner who
+shed out on their winning play needs no game-local fallback.
 
 President's combination model is the simplest of the three engines: a play is
 1-4 cards of EQUAL rank, suits are entirely irrelevant (no tie-breaks, no
@@ -143,23 +145,6 @@ def president_universe() -> list[Play]:
 
 
 # --- zone / seating / state reads (pure) ---
-
-
-def president_next_holder(
-    facts: EngineFacts, gr: reads.GameReads, p: Player
-) -> Player:
-    """`p` if they still hold cards, else the next holder clockwise (President
-    plays clockwise, so the ring advances by +1 — Tichu's counterclockwise
-    advance mirrored). Returns `p` unchanged when everyone is out (the hand is
-    over; the value is never read)."""
-    hands = gr.families["hand"]
-    players = list(facts.seating.players)
-    if not any(hands[q] for q in players):
-        return p
-    q = p
-    while not hands[q]:
-        q = (q + 1) % len(players)
-    return q
 
 
 def president_is_top_rank(

@@ -2197,8 +2197,9 @@ def _resolve_rule(rule: n.RuleDef, bag: DiagnosticBag) -> None:
         )
     # A card-set `demands` can filter the legal set to empty; the rule must say
     # what happens then (`if_impossible`) rather than relying on a silent default.
-    # `actions where` demands constrain the choose-count, not the card set, so
-    # they are exempt (no implicit actions — see decisions.md "No implicit actions").
+    # `actions where` demands never narrow the card set — they have no runtime
+    # enforcement point at all (rules.py) — so there is no empty set for an
+    # `if_impossible` to answer and they are exempt from this requirement.
     if (
         rule.demands is not None
         and rule.demands.kind == "cards"

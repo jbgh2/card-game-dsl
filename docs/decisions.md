@@ -644,7 +644,17 @@ tricks always play out writes `until false` and ends the hand in the surrounding
 the engine may mark a play `ends_trick` (Tichu's Dog), and the form then closes
 the trick with **zero follower draws**. The last player to play is
 the `outcome`; the surrounding body routes the pile and the next lead, exactly as
-for a trick. Like the trick form, the climbing form exposes its terminal state to
+for a trick.
+
+**The named leader need not be a participant.** `from` and `over` are
+independent expressions, so in a game where going out does not end the hand
+(President, Tichu) the trick winner can shed their last card on the winning
+play and still be named as the next leader. That is a normal state: the ring
+starts at the first participant at or after them in turn order, exactly as the
+trick, auction, and `turns` forms treat the same clause pair. A game therefore
+writes the natural `leader := outcome` and needs no hand-authored "skip to the
+next player still holding cards" fallback. Only an **empty** `over` set is an
+error — there is then no one to lead and no one to follow. Like the trick form, the climbing form exposes its terminal state to
 the body (`mech_state` → `last_round_state`, read as `state.x`):
 `state.lead_ended_trick`, and `state.shed_first` / `state.shed_second` — the
 first two players who played their last cards this trick, in play order, from
