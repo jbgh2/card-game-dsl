@@ -3798,6 +3798,14 @@ The tags are exclusive by precedence: assign the lowest-numbered tag
 whose condition holds — reachability names the *closest* party who can
 meet the defect, never the typical one.
 
+The tag names who can TRIGGER the defect, never who ultimately suffers
+it. Every defect in a design tool eventually reaches a designer, so
+transitive harm raises no tag — reasoned transitively, everything is R2
+and the axis orders nothing. And the tag ranks reach, not worth: a
+bitten R4 can sit at the top of the ordering while a speculative R2
+waits, so R4 is a fact about who can meet the cell, never a demotion of
+the work that closes it.
+
 Disposition follows the tag: R1 is fixed now; R2 is fixed or filed with a
 kind; R3 is a residual with its wall and its record, per the symmetric
 gate; R4 is recorded in the owning ledger and files an issue only when the
