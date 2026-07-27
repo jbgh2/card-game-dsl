@@ -213,10 +213,18 @@ so an issue carrying only that label is still unclassified. File the kind with
 the issue; if you genuinely cannot pick one yet, add `needs-triage` and say why
 in the body.
 
-Every issue also states its reachability (R1–R4 — `docs/decisions.md`,
-"Reachability ranks the work") in the body. The tracker exists to order
-work; an issue that does not say who can meet the defect cannot be
-ordered.
+Every issue carries its reachability as a **label** — `reachability:R1`
+… `reachability:R4` (`docs/decisions.md`, "Reachability ranks the work") —
+with the one-line why in the body ("R2 — a designer writing X meets it").
+`epic` issues are exempt: a container aggregates items of different
+reachabilities. The tracker exists to order work; an issue that does not
+say who can trigger the defect cannot be ordered. The reachability sweep
+is the kind sweep's sibling — absence of the label, asked for by superset:
+
+```bash
+gh issue list --repo jbgh2/card-game-dsl --state open --limit 200 \
+  --json number,title,labels --jq '.[] | select(([.labels[].name] | any(startswith("reachability:")) or any(. == "epic")) | not) | "\(.number) \(.title)"'
+```
 
 The sweep is a **derived query**, not a promise to remember the label — an
 issue filed with no labels at all is exactly the case a `needs-triage`
