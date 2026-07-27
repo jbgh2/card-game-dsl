@@ -224,10 +224,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.tichu import tichu_card_points
 
             return tichu_card_points(*_bind(ctx, TICHU_ROW), args[0])
-        case "president_next_holder":
-            from cardlang.runtime.president import ROW, president_next_holder
-
-            return president_next_holder(*_bind(ctx, ROW), args[0])
         case "president_is_top_rank":
             from cardlang.runtime.president import ROW, president_is_top_rank
 

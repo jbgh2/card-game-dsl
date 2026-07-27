@@ -118,7 +118,6 @@ STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
         "tichu_opponent_team",  # Tichu: the team a player does not belong to
         "tichu_first_out",  # Tichu: the first finisher (defaults to player 0)
         "tichu_card_points",  # Tichu: the card-point table (K/10 = 10, 5 = 5, Dragon +25, Phoenix -25)
-        "president_next_holder",  # President: the arg if holding, else the next holder cw
         "president_is_top_rank",  # President: is the card the player's highest rank (2 high)?
         "coup_players_in",  # Coup: players still holding influence (game ends at 1)
         "coup_next_in_game",  # Coup: the next in-game player clockwise
@@ -211,7 +210,6 @@ GENERIC_CALL_FUNCS: frozenset[str] = frozenset(
         "five_hundred_bid_level",
         "peg_origin_of",
         "player_holding",
-        "president_next_holder",
         "skat_effective_loss",
         "skat_next_bid",
         "team_of",

@@ -104,7 +104,6 @@ CALL_SIGS: dict[str, Sig] = {
     "tichu_opponent_team": Sig((TPlayer(),), TTeam()),  # Tichu: the other team
     "tichu_first_out": Sig((), TPlayer()),  # Tichu: the first finisher (default 0)
     "tichu_card_points": Sig((TCard(),), TInteger()),  # Tichu: the card-point table
-    "president_next_holder": Sig((TPlayer(),), TPlayer()),  # President: next holder cw (or arg)
     "president_is_top_rank": Sig(
         (TPlayer(), TCard()), TBoolean()
     ),  # President: is the card the player's highest rank?

@@ -363,17 +363,18 @@ def test_suit_of_a_non_card_raises_a_typed_error() -> None:
         _run(SUIT_OF_A_NON_CARD)
 
 
-CLIMB_LEADER_NOT_A_PARTICIPANT = """
+CLIMB_WITH_NO_PARTICIPANTS = """
 game G {
   players: 3
   max_length: 1000
   cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player>  trick_pile : TrickPile }
   state { x[player] : Integer = 0 }
   phase play {
     deal 5 cards from deck to each hand
     round climb play_combination from 2
-          over players where player is not 2
+          over players where x[player] < 0
           source hand into trick_pile
           combinations president_lead_options follows president_follows
           until false
@@ -383,11 +384,14 @@ game G {
 """
 
 
-def test_climb_round_with_leader_outside_participants_raises() -> None:
-    # `from` and `over` are game expressions; a game can compute a leader who
-    # already shed out. The construct requires the leader to lead.
-    with pytest.raises(RuntimeError, match="round climb: leader"):
-        _run(CLIMB_LEADER_NOT_A_PARTICIPANT)
+def test_climb_round_with_no_participants_raises() -> None:
+    # Nobody satisfies `over`, so there is no one to lead and no one to
+    # follow — a decision point with no actor, which must be loud. A leader
+    # who is merely absent from a NON-empty participant set is a different
+    # matter and is NOT an error: the ring starts at the first participant
+    # after them (tests/test_round_leader_participants.py).
+    with pytest.raises(RuntimeError, match="no participant to lead"):
+        _run(CLIMB_WITH_NO_PARTICIPANTS)
 
 
 BARE_FAMILY_WITHOUT_AN_ACTOR = """

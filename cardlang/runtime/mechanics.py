@@ -439,7 +439,10 @@ class ClimbForm:
     of plays, and a play exposes the cards it moves as a `.cards` tuple — plus,
     optionally, an `ends_trick` marker (Tichu's Dog): a lead so marked ends the
     trick at once, its followers drawing nothing. Players
-    already shed out (Tichu) are skipped with no chooser draw; Big Two ends the
+    already shed out (Tichu) are skipped with no chooser draw — INCLUDING the
+    named leader, who in a continue-after-going-out game may have shed their
+    last card on the play that won them the lead; the lead then falls to the
+    first participant at or after them in turn order. Big Two ends the
     trick the instant a player sheds, so its participants all hold cards throughout.
 
     Like the trick form, the climbing form exposes its state to the surrounding
@@ -471,21 +474,32 @@ class ClimbForm:
         self.pile = ctx.rs.zones.single(stmt.play_zone)
         self.source_name: str = stmt.source_zone
         self.pile_name: str = stmt.play_zone
-        # The participant ring in seating order from the leader.
+        # The participant ring in seating order from the leader. `from` and
+        # `over` are independent game expressions, so the leader need not be a
+        # participant: in a game where going out does NOT end the hand, the
+        # trick winner can shed their last card on the winning play and still
+        # be the named leader. That is a normal state, not a malformed game —
+        # the ring simply starts at the first participant at or after them,
+        # which is what the trick, auction and `turns` paths already do with
+        # the same clause pair.
         participants = set(evaluate(stmt.participants, ctx))
         self.ring: list[Player] = [
             p for p in ctx.rs.seating.turn_order_from(self.leader) if p in participants
         ]
-        if not self.ring or self.ring[0] != self.leader:
-            # Runtime DATA, not a compiler invariant: `from <leader>` and
-            # `over <participants>` are game expressions, and a game can
-            # compute a leader who is not among the participants (a player
-            # who has already shed out). The construct requires the leader to
-            # lead; tell the author so in the runtime's failure currency.
+        if not self.ring:
+            # Runtime DATA, not a compiler invariant: nobody satisfies `over`,
+            # so there is no one to lead and no one to follow. Report it in
+            # the participants' currency — the leader is not the problem.
             raise RuntimeError(
-                f"round climb: leader {self.leader} is not among the "
-                f"participants — the `from` player must be in `over`"
+                f"round climb: no participant to lead — the `over` set is "
+                f"empty, so the round has no actor (leader was "
+                f"{self.leader}); make `until` cover this state"
             )
+        # Lead from the first surviving seat. Rebinding `leader` (rather than
+        # only the ring) keeps `init`'s `state["last"]` — the lap-completion
+        # sentinel `next_actor` compares against — pointing at a player who is
+        # actually in the ring.
+        self.leader = self.ring[0]
 
     def init(self, state: State, ctx: Ctx) -> State:
         state["current"] = None  # the standing play; None until the leader leads

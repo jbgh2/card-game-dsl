@@ -106,7 +106,6 @@ game President {
         }
         move all cards from trick_pile to discard
         leader := outcome
-        leader := president_next_holder(leader)
       }
 
       // --- Scoring: first out is President (+2), second Vice-President (+1),
