@@ -99,14 +99,23 @@ author's changed the grid twice, and both changes are load-bearing:
 Its remaining reports (participants-content, evaluation timing) are the
 recorded not-cells above.
 
-red under: the three born-green `leader_out` paths (trick, auction-ring,
-auction-priority) claim the sibling forms already advance past a shed-out
-leader. Redden by deleting the participant filter from `TrickForm.next_actor`
-(`if player in self.participants` -> `if True`, mechanics.py) and from
-`AuctionForm.next_actor` (`if player in participants` -> `if True`): both
-`leader_out` rows for that path then return the leader instead of the first
-participant, and fail. The `climb` `leader_out` rows are born RED, so their
-red run is their own witness.
+red under: the four born-green `leader_out` paths claim the sibling
+constructs already advance past a shed-out leader. Each has its OWN
+participant filter, so each needs its own mutation — RUN, not reasoned:
+  - trick: `TrickForm.next_actor`, `if player in self.participants` -> `if
+    True` (mechanics.py). Reddens both `trick-leader_out` rows.
+  - auction-ring: `AuctionForm.next_actor`, `if player in participants` ->
+    `if True` (mechanics.py). Reddens both `auction_ring-leader_out` rows.
+  - auction-priority: same method's priority branch, `next((p for p in order
+    if p in participants), None)` -> drop the `if` clause. Reddens both
+    `auction_priority-leader_out` rows.
+  - turns: `_turns`, `next((p for p in candidate_seq if p in participants),
+    None)` -> drop the `if` clause (execute.py). Reddens both
+    `turns-leader_out` rows.
+Each mutation reddens ONLY its own path's rows, which is the point: one
+mutation reddening all four would mean the rows share a code path and three
+of them are decorative. The `climb` `leader_out` rows were born RED against
+the pre-fix refusal, so their xfail run is their own witness.
 """
 
 from __future__ import annotations
@@ -149,6 +158,17 @@ DIRECTIONS: tuple[str, ...] = GAME_DIRECTIONS
 
 LEADER = 1  # every fixture leads from seat 1 of 4
 OUT_OF_RANGE_LEADER = 9  # no such seat in a 4-player game
+
+
+class NoDecisionReached(Exception):
+    """A fixture ran to completion without ever offering a decision. Its own
+    type, NOT a bare AssertionError: the `participants_empty` cell asserts
+    that each path FAILS LOUDLY, and if a generic assertion counted as the
+    expected failure then a fixture that quietly stopped reaching decisions
+    for an unrelated reason — an `until` predicate drifting to satisfiable, a
+    typo in the source template — would satisfy that cell without proving
+    anything. Deriving from `Exception` rather than `RuntimeError` keeps it
+    outside the tuple the empty cell accepts."""
 
 # Authored expected column, independent of `Seating.turn_order_from` (deriving
 # it from the utility under test would be circular). Four seats, leading from
@@ -331,7 +351,7 @@ def _first_actor(src: str) -> int:
         play_game(game, random.Random(0), chooser=abort)
     except ChooserAbort as exc:
         return exc.player
-    raise AssertionError("the round reached no decision at all")
+    raise NoDecisionReached("the round completed without offering a decision")
 
 
 # --- the grid ---
@@ -362,7 +382,9 @@ def test_leader_participants_grid(
         # NO path silently proceeds with an empty acting set. `ValueError` is
         # the trick path's WRONG-currency failure, admitted deliberately and
         # recorded as issue #167 — remove it from this tuple when that lands.
-        with pytest.raises((RuntimeError, AssertionError, ValueError)):
+        # `NoDecisionReached` is deliberately NOT here: a path that simply
+        # stops offering decisions has not failed loudly, and must not pass.
+        with pytest.raises((RuntimeError, ValueError)):
             _first_actor(src)
         return
 
