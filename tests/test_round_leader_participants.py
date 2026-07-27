@@ -26,7 +26,7 @@ registry:   acting path -- the AST constructs carrying BOTH `leader` and
                           set empty, leader not a seat at all. Pinned by
                           `test_relationship_axis_is_total`.
 covered:    `test_leader_participants_grid`, the full
-            ACTING_PATHS x RELATIONSHIPS x DIRECTIONS cross (40 rows).
+            ACTING_PATHS x RELATIONSHIPS x DIRECTIONS cross (50 rows).
 sampled:    none.
 residual:   The `participants_empty` column is CAPTURED per path, not
             unified: the four paths fail four different ways (trick: no
@@ -50,37 +50,34 @@ residual:   The `participants_empty` column is CAPTURED per path, not
             column admits `ValueError` for exactly that cell so the row states
             today's truth rather than the truth we want.
 
-            The `leader_out_of_range` column is NOT a residual — it is
-            uniformly green, and settled one layer above the runtime: the
-            player-literal range wall rejects `from 9` in a 4-player game at
-            typecheck, identically for all five paths, so no acting path ever
-            meets an out-of-range leader literal. The grid rows assert that
-            static rejection.
+            The two `leader_out_of_range` columns are both green, walled at
+            DIFFERENT layers, and the split is the point. The LITERAL spelling
+            (`from 9`) is rejected at typecheck by the player-literal range
+            wall, identically for all five paths. The COMPUTED spelling
+            (`from 4 + 5`) escapes that wall entirely — `_check_operand`'s
+            range check recognizes a direct `IntLit`, and an `Integer` is
+            assignable to `Player` — and is walled at runtime instead, inside
+            `Seating.turn_order_from`.
 
-            The residual underneath it is narrow. `Seating.turn_order_from`
-            itself validates nothing — it is pure modular arithmetic
-            (values.py:435-439), verified directly:
-            `Seating(4).turn_order_from(9) == [1, 2, 3, 0]`. So a leader that
-            escapes the literal wall by being COMPUTED would be silently
-            normalized by `trick` and both auction modes, while `turns`
-            (execute.py:596-601) and, pre-#24, `climb` would raise. Whether a
-            Player-typed expression can compute out of range at all is
-            unverified — every producer the author checked derives its value
-            from live seating. Recorded as issue #168, which owns both the
-            question and the fix (inside `turn_order_from`, the shared cause,
-            not at four call sites). The #24 fix below therefore does NOT add
-            a climb-local seat wall: a fourth bespoke wall for a case the
-            shared fix should own is the wall you cannot need (decisions.md,
-            "Prefer the wall you cannot need").
+            That runtime wall is this change's, and it closes issue #168. It
+            is placed at the ONE site every `from <leader>` clause converges
+            on rather than at the four forms that build rings, because the
+            defect was never climb-specific: `turn_order_from` was pure
+            modular arithmetic, so `from 4 + 5` in a 4-player game silently
+            led from seat 1 in the trick and both auction paths too, and would
+            have in climb as soon as #24 removed the participants test that
+            had been catching it by accident. `turns` was the only member
+            already walled (execute.py:596-601), which is what made the
+            asymmetry visible. The same test also closes the non-int case
+            (`none`-valued `Player?`, an unrefined pronoun) that previously
+            died on a bare `TypeError`.
 
             NOT cells, and deliberately so — a different property with its own
             owner: participants-content validity (a non-seat member, duplicates,
             a `Zone`-valued `over`), and the evaluation-TIMING axis (trick and
             climb read `participants` once at construction; auction re-reads it
             every step and `turns` every pick, so a set that shrinks mid-round
-            is seen by two members and not the other two). A non-int leader
-            dying on a bare `TypeError` inside `turn_order_from` is the same
-            missing validation as issue #168 and is recorded there.
+            is seen by two members and not the other two).
 
 Framing check: RAN. A fresh-context subagent derived this domain from the
 definition sources alone (grammar, AST unions, the whole `cardlang/` package),
@@ -152,7 +149,8 @@ RELATIONSHIPS: tuple[str, ...] = (
     "leader_in",
     "leader_out",
     "participants_empty",
-    "leader_out_of_range",
+    "leader_out_of_range_literal",
+    "leader_out_of_range_computed",
 )
 DIRECTIONS: tuple[str, ...] = GAME_DIRECTIONS
 
@@ -231,7 +229,8 @@ def test_relationship_axis_is_total() -> None:
         "leader_in",
         "leader_out",
         "participants_empty",
-        "leader_out_of_range",
+        "leader_out_of_range_literal",
+        "leader_out_of_range_computed",
     )
 
 
@@ -245,7 +244,17 @@ PREDICATES = {
     "participants_empty": "x[player] < 0",
     # An out-of-range leader over a full participant set: the leader is the
     # only thing wrong, so whatever the path does is attributable to it.
-    "leader_out_of_range": "x[player] >= 0",
+    "leader_out_of_range_literal": "x[player] >= 0",
+    "leader_out_of_range_computed": "x[player] >= 0",
+}
+
+# The literal spelling is caught by the player-literal range wall at
+# typecheck. The COMPUTED spelling is the same seat written as arithmetic:
+# `_check_operand`'s range check recognizes a direct `IntLit` only, and an
+# `Integer` is assignable to `Player`, so it reaches the runtime unchallenged.
+LEADER_EXPR = {
+    "leader_out_of_range_literal": str(OUT_OF_RANGE_LEADER),
+    "leader_out_of_range_computed": f"4 + {OUT_OF_RANGE_LEADER - 4}",
 }
 
 TRICK = """
@@ -326,9 +335,7 @@ move_type step {{ effect {{ x[actor] := x[actor] + 1 }} }}
 
 def _source(path: str, relationship: str, direction: str) -> str:
     pred = PREDICATES[relationship]
-    leader = (
-        OUT_OF_RANGE_LEADER if relationship == "leader_out_of_range" else LEADER
-    )
+    leader: str | int = LEADER_EXPR.get(relationship, LEADER)
     if path == "trick":
         return TRICK.format(dir=direction, leader=leader, pred=pred)
     if path == "climb":
@@ -365,15 +372,23 @@ def test_leader_participants_grid(
 ) -> None:
     src = _source(path, relationship, direction)
 
-    if relationship == "leader_out_of_range":
+    if relationship == "leader_out_of_range_literal":
         # UNIFORM across all five paths, and settled one layer UP: the
         # player-literal range wall rejects the game at typecheck, so no path
-        # ever reaches the runtime with an out-of-range leader literal. This
-        # is the cell's real answer — the runtime divergence between the paths
-        # (issue #168) is reachable only by a COMPUTED Player-typed leader,
-        # which the type system does not obviously admit.
+        # reaches the runtime with an out-of-range leader LITERAL.
         with pytest.raises(DiagnosticError, match="out of range"):
             check_dsl(src, "grid.cardlang")
+        return
+
+    if relationship == "leader_out_of_range_computed":
+        # The same seat written as arithmetic escapes that wall entirely and
+        # reaches the runtime. Every path must refuse it there, in the
+        # runtime's currency — silently normalizing `9` to seat 1 and running
+        # the round with the wrong leader is the defect issue #168 names.
+        check_dsl(src, "grid.cardlang")  # accepted statically, by design
+        with pytest.raises(RuntimeError) as excinfo:
+            _first_actor(src)
+        assert "not a seat" in str(excinfo.value)
         return
 
     if relationship == "participants_empty":

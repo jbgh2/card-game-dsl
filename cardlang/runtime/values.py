@@ -434,6 +434,23 @@ class Seating:
 
     def turn_order_from(self, leader: Player) -> list[Player]:
         """Players in turn order from `leader`, following the game's direction:
-        +1 per seat clockwise, -1 counterclockwise."""
+        +1 per seat clockwise, -1 counterclockwise.
+
+        `leader` is validated here, at the ONE place every `from <leader>`
+        clause converges, rather than at each form that builds a ring. The
+        modular arithmetic below cannot fail: it would silently normalize an
+        out-of-range seat (`9` in a 4-player game becomes seat 1) and run the
+        round with the wrong leader. `from` is a game expression and the
+        static seat-range wall only recognizes a direct literal, so `from
+        4 + 5` reaches here unchallenged — runtime DATA, reported in the
+        runtime's currency. The membership test also catches a non-`Player`
+        value (a `none`-valued `Player?`, an unrefined pronoun), which would
+        otherwise die on a bare `TypeError` inside the comprehension."""
+        if leader not in self.players:
+            raise RuntimeError(
+                f"cannot start a round from {leader!r}: not a seat of this "
+                f"{self.count}-player game — the `from` expression bound a "
+                f"non-player value"
+            )
         step = 1 if self.clockwise else -1
         return [(leader + i * step) % self.count for i in range(self.count)]
