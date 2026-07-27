@@ -156,6 +156,7 @@ from lark.exceptions import VisitError
 from cardlang.diagnostics import DiagnosticError
 from cardlang.extract import FencedBlock, extract_blocks
 from cardlang.pipeline import check_dsl
+from tests.empty_axis import may_be_empty
 
 DOCS_DIR = Path(__file__).resolve().parent.parent / "docs"
 DOC_NAMES = ("decisions.md", "library.md", "model.md")
@@ -634,14 +635,28 @@ _BAD_FRAGMENT_BLOCKS = [b for b in _BLOCKS if _tag(b) == "cardlang-bad-fragment"
 
 
 @pytest.mark.parametrize(
-    "block", _CARDLANG_BLOCKS, ids=[_block_id(b) for b in _CARDLANG_BLOCKS]
+    "block",
+    may_be_empty(
+        _CARDLANG_BLOCKS,
+        reason="the live docs carry no `cardlang` block today; the pass path is "
+        "proven by test_self_cardlang_block_passes",
+    ),
+    ids=[_block_id(b) for b in _CARDLANG_BLOCKS],
 )
 def test_cardlang_blocks_are_full_valid_games(block: FencedBlock) -> None:
     err = _run_pipeline(block.text, _block_id(block))
     assert err is None, f"{_block_id(block)}: tagged `cardlang` but rejected: {err}"
 
 
-@pytest.mark.parametrize("block", _BAD_BLOCKS, ids=[_block_id(b) for b in _BAD_BLOCKS])
+@pytest.mark.parametrize(
+    "block",
+    may_be_empty(
+        _BAD_BLOCKS,
+        reason="the live docs carry no `cardlang-bad` block today; the rejection "
+        "path is proven by test_self_cardlang_bad_block_is_rejected",
+    ),
+    ids=[_block_id(b) for b in _BAD_BLOCKS],
+)
 def test_cardlang_bad_blocks_are_rejected(block: FencedBlock) -> None:
     # `cardlang-bad` is the whole-game counterpart of `cardlang-bad-fragment`
     # (below), just as `cardlang` is the whole-game counterpart of
@@ -679,7 +694,14 @@ def test_fragment_blocks_pass_when_wrapped(block: FencedBlock) -> None:
 
 
 @pytest.mark.parametrize(
-    "block", _BAD_FRAGMENT_BLOCKS, ids=[_block_id(b) for b in _BAD_FRAGMENT_BLOCKS]
+    "block",
+    may_be_empty(
+        _BAD_FRAGMENT_BLOCKS,
+        reason="the live docs carry no `cardlang-bad-fragment` block today; the "
+        "wrapped-rejection path is proven by the test_self_cardlang_bad_fragment_* "
+        "fixtures",
+    ),
+    ids=[_block_id(b) for b in _BAD_FRAGMENT_BLOCKS],
 )
 def test_bad_fragment_blocks_are_rejected_when_wrapped(block: FencedBlock) -> None:
     label = _label(block)
