@@ -77,8 +77,12 @@ residual:   THREE, each a wall this mechanism cannot build:
             (1) a role id reached through a VARIABLE rather than a literal is
             out of reach of any scrape (issue #152).
             (2) a marker's REASON is prose. `.` satisfies "nonempty", and a
-            reason asserting a registry pin ("pinned against SIMULTANEOUS_ROLES
-            beside it") stays green when that pin is later deleted. The
+            reason can assert a fact nothing reads. The worked example this row
+            used to give — a reason claiming a pin "beside it" that stayed
+            green when the pin was deleted — no longer holds for the two pins
+            `tests/test_registry_guard_witnesses.py` witnesses: deleting either
+            conjunct now reddens that module. The class is open for every other
+            claim a reason can make. The
             tag-vocabulary upgrade that would make the reason's CLASS
             machine-checkable is recorded in issue #152.
             (3) `tests/` is NOT swept, though it carries 37 branching sites --

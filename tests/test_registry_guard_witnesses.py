@@ -4,9 +4,16 @@
 consumer that can only implement ONE row of a closed domain: pin the hard-coded
 row against the registry's derived view, so widening the registry fails by name
 here rather than silently giving the new member the implemented row's
-behaviour. The repo practises it in two places, and
+behaviour. `docs/decisions.md` names three sites practising it, and
 `tests/test_role_comparison_pin.py` calls the executor one "the remedy
 practised correctly exactly once".
+
+This module witnesses the TWO written as a comparison against a literal
+collection, which is the shape whose conjuncts can each be fired by widening a
+registry. The third — `openspiel/replay`'s returns keying — pins by raising
+past an exhausted if-chain, comparing nothing; it is witnessed at
+`tests/test_openspiel_returns_keying.py`, and the census cannot see its shape
+(issue #171).
 
 Neither had a witness, and the reason is structural rather than an oversight:
 **both conjuncts are tautologically true against today's registry**, and no
@@ -36,8 +43,10 @@ Assumes:      resolve walls a declared role against the registry before the
 Establishes:  every conjunct of every registry-reconciliation guard in
               `cardlang/` has a named witness that makes it fire; a new guard,
               or a new conjunct in an existing one, fails until it has one.
-Now illegal:  a reconciliation guard whose capacity to fire is unproven; a
-              registry-referencing guard in a shape the census cannot classify.
+Now illegal:  a reconciliation guard, WRITTEN AS AN ASSERT OR A RAISING IF,
+              whose capacity to fire is unproven. Not "any shape": a guard that
+              pins by raising past an exhausted dispatch, or from a `match`
+              arm, is outside this census and outside its band (issue #171).
 
 Completeness ledger
 --------------------
@@ -75,8 +84,10 @@ covered:    the grid — `test_every_conjunct_has_a_witness`, parametrized over
             ordered these two issues for. The classifier itself is pinned
             against a synthetic module carrying every shape it must accept and
             every near-miss it must reject
-            (`test_the_census_classifies_each_shape`), so the derived class is
-            a claim about the repo rather than about this walk. The band the literal-collection predicate excludes is walled
+            (`test_the_census_classifies_each_shape`), whose accept rows cross
+            every literal form the predicate implements — four displays and
+            five constructors, empty and over-literal-contents — so narrowing
+            the predicate reddens instead of silently shrinking the class. The band the literal-collection predicate excludes is walled
             as a per-module multiset
             (`test_registry_guards_outside_the_literal_shape_are_walled`)
             rather than left silent. The witness key's own assumption — that
@@ -90,7 +101,14 @@ covered:    the grid — `test_every_conjunct_has_a_witness`, parametrized over
             The witnesses themselves are the three `test_widening_*` /
             `test_a_non_player_*` tests below.
 sampled:    none. Every derived conjunct is an executed row.
-residual:   THREE:
+residual:   FOUR:
+            (0) the census reads two STATEMENT shapes — `assert`, and `if`
+            whose body raises. The repo also pins by raising past an exhausted
+            if-chain (13 sites, including the `openspiel/replay` one
+            `decisions.md` names) and from a `match` arm (1 site). Those
+            compare nothing against a literal, so they are the exhaustive-
+            dispatch shape rather than this class, and they reach neither the
+            grid nor the band. Issue #171. R4.
             (1) the INVERSE class — code implementing one row of a closed
             domain that pins itself against nothing — is not covered. It is
             not #149's class (there is no guard to witness), it is unbounded
@@ -132,6 +150,26 @@ from cardlang.runtime.values import Seating
 _PACKAGE = pathlib.Path(__file__).resolve().parent.parent / "cardlang"
 
 
+def _bound_names(target: ast.expr) -> list[str]:
+    """Every name a module-level assignment target binds.
+
+    Tuple and list targets count: `_STRAIGHT, _FLUSH, ... = 0, 1, 2` binds five
+    module constants through an `ast.Tuple`, and reading only bare `ast.Name`
+    targets dropped four of those five from the vocabulary — a superset that
+    silently was not one. Starred targets recurse for the same reason.
+
+    No length filter. An earlier `len > 2` guard excluded nothing in this tree
+    and was an unstated judgement inside a derivation whose whole claim is that
+    it makes none."""
+    if isinstance(target, ast.Name):
+        return [target.id]
+    if isinstance(target, ast.Tuple | ast.List):
+        return [name for element in target.elts for name in _bound_names(element)]
+    if isinstance(target, ast.Starred):
+        return _bound_names(target.value)
+    return []
+
+
 def _registry_constants(root: pathlib.Path = _PACKAGE) -> frozenset[str]:
     """Every module-level ALL-CAPS constant defined under `root`.
 
@@ -147,11 +185,7 @@ def _registry_constants(root: pathlib.Path = _PACKAGE) -> frozenset[str]:
             if not isinstance(node, ast.Assign | ast.AnnAssign):
                 continue
             targets = node.targets if isinstance(node, ast.Assign) else [node.target]
-            out |= {
-                t.id
-                for t in targets
-                if isinstance(t, ast.Name) and t.id.isupper() and len(t.id) > 2
-            }
+            out |= {name for t in targets for name in _bound_names(t) if name.isupper()}
     return frozenset(out)
 
 
@@ -360,9 +394,11 @@ def test_every_conjunct_has_a_witness(
         "out-of-row value) and requiring the guard's message back. Add the test "
         "and map it here; a guard nobody has watched fire is a claim, not a wall."
     )
-    assert witness in globals(), (
-        f"{module}:{line} — witness {witness!r} is named here but not defined "
-        "in this module."
+    resolved = globals().get(witness)
+    assert callable(resolved) and witness.startswith("test_"), (
+        f"{module}:{line} — witness {witness!r} does not name a test in this "
+        "module. `in globals()` was the earlier check and any module-level name "
+        "satisfied it, `ast` included."
     )
 
 
@@ -583,6 +619,21 @@ def accepted_empty_frozenset_call(x):
 def accepted_empty_tuple_display(x):
     assert VIEW == (), "the display literal needs no constructor"
 
+def accepted_list_display(x):
+    assert VIEW == ["a", "b"], "a list display is a literal collection"
+
+def accepted_dict_display(x):
+    assert VIEW == {"a": 1}, "so is a dict display"
+
+def accepted_tuple_call(x):
+    assert VIEW == tuple(("a",)), "the tuple constructor over a literal"
+
+def accepted_list_call(x):
+    assert VIEW == list(["a"]), "the list constructor over a literal"
+
+def accepted_dict_call(x):
+    assert VIEW == dict({"a": 1}), "the dict constructor over a literal"
+
 def accepted_nested_and(x):
     assert (VIEW == {"a"} and x.p) and x.q, "parenthesised on the left"
 
@@ -658,6 +709,11 @@ def test_the_census_classifies_each_shape(tmp_path: pathlib.Path) -> None:
         ("accepted_empty_set_call", "VIEW == set()"),
         ("accepted_empty_frozenset_call", "VIEW == frozenset()"),
         ("accepted_empty_tuple_display", "VIEW == ()"),
+        ("accepted_list_display", "VIEW == ['a', 'b']"),
+        ("accepted_dict_display", "VIEW == {'a': 1}"),
+        ("accepted_tuple_call", "VIEW == tuple(('a',))"),
+        ("accepted_list_call", "VIEW == list(['a'])"),
+        ("accepted_dict_call", "VIEW == dict({'a': 1})"),
         ("accepted_nested_and", "VIEW == {'a'}"),
         ("accepted_nested_and", "x.p"),
         ("accepted_nested_and", "x.q"),
@@ -699,4 +755,43 @@ def test_the_walled_band_records_the_whole_guard(tmp_path: pathlib.Path) -> None
     assert band_a != band_b, (
         "two guards differing only past a long shared prefix produced the same "
         f"band entry — the text is being truncated: {band_a}"
+    )
+
+
+def test_no_witness_row_outlives_its_cell() -> None:
+    """The map is pinned in BOTH directions, like its sibling table.
+
+    The grid walks cells and asks whether each has a witness, which never looks
+    at a row whose cell is gone. Refactor a guard into a helper and the grid
+    reddens with the new witness-less cell, the author adds the new row — and
+    the old one survives forever, pointing at a test that may later be
+    repurposed or deleted. `_GUARDS_OUTSIDE_THE_SHAPE` is pinned by equality and
+    has never had this hole; this closes the asymmetry inside one module.
+
+    red under: add a `_WITNESSES` row for a module that does not exist."""
+    live = {(module, function, source) for module, function, _, source in _CELLS}
+    dead = sorted(key for key in _WITNESSES if key not in live)
+    assert not dead, (
+        f"{dead} name no cell the census derives — the guard moved or went "
+        "away and its witness row did not. Delete the row, or point it at the "
+        "cell the guard became."
+    )
+
+
+def test_every_witness_is_named_by_exactly_one_cell() -> None:
+    """One witness, one conjunct — the property this module exists to assert.
+
+    Two cells sharing a witness value is the guard-level witness this module
+    rejects in its own opening argument, re-entering through the map: one test
+    fires one conjunct, and the other rides along reported as covered.
+
+    red under: point any two `_WITNESSES` rows at the same test."""
+    seen: dict[str, list[str]] = {}
+    for (module, function, source), witness in _WITNESSES.items():
+        seen.setdefault(witness, []).append(f"{module}::{function}::{source}")
+    shared = {w: cells for w, cells in seen.items() if len(cells) > 1}
+    assert not shared, (
+        f"one witness credited to several conjuncts: {shared}. Short-circuiting "
+        "means a single test cannot fire two conjuncts, so one of them is "
+        "unproven — the guard-level witness this module argues against."
     )
