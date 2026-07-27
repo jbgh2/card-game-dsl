@@ -54,7 +54,11 @@ domain:     DERIVED, not the two sites the issue named. The vocabulary is
             it — at any depth, so a comparison parenthesised into a nested
             group still qualifies its guard. Both operand positions, any
             operator, and the constant may be reached as a bare name or through
-            its module (`n.ROUND_ORDER_MODES`). The cells are the guard's
+            its module (`n.ROUND_ORDER_MODES`). "Literal collection" spans the
+            display literals and every builtin constructor over literal
+            contents — INCLUDING the empty forms (`set()`, `frozenset()`),
+            which are what a consumer implementing NO rows reconciles against
+            and for which no display literal exists. The cells are the guard's
             `and`-conjuncts, flattened RECURSIVELY; `or` and `not` are one cell
             each, because neither side of a disjunction has a witness that
             fires it alone. A cell is identified by `(module, enclosing
@@ -79,8 +83,12 @@ covered:    the grid — `test_every_conjunct_has_a_witness`, parametrized over
             it names one site — is walled by
             `test_no_two_cells_share_a_witness_key`, since a collision is
             silent in the worst way: the second site inherits the first's
-            witness and goes green untested. The witnesses themselves are the
-            three `test_widening_*` / `test_a_non_player_*` tests below.
+            witness and goes green untested. That band's own fidelity — that
+            it records whole guards, not prefixes — is walled by
+            `test_the_walled_band_records_the_whole_guard`, since a truncated
+            entry would let an authorized guard drift past the cut in silence.
+            The witnesses themselves are the three `test_widening_*` /
+            `test_a_non_player_*` tests below.
 sampled:    none. Every derived conjunct is an executed row.
 residual:   THREE:
             (1) the INVERSE class — code implementing one row of a closed
@@ -158,13 +166,22 @@ def _is_literal_collection(node: ast.AST) -> bool:
     on its own, so it has no row to witness."""
     if isinstance(node, ast.Set | ast.List | ast.Tuple | ast.Dict):
         return True
-    return (
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id in ("frozenset", "set", "tuple")
-        and bool(node.args)
-        and _is_literal_collection(node.args[0])
-    )
+    if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)):
+        return False
+    if node.func.id not in ("frozenset", "set", "tuple", "list", "dict"):
+        return False
+    # `set()` is the canonical EMPTY collection — the form a consumer that
+    # implements no rows reconciles against (`assert VIEW == set()`), and
+    # there is no display literal for an empty set to write instead. All five
+    # builtins are listed, not the three that happen to appear today: which
+    # spelling an author reaches for is not a fact this predicate should
+    # depend on.
+    if not node.args:
+        # `dict(a=1)` / `dict(**x)` carry keywords rather than a literal
+        # argument; refused rather than guessed, so they land in the walled
+        # band where a human authorizes them.
+        return not node.keywords
+    return _is_literal_collection(node.args[0])
 
 
 def _referenced_constants(node: ast.AST, vocab: frozenset[str]) -> set[str]:
@@ -290,7 +307,11 @@ def _registry_guards_outside_the_shape(
                 continue
             if _reconciles(test, vocab):
                 continue
-            out.setdefault(module, []).append(ast.unparse(test)[:70])
+            # Whole expression, never a prefix: a truncated entry makes every
+            # edit past the cut invisible to the multiset, so an authorized
+            # guard's registry use or control logic could drift while the wall
+            # stayed green — the exact silence this table exists to break.
+            out.setdefault(module, []).append(ast.unparse(test))
     return {k: sorted(v) for k, v in sorted(out.items())}
 
 
@@ -553,6 +574,15 @@ def accepted_frozenset_call(x):
 def accepted_literal_on_the_left(x):
     assert {"a"} == VIEW, "operand order is not the point"
 
+def accepted_empty_set_call(x):
+    assert VIEW == set(), "a consumer that implements NO rows"
+
+def accepted_empty_frozenset_call(x):
+    assert VIEW == frozenset(), "the same, in the frozen spelling"
+
+def accepted_empty_tuple_display(x):
+    assert VIEW == (), "the display literal needs no constructor"
+
 def accepted_nested_and(x):
     assert (VIEW == {"a"} and x.p) and x.q, "parenthesised on the left"
 
@@ -580,6 +610,12 @@ def rejected_scalar_dispatch(x):
 
 def rejected_no_registry(x):
     assert x.role == {"a"}, "no registry constant on either side"
+
+def rejected_constructor_over_a_variable(x):
+    assert VIEW == set(x), "a constructor over a NAME is not a literal"
+
+def rejected_dict_with_keywords(x):
+    assert VIEW == dict(a=1), "keywords are refused rather than guessed"
 
 def rejected_text_only(x):
     return 'VIEW == {"a"}'
@@ -619,6 +655,9 @@ def test_the_census_classifies_each_shape(tmp_path: pathlib.Path) -> None:
         ("accepted_if_raise", "VIEW != {'a'}"),
         ("accepted_frozenset_call", "VIEW == frozenset({'a'})"),
         ("accepted_literal_on_the_left", "{'a'} == VIEW"),
+        ("accepted_empty_set_call", "VIEW == set()"),
+        ("accepted_empty_frozenset_call", "VIEW == frozenset()"),
+        ("accepted_empty_tuple_display", "VIEW == ()"),
         ("accepted_nested_and", "VIEW == {'a'}"),
         ("accepted_nested_and", "x.p"),
         ("accepted_nested_and", "x.q"),
@@ -629,3 +668,35 @@ def test_the_census_classifies_each_shape(tmp_path: pathlib.Path) -> None:
         ("accepted_negation_stays_one_cell", "not (VIEW == {'d'} and x.p)"),
         ("inner", "VIEW == {'e'}"),
     ]
+
+
+def test_the_walled_band_records_the_whole_guard(tmp_path: pathlib.Path) -> None:
+    """The band is a multiset of guard TEXT, so the text must be complete.
+
+    An entry truncated to a prefix makes every edit past the cut invisible: an
+    authorized guard's registry use or control logic could be rewritten while
+    the wall stayed green, which is the silence this table exists to break.
+    Proven by two trees that agree for longer than any prefix a truncation
+    would plausibly keep and diverge only at the very end — they must produce
+    different bands.
+
+    red under: slice the appended text in `_registry_guards_outside_the_shape`
+    (it read `[:70]` when this was found)."""
+    shared = (
+        "VIEW = frozenset({'a'})\n\n"
+        "def guard(x):\n"
+        "    if x.some_rather_long_attribute_name not in VIEW "
+        "and x.another_long_name"
+    )
+    for name, tail in (("a", " == 1"), ("b", " == 2")):
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "probe.py").write_text(
+            shared + tail + ":\n        raise ValueError()\n"
+        )
+    band_a = _registry_guards_outside_the_shape(tmp_path / "a")
+    band_b = _registry_guards_outside_the_shape(tmp_path / "b")
+    assert band_a and band_b, (band_a, band_b)
+    assert band_a != band_b, (
+        "two guards differing only past a long shared prefix produced the same "
+        f"band entry — the text is being truncated: {band_a}"
+    )
