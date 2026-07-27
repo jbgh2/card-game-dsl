@@ -50,10 +50,17 @@ domain:     DERIVED, not the two sites the issue named. The vocabulary is
             `cardlang/` — completeness by superset, so a registry
             that is not the role table is in scope the day it exists. A guard
             is an `assert`, or an `if` whose body raises, whose test compares
-            one of those constants against a LITERAL collection; the cells are
-            that guard's `and`-conjuncts. Both operand positions, any
-            operator, and the constant may be reached as a bare name or
-            through its module (`n.ROUND_ORDER_MODES`).
+            one of those constants against a LITERAL collection ANYWHERE inside
+            it — at any depth, so a comparison parenthesised into a nested
+            group still qualifies its guard. Both operand positions, any
+            operator, and the constant may be reached as a bare name or through
+            its module (`n.ROUND_ORDER_MODES`). The cells are the guard's
+            `and`-conjuncts, flattened RECURSIVELY; `or` and `not` are one cell
+            each, because neither side of a disjunction has a witness that
+            fires it alone. A cell is identified by `(module, enclosing
+            function, conjunct text)` — never by line number, which is unique
+            but rewritten by every edit above it — and a genuine collision of
+            that key is refused rather than resolved.
 registry:   `_registry_constants()` derives the vocabulary from
             `cardlang/**/*.py` by AST; `_reconciliation_conjuncts()` derives
             the cells from it. `_WITNESSES` maps cell to witness.
@@ -68,8 +75,12 @@ covered:    the grid — `test_every_conjunct_has_a_witness`, parametrized over
             a claim about the repo rather than about this walk. The band the literal-collection predicate excludes is walled
             as a per-module multiset
             (`test_registry_guards_outside_the_literal_shape_are_walled`)
-            rather than left silent. The witnesses themselves are the three
-            `test_widening_*` / `test_a_non_player_*` tests below.
+            rather than left silent. The witness key's own assumption — that
+            it names one site — is walled by
+            `test_no_two_cells_share_a_witness_key`, since a collision is
+            silent in the worst way: the second site inherits the first's
+            witness and goes green untested. The witnesses themselves are the
+            three `test_widening_*` / `test_a_non_player_*` tests below.
 sampled:    none. Every derived conjunct is an executed row.
 residual:   THREE:
             (1) the INVERSE class — code implementing one row of a closed
@@ -169,63 +180,93 @@ def _referenced_constants(node: ast.AST, vocab: frozenset[str]) -> set[str]:
     return out
 
 
-def _guard_tests(tree: ast.AST) -> list[ast.expr]:
-    """The condition of every `assert`, and of every `if` whose body raises.
+def _guard_tests(
+    node: ast.AST, function: str = "<module>"
+) -> list[tuple[str, ast.expr]]:
+    """`(enclosing function, condition)` for every `assert` and raising `if`.
 
-    Both shapes, because the currency is not the point — a reconciliation guard
-    written as `if VIEW != {...}: raise` is the same guard. `orelse` is
-    excluded: a raise in the else branch is not guarded by this test."""
-    out: list[ast.expr] = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Assert) or (
-            isinstance(node, ast.If)
-            and any(isinstance(s, ast.Raise) for b in node.body for s in ast.walk(b))
+    Both statement shapes, because the currency is not the point — a
+    reconciliation guard written as `if VIEW != {...}: raise` is the same guard.
+    `orelse` is excluded: a raise in the else branch is not guarded by this test.
+
+    Descended recursively rather than by `ast.walk`, so the enclosing function
+    is the INNERMOST one. `ast.walk` is breadth-first, so a nested definition
+    would be attributed to its outer function — which would then key two
+    distinct sites the same way."""
+    out: list[tuple[str, ast.expr]] = []
+    for child in ast.iter_child_nodes(node):
+        if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef):
+            out += _guard_tests(child, child.name)
+            continue
+        if isinstance(child, ast.Assert) or (
+            isinstance(child, ast.If)
+            and any(isinstance(s, ast.Raise) for b in child.body for s in ast.walk(b))
         ):
-            out.append(node.test)
+            out.append((function, child.test))
+        out += _guard_tests(child, function)
     return out
 
 
 def _conjuncts(test: ast.expr) -> list[ast.expr]:
-    """The `and`-operands of a guard, or the guard itself when it is not one."""
+    """A guard's `and`-operands, flattened through nesting.
+
+    RECURSIVE, because `(A and B) and C` is a nested `BoolOp` — Python only
+    flattens `A and B and C` written without parentheses. Splitting one level
+    would return `A and B` as a single cell, so the conjunct this module exists
+    to witness would ride inside another cell's witness.
+
+    `or` and `not` are deliberately NOT split: an `assert A or B` fires only
+    when both sides are false, so neither side has a witness that fires it
+    alone, and one cell is the honest unit. Same for a negation, whose operands
+    are disjunctive after De Morgan."""
     if isinstance(test, ast.BoolOp) and isinstance(test.op, ast.And):
-        return list(test.values)
+        return [part for value in test.values for part in _conjuncts(value)]
     return [test]
+
+
+def _reconciles(test: ast.expr, vocab: frozenset[str]) -> bool:
+    """Does this guard compare a registry constant against a literal collection?
+
+    Searched at ANY depth in the test, not across its top-level conjuncts: the
+    qualifying comparison can sit inside a parenthesised group, a negation or a
+    call, and a guard that qualifies only deeper down is exactly the one that
+    would otherwise escape the census entirely rather than merely be split
+    coarsely."""
+    return any(
+        isinstance(node, ast.Compare)
+        and _referenced_constants(node, vocab)
+        and any(
+            _is_literal_collection(side)
+            for side in (node.left, *node.comparators)
+        )
+        for node in ast.walk(test)
+    )
 
 
 def _reconciliation_conjuncts(
     root: pathlib.Path = _PACKAGE,
-) -> list[tuple[str, int, str]]:
-    """Every cell: `(module, line, conjunct source)`, in source order.
+) -> list[tuple[str, str, int, str]]:
+    """Every cell: `(module, enclosing function, line, conjunct source)`.
 
-    A guard qualifies when ANY of its conjuncts compares a registry constant
-    against a literal collection; every conjunct of that guard is then a cell,
-    including the ones that name no registry. That is deliberate: the sibling
-    conjunct is the one #149 proves is unobservable, and scoping the domain to
-    conjuncts that mention a registry would drop exactly it."""
-    cells: list[tuple[str, int, str]] = []
+    A guard qualifies when its test compares a registry constant against a
+    literal collection anywhere inside it; every conjunct of that guard is then
+    a cell, including the ones that name no registry. That is deliberate: the
+    sibling conjunct is the one #149 proves is unobservable, and scoping the
+    domain to conjuncts that mention a registry would drop exactly it.
+
+    The enclosing function rides in the cell because the witness map is keyed by
+    SITE, and conjunct text alone does not identify one: two guards in the same
+    module can carry identical text, and the second would then inherit the
+    first's witness while no test ever reaches it."""
+    cells: list[tuple[str, str, int, str]] = []
     vocab = _registry_constants(root)
     for path in sorted(root.rglob("*.py")):
-        source = path.read_text()
-        for test in _guard_tests(ast.parse(source)):
-            parts = _conjuncts(test)
-            if not any(
-                isinstance(c, ast.Compare)
-                and _referenced_constants(c, vocab)
-                and any(
-                    _is_literal_collection(side)
-                    for side in (c.left, *c.comparators)
-                )
-                for c in parts
-            ):
+        module = str(path.relative_to(root))
+        for function, test in _guard_tests(ast.parse(path.read_text())):
+            if not _reconciles(test, vocab):
                 continue
-            for part in parts:
-                cells.append(
-                    (
-                        str(path.relative_to(root)),
-                        part.lineno,
-                        ast.unparse(part),
-                    )
-                )
+            for part in _conjuncts(test):
+                cells.append((module, function, part.lineno, ast.unparse(part)))
     return cells
 
 
@@ -240,30 +281,32 @@ def _registry_guards_outside_the_shape(
     a shape the predicate misses forces a look instead of passing unnoticed."""
     out: dict[str, list[str]] = {}
     vocab = _registry_constants(root)
-    reconciled = {(m, ln) for m, ln, _ in _reconciliation_conjuncts(root)}
     for path in sorted(root.rglob("*.py")):
         module = str(path.relative_to(root))
-        for test in _guard_tests(ast.parse(path.read_text())):
+        for _function, test in _guard_tests(ast.parse(path.read_text())):
             if not _referenced_constants(test, vocab):
                 continue
-            if any((module, c.lineno) in reconciled for c in _conjuncts(test)):
+            if _reconciles(test, vocab):
                 continue
             out.setdefault(module, []).append(ast.unparse(test)[:70])
     return {k: sorted(v) for k, v in sorted(out.items())}
 
 
 # Every cell, and the witness that makes it fire ALONE.
-_WITNESSES: dict[tuple[str, str], str] = {
+_WITNESSES: dict[tuple[str, str, str], str] = {
     (
         "resolve.py",
+        "<module>",
         "ZONE_INDEX_ROLES == {'player', 'team'}",
     ): "test_widening_zone_index_roles_fails_resolve_at_import",
     (
         "runtime/execute.py",
+        "_each_simultaneous",
         "SIMULTANEOUS_ROLES == {'player'}",
     ): "test_widening_simultaneous_roles_fails_the_executor",
     (
         "runtime/execute.py",
+        "_each_simultaneous",
         "stmt.role == 'player'",
     ): "test_a_non_player_simultaneous_block_fails_the_executor",
 }
@@ -273,28 +316,51 @@ _CELLS = _reconciliation_conjuncts()
 
 
 @pytest.mark.parametrize(
-    ("module", "line", "source"),
+    ("module", "function", "line", "source"),
     _CELLS,
-    ids=[f"{m}:{ln}" for m, ln, _ in _CELLS],
+    ids=[f"{m}:{fn}:{ln}" for m, fn, ln, _ in _CELLS],
 )
-def test_every_conjunct_has_a_witness(module: str, line: int, source: str) -> None:
+def test_every_conjunct_has_a_witness(
+    module: str, function: str, line: int, source: str
+) -> None:
     """Each conjunct of each reconciliation guard names a test that fires it.
 
     Parametrized over the DERIVED cells, so a new guard — or a new conjunct
     grafted onto an existing one — arrives as a red row rather than as silence.
     Born under #150's wall: a walk that matched nothing would once have been a
     skip and a green suite; it is now a collection error."""
-    witness = _WITNESSES.get((module, source))
+    witness = _WITNESSES.get((module, function, source))
     assert witness is not None, (
-        f"{module}:{line} — conjunct `{source}` has no witness. It pins a "
-        "hard-coded row against a registry, so it can only be seen to work by "
-        "widening that registry (or reaching the guard with an out-of-row "
-        "value) and requiring the guard's message back. Add the test and map "
-        "it here; a guard nobody has watched fire is a claim, not a wall."
+        f"{module}:{line} ({function}) — conjunct `{source}` has no witness. It "
+        "pins a hard-coded row against a registry, so it can only be seen to "
+        "work by widening that registry (or reaching the guard with an "
+        "out-of-row value) and requiring the guard's message back. Add the test "
+        "and map it here; a guard nobody has watched fire is a claim, not a wall."
     )
     assert witness in globals(), (
         f"{module}:{line} — witness {witness!r} is named here but not defined "
         "in this module."
+    )
+
+
+def test_no_two_cells_share_a_witness_key() -> None:
+    """A key must identify one SITE, and the site key is a proxy.
+
+    `(module, function, conjunct text)` distinguishes every cell today, but two
+    guards carrying identical text inside one function would collide — and a
+    collision is silent in the worst way: the second site inherits the first's
+    witness and its census row goes green with no test ever reaching it. So the
+    ambiguity is refused rather than resolved by a rule nobody would remember.
+    A line number would be unique but not stable; every edit above a guard
+    would rewrite the map.
+
+    red under: duplicate any guard inside its own function."""
+    keys = [(m, fn, src) for m, fn, _, src in _CELLS]
+    duplicates = sorted({k for k in keys if keys.count(k) > 1})
+    assert not duplicates, (
+        f"two guard sites share the witness key {duplicates} — the map cannot "
+        "tell them apart, so one would inherit the other's witness. Give them "
+        "distinguishable conjunct text, or key the map by something narrower."
     )
 
 
@@ -485,6 +551,23 @@ def accepted_frozenset_call(x):
 def accepted_literal_on_the_left(x):
     assert {"a"} == VIEW, "operand order is not the point"
 
+def accepted_nested_and(x):
+    assert (VIEW == {"a"} and x.p) and x.q, "parenthesised on the left"
+
+def accepted_nested_and_on_the_right(x):
+    assert x.p and (VIEW == {"b"} and x.q), "parenthesised on the right"
+
+def accepted_or_stays_one_cell(x):
+    assert VIEW == {"c"} or x.p, "neither side fires alone"
+
+def accepted_negation_stays_one_cell(x):
+    assert not (VIEW == {"d"} and x.p), "disjunctive after De Morgan"
+
+def outer_holding_a_nested_guard(x):
+    def inner(y):
+        assert VIEW == {"e"}, "attributed to inner, not outer"
+    return inner
+
 def rejected_registry_vs_variable(x):
     assert x not in VIEW, "validates input; widens with the table"
 
@@ -504,26 +587,43 @@ def rejected_text_only(x):
 def test_the_census_classifies_each_shape(tmp_path: pathlib.Path) -> None:
     """The classifier is the load-bearing artifact, so prove it discriminates.
 
-    "The class is exactly the pinned table" must be a claim about the repo,
-    not about this walk. The probe carries a shape for every accepted form and
-    a near-miss for every way one could be mistaken for it; the expected list
+    "The class is exactly the pinned table" must be a claim about the repo, not
+    about this walk. The probe carries a shape for every accepted form and a
+    near-miss for every way one could be mistaken for it; the expected list
     below is the assertion, so neither a count here nor a count in the ledger
-    can drift away from it. Two of the rejections are the real
-    exclusions, kept honest by being written the way the real sites are —
-    `runtime/state.py`'s registry-vs-variable membership test, and
+    can drift away from it.
+
+    Two of the rejections are the real exclusions, written the way the real
+    sites are — `runtime/state.py`'s registry-vs-variable membership test, and
     `runtime/mechanics.py`'s scalar dispatch whose `if` body happens to contain
-    a raise further down. The second one matters: an earlier form of
-    `_guard_tests` that scanned only the direct body missed it, and a form that
-    scanned the whole subtree caught it — neither difference should change the
-    verdict, because the literal-collection predicate is what excludes it."""
+    a raise further down. The second matters: whether `_guard_tests` scans the
+    direct body or the whole subtree should not change the verdict, because the
+    literal-collection predicate is what excludes it.
+
+    Three of the acceptances answer PR #166 review findings. The parenthesised
+    `and` shapes are the severe one: a nested `BoolOp` is not a `Compare`, so
+    the earlier one-level split did not merely coarsen the cell — the guard
+    failed to qualify at all and left the census entirely. The `or` and
+    negation shapes pin the other half of that decision, that only `and` is
+    split. The nested-function shape pins attribution to the INNERMOST
+    function, which is what keeps two sites from sharing a witness key."""
     (tmp_path / "probe.py").write_text(_PROBE)
-    cells = _reconciliation_conjuncts(tmp_path)
-    assert [src for _, _, src in cells] == [
-        "VIEW == {'a', 'b'}",
-        "VIEW == {'a'}",
-        "x.role == 'a'",
-        "VIEW != {'a'}",
-        "VIEW == frozenset({'a'})",
-        "{'a'} == VIEW",
-    ], cells
-    assert {module for module, _, _ in cells} == {"probe.py"}
+    assert [
+        (function, source) for _, function, _, source in _reconciliation_conjuncts(tmp_path)
+    ] == [
+        ("accepted_equality", "VIEW == {'a', 'b'}"),
+        ("accepted_two_conjuncts", "VIEW == {'a'}"),
+        ("accepted_two_conjuncts", "x.role == 'a'"),
+        ("accepted_if_raise", "VIEW != {'a'}"),
+        ("accepted_frozenset_call", "VIEW == frozenset({'a'})"),
+        ("accepted_literal_on_the_left", "{'a'} == VIEW"),
+        ("accepted_nested_and", "VIEW == {'a'}"),
+        ("accepted_nested_and", "x.p"),
+        ("accepted_nested_and", "x.q"),
+        ("accepted_nested_and_on_the_right", "x.p"),
+        ("accepted_nested_and_on_the_right", "VIEW == {'b'}"),
+        ("accepted_nested_and_on_the_right", "x.q"),
+        ("accepted_or_stays_one_cell", "VIEW == {'c'} or x.p"),
+        ("accepted_negation_stays_one_cell", "not (VIEW == {'d'} and x.p)"),
+        ("inner", "VIEW == {'e'}"),
+    ]
