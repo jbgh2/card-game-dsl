@@ -255,6 +255,310 @@ def _written_state_name(node: object) -> str | None:
     return None
 
 
+# ---------------------------------------------------------------------------
+# The reference-slot registry
+# ---------------------------------------------------------------------------
+#
+# Every `str`-typed field of every `n.Node`, classified by what the string IS.
+# Most name-carrying slots hold a `NameRef`, which `_rewrite` classifies and
+# every consumer then reads off `ref_kind`; the slots below hold their name as a
+# plain string instead, so a pass built on `NameRef` is structurally blind to
+# them. That blindness is not a property of the design — it is a property of
+# whichever consumer forgot the slot exists, which is exactly the by-luck hand
+# list this table replaces (issue #138).
+#
+# The table is AUTHORED; only its key set is derived. What a slot MEANS cannot
+# be read off an annotation — `str` is `str` — so the semantic column is written
+# here and the KEY set is pinned against the module's actual fields by
+# `tests/test_reference_slots.py`, which fails when a `str` field is added,
+# renamed, or removed. That split is the whole completeness argument: no slot can
+# exist unclassified, and no classification can name a slot that does not.
+#
+# The seven kinds are exhaustive over the key set, and pairwise disjoint:
+#
+#   declaration — the field IS the binding site of a name in some namespace.
+#   binder      — introduces a lexical binder (`_introduced_binders` owns which
+#                 names are in scope where; this only records that the slot is
+#                 one).
+#   reference   — names something declared elsewhere, as a bare string.
+#   keyword     — a closed grammar vocabulary word, not a name: no namespace can
+#                 supply it and nothing can shadow it.
+#   opaque      — arbitrary author text (a string literal, an echoed spelling).
+#   classified  — a `NameRef`'s own name, owned by `_rewrite`. Distinct from
+#                 `reference`, not a duplicate of it: these are the slots that
+#                 ARE classified, and the reason the rest read as an omission.
+#   metadata    — stamped by a pass; holds no name at all.
+
+# declaration slot -> the namespace the name is declared into.
+_DECLARATION_SLOTS: dict[tuple[type, str], str] = {
+    (n.Game, "name"): "game",
+    (n.Library, "name"): "library",
+    (n.Phase, "name"): "phase",
+    (n.ZoneDecl, "name"): "zone",
+    (n.PositionDecl, "name"): "position",
+    (n.PositionDecl, "members_named"): "position_member",
+    (n.StateDecl, "name"): "state",
+    (n.RequireDecl, "name"): "state",
+    (n.RuleDef, "name"): "rule",
+    (n.MoveTypeDef, "name"): "move_type",
+    (n.FunctionDef, "name"): "function",
+    (n.ProcedureDef, "name"): "procedure",
+    (n.DefineDef, "name"): "define",
+    (n.TypeDef, "name"): "type",
+    (n.StructField, "name"): "field",
+    (n.DerivedField, "name"): "field",
+    (n.MoveParam, "name"): "param",
+    (n.VariantCase, "tag"): "variant_tag",
+    # `let` declares a name and scopes it to the statements after it, so it is
+    # both — filed as the declaration, since that is the half a name registry
+    # asks about. Its INDEX is the binder (`let x[i] = …` binds `i` per player).
+    (n.LetStmt, "name"): "local",
+}
+
+# Slots that introduce a lexical binder. `_introduced_binders` remains the
+# authority on which names a node brings into scope and over which fields; this
+# records only that the slot's string is a binder rather than a reference, which
+# is what a name sweep needs to know to leave it alone.
+_BINDER_SLOTS: frozenset[tuple[type, str]] = frozenset(
+    {
+        (n.Comprehension, "binder"),
+        (n.Quantifier, "binder"),
+        (n.DomainQuery, "binder"),
+        (n.ForEach, "binder"),
+        (n.Turns, "binder"),
+        (n.ProduceArm, "binders"),
+        (n.LetStmt, "index"),
+    }
+)
+
+# reference slot -> the namespace the name is drawn from. THIS is the table the
+# residual in issue #138 is about: every one of these is a name held as a plain
+# string, invisible to any pass built on `NameRef`.
+_REFERENCE_SLOTS: dict[tuple[type, str], str] = {
+    # State, reached without a `NameRef` in sight. `Turns.again` is the reachable
+    # one — a library body may write it — and `Winner.target` is the game-level
+    # twin `resolve`'s own comment has documented since before this table.
+    (n.Turns, "again"): "state",
+    (n.Winner, "target"): "state",
+    # Zones. The `round` form names both of its zones as bare strings.
+    (n.Round, "source_zone"): "zone",
+    (n.Round, "play_zone"): "zone",
+    # Phases.
+    (n.ContinueTo, "target"): "phase",
+    (n.TransitionTo, "target"): "phase",
+    # Types, in every position a type name can be written.
+    (n.StateDecl, "type_name"): "type",
+    (n.RequireDecl, "type_name"): "type",
+    (n.MoveParam, "type_name"): "type",
+    (n.StructField, "type_name"): "type",
+    (n.StructLit, "type_name"): "type",
+    (n.VariantCase, "payload_types"): "type",
+    # Definitions, by kind. The move-type slots split across two namespaces and
+    # the split is load-bearing, not a nicety: a VOCABULARY names move types the
+    # game defines (`_check_vocabulary_moves` against `defined_move_types`),
+    # while `constrains:`, `legal_moves:`, a transition event and a trick/climb
+    # round's move type name the STDLIB registry (`LIBRARY_MOVE_TYPES`). Only
+    # the first pair is a channel an importing game can feed.
+    (n.Offer, "move_types"): "move_type",
+    (n.Round, "move_types"): "move_type",
+    (n.Round, "move_type"): "stdlib_move_type",
+    (n.LegalMoves, "names"): "stdlib_move_type",
+    (n.MoveEvent, "move_type"): "stdlib_move_type",
+    (n.RuleDef, "constrains"): "stdlib_move_type",
+    (n.RuleRef, "name"): "rule",
+    (n.Produces, "define"): "define",
+    (n.RunStmt, "name"): "procedure",
+    (n.Call, "func"): "function",
+    # The stdlib query registries a `round` selects from. A closed stdlib table
+    # in every direction — the same names for a library as for a game — which is
+    # why they are references and yet not a channel a game can feed.
+    (n.Round, "outcome_fn"): "stdlib_query",
+    (n.Round, "early_termination"): "stdlib_query",
+    (n.Round, "combos_fn"): "stdlib_query",
+    (n.Round, "follows_fn"): "stdlib_query",
+    # Deck-derived values, held as strings rather than classified names.
+    (n.CardLiteral, "rank"): "deck_rank",
+    (n.CardLiteral, "suit"): "deck_suit",
+    (n.Game, "ranking"): "deck_rank",
+    (n.Game, "trump"): "deck_suit",
+    (n.Game, "direction"): "enum_value",
+    (n.RotateStmt, "values"): "enum_value",
+    (n.Game, "deck"): "component_set",
+    (n.BoardDecl, "family"): "board_family",
+    (n.UsesDecl, "name"): "library",
+    # Roles and the index domains, drawn from the domain registry
+    # (`cardlang.domains`) plus a game's declared `positions { }`.
+    (n.ForEach, "role"): "role",
+    (n.Quantifier, "role"): "role",
+    (n.EachSimultaneous, "role"): "role",
+    (n.ZoneDecl, "index"): "index_domain",
+    (n.StateDecl, "index"): "index_domain",
+    (n.RequireDecl, "index"): "index_domain",
+    # Zone types and their arguments (`Hand<player>`): the stdlib zone-type
+    # registry, and a role or type name in parameter position.
+    (n.TypeRef, "name"): "zone_type",
+    (n.TypeArg, "name"): "zone_type_arg",
+    # Names owned by a declaration reached elsewhere: a struct's fields belong to
+    # the type its literal names, a named argument's to the callee's parameter
+    # list, a produced tag to the define's variant cases. Each is a reference,
+    # and none is an independent channel — the owning name is a slot above.
+    (n.Member, "field"): "field",
+    (n.FieldInit, "name"): "field",
+    (n.NamedArg, "name"): "param",
+    (n.Produce, "tag"): "variant_tag",
+    (n.ProduceArm, "tag"): "variant_tag",
+    # The item noun a movement moves (`cards`, `coins`): drawn from the game's
+    # CONTENT FLAVOR, which is the component set's, so it is a game-fed slot the
+    # way a suit is. Not swept for a library — see `_LIBRARY_UNSWEPT`.
+    (n.Movement, "item"): "content_kind",
+}
+
+# Closed grammar vocabulary: a word the parser puts there from a fixed set of
+# productions. Not a name, so no namespace supplies it and nothing shadows it.
+_KEYWORD_SLOTS: frozenset[tuple[type, str]] = frozenset(
+    {
+        (n.AssignStmt, "op"),
+        (n.BinOp, "op"),
+        (n.RuleRef, "op"),
+        (n.EpistemicOp, "op"),
+        (n.IsCheck, "kind"),
+        (n.CardQuery, "kind"),
+        (n.PlayerQuery, "kind"),
+        (n.DomainQuery, "kind"),
+        (n.Quantifier, "kind"),
+        (n.PhaseQualifier, "kind"),
+        (n.Demands, "kind"),
+        (n.Comprehension, "agg"),
+        (n.Choose, "domain"),
+        (n.Movement, "verb"),
+        (n.Movement, "mode"),
+        (n.Movement, "amount"),
+        (n.Movement, "distribution"),
+        (n.Round, "order_mode"),
+        (n.Winner, "rank_dir"),
+        (n.Game, "ranking_convention"),
+    }
+)
+
+# Author text that is not a name in any namespace.
+_OPAQUE_SLOTS: frozenset[tuple[type, str]] = frozenset(
+    {
+        (n.StrLit, "value"),
+        # The domain noun exactly as written, kept only so the plural-mismatch
+        # diagnostic can quote it; `binder` is the derived singular that means
+        # something.
+        (n.DomainQuery, "spelled"),
+    }
+)
+
+# The two slots this pass owns itself.
+_CLASSIFIED_SLOTS: frozenset[tuple[type, str]] = frozenset({(n.NameRef, "name")})
+_METADATA_SLOTS: frozenset[tuple[type, str]] = frozenset({(n.NameRef, "ref_kind")})
+
+
+# The registry as one view: slot -> kind. Derived from the seven tables above so
+# a slot can carry exactly one kind, and the pin can ask a single question.
+STRING_SLOT_KINDS: dict[tuple[type, str], str] = {
+    **{slot: "declaration" for slot in _DECLARATION_SLOTS},
+    **{slot: "binder" for slot in _BINDER_SLOTS},
+    **{slot: "reference" for slot in _REFERENCE_SLOTS},
+    **{slot: "keyword" for slot in _KEYWORD_SLOTS},
+    **{slot: "opaque" for slot in _OPAQUE_SLOTS},
+    **{slot: "classified" for slot in _CLASSIFIED_SLOTS},
+    **{slot: "metadata" for slot in _METADATA_SLOTS},
+}
+
+
+def _member_namespace(node: object) -> str | None:
+    """`x.field` reads a field of whatever `x` is, so the namespace depends on
+    the object: `state.foo` names a STATE variable, while every other object's
+    fields belong to the type that object has — a namespace reached through the
+    declaration that named the type, not through this slot."""
+    obj = cast(n.Member, node).obj
+    if isinstance(obj, n.NameRef) and obj.name == "state":
+        return "state"
+    return "field"
+
+
+def _domain_query_namespace(node: object) -> str | None:
+    """A bare `any <domain> where …` names a declared position domain and binds
+    a member of it; the collection form (`all cells in <expr>`) binds a fixed
+    noun and names nothing. Only the bare form is a reference."""
+    return "position" if cast(n.DomainQuery, node).source is None else None
+
+
+@dataclass(frozen=True)
+class _ContextualSlot:
+    """A slot whose namespace depends on the NODE rather than on the field
+    alone. `namespaces` declares every namespace `read` can return, so a
+    consumer sweeping "the slots that can reach X" derives the answer from the
+    table instead of naming these two by hand — the hand-list, one level up."""
+
+    namespaces: frozenset[str]
+    read: Callable[[object], str | None]
+
+
+# One table, because "it depends" is exactly the shape that otherwise becomes a
+# special case inside each consumer — and the second consumer's copy is where
+# the two readings drift. A BINDER slot may appear here: `DomainQuery.binder`
+# always binds, and additionally names a domain in the bare form.
+#
+# A row here SUPERSEDES the slot's static row: `slot_namespace` asks this table
+# first and returns whatever it says. `Member.field` therefore has both, and
+# they agree by construction — the static row records `field`, which is exactly
+# what the contextual read falls through to for every object but the `state`
+# pronoun.
+_CONTEXTUAL_SLOTS: dict[tuple[type, str], _ContextualSlot] = {
+    (n.Member, "field"): _ContextualSlot(frozenset({"state", "field"}), _member_namespace),
+    (n.DomainQuery, "binder"): _ContextualSlot(
+        frozenset({"position"}), _domain_query_namespace
+    ),
+}
+
+
+def _naming_slots_by_type() -> dict[type, tuple[str, ...]]:
+    """The registry inverted: node type -> the fields on it that may name
+    something. Derived from BOTH naming tables, so a row added to either reaches
+    every sweep — which is the point of there being a registry rather than a
+    match statement per consumer."""
+    by_type: dict[type, list[str]] = {}
+    for cls, field_name in (*_REFERENCE_SLOTS, *_CONTEXTUAL_SLOTS):
+        by_type.setdefault(cls, []).append(field_name)
+    return {cls: tuple(dict.fromkeys(names)) for cls, names in by_type.items()}
+
+
+_NAMING_SLOTS_BY_TYPE: dict[type, tuple[str, ...]] = _naming_slots_by_type()
+
+
+def slot_namespace(node: object, field_name: str) -> str | None:
+    """The namespace a slot draws its name from, or None if the slot names
+    nothing (a keyword, a binder, a declaration, opaque text). THE reader of the
+    reference registry — consumers ask this rather than matching node kinds, so
+    a slot added to the registry reaches every sweep at once."""
+    contextual = _CONTEXTUAL_SLOTS.get((type(node), field_name))
+    if contextual is not None:
+        return contextual.read(node)
+    return _REFERENCE_SLOTS.get((type(node), field_name))
+
+
+def slot_strings(node: object, field_name: str) -> tuple[str, ...]:
+    """The strings a slot holds — one for a `str` field, zero for an unset
+    optional, and the whole tuple for a `tuple[str, ...]` field.
+
+    Uniform over the three shapes the annotations take, so a consumer never has
+    to know which shape a slot is. `Movement.amount` is the one slot whose
+    string is optional in a different way (it is `str | Expr`), and it is a
+    keyword, so no reference consumer reaches it."""
+    value = getattr(node, field_name)
+    if value is None:
+        return ()
+    if isinstance(value, str):
+        return (value,)
+    if isinstance(value, tuple):
+        return tuple(v for v in value if isinstance(v, str))
+    return ()
+
+
 @dataclass(frozen=True)
 class _StateClaims:
     """The outcome of resolving who claims which state name across a game and
@@ -681,16 +985,124 @@ def _check_provided_readonly(
 
 
 @dataclass(frozen=True)
+class _SlotLeak:
+    """One bare-string reference in a library that names something the library
+    does not have — the slot registry's finding, in the currency the
+    encapsulation wall reports."""
+
+    node: object
+    field: str
+    name: str
+    namespace: str
+
+
+# What a LIBRARY may legally write in a bare-string slot of each namespace. The
+# empty sets are the design, not an omission: a library declares no zones and no
+# phases and names no deck (decisions.md "Family libraries"), so there is no
+# spelling of a zone, a phase or a suit it may write at all.
+#
+# A namespace absent from this table is NOT swept. That is a claim, so it is
+# recorded rather than implied — `_LIBRARY_UNSWEPT` below carries one reason per
+# absence, and `tests/test_family_libraries.py` pins the two together against
+# every reference namespace reachable from a library's own clauses, so a slot
+# whose namespace nobody classified fails a static test instead of quietly
+# joining the blind spot this registry exists to end.
+def _library_slot_names(library: n.Library) -> dict[str, frozenset[str]]:
+    provided = library.state.decls if library.state is not None else ()
+    return {
+        "state": frozenset(r.name for r in library.requires)
+        | frozenset(d.name for d in provided),
+        "type": frozenset(t.name for t in library.types) | KNOWN_TYPE_NAMES,
+        "move_type": frozenset(m.name for m in library.move_types),
+        "define": frozenset(d.name for d in library.defines),
+        "procedure": frozenset(p.name for p in library.procedures),
+        "function": frozenset(f.name for f in library.functions) | frozenset(STDLIB_CALL_FUNCS),
+        "enum_value": DIRECTION_VALUES,
+        "zone": frozenset(),
+        "phase": frozenset(),
+        "position": frozenset(),
+        "deck_rank": frozenset(),
+        "deck_suit": frozenset(),
+    }
+
+
+# Why each remaining reference namespace is not swept for a library. Two shapes
+# of reason, and they are not interchangeable: a CLOSED namespace is the same
+# for a library as for a game, so no importing game can feed it; an OWNED one is
+# reached through a name that IS swept, so checking it again would report the
+# same leak twice under a second noun.
+_LIBRARY_UNSWEPT: dict[str, str] = {
+    "stdlib_move_type": "closed: `LIBRARY_MOVE_TYPES`, identical for a library and a game",
+    "stdlib_query": "closed: the stdlib round-query registries, identical either side",
+    "role": "closed: the domain registry (`cardlang.domains`)",
+    "index_domain": (
+        "closed in practice: a state/require index must be an indexable ROLE, so a "
+        "game's `positions { }` cannot be reached through one — a contract naming a "
+        "position domain asks for a declaration the game is itself refused"
+    ),
+    "content_kind": (
+        "unreachable: the item noun sits on a `Movement`, and every movement names at "
+        "least one zone as an ordinary expression, so the classified pass refuses the "
+        "statement before its noun can matter (issue #170)"
+    ),
+    "field": "owned: a struct's fields belong to the type its literal names, which is swept",
+    "param": "owned: a named argument's names belong to the callee, which is swept",
+    "variant_tag": "owned: the tags belong to the define named by `produces:`, which is swept",
+    "rule": "unreachable: `active_rules:` is a phase item, and a library holds no phases",
+    "game": "unreachable: a library is not a game",
+    "library": "unreachable: `uses` is a game clause; libraries do not import libraries",
+    "component_set": "unreachable: `cards:`/`pieces:` is a game clause",
+    "board_family": "unreachable: `board:` is a game clause",
+    "zone_type": "unreachable: `zones { }` is a game clause",
+    "zone_type_arg": "unreachable: `zones { }` is a game clause",
+}
+
+
+def _slot_leaks(library: n.Library) -> tuple[tuple[_SlotLeak, ...], frozenset[str]]:
+    """Every bare-string reference in `library` that names something outside it,
+    and the state names its bare-string slots successfully READ.
+
+    The second half is not a by-product: `state_reads` feeds the contract's
+    MINIMALITY check, and before this sweep existed it accumulated from
+    `NameRef`s alone — so `turns … again <var>` had no correct spelling at all.
+    Naming the variable in `requires` made the entry look dead and the check
+    called the contract non-minimal; leaving it out was the leak. One sweep
+    answers both, which is why they are computed together rather than in two
+    passes that could disagree about what a slot reaches."""
+    legal = _library_slot_names(library)
+    leaks: list[_SlotLeak] = []
+    reads: set[str] = set()
+    for node in _walk(library):
+        for field_name in _NAMING_SLOTS_BY_TYPE.get(type(node), ()):
+            namespace = slot_namespace(node, field_name)
+            if namespace is None:
+                continue
+            allowed = legal.get(namespace)
+            if allowed is None:
+                continue
+            for name in slot_strings(node, field_name):
+                # A type name carries its nullability with it (`Suit?`), exactly
+                # as `_check_declared_type_names` reads it.
+                bare = name.removesuffix("?") if namespace == "type" else name
+                if bare not in allowed:
+                    leaks.append(_SlotLeak(node, field_name, name, namespace))
+                elif namespace == "state":
+                    reads.add(bare)
+    return tuple(leaks), frozenset(reads)
+
+
+@dataclass(frozen=True)
 class _LibraryReach:
     """What a library's definitions reach for, classified against the library's
     OWN namespaces — the input to both directions of the `requires` contract:
     nothing may be reached that the contract does not cover (`unresolved`,
-    `unknown_calls`), and nothing may be in the contract that is never reached
-    (`state_reads`, which the tier's ledger test reads)."""
+    `unknown_calls`, `slot_leaks`), and nothing may be in the contract that is
+    never reached (`state_reads`, which the tier's ledger test reads)."""
 
     unresolved: tuple[n.NameRef, ...]
     unknown_calls: tuple[n.Call, ...]
     card_literals: tuple[n.CardLiteral, ...]
+    slot_leaks: tuple[_SlotLeak, ...]
     state_reads: frozenset[str]
 
 
@@ -711,14 +1123,12 @@ def _library_reach(library: n.Library) -> _LibraryReach:
     `_Categories` is frozen with every field required, so a namespace added to
     it is a mypy error here rather than a silently permissive hole.
 
-    What this DOES NOT see: a name held on a node as a plain `str` rather than a
-    `NameRef`. `_rewrite` classifies `NameRef`s, so a bare-string slot is
-    structurally invisible to it, and `n.CardLiteral` above is the one such slot
-    closed by hand. The rest — `Turns.again` (a state variable),
-    `Round.source_zone`/`play_zone` (zones), `StructLit.type_name` and friends
-    (types), `RuleDef.constrains`/`RunStmt.name`/`Produces.define`/
-    `Offer.move_types`/`Round.move_types` (definitions) — are a recorded
-    residual, not a covered case: issue #138."""
+    A name held on a node as a plain `str` is invisible to that classification —
+    `_rewrite` classifies `NameRef`s, and nothing else. Those slots are swept
+    SEPARATELY and from the registry (`_slot_leaks`), never by a hand-list
+    beside it: `card_literals` and `unknown_calls` below are derived from that
+    sweep rather than collected alongside it, because a table that lands next to
+    the list it replaces leaves the drift exactly where it was."""
     provided_state = library.state.decls if library.state is not None else ()
     cats = _Categories(
         locals=frozenset(),
@@ -756,10 +1166,7 @@ def _library_reach(library: n.Library) -> _LibraryReach:
     # contract into the game exactly as a move-type effect would.
     classified.append(_rewrite_value(provided_state, cats, discarded))
 
-    known_calls = {f.name for f in library.functions} | set(STDLIB_CALL_FUNCS)
     unresolved: list[n.NameRef] = []
-    unknown_calls: list[n.Call] = []
-    card_literals: list[n.CardLiteral] = []
     state_reads: set[str] = set()
     for node in _child_nodes(tuple(classified)):
         if isinstance(node, n.NameRef):
@@ -767,27 +1174,82 @@ def _library_reach(library: n.Library) -> _LibraryReach:
                 unresolved.append(node)
             elif node.ref_kind == "state_var":
                 state_reads.add(node.name)
-        elif isinstance(node, n.Call) and node.func not in known_calls:
-            unknown_calls.append(node)
-        elif isinstance(node, n.CardLiteral):
-            # Every one of them: a card literal's rank and suit are plain
-            # strings on the node, never `NameRef`s, so the classification above
-            # cannot see them — and `cats.ranks`/`cats.suits` are empty for a
-            # library anyway, so any card named here is out of contract by
-            # construction. The deck-agnostic rule with no exception to carve.
-            card_literals.append(node)
+
+    # The bare-string half, over the WHOLE library rather than the classified
+    # definitions: `requires` has no expression to classify but its type names
+    # are references like any other, so a contract can name a type only the
+    # importing game defines.
+    leaks, slot_reads = _slot_leaks(library)
+    # Two namespaces keep a message of their own, so they are lifted out of the
+    # generic list rather than reported twice: a card literal says why a family
+    # library is deck-agnostic, and an unknown call says a library may not reach
+    # into the game that imports it. Both are now FOUND by the registry — only
+    # their wording is special.
+    cards = tuple(
+        dict.fromkeys(
+            leak.node
+            for leak in leaks
+            if isinstance(leak.node, n.CardLiteral)
+        )
+    )
+    calls = tuple(
+        leak.node for leak in leaks if isinstance(leak.node, n.Call) and leak.namespace == "function"
+    )
+    rest = tuple(leak for leak in leaks if leak.node not in cards and leak.node not in calls)
     return _LibraryReach(
         unresolved=tuple(unresolved),
-        unknown_calls=tuple(unknown_calls),
-        card_literals=tuple(card_literals),
-        state_reads=frozenset(state_reads),
+        unknown_calls=calls,
+        card_literals=cards,
+        slot_leaks=rest,
+        state_reads=frozenset(state_reads) | slot_reads,
     )
 
 
+_NAMESPACE_NOUN: dict[str, str] = {
+    "state": "state variable",
+    "zone": "zone",
+    "phase": "phase",
+    "type": "type",
+    "move_type": "move type",
+    "define": "define",
+    "procedure": "procedure",
+    "position": "position domain",
+    "enum_value": "direction value",
+}
+
+# What a library may hold of each namespace, said in the second person, for the
+# advice half of the diagnostic. The three empty namespaces get the design's
+# reason rather than "define one": a library CANNOT declare a zone, a phase or a
+# position domain, so "declare it here" would be advice its author cannot take.
+_NAMESPACE_ADVICE: dict[str, str] = {
+    "state": "name it in the `requires` contract and let the including game declare it",
+    "zone": (
+        "a library declares no zones — take the zone as a parameter, or keep the "
+        "definition that needs it in the game"
+    ),
+    "phase": (
+        "a library holds no phases, and the phase sequence is the including game's — "
+        "keep the definition that needs it in the game"
+    ),
+    "type": "declare the type in the library, or keep this definition in the game",
+    "move_type": "define the move type in the library, or keep this definition in the game",
+    "define": "define it in the library, or keep this definition in the game",
+    "procedure": "define the procedure in the library, or keep this definition in the game",
+    "position": (
+        "a library declares no position domains — keep the definition that needs it "
+        "in the game"
+    ),
+    "enum_value": (
+        "a family library is deck-agnostic, so only the direction values are "
+        "universal — take the value as a parameter"
+    ),
+}
+
+
 def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None:
-    """Every name a library's definitions reach THROUGH THE CLASSIFIER must be
-    in its `requires` contract, its own definitions, the stdlib, or the pronouns
-    and binders any body has anyway.
+    """Every name a library's definitions reach must be in its `requires`
+    contract, its own definitions, the stdlib, or the pronouns and binders any
+    body has anyway.
 
     This is what makes the contract sufficient rather than advisory for that
     class of reference, and it is a property of the library alone — so it is
@@ -798,10 +1260,11 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
     text the game's author never wrote. That is the exact currency failure
     `_check_requires` exists to prevent, arriving through the back door.
 
-    The class is bounded, and the boundary is not the design's — it is this
-    implementation's: a name held on a node as a plain `str` is invisible here.
-    `_library_reach`'s docstring lists the slots that escape and issue #138
-    records the shape of the fix. Do not read this wall as proving the whole property.
+    The class is bounded by the reference-slot registry rather than by which
+    slots anyone remembered: a name reaching a namespace `_library_slot_names`
+    covers is refused, and every remaining namespace carries its reason in
+    `_LIBRARY_UNSWEPT`. That is the property this wall can be read as proving —
+    it is no longer "everything the classifier happens to see".
 
     Reported in the LIBRARY's currency: the span is in the library file, because
     the library author is the only one who can fix it. The importing game's one
@@ -830,6 +1293,15 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
             f"do not share a deck, and Kuhn's holds three cards. Take the card "
             f"as a parameter, or keep the definition that needs it in the game",
             card.span,
+        )
+    for leak in reach.slot_leaks:
+        bag.error(
+            f"library '{library.name}' names the "
+            f"{_NAMESPACE_NOUN[leak.namespace]} '{leak.name}', which the library "
+            f"does not have — it would resolve against whichever game imports "
+            f"this, so the library is not self-contained: "
+            f"{_NAMESPACE_ADVICE[leak.namespace]}",
+            getattr(leak.node, "span", None),
         )
     # A PROVIDED default reaching the contract is in scope for the general
     # declare-order wall too (`_check_state_default_scope`), which would refuse
