@@ -21,6 +21,7 @@ from cardlang.runtime import observe, phases, reads, rules, sidecar
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, Move
 from cardlang.runtime.values import Player
+from cardlang.stdlib.moves import RULE_ENFORCED_MOVE_TYPE
 
 # ---------------------------------------------------------------------------
 # The parameterized decision interpreter
@@ -156,7 +157,9 @@ class TrickForm:
         return None  # turn order ran out: every participant has played
 
     def candidates(self, actor: Player, state: State, ctx: Ctx) -> list[Any]:
-        candidates = rules.legal_cards(actor, "play_to_trick", self.trick_ctx)
+        candidates = rules.legal_cards(
+            actor, RULE_ENFORCED_MOVE_TYPE, self.trick_ctx
+        )
         if not candidates:
             # No implicit pass: a player on turn must have a legal play. An empty
             # set means a rule filtered every card with no `if_impossible` fallback,

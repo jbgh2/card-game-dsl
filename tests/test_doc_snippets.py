@@ -241,7 +241,7 @@ def _wrap_active_rules_shadowing(frag: str) -> str:
     # (no +/-/override). The rule names are the doc's own illustrative
     # letters, given a trivial always-true body against the stdlib move type.
     rules = "\n".join(
-        f"rule {name} {{ constrains: play_to_trick applies_when: always }}"
+        f"rule {name} {{ constrains: play_to_trick applies_when: always demands: cards in hand where card.suit is hearts if_impossible: hand }}"
         for name in ("A", "B", "C", "X", "Y")
     )
     return _game(f"{frag}\n  winner: highest score", top_level=rules)
@@ -250,7 +250,7 @@ def _wrap_active_rules_shadowing(frag: str) -> str:
 def _wrap_first_trick_phase(frag: str) -> str:
     rule = (
         "rule MustLeadAceOfSpadesOnFirstPlay "
-        "{ constrains: play_to_trick applies_when: always }"
+        "{ constrains: play_to_trick applies_when: always demands: cards in hand where card.suit is hearts if_impossible: hand }"
     )
     return _game(f"{frag}\n  winner: highest score", top_level=rule)
 
@@ -305,13 +305,11 @@ game Skeleton {{
 
 
 def _wrap_passing_phase(frag: str) -> str:
-    # `transfer_between_hands` is a stdlib move type (cardlang/stdlib/moves.py);
-    # PassExactlyThreeCards is given a trivial always-true body against it.
-    rule = (
-        "rule PassExactlyThreeCards "
-        "{ constrains: transfer_between_hands applies_when: always }"
-    )
-    return _game(f"{frag}\n  winner: highest score", top_level=rule)
+    # No rule shim: the passing phase's "exactly three" law is the movement's
+    # `chosen 3`, not a rule. A rule constraining `transfer_between_hands`
+    # reaches no decision site and is rejected
+    # (tests/test_rule_surface_reachability.py).
+    return _game(f"{frag}\n  winner: highest score")
 
 
 def _wrap_actor_alias(frag: str) -> str:
