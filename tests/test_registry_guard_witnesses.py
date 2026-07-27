@@ -47,7 +47,7 @@ property:   every conjunct of every registry-reconciliation guard in
             requires the guard's own message back.
 domain:     DERIVED, not the two sites the issue named. The vocabulary is
             every module-level ALL-CAPS constant defined anywhere in
-            `cardlang/` (184 today) — completeness by superset, so a registry
+            `cardlang/` — completeness by superset, so a registry
             that is not the role table is in scope the day it exists. A guard
             is an `assert`, or an `if` whose body raises, whose test compares
             one of those constants against a LITERAL collection; the cells are
@@ -64,9 +64,8 @@ covered:    the grid — `test_every_conjunct_has_a_witness`, parametrized over
             ordered these two issues for. The classifier itself is pinned
             against a synthetic module carrying every shape it must accept and
             every near-miss it must reject
-            (`test_the_census_classifies_each_shape`), so "the class is
-            exactly two" is a claim about the repo rather than about this
-            walk. The band the literal-collection predicate excludes is walled
+            (`test_the_census_classifies_each_shape`), so the derived class is
+            a claim about the repo rather than about this walk. The band the literal-collection predicate excludes is walled
             as a per-module multiset
             (`test_registry_guards_outside_the_literal_shape_are_walled`)
             rather than left silent. The witnesses themselves are the three
@@ -419,7 +418,7 @@ def test_widening_zone_index_roles_fails_resolve_at_import() -> None:
     assert "empty-domain walls" in proc.stdout, proc.stdout
 
 
-# The 11 registry-referencing guards the literal-collection predicate excludes.
+# The registry-referencing guards the literal-collection predicate excludes.
 # Authorized one by one: each either validates a value AGAINST the registry
 # (widening the table widens the guard, so there is no hard-coded row to
 # witness) or reconciles two derived views against each other, which likewise
@@ -505,9 +504,11 @@ def rejected_text_only(x):
 def test_the_census_classifies_each_shape(tmp_path: pathlib.Path) -> None:
     """The classifier is the load-bearing artifact, so prove it discriminates.
 
-    "The class is exactly two" must be a claim about the repo, not about this
-    walk. Nine shapes: five that must be classified as reconciliation cells and
-    four near-misses that must not. Two of the rejections are the real
+    "The class is exactly the pinned table" must be a claim about the repo,
+    not about this walk. The probe carries a shape for every accepted form and
+    a near-miss for every way one could be mistaken for it; the expected list
+    below is the assertion, so neither a count here nor a count in the ledger
+    can drift away from it. Two of the rejections are the real
     exclusions, kept honest by being written the way the real sites are —
     `runtime/state.py`'s registry-vs-variable membership test, and
     `runtime/mechanics.py`'s scalar dispatch whose `if` body happens to contain
