@@ -89,7 +89,9 @@ residual:   THREE:
             without its own framing check, and the census cannot see it: a
             missing guard has no syntax. The one member found while deriving
             this class is `runtime/mechanics.py`'s round-order dispatch, filed
-            as issue #165 (R3) rather than fixed here.
+            as issue #165 rather than fixed here — R4, since reaching it means
+            widening `ROUND_ORDER_MODES`, and filed anyway because closed-domain
+            dispatch is rigor-critical.
             (2) a witness proves a conjunct CAN fire; it cannot prove the
             message names the right remedy, which is prose. Each witness
             asserts on the message text, so a reworded message that stops
