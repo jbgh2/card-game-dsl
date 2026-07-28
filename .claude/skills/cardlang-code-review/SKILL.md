@@ -248,3 +248,11 @@ everything".
   one-per-ledger, not one-per-branch. For author-side completeness proof,
   hand off to `surface-totality-audit` — the review samples; the audit
   proves.
+- **The tier keys to the delta's side of the scaffolding test**
+  (decisions.md, "The machinery is guarded once"): a diff that changes no
+  refusal, no runtime step, and no proof obligation caps at **Standard** —
+  no adversarial probe subagents, one review round, its findings filed
+  with their reachability rather than driven to fix-now. Thorough is
+  reserved for deltas a designer, the corpus, or a proof can meet, and a
+  request for more on a scaffolding-only diff gets this rule quoted back
+  before it gets the subagents.
