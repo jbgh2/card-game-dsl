@@ -94,17 +94,23 @@ residual:   FIVE, each with its wall or its owner:
             (1) an axis that NARROWS without reaching zero (a glob matching 3
             of 60 modules) is the same defect and no count-based check sees it.
             Deliberately not machinery: issue #143's scope note for #150 rules
-            it a recorded residual, and this ledger owns that record. R2.
+            it a recorded residual, and this ledger owns that record. R4 —
+            narrowing a derived axis means editing the machinery that derives
+            it; no game and no designer sentence can reach it.
             (2) a nonempty axis every row of which skips at RUN time
             (`tests/test_family_libraries.py`, `tests/fuzz/test_fuzz.py` call
             `pytest.skip()` from inside the test body) evaporates the same
             guarantee one stage later, where a collection-time wall cannot
-            reach. No wall; recorded as issue #162. R2.
+            reach. No wall; recorded as issue #162 — R4, and filed anyway
+            because the guarantee it guards (a check that claims coverage
+            actually runs) is rigor-critical.
             (3) a module that skips itself at COLLECTION takes every test in it
             away. Today that is only `pytest.importorskip("pyspiel")`, walled
             by `tests/test_optional_pyspiel.py::test_every_test_module_imports_without_pyspiel`
             plus CI installing the extra — a wall that exists, in another
-            module, so it is named rather than rebuilt. R2.
+            module, so it is named rather than rebuilt. R4 — reaching it
+            takes a test author adding an `importorskip`, or an install
+            without the extra.
             (4) a `reason` is prose. It is required to be nonempty and to sit
             at the call site, but nothing checks that it stays true; the
             staleness pin covers the case that actually bites (the axis becomes
