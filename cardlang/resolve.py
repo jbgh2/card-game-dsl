@@ -437,6 +437,11 @@ _KEYWORD_SLOTS: frozenset[tuple[type, str]] = frozenset(
         (n.Round, "order_mode"),
         (n.Winner, "rank_dir"),
         (n.Game, "ranking_convention"),
+        # Annotated `Flavor` (a `Literal`), not `str` — which is exactly why it
+        # was the one field the registry's first domain predicate missed. It
+        # holds a string like any other keyword slot: the clause that selected
+        # the component set, stamped at parse.
+        (n.Game, "content_flavor"),
     }
 )
 

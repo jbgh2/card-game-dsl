@@ -15,19 +15,25 @@ property: every `str`-typed field of every AST node carries exactly one
           classification, and the classification set is exhaustive — no field
           can exist unclassified, and no classification can name a field that
           does not exist.
-domain:   every (dataclass, field) pair in `cardlang.ast.nodes` whose annotation
-          mentions `str` anywhere — bare `str`, `str | None`,
-          `tuple[str, ...]`, or a union with `str` among its members
-          (`Movement.amount`).
+domain:   every (dataclass, field) pair in `cardlang.ast.nodes` that can HOLD a
+          string — bare `str`, `str | None`, `tuple[str, ...]`, a union with
+          `str` among its members (`Movement.amount`), and a `Literal` of
+          strings (`Game.content_flavor`, annotated `Flavor`). The predicate is
+          "can hold", not "mentions `str`": the second spelling shipped first
+          and silently excluded the `Literal` member while this ledger claimed
+          no field could be excluded.
 registry: the AST module itself, introspected. `tests/test_node_registry.py`
           owns the prior link in the chain — that `n.Node` is exactly the
           module's dataclasses — so this module derives its node axis from the
           union and inherits that pin rather than repeating it.
 covered:  the full membership equation, both directions, plus pairwise
-          disjointness of the seven kinds. The SHAPE column (which of the four
-          annotation shapes a slot has) is derived here and checked against
-          `resolve.slot_strings`, so the extraction is total by construction
-          rather than by the reader believing the annotations were read.
+          disjointness of the seven kinds. The SHAPE column is derived here and
+          checked against `resolve.slot_strings`, so the extraction is total by
+          construction rather than by the reader believing the annotations were
+          read. The gap between "holds a string" and "names `str`" is swept as
+          its own class (`test_the_string_valued_class_is_swept_not_patched`)
+          and pinned at its members, so widening the domain means widening the
+          predicate rather than adding a row.
 sampled:  none.
 residual: the SEMANTIC column is authored, not derived, and cannot be otherwise
           — `str` is `str`, and what a slot MEANS is not in its annotation. What
@@ -43,7 +49,11 @@ The framing check (surface-totality-audit Step 1) ran against `nodes.py` and the
 grammar as the definition sources, with the author's table as provisional input;
 it did not run in a fresh context, so it is the weaker form of that check. Its
 diff is what moved `NameRef.name`/`ref_kind` out of `reference` into kinds of
-their own and what added `Movement.item` as a game-fed slot.
+their own and what added `Movement.item` as a game-fed slot. A later plant
+against this module's OWN totality claim — the adversarial form, negating the
+claim rather than re-reading the table — is what found the `Literal` member;
+that is evidence for the plant, not for the framing check, which had passed
+over it.
 """
 
 from __future__ import annotations
@@ -84,13 +94,22 @@ _KIND_TABLES: tuple[tuple[str, frozenset[Slot]], ...] = (
 )
 
 
-def _mentions_str(annotation: object) -> bool:
-    """Whether `str` appears anywhere in an annotation — the domain's defining
-    predicate, applied to the four shapes the AST actually uses and to any
-    nesting of them."""
+def _holds_a_string(annotation: object) -> bool:
+    """Whether a field with this annotation can hold a string — the domain's
+    defining predicate.
+
+    Deliberately NOT "does the annotation mention `str`". That was the first
+    spelling and it was wrong by one member: `Literal["card", "piece"]` holds a
+    string and never names `str`, so `Game.content_flavor` sat outside the
+    domain while the pin below claimed no field could. The predicate asks what a
+    field can CONTAIN, which is the question every consumer of the registry is
+    really asking; `_string_valued_but_not_str_annotated` sweeps the class the
+    old spelling missed and pins it at one member."""
     if annotation is str:
         return True
-    return any(_mentions_str(arg) for arg in typing.get_args(annotation))
+    if typing.get_origin(annotation) is typing.Literal:
+        return any(isinstance(arg, str) for arg in typing.get_args(annotation))
+    return any(_holds_a_string(arg) for arg in typing.get_args(annotation))
 
 
 def _string_slots() -> dict[Slot, object]:
@@ -102,7 +121,7 @@ def _string_slots() -> dict[Slot, object]:
         hints = typing.get_type_hints(cls)
         for field in dataclasses.fields(cls):
             annotation = hints[field.name]
-            if _mentions_str(annotation):
+            if _holds_a_string(annotation):
                 slots[(cls, field.name)] = annotation
     return slots
 
@@ -131,6 +150,54 @@ def test_the_registry_is_exactly_the_asts_string_fields() -> None:
         f"classified slots that do not exist on their node: {extra} — the row "
         f"classifies nothing, and reads as coverage"
     )
+
+
+def _names_str(annotation: object) -> bool:
+    """The domain's FIRST predicate, kept verbatim as the thing to diff against:
+    does `str` appear anywhere in the annotation. Recursive, because the shallow
+    version is wrong too — `tuple[str, ...] | None` names `str` two levels down,
+    and a one-level check reports it as unannotated."""
+    if annotation is str:
+        return True
+    return any(_names_str(arg) for arg in typing.get_args(annotation))
+
+
+def _string_valued_but_not_str_annotated() -> list[str]:
+    """The class the domain's first predicate missed: a field that holds a
+    string while its annotation never names `str`."""
+    return sorted(
+        _name((cls, field.name))
+        for cls in typing.get_args(n.Node)
+        for field in dataclasses.fields(cls)
+        if _holds_a_string(hints := typing.get_type_hints(cls)[field.name])
+        and not _names_str(hints)
+    )
+
+
+def test_the_string_valued_class_is_swept_not_patched() -> None:
+    """The domain's predicate asks what a field can HOLD, not what its
+    annotation says. Those differ for exactly one shape today —
+    `Literal["card", "piece"]` — and this pins the class at its members rather
+    than at the instance that exposed it.
+
+    The instance was `Game.content_flavor`, found by planting the negation of
+    this module's own totality claim. The fix was the predicate, not a row: a
+    row would have left the next `Literal`-typed field escaping in the same way.
+
+    red under: drop the `Literal` arm from `_holds_a_string` — RUN, and it
+    reddens this test and the membership pin together, the member leaving the
+    derived domain while its registry row stays. That pairing is the point: with
+    the row absent as well (the state this branch found), only this test can
+    fire, because the membership pin compares two views that agree on being
+    wrong."""
+    members = _string_valued_but_not_str_annotated()
+    assert members == ["Game.content_flavor"], (
+        f"the string-valued-but-not-str-annotated class is {members} — every "
+        f"member must be in the registry's domain, so widening it means "
+        f"widening `_holds_a_string`, never adding a row"
+    )
+    for member in members:
+        assert member in {_name(slot) for slot in STRING_SLOT_KINDS}
 
 
 def test_the_kind_axis_is_the_whole_registry() -> None:
@@ -217,6 +284,8 @@ def _shape(annotation: object) -> str:
     """Which of the annotation shapes a slot has, read off the annotation."""
     if annotation is str:
         return "bare"
+    if typing.get_origin(annotation) is typing.Literal:
+        return "literal"
     args = typing.get_args(annotation)
     if typing.get_origin(annotation) is tuple:
         return "tuple"
@@ -232,7 +301,7 @@ def test_every_slot_shape_is_one_of_four() -> None:
 
     red under: annotate a node field as `list[str]` or `dict[str, str]`."""
     shapes = {_shape(a) for a in _string_slots().values()}
-    assert shapes <= {"bare", "optional", "tuple", "union"}, shapes
+    assert shapes <= {"bare", "optional", "tuple", "union", "literal"}, shapes
 
 
 def test_slot_strings_reads_every_shape_whole() -> None:
