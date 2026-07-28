@@ -35,19 +35,44 @@ covered:  the full membership equation, both directions, plus pairwise
           and pinned at its members, so widening the domain means widening the
           predicate rather than adding a row.
 sampled:  none.
-residual: the SEMANTIC column is authored, not derived, and cannot be otherwise
+residual: ONE, and it is worth stating in the shape a reader can act on rather
+          than as a caveat.
+
+          The SEMANTIC column is authored, not derived, and cannot be otherwise
           — `str` is `str`, and what a slot MEANS is not in its annotation. What
-          is derived is the KEY set and the shape column. A slot classified into
-          the wrong namespace is therefore reachable by this pin only when the
-          namespace does not exist at all (`test_every_namespace_is_named`); a
-          wrong-but-real namespace is caught by the consumer grids in
-          `tests/test_family_libraries.py`, not here. Stated because "derived
+          is derived is the KEY set and the shape column. Stated because "derived
           and pinned" would otherwise read as a claim the classification itself
           is derived.
 
+          WHAT THE EXPOSURE IS: mis-classification, never omission. A slot
+          cannot be missing — the derived domain and the membership pin make that
+          impossible — so the surviving risk is a slot filed under the wrong kind
+          or namespace: something called `keyword`, `binder` or `opaque` that is
+          in fact a game-fed reference. That is precisely the original defect
+          (issue #138) surviving in a single cell, and a library author would
+          meet it exactly as before. A namespace that does not exist at all is
+          caught here (`test_every_namespace_is_named`); a wrong-but-real one is
+          caught by the consumer grids in `tests/test_family_libraries.py`, and
+          only for slots those grids reach.
+
+          WHAT WOULD CLOSE IT: a second family library, using the constructs
+          `poker_betting` never touches — `round`, `offer`, `produces:`, a struct
+          type. It is the next item on the tracker's ordering issue (#143), and
+          it closes this by EXECUTION: a real library either binds cleanly or
+          surfaces the mis-classified cell. Deliberately not closed by more
+          checking machinery. Re-deriving the authored column mechanically would
+          re-check only the categories this module already invented, and its
+          expected findings are auditor-only — the shape the planning gate routes
+          to record-and-file rather than build (decisions.md, "Reachability ranks
+          the work"; CLAUDE.md, "Execution finds what enumeration cannot").
+
 The framing check (surface-totality-audit Step 1) ran against `nodes.py` and the
 grammar as the definition sources, with the author's table as provisional input;
-it did not run in a fresh context, so it is the weaker form of that check. Its
+it did not run in a fresh context, so it is the weaker form of that check. That
+weakness lands on the same cell as the residual above and nowhere else: the
+check's job is to catch a NARROWED domain, and this domain is derived, so what
+it could still have narrowed is which bucket a slot went into. Same exposure,
+same closer — do not read the two as separate debts. Its
 diff is what moved `NameRef.name`/`ref_kind` out of `reference` into kinds of
 their own and what added `Movement.item` as a game-fed slot. A later plant
 against this module's OWN totality claim — the adversarial form, negating the
