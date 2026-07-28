@@ -66,6 +66,7 @@ import pytest
 import cardlang.ast.nodes as n
 from cardlang.resolve import (
     STRING_SLOT_KINDS,
+    _CONTEXTUAL_SLOTS,
     _BINDER_SLOTS,
     _CLASSIFIED_SLOTS,
     _DECLARATION_SLOTS,
@@ -101,14 +102,23 @@ def _holds_a_string(annotation: object) -> bool:
     Deliberately NOT "does the annotation mention `str`". That was the first
     spelling and it was wrong by one member: `Literal["card", "piece"]` holds a
     string and never names `str`, so `Game.content_flavor` sat outside the
-    domain while the pin below claimed no field could. The predicate asks what a
-    field can CONTAIN, which is the question every consumer of the registry is
-    really asking; `_string_valued_but_not_str_annotated` sweeps the class the
-    old spelling missed and pins it at one member."""
-    if annotation is str:
-        return True
+    domain while the pin below claimed no field could.
+
+    The second spelling was wrong too, and in the same shape: widening for
+    `Literal` alone left `NewType("ZoneName", str)` escaping, and — because
+    `_string_valued_but_not_str_annotated` shares this predicate — escaping BOTH
+    views at once, which is the "two readings agreeing on being wrong" failure
+    this module warns about. So the question is now asked structurally: can a
+    value of this annotation BE a string. Three ways it can — the type is a `str`
+    subclass, a `Literal` over strings, or a `NewType` whose base qualifies —
+    plus recursion through any generic's arguments."""
+    if isinstance(annotation, type) and issubclass(annotation, str):
+        return True  # `str` itself, and any subclass (a `StrEnum`, a NewType's base)
     if typing.get_origin(annotation) is typing.Literal:
         return any(isinstance(arg, str) for arg in typing.get_args(annotation))
+    supertype = getattr(annotation, "__supertype__", None)
+    if supertype is not None:
+        return _holds_a_string(supertype)  # `NewType("ZoneName", str)`
     return any(_holds_a_string(arg) for arg in typing.get_args(annotation))
 
 
@@ -198,6 +208,61 @@ def test_the_string_valued_class_is_swept_not_patched() -> None:
     )
     for member in members:
         assert member in {_name(slot) for slot in STRING_SLOT_KINDS}
+
+
+# One node per BRANCH of each contextual slot's read function. The witnesses are
+# authored, but the pin below is self-enforcing in both directions: a declared
+# namespace no witness produces fails, and a namespace a witness produces that
+# nobody declared fails. So a thin witness set cannot quietly pass — it reddens
+# until either the witness or the declaration is fixed.
+_CONTEXTUAL_WITNESSES: dict[Slot, tuple[object, ...]] = {
+    (n.Member, "field"): (
+        n.Member(obj=n.NameRef("state"), field="score"),  # the pronoun -> state
+        n.Member(obj=n.NameRef("action"), field="card"),  # any other object -> field
+        n.Member(obj=n.Member(obj=n.NameRef("state"), field="a"), field="b"),
+    ),
+    (n.DomainQuery, "binder"): (
+        # bare (`source is None`) names the domain; the collection form binds a
+        # fixed noun and names nothing.
+        n.DomainQuery(kind="any", binder="cell", spelled="cell", source=None, pred=n.NameRef("t")),
+        n.DomainQuery(
+            kind="all",
+            binder="cell",
+            spelled="cells",
+            source=n.NameRef("lines"),
+            pred=n.NameRef("t"),
+        ),
+    ),
+}
+
+
+def test_contextual_slots_declare_exactly_the_namespaces_they_return() -> None:
+    """`_ContextualSlot.namespaces` is the ONLY hand-written list left in the
+    registry, and it is the one the derived grid axis is computed from — so it
+    is the one place a wrong entry silently widens or narrows the coverage
+    domain in either direction.
+
+    It shipped unpinned. An adversarial audit planted four disagreements — a
+    declaration missing a namespace the function returns, a declaration naming
+    two it never returns, and a function returning a namespace outside its
+    declaration (twice, including one with a non-empty legal set, a real
+    behaviour change) — and every one left the whole suite green. This test is
+    that hole closed: the field exists to remove a hand-list, so it may not
+    itself be an unverified one.
+
+    red under: any of those four plants. Each now reddens here."""
+    assert set(_CONTEXTUAL_WITNESSES) == set(_CONTEXTUAL_SLOTS), (
+        "every contextual slot needs witnesses, or its declaration is unchecked"
+    )
+    for (cls, field), witnesses in _CONTEXTUAL_WITNESSES.items():
+        declared = _CONTEXTUAL_SLOTS[(cls, field)].namespaces
+        assert all(type(w) is cls for w in witnesses), (cls, field)
+        observed = {ns for w in witnesses if (ns := slot_namespace(w, field)) is not None}
+        assert observed == declared, (
+            f"{cls.__name__}.{field} declares {sorted(declared)} but its witnesses "
+            f"produce {sorted(observed)} — the declared set is what the grid axis "
+            f"is derived from, so a disagreement moves the coverage domain silently"
+        )
 
 
 def test_the_kind_axis_is_the_whole_registry() -> None:

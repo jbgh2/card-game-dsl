@@ -1031,35 +1031,67 @@ def _library_slot_names(library: n.Library) -> dict[str, frozenset[str]]:
     }
 
 
-# Why each remaining reference namespace is not swept for a library. Two shapes
-# of reason, and they are not interchangeable: a CLOSED namespace is the same
-# for a library as for a game, so no importing game can feed it; an OWNED one is
-# reached through a name that IS swept, so checking it again would report the
-# same leak twice under a second noun.
+# Why each REACHABLE reference namespace is not swept here. Rows exist only for
+# namespaces a library's own text can actually name: an excuse for something
+# unreachable excuses nothing, and a table holding those cannot be pinned in the
+# deleting direction — `test_every_reachable_reference_namespace_is_swept_or_
+# excused` would stay green with the row gone, which makes the row read as a
+# guarantee it never was. (The unreachable namespaces are `rule`, `game`,
+# `library`, `component_set`, `board_family`, `zone_type` and `zone_type_arg`,
+# each because its clause — `active_rules:`, `zones { }`, `cards:`, `board:`,
+# `uses` — is a GAME clause the library grammar has no production for.)
+#
+# Three shapes of reason, and they are not interchangeable. CLOSED: the
+# namespace is the same for a library as for a game, so no importing game can
+# feed it. WALLED ELSEWHERE: the name IS game-fed, and another pass refuses it —
+# the row must then say WHICH pass, because "something catches it" is how a
+# reason becomes untrue without anyone noticing. DESIGNED: nothing checks the
+# name anywhere, by a recorded decision.
+#
+# Every reason below was PROBED, not reasoned. The three that are not simply
+# closed were all wrong on first writing — each said the classified pass refused
+# the case, and each case in fact resolves clean and is refused a stage later.
 _LIBRARY_UNSWEPT: dict[str, str] = {
     "stdlib_move_type": "closed: `LIBRARY_MOVE_TYPES`, identical for a library and a game",
     "stdlib_query": "closed: the stdlib round-query registries, identical either side",
-    "role": "closed: the domain registry (`cardlang.domains`)",
     "index_domain": (
-        "closed in practice: a state/require index must be an indexable ROLE, so a "
-        "game's `positions { }` cannot be reached through one — a contract naming a "
-        "position domain asks for a declaration the game is itself refused"
+        "closed: a state/require index must be an indexable ROLE, so a game's "
+        "`positions { }` cannot be reached through one — a contract naming a position "
+        "domain asks for a declaration the game is itself refused (probed both ways)"
+    ),
+    "role": (
+        "walled elsewhere, and NOT closed — the row's first reading was wrong. The role "
+        "NAMES are the domain registry's, but `suit`/`rank` admissibility follows the "
+        "importing game's component set: `for each suit` is accepted by a card game and "
+        "refused by a piece game. So this is deck-agnosticism escaping through a role, "
+        "the same property `deck_rank`/`deck_suit` are swept for. It is not silent — "
+        "typecheck's flavor wall refuses it in the LIBRARY's currency — but the "
+        "library-alone property is weaker here than the sweep provides (issue #183)"
     ),
     "content_kind": (
-        "unreachable: the item noun sits on a `Movement`, and every movement names at "
-        "least one zone as an ordinary expression, so the classified pass refuses the "
-        "statement before its noun can matter (issue #170)"
+        "walled elsewhere: typecheck compares the item noun against the game's content "
+        "flavor and reports in the library's currency. NOT, as this row first claimed, "
+        "because a movement always names a zone the classified pass refuses — a "
+        "movement whose source is a `let` or a binder resolves clean and is refused at "
+        "typecheck (issue #170)"
     ),
-    "field": "owned: a struct's fields belong to the type its literal names, which is swept",
-    "param": "owned: a named argument's names belong to the callee, which is swept",
-    "variant_tag": "owned: the tags belong to the define named by `produces:`, which is swept",
-    "rule": "unreachable: `active_rules:` is a phase item, and a library holds no phases",
-    "game": "unreachable: a library is not a game",
-    "library": "unreachable: `uses` is a game clause; libraries do not import libraries",
-    "component_set": "unreachable: `cards:`/`pieces:` is a game clause",
-    "board_family": "unreachable: `board:` is a game clause",
-    "zone_type": "unreachable: `zones { }` is a game clause",
-    "zone_type_arg": "unreachable: `zones { }` is a game clause",
+    "variant_tag": (
+        "walled elsewhere: a `produce` outside a define or outcome-phase body is "
+        "refused outright, and a tag naming no declared variant is refused against the "
+        "variant registry — both in the library's currency (probed via the full "
+        "pipeline; `resolve` alone accepts them, which is what made the first reading "
+        "of this row say the tags were merely `owned` by a swept name)"
+    ),
+    "param": (
+        "walled elsewhere: `NamedArg` is refused outright — named call arguments are "
+        "not supported, so the parameter name never reaches a namespace"
+    ),
+    "field": (
+        "designed: `x.field` on anything but the `state` pronoun is a field of that "
+        "object's type, and the pronoun namespaces' fields are `TAny` by decision "
+        "(decisions.md, the `action` trap) — so there is nothing to check rather than "
+        "something owned elsewhere"
+    ),
 }
 
 
@@ -1228,9 +1260,13 @@ _NAMESPACE_NOUN: dict[str, str] = {
 # position domain, so "declare it here" would be advice its author cannot take.
 _NAMESPACE_ADVICE: dict[str, str] = {
     "state": "name it in the `requires` contract and let the including game declare it",
+    # No "take it as a parameter" here, and that is not an oversight: there is no
+    # zone-valued type to declare a parameter AT (`Zone`, `Hand`, `Deck` are all
+    # refused as type names), so the advice would send the author round the same
+    # wall. Advice an author cannot take is worse than none.
     "zone": (
-        "a library declares no zones — take the zone as a parameter, or keep the "
-        "definition that needs it in the game"
+        "a library declares no zones, and there is no zone-valued parameter type to "
+        "pass one in by — keep the definition that needs it in the game"
     ),
     "phase": (
         "a library holds no phases, and the phase sequence is the including game's — "
@@ -1244,9 +1280,12 @@ _NAMESPACE_ADVICE: dict[str, str] = {
         "a library declares no position domains — keep the definition that needs it "
         "in the game"
     ),
+    # Likewise: `rotate … through [ … ]` takes a list of literal names, not
+    # expressions, so a parameter can never stand in one of those slots.
     "enum_value": (
-        "a family library is deck-agnostic, so only the direction values are "
-        "universal — take the value as a parameter"
+        "a family library is deck-agnostic, so only the direction values mean anything "
+        "here — and `rotate` takes literal names rather than expressions, so a "
+        "parameter cannot stand in for one: keep the definition that needs it in the game"
     ),
 }
 

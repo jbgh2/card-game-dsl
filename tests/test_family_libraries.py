@@ -1848,17 +1848,29 @@ def test_every_reachable_reference_namespace_is_swept_or_excused() -> None:
     no artifact that could tell "decided not to sweep" from "nobody thought of
     it". Here the two are different table rows and the third possibility fails.
 
-    red under: delete a row from `_LIBRARY_UNSWEPT`, or a namespace key from
-    `_library_slot_names`."""
+    red under: delete ANY row from `_LIBRARY_UNSWEPT`, or a namespace key from
+    `_library_slot_names`. That is now true of every row, and was not when this
+    test was written: the table then carried seven excuses for namespaces a
+    library cannot reach at all, and deleting all seven left the suite green —
+    an audit ran exactly that plant. An excuse for the unreachable excuses
+    nothing, so those rows are gone (their content is in the table's header
+    comment, where a claim nothing checks belongs)."""
     empty = n.Library(name="none")
     swept = set(_library_slot_names(empty))
     excused = set(_LIBRARY_UNSWEPT)
-    unclassified = sorted(_reachable_reference_namespaces() - swept - excused)
+    reachable = _reachable_reference_namespaces()
+    unclassified = sorted(reachable - swept - excused)
     assert not unclassified, (
         f"reference namespaces a library can reach that are neither swept nor "
         f"excused: {unclassified}"
     )
     assert not swept & excused, sorted(swept & excused)
+    vacuous = sorted(excused - reachable)
+    assert not vacuous, (
+        f"excuses for namespaces a library cannot reach: {vacuous} — the row "
+        f"guards nothing, and its deletion cannot redden this test, so it reads "
+        f"as a verified claim while being an unverified one"
+    )
 
 
 def test_the_slot_grid_covers_every_swept_reachable_slot() -> None:
