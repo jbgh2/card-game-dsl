@@ -21,12 +21,15 @@ from cardlang.parse import parse_to_tree
 HEARTS = Path(__file__).parent.parent / "docs" / "games" / "hearts.cardlang"
 
 
-def test_hearts_parses_into_one_game_and_three_rules() -> None:
+def test_hearts_parses_into_one_game_and_two_rules() -> None:
     # The Hearts-specific rules only: MustFollowSuit and
     # NoLeadingSuitUntilBroken live in the standard library, not the file.
     tree = parse_to_tree(HEARTS.read_text(), str(HEARTS))
     top = tree.children
-    assert len(top) == 4
+    # game + 2 rules. `PassExactlyThreeCards` was a third until its
+    # `demands: actions where` form was walled as unenforceable
+    # (tests/test_rule_surface_reachability.py).
+    assert len(top) == 3
     kinds = [t.data for t in top if isinstance(t, Tree)]
     assert kinds.count("game") == 1
-    assert kinds.count("rule_def") == 3
+    assert kinds.count("rule_def") == 2

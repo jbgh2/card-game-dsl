@@ -898,12 +898,22 @@ class AppliesWhen:
     span: Span | None = None
 
 
+# The `demands:` clause's two forms, one per `demand_value` grammar
+# alternative. A REGISTRY, not a comment: the enforcement wall is written as
+# the complement of the enforced kind (`kind != DEMAND_KIND_CARDS`), so a third
+# form added here is rejected on arrival rather than silently ignored — and the
+# rule grid derives its axis from this set instead of hand-listing it.
+DEMAND_KIND_CARDS = "cards"
+DEMAND_KIND_ACTIONS = "actions"
+DEMAND_KINDS: frozenset[str] = frozenset({DEMAND_KIND_CARDS, DEMAND_KIND_ACTIONS})
+
+
 @dataclass(frozen=True, slots=True)
 class Demands:
-    """`demands:` — a candidate-card set (kind="cards") or a move predicate
-    (kind="actions", an `actions where …` clause)."""
+    """`demands:` — a candidate-card set (kind=`DEMAND_KIND_CARDS`) or a move
+    predicate (kind=`DEMAND_KIND_ACTIONS`, an `actions where …` clause)."""
 
-    kind: str  # "cards" | "actions"
+    kind: str  # a member of DEMAND_KINDS
     expr: Expr
     span: Span | None = None
 

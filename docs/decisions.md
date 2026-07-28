@@ -225,45 +225,48 @@ game's rulebook introduces the change. Rulebooks describe what
 
 ## Rule demand forms
 
-A rule's `demands:` clause takes one of two forms, distinguished by
-what it constrains:
+A rule's `demands:` clause names **a candidate-card set** — an expression
+returning the cards a legal move may use, filtering a zone. `MustFollowSuit`'s
+`demands: cards in hand where card.suit is state.led_suit` and Hearts'
+`demands: cards in hand where card.suit is not hearts` are this form. The legal
+move set is the intersection of every active rule's candidate set. Because that
+intersection can empty — a void player cannot follow suit — a card-set
+`demands` **must** declare an `if_impossible:` fallback: `hand` to play any
+card, or `error(...)` to reject the move. There is no silent default (see "No
+implicit actions"); a card-set rule without `if_impossible` is rejected at
+resolve time.
 
-- **A candidate-card set** — an expression returning the cards a legal
-  move may use, filtering a zone. `MustFollowSuit`'s `demands:
-  cards in hand where card.suit is state.led_suit` and Hearts' `demands:
-  cards in hand where card.suit is not hearts` are this form. The legal move set
-  is the intersection of every active rule's candidate set. Because that
-  intersection can empty — a void player cannot follow suit — a card-set
-  `demands` **must** declare an `if_impossible:` fallback: `hand` to play any
-  card, or `error(...)` to reject the move. There is no silent default (see "No
-  implicit actions"); a card-set rule without `if_impossible` is rejected at
-  resolve time.
+**A rule binds at exactly one decision site: the trick round's card
+decision.** Rules are consulted where card legality is computed
+(`rules.legal_cards`) and nowhere else, so a rule is accepted only if it can
+fire there — it must `constrains: play_to_trick`, and it must carry a
+card-set `demands:` or an `exempts:`. The checker rejects the rest rather
+than accepting surface it would silently drop ("Surface totality"):
 
-- **A predicate on the move** — `demands: actions where <predicate>`,
-  constraining the shape of the move itself rather than which cards it
-  draws from a zone. Hearts' `PassExactlyThreeCards` is `demands: actions
-  where action.card_count is 3`; Stud's `BringInMandatory` is `demands:
-  actions where action.amount is bring_in_amount`. Cribbage's two-card
-  discard and Tichu's one-card-per-opponent push are the same form.
+- a `constrains:` naming any other move type, or omitted entirely;
+- `demands: actions where <predicate>` — a predicate on the move's *shape*
+  rather than on which cards it draws. There is no site that consults it;
+- a rule with neither `demands:` nor `exempts:`, which cannot change what is
+  legal however its `applies_when:` reads.
 
-The two are not interchangeable: the first names *which cards*, the
-second *how the move is shaped*. A move is legal when it satisfies
-every active rule's demand, of either form.
+**State the constraint where the move is made instead.** A movement's
+`chosen N` binds a count (Hearts' pass is `transfer chosen 3 cards` — the
+`3` *is* the "pass exactly three" law); a move type's `when:` guard binds
+its parameters (Stud's bring-in amount). These are the enforcing forms
+today, which is why no corpus game loses a constraint to the walls above.
 
-> **Enforcement status.** Card-set demands are enforced where the trick form
-> computes card legality (`rules.legal_cards`, the trick round's decision
-> site). The `actions where` form, and rules constraining move types other
-> than `play_to_trick`, are resolved, type-checked, and emitted to IR but
-> **not yet enforced at runtime** — rule application today runs at the trick
-> form's card-decision site only. Hearts' `PassExactlyThreeCards` documents
-> the game's law while the pass movement's `chosen 3` enforces the count.
-> Widening rule application beyond trick play is an open question
-> ([open-questions/rule-scope-beyond-trick-play.md](open-questions/rule-scope-beyond-trick-play.md)).
+Where rules *should* eventually bind is open — english draughts' mandatory
+capture and nine men's morris's in-mill removal restriction are the
+witnesses that would force a wider answer
+([open-questions/rule-scope-beyond-trick-play.md](open-questions/rule-scope-beyond-trick-play.md)).
+Until then the surface is deferred, not deleted (roadmap.md, "Grammar
+surface deferred by the checker"): when enforcement widens, the walls
+retire and the forms return with an implementation behind them.
 
 **The move under inspection is bound as `action`.** A predicate over a
-player's move — `demands: actions where …` here, and the `when <move-type>
-where …` triggers of sub-phase transitions (see "Sub-phase entry and exit")
-and triggered scoring components — binds that move as `action`, and its
+player's move — the `when <move-type> where …` triggers of sub-phase
+transitions (see "Sub-phase entry and exit") and triggered scoring
+components — binds that move as `action`, and its
 fields expose the move's data: `action.card` (the card played),
 `action.cards`, `action.card_count`, `action.actor`, `action.amount`. The
 subject is always reached through `action`; there are no bare field names,
@@ -3067,7 +3070,6 @@ the commit step; the choice of whether to commit is elsewhere.
 
 ```cardlang-fragment passing_phase
 phase passing when pass_direction is not hold {
-  active_rules: [PassExactlyThreeCards]
   legal_moves:  [transfer_between_hands]
 
   each player simultaneously:

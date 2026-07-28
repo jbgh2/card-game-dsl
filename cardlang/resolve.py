@@ -91,7 +91,7 @@ from cardlang.stdlib.functions import (
     STDLIB_TRICK_OUTCOMES,
     STDLIB_VALUE_NAMES,
 )
-from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
+from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES, RULE_ENFORCED_MOVE_TYPE
 from cardlang.stdlib.rules import library_rules
 from cardlang.stdlib.signatures import CALL_SIGS
 from cardlang.stdlib.values import DIRECTION_VALUES, deck_ranks, deck_suits, enum_values
@@ -2189,12 +2189,77 @@ def _check_position_family_refs(
             )
 
 
+def _check_rule_reaches_a_reader(rule: n.RuleDef, bag: DiagnosticBag) -> None:
+    """Reject rule surface no decision site can consult (decisions.md "Surface
+    totality"): accepted-but-ignored is the worst failure mode for a designer
+    tool, so a clause that enforces nothing is refused rather than parsed and
+    dropped. Every test is the COMPLEMENT of what `rules.legal_cards` actually
+    reads, never a list of the dead spellings — `LIBRARY_MOVE_TYPES` grows as
+    games land and `DEMAND_KINDS` could too, and an enumeration of the dead
+    would silently re-open this hole for the new member.
+
+    Runs after `_instantiate_rules`, so spliced library rules and instantiated
+    templates are walled on the same path as hand-written ones.
+
+    Widening enforcement (draughts' mandatory capture, morris's removal
+    restriction) retires these walls — the surface returns with an
+    implementation behind it. Until then it is deferred, not deleted:
+    docs/roadmap.md "Grammar surface deferred by the checker",
+    docs/open-questions/rule-scope-beyond-trick-play.md.
+    """
+    where = "docs/open-questions/rule-scope-beyond-trick-play.md"
+    if rule.constrains is not None and rule.constrains not in LIBRARY_MOVE_TYPES:
+        return  # already reported as an unknown move type; one error, not two
+    if rule.constrains != RULE_ENFORCED_MOVE_TYPE:
+        named = (
+            f"'{rule.constrains}'"
+            if rule.constrains is not None
+            else "no move type (the `constrains:` clause is absent)"
+        )
+        bag.error(
+            f"rule '{rule.name}' constrains {named}, which no decision site "
+            f"consults: rules are applied at exactly one place — the trick "
+            f"round's card decision, which asks about "
+            f"`{RULE_ENFORCED_MOVE_TYPE}` — so this rule would never fire. "
+            f"Constrain `{RULE_ENFORCED_MOVE_TYPE}`, or enforce the "
+            f"constraint where the move is made (a movement's `chosen N`, a "
+            f"move type's `when:` guard). Widening rule scope is an open "
+            f"question ({where}).",
+            rule.span,
+        )
+        return  # the clause walls below would pile onto the same broken rule
+    if rule.demands is not None and rule.demands.kind != n.DEMAND_KIND_CARDS:
+        bag.error(
+            f"rule '{rule.name}' has a `demands: actions where …` move-shape "
+            f"predicate, which is never enforced: the legal-move engine "
+            f"consults card-set demands only, and no other site consults "
+            f"rules at all. Enforce the move's shape where the move is made "
+            f"(a movement's `chosen N` binds the count, a move type's "
+            f"`when:` guard binds its parameters), or state the constraint "
+            f"as a card set. Binding move-shape predicates is an open "
+            f"question ({where}).",
+            rule.demands.span or rule.span,
+        )
+        return
+    if rule.demands is None and rule.exempts is None:
+        bag.error(
+            f"rule '{rule.name}' enforces nothing: it declares neither a "
+            f"`demands:` card set nor an `exempts:` set, so activating it "
+            f"cannot change which cards are legal. Give it a `demands:` (with "
+            f"its `if_impossible:` fallback) or an `exempts:`, or delete it — "
+            f"`applies_when:` alone selects when a rule fires, not what it "
+            f"does.",
+            rule.span,
+        )
+
+
 def _resolve_rule(rule: n.RuleDef, bag: DiagnosticBag) -> None:
     if rule.constrains is not None and rule.constrains not in LIBRARY_MOVE_TYPES:
         bag.error(
             f"rule '{rule.name}' constrains unknown move type '{rule.constrains}'",
             rule.span,
         )
+    _check_rule_reaches_a_reader(rule, bag)
     # A card-set `demands` can filter the legal set to empty; the rule must say
     # what happens then (`if_impossible`) rather than relying on a silent default.
     # `actions where` demands never narrow the card set — they have no runtime

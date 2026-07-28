@@ -46,7 +46,6 @@ def test_header_blocks() -> None:
     assert {r.name for r in g.rules} == {
         "MustLeadTwoOfClubsOnFirstPlay",
         "NoPenaltyCardsOnFirstTrick",
-        "PassExactlyThreeCards",
     }
 
 
@@ -75,19 +74,28 @@ def test_transition_predicate_binds_action() -> None:
     assert isinstance(pred.left.obj.obj, n.NameRef) and pred.left.obj.obj.name == "action"
 
 
-def test_demands_two_forms() -> None:
-    # MustFollowSuit is a library rule, present only after resolve splices it.
+def test_every_rule_is_a_card_set_demand_on_the_trick_decision() -> None:
+    """Hearts once carried the second demand form (`PassExactlyThreeCards`'s
+    `actions where action.card_count is 3`). That form reaches no decision
+    site and is rejected now; the pass movement's `chosen 3` is what binds the
+    count. So every surviving rule here — the game's own and the library ones
+    resolve splices in — is a card-set demand on the trick decision, which is
+    the only shape rules can take (tests/test_rule_surface_reachability.py)."""
     from cardlang.resolve import resolve
+    from cardlang.stdlib.moves import RULE_ENFORCED_MOVE_TYPE
 
     g = resolve(_game())
     rules = {r.name: r for r in g.rules}
+    assert "PassExactlyThreeCards" not in rules
 
-    pass_three = rules["PassExactlyThreeCards"]
-    assert pass_three.constrains == "transfer_between_hands"
-    assert pass_three.demands is not None and pass_three.demands.kind == "actions"
+    for name, rule in rules.items():
+        assert rule.constrains == RULE_ENFORCED_MOVE_TYPE, name
+        assert rule.demands is not None or rule.exempts is not None, name
+        if rule.demands is not None:
+            assert rule.demands.kind == n.DEMAND_KIND_CARDS, name
 
-    follow = rules["MustFollowSuit"]
-    assert follow.demands is not None and follow.demands.kind == "cards"
+    follow = rules["MustFollowSuit"]  # spliced from the standard library
+    assert follow.demands is not None and follow.demands.kind == n.DEMAND_KIND_CARDS
     assert follow.applies_when is not None and not follow.applies_when.always
 
 
