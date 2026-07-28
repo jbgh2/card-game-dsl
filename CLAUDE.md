@@ -227,6 +227,17 @@ gh issue list --repo jbgh2/card-game-dsl --state open --limit 200 \
   --json number,title,labels --jq '.[] | select(([.labels[].name] | any(startswith("reachability:")) or any(. == "epic")) | not) | "\(.number) \(.title)"'
 ```
 
+An issue's title and Summary speak impact currency; its Detail speaks
+mechanism. The title states what a designer or the engine experiences, not
+where the fix goes ("a partnership typo plays to completion", not
+"validate partnerships at resolve time"). The Summary answers, in a few
+sentences: who hits it, what they see, what changes when it's fixed — with
+the reachability why doing double duty ("R2 — a plausible one-character
+typo"). An issue with no designer or info-set consequence says "internal
+only" and names the guarantee it protects and what that guarantee's
+failure would look like — even R4 machinery has that sentence. Everything
+the implementing agent needs stays in Detail, untouched by this rule.
+
 The sweep is a **derived query**, not a promise to remember the label — an
 issue filed with no labels at all is exactly the case a `needs-triage`
 convention cannot catch, so the sweep asks for the absence of a kind rather
