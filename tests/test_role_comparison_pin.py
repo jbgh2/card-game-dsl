@@ -270,16 +270,21 @@ def _data_position_role_literals(root: pathlib.Path = _PACKAGE) -> dict[str, lis
     return out
 
 
-# The 54 role literals that select nothing today. Authorized one by one: each is
-# a mapping-table key, a parser keyword row or an axis name. The band is walled
+# The role literals that select nothing today. Authorized one by one: each is a
+# mapping-table key, a parser keyword row or an axis name. The band is walled
 # rather than trusted because the proxy above cannot see a decision that moved
 # out of a comparison -- so a role set hoisted to a module constant adds two
 # entries here, and `role.startswith("team")` adds one, either of which reddens.
+#
+# resolve's `rank`/`suit` are the reference-slot registry's KEYS -- the AST field
+# names `CardLiteral.rank` and `CardLiteral.suit`, which coincide with two role
+# ids and select nothing. The namespaces those rows map TO are spelled
+# `deck_rank`/`deck_suit` precisely so the value half stays out of this band.
 _DATA_POSITION_ROLE_LITERALS: dict[str, list[str]] = {
     "ir.py": ["player", "player", "rank", "suit"],
     "openspiel/replay.py": ["player", "team"],
     "parse.py": ["player", "player", "rank", "rank", "suit", "suit", "team", "team"],
-    "resolve.py": ["player", "player"],
+    "resolve.py": ["player", "player", "rank", "suit"],
     "runtime/evaluate.py": ["player"],
     "runtime/skat.py": ["suit"],
     "runtime/state.py": ["rank", "rank", "suit", "suit"],

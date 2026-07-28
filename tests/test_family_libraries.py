@@ -22,7 +22,12 @@ domain:   two layers. At PARSE, the library file's clause skeleton: the
           clause of `n.Library` as the site a leak is written in — the six
           definition kinds plus `state`, whose defaults are expressions — times
           the reference kinds a body can leak through (a state name, a function
-          call). (b) The `requires` contract per name: how many declarations the
+          call). Beside it, the same property reached by the OTHER door: every
+          reference SLOT the registry says a library can hold — a name a
+          construct carries as a plain string, which no expression cell can be
+          written for. The two together are the whole of "what can a library
+          name", split by how the name is spelled rather than by what it means.
+          (b) The `requires` contract per name: how many declarations the
           game holds {0, 1, 2} times the shape of the last one {matching, and
           one row per field `_check_requires` compares}. (c) The import tier's
           error space — the failure modes of a `uses` line (unknown library,
@@ -64,7 +69,13 @@ registry: the ITEM axis from the grammar's `?library_item`, scraped by
           field cannot leave the wall silently covering two forms of three;
           the CLAIM-KIND axis from `n.Library`'s state clauses — its fields minus
           its name, its span and the definition kinds — pinned by
-          `test_claim_axis_covers_every_library_state_clause`. Every axis is
+          `test_claim_axis_covers_every_library_state_clause`;
+          the SLOT axis from `resolve._REFERENCE_SLOTS` (whose own key set is
+          pinned to the AST by tests/test_reference_slots.py) intersected with
+          the node kinds a library can hold — computed here by walking
+          `n.Library`'s annotations, never listed — and filtered to the
+          namespaces `_library_slot_names` sweeps, with every remaining
+          reachable namespace pinned to a reason in `_LIBRARY_UNSWEPT`. Every axis is
           computed, never spelled: the probe NAMES come out of the registries
           too, which is the fix for how this file's first stdlib move-type cell
           shipped vacuous (it probed `play_card`, which `stdlib/moves.py`
@@ -91,7 +102,33 @@ covered:  the parse grid — item x neighbour, all 49 truncated cells executed b
           Fourteen carry a control twin in `test_the_same_site_reaching_only_
           its_contract_is_accepted`, differing by one name; the other three
           columns have no legal counterpart to be a twin, and the two controls
-          beside them establish the site. 24 cells were open before the wall and
+          beside them establish the site.
+          The SLOT grid — the same property reached through the bare-string
+          door, one cell per reference slot the registry says a library can
+          reach into a namespace the sweep covers
+          (`test_a_library_may_not_name_what_it_does_not_have`), all commanded
+          REJECT, each asserted to land in the library file AND to quote the
+          leaked name — the second half is what tells the two zone cells apart,
+          since they share a statement that leaks twice. Every cell was open
+          before the sweep: a probe over all of them accepted, and the reddening
+          edit was RUN, not reasoned about — emptying the `slot_leaks` loop
+          fails exactly those cells and no others, and neutering `_slot_leaks`
+          itself additionally fails the `card_literal` and `call` columns above,
+          which is the evidence that the registry SUBSUMED the hand-list rather
+          than landing beside it. Twelve carry a control twin
+          (`test_the_same_slot_naming_what_the_library_has_is_accepted`); the
+          other five have no legal counterpart, because a library declares no
+          zones, no phases and no position domains. The axis is derived twice
+          over — reachability from `n.Library` by walking the AST's annotations,
+          intersected with the swept namespaces — and the namespaces it leaves
+          out are pinned to a written reason by
+          `test_every_reachable_reference_namespace_is_swept_or_excused`, so
+          "not swept" cannot be spelled the same way as "not thought of".
+          The MINIMALITY direction of the same sweep has its own cell
+          (`test_the_bare_string_state_read_counts_toward_the_contract`): before
+          it, `turns … again <var>` had no correct spelling at all — naming the
+          variable in `requires` made the entry look dead to the ledger test
+          below, and leaving it out was the leak. 24 cells were open before the wall and
           the `card_literal` column for a commit after it — both red-before-green
           transitions are in this branch's history. The `state` ROW was born
           green (its sweep shipped with the splice, a commit ahead of its
@@ -170,24 +207,9 @@ residual: one on provided state, deliberate and named here so its absence from
           list named four games of which three were wrong, and named Stud, which
           the same change that wrote it had just made wrong.
 
-          TWO residuals outside it, both recorded in issue #138:
+          ONE residual outside it, recorded in issue #138:
 
-          1. REFERENCE FORM. The grid's axis is derived from `_Categories`, so
-             it covers every namespace — but only through the two forms the
-             resolver classifies, a `NameRef` and a `Call`, plus `CardLiteral`
-             closed by hand. A name held on a node as a plain `str` is
-             structurally invisible to the check, whatever namespace it belongs
-             to: `Turns.again` (state), `Round.source_zone`/`play_zone` (zones),
-             `StructLit.type_name` and friends (types), and the definition slots
-             `constrains:`/`run`/`produces`/`offer`/`Round.move_types`. An
-             adversarial audit confirmed all four classes reachable from a
-             library. The wall bounding the residual is that the fully-undefined
-             case IS rejected — resolve refuses a `constrains:` naming no move
-             type anywhere — so what is unchecked is the narrower case of a name
-             only the importing game provides. Its one-library blast radius, and
-             the `again`-has-no-correct-spelling corollary, are in the roadmap
-             entry; do not read this module's grid as covering that form.
-          2. SCOPE. The multiplicity grid proves a requirement is answered by
+          1. SCOPE. The multiplicity grid proves a requirement is answered by
              exactly one declaration of the right shape; it does NOT prove that
              declaration is in scope where the library's definitions run. Moving
              Kuhn's `limit` into `phase deal` while the imported `bet` runs in
@@ -199,6 +221,14 @@ residual: one on provided state, deliberate and named here so its absence from
              declaration that exists but cannot be reached. The grid does not
              claim this cell — `_check_requires`'s docstring says what is
              checked and what is not, so the claim and the check agree.
+
+          And ONE inside the slot grid, recorded in issue #170: `Movement.item`
+          is a game-fed slot (the item noun comes from the content flavor, which
+          the component set fixes) and is NOT swept, because every movement also
+          names a zone as an ordinary expression — so the classified pass
+          refuses the statement before the noun can matter. Verified by probe
+          rather than argued: `move 1 coin from hand to pile` in a library body
+          fails on `hand`. R4, and its `_LIBRARY_UNSWEPT` row says so.
 
 One deliberate NON-error, recorded here so a later reader does not mistake its
 absence from the probes for an omission: an imported definition a game never
@@ -214,6 +244,7 @@ from __future__ import annotations
 
 import ast as pyast
 import random
+import typing
 from collections.abc import Iterator
 from dataclasses import fields, replace
 from pathlib import Path
@@ -233,11 +264,15 @@ from cardlang.parse import (
     parse_to_tree,
 )
 from cardlang.resolve import (
+    _CONTEXTUAL_SLOTS,
     _LIBRARY_DEF_KINDS,
+    _LIBRARY_UNSWEPT,
     _PARAM_BEARING,
+    _REFERENCE_SLOTS,
     _STATE_WRITE_SITES,
     _Categories,
     _library_reach,
+    _library_slot_names,
     resolve,
 )
 from cardlang.runtime.driver import play_game
@@ -1593,6 +1628,365 @@ def test_a_body_reading_its_own_parameter_is_not_a_leak(field: str) -> None:
         f"a {field} parameter is bound, not a leak: "
         f"{sorted({r.name for r in reach.unresolved})}"
     )
+
+
+# --- the BARE-STRING half of the same property --------------------------------
+#
+# The grid above crosses leak SITE with reference kind, and every one of its
+# cells is written as an expression — which is the whole class `_rewrite` can
+# see. A name held on a node as a plain `str` is invisible to that pass, so the
+# channels below are the same property reached through a different door: not
+# "what does a body evaluate", but "what does a construct NAME".
+#
+# The axis is the reference-slot registry, filtered by two derivations and no
+# judgement: the slots reachable from a library's own clauses (a walk over the
+# node types `n.Library` can hold), intersected with the namespaces the library
+# sweep covers (`_library_slot_names`). What that intersection leaves out is not
+# a hand-waved remainder either — every reachable namespace it drops carries its
+# reason in `_LIBRARY_UNSWEPT`, and the pin below reads both tables.
+#
+# Two slots are on the registry's list and NOT in this grid, because the
+# expression grid above already owns them: `CardLiteral.rank`/`suit` is its
+# `card_literal` column and `Call.func` is its `call` column. They are subtracted
+# by derivation rather than skipped — the registry FINDS them now (the hand-list
+# in `_library_reach` is gone), and only their wording is still special.
+
+# slot -> (the library clause holding the leak, the name the diagnostic must
+# quote, the same clause reaching only what the library has — or None where no
+# legal counterpart exists). Three namespaces have no control by construction: a
+# library declares no zones, no phases and no position domains, so there is no
+# in-contract way to write one, and the wall over them is total.
+_SLOT_LEAK: dict[str, tuple[str, str, str | None]] = {
+    "Turns.again": (
+        "move_type m {{ effect {{ turns q from actor over all players "
+        "until true again {read} {{ }} }} }}",
+        "undeclared_thing",
+        "declared_flag",
+    ),
+    "Round.source_zone": (
+        "move_type m {{ effect {{ round play_to_trick from actor over all players "
+        "source {read} into pile outcome highest_of_led_suit }} }}",
+        "hand",
+        None,
+    ),
+    "Round.play_zone": (
+        "move_type m {{ effect {{ round play_to_trick from actor over all players "
+        "source pile into {read} outcome highest_of_led_suit }} }}",
+        "hand",
+        None,
+    ),
+    "ContinueTo.target": (
+        "define d -> {{ a | b }} {{ produce a }} "
+        "move_type m {{ effect {{ d produces: a {{ continue to {read} }} b {{ }} }} }}",
+        "play",
+        None,
+    ),
+    "DomainQuery.binder": (
+        "function f() = number of {read}s where true",
+        "column",
+        None,
+    ),
+    "Member.field": (
+        "function f() = state.{read}",
+        "undeclared_thing",
+        "declared_thing",
+    ),
+    "StateDecl.type_name": (
+        "state {{ provided_thing : {read}? = none }}",
+        "GameType",
+        "Integer",
+    ),
+    "RequireDecl.type_name": (
+        "",  # written into the contract itself — see `_slot_leaky`
+        "GameType",
+        "Integer",
+    ),
+    "MoveParam.type_name": ("function f(x : {read}) = 1", "GameType", "Integer"),
+    "StructField.type_name": ("type T = {{ x : {read} }}", "GameType", "Integer"),
+    "StructLit.type_name": (
+        "type LibType = {{ x : Integer }} function f() = {read} {{ x: 1 }}",
+        "GameType",
+        "LibType",
+    ),
+    "VariantCase.payload_types": (
+        "define d -> {{ a({read}) | b }} {{ produce b }}",
+        "GameType",
+        "Integer",
+    ),
+    "Offer.move_types": (
+        "move_type lib_move {{ effect {{ declared_thing := 1 }} }} "
+        "move_type m {{ effect {{ offer to actor one of [{read}] }} }}",
+        "game_move",
+        "lib_move",
+    ),
+    "Round.move_types": (
+        "move_type lib_move {{ effect {{ declared_thing := 1 }} }} "
+        "move_type m {{ effect {{ round offering [{read}] from actor "
+        "over all players until true }} }}",
+        "game_move",
+        "lib_move",
+    ),
+    "Produces.define": (
+        "define lib_define -> {{ a | b }} {{ produce a }} "
+        "move_type m {{ effect {{ {read} produces: a {{ }} b {{ }} }} }}",
+        "game_define",
+        "lib_define",
+    ),
+    "RunStmt.name": (
+        "procedure lib_proc() {{ declared_thing := 1 }} "
+        "move_type m {{ effect {{ run {read}() }} }}",
+        "game_proc",
+        "lib_proc",
+    ),
+    "RotateStmt.values": (
+        "move_type m {{ effect {{ rotate declared_dir through [{read}] }} }}",
+        "hearts",
+        "left, right",
+    ),
+}
+
+_SLOT_CONTRACT = (
+    "requires {{ declared_thing : Integer  declared_flag : Boolean "
+    "declared_dir : Direction  {wanted} : {wanted_type}? }} "
+)
+
+# A game that meets `leaky`'s contract AND happens to hold every namespace the
+# leaks reach into — a `hand` and a `pile` zone, a `play` phase, a `column`
+# position domain, a type, a define, a procedure and a move type. Without that
+# second half the cells would fail as ordinary dangling references and would
+# prove nothing about the CONTRACT, which is the distinction this whole section
+# is about.
+_SLOT_GAME = """
+game SlotHost {
+  uses leaky
+  players: 2
+  cards: standard52
+  max_length: 100
+  zones { deck : Deck  hand[player] : Hand<player>  pile : TrickPile }
+  state {
+    declared_thing   : Integer     = 0
+    declared_flag    : Boolean     = false
+    declared_dir     : Direction   = hold
+    undeclared_thing : Integer     = 0
+    wanted_game      : GameType?   = none
+    wanted_plain     : Integer?    = none
+  }
+  positions { column : 1..7 }
+  phase play { run game_proc() }
+  winner: highest declared_thing
+}
+type GameType = { x : Integer }
+define game_define -> { a | b } { produce a }
+procedure game_proc() { declared_thing := 1 }
+move_type game_move { effect { declared_thing := 1 } }
+"""
+
+
+def _slot_leaky(slot: str, *, leaking: bool) -> n.Library:
+    """The library for one cell. `RequireDecl.type_name` is the one slot that
+    lives in the CONTRACT rather than in a definition, so the substitution goes
+    there — which is also why the contract is a template: the requirement's own
+    type name is a reference like any other, and `requires` is not exempt from
+    the property just because it holds no expression."""
+    body, leak, control = _SLOT_LEAK[slot]
+    read = leak if leaking else control
+    assert read is not None
+    if slot == "RequireDecl.type_name":
+        contract = _SLOT_CONTRACT.format(
+            wanted="wanted_game" if leaking else "wanted_plain", wanted_type=read
+        )
+    else:
+        contract = _SLOT_CONTRACT.format(wanted="wanted_plain", wanted_type="Integer")
+    return parse_library(
+        f"library leaky {{ {contract}{body.format(read=read)} }}",
+        "docs/libraries/leaky.cardlang",
+    )
+
+
+def _library_reachable_node_types() -> set[type]:
+    """Every node kind a library can hold, by walking `n.Library`'s own clauses
+    through the AST's annotations. Derived, because the alternative is a list of
+    "the node kinds a library obviously contains" — and the slot registry exists
+    precisely because that list was wrong."""
+
+    def leaves(annotation: object) -> set[type]:
+        out: set[type] = set()
+        stack = [annotation]
+        while stack:
+            current = stack.pop()
+            if typing.get_origin(current) is not None:
+                stack.extend(typing.get_args(current))
+            elif isinstance(current, type):
+                out.add(current)
+        return out
+
+    kinds = set(typing.get_args(n.Node))
+    hints = {cls: typing.get_type_hints(cls) for cls in kinds}
+    seen: set[type] = set()
+    stack = [
+        cls
+        for field in fields(n.Library)
+        if field.name not in ("name", "span")
+        for cls in leaves(hints[n.Library][field.name]) & kinds
+    ]
+    while stack:
+        current = stack.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        for field in fields(current):
+            stack.extend(leaves(hints[current][field.name]) & kinds)
+    return seen
+
+
+def _reachable_reference_namespaces() -> set[str]:
+    """The namespaces a library's own text can name. The union of what the sweep
+    covers and what `_LIBRARY_UNSWEPT` excuses must equal this — that equation is
+    the completeness statement, and it is why an unswept namespace has to be
+    written down rather than merely not swept."""
+    reachable = _library_reachable_node_types()
+    contextual = {slot for slot in _CONTEXTUAL_SLOTS}
+    return {
+        namespace
+        for slot, namespace in _REFERENCE_SLOTS.items()
+        if slot[0] in reachable and slot not in contextual
+    } | {
+        namespace
+        for (cls, _), slot in _CONTEXTUAL_SLOTS.items()
+        if cls in reachable
+        for namespace in slot.namespaces
+    }
+
+
+def test_every_reachable_reference_namespace_is_swept_or_excused() -> None:
+    """No third state. A reference namespace a library can reach is either swept
+    against what the library has, or carries a written reason why reaching it is
+    not a channel — and nothing is merely absent.
+
+    This is the check the hand-list era could not have: `_library_reach` used to
+    close ONE bare-string slot (card literals) and the rest were invisible, with
+    no artifact that could tell "decided not to sweep" from "nobody thought of
+    it". Here the two are different table rows and the third possibility fails.
+
+    red under: delete ANY row from `_LIBRARY_UNSWEPT`, or a namespace key from
+    `_library_slot_names`. That is now true of every row, and was not when this
+    test was written: the table then carried seven excuses for namespaces a
+    library cannot reach at all, and deleting all seven left the suite green —
+    an audit ran exactly that plant. An excuse for the unreachable excuses
+    nothing, so those rows are gone (their content is in the table's header
+    comment, where a claim nothing checks belongs)."""
+    empty = n.Library(name="none")
+    swept = set(_library_slot_names(empty))
+    excused = set(_LIBRARY_UNSWEPT)
+    reachable = _reachable_reference_namespaces()
+    unclassified = sorted(reachable - swept - excused)
+    assert not unclassified, (
+        f"reference namespaces a library can reach that are neither swept nor "
+        f"excused: {unclassified}"
+    )
+    assert not swept & excused, sorted(swept & excused)
+    vacuous = sorted(excused - reachable)
+    assert not vacuous, (
+        f"excuses for namespaces a library cannot reach: {vacuous} — the row "
+        f"guards nothing, and its deletion cannot redden this test, so it reads "
+        f"as a verified claim while being an unverified one"
+    )
+
+
+def test_the_slot_grid_covers_every_swept_reachable_slot() -> None:
+    """The grid's axis IS the registry, minus what the expression grid above
+    already owns. Derived in both directions, so a reference slot added to the
+    AST joins this grid or fails here — the failure mode the hand-list had no
+    way to produce.
+
+    red under: drop a key from `_SLOT_LEAK`, or add a `str` reference slot to a
+    library-reachable node without a cell."""
+    empty = n.Library(name="none")
+    swept = set(_library_slot_names(empty))
+    reachable = _library_reachable_node_types()
+    expected = {
+        f"{cls.__name__}.{field}"
+        for (cls, field), namespace in _REFERENCE_SLOTS.items()
+        if cls in reachable and namespace in swept and (cls, field) not in _CONTEXTUAL_SLOTS
+    }
+    expected |= {
+        f"{cls.__name__}.{field}"
+        for (cls, field), slot in _CONTEXTUAL_SLOTS.items()
+        if cls in reachable and slot.namespaces & swept
+    }
+    # Owned by the expression grid's `card_literal` and `call` columns.
+    expected -= {"CardLiteral.rank", "CardLiteral.suit", "Call.func"}
+    assert set(_SLOT_LEAK) == expected
+
+
+@pytest.mark.parametrize("slot", sorted(_SLOT_LEAK))
+def test_a_library_may_not_name_what_it_does_not_have(
+    slot: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every bare-string reference into a namespace the library lacks is refused,
+    in the LIBRARY's currency, quoting the name — so the author is told which
+    word made their library depend on one particular game.
+
+    The quoted name is half the command. A refusal alone would not distinguish
+    the two zone cells, which share a statement: `source hand into pile` leaks
+    twice, and only the name says which slot the diagnostic is about.
+
+    red under: delete the `slot_leaks` loop from
+    `_check_library_encapsulation`."""
+    _patch_libraries(monkeypatch, {"leaky": _slot_leaky(slot, leaking=True)})
+    with pytest.raises(DiagnosticError) as exc:
+        resolve(parse_text(_SLOT_GAME, "slot_host.cardlang"))
+    # Every diagnostic, not just the first: `_raise_if_errors` puts the rest in a
+    # note, and the two zone cells share a statement that leaks twice — reading
+    # only the first would make the second cell assert the first cell's finding.
+    message = "\n".join([str(exc.value), *getattr(exc.value, "__notes__", [])])
+    assert "docs/libraries/leaky.cardlang:" in message, (
+        f"the library author is who must fix it:\n{message}"
+    )
+    assert "library 'leaky'" in message
+    assert f"'{_SLOT_LEAK[slot][1]}'" in message, (
+        f"the diagnostic must quote the name that leaked:\n{message}"
+    )
+
+
+@pytest.mark.parametrize("slot", sorted(s for s, v in _SLOT_LEAK.items() if v[2]))
+def test_the_same_slot_naming_what_the_library_has_is_accepted(
+    slot: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The control row: each cell is its leaking twin with one name swapped, so a
+    rejecting cell can only be rejecting the leak and not the construct.
+
+    Five slots have no twin, and their absence is the design rather than a gap: a
+    library declares no zones, no phases and no position domains, so there is no
+    legal spelling for `Round.source_zone`, `Round.play_zone`,
+    `ContinueTo.target` or `DomainQuery.binder` to take. The controls beside them
+    establish that the enclosing statements parse and resolve.
+
+    red under: make the sweep reject any name it inspects rather than only the
+    ones the library lacks."""
+    _patch_libraries(monkeypatch, {"leaky": _slot_leaky(slot, leaking=False)})
+    resolve(parse_text(_SLOT_GAME, "slot_host.cardlang"))
+
+
+def test_the_bare_string_state_read_counts_toward_the_contract() -> None:
+    """`turns … again <var>` READS state, so a contract entry answering it is
+    live — the minimality half of the same registry, and the reason this slot had
+    no correct spelling before it.
+
+    Naming the variable in `requires` used to make the entry look dead (
+    `state_reads` accumulated from `NameRef`s alone, and `again` is a string), so
+    `test_every_library_contracts_for_exactly_what_it_reaches` called the
+    contract non-minimal; leaving it out was the leak. Both directions were
+    wrong at once, which is why one sweep answers both.
+
+    red under: drop `slot_reads` from `_library_reach`'s `state_reads`."""
+    library = parse_library(
+        "library probe { requires { flag : Boolean } "
+        "move_type m { effect { turns q from actor over all players "
+        "until true again flag { } } } }",
+        "docs/libraries/probe.cardlang",
+    )
+    assert "flag" in _library_reach(library).state_reads
 
 
 def _patch_libraries(

@@ -3972,11 +3972,21 @@ deck-agnostic: it names no rank, no suit and no card, because those exist only
 once an including game names a deck, and a family's members do not share one
 (Kuhn's holds three cards).
 
-The check enforces this for every name the resolver classifies. It does not yet
-reach a name a construct holds as a bare string rather than as a reference — a
-`turns … again <var>`, a `round`'s source and play zones, a struct type name —
-so for those slots the rule above is the design's intent rather than a
-guarantee. The gap and the shape of its fix are in issue #138.
+The check enforces this for every name the resolver classifies **and** for every
+name a construct holds as a bare string instead — a `turns … again <var>`, a
+`round`'s source and play zones, a struct type name, `state.<var>`. The second
+half runs off the **reference-slot registry**: one table classifying every
+string-typed field of every AST node as a declaration, a binder, a reference
+into a named namespace, a keyword, opaque text, a classified name, or pass
+metadata. The table's key set is derived from the AST and pinned to it, so a
+field added to a node is classified or the build fails; what each slot MEANS is
+authored, because no annotation carries it.
+
+The registry is what makes the boundary statable. A namespace a library can
+reach is either swept against what the library itself has, or carries a written
+reason why reaching it is not a channel — a closed stdlib or domain registry
+identical either side, or a name owned by a declaration that IS swept. There is
+no third state, and no consumer keeps a list of the slots it remembered.
 
 **Name collisions on state are walled the same way collisions on definitions
 are.** A library may not both provide and require one name — the two clauses
