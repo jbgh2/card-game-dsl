@@ -1405,7 +1405,10 @@ def test_exactly_one_leak_site_runs_at_declare_time() -> None:
     ids=lambda v: str(v),
 )
 def test_the_same_site_reaching_only_its_contract_is_accepted(
-    field: str, kind: str, monkeypatch: pytest.MonkeyPatch
+    field: str,
+    kind: str,
+    monkeypatch: pytest.MonkeyPatch,
+    request: pytest.FixtureRequest,
 ) -> None:
     """The control row. Each cell is its leaking twin with one name swapped —
     a contracted state variable for the undeclared one, a library-defined
@@ -1419,6 +1422,23 @@ def test_the_same_site_reaching_only_its_contract_is_accepted(
 
     red under: make `_check_library_encapsulation` reject anything it classifies
     rather than only what it fails to."""
+    if field == "rules":
+        # A library CANNOT declare a rule at all right now, so this control
+        # cell has no contract-clean form to be the twin of. A rule must carry
+        # an enforceable `demands:`/`exempts:` to reach a decision site
+        # (tests/test_rule_surface_reachability.py), an enforceable body must
+        # name a zone, and `requires { }` contracts state only — so every
+        # writable body here either enforces nothing or leaks. Marked rather
+        # than deleted: the cell is real and unreachable, and strict xfail
+        # turns it loud the day issue #177 lets a contract name a zone.
+        request.node.add_marker(
+            pytest.mark.xfail(
+                raises=DiagnosticError,
+                strict=True,
+                reason="issue #177: a library contract cannot name a zone, so "
+                "no library rule can be both enforceable and contract-clean",
+            )
+        )
     _patch_libraries(monkeypatch, {"leaky": _leaky(field, kind, leaking=False)})
     resolve(_leak_host())
 

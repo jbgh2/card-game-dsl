@@ -64,7 +64,15 @@ type's `when:` guard. These lift together when rule application widens
 beyond trick play, which is
 [open-questions/rule-scope-beyond-trick-play.md](open-questions/rule-scope-beyond-trick-play.md)
 — the same cliff as the already-deferred non-`play_to_trick` transition
-events above.
+events above. One consequence, recorded here because it is a real
+narrowing and not a side effect worth discovering twice: **a family
+library cannot declare a rule.** An enforceable rule must name a zone,
+and a `requires { }` contract names state only, so every library rule is
+either unenforceable or reaches past its contract. No library declares
+one today; the standard library's rules are unaffected because they are
+spliced by a separate path that has no contract to violate — which is
+itself the subject of epic #181, and issue #177 is the piece that lifts
+this.
 Counting is the card-query form (`number of cards in … [where <pred>]`);
 the retired `count over` comprehension (whose body was silently
 discarded) does not parse.

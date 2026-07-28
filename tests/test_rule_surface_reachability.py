@@ -67,6 +67,20 @@ residual:   `applies_when:` and `if_impossible:` are NOT axes, deliberately.
             - a rule never named by any `active_rules:` is accepted
               silently, while a parameterized rule never instantiated is a
               hard error -- issue #175, R4.
+
+            One CONSEQUENCE of this wall, not a gap in it: a family library
+            can no longer declare a rule. An enforceable rule must name a
+            zone and a `requires { }` contract names state only, so every
+            library rule is either unenforceable (walled here) or reaches
+            past its contract (walled by the library encapsulation check).
+            No library declares one today and the standard library is
+            unaffected -- it is spliced by a separate path with no contract
+            to violate, which is the asymmetry epic #181 exists to remove.
+            The two control cells this strands in
+            tests/test_family_libraries.py are marked `xfail(strict)`
+            against issue #177 rather than deleted, so they flip loudly when
+            a contract can name a zone. Also recorded in roadmap.md,
+            "Grammar surface deferred by the checker".
             - `legal_moves:` has no runtime reader at all. Owned by
               open-questions/phase-legal-moves.md, recorded there.
 
