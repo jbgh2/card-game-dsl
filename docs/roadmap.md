@@ -82,11 +82,14 @@ set player/team/suit/rank; `each … simultaneously` is player-only.
 Value-domain-indexed state (`state { seen[rank] : Integer = 0 }` as a
 per-rank tally) is rejected: a zone or state index must be a
 `zone_key_of` domain (player/team — `cardlang/domains.py`), because the
-runtime keys those stores by an observer-anchored member set. A per-value
-tally is expressible today as per-player state plus a query; lift the wall
-when a game genuinely wants the store (the runtime's key-set plumbing
-already reads the domain table, so the extension is a table row plus an
-observation-encoding decision, not a rewrite).
+runtime keys those stores by an observer-anchored member set. A family
+library's `requires { seen[rank] : Integer }` is rejected on the same
+grounds and in the library's own currency, since a requirement names
+state the including game declares and no game may declare that index. A
+per-value tally is expressible today as per-player state plus a query;
+lift the wall when a game genuinely wants the store (the runtime's
+key-set plumbing already reads the domain table, so the extension is a
+table row plus an observation-encoding decision, not a rewrite).
 The `turns` form has no `direction` override clause (rotation follows the
 game's declared direction; not grammar until a game needs a mid-game or
 per-loop override). Joint-predicate selection: `jointly` under a `random`

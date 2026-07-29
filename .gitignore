@@ -63,3 +63,5 @@ coverage.xml
 # Claude Code — session runtime state (the skills are tracked; the rest is local)
 .claude/*
 !.claude/skills/
+
+.env

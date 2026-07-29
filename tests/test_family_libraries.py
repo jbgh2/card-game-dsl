@@ -1170,6 +1170,93 @@ def _parse_state_decl(text: str) -> n.StateDecl:
     return game.state.decls[0]
 
 
+# --- a requirement malformed in the library's own text ------------------------
+#
+# Every field of a requirement that can be MALFORMED where the library author
+# wrote it, so the contract comparison would otherwise render the malformation
+# as a MISMATCH against the game — blaming the game author for a defect in a
+# file they did not write. `None` means the field cannot be malformed, with the
+# reason, so a new field on `n.RequireDecl` fails the pin below until someone
+# decides which it is.
+_MALFORMED_REQUIREMENT: dict[str, str | None] = {
+    # Not an indexable role. Walled by `resolve._check_require_indexes`.
+    "index": "q[hearts] : Integer",
+    # A type the library cannot resolve on its own. Walled by
+    # `resolve._check_library_encapsulation`.
+    "type_name": "q : Integar",
+    # Cannot be malformed: `?` is present or absent and the grammar admits no
+    # third state, so there is no ill-formed value for the comparison to
+    # misreport.
+    "optional": None,
+    # A zone type carrying the wrong number of owner arguments. Walled by
+    # `resolve._check_contract_shapes`, which reports at the requirement's span
+    # like the other two — so the suppression covers it with nothing added,
+    # which is the property the span-matching design was chosen for.
+    "type_args": "q : Hand",
+}
+
+
+def test_the_malformed_requirement_axis_covers_every_compared_field() -> None:
+    """The class is every field the contract COMPARES, not the one a review
+    happened to name.
+
+    red under: add a field to `n.RequireDecl` without adding a
+    `_MALFORMED_REQUIREMENT` row for it."""
+    compared = {f.name for f in fields(n.RequireDecl)} - {"name", "span"}
+    assert set(_MALFORMED_REQUIREMENT) == compared
+
+
+@pytest.mark.parametrize("declared", [True, False], ids=["declared", "undeclared"])
+@pytest.mark.parametrize(
+    "field",
+    sorted(k for k, v in _MALFORMED_REQUIREMENT.items() if v is not None),
+)
+def test_a_malformed_requirement_is_not_also_blamed_on_the_game(
+    field: str, declared: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A requirement wrong in the LIBRARY's text produces the library's
+    diagnostic and nothing addressed to the game.
+
+    Without the suppression the contract compares the malformed requirement
+    anyway and derives a second error that is worse than useless. Both members
+    of the class show it, in both directions: with the name declared, a
+    non-role index renders as "a scalar" and an unresolvable type renders as
+    the GAME's type being wrong; with it undeclared, the game author is told to
+    add a declaration the language would refuse.
+
+    Asserted as the ABSENCE of the game's source name across the whole rendered
+    bag, not as a message count: the point is that nothing was blamed on the
+    game, and a future third diagnostic in the library's own currency should
+    not redden this.
+
+    red under: delete the `want.span in malformed` guard from
+    `resolve._check_requires`."""
+    library = parse_library(
+        f"""library probe_lib {{
+  state {{ own : Integer = 0 }}
+  requires {{ {_MALFORMED_REQUIREMENT[field]} }}
+  procedure bump() {{ own := 1 }}
+}}""",
+        "probe_lib.cardlang",
+    )
+    _patch_libraries(monkeypatch, {"probe_lib": library})
+    game = _game(
+        uses="uses probe_lib",
+        phase_state="run bump()",
+        extra_state="    q : Integer = 0\n" if declared else "",
+    )
+    with pytest.raises(DiagnosticError) as exc:
+        resolve(game)
+    rendered = "\n".join(
+        [str(exc.value), *(getattr(exc.value, "__notes__", []) or [])]
+    )
+    assert "probe_lib.cardlang:" in rendered, rendered
+    assert "probe.cardlang:" not in rendered, (
+        f"a requirement malformed in the library was also reported against the "
+        f"game:\n{rendered}"
+    )
+
+
 def test_unmet_requirement_is_reported_on_the_uses_line() -> None:
     """The diagnostics-currency requirement: the author wrote `uses`, so that is
     where the failure lands — not as an undeclared `raise_cap` deep inside
@@ -1742,19 +1829,6 @@ _SLOT_LEAK: dict[str, tuple[str, str, str | None]] = {
         "GameType",
         "Integer",
     ),
-    "RequireDecl.index": (
-        # Written into the contract — see `_slot_leaky`. A position domain is
-        # the game's alone, so a contract indexed by one names something only
-        # the importing game has.
-        "",
-        "column",
-        "player",
-    ),
-    "StateDecl.index": (
-        "state {{ provided_keyed[{read}] : Boolean = false }}",
-        "column",
-        "player",
-    ),
     "TypeArg.name": (
         # Also written into the contract: the `<owner>` of a zone contract. The
         # leak is a position domain only the GAME declares — a library has no
@@ -1861,12 +1935,6 @@ def _slot_leaky(slot: str, *, leaking: bool) -> n.Library:
         )
     else:
         contract = _SLOT_CONTRACT.format(wanted="wanted_plain", wanted_type="Integer")
-    if slot == "RequireDecl.index":
-        contract = contract.rstrip()[:-1] + f" keyed[{read}] : Integer }} "
-        body = "function f(p : Player) = keyed[p]"
-        return parse_library(
-            f"library leaky {{ {contract}{body} }}", "docs/libraries/leaky.cardlang"
-        )
     if slot == "TypeArg.name":
         # A zone contract, plus a definition that reads the zone — an entry no
         # definition reaches is dead contract and would fail the minimality

@@ -63,9 +63,9 @@ class ComponentSet:
             raise ValueError(f"ComponentSet axes must be distinct, got {self.axes!r}")
         if not a0.isidentifier() or not a1.isidentifier():
             raise ValueError(f"ComponentSet axes must both be identifiers, got {self.axes!r}")
-        # role-compare-ok: a reservation on the card flavor's axis SPELLINGS,
-        # not a dispatch over the role table — a piece set may not claim the
-        # two names the card flavor uses, so those names are spelled here.
+        # A reservation on the card flavor's axis SPELLINGS, not a dispatch
+        # over the role table — a piece set may not claim the two names the
+        # card flavor uses, so those names are spelled here.
         if self.flavor == "piece" and self.axes == ("suit", "rank"):
             raise ValueError(
                 "piece-flavored ComponentSet may not spell axes as "

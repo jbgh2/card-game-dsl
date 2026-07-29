@@ -3671,17 +3671,22 @@ a closed domain is a Python union, the allow-list is a type error: every
 consumer dispatches with a structural `match` ending in
 `typing.assert_never`, so under `mypy --strict` adding a node without
 handling it everywhere fails to compile (docs/building.md, "Typed-AST
-discipline"). Where the domain is a registry of strings — the domain
-table's role ids, the stdlib registries — the type checker cannot see it,
-so a pin substitutes for it: `tests/test_role_comparison_pin.py` requires
-every role-id comparison outside the table to carry a marker naming why it
-is not drift, and `tests/test_operand_choke_point.py` requires every
-operand coercion to route through one check. Both derive their own axes
-from the registry they guard, so they widen with it rather than going
-stale. Visibility is itself a choice, not a fact of nature: a string
-domain the checker cannot see can usually be promoted to one it can (see
-"Prefer the wall you cannot need"), and the pin is the right mechanism
-only where that promotion is genuinely priced and declined. A closed
+discipline"). Where the domain is a registry of strings — the stdlib
+registries — the type checker cannot see it, so a pin substitutes for it:
+`tests/test_operand_choke_point.py` requires every operand coercion to
+route through one check, deriving its axes from the registry it guards so
+it widens with that registry rather than going stale. Visibility is
+itself a choice, not a fact of nature: a string domain the checker cannot
+see can usually be promoted to one it can (see "Prefer the wall you
+cannot need"), and the pin is the right mechanism only where that
+promotion is genuinely priced and declined. The domain table's role ids
+are the worked example of the promotion: they are `domains.Role`, a plain
+`Enum` every consumer dispatches over, so comparing a role against a
+string literal is a type error and the marker scrape that used to ask for
+a reason is gone. What `tests/test_role_comparison_pin.py` still holds is
+the residue the type cannot see — strings that merely SPELL a role
+(`player` as an unresolved name, `suit` as a component-set axis) — walled
+per module so a new one must be looked at. A closed
 domain with neither an `assert_never` nor a pin is unenforced, whatever
 its consumers currently do.
 
@@ -3985,6 +3990,17 @@ from its importer. Adding a marker system now would be designing against
 imagined pressure, and this paragraph exists so the question is not silently
 reopened — reopen it when a family produces a case these two mechanisms cannot
 express, and name that case.
+
+A requirement's own index is checked first, and in the LIBRARY's currency:
+`requires { seen[rank] : Integer }` is refused where the library wrote it,
+because an index must be a role a state variable can be keyed by
+(player/team) and no game could answer such a requirement. That is the
+library twin of the state-index wall, and the difference in currency is
+who can fix it — an unmet contract is a fact about the importing game, a
+malformed index is wrong in the library's own text. A mismatch between a
+well-formed requirement and the game's declaration names both roles
+(`per-team` against `per-player`), never the presence or absence of an
+index.
 
 What the `requires` contract checks is that **exactly one**
 declaration of the name exists somewhere in the game, at the library's arity and

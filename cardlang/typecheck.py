@@ -44,7 +44,7 @@ from cardlang.ast import nodes as n
 from cardlang.ast.nodes import Game
 from cardlang.board_domains import directions_of
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
-from cardlang.domains import role_type as _role_type
+from cardlang.domains import require_role, role_type
 from cardlang.runtime.values import component_set, content_kind_clause, content_noun
 from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
 from cardlang.stdlib.signatures import CALL_SIGS, ZONE_CONTENT, Sig
@@ -75,6 +75,20 @@ from cardlang.types import (
 
 # Declared scalar type names → their Type. Enum names (`Suit`/`Rank`/`Direction`)
 # and unknown names (user-defined types, deferred) are handled separately.
+def _role_type(name: str) -> Type:
+    """`role_type` reached through a parsed NAME.
+
+    The one conversion site in this pass. Every caller here holds a role as it
+    was written in the source — a `ForEach.role`, a `StateDecl.index` — and the
+    registry takes a `Role`, so the string is classified once, here. A miss
+    raises rather than falling back: resolve has already walled each of these
+    positions against a subset of the registry, so an unclassifiable name means
+    the two registries diverged, and the permissive `TAny` this used to return
+    types the binder as the top and exempts every use of it from every type
+    wall."""
+    return role_type(require_role(name, "binder role"))
+
+
 _SCALAR_TYPES: dict[str, type] = {
     "Integer": TInteger,
     "Boolean": TBoolean,

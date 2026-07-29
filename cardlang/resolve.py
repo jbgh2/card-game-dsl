@@ -73,7 +73,11 @@ from cardlang.domains import (
     PARAM_DOMAIN_ORDER,
     SIMULTANEOUS_ROLES,
     ZONE_INDEX_ROLES,
+    Role,
     binds_actor,
+    index_phrase,
+    role_names,
+    role_of,
 )
 from cardlang.domains import ITERABLE_ROLES as _ITERATION_ROLES
 from cardlang.domains import PARAM_DOMAINS as _FIXED_DOMAINS
@@ -124,11 +128,12 @@ _KNOWN_ROLES = ZONE_INDEX_ROLES
 # this, adding a zone-indexable role whose domain can also be empty would slip
 # past those walls silently, which is the drift the domain table exists to end
 # (domains.py, `zone_key_of`).
-# role-compare-ok: this IS the registry reconciliation — the assert exists so a
-# new zone-indexable role fails here by name rather than escaping the walls below.
-assert ZONE_INDEX_ROLES == {"player", "team"}, (
+# This IS the registry reconciliation: the assert exists so a new
+# zone-indexable role fails here BY NAME rather than escaping the walls
+# below, which implement the `team` row only.
+assert ZONE_INDEX_ROLES == {Role.PLAYER, Role.TEAM}, (
     f"resolve's empty-domain walls implement the `team` row only; "
-    f"ZONE_INDEX_ROLES is {sorted(ZONE_INDEX_ROLES)} — decide whether the new "
+    f"ZONE_INDEX_ROLES is {role_names(ZONE_INDEX_ROLES)} — decide whether the new "
     f"role's domain can be empty, and extend those walls, before widening the "
     f"domain table"
 )
@@ -140,7 +145,7 @@ assert ZONE_INDEX_ROLES == {"player", "team"}, (
 # players, then `x[hearts]` key-errors; a team read silently lands on a seat).
 # Derived from the iteration-role column, minus the domain the form actually
 # ranges over.
-_MISLEADING_LET_INDEXES = _ITERATION_ROLES - {"player"}
+_MISLEADING_LET_INDEXES = role_names(_ITERATION_ROLES - {Role.PLAYER})
 
 # The three domain-registry views this module gates on, all derived from the one
 # table in `cardlang.domains` (which also owns typecheck's binder typing and the
@@ -625,6 +630,7 @@ def _apply_uses(game: n.Game, bag: DiagnosticBag) -> n.Game:
     for use, library in libraries:
         _check_library_encapsulation(library, bag)
         _check_contract_shapes(library, bag)
+        _check_require_indexes(library, bag)
         _check_requires(game, use, library, bag, skip)
 
     # Imported definitions come FIRST, in `uses` order, then the game's own: the
@@ -1052,13 +1058,12 @@ def _library_slot_names(library: n.Library) -> dict[str, frozenset[str]]:
         # against — `Movement.source`/`dest` as ordinary expressions, and
         # `Round.source_zone`/`play_zone` as bare strings.
         "zone": frozenset(r.name for r in library.requires if is_zone_contract(r)),
-        # A zone type's `<owner>` argument, and the index of any declaration a
-        # library writes — a `requires` entry's or a provided variable's. A
-        # library has no `positions { }` and cannot declare one, so the roles are
-        # all it may name; a contract indexed by a game's position domain would
-        # be reaching past its contract for the domain's NAME.
-        "zone_type_arg": ZONE_INDEX_ROLES,
-        "index_domain": ZONE_INDEX_ROLES,
+        # A zone type's `<owner>` argument. A library has no `positions { }` and
+        # cannot declare one, so the roles are all it may name — which is also
+        # why a position-indexed zone family cannot be contracted at all. The
+        # sibling slot, an index, is NOT swept here: `_check_require_indexes`
+        # owns that class and says more than a leak message can.
+        "zone_type_arg": frozenset(role_names(ZONE_INDEX_ROLES)),
         "phase": frozenset(),
         "position": frozenset(),
         "deck_rank": frozenset(),
@@ -1089,6 +1094,15 @@ def _library_slot_names(library: n.Library) -> dict[str, frozenset[str]]:
 _LIBRARY_UNSWEPT: dict[str, str] = {
     "stdlib_move_type": "closed: `LIBRARY_MOVE_TYPES`, identical for a library and a game",
     "stdlib_query": "closed: the stdlib round-query registries, identical either side",
+    "index_domain": (
+        "walled elsewhere, and NOT closed — the row's earlier reading claimed the "
+        "namespace was closed because a game may not declare a non-role index "
+        "either. Zone contracts falsified that: a game DOES declare "
+        "position-indexed zone families (Klondike's `tableau_down[column]`), so a "
+        "contract could name a position domain the importing game alone declares. "
+        "`_check_require_indexes` refuses it, in the library's currency, for a "
+        "requirement and for a provided variable alike"
+    ),
     "role": (
         "walled elsewhere, and NOT closed — the row's first reading was wrong. The role "
         "NAMES are the domain registry's, but `suit`/`rank` admissibility follows the "
@@ -1611,6 +1625,53 @@ def _check_zone_requirement(
         )
 
 
+def _check_require_indexes(library: n.Library, bag: DiagnosticBag) -> None:
+    """The index of any state a library WRITES — required or provided — must be a
+    role a state variable can be indexed by.
+
+    Provided state is here for the same reason a requirement is, and the class is
+    "a declaration a library authored", not "a requirement": a provided
+    `flag[hearts]` splices into the game and is refused post-splice at a span in
+    the library's file, which reads as the library being blamed by a pass that
+    never saw it. Caught here instead, before any game is consulted.
+
+    Reported in the LIBRARY's currency, unlike every other `requires` failure,
+    and the difference is who can fix it: an unmet contract is a fact about the
+    importing GAME (it did not declare what the library asked for), while an
+    index naming no indexable role is wrong in the library's own text, and no
+    game can answer it.
+
+    Without this the name was never checked at all. `requires { q[hearts] :
+    Integer }` reached `_check_requires`, which compares the requirement's
+    index against the declaration's and reports a SHAPE mismatch — so the
+    library's typo was echoed back as though `hearts` were a role the game had
+    failed to use, in a sentence whose two halves both read "per-player". The
+    game side of the same class was walled (a `state { x[hearts] }` is
+    refused); this is its library twin.
+
+    Does NOT honour `_check_requires`'s `skip` set, deliberately. `skip`
+    suppresses a SECOND report of one defect — a name already ruled on as
+    provided or contested would otherwise also be reported as undeclared,
+    advice pointing away from the real mistake. A malformed index is an
+    independent defect in a different file: the collision is the game's to
+    resolve, the index is the library's, and silencing one because of the
+    other would leave the library author with nothing to act on."""
+    provided = library.state.decls if library.state is not None else ()
+    for decl, verb in [(w, "requires") for w in library.requires] + [
+        (d, "provides") for d in provided
+    ]:
+        if decl.index is None or role_of(decl.index) in ZONE_INDEX_ROLES:
+            continue
+        roles = ", ".join(role_names(ZONE_INDEX_ROLES))
+        bag.error(
+            f"library '{library.name}' {verb} state '{decl.name}' indexed by "
+            f"'{decl.index}', which is not an indexable role ({roles}) — a "
+            f"library indexes by a seat or a team, and a game may not declare "
+            f"that index either",
+            decl.span,
+        )
+
+
 def _check_requires(
     game: n.Game,
     use: n.UsesDecl,
@@ -1672,7 +1733,34 @@ def _check_requires(
     zoned: dict[str, list[n.ZoneDecl]] = {}
     for zone in game.zones:
         zoned.setdefault(zone.name, []).append(zone)
+    # Requirements already reported as malformed in the LIBRARY's own text.
+    # Comparing one against the game's declaration derives a second error that
+    # is worse than useless: it renders the malformation as a MISMATCH, so a
+    # non-role index prints as "a scalar" and an unresolvable type prints as
+    # the game's type being wrong — blaming the game author for a defect in a
+    # file they did not write, and, when the name is undeclared, advising them
+    # to add a declaration the language would refuse.
+    #
+    # Matched by SPAN rather than by re-deriving which requirements are
+    # well-formed. That is what makes this complete over the class rather than
+    # over the two members known today: a requirement is malformed exactly when
+    # some wall has already reported against its own span, so a future wall on
+    # a new `RequireDecl` field is covered the day it lands, with nothing to
+    # remember here. Both malformation walls run before this pass, in
+    # `_apply_uses`'s loop, and report at the requirement's span
+    # (`_check_require_indexes` for the index, `_check_library_encapsulation`
+    # for the type name).
+    #
+    # This is the opposite direction from `skip`, which suppresses a downstream
+    # report about a name the GAME's own claims already ruled on.
+    malformed = {d.span for d in bag.items if d.span is not None}
     for want in library.requires:
+        # Span-keyed, so it speaks about BOTH legs and is hoisted above the
+        # split: a malformed zone contract would otherwise get its shape error
+        # in the library AND a mismatch pinned on the game, which is the second
+        # report this suppression exists to prevent.
+        if want.span is not None and want.span in malformed:
+            continue
         if is_zone_contract(want):
             # `skip` is the STATE-claim set (`_check_state_claims`), so it never
             # speaks about a zone name — reading it here would silently drop a
@@ -1705,8 +1793,16 @@ def _check_requires(
             continue
         have = found[0]
         if have.index != want.index:
-            got = "per-player" if have.index else "a scalar"
-            need = "per-player" if want.index else "a scalar"
+            # Rendered from the ROLE, not from the truthiness of the field: the
+            # index is a member of a closed domain, and collapsing it to a
+            # boolean printed "to be per-player, but … declares it as
+            # per-player" for a `[team]`-against-`[player]` mismatch — the two
+            # roles Bridge and Belote both use (issue #144). Both sides are
+            # classified rather than assumed: `_check_require_indexes` has
+            # already refused a requirement whose index names no role, and
+            # resolve's state-index wall the declaration's.
+            got = index_phrase(role_of(have.index) if have.index else None)
+            need = index_phrase(role_of(want.index) if want.index else None)
             bag.error(
                 f"library '{library.name}' requires state `{spelled}` to be "
                 f"{need}, but game '{game.name}' declares it as {got}",
@@ -2512,11 +2608,15 @@ def _sweep_aliases(
         # wrong here, where it would replace the located diagnostic the author
         # needs with an assert and suppress every other diagnostic in the file.
         # Backstop, not a wall: the role's legality is decided above.
-        case n.ForEach() if node.role in _ITERATION_ROLES and binds_actor(node.role):
+        case n.ForEach() if (
+            (role := role_of(node.role)) is not None
+            and role in _ITERATION_ROLES
+            and binds_actor(role)
+        ):
             # A SEAT role: the body's acting player IS the binder.
             _sweep_aliases(node.body, _rebound(node.binder, f"`for each {node.role} {node.binder}`"), flavor, bag)
             return
-        case n.EachSimultaneous() if node.role in SIMULTANEOUS_ROLES:
+        case n.EachSimultaneous() if role_of(node.role) in SIMULTANEOUS_ROLES:
             # Binds the role noun itself as the local (`runtime/execute`).
             _sweep_aliases(node.body, _rebound(node.role, f"`each {node.role} simultaneously`"), flavor, bag)
             return
@@ -2731,9 +2831,7 @@ def _reserved_domain_names(game: n.Game) -> frozenset[str]:
     position's Integer -- a name may not mean two things; the collision is
     rejected where it is declared rather than disambiguated at each use."""
     return (
-        _ITERATION_ROLES
-        | SIMULTANEOUS_ROLES
-        | ZONE_INDEX_ROLES
+        frozenset(role_names(_ITERATION_ROLES | SIMULTANEOUS_ROLES | ZONE_INDEX_ROLES))
         | KNOWN_TYPE_NAMES
         | frozenset(LIBRARY_ZONE_TYPES)
         | {t.name for t in game.types}
@@ -2887,7 +2985,11 @@ def _resolve_board(
 def _resolve_zone(
     zone: n.ZoneDecl, bag: DiagnosticBag, positions: frozenset[str]
 ) -> None:
-    index_known = zone.index is None or zone.index in _KNOWN_ROLES or zone.index in positions
+    index_known = (
+        zone.index is None
+        or role_of(zone.index) in _KNOWN_ROLES
+        or zone.index in positions
+    )
     if not index_known:
         bag.error(f"unknown index role '{zone.index}'", zone.span)
 
@@ -2904,7 +3006,7 @@ def _resolve_zone(
     if not takes_owner and ref.args:
         bag.error(f"zone type '{ref.name}' takes no type arguments", ref.span)
     for arg in ref.args:
-        if arg.name not in _KNOWN_ROLES and arg.name not in positions:
+        if role_of(arg.name) not in _KNOWN_ROLES and arg.name not in positions:
             bag.error(f"unknown owner '{arg.name}'", arg.span)
         elif takes_owner and zone.index is None:
             # An owned zone type has no index to key its owner by. The runtime
@@ -3683,8 +3785,9 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
                     else "a movement's `where` filter"
                 )
                 hint = f" (`{noun}` is bound only inside {where})"
-            # role-compare-ok: not a role dispatch — `player` is the
-            # unresolved NAME this hint is about.
+            # Not a role dispatch: `player` is the unresolved NAME this hint
+            # is about, so it stays a string (walled as a coincidence in
+            # tests/test_role_comparison_pin.py).
             elif node.name == "player":
                 hint = " (`player` is bound only inside a player query or quantifier)"
             bag.error(f"unresolved name '{node.name}'{hint}", node.span)
@@ -4408,9 +4511,10 @@ def _check_card_vocabulary(
             span,
         )
     if card_param_moves and not any(
-        # role-compare-ok: intrinsic — a Card parameter enumerates the
-        # ACTOR's hand, which is player-keyed by definition.
-        z.name == "hand" and z.index == "player" for z in game.zones
+        # Intrinsic: a Card parameter enumerates the ACTOR's hand, which is
+        # player-keyed by definition.
+        z.name == "hand" and z.index is not None and role_of(z.index) is Role.PLAYER
+        for z in game.zones
     ):
         bag.error(
             f"vocabulary move '{card_param_moves[0]}' takes a Card parameter, "
@@ -4645,13 +4749,13 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         f"'{nd.name}'",
                         nd.span,
                     )
-                if nd.index is not None and nd.index not in ZONE_INDEX_ROLES:
+                if nd.index is not None and role_of(nd.index) not in ZONE_INDEX_ROLES:
                     # Same wall as a zone's index role, same registry. Before
                     # it existed, `state { x[suit] : Integer = 0 }` checked
                     # clean and the runtime silently keyed it BY PLAYERS (the
                     # driver's key-set dispatch defaulted every non-team role
                     # to seats) — the declared index was accepted and ignored.
-                    roles = ", ".join(sorted(ZONE_INDEX_ROLES))
+                    roles = ", ".join(role_names(ZONE_INDEX_ROLES))
                     bag.error(
                         f"state variable '{nd.name}' is indexed by "
                         f"'{nd.index}', which is not an indexable role "
@@ -4659,9 +4763,11 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         f"(roadmap.md records the extension)",
                         nd.span,
                     )
-                # role-compare-ok: the `team` row of the empty-domain wall, pinned
-                # against ZONE_INDEX_ROLES at module level.
-                elif nd.index == "team" and not game.partnerships:
+                elif (
+                    nd.index is not None
+                    and role_of(nd.index) is Role.TEAM
+                    and not game.partnerships
+                ):
                     # A team-indexed store in a game with no partnerships has
                     # an EMPTY key set: it declares fine, holds nothing, and
                     # every later `x[…] := …` hits the runtime key wall far
@@ -4672,9 +4778,11 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         f"teams to key it by",
                         nd.span,
                     )
-            # role-compare-ok: the zone twin of the same `team` row, pinned
-            # against ZONE_INDEX_ROLES at module level.
-            case n.ZoneDecl() if nd.index == "team" and not game.partnerships:
+            case n.ZoneDecl() if (
+                nd.index is not None
+                and role_of(nd.index) is Role.TEAM
+                and not game.partnerships
+            ):
                 bag.error(
                     f"zone '{nd.name}' is indexed by 'team' but the game "
                     f"declares no `partnerships:` — there are no teams to key "
@@ -4717,15 +4825,16 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     nd.span,
                 )
             case n.ForEach() if (
-                nd.role not in _ITERATION_ROLES and nd.role not in iterable_positions
+                role_of(nd.role) not in _ITERATION_ROLES
+                and nd.role not in iterable_positions
             ):
                 bag.error(
                     f"unknown `for each` role '{nd.role}' (expected one of "
-                    f"{', '.join(sorted(_ITERATION_ROLES | iterable_positions))})",
+                    f"{', '.join(sorted(role_names(_ITERATION_ROLES) + sorted(iterable_positions)))})",
                     nd.span,
                 )
             case (n.ForEach() | n.Quantifier()) if (
-                game.content_flavor == "piece" and nd.role in CARD_AXIS_ROLES
+                game.content_flavor == "piece" and role_of(nd.role) in CARD_AXIS_ROLES
             ):
                 # `for each suit` / `any rank where` enumerate the deck's axes;
                 # a piece set has no role surface for its own axes (side/kind),
@@ -4737,7 +4846,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"a piece set has none of",
                     nd.span,
                 )
-            case n.EachSimultaneous() if nd.role not in SIMULTANEOUS_ROLES:
+            case n.EachSimultaneous() if role_of(nd.role) not in SIMULTANEOUS_ROLES:
                 # The registry's `simultaneous` column, not a bare `!= "player"`:
                 # the roles that admit a simultaneous block are exactly the seat
                 # domains (a value domain has no actor to move simultaneously),
@@ -4745,7 +4854,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 bag.error(
                     f"`each {nd.role} simultaneously` is not runnable — "
                     f"simultaneous moves are per "
-                    f"{' or '.join(sorted(SIMULTANEOUS_ROLES))}",
+                    f"{' or '.join(role_names(SIMULTANEOUS_ROLES))}",
                     nd.span,
                 )
             case n.EachSimultaneous() if n.simultaneous_body_error(nd.body) is not None:
@@ -4878,10 +4987,12 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     # — player keying was assumed, not checked, the same class
                     # as the `== "team"` defaults the domain table replaced.
                     idx = zone_index.get(nd.dest.name)
-                    # role-compare-ok: intrinsic — `to each` deals one
-                    # share per PLAYER, so the destination family must be
-                    # player-keyed whatever else the table gains.
-                    if nd.dest.ref_kind == "zone" and idx != "player":
+                    # Intrinsic: `to each` deals one share per PLAYER, so the
+                    # destination family must be player-keyed whatever else the
+                    # table gains.
+                    if nd.dest.ref_kind == "zone" and (
+                        idx is None or role_of(idx) is not Role.PLAYER
+                    ):
                         what_z = (
                             "a singleton zone"
                             if idx is None

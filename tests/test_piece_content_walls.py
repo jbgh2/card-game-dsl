@@ -118,7 +118,7 @@ from collections.abc import Callable
 import pytest
 
 from cardlang.diagnostics import DiagnosticError
-from cardlang.domains import CARD_AXIS_ROLES, PARAM_DOMAIN_ORDER
+from cardlang.domains import CARD_AXIS_ROLES, PARAM_DOMAIN_ORDER, role_of
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.values import content_kind_clause
@@ -402,7 +402,7 @@ _ROLE_FOREACH: dict[str, str] = {
 @pytest.mark.parametrize("role", sorted(_ROLE_QUANTIFIER))
 def test_quantifier_role_flavor(role: str) -> None:
     q = _ROLE_QUANTIFIER[role]
-    if role in CARD_AXIS_ROLES:
+    if role_of(role) in CARD_AXIS_ROLES:
         assert PIECE_KIND in _reject(piece_game(filt=q))
         _accept(card_game(filt=q))
     else:
@@ -413,7 +413,7 @@ def test_quantifier_role_flavor(role: str) -> None:
 @pytest.mark.parametrize("role", sorted(_ROLE_FOREACH))
 def test_for_each_role_flavor(role: str) -> None:
     stmt = _ROLE_FOREACH[role]
-    if role in CARD_AXIS_ROLES:
+    if role_of(role) in CARD_AXIS_ROLES:
         assert PIECE_KIND in _reject(piece_game(body=f"    {stmt}"))
         _accept(card_game(body=f"    {stmt}"))
     else:
