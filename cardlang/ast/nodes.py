@@ -1096,13 +1096,20 @@ class UsesDecl:
 
 @dataclass(frozen=True, slots=True)
 class RequireDecl:
-    """One entry of a library's `requires` block: the state variable the
-    including game must declare, with the type the library's bodies read it at.
-    A `StateDecl` minus the default, which the game owns."""
+    """One entry of a library's `requires` block: the thing the including game
+    must declare, with the shape the library's bodies read it at. A `StateDecl`
+    minus the default, which the game owns — plus the zone types' `<owner>`
+    argument, because an entry may name a `zones { }` declaration as well as a
+    `state { }` one.
+
+    The two shapes are exclusive and `resolve` enforces it: `type_args` is a
+    zone spelling and `optional` a state one, so an entry carrying both names
+    nothing a game can declare."""
 
     name: str
     index: str | None
     type_name: str
+    type_args: tuple[TypeArg, ...]
     optional: bool
     span: Span | None = None
 

@@ -2,9 +2,9 @@
 
 A library is a file of the definition forms a game already holds — move_types,
 rules, functions, procedures, types, defines — plus a ``requires`` block naming
-the state its including game must declare. A game names one with ``uses
-<library>`` and resolution is flat and two-level: game, then the named
-libraries, then the stdlib. See decisions.md "Family libraries".
+what its including game must declare: state variables, and zones. A game names
+one with ``uses <library>`` and resolution is flat and two-level: game, then the
+named libraries, then the stdlib. See decisions.md "Family libraries".
 
 This module owns only *finding and parsing* library files. The splice, the
 collision walls, and the requires check live in ``resolve`` — they are name

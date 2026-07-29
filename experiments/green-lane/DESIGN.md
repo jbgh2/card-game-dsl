@@ -19,6 +19,14 @@ pins don't apply. If it earns a place, it goes through
 - **Pure-DSL**: no new grammar surface, no new stdlib primitives, no Python.
   Every construct used is already exercised by the corpus.
 
+The last goal held for the game's design and was then overtaken by its
+SHARING. The family's twelve files share roughly nine tenths of their text, and
+factoring that shared core into `docs/libraries/smuggling.cardlang` is what
+forced the family-library contract to be able to name a zone — the family is
+the witness for that surface, not a user of surface that already existed
+(decisions.md "Family libraries"; issue #143). The game itself still uses only
+constructs the corpus exercises.
+
 ## The idea
 
 A customs-inspection duel. Each player must ship their entire hand, one card
