@@ -375,7 +375,7 @@ without corrupting the experiment — see the neutral arm's confound below.
 |---|---|---|
 | `reasoning` | `{"action": i, "reasoning": s}` | the **control**; every published number uses it |
 | `neutral` | `{"action": i}` | run, **unusable** — see below |
-| `reason_first` | `{"reasoning": s, "action": i}` | built and gated, not yet run |
+| `reason_first` | `{"reasoning": s, "action": i}` | **gate passed on both models**; N=10 in progress |
 
 Every arm matchup is a verbatim copy of `*_rendered_bluffer` with only `arm:`
 changed — same seeds, same opponents, same rendered state, same models and
@@ -456,6 +456,26 @@ Three numbers, two of which make the arm *null* rather than merely noisy:
   arm died, reached by a different route. The control's token profile does not
   transfer, because the ordering change is the thing that alters it.
 - **`fallback_rate` under ~2%**, the standing publication gate.
+
+**Gate result (N=1 each, run before committing to N=10).** Both models honour the
+key order on every single reply, so the manipulation is real; and the bounded JSON
+string held, which is the thing the neutral arm proved cannot be assumed.
+
+| | Haiku 4.5 | Sonnet 5 | control (Haiku) | neutral (Haiku) |
+|---|---|---|---|---|
+| `reasoning_before_action` | **152/152 = 1.000** | **145/145 = 1.000** | n/a | n/a |
+| `truncated_at_max_tokens` | 0/154 = 0.000 | 0/145 = 0.000 | 0 | high |
+| `fallback_rate` | 0/152 = 0.000 | 0/145 = 0.000 | 0.0008 | 0.2225 |
+| calls per decision | 1.013 | 1.000 | 1.018 | 1.85 |
+| output tokens per call | 114.3 | 86.9 | 96 | 399 |
+
+Deliberation moved *inside* the envelope rather than escaping it: 114 tokens per
+call against the neutral arm's 399. Compare arms with:
+
+```bash
+python -m experiments.llm_eval.compare \
+  --control llm_cheap_rendered_bluffer --arm llm_cheap_reason_first_bluffer
+```
 
 **A caveat that applies to the existing results too.** In the control the action
 precedes the reasoning, so the reasoning is post-hoc rationalisation, not
