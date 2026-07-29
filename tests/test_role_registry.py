@@ -181,7 +181,7 @@ def test_the_two_namespaces_are_one_table() -> None:
         owner = [row for row in DOMAINS if spelling in row.param_domains]
         assert len(owner) == 1, f"{spelling!r} is claimed by {len(owner)} rows"
         assert spelling.rstrip("?") == owner[0].type_name
-        assert owner[0].type_name.lower() == owner[0].id
+        assert owner[0].type_name.lower() == owner[0].id.value
 
 
 def test_a_rows_type_name_is_a_declarable_type_with_the_same_type() -> None:

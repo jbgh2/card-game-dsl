@@ -138,7 +138,7 @@ def test_every_builtin_domain_id_and_type_spelling_is_a_rejected_position_name()
         | set(KNOWN_TYPE_NAMES)
     )
     assert "Card" in spellings and "player" in spellings  # the sweep is real
-    for name in sorted(spellings):
+    for name in sorted(str(s) for s in spellings):
         with pytest.raises(DiagnosticError, match="collides with a built-in"):
             check_dsl(
                 _game(positions=f"positions {{ {name} : 1..3 }}",

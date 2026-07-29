@@ -15,7 +15,7 @@ from typing import Any
 
 from cardlang.ast import nodes as n
 from cardlang.board_domains import directions_of, position_domains_of
-from cardlang.domains import role_members
+from cardlang.domains import role_members, require_role
 from cardlang.runtime import phases
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.evaluate import evaluate
@@ -391,6 +391,8 @@ def _declare_state(block: n.StateBlock, ctx: Ctx) -> None:
             # `teams if index == "team" else players` silently keyed every
             # other role by players, which is exactly how `state { x[suit] }`
             # ran as a per-player store until resolve walled it.
-            keys = role_members(decl.index, ctx)
+            keys = role_members(
+                require_role(decl.index, "state-variable index role"), ctx
+            )
             value: dict[int, Any] = {k: evaluate(decl.default, ctx) for k in keys}
             ctx.rs.declare(decl.name, True, value)

@@ -64,6 +64,7 @@ cells plus a lie in the `members` column.
 
 from __future__ import annotations
 
+import enum
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
@@ -72,6 +73,37 @@ from cardlang.types import TEnum, TPlayer, TTeam, Type
 
 if TYPE_CHECKING:  # pragma: no cover - typing only, no runtime import cycle
     from cardlang.runtime.state import Ctx, RuntimeState
+
+
+class Role(enum.Enum):
+    """The role ids, as a type the checker dispatches over.
+
+    THE definition site: `Domain.id` is a `Role`, so the enum and the table
+    cannot disagree — there is no second list to keep in step. Widening the
+    registry means adding a member here, and every exhaustive `match` over
+    `Role` then fails to compile until it answers for the new row, which is
+    what makes this a rung-1 wall (decisions.md "Prefer the wall you cannot
+    need") rather than a scrape that has to be maintained.
+
+    Deliberately NOT a `str` subclass. A `StrEnum` would compare equal to its
+    own spelling, so `role == "team"` would keep type-checking and keep
+    working — the whole class of drift this type exists to end
+    (`tests/test_role_comparison_pin.py`) would stay invisible. As a plain
+    `Enum` under `mypy --strict`, comparing a `Role` against a string literal
+    is a `comparison-overlap` error and so is `role in ("team", "player")`:
+    the checker owns what a token scrape used to.
+
+    The VALUE is the surface spelling — the `for each <id>` role noun and the
+    `any <id> where` quantifier noun — and is what a diagnostic prints. It is
+    also the only bridge from parsed text, crossed in exactly one place
+    (`role_of`), because a name arriving from a game's source is not yet known
+    to be a role at all.
+    """
+
+    PLAYER = "player"
+    TEAM = "team"
+    SUIT = "suit"
+    RANK = "rank"
 
 
 @dataclass(frozen=True)
@@ -118,9 +150,9 @@ class DomainSources:
 class Domain:
     """One quantifiable domain, with every facet the engine derives from it."""
 
-    # The canonical id: the `for each <id>` role noun, the `any <id> where`
-    # quantifier noun, and the implicit binder name.
-    id: str
+    # The canonical id. A `Role`, not a string: the enum above is the one
+    # definition site, and this field is what ties each row to its member.
+    id: Role
     # The declared-type spelling (`Player` to the id's `player`).
     type_name: str
     # What a `for each`/quantifier binder over this domain types as.
@@ -158,7 +190,7 @@ class Domain:
 
 DOMAINS: tuple[Domain, ...] = (
     Domain(
-        id="player",
+        id=Role.PLAYER,
         type_name="Player",
         binder_type=TPlayer(),
         binds_actor=True,
@@ -170,7 +202,7 @@ DOMAINS: tuple[Domain, ...] = (
         zone_key_of=lambda rs, observer: observer,
     ),
     Domain(
-        id="team",
+        id=Role.TEAM,
         type_name="Team",
         binder_type=TTeam(),
         binds_actor=False,
@@ -182,7 +214,7 @@ DOMAINS: tuple[Domain, ...] = (
         zone_key_of=lambda rs, observer: rs.team_of.get(observer),
     ),
     Domain(
-        id="suit",
+        id=Role.SUIT,
         type_name="Suit",
         binder_type=TEnum("Suit"),
         binds_actor=False,
@@ -195,7 +227,7 @@ DOMAINS: tuple[Domain, ...] = (
         static_members=lambda src: list(src.suits),
     ),
     Domain(
-        id="rank",
+        id=Role.RANK,
         type_name="Rank",
         binder_type=TEnum("Rank"),
         binds_actor=False,
@@ -211,20 +243,69 @@ DOMAINS: tuple[Domain, ...] = (
 
 # --- the derived views the consumers read ----------------------------------
 
-BY_ID: dict[str, Domain] = {d.id: d for d in DOMAINS}
+BY_ID: dict[Role, Domain] = {d.id: d for d in DOMAINS}
+
+# The ONE bridge from parsed text to the type. A name reaching this function is
+# whatever a game's source said; only a name the registry knows comes back as a
+# `Role`, and everything downstream of the answer is typed.
+#
+# `None` is not "invalid" — a role slot's domain is the registry PLUS a game's
+# declared position domains (decisions.md "Position domains and positional
+# zones"), which the registry cannot know about. So the caller decides what a
+# miss means: resolve's `for each` wall consults its game's positions and only
+# then refuses, while `role_type` treats a miss as a registry divergence and
+# raises. Returning `None` rather than raising is what lets both readings exist
+# without a second lookup.
+_BY_NAME: dict[str, Role] = {r.value: r for r in Role}
+
+
+def role_of(name: str) -> Role | None:
+    """The registry role `name` spells, or `None` if the registry has no such
+    row. See `_BY_NAME` on why a miss is the caller's to interpret."""
+    return _BY_NAME.get(name)
+
+
+def require_role(name: str, what: str) -> Role:
+    """`role_of` for a position resolve has ALREADY walled against a subset of
+    the registry — a quantifier's four grammar productions, a `for each` role
+    after the iteration-role check, a state variable's index.
+
+    Those callers hold a name that must classify, so a miss is a registry
+    divergence (a compiler bug) rather than an author error, and it raises in
+    compiler currency naming the position. Distinct from `role_of`, which the
+    WALLS themselves call: a wall must be able to see a miss and report it as a
+    diagnostic, which is why the two readings are two functions rather than one
+    with a flag. `what` names the position, so the crash says which pass's wall
+    was supposed to have run."""
+    role = role_of(name)
+    if role is None:
+        raise AssertionError(
+            f"'{name}' is not a {what} (resolve rejects these) — a role "
+            f"reaching here without a registry row means a wall was bypassed, "
+            f"not that the game is wrong"
+        )
+    return role
+
+
+def role_names(roles: frozenset[Role]) -> list[str]:
+    """The surface spellings of a role set, sorted — for a diagnostic that
+    lists what it would have accepted. One helper rather than a
+    `sorted(r.value for r in …)` at each of the six sites that print one."""
+    return sorted(r.value for r in roles)
+
 
 # Roles `for each <role> <binder>` may range over (resolve's `_ITERATION_ROLES`).
-ITERABLE_ROLES: frozenset[str] = frozenset(d.id for d in DOMAINS if d.iterable)
+ITERABLE_ROLES: frozenset[Role] = frozenset(d.id for d in DOMAINS if d.iterable)
 
 # Roles `each <role> simultaneously:` may range over — seat domains only.
-SIMULTANEOUS_ROLES: frozenset[str] = frozenset(d.id for d in DOMAINS if d.simultaneous)
+SIMULTANEOUS_ROLES: frozenset[Role] = frozenset(d.id for d in DOMAINS if d.simultaneous)
 
 # Roles that enumerate deck content (`rs.suits`/`rs.ranks`) rather than seats —
 # the ones whose parameter domain is a card axis (`Suit`/`Suit?`/`Rank`). A
 # piece game has no role surface for its own axes (side/kind), so the flavor
 # walls reject these roles there; derived here so a new card-axis domain joins
 # the set rather than a hand-kept `{suit, rank}`.
-CARD_AXIS_ROLES: frozenset[str] = frozenset(
+CARD_AXIS_ROLES: frozenset[Role] = frozenset(
     d.id for d in DOMAINS if any(pd.rstrip("?") in ("Suit", "Rank") for pd in d.param_domains)
 )
 
@@ -233,9 +314,22 @@ CARD_AXIS_ROLES: frozenset[str] = frozenset(
 # has a key of their own. Resolve's wall, typecheck's subscript typing, the
 # zone store's key sets, and the observation layer's ownership test all read
 # this table rather than re-spelling {player, team}.
-ZONE_INDEX_ROLES: frozenset[str] = frozenset(
+ZONE_INDEX_ROLES: frozenset[Role] = frozenset(
     d.id for d in DOMAINS if d.zone_key_of is not None
 )
+
+
+def index_phrase(index: Role | None) -> str:
+    """How a state variable's index reads in a diagnostic: "a scalar" when it
+    has none, else "per-<role>".
+
+    Rendered from the ROLE, never from the truthiness of the field. Both sides
+    of the library `requires` contract used to render as `"per-player" if
+    have.index else "a scalar"`, which collapses a closed domain to a boolean
+    and prints "requires it to be per-player, but declares it as per-player"
+    for a `[team]`-against-`[player]` mismatch — the two roles Bridge and
+    Belote both use (issue #144)."""
+    return "a scalar" if index is None else f"per-{index.value}"
 
 
 def zone_observer_key(role: str, rs: RuntimeState, observer: int) -> int | None:
@@ -250,10 +344,17 @@ def zone_observer_key(role: str, rs: RuntimeState, observer: int) -> int | None:
     projects such a family through the zone type's `others` column. Both
     ownership consumers (runtime `observe._is_owner` and the proof oracle
     `tests/openspiel_ready/partition._is_owner`) read this one function, so
-    the unowned rule cannot drift between them."""
+    the unowned rule cannot drift between them.
+
+    Takes a NAME, not a `Role`, and is one of the two functions here that
+    genuinely should: its domain is the registry plus the calling game's
+    declared position domains, so the argument is an index-domain name whose
+    class is exactly what this function decides. The conversion is the first
+    thing it does after the position branch."""
     if role in rs.position_domains:
         return None
-    row = BY_ID.get(role)
+    id_ = role_of(role)
+    row = BY_ID[id_] if id_ is not None else None
     if row is None or row.zone_key_of is None:
         raise AssertionError(
             f"'{role}' is not a zone-index role (resolve rejects these)"
@@ -276,58 +377,48 @@ CARD_PARAM_DOMAINS: frozenset[str] = frozenset(
 ) | {"Card"}
 
 
-def role_type(role: str) -> Type:
+# Every `Role` has a row, which is what makes the three lookups below total by
+# construction — `BY_ID[role]`, no miss branch. Each of them used to take a
+# `str` and raise on an unknown one, and that raise was the wall: it proved the
+# lookup could not degrade to a silent default (`binds_actor` answering `False`
+# for a missing seat domain would have run the loop with the wrong actor). The
+# `Role` parameter now makes an unknown role unwritable, so the only way the
+# lookup could still miss is a member declared here without a row — which is
+# this one assert, over a four-element domain, instead of three raises no
+# caller can reach (decisions.md "Prefer the wall you cannot need": the fact
+# moved from rung 2 to rung 1, and this is the residue that has to stay).
+assert set(BY_ID) == set(Role), (
+    f"every Role must carry a row: {sorted(r.value for r in set(Role) - set(BY_ID))} "
+    f"declared with no row in DOMAINS"
+)
+
+
+def role_type(role: Role) -> Type:
     """The type a `for each <role>` / `any <role>` binder carries.
 
     Every role-bearing surface draws from this registry: quantifier roles are
     fixed by the parser (four hard-coded spellings), and `for each` /
     simultaneous / zone-index / state-index roles are each walled by resolve
-    against a subset of `BY_ID` (`tests/test_permissive_top.py` pins all five
-    role sets as subsets). So an unknown role is a registry divergence and
-    raises, matching `role_members`/`zone_observer_key` in this module — it
-    used to return the permissive `TAny`, which types the binder as the top
-    and silently exempts every use of it from every type wall.
-    """
-    row = BY_ID.get(role)
-    if row is None:
-        raise AssertionError(
-            f"'{role}' is not a binder role (resolve rejects these) — a new "
-            f"role must carry a binder type here rather than defaulting to the "
-            f"permissive top"
-        )
-    return row.binder_type
+    against a subset of the registry (`tests/test_permissive_top.py` pins all
+    five role sets as subsets). It used to return the permissive `TAny` for an
+    unknown role, which types the binder as the top and silently exempts every
+    use of it from every type wall."""
+    return BY_ID[role].binder_type
 
 
-def binds_actor(role: str) -> bool:
+def binds_actor(role: Role) -> bool:
     """Whether binding a member of this domain also rebinds the acting player —
     true for a seat domain, false for a value domain. The one place `for each`'s
-    seat/value asymmetry is decided.
-
-    An unknown role raises, matching `role_type` / `role_members` /
-    `role_static_members` / `zone_observer_key` in this module: resolve has
-    already walled the role against a subset of `BY_ID`, so a miss here is a
-    registry divergence rather than a program error. Returning `False` would
-    answer "this is a value domain" — a silent wrong answer that runs the loop
-    without rebinding the actor, where the four siblings would have raised.
-    """
-    row = BY_ID.get(role)
-    if row is None:
-        raise AssertionError(
-            f"'{role}' is not an iteration role (resolve rejects these) — a new "
-            f"role must declare its seat/value asymmetry here rather than "
-            f"defaulting to a value domain"
-        )
-    return row.binds_actor
+    seat/value asymmetry is decided."""
+    return BY_ID[role].binds_actor
 
 
-def role_members(role: str, ctx: Ctx) -> list[Any]:
+def role_members(role: Role, ctx: Ctx) -> list[Any]:
     """The runtime domain of one role: the players/teams/suits/ranks a `for each
     <role>` or a quantifier binds over, in iteration order. The ONE runtime
     member enumerator — `runtime/evaluate.py` (quantifiers) and
     `runtime/execute.py` (`for each`) both call it rather than re-deriving."""
-    row = BY_ID.get(role)
-    if row is None:
-        raise AssertionError(f"unknown quantifier role '{role}' (resolve rejects these)")
+    row = BY_ID[role]
     return row.members(ctx)
 
 
@@ -342,13 +433,20 @@ def role_static_members(role: str, sources: DomainSources) -> list[Any]:
 
     A declared position domain resolves ahead of the table (its name can never
     collide with a row id — resolve rejects the collision), so the zone store
-    can key a position-indexed family from the same sources struct."""
+    can key a position-indexed family from the same sources struct.
+
+    The second of the two functions here that take a NAME rather than a `Role`,
+    and for the same reason as `zone_observer_key`: the domain really is the
+    registry plus this game's declared positions, so classifying the name is
+    part of the answer. The raise below is therefore still live — it is the
+    wall over what is left after the position branch, not a lookup a `Role`
+    parameter could have made total."""
     if role in sources.positions:
         return list(sources.positions[role])
-    row = BY_ID.get(role)
-    if row is None:
+    id_ = role_of(role)
+    if id_ is None:
         raise AssertionError(f"unknown role '{role}' (resolve rejects these)")
-    return row.static_members(sources)
+    return BY_ID[id_].static_members(sources)
 
 
 def enumerate_domain(type_name: str, sources: DomainSources) -> list[Any]:

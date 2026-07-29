@@ -61,6 +61,8 @@ residual:   ONE. The grid commands ACCEPT/REJECT/INEXPRESSIBLE, not WHICH wall
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import pytest
 
 from cardlang.ast import nodes as n
@@ -110,7 +112,7 @@ def _role_slots() -> frozenset[str]:
 
 # --- the VALUE axis ---------------------------------------------------------
 
-_REGISTRY_ROLES: tuple[str, ...] = tuple(sorted(d.id for d in DOMAINS))
+_REGISTRY_ROLES: tuple[str, ...] = tuple(sorted(d.id.value for d in DOMAINS))
 _DECLARED_POSITION = "column"  # `positions { column : 1..3 }`
 _UNKNOWN = "croupier"  # no registry row, no declaration
 
@@ -191,7 +193,11 @@ move_type stop {{ effect {{ done := true }} }}
 """
 
 
-def _base_for(value: str) -> object:
+# A base builder: keyword-only `zones`/`state`/`stmt`, returning game source.
+_Base = Callable[..., str]
+
+
+def _base_for(value: str) -> _Base:
     return _board_game if value in _BOARD_VALUES else _card_game
 
 
@@ -204,46 +210,46 @@ def _base_for(value: str) -> object:
 # role wall's cell on a different wall entirely.
 
 
-def _run_for_each(value: str) -> None:
+def _run_for_each(value: str, _mp: pytest.MonkeyPatch) -> None:
     base = _base_for(value)
-    check_dsl(base(stmt=f"for each {value} b: n[0] := 1"), "probe.cardlang")  # type: ignore[operator]
+    check_dsl(base(stmt=f"for each {value} b: n[0] := 1"), "probe.cardlang")
 
 
-def _run_quantifier(value: str) -> None:
+def _run_quantifier(value: str, _mp: pytest.MonkeyPatch) -> None:
     base = _base_for(value)
-    check_dsl(  # type: ignore[operator]
+    check_dsl(
         base(stmt=f"if any {value} where n[0] > 0 {{ n[0] := 1 }}"), "probe.cardlang"
     )
 
 
-def _run_each_simultaneous(value: str) -> None:
+def _run_each_simultaneous(value: str, _mp: pytest.MonkeyPatch) -> None:
     base = _base_for(value)
     item, src, dst = (
         ("pieces", "reserve[0]", "square[a1]")
         if value in _BOARD_VALUES
         else ("cards", "hand[0]", "pile[0]")
     )
-    check_dsl(  # type: ignore[operator]
+    check_dsl(
         base(stmt=f"each {value} simultaneously: transfer chosen 1 {item} from {src} to {dst}"),
         "probe.cardlang",
     )
 
 
-def _run_zone_index(value: str) -> None:
+def _run_zone_index(value: str, _mp: pytest.MonkeyPatch) -> None:
     base = _base_for(value)
-    check_dsl(base(zones=f"p2[{value}] : Discard"), "probe.cardlang")  # type: ignore[operator]
+    check_dsl(base(zones=f"p2[{value}] : Discard"), "probe.cardlang")
 
 
-def _run_state_index(value: str) -> None:
+def _run_state_index(value: str, _mp: pytest.MonkeyPatch) -> None:
     base = _base_for(value)
-    check_dsl(base(state=f"x[{value}] : Integer = 0"), "probe.cardlang")  # type: ignore[operator]
+    check_dsl(base(state=f"x[{value}] : Integer = 0"), "probe.cardlang")
 
 
-def _run_type_arg(value: str) -> None:
+def _run_type_arg(value: str, _mp: pytest.MonkeyPatch) -> None:
     # Index and owner held EQUAL -- what a designer writes, and what the
     # agreement wall demands. See the ledger's residual row.
     base = _base_for(value)
-    check_dsl(base(zones=f"h2[{value}] : PlayerPile<{value}>"), "probe.cardlang")  # type: ignore[operator]
+    check_dsl(base(zones=f"h2[{value}] : PlayerPile<{value}>"), "probe.cardlang")
 
 
 def _run_require_index(value: str, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -266,19 +272,24 @@ def _run_require_index(value: str, monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr("cardlang.resolve.load_library", lambda name: library)
     base = _base_for(value)
-    source = base(state="q[player] : Integer = 0", stmt="run bump()")  # type: ignore[operator]
+    source = base(state="q[player] : Integer = 0", stmt="run bump()")
     source = source.replace("  zones {", "  uses probe_lib\n  zones {", 1)
     # The game text is otherwise IDENTICAL across this row -- only the library
     # varies -- and `pipeline._check` memoizes on the parsed tree while
-    # `resolve` reads the library registry from module globals. Without this
-    # tag every cell after the first returns the first cell's verdict, and the
-    # row goes green having run once (issue #186). The other rows vary their
-    # own source text and are unaffected.
-    source = f"// role-slot cell: {value}\n{source}"
+    # `resolve` reads the library registry from module globals (issue #186).
+    # Without a tag, every cell whose predecessor was ACCEPTED returns that
+    # verdict and the row goes green having run once. The tag is the game's
+    # NAME, not a comment: comments do not survive into the AST, so a comment
+    # separates two cells only when the two values differ in LENGTH (the memo
+    # key includes span offsets) -- which silently left `column` colliding with
+    # `player`, the one accepting cell, in exactly the direction that hides a
+    # defect. The other rows vary their own source text and are unaffected.
+    source = source.replace("game G {", f"game G_{value} {{", 1)
+    source = source.replace("game B {", f"game B_{value} {{", 1)
     check_dsl(source, "probe.cardlang")
 
 
-_TEMPLATES = {
+_TEMPLATES: dict[str, Callable[[str, pytest.MonkeyPatch], None]] = {
     "ForEach.role": _run_for_each,
     "Quantifier.role": _run_quantifier,
     "EachSimultaneous.role": _run_each_simultaneous,
@@ -301,7 +312,7 @@ _TEMPLATES = {
 #  - `each … simultaneously` is seat-only, and only the seat that IS an actor.
 #  - a zone/state index must be a domain an observer has a key of their own in
 #    (`zone_key_of`); zones additionally admit position domains, state does not.
-_EXPECTED: dict[tuple[str, str], str] = {
+_EXPECTED: dict[tuple[str, str], str | tuple[str, str]] = {
     # slot                    player  team    suit    rank    column  cell    dir     unknown
     **dict.fromkeys([("ForEach.role", v) for v in ("player", "team", "suit", "rank")], ACCEPT),
     ("ForEach.role", _DECLARED_POSITION): REJECT,
@@ -410,7 +421,7 @@ def test_a_role_slot_admits_exactly_its_declared_domains(
         # Stronger than "refused": the grammar cannot build the node at all.
         # Asserted over the parse tree, so a future production that DID admit
         # the noun would fail here even if resolve went on to refuse it.
-        source = _base_for(value)(  # type: ignore[operator]
+        source = _base_for(value)(
             stmt=f"if any {value} where n[0] > 0 {{ n[0] := 1 }}"
         )
         try:
@@ -424,20 +435,15 @@ def test_a_role_slot_admits_exactly_its_declared_domains(
         ], f"{value} built a Quantifier -- the grammar's four spellings are no longer closed"
         return
 
-    run = (
-        (lambda v: template(v, monkeypatch))  # type: ignore[call-arg,misc]
-        if slot == "RequireDecl.index"
-        else template
-    )
     if expected is ACCEPT:
-        run(value)  # type: ignore[operator]
+        template(value, monkeypatch)
         return
     # A commanded rejection, optionally with the sentence it must come back
     # with -- see the `RequireDecl.index` row on why the verdict alone is not
     # always enough to tell a checked slot from an unchecked one.
     required = expected[1] if isinstance(expected, tuple) else None
     with pytest.raises(DiagnosticError) as exc:
-        run(value)  # type: ignore[operator]
+        template(value, monkeypatch)
     if required is not None:
         assert required in str(exc.value), (
             f"{slot} x {value}: refused, but not for the reason commanded — "

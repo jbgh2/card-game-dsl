@@ -224,7 +224,7 @@ def test_a_quantifier_binder_types_as_its_rows_binder_type() -> None:
     # would accept every one of these.
     for row in DOMAINS:
         _rejects(
-            _src(f"let q = {_any(row)} {CROSS_TYPED[row.id]}"),
+            _src(f"let q = {_any(row)} {CROSS_TYPED[row.id.value]}"),
             "can never be equal",
         )
 
