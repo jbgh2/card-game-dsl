@@ -55,8 +55,8 @@ def _contract(gr: reads.GameReads) -> tuple[str, str | None]:
 def _is_trump(c: Card, game_type: str, trump_suit: str | None) -> bool:
     if game_type == "null":
         return False
-    # role-compare-ok: not a role — `game_type` is a Skat contract kind
-    # ("suit"/"grand"/"null"), unrelated to the domain table.
+    # Not a role: `game_type` is a Skat contract kind ("suit"/"grand"/"null"),
+    # unrelated to the domain table.
     return c.rank == "J" or (game_type == "suit" and c.suit == trump_suit)
 
 

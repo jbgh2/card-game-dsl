@@ -133,7 +133,7 @@ def test_every_builtin_domain_id_and_type_spelling_is_a_rejected_position_name()
     and every KNOWN_TYPE_NAMES member must be rejected as a position name —
     the two definition sites can never disagree about a spelling."""
     spellings = (
-        {d.id for d in DOMAINS}
+        {d.id.value for d in DOMAINS}
         | {d.type_name for d in DOMAINS}
         | set(KNOWN_TYPE_NAMES)
     )

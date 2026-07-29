@@ -28,6 +28,7 @@ import pytest
 
 from cardlang import resolve
 from cardlang.domains import (
+    Role,
     BY_ID,
     BY_PARAM_DOMAIN,
     PARAM_DOMAIN_ORDER,
@@ -138,4 +139,4 @@ def test_a_domain_with_no_param_spelling_is_walled_at_the_param_column() -> None
     with pytest.raises(NotImplementedError):
         enumerate_domain("Team", SOURCES)
     # ...but its size is a fact the table knows.
-    assert BY_ID["team"].static_members(SOURCES) == list(SOURCES.teams)
+    assert BY_ID[Role.TEAM].static_members(SOURCES) == list(SOURCES.teams)

@@ -75,7 +75,8 @@ def check_capacity(game: n.Game) -> n.Game:
         teams=game.partnerships,
     )
     counts = {
-        role: len(role_static_members(role, sources)) for role in ITERABLE_ROLES
+        role.value: len(role_static_members(role.value, sources))
+        for role in ITERABLE_ROLES
     }
 
     bag = DiagnosticBag()
