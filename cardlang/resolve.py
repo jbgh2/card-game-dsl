@@ -128,6 +128,9 @@ _KNOWN_ROLES = ZONE_INDEX_ROLES
 # this, adding a zone-indexable role whose domain can also be empty would slip
 # past those walls silently, which is the drift the domain table exists to end
 # (domains.py, `zone_key_of`).
+# This IS the registry reconciliation: the assert exists so a new
+# zone-indexable role fails here BY NAME rather than escaping the walls
+# below, which implement the `team` row only.
 assert ZONE_INDEX_ROLES == {Role.PLAYER, Role.TEAM}, (
     f"resolve's empty-domain walls implement the `team` row only; "
     f"ZONE_INDEX_ROLES is {role_names(ZONE_INDEX_ROLES)} — decide whether the new "
@@ -1394,7 +1397,15 @@ def _check_require_indexes(library: n.Library, bag: DiagnosticBag) -> None:
     library's typo was echoed back as though `hearts` were a role the game had
     failed to use, in a sentence whose two halves both read "per-player". The
     game side of the same class was walled (a `state { x[hearts] }` is
-    refused); this is its library twin."""
+    refused); this is its library twin.
+
+    Does NOT honour `_check_requires`'s `skip` set, deliberately. `skip`
+    suppresses a SECOND report of one defect — a name already ruled on as
+    provided or contested would otherwise also be reported as undeclared,
+    advice pointing away from the real mistake. A malformed index is an
+    independent defect in a different file: the collision is the game's to
+    resolve, the index is the library's, and silencing one because of the
+    other would leave the library author with nothing to act on."""
     for want in library.requires:
         if want.index is None or role_of(want.index) in ZONE_INDEX_ROLES:
             continue

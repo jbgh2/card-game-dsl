@@ -450,6 +450,17 @@ def test_a_role_slot_admits_exactly_its_declared_domains(
             f"{slot} x {value}: refused, but not for the reason commanded — "
             f"expected {required!r} in:\n    {exc.value}"
         )
+    if slot == "RequireDecl.index" and value != "team":
+        # CURRENCY, not just verdict. Every OTHER requires failure lands on
+        # the game's `uses` line (pinned in tests/test_family_libraries.py),
+        # so this row deviates from a pinned convention and must say so out
+        # loud: a malformed index is wrong in the library's own text and no
+        # game can answer it. The `team` cell is excluded because it is a
+        # genuine CONTRACT mismatch, which keeps the game's currency.
+        assert "probe_lib.cardlang:" in str(exc.value), (
+            f"{slot} x {value}: refused in the wrong file — a malformed "
+            f"requirement index is the library's defect:\n    {exc.value}"
+        )
 
 
 def _walk(node: object) -> list[object]:
