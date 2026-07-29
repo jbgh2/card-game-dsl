@@ -133,6 +133,13 @@ def main(argv: list[str] | None = None) -> int:
         help="agent label to compare (default: the one common to both, "
         "refusing if that is ambiguous)",
     )
+    ap.add_argument(
+        "--common-seeds",
+        action="store_true",
+        help="restrict both arms to the seeds they BOTH played. For a run cut "
+        "short by a budget cap this is the only defensible comparison: the "
+        "alternative pits N games against M different deals.",
+    )
     args = ap.parse_args(argv)
 
     root = Path(args.dir)
@@ -154,6 +161,20 @@ def main(argv: list[str] | None = None) -> int:
                 f"arm has {sorted(names[1])} — pass --who"
             )
         who = common.pop()
+
+    if args.common_seeds:
+        shared = {r["seed"] for r in left} & {r["seed"] for r in right}
+        if not shared:
+            raise SystemExit("the two arms share no seeds — nothing to compare")
+        dropped = (len(left) - len(shared)) + (len(right) - len(shared))
+        left = [r for r in left if r["seed"] in shared]
+        right = [r for r in right if r["seed"] in shared]
+        # Loud, because silently discarding games is how a truncated run gets
+        # reported as if it were the run that was planned.
+        print(
+            f"--common-seeds: restricted to the {len(shared)} seed(s) both arms "
+            f"played; dropped {dropped} game(s)."
+        )
 
     # Seeds first: the whole comparison rests on the two runs being the same
     # games, which this module cannot enforce and must therefore expose.

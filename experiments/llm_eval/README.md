@@ -375,7 +375,7 @@ without corrupting the experiment — see the neutral arm's confound below.
 |---|---|---|
 | `reasoning` | `{"action": i, "reasoning": s}` | the **control**; every published number uses it |
 | `neutral` | `{"action": i}` | run, **unusable** — see below |
-| `reason_first` | `{"reasoning": s, "action": i}` | **gate passed on both models**; N=10 in progress |
+| `reason_first` | `{"reasoning": s, "action": i}` | gate passed; **N=2 of 10** (API cap), hypothesis **falsified** |
 
 Every arm matchup is a verbatim copy of `*_rendered_bluffer` with only `arm:`
 changed — same seeds, same opponents, same rendered state, same models and
@@ -470,12 +470,67 @@ string held, which is the thing the neutral arm proved cannot be assumed.
 | output tokens per call | 114.3 | 86.9 | 96 | 399 |
 
 Deliberation moved *inside* the envelope rather than escaping it: 114 tokens per
-call against the neutral arm's 399. Compare arms with:
+call against the neutral arm's 399.
+
+**The manipulation is clean.** Over the paired games, the control put `reasoning`
+before `action` in **0 of 302** replies and the arm in **292 of 292**. The two
+arms differ in generation order on every single reply, and in nothing else.
+
+### Result: the hypothesis is falsified, on the pre-registered endpoint
+
+Haiku, seeds 0-1 (the games both arms played), compared with:
 
 ```bash
-python -m experiments.llm_eval.compare \
+python -m experiments.llm_eval.compare --common-seeds \
   --control llm_cheap_rendered_bluffer --arm llm_cheap_reason_first_bluffer
 ```
+
+| | control | reason-first | delta |
+|---|---|---|---|
+| **`challenge_rate`** (endpoint) | 52/98 = 0.531 | 99/122 = **0.811** | **+0.281** |
+| `challenge_precision` | 28/52 = 0.538 | 54/99 = 0.545 | +0.007 |
+| wrong accusations per game | 12.0 | **22.5** | +10.5 |
+| `lying_rate` (own lies) | 36/45 = 0.800 | 21/50 = 0.420 | -0.380 |
+| `provable_lie_detection` | 16/30 = 0.533 | 46/55 = 0.836 | +0.303 |
+| `improbable_lie_detection` | 12/23 = 0.522 | 8/16 = 0.500 | -0.022 |
+
+**Reasoning before acting made the model act MORE, not less** — the opposite of
+the prediction. The justification-bias theory said a model asked to write a reason
+would reach for something to write about, and that removing or reordering the
+demand would calm it down. Reordering roughly doubled the wrong accusations
+instead: precision is flat, so every extra challenge was no better targeted than
+the ones before it.
+
+**The game-level statement, which is the one to quote.** The pooled p-values treat
+challenge windows as independent Bernoulli trials, and they are not — windows
+within a game share a hand, a pile and a claim cycle, so the effective sample is
+nearer 2 than 122 and the pooled p is optimistic. The distribution-free version
+needs no independence assumption:
+
+| control, per-game `challenge_rate`, all 10 games | reason-first |
+|---|---|
+| 0.152, 0.176, 0.340, 0.375, 0.407, 0.561, 0.566, 0.567, 0.587, 0.606 | **0.721, 0.861** |
+
+Both arm games sit above the control's maximum over ten games. Treating the twelve
+game-level rates as exchangeable under the null, the chance the two arm games are
+the top two is 1/C(12,2) = **0.015**. The direction is also consistent within the
+paired seeds: 0.606 -> 0.861 on seed 0, 0.375 -> 0.721 on seed 1.
+
+**What is NOT established.** N=2 of a planned 10 — the account's API usage limit
+was exhausted mid-run (access returns 2026-08-01), so the run stopped at game 3 of
+10. Haiku only; Sonnet has one gate game and no comparison. Every rate other than
+`challenge_rate` is exploratory (`~`), including the detection and lying figures
+above, which are the interesting ones and therefore the easiest to over-read.
+
+**Where this leaves the over-accusation question.** Both attempts to reduce it by
+changing the response format have now failed, in opposite ways: removing the
+justification relocated the reasoning outside the parseable envelope, and moving
+it before the action increased the accusation rate. The eagerness does not look
+like an artifact of being asked to justify. Two readings remain untested, and they
+call for different experiments: the model may be treating a challenge as
+low-cost — in which case the rules text needs to state what a wrong call costs —
+or it may be reasoning perfectly well and simply not tracking the pile it stands
+to eat, which is a state-rendering question rather than a prompt-format one.
 
 **A caveat that applies to the existing results too.** In the control the action
 precedes the reasoning, so the reasoning is post-hoc rationalisation, not
