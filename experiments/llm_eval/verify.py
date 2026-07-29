@@ -194,6 +194,95 @@ def report(label: str, c: Counter[str]) -> None:
             print(f"    {name:32} {c[num]:>6} / {c[den]:<6} = None (no opportunities)")
 
 
+def arm_audit(records: list[dict[str, Any]], who: str) -> Counter[str]:
+    """Whether a response-format arm is doing what it claims, from raw replies.
+
+    Three things no behavioural metric can show, all of which invalidate an arm
+    rather than merely degrading it:
+
+    KEY ORDER. `json.loads` discards it, so the `reason_first` arm and the
+    default parse identically and the entire manipulation lives in what the
+    model generated first. This counts, over successfully-parsed replies
+    carrying both keys, how often `reasoning` really precedes `action` in the
+    raw text. Near 1.0 means the arm exists; near 0.5 means it measured nothing
+    and the N does not matter.
+
+    TRUNCATION. `stop_reason == "max_tokens"` says the model ran out of budget
+    mid-reply. In the default arm that costs the justification; in an arm where
+    reasoning comes first it costs the ACTION, and the reply becomes
+    unparseable. This is the leading indicator of the failure that made the
+    neutral arm unusable, where the fallback rate is the lagging one.
+
+    RETRY PRESSURE. Calls per decision. The neutral arm's 1.85 is what exposed
+    that 46% of its decisions had been shown a retry note contradicting the arm.
+    """
+    c: Counter[str] = Counter()
+    for record in records:
+        seats = {int(k) for k, v in record["seats"].items() if v == who}
+        for d in record["decisions"]:
+            if d["player"] not in seats:
+                continue
+            llm = d.get("llm") or {}
+            if not llm:
+                continue
+            c["decisions"] += 1
+            c["fallbacks"] += bool(llm.get("fallback"))
+            if llm.get("arm"):
+                c[f"arm:{llm['arm']}"] += 1
+            for attempt in llm.get("attempts", []):
+                c["calls"] += 1
+                c["output_tokens"] += int(attempt.get("output_tokens", 0))
+                if attempt.get("stop_reason") == "max_tokens":
+                    c["stop_max_tokens"] += 1
+                if attempt.get("error"):
+                    c["parse_errors"] += 1
+                    continue
+                text = attempt.get("response") or ""
+                # Both keys present, so the comparison is meaningful. An arm
+                # asking for one key contributes nothing here, which is why the
+                # denominator is counted rather than assumed.
+                where_r, where_a = text.find('"reasoning"'), text.find('"action"')
+                if where_r < 0 or where_a < 0:
+                    continue
+                c["ordered_pairs"] += 1
+                c["reasoning_first"] += where_r < where_a
+    return c
+
+
+def report_arm(label: str, c: Counter[str]) -> None:
+    print(f"\n=== {label} ===")
+    for k in sorted(c):
+        print(f"    {k:34} {c[k]}")
+    pairs, calls, decisions = c["ordered_pairs"], c["calls"], c["decisions"]
+    print(f"  {'RATE':34}{'= num / den':>22}")
+    if pairs:
+        print(
+            f"    {'reasoning_before_action':32} {c['reasoning_first']:>6} / "
+            f"{pairs:<6} = {c['reasoning_first'] / pairs:.4f}"
+        )
+    else:
+        print(
+            f"    {'reasoning_before_action':32} {'—':>6}   "
+            f"(no reply carried both keys; this arm asks for one)"
+        )
+    if calls:
+        print(
+            f"    {'truncated_at_max_tokens':32} {c['stop_max_tokens']:>6} / "
+            f"{calls:<6} = {c['stop_max_tokens'] / calls:.4f}"
+        )
+        print(
+            f"    {'parse_error_rate':32} {c['parse_errors']:>6} / "
+            f"{calls:<6} = {c['parse_errors'] / calls:.4f}"
+        )
+        print(f"    {'output_tokens_per_call':32} {c['output_tokens'] / calls:>13.1f}")
+    if decisions:
+        print(
+            f"    {'fallback_rate':32} {c['fallbacks']:>6} / "
+            f"{decisions:<6} = {c['fallbacks'] / decisions:.4f}"
+        )
+        print(f"    {'calls_per_decision':32} {calls / decisions:>13.4f}")
+
+
 def deep_facts(record: dict[str, Any]) -> list[dict[str, Any]]:
     """Recompute every per-decision fact by replaying `(seed, history)`.
 
@@ -220,6 +309,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--dir", default="experiments/llm_eval/results/transcripts")
     ap.add_argument("--matchup", action="append", help="restrict to these (repeatable)")
     ap.add_argument("--deep", action="store_true", help="replay and recompute every fact")
+    ap.add_argument(
+        "--order",
+        action="store_true",
+        help="audit the response-format arm from the raw replies (key order, "
+        "truncation, retry pressure) instead of the behavioural metrics",
+    )
     args = ap.parse_args(argv)
 
     root = Path(args.dir)
@@ -241,6 +336,11 @@ def main(argv: list[str] | None = None) -> int:
             records = [{**r, "decisions": deep_facts(r)} for r in records]
         agents = sorted({n for r in records for n in r["seats"].values()})
         for who in agents:
+            if args.order:
+                c = arm_audit(records, who)
+                if c["decisions"]:
+                    report_arm(f"{_stem(f)} :: {who}  ARM AUDIT (N={len(records)})", c)
+                continue
             c = tally(records, who)
             report(f"{_stem(f)} :: {who}  (N={c['games']}{' DEEP' if args.deep else ''})", c)
     return 0

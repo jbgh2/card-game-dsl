@@ -230,29 +230,40 @@ matchups:
       - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
       - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
 
-  # --- NEXT EXPERIMENT: the NEUTRAL arm ---------------------------------------
-  # Identical to `*_rendered_bluffer` in every respect except the response
-  # instruction: these ask only "what is your action?", with no `reasoning`
-  # field. Same seeds, same opponents, same rendered state — so the delta is
+  # --- response-format arms ---------------------------------------------------
+  # Every block below is a verbatim copy of `*_rendered_bluffer` with ONE key
+  # changed: `arm`. Same seeds, same opponents, same rendered state, same models
+  # and params — so `llm_cheap_rendered_bluffer` / `llm_mid_rendered_bluffer`
+  # (the `reasoning` arm, N=10, already run) are the control, and any delta is
   # attributable to the response format alone.
   #
-  # Hypothesis: requiring a justification biases toward ACTING. There is
-  # something to write when you challenge and nothing to write when you allow,
-  # and both models over-accused badly — challenging ~half of all opportunities
-  # at sub-50% precision, five times the baseline's rate of costly wrong calls
-  # (Sonnet 12.8 bad calls/game vs 2.5). If the challenge rate drops here, the
-  # harness was manufacturing part of the over-eagerness it measured.
+  # The shared hypothesis. Both models over-accused badly — challenging ~half of
+  # all opportunities at sub-50% precision, five times the baseline's rate of
+  # costly wrong calls (Sonnet 12.8 bad calls/game vs 2.5). The default arm asks
+  # for `{"action": i, "reasoning": s}`, and since JSON is emitted in order, the
+  # model commits to the action BEFORE writing a word of justification. These
+  # arms ask whether that arrangement is manufacturing part of the eagerness the
+  # harness then measures.
   #
-  # Cost: no reasoning text means no reasoning diagnostics — the checks that
-  # found this harness's two worst defects. Hence an ARM, not a replacement.
+  # --- the NEUTRAL arm: no justification at all.
+  # RUN AND UNUSABLE — kept as configuration because the negative result is
+  # reproducible from it, not because it should be re-run. Removing the field did
+  # not remove the reasoning: the model wrote its analysis as prose instead, and
+  # the 512-token cap truncated it before any JSON arrived. Haiku, 7 games: 22%
+  # fallback (11x the ~2% publication gate), 1.85 calls/decision, 4x the output
+  # tokens and 2x the cost per game of the control. The bounded `reasoning`
+  # string had been acting as a length cap on deliberation.
   #
-  # Compare against llm_cheap_rendered_bluffer / llm_mid_rendered_bluffer.
-  # ~$13 and ~70 min for both at N=10, at the rates those runs measured.
+  # Two confounds, both recorded rather than fixed: the retry note asked for the
+  # `reasoning` field this arm exists to remove (fixed in `prompts.py` since, but
+  # the run predates it), and the truncation means the fallback decisions are not
+  # missing at random. Its transcript answers "what does removing the field do to
+  # response format", not "what does it do to challenge rate".
   - name: llm_cheap_neutral_bluffer
     n: 10
     rotate: true
     agents:
-      - {kind: llm, name: llm_cheap, model: cheap, render: true, neutral: true}
+      - {kind: llm, name: llm_cheap, model: cheap, render: true, arm: neutral}
       - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
       - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
       - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
@@ -261,7 +272,42 @@ matchups:
     n: 10
     rotate: true
     agents:
-      - {kind: llm, name: llm_mid, model: mid, render: true, neutral: true}
+      - {kind: llm, name: llm_mid, model: mid, render: true, arm: neutral}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+
+  # --- NEXT EXPERIMENT: the REASON-FIRST arm.
+  # The same two fields as the control, in the other order, so the tokens that
+  # explain the choice are generated BEFORE the choice rather than after it. This
+  # is the arm the neutral one should have been: deliberation still happens inside
+  # a length-bounded JSON string, so it cannot expand into the unbounded prose
+  # that broke the parser.
+  #
+  # GATE BEFORE N=10. Run at n=1 first and check three things with
+  # `verify.py --order`, because two of them make the arm null rather than merely
+  # noisy: (a) `reasoning_before_action` near 1.0 — `json.loads` discards key
+  # order, so if the model does not honour it, nothing was manipulated;
+  # (b) `truncated_at_max_tokens` near 0 — reasoning-first means an overrun costs
+  # the ACTION, which is exactly how the neutral arm died; (c) fallback rate under
+  # ~2%. The control's token profile does not transfer, because the ordering
+  # change is the thing that alters it.
+  #
+  # ~$13 and ~70 min for both at N=10, at the rates the control measured.
+  - name: llm_cheap_reason_first_bluffer
+    n: 10
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_cheap, model: cheap, render: true, arm: reason_first}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+
+  - name: llm_mid_reason_first_bluffer
+    n: 10
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_mid, model: mid, render: true, arm: reason_first}
       - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
       - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
       - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}

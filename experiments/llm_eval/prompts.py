@@ -128,7 +128,7 @@ in theirs.
 # own hand; a model misreading the claimed rank), so it is diagnostically
 # load-bearing — but note it is emitted AFTER the action, so it is post-hoc
 # rationalisation rather than deliberation, and is weaker evidence about the
-# decision than it looks.
+# decision than it looks. `RESPONSE_REASON_FIRST` is the arm that inverts this.
 RESPONSE_TEXT = """\
 HOW TO ANSWER
 
@@ -222,15 +222,6 @@ def parse_response(text: str, num_actions: int) -> ParseResult:
     return ParseResult(raw, reasoning, None)
 
 
-RETRY_NOTE = """\
-
-Your previous reply could not be used: {error}
-
-Reply with ONLY a JSON object of the form {{"action": <index>, "reasoning": "<brief>"}},
-where <index> is one of the integers listed above.
-"""
-
-
 # The format guide for the RAW arm: the state arrives machine-formatted, so its
 # layout has to be explained. `RULES_RAW` is what `LLMAgent.rules` defaults to,
 # which keeps every measurement taken before the rendered arm existed valid.
@@ -276,6 +267,13 @@ RULES_RENDERED = RULES_TEXT + "\n" + FORMAT_TEXT_RENDERED
 # found this harness's two worst defects are unavailable. That is why this is an
 # ARM rather than a replacement — the comparison is the result, and the
 # reasoning-bearing arm stays as the instrumented one.
+#
+# Measured, and it does not do what it was meant to: removing the field does not
+# remove the reasoning, it relocates it OUTSIDE the JSON envelope, where the
+# 512-token cap truncates it before any action arrives (Haiku, 7 games: 22%
+# fallback, 4x the output tokens of the reasoning arm). The bounded `reasoning`
+# string was silently acting as a length cap on deliberation. See README,
+# "Response-format arms".
 RESPONSE_NEUTRAL = """\
 HOW TO ANSWER
 
@@ -287,3 +285,120 @@ Reply with a single JSON object and nothing else:
 above. Do not include internal or system XML tags in your response. Do not wrap
 the JSON in prose.
 """
+
+
+# The REASON-FIRST arm: the same two fields as the default, in the other order.
+#
+# Hypothesis under test. In the default arm the model must emit `action` before
+# it writes a word of `reasoning`, so the justification is produced after the
+# decision is already committed — post-hoc rationalisation, not deliberation.
+# Moving `reasoning` in front means the tokens that explain the choice are
+# generated BEFORE the choice, which is the ordinary chain-of-thought
+# arrangement. If the over-accusation is partly an artifact of deciding first
+# and justifying afterwards, this is where it should shrink.
+#
+# It is also the design the neutral arm should have been. Deliberation stays
+# inside a length-bounded JSON string, so it cannot expand into the unbounded
+# prose that made the neutral arm unparseable.
+#
+# The ordering clause below is deliberate and is part of the manipulation, not a
+# second variable: without it the arm would be testing whether the model mimics
+# a template's key order, which is not the question. `json.loads` discards key
+# order, so nothing downstream can tell the two arms apart — the arm exists only
+# if the model really does generate the fields in the order asked for, which is
+# why `verify.py --order` measures that directly from the raw replies.
+RESPONSE_REASON_FIRST = """\
+HOW TO ANSWER
+
+Reply with a single JSON object and nothing else:
+
+    {"reasoning": "<one or two sentences>", "action": <index>}
+
+Write the `reasoning` first and the `action` last, in that order. `action` is
+the integer index of your chosen action from the numbered list above. Do not
+include internal or system XML tags in your response. Do not wrap the JSON in
+prose.
+"""
+
+
+# --- the arm registry -----------------------------------------------------
+#
+# The closed domain of response formats. An arm bundles its answer instruction
+# with the retry note that follows a parse failure, because those two cannot
+# vary independently without corrupting the experiment: a retry note asking for
+# a field the instruction omitted reintroduces the variable under test on
+# exactly the decisions that were hardest to parse. The neutral arm shipped that
+# way — its retry note asked for `reasoning` — and at 1.85 calls per decision
+# roughly 46% of its decisions hit that note, so its numbers carry the confound.
+
+
+@dataclass(frozen=True)
+class ResponseArm:
+    """One response-format arm."""
+
+    name: str
+    instruction: str
+    # Follows the original prompt after a parse failure. `{error}` is the only
+    # placeholder; literal JSON braces are doubled.
+    retry: str
+    # The reply keys this arm asks for, in the order its instruction shows them.
+    # Order is the whole point of `reason_first`: it is invisible to the parser,
+    # so it can only be checked against the raw replies.
+    keys: tuple[str, ...]
+
+
+RESPONSE_ARMS: dict[str, ResponseArm] = {
+    "reasoning": ResponseArm(
+        name="reasoning",
+        instruction=RESPONSE_TEXT,
+        retry="""\
+
+Your previous reply could not be used: {error}
+
+Reply with ONLY a JSON object of the form {{"action": <index>, "reasoning": "<brief>"}},
+where <index> is one of the integers listed above.
+""",
+        keys=("action", "reasoning"),
+    ),
+    "neutral": ResponseArm(
+        name="neutral",
+        instruction=RESPONSE_NEUTRAL,
+        retry="""\
+
+Your previous reply could not be used: {error}
+
+Reply with ONLY a JSON object of the form {{"action": <index>}},
+where <index> is one of the integers listed above.
+""",
+        keys=("action",),
+    ),
+    "reason_first": ResponseArm(
+        name="reason_first",
+        instruction=RESPONSE_REASON_FIRST,
+        retry="""\
+
+Your previous reply could not be used: {error}
+
+Reply with ONLY a JSON object of the form {{"reasoning": "<brief>", "action": <index>}},
+where <index> is one of the integers listed above. Write the `reasoning` first
+and the `action` last.
+""",
+        keys=("reasoning", "action"),
+    ),
+}
+
+
+def response_arm(name: str) -> ResponseArm:
+    """Look up an arm, refusing anything not in the registry.
+
+    A silently-ignored arm name would be the worst failure this harness can
+    have: the run would complete, cost real money, and report the control's
+    numbers under the arm's name.
+    """
+    try:
+        return RESPONSE_ARMS[name]
+    except KeyError:
+        raise ValueError(
+            f"unknown response arm {name!r} (expected one of "
+            f"{sorted(RESPONSE_ARMS)})"
+        ) from None

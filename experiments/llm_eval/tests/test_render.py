@@ -21,7 +21,13 @@ import pytest
 
 from experiments.llm_eval import infostate as istate
 from experiments.llm_eval.agents import DecisionView, LLMAgent, RandomAgent, RuleAgent
-from experiments.llm_eval.prompts import RULES_RAW, RULES_RENDERED, build_prompt
+from experiments.llm_eval.prompts import (
+    RESPONSE_ARMS,
+    RESPONSE_TEXT,
+    RULES_RAW,
+    RULES_RENDERED,
+    build_prompt,
+)
 from experiments.llm_eval.providers import FakeProvider
 from experiments.llm_eval.render import RANK_PLURAL, recover, render_state
 
@@ -215,56 +221,168 @@ def test_agent_arm_switch_selects_the_right_prompt() -> None:
     assert len(rendered_provider.prompts[0]) < len(raw_provider.prompts[0])
 
 
-# --- the NEUTRAL arm --------------------------------------------------------
+# --- the response-format arms -----------------------------------------------
+#
+# Parametrized over `RESPONSE_ARMS` rather than naming the arms, and asserting
+# PROPERTIES rather than the text. Naming them is the trap this suite has already
+# been caught by once (see `test_build_prompt_signature_takes_no_state`): a test
+# that enumerates the current arms makes adding the next one look like a
+# violation, which is how an experimental variable gets frozen by its own pin.
+
+ARM_NAMES = sorted(RESPONSE_ARMS)
+# The closed set of reply keys any arm may ask for. Derived, so an arm
+# introducing a new key has to come past this line deliberately.
+ALL_KEYS = {key for arm in RESPONSE_ARMS.values() for key in arm.keys}
+
+INFO_WINDOW = (
+    "P1|deck=#0;flipped=[];pile=#0;played=#2;hand[0]=#12;hand[1]=[A♠,2♥];"
+    "hand[2]=#13;hand[3]=#13|state:challenged=False;challenger=0;"
+    "claim_count=2;claim_rank=A;claimant=0;responder=1;window_open=True;"
+    "won={0:False,1:False,2:False,3:False}|obs:('announce', 0, 'play_two')"
+)
 
 
-def test_neutral_arm_asks_for_the_action_alone() -> None:
-    """The arm under test: no demand to justify, everything else identical."""
-    from experiments.llm_eval.prompts import RESPONSE_NEUTRAL, RESPONSE_TEXT
+def test_the_arm_registry_is_self_consistent() -> None:
+    """Registry key and `arm.name` agree — otherwise a run records one arm's name
+    while sending another's instruction, and the transcript lies."""
+    assert ARM_NAMES, "the arm registry is empty — every test below is vacuous"
+    for key, arm in RESPONSE_ARMS.items():
+        assert key == arm.name
 
-    assert "reasoning" in RESPONSE_TEXT
-    assert "reasoning" not in RESPONSE_NEUTRAL
-    assert '{"action": <index>}' in RESPONSE_NEUTRAL
 
+@pytest.mark.parametrize("name", ARM_NAMES)
+def test_arm_instruction_asks_for_exactly_its_keys_in_order(name: str) -> None:
+    """The instruction's JSON template must show precisely `arm.keys`, in that
+    order. `keys` is what the audit and the retry note are derived from, so a
+    template that disagrees with it silently mislabels the arm.
 
-def test_neutral_arm_changes_only_the_response_instruction() -> None:
-    """Everything before HOW TO ANSWER must be byte-identical between the arms,
-    or the comparison measures more than the response format."""
-    from experiments.llm_eval.prompts import RESPONSE_NEUTRAL, RESPONSE_TEXT
-
-    info = (
-        "P1|deck=#0;flipped=[];pile=#0;played=#2;hand[0]=#12;hand[1]=[A♠,2♥];"
-        "hand[2]=#13;hand[3]=#13|state:challenged=False;challenger=0;"
-        "claim_count=2;claim_rank=A;claimant=0;responder=1;window_open=True;"
-        "won={0:False,1:False,2:False,3:False}|obs:('announce', 0, 'play_two')"
+    Quoted form (`"action"`) targets the template; the prose refers to fields in
+    backticks, so it does not perturb the positions compared here.
+    """
+    arm = RESPONSE_ARMS[name]
+    positions = [arm.instruction.find(f'"{key}"') for key in arm.keys]
+    assert all(p >= 0 for p in positions), (
+        f"arm {name!r} declares keys {arm.keys} but its instruction does not "
+        f"show them all in its JSON template"
     )
+    assert positions == sorted(positions), (
+        f"arm {name!r} declares key order {arm.keys}, but its instruction shows "
+        f"them in a different order — the order IS the manipulation"
+    )
+    for absent in ALL_KEYS - set(arm.keys):
+        assert f'"{absent}"' not in arm.instruction, (
+            f"arm {name!r} does not declare key {absent!r} but asks for it"
+        )
+
+
+@pytest.mark.parametrize("name", ARM_NAMES)
+def test_arm_retry_note_agrees_with_its_instruction(name: str) -> None:
+    """The retry note must ask for the same keys in the same order.
+
+    This is the confound the neutral arm shipped with: its retry note asked for
+    the `reasoning` field the arm existed to remove, and at 1.85 calls per
+    decision roughly 46% of its decisions were shown that note. A retry note is
+    not cosmetic — it is the prompt that produced a large minority of the arm's
+    actual decisions.
+    """
+    arm = RESPONSE_ARMS[name]
+    assert "{error}" in arm.retry, f"arm {name!r} cannot report the parse error"
+    filled = arm.retry.format(error="test")
+    assert "{" in filled and "}" in filled, (
+        f"arm {name!r} lost its JSON braces to `.format` — they must be doubled"
+    )
+    positions = [filled.find(f'"{key}"') for key in arm.keys]
+    assert all(p >= 0 for p in positions), (
+        f"arm {name!r} retry note omits one of its keys {arm.keys}"
+    )
+    assert positions == sorted(positions), (
+        f"arm {name!r} retry note shows its keys in a different order from its "
+        f"instruction — the retry would revert the variable under test"
+    )
+    for absent in ALL_KEYS - set(arm.keys):
+        assert f'"{absent}"' not in filled, (
+            f"arm {name!r} retry note asks for undeclared key {absent!r} — the "
+            f"retry reintroduces what the arm removed"
+        )
+
+
+@pytest.mark.parametrize("name", ARM_NAMES)
+def test_arm_changes_only_the_response_instruction(name: str) -> None:
+    """Everything before HOW TO ANSWER is byte-identical across arms, or the
+    comparison measures more than the response format."""
     legal = ["allow", "call_cheat"]
-    a = build_prompt(RULES_RENDERED, render_state(info), legal, RESPONSE_TEXT)
-    b = build_prompt(RULES_RENDERED, render_state(info), legal, RESPONSE_NEUTRAL)
-    assert a != b
+    state = render_state(INFO_WINDOW)
     head = "HOW TO ANSWER"
-    assert a[: a.index(head)] == b[: b.index(head)]
+    baseline = build_prompt(RULES_RENDERED, state, legal, RESPONSE_TEXT)
+    other = build_prompt(RULES_RENDERED, state, legal, RESPONSE_ARMS[name].instruction)
+    assert baseline[: baseline.index(head)] == other[: other.index(head)]
+    # And the arms are actually distinct, or the grid is comparing a constant.
+    if name != "reasoning":
+        assert baseline != other
 
 
-def test_neutral_agent_sends_the_neutral_prompt() -> None:
-    from experiments.llm_eval.prompts import RESPONSE_NEUTRAL
-
+@pytest.mark.parametrize("name", ARM_NAMES)
+def test_agent_sends_its_own_arms_instruction(name: str) -> None:
+    """The arm reaches the provider. A selector that resolved to the default
+    would produce a complete, plausible, expensive run of the control under the
+    arm's name — the worst failure this harness can have."""
     view = DecisionView(
         player=1,
-        infostate=(
-            "P1|deck=#0;flipped=[];pile=#0;played=#2;hand[0]=#12;hand[1]=[A♠,2♥];"
-            "hand[2]=#13;hand[3]=#13|state:challenged=False;challenger=0;"
-            "claim_count=2;claim_rank=A;claimant=0;responder=1;window_open=True;"
-            "won={0:False,1:False,2:False,3:False}|obs:('announce', 0, 'play_two')"
-        ),
+        infostate=INFO_WINDOW,
         legal_actions=[54, 55],
         legal_strings=["allow", "call_cheat"],
     )
-    provider = FakeProvider(replies=['{"action": 1}'])
-    agent = LLMAgent(provider=provider, seed=0, render=True, neutral=True)
+    arm = RESPONSE_ARMS[name]
+    provider = FakeProvider(replies=['{"action": 1, "reasoning": "x"}'])
+    agent = LLMAgent(provider=provider, seed=0, render=True, arm=name)
     assert agent.choose(view) == 55
-    assert RESPONSE_NEUTRAL in provider.prompts[0]
-    assert "reasoning" not in provider.prompts[0].split("HOW TO ANSWER")[1]
+    assert arm.instruction in provider.prompts[0]
+    for absent in ALL_KEYS - set(arm.keys):
+        assert absent not in provider.prompts[0].split("HOW TO ANSWER")[1]
+
+
+@pytest.mark.parametrize("name", ARM_NAMES)
+def test_agent_retry_uses_its_own_arms_note(name: str) -> None:
+    """A failed parse must retry in the arm's own format. Checked through the
+    agent, not against the constant: the note is only load-bearing if the retry
+    path actually reaches for it."""
+    view = DecisionView(
+        player=1,
+        infostate=INFO_WINDOW,
+        legal_actions=[54, 55],
+        legal_strings=["allow", "call_cheat"],
+    )
+    arm = RESPONSE_ARMS[name]
+    provider = FakeProvider(replies=["not json at all", '{"action": 0}'])
+    agent = LLMAgent(provider=provider, seed=0, render=True, arm=name)
+    assert agent.choose(view) == 54
+    assert len(provider.prompts) == 2, "the retry never happened"
+    tail = provider.prompts[1][len(provider.prompts[0]) :]
+    assert tail == arm.retry.format(error="no JSON object in response")
+
+
+def test_an_unknown_arm_is_refused_at_construction() -> None:
+    """Loud, and before the run spends: an ignored arm name would complete a
+    multi-hour run and report the control's numbers under the arm's name."""
+    with pytest.raises(ValueError, match="unknown response arm"):
+        LLMAgent(provider=FakeProvider(replies=[]), seed=0, arm="reason-first")
+
+
+def test_reason_first_is_invisible_to_the_parser() -> None:
+    """Why `verify.py --order` exists. `json.loads` discards key order, so the
+    reason-first arm and the default parse to the SAME result — the manipulation
+    lives entirely in what the model generated first, which can only be measured
+    against the raw reply text.
+
+    If this ever fails, the audit is redundant and should be simplified. While it
+    passes, a behavioural comparison between the two arms is unfalsifiable
+    without the raw-text check.
+    """
+    from experiments.llm_eval.prompts import parse_response
+
+    last = parse_response('{"action": 1, "reasoning": "because"}', num_actions=2)
+    first = parse_response('{"reasoning": "because", "action": 1}', num_actions=2)
+    assert last == first
 
 
 def test_a_reply_without_reasoning_parses_and_is_not_a_fallback() -> None:
@@ -274,3 +392,7 @@ def test_a_reply_without_reasoning_parses_and_is_not_a_fallback() -> None:
 
     result = parse_response('{"action": 1}', num_actions=2)
     assert result.ok and result.index == 1 and result.reasoning == ""
+
+
+# The committed config's arm names are checked in `test_runner.py`, beside the
+# other shipped-config pin.

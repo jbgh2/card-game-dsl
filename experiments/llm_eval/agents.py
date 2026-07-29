@@ -27,13 +27,12 @@ from typing import Any, Protocol
 
 from . import infostate as istate
 from .prompts import (
-    RESPONSE_NEUTRAL,
-    RESPONSE_TEXT,
-    RETRY_NOTE,
+    ResponseArm,
     RULES_RAW,
     RULES_RENDERED,
     build_prompt,
     parse_response,
+    response_arm,
 )
 from .render import render_state
 from .providers import Provider
@@ -197,25 +196,32 @@ class LLMAgent:
     # string, so the leak-freeness argument is unchanged (README, "Leak-
     # freeness"), with a correspondingly shorter format guide.
     render: bool = False
-    # The NEUTRAL arm: ask for the action alone, with no justification. Tests
-    # whether requiring a justification biases the model toward acting. Costs
-    # the reasoning diagnostics, which is why it is an arm and not the default
-    # (`prompts.RESPONSE_NEUTRAL`).
-    neutral: bool = False
+    # The RESPONSE-FORMAT arm, by name from `prompts.RESPONSE_ARMS`. Selects the
+    # answer instruction and its matching retry note together. A name rather
+    # than a flag per arm: `neutral` and `reason_first` are mutually exclusive
+    # (one removes the reasoning field, the other moves it), and as two booleans
+    # their both-true combination would be accepted and silently resolved.
+    arm: str = "reasoning"
     rules: str | None = None
     _rng: random.Random = field(init=False)
+    _arm: ResponseArm = field(init=False)
     _trace: dict[str, Any] = field(default_factory=dict, init=False)
 
     def __post_init__(self) -> None:
         self._rng = random.Random(self.seed)
         if self.rules is None:
             self.rules = RULES_RENDERED if self.render else RULES_RAW
+        # Resolve at construction, not at the first decision: an unknown arm
+        # name must fail before a run starts spending, not on move one of game
+        # one after the roster and providers are already up.
+        self._arm = response_arm(self.arm)
 
     def choose(self, view: DecisionView) -> int:
         state = render_state(view.infostate) if self.render else view.infostate
         assert self.rules is not None  # set in __post_init__
-        response = RESPONSE_NEUTRAL if self.neutral else RESPONSE_TEXT
-        prompt = build_prompt(self.rules, state, view.legal_strings, response)
+        prompt = build_prompt(
+            self.rules, state, view.legal_strings, self._arm.instruction
+        )
         attempts: list[dict[str, Any]] = []
         text = prompt
         for attempt in range(2):
@@ -235,13 +241,14 @@ class LLMAgent:
             if result.index is not None:
                 self._trace = {
                     "prompt": prompt,
+                    "arm": self._arm.name,
                     "attempts": attempts,
                     "fallback": False,
                     "chosen_index": result.index,
                     "reasoning": result.reasoning,
                 }
                 return view.legal_actions[result.index]
-            text = prompt + RETRY_NOTE.format(error=result.error)
+            text = prompt + self._arm.retry.format(error=result.error)
 
         action = self._rng.choice(view.legal_actions)
         print(
@@ -250,6 +257,7 @@ class LLMAgent:
         )
         self._trace = {
             "prompt": prompt,
+            "arm": self._arm.name,
             "attempts": attempts,
             "fallback": True,
             "chosen_index": view.legal_actions.index(action),
@@ -282,7 +290,7 @@ def build_agent(spec: dict[str, Any], seed: int, provider: Provider | None) -> A
             seed=seed,
             name=spec.get("name", "llm"),
             render=bool(spec.get("render", False)),
-            neutral=bool(spec.get("neutral", False)),
+            arm=str(spec.get("arm", "reasoning")),
         )
     raise ValueError(f"unknown agent kind {kind!r} (expected random | rule | llm)")
 

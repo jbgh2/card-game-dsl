@@ -364,38 +364,106 @@ about which knobs exist:
 
 ---
 
-## Next experiment: the neutral arm
+## Response-format arms
 
-Built and wired; not yet run. Run it with:
+Three response formats, one control and two manipulations, registered in
+`prompts.RESPONSE_ARMS`. Each arm bundles its answer instruction with the retry
+note that follows a parse failure, because those two cannot vary independently
+without corrupting the experiment — see the neutral arm's confound below.
+
+| arm | asks for | status |
+|---|---|---|
+| `reasoning` | `{"action": i, "reasoning": s}` | the **control**; every published number uses it |
+| `neutral` | `{"action": i}` | run, **unusable** — see below |
+| `reason_first` | `{"reasoning": s, "action": i}` | built and gated, not yet run |
+
+Every arm matchup is a verbatim copy of `*_rendered_bluffer` with only `arm:`
+changed — same seeds, same opponents, same rendered state, same models and
+params — so those N=10 runs are the control and any delta is attributable to the
+response format alone. Everything before `HOW TO ANSWER` is byte-identical
+across arms, pinned by a grid over the registry in `test_render.py`.
+
+**The shared hypothesis.** Both models over-accused badly — challenging roughly
+half of all opportunities at sub-50% precision, which in Cheat means eating the
+pile. Measured per game: Sonnet made **12.8 wrong accusations against the
+baseline's 2.5**, and lost every game despite shedding faster *and* detecting
+provable lies better than its opponents. The response format may be part of
+that. In the control, JSON is emitted in key order, so the model commits to
+`action` before writing a word of `reasoning`: the justification is produced
+after the decision, not before it.
+
+### `neutral` — run, and it falsified its own design
+
+Removing the `reasoning` field did not remove the reasoning. It relocated it
+*outside* the JSON envelope, where the 512-token cap truncated it before any
+action arrived. Haiku, 7 games before the run was killed:
+
+| | `neutral` | `reasoning` (control) |
+|---|---|---|
+| fallback rate | **0.2225** | 0.0008 |
+| calls per decision | 1.85 | 1.02 |
+| output tokens per call | 399 | 96 |
+| wall seconds per game | 1026 | 300 |
+| cost per game | $1.92 | $0.97 |
+
+At 22% fallback — 11x the ~2% publication gate — more than one decision in five
+was uniform random, so no challenge rate measured here means anything. The arm
+is retained in `config.yaml` because the negative result is reproducible from it,
+not because it should be re-run.
+
+**The finding.** The bounded `"<one or two sentences>"` string had been acting as
+a length cap on deliberation. Remove the container and deliberation expands to
+fill, then exceed, the token budget. It was also *more* expensive and slower than
+the control, which is the opposite of what removing a field predicts.
+
+**Two confounds, recorded rather than repaired.** The retry note asked for the
+`reasoning` field this arm exists to remove, and at 1.85 calls per decision
+roughly 46% of its decisions were shown that note. (Fixed since — retry notes are
+now per-arm and pinned to agree with their instruction — but the run predates the
+fix.) And the truncation means its fallback decisions are not missing at random.
+Its transcript answers "what does removing the field do to response format", not
+"what does it do to challenge rate".
+
+### `reason_first` — the next experiment
 
 ```bash
 python -m experiments.llm_eval.run_eval \
-  --matchup llm_cheap_neutral_bluffer --matchup llm_mid_neutral_bluffer --figure
+  --matchup llm_cheap_reason_first_bluffer \
+  --matchup llm_mid_reason_first_bluffer --limit 1
 ```
 
-**What it tests.** The default response instruction asks for `{"action": i,
-"reasoning": "..."}`. The neutral arm asks for `{"action": i}` and nothing else.
-Everything before `HOW TO ANSWER` is byte-identical between the arms (pinned by
-`test_render.py`), so the delta is attributable to the response format alone.
+The same two fields as the control, in the other order, so the tokens that
+explain the choice are generated **before** the choice. This is the arm the
+neutral one should have been: deliberation still happens inside a length-bounded
+JSON string, so it cannot expand into the unbounded prose that broke the parser.
 
-**Why.** Both models over-accused badly — challenging roughly half of all
-opportunities at sub-50% precision, which in Cheat means eating the pile.
-Measured per game: Sonnet made **12.8 wrong accusations against the baseline's
-2.5**, and lost every game despite shedding faster *and* detecting provable lies
-better than its opponents. Requiring a justification may be part of that: there
-is something to write when you challenge and nothing to write when you allow.
+**Gate before N=10.** Run at `--limit 1` and audit the raw replies:
 
-**The cost, stated up front.** With no reasoning text, the diagnostics that
-found this harness's two worst defects are unavailable. That is why this is an
-arm rather than a replacement — the comparison is the result, and the
-reasoning-bearing arm stays as the instrumented one.
+```bash
+python -m experiments.llm_eval.verify --order --matchup llm_cheap_reason_first_bluffer
+```
 
-**A caveat that applies to the existing results too.** The action is emitted
-*before* the reasoning, so the reasoning is post-hoc rationalisation, not
+Three numbers, two of which make the arm *null* rather than merely noisy:
+
+- **`reasoning_before_action` near 1.0.** `json.loads` discards key order, so
+  this arm and the control parse to identical results (pinned by
+  `test_reason_first_is_invisible_to_the_parser`). The manipulation exists only
+  if the model really generates the fields in the order asked for. Near 0.5 means
+  nothing was manipulated and no N fixes it.
+- **`truncated_at_max_tokens` near 0.** Reasoning-first inverts *which* failure
+  an overrun causes: in the control it costs the justification, here it costs the
+  **action**, and the reply becomes unparseable. This is exactly how the neutral
+  arm died, reached by a different route. The control's token profile does not
+  transfer, because the ordering change is the thing that alters it.
+- **`fallback_rate` under ~2%**, the standing publication gate.
+
+**A caveat that applies to the existing results too.** In the control the action
+precedes the reasoning, so the reasoning is post-hoc rationalisation, not
 deliberation. Any finding resting on what a model *said* is weaker than one
 resting on what it *did*. The Q2 comprehension result is action-based
 (skip-truthful) and unaffected; the rank-naming figures are reasoning-based and
-should be read with that in mind.
+should be read with that in mind. `reason_first` is the arm that tests whether
+the ordering was load-bearing for the *decisions* as well as the diagnostics.
 
 ---
 

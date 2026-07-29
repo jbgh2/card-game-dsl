@@ -618,3 +618,39 @@ def test_shipped_config_carries_no_resume_marker() -> None:
     )
     carried = [m["name"] for m in config["matchups"] if m.get("resume_from")]
     assert not carried, f"matchups ship a stale resume marker: {carried}"
+
+
+def test_shipped_config_names_only_registered_arms() -> None:
+    """A typo in `arm:` must not silently run the control.
+
+    `build_agent` passes the string straight through to `LLMAgent`, which refuses
+    an unregistered name — but only once it is constructed, which for the
+    committed config is a fact about the file, not about a run. An arm that
+    resolved to the default would produce a complete, plausible, multi-hour run
+    of the control reported under the arm's name.
+    """
+    import yaml
+
+    from experiments.llm_eval.prompts import RESPONSE_ARMS
+
+    config = yaml.safe_load(
+        Path("experiments/llm_eval/config.yaml").read_text(encoding="utf-8")
+    )
+    named = {
+        spec["arm"]
+        for matchup in config["matchups"]
+        for spec in matchup["agents"]
+        if "arm" in spec
+    }
+    assert named, "no matchup names an arm — this check has stopped checking"
+    assert named <= set(RESPONSE_ARMS), (
+        f"config names unregistered arms: {sorted(named - set(RESPONSE_ARMS))}"
+    )
+    # The retired flag must not linger: `build_agent` ignores it silently now.
+    stale = [
+        matchup["name"]
+        for matchup in config["matchups"]
+        for spec in matchup["agents"]
+        if "neutral" in spec
+    ]
+    assert not stale, f"matchups still carry the retired `neutral:` flag: {stale}"
