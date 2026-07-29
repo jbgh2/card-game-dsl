@@ -1472,8 +1472,31 @@ def _check_requires(
         if isinstance(node, n.StateBlock):
             for decl in node.decls:
                 declared.setdefault(decl.name, []).append(decl)
+    # Requirements already reported as malformed in the LIBRARY's own text.
+    # Comparing one against the game's declaration derives a second error that
+    # is worse than useless: it renders the malformation as a MISMATCH, so a
+    # non-role index prints as "a scalar" and an unresolvable type prints as
+    # the game's type being wrong — blaming the game author for a defect in a
+    # file they did not write, and, when the name is undeclared, advising them
+    # to add a declaration the language would refuse.
+    #
+    # Matched by SPAN rather than by re-deriving which requirements are
+    # well-formed. That is what makes this complete over the class rather than
+    # over the two members known today: a requirement is malformed exactly when
+    # some wall has already reported against its own span, so a future wall on
+    # a new `RequireDecl` field is covered the day it lands, with nothing to
+    # remember here. Both malformation walls run before this pass, in
+    # `_apply_uses`'s loop, and report at the requirement's span
+    # (`_check_require_indexes` for the index, `_check_library_encapsulation`
+    # for the type name).
+    #
+    # This is the opposite direction from `skip`, which suppresses a downstream
+    # report about a name the GAME's own claims already ruled on.
+    malformed = {d.span for d in bag.items if d.span is not None}
     for want in library.requires:
         if want.name in skip:
+            continue
+        if want.span is not None and want.span in malformed:
             continue
         found = declared.get(want.name, [])
         wanted = f"{want.name}{f'[{want.index}]' if want.index else ''}"
