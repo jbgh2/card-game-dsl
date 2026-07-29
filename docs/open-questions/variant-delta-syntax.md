@@ -13,9 +13,10 @@ its base lives only in prose.
 
 The `uses <library>` import tier (decisions.md "Family libraries") shares
 *material* between sibling games: definitions and the state those definitions
-own, spliced flat, with a `requires` contract. It is the right mechanism for a
-family's irreducible common body, and both poker anchors and the smuggling
-family use it that way.
+own, spliced flat, with a `requires` contract that may name zones as well as
+state. Both the poker anchors and the smuggling family use it, and the smuggling
+family is the one that measured how far it reaches: it captures about an eighth
+of each member's text, against roughly nine tenths shared.
 
 It is not a delta mechanism. A library is additive and cannot express
 "the base game, except this phase is replaced" or "the base game, minus this
@@ -44,15 +45,37 @@ Two live tensions:
 
 ## The data point that would force it
 
-The smuggling family (`experiments/green-lane/`) is the standing candidate: its
-five sibling rulesets share roughly 90% of their text and are kept aligned by
-hand-diffing, and they are a genuine **delta lattice** (v4 is v1 composed with
-v3, each delta editing disjoint rule text). That structure is what would test a
-delta form rather than merely benefit from one. The family-library tier is
-being taken to that family first (issue \#143) precisely to measure whether
-parameterization on required state is enough — if it is, this question stays
-closed; if the family needs a `with` clause or genuine overrides, this is where
-that lands.
+The smuggling family (`experiments/green-lane/`) was the standing candidate, and
+the measurement has been made. Its sibling rulesets share roughly 90% of their
+text and are a genuine **delta lattice** (v4 is v1 composed with v3, each delta
+editing disjoint rule text). The family-library tier was taken to it (issue
+\#143) to answer whether parameterization on required state is enough.
+
+**It is — a `with` clause is not forced, and would not have helped.** The
+family's members differ three ways: a fine (a per-game constant, carried by
+required state exactly as `raise_cap` is), a contraband predicate, and an added
+statement inside the shared move. A clause on the import carries constants; it
+carries neither a predicate nor a statement. So the axis this question was
+waiting on is settled in the negative.
+
+What the same measurement DID surface is where the real pressure sits, and it is
+not on a delta form either:
+
+- the varying move (`inspect`, ten bodies over twelve files) stays game-local,
+  which costs the family nothing a delta form would recover cheaply — an
+  override replacing that move is exactly the silent-redefinition hazard the
+  no-override rule exists for;
+- the shared material the tier cannot hold is **zones, state declarations and
+  the phase tree** — none of which a *delta* form addresses either, since a
+  delta shares by patching a base file rather than by naming a common body;
+- the one mechanism that would genuinely shrink the duplication is a contract
+  over DEFINITIONS — a required function, so the predicate is the game's and the
+  move is shared. That is issue \#178's question, not this one's.
+
+So this question stays open, but its evidence is now spent: the smuggling family
+has been measured and does not force it. Reopening it needs a family whose
+members differ in ways a *shared body* cannot express and a *patch* can —
+which is not what a delta lattice of disjoint edits turned out to be.
 
 Related: [decisions.md](../decisions.md) "Family libraries" (the sharing
 mechanism that exists, and its deliberate limits);

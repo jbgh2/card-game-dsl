@@ -55,12 +55,32 @@ residual: ONE, and it is worth stating in the shape a reader can act on rather
           caught by the consumer grids in `tests/test_family_libraries.py`, and
           only for slots those grids reach.
 
-          WHAT WOULD CLOSE IT: a second family library, using the constructs
-          `poker_betting` never touches — `round`, `offer`, `produces:`, a struct
-          type. It is the next item on the tracker's ordering issue (#143), and
-          it closes this by EXECUTION: a real library either binds cleanly or
-          surfaces the mis-classified cell. Deliberately not closed by more
-          checking machinery. Re-deriving the authored column mechanically would
+          WHAT HAS CLOSED, and what has not. The second family library landed
+          (`docs/libraries/smuggling.cardlang`, issue #143's first item), and it
+          closed part of this BY EXECUTION rather than by more checking
+          machinery. Executed: the `type` slot of a `requires` entry, whose
+          classification the widening to zone contracts put under real load;
+          `index_domain`, whose row in `_LIBRARY_UNSWEPT` claimed the namespace
+          was CLOSED and was falsified by a probe the moment a contract could
+          name a zone — a library could then reach a game's `positions { }`
+          domain through a contract index, and the namespace is now swept rather
+          than excused; and `zone`/`zone_type_arg`, both of which went from
+          unreachable to reachable and are swept.
+
+          NOT executed, and the residual survives for them: `round`,
+          `produces:`, and a struct type. Green Lane's shared core is a commit
+          and a wave, and it uses none of the three; the family was not contorted
+          into touching them, because a probe written to exercise a slot rather
+          than to play a game is the inspection this residual exists to distrust.
+          `offer` is a third case worth stating precisely: the family USES it,
+          but in game text rather than library text, because the offered move is
+          the one that varies. So the slot is exercised by the family and not by
+          a library, which is weaker than the closer this row asked for.
+
+          WHAT WOULD CLOSE THE REST: a library holding a `round` — a
+          trick-taking family is the natural candidate, and it is the same
+          witness issue #177 names. Still deliberately not closed by more
+          checking machinery: re-deriving the authored column mechanically would
           re-check only the categories this module already invented, and its
           expected findings are auditor-only — the shape the planning gate routes
           to record-and-file rather than build (decisions.md, "Reachability ranks

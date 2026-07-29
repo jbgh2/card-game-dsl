@@ -420,17 +420,29 @@ class _Builder(Transformer[Token, n.Game]):
     def uses_decl(self, meta: Meta, c: list[Token]) -> n.UsesDecl:
         return n.UsesDecl(name=str(c[0]), span=self._span(meta))
 
-    def require_decl(self, meta: Meta, c: list[object]) -> n.RequireDecl:
+    def _require_decl(
+        self, meta: Meta, c: list[object], *, optional: bool
+    ) -> n.RequireDecl:
         index = c[1]
         assert index is None or isinstance(index, str)
-        assert isinstance(c[2], _TypeName)
+        args: tuple[n.TypeArg, ...] = ()
+        if len(c) > 3 and c[3] is not None:
+            assert isinstance(c[3], tuple)
+            args = c[3]
         return n.RequireDecl(
             name=str(c[0]),
             index=index,
-            type_name=c[2].name,
-            optional=c[2].optional,
+            type_name=str(c[2]),
+            type_args=args,
+            optional=optional,
             span=self._span(meta),
         )
+
+    def require_plain(self, meta: Meta, c: list[object]) -> n.RequireDecl:
+        return self._require_decl(meta, c, optional=False)
+
+    def require_optional(self, meta: Meta, c: list[object]) -> n.RequireDecl:
+        return self._require_decl(meta, c, optional=True)
 
     def requires_block(self, meta: Meta, c: list[n.RequireDecl]) -> _Requires:
         return _Requires(tuple(c), span=self._span(meta))
