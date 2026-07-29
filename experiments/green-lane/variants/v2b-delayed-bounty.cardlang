@@ -137,7 +137,7 @@ procedure respond() {
 // token goes to the merchant's `pending` escrow, activating only at the
 // next pair boundary (the V2b delta; V2 credited `tokens` immediately).
 move_type inspect {
-  when: tokens[actor] > 0   // backstop: the offer site in smuggle_round gates on tokens
+  when: tokens[actor] > 0   // backstop: the offer site in respond() gates on tokens
   effect {
     tokens[actor] -= 1
     reveal one card from shipment[merchant]

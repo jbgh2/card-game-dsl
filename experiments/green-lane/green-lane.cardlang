@@ -116,7 +116,7 @@ procedure respond() {
 // seized and will score for the inspector, and the merchant is fined 4.
 // Legal goods clear publicly and the inspector pays the 4-point fine.
 move_type inspect {
-  when: tokens[actor] > 0   // backstop: the offer site in smuggle_round gates on tokens
+  when: tokens[actor] > 0   // backstop: the offer site in respond() gates on tokens
   effect {
     tokens[actor] -= 1
     reveal one card from shipment[merchant]

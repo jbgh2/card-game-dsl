@@ -124,7 +124,7 @@ procedure respond() {
 // handed to the merchant as a bounty, and the inspector pays a reduced
 // 2-point fine for the false alarm.
 move_type inspect {
-  when: tokens[actor] > 0   // backstop: the offer site in smuggle_round gates on tokens
+  when: tokens[actor] > 0   // backstop: the offer site in respond() gates on tokens
   effect {
     tokens[actor] -= 1
     reveal one card from shipment[merchant]

@@ -118,7 +118,7 @@ procedure respond() {
 // Legal goods are impounded: they land face up in the merchant's cleared
 // pile where they score NOBODY, and the inspector pays the 5-point fine.
 move_type inspect {
-  when: tokens[actor] > 0   // backstop: the offer site in smuggle_round gates on tokens
+  when: tokens[actor] > 0   // backstop: the offer site in respond() gates on tokens
   effect {
     tokens[actor] -= 1
     reveal one card from shipment[merchant]
