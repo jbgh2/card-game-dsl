@@ -74,6 +74,29 @@ def wald_ci(num: int, den: int) -> tuple[float, float]:
     return (max(0.0, p - half), min(1.0, p + half))
 
 
+# --- what counts as a result ------------------------------------------------
+#
+# PRE-REGISTERED, and the commit that introduced it precedes the reason-first
+# N=10 data. `RATES` holds ten rates; testing all ten at alpha=0.05 gives a
+# family-wise error rate near 40%, so "one of them came out significant" is the
+# expected outcome of an arm that does nothing at all. Naming the endpoint after
+# seeing the table is how a null result becomes a finding.
+#
+# The hypothesis is about over-accusation: the default arm makes the model commit
+# to an action before writing a word of justification, and both models challenged
+# roughly half of all opportunities at sub-50% precision. `challenge_rate` is
+# therefore the endpoint — the direct measure of how often the model acts when
+# given the choice. It is a one-line change to re-point this, and doing so after
+# looking at data is exactly the move it exists to prevent.
+PRIMARY_ENDPOINT = "challenge_rate"
+
+# Every other rate is exploratory: reported with its p-value, flagged `~` rather
+# than `*`, and not to be quoted as a result without a confirmatory run. The
+# threshold is Bonferroni over the ten rates in `RATES`, which is conservative
+# and deliberately so — these are hypothesis generators, not findings.
+ALPHA_EXPL = 0.05 / 10
+
+
 # Rates `verify.RATES` does not carry, because they are per-GAME counts rather
 # than ratios of two counters. The wrong-accusation figure is the one that
 # explained why models with better lie detection still lost every game: a wrong
@@ -149,6 +172,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"\n{'rate':30} {'control':>18} {'arm':>18}   {'delta':>8} {'p':>9}")
     print("-" * 90)
+    marked = 0
     for name, num, den in RATES:
         an, ad, bn, bd = a_counts[num], a_counts[den], b_counts[num], b_counts[den]
         if not ad and not bd:
@@ -156,7 +180,11 @@ def main(argv: list[str] | None = None) -> int:
         ar = an / ad if ad else float("nan")
         br = bn / bd if bd else float("nan")
         p = fisher_exact(an, ad - an, bn, bd - bn)
-        flag = " *" if p < 0.05 else ""
+        primary = name == PRIMARY_ENDPOINT
+        # `*` is reserved for the ONE pre-registered endpoint; everything else is
+        # exploratory and marked `~`, however small its p. See `PRIMARY_ENDPOINT`.
+        flag = (" *" if p < 0.05 else "") if primary else (" ~" if p < ALPHA_EXPL else "")
+        marked += bool(flag.strip() == "~")
         print(
             f"{name:30} {f'{an}/{ad}={ar:.3f}':>18} {f'{bn}/{bd}={br:.3f}':>18}   "
             f"{br - ar:>+8.3f} {p:>9.2}{flag}"
@@ -165,6 +193,18 @@ def main(argv: list[str] | None = None) -> int:
         lo_b, hi_b = wald_ci(bn, bd)
         print(
             f"{'':30} {f'[{lo_a:.3f},{hi_a:.3f}]':>18} {f'[{lo_b:.3f},{hi_b:.3f}]':>18}"
+        )
+
+    print(
+        f"\n  * = the pre-registered endpoint ({PRIMARY_ENDPOINT}), p < 0.05\n"
+        f"  ~ = exploratory, p < {ALPHA_EXPL:.3f} (Bonferroni over {len(RATES)} "
+        f"rates) — a hypothesis, not a result"
+    )
+    if marked:
+        print(
+            f"    {marked} exploratory rate(s) flagged. Testing {len(RATES)} rates at "
+            f"0.05 gives a ~40% chance of at least one false positive, which is why\n"
+            f"    they are not marked `*`. Quote them only after a confirmatory run."
         )
 
     print(f"\n{'per game':30} {'control':>18} {'arm':>18}   {'delta':>8}")

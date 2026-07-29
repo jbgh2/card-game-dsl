@@ -177,3 +177,50 @@ def test_compare_refuses_a_missing_matchup(tmp_path: Path) -> None:
     _write(tmp_path, "ctl", [_seat_record(0, "llm_x")])
     with pytest.raises(SystemExit, match="no transcript for matchup 'nope'"):
         main(["--dir", str(tmp_path), "--control", "ctl", "--arm", "nope"])
+
+
+# --- the pre-registered endpoint --------------------------------------------
+
+
+def test_the_primary_endpoint_is_one_of_the_reported_rates() -> None:
+    """A `PRIMARY_ENDPOINT` naming a rate that is never computed would silently
+    demote every rate to exploratory, and the `*` would never appear."""
+    from experiments.llm_eval.compare import PRIMARY_ENDPOINT
+    from experiments.llm_eval.verify import RATES
+
+    assert PRIMARY_ENDPOINT in {name for name, _, _ in RATES}
+
+
+def test_a_hugely_significant_exploratory_rate_does_not_get_a_star(
+    tmp_path: Path, capsys: Any
+) -> None:
+    """`*` is reserved for the pre-registered endpoint, however small another
+    rate's p-value is.
+
+    Constructed so `win_rate` separates perfectly (0/10 against 10/10, p ~ 1e-6)
+    while `challenge_rate` — the endpoint — has no opportunities at all and is
+    skipped. If the marking were driven by p alone, this would print a `*`.
+    """
+    lose = [{**_seat_record(s, "llm_x"), "returns": [-1.0, 1.0]} for s in range(10)]
+    win = [{**_seat_record(s, "llm_x"), "returns": [1.0, -1.0]} for s in range(10)]
+    _write(tmp_path, "ctl", lose)
+    _write(tmp_path, "arm", win)
+    main(["--dir", str(tmp_path), "--control", "ctl", "--arm", "arm"])
+    out = capsys.readouterr().out
+    rows = [ln for ln in out.splitlines() if ln.startswith("win_rate")]
+    assert len(rows) == 1, out
+    assert rows[0].rstrip().endswith("~"), f"exploratory rate not marked `~`: {rows[0]}"
+    assert not rows[0].rstrip().endswith("*")
+    assert "exploratory, p <" in out, "the legend explaining `~` is missing"
+    assert "a hypothesis, not a result" in out
+
+
+def test_the_exploratory_threshold_is_bonferroni_over_the_reported_rates() -> None:
+    """Derived from `RATES`, not written as a literal: adding a rate must tighten
+    the threshold automatically, or the correction silently decays as the report
+    grows."""
+    from experiments.llm_eval.compare import ALPHA_EXPL
+    from experiments.llm_eval.verify import RATES
+
+    assert ALPHA_EXPL == pytest.approx(0.05 / len(RATES))
+    assert ALPHA_EXPL < 0.05, "the correction is not correcting anything"
