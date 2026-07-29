@@ -8,12 +8,13 @@ other half. Neither half is visible in the field's annotation, which is
 `str`, so every wall over these slots is written by hand at the consuming
 pass -- and a slot whose wall was never written accepts whatever it is given.
 
-That is the shape this grid measures. It is the sibling of
-`tests/test_role_comparison_pin.py`, which watches how a role is CONSULTED;
-this one watches what a role slot ACCEPTS. The two are the same closed
-domain approached from its two ends, and neither implies the other: a slot
-can be walled and then consulted by ad-hoc logic, or consulted correctly and
-never walled at all.
+That is the shape this grid measures. It is the sibling of the role TYPE
+(`domains.Role`), which governs how a role is CONSULTED once classified;
+this one governs what a role slot ACCEPTS in the first place. Neither
+implies the other: a slot can be walled and then consulted by ad-hoc logic,
+or consulted correctly and never walled at all -- and the second is what the
+`RequireDecl.index` row was, accepting any name a library cared to write
+while every consumer downstream handled roles impeccably.
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 --------------------------------------------------------------
