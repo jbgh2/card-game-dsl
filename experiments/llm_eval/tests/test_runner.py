@@ -573,3 +573,48 @@ def test_transcripts_read_identically_from_gzip(tmp_path: Path) -> None:
     assert _transcripts(tmp_path / "transcripts") == [plain]
     plain.unlink()
     assert _transcripts(tmp_path / "transcripts") == [gz]
+
+
+def test_verify_agrees_with_aggregate_for_multi_seat_agents(tmp_path: Path) -> None:
+    """The audit must reach the SAME denominators as the thing it audits.
+
+    Three seats share the `random` label in every shipped matchup. A tally that
+    counted one of them would report a third of the baseline's plays, windows and
+    wins — quietly, and only for the multi-seat agents, which is exactly where
+    nobody would look.
+    """
+    from experiments.llm_eval.metrics import aggregate
+    from experiments.llm_eval.verify import tally
+
+    run_matchup(_config(), _matchup(3, llm=False), tmp_path, {})
+    records = list(iter_jsonl(str(tmp_path / "transcripts" / "t.jsonl")))
+    agg = aggregate(records)["agents"]
+
+    for who in ("rule", "random"):
+        c = tally(records, who)
+        a = agg[who]
+        assert c["games"] == a["games"], f"{who}: seat-games disagree"
+        assert c["wins"] == a["wins"], f"{who}: wins disagree"
+        assert c["decisions"] == a["decisions"], f"{who}: decisions disagree"
+        assert c["plays"] == a["plays"], f"{who}: plays disagree"
+        assert c["windows"] == a["challenge_opportunities"], f"{who}: windows disagree"
+        assert c["provable_faced"] == a["provable_opportunities"]
+        assert c["provable_caught"] == a["provable_caught"]
+    # And the fixture really is multi-seat, or the test proves nothing.
+    assert agg["random"]["games"] == 3 * len(records)
+
+
+def test_shipped_config_carries_no_resume_marker() -> None:
+    """`resume_from` is an operational marker for ONE invocation, not config.
+
+    Committed, it fails on every fresh checkout — the uncompressed prefix it
+    resumes from is gitignored — and in an all-matchup run it fails only after
+    the expensive matchups have already been paid for.
+    """
+    import yaml
+
+    config = yaml.safe_load(
+        Path("experiments/llm_eval/config.yaml").read_text(encoding="utf-8")
+    )
+    carried = [m["name"] for m in config["matchups"] if m.get("resume_from")]
+    assert not carried, f"matchups ship a stale resume marker: {carried}"

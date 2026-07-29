@@ -129,6 +129,15 @@ def reconstruct_plays(decisions: list[dict[str, Any]]) -> list[Play]:
                 )
             play.cards.append(nxt["facts"]["card"])
             i += 1
+        if len(play.cards) < play.claimed_count:
+            # The transcript ran out mid-play: `max_decisions` truncated the game
+            # after the announce but before every card was chosen. The move never
+            # happened, so it is not a play — counting it would derive its lie
+            # status from a partial hand, and a truthful-so-far prefix would be
+            # reported as an HONEST play that was never made. Dropped, not
+            # guessed. Truncation is the one case the configured cap permits, so
+            # this branch is reachable by configuration alone.
+            break
         while i < len(decisions) and decisions[i]["facts"].get("kind") == "window":
             play.windows.append({**decisions[i]["facts"], "responder": decisions[i]["player"]})
             i += 1

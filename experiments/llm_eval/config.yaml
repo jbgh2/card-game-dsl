@@ -217,11 +217,12 @@ matchups:
 
   - name: llm_mid_rendered_bluffer
     n: 10
-    # Games 0-7 completed before an API spending cap stopped the run; 8 and 9
-    # were added afterwards by re-invoking with this key. The resumed games use
-    # the same seed and game index a single full run would have, so they are
-    # bit-identical to the ones that were missed.
-    resume_from: 8
+    # This matchup was completed in two invocations (an API spending cap stopped
+    # it at game 8), using `resume_from: 8`. That key is deliberately NOT left
+    # here: it is an operational marker for one invocation, not configuration.
+    # A committed `resume_from` fails on any fresh checkout, because the
+    # uncompressed prefix it resumes from is gitignored — and in an
+    # all-matchup run it would fail only AFTER the expensive matchups had run.
     rotate: true
     agents:
       - {kind: llm, name: llm_mid, model: mid, render: true}

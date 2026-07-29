@@ -86,6 +86,8 @@ def _regroup(decisions: list[dict[str, Any]]) -> list[dict[str, Any]]:
             assert decisions[i]["facts"]["kind"] == "card", "play structure broken"
             cards.append(decisions[i]["action"])
             i += 1
+        if len(cards) < count:
+            break  # truncated mid-play; the move never happened (see metrics.py)
         windows = []
         while i < len(decisions) and decisions[i]["facts"].get("kind") == "window":
             windows.append(decisions[i])
@@ -106,18 +108,26 @@ def tally(records: list[dict[str, Any]], who: str) -> Counter[str]:
     c: Counter[str] = Counter()
     for r in records:
         seats = {int(k): v for k, v in r["seats"].items()}
-        me = next((s for s, n in seats.items() if n == who), None)
-        if me is None:
+        # EVERY seat carrying this label, not the first: the shipped matchups put
+        # three `rule` (or `random`) agents at the table, and counting one of them
+        # would silently report a third of the baseline's plays and challenges
+        # while `metrics.aggregate` counts all three. An audit that disagrees with
+        # the thing it audits, for a reason invisible in the output, is worse than
+        # no audit. One seat-game per seat, matching `aggregate`'s denominators.
+        mine = {s for s, n in seats.items() if n == who}
+        if not mine:
             continue
-        c["games"] += 1
-        c["terminal_games"] += bool(r["terminal"])
-        c["wins"] += bool(r["terminal"] and r["returns"][me] > 0)
+        for me in mine:
+            c["games"] += 1
+            c["terminal_games"] += bool(r["terminal"])
+            c["wins"] += bool(r["terminal"] and r["returns"][me] > 0)
+        # Usage is recorded per AGENT NAME, not per seat, so it is added once.
         c["llm_calls"] += r.get("usage", {}).get(who, {}).get("llm_calls", 0)
         c["input_tokens"] += r.get("usage", {}).get(who, {}).get("input_tokens", 0)
         c["output_tokens"] += r.get("usage", {}).get(who, {}).get("output_tokens", 0)
 
         for d in r["decisions"]:
-            if d["player"] != me:
+            if d["player"] not in mine:
                 continue
             c["decisions"] += 1
             c["fallbacks"] += bool(d.get("llm", {}).get("fallback"))
@@ -130,7 +140,7 @@ def tally(records: list[dict[str, Any]], who: str) -> Counter[str]:
 
         for p in _regroup(r["decisions"]):
             lied = any(istate.rank_of(x) != p["claim_rank"] for x in p["cards"])
-            if p["actor"] == me:
+            if p["actor"] in mine:
                 c["plays"] += 1
                 c["lies"] += lied
                 if p["held"] == 0:
@@ -139,7 +149,7 @@ def tally(records: list[dict[str, Any]], who: str) -> Counter[str]:
                     c["plays_with_truthful_option"] += 1
                     c["elective_lies"] += lied
             for w in p["windows"]:
-                if w["player"] != me:
+                if w["player"] not in mine:
                     continue
                 called = w["facts"]["challenged"]
                 c["windows"] += 1

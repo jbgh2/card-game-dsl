@@ -179,8 +179,17 @@ def run_matchup(
         # continues. Appending to a mismatched file would silently duplicate or
         # interleave games, and the resulting transcript would still look valid.
         if not path.exists():
+            archive = path.with_suffix(".jsonl.gz")
+            extra = (
+                f" The gzipped archive {archive.name} IS present; resume appends to "
+                f"an uncompressed transcript, so gunzip it first (and re-compress "
+                f"afterwards) if you mean to extend that run."
+                if archive.exists()
+                else ""
+            )
             raise ValueError(
-                f"resume_from={resume} but {path} does not exist — nothing to resume"
+                f"resume_from={resume} but {path} does not exist — nothing to "
+                f"resume.{extra}"
             )
         with path.open(encoding="utf-8") as fh:
             existing = [json.loads(line) for line in fh if line.strip()]

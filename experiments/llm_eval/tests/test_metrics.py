@@ -199,3 +199,42 @@ def test_aggregate_sums_across_games() -> None:
     assert summary["games"] == 2
     assert summary["agents"]["a1"]["plays"] == 2
     assert summary["agents"]["a1"]["elective_lies"] == 2
+
+
+def test_a_play_truncated_mid_selection_is_dropped(  ) -> None:
+    """A game cut off between the announce and its card picks did not contain a
+    play, and must not be counted as one.
+
+    The danger is specific: `lied` is derived from the cards recorded, so a
+    partial selection that happens to start with matching cards reports as an
+    HONEST play that was never made — inflating truthfulness exactly in the
+    truncation case `max_decisions` permits.
+    """
+    record = _record()
+    # Keep the last announce and its FIRST card, drop the rest (claimed 1 of 1
+    # here, so extend the claim to 2 to leave it genuinely incomplete).
+    decisions = record["decisions"][:11]
+    decisions.append(_announce(11, 3, "4", 2, truthful=2))
+    decisions.append(_card(12, 3, "4♠", "4"))   # only 1 of the 2 announced
+    record["decisions"] = decisions
+    record["terminal"] = False
+    record["truncated"] = True
+
+    plays = reconstruct_plays(decisions)
+    assert [p.actor for p in plays] == [0, 1, 2], "the incomplete play leaked in"
+    assert all(len(p.cards) == p.claimed_count for p in plays)
+
+    stats = aggregate([record])["agents"]
+    # Seat 3 announced but never completed a play, so it has none — and no
+    # spurious "honest play" credited to it.
+    assert stats["a3"]["plays"] == 0
+    assert stats["a3"]["lies"] == 0
+    assert stats["a3"]["lying_rate"] is None
+
+
+def test_a_complete_play_at_the_very_end_is_kept() -> None:
+    """The complement: a play whose last card is the final decision is complete
+    and must still count. Dropping it would trade one bug for another."""
+    decisions = _record()["decisions"][:2]  # announce play_one + its single card
+    plays = reconstruct_plays(decisions)
+    assert len(plays) == 1 and plays[0].cards == ["A♠"]
