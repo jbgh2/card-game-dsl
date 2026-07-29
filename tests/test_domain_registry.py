@@ -190,11 +190,11 @@ def _param_move(spelling: str) -> str:
 # the singular for `any` (`any player where`). Both are literal nouns in
 # cardlang.lark — see the grammar-surface residual in the module ledger.
 def _any(row: Domain) -> str:
-    return f"any {row.id} where"
+    return f"any {row.id.value} where"
 
 
 def _all(row: Domain) -> str:
-    return f"all {row.id}s where"
+    return f"all {row.id.value}s where"
 
 
 # A predicate of the WRONG type for each row's binder: if the binder were typed
@@ -253,7 +253,7 @@ def test_a_non_row_noun_parses_but_is_rejected_at_resolve() -> None:
 
 def test_for_each_accepts_exactly_the_iterable_rows() -> None:
     for row in DOMAINS:
-        src = _src(f"for each {row.id} x: marker[actor] += 1")
+        src = _src(f"for each {row.id.value} x: marker[actor] += 1")
         if row.iterable:
             _accepts(src)
         else:  # pragma: no cover - no such row today; the cell is declared, not dead
@@ -283,7 +283,7 @@ def test_for_each_binds_the_actor_iff_the_row_is_a_seat_domain() -> None:
     for row in DOMAINS:
         if not row.iterable:  # pragma: no cover - no such row today
             continue
-        game = _accepts(_src(f"for each {row.id} x: marker[actor] += 1"))
+        game = _accepts(_src(f"for each {row.id.value} x: marker[actor] += 1"))
         stmt = next(s for s in game.phases[0].items if isinstance(s, n.ForEach))
 
         ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k])).acting_as(0)
@@ -294,13 +294,13 @@ def test_for_each_binds_the_actor_iff_the_row_is_a_seat_domain() -> None:
         ctx.rs.pop_frame()
 
         members = role_members(row.id, ctx)
-        assert members, f"row {row.id!r} has an empty runtime domain"
+        assert members, f"row {row.id.value!r} has an empty runtime domain"
         if row.binds_actor:
             expected = {p: 1 for p in rs.seating.players}
         else:
             expected = {p: (len(members) if p == 0 else 0) for p in rs.seating.players}
         assert marker == expected, (
-            f"row {row.id!r} declares binds_actor={row.binds_actor}, but iterating it "
+            f"row {row.id.value!r} declares binds_actor={row.binds_actor}, but iterating it "
             f"produced {marker} (expected {expected})"
         )
 
@@ -320,13 +320,13 @@ def test_each_simultaneously_accepts_exactly_the_seat_rows() -> None:
     # value rows fail on an unresolved-name wall instead of the domain wall, and
     # the cell would be green for the wrong reason.
     for row in DOMAINS:
-        src = _src(f"each {row.id} simultaneously:\n      move chosen 3 cards from hand[0] to pile")
+        src = _src(f"each {row.id.value} simultaneously:\n      move chosen 3 cards from hand[0] to pile")
         if row.simultaneous:
             _accepts(src)
         else:
             _rejects(
                 src,
-                f"`each {row.id} simultaneously` is not runnable — "
+                f"`each {row.id.value} simultaneously` is not runnable — "
                 f"simultaneous moves are per player",
             )
 

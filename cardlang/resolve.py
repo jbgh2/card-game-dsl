@@ -3449,8 +3449,9 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
                     else "a movement's `where` filter"
                 )
                 hint = f" (`{noun}` is bound only inside {where})"
-            # role-compare-ok: not a role dispatch — `player` is the
-            # unresolved NAME this hint is about.
+            # Not a role dispatch: `player` is the unresolved NAME this hint
+            # is about, so it stays a string (walled as a coincidence in
+            # tests/test_role_comparison_pin.py).
             elif node.name == "player":
                 hint = " (`player` is bound only inside a player query or quantifier)"
             bag.error(f"unresolved name '{node.name}'{hint}", node.span)
@@ -4174,9 +4175,10 @@ def _check_card_vocabulary(
             span,
         )
     if card_param_moves and not any(
-        # role-compare-ok: intrinsic — a Card parameter enumerates the
-        # ACTOR's hand, which is player-keyed by definition.
-        z.name == "hand" and z.index == "player" for z in game.zones
+        # Intrinsic: a Card parameter enumerates the ACTOR's hand, which is
+        # player-keyed by definition.
+        z.name == "hand" and z.index is not None and role_of(z.index) is Role.PLAYER
+        for z in game.zones
     ):
         bag.error(
             f"vocabulary move '{card_param_moves[0]}' takes a Card parameter, "
@@ -4649,10 +4651,12 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     # — player keying was assumed, not checked, the same class
                     # as the `== "team"` defaults the domain table replaced.
                     idx = zone_index.get(nd.dest.name)
-                    # role-compare-ok: intrinsic — `to each` deals one
-                    # share per PLAYER, so the destination family must be
-                    # player-keyed whatever else the table gains.
-                    if nd.dest.ref_kind == "zone" and idx != "player":
+                    # Intrinsic: `to each` deals one share per PLAYER, so the
+                    # destination family must be player-keyed whatever else the
+                    # table gains.
+                    if nd.dest.ref_kind == "zone" and (
+                        idx is None or role_of(idx) is not Role.PLAYER
+                    ):
                         what_z = (
                             "a singleton zone"
                             if idx is None

@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from cardlang.ast import nodes as n
+from cardlang.domains import Role, role_of
 from cardlang.openspiel.encoding import ActionSpace
 from cardlang.pipeline import check_source
 from cardlang.runtime.driver import GameResult, play_game
@@ -140,23 +141,24 @@ def _score_key_by_seat(game: n.Game, n_players: int) -> list[int]:
     and reading it here as player-keyed would silently pay the wrong seats again.
     That is precisely the per-consumer role drift `zone_key_of` was introduced to
     end (domains.py), so an unhandled role raises instead of defaulting."""
-    role = _winner_target_index(game)
-    # role-compare-ok: an ALLOW-LIST — the arms below enumerate what this mapping
-    # inverts, the fallback RAISES for anything else, and `_RETURNS_KEYED_ROLES`
-    # is reconciled against ZONE_INDEX_ROLES by
+    name = _winner_target_index(game)
+    role = role_of(name) if name is not None else None
+    # An ALLOW-LIST: the arms below enumerate what this mapping inverts, the
+    # fallback RAISES for anything else, and `_RETURNS_KEYED_ROLES` is
+    # reconciled against ZONE_INDEX_ROLES by
     # tests/test_openspiel_returns_keying.py. Adding a role reddens that pin.
-    if role is None or role == "player":
+    if role is None or role is Role.PLAYER:
         # Player-indexed, or unindexed — a scalar target never reaches here at
         # all (`driver` fails building a dict from an int first; issue #153).
         # Either way the seat IS its own key.
         return list(range(n_players))
-    if role == "team":  # role-compare-ok: the second arm of the same allow-list
+    if role is Role.TEAM:  # the second arm of the same allow-list
         team_of = {
             p: ti for ti, members in enumerate(game.partnerships) for p in members
         }
         return [team_of[p] for p in range(n_players)]
     raise AssertionError(
-        f"returns_for: the `winner:` target is indexed by '{role}', which this "
+        f"returns_for: the `winner:` target is indexed by '{name}', which this "
         f"mapping does not invert (it handles {sorted(_RETURNS_KEYED_ROLES)}) — "
         f"those seats' returns would be silently read as player-keyed. Add the "
         f"role here, mapping a seat to its key as that domain's `zone_key_of` "

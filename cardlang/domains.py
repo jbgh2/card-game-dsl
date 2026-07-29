@@ -11,11 +11,20 @@ derived once here rather than re-derived by each consumer:
 | `suit`   | Suit   | `TEnum(Suit)` | no          | yes        | no                      | `Suit`, `Suit?`  |
 | `rank`   | Rank   | `TEnum(Rank)` | no          | yes        | no                      | `Rank`           |
 
-The two namespaces are one row, not two tables: the lowercase `id` is the
-role noun the *statement* surface spells (`for each player p`, `any suit
-where …`), and `type_name` is the capitalised spelling the *declaration*
-surface uses (`move_type bid(s: Suit)`). One row relates `player` to
-`Player`; split across two registries keyed differently, nothing would.
+The two namespaces are one row, not two tables: the `id` is the role noun
+the *statement* surface spells (`for each player p`, `any suit where …`),
+and `type_name` is the capitalised spelling the *declaration* surface uses
+(`move_type bid(s: Suit)`). One row relates `player` to `Player`; split
+across two registries keyed differently, nothing would.
+
+The `id` is a `Role` — the enum below, which is THE definition site for the
+role ids and the type every consumer dispatches over. A role that
+participates in a decision is a `Role` all the way to the decision, so
+comparing one against a string literal is a `mypy --strict` error; the one
+bridge from parsed text is `role_of`. Two functions here deliberately still
+take a NAME (`role_static_members`, `zone_observer_key`), because their
+domain is the registry PLUS the calling game's declared position domains,
+so classifying the name is part of what they answer.
 
 `binds_actor` is the seat/value asymmetry as data. A SEAT domain's member *is*
 an actor, so `for each player p:` rebinds `ctx.acting_as(p)` and a decision in

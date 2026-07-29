@@ -25,7 +25,8 @@ domain:    the registry's derived views (`ITERABLE_ROLES`, `SIMULTANEOUS_ROLES`,
            `PARAM_DOMAINS`, `role_type`, `role_members`) crossed with their
            consuming sites (resolve's two gates, typecheck's binder typing, the
            runtime's member enumeration).
-registry:  `cardlang.domains.DOMAINS`.
+registry:  `cardlang.domains.DOMAINS`, whose `id` column IS `domains.Role` —
+           one definition site, so the enum and the table cannot disagree.
 covered:   all 4 rows at typecheck (`role_type`) and at runtime (`role_members`),
            on a built game exercising all four (a 4-player partnership game, so
            `team` is populated too); resolve's two set-views are pinned by
@@ -50,6 +51,7 @@ from cardlang.domains import (
     PARAM_DOMAINS,
     SIMULTANEOUS_ROLES,
     role_members,
+    require_role,
     role_type,
 )
 from cardlang.pipeline import check_dsl
@@ -124,8 +126,23 @@ def test_resolve_reads_the_simultaneous_column_not_a_hardcoded_player() -> None:
 # --- typecheck's binder typing IS the registry's binder_type column ----------
 
 
-def test_typecheck_role_type_is_the_registry_function() -> None:
-    assert getattr(typecheck, "_role_type") is role_type
+def test_typecheck_binder_typing_delegates_to_the_registry() -> None:
+    """typecheck holds no copy of the binder-type column.
+
+    This used to be object identity — `typecheck._role_type is role_type`.
+    It cannot be now: the registry function takes a `Role` and typecheck's
+    callers hold a parsed NAME, so the pass owns one classification wrapper.
+    The guarantee is unchanged and is asserted where identity used to be: for
+    every row, the wrapper answers exactly what the registry answers, and it
+    is the registry's own object it answers with (`is`, not `==`, so a
+    reconstructed-but-equal type would fail).
+
+    red under: give `typecheck._role_type` a local table
+    (`return {"player": TPlayer(), ...}[name]`) — every row still type-checks,
+    every row fails this."""
+    wrapper = getattr(typecheck, "_role_type")
+    for row in DOMAINS:
+        assert wrapper(row.id.value) is role_type(row.id) is row.binder_type
 
 
 def test_role_type_is_the_binder_type_column_for_every_row() -> None:
@@ -136,18 +153,26 @@ def test_role_type_is_the_binder_type_column_for_every_row() -> None:
 def test_role_type_is_concrete_for_every_registry_member() -> None:
     for row in DOMAINS:
         t = role_type(row.id)
-        assert not isinstance(t, TAny), f"role {row.id!r} maps to TAny, expected a concrete Type"
+        assert not isinstance(t, TAny), (
+            f"role {row.id.value!r} maps to TAny, expected a concrete Type"
+        )
 
 
-def test_role_type_raises_outside_the_registry() -> None:
+def test_a_name_outside_the_registry_never_reaches_role_type() -> None:
     """A role outside the registry is a REGISTRY DIVERGENCE, not a program
-    error — every role-bearing surface is walled against a subset of `BY_ID`
-    (tests/test_permissive_top.py pins all five), so a miss means two
-    registries disagree. It used to return the permissive `TAny`, which types
-    the binder as the top and silently exempts every use of it from every type wall
-    (decisions.md, "The permissive top and the lookup-miss walls")."""
+    error — every role-bearing surface is walled against a subset of the
+    registry (tests/test_permissive_top.py pins all five), so a miss means two
+    registries disagree.
+
+    `role_type` cannot be handed one at all now: it takes a `Role`. The check
+    lives at the classification step instead, which is where a parsed name
+    stops being a string. It used to return the permissive `TAny`, which types
+    the binder as the top and silently exempts every use of it from every type
+    wall (decisions.md, "The permissive top and the lookup-miss walls").
+
+    red under: return `None` instead of raising from `domains.require_role`."""
     with pytest.raises(AssertionError) as ei:
-        role_type("bogus")
+        role_type(require_role("bogus", "binder role"))
     assert "not a binder role" in str(ei.value)
 
 
@@ -170,7 +195,9 @@ def test_the_runtime_has_no_private_role_domain_accessors() -> None:
 def test_role_members_is_non_empty_for_every_registry_member() -> None:
     ctx = Ctx(rs=_rs(), chooser=lambda p, c, k: list(c[:k])).acting_as(0)
     for row in DOMAINS:
-        assert role_members(row.id, ctx), f"role {row.id!r} produced an empty runtime domain"
+        assert role_members(row.id, ctx), (
+            f"role {row.id.value!r} produced an empty runtime domain"
+        )
 
 
 def test_the_two_namespaces_are_one_table() -> None:
@@ -201,11 +228,11 @@ def test_a_rows_type_name_is_a_declarable_type_with_the_same_type() -> None:
 
     for row in DOMAINS:
         assert row.type_name in KNOWN_TYPE_NAMES, (
-            f"domain row '{row.id}' declares type_name '{row.type_name}', which is "
+            f"domain row '{row.id.value}' declares type_name '{row.type_name}', which is "
             f"not a declarable type — a move parameter of it would type as Any"
         )
         assert type_from_name(row.type_name, False, {}) == row.binder_type, (
-            f"domain row '{row.id}': the binder types as {row.binder_type} but a "
+            f"domain row '{row.id.value}': the binder types as {row.binder_type} but a "
             f"parameter of '{row.type_name}' types as "
             f"{type_from_name(row.type_name, False, {})}"
         )
