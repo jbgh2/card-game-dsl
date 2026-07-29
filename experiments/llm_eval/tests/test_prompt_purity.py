@@ -52,14 +52,27 @@ def test_build_prompt_depends_only_on_its_arguments() -> None:
 
 
 def test_build_prompt_signature_takes_no_state() -> None:
-    """Enforcement by signature (spec §1): three strings, nothing else. A
-    future parameter that could carry a state object reddens this."""
-    sig = inspect.signature(build_prompt)
-    assert list(sig.parameters) == ["rules", "infostate", "legal_actions"]
-    # `from __future__ import annotations` makes raw annotations strings;
-    # resolve them so the check is about types, not spelling.
+    """Enforcement by signature (spec §1): strings, nothing else.
+
+    Pinned as a PROPERTY rather than a fixed parameter list. The guarantee is
+    that no argument can carry a game state — not that there are exactly three
+    of them. Naming the list froze an experimental variable: the response
+    boilerplate was a module constant purely because this test made adding a
+    parameter look like a violation, and it is spec §1's fourth input. A new
+    parameter of any non-string type still reddens this, which is the property
+    that matters.
+    """
     hints = get_type_hints(build_prompt)
-    assert hints == {"rules": str, "infostate": str, "legal_actions": list[str], "return": str}
+    assert hints.pop("return") is str
+    assert hints, "build_prompt takes no arguments — the check is vacuous"
+    for name, annotation in hints.items():
+        assert annotation in (str, list[str]), (
+            f"build_prompt parameter {name!r} is {annotation!r}; only strings "
+            f"may reach the prompt, or a game state could be passed in"
+        )
+    # The information state must still be one of them, by name — it is the
+    # artifact the indistinguishability proofs cover.
+    assert "infostate" in hints
 
 
 def test_prompt_contains_the_infostate_verbatim() -> None:

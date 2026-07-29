@@ -364,6 +364,41 @@ about which knobs exist:
 
 ---
 
+## Next experiment: the neutral arm
+
+Built and wired; not yet run. Run it with:
+
+```bash
+python -m experiments.llm_eval.run_eval \
+  --matchup llm_cheap_neutral_bluffer --matchup llm_mid_neutral_bluffer --figure
+```
+
+**What it tests.** The default response instruction asks for `{"action": i,
+"reasoning": "..."}`. The neutral arm asks for `{"action": i}` and nothing else.
+Everything before `HOW TO ANSWER` is byte-identical between the arms (pinned by
+`test_render.py`), so the delta is attributable to the response format alone.
+
+**Why.** Both models over-accused badly — challenging roughly half of all
+opportunities at sub-50% precision, which in Cheat means eating the pile.
+Measured per game: Sonnet made **12.8 wrong accusations against the baseline's
+2.5**, and lost every game despite shedding faster *and* detecting provable lies
+better than its opponents. Requiring a justification may be part of that: there
+is something to write when you challenge and nothing to write when you allow.
+
+**The cost, stated up front.** With no reasoning text, the diagnostics that
+found this harness's two worst defects are unavailable. That is why this is an
+arm rather than a replacement — the comparison is the result, and the
+reasoning-bearing arm stays as the instrumented one.
+
+**A caveat that applies to the existing results too.** The action is emitted
+*before* the reasoning, so the reasoning is post-hoc rationalisation, not
+deliberation. Any finding resting on what a model *said* is weaker than one
+resting on what it *did*. The Q2 comprehension result is action-based
+(skip-truthful) and unaffected; the rank-naming figures are reasoning-based and
+should be read with that in mind.
+
+---
+
 ## Honest status
 
 - **The cheap-model run has not been executed.** No `ANTHROPIC_API_KEY` and no

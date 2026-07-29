@@ -123,6 +123,12 @@ show you only counts: your own choices are in your log, and nobody else's are
 in theirs.
 """
 
+# The default: an action plus a one-line justification. The justification is
+# what surfaced both major defects found in this harness (a model misreading its
+# own hand; a model misreading the claimed rank), so it is diagnostically
+# load-bearing — but note it is emitted AFTER the action, so it is post-hoc
+# rationalisation rather than deliberation, and is weaker evidence about the
+# decision than it looks.
 RESPONSE_TEXT = """\
 HOW TO ANSWER
 
@@ -136,19 +142,29 @@ the JSON in prose.
 """
 
 
-def build_prompt(rules: str, infostate: str, legal_actions: list[str]) -> str:
+def build_prompt(
+    rules: str,
+    infostate: str,
+    legal_actions: list[str],
+    response: str = RESPONSE_TEXT,
+) -> str:
     """The complete prompt for one decision.
 
-    Pure by signature: three strings in, one string out. There is no state
-    object here to read, so nothing outside the acting player's entitled view
-    can reach the model — which is the whole point of the harness.
+    Pure by signature: strings in, one string out. There is no state object here
+    to read, so nothing outside the acting player's entitled view can reach the
+    model — which is the whole point of the harness.
+
+    The four parameters ARE spec §1's four inputs, the last being "static
+    harness boilerplate". It was a module constant until the neutral arm needed
+    to vary it; a constant hid an experimental variable behind something that
+    looked like a fixed part of the harness.
     """
     numbered = "\n".join(f"  {i}: {a}" for i, a in enumerate(legal_actions))
     return (
         f"{rules}\n"
         f"Your current knowledge:\n\n{infostate}\n\n"
         f"Your legal actions right now:\n\n{numbered}\n\n"
-        f"{RESPONSE_TEXT}"
+        f"{response}"
     )
 
 
@@ -245,3 +261,29 @@ nobody else's are in theirs.
 """
 
 RULES_RENDERED = RULES_TEXT + "\n" + FORMAT_TEXT_RENDERED
+
+
+# The NEUTRAL arm's boilerplate: ask for the action and nothing else.
+#
+# Hypothesis under test. Requiring a justification may bias the model toward
+# ACTING — there is something to write when you challenge and nothing to write
+# when you allow — which would inflate the over-accusation both models showed
+# (challenging ~half of all opportunities at sub-50% precision, five times the
+# baseline's rate of costly wrong calls). A neutral instruction removes the
+# demand to justify without changing anything else.
+#
+# The cost is diagnostic blindness: with no reasoning text, the checks that
+# found this harness's two worst defects are unavailable. That is why this is an
+# ARM rather than a replacement — the comparison is the result, and the
+# reasoning-bearing arm stays as the instrumented one.
+RESPONSE_NEUTRAL = """\
+HOW TO ANSWER
+
+Reply with a single JSON object and nothing else:
+
+    {"action": <index>}
+
+`action` is the integer index of your chosen action from the numbered list
+above. Do not include internal or system XML tags in your response. Do not wrap
+the JSON in prose.
+"""

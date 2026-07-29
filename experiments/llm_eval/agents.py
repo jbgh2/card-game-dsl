@@ -27,6 +27,8 @@ from typing import Any, Protocol
 
 from . import infostate as istate
 from .prompts import (
+    RESPONSE_NEUTRAL,
+    RESPONSE_TEXT,
     RETRY_NOTE,
     RULES_RAW,
     RULES_RENDERED,
@@ -195,6 +197,11 @@ class LLMAgent:
     # string, so the leak-freeness argument is unchanged (README, "Leak-
     # freeness"), with a correspondingly shorter format guide.
     render: bool = False
+    # The NEUTRAL arm: ask for the action alone, with no justification. Tests
+    # whether requiring a justification biases the model toward acting. Costs
+    # the reasoning diagnostics, which is why it is an arm and not the default
+    # (`prompts.RESPONSE_NEUTRAL`).
+    neutral: bool = False
     rules: str | None = None
     _rng: random.Random = field(init=False)
     _trace: dict[str, Any] = field(default_factory=dict, init=False)
@@ -207,7 +214,8 @@ class LLMAgent:
     def choose(self, view: DecisionView) -> int:
         state = render_state(view.infostate) if self.render else view.infostate
         assert self.rules is not None  # set in __post_init__
-        prompt = build_prompt(self.rules, state, view.legal_strings)
+        response = RESPONSE_NEUTRAL if self.neutral else RESPONSE_TEXT
+        prompt = build_prompt(self.rules, state, view.legal_strings, response)
         attempts: list[dict[str, Any]] = []
         text = prompt
         for attempt in range(2):
@@ -274,6 +282,7 @@ def build_agent(spec: dict[str, Any], seed: int, provider: Provider | None) -> A
             seed=seed,
             name=spec.get("name", "llm"),
             render=bool(spec.get("render", False)),
+            neutral=bool(spec.get("neutral", False)),
         )
     raise ValueError(f"unknown agent kind {kind!r} (expected random | rule | llm)")
 

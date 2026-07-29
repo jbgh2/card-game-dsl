@@ -213,3 +213,64 @@ def test_agent_arm_switch_selects_the_right_prompt() -> None:
     assert "You are seat 1" in rendered_provider.prompts[0]
     assert "claiming they are Aces" in rendered_provider.prompts[0]
     assert len(rendered_provider.prompts[0]) < len(raw_provider.prompts[0])
+
+
+# --- the NEUTRAL arm --------------------------------------------------------
+
+
+def test_neutral_arm_asks_for_the_action_alone() -> None:
+    """The arm under test: no demand to justify, everything else identical."""
+    from experiments.llm_eval.prompts import RESPONSE_NEUTRAL, RESPONSE_TEXT
+
+    assert "reasoning" in RESPONSE_TEXT
+    assert "reasoning" not in RESPONSE_NEUTRAL
+    assert '{"action": <index>}' in RESPONSE_NEUTRAL
+
+
+def test_neutral_arm_changes_only_the_response_instruction() -> None:
+    """Everything before HOW TO ANSWER must be byte-identical between the arms,
+    or the comparison measures more than the response format."""
+    from experiments.llm_eval.prompts import RESPONSE_NEUTRAL, RESPONSE_TEXT
+
+    info = (
+        "P1|deck=#0;flipped=[];pile=#0;played=#2;hand[0]=#12;hand[1]=[A♠,2♥];"
+        "hand[2]=#13;hand[3]=#13|state:challenged=False;challenger=0;"
+        "claim_count=2;claim_rank=A;claimant=0;responder=1;window_open=True;"
+        "won={0:False,1:False,2:False,3:False}|obs:('announce', 0, 'play_two')"
+    )
+    legal = ["allow", "call_cheat"]
+    a = build_prompt(RULES_RENDERED, render_state(info), legal, RESPONSE_TEXT)
+    b = build_prompt(RULES_RENDERED, render_state(info), legal, RESPONSE_NEUTRAL)
+    assert a != b
+    head = "HOW TO ANSWER"
+    assert a[: a.index(head)] == b[: b.index(head)]
+
+
+def test_neutral_agent_sends_the_neutral_prompt() -> None:
+    from experiments.llm_eval.prompts import RESPONSE_NEUTRAL
+
+    view = DecisionView(
+        player=1,
+        infostate=(
+            "P1|deck=#0;flipped=[];pile=#0;played=#2;hand[0]=#12;hand[1]=[A♠,2♥];"
+            "hand[2]=#13;hand[3]=#13|state:challenged=False;challenger=0;"
+            "claim_count=2;claim_rank=A;claimant=0;responder=1;window_open=True;"
+            "won={0:False,1:False,2:False,3:False}|obs:('announce', 0, 'play_two')"
+        ),
+        legal_actions=[54, 55],
+        legal_strings=["allow", "call_cheat"],
+    )
+    provider = FakeProvider(replies=['{"action": 1}'])
+    agent = LLMAgent(provider=provider, seed=0, render=True, neutral=True)
+    assert agent.choose(view) == 55
+    assert RESPONSE_NEUTRAL in provider.prompts[0]
+    assert "reasoning" not in provider.prompts[0].split("HOW TO ANSWER")[1]
+
+
+def test_a_reply_without_reasoning_parses_and_is_not_a_fallback() -> None:
+    """The neutral arm's replies carry no `reasoning` key; that is the expected
+    shape, not a malformed response, and must not inflate the fallback rate."""
+    from experiments.llm_eval.prompts import parse_response
+
+    result = parse_response('{"action": 1}', num_actions=2)
+    assert result.ok and result.index == 1 and result.reasoning == ""

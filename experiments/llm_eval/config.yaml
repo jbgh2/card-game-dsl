@@ -229,3 +229,39 @@ matchups:
       - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
       - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
       - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+
+  # --- NEXT EXPERIMENT: the NEUTRAL arm ---------------------------------------
+  # Identical to `*_rendered_bluffer` in every respect except the response
+  # instruction: these ask only "what is your action?", with no `reasoning`
+  # field. Same seeds, same opponents, same rendered state — so the delta is
+  # attributable to the response format alone.
+  #
+  # Hypothesis: requiring a justification biases toward ACTING. There is
+  # something to write when you challenge and nothing to write when you allow,
+  # and both models over-accused badly — challenging ~half of all opportunities
+  # at sub-50% precision, five times the baseline's rate of costly wrong calls
+  # (Sonnet 12.8 bad calls/game vs 2.5). If the challenge rate drops here, the
+  # harness was manufacturing part of the over-eagerness it measured.
+  #
+  # Cost: no reasoning text means no reasoning diagnostics — the checks that
+  # found this harness's two worst defects. Hence an ARM, not a replacement.
+  #
+  # Compare against llm_cheap_rendered_bluffer / llm_mid_rendered_bluffer.
+  # ~$13 and ~70 min for both at N=10, at the rates those runs measured.
+  - name: llm_cheap_neutral_bluffer
+    n: 10
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_cheap, model: cheap, render: true, neutral: true}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+
+  - name: llm_mid_neutral_bluffer
+    n: 10
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_mid, model: mid, render: true, neutral: true}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
