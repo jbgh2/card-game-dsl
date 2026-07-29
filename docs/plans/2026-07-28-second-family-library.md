@@ -337,15 +337,18 @@ currency.
   independently reached for the same mechanism from the Coup/Cheat challenge
   window, which is what says the need is not an artifact of this family's
   delta-lattice shape.
-- **#137 ("Allow family libraries to hold zones and/or phases") needs a pass it
-  did not get here.** Its zone half is answered — this family forced zone
-  CONTRACTS, and holding a zone was never available, because every family zone
-  is written by game text somewhere and provided state is read-only to the game.
-  Its phases half stands, but is sharpened: procedures do not compose, so shared
-  material reachable only from a game procedure has to be lifted to a phase to
-  be shareable at all. Its Witness section asks for a family to be named; this
-  one now has been. Left for the operator rather than edited from here, because
-  it is a scope decision on someone else's issue.
+- **#137 ("Allow family libraries to hold zones and/or phases") is to be narrowed
+  ONCE THIS PR LANDS** — authorized by the operator 2026-07-29, deferred to merge
+  deliberately, since the narrowing asserts things this PR has to have landed for
+  them to be true. Its zone half is answered: this family forced zone CONTRACTS,
+  and holding a zone was not merely unforced but unavailable, because every
+  family zone is written by game text somewhere and provided state is read-only
+  to the game. The live zone question becomes the sharper one — a family whose
+  shared zone is written ONLY by library definitions. Its phases half stands and
+  gains an argument: procedures do not compose, so shared material reachable only
+  from a game procedure has to be lifted to a phase to be shareable at all. Its
+  Witness section asks for a family to be named; this one has been, and it does
+  NOT force holding, so it must not be left reading as pending evidence.
 - The registry residual in `tests/test_reference_slots.py` is **narrowed, not
   closed** — `offer`'s library half, `round`, `produces:` and a struct type are
   still unexecuted, and the module says which.
