@@ -133,12 +133,12 @@ def test_every_builtin_domain_id_and_type_spelling_is_a_rejected_position_name()
     and every KNOWN_TYPE_NAMES member must be rejected as a position name —
     the two definition sites can never disagree about a spelling."""
     spellings = (
-        {d.id for d in DOMAINS}
+        {d.id.value for d in DOMAINS}
         | {d.type_name for d in DOMAINS}
         | set(KNOWN_TYPE_NAMES)
     )
     assert "Card" in spellings and "player" in spellings  # the sweep is real
-    for name in sorted(str(s) for s in spellings):
+    for name in sorted(spellings):
         with pytest.raises(DiagnosticError, match="collides with a built-in"):
             check_dsl(
                 _game(positions=f"positions {{ {name} : 1..3 }}",
