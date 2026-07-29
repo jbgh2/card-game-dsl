@@ -329,9 +329,23 @@ currency.
   kind, which is R2's disposition. Not fixed here — the single-pool sweep wants
   its own kind-x-kind grid, and folding it in would put two closed domains in
   one change.
-- #143 item 1 is done and comes off the list. Its `#178` sentence is worth
-  carrying forward: this family's evidence says the next pressure on the tier is
-  a contract over DEFINITIONS, not a `with` clause.
+- #143 item 1 is done and comes off the list. What this family's evidence says
+  about the tier's next pressure is now filed as **#189** (a contract over
+  DEFINITIONS, not a `with` clause), a sibling of #178 rather than the same
+  question: a definition is a name in a namespace `requires` does not reach,
+  where #178 asks whether a contract can express a capability at all. #140
+  independently reached for the same mechanism from the Coup/Cheat challenge
+  window, which is what says the need is not an artifact of this family's
+  delta-lattice shape.
+- **#137 ("Allow family libraries to hold zones and/or phases") needs a pass it
+  did not get here.** Its zone half is answered — this family forced zone
+  CONTRACTS, and holding a zone was never available, because every family zone
+  is written by game text somewhere and provided state is read-only to the game.
+  Its phases half stands, but is sharpened: procedures do not compose, so shared
+  material reachable only from a game procedure has to be lifted to a phase to
+  be shareable at all. Its Witness section asks for a family to be named; this
+  one now has been. Left for the operator rather than edited from here, because
+  it is a scope decision on someone else's issue.
 - The registry residual in `tests/test_reference_slots.py` is **narrowed, not
   closed** — `offer`'s library half, `round`, `produces:` and a struct type are
   still unexecuted, and the module says which.

@@ -69,8 +69,10 @@ not on a delta form either:
   the phase tree** — none of which a *delta* form addresses either, since a
   delta shares by patching a base file rather than by naming a common body;
 - the one mechanism that would genuinely shrink the duplication is a contract
-  over DEFINITIONS — a required function, so the predicate is the game's and the
-  move is shared. That is issue \#178's question, not this one's.
+  over DEFINITIONS — a required move type, so the offer step that is already
+  byte-identical in all twelve can be shared, and a required function, so the
+  varying predicate is the game's while the move stays shared. That is issue
+  \#189's question, not this one's.
 
 So this question stays open, but its evidence is now spent: the smuggling family
 has been measured and does not force it. Reopening it needs a family whose

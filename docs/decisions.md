@@ -4125,9 +4125,13 @@ constant, which required state carries), a contraband predicate, and an added
 statement. The last two are not constants of any kind, so no clause on the
 import would carry them either — a `with` clause is not what that family wants.
 What it wants, if anything, is a contract over DEFINITIONS: a required function
-would let the varying predicate be the game's while the move stayed shared. That
-is a real question and it is issue #178's, not this one's; recorded here so the
-next reader does not re-derive a `with` clause from the same evidence.
+would let the varying predicate be the game's while the move stayed shared, and
+a required move type would let the family share the offer step that is already
+byte-identical in every member. That is issue #189, and it is a different
+question from #178's — a definition is a NAME, in a namespace `requires` does
+not reach, where #178 asks whether a contract can express a capability at all.
+Recorded here so the next reader does not re-derive a `with` clause from the
+same evidence.
 
 **A member offers a subset of the family vocabulary, at no cost.** Importing a
 library is not a commitment to use all of it: Kuhn's `offering` list is
