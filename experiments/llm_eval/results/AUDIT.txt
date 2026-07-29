@@ -1,0 +1,761 @@
+AUDIT TRAIL — every reported number, with the raw counts behind it.
+
+Regenerate (reads the committed .jsonl.gz directly, no unzip needed):
+  python -m experiments.llm_eval.verify           # independent recomputation
+  python -m experiments.llm_eval.verify --deep    # + replay every fact from (seed, history)
+
+verify.py deliberately does NOT call metrics.aggregate: it re-derives every
+statistic with its own arithmetic, so a bug in the metrics layer cannot hide
+behind a checker that shares its code. Both paths agree to the last digit.
+
+MANIFEST
+  llm_cheap_rendered.jsonl.gz              20,060 bytes  sha256:39854073f477330d
+  llm_cheap_rendered_bluffer.jsonl.gz     202,766 bytes  sha256:4b3d6253b83581d9
+  llm_cheap_vs_bluffer.jsonl.gz            18,832 bytes  sha256:d8811eaa2dea2045
+  llm_cheap_vs_rule.jsonl.gz               15,407 bytes  sha256:64657cd640183ef5
+  llm_frontier_rendered.jsonl.gz           12,834 bytes  sha256:ea8f692a4a5ee798
+  llm_frontier_vs_rule.jsonl.gz            15,068 bytes  sha256:f147c906191615eb
+  llm_mid_rendered.jsonl.gz                 5,700 bytes  sha256:b66562076ffee027
+  llm_mid_rendered_bluffer.jsonl.gz       165,219 bytes  sha256:32a8dc585e5649d5
+  llm_mid_vs_rule.jsonl.gz                 14,076 bytes  sha256:1e330c0c0b58e294
+  rule_vs_random.jsonl.gz                 391,252 bytes  sha256:e706b8bcafbe4a11
+
+=== llm_cheap_rendered :: llm_cheap  (N=1) ===
+  RAW COUNTS                            
+    card_picks                         44
+    challenges_correct                 4
+    challenges_made                    24
+    decisions                          114
+    elective_lies                      7
+    fallbacks                          0
+    false_caught                       4
+    false_faced                        10
+    forced_lies                        2
+    games                              1
+    improbable_caught                  2
+    improbable_faced                   8
+    input_tokens                       715258
+    lies                               9
+    llm_calls                          116
+    output_tokens                      11342
+    plays                              19
+    plays_with_truthful_option         17
+    provable_caught                    2
+    provable_faced                     2
+    skipped_truthful                   2
+    terminal_games                     1
+    windows                            51
+    wins                               0
+  RATE                                         = num / den
+    win_rate                              0 / 1      = 0.0000
+    fallback_rate                         0 / 114    = 0.0000
+    skip_truthful_rate                    2 / 44     = 0.0455
+    lying_rate                            9 / 19     = 0.4737
+    elective_lie_rate                     7 / 17     = 0.4118
+    challenge_rate                       24 / 51     = 0.4706
+    challenge_precision                   4 / 24     = 0.1667
+    challenge_recall                      4 / 10     = 0.4000
+    provable_lie_detection                2 / 2      = 1.0000
+    improbable_lie_detection              2 / 8      = 0.2500
+
+=== llm_cheap_rendered :: rule  (N=1) ===
+  RAW COUNTS                            
+    card_picks                         25
+    challenges_correct                 6
+    challenges_made                    9
+    decisions                          83
+    elective_lies                      0
+    fallbacks                          0
+    false_caught                       6
+    false_faced                        13
+    forced_lies                        4
+    games                              1
+    improbable_caught                  3
+    improbable_faced                   10
+    input_tokens                       0
+    lies                               4
+    llm_calls                          0
+    output_tokens                      0
+    plays                              19
+    plays_with_truthful_option         15
+    provable_caught                    3
+    provable_faced                     3
+    terminal_games                     1
+    windows                            39
+    wins                               1
+  RATE                                         = num / den
+    win_rate                              1 / 1      = 1.0000
+    fallback_rate                         0 / 83     = 0.0000
+    skip_truthful_rate                    0 / 25     = 0.0000
+    lying_rate                            4 / 19     = 0.2105
+    elective_lie_rate                     0 / 15     = 0.0000
+    challenge_rate                        9 / 39     = 0.2308
+    challenge_precision                   6 / 9      = 0.6667
+    challenge_recall                      6 / 13     = 0.4615
+    provable_lie_detection                3 / 3      = 1.0000
+    improbable_lie_detection              3 / 10     = 0.3000
+
+=== llm_cheap_rendered_bluffer :: llm_cheap  (N=10) ===
+  RAW COUNTS                            
+    card_picks                         571
+    challenges_correct                 117
+    challenges_made                    220
+    decisions                          1236
+    elective_lies                      96
+    fallbacks                          1
+    false_caught                       117
+    false_faced                        264
+    forced_lies                        32
+    games                              10
+    improbable_caught                  43
+    improbable_faced                   135
+    input_tokens                       9097925
+    lies                               128
+    llm_calls                          1258
+    output_tokens                      120542
+    plays                              197
+    plays_with_truthful_option         165
+    provable_caught                    74
+    provable_faced                     129
+    skipped_truthful                   62
+    terminal_games                     10
+    windows                            468
+    wins                               0
+  RATE                                         = num / den
+    win_rate                              0 / 10     = 0.0000
+    fallback_rate                         1 / 1236   = 0.0008
+    skip_truthful_rate                   62 / 571    = 0.1086
+    lying_rate                          128 / 197    = 0.6497
+    elective_lie_rate                    96 / 165    = 0.5818
+    challenge_rate                      220 / 468    = 0.4701
+    challenge_precision                 117 / 220    = 0.5318
+    challenge_recall                    117 / 264    = 0.4432
+    provable_lie_detection               74 / 129    = 0.5736
+    improbable_lie_detection             43 / 135    = 0.3185
+
+=== llm_cheap_rendered_bluffer :: rule  (N=10) ===
+  RAW COUNTS                            
+    card_picks                         325
+    challenges_correct                 98
+    challenges_made                    110
+    decisions                          902
+    elective_lies                      43
+    fallbacks                          0
+    false_caught                       98
+    false_faced                        238
+    forced_lies                        84
+    games                              10
+    improbable_caught                  22
+    improbable_faced                   162
+    input_tokens                       0
+    lies                               127
+    llm_calls                          0
+    output_tokens                      0
+    plays                              199
+    plays_with_truthful_option         115
+    provable_caught                    76
+    provable_faced                     76
+    terminal_games                     10
+    windows                            378
+    wins                               3
+  RATE                                         = num / den
+    win_rate                              3 / 10     = 0.3000
+    fallback_rate                         0 / 902    = 0.0000
+    skip_truthful_rate                    0 / 325    = 0.0000
+    lying_rate                          127 / 199    = 0.6382
+    elective_lie_rate                    43 / 115    = 0.3739
+    challenge_rate                      110 / 378    = 0.2910
+    challenge_precision                  98 / 110    = 0.8909
+    challenge_recall                     98 / 238    = 0.4118
+    provable_lie_detection               76 / 76     = 1.0000
+    improbable_lie_detection             22 / 162    = 0.1358
+
+=== llm_cheap_vs_bluffer :: llm_cheap  (N=1) ===
+  RAW COUNTS                            
+    card_picks                         46
+    challenges_correct                 6
+    challenges_made                    20
+    decisions                          92
+    elective_lies                      11
+    fallbacks                          0
+    false_caught                       6
+    false_faced                        13
+    forced_lies                        2
+    games                              1
+    improbable_caught                  4
+    improbable_faced                   8
+    input_tokens                       531923
+    lies                               13
+    llm_calls                          97
+    output_tokens                      11724
+    plays                              15
+    plays_with_truthful_option         13
+    provable_caught                    2
+    provable_faced                     5
+    skipped_truthful                   20
+    terminal_games                     1
+    windows                            31
+    wins                               0
+  RATE                                         = num / den
+    win_rate                              0 / 1      = 0.0000
+    fallback_rate                         0 / 92     = 0.0000
+    skip_truthful_rate                   20 / 46     = 0.4348
+    lying_rate                           13 / 15     = 0.8667
+    elective_lie_rate                    11 / 13     = 0.8462
+    challenge_rate                       20 / 31     = 0.6452
+    challenge_precision                   6 / 20     = 0.3000
+    challenge_recall                      6 / 13     = 0.4615
+    provable_lie_detection                2 / 5      = 0.4000
+    improbable_lie_detection              4 / 8      = 0.5000
+
+=== llm_cheap_vs_bluffer :: rule  (N=1) ===
+  RAW COUNTS                            
+    card_picks                         22
+    challenges_correct                 11
+    challenges_made                    12
+    decisions                          58
+    elective_lies                      6
+    fallbacks                          0
+    false_caught                       11
+    false_faced                        17
+    forced_lies                        4
+    games                              1
+    improbable_caught                  1
+    improbable_faced                   7
+    input_tokens                       0
+    lies                               10
+    llm_calls                          0
+    output_tokens                      0
+    plays                              15
+    plays_with_truthful_option         11
+    provable_caught                    10
+    provable_faced                     10
+    terminal_games                     1
+    windows                            21
+    wins                               0
+  RATE                                         = num / den
+    win_rate                              0 / 1      = 0.0000
+    fallback_rate                         0 / 58     = 0.0000
+    skip_truthful_rate                    0 / 22     = 0.0000
+    lying_rate                           10 / 15     = 0.6667
+    elective_lie_rate                     6 / 11     = 0.5455
+    challenge_rate                       12 / 21     = 0.5714
+    challenge_precision                  11 / 12     = 0.9167
+    challenge_recall                     11 / 17     = 0.6471
+    provable_lie_detection               10 / 10     = 1.0000
+    improbable_lie_detection              1 / 7      = 0.1429
+
+=== llm_cheap_vs_rule :: llm_cheap  (N=1) ===
+  RAW COUNTS                            
+    card_picks                         28
+    challenges_correct                 4
+    challenges_made                    21
+    decisions                          81
+    elective_lies                      8
+    fallbacks                          0
+    false_caught                       4
+    false_faced                        8
+    forced_lies                        2
+    games                              1
+    improbable_caught                  4
+    improbable_faced                   7
+    input_tokens                       433478
+    lies                               10
+    llm_calls                          83
+    output_tokens                      8776
+    plays                              15
+    plays_with_truthful_option         13
+    provable_caught                    0
+    provable_faced                     1
+    skipped_truthful                   10
+    terminal_games                     1
+    windows                            38
+    wins                               0
+  RATE                                         = num / den
+    win_rate                              0 / 1      = 0.0000
+    fallback_rate                         0 / 81     = 0.0000
+    skip_truthful_rate                   10 / 28     = 0.3571
+    lying_rate                           10 / 15     = 0.6667
+    elective_lie_rate                     8 / 13     = 0.6154
+    challenge_rate                       21 / 38     = 0.5526
+    challenge_precision                   4 / 21     = 0.1905
+    challenge_recall                      4 / 8      = 0.5000
+    provable_lie_detection                0 / 1      = 0.0000
+    improbable_lie_detection              4 / 7      = 0.5714
+
+=== llm_cheap_vs_rule :: rule  (N=1) ===
+  RAW COUNTS                            
+    card_picks                         16
+    challenges_correct                 5
+    challenges_made                    8
+    decisions                          55
+    elective_lies                      0
+    fallbacks                          0
+    false_caught                       5
+    false_faced                        12
+    forced_lies                        3
+    games                              1
+    improbable_caught                  2
+    improbable_faced                   9
+    input_tokens                       0
+    lies                               3
+    llm_calls                          0
+    output_tokens                      0
+    plays                              15
+    plays_with_truthful_option         12
+    provable_caught                    3
+    provable_faced                     3
+    terminal_games                     1
+    windows                            24
+    wins                               0
+  RATE                                         = num / den
+    win_rate                              0 / 1      = 0.0000
+    fallback_rate                         0 / 55     = 0.0000
+    skip_truthful_rate                    0 / 16     = 0.0000
+    lying_rate                            3 / 15     = 0.2000
+    elective_lie_rate                     0 / 12     = 0.0000
+    challenge_rate                        8 / 24     = 0.3333
+    challenge_precision                   5 / 8      = 0.6250
+    challenge_recall                      5 / 12     = 0.4167
+    provable_lie_detection                3 / 3      = 1.0000
+    improbable_lie_detection              2 / 9      = 0.2222
+
+=== llm_frontier_rendered :: llm_frontier  (N=1) ===
+  RAW COUNTS                            
+    card_picks                         45
+    challenges_correct                 5
+    challenges_made                    28
+    decisions                          95
+    elective_lies                      4
+    fallbacks                          0
+    false_caught                       5
+    false_faced                        5
+    forced_lies                        2
+    games                              1
+    improbable_caught                  3
+    improbable_faced                   3
+    input_tokens                       579503
+    lies                               6
+    llm_calls                          95
+    output_tokens                      7162
+    plays                              14
+    plays_with_truthful_option         12
+    provable_caught                    2
+    provable_faced                     2
+    terminal_games                     1
+    windows                            36
+    wins                               0
+  RATE                                         = num / den
+    win_rate                              0 / 1      = 0.0000
+    fallback_rate                         0 / 95     = 0.0000
+    skip_truthful_rate                    0 / 45     = 0.0000
+    lying_rate                            6 / 14     = 0.4286
+    elective_lie_rate                     4 / 12     = 0.3333
+    challenge_rate                       28 / 36     = 0.7778
+    challenge_precision                   5 / 28     = 0.1786
+    challenge_recall                      5 / 5      = 1.0000
+    provable_lie_detection                2 / 2      = 1.0000
+    improbable_lie_detection              3 / 3      = 1.0000
+
+=== llm_frontier_rendered :: rule  (N=1) ===
+  RAW COUNTS                            
+    card_picks                         15
+    challenges_correct                 5
+    challenges_made                    8
+    decisions                          49
+    elective_lies                      0
+    fallbacks                          0
+    false_caught                       5
+    false_faced                        6
+    forced_lies                        1
+    games                              1
+    improbable_caught                  0
+    improbable_faced                   1
+    input_tokens                       0
+    lies                               1
+    llm_calls                          0
+    output_tokens                      0
+    plays                              14
+    plays_with_truthful_option         13
+    provable_caught                    5
+    provable_faced                     5
+    terminal_games                     1
+    windows                            20
+    wins                               0
+  RATE                                         = num / den
+    win_rate                              0 / 1      = 0.0000
+    fallback_rate                         0 / 49     = 0.0000
+    skip_truthful_rate                    0 / 15     = 0.0000
+    lying_rate                            1 / 14     = 0.0714
+    elective_lie_rate                     0 / 13     = 0.0000
+    challenge_rate                        8 / 20     = 0.4000
+    challenge_precision                   5 / 8      = 0.6250
+    challenge_recall                      5 / 6      = 0.8333
+    provable_lie_detection                5 / 5      = 1.0000
+    improbable_lie_detection              0 / 1      = 0.0000
+
+=== llm_frontier_vs_rule :: llm_frontier  (N=1) ===
+  RAW COUNTS                            
+    card_picks                         58
+    challenges_correct                 7
+    challenges_made                    34
+    decisions                          117
+    elective_lies                      3
+    fallbacks                          0
+    false_caught                       7
+    false_faced                        7
+    forced_lies                        3
+    games                              1
+    improbable_caught                  2
+    improbable_faced                   2
+    input_tokens                       893968
+    lies                               6
+    llm_calls                          117
+    output_tokens                      8500
+    plays                              18
+    plays_with_truthful_option         15
+    provable_caught                    5
+    provable_faced                     5
+    terminal_games                     1
+    windows                            41
+    wins                               0
+  RATE                                         = num / den
+    win_rate                              0 / 1      = 0.0000
+    fallback_rate                         0 / 117    = 0.0000
+    skip_truthful_rate                    0 / 58     = 0.0000
+    lying_rate                            6 / 18     = 0.3333
+    elective_lie_rate                     3 / 15     = 0.2000
+    challenge_rate                       34 / 41     = 0.8293
+    challenge_precision                   7 / 34     = 0.2059
+    challenge_recall                      7 / 7      = 1.0000
+    provable_lie_detection                5 / 5      = 1.0000
+    improbable_lie_detection              2 / 2      = 1.0000
+
+=== llm_frontier_vs_rule :: rule  (N=1) ===
+  RAW COUNTS                            
+    card_picks                         29
+    challenges_correct                 4
+    challenges_made                    6
+    decisions                          71
+    elective_lies                      0
+    fallbacks                          0
+    false_caught                       4
+    false_faced                        6
+    forced_lies                        3
+    games                              1
+    improbable_caught                  1
+    improbable_faced                   3
+    input_tokens                       0
+    lies                               3
+    llm_calls                          0
+    output_tokens                      0
+    plays                              18
+    plays_with_truthful_option         15
+    provable_caught                    3
+    provable_faced                     3
+    terminal_games                     1
+    windows                            24
+    wins                               1
+  RATE                                         = num / den
+    win_rate                              1 / 1      = 1.0000
+    fallback_rate                         0 / 71     = 0.0000
+    skip_truthful_rate                    0 / 29     = 0.0000
+    lying_rate                            3 / 18     = 0.1667
+    elective_lie_rate                     0 / 15     = 0.0000
+    challenge_rate                        6 / 24     = 0.2500
+    challenge_precision                   4 / 6      = 0.6667
+    challenge_recall                      4 / 6      = 0.6667
+    provable_lie_detection                3 / 3      = 1.0000
+    improbable_lie_detection              1 / 3      = 0.3333
+
+=== llm_mid_rendered :: llm_mid  (N=1) ===
+  RAW COUNTS                            
+    card_picks                         13
+    challenges_correct                 0
+    challenges_made                    0
+    decisions                          38
+    elective_lies                      0
+    fallbacks                          0
+    false_caught                       0
+    false_faced                        2
+    forced_lies                        3
+    games                              1
+    improbable_caught                  0
+    improbable_faced                   2
+    input_tokens                       130969
+    lies                               3
+    llm_calls                          38
+    output_tokens                      2282
+    plays                              8
+    plays_with_truthful_option         5
+    terminal_games                     1
+    windows                            17
+    wins                               1
+  RATE                                         = num / den
+    win_rate                              1 / 1      = 1.0000
+    fallback_rate                         0 / 38     = 0.0000
+    skip_truthful_rate                    0 / 13     = 0.0000
+    lying_rate                            3 / 8      = 0.3750
+    elective_lie_rate                     0 / 5      = 0.0000
+    challenge_rate                        0 / 17     = 0.0000
+    challenge_precision                   0 / 0      = None (no opportunities)
+    challenge_recall                      0 / 2      = 0.0000
+    provable_lie_detection                0 / 0      = None (no opportunities)
+    improbable_lie_detection              0 / 2      = 0.0000
+
+=== llm_mid_rendered :: rule  (N=1) ===
+  RAW COUNTS                            
+    card_picks                         10
+    challenges_correct                 0
+    challenges_made                    4
+    decisions                          38
+    elective_lies                      0
+    fallbacks                          0
+    false_caught                       0
+    false_faced                        5
+    games                              1
+    improbable_caught                  0
+    improbable_faced                   5
+    input_tokens                       0
+    lies                               0
+    llm_calls                          0
+    output_tokens                      0
+    plays                              7
+    plays_with_truthful_option         7
+    terminal_games                     1
+    windows                            21
+    wins                               0
+  RATE                                         = num / den
+    win_rate                              0 / 1      = 0.0000
+    fallback_rate                         0 / 38     = 0.0000
+    skip_truthful_rate                    0 / 10     = 0.0000
+    lying_rate                            0 / 7      = 0.0000
+    elective_lie_rate                     0 / 7      = 0.0000
+    challenge_rate                        4 / 21     = 0.1905
+    challenge_precision                   0 / 4      = 0.0000
+    challenge_recall                      0 / 5      = 0.0000
+    provable_lie_detection                0 / 0      = None (no opportunities)
+    improbable_lie_detection              0 / 5      = 0.0000
+
+=== llm_mid_rendered_bluffer :: llm_mid  (N=10) ===
+  RAW COUNTS                            
+    card_picks                         472
+    challenges_correct                 111
+    challenges_made                    239
+    decisions                          1156
+    elective_lies                      25
+    fallbacks                          0
+    false_caught                       111
+    false_faced                        229
+    forced_lies                        45
+    games                              10
+    improbable_caught                  24
+    improbable_faced                   118
+    input_tokens                       10088966
+    lies                               70
+    llm_calls                          1156
+    output_tokens                      91475
+    plays                              208
+    plays_with_truthful_option         163
+    provable_caught                    87
+    provable_faced                     111
+    skipped_truthful                   4
+    terminal_games                     10
+    windows                            476
+    wins                               0
+  RATE                                         = num / den
+    win_rate                              0 / 10     = 0.0000
+    fallback_rate                         0 / 1156   = 0.0000
+    skip_truthful_rate                    4 / 472    = 0.0085
+    lying_rate                           70 / 208    = 0.3365
+    elective_lie_rate                    25 / 163    = 0.1534
+    challenge_rate                      239 / 476    = 0.5021
+    challenge_precision                 111 / 239    = 0.4644
+    challenge_recall                    111 / 229    = 0.4847
+    provable_lie_detection               87 / 111    = 0.7838
+    improbable_lie_detection             24 / 118    = 0.2034
+
+=== llm_mid_rendered_bluffer :: rule  (N=10) ===
+  RAW COUNTS                            
+    card_picks                         440
+    challenges_correct                 50
+    challenges_made                    74
+    decisions                          1015
+    elective_lies                      46
+    fallbacks                          0
+    false_caught                       50
+    false_faced                        153
+    forced_lies                        68
+    games                              10
+    improbable_caught                  16
+    improbable_faced                   119
+    input_tokens                       0
+    lies                               114
+    llm_calls                          0
+    output_tokens                      0
+    plays                              210
+    plays_with_truthful_option         142
+    provable_caught                    34
+    provable_faced                     34
+    terminal_games                     10
+    windows                            365
+    wins                               4
+  RATE                                         = num / den
+    win_rate                              4 / 10     = 0.4000
+    fallback_rate                         0 / 1015   = 0.0000
+    skip_truthful_rate                    0 / 440    = 0.0000
+    lying_rate                          114 / 210    = 0.5429
+    elective_lie_rate                    46 / 142    = 0.3239
+    challenge_rate                       74 / 365    = 0.2027
+    challenge_precision                  50 / 74     = 0.6757
+    challenge_recall                     50 / 153    = 0.3268
+    provable_lie_detection               34 / 34     = 1.0000
+    improbable_lie_detection             16 / 119    = 0.1345
+
+=== llm_mid_vs_rule :: llm_mid  (N=1) ===
+  RAW COUNTS                            
+    card_picks                         27
+    challenges_correct                 0
+    challenges_made                    2
+    decisions                          90
+    elective_lies                      2
+    fallbacks                          0
+    false_caught                       0
+    false_faced                        5
+    forced_lies                        8
+    games                              1
+    improbable_caught                  0
+    improbable_faced                   5
+    input_tokens                       572414
+    lies                               10
+    llm_calls                          90
+    output_tokens                      7154
+    plays                              17
+    plays_with_truthful_option         9
+    skipped_truthful                   2
+    terminal_games                     1
+    windows                            46
+    wins                               0
+  RATE                                         = num / den
+    win_rate                              0 / 1      = 0.0000
+    fallback_rate                         0 / 90     = 0.0000
+    skip_truthful_rate                    2 / 27     = 0.0741
+    lying_rate                           10 / 17     = 0.5882
+    elective_lie_rate                     2 / 9      = 0.2222
+    challenge_rate                        2 / 46     = 0.0435
+    challenge_precision                   0 / 2      = 0.0000
+    challenge_recall                      0 / 5      = 0.0000
+    provable_lie_detection                0 / 0      = None (no opportunities)
+    improbable_lie_detection              0 / 5      = 0.0000
+
+=== llm_mid_vs_rule :: rule  (N=1) ===
+  RAW COUNTS                            
+    card_picks                         35
+    challenges_correct                 7
+    challenges_made                    12
+    decisions                          99
+    elective_lies                      0
+    fallbacks                          0
+    false_caught                       7
+    false_faced                        14
+    forced_lies                        2
+    games                              1
+    improbable_caught                  2
+    improbable_faced                   9
+    input_tokens                       0
+    lies                               2
+    llm_calls                          0
+    output_tokens                      0
+    plays                              17
+    plays_with_truthful_option         15
+    provable_caught                    5
+    provable_faced                     5
+    terminal_games                     1
+    windows                            47
+    wins                               0
+  RATE                                         = num / den
+    win_rate                              0 / 1      = 0.0000
+    fallback_rate                         0 / 99     = 0.0000
+    skip_truthful_rate                    0 / 35     = 0.0000
+    lying_rate                            2 / 17     = 0.1176
+    elective_lie_rate                     0 / 15     = 0.0000
+    challenge_rate                       12 / 47     = 0.2553
+    challenge_precision                   7 / 12     = 0.5833
+    challenge_recall                      7 / 14     = 0.5000
+    provable_lie_detection                5 / 5      = 1.0000
+    improbable_lie_detection              2 / 9      = 0.2222
+
+=== rule_vs_random :: random  (N=100) ===
+  RAW COUNTS                            
+    card_picks                         3219
+    challenges_correct                 725
+    challenges_made                    1185
+    decisions                          6939
+    elective_lies                      998
+    fallbacks                          0
+    false_caught                       725
+    false_faced                        1471
+    forced_lies                        279
+    games                              100
+    improbable_caught                  542
+    improbable_faced                   1099
+    input_tokens                       0
+    lies                               1277
+    llm_calls                          0
+    output_tokens                      0
+    plays                              1306
+    plays_with_truthful_option         1027
+    provable_caught                    183
+    provable_faced                     372
+    skipped_truthful                   2210
+    terminal_games                     100
+    windows                            2414
+    wins                               0
+  RATE                                         = num / den
+    win_rate                              0 / 100    = 0.0000
+    fallback_rate                         0 / 6939   = 0.0000
+    skip_truthful_rate                 2210 / 3219   = 0.6865
+    lying_rate                         1277 / 1306   = 0.9778
+    elective_lie_rate                   998 / 1027   = 0.9718
+    challenge_rate                     1185 / 2414   = 0.4909
+    challenge_precision                 725 / 1185   = 0.6118
+    challenge_recall                    725 / 1471   = 0.4929
+    provable_lie_detection              183 / 372    = 0.4919
+    improbable_lie_detection            542 / 1099   = 0.4932
+
+=== rule_vs_random :: rule  (N=100) ===
+  RAW COUNTS                            
+    card_picks                         1813
+    challenges_correct                 1111
+    challenges_made                    1117
+    decisions                          5541
+    elective_lies                      0
+    fallbacks                          0
+    false_caught                       1111
+    false_faced                        2296
+    forced_lies                        476
+    games                              100
+    improbable_caught                  145
+    improbable_faced                   1330
+    input_tokens                       0
+    lies                               476
+    llm_calls                          0
+    output_tokens                      0
+    plays                              1380
+    plays_with_truthful_option         904
+    provable_caught                    966
+    provable_faced                     966
+    terminal_games                     100
+    windows                            2348
+    wins                               99
+  RATE                                         = num / den
+    win_rate                             99 / 100    = 0.9900
+    fallback_rate                         0 / 5541   = 0.0000
+    skip_truthful_rate                    0 / 1813   = 0.0000
+    lying_rate                          476 / 1380   = 0.3449
+    elective_lie_rate                     0 / 904    = 0.0000
+    challenge_rate                     1117 / 2348   = 0.4757
+    challenge_precision                1111 / 1117   = 0.9946
+    challenge_recall                   1111 / 2296   = 0.4839
+    provable_lie_detection              966 / 966    = 1.0000
+    improbable_lie_detection            145 / 1330   = 0.1090

@@ -1,0 +1,500 @@
+"""CLI entry point: run matchups from a config, write transcripts and a summary.
+
+    python -m experiments.llm_eval.run_eval --config experiments/llm_eval/config.yaml
+
+Budget discipline (spec §6): a hard token/dollar cap lives in the config, the
+runner stops cleanly when a matchup would cross it, and the partial N is
+reported rather than the intended one. Cost is checked between games; a
+per-game `max_decisions` cap bounds how much a single game can spend, since a
+full Cheat episode is long enough that one game can be a material fraction of a
+budget.
+
+Contract
+--------
+Assumes: the config's matchups name models defined in the same config.
+Establishes: `results/transcripts/<matchup>.jsonl` and `results/summary.json`,
+both of which record the ACTUAL N and the reason a run stopped short.
+Illegal after: reporting an intended N anywhere.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import traceback
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+from .agents import Agent, build_agent
+from .metrics import aggregate
+from .prompts import parse_response
+from .providers import PRICES, Provider, Usage, make_provider
+from .referee import NUM_SEEDS, GameRecord, load_game, play_game
+
+
+@dataclass
+class Budget:
+    """A hard ceiling on a run. Zero or absent means unlimited."""
+
+    max_input_tokens: int = 0
+    max_output_tokens: int = 0
+    max_cost_usd: float = 0.0
+
+    def exceeded(self, usage: Usage, model: str) -> str | None:
+        """The name of the first cap crossed, or None."""
+        if self.max_input_tokens and usage.input_tokens >= self.max_input_tokens:
+            return "max_input_tokens"
+        if self.max_output_tokens and usage.output_tokens >= self.max_output_tokens:
+            return "max_output_tokens"
+        if self.max_cost_usd and usage.cost(model) >= self.max_cost_usd:
+            return "max_cost_usd"
+        return None
+
+
+def _build_seats(
+    roster: list[dict[str, Any]],
+    num_players: int,
+    game_index: int,
+    seed: int,
+    providers: dict[str, Provider],
+    rotate: bool,
+) -> dict[int, Agent]:
+    """Assign the roster to seats, rotating the first entry's seat per game so
+    position effects wash out (spec §4). The roster is filled in order around
+    the table from the focus seat."""
+    if len(roster) != num_players:
+        raise ValueError(
+            f"matchup roster has {len(roster)} agents but the game seats "
+            f"{num_players}"
+        )
+    focus = game_index % num_players if rotate else 0
+    seats: dict[int, Agent] = {}
+    for offset, spec in enumerate(roster):
+        seat = (focus + offset) % num_players
+        provider = providers.get(spec["model"]) if spec.get("model") else None
+        # Distinct per-seat seeds so two Random seats do not play identically.
+        seats[seat] = build_agent(spec, seed=seed * 100 + seat, provider=provider)
+    return seats
+
+
+def validate_model_refs(config: dict[str, Any], matchups: list[dict[str, Any]]) -> None:
+    """Pre-flight: every model an agent names is defined, and every real one is
+    priced. Constructs NOTHING — a typo dies here, before any credential is
+    needed, and an offline-only run never touches the SDK."""
+    for matchup in matchups:
+        for spec in matchup["agents"]:
+            name = spec.get("model")
+            if not name:
+                continue
+            if name not in config.get("models", {}):
+                raise ValueError(
+                    f"matchup {matchup['name']!r} references model {name!r}, "
+                    f"which is not defined under `models:` in the config"
+                )
+            model = config["models"][name]
+            if model.get("kind", "anthropic") == "anthropic" and model["model"] not in PRICES:
+                raise ValueError(
+                    f"model {name!r} names {model['model']!r}, which has no "
+                    f"published price — its cost would report as $0.00"
+                )
+
+
+def ensure_provider(
+    config: dict[str, Any], name: str, registry: dict[str, Provider]
+) -> Provider:
+    """The shared provider for `name`, constructed on FIRST USE and memoized.
+
+    Two properties ride on this, and they pull in opposite directions:
+
+    - One instance per model for the WHOLE run, because `token_budget` is a
+      budget for the run. Per-matchup providers would let a four-matchup config
+      spend four times the ceiling its author wrote down.
+    - Lazy, because constructing an `AnthropicProvider` imports the SDK and
+      resolves a credential. Building the registry eagerly for every selected
+      matchup made the offline matchup — the no-API-key acceptance path — fail
+      whenever an LLM matchup was merely *also* selected, which is exactly what
+      the bare `run_eval` command does.
+    """
+    if name not in registry:
+        registry[name] = make_provider(config["models"][name])
+    return registry[name]
+
+
+def run_matchup(
+    config: dict[str, Any],
+    matchup: dict[str, Any],
+    results_dir: Path,
+    registry: dict[str, Provider],
+    limit: int | None = None,
+) -> dict[str, Any]:
+    """Run one matchup end to end and return its summary block.
+
+    `registry` is the run-wide provider cache, mutated in place: this matchup
+    builds providers only for the models its OWN roster names, so an offline
+    matchup selected alongside an LLM one needs no credential. Usage totals in
+    the returned block are this matchup's DELTA, alongside the running total the
+    budget is checked against.
+    """
+    name = matchup["name"]
+    roster = matchup["agents"]
+    n = int(matchup["n"]) if limit is None else min(int(matchup["n"]), limit)
+    seed_start = int(config.get("seeds", {}).get("start", 0))
+    # `resume_from: k` runs games k..n-1 and APPENDS to the existing transcript,
+    # for finishing a matchup that died partway (a budget cap, a dropped
+    # connection). Game index and seed are unchanged from what a full run would
+    # have used, so the resumed games are bit-identical to the ones that were
+    # missed — including seat rotation, which is a function of the game index.
+    resume = int(matchup.get("resume_from", 0))
+    if not 0 <= resume <= n:
+        raise ValueError(f"resume_from {resume} is outside 0..{n} for {name!r}")
+    if seed_start + n > NUM_SEEDS:
+        raise ValueError(
+            f"matchup {name!r} needs seeds {seed_start}..{seed_start + n - 1}, but "
+            f"the adapter only addresses {NUM_SEEDS} deals — reduce n or the start"
+        )
+
+    game = load_game(config.get("game", "cardlang_cheat"))
+    num_players = game.num_players()
+    used = sorted({spec["model"] for spec in roster if spec.get("model")})
+    # `m` deliberately, not `n`: `n` is the game count in this scope, and a
+    # comprehension that reuses it reads like a shadow even though it is not one.
+    providers = {m: ensure_provider(config, m, registry) for m in used}
+    budget = Budget(**config.get("token_budget", {}))
+    before = {
+        m: (providers[m].usage.input_tokens, providers[m].usage.output_tokens)
+        for m in used
+    }
+
+    transcripts = results_dir / "transcripts"
+    transcripts.mkdir(parents=True, exist_ok=True)
+    path = transcripts / f"{name}.jsonl"
+
+    existing: list[dict[str, Any]] = []
+    if resume:
+        # Refuse to append onto anything but the exact prefix this resume
+        # continues. Appending to a mismatched file would silently duplicate or
+        # interleave games, and the resulting transcript would still look valid.
+        if not path.exists():
+            raise ValueError(
+                f"resume_from={resume} but {path} does not exist — nothing to resume"
+            )
+        with path.open(encoding="utf-8") as fh:
+            existing = [json.loads(line) for line in fh if line.strip()]
+        want = list(range(seed_start, seed_start + resume))
+        got = [r["seed"] for r in existing]
+        if got != want:
+            raise ValueError(
+                f"cannot resume {name!r} at game {resume}: {path} holds seeds "
+                f"{got}, expected exactly {want}. Delete it to start over, or "
+                f"set resume_from to {len(existing)}."
+            )
+
+    records: list[dict[str, Any]] = []
+    stopped: str | None = None
+    aborted: str | None = None
+    with path.open("a" if resume else "w", encoding="utf-8") as handle:
+        for i in range(resume, n):
+            for model_name in used:
+                provider = providers[model_name]
+                reason = budget.exceeded(provider.usage, provider.model)
+                if reason is not None:
+                    stopped = f"{reason} reached on model {model_name!r}"
+                    break
+            if stopped:
+                break
+
+            seed = seed_start + i
+            seats = _build_seats(
+                roster, num_players, i, seed, providers, bool(matchup.get("rotate", True))
+            )
+            try:
+                record: GameRecord = play_game(
+                    game,
+                    seats,
+                    seed=seed,
+                    matchup=name,
+                    game_index=i,
+                    max_decisions=int(config.get("max_decisions", 0)),
+                    store_prompts=bool(config.get("store_prompts", False)),
+                    store_infostates=bool(config.get("store_infostates", False)),
+                )
+            except Exception as exc:  # noqa: BLE001 — see below
+                # A game that dies must not take the COMPLETED games' derived
+                # numbers with it. Transcripts already flush per game, so the
+                # raw data always survived; what an uncaught raise destroyed was
+                # this matchup's summary block, and with it the aggregate for
+                # every game that had already finished.
+                #
+                # Observed for real: a `400 — you have reached your specified API
+                # usage limits` on game 9 of 10 discarded the summary for the
+                # eight that had succeeded. Rebuilding from the transcript is
+                # possible (`aggregate(iter_jsonl(path))`) but nobody should have
+                # to know that after a multi-hour run.
+                #
+                # Deliberately broad: the point is that NOTHING gets past here
+                # without the partial summary being written. The traceback is
+                # re-printed and the caller exits non-zero, so nothing is hidden.
+                aborted = f"{type(exc).__name__}: {exc}"
+                print(
+                    f"\n[{name}] ABORTED on game {i + 1}/{n} (seed {seed}) — "
+                    f"writing the partial summary for the {len(records)} completed "
+                    f"game(s) before exiting:\n",
+                    file=sys.stderr,
+                )
+                traceback.print_exc()
+                break
+            as_dict = record.as_dict()
+            handle.write(json.dumps(as_dict, ensure_ascii=False) + "\n")
+            handle.flush()
+            records.append(as_dict)
+            print(
+                f"[{name}] game {i + 1}/{n} seed={seed} "
+                f"decisions={record.num_decisions} "
+                f"{'TRUNCATED' if record.truncated else f'returns={record.returns}'} "
+                f"({record.wall_seconds}s)"
+            )
+
+    summary = aggregate(existing + records)
+    summary["matchup"] = name
+    summary["n_requested"] = int(matchup["n"])
+    summary["n_completed"] = len(existing) + len(records)
+    summary["resumed_from"] = resume or None
+    summary["games_this_invocation"] = len(records)
+    summary["stopped_early"] = stopped
+    # Set when a game raised. The caller stops the whole run on this: if the
+    # cause is a dead credential or an exhausted budget, every later matchup
+    # would fail the same way, slower.
+    summary["aborted"] = aborted
+    summary["transcript"] = str(path)
+    summary["usage"] = {
+        model_name: {
+            **_delta(providers[model_name], before[model_name]),
+            "model": providers[model_name].model,
+            "params": _jsonable(providers[model_name].params),
+            "run_total": providers[model_name].usage.as_dict(providers[model_name].model),
+            # Dollars per game, the figure a budget decision is actually made
+            # on. Denominated in games COMPLETED, never the intended N.
+            "cost_usd_per_game": round(
+                _delta(providers[model_name], before[model_name])["cost_usd"]
+                / len(records),
+                4,
+            )
+            if records
+            else None,
+        }
+        for model_name in used
+    }
+    if stopped:
+        print(f"[{name}] STOPPED EARLY: {stopped} — completed {len(records)}/{n} games")
+    return summary
+
+
+def _delta(provider: Provider, before: tuple[int, int]) -> dict[str, float | int]:
+    """This matchup's share of a shared provider's usage."""
+    spent = Usage(
+        calls=0,
+        input_tokens=provider.usage.input_tokens - before[0],
+        output_tokens=provider.usage.output_tokens - before[1],
+    )
+    out = spent.as_dict(provider.model)
+    del out["calls"]  # not tracked per matchup; `run_total` carries the count
+    return out
+
+
+def _jsonable(value: Any) -> Any:
+    """Config params are plain YAML scalars/dicts already; this is a guard so a
+    stray object can never make `summary.json` unwritable mid-run."""
+    try:
+        json.dumps(value)
+    except TypeError:
+        return repr(value)
+    return value
+
+
+def estimate(
+    config: dict[str, Any],
+    matchup: dict[str, Any],
+    registry: dict[str, Provider],
+    games: int,
+) -> None:
+    """Cost recon (spec §6): run a few games and extrapolate before committing
+    to a full frontier run."""
+    results_dir = Path(config.get("results_dir", "experiments/llm_eval/results")) / "estimate"
+    summary = run_matchup(config, matchup, results_dir, registry, limit=games)
+    played = summary["n_completed"]
+    print(f"\n=== cost estimate from {played} game(s) of {matchup['name']} ===")
+    for model_name, usage in summary["usage"].items():
+        if played == 0:
+            continue
+        per_game = usage["cost_usd"] / played
+        print(
+            f"  {model_name} ({usage['model']}): "
+            f"${per_game:.3f}/game, "
+            f"{usage['input_tokens'] // played} in + "
+            f"{usage['output_tokens'] // played} out tokens/game"
+        )
+        for target in (20, 50, 100):
+            print(f"      N={target:<4} -> ${per_game * target:.2f}")
+
+
+def smoke(config: dict[str, Any], matchups: list[dict[str, Any]]) -> int:
+    """One real call per configured model, before anything expensive.
+
+    `FakeProvider` structurally cannot check that the request SHAPE is accepted:
+    whether `thinking` and `output_config` are valid together as top-level
+    kwargs for this model on the installed SDK, or that usage lands where the
+    provider reads it. "Correct per the docs" and "verified against the
+    installed SDK" are different claims, and the difference otherwise surfaces
+    on call one of a run already hours deep. Costs well under a cent.
+    """
+    names = sorted({
+        spec["model"]
+        for matchup in matchups
+        for spec in matchup["agents"]
+        if spec.get("model")
+    })
+    if not names:
+        print("no models referenced by the selected matchups — nothing to smoke")
+        return 0
+    registry: dict[str, Provider] = {}
+    failures = 0
+    for name in names:
+        provider = ensure_provider(config, name, registry)
+        print(f"\n--- {name} ({provider.model}) params={provider.params}")
+        try:
+            reply = provider.complete(
+                'Reply with exactly this JSON and nothing else: '
+                '{"action": 0, "reasoning": "smoke test"}'
+            )
+        except Exception as exc:  # noqa: BLE001 — the point is to report ANY failure
+            failures += 1
+            print(f"    FAILED: {type(exc).__name__}: {exc}")
+            continue
+        parsed = parse_response(reply.text, num_actions=1)
+        print(f"    text        {reply.text[:120]!r}")
+        print(f"    stop_reason {reply.stop_reason}")
+        print(f"    tokens      {reply.input_tokens} in / {reply.output_tokens} out")
+        print(f"    cost        ${provider.usage.cost(provider.model):.6f}")
+        if parsed.ok:
+            print("    parse       OK")
+        else:
+            failures += 1
+            print(f"    parse       FAILED: {parsed.error}")
+    print(f"\n{len(names) - failures}/{len(names)} model(s) usable")
+    return 1 if failures else 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__ and __doc__.splitlines()[0])
+    parser.add_argument("--config", default="experiments/llm_eval/config.yaml")
+    parser.add_argument(
+        "--matchup",
+        action="append",
+        help="run only this matchup (repeatable); default is every matchup",
+    )
+    parser.add_argument("--limit", type=int, default=None, help="cap N for every matchup")
+    parser.add_argument(
+        "--estimate",
+        type=int,
+        default=0,
+        metavar="GAMES",
+        help="cost recon: play this many games of each selected matchup and extrapolate",
+    )
+    parser.add_argument(
+        "--smoke",
+        action="store_true",
+        help="make ONE real call per configured model to verify the request shape, then exit",
+    )
+    parser.add_argument("--figure", action="store_true", help="render the figure after the run")
+    args = parser.parse_args(argv)
+
+    config = yaml.safe_load(Path(args.config).read_text(encoding="utf-8"))
+    selected = [
+        m
+        for m in config["matchups"]
+        if args.matchup is None or m["name"] in args.matchup
+    ]
+    if not selected:
+        print(f"no matchup matched {args.matchup!r}", file=sys.stderr)
+        return 2
+
+    # Pre-flight, constructing nothing: a bad model reference dies here rather
+    # than after the first matchup has already been played.
+    try:
+        validate_model_refs(config, selected)
+    except ValueError as exc:
+        print(exc, file=sys.stderr)
+        return 2
+
+    registry: dict[str, Provider] = {}
+
+    if args.smoke:
+        return smoke(config, selected)
+
+    if args.estimate:
+        for matchup in selected:
+            estimate(config, matchup, registry, args.estimate)
+        return 0
+
+    results_dir = Path(config.get("results_dir", "experiments/llm_eval/results"))
+    results_dir.mkdir(parents=True, exist_ok=True)
+    summary_path = results_dir / "summary.json"
+
+    def write_summary(done: list[dict[str, Any]]) -> None:
+        payload = {
+            "config": str(Path(args.config).resolve()),
+            "game": config.get("game", "cardlang_cheat"),
+            "matchups": done,
+            # The run's whole spend, so a proposal figure is quoted from one
+            # number rather than summed by hand across matchup blocks.
+            "run_totals": {
+                name: p.usage.as_dict(p.model) | {"model": p.model}
+                for name, p in registry.items()
+            },
+        }
+        summary_path.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+
+    # Written after EVERY matchup, not once at the end: on a multi-hour
+    # sequential run an auth error or a dropped connection in the last matchup
+    # would otherwise discard the summary for every matchup that already
+    # succeeded. Transcripts already flush per game; this gives the derived
+    # numbers the same durability.
+    summaries: list[dict[str, Any]] = []
+    failed = False
+    for matchup in selected:
+        summary = run_matchup(config, matchup, results_dir, registry, args.limit)
+        summaries.append(summary)
+        write_summary(summaries)
+        if summary["aborted"]:
+            failed = True
+            print(
+                f"\nRUN ABORTED in matchup {summary['matchup']!r}: "
+                f"{summary['aborted']}\n"
+                f"{len(selected) - len(summaries)} later matchup(s) skipped — a "
+                f"credential or budget failure would repeat on every one.",
+                file=sys.stderr,
+            )
+            break
+    print(f"\nwrote {summary_path}")
+
+    if args.figure:
+        from .figure import render
+
+        # Rendered from the file just written, so the figure and the summary can
+        # never disagree about what the run produced.
+        out = render(
+            json.loads(summary_path.read_text(encoding="utf-8")),
+            results_dir / "figure.png",
+        )
+        print(f"wrote {out}")
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

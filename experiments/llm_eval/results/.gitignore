@@ -1,0 +1,12 @@
+# Transcripts are committed GZIPPED (`*.jsonl.gz`) — they compress 12-21x, so
+# the full record of every run is under 1 MB instead of 16 MB. `metrics.iter_jsonl`
+# and `verify.py` read either form, so the audit path works directly on the
+# committed files with no unzip step:
+#
+#   python -m experiments.llm_eval.verify --deep
+#
+# The uncompressed working copies a run produces are ignored; the archive is not.
+# Transcripts are NOT regenerable — they contain real model responses, which are
+# not deterministic — so the .gz files are the record, not a cache.
+*.jsonl
+estimate/

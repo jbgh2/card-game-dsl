@@ -1,0 +1,136 @@
+{
+  "config": "/Users/benh/Projects/Card game DSL/.claude/worktrees/lucid-feistel-950e5f/experiments/llm_eval/config.yaml",
+  "game": "cardlang_cheat",
+  "matchups": [
+    {
+      "games": 10,
+      "games_truncated": 0,
+      "decisions": 4327,
+      "agents": {
+        "llm_mid": {
+          "agent": "llm_mid",
+          "games": 10,
+          "games_scored": 10,
+          "wins": 0,
+          "decisions": 1156,
+          "fallbacks": 0,
+          "llm_calls": 1156,
+          "input_tokens": 10088966,
+          "output_tokens": 91475,
+          "plays": 208,
+          "lies": 70,
+          "forced_lies": 45,
+          "elective_lies": 25,
+          "plays_with_truthful_option": 163,
+          "challenge_opportunities": 476,
+          "challenges_made": 239,
+          "challenges_correct": 111,
+          "false_claims_faced": 229,
+          "false_claims_caught": 111,
+          "provable_opportunities": 111,
+          "provable_caught": 87,
+          "improbable_opportunities": 118,
+          "improbable_caught": 24,
+          "provable_hand_only_opportunities": 77,
+          "provable_hand_only_caught": 62,
+          "input_tokens_per_game": 1008896.6,
+          "output_tokens_per_game": 9147.5,
+          "llm_calls_per_game": 115.6,
+          "win_rate": 0.0,
+          "fallback_rate": 0.0,
+          "lying_rate": 0.33653846153846156,
+          "forced_lie_rate": 0.21634615384615385,
+          "elective_lie_rate": 0.15337423312883436,
+          "challenge_rate": 0.5021008403361344,
+          "challenge_precision": 0.46443514644351463,
+          "challenge_recall": 0.4847161572052402,
+          "provable_lie_detection": 0.7837837837837838,
+          "improbable_lie_detection": 0.2033898305084746,
+          "provable_lie_detection_hand_only": 0.8051948051948052
+        },
+        "rule": {
+          "agent": "rule",
+          "games": 30,
+          "games_scored": 30,
+          "wins": 10,
+          "decisions": 3171,
+          "fallbacks": 0,
+          "llm_calls": 0,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "plays": 627,
+          "lies": 357,
+          "forced_lies": 226,
+          "elective_lies": 131,
+          "plays_with_truthful_option": 401,
+          "challenge_opportunities": 1301,
+          "challenges_made": 269,
+          "challenges_correct": 195,
+          "false_claims_faced": 551,
+          "false_claims_caught": 195,
+          "provable_opportunities": 161,
+          "provable_caught": 161,
+          "improbable_opportunities": 390,
+          "improbable_caught": 34,
+          "provable_hand_only_opportunities": 90,
+          "provable_hand_only_caught": 90,
+          "input_tokens_per_game": 0.0,
+          "output_tokens_per_game": 0.0,
+          "llm_calls_per_game": 0.0,
+          "win_rate": 0.3333333333333333,
+          "fallback_rate": 0.0,
+          "lying_rate": 0.569377990430622,
+          "forced_lie_rate": 0.36044657097288674,
+          "elective_lie_rate": 0.3266832917705736,
+          "challenge_rate": 0.20676402767102228,
+          "challenge_precision": 0.724907063197026,
+          "challenge_recall": 0.35390199637023595,
+          "provable_lie_detection": 1.0,
+          "improbable_lie_detection": 0.08717948717948718,
+          "provable_lie_detection_hand_only": 1.0
+        }
+      },
+      "matchup": "llm_mid_rendered_bluffer",
+      "n_requested": 10,
+      "n_completed": 10,
+      "resumed_from": 8,
+      "games_this_invocation": 2,
+      "stopped_early": null,
+      "aborted": null,
+      "transcript": "experiments/llm_eval/results/transcripts/llm_mid_rendered_bluffer.jsonl",
+      "usage": {
+        "mid": {
+          "input_tokens": 890679,
+          "output_tokens": 11870,
+          "cost_usd": 2.8501,
+          "model": "claude-sonnet-5",
+          "params": {
+            "max_tokens": 512,
+            "thinking": {
+              "type": "disabled"
+            },
+            "output_config": {
+              "effort": "low"
+            }
+          },
+          "run_total": {
+            "calls": 150,
+            "input_tokens": 890679,
+            "output_tokens": 11870,
+            "cost_usd": 2.8501
+          },
+          "cost_usd_per_game": 1.425
+        }
+      }
+    }
+  ],
+  "run_totals": {
+    "mid": {
+      "calls": 150,
+      "input_tokens": 890679,
+      "output_tokens": 11870,
+      "cost_usd": 2.8501,
+      "model": "claude-sonnet-5"
+    }
+  }
+}
