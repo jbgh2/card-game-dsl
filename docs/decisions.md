@@ -3788,6 +3788,13 @@ The test for which side something is on: if it fails silently, is a wrong
 game trusted, or a wrong *audit* trusted? The first is rigor-critical.
 The second is scaffolding.
 
+The cap prices the process as well as the artifacts. A change wholly on
+the scaffolding side of that test — no refusal, no runtime step, no proof
+obligation changes — still ships its grid, but takes one review round and
+no standalone adversarial claim-audit. The full cadence is reserved for
+deltas a designer, the corpus, or a proof can meet. Scaffolding misjudged
+is caught the way scaffolding is guarded: when it bites.
+
 ### Reachability ranks the work
 
 Severity says what kind of defect; reachability says who can meet it.
