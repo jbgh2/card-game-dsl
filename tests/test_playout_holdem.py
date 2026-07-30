@@ -5,16 +5,29 @@ Hold'em's blinds make it sharper than Stud's: chips go in every hand whether
 anyone acts or not, so a settlement that leaks would show up within a few
 hands. It is checked here after EVERY hand, not only at the end.
 
-Conservation is blind to two things, so both get their own test:
+Conservation is blind to everything about WHO acts and WHAT they are charged, so
+each of those rules gets its own test. All four below are rules under which a
+broken game still conserves chips, still terminates, and still looks legal:
 
-- **which** seat posts **which** blind — a wrong blind still conserves chips
-  (`test_heads_up_reverses_the_blinds`, driven through the replay API and read
-  off the live state at the first pre-flop decision);
-- the seat-ring skip past busted players (`test_next_entrant_*`), which decides
-  the button and both blinds once a player has been eliminated.
+- which seat posts which blind (`test_heads_up_reverses_the_blinds`);
+- that the button rotates strictly once a seat busts
+  (`test_button_alternates_strictly_heads_up`) — a button that pauses on dead
+  seats hands the same survivor the small blind twice in three hands;
+- that a lone live player who still owes the blind is allowed to act
+  (`test_a_lone_still_owing_player_is_offered_the_preflop_decision`) — skipping
+  them deals the hand out around a live decision;
+- that the big blind gets its option on a limped pot
+  (`test_big_blind_gets_its_option_after_a_limped_pot`).
 
-Side-pot *misallocation* is likewise invisible to conservation and is pinned by
-known-value tests in tests/test_holdem_settle.py.
+The seat-ring skip those three compose with is pinned directly by
+`test_next_entrant_*`. Side-pot *misallocation* is likewise invisible to
+conservation and is pinned by known-value tests in tests/test_holdem_settle.py.
+
+The hook for the state-reading tests is the chooser: phase state is unwound by
+the time a decision surfaces to a caller (`Pause.rs` carries only game-level
+names), but the chooser runs INSIDE the phase body with `in_hand`/`bet_by`/
+`button` still in scope, and `RuntimeState` is one object for the whole game —
+so capturing it at the first decision makes it readable at every later one.
 """
 
 from __future__ import annotations
@@ -36,6 +49,36 @@ HOLDEM = Path(__file__).parent.parent / "docs" / "games" / "holdem.cardlang"
 _TOTAL_CHIPS = 300  # 3 players x 100 starting chips
 _SMALL_BLIND = 2
 _BIG_BLIND = 5
+
+
+def _drive(seed: int, watch: Any) -> None:
+    """Play one game, calling `watch(rs, player, hand)` at every decision with
+    phase state still in scope (see the module docstring). `hand` is the count of
+    COMPLETED hands, taken from the engine's own `hand_end` event — a caller that
+    needs per-hand facts must segment on it and never on "the value changed",
+    since consecutive hands legitimately repeat a value and collapsing them hides
+    exactly the repeats worth testing for.
+
+    The policy is `[:k]` — check/call, never folding — the cheapest one that
+    still busts players, since the blinds do the work."""
+    game = check_source(HOLDEM)
+    box: list[Any] = []
+    hands = 0
+
+    def tracer(event: str, data: Any) -> None:
+        nonlocal hands
+        if event == "hand_end":
+            hands += 1
+
+    def on_first_decision(rs: Any) -> None:
+        box.append(rs)
+
+    def chooser(player: int, candidates: list[Any], k: int) -> list[Any]:
+        if box:
+            watch(box[0], player, hands)
+        return list(candidates[:k])
+
+    play_game(game, random.Random(seed), tracer, chooser, None, on_first_decision)
 
 
 def test_12_random_games_satisfy_invariants() -> None:
@@ -177,6 +220,80 @@ def test_big_blind_gets_its_option_after_a_limped_pot() -> None:
     play_game(game, random.Random(1), None, chooser, None, on_first_decision)
     assert options > 0, (
         "the big blind was never offered its option on a limped-around street"
+    )
+
+
+def test_button_alternates_strictly_heads_up() -> None:
+    """Once a seat busts, the button must step along the LIVE ring, so heads-up
+    it alternates on every hand.
+
+    Rotating the persistent seat through every PHYSICAL position and mapping
+    dead seats forward looks equivalent and is not: with seats 1 and 2 live,
+    positions 0,1,2 map to buttons 1,2,1, so seat 1 takes the button — and
+    heads-up the small blind — on two hands of every three. The game still
+    conserves chips and still terminates; it just charges one survivor unfairly.
+
+    red under: restoring `dealer := dealer offset_by left` to `before_each` and
+    `button := holdem_next_entrant(dealer)` in the play phase — verified by
+    hand, which produced the button sequence [1,2,1,1,2,1,...] and failed this
+    module's alternation assertion, then reverted.
+    """
+    per_hand: dict[int, tuple[int, int]] = {}  # hand index -> (button, live count)
+
+    def watch(rs: Any, player: int, hand: int) -> None:
+        in_hand = rs.get("in_hand")
+        per_hand[hand] = (rs.get("button"), sum(1 for f in in_hand.values() if f))
+
+    _drive(0, watch)
+
+    # Consecutive HANDS (by the engine's own hand counter), both heads-up.
+    pairs = [
+        (per_hand[h][0], per_hand[h + 1][0])
+        for h in sorted(per_hand)
+        if h + 1 in per_hand and per_hand[h][1] == 2 and per_hand[h + 1][1] == 2
+    ]
+    assert len(pairs) > 3, f"too few consecutive heads-up hands to judge: {pairs}"
+    repeats = [(a, b) for a, b in pairs if a == b]
+    assert not repeats, (
+        f"the button repeated across consecutive heads-up hands "
+        f"({len(repeats)} of {len(pairs)} adjacent pairs) — it must alternate, "
+        f"or one survivor posts the small blind twice as often"
+    )
+
+
+def test_a_lone_still_owing_player_is_offered_the_preflop_decision() -> None:
+    """A big blind all-in for its whole post leaves ONE live player who still
+    owes the standing bet. That player must be offered the call/fold, not have
+    the hand dealt out around them.
+
+    This is the case a plain "two players can act" guard gets wrong, and only
+    pre-flop: the blinds are the one forced post that leaves a standing bet, so
+    every later street opens with nobody owing and the two readings agree. The
+    hand still conserves chips either way, which is why it needs its own test.
+
+    red under: restoring the pre-flop guard to
+    `if (number of players where can_act(player)) >= 2` — verified by hand,
+    which dropped this count to 0 across all 12 seeds (it had been skipping 17
+    real decisions), then reverted.
+    """
+    offered = 0
+
+    def watch(rs: Any, player: int, hand: int) -> None:
+        nonlocal offered
+        if rs.zones.single("board").cards:
+            return  # only the pre-flop street has a standing bet at street open
+        in_hand, folded, stack = rs.get("in_hand"), rs.get("folded"), rs.get("stack")
+        able = [p for p in stack if in_hand[p] and not folded[p] and stack[p] > 0]
+        if len(able) == 1 and rs.get("bet_by")[able[0]] < rs.get("bet_to_match"):
+            offered += 1
+
+    for seed in range(12):
+        _drive(seed, watch)
+
+    assert offered > 0, (
+        "no pre-flop decision was ever offered to a lone still-owing player — "
+        "either the guard skips them, or the scenario stopped being reachable "
+        "and this test no longer proves anything"
     )
 
 

@@ -58,7 +58,6 @@ game Holdem {
     before_each {
       move all cards to deck
       shuffle deck
-      dealer := dealer offset_by left
     }
 
     phase play {
@@ -83,10 +82,15 @@ game Holdem {
       // Snapshot the entrants (held chips); the blinds and deal follow this set.
       for each player p: in_hand[p] := stack[p] > 0
 
-      // The button is the dealer seat, or the next entrant clockwise when the
-      // dealer busted out — the rotation in `before_each` is unconditional, so
-      // it can land on a seat with no chips.
-      button := holdem_next_entrant(dealer)
+      // Advance the button one seat along the LIVE ring, not the physical one.
+      // Rotating through every seat and then mapping dead seats forward would
+      // hand the button to the same survivor twice in a row: with seats 1 and 2
+      // live, physical positions 0,1,2 map to buttons 1,2,1, so seat 1 would
+      // take the button — and heads-up the small blind — on two hands of every
+      // three. Stepping the persistent seat through the entrants keeps the
+      // rotation strict, which is what makes the blinds fair.
+      dealer := holdem_next_entrant(dealer offset_by left)
+      button := dealer
 
       // Blinds. With three or more entrants the small blind is the first entrant
       // clockwise of the button and the big blind the next; HEADS-UP REVERSES IT
@@ -122,9 +126,17 @@ game Holdem {
       // Pre-flop. Action begins with the first entrant left of the big blind —
       // heads-up that is the button, which is the small blind, so the button
       // acts first pre-flop and last afterwards, exactly as the rules require.
-      // Skipped only when fewer than two entrants can act (both blinds all-in
-      // on the post); the hand then runs dealt-out to showdown.
-      if (number of players where can_act(player)) >= 2 {
+      //
+      // The guard is the round's own `until` terminator, negated: run the street
+      // exactly when it would not close on entry. A plain "two can act" test is
+      // WRONG here and only here, because the blinds leave a standing bet — a
+      // big blind all-in for its whole post leaves one live player who still
+      // OWES, and that player must be allowed to call or fold rather than have
+      // the hand dealt out around them. Every later street opens with no
+      // standing bet, so there the second arm is dead and the two tests agree.
+      if (number of players where pending(player)) > 0
+         and ((number of players where can_act(player)) > 1
+              or (number of players where can_act(player) and owes(player)) > 0) {
         round offering [check, bet, call, fold, raise]
               from holdem_next_entrant(big_blind offset_by left)
               over players where pending(player)

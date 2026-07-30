@@ -7,7 +7,8 @@ readable twin. Fixed-limit Texas Hold'em, three players — the corpus's second
 
 Each hand:
 
-1. The dealer button moves one seat left. The player to its left posts the
+1. The dealer button moves to the next seat that still has chips. The player
+   to its left posts the
    **small blind** (2), the next the **big blind** (5) — these are forced bets,
    not decisions. **Heads-up the blinds reverse**: the button posts the small
    blind.
@@ -44,9 +45,11 @@ and the hands leave play to the muck.
 Two stdlib primitives, both pure reads. `holdem_pot_share` is the side-pot query
 (the committed-total layering, odd chip to the first winner in seat order,
 uncalled remainder to the best contender). `holdem_next_entrant` is the seat-ring
-skip: the button rotates every hand whether or not that seat still holds chips,
-so the button and both blinds have to step past players who busted out — the same
-shape as Coup's `coup_next_in_game`. The poker evaluator behind the settlement is
+skip — the same shape as Coup's `coup_next_in_game` — and both the button's own
+rotation and the blinds go through it. Stepping the button along the LIVE ring
+rather than rotating it through every physical seat is what keeps the rotation
+strict: map dead seats forward instead and, heads-up, one survivor takes the
+button on two hands of every three. The poker evaluator behind the settlement is
 shared with Seven-Card Stud (`cardlang/runtime/poker.py`) and unit-tested: which
 cards a player has available is a property of the game, how five of them compare
 is not.
@@ -111,7 +114,7 @@ game Holdem {
 
   phase hand_sequence repeat until (number of players where stack[player] > 0) <= 1 {
     state { dealer : Player = 0 }
-    before_each { move all cards to deck  shuffle deck  dealer := dealer offset_by left }
+    before_each { move all cards to deck  shuffle deck }
 
     phase play {
       state {
@@ -123,7 +126,11 @@ game Holdem {
       }
 
       for each player p: in_hand[p] := stack[p] > 0
-      button := holdem_next_entrant(dealer)          // skip a busted dealer seat
+      // Step the button along the LIVE ring: rotating through every physical
+      // seat and mapping dead ones forward would give the same survivor the
+      // button on two heads-up hands of every three.
+      dealer := holdem_next_entrant(dealer offset_by left)
+      button := dealer
 
       // Heads-up reverses the blinds: the button posts the small blind. Taking
       // the big blind as "the next entrant after the small blind" covers both
@@ -142,8 +149,12 @@ game Holdem {
       deal 1 card from deck to burn
       for each player p: if in_hand[p] { deal 2 cards from deck to hole[p] }
 
-      // Pre-flop, from the big blind's left.
-      if (number of players where can_act(player)) >= 2 {
+      // Pre-flop, from the big blind's left. The guard is the round's own
+      // `until` terminator negated — a plain "two can act" test would deal the
+      // hand out around a lone live player who still owes the blind.
+      if (number of players where pending(player)) > 0
+         and ((number of players where can_act(player)) > 1
+              or (number of players where can_act(player) and owes(player)) > 0) {
         round offering [check, bet, call, fold, raise]
               from holdem_next_entrant(big_blind offset_by left)
               over players where pending(player)
@@ -169,6 +180,7 @@ game Holdem {
         move all cards from hole[p] to muck
         move all cards from shown[p] to muck
       }
+      move all cards from board to muck
     }
   }
 
