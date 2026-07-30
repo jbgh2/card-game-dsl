@@ -70,7 +70,13 @@ def main() -> None:
     ridx = triage.rank_index_map(game_ast)
     lv = triage.make_loc_value(ridx, triage.CURVES["base"]["base"])
 
-    results: dict[str, Any] = {"sweep_seeds": SWEEP_SEEDS, "final_seeds": FINAL_SEEDS, "stage_a": [], "stage_b": []}
+    results: dict[str, Any] = {
+        "sweep_seeds": SWEEP_SEEDS,
+        "final_seeds": FINAL_SEEDS,
+        "final_seed_start": SWEEP_SEEDS,
+        "stage_a": [],
+        "stage_b": [],
+    }
 
     # --- Stage A: hold_below x won/lost margin (tied) -----------------------
     best: dict[str, Any] | None = None
@@ -105,22 +111,34 @@ def main() -> None:
     results["winner"] = best
     print(f"# overall winner: {best['knobs']} score {best['score']:.3f}")
 
-    # --- Stage C: headline at 500 seeds ------------------------------------
+    # --- Stage C: headline at 500 seeds, on deals the sweep never saw -------
+    # Stages A and B select the knobs on seeds 0..SWEEP_SEEDS. Reporting the
+    # winner on a range that starts at 0 again would score the choice on 200 of
+    # the same 500 deals it was chosen from, which flatters it. Stage C starts
+    # where the sweep stopped.
     # Old-knob sighted seats under a distinct name so both sides can be
     # sighted with different tuns (name-keyed).
     triage.POLICIES["sighted_old"] = lambda kind, pause, space_, ctx, lv_, ridx_, rng, tun=None: (
         triage.sighted_policy(kind, pause, space_, ctx, lv_, ridx_, rng, tun=OLD)
     )
     final = {
-        "tuned_vs_blind": triage.arena(space, "sighted", "blind", FINAL_SEEDS, lv, ridx, tuns={"sighted": tuned}),
+        "tuned_vs_blind": triage.arena(
+            space, "sighted", "blind", FINAL_SEEDS, lv, ridx,
+            tuns={"sighted": tuned}, seed_start=SWEEP_SEEDS,
+        ),
         "tuned_vs_blind_hold10": triage.arena(
             space, "sighted", "blind_hold", FINAL_SEEDS, lv, ridx,
             tuns={"sighted": tuned, "blind_hold": REF_BLIND_HOLD},
+            seed_start=SWEEP_SEEDS,
         ),
         "tuned_vs_old": triage.arena(
-            space, "sighted", "sighted_old", FINAL_SEEDS, lv, ridx, tuns={"sighted": tuned},
+            space, "sighted", "sighted_old", FINAL_SEEDS, lv, ridx,
+            tuns={"sighted": tuned}, seed_start=SWEEP_SEEDS,
         ),
-        "tuned_mirror": triage.arena(space, "sighted", "sighted", FINAL_SEEDS, lv, ridx, tuns={"sighted": tuned}),
+        "tuned_mirror": triage.arena(
+            space, "sighted", "sighted", FINAL_SEEDS, lv, ridx,
+            tuns={"sighted": tuned}, seed_start=SWEEP_SEEDS,
+        ),
     }
     results["final"] = final
     for k, v in final.items():

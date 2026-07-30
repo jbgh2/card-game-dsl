@@ -263,6 +263,16 @@ and `tune_sighted.py` swept the sighted knobs in two stages (200
 seeds/cell vs fixed `blind_hold(10)` and `blind`; data:
 `results_tune.json`).
 
+**A note on which deals these numbers come from.** The sweep selects the
+knobs on seeds 0-199, so reporting the winner on a range that also starts
+at 0 would score the choice on deals it was chosen from. Every number
+below is measured on seeds 200-699 instead — disjoint from the sweep, and
+recorded as `seed_start` in both artifacts. The correction is worth about
+1-2 points: it moved every pairing involving the tuned policy DOWN, and
+left `blind_hold vs blind` — the one pairing using no tuned knob — up
+0.5, which is noise and is the control that says the effect was the
+policy's and not the seed range's.
+
 **Tuning result.** Winner: `hold_below 11, urgency_w 1.0,
 opp_staged_est 11` — margins stay at 25 (the round-3 "stale knobs"
 hypothesis was wrong in an instructive way: TIGHT margins collapse
@@ -270,26 +280,26 @@ outright — won/lost 8 scores 0.09-0.11, the weights fire constantly
 and strangle commitment — while the wide originals were near-optimal;
 the urgency boost was mildly harmful; the real gains were the hold
 threshold and respecting unseen staged cards). Tuned-vs-old-knobs:
-61.2/38.4.
+58.8/41.0.
 
 **The adopted game's scoreboard** (`results_triage_base.json`, tuned
 knobs, 1000 games/pairing):
 
 | pairing | win rate | reading |
 |---|---|---|
-| sighted vs blind | **65.5 / 34.5** | full skill vs commit-max |
-| sighted vs sighted_nohold | **62.0 / 38.0** | holding, given sight |
-| sighted vs blind_hold | 56.7 / 43.3 | sight, given holding |
-| blind_hold vs blind | 57.9 / 41.8 | holding, blind |
-| sighted_nohold vs blind | 51.2 / 48.5 | sight alone, no holding |
+| sighted vs blind | **64.1 / 35.9** | full skill vs commit-max |
+| sighted vs sighted_nohold | **60.8 / 39.2** | holding, given sight |
+| sighted vs blind_hold | 55.0 / 45.0 | sight, given holding |
+| blind_hold vs blind | 58.4 / 41.2 | holding, blind |
+| sighted_nohold vs blind | 50.8 / 49.2 | sight alone, no holding |
 
 Two axes, both load-bearing, and a profile shift worth naming: in
 round 1 the entire skill was WHERE (redirection 69/31, holding nil);
 in the adopted game redirection alone is nearly neutral (51/49 —
 capacity now does crude redirection by rule) while the
 commitment-count axis carries the head of the skill (holding worth
-~+20 net points blind or sighted), and opponent-reading stacks
-another ~+9 on top of restraint (56.7 vs blind_hold). Tuned play uses
++17 net points blind, +22 sighted), and opponent-reading stacks
+another +10 on top of restraint (55.0 vs blind_hold). Tuned play uses
 ~9.3 commits and ~2 holds per game — the recon dial is exercised, not
 maxed. Divergence holds at 16-22%; margins 9-16 mean; unclaimed ties
 1-4%. The designer's requirement — commitment number must matter — is
@@ -301,6 +311,15 @@ sweep is coarse, one knob family, references are simple policies);
 the exact-tier mini remains the ground-truth instrument for
 equilibrium questions, and combos/jokers (round 5) will move every
 number.
+
+One caveat is specific and bounded: the ADOPTED game's scoreboard above
+is measured on deals disjoint from the tuning sweep, but rounds 1-3's
+numbers are not — each round selected knobs and reported on ranges that
+both start at seed 0. Those rounds are left as recorded, deliberately:
+they are a log of what was measured when the decision was taken, and
+re-running them would rewrite the history rather than correct the live
+claim. Read them as carrying the same optimistic tilt this round
+measured at 1-2 points, and read only the adopted scoreboard as clean.
 
 ## 10. Location liveness by target extremity (evaluation question 3)
 

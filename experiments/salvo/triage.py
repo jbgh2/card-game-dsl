@@ -448,9 +448,16 @@ def _final_margins(
 def arena(
     space: Any, a: str, b: str, n_seeds: int, lv: Any, ridx: dict[str, int],
     tuns: dict[str, dict[str, Any]] | None = None,
+    seed_start: int = 0,
 ) -> dict[str, Any]:
-    """n_seeds games with a in seat 0, and n_seeds seat-swapped. `tuns`
-    optionally assigns per-POLICY-NAME knob dicts (tuning sweeps)."""
+    """n_seeds games with a in seat 0, and n_seeds seat-swapped, over deals
+    `seed_start .. seed_start + n_seeds`. `tuns` optionally assigns
+    per-POLICY-NAME knob dicts (tuning sweeps).
+
+    `seed_start` exists so a headline evaluation can be run on deals a tuning
+    sweep did not see. It defaults to 0, which is what every round's recorded
+    result was produced with — selecting and reporting on one deal set is only
+    a bias when the SAME knobs were chosen on it."""
     wins = {a: 0, b: 0, "draw": 0}
     locs_a: list[int] = []
     margins: list[int] = []
@@ -460,7 +467,7 @@ def arena(
     div, comp = 0, 0
     for swap in (False, True):
         seats = {0: b, 1: a} if swap else {0: a, 1: b}
-        for seed in range(n_seeds):
+        for seed in range(seed_start, seed_start + n_seeds):
             gs = playout(space, seats, seed, lv, ridx, measure_divergence=("sighted" in (a, b)), seat_tuns=tuns)
             ia = 1 if swap else 0
             ra, rb = gs.returns[ia], gs.returns[1 - ia]
@@ -503,6 +510,11 @@ def main() -> None:
     ap.add_argument("--curve", choices=sorted(CURVES), default="base", help="config: value curve / game variant")
     ap.add_argument("--hold-below", type=float, default=None, help="override the hold threshold (sensitivity sweeps); suffixes the results filename")
     ap.add_argument("--probes-only", action="store_true", help="run only the four commit-count probe pairings (for sweeps)")
+    ap.add_argument(
+        "--seed-start", type=int, default=0,
+        help="first deal; use a value past the tuning sweep's range to report "
+             "a tuned policy on deals its knobs were not chosen on",
+    )
     args = ap.parse_args()
 
     TUN = dict(CURVES[args.curve])
@@ -541,7 +553,7 @@ def main() -> None:
         ]
     results = []
     for a, b in pairings:
-        res = arena(space, a, b, args.seeds, lv, ridx)
+        res = arena(space, a, b, args.seeds, lv, ridx, seed_start=args.seed_start)
         results.append(res)
         print(json.dumps(res))
         sys.stdout.flush()
@@ -549,7 +561,8 @@ def main() -> None:
     out_path = HERE / TUN["results"]
     out_path.write_text(
         json.dumps(
-            {"curve": args.curve, "seeds_per_seating": args.seeds, "tuning": TUN, "pairings": results},
+            {"curve": args.curve,
+        "seed_start": args.seed_start, "seeds_per_seating": args.seeds, "tuning": TUN, "pairings": results},
             indent=2,
         )
     )
