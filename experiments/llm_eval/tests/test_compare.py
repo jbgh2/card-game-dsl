@@ -224,3 +224,51 @@ def test_the_exploratory_threshold_is_bonferroni_over_the_reported_rates() -> No
 
     assert ALPHA_EXPL == pytest.approx(0.05 / len(RATES))
     assert ALPHA_EXPL < 0.05, "the correction is not correcting anything"
+
+
+def test_a_small_run_warns_that_pooled_p_values_are_optimistic(
+    tmp_path: Path, capsys: Any
+) -> None:
+    """A `*` on a one-game row and a `*` on a ten-game row look identical, and the
+    p-values behind them are not comparable: decisions within a game share a hand,
+    a pile and a claim cycle, so the effective N is the game count."""
+    from experiments.llm_eval.compare import CLUSTER_WARN_GAMES
+
+    few = CLUSTER_WARN_GAMES - 1
+    _write(tmp_path, "ctl", [_seat_record(s, "llm_x") for s in range(few)])
+    _write(tmp_path, "arm", [_seat_record(s, "llm_x") for s in range(few)])
+    main(["--dir", str(tmp_path), "--control", "ctl", "--arm", "arm"])
+    out = capsys.readouterr().out
+    assert "POOLED p-VALUES ARE OPTIMISTIC" in out
+    assert f"control {few}, arm {few}" in out
+
+
+def test_a_large_enough_run_does_not_warn(tmp_path: Path, capsys: Any) -> None:
+    """Non-vacuity: the warning must be capable of staying silent, or it is
+    decoration rather than a signal."""
+    from experiments.llm_eval.compare import CLUSTER_WARN_GAMES
+
+    enough = CLUSTER_WARN_GAMES
+    _write(tmp_path, "ctl", [_seat_record(s, "llm_x") for s in range(enough)])
+    _write(tmp_path, "arm", [_seat_record(s, "llm_x") for s in range(enough)])
+    main(["--dir", str(tmp_path), "--control", "ctl", "--arm", "arm"])
+    assert "POOLED p-VALUES ARE OPTIMISTIC" not in capsys.readouterr().out
+
+
+def test_the_warning_fires_when_only_ONE_arm_is_small(
+    tmp_path: Path, capsys: Any
+) -> None:
+    """The real case: a 10-game control against a 1-game arm. Keyed on the
+    SMALLER of the two, since that is what bounds the evidence.
+
+    Deliberately WITHOUT `--common-seeds`. With it, both arms are restricted to
+    the shared seed and end up at one game each, so `min` and `max` agree and the
+    test cannot tell them apart — which is how it first shipped, and a plant
+    keying the warning on `max` passed it.
+    """
+    _write(tmp_path, "ctl", [_seat_record(s, "llm_x") for s in range(10)])
+    _write(tmp_path, "arm", [_seat_record(0, "llm_x")])
+    main(["--dir", str(tmp_path), "--control", "ctl", "--arm", "arm"])
+    out = capsys.readouterr().out
+    assert "POOLED p-VALUES ARE OPTIMISTIC" in out
+    assert "control 10, arm 1" in out, "the counts must be reported, not just the flag"

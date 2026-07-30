@@ -96,6 +96,12 @@ PRIMARY_ENDPOINT = "challenge_rate"
 # and deliberately so — these are hypothesis generators, not findings.
 ALPHA_EXPL = 0.05 / 10
 
+# Below this many games in either arm, the pooled p-values get a loud caveat.
+# Five is a judgment call, not a threshold with a derivation: the point is that
+# somewhere between one game and ten the decision-level pooling stops being the
+# dominant error, and a reader deserves to be told which side of that they are on.
+CLUSTER_WARN_GAMES = 5
+
 
 # Rates `verify.RATES` does not carry, because they are per-GAME counts rather
 # than ratios of two counters. The wrong-accusation figure is the one that
@@ -231,6 +237,22 @@ def main(argv: list[str] | None = None) -> int:
         f"  ~ = exploratory, p < {ALPHA_EXPL:.3f} (Bonferroni over {len(RATES)} "
         f"rates) — a hypothesis, not a result"
     )
+    # The `*` knows nothing about how many GAMES are behind it, and every p here
+    # is pooled over decisions. Decisions within one game share a hand, a pile and
+    # a claim cycle, so the effective sample is the game count, not the decision
+    # count — at N=1 a p of 0.008 is one deal's worth of evidence wearing three
+    # digits. Said from the data rather than left to the reader, because a `*` on
+    # a one-game row and a `*` on a ten-game row look identical.
+    fewest = min(a_counts["games"], b_counts["games"])
+    if fewest < CLUSTER_WARN_GAMES:
+        print(
+            f"\n  ** POOLED p-VALUES ARE OPTIMISTIC HERE. Games: control "
+            f"{a_counts['games']}, arm {b_counts['games']}. Every p above treats\n"
+            f"     decisions as independent trials; they are clustered within a "
+            f"game, so the effective\n"
+            f"     N is the GAME count. Quote the per-seed deltas and their "
+            f"magnitudes, not these p-values. **"
+        )
     if marked:
         print(
             f"    {marked} exploratory rate(s) flagged. Testing {len(RATES)} rates at "
