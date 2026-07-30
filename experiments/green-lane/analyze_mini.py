@@ -9,9 +9,22 @@ import json
 import time
 from collections import defaultdict
 
+from typing import TypedDict
+
 import glcommon
 import pyspiel
 from open_spiel.python.algorithms import cfr, exploitability
+
+
+class StrategyRow(TypedDict):
+    """One reached information set under an average policy. Shared with
+    solve.py, which walks the same rows."""
+
+    reach: float
+    player: int
+    depth: int
+    strategy: dict[str, float]
+    infoset: str
 
 SHORT_NAME = "greenlane_mini"
 CFR_ITERATIONS = 400
@@ -57,7 +70,7 @@ def census(game: pyspiel.Game) -> dict[str, int]:
 
 def reach_weighted_strategies(
     game: pyspiel.Game, avg_policy: object
-) -> list[dict[str, object]]:
+) -> list[StrategyRow]:
     """Walk the tree under the average policy; per infoset, accumulate reach
     probability and record the mixed strategy with human-readable actions."""
     reach: dict[str, float] = defaultdict(float)
@@ -90,7 +103,7 @@ def reach_weighted_strategies(
             walk(child, prob * p, depth + 1)
 
     walk(game.new_initial_state(), 1.0, 0)
-    rows = [
+    rows: list[StrategyRow] = [
         {
             "reach": reach[key],
             "player": owner[key],
@@ -100,7 +113,7 @@ def reach_weighted_strategies(
         }
         for key in reach
     ]
-    rows.sort(key=lambda r: -r["reach"])  # type: ignore[operator]
+    rows.sort(key=lambda r: -r["reach"])
     return rows
 
 
@@ -109,7 +122,7 @@ def expected_value(game: pyspiel.Game, avg_policy: object) -> float:
 
     def walk(state: pyspiel.State, prob: float) -> float:
         if state.is_terminal():
-            return prob * state.returns()[0]
+            return float(prob * state.returns()[0])
         total = 0.0
         if state.is_chance_node():
             for action, p in state.chance_outcomes():
@@ -129,8 +142,8 @@ def expected_value(game: pyspiel.Game, avg_policy: object) -> float:
     return walk(game.new_initial_state(), 1.0)
 
 
-def describe(row: dict[str, object]) -> str:
-    strat = ", ".join(f"{a}:{p:.3f}" for a, p in row["strategy"].items())  # type: ignore[union-attr]
+def describe(row: StrategyRow) -> str:
+    strat = ", ".join(f"{a}:{p:.3f}" for a, p in row["strategy"].items())
     return (
         f"reach={row['reach']:.3f} P{row['player']} depth={row['depth']}  "
         f"[{strat}]"
@@ -166,7 +179,7 @@ def main() -> None:
     mixed = [
         r
         for r in rows
-        if sum(1 for p in r["strategy"].values() if p > 0.02) > 1  # type: ignore[union-attr]
+        if sum(1 for p in r["strategy"].values() if p > 0.02) > 1
     ]
     print(f"\ninfosets reached: {len(rows)}; mixed (>1 action above 2%): {len(mixed)}")
     print("\ntop reach-weighted decisions (equilibrium strategies):")
@@ -180,7 +193,12 @@ def main() -> None:
         "infosets_reached": len(rows),
         "infosets_mixed": len(mixed),
         "top_decisions": [
-            {k: row[k] for k in ("reach", "player", "depth", "strategy")}
+            {
+                "reach": row["reach"],
+                "player": row["player"],
+                "depth": row["depth"],
+                "strategy": row["strategy"],
+            }
             for row in rows[:20]
         ],
     }
