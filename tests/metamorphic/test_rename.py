@@ -64,7 +64,7 @@ residual:   Three exclusion categories, each on its own `RenamePlan` field,
             because a primitive module spells them, which the
             `primitives { }` block of design-notes/primitive-sidecars.md
             would make renamable) or making the gather order independent of
-            spelling.
+            spelling. Recorded as issue #194.
 """
 
 from __future__ import annotations
