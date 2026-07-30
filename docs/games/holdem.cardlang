@@ -70,13 +70,7 @@ game Holdem {
         bet_by[player]    : Integer = 0       // chips put in on the current street
         bet_to_match      : Integer = 0       // the street's standing bet
         raises            : Integer = 0       // aggressive actions so far this street
-        raise_cap         : Integer = 4       // one bet plus three raises
-        // Pagat lifts the cap entirely on a street that opens with only two
-        // active players. Not modelled, and measured rather than assumed: at
-        // 100-chip stacks with 5/10 limits the STACKS bind first, so across 8
-        // seeds under a maximally aggressive policy no raise was ever offered
-        // past the fourth aggression. Lifting the cap here would add a branch
-        // nothing can execute.
+        raise_cap         : Integer = 4       // set per street, below
 
         // The button and the big blind, resolved to seats that actually entered
         // this hand. Public information: which seats hold the blinds is visible
@@ -114,6 +108,11 @@ game Holdem {
       // actions the cap allows. Either blind is a partial all-in when the seat
       // cannot cover it.
       run open_street(5)
+      // One bet plus three raises when the street opens with MORE than two
+      // active players; opening two-handed, Pagat lifts the cap entirely. 99
+      // stands in for "no limit": the table holds 300 chips and the smallest
+      // aggression is 5, so no street can reach 60 aggressions, let alone 99.
+      raise_cap := if (number of players where can_act(player)) > 2 then 4 else 99
       bet_by[small_blind] := if 2 < stack[small_blind] then 2 else stack[small_blind]
       stack[small_blind] := stack[small_blind] - bet_by[small_blind]
       committed[small_blind] := committed[small_blind] + bet_by[small_blind]
@@ -181,6 +180,11 @@ game Holdem {
         deal 3 cards from deck to board
         if (number of players where can_act(player)) >= 2 {
           run open_street(5)
+      // One bet plus three raises when the street opens with MORE than two
+      // active players; opening two-handed, Pagat lifts the cap entirely. 99
+      // stands in for "no limit": the table holds 300 chips and the smallest
+      // aggression is 5, so no street can reach 60 aggressions, let alone 99.
+      raise_cap := if (number of players where can_act(player)) > 2 then 4 else 99
           round offering [check, bet, call, fold, raise]
                 from holdem_next_entrant(button offset_by left)
                 over players where pending(player)
@@ -197,6 +201,11 @@ game Holdem {
         deal 1 card from deck to board
         if (number of players where can_act(player)) >= 2 {
           run open_street(10)
+      // One bet plus three raises when the street opens with MORE than two
+      // active players; opening two-handed, Pagat lifts the cap entirely. 99
+      // stands in for "no limit": the table holds 300 chips and the smallest
+      // aggression is 5, so no street can reach 60 aggressions, let alone 99.
+      raise_cap := if (number of players where can_act(player)) > 2 then 4 else 99
           round offering [check, bet, call, fold, raise]
                 from holdem_next_entrant(button offset_by left)
                 over players where pending(player)
@@ -213,6 +222,11 @@ game Holdem {
         deal 1 card from deck to board
         if (number of players where can_act(player)) >= 2 {
           run open_street(10)
+      // One bet plus three raises when the street opens with MORE than two
+      // active players; opening two-handed, Pagat lifts the cap entirely. 99
+      // stands in for "no limit": the table holds 300 chips and the smallest
+      // aggression is 5, so no street can reach 60 aggressions, let alone 99.
+      raise_cap := if (number of players where can_act(player)) > 2 then 4 else 99
           round offering [check, bet, call, fold, raise]
                 from holdem_next_entrant(button offset_by left)
                 over players where pending(player)

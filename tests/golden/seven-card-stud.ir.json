@@ -3348,38 +3348,65 @@
         "op": "and",
         "left": {
           "kind": "binop",
-          "op": ">",
+          "op": "and",
           "left": {
-            "kind": "name",
-            "name": "bet_to_match",
-            "ref": "state_var"
-          },
-          "right": {
-            "kind": "subscript",
-            "obj": {
+            "kind": "binop",
+            "op": ">",
+            "left": {
               "kind": "name",
-              "name": "bet_by",
+              "name": "bet_to_match",
               "ref": "state_var"
             },
-            "index": {
+            "right": {
+              "kind": "subscript",
+              "obj": {
+                "kind": "name",
+                "name": "bet_by",
+                "ref": "state_var"
+              },
+              "index": {
+                "kind": "name",
+                "name": "actor",
+                "ref": "pronoun"
+              }
+            }
+          },
+          "right": {
+            "kind": "binop",
+            "op": "<",
+            "left": {
               "kind": "name",
-              "name": "actor",
-              "ref": "pronoun"
+              "name": "raises",
+              "ref": "state_var"
+            },
+            "right": {
+              "kind": "name",
+              "name": "raise_cap",
+              "ref": "state_var"
             }
           }
         },
         "right": {
           "kind": "binop",
-          "op": "<",
+          "op": ">",
           "left": {
-            "kind": "name",
-            "name": "raises",
-            "ref": "state_var"
+            "kind": "player_query",
+            "query": "count",
+            "pred": {
+              "kind": "call",
+              "func": "can_act",
+              "args": [
+                {
+                  "kind": "name",
+                  "name": "player",
+                  "ref": "local"
+                }
+              ]
+            }
           },
           "right": {
-            "kind": "name",
-            "name": "raise_cap",
-            "ref": "state_var"
+            "kind": "int",
+            "value": 1
           }
         }
       },

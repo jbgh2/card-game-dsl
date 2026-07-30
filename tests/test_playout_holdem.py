@@ -297,6 +297,91 @@ def test_a_lone_still_owing_player_is_offered_the_preflop_decision() -> None:
     )
 
 
+def _drive_random(seeds: range, watch: Any) -> None:
+    """`_drive` with a RANDOM policy rather than check/call.
+
+    The policy is load-bearing for the two tests below, and getting it wrong is
+    how the raise-cap branch was once measured "unreachable": an always-raise
+    policy busts stacks in two or three hands (~170 decisions over 8 seeds),
+    which is the fewest possible visits to the deep-betting states it was
+    supposed to be probing. Random play runs ~7000 decisions over 15 seeds and
+    reaches them routinely. A policy that ends the game fast is not a neutral
+    sampler of the game's states.
+    """
+    game = check_source(HOLDEM)
+    for seed in seeds:
+        box: list[Any] = []
+        rng = random.Random(1000 + seed)
+
+        def on_first_decision(rs: Any) -> None:
+            box.append(rs)  # noqa: B023 -- consumed within this seed's playout
+
+        def chooser(player: int, candidates: list[Any], k: int) -> list[Any]:
+            if box:  # noqa: B023 -- consumed within this seed's playout
+                watch(box[0], candidates)  # noqa: B023
+            return [rng.choice(candidates)] if k == 1 else list(candidates[:k])  # noqa: B023
+
+        play_game(game, random.Random(seed), None, chooser, None, on_first_decision)
+
+
+def _able(rs: Any) -> list[int]:
+    stack, folded, in_hand = rs.get("stack"), rs.get("folded"), rs.get("in_hand")
+    return [p for p in stack if in_hand[p] and not folded[p] and stack[p] > 0]
+
+
+def test_no_raise_is_offered_when_no_opponent_can_act() -> None:
+    """Facing opponents who are all-in, the only legal actions are call and fold.
+    Raising into a field that cannot respond is not a poker decision.
+
+    Invisible to every chip check the family has: the side-pot layering returns
+    an uncalled excess to its sole contributor, so such a raise is economically
+    a no-op. What it corrupts is the ACTION SPACE — a node the rules do not have
+    — which is what the OpenSpiel target cannot tolerate. Issue #197.
+
+    red under: dropping `and (number of players where can_act(player)) > 1` from
+    `poker_betting`'s `raise` guard — verified by hand, which took this count
+    from 0 to 38, then reverted.
+    """
+    offered = 0
+
+    def watch(rs: Any, candidates: Any) -> None:
+        nonlocal offered
+        if len(_able(rs)) == 1 and any(c[0] == "raise" for c in candidates):
+            offered += 1
+
+    _drive_random(range(15), watch)
+    assert offered == 0, (
+        f"{offered} decisions offered a raise with no opponent able to respond"
+    )
+
+
+def test_a_street_opening_two_handed_lifts_the_raise_cap() -> None:
+    """Pagat caps a street at one bet plus three raises only when it opens with
+    MORE than two active players; opening two-handed there is no cap.
+
+    Both arms are asserted present, because either alone would pass while the
+    rule was half-implemented. Note the discriminator is the count at street
+    OPEN: a street that opens three-handed keeps its cap of 4 even after it
+    becomes heads-up, which is why capped decisions with two players able are
+    expected rather than a defect.
+
+    red under: replacing the per-street assignment with a constant
+    `raise_cap := 4` — verified by hand, which emptied the lifted arm, then
+    reverted.
+    """
+    caps: set[int] = set()
+
+    def watch(rs: Any, candidates: Any) -> None:
+        caps.add(rs.get("raise_cap"))
+
+    _drive_random(range(15), watch)
+    assert 4 in caps, "no street ever ran under the three-or-more-handed cap"
+    assert 99 in caps, (
+        "no street ever ran with the cap lifted — either the per-street "
+        "assignment is gone, or two-handed streets stopped being reached"
+    )
+
+
 # --- the seat-ring skip -----------------------------------------------------
 
 
