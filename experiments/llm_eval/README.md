@@ -120,12 +120,51 @@ python -m experiments.llm_eval.run_eval --matchup llm_frontier_vs_random --match
 python -m experiments.llm_eval.run_eval --figure
 ```
 
-Outputs land in `results/`: `transcripts/<matchup>.jsonl` (one JSON object per
-game), `summary.json`, and `figure.png`. Transcripts flush per game and
-`summary.json` is rewritten after every matchup, so a matchup that dies
-partway — auth, a dropped connection, an exhausted retry budget — never
-discards the matchups that already succeeded. On a multi-hour sequential run
-that is the difference between losing an hour and losing the day.
+### Where output goes
+
+Every invocation writes into its own dated directory, and nothing is ever
+overwritten:
+
+```
+results/
+  runs/2026-07-29T15-40-12Z/     one invocation
+      summary.json               what it spent, how far it got, why it stopped
+      transcripts/*.jsonl        working copies (gitignored)
+      figure.png                 with --figure
+  transcripts/*.jsonl.gz         THE ARCHIVE: the curated, committed evidence
+  summary.json                   the STUDY summary, derived from the archive
+  figure.png                     the published figure
+```
+
+The two tiers answer different questions and must not be conflated. A **run**
+summary is a record of one invocation. The **study** summary is the published
+result across the whole archive, and it is *derived* — rebuild it with
+`python -m experiments.llm_eval.study --figure`.
+
+That split is a fix, not decoration. `summary.json` used to sit at the top of
+`results/` and be written by whichever invocation ran last, so a twelve-invocation
+session left eleven runs' derived numbers overwritten — the cost accounting for
+this study had to be reconstructed by summing transcripts by hand — and after a
+partial 2-game run the file claimed the entire study was two games.
+
+Promotion into the archive is deliberate (gzip, commit) because it asserts the
+data backs a number someone will read. `verify.py` and `compare.py` default to the
+**archive**, so the documented audit command always covers the published evidence
+rather than whichever run finished last; pass `--run latest` or `--run <stamp>` to
+audit a run directory instead.
+
+Transcripts flush per game and a run's `summary.json` is rewritten after every
+matchup, so a matchup that dies partway — auth, a dropped connection, an
+exhausted retry budget — never discards the matchups that already succeeded. On a
+multi-hour sequential run that is the difference between losing an hour and
+losing the day.
+
+Resuming needs `--run-dir`, since `resume_from` appends to a transcript an
+earlier invocation wrote and therefore continues *that* run:
+
+```bash
+python -m experiments.llm_eval.run_eval --run-dir experiments/llm_eval/results/runs/2026-07-29T15-40-12Z
+```
 
 **Committed transcripts are gzipped.** They compress 12-21x, so the full record
 of every run in this session is under 1 MB rather than 16 MB. `metrics.iter_jsonl`
@@ -649,7 +688,12 @@ prompts.py    RULES_TEXT, build_prompt (pure), response parsing
 infostate.py  Pure parser over the engine's information-state string
 referee.py    Game loop, transcript, replay reconstruction
 metrics.py    Per-decision facts + aggregate deception metrics
+render.py     The rendered arm: information state as English, plus its inverse
+layout.py     Per-run output directories vs the curated archive
 run_eval.py   CLI, config, budget, cost estimation
+verify.py     Independent recomputation; --deep replays, --order audits an arm
+compare.py    Two matchups side by side, with the pre-registered endpoint
+study.py      Rebuild the study summary + figure from the archive
 figure.py     The one matplotlib figure
 config.yaml   Matchups, N, seeds, models, token caps
 mypy.ini      --strict, kept out of the repo's CI gate

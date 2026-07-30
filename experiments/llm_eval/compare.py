@@ -31,7 +31,7 @@ from math import comb, sqrt
 from pathlib import Path
 from typing import Any
 
-from .verify import RATES, _load, _stem, _transcripts
+from .verify import RATES, _load, _stem, _transcripts, resolve_dir
 
 
 def fisher_exact(a: int, b: int, c: int, d: int) -> float:
@@ -124,7 +124,16 @@ def load(root: Path, name: str) -> list[dict[str, Any]]:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__ and __doc__.splitlines()[0])
-    ap.add_argument("--dir", default="experiments/llm_eval/results/transcripts")
+    ap.add_argument(
+        "--dir", default=None, help="transcripts directory (default: the archive)"
+    )
+    ap.add_argument(
+        "--run",
+        default=None,
+        metavar="NAME",
+        help="compare within a run directory under results/runs (`latest` for "
+        "the most recent) instead of the curated archive",
+    )
     ap.add_argument("--control", required=True, help="the baseline matchup name")
     ap.add_argument("--arm", required=True, help="the matchup under test")
     ap.add_argument(
@@ -142,7 +151,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = ap.parse_args(argv)
 
-    root = Path(args.dir)
+    root = resolve_dir(args.dir, args.run)
+    print(f"reading {root}")
     from .verify import arm_audit, report_arm, tally
 
     left, right = load(root, args.control), load(root, args.arm)

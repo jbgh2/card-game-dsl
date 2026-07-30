@@ -9,12 +9,18 @@ per-game `max_decisions` cap bounds how much a single game can spend, since a
 full Cheat episode is long enough that one game can be a material fraction of a
 budget.
 
+Each invocation writes into its own dated directory,
+`results/runs/<UTC timestamp>/`, holding that run's `summary.json`, transcripts
+and figure. Nothing is ever overwritten; see `layout.py` for why the curated
+archive is a separate tier.
+
 Contract
 --------
 Assumes: the config's matchups name models defined in the same config.
-Establishes: `results/transcripts/<matchup>.jsonl` and `results/summary.json`,
+Establishes: `<run_dir>/transcripts/<matchup>.jsonl` and `<run_dir>/summary.json`,
 both of which record the ACTUAL N and the reason a run stopped short.
-Illegal after: reporting an intended N anywhere.
+Illegal after: reporting an intended N anywhere; writing a run's output outside
+its own run directory.
 """
 
 from __future__ import annotations
@@ -29,6 +35,7 @@ from typing import Any
 
 import yaml
 
+from . import layout
 from .agents import Agent, build_agent
 from .metrics import aggregate
 from .prompts import parse_response
@@ -127,7 +134,7 @@ def ensure_provider(
 def run_matchup(
     config: dict[str, Any],
     matchup: dict[str, Any],
-    results_dir: Path,
+    out_dir: Path,
     registry: dict[str, Provider],
     limit: int | None = None,
 ) -> dict[str, Any]:
@@ -169,7 +176,7 @@ def run_matchup(
         for m in used
     }
 
-    transcripts = results_dir / "transcripts"
+    transcripts = out_dir / "transcripts"
     transcripts.mkdir(parents=True, exist_ok=True)
     path = transcripts / f"{name}.jsonl"
 
@@ -419,6 +426,14 @@ def main(argv: list[str] | None = None) -> int:
         help="make ONE real call per configured model to verify the request shape, then exit",
     )
     parser.add_argument("--figure", action="store_true", help="render the figure after the run")
+    parser.add_argument(
+        "--run-dir",
+        default=None,
+        help="write into THIS directory instead of a fresh timestamped one. "
+        "Required with `resume_from`: a resume appends to a transcript an "
+        "earlier invocation wrote, so it continues that run and belongs in that "
+        "run's directory.",
+    )
     args = parser.parse_args(argv)
 
     config = yaml.safe_load(Path(args.config).read_text(encoding="utf-8"))
@@ -451,12 +466,37 @@ def main(argv: list[str] | None = None) -> int:
 
     results_dir = Path(config.get("results_dir", "experiments/llm_eval/results"))
     results_dir.mkdir(parents=True, exist_ok=True)
-    summary_path = results_dir / "summary.json"
+    # One directory per invocation, never overwritten. `summary.json` used to sit
+    # at the top of `results/`, so every run clobbered the previous one's derived
+    # numbers — a whole session's cost accounting had to be rebuilt by summing
+    # transcripts by hand.
+    if args.run_dir:
+        out_dir = Path(args.run_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        resuming = [m["name"] for m in selected if m.get("resume_from")]
+        if resuming:
+            # A fresh directory would leave the resume with nothing to append to,
+            # and it fails only after the roster and providers are already up.
+            print(
+                f"matchup(s) {resuming} set `resume_from`, which appends to a "
+                f"transcript an earlier invocation wrote — pass --run-dir naming "
+                f"that run so the resumed games join it.",
+                file=sys.stderr,
+            )
+            return 2
+        out_dir = layout.new_run_dir(results_dir)
+    summary_path = out_dir / "summary.json"
+    print(f"run directory: {out_dir}")
 
     def write_summary(done: list[dict[str, Any]]) -> None:
         payload = {
             "config": str(Path(args.config).resolve()),
             "game": config.get("game", "cardlang_cheat"),
+            # Self-describing, so a summary lifted out of its directory still
+            # says which run it belongs to.
+            "run": out_dir.name,
+            "run_dir": str(out_dir),
             "matchups": done,
             # The run's whole spend, so a proposal figure is quoted from one
             # number rather than summed by hand across matchup blocks.
@@ -477,7 +517,7 @@ def main(argv: list[str] | None = None) -> int:
     summaries: list[dict[str, Any]] = []
     failed = False
     for matchup in selected:
-        summary = run_matchup(config, matchup, results_dir, registry, args.limit)
+        summary = run_matchup(config, matchup, out_dir, registry, args.limit)
         summaries.append(summary)
         write_summary(summaries)
         if summary["aborted"]:
@@ -499,7 +539,7 @@ def main(argv: list[str] | None = None) -> int:
         # never disagree about what the run produced.
         out = render(
             json.loads(summary_path.read_text(encoding="utf-8")),
-            results_dir / "figure.png",
+            out_dir / "figure.png",
         )
         print(f"wrote {out}")
     return 1 if failed else 0

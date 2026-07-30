@@ -43,6 +43,19 @@ def _config(**overrides: Any) -> dict[str, Any]:
     return config
 
 
+def _run_dir(results_dir: Path) -> Path:
+    """The single run directory `main()` just created under `results_dir`.
+
+    Asserts there is exactly one: a test that silently read the newest of several
+    would pass while the runner leaked extra directories.
+    """
+    from experiments.llm_eval import layout
+
+    runs = layout.list_runs(results_dir)
+    assert len(runs) == 1, f"expected one run directory, found {[p.name for p in runs]}"
+    return runs[0]
+
+
 def _matchup(n: int, llm: bool) -> dict[str, Any]:
     focus = {"kind": "llm", "name": "fake_llm", "model": "m"} if llm else {"kind": "rule"}
     return {
@@ -280,7 +293,8 @@ def test_bare_command_does_not_construct_providers_before_running(
     with pytest.raises(RuntimeError, match="provider constructed"):
         main(["--config", str(config_path)])
 
-    transcript = tmp_path / "transcripts" / "offline.jsonl"
+    run = _run_dir(tmp_path)
+    transcript = run / "transcripts" / "offline.jsonl"
     assert transcript.exists(), (
         "the offline matchup did not run — provider construction happened "
         "before it, so acceptance criterion 1 depends on LLM credentials"
@@ -289,7 +303,7 @@ def test_bare_command_does_not_construct_providers_before_running(
 
     # And its DERIVED numbers survived too: the summary is written after every
     # matchup, so a later matchup dying does not discard the completed ones.
-    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    summary = json.loads((run / "summary.json").read_text(encoding="utf-8"))
     assert [m["matchup"] for m in summary["matchups"]] == ["offline"]
     assert summary["matchups"][0]["n_completed"] == 2
 
@@ -298,8 +312,9 @@ def test_offline_only_selection_writes_a_clean_summary(tmp_path: Path) -> None:
     """The command the README gives for the no-API run, end to end."""
     _, config_path = _two_matchup_config(tmp_path)
     assert main(["--config", str(config_path), "--matchup", "offline"]) == 0
-    assert len(list(iter_jsonl(str(tmp_path / "transcripts" / "offline.jsonl")))) == 2
-    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    run = _run_dir(tmp_path)
+    assert len(list(iter_jsonl(str(run / "transcripts" / "offline.jsonl")))) == 2
+    summary = json.loads((run / "summary.json").read_text(encoding="utf-8"))
     assert summary["run_totals"] == {}, "an offline run must construct no provider"
     assert summary["matchups"][0]["agents"]["rule"]["games_scored"] == 2
 
@@ -485,13 +500,14 @@ def test_abort_writes_the_summary_and_skips_later_matchups(
 
     assert main(["--config", str(config_path)]) == 1, "an aborted run must exit non-zero"
 
-    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    run = _run_dir(tmp_path)
+    summary = json.loads((run / "summary.json").read_text(encoding="utf-8"))
     assert [m["matchup"] for m in summary["matchups"]] == ["first"], (
         "the second matchup ran anyway — a dead credential would fail it too"
     )
     assert summary["matchups"][0]["aborted"] is not None
     assert summary["matchups"][0]["n_completed"] > 0
-    assert not (tmp_path / "transcripts" / "second.jsonl").exists()
+    assert not (run / "transcripts" / "second.jsonl").exists()
 
 
 def test_clean_run_reports_no_abort(tmp_path: Path) -> None:

@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any
 
 from . import infostate as istate
+from . import layout
 
 ANNOUNCE_COUNTS = {"play_one": 1, "play_two": 2, "play_three": 3, "play_four": 4}
 
@@ -64,6 +65,37 @@ def _transcripts(root: Path) -> list[Path]:
     for f in sorted(root.glob("*.jsonl")):
         by_stem[f.stem] = f  # fresher; wins over the archived copy
     return [by_stem[k] for k in sorted(by_stem)]
+
+
+DEFAULT_RESULTS = Path("experiments/llm_eval/results")
+
+
+def resolve_dir(explicit: str | None, run: str | None) -> Path:
+    """Which transcripts directory to read, from the two mutually-exclusive ways
+    of naming one.
+
+    Both given is a contradiction, not a precedence question: silently honouring
+    one would report a different body of data than the operator asked for, under
+    a heading that names what they asked for.
+    """
+    if explicit and run:
+        raise SystemExit("pass --dir or --run, not both — they name different data")
+    if explicit:
+        return Path(explicit)
+    if run:
+        if run == "latest":
+            found = layout.latest_run(DEFAULT_RESULTS)
+            if found is None:
+                raise SystemExit(
+                    f"no run directories under {DEFAULT_RESULTS / layout.RUNS} yet"
+                )
+            return found / layout.ARCHIVE
+        candidate = DEFAULT_RESULTS / layout.RUNS / run
+        if not candidate.is_dir():
+            available = [p.name for p in layout.list_runs(DEFAULT_RESULTS)]
+            raise SystemExit(f"no run named {run!r}; available: {available}")
+        return candidate / layout.ARCHIVE
+    return layout.archive_dir(DEFAULT_RESULTS)
 
 
 def _regroup(decisions: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -306,7 +338,21 @@ def deep_facts(record: dict[str, Any]) -> list[dict[str, Any]]:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__ and __doc__.splitlines()[0])
-    ap.add_argument("--dir", default="experiments/llm_eval/results/transcripts")
+    ap.add_argument(
+        "--dir",
+        default=None,
+        help="transcripts directory (default: the curated archive, "
+        "experiments/llm_eval/results/transcripts)",
+    )
+    ap.add_argument(
+        "--run",
+        default=None,
+        metavar="NAME",
+        help="audit a run directory under results/runs instead of the archive. "
+        "`latest` picks the most recent. The DEFAULT stays the archive on "
+        "purpose: the documented audit command must keep covering the published "
+        "evidence, not whichever run happened to finish last.",
+    )
     ap.add_argument("--matchup", action="append", help="restrict to these (repeatable)")
     ap.add_argument("--deep", action="store_true", help="replay and recompute every fact")
     ap.add_argument(
@@ -317,7 +363,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = ap.parse_args(argv)
 
-    root = Path(args.dir)
+    root = resolve_dir(args.dir, args.run)
+    print(f"reading {root}")
     files = _transcripts(root)
     if args.matchup:
         files = [f for f in files if _stem(f) in args.matchup]

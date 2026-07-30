@@ -10,3 +10,14 @@
 # not deterministic — so the .gz files are the record, not a cache.
 *.jsonl
 estimate/
+
+# Per-run directories (`runs/<UTC stamp>/`, see layout.py). Their `summary.json`
+# IS tracked and deliberately so: it is the only record of what one invocation
+# spent and how far it got, and losing it is the defect the per-run layout
+# exists to fix — a twelve-invocation session left eleven summaries overwritten
+# and its cost accounting had to be rebuilt by summing transcripts by hand.
+#
+# Their transcripts are covered by `*.jsonl` above: a run's working copies are
+# scratch until promoted into the archive, which is a deliberate act (gzip,
+# commit) because promotion asserts the data backs a published number.
+runs/*/figure.png
