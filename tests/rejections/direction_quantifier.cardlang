@@ -1,0 +1,35 @@
+// Wall: resolve's `_check_domain_query`. `dir` is a separate source, NOT a
+// `game.positions` name, so `any dir where ...` -- which the quantifier wall
+// validates against the declared position domains -- rejects for free naming
+// the declared universe (`cell`). A direction is a move parameter only, never
+// a quantifier binder.
+game DirQuantifier {
+  players: 2
+  max_length: 20
+  board: grid(3, 3)
+  pieces: xo_marks
+  zones {
+    box             : Deck
+    square[cell]    : Cell<cell>
+    reserve[player] : PlayerPile<player>
+  }
+  state {
+    result[player] : Integer = 0
+    done : Boolean = false
+  }
+  phase setup {
+    move all pieces from box where piece.side is x to reserve[0]
+    move all pieces from box to reserve[1]
+  }
+  phase play {
+    turns t from 0 over all players until done {
+      offer to t one of [pick, stop]
+    }
+  }
+  winner: highest result
+}
+move_type pick {
+  when: any dir where not done
+  effect { done := true }
+}
+move_type stop { effect { done := true } }

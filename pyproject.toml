@@ -15,6 +15,10 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "mypy>=1.8",
+    # Exact pin, not a floor: with no `[tool.ruff]` config the enabled rule set
+    # IS the version's default, so a range would silently change what the lint
+    # means from one install to the next.
+    "ruff==0.16.0",
 ]
 # The OpenSpiel adapter (cardlang/openspiel). Kept out of `dev` so a local
 # core install stays light; the adapter tests skip when pyspiel is absent.
@@ -33,8 +37,54 @@ include = ["cardlang*"]
 [tool.setuptools.package-data]
 cardlang = ["grammar/*.lark", "stdlib/*.cardlang"]
 
+[tool.ruff.lint]
+# The default rule set of the pinned version, minus three rules that are wrong
+# for a codebase under `mypy --strict`. Each was verified by applying the fix
+# and reading the resulting mypy errors, not by taste:
+#   B009  `getattr(x, "const")` is this repo's deliberate escape from a check
+#         mypy would fail — `__dataclass_params__` on a `DataclassInstance`,
+#         and module-private names under `no_implicit_reexport`. Rewriting it
+#         to `x.const` reproduces the error the escape exists to avoid.
+#   B010  same, for `setattr` used to monkeypatch a module attribute whose
+#         replacement is deliberately typed loosely.
+#   PLC0414 `import X as X` IS the explicit re-export `no_implicit_reexport`
+#         demands; dropping the alias breaks every importer.
+#   TRY004 asks for a `TypeError` on an `isinstance` refusal. This repo runs a
+#         two-currency doctrine — `RuntimeError` for anything a game
+#         description can cause, `AssertionError` for a compiler bug — and
+#         tests/test_assert_triage.py is the gate that enforces it. Every
+#         site already raises one of those two, so the rule asks for a third
+#         currency the repo's own wall forbids.
+#   PLC0206 wants `.items()` where a loop iterates keys and indexes the dict.
+#         Every site either uses the key to build a value (`Card(tr, s)`) or
+#         indexes a SECOND dict by the same key, so `.items()` removes at most
+#         one lookup of two and costs a loop variable. No correctness content.
+# Nothing else is silenced repo-wide: the rest of the version's defaults are
+# in force. Deliberate exemptions are per-SITE `noqa`s naming their reason,
+# never a file glob — so a new violation in an already-annotated file still
+# fires, and RUF100 fails the lint the moment one of them stops applying.
+ignore = ["B009", "B010", "PLC0206", "PLC0414", "TRY004"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# A recorded gap is an `xfail`, and an `xfail` that starts passing FAILS the
+# build (decisions.md "Closed-domain completeness"): closing a gap must force
+# the ledger that records it to be updated in the same change. Without this,
+# an unexpected pass is reported and ignored — a check that cannot fail.
+# The grid mechanism (surface-totality-audit, Step 1) leans on the same
+# default: designed-to-flip cells ride as xfail marks, and a bare mark cannot
+# opt out of failing loud when its cell starts passing.
+xfail_strict = true
+# A parametrization whose axis DERIVES to nothing is a defect, not a skip. The
+# default (`skip`) retires the sweep silently and reports success: an audit of
+# tests/test_role_comparison_pin.py pointed its module glob at a directory that
+# does not exist and the run was `2 passed, 1 skipped`, exit 0 — the whole
+# guarantee gone, green. Every parameter set pytest creates funnels through one
+# choke point, so this covers `parametrize` marks, `metafunc.parametrize` and
+# `fixture(params=)` alike. Axes that are legitimately empty say so at the call
+# site with tests/empty_axis.py's `may_be_empty`, pinned by
+# tests/test_empty_axis_wall.py.
+empty_parameter_set_mark = "fail_at_collect"
 
 [tool.mypy]
 python_version = "3.11"

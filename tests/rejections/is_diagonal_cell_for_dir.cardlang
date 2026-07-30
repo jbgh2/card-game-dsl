@@ -1,0 +1,34 @@
+// Wall: typecheck's Call arg-type check. is_diagonal(Dir)->Boolean; a `cell`-typed
+// argument (`from : cell`) is a TCell where a TDir is required. (A bare `a1`
+// would resolve as a walled cell-literal -> unresolved name, a different wall.)
+game IsDiagonalCellForDir {
+  players: 2
+  direction: clockwise
+  max_length: 30
+  board: grid(8, 8)
+  pieces: xo_marks
+  zones {
+    box             : Deck
+    square[cell]    : Cell<cell>
+    reserve[player] : PlayerPile<player>
+  }
+  state { done : Boolean = false }
+  phase setup {
+    move all pieces from box where piece.side is x to reserve[0]
+    move all pieces from box to reserve[1]
+  }
+  phase play {
+    turns t from 0 over all players until done {
+      offer to t one of [step, stop]
+    }
+  }
+  winner: highest done
+}
+move_type step(from : cell, along : dir) {
+  when: has_step(from, along, actor)
+  effect {
+    let x = is_diagonal(from)
+    move one piece from reserve[actor] to square[from]
+  }
+}
+move_type stop { effect { done := true } }

@@ -5,7 +5,7 @@ questions §5 left open, each of which is answered below with what decided it. T
 ruling itself is spec: [../decisions.md](../decisions.md) "Named procedures"
 (the surface, the textual-reuse guarantee, hermeticity, the three hygiene walls,
 the closed parameter domain). The deferred cells are in
-[../roadmap.md](../roadmap.md); the completeness ledger is
+issue #134; the completeness ledger is
 `tests/test_procedures.py`.*
 
 ## 1. The forcing evidence
@@ -69,7 +69,7 @@ phase challenge_window {
   cases (Coup's blocks parameterize over the victim/claimant and their
   influence zone). `Suit`/`Rank`/`Integer` join when a case needs them.
   Same closed-domain treatment as rule templates: unsupported kinds are
-  rejected loudly ([../roadmap.md](../roadmap.md)).
+  rejected loudly (issue #134).
 - **Substitution, not environment capture.** Arguments substitute into the
   body at expansion (hygiene checks as in rule templates: a body binder may
   not shadow a parameter). The body reads game/phase state lexically as
@@ -165,4 +165,4 @@ is.
   `round`, and a `round` may not appear in a procedure body: it binds its own
   `outcome`, which the body's pronoun wall cannot yet distinguish from the
   caller's. Rejected whole rather than shipped half-usable. Recorded in
-  [../roadmap.md](../roadmap.md); lifting it is what those three games need.
+  issue #134; lifting it is what those three games need.

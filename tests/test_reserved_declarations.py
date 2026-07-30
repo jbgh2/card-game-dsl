@@ -69,7 +69,7 @@ binder strictly narrower than any same-named outer declaration), matching
 `_check_duplicate_names`'s own "legitimately shadow ACROSS levels" carve-out
 — not a defect this reservation needs to close. Probed directly below
 (`test_card_and_player_shadowing_stays_legal`): a declared `card`/`player`
-name resolves clean and does not misbehave, so no roadmap.md line is
+name resolves clean and does not misbehave, so no tracker record is
 needed for it.
 """
 
@@ -226,8 +226,8 @@ def test_function_parameter_named_actor_action_outcome_stays_legal() -> None:
     # already forbidden from READING `actor`/`action`/`outcome` (the runtime
     # clears them before a hermetic call), so naming a parameter after one of
     # them is not a hijack — it is the prescribed fix for that hermeticity
-    # error ("pass the value in as a parameter instead"). Regression pin: this
-    # used to reject `tests/test_functions.py`'s pre-existing
+    # error ("pass the value in as a parameter instead"). Regression pin:
+    # without the exception the rule would reject `tests/test_functions.py`'s
     # `function lead(actor : Player) = score[actor]`.
     game = check_dsl(
         """

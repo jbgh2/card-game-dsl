@@ -1,16 +1,23 @@
 """Stdlib type signatures stay in sync with the name sets, and known signatures
 are correct (cardlang/stdlib/signatures.py).
 
-property:   CALL_SIGS and the runtime `call()` dispatch are one interface:
-            same name set, same per-name arity, and — where an arm plainly
-            forwards to a named helper — Python annotations that agree with
-            the declared DSL types
-domain:     every CALL_SIGS entry × {name, arity, param annotations, return
-            annotation}
-registry:   CALL_SIGS itself for names; the dispatch's own AST for what each
-            arm consumes (derived by parsing, never hand-listed)
-covered:    names (set equality both ways), arity (all arms), annotations for
-            every plain-forward arm and its return
+property:   the stdlib name sets, the signature tables, and the runtime
+            dispatchers are one interface — every name in a *tabled*
+            registry has a signature row, every *callable* name reaches a
+            dispatch arm, and for CALL_SIGS additionally the same per-name
+            arity and, where an arm plainly forwards to a named helper,
+            Python annotations that agree with the declared DSL types
+domain:     every registry with a signature table × that table; every
+            callable registry × the dispatcher(s) serving it (the climb
+            lead set is served twice — by its query, and by the action
+            space's codec-else-universe pair); every CALL_SIGS entry ×
+            {name, arity, param annotations, return annotation}
+registry:   the name sets themselves for names; the dispatch's own AST for
+            what each arm consumes (derived by parsing, never hand-listed)
+covered:    names (set equality both ways, every tabled registry),
+            dispatchability (every callable registry, against its
+            dispatcher), arity (all arms), annotations for every
+            plain-forward arm and its return
 sampled:    none
 residual:   inline arms (an expression instead of a helper call — team_of,
             rank_value, card_value, error, peg_pair/run_points) get
@@ -18,6 +25,17 @@ residual:   inline arms (an expression instead of a helper call — team_of,
             the expression is its own statement of the types. TAny positions
             are deliberately loose (polymorphic suit_of argument; the typed
             object model's deferred edges) and skipped by the mapping.
+            The climb sets have no signature table and no reconciliation
+            cell: a climb query is named in a `round climb` slot and is
+            never expression-typed, so there is no type to declare — they
+            carry dispatchability only.
+            LIBRARY_ZONE_TYPES has no dispatchability cell: zone types name
+            data, not callables, so there is no arm to reach. Their
+            projection coverage is pinned by the zone-projection and
+            partition-helper tests.
+            Nothing forces a NEW registry to acquire a dispatchability pin —
+            the registry-to-dispatcher pairing is not derivable from code,
+            so each pin below names its own registry. Deferred: issue #108.
 """
 
 from __future__ import annotations
@@ -28,7 +46,11 @@ import importlib
 import inspect
 import typing
 
+from cardlang.runtime import sidecar
 from cardlang.stdlib.functions import (
+    BOARD_ONLY_CALL_FUNCS,
+    DECK_ONLY_CALL_FUNCS,
+    GENERIC_CALL_FUNCS,
     STDLIB_AUCTION_OUTCOMES,
     STDLIB_CALL_FUNCS,
     STDLIB_EARLY_PREDICATES,
@@ -84,6 +106,44 @@ def test_climb_queries_are_dispatchable() -> None:
         assert callable(climb_follow_function(name))
 
 
+def test_early_predicates_are_dispatchable() -> None:
+    """Every declared early-termination predicate must resolve to a runtime
+    callback, like the outcome and climb names above. The `early` slot shares
+    `value_function` with the outcome slot (the sets stay separate — see the
+    STDLIB_EARLY_PREDICATES comment), so a name added to the set without a
+    dispatch arm passes resolve and then Assertion-fails mid-trick.
+
+    red under: delete the `case "on_play_of_tochoo"` arm from `value_function`
+    (cardlang/runtime/stdlib.py).
+    """
+    from cardlang.runtime.stdlib import value_function
+
+    for name in STDLIB_EARLY_PREDICATES:
+        assert callable(value_function(name))
+
+
+def test_climb_action_space_is_derivable() -> None:
+    """`ActionSpace.for_game` derives a climbing game's combo block from the
+    arithmetic codec, else the enumerable universe — so the codec and universe
+    registries must JOINTLY cover STDLIB_CLIMB_LEADS. A lead query in neither is
+    accepted by resolve and by both climb-query dispatchers above, and fails
+    only when the adapter first builds the action space. Replays the adapter's
+    own branch (openspiel/encoding.py) rather than a second copy of the
+    mapping. Quantifier: that the branch reaches a dispatch arm — that each
+    universe enumerates correctly is the per-game golden's property, not this
+    pin's.
+
+    red under: delete the `case "president_lead_options"` arm from
+    `climb_universe_function` (cardlang/runtime/stdlib.py).
+    """
+    from cardlang.runtime.stdlib import climb_codec_function, climb_universe_function
+    from cardlang.stdlib.functions import STDLIB_CLIMB_LEADS
+
+    for name in STDLIB_CLIMB_LEADS:
+        if climb_codec_function(name) is None:
+            assert callable(climb_universe_function(name))
+
+
 def test_call_funcs_are_dispatchable() -> None:
     # Each name registered in STDLIB_CALL_FUNCS must reach a real arm of
     # call()'s match — not fall through to its loud `case _` default. Unlike
@@ -112,9 +172,25 @@ def test_call_funcs_are_dispatchable() -> None:
             assert "unknown stdlib function" not in str(e), (
                 f"{name!r} falls through call()'s default arm: {e}"
             )
-        except Exception:
-            pass  # dispatched: failed downstream for some other reason
+        except Exception:  # noqa: BLE001, S110 -- any non-AssertionError means it
+            pass  # dispatched; the currency split is walled by test_assert_triage.py
 
+
+def test_deck_only_classification_partitions_call_funcs() -> None:
+    # The feature classification (functions.py) partitions the call registry:
+    # every stdlib call is deck-only (rejected in a piece game), board-only
+    # (rejected in a boardless game), or generic (legal everywhere), exactly
+    # one, none omitted. A newly registered call absent from all three sets
+    # fails here rather than silently defaulting -- the wall's domain stays
+    # exactly STDLIB_CALL_FUNCS. (The rejection behavior itself is
+    # tests/test_piece_content_walls.py.)
+    assert (
+        DECK_ONLY_CALL_FUNCS | BOARD_ONLY_CALL_FUNCS | GENERIC_CALL_FUNCS
+        == STDLIB_CALL_FUNCS
+    )
+    assert DECK_ONLY_CALL_FUNCS.isdisjoint(GENERIC_CALL_FUNCS)
+    assert BOARD_ONLY_CALL_FUNCS.isdisjoint(DECK_ONLY_CALL_FUNCS)
+    assert BOARD_ONLY_CALL_FUNCS.isdisjoint(GENERIC_CALL_FUNCS)
 
 
 def test_known_call_signatures() -> None:
@@ -131,19 +207,20 @@ def test_known_call_signatures() -> None:
 # CALL_SIGS states each stdlib function's interface once for the checker; the
 # `call()` match in runtime/stdlib.py states it again for the runtime (how many
 # `args[i]` the arm consumes, and the Python annotations of the helper it
-# forwards to). Two statements of one interface, previously with no
-# reconciliation: `coup_has_char` was declared `Rank?` to the DSL and
-# `rank: str` to Python, so the annotation denied the `none` value the checker
-# admits (and the body deliberately handles — an unset claim matches no card).
-# These pins derive both facts from the dispatch's AST rather than a third
-# hand-written list.
+# forwards to). Two statements of one interface, which nothing else
+# reconciles: a helper declared `Rank?` to the DSL but annotated `rank: str`
+# to Python would deny the `none` value the checker admits (and the body
+# deliberately handles — an unset claim matches no card), and the two
+# statements would disagree in silence. These pins derive both facts from the
+# dispatch's AST rather than a third hand-written list.
 
 
 @dataclasses.dataclass(frozen=True)
 class _DispatchFact:
     arity: int  # 1 + the highest args[i] the arm reads (0 if none)
-    helper: "object | None"  # the resolved helper callable, if the arm is a plain forward
-    helper_args: "tuple[object, ...]"  # per helper param: 'ctx', an int (args[i]), or None
+    helper: object | None  # the resolved helper callable, if the arm is a plain forward
+    helper_args: tuple[object, ...]  # per helper param: 'ctx', an int (args[i]), or None
+    traced: bool = False  # the arm unpacks (value, events) and emits via _emit
 
 
 def _call_dispatch_facts() -> dict[str, _DispatchFact]:
@@ -184,21 +261,43 @@ def _call_dispatch_facts() -> dict[str, _DispatchFact]:
                     imported[alias.asname or alias.name] = stmt.module
         helper: object | None = None
         helper_args: tuple[object, ...] = ()
+        traced = False
         ret = next((s for s in case.body if isinstance(s, ast.Return)), None)
-        if (
-            ret is not None
-            and isinstance(ret.value, ast.Call)
-            and isinstance(ret.value.func, ast.Name)
-        ):
-            fn_name = ret.value.func.id
+        # A NARROWED tracing arm does not `return f(...)`: it unpacks
+        # `(value, events)`, emits the events, then returns the value. Find
+        # the call through the assignment so the annotation check below still
+        # reaches the helper — the shape this test exists to keep honest.
+        call: ast.Call | None = None
+        if ret is not None and isinstance(ret.value, ast.Call):
+            call = ret.value
+        elif ret is not None and isinstance(ret.value, ast.Name):
+            for stmt in case.body:
+                if (
+                    isinstance(stmt, ast.Assign)
+                    and isinstance(stmt.targets[0], ast.Tuple)
+                    and isinstance(stmt.value, ast.Call)
+                    and any(
+                        isinstance(el, ast.Name) and el.id == ret.value.id
+                        for el in stmt.targets[0].elts
+                    )
+                ):
+                    call = stmt.value
+                    traced = True
+        if call is not None and isinstance(call.func, ast.Name):
+            fn_name = call.func.id
             if fn_name in imported:
                 helper = getattr(importlib.import_module(imported[fn_name]), fn_name)
             elif hasattr(rt, fn_name):
                 helper = getattr(rt, fn_name)
             if helper is not None:
                 shapes: list[object] = []
-                for arg in ret.value.args:
-                    if isinstance(arg, ast.Name) and arg.id == "ctx":
+                for arg in call.args:
+                    if isinstance(arg, ast.Starred):
+                        # `*_bind(ctx, ROW)` expands to the two value bundles
+                        # (EngineFacts, GameReads); hold their positions so the
+                        # later args still line up with the helper's params.
+                        shapes.extend([None, None])
+                    elif isinstance(arg, ast.Name) and arg.id == "ctx":
                         shapes.append("ctx")
                     elif (
                         isinstance(arg, ast.Subscript)
@@ -214,6 +313,7 @@ def _call_dispatch_facts() -> dict[str, _DispatchFact]:
             arity=(max(indices) + 1) if indices else 0,
             helper=helper,
             helper_args=helper_args,
+            traced=traced,
         )
     return facts
 
@@ -307,6 +407,18 @@ def test_helper_annotations_agree_with_call_sigs() -> None:
         expected_ret = _python_type(sig.ret)
         if expected_ret is not None:
             actual_ret = hints.get("return")
+            if fact.traced:
+                # A tracing primitive returns (declared value, events): the
+                # DECLARED type is the first element, and the second must be
+                # the trace-event tuple — checked, not waved through.
+                targs = typing.get_args(actual_ret)
+                if len(targs) != 2 or targs[1] != tuple[sidecar.TraceEvent, ...]:
+                    problems.append(
+                        f"{name}: EMITS_TRACE helper must return "
+                        f"(value, tuple[TraceEvent, ...]); got {actual_ret}"
+                    )
+                    continue
+                actual_ret = targs[0]
             if actual_ret != expected_ret:
                 problems.append(
                     f"{name}: helper returns {actual_ret}, CALL_SIGS declares "

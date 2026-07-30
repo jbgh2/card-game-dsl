@@ -13,9 +13,10 @@ import json
 import random
 import sys
 
-import utcommon
 import fast_sim
+import utcommon
 from analyze_undertow import tricks_from_log
+
 from cardlang.openspiel import replay
 
 

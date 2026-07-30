@@ -27,16 +27,29 @@ from __future__ import annotations
 
 import dataclasses
 import itertools
+from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any, Iterator
+from typing import Any
 
 from cardlang.ast import nodes as n
+from cardlang.board_domains import directions_of, position_domains_of
 from cardlang.domains import DomainSources, enumerate_domain
 from cardlang.runtime.mechanics import _pack
 from cardlang.runtime.observe import render_candidate
 from cardlang.runtime.values import RANKS, SUITS, Card, build_deck, deck_suits
 
 NUM_DISTINCT_ACTIONS = len(SUITS) * len(RANKS)  # 52 — the standard card block
+
+# The verb names for the three blocks whose ids carry a parameter VALUE rather
+# than a move-type name: a Card-parameterized move's ids are the card block's
+# (see the module docstring), an integer `choose`'s id is the chosen value, and
+# a combination id is the card-set. Nothing in the encoding recovers a name
+# from those ids, so the block itself is the finest verb they can support.
+# Angle brackets keep them disjoint from move-type names, which the grammar
+# restricts to identifiers.
+CARD_VERB = "<card>"
+INT_VERB = "<int>"
+COMBO_VERB = "<combo>"
 
 
 def card_to_action(card: Card) -> int:
@@ -74,11 +87,11 @@ def _derived_card_block(deck_name: str) -> list[Card] | None:
     exactly, since `build_deck` for a `ranks`-cross-product deck iterates
     suit-major/rank-minor — the SAME order `card_to_action` assumes — so every
     currently-registered game's ids hold verbatim (a subset deck like
-    pinochle48 or schnapsen20 just leaves some of the 52 slots unused, exactly
-    as before this function existed). Only a deck that needs MORE than the
-    standard catalogue (French Tarot's atouts/Excuse; a future Tichu/Coup
-    migration) gets its own from-scratch numbering, over its full distinct-card
-    list — never a hybrid of the two schemes."""
+    pinochle48 or schnapsen20 just leaves some of the 52 slots unused). Only a
+    deck that needs MORE than the standard catalogue (French Tarot's
+    atouts/Excuse; a future Tichu/Coup migration) gets its own from-scratch
+    numbering, over its full distinct-card list — never a hybrid of the two
+    schemes."""
     distinct = _dedup_deck_cards(deck_name)
     if all(_is_standard_card(c) for c in distinct):
         return None
@@ -169,7 +182,7 @@ class ActionSpace:
         assert len(self._combo_ids) == len(combos), "combo card-sets must be unique"
 
     @staticmethod
-    def for_game(game: n.Game) -> "ActionSpace":
+    def for_game(game: n.Game) -> ActionSpace:
         from cardlang.runtime import stdlib
 
         names: list[str] = []
@@ -194,9 +207,15 @@ class ActionSpace:
             suits=list(deck_suits(game.deck)),
             ranks=list(game.ranking),
             players=list(range(game.players.low)),
-            # Position move-parameter domains, from the same PositionDecl
-            # members the driver hands the runtime — identical by construction.
-            positions={p.name: p.members for p in game.positions},
+            # Position move-parameter domains, from the same union function the
+            # driver hands the runtime (`position_domains_of`) — declared
+            # integer domains plus the board-minted `cell`, identical by
+            # construction.
+            positions=dict(position_domains_of(game)),
+            # The board-minted `dir` domain, from the same seam the driver reads
+            # (`directions_of`) — so a `dir` move parameter's vocab ids match
+            # the runtime's live candidates. Empty for a boardless game.
+            directions=dict(directions_of(game)),
         )
         for node in _walk(game):
             if isinstance(node, n.Choose):
@@ -207,13 +226,11 @@ class ActionSpace:
                 int_ceiling = ceiling if int_ceiling is None else max(int_ceiling, ceiling)
             elif isinstance(node, n.Offer):
                 # Routed by arity, same rule the round vocabulary below uses:
-                # nullary keeps today's bare-name representation in `names`
-                # (every offer-using corpus game today — Coup, Skat — names
-                # only nullary moves, so this is unchanged for them); a
-                # parameterized, non-Card move type now contributes its
-                # cross-product to `vocab` instead of the stray, never-used
-                # bare name it used to get (a parameterized `offer` move, like
-                # Go Fish's `ask`, was silently mis-routed before this).
+                # a nullary offer keeps the bare-name representation in
+                # `names`; a parameterized, non-Card move type contributes its
+                # cross-product to `vocab` instead of a stray, never-used bare
+                # name. Without this routing, a parameterized `offer` move,
+                # like Go Fish's `ask`, would be silently mis-routed.
                 for mt_name in node.move_types:
                     mt = mt_index[mt_name]
                     if not mt.params:
@@ -264,7 +281,7 @@ class ActionSpace:
                     key=lambda p: (p.size, p.kind, sorted(card_to_action(c) for c in p.cards)),
                 )
         if joint_engines:
-            # Corpus-first walls, all loud (roadmap.md records the deferrals):
+            # Corpus-first walls, all loud (issue #139 records the deferrals):
             # the combo block serves one subset universe per game, so a game
             # mixing climb and joint selections — or two joint predicates with
             # different universes — needs a codec-composition design no game
@@ -411,6 +428,37 @@ class ActionSpace:
                 f"recorded action {aid} ({self.to_string(aid)}) is not among the live candidates"
             )
         return found
+
+    def verb_of(self, aid: int) -> str:
+        """The move-type name `aid` denotes, at the granularity the encoding
+        preserves: a bare-name or vocabulary id names its move type; a card,
+        integer or combination id names its block (`CARD_VERB` etc.).
+        Partitions `0..num_distinct_actions` exactly — same block boundaries as
+        `decode`, which raises on an out-of-range id."""
+        value = self.decode(aid)
+        if isinstance(value, Card):
+            return CARD_VERB
+        if isinstance(value, ComboAction):
+            return COMBO_VERB
+        if isinstance(value, tuple):
+            return str(value[0])
+        if isinstance(value, str):
+            return value
+        return INT_VERB
+
+    def verbs(self) -> frozenset[str]:
+        """Every verb this game's action space DECLARES — the universe
+        `verb_of` can return, derived from the blocks rather than enumerated
+        over ids (the combination block is up to 211M ids wide). A bounded
+        conformance walk's coverage claim is stated against this set."""
+        out = {CARD_VERB}  # the card block is always present (see `_name_base`)
+        out.update(self._names)
+        if self._int_ceiling is not None:
+            out.add(INT_VERB)
+        out.update(name for name, _ in self._vocab)
+        if self._combos or self._combo_codec is not None:
+            out.add(COMBO_VERB)
+        return frozenset(out)
 
     def to_string(self, aid: int) -> str:
         value = self.decode(aid)

@@ -21,10 +21,10 @@ from __future__ import annotations
 import math
 
 from cardlang.runtime import reads
-from cardlang.runtime.state import Ctx
+from cardlang.runtime.sidecar import EngineFacts, TraceEvent
 from cardlang.runtime.values import Card, Player
 
-_R = reads.row("cardlang/runtime/skat.py", "skat.cardlang")
+ROW = reads.row("cardlang/runtime/skat.py", "skat.cardlang")
 
 # Non-jack strength for Suit/Grand (trump-suit cards and led-suit cards).
 _SKAT_RANK = {"A": 7, "10": 6, "K": 5, "Q": 4, "9": 3, "8": 2, "7": 1}
@@ -42,19 +42,21 @@ _BID_SEQUENCE = (
 )
 
 
-def _contract(ctx: Ctx) -> tuple[str, str | None]:
+def _contract(gr: reads.GameReads) -> tuple[str, str | None]:
     """The declared contract, read from phase state (the declaration move
     effects set it before any consumer runs)."""
-    if reads.state(ctx.rs, _R, "is_null"):
+    if gr.state["is_null"]:
         return "null", None
-    if reads.state(ctx.rs, _R, "is_grand"):
+    if gr.state["is_grand"]:
         return "grand", None
-    return "suit", reads.state(ctx.rs, _R, "trump_suit")
+    return "suit", gr.state["trump_suit"]
 
 
 def _is_trump(c: Card, game_type: str, trump_suit: str | None) -> bool:
     if game_type == "null":
         return False
+    # Not a role: `game_type` is a Skat contract kind ("suit"/"grand"/"null"),
+    # unrelated to the domain table.
     return c.rank == "J" or (game_type == "suit" and c.suit == trump_suit)
 
 
@@ -113,27 +115,31 @@ def skat_next_bid(value: int) -> int:
     return nexts[0] if nexts else 0
 
 
-def skat_follow_ok(ctx: Ctx, p: Player, c: Card) -> bool:
+def skat_follow_ok(
+    facts: EngineFacts, gr: reads.GameReads, p: Player, c: Card
+) -> bool:
     """Follow-class legality for the card `c` in `p`'s hand against the led
     card (`trick_pile[0]`): holding a card of the led class obliges playing
     one; void in the class, anything goes. No head/trump obligation."""
-    game_type, trump_suit = _contract(ctx)
-    led = reads.single(ctx.rs, _R, "trick_pile").cards[0]
+    game_type, trump_suit = _contract(gr)
+    led = gr.singles["trick_pile"][0]
     cls = _follow_class(led, game_type, trump_suit)
-    hand = reads.instance(ctx.rs, _R, "hand", p).cards
+    hand = gr.families["hand"][p]
     if any(_follow_class(x, game_type, trump_suit) == cls for x in hand):
         return _follow_class(c, game_type, trump_suit) == cls
     return True
 
 
-def skat_trick_winner(ctx: Ctx, leader: Player) -> Player:
+def skat_trick_winner(
+    facts: EngineFacts, gr: reads.GameReads, leader: Player
+) -> tuple[Player, tuple[TraceEvent, ...]]:
     """The completed three-card trick's winner (`trick_pile` holds the cards
     in seat order from the leader): the highest trump if any was played, else
     the highest card of the led suit — under Null, no trumps and the natural
     rank order. Emits the play/trick_end/trick traces the playout harness
     recomputes winners from."""
-    game_type, trump_suit = _contract(ctx)
-    cards = reads.single(ctx.rs, _R, "trick_pile").cards
+    game_type, trump_suit = _contract(gr)
+    cards = gr.singles["trick_pile"]
     if len(cards) != 3:
         # The pile's live size is the hosting game's runtime data, so a wrong
         # call site is the description's error, in the runtime's currency.
@@ -141,23 +147,20 @@ def skat_trick_winner(ctx: Ctx, leader: Player) -> Player:
             f"skat_trick_winner: trick pile holds {len(cards)} cards, expected "
             f"a completed 3-card trick"
         )
-    played = list(zip(ctx.rs.seating.turn_order_from(leader), cards))
-    for q, c in played:
-        ctx.trace("play", (q, c))
+    played = list(zip(facts.seating.turn_order_from(leader), cards))
+    events: list[TraceEvent] = [("play", (q, c)) for q, c in played]
     winner = _trick_winner(played, cards[0].suit, game_type, trump_suit)
-    ctx.trace("trick_end", {"game_type": game_type, "trump": trump_suit})
-    ctx.trace("trick", (winner, list(cards)))
-    return winner
+    events.append(("trick_end", {"game_type": game_type, "trump": trump_suit}))
+    events.append(("trick", (winner, list(cards))))
+    return winner, tuple(events)
 
 
-def skat_matadors(ctx: Ctx, p: Player) -> int:
+def skat_matadors(facts: EngineFacts, gr: reads.GameReads, p: Player) -> int:
     """The matador count for `p`'s hand plus the skat under the declared
     trump structure: the length of the unbroken with/without run from the
     club Jack down the trump order. Undefined for Null (the game guards)."""
-    game_type, trump_suit = _contract(ctx)
-    cards = list(reads.instance(ctx.rs, _R, "hand", p).cards) + list(
-        reads.single(ctx.rs, _R, "skat").cards
-    )
+    game_type, trump_suit = _contract(gr)
+    cards = list(gr.families["hand"][p]) + list(gr.singles["skat"])
     order = _trump_order(game_type, trump_suit)
     held = [any(c.rank == r and c.suit == s for c in cards) for (r, s) in order]
     want = held[0]  # "with" if holding the top trump (CJ), else "without"

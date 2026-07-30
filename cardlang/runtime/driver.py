@@ -9,15 +9,18 @@
 from __future__ import annotations
 
 import random
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 from cardlang.ast import nodes as n
-from cardlang.domains import role_members
+from cardlang.board_domains import directions_of, position_domains_of
+from cardlang.domains import role_members, require_role
 from cardlang.runtime import phases
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.evaluate import evaluate
-from cardlang.runtime.execute import execute, run_body as run_stmts
+from cardlang.runtime.execute import execute
+from cardlang.runtime.execute import run_body as run_stmts
 from cardlang.runtime.state import (
     Chooser,
     ChooserAbort,
@@ -28,11 +31,27 @@ from cardlang.runtime.state import (
     _ProduceSignal,
     _SkipHand,
 )
-from cardlang.runtime.values import DECKS, Player, Seating, build_deck, deck_ranks, deck_suits
+from cardlang.runtime.values import (
+    Player,
+    Seating,
+    axis_attributes,
+    build_deck,
+    component_deck,
+    deck_ranks,
+    deck_suits,
+)
+from cardlang.stdlib.boards import board_entry
 
 
 @dataclass(frozen=True, slots=True)
 class GameResult:
+    # `scores` is keyed by the `winner:` target's OWN index domain — by player
+    # for `score[player]`, by TEAM for `score[team]` — so a key is not always a
+    # seat, and `winner`, picked from it, is a team index in a team-scored game
+    # (issue #154). A reader
+    # deciding which it holds must consult the target's declaration, never the
+    # key set: the two are indistinguishable whenever a game's team count equals
+    # its player count (`openspiel/replay._winner_target_is_team_keyed`).
     scores: dict[Player, int]  # empty for games with no score var (loser games)
     winner: Player | None
     loser: Player | None
@@ -65,20 +84,30 @@ def play_game(
     team_of = {
         p: ti for ti, members in enumerate(game.partnerships) for p in members
     }
-    positions = {p.name: p.members for p in game.positions}
+    positions = dict(position_domains_of(game))
     zones = ZoneStore(game.zones, seating.players, teams, positions=positions)
     rs = RuntimeState(seating, zones, rng)
     rs.trump = game.trump
     rs.teams = teams
     rs.team_of = team_of
     rs.position_domains = positions
+    # The board-minted `dir` move-parameter domain (decisions.md "Boards and
+    # cells"): built from the same `board:` clause as `cell`, via the seam the
+    # OpenSpiel encoding also reads, so the live candidate enumeration and the
+    # static action space cannot diverge. Empty for a boardless game.
+    rs.direction_domains = dict(directions_of(game))
+    # The instantiated board (cells + lines) for the cell/line query verbs;
+    # `board_entry` is total on a resolved game (resolve validated it).
+    rs.board = board_entry(game.board.family, game.board.args) if game.board is not None else None
     assert game.max_length is not None, "resolve() must reject a missing max_length"
     rs.max_length = game.max_length
     # Rank strength is read from the game's `ranking:` (high to low), so every
     # deck ranks correctly without a hardcoded order. Card values come from the
     # deck table (empty for games that score by other means).
     rs.rank_index = {r: len(game.ranking) - 1 - i for i, r in enumerate(game.ranking)}
-    rs.card_values = dict(DECKS[game.deck].values)
+    rs.card_values = dict(component_deck(game.deck).values)
+    rs.content_flavor = game.content_flavor
+    rs.axis_attr = axis_attributes(game.deck)
     rs.suits = deck_suits(game.deck)
     # Rank iteration order for `for each rank` / `any rank`: the declared
     # ranking when present, else the deck's first-appearance order.
@@ -362,6 +391,8 @@ def _declare_state(block: n.StateBlock, ctx: Ctx) -> None:
             # `teams if index == "team" else players` silently keyed every
             # other role by players, which is exactly how `state { x[suit] }`
             # ran as a per-player store until resolve walled it.
-            keys = role_members(decl.index, ctx)
+            keys = role_members(
+                require_role(decl.index, "state-variable index role"), ctx
+            )
             value: dict[int, Any] = {k: evaluate(decl.default, ctx) for k in keys}
             ctx.rs.declare(decl.name, True, value)

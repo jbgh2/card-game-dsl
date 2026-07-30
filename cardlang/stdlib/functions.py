@@ -1,9 +1,11 @@
-"""Standard-library functions, value-callbacks, and zone-query methods.
+"""Standard-library function and value-callback names.
 
-The name resolver checks bare-name function references (e.g. a `round`'s
-`outcome` / `early` function), `f(...)` calls, and `zone.method(...)` queries
-against these sets, so the IR can mark them as functions and unknown calls are
-caught. Seeded for the formalized corpus; extended corpus-first.
+The name resolver checks bare-name references (a `round`'s `outcome` / `early`
+function, a climbing round's `combinations` / `follows` query) and `f(...)`
+calls against these sets, so the IR can mark them as functions and unknown
+names are caught. There is no zone-method namespace here: the expression layer
+has no method register (decisions.md "The expression register"). Seeded for the
+formalized corpus; extended corpus-first.
 """
 
 from __future__ import annotations
@@ -38,6 +40,10 @@ STDLIB_VALUE_NAMES: frozenset[str] = STDLIB_TRICK_OUTCOMES | STDLIB_AUCTION_OUTC
 # Early-termination predicates a `round`'s `early` clause may name. Distinct from
 # outcome callbacks above — a different signature, (card, led_suit) -> Boolean —
 # so they validate against their own set, not the outcome-function namespace.
+# Slot-only, deliberately outside STDLIB_VALUE_NAMES: an early predicate is
+# unreachable as a bare NameRef and rejected in an `outcome` slot, even though
+# the runtime dispatches both through `value_function`. Sharing the dispatcher
+# is an implementation detail of the runtime, not a shared namespace.
 STDLIB_EARLY_PREDICATES: frozenset[str] = frozenset(
     {
         "on_play_of_tochoo",  # Getaway: a tochoo (off-suit play when void) ends the trick
@@ -71,6 +77,12 @@ STDLIB_CLIMB_FOLLOWS: frozenset[str] = frozenset(
 # Stdlib functions invoked with arguments: `f(...)`.
 STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
     {
+        "lines",  # the board's length-k lines (cell-name tuples); reads the `board:`
+        "neighbor",  # rung-2 movement: the cell one step along a dir in a player's frame
+        "has_step",  # rung-2 movement: whether that step stays on the board (gates neighbor)
+        "is_diagonal",  # rung-2 movement: whether a dir captures (changes file)
+        "home",  # rung-2 movement: a player's back-two-ranks setup region (Collection<Cell>)
+        "far_row",  # rung-2 movement: the opponent's back row, the reach-to-win goal
         "player_holding",
         "team_of",  # the partnership a player belongs to
         "suit_of",  # the suit of a card, or of a single-card zone (trump indicator)
@@ -106,13 +118,10 @@ STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
         "tichu_opponent_team",  # Tichu: the team a player does not belong to
         "tichu_first_out",  # Tichu: the first finisher (defaults to player 0)
         "tichu_card_points",  # Tichu: the card-point table (K/10 = 10, 5 = 5, Dragon +25, Phoenix -25)
-        "tichu_hand_summary",  # Tichu: emit the tichu_hand trace; the captured card points
-        "president_next_holder",  # President: the arg if holding, else the next holder cw
         "president_is_top_rank",  # President: is the card the player's highest rank (2 high)?
         "coup_players_in",  # Coup: players still holding influence (game ends at 1)
         "coup_next_in_game",  # Coup: the next in-game player clockwise
         "coup_has_char",  # Coup: does a player hold the claimed character (a proof)?
-        "coup_note_reveal",  # Coup: trace the influence flip that just happened
         "coup_game_summary",  # Coup: emit the conservation/finals trace at game end
         "peg_value",  # Cribbage: pegging/fifteens value of a card (A=1, faces 10)
         "peg_pair_points",  # Cribbage: pairs points at the tail of the live pegging count
@@ -166,5 +175,145 @@ STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
         "canasta_canasta_bonus",  # Canasta: 500 per natural / 300 per mixed canasta
         "canasta_red3_bonus",  # Canasta: the red-three bonus, sign by melded-or-not
         "canasta_hand_points",  # Canasta: card points left in both partners' hands
+    }
+)
+
+# The classification of every STDLIB_CALL_FUNCS member by the game feature its
+# semantics READ. A call that reads a card's suit or rank, the ranking order,
+# card-point values, or follow/trump/lead machinery cannot mean anything in a
+# piece game (no suit/rank/points), so it is a resolve-time FLAVOR wall
+# (DECK_ONLY_CALL_FUNCS); a call that reads the `board:` entry cannot mean
+# anything in a boardless game, so it is a resolve-time BOARD wall
+# (BOARD_ONLY_CALL_FUNCS -- the deck-only classification's board twin, keyed on
+# `game.board is None` rather than the flavor); GENERIC_CALL_FUNCS -- functions
+# that touch only players/teams/seats/zone counts or ordered-collection POSITION
+# (top_of/bottom_of), never a card's content or a board -- stay legal
+# everywhere. The three sets partition the registry, pinned by
+# tests/test_piece_content_walls.py so a newly registered call cannot land
+# unclassified (the "vacuously green" guard) and tests/test_signatures.py.
+# Derived by an audit that read every implementation; membership IS the
+# classification rationale (decisions.md "Closed-domain completeness"). The
+# organizing rule for the boundary: locating an OPAQUE caller-supplied token is
+# generic (`player_holding` matches a card by identity; `canasta_discard_ok`'s
+# card argument is unread); privileging a SPECIFIC rank/suit -- by `.rank`/
+# `.suit`, `rs.rank_index`, `rs.card_values`, a point table, or an internal
+# card literal (`bigtwo_first_leader` builds the 3 of diamonds) -- is deck-only.
+GENERIC_CALL_FUNCS: frozenset[str] = frozenset(
+    {
+        "bottom_of",
+        "canasta_discard_ok",
+        "canasta_red3_bonus",
+        "coup_game_summary",
+        "coup_next_in_game",
+        "coup_players_in",
+        "error",
+        "five_hundred_bid_level",
+        "peg_origin_of",
+        "player_holding",
+        "skat_effective_loss",
+        "skat_next_bid",
+        "team_of",
+        "tichu_double_victory",
+        "tichu_first_out",
+        "tichu_next_holder",
+        "tichu_opponent_team",
+        "tichu_partner",
+        "tichu_players_holding",
+        "top_of",
+    }
+)
+
+# The complement, listed explicitly (not `STDLIB_CALL_FUNCS - GENERIC...`) so
+# the partition test can FAIL: a newly registered call absent from both sets is
+# unclassified, and the test names it rather than silently defaulting it here.
+DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
+    {
+        "belote_best_is",
+        "belote_decl_class",
+        "belote_decl_height",
+        "belote_decl_points",
+        "belote_decl_size",
+        "belote_decl_slot",
+        "belote_decl_trump",
+        "belote_opp_winning",
+        "belote_royal_player",
+        "belote_trump_height",
+        "bigtwo_first_leader",
+        "bring_in_seat",
+        "canasta_add_ok",
+        "canasta_black3_ok",
+        "canasta_can_start",
+        "canasta_can_take_pile",
+        "canasta_canasta_bonus",
+        "canasta_close_ok",
+        "canasta_hand_points",
+        "canasta_is_black3",
+        "canasta_is_red3",
+        "canasta_meld_points",
+        "canasta_must_take_pile",
+        "canasta_pile_rank",
+        "canasta_stage_ok",
+        "canasta_top_is_wild",
+        "canasta_top_starts_pile",
+        "card_value",
+        "coup_has_char",
+        "cribbage_crib_value",
+        "cribbage_show_value",
+        "doko_trick_winner",
+        "first_to_act_seat",
+        "five_hundred_bid_value",
+        "five_hundred_follow_ok",
+        "five_hundred_lead_ok",
+        "five_hundred_next_bid",
+        "five_hundred_trick_winner",
+        "gin_arrange_ok",
+        "gin_can_declare",
+        "gin_can_declare_free",
+        "gin_can_knock",
+        "gin_card_points",
+        "gin_deadwood",
+        "gin_flat_points",
+        "gin_knock_ok",
+        "gin_lay_ok_a",
+        "gin_lay_ok_b",
+        "gin_lay_ok_c",
+        "gin_shown_points",
+        "gin_valid_meld",
+        "peg_pair_points",
+        "peg_run_points",
+        "peg_value",
+        "pinochle_meld_value",
+        "pot_share",
+        "president_is_top_rank",
+        "rank_value",
+        "schnapsen_trick_winner",
+        "skat_follow_ok",
+        "skat_matadors",
+        "skat_trick_winner",
+        "strain_index",
+        "suit_of",
+        "tarot_card_points",
+        "tarot_excuse_player",
+        "tarot_led_suit",
+        "tarot_per_opp",
+        "tarot_trump_height",
+        "tichu_card_points",
+        "tichu_dragon_won",
+        "tichu_mahjong_holder",
+    }
+)
+
+# Board-reading calls: rejected in a boardless game (no `board:` to read), the
+# board twin of DECK_ONLY above. Listed explicitly (not derived by subtraction)
+# so the partition test can name a newly registered board call that nobody
+# classified, rather than silently absorbing it here.
+BOARD_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
+    {
+        "lines",  # the board's length-k lines -- reads ctx.rs.board
+        "neighbor",  # the destination cell one step along a dir -- reads ctx.rs.board
+        "has_step",  # whether a step stays on the board -- reads ctx.rs.board
+        "is_diagonal",  # whether a dir captures -- reads the board's direction data
+        "home",  # a player's home region -- reads ctx.rs.board
+        "far_row",  # the far rank (reach goal) -- reads ctx.rs.board
     }
 )

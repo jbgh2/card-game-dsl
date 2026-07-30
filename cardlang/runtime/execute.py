@@ -8,10 +8,19 @@ the (possibly extended) context the caller threads into subsequent statements.
 from __future__ import annotations
 
 import itertools
-from typing import Any, Callable, assert_never
+from collections.abc import Callable
+from typing import Any, assert_never
 
 from cardlang.ast import nodes as n
-from cardlang.domains import SIMULTANEOUS_ROLES, binds_actor, role_members
+from cardlang.domains import (
+    SIMULTANEOUS_ROLES,
+    Role,
+    binds_actor,
+    role_members,
+    role_names,
+    role_of,
+    require_role,
+)
 from cardlang.runtime import mechanics, observe
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import (
@@ -22,7 +31,8 @@ from cardlang.runtime.state import (
     _SkipHand,
     elements,
 )
-from cardlang.runtime.values import Card, CardSet, Player
+from cardlang.runtime.values import Card, CardSet, Player, content_noun
+from cardlang.stdlib.zones import zone_capacity
 
 
 def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
@@ -118,6 +128,26 @@ def run_body(stmts: tuple[n.Stmt, ...], ctx: Ctx) -> None:
 # --- movement ---
 
 
+def _deposit(ctx: Ctx, dest: Zone, cards: list[Card]) -> None:
+    """The one choke point every destination append (movement, gather, deal,
+    simultaneous pass) routes through, so a finite-capacity zone type can
+    never be silently overfilled. The zone-type registry (cardlang/stdlib/
+    zones.py ZONE_CAPACITY) owns which types are bounded; this backstops a
+    game's own guards (`cells[slot] is empty`) rather than replacing them."""
+    name, key = ctx.rs.zones.locate(dest)
+    label = name if key is None else f"{name}[{key}]"
+    ztype = ctx.rs.zones.zone_type[name]
+    cap = zone_capacity(ztype)
+    held = len(dest.cards)
+    if cap is not None and held + len(cards) > cap:
+        raise RuntimeError(
+            f"zone '{label}' is a {ztype} (capacity {cap}) and already holds "
+            f"{held} — the move would overfill it; guard the move "
+            f"(`{label} is empty`)"
+        )
+    dest.add_all(cards)
+
+
 def _movement(stmt: n.Movement, ctx: Ctx) -> None:
     if stmt.source is None:
         _gather(stmt, ctx)  # `move all cards to <zone>` — collect from everywhere
@@ -139,7 +169,7 @@ def _movement(stmt: n.Movement, ctx: Ctx) -> None:
         else:
             for player in ctx.rs.seating.players:
                 cards = _select(source, stmt, ctx, player)
-                ctx.rs.zones.instance(stmt.dest.name, player).add_all(cards)
+                _deposit(ctx, ctx.rs.zones.instance(stmt.dest.name, player), cards)
                 if ctx.observer is not None:
                     observe.movement(
                         ctx, ctx.rs.zones.locate(source), (stmt.dest.name, player), cards
@@ -158,16 +188,18 @@ def _movement(stmt: n.Movement, ctx: Ctx) -> None:
             else ctx.current_player or 0
         )
         selected = _select(source, stmt, ctx, player)
-        dest.add_all(selected)
+        _deposit(ctx, dest, selected)
         if ctx.observer is not None:
             observe.movement(
                 ctx, ctx.rs.zones.locate(source), ctx.rs.zones.locate(dest), selected
             )
 
 def _card_pred(filter_expr: n.Expr, ctx: Ctx) -> Callable[[Card], bool]:
-    """A movement/reveal `where` filter as a card predicate: an ordinary
-    expression evaluated with `card` bound per candidate."""
-    return lambda c: bool(evaluate(filter_expr, ctx.with_local("card", c)))
+    """A movement/reveal `where` filter as a candidate predicate: an ordinary
+    expression evaluated with the flavor noun (`card`/`piece`) bound per
+    candidate -- the same name resolve scoped and typecheck bound."""
+    noun = content_noun(ctx.rs.content_flavor, plural=False)
+    return lambda c: bool(evaluate(filter_expr, ctx.with_local(noun, c)))
 
 
 def _deal_round_robin(
@@ -184,7 +216,7 @@ def _deal_round_robin(
         i = 0
         while source.cards:
             card = source.cards.pop(0)
-            ctx.rs.zones.instance(dest_family, players[i % len(players)]).add(card)
+            _deposit(ctx, ctx.rs.zones.instance(dest_family, players[i % len(players)]), [card])
             dealt[players[i % len(players)]].append(card)
             i += 1
     else:
@@ -192,7 +224,7 @@ def _deal_round_robin(
         pool = [c for c in source.cards if pred(c)]
         for i, card in enumerate(pool):
             source.remove(card)
-            ctx.rs.zones.instance(dest_family, players[i % len(players)]).add(card)
+            _deposit(ctx, ctx.rs.zones.instance(dest_family, players[i % len(players)]), [card])
             dealt[players[i % len(players)]].append(card)
     if ctx.observer is not None:
         src = ctx.rs.zones.locate(source)
@@ -219,7 +251,7 @@ def _gather(stmt: n.Movement, ctx: Ctx) -> None:
     # presentational (decisions.md, the gather paragraph).
     zones = ctx.rs.zones
     for name in sorted(set(zones.singles) | set(zones.families)):
-        sources: list[tuple[tuple[str, Player | None], Zone]]
+        sources: list[tuple[tuple[str, Player | str | None], Zone]]
         if name in zones.singles:
             sources = [((name, None), zones.singles[name])]
         else:
@@ -230,7 +262,7 @@ def _gather(stmt: n.Movement, ctx: Ctx) -> None:
             taken = zone.take_all()
             if ctx.observer is not None:
                 observe.movement(ctx, loc, zones.locate(dest), taken)
-            dest.add_all(taken)
+            _deposit(ctx, dest, taken)
 
 
 def _check_count(count: int, mode: str | None) -> int:
@@ -240,7 +272,7 @@ def _check_count(count: int, mode: str | None) -> int:
     Negative is never meaningful; zero under `chosen` is a vacuous decision
     node (no-implicit-actions); zero under dealt/`random` is an allowed
     no-op (a computed "deal what remains" may legitimately be zero —
-    recorded in roadmap.md)."""
+    recorded in roadmap.md, "Grammar surface deferred by the checker")."""
     if count < 0:
         raise RuntimeError(
             f"movement amount evaluated to {count} — a negative amount is "
@@ -335,11 +367,12 @@ def _select_joint(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> l
         k = _check_count(int(evaluate(amount, ctx)), stmt.mode)
         sizes = range(k, k + 1)
     assert stmt.filter is not None  # grammar: `jointly` IS a where-clause form
+    noun = content_noun(ctx.rs.content_flavor, plural=True)
     candidates: list[CardSet] = [
         CardSet(subset)
         for size in sizes
         for subset in itertools.combinations(pool, size)
-        if bool(evaluate(stmt.filter, ctx.with_local("cards", list(subset))))
+        if bool(evaluate(stmt.filter, ctx.with_local(noun, list(subset))))
     ]
     if not candidates:
         # No implicit skip (decisions.md "No implicit actions"): a decision
@@ -499,9 +532,24 @@ def _for_each(stmt: n.ForEach, ctx: Ctx) -> None:
     domain's member IS an actor, so the body also runs `acting_as(member)` and a
     decision inside it (`bid[p] := choose …`) knows who is choosing; a VALUE
     domain's member is a bare enum value and carries no actor. A new domain row
-    therefore arrives here already implemented."""
-    actor_bound = binds_actor(stmt.role)  # resolve rejects roles outside the registry
-    for member in role_members(stmt.role, ctx):
+    therefore arrives here already implemented.
+
+    A POSITION-domain role (a board's `cell`) is the one arm outside that
+    registry: its members are per-game, so it enumerates `rs.position_domains`
+    directly — the `_domain_query` twin in `runtime/evaluate.py` — and never
+    reaches `role_members`, whose closed registry deliberately raises for a
+    role it does not hold. A position is a value, not a seat: it binds no
+    actor."""
+    if stmt.role in ctx.rs.position_domains:
+        for position in ctx.rs.position_domains[stmt.role]:
+            execute(stmt.body, ctx.with_local(stmt.binder, position))
+        return
+    # Past the position arm, the role must be a registry row -- resolve walls
+    # `for each` against the iteration column plus this game's named-member
+    # position domains, and the position half was taken above.
+    role = require_role(stmt.role, "`for each` role")
+    actor_bound = binds_actor(role)
+    for member in role_members(role, ctx):
         body_ctx = ctx.with_local(stmt.binder, member)
         if actor_bound:
             body_ctx = body_ctx.acting_as(member)
@@ -595,10 +643,10 @@ def _offer(stmt: n.Offer, ctx: Ctx) -> None:
     pctx = ctx.acting_as(player)
     # Every named move type's guard-filtered cross product (`concrete_moves`),
     # concatenated in the vocabulary's declared order — one flat candidate
-    # list, exactly like the auction form. A nullary move (every offer-using
-    # game today) contributes at most one `(name, None)` candidate, in the
-    # same order the old bare-name list did, so the chooser draws the same
-    # index; `render()` turns `(name, None)` back into the bare name for
+    # list, exactly like the auction form. A nullary move contributes at most
+    # one `(name, None)` candidate, so the
+    # index the chooser draws is that move type's position in the
+    # vocabulary; `render()` turns `(name, None)` back into the bare name for
     # observation, so `observe.announce`/`observe.choice` see identical text.
     # `pctx` (already bound to `player`) is threaded into `concrete_moves` so
     # the binding isn't redundantly recomputed for every move type in the
@@ -691,9 +739,9 @@ def _each_simultaneous(stmt: n.EachSimultaneous, ctx: Ctx) -> None:
     # to that fact: widening SIMULTANEOUS_ROLES in the domain table without
     # extending this loop must fail here by name, not silently iterate players
     # for some other role.
-    assert SIMULTANEOUS_ROLES == {"player"} and stmt.role == "player", (
+    assert SIMULTANEOUS_ROLES == {Role.PLAYER} and role_of(stmt.role) is Role.PLAYER, (
         f"_each_simultaneous implements the player row only; SIMULTANEOUS_ROLES "
-        f"is {sorted(SIMULTANEOUS_ROLES)} and this block names '{stmt.role}' — "
+        f"is {role_names(SIMULTANEOUS_ROLES)} and this block names '{stmt.role}' — "
         f"extend the executor before widening the registry"
     )
     # Snapshot every player's chosen cards against pre-block hands, then apply.
@@ -758,7 +806,7 @@ def _apply_pass(
         )
     for card in selections[player]:
         source.remove(card)
-        dest.add(card)
+        _deposit(ctx, dest, [card])
     if ctx.observer is not None:
         observe.movement(
             ctx, ctx.rs.zones.locate(source), ctx.rs.zones.locate(dest), selections[player]

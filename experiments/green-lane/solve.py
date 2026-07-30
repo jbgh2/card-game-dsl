@@ -20,13 +20,12 @@ import sys
 import time
 from pathlib import Path
 
-import pyspiel
-from open_spiel.python.algorithms import cfr, exploitability
-
 import glcommon
+import pyspiel
 from analyze_exploit import exploitation
 from analyze_heuristics import RulePolicy, joint_value
 from analyze_mini import census, expected_value, reach_weighted_strategies
+from open_spiel.python.algorithms import cfr, exploitability
 
 EXPL_EVERY = 100
 

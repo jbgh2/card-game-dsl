@@ -6,7 +6,8 @@ a standing play, and the card-point table. Extracted from the Tichu monolith so 
 kernel migration can call them as stdlib primitives — ported *verbatim* so the
 candidate-list order matches the monolith's chooser draws exactly.
 
-Scope reductions (random play; see docs/roadmap.md): the Phoenix is a wildcard in
+Scope reductions (random play; see docs/kernel-migration.md, Workstream 5,
+and issue #140): the Phoenix is a wildcard in
 pairs / triples / full houses (not straights / consecutive pairs / bombs);
 straight-flush bombs are omitted (four-of-a-kind bombs only); the Mahjong wish is
 omitted.
@@ -38,7 +39,7 @@ def _points(c: Card) -> int:
     return 0
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Play:
     kind: str       # single|pair|triple|fullhouse|straight|pairseq|bomb|dog
     length: int
@@ -110,7 +111,7 @@ def _combos(hand: list[Card]) -> list[Play]:
             run.append(run[-1] + 1)
         if len(run) >= 5:
             for length in range(5, len(run) + 1):
-                for s in range(0, len(run) - length + 1):
+                for s in range(len(run) - length + 1):
                     seg = run[s:s + length]
                     cards = tuple(by_rank[r][0] for r in seg)
                     out.append(Play("straight", length, seg[-1], cards))
@@ -123,7 +124,7 @@ def _combos(hand: list[Card]) -> list[Play]:
             run.append(run[-1] + 1)
         if len(run) >= 2:
             for length in range(2, len(run) + 1):
-                for s in range(0, len(run) - length + 1):
+                for s in range(len(run) - length + 1):
                     seg = run[s:s + length]
                     cards = tuple(c for r in seg for c in by_rank[r][:2])
                     out.append(Play("pairseq", length, seg[-1], cards))

@@ -1,0 +1,14 @@
+// Wall: resolve.py's `_resolve_board`. The same wall as `board_with_cards`
+// from the "forgot pieces:" direction: a board game that names a card deck
+// (the only non-piece content a parsed game can carry) is rejected naming
+// both `board:` and `pieces:`.
+game BoardWithoutPieces {
+  players: 2
+  max_length: 20
+  cards: standard52
+  board: grid(2, 2)
+  zones { deck : Deck }
+  state { score[player] : Integer = 0 }
+  phase play { shuffle deck }
+  winner: highest score
+}

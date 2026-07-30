@@ -16,21 +16,22 @@ expressible there:
 Random players bet/call/raise/fold uniformly among the legal actions. Total chips
 are invariant — the falsifiable invariant for the betting and pot logic.
 
-Simplifications (see docs/roadmap.md): the 4th-street open-pair limit doubling is
+Simplifications (see docs/games/seven-card-stud.md): the 4th-street open-pair
+limit doubling is
 omitted (lower limit on 3rd/4th, upper on 5th–7th).
 """
 
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Mapping, Sequence
 from itertools import combinations
-from typing import Any
 
 from cardlang.runtime import reads
-from cardlang.runtime.state import Ctx
+from cardlang.runtime.sidecar import EngineFacts
 from cardlang.runtime.values import Card, Player
 
-_R = reads.row("cardlang/runtime/stud.py", "seven-card-stud.cardlang")
+ROW = reads.row("cardlang/runtime/stud.py", "seven-card-stud.cardlang")
 
 # The ante (1), bring-in (2), street limits (5/10), and raise cap (3) live in
 # seven-card-stud.cardlang; this module keeps only the poker evaluator, the seat
@@ -104,27 +105,27 @@ def _highest_upcards(seats: list[Player], up: dict[Player, list[Card]]) -> Playe
     return max(seats, key=lambda p: sorted((_RV[c.rank] for c in up[p]), reverse=True))
 
 
-def bring_in_seat(ctx: Ctx) -> Player:
+def bring_in_seat(facts: EngineFacts, gr: reads.GameReads) -> Player:
     """The player who must post the bring-in: the lowest door card among players
     still holding chips (no one has folded at bring-in time)."""
-    stack = reads.state(ctx.rs, _R, "stack")
-    up = reads.family(ctx.rs, _R, "upcards")
-    able = [p for p in ctx.rs.seating.players if stack[p] > 0]
-    door = {p: up[p].cards[0] for p in able}
+    stack = gr.state["stack"]
+    up = gr.families["upcards"]
+    able = [p for p in facts.seating.players if stack[p] > 0]
+    door = {p: up[p][0] for p in able}
     return _lowest_door(able, door)
 
 
-def first_to_act_seat(ctx: Ctx) -> Player:
+def first_to_act_seat(facts: EngineFacts, gr: reads.GameReads) -> Player:
     """The first player to act on a later street: the highest visible upcards among
     players still live (holding chips and not folded)."""
-    stack = reads.state(ctx.rs, _R, "stack")
-    folded = reads.state(ctx.rs, _R, "folded")
-    players = list(ctx.rs.seating.players)
-    up = reads.family(ctx.rs, _R, "upcards")
+    stack = gr.state["stack"]
+    folded = gr.state["folded"]
+    players = list(facts.seating.players)
+    up = gr.families["upcards"]
     live = [p for p in players if stack[p] > 0 and not folded[p]]
     if not live:  # unreachable in a real hand (a street runs only with >= 2 live)
         return players[0]
-    cards = {p: list(up[p].cards) for p in live}
+    cards = {p: list(up[p]) for p in live}
     return _highest_upcards(live, cards)
 
 
@@ -132,8 +133,8 @@ def _payouts(
     in_hand: list[Player],
     committed: dict[Player, int],
     folded: dict[Player, bool],
-    hole: Any,
-    upcards: Any,
+    hole: Mapping[Player, Sequence[Card]],
+    upcards: Mapping[Player, Sequence[Card]],
 ) -> dict[Player, int]:
     """The side-pot settlement, by amount committed: layers on the distinct
     commitment levels, each layer split among its eligible contenders holding the
@@ -150,7 +151,7 @@ def _payouts(
         payouts[contenders[0]] += pot
         return payouts
     best: dict[Player, tuple[int, ...]] = {
-        p: hand_rank(list(hole[p].cards) + list(upcards[p].cards)) for p in contenders
+        p: hand_rank(list(hole[p]) + list(upcards[p])) for p in contenders
     }
     levels = sorted({committed[p] for p in in_hand if committed[p] > 0})
     prev = 0
@@ -174,19 +175,18 @@ def _payouts(
     return payouts
 
 
-def pot_share(ctx: Ctx, player: Player) -> int:
+def pot_share(facts: EngineFacts, gr: reads.GameReads, player: Player) -> int:
     """The chips `player` collects at showdown: a pure read of `in_hand` /
     `committed` / `folded` state plus the live `hole`/`upcards` zones (whichever
     of the two the cards currently sit in — the DSL's reveal move only changes
     which zone holds them, not the concatenated 7-card hand `_payouts` ranks). No
     RNG, no mutation; the DSL statement `stack[p] := stack[p] + pot_share(p)`
     is what actually moves the chips."""
-    rs = ctx.rs
-    players = list(rs.seating.players)
-    committed = reads.state(rs, _R, "committed")
-    folded = reads.state(rs, _R, "folded")
-    in_hand_flags = reads.state(rs, _R, "in_hand")
+    players = list(facts.seating.players)
+    committed = gr.state["committed"]
+    folded = gr.state["folded"]
+    in_hand_flags = gr.state["in_hand"]
     in_hand = [p for p in players if in_hand_flags[p]]
-    hole = reads.family(rs, _R, "hole")
-    upcards = reads.family(rs, _R, "upcards")
+    hole = gr.families["hole"]
+    upcards = gr.families["upcards"]
     return _payouts(in_hand, committed, folded, hole, upcards).get(player, 0)

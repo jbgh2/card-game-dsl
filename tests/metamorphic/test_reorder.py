@@ -25,7 +25,11 @@ covered:    every corpus game (exhaustive), every seed in `pairing.SEEDS`;
             there is exactly one) and
             `test_no_state_default_reads_a_sibling` (state-decl order is
             irrelevant to `_declare_state` only because no default
-            expression reads a same-block sibling). The zones axis covers
+            expression reads a same-block sibling). Plus one ANTI-VACUITY
+            pin, `test_reorder_actually_changes_every_game`: reversal is the
+            identity on a list of length <= 1, so a game small enough would
+            pair against an equal tree — the same object once `_check` is
+            memoized — and pass for free. The zones axis covers
             every game: a gather visits zones in canonical sorted-name order
             (`execute.py::_gather`; decisions.md "Loop lifecycle"), the
             canonicalization that retired this suite's original gather-order
@@ -49,7 +53,6 @@ from cardlang.diagnostics import DiagnosticError
 from cardlang.parse import parse_text
 from cardlang.pipeline import _check
 from cardlang.resolve import _walk
-
 from tests.metamorphic import pairing
 from tests.metamorphic.reorder import reorder_declarations
 
@@ -68,14 +71,22 @@ _PARSE_LEVEL_CASES = frozenset(
     {
         "syntax_error",
         # The game-skeleton walls in parse.py's `game()`/`start()` builders
-        # (missing/duplicated single-valued clauses, game-count errors) —
-        # rejected before any tree exists to reorder.
+        # (missing/duplicated single-valued clauses, content-clause mutual
+        # exclusion, game-count errors) — rejected before any tree exists to
+        # reorder.
         "missing_cards_declaration",
         "missing_players_declaration",
         "missing_players_and_cards",
         "duplicate_game_clause",
+        "duplicate_pieces_clause",
+        "board_duplicate_clause",
+        "pieces_and_cards_together",
         "no_game_block",
         "two_game_blocks",
+        # The collection-quantifier register has no `number of <noun> in
+        # <expr> where ...` production -- a raw grammar dead end, not a
+        # resolve wall (issue #111).
+        "cell_count_in_collection_not_admitted",
     }
 )
 
@@ -91,6 +102,28 @@ def test_every_game_has_exactly_one_deck_zone(path: Path) -> None:
     game = pairing.parse_corpus_game(path)
     decks = [z.name for z in game.zones if z.type_ref.name == "Deck"]
     assert len(decks) == 1, f"{path.name}: {len(decks)} Deck-typed zones, expected 1"
+
+
+@pytest.mark.parametrize("path", pairing.CORPUS, ids=lambda p: p.name)
+def test_reorder_actually_changes_every_game(path: Path) -> None:
+    """The anti-vacuity pin `test_rename.py::test_every_game_renames_something`
+    and `test_inline.py::test_splice_removes_every_procedure_construct` already
+    have, and reorder lacked.
+
+    Reversal is the identity on a list of length <= 1, so a game with at most
+    one zone, move type, rule, and state decl per block would reorder to an
+    EQUAL tree. Since `parse_text`/`_check` are memoized (cardlang/parse.py,
+    Contract), an equal tree is the SAME checked object, and that game's
+    pairing case would compare a thing to itself and pass for free —
+    "vacuously green" in decisions.md's sense, and invisible in a green run.
+    Today the corpus minimum is 3 zones, so this holds with room; it is pinned
+    because the pairing harness's docstring claims the transformed side ALWAYS
+    takes a fresh key, and "always" is a wall or it is nothing."""
+    game = pairing.parse_corpus_game(path)
+    assert reorder_declarations(game) != game, (
+        f"{path.name}: reorder is the identity on this game — its pairing case "
+        "compares the tree to itself and cannot fail"
+    )
 
 
 @pytest.mark.parametrize("path", pairing.CORPUS, ids=lambda p: p.name)

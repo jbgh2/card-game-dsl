@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from cardlang.pipeline import check_source
-from cardlang.runtime.bigtwo import Play, _RANK, _combos, _legal_follows
+from cardlang.runtime.bigtwo import _RANK, Play, _combos, _legal_follows
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.values import Card
 
@@ -108,10 +108,10 @@ def test_random_games_satisfy_invariants() -> None:
 
         def tracer(event: str, data: Any) -> None:
             if event == "hand_end":
-                hand_totals.append(dict(data))
+                hand_totals.append(dict(data))  # noqa: B023 -- consumed before the loop advances
             elif event == "game_end":
-                census.clear()
-                census.update(data)
+                census.clear()  # noqa: B023 -- consumed before the loop advances
+                census.update(data)  # noqa: B023 -- consumed before the loop advances
 
         result = play_game(game, random.Random(seed), tracer)
 
@@ -121,7 +121,7 @@ def test_random_games_satisfy_invariants() -> None:
             deltas = {p: cum[p] - prev[p] for p in cum}
             zero = [p for p, d in deltas.items() if d == 0]
             assert len(zero) == 1, f"seed {seed}: not exactly one shed-out winner: {deltas}"
-            for p, d in deltas.items():
+            for d in deltas.values():
                 if d != 0:
                     assert d in _VALID_PENALTIES, f"seed {seed}: bad penalty {d}"
             prev = cum

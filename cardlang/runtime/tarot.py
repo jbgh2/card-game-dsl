@@ -34,10 +34,10 @@ doubled; the 78 cards sum to 182).
 from __future__ import annotations
 
 from cardlang.runtime import reads
-from cardlang.runtime.state import Ctx
+from cardlang.runtime.sidecar import EngineFacts
 from cardlang.runtime.values import Card, Player
 
-_R = reads.row("cardlang/runtime/tarot.py", "french-tarot.cardlang")
+ROW = reads.row("cardlang/runtime/tarot.py", "french-tarot.cardlang")
 
 # Bid levels, ascending, with their scoring multipliers.
 _LEVELS = ("petite", "garde", "garde_sans", "garde_contre")
@@ -74,12 +74,12 @@ def _led_suit(cards: list[Card]) -> str:
     return "excuse"  # only the Excuse played so far
 
 
-def tarot_led_suit(ctx: Ctx) -> str:
+def tarot_led_suit(facts: EngineFacts, gr: reads.GameReads) -> str:
     """The effective led suit for the live trick, read off the `trick_pile`
     zone (the follow-suit demand's own view — distinct from the kernel's
     `state.led_suit`, the literal first card's suit, which gates a rule's
     `applies_when` instead)."""
-    return _led_suit(reads.single(ctx.rs, _R, "trick_pile").cards)
+    return _led_suit(list(gr.singles["trick_pile"]))
 
 
 def tarot_trump_height(c: Card) -> int:
@@ -108,13 +108,15 @@ def tarot_trick_winner(
     return max(of_led, key=lambda pc: _suit_strength(pc[1]))[0]
 
 
-def tarot_excuse_player(ctx: Ctx) -> Player | None:
+def tarot_excuse_player(
+    facts: EngineFacts, gr: reads.GameReads
+) -> Player | None:
     """The player who played the Excuse in the trick that just completed, or
     None if nobody did. Reads the round's exposed terminal state exactly as
     the `state` pronoun does (`mech_state[-1]` while a round is still active,
     else `last_round_state`) — the DSL calls this right after `round
     play_to_trick` returns, when the round is no longer active."""
-    state = ctx.rs.mech_state[-1] if ctx.rs.mech_state else ctx.rs.last_round_state
+    state = facts.round_state
     if state is None:
         # Same contract as the `state` pronoun: whether a round has run is
         # live game flow, so a premature call is the description's error, in
@@ -127,7 +129,7 @@ def tarot_excuse_player(ctx: Ctx) -> Player | None:
     return next((p for p, c in played if c.suit == "excuse"), None)
 
 
-def tarot_per_opp(ctx: Ctx, pb: int) -> int:
+def tarot_per_opp(facts: EngineFacts, gr: reads.GameReads, pb: int) -> int:
     """The zero-sum per-opponent settlement amount for the hand just played:
     the bouts-conditional threshold ({3: 36, 2: 41, 1: 51, 0: 56} doubled
     points), the taker's doubled card points (`captured[taker]`, plus the
@@ -142,19 +144,18 @@ def tarot_per_opp(ctx: Ctx, pb: int) -> int:
     bouts contribution is always zero and is not added: both discard filters
     (`is_pref_discard`, `not is_bout`) exclude every bout by construction, so
     a discarded card can never BE one."""
-    rs = ctx.rs
-    taker: Player = reads.state(rs, _R, "taker")
-    level = _LEVELS[reads.state(rs, _R, "bid_level") - 1]  # bid_level is 1..4 (0 = no bid)
-    captured = reads.family(rs, _R, "captured")
-    chien = reads.single(rs, _R, "chien")
-    discard = reads.family(rs, _R, "discard")
+    taker: Player = gr.state["taker"]
+    level = _LEVELS[gr.state["bid_level"] - 1]  # bid_level is 1..4 (0 = no bid)
+    captured = gr.families["captured"]
+    chien = gr.singles["chien"]
+    discard = gr.families["discard"]
 
-    taker_doubled = sum(tarot_card_points(c) for c in captured[taker].cards)
-    taker_doubled += sum(tarot_card_points(c) for c in discard[taker].cards)
-    bouts = sum(1 for c in captured[taker].cards if _is_bout(c))
+    taker_doubled = sum(tarot_card_points(c) for c in captured[taker])
+    taker_doubled += sum(tarot_card_points(c) for c in discard[taker])
+    bouts = sum(1 for c in captured[taker] if _is_bout(c))
     if level == "garde_sans":
-        taker_doubled += sum(tarot_card_points(c) for c in chien.cards)
-        bouts += sum(1 for c in chien.cards if _is_bout(c))
+        taker_doubled += sum(tarot_card_points(c) for c in chien)
+        bouts += sum(1 for c in chien if _is_bout(c))
     threshold = {3: 36, 2: 41, 1: 51, 0: 56}[bouts]
 
     pt = taker_doubled / 2 - threshold

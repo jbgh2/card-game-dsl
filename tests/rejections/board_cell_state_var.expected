@@ -1,0 +1,1 @@
+board_cell_state_var.cardlang:11:40: error: unknown type 'cell' in declaration of 'foo'

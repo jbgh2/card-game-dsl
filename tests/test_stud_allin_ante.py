@@ -1,9 +1,10 @@
 """Regression: a Stud hand where everyone goes all-in on the ante must not crash.
 
 Two players each enter with exactly one chip (= the ante), so after antes every
-entrant is all-in and nobody can bring in or bet. Before the fix, the bring-in's
-`min(able, ...)` over an empty list raised ValueError. The hand should instead be
-dealt out and settled at showdown.
+entrant is all-in and nobody can bring in or bet. Without the game's two-entrant
+gate on the bring-in phase, `bring_in_seat`'s `min` over an empty `able` list
+would raise ValueError. The hand should instead be dealt out and settled at
+showdown.
 """
 
 from __future__ import annotations
@@ -26,8 +27,8 @@ def test_ante_all_in_hand_settles_without_crashing() -> None:
 
         def tracer(event: str, data: Any) -> None:
             if event == "game_end":
-                census.clear()
-                census.update(data)
+                census.clear()  # noqa: B023 -- consumed before the loop advances
+                census.update(data)  # noqa: B023 -- consumed before the loop advances
 
         result = play_game(game, random.Random(seed))  # must not raise
         # Two chips total, always; the game ends with one player holding them.

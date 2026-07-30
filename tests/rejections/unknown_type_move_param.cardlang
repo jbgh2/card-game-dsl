@@ -1,0 +1,21 @@
+// Wall: `_check_move_params`, the move-parameter domain gate — run for every
+// DECLARED move type. The gate's strength was never the problem; its REACH
+// was. It ran only for a move type some `offer` or `round offering` names, so
+// a move type reached from neither had its parameter domains unchecked
+// entirely: `Integar` fell through `typecheck.type_from_name` to the
+// permissive `TAny`, and the guard's always-false `x is hearts` — rejected
+// when the domain is spelled correctly — was accepted. Declaring a move type
+// is what makes its parameters real; whether a phase happens to offer it is
+// not the checker's business.
+game UnknownTypeMoveParam {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase play { for each player p: score[p] := 1 }
+  winner: highest score
+}
+
+move_type mv(x : Integar) { when: x is hearts  effect { score[actor] := 1 } }

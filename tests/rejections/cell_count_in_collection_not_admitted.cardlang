@@ -1,0 +1,31 @@
+// Wall: the grammar. The collection quantifier register admits only the
+// boolean `any`/`all` shapes (`q_any_in`/`q_all_in`); no production spells
+// `number of <noun> in <expr> where …` (the collection twin of `number of
+// cells where …`), so it is a raw syntax error, not a resolve diagnostic
+// (issue #111).
+game CellCountInCollection {
+  players: 2
+  direction: clockwise
+  max_length: 20
+  board: grid(3, 3)
+  pieces: xo_marks
+  zones {
+    box             : Deck
+    square[cell]    : Cell<cell>
+    reserve[player] : PlayerPile<player>
+  }
+  state {
+    done : Boolean = false
+  }
+  phase play {
+    turns t from 0 over all players until done {
+      offer to t one of [place]
+    }
+  }
+  winner: highest done
+}
+
+move_type place(at : cell) {
+  when: (number of cells in lines(3) where (square[at] is empty)) > 0
+  effect { move one piece from reserve[actor] to square[at] }
+}

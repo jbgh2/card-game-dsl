@@ -24,16 +24,18 @@ from __future__ import annotations
 
 from cardlang.runtime import reads
 from cardlang.runtime.combinations import Play, _combos, _legal_follows, _points
-from cardlang.runtime.state import Ctx
+from cardlang.runtime.sidecar import EngineFacts
 from cardlang.runtime.values import Card, Player
 
-_R = reads.row("cardlang/runtime/tichu.py", "tichu.cardlang")
+ROW = reads.row("cardlang/runtime/tichu.py", "tichu.cardlang")
 
 
 # --- the climb queries (the monolith's candidate lists, verbatim) ---
 
 
-def tichu_lead_options(hand: list[Card], ctx: Ctx) -> list[Play]:
+def tichu_lead_options(
+    facts: EngineFacts, gr: reads.GameReads, hand: list[Card]
+) -> list[Play]:
     """Every combination the leader may lead: the engine's combos, then the
     three specials as lead singles in hand order (Dragon highest at 15, the
     Phoenix at 1.5, the Dog as its own trick-ending kind). `ctx` is unused —
@@ -50,9 +52,11 @@ def tichu_lead_options(hand: list[Card], ctx: Ctx) -> list[Play]:
     return leads
 
 
-def tichu_follows(hand: list[Card], current: Play, ctx: Ctx) -> list[Play]:
+def tichu_follows(
+    facts: EngineFacts, gr: reads.GameReads, hand: list[Card], current: Play
+) -> list[Play]:
     """The combinations that legally beat the standing play (same kind and
-    length, higher key; any bomb; the Dragon/Phoenix single answers). `ctx` is
+    length, higher key; any bomb; the Dragon/Phoenix single answers). The bundles are
     unused, passed uniformly with the lead query."""
     return _legal_follows(hand, current)
 
@@ -63,97 +67,85 @@ def tichu_follows(hand: list[Card], current: Play, ctx: Ctx) -> list[Play]:
 # --- zone / seating / state reads (pure) ---
 
 
-def tichu_mahjong_holder(ctx: Ctx) -> Player:
+def tichu_mahjong_holder(facts: EngineFacts, gr: reads.GameReads) -> Player:
     """Who leads the first trick: the Mahjong holder (post-push hands; the
     full deal guarantees one exists)."""
-    hands = reads.family(ctx.rs, _R, "hand")
+    hands = gr.families["hand"]
     return next(
-        p for p in ctx.rs.seating.players
-        if any(c.rank == "Mahjong" for c in hands[p].cards)
+        p for p in facts.seating.players
+        if any(c.rank == "Mahjong" for c in hands[p])
     )
 
 
-def tichu_players_holding(ctx: Ctx) -> int:
+def tichu_players_holding(facts: EngineFacts, gr: reads.GameReads) -> int:
     """How many players still hold cards (the hand ends at <= 1)."""
-    hands = reads.family(ctx.rs, _R, "hand")
-    return sum(1 for p in ctx.rs.seating.players if hands[p].cards)
+    hands = gr.families["hand"]
+    return sum(1 for p in facts.seating.players if hands[p])
 
 
-def tichu_double_victory(ctx: Ctx) -> bool:
+def tichu_double_victory(facts: EngineFacts, gr: reads.GameReads) -> bool:
     """Both recorded finishers are teammates (ends the hand early, +200)."""
-    first = reads.state(ctx.rs, _R, "out_first")
-    second = reads.state(ctx.rs, _R, "out_second")
+    first = gr.state["out_first"]
+    second = gr.state["out_second"]
     return (
         first is not None
         and second is not None
-        and ctx.rs.team_of[first] == ctx.rs.team_of[second]
+        and facts.team_of[first] == facts.team_of[second]
     )
 
 
-def tichu_partner(ctx: Ctx, p: Player) -> Player:
+def tichu_partner(facts: EngineFacts, gr: reads.GameReads, p: Player) -> Player:
     """The teammate (partners sit across)."""
     return next(
-        q for q in ctx.rs.seating.players
-        if q != p and ctx.rs.team_of[q] == ctx.rs.team_of[p]
+        q for q in facts.seating.players
+        if q != p and facts.team_of[q] == facts.team_of[p]
     )
 
 
-def tichu_next_holder(ctx: Ctx, p: Player) -> Player:
+def tichu_next_holder(
+    facts: EngineFacts, gr: reads.GameReads, p: Player
+) -> Player:
     """`p` if they still hold cards, else the next holder counterclockwise —
     the monolith's post-trick leader advance. Returns `p` unchanged when
     everyone is out (the hand is over; the value is never read)."""
-    hands = reads.family(ctx.rs, _R, "hand")
-    players = list(ctx.rs.seating.players)
-    if not any(hands[q].cards for q in players):
+    hands = gr.families["hand"]
+    players = list(facts.seating.players)
+    if not any(hands[q] for q in players):
         return p
     q = p
-    while not hands[q].cards:
+    while not hands[q]:
         q = (q - 1) % len(players)
     return q
 
 
-def tichu_dragon_won(ctx: Ctx) -> bool:
+def tichu_dragon_won(facts: EngineFacts, gr: reads.GameReads) -> bool:
     """Did the Dragon capture the trick just completed? Reads the standing
     play from the round's terminal state: the Dragon appears in a pile only as
     a played single, and only a bomb can beat it — so the check is exactly the
     monolith's (the final play is one card and it is the Dragon)."""
-    st = ctx.rs.last_round_state
+    st = facts.last_round_state
     cur = None if st is None else st.get("current")
     return (
         cur is not None and len(cur.cards) == 1 and cur.cards[0].rank == "Dragon"
     )
 
 
-def tichu_opponent_team(ctx: Ctx, p: Player) -> int:
+def tichu_opponent_team(facts: EngineFacts, gr: reads.GameReads, p: Player) -> int:
     """The team `p` does not belong to (two-team game)."""
-    return next(t for t in ctx.rs.teams if t != ctx.rs.team_of[p])
+    return next(t for t in facts.teams if t != facts.team_of[p])
 
 
-def tichu_first_out(ctx: Ctx) -> Player:
+def tichu_first_out(facts: EngineFacts, gr: reads.GameReads) -> Player:
     """The first player to shed out, defaulting to player 0 when nobody is
     recorded (the monolith's fallback; unreachable in a completed hand)."""
-    first = reads.state(ctx.rs, _R, "out_first")
+    first = gr.state["out_first"]
     return 0 if first is None else int(first)
 
 
-def tichu_card_points(ctx: Ctx, c: Card) -> int:
+def tichu_card_points(facts: EngineFacts, gr: reads.GameReads, c: Card) -> int:
     """The card-point table (K and 10 score 10, 5 scores 5, Dragon +25,
     Phoenix -25; 100 points per hand)."""
     return _points(c)
-
-
-def tichu_hand_summary(ctx: Ctx) -> int:
-    """Emit the hand's `tichu_hand` trace — the double-victory flag and the
-    card points sitting in the two captured piles after routing — and return
-    the card points. The playout harness asserts every non-double-victory hand
-    distributes exactly 100 (tests/test_playout_tichu.py)."""
-    captured = reads.family(ctx.rs, _R, "captured")
-    pts = sum(_points(c) for t in ctx.rs.teams for c in captured[t].cards)
-    ctx.trace(
-        "tichu_hand",
-        {"double_victory": tichu_double_victory(ctx), "card_points": pts},
-    )
-    return pts
 
 
 # ---------------------------------------------------------------------------
@@ -173,7 +165,7 @@ def tichu_hand_summary(ctx: Ctx) -> int:
 # so a Phoenix+Mahjong pair and Mahjong-filled phoenix fullhouses are
 # emittable). Pinned by tests/test_openspiel_encoding.py.
 
-from cardlang.runtime.values import SUITS, build_deck  # noqa: E402
+from cardlang.runtime.values import SUITS, build_deck
 
 _VAL = {"2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9,
         "10": 10, "J": 11, "Q": 12, "K": 13, "A": 14}

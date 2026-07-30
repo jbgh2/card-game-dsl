@@ -6,7 +6,7 @@ import pytest
 
 pytest.importorskip("pyspiel")
 
-import cardlang.openspiel.game  # noqa: E402,F401  (registers on import)
+import cardlang.openspiel.game  # noqa: F401  (registers on import)
 
 
 def test_playtest_report_shape() -> None:

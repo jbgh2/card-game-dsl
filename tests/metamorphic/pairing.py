@@ -10,12 +10,18 @@ the caller to compare with `compare_traces`.
 
 Re-running the checkers on an already-checked tree is not an option
 (`resolve._instantiate_rules` splices stdlib rules into `game.rules` and is
-not idempotent — metamorphic-suite.md), so each variant is single-passed
-from its own parsed tree: the untransformed side re-parses+checks the source
-text too, rather than reusing a shared checked `Game`, so both sides exercise
-the identical pipeline path. A transformed tree that fails the pipeline is a
-harness bug (the transform produced an invalid tree), not a metamorphic
-finding, and fails loudly via `AssertionError` rather than being swallowed.
+not idempotent — metamorphic-suite.md), so each variant is single-passed from
+its own PRE-CHECK tree: both sides hand `_check` a freshly parsed tree, never
+a checked one, which is the invariant that matters here. What each side gets
+back may well be a shared object — `parse_text` and `_check` are both memoized
+(cardlang/parse.py, Contract), and the untransformed side's key is identical
+to any other caller's for the same source, so it routinely hits their entry.
+That is sound for the same reason the memo is (the AST is frozen and
+slotted, and no pass edits in place) and it does not weaken the pairing: the
+transformed side differs in the tree itself, so it always takes a fresh key.
+A transformed tree that fails the pipeline is a harness bug (the transform
+produced an invalid tree), not a metamorphic finding, and fails loudly via
+`AssertionError` rather than being swallowed.
 
 The chooser. Every corpus game's `legal_cards` returns a `set`
 (docs/decisions.md via CLAUDE.md memory: "legal_cards returns a set"), so raw
@@ -67,9 +73,10 @@ from __future__ import annotations
 
 import os
 import random
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticError

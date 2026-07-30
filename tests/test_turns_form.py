@@ -47,7 +47,6 @@ residual:   a `direction` override clause — not grammar (no corpus user);
 from __future__ import annotations
 
 import random
-from typing import Any
 
 import pytest
 
@@ -177,9 +176,9 @@ def test_non_boolean_again_var_is_rejected() -> None:
 
 def test_fused_keyword_typos_are_syntax_errors() -> None:
     # The anchored `_TURNS_KW`/`_AGAIN_KW`: an unanchored inline keyword
-    # matches as a PREFIX under the dynamic lexer, so `turnst from …` used to
-    # parse as `turns t` and `againgo` as `again go` — a misspelling
-    # compiling to a running game.
+    # matches as a PREFIX under the dynamic lexer, so unanchored, `turnst
+    # from …` would parse as `turns t` and `againgo` as `again go` — a
+    # misspelling compiling to a running game.
     with pytest.raises(DiagnosticError, match="syntax"):
         check_dsl(
             _game("  phase p { turnst from dealer over all players until stop { stop := true } }"),
@@ -299,12 +298,15 @@ def test_rotation_follows_counterclockwise_direction() -> None:
 
 
 def test_non_seat_leader_is_a_loud_typed_error() -> None:
-    # `turns … from 5` in a 3-player game passes the static Player wall
-    # (Integer stands for Player), so the runtime must wall it in game
-    # currency — the same seat-wall class as `as 5` — never a bare
-    # ValueError from rotation arithmetic.
+    # A LITERAL out-of-range leader (`turns … from 5`) is rejected statically now
+    # (the operand choke point ranges it, tests/test_player_literal_range.py); the
+    # leader here is COMPUTED (`0 + 5`, a BinOp the checker leaves Integer without
+    # folding, like the phantom-key `n[0 + 9]`), so it passes the static wall and
+    # the runtime must wall the non-seat value in game currency — the same
+    # seat-wall class as `as (0 + 5)` — never a bare ValueError from rotation
+    # arithmetic.
     game = check_dsl(
-        _game("  phase p { turns t from 5 over all players until stop { score[t] += 1 } }"),
+        _game("  phase p { turns t from (0 + 5) over all players until stop { score[t] += 1 } }"),
         "test.cardlang",
     )
     with pytest.raises(RuntimeError, match="not a seat"):

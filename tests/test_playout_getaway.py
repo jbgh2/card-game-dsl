@@ -35,7 +35,7 @@ def test_200_random_games_satisfy_invariants() -> None:
                 tricks += 1
                 if data["early"]:
                     early_terminations += 1
-                assert tricks < 5000, f"seed {seed}: did not terminate"
+                assert tricks < 5000, f"seed {seed}: did not terminate"  # noqa: B023 -- consumed before the loop advances
             elif event == "game_end":
                 census = data
 

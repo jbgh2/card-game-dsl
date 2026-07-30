@@ -44,8 +44,8 @@ import pytest
 
 pyspiel = pytest.importorskip("pyspiel")
 
-from cardlang.openspiel.replay import Pause, Terminal, load, run  # noqa: E402
-from cardlang.runtime.values import Card  # noqa: E402
+from cardlang.openspiel.replay import Pause, Terminal, load, run
+from cardlang.runtime.values import Card
 
 PATH = str(Path(__file__).parent.parent / "docs" / "games" / "gops.cardlang")
 NATIVE = "goofspiel(players=2,num_cards=13,points_order=random,returns_type=total_points)"

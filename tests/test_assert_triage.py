@@ -63,9 +63,9 @@ residual:  compile-pass modules (cardlang/parse.py … ir.py, openspiel/) are
            outside the domain — their failure currency for internal
            invariants is the assert, walled per-pass by the ``Contract``
            blocks in their module docstrings and the assert_never dispatch
-           pins, so a blanket scrape would mis-rank their sites; recorded in
-           docs/roadmap.md ("The runtime-assert triage scrape stops at the
-           runtime packages").
+           pins, so a blanket scrape would mis-rank their sites. Extending the
+           gate there needs its own convention (which comment tags mark a pass
+           invariant) before it can be mechanical; this ledger is its record.
            ``assert_never`` sites are excluded by construction (mypy owns
            them; pinned by a probe below).
 """
@@ -149,9 +149,7 @@ def _sites_in_source(source: str, module: str) -> list[Site]:
 
     sites: list[Site] = []
     for node in ast.walk(tree):
-        if isinstance(node, ast.Assert):
-            pass
-        elif isinstance(node, ast.Raise) and _is_assertion_raise(node):
+        if isinstance(node, ast.Assert) or isinstance(node, ast.Raise) and _is_assertion_raise(node):
             pass
         else:
             continue

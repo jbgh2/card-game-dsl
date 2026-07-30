@@ -170,7 +170,8 @@ Defining a game-local rule under a library name is rejected (a local copy
 would drift from the shared body silently). A parameterized rule is a
 template: the reference passes arguments (`NoLeadingSuitUntilBroken(hearts)`)
 and the resolver substitutes them into the body. Template parameter domains
-are `Suit` only, corpus-first ([roadmap.md](roadmap.md)); games may declare
+are `Suit` only, corpus-first
+([roadmap.md](roadmap.md), "Grammar surface deferred by the checker"); games may declare
 their own parameterized rules with the same instantiation semantics.
 
 The library:
@@ -368,9 +369,9 @@ match) and so must trump if able, a quirk the split preserves precisely.
   quiescence-lap poll before the push / after it / before each trick, and a
   Dragon-won trick is given by an announced `dragon_to_left` /
   `dragon_to_right` choice; the partnership/finishing lookups and card-point
-  table are pure primitives; and
-  `tichu_hand_summary` emits the hand's conservation trace. Scoring writes
-  `score[team]` directly.
+  table are pure primitives. Scoring writes `score[team]` directly, and the
+  playout harness derives its conservation audit from observation events
+  (tests/playout_trace.py), not from the rules text.
 - **Coup's game** runs on the kernel with no mechanic, at real interactive
   scope: each turn is one `offer` over the seven coin-guarded actions (the
   forced coup at ten coins falls out of the `when:` guards; `steal` /
@@ -471,7 +472,7 @@ visibility, and the projection model".
   - emptiness is `<zone> is empty` / `is not empty`.
   Resource queries (`amount_of(type)`, `total_amount`, `types_present`)
   are unbuilt — the corpus keeps chips as Integer state
-  ([roadmap.md](roadmap.md), resource movements).
+  ([roadmap.md](roadmap.md), "Grammar surface deferred by the checker" — resource movements).
 
 ### Library zone types
 
@@ -507,7 +508,7 @@ type ChipStack<Owner: Player>        = Zone<Resource<chip>>   { composition: cou
 type Cascade<At: position>           = Zone<Card>             { composition: identity to all, ordered: yes }   // a face-up ordered pile; order public via arrival events (tableau runs, FreeCell columns)
 type HiddenStack<At: position>       = Zone<Card>             { composition: count_only to all, ordered: yes } // a face-down pile family (Klondike's tableau_down)
 type Foundation<At: position>        = Zone<Card>             { composition: identity to all, ordered: yes }   // an ascending suit pile, A up to K
-type Cell<At: position>              = Zone<Card>             { composition: identity to all }                 // a one-card holding space (FreeCell's free cells)
+type Cell<At: position>              = Zone<Card>             { composition: identity to all, capacity: 1 }    // a one-card holding space (FreeCell's free cells) — the one capacity-bounded row
 
 // A "pot" in poker is not just a chip zone — it carries an eligibility
 // set determining who can win it. There is no library Pot type: the
@@ -515,6 +516,11 @@ type Cell<At: position>              = Zone<Card>             { composition: ide
 // game-level state alongside its chip zones rather than a dedicated
 // type.
 ```
+
+Each type also carries a **capacity** (see [decisions.md](decisions.md),
+"Zone capacity"): `Cell` holds one card, shown above; every other row is
+unbounded and omits it. A movement that would overfill a bounded
+destination is a loud runtime error.
 
 These get the corpus's zone declarations down to one line each, with
 no loss of meaning. A game's `zones { }` block reads like the rulebook
@@ -597,13 +603,16 @@ is the first game to exercise the full vocabulary in non-trivial ways.
 Resource-using games (Catan and similar, when they enter scope) use
 `transfer` as the primary movement op.
 
-## Stdlib decks
+## Stdlib component sets
 
-The decks a game can name in its `cards:` line (see
-[decisions.md](decisions.md), "Deck declaration"). A game names one
-directly — `cards: standard52` — and does not compose or extend it in
-the surface; each entry below shows the deck's card set, which lives in
-the stdlib registry.
+The component sets a game can name — the individuated content of its
+zones (see [decisions.md](decisions.md), "Component sets: cards and
+pieces"). A game names one directly in its `cards:` line (a card deck)
+or `pieces:` line (a piece set) and does not compose or extend it in the
+surface; each entry below shows the set's content, which lives in the
+stdlib registry. A **deck** is the card-flavored set, its two axes named
+`suit` and `rank` (see also [decisions.md](decisions.md), "Deck
+declaration"); these are the card entries:
 
 - `standard52` = the 52-card Anglo-American deck.
   ```text
@@ -645,9 +654,54 @@ the stdlib registry.
   ```
   Used by French Tarot.
 
-Each constant captures a deck's *composition* only. Card-point
-values, ranking for play, follow-suit semantics, and trump status
-are all per-game declarations on top.
+A **piece set** names its own two axes and carries none of the card
+conventions:
+
+- `xo_marks` = tic-tac-toe's nine marks: five X, four O. Axis `side`
+  occupies a card's suit slot, axis `kind` its rank slot.
+  ```text
+  { side: [x, o], kind: [mark], copies: { x: 5, o: 4 } }
+  ```
+  Used by tic-tac-toe.
+
+- `breakthrough_men` = breakthrough's thirty-two pawns: sixteen light,
+  sixteen dark, all one kind. Same two-axis shape as `xo_marks`.
+  ```text
+  { side: [light, dark], kind: [man], copies: { light: 16, dark: 16 } }
+  ```
+  Used by breakthrough.
+
+Each entry captures a set's *composition* only. Card-point values,
+ranking for play, follow-suit semantics, and trump status are all
+per-game declarations on a deck; a piece set carries none of them.
+
+## Stdlib boards
+
+The spatial boards a game can name in its `board:` line (see
+[decisions.md](decisions.md), "Boards and cells"). A game names a
+**family** with integer arguments — `board: grid(3, 3)` — and the
+closed `BOARDS` registry instantiates it into a fixed set of cells and
+lines; unknown family, wrong arity, or out-of-bounds arguments are
+rejected at resolve.
+
+- `grid(width, height)` = a rectangular board, `width` files (`a`, `b`,
+  … from the left) by `height` ranks (`1`, `2`, … from the bottom),
+  each argument in `1..16`. Cells are named file+rank, ordered row-major
+  from `a1` (`a1 b1 c1 a2 …`); `lines(k)` returns every straight run of
+  `k` consecutive cells along a row, a column, or either diagonal.
+  `grid(3, 3)`'s `lines(3)` is the eight tic-tac-toe lines. A grid also
+  carries the movement data the class-1 verbs read: the three
+  seat-relative forward **directions** `ahead`, `ahead_left`,
+  `ahead_right` (its `dir` domain); the per-player **frame** (the second
+  seat's is the first's 180-degree rotation); and the **regions**
+  `home(player)` (the back two ranks) and `far_row(player)` (the opposite
+  edge). Used by tic-tac-toe (placement only) and breakthrough (the full
+  movement set).
+
+A board mints two named-member domains: the position domain `cell`
+(its cells, on the declared-position substrate) and, for movement, the
+move-parameter domain `dir` (its directions). See
+[decisions.md](decisions.md), "Boards and cells".
 
 ## Stdlib state
 
@@ -673,7 +727,7 @@ the variable is not allocated.
   in-rules opener (Coup) relies directly on the runtime seed.
   Pre-game randomization (low-cut, coin-flip, "winner of the last
   game") is the runtime's concern, not the rules engine's. A dedicated
-  first-player syntax is deferred — see [roadmap.md](roadmap.md).
+  first-player syntax is deferred — see issue #120.
 
 ## Stdlib functions
 
@@ -725,6 +779,25 @@ mid-playout.
   sequence orientation). A loud runtime error on an empty collection: guard
   the read (`Z is not empty`). Used throughout Klondike and FreeCell (build
   targets, foundation progression, the moving run's split rank).
+- `lines(k) → Collection<Line>` — the board's straight lines of exactly `k`
+  cells: every run of `k` consecutive cells along a row, a column, or either
+  diagonal (decisions.md "Boards and cells"), for the `any line in lines(k)
+  where …` register. A resolve error in a game with no `board:`, and for a
+  literal `k` outside the board's span. Used by tic-tac-toe (`lines(3)`, the
+  eight winning lines).
+- `neighbor(from, along, player) → Cell` — the cell one step along direction
+  `along` in `player`'s frame. Total by contract: an off-board step is guarded
+  by `has_step`, not returned (decisions.md "Boards and cells", movement).
+- `has_step(from, along, player) → Boolean` — whether that step stays on the
+  board (the guard that gates `neighbor`).
+- `is_diagonal(along) → Boolean` — whether a step along `along` changes file
+  (a grid's capturing directions).
+- `home(player) → Collection<Cell>` — a player's back two ranks (its setup
+  region).
+- `far_row(player) → Collection<Cell>` — the far edge of `player`'s frame (its
+  reach-to-win goal).
+  These five read the `board:` entry (a resolve error in a boardless game, like
+  `lines`). Used by breakthrough.
 
 Cribbage's pegging and show scoring, plus the pegging count's card provenance,
 are six game-local primitives reading `cardlang/runtime/cribbage.py` — game-local
@@ -829,21 +902,19 @@ all reading `cardlang/runtime/tichu.py` (the combination engine itself stays
   pronoun.
 - `tichu_card_points(c: Card) → Integer` — K/10 = 10, 5 = 5, Dragon +25,
   Phoenix −25 (100 per hand).
-- `tichu_hand_summary() → Integer` — emits the `tichu_hand` trace (double
-  victory, captured card points) the playout harness audits conservation
-  against.
 
-Coup's bookkeeping is five game-local primitives in
-`cardlang/runtime/coup.py`, all pure reads or trace emitters (every window
+Coup's bookkeeping is four game-local primitives in
+`cardlang/runtime/coup.py`, pure reads plus one trace emitter (every window
 response, claim, and target is a chooser decision in the DSL body — see the
 Mechanics entry):
 
 - `coup_players_in() → Integer`, `coup_next_in_game(p: Player) → Player`,
   `coup_has_char(p: Player, r: String) → Boolean` — in-game scans and the
   challenge-proof lookup (pure reads).
-- `coup_note_reveal(p: Player) → Integer`, `coup_game_summary() → Integer` —
-  the `coup_reveal` / `coup_game` trace emitters (the reveal-sequence golden
-  and the 50-coin / 15-card conservation invariants).
+- `coup_game_summary() → Integer` — the `coup_game` trace emitter (the
+  50-coin / 15-card conservation invariants and the finals). The
+  reveal-sequence golden derives from observation events at the harness
+  layer instead (tests/playout_trace.py).
 
 French Tarot's non-uniform 78-card deck (suit×rank card points that vary by
 suit, an effective led suit that isn't the kernel's own, and a settlement the

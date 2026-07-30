@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import random
+
 import pytest
 
 from cardlang.openspiel.encoding import (
@@ -9,7 +11,25 @@ from cardlang.openspiel.encoding import (
     action_to_card,
     card_to_action,
 )
-from cardlang.runtime.values import RANKS, SUITS, Card
+from cardlang.runtime import reads, sidecar
+from cardlang.runtime.state import RuntimeState, ZoneStore
+from cardlang.runtime.tichu import ROW as TICHU_ROW
+from cardlang.runtime.values import RANKS, SUITS, Card, Seating
+
+
+def _tichu_bundles() -> tuple[sidecar.EngineFacts, reads.GameReads]:
+    """The bundles a tichu climb query receives. The lead query ignores them
+    (Tichu leads depend only on the hand), but they are built for real rather
+    than faked: a None would only typecheck behind an ignore, and the next
+    query to actually read them would fail at runtime instead of here."""
+    from cardlang.ast import nodes as n
+
+    decls = (n.ZoneDecl(name="hand", index="player", type_ref=n.TypeRef(name="Hand")),)
+    rs = RuntimeState(Seating(4), ZoneStore(decls, (0, 1, 2, 3)), random.Random(0))
+    rs.push_frame()
+    rs.declare("out_first", False, None)
+    rs.declare("out_second", False, None)
+    return sidecar.bind(rs, None, TICHU_ROW)
 
 
 def test_round_trip_all_52() -> None:
@@ -34,7 +54,18 @@ def test_out_of_range_raises() -> None:
 
 from pathlib import Path
 
-from cardlang.openspiel.encoding import ActionSpace, ComboAction
+from cardlang.openspiel.encoding import (
+    CARD_VERB,
+    COMBO_VERB,
+    INT_VERB,
+    ActionSpace,
+    ComboAction,
+)
+
+# `registry`, NOT `openspiel.game`: game.py registers against pyspiel at
+# import time, and this module must stay collectable on a core install
+# without the optional extra (tests/test_optional_pyspiel.py).
+from cardlang.openspiel.registry import GAMES as REGISTERED
 from cardlang.pipeline import check_source
 
 GAMES = Path(__file__).resolve().parent.parent / "docs" / "games"
@@ -325,7 +356,7 @@ def test_tichu_combo_codec_round_trips_engine_emissions() -> None:
     checked = 0
     for _ in range(50):
         hand = rng.sample(deck, 14)
-        for play in tichu_lead_options(list(hand), None):  # type: ignore[arg-type]
+        for play in tichu_lead_options(*_tichu_bundles(), list(hand)):
             aid = space.encode(play)
             assert 57 <= aid < space.num_distinct_actions
             decoded = space.decode(aid)
@@ -391,3 +422,54 @@ def test_coup_space_derives_its_own_5_card_block_and_the_action_names() -> None:
         seen.add(aid)
         assert space.decode(aid) == card
     assert len(seen) == 5
+
+
+# --- the verb axis: `verbs()` must be exactly the image of `verb_of` --------
+#
+# `ActionSpace.verbs()` states an action space's declared verb universe from
+# the four blocks; `verb_of` classifies one id via `decode`. A conformance
+# bound's coverage claim (tests/openspiel_ready/test_conformance_bounds.py)
+# is a statement about that universe, so a verb `verbs()` advertises that no
+# id can produce would be a cell nothing can ever clear — and a verb `verb_of`
+# can produce that `verbs()` omits would be coverage nobody is asked for.
+# Both directions are pinned here, per registered game.
+
+
+def _verb_image(space: ActionSpace) -> set[str]:
+    """Every verb `verb_of` yields, over ids sampled to cover every block: the
+    whole low end exhaustively (all the non-combination blocks live there —
+    if one ever did not, this scan misses its verbs and the equality below
+    fails loudly), a spread over the rest, and the top of the range."""
+    n = space.num_distinct_actions
+    ids = set(range(min(n, 50_000)))
+    ids.update(range(0, n, max(1, n // 1000)))
+    ids.update(range(max(0, n - 100), n))
+    return {space.verb_of(a) for a in ids}
+
+
+@pytest.mark.parametrize("filename", sorted(set(REGISTERED.values())))
+def test_declared_verbs_are_exactly_the_verbs_ids_produce(filename: str) -> None:
+    """red under: drop `out.update(self._names)` from `ActionSpace.verbs()` —
+    every game with a bare-name block fails (those without stay green, which
+    is itself the shape of the claim)."""
+    space = _space(filename)
+    assert space.verbs() == _verb_image(space)
+
+
+def test_verb_of_names_the_block_a_parameter_valued_id_belongs_to() -> None:
+    """The three blocks whose ids carry a value rather than a move name, each
+    on a game that has one — against a bare-name id, which keeps its move
+    name, for contrast. Spades bids an integer; Big Two plays combinations and
+    passes."""
+    spades = _space("spades.cardlang")
+    assert spades.verb_of(spades.encode(Card("A", "clubs"))) == CARD_VERB
+    assert spades.verb_of(spades.encode(3)) == INT_VERB  # a bid
+    big_two = _space("big-two.cardlang")
+    assert big_two.verb_of(big_two.encode("pass")) == "pass"
+    assert big_two.verb_of(big_two.num_distinct_actions - 1) == COMBO_VERB
+
+
+def test_verb_of_rejects_an_id_outside_the_space() -> None:
+    space = _space("hearts.cardlang")
+    with pytest.raises(ValueError, match="out of range"):
+        space.verb_of(space.num_distinct_actions)

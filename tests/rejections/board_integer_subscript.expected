@@ -1,0 +1,1 @@
+board_integer_subscript.cardlang:28:9: error: `square` is keyed by Cell — got Integer

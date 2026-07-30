@@ -1,0 +1,12 @@
+// Wall: parse.py's `game()` builder. `cards:` and `pieces:` both select the
+// game's one component set (`Game.deck`); a game declaring both would need
+// two, which no game has witnessed — rejected at parse, pointing at the
+// clause that appears second.
+game BothContentClauses {
+  players: 2
+  cards: standard52
+  pieces: xo_marks
+  max_length: 10
+  state { score[player] : Integer = 0 }
+  winner: highest score
+}

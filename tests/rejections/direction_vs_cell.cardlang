@@ -1,0 +1,35 @@
+// Wall: typecheck's equality-operand disjointness rule. A movement direction
+// (TDir) and a board cell (TCell) are distinct types with no common value, so
+// `at is along` can never be equal and is rejected. This proves the new TDir
+// does NOT collide with TCell (a silent accept would be the permissive-top
+// defect the Type-consumer sweep exists to catch).
+game DirVsCell {
+  players: 2
+  max_length: 20
+  board: grid(3, 3)
+  pieces: xo_marks
+  zones {
+    box             : Deck
+    square[cell]    : Cell<cell>
+    reserve[player] : PlayerPile<player>
+  }
+  state {
+    result[player] : Integer = 0
+    done : Boolean = false
+  }
+  phase setup {
+    move all pieces from box where piece.side is x to reserve[0]
+    move all pieces from box to reserve[1]
+  }
+  phase play {
+    turns t from 0 over all players until done {
+      offer to t one of [mix, stop]
+    }
+  }
+  winner: highest result
+}
+move_type mix(at : cell, along : dir) {
+  when: at is along
+  effect { done := true }
+}
+move_type stop { effect { done := true } }

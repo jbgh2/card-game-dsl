@@ -1,0 +1,1 @@
+board_duplicate_clause.cardlang:9:3: error: a game declares one `board:` — the repeat would silently replace the first; keep one

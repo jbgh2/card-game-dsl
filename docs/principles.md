@@ -14,7 +14,7 @@ casino games) in a form that:
 - Reads close to how a rulebook describes the game.
 - Compresses common patterns into a reusable library of mechanics, rules, and
   move types.
-- Supports variants as small deltas on a base game.
+- Supports variants as sibling games composed from a shared core.
 - Compiles cleanly to OpenSpiel — **the invariant output target** — so existing
   imperfect-information AI algorithms (Information-Set MCTS, CFR, deep RL,
   determinization) work out of the box. The load-bearing, genuinely hard part is
@@ -92,8 +92,21 @@ change — is [decisions.md](decisions.md), "The expression register".
 ### Composition over inheritance
 
 Games are bags of named mechanics + parameters + phase structure. No game
-"inherits from" another. Variants are deltas (add/remove/replace) on a base
-composition. Mechanics are independently defined and reusable across games.
+"inherits from" another, and none is a diff against another: **variants are
+sibling games composed from a shared core**, each a complete description in its
+own file. Mechanics are independently defined and reusable across games; what
+two variants share is factored into a family library they both name
+([decisions.md](decisions.md), "Family libraries"), and what differs each
+states outright.
+
+There is deliberately no delta mechanism — no way to write a game as
+"the base, but with these changes". Three things rule it out. A delta cannot
+satisfy the acceptance test that a non-player reads one file cold and plays a
+hand: you cannot play from a diff. It is the inheritance-shaped answer, and its
+presence pulls every adjacent design (imports especially) toward override.
+And it inverts the work: a delta lets an author skip deciding what is essential
+to the family versus incidental to one member, which is precisely the decision
+factoring a shared core forces them to make.
 
 This is the same intellectual move ECS made for game-engine entities, React
 made when it moved to hooks, and the GoF book made back in 1994. The principle
@@ -184,8 +197,9 @@ or elsewhere.
 
 **Composition over inheritance.** A game is a tree of phases plus a
 set of mechanics, rules, and scoring components composed by name.
-There is no game-class hierarchy; variants are deltas on a base.
-(See "Composition over inheritance" above.)
+There is no game-class hierarchy and no delta mechanism; variants are
+sibling games over a shared core. (See "Composition over inheritance"
+above.)
 
 **Phases organize game time.** Phases are the primary structural
 unit; they carry an active rule set, declare legal moves, and

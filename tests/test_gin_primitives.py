@@ -97,19 +97,25 @@ def test_meld_codec_rejects_a_non_meld() -> None:
 
 def test_gin_primitive_in_a_zone_less_game_fails_typed() -> None:
     """The game-local-primitive precondition wall (one chokepoint for the
-    whole class, cribbage included): a primitive reading gin's zones from a
-    game without them is a typed RuntimeError naming the situation, never a
-    bare KeyError naming only the zone."""
+    whole class, cribbage included): running a primitive against a game
+    without its zones is a typed RuntimeError naming the situation, never a
+    bare KeyError naming only the zone.
+
+    The chokepoint is now literally one place. Narrowing moved the read out
+    of the primitive and into the binder, so the failure fires when the
+    bundle is BUILT — before the implementation is entered at all — which is
+    what makes the claim in the first sentence structural rather than a
+    property each primitive has to re-earn."""
     import random
 
-    from cardlang.runtime.gin import gin_deadwood
-    from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
+    from cardlang.runtime import reads, sidecar
+    from cardlang.runtime.gin import ROW
+    from cardlang.runtime.state import RuntimeState, ZoneStore
     from cardlang.runtime.values import Seating
 
     rs = RuntimeState(Seating(2), ZoneStore((), (0, 1)), random.Random(0))
-    ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]))
-    with pytest.raises(RuntimeError, match="zone family"):
-        gin_deadwood(ctx, 0)
+    with pytest.raises(reads.PrimitiveReadError, match="zone family"):
+        sidecar.bind(rs, None, ROW)
 
 
 def test_can_knock_quantifies_the_discard_over_the_hand_zone_only() -> None:
@@ -120,12 +126,13 @@ def test_can_knock_quantifies_the_discard_over_the_hand_zone_only() -> None:
     hand 2♣3♣4♣ + 8♣8♦8♥8♠ + A♠4♥5♥ (every hand discard leaves 15+), taken
     K♦ (discarding IT would leave exactly 10)."""
     import random
+    from pathlib import Path
 
     from cardlang.pipeline import check_source
-    from cardlang.runtime.gin import gin_can_knock, gin_knock_ok
-    from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
+    from cardlang.runtime import sidecar
+    from cardlang.runtime.gin import ROW, gin_can_knock, gin_knock_ok
+    from cardlang.runtime.state import RuntimeState, ZoneStore
     from cardlang.runtime.values import Seating
-    from pathlib import Path
 
     game = check_source(
         Path(__file__).parent.parent / "docs" / "games" / "gin-rummy.cardlang"
@@ -134,10 +141,10 @@ def test_can_knock_quantifies_the_discard_over_the_hand_zone_only() -> None:
     hand = _h("2C", "3C", "4C", "8C", "8D", "8H", "8S", "AS", "4H", "5H")
     rs.zones.instance("hand", 0).add_all(hand)
     rs.zones.instance("taken", 0).add_all(_h("KD"))
-    ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]))
+    ctx = sidecar.bind(rs, None, ROW)
 
     # The taken K♦ would be a legal knock-discard — but it is not in the pool.
-    assert gin_knock_ok(ctx, 0, _c("KD"))
-    assert not any(gin_knock_ok(ctx, 0, c) for c in hand)
+    assert gin_knock_ok(*ctx, 0, _c("KD"))
+    assert not any(gin_knock_ok(*ctx, 0, c) for c in hand)
     # So the announce must not be offered: guard == movement-has-a-candidate.
-    assert not gin_can_knock(ctx, 0)
+    assert not gin_can_knock(*ctx, 0)

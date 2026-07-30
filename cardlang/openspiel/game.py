@@ -30,10 +30,10 @@ class _Observer:
         self.tensor = None
         self.dict: dict[str, Any] = {}
 
-    def set_from(self, state: "CardlangState", player: int) -> None:
+    def set_from(self, state: CardlangState, player: int) -> None:
         pass  # no tensor representation
 
-    def string_from(self, state: "CardlangState", player: int) -> str:
+    def string_from(self, state: CardlangState, player: int) -> str:
         return state.information_state_string(player)
 
 
@@ -103,7 +103,7 @@ class CardlangState(pyspiel.State):
             return ""
         return information_state(player, r.rs, r.obs_logs[player])
 
-    def clone(self) -> "CardlangState":
+    def clone(self) -> CardlangState:
         copy = CardlangState(self.get_game(), self._path, self._num_players)
         copy._seed = self._seed
         copy._history_ids = list(self._history_ids)
@@ -146,7 +146,7 @@ def _register(short_name: str, filename: str) -> None:
 
     class _Game(pyspiel.Game):
         def __init__(self, params: Any = None) -> None:
-            super().__init__(game_type, game_info, params or dict())
+            super().__init__(game_type, game_info, params or {})
 
         def new_initial_state(self) -> CardlangState:
             return CardlangState(self, path, num_players)

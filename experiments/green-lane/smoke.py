@@ -10,9 +10,8 @@ import random
 import statistics
 import time
 
-import pyspiel
-
 import glcommon
+import pyspiel
 
 
 def random_playout(game: pyspiel.Game, rng: random.Random) -> tuple[list[float], int, list[int]]:

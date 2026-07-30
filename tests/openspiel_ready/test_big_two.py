@@ -25,4 +25,14 @@ class TestReadiness(ReadinessProofs):
         depth=6,
         conformance_steps=120,
         adapter_terminal_steps=200,  # greedy line measured at 147 steps
+        conformance_verbs_unreached=(
+            (
+                "<card>",
+                ("STRUCTURAL, not a depth shortfall: every Big Two play is a "
+                "combination — a singleton is a size-1 combo — so plays encode "
+                "through the combo block and the reserved card block is dead "
+                "(measured unapplied over 600 steps on three rngs). Issue #157 "
+                "owns deriving the block away"),
+            ),
+        ),
     )

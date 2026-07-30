@@ -5,12 +5,14 @@ property:   splicing every `run NAME(args)` call site with the named
             level (inline.py — never calling `cardlang.expand`), does not
             change a playout's observable trace or terminal result.
 domain:     `docs/games/coup.cardlang` and `docs/games/cheat.cardlang` —
-            the corpus games using `procedure`/`run` (pinned below, not
+            the corpus games DECLARING a procedure (pinned below, not
             assumed) — x seeds (`pairing.SEEDS`) x that game's policies
             (`_POLICIES`).
-registry:   docs/games/*.cardlang (`pairing.CORPUS`), filtered to games
-            containing the literal token `procedure` or `run` — today,
-            exactly two.
+registry:   docs/games/*.cardlang (`pairing.CORPUS`), split two ways by
+            source-text scan: games declaring a `procedure` (T3's domain,
+            today exactly two) and games that `run` one without declaring
+            it (out of domain — see residual — today exactly three, both
+            pinned).
 covered:    both witness games, every seed in `pairing.SEEDS`, under each
             policy in `_POLICIES[game]` ("Why reverse=True" below: Coup
             needs the DESCENDING chooser to reach its procedures at all;
@@ -21,7 +23,19 @@ covered:    both witness games, every seed in `pairing.SEEDS`, under each
             bodies actually execute per game, not just that the (possibly
             vacuous) comparison passes.
 sampled:    seeds and decision depth only (CI budget) — pairing.py.
-residual:   inline.py's splice is deliberately NOT a general procedure
+residual:   THREE GAMES ARE OUT OF DOMAIN, and named rather than absent
+            (`test_the_library_procedure_games_are_pinned_as_uncovered`):
+            Kuhn, Leduc and Seven-Card Stud `run open_street(...)`, whose
+            body is in `docs/libraries/poker_betting.cardlang`. A
+            source-text splice reads one file, so it cannot see the body —
+            and reading the library too would not fix it, because the game
+            still `uses` that library and the then-uninvoked library
+            procedure is a resolve error, so the spliced text would not
+            compile. T3's property is genuinely UNCHECKED for these three;
+            covering them means teaching inline.py the import tier
+            (issue #132). This gap arrived with provided state and is the
+            price of the poker family sharing a procedure at all.
+            inline.py's splice is also deliberately NOT a general procedure
             inliner (its module docstring lists exactly the shape envelope
             both pinned games sit inside: no nested `run` inside a
             procedure body — a resolve-level wall — no call-site argument
@@ -70,7 +84,6 @@ import pytest
 
 from cardlang.ast import nodes as n
 from cardlang.resolve import _walk
-
 from tests.metamorphic import pairing
 from tests.metamorphic.inline import splice_procedures
 
@@ -81,12 +94,27 @@ _PROCEDURE_DECL_RE = re.compile(r"\bprocedure\s+[A-Za-z_]\w*\s*\(")
 _RUN_CALL_RE = re.compile(r"\brun\s+[A-Za-z_]\w*\s*\(")
 
 
-def _uses_procedures(path: Path) -> bool:
-    text = path.read_text()
-    return bool(_PROCEDURE_DECL_RE.search(text) or _RUN_CALL_RE.search(text))
+def _declares_procedure(path: Path) -> bool:
+    return bool(_PROCEDURE_DECL_RE.search(path.read_text()))
 
 
-PROCEDURE_GAMES = tuple(p for p in pairing.CORPUS if _uses_procedures(p))
+def _runs_procedure(path: Path) -> bool:
+    return bool(_RUN_CALL_RE.search(path.read_text()))
+
+
+# T3's domain is games whose procedure bodies are IN THE FILE — the only thing a
+# SOURCE-TEXT splice can see.
+PROCEDURE_GAMES = tuple(p for p in pairing.CORPUS if _declares_procedure(p))
+
+# Out of domain, and named rather than quietly dropped: a game that `run`s a
+# procedure it does not declare, its body living in a family library. The splice
+# cannot reach it, and could not be fixed by also reading the library file — the
+# game would still `uses` that library, so the library's now-uninvoked procedure
+# would be a resolve error and the spliced text would not compile. Generalizing
+# T3 across the import tier is the real work; issue #132 records it.
+LIBRARY_PROCEDURE_GAMES = tuple(
+    p for p in pairing.CORPUS if _runs_procedure(p) and not _declares_procedure(p)
+)
 
 # Per-game deterministic policies (the `reverse` axis of pairing's sorted
 # chooser). Coup: descending only — ascending is the frozen exchange/"allow"
@@ -119,6 +147,31 @@ def test_run_and_procedure_domain_is_pinned() -> None:
     assert sorted(_POLICIES) == names, (
         "_POLICIES and the pinned domain disagree — every procedure-using "
         "game declares its deterministic policies here"
+    )
+
+
+def test_the_library_procedure_games_are_pinned_as_uncovered() -> None:
+    """The other half of the domain, pinned so it stays a NAMED gap rather than
+    an absence. These games `run` a procedure whose body is in a family library,
+    which puts them outside a source-text splice's reach — so T3's property is
+    unchecked for them, and this test is where that is said out loud.
+
+    Pinned in both directions: a game leaving this list (because it stopped
+    importing a library procedure) or joining it (a fourth) is a change to what
+    the suite does NOT cover, and a coverage claim that can shrink silently is
+    the vacuity this ledger exists to prevent.
+
+    red under: delete `run open_street(1)` from docs/games/kuhn-poker.cardlang."""
+    names = sorted(p.name for p in LIBRARY_PROCEDURE_GAMES)
+    assert names == [
+        "kuhn-poker.cardlang",
+        "leduc-poker.cardlang",
+        "seven-card-stud.cardlang",
+    ], (
+        f"the set of games running an IMPORTED procedure changed: {names} — "
+        f"T3 does not cover these (inline.py splices one file's text and the "
+        f"body is in docs/libraries/), so the list is a recorded gap and must "
+        f"be updated deliberately, with issue #132 kept in step"
     )
 
 

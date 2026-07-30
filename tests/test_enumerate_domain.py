@@ -28,6 +28,7 @@ import pytest
 
 from cardlang import resolve
 from cardlang.domains import (
+    Role,
     BY_ID,
     BY_PARAM_DOMAIN,
     PARAM_DOMAIN_ORDER,
@@ -130,12 +131,12 @@ def test_a_domain_with_no_param_spelling_is_walled_at_the_param_column() -> None
     (an offer with no legal move).
 
     Its `static_members`, by contrast, must be REAL — the deck-capacity gate reads it
-    to know how many times a `for each team` body runs. It used to be a wall too, on
-    the theory that a domain with no parameter spelling had no static domain at all.
-    That conflated two different questions ("can a move range over this?" and "how big
-    is this?"), and the gate paid for it: it assumed every non-player loop ran once, so
-    a loop over a value domain demanded more cards than it checked."""
+    to know how many times a `for each team` body runs. Walling it too, on the theory
+    that a domain with no parameter spelling has no static domain at all, would conflate
+    two different questions ("can a move range over this?" and "how big is this?"), and
+    the gate would pay for it: it would assume every non-player loop runs once, so a
+    loop over a value domain would demand more cards than it checks."""
     with pytest.raises(NotImplementedError):
         enumerate_domain("Team", SOURCES)
     # ...but its size is a fact the table knows.
-    assert BY_ID["team"].static_members(SOURCES) == list(SOURCES.teams)
+    assert BY_ID[Role.TEAM].static_members(SOURCES) == list(SOURCES.teams)

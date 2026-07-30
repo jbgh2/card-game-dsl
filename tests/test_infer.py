@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from cardlang.ast import nodes as n
+from cardlang.typecheck import TypeEnv, infer
 from cardlang.types import (
     TAny,
     TBoolean,
@@ -13,7 +14,6 @@ from cardlang.types import (
     TPlayer,
     TString,
 )
-from cardlang.typecheck import TypeEnv, infer
 
 
 def test_infer_literals() -> None:
@@ -44,5 +44,13 @@ def test_infer_local_binding() -> None:
 def test_infer_refined_and_unrefined_nodes() -> None:
     env = TypeEnv()
     assert infer(n.Not(n.IntLit(1)), env) == TBoolean()  # refined: a predicate
-    # Member access (pronoun fields / sugar) is deferred — permissive.
-    assert infer(n.Member(n.NameRef("card", ref_kind="local"), "suit"), env) == TAny()
+    # Member access on a deferred-shape PRONOUN receiver is permissive — the
+    # case the assertion is actually about. It used to be written with an
+    # unbound `local` receiver, which reached the same `TAny` down the
+    # lookup-MISS path rather than the deferred-shape one; that path now raises
+    # (`_env_miss`), and conflating the two is exactly what the split removed.
+    assert infer(n.Member(n.NameRef("outcome", ref_kind="pronoun"), "x"), env) == TAny()
+    # The same, one binding away: a binder EXPLICITLY bound to the permissive
+    # top propagates it. An explicit top stays legal; a missing binding does not.
+    loose = TypeEnv().with_local("card", TAny())
+    assert infer(n.Member(n.NameRef("card", ref_kind="local"), "suit"), loose) == TAny()

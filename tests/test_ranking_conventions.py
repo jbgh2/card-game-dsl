@@ -28,8 +28,8 @@ registry:   `cardlang.runtime.values.RANKING_CONVENTIONS` and
             so a new deck or convention fails loudly until classified in
             _FRENCH_EXPANSIONS / _NON_FRENCH_DECKS below (the two-way pin
             idiom).
-covered:    all 20 French cells (5 decks x 4 conventions, frozen expected
-            tuples); all 16 non-French cells (4 decks x 4 conventions, wall
+covered:    all 28 French cells (7 decks x 4 conventions, frozen expected
+            tuples); all 20 non-French cells (5 decks x 4 conventions, wall
             probed through real source per deck and per convention); the
             unknown-deck degrade; registry↔grammar reconciliation in both
             directions; the reserved-spelling pin; the 14 corpus migration
@@ -40,7 +40,7 @@ sampled:    the "did you mean" hint is probed on four representative
             key — the hint is advisory text on an already-loud diagnostic.
 residual:   partial-enumeration runtime KeyError (`rank_value` on a rank
             outside a partial `ranking:`) is the standing recorded residual
-            (docs/roadmap.md, "`ranking:` coverage is unchecked") and is
+            (the ledger in tests/test_ranking_wall.py) and is
             unreachable from a convention, which is always a full
             permutation of its deck by construction. (A duplicated
             `ranking:` clause — convention or enumeration — is walled at
@@ -64,7 +64,11 @@ import pytest
 from cardlang.diagnostics import DiagnosticError
 from cardlang.parse import parse_text
 from cardlang.resolve import resolve
-from cardlang.runtime.values import DECKS, RANKING_CONVENTIONS, expand_ranking_convention
+from cardlang.runtime.values import (
+    DECKS,
+    RANKING_CONVENTIONS,
+    expand_ranking_convention,
+)
 
 GAMES = Path(__file__).parent.parent / "docs" / "games"
 
@@ -82,6 +86,8 @@ _DECK_GAME: dict[str, str] = {
     "five_hundred43": "five-hundred.cardlang",
     "coup15": "coup.cardlang",
     "canasta108": "canasta.cardlang",
+    "kuhn3": "kuhn-poker.cardlang",
+    "leduc6": "leduc-poker.cardlang",
 }
 
 # The frozen expansion table: every (deck, convention) cell for the decks
@@ -109,6 +115,23 @@ _FRENCH_EXPANSIONS: dict[tuple[str, str], tuple[str, ...]] = {
     ("skat32", "aces low"): ("K", "Q", "J", "10", "9", "8", "7", "A"),
     ("skat32", "ace-ten"): ("A", "10", "K", "Q", "J", "9", "8", "7"),
     ("skat32", "twos high"): ("A", "K", "Q", "J", "10", "9", "8", "7"),
+    # The poker-toy decks. Both are all-French (J/Q/K only), so all eight
+    # cells expand rather than reject — and all four conventions COLLAPSE to
+    # the same tuple on each, because every convention is the aces-high
+    # template with A, 10 or 2 moved, and a J/Q/K deck holds none of those
+    # three ranks. The cells are frozen individually anyway (never derived
+    # from one another): the collapse is a fact about these decks that the
+    # table should record, not an invariant to assume — a convention that
+    # reordered the face cards would break it, and these rows are where that
+    # would show up.
+    ("kuhn3", "aces high"): ("K", "Q", "J"),
+    ("kuhn3", "aces low"): ("K", "Q", "J"),
+    ("kuhn3", "ace-ten"): ("K", "Q", "J"),
+    ("kuhn3", "twos high"): ("K", "Q", "J"),
+    ("leduc6", "aces high"): ("K", "Q", "J"),
+    ("leduc6", "aces low"): ("K", "Q", "J"),
+    ("leduc6", "ace-ten"): ("K", "Q", "J"),
+    ("leduc6", "twos high"): ("K", "Q", "J"),
 }
 
 # The decks a convention must REJECT (ranks outside the French set). One
@@ -124,8 +147,8 @@ def _probe_source(deck: str, ranking_clause: str) -> str:
     """The deck's corpus game with its `ranking:` clause replaced by (or, for
     the games that declare none, inserted as) `ranking_clause`."""
     text = (GAMES / _DECK_GAME[deck]).read_text()
-    if re.search(r"^\s*ranking:.*$", text, flags=re.M):
-        return re.sub(r"^(\s*)ranking:.*$", rf"\g<1>{ranking_clause}", text, count=1, flags=re.M)
+    if re.search(r"^\s*ranking:.*$", text, flags=re.MULTILINE):
+        return re.sub(r"^(\s*)ranking:.*$", rf"\g<1>{ranking_clause}", text, count=1, flags=re.MULTILINE)
     return text.replace(f"cards: {deck}", f"cards: {deck}\n  {ranking_clause}", 1)
 
 
@@ -203,7 +226,7 @@ def test_every_grammar_convention_terminal_is_a_registry_key() -> None:
     registry key — a terminal spelling the registry doesn't know would
     parse to a convention `_expand_ranking` KeyErrors on."""
     grammar = resources.files("cardlang.grammar").joinpath("cardlang.lark").read_text()
-    m = re.search(r"^RANK_CONV[^:]*:\s*/(.+)/\s*$", grammar, flags=re.M)
+    m = re.search(r"^RANK_CONV[^:]*:\s*/(.+)/\s*$", grammar, flags=re.MULTILINE)
     assert m is not None, "RANK_CONV terminal not found in grammar"
     body = re.sub(r"\(\?!.*?\)", "", m.group(1))  # strip the anchor lookahead
     literals = {w for w in re.split(r"[^A-Za-z0-9-]+", body) if w}
@@ -289,6 +312,14 @@ _PRE_MIGRATION: dict[str, tuple[str, str, tuple[str, ...]]] = {
     # games stable still fails loudly here.
     "klondike": ("aces low", "standard52", ("K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2", "A")),
     "freecell": ("aces low", "standard52", ("K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2", "A")),
+    # The poker toys are convention-BORN too, on the only decks in the corpus
+    # whose four conventions coincide (see the kuhn3/leduc6 block above).
+    # Their rows freeze the expansion the games were built against — the
+    # J<Q<K strength order both showdowns compare through `rank_value` — so a
+    # template edit that reordered the face cards fails here even though the
+    # games' declared `aces high` would still parse.
+    "kuhn-poker": ("aces high", "kuhn3", ("K", "Q", "J")),
+    "leduc-poker": ("aces high", "leduc6", ("K", "Q", "J")),
 }
 
 

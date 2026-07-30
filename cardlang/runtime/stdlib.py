@@ -8,13 +8,15 @@ bare `f(...)` calls and the value-callbacks.
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
-from cardlang.runtime import reads
+from cardlang.runtime import reads, sidecar
 from cardlang.runtime.state import Ctx, IllegalMove, elements
 from cardlang.runtime.values import SUITS, Card, Player
+from cardlang.stdlib.boards import BoardEntry
 from cardlang.stdlib.signatures import CALL_SIGS
-from cardlang.types import TCollection
+from cardlang.types import TAny, TCollection
 
 # This module's per-game functions (the auction outcomes; the pegging-scorer
 # call sites) read state on behalf of specific games — one declared-reads row
@@ -25,25 +27,72 @@ _PINOCHLE_R = reads.row("cardlang/runtime/stdlib.py", "pinochle.cardlang")
 _TAROT_R = reads.row("cardlang/runtime/stdlib.py", "french-tarot.cardlang")
 
 
+def _bind(
+    ctx: Ctx, row: reads.PrimitiveReads
+) -> tuple[sidecar.EngineFacts, reads.GameReads]:
+    """The two value bundles for one narrowed primitive call."""
+    return sidecar.bind(ctx.rs, ctx.current_player, row)
+
+
+def _emit(ctx: Ctx, events: tuple[sidecar.TraceEvent, ...]) -> None:
+    """Perform a narrowed primitive's deferred trace emissions. A game module
+    holds no tracer, so the events travel back as data and are emitted here,
+    in the order the primitive returned them (cardlang/runtime/sidecar.py)."""
+    for event, payload in events:
+        ctx.trace(event, payload)
+
+
+def _coerce_args(sig: Any, args: list[Any]) -> list[Any]:
+    """Freeze the collection-shaped arguments crossing into a game module.
+
+    A collection-typed expression evaluates to either a Zone or a plain list
+    (the zone facet is not part of assignability, so `gin_valid_meld(hand[p])`
+    typechecks), and the adapters are bare Python that iterates — a
+    TCollection param receives elements, never a Zone handle. `elements()`
+    yields the Zone's LIVE `.cards` list, so the coercion additionally
+    `deep_freeze`s it: the positional args are the second channel a primitive
+    can touch (the bundles are the first), and `cards.clear()` on a live zone
+    list would corrupt engine state exactly as a bundle write would. The
+    A SCALAR `Card` argument (a `TCard` param — `canasta_stage_ok(p, card)`,
+    `president_is_top_rank(p, c)`) is frozen too: evaluation preserves the
+    engine's `Card` by identity, and a frozen+slots `Card` is still mutable
+    via `object.__setattr__`, so an unfrozen scalar card is the same leak as
+    an unfrozen collection. The freeze is SIGNATURE-DRIVEN, not blanket: a
+    TAny param passes RAW, because its adapter dispatches on the shape itself
+    (`suit_of`: a card or a single-card zone — blanket coercion broke the
+    schnapsen trump indicator, and `deep_freeze` would refuse a Zone). Every
+    other param is `deep_freeze`d: a copy for a `Card`, a no-op for the
+    immutable scalars (`Player`, `Integer`, `Rank`, ...). The registry side is
+    pinned by tests/test_stdlib_boundary.py (every TCollection param probed
+    with a Zone, the TAny set pinned, no param zone=True)."""
+    coerced: list[Any] = []
+    for p, a in zip(sig.params, args):
+        if isinstance(p, TCollection):
+            coerced.append(reads.deep_freeze(elements(a)))
+        elif isinstance(p, TAny):
+            coerced.append(a)  # raw: the adapter dispatches on the shape
+        else:
+            coerced.append(reads.deep_freeze(a))  # copies a Card, no-ops scalars
+    return coerced + args[len(sig.params) :]
+
+
 def call(name: str, args: list[Any], ctx: Ctx) -> Any:
-    # The wall for collection-shaped arguments: a collection-typed expression
-    # evaluates to either a Zone or a plain list (the zone facet is not part
-    # of assignability, so `gin_valid_meld(hand[p])` typechecks), and the
-    # adapters below are bare Python that iterates — a TCollection-declared
-    # param receives elements, never a Zone handle. SIGNATURE-DRIVEN, not
-    # blanket: a TAny param passes raw, because its adapter dispatches on
-    # the shape itself (`suit_of`: a card or a single-card zone — blanket
-    # coercion broke the schnapsen trump indicator). Owned here, at the one
-    # boundary where evaluated values leave the evaluator; the registry side
-    # is pinned by tests/test_stdlib_boundary.py (every TCollection param
-    # probed with a Zone, the TAny set pinned, no param may be zone=True).
     sig = CALL_SIGS.get(name)
     if sig is not None:
-        args = [
-            elements(a) if isinstance(p, TCollection) else a
-            for p, a in zip(sig.params, args)
-        ] + args[len(sig.params) :]
+        args = _coerce_args(sig, args)
     match name:
+        case "lines":
+            return _lines(ctx, args[0])
+        case "neighbor":
+            return _neighbor(ctx, args[0], args[1], args[2])
+        case "has_step":
+            return _has_step(ctx, args[0], args[1], args[2])
+        case "is_diagonal":
+            return _is_diagonal(ctx, args[0])
+        case "home":
+            return _home(ctx, args[0])
+        case "far_row":
+            return _far_row(ctx, args[0])
         case "player_holding":
             return _player_holding(args[0], ctx)
         case "team_of":
@@ -55,21 +104,21 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
         case "error":
             raise IllegalMove(args[0] if args else "illegal move")
         case "bring_in_seat":
-            from cardlang.runtime.stud import bring_in_seat
+            from cardlang.runtime.stud import ROW, bring_in_seat
 
-            return bring_in_seat(ctx)
+            return bring_in_seat(*_bind(ctx, ROW))
         case "first_to_act_seat":
-            from cardlang.runtime.stud import first_to_act_seat
+            from cardlang.runtime.stud import ROW, first_to_act_seat
 
-            return first_to_act_seat(ctx)
+            return first_to_act_seat(*_bind(ctx, ROW))
         case "pot_share":
-            from cardlang.runtime.stud import pot_share
+            from cardlang.runtime.stud import ROW, pot_share
 
-            return pot_share(ctx, args[0])
+            return pot_share(*_bind(ctx, ROW), args[0])
         case "bigtwo_first_leader":
-            from cardlang.runtime.bigtwo import first_leader_seat
+            from cardlang.runtime.bigtwo import ROW, first_leader_seat
 
-            return first_leader_seat(ctx)
+            return first_leader_seat(*_bind(ctx, ROW))
         case "rank_value":
             return ctx.rs.rank_index[args[0].rank]
         case "card_value":
@@ -79,125 +128,124 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
         case "bottom_of":
             return _end_card(args[0], "bottom_of", 0)
         case "pinochle_meld_value":
-            from cardlang.runtime.pinochle import pinochle_meld_value
+            from cardlang.runtime.pinochle import ROW, pinochle_meld_value
 
-            return pinochle_meld_value(ctx, args[0])
+            return pinochle_meld_value(*_bind(ctx, ROW), args[0])
         case "tarot_led_suit":
-            from cardlang.runtime.tarot import tarot_led_suit
+            from cardlang.runtime.tarot import ROW, tarot_led_suit
 
-            return tarot_led_suit(ctx)
+            return tarot_led_suit(*_bind(ctx, ROW))
         case "tarot_trump_height":
             from cardlang.runtime.tarot import tarot_trump_height
 
             return tarot_trump_height(args[0])
         case "tarot_excuse_player":
-            from cardlang.runtime.tarot import tarot_excuse_player
+            from cardlang.runtime.tarot import ROW, tarot_excuse_player
 
-            return tarot_excuse_player(ctx)
+            return tarot_excuse_player(*_bind(ctx, ROW))
         case "tarot_per_opp":
-            from cardlang.runtime.tarot import tarot_per_opp
+            from cardlang.runtime.tarot import ROW, tarot_per_opp
 
-            return tarot_per_opp(ctx, args[0])
+            return tarot_per_opp(*_bind(ctx, ROW), args[0])
         case "tarot_card_points":
             from cardlang.runtime.tarot import tarot_card_points
 
             return tarot_card_points(args[0])
         case "schnapsen_trick_winner":
-            from cardlang.runtime.schnapsen import schnapsen_trick_winner
+            from cardlang.runtime.schnapsen import ROW, schnapsen_trick_winner
 
-            return schnapsen_trick_winner(ctx, args[0], args[1])
+            winner, events = schnapsen_trick_winner(
+                *sidecar.bind(ctx.rs, ctx.current_player, ROW), args[0], args[1]
+            )
+            _emit(ctx, events)
+            return winner
         case "skat_next_bid":
             from cardlang.runtime.skat import skat_next_bid
 
             return skat_next_bid(args[0])
         case "skat_follow_ok":
-            from cardlang.runtime.skat import skat_follow_ok
+            from cardlang.runtime.skat import ROW, skat_follow_ok
 
-            return skat_follow_ok(ctx, args[0], args[1])
+            return skat_follow_ok(*_bind(ctx, ROW), args[0], args[1])
         case "skat_trick_winner":
-            from cardlang.runtime.skat import skat_trick_winner
+            from cardlang.runtime.skat import ROW, skat_trick_winner
 
-            return skat_trick_winner(ctx, args[0])
+            winner, events = skat_trick_winner(*_bind(ctx, ROW), args[0])
+            _emit(ctx, events)
+            return winner
         case "doko_trick_winner":
-            from cardlang.runtime.doko import doko_trick_winner
+            from cardlang.runtime.doko import ROW, doko_trick_winner
 
-            return doko_trick_winner(ctx, args[0])
+            winner, events = doko_trick_winner(*_bind(ctx, ROW), args[0])
+            _emit(ctx, events)
+            return winner
         case "skat_matadors":
-            from cardlang.runtime.skat import skat_matadors
+            from cardlang.runtime.skat import ROW, skat_matadors
 
-            return skat_matadors(ctx, args[0])
+            return skat_matadors(*_bind(ctx, ROW), args[0])
         case "skat_effective_loss":
             from cardlang.runtime.skat import skat_effective_loss
 
             return skat_effective_loss(args[0], args[1], args[2])
         case "tichu_mahjong_holder":
-            from cardlang.runtime.tichu import tichu_mahjong_holder
+            from cardlang.runtime.tichu import ROW, tichu_mahjong_holder
 
-            return tichu_mahjong_holder(ctx)
+            return tichu_mahjong_holder(*_bind(ctx, ROW))
         case "tichu_players_holding":
-            from cardlang.runtime.tichu import tichu_players_holding
+            from cardlang.runtime.tichu import ROW, tichu_players_holding
 
-            return tichu_players_holding(ctx)
+            return tichu_players_holding(*_bind(ctx, ROW))
         case "tichu_double_victory":
-            from cardlang.runtime.tichu import tichu_double_victory
+            from cardlang.runtime.tichu import ROW, tichu_double_victory
 
-            return tichu_double_victory(ctx)
+            return tichu_double_victory(*_bind(ctx, ROW))
         case "tichu_partner":
-            from cardlang.runtime.tichu import tichu_partner
+            from cardlang.runtime.tichu import ROW, tichu_partner
 
-            return tichu_partner(ctx, args[0])
+            return tichu_partner(*_bind(ctx, ROW), args[0])
         case "tichu_next_holder":
-            from cardlang.runtime.tichu import tichu_next_holder
+            from cardlang.runtime.tichu import ROW, tichu_next_holder
 
-            return tichu_next_holder(ctx, args[0])
+            return tichu_next_holder(*_bind(ctx, ROW), args[0])
         case "tichu_dragon_won":
-            from cardlang.runtime.tichu import tichu_dragon_won
+            from cardlang.runtime.tichu import ROW, tichu_dragon_won
 
-            return tichu_dragon_won(ctx)
+            return tichu_dragon_won(*_bind(ctx, ROW))
         case "tichu_opponent_team":
-            from cardlang.runtime.tichu import tichu_opponent_team
+            from cardlang.runtime.tichu import ROW, tichu_opponent_team
 
-            return tichu_opponent_team(ctx, args[0])
+            return tichu_opponent_team(*_bind(ctx, ROW), args[0])
         case "tichu_first_out":
-            from cardlang.runtime.tichu import tichu_first_out
+            from cardlang.runtime.tichu import ROW, tichu_first_out
 
-            return tichu_first_out(ctx)
+            return tichu_first_out(*_bind(ctx, ROW))
         case "tichu_card_points":
+            from cardlang.runtime.tichu import ROW as TICHU_ROW
             from cardlang.runtime.tichu import tichu_card_points
 
-            return tichu_card_points(ctx, args[0])
-        case "tichu_hand_summary":
-            from cardlang.runtime.tichu import tichu_hand_summary
-
-            return tichu_hand_summary(ctx)
-        case "president_next_holder":
-            from cardlang.runtime.president import president_next_holder
-
-            return president_next_holder(ctx, args[0])
+            return tichu_card_points(*_bind(ctx, TICHU_ROW), args[0])
         case "president_is_top_rank":
-            from cardlang.runtime.president import president_is_top_rank
+            from cardlang.runtime.president import ROW, president_is_top_rank
 
-            return president_is_top_rank(ctx, args[0], args[1])
+            return president_is_top_rank(*_bind(ctx, ROW), args[0], args[1])
         case "coup_players_in":
-            from cardlang.runtime.coup import coup_players_in
+            from cardlang.runtime.coup import ROW, coup_players_in
 
-            return coup_players_in(ctx)
+            return coup_players_in(*_bind(ctx, ROW))
         case "coup_next_in_game":
-            from cardlang.runtime.coup import coup_next_in_game
+            from cardlang.runtime.coup import ROW, coup_next_in_game
 
-            return coup_next_in_game(ctx, args[0])
+            return coup_next_in_game(*_bind(ctx, ROW), args[0])
         case "coup_has_char":
-            from cardlang.runtime.coup import coup_has_char
+            from cardlang.runtime.coup import ROW, coup_has_char
 
-            return coup_has_char(ctx, args[0], args[1])
-        case "coup_note_reveal":
-            from cardlang.runtime.coup import coup_note_reveal
-
-            return coup_note_reveal(ctx, args[0])
+            return coup_has_char(*_bind(ctx, ROW), args[0], args[1])
         case "coup_game_summary":
-            from cardlang.runtime.coup import coup_game_summary
+            from cardlang.runtime.coup import ROW, coup_game_summary
 
-            return coup_game_summary(ctx)
+            total, events = coup_game_summary(*_bind(ctx, ROW))
+            _emit(ctx, events)
+            return total
         case "peg_value":
             from cardlang.runtime.cribbage import value
 
@@ -205,78 +253,83 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
         case "peg_pair_points":
             from cardlang.runtime.cribbage import peg_pair_points
 
-            return peg_pair_points(reads.single(ctx.rs, _CRIBBAGE_R, "play_pile").cards)
+            # These two read live engine state directly rather than through a
+            # bundle, so their collection args are frozen here at the call site
+            # (the same boundary `_coerce_args` enforces for DSL arguments).
+            return peg_pair_points(
+                reads.deep_freeze(reads.single(ctx.rs, _CRIBBAGE_R, "play_pile").cards)
+            )
         case "peg_run_points":
             from cardlang.runtime.cribbage import peg_run_points
 
             return peg_run_points(
-                reads.single(ctx.rs, _CRIBBAGE_R, "play_pile").cards,
-                ctx.rs.rank_index,
+                reads.deep_freeze(reads.single(ctx.rs, _CRIBBAGE_R, "play_pile").cards),
+                reads.deep_freeze(ctx.rs.rank_index),
             )
         case "peg_origin_of":
-            from cardlang.runtime.cribbage import peg_origin_of
+            from cardlang.runtime.cribbage import ROW, peg_origin_of
 
-            return peg_origin_of(ctx, args[0])
+            return peg_origin_of(*_bind(ctx, ROW), args[0])
         case "cribbage_show_value":
-            from cardlang.runtime.cribbage import cribbage_show_value
+            from cardlang.runtime.cribbage import ROW, cribbage_show_value
 
-            return cribbage_show_value(ctx, args[0])
+            return cribbage_show_value(*_bind(ctx, ROW), args[0])
         case "cribbage_crib_value":
-            from cardlang.runtime.cribbage import cribbage_crib_value
+            from cardlang.runtime.cribbage import ROW, cribbage_crib_value
 
-            return cribbage_crib_value(ctx)
+            return cribbage_crib_value(*_bind(ctx, ROW))
         case "gin_card_points":
             from cardlang.runtime.gin import card_points
 
             return card_points(args[0])
         case "gin_deadwood":
-            from cardlang.runtime.gin import gin_deadwood
+            from cardlang.runtime.gin import ROW, gin_deadwood
 
-            return gin_deadwood(ctx, args[0])
+            return gin_deadwood(*_bind(ctx, ROW), args[0])
         case "gin_can_knock":
-            from cardlang.runtime.gin import gin_can_knock
+            from cardlang.runtime.gin import ROW, gin_can_knock
 
-            return gin_can_knock(ctx, args[0])
+            return gin_can_knock(*_bind(ctx, ROW), args[0])
         case "gin_knock_ok":
-            from cardlang.runtime.gin import gin_knock_ok
+            from cardlang.runtime.gin import ROW, gin_knock_ok
 
-            return gin_knock_ok(ctx, args[0], args[1])
+            return gin_knock_ok(*_bind(ctx, ROW), args[0], args[1])
         case "gin_valid_meld":
-            from cardlang.runtime.gin import gin_valid_meld
+            from cardlang.runtime.gin import ROW, gin_valid_meld
 
-            return gin_valid_meld(ctx, args[0])
+            return gin_valid_meld(*_bind(ctx, ROW), args[0])
         case "gin_arrange_ok":
-            from cardlang.runtime.gin import gin_arrange_ok
+            from cardlang.runtime.gin import ROW, gin_arrange_ok
 
-            return gin_arrange_ok(ctx, args[0], args[1])
+            return gin_arrange_ok(*_bind(ctx, ROW), args[0], args[1])
         case "gin_can_declare":
-            from cardlang.runtime.gin import gin_can_declare
+            from cardlang.runtime.gin import ROW, gin_can_declare
 
-            return gin_can_declare(ctx, args[0])
+            return gin_can_declare(*_bind(ctx, ROW), args[0])
         case "gin_can_declare_free":
-            from cardlang.runtime.gin import gin_can_declare_free
+            from cardlang.runtime.gin import ROW, gin_can_declare_free
 
-            return gin_can_declare_free(ctx, args[0])
+            return gin_can_declare_free(*_bind(ctx, ROW), args[0])
         case "gin_flat_points":
-            from cardlang.runtime.gin import gin_flat_points
+            from cardlang.runtime.gin import ROW, gin_flat_points
 
-            return gin_flat_points(ctx, args[0])
+            return gin_flat_points(*_bind(ctx, ROW), args[0])
         case "gin_shown_points":
-            from cardlang.runtime.gin import gin_shown_points
+            from cardlang.runtime.gin import ROW, gin_shown_points
 
-            return gin_shown_points(ctx, args[0])
+            return gin_shown_points(*_bind(ctx, ROW), args[0])
         case "gin_lay_ok_a":
-            from cardlang.runtime.gin import gin_lay_ok_a
+            from cardlang.runtime.gin import ROW, gin_lay_ok_a
 
-            return gin_lay_ok_a(ctx, args[0], args[1])
+            return gin_lay_ok_a(*_bind(ctx, ROW), args[0], args[1])
         case "gin_lay_ok_b":
-            from cardlang.runtime.gin import gin_lay_ok_b
+            from cardlang.runtime.gin import ROW, gin_lay_ok_b
 
-            return gin_lay_ok_b(ctx, args[0], args[1])
+            return gin_lay_ok_b(*_bind(ctx, ROW), args[0], args[1])
         case "gin_lay_ok_c":
-            from cardlang.runtime.gin import gin_lay_ok_c
+            from cardlang.runtime.gin import ROW, gin_lay_ok_c
 
-            return gin_lay_ok_c(ctx, args[0], args[1])
+            return gin_lay_ok_c(*_bind(ctx, ROW), args[0], args[1])
         case "five_hundred_next_bid":
             from cardlang.runtime.five_hundred import five_hundred_next_bid
 
@@ -290,127 +343,221 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
 
             return five_hundred_bid_level(args[0])
         case "five_hundred_follow_ok":
-            from cardlang.runtime.five_hundred import five_hundred_follow_ok
+            from cardlang.runtime.five_hundred import ROW, five_hundred_follow_ok
 
-            return five_hundred_follow_ok(ctx, args[0], args[1])
+            return five_hundred_follow_ok(*_bind(ctx, ROW), args[0], args[1])
         case "five_hundred_lead_ok":
-            from cardlang.runtime.five_hundred import five_hundred_lead_ok
+            from cardlang.runtime.five_hundred import ROW, five_hundred_lead_ok
 
-            return five_hundred_lead_ok(ctx, args[0], args[1])
+            return five_hundred_lead_ok(*_bind(ctx, ROW), args[0], args[1])
         case "five_hundred_trick_winner":
-            from cardlang.runtime.five_hundred import five_hundred_trick_winner
+            from cardlang.runtime.five_hundred import ROW, five_hundred_trick_winner
 
-            return five_hundred_trick_winner(ctx, args[0])
+            winner, events = five_hundred_trick_winner(*_bind(ctx, ROW), args[0])
+            _emit(ctx, events)
+            return winner
         case "belote_trump_height":
             from cardlang.runtime.belote import belote_trump_height
 
             return belote_trump_height(args[0])
         case "belote_opp_winning":
-            from cardlang.runtime.belote import belote_opp_winning
+            from cardlang.runtime.belote import ROW, belote_opp_winning
 
-            return belote_opp_winning(ctx)
+            return belote_opp_winning(*_bind(ctx, ROW))
         case "belote_royal_player":
-            from cardlang.runtime.belote import belote_royal_player
+            from cardlang.runtime.belote import ROW, belote_royal_player
 
-            return belote_royal_player(ctx)
+            return belote_royal_player(*_bind(ctx, ROW))
         case "belote_best_is":
-            from cardlang.runtime.belote import belote_best_is
+            from cardlang.runtime.belote import ROW, belote_best_is
 
-            return belote_best_is(ctx, args[0], args[1], args[2], args[3])
+            return belote_best_is(*_bind(ctx, ROW), args[0], args[1], args[2], args[3])
         case "belote_decl_points":
-            from cardlang.runtime.belote import belote_decl_points
+            from cardlang.runtime.belote import ROW, belote_decl_points
 
-            return belote_decl_points(ctx, args[0])
+            return belote_decl_points(*_bind(ctx, ROW), args[0])
         case "belote_decl_class":
-            from cardlang.runtime.belote import belote_decl_class
+            from cardlang.runtime.belote import ROW, belote_decl_class
 
-            return belote_decl_class(ctx, args[0])
+            return belote_decl_class(*_bind(ctx, ROW), args[0])
         case "belote_decl_height":
-            from cardlang.runtime.belote import belote_decl_height
+            from cardlang.runtime.belote import ROW, belote_decl_height
 
-            return belote_decl_height(ctx, args[0])
+            return belote_decl_height(*_bind(ctx, ROW), args[0])
         case "belote_decl_trump":
-            from cardlang.runtime.belote import belote_decl_trump
+            from cardlang.runtime.belote import ROW, belote_decl_trump
 
-            return belote_decl_trump(ctx, args[0])
+            return belote_decl_trump(*_bind(ctx, ROW), args[0])
         case "belote_decl_size":
-            from cardlang.runtime.belote import belote_decl_size
+            from cardlang.runtime.belote import ROW, belote_decl_size
 
-            return belote_decl_size(ctx, args[0])
+            return belote_decl_size(*_bind(ctx, ROW), args[0])
         case "belote_decl_slot":
-            from cardlang.runtime.belote import belote_decl_slot
+            from cardlang.runtime.belote import ROW, belote_decl_slot
 
-            return belote_decl_slot(ctx, args[0], args[1], args[2])
+            return belote_decl_slot(*_bind(ctx, ROW), args[0], args[1], args[2])
         case "canasta_is_red3":
-            from cardlang.runtime.canasta import canasta_is_red3
+            from cardlang.runtime.canasta import ROW, canasta_is_red3
 
-            return canasta_is_red3(ctx, args[0])
+            return canasta_is_red3(*_bind(ctx, ROW), args[0])
         case "canasta_is_black3":
-            from cardlang.runtime.canasta import canasta_is_black3
+            from cardlang.runtime.canasta import ROW, canasta_is_black3
 
-            return canasta_is_black3(ctx, args[0])
+            return canasta_is_black3(*_bind(ctx, ROW), args[0])
         case "canasta_top_starts_pile":
-            from cardlang.runtime.canasta import canasta_top_starts_pile
+            from cardlang.runtime.canasta import ROW, canasta_top_starts_pile
 
-            return canasta_top_starts_pile(ctx)
+            return canasta_top_starts_pile(*_bind(ctx, ROW))
         case "canasta_top_is_wild":
-            from cardlang.runtime.canasta import canasta_top_is_wild
+            from cardlang.runtime.canasta import ROW, canasta_top_is_wild
 
-            return canasta_top_is_wild(ctx)
+            return canasta_top_is_wild(*_bind(ctx, ROW))
         case "canasta_pile_rank":
-            from cardlang.runtime.canasta import canasta_pile_rank
+            from cardlang.runtime.canasta import ROW, canasta_pile_rank
 
-            return canasta_pile_rank(ctx)
+            return canasta_pile_rank(*_bind(ctx, ROW))
         case "canasta_can_take_pile":
-            from cardlang.runtime.canasta import canasta_can_take_pile
+            from cardlang.runtime.canasta import ROW, canasta_can_take_pile
 
-            return canasta_can_take_pile(ctx, args[0])
+            return canasta_can_take_pile(*_bind(ctx, ROW), args[0])
         case "canasta_must_take_pile":
-            from cardlang.runtime.canasta import canasta_must_take_pile
+            from cardlang.runtime.canasta import ROW, canasta_must_take_pile
 
-            return canasta_must_take_pile(ctx, args[0])
+            return canasta_must_take_pile(*_bind(ctx, ROW), args[0])
         case "canasta_can_start":
-            from cardlang.runtime.canasta import canasta_can_start
+            from cardlang.runtime.canasta import ROW, canasta_can_start
 
-            return canasta_can_start(ctx, args[0], args[1])
+            return canasta_can_start(*_bind(ctx, ROW), args[0], args[1])
         case "canasta_stage_ok":
-            from cardlang.runtime.canasta import canasta_stage_ok
+            from cardlang.runtime.canasta import ROW, canasta_stage_ok
 
-            return canasta_stage_ok(ctx, args[0], args[1])
+            return canasta_stage_ok(*_bind(ctx, ROW), args[0], args[1])
         case "canasta_close_ok":
-            from cardlang.runtime.canasta import canasta_close_ok
+            from cardlang.runtime.canasta import ROW, canasta_close_ok
 
-            return canasta_close_ok(ctx, args[0])
+            return canasta_close_ok(*_bind(ctx, ROW), args[0])
         case "canasta_add_ok":
-            from cardlang.runtime.canasta import canasta_add_ok
+            from cardlang.runtime.canasta import ROW, canasta_add_ok
 
-            return canasta_add_ok(ctx, args[0], args[1], args[2])
+            return canasta_add_ok(*_bind(ctx, ROW), args[0], args[1], args[2])
         case "canasta_discard_ok":
-            from cardlang.runtime.canasta import canasta_discard_ok
+            from cardlang.runtime.canasta import ROW, canasta_discard_ok
 
-            return canasta_discard_ok(ctx, args[0], args[1])
+            return canasta_discard_ok(*_bind(ctx, ROW), args[0], args[1])
         case "canasta_black3_ok":
-            from cardlang.runtime.canasta import canasta_black3_ok
+            from cardlang.runtime.canasta import ROW, canasta_black3_ok
 
-            return canasta_black3_ok(ctx, args[0])
+            return canasta_black3_ok(*_bind(ctx, ROW), args[0])
         case "canasta_meld_points":
-            from cardlang.runtime.canasta import canasta_meld_points
+            from cardlang.runtime.canasta import ROW, canasta_meld_points
 
-            return canasta_meld_points(ctx, args[0])
+            return canasta_meld_points(*_bind(ctx, ROW), args[0])
         case "canasta_canasta_bonus":
-            from cardlang.runtime.canasta import canasta_canasta_bonus
+            from cardlang.runtime.canasta import ROW, canasta_canasta_bonus
 
-            return canasta_canasta_bonus(ctx, args[0])
+            return canasta_canasta_bonus(*_bind(ctx, ROW), args[0])
         case "canasta_red3_bonus":
-            from cardlang.runtime.canasta import canasta_red3_bonus
+            from cardlang.runtime.canasta import ROW, canasta_red3_bonus
 
-            return canasta_red3_bonus(ctx, args[0])
+            return canasta_red3_bonus(*_bind(ctx, ROW), args[0])
         case "canasta_hand_points":
-            from cardlang.runtime.canasta import canasta_hand_points
+            from cardlang.runtime.canasta import ROW, canasta_hand_points
 
-            return canasta_hand_points(ctx, args[0])
+            return canasta_hand_points(*_bind(ctx, ROW), args[0])
         case _:
             raise AssertionError(f"unknown stdlib function '{name}'")
+
+
+def _lines(ctx: Ctx, k: int) -> tuple[tuple[str, ...], ...]:
+    """The board's length-`k` lines (cell-name tuples) -- the source the
+    `any line in lines(k) where …` register iterates. Reads the board entry
+    T5 already computed (`cardlang/stdlib/boards.py`), never re-derives the
+    geometry."""
+    board = ctx.rs.board
+    if board is None:
+        # Resolve walls `lines()` in a boardless game (BOARD_ONLY_CALL_FUNCS);
+        # this backstops that wall in the runtime's own currency, should the
+        # call ever reach here without a board.
+        raise RuntimeError(
+            "lines() reads the board's lines, but the game declares no `board:`"
+        )
+    try:
+        return board.lines(k)
+    except ValueError as exc:
+        # A LITERAL out-of-range `k` is a resolve diagnostic (static bounds
+        # check at the call site); a non-literal `k` (no rung-1 witness) is
+        # only knowable at runtime, so its out-of-range value surfaces here as
+        # a typed runtime error, never a bare ValueError escaping the boundary.
+        raise RuntimeError(str(exc)) from exc
+
+
+def _board_of(ctx: Ctx, fn: str) -> BoardEntry:
+    """The instantiated `board:` entry the class-1 movement/region verbs read
+    (the `_lines` twin). Resolve walls a board-only call in a boardless game
+    (BOARD_ONLY_CALL_FUNCS); this backstops that resolve wall in the runtime's
+    own currency, naming the missing `board:`, should such a call ever reach
+    here without a board."""
+    board = ctx.rs.board
+    if board is None:
+        raise RuntimeError(
+            f"{fn}() reads the `board:`, but the game declares no `board:`"
+        )
+    return board
+
+
+def _seat(ctx: Ctx, fn: str, player: int) -> int:
+    """A frame verb's player argument must be a seat of this game. The resolve
+    wall (typecheck `_check_role_literal`) rejects a LITERAL out-of-range seat
+    statically, and the frame verbs are two-player-only (resolve), so a bad seat
+    is unreachable from a well-formed game -- this backstops the COMPUTED case
+    in the runtime's currency (a typed, game-facing rejection) in place of the
+    frame's internal `_player_sign` `ValueError`, which reads as a registry bug
+    rather than a game one."""
+    if player not in ctx.rs.seating.players:
+        raise RuntimeError(
+            f"`{fn}` reads seat {player!r}, not a seat of this "
+            f"{len(ctx.rs.seating.players)}-player game"
+        )
+    return player
+
+
+def _neighbor(ctx: Ctx, cell: str, direction: str, player: int) -> str:
+    """The cell one step along `direction` in `player`'s frame -- the geometry
+    the `step` move reads (cardlang/stdlib/boards.py). Total by contract: every
+    call site is `has_step`-gated (the guard short-circuits before any off-board
+    `neighbor` runs; the effect runs only after that guard passed), so an
+    off-board result is unreachable from a game. The None-return raise is a
+    backstop of that `has_step` guard, in the runtime's currency -- not a
+    game-reachable error."""
+    dest = _board_of(ctx, "neighbor").neighbor(cell, direction, _seat(ctx, "neighbor", player))
+    if dest is None:
+        raise RuntimeError(
+            f"neighbor({cell!r}, {direction!r}, {player}) stepped off the board "
+            "-- a total neighbor must be has_step-gated at its call site"
+        )
+    return dest
+
+
+def _has_step(ctx: Ctx, cell: str, direction: str, player: int) -> bool:
+    """Whether the step along `direction` stays on the board -- the guard
+    predicate that gates the total `neighbor`."""
+    return _board_of(ctx, "has_step").has_step(cell, direction, _seat(ctx, "has_step", player))
+
+
+def _is_diagonal(ctx: Ctx, direction: str) -> bool:
+    """Whether a step along `direction` captures (changes file)."""
+    return _board_of(ctx, "is_diagonal").is_diagonal(direction)
+
+
+def _home(ctx: Ctx, player: int) -> tuple[str, ...]:
+    """A player's home region (back two ranks) -- a Collection<Cell>."""
+    return _board_of(ctx, "home").home(_seat(ctx, "home", player))
+
+
+def _far_row(ctx: Ctx, player: int) -> tuple[str, ...]:
+    """The rank at the far edge of `player`'s frame (the reach-to-win goal)
+    -- a Collection<Cell>."""
+    return _board_of(ctx, "far_row").far_row(_seat(ctx, "far_row", player))
 
 
 def _strain_index(strain: str | None) -> int:
@@ -514,7 +661,36 @@ def value_function(name: str) -> Callable[..., Any]:
 # game-local, so these dispatch to per-game modules.
 
 
-def climb_lead_function(name: str) -> Callable[[list[Card], Ctx], list[Any]]:
+ClimbLeadFn = Callable[[sidecar.EngineFacts, reads.GameReads, list[Card]], list[Any]]
+ClimbFollowFn = Callable[
+    [sidecar.EngineFacts, reads.GameReads, list[Card], Any], list[Any]
+]
+
+
+def climb_row(name: str) -> reads.PrimitiveReads:
+    """The declared-reads row of the module implementing a climb query.
+    Climb queries are named on a `round climb` and invoked by the round
+    machinery rather than through `call`, so the binder needs their row
+    from here — keyed by the LEAD query's name, the same key
+    `climb_universe_function` uses."""
+    match name:
+        case "bigtwo_lead_options" | "bigtwo_follows":
+            from cardlang.runtime.bigtwo import ROW
+
+            return ROW
+        case "tichu_lead_options" | "tichu_follows":
+            from cardlang.runtime.tichu import ROW
+
+            return ROW
+        case "president_lead_options" | "president_follows":
+            from cardlang.runtime.president import ROW
+
+            return ROW
+        case _:
+            raise AssertionError(f"unknown climb query '{name}'")
+
+
+def climb_lead_function(name: str) -> ClimbLeadFn:
     match name:
         case "bigtwo_lead_options":
             from cardlang.runtime.bigtwo import bigtwo_lead_options
@@ -532,7 +708,7 @@ def climb_lead_function(name: str) -> Callable[[list[Card], Ctx], list[Any]]:
             raise AssertionError(f"unknown climb lead query '{name}'")
 
 
-def climb_follow_function(name: str) -> Callable[[list[Card], Any, Ctx], list[Any]]:
+def climb_follow_function(name: str) -> ClimbFollowFn:
     match name:
         case "bigtwo_follows":
             from cardlang.runtime.bigtwo import bigtwo_follows

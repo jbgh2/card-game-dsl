@@ -434,7 +434,7 @@ scale, plus a genuine test of the run-invariant assumption: Spider's
 mid-game deals drop a fresh row onto the piles, so a face-up pile is
 NOT rank-monotone and the rank-filter suffix denotation no longer
 covers every legal unit move — the positional-slice movement
-recorded as deferred in [roadmap.md](../roadmap.md).
+recorded as deferred in issue #111.
 
 ## Boards: the topology witness ladder
 
@@ -451,36 +451,25 @@ differential oracle. Not card games — precedent for that is
 these are real pipeline candidates: the dream goal on the project's own
 table is all fixed-outcome board games.
 
-### tic-tac-toe
+(Tic-tac-toe, the ladder's first rung, is now in the corpus
+([tic-tac-toe.md](tic-tac-toe.md)): the walking skeleton for the whole
+axis — board declaration, the minted `cell` domain, cell-indexed zone
+families, the placement vocabulary, declared line patterns, `turns` on a
+board, and draw-on-full-board — perfect information and monotone, the
+baseline every later rung changes exactly one thing against. Rules are
+common knowledge; OpenSpiel's native `tic_tac_toe` is the differential
+oracle.)
 
-2 players, 3×3 grid, 5+4 marks. Alternate placing on empty cells;
-three in a line wins; full board draws.
-
-**Why interesting.** The walking skeleton for the whole axis: board
-declaration, the `Cell` parameter domain, cell-indexed zone families,
-the placement vocabulary, declared line patterns, `turns` on a board,
-draw-on-full-board. Perfect information and monotone, so the
-observation model does not move at all — which is the point: every
-later rung changes one thing against this baseline.
-
-**Notes.** Rules are common knowledge; OpenSpiel `tic_tac_toe`
-(thoroughly tested) is the oracle.
-
-### breakthrough
-
-2 players, 8×8 grid, 16 pawn-like pieces each. Move one piece one
-square straight or diagonally forward; capture diagonally only; first
-to reach the opponent's back row wins.
-
-**Why interesting.** The movement rung: per-player direction frames
-("forward" as a declared per-seat transform over one shared board),
-the step/capture vocabulary with `Cell` (or cell × direction)
-parameters, displacement capture into a captured pile, reach-region
-win. Still monotone — pieces only advance, so no draw machinery.
-
-**Notes.** Invented by Dan Troyka, 2000; rules on the inventor's and
-standard abstract-games references. OpenSpiel `breakthrough`
-(thoroughly tested; `rows`/`columns` parameters) is the oracle.
+(Breakthrough, the ladder's second rung, is now in the corpus
+([breakthrough.md](breakthrough.md)): the movement rung — per-player
+direction frames ("forward" as a per-seat transform over one shared
+board), the minted `dir` domain and the `step(from, along)` vocabulary,
+the neighbor/region query verbs, `for each cell` setup over `home`,
+displacement capture into a public captured pile, and two termini
+(reach `far_row`, or take the last enemy man). Still monotone — every
+move advances or removes a man — so no draw machinery. Invented by Dan
+Troyka, 2000; OpenSpiel's native `breakthrough` is the differential
+oracle.)
 
 ### backgammon
 

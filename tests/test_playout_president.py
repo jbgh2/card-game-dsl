@@ -24,15 +24,17 @@ from pathlib import Path
 from typing import Any
 
 from cardlang.pipeline import check_source
+from cardlang.runtime import reads, sidecar
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.president import (
     _STRENGTH,
+    ROW,
     Play,
     president_follows,
     president_lead_options,
     president_universe,
 )
-from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
+from cardlang.runtime.state import RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating
 
 PRESIDENT = Path(__file__).parent.parent / "docs" / "games" / "president.cardlang"
@@ -46,9 +48,10 @@ def _hand(*specs: str) -> list[Card]:
     return [Card(r, _SUIT[s]) for r, s in (spec.split("@") for spec in specs)]
 
 
-def _ctx() -> Ctx:
-    """A minimal ctx whose rank_index is the driver's formula over the game's
-    declared `ranking:` — the exact strengths live play uses."""
+def _ctx() -> tuple[sidecar.EngineFacts, reads.GameReads]:
+    """The value bundles a president query receives, built exactly as the
+    engine builds them — rank_index from the driver's formula over the game's
+    declared `ranking:`, which is the strength table live play uses."""
     from cardlang.ast import nodes as n
 
     game = check_source(PRESIDENT)
@@ -57,19 +60,20 @@ def _ctx() -> Ctx:
     )
     rs = RuntimeState(Seating(5), ZoneStore(decls, tuple(range(5))), random.Random(0))
     rs.rank_index = {r: len(game.ranking) - 1 - i for i, r in enumerate(game.ranking)}
-    return Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]))
+    return sidecar.bind(rs, None, ROW)
 
 
 def test_module_strength_table_matches_the_declared_ranking() -> None:
-    # The universe enumeration uses the module table (no ctx); live queries use
-    # ctx.rs.rank_index from the game's `ranking:`. Pin them together.
+    # The universe enumeration uses the module table (no bundles); live
+    # queries use the engine facts' rank_index from the game's `ranking:`.
+    # Pin them together.
     ctx = _ctx()
-    assert _STRENGTH == ctx.rs.rank_index
+    assert _STRENGTH == ctx[0].rank_index
 
 
 def test_lead_options_cover_every_rank_and_size() -> None:
     ctx = _ctx()
-    leads = president_lead_options(_hand("7@s", "7@h", "7@c", "K@d", "3@s", "3@h"), ctx)
+    leads = president_lead_options(*ctx, _hand("7@s", "7@h", "7@c", "K@d", "3@s", "3@h"))
     shapes = {(p.cards[0].rank, p.size) for p in leads}
     assert shapes == {
         ("7", 1), ("7", 2), ("7", 3), ("K", 1), ("3", 1), ("3", 2),
@@ -77,7 +81,7 @@ def test_lead_options_cover_every_rank_and_size() -> None:
     # Every lead is a natural set: equal ranks, key = the rank's own strength.
     for p in leads:
         assert p.kind == "set" and len({c.rank for c in p.cards}) == 1
-        assert p.key == ctx.rs.rank_index[p.cards[0].rank]
+        assert p.key == ctx[0].rank_index[p.cards[0].rank]
     # A led set of threes is natural — the lowest key, not transparent.
     three_pair = next(p for p in leads if p.cards[0].rank == "3" and p.size == 2)
     assert three_pair.key == 0
@@ -85,9 +89,9 @@ def test_lead_options_cover_every_rank_and_size() -> None:
 
 def test_follows_are_same_size_and_strictly_higher() -> None:
     ctx = _ctx()
-    strength = ctx.rs.rank_index
+    strength = ctx[0].rank_index
     led_pair_9 = Play("set", 2, strength["9"], (Card("9", "spades"), Card("9", "hearts")))
-    follows = president_follows(_hand("9@c", "9@d", "K@s", "K@h", "A@c", "5@s", "5@h"), led_pair_9, ctx)
+    follows = president_follows(*ctx, _hand("9@c", "9@d", "K@s", "K@h", "A@c", "5@s", "5@h"), led_pair_9)
     ranks = {p.cards[0].rank for p in follows}
     # Equal rank does not beat; lower does not beat; a single ace is the wrong
     # size; the king pair does.
@@ -97,14 +101,14 @@ def test_follows_are_same_size_and_strictly_higher() -> None:
     assert strength["2"] > strength["A"] > strength["4"] > strength["3"]
     # Nothing naturally beats a pair of 2s.
     led_pair_2 = Play("set", 2, strength["2"], (Card("2", "spades"), Card("2", "hearts")))
-    assert president_follows(_hand("A@s", "A@h", "K@c", "K@d"), led_pair_2, ctx) == []
+    assert president_follows(*ctx, _hand("A@s", "A@h", "K@c", "K@d"), led_pair_2) == []
 
 
 def test_transparent_threes_beat_anything_and_absorb_the_rank() -> None:
     ctx = _ctx()
-    strength = ctx.rs.rank_index
+    strength = ctx[0].rank_index
     led_pair_k = Play("set", 2, strength["K"], (Card("K", "spades"), Card("K", "hearts")))
-    follows = president_follows(_hand("3@s", "3@h", "Q@c", "Q@d"), led_pair_k, ctx)
+    follows = president_follows(*ctx, _hand("3@s", "3@h", "Q@c", "Q@d"), led_pair_k)
     # The queens cannot beat kings; the pure-threes pair can.
     threes = [p for p in follows if p.kind == "threes"]
     assert len(follows) == 1 and len(threes) == 1
@@ -113,22 +117,22 @@ def test_transparent_threes_beat_anything_and_absorb_the_rank() -> None:
     # Transparency: the threes take on the beaten rank — the next follower
     # must beat kings, so aces beat, queens still do not.
     assert t.key == led_pair_k.key
-    nxt = president_follows(_hand("A@s", "A@h", "Q@s", "Q@h"), t, ctx)
+    nxt = president_follows(*ctx, _hand("A@s", "A@h", "Q@s", "Q@h"), t)
     assert {p.cards[0].rank for p in nxt} == {"A"}
     # Threes also beat an effective rank of 2 (nothing else can) ...
     led_pair_two = Play("set", 2, strength["2"], (Card("2", "spades"), Card("2", "hearts")))
-    over_two = president_follows(_hand("3@c", "3@d", "A@s", "A@h"), led_pair_two, ctx)
+    over_two = president_follows(*ctx, _hand("3@c", "3@d", "A@s", "A@h"), led_pair_two)
     assert [p.kind for p in over_two] == ["threes"]
     # ... and beat a standing threes-as-X, absorbing X again.
-    again = president_follows(_hand("3@c", "3@d"), t, ctx)
+    again = president_follows(*ctx, _hand("3@c", "3@d"), t)
     assert [p.kind for p in again] == ["threes"] and again[0].key == strength["K"]
     # A led (natural) threes set is beaten transparently too, absorbing the
     # threes' own lowest rank — so anything then beats it.
     led_three = Play("set", 1, strength["3"], (Card("3", "diamonds"),))
-    over_three = president_follows(_hand("3@c", "4@d"), led_three, ctx)
+    over_three = president_follows(*ctx, _hand("3@c", "4@d"), led_three)
     assert {p.kind for p in over_three} == {"set", "threes"}
     # No bombs, no cross-size beating: a triple never answers a pair.
-    follows_sizes = president_follows(_hand("A@s", "A@h", "A@c"), led_pair_k, ctx)
+    follows_sizes = president_follows(*ctx, _hand("A@s", "A@h", "A@c"), led_pair_k)
     assert all(p.size == 2 for p in follows_sizes)
 
 
@@ -146,10 +150,10 @@ def test_universe_is_a_unique_superset_of_the_query_outputs() -> None:
         deck = build_deck("standard52")
         rng.shuffle(deck)
         hand = deck[:11]
-        leads = president_lead_options(hand, ctx)
+        leads = president_lead_options(*ctx, hand)
         assert all(frozenset(p.cards) in card_sets for p in leads)
         for led in leads:
-            for f in president_follows(deck[11:22], led, ctx):
+            for f in president_follows(*ctx, deck[11:22], led):
                 assert frozenset(f.cards) in card_sets
 
 
@@ -161,10 +165,10 @@ def test_30_random_games_satisfy_invariants() -> None:
 
         def tracer(event: str, data: Any) -> None:
             if event == "hand_end":
-                hand_totals.append(dict(data))
+                hand_totals.append(dict(data))  # noqa: B023 -- consumed before the loop advances
             elif event == "game_end":
-                census.clear()
-                census.update(data)
+                census.clear()  # noqa: B023 -- consumed before the loop advances
+                census.update(data)  # noqa: B023 -- consumed before the loop advances
 
         result = play_game(game, random.Random(seed), tracer)
 

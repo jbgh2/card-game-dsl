@@ -35,6 +35,7 @@ import json
 from typing import TypeAlias, assert_never
 
 from cardlang.ast import nodes as n
+from cardlang.board_domains import directions_of
 
 IR_VERSION = 1
 
@@ -50,6 +51,9 @@ def emit(game: n.Game) -> IRDict:
         "name": game.name,
         "players": _players(game.players),
         "deck": game.deck,
+        # Keyed ONLY for piece games — the card-game IR predates the field
+        # and its goldens are byte-stable; an absent key means "card".
+        **({"content_flavor": game.content_flavor} if game.content_flavor != "card" else {}),
         "direction": game.direction,
         "max_length": game.max_length,
         "ranking": list(game.ranking),
@@ -59,6 +63,16 @@ def emit(game: n.Game) -> IRDict:
         "trump": game.trump,
         "partnerships": [list(t) for t in game.partnerships],
         "positions": [_position(p) for p in game.positions],
+        # The board-minted movement-direction domain (decisions.md "Boards and
+        # cells", rung-2 movement). Keyed ONLY for a board game, like
+        # `content_flavor`: a boardless game mints no `dir` source, and an
+        # absent key keeps the card-game IR byte-stable.
+        **(
+            {"directions": [_direction(name, members)
+                            for name, members in directions_of(game).items()]}
+            if game.board is not None
+            else {}
+        ),
         "zones": [_zone(z) for z in game.zones],
         "state": _state_block(game.state) if game.state else None,
         "phases": [_phase(p) for p in game.phases],
@@ -85,7 +99,19 @@ def _players(p: n.PlayersSpec) -> IRDict:
 
 
 def _position(p: n.PositionDecl) -> IRDict:
+    # A named-member domain (the board-minted `cell`) carries its members; an
+    # integer domain keeps its `lo`/`hi` form byte-for-byte (the board's IR
+    # representation is exactly this minted domain — decisions.md "Boards and
+    # cells").
+    if p.members_named is not None:
+        return {"kind": "position", "name": p.name, "members": list(p.members_named)}
     return {"kind": "position", "name": p.name, "lo": p.lo, "hi": p.hi}
+
+
+def _direction(name: str, members: tuple[str, ...]) -> IRDict:
+    # The board-minted `dir` domain rendered like a named-member `_position`,
+    # but a SEPARATE top-level key: `dir` is not in `game.positions`.
+    return {"kind": "direction", "name": name, "members": list(members)}
 
 
 def _winner(w: n.Winner) -> IRDict:
@@ -256,8 +282,8 @@ def _stmt(s: n.Stmt) -> IRDict:
             # which uses `where`) stays byte-identical in its golden — this is
             # the whole point of the conditional key (plan §2e/§4). `joint`
             # rides the same convention: without it, a subset decision binding
-            # `cards` was IR-indistinguishable from a per-card filter binding
-            # `card` (Codex P2 on #67) — wrong semantics for any IR consumer.
+            # `cards` would be IR-indistinguishable from a per-card filter
+            # binding `card` — wrong semantics for any IR consumer.
             if s.filter is not None:
                 movement["filter"] = _expr(s.filter)
                 if s.joint:
@@ -528,6 +554,18 @@ def _expr(e: n.Expr) -> IRDict:
             if e.default is not None:
                 comp["default"] = _expr(e.default)
             return comp
+        case n.DomainQuery():
+            dq: IRDict = {
+                "kind": "domain_query",
+                "query": e.kind,
+                "binder": e.binder,
+                "pred": _expr(e.pred),
+            }
+            # Emitted only for the collection forms (the bare forms enumerate a
+            # declared domain and have no source), keeping the key set minimal.
+            if e.source is not None:
+                dq["source"] = _expr(e.source)
+            return dq
         case n.PlayerQuery():
             return {"kind": "player_query", "query": e.kind, "pred": _expr(e.pred)}
         case n.CardQuery():

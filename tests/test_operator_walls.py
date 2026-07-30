@@ -26,9 +26,9 @@ covered:   (class, operand-type) cells with an executed probe in this
                           TEnum-vs-TCard (reject + whole-card hint),
                           TEnum-vs-TBoolean (reject) — the default arm that
                           makes `_check_enum_operand` total over concrete
-                          operand types (Codex review of PR #48; the same
-                          arm closes the literal-list membership hole,
-                          `card.suit in [Q of spades]`, probed below)
+                          operand types (the same arm closes the literal-list
+                          membership hole, `card.suit in [Q of spades]`,
+                          probed below)
              ordering    x TInteger (accept), TEnum(Rank) (hint), TEnum(Suit)
                           (enum-message), TCard (generic message), TAny
                           (accept, gradual)
@@ -88,8 +88,7 @@ import pytest
 
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
-from cardlang.typecheck import KNOWN_TYPE_NAMES
-from cardlang.typecheck import OP_CLASSES, infer
+from cardlang.typecheck import KNOWN_TYPE_NAMES, OP_CLASSES, infer
 
 # --- shared minimal-game builder (mirrors test_zone_family_typing.py) ---
 
@@ -149,7 +148,7 @@ def test_op_classes_is_exactly_infers_binop_registry() -> None:
 def test_an_unclassified_operator_fails_loud_not_silent() -> None:
     """`_op_class` itself, exercised directly: every real operator classifies
     (no AssertionError) — the runtime backstop behind the static pin above."""
-    from cardlang.typecheck import _op_class  # noqa: PLC0415
+    from cardlang.typecheck import _op_class
 
     for op in OP_CLASSES:
         _op_class(op)  # must not raise
@@ -200,7 +199,7 @@ def test_equality_enum_vs_boolean_rejected_by_the_default_arm() -> None:
 def test_membership_literal_list_rejects_a_card_element() -> None:
     # The literal-list path routes through the same per-element enum wall, so
     # the default arm closes it too: a Card in a Suit-compared list is never
-    # true, and previously slipped past the early return.
+    # true, and without that arm would slip past the early return.
     _rejects(
         _game("let probe = any card in pile where card.suit in [Q of spades]"),
         "comparing Suit with Card can never be equal",
@@ -332,9 +331,9 @@ def test_membership_rejects_non_collection_right_hand_side() -> None:
 
 
 def test_membership_rejects_integer_against_a_suit_list() -> None:
-    # THE PROBE named in the brief: `Integer in [hearts, spades]` — the
-    # general `unify`-based wall, not the enum-literal path (the left
-    # operand isn't itself an enum).
+    # The headline probe: `Integer in [hearts, spades]` — the general
+    # `unify`-based wall, not the enum-literal path (the left operand
+    # isn't itself an enum).
     _rejects(
         _game("let probe = 3 in [hearts, spades]"),
         "membership compares Integer with a collection of Suit — never true",
@@ -342,7 +341,7 @@ def test_membership_rejects_integer_against_a_suit_list() -> None:
 
 
 def test_membership_rejects_a_suit_against_a_card_collection() -> None:
-    # THE PROBE named in the brief: "a Suit in a zone (collection of Card)".
+    # The headline probe: a Suit in a zone (collection of Card).
     _rejects(
         _game("let probe = hearts in hand[0]"),
         "membership compares Suit with a collection of Card — never true",
@@ -414,8 +413,7 @@ def test_offset_by_rejects_a_non_direction_right_operand() -> None:
 
 
 def test_offset_by_types_through_a_let() -> None:
-    # This test used to pin the let-TAny gap ("both operands pass
-    # vacuously"). Lets are typed now, so it pins the wall instead, in both
+    # Lets are typed, so this pins the wall in both
     # directions: a Player-valued let is a legal receiver on its own merits,
     # and an Integer-valued let is rejected exactly as the inline literal
     # would be.
@@ -465,8 +463,8 @@ game G {{
 # One named operand per name in the type registry. DERIVED from KNOWN_TYPE_NAMES,
 # not hand-listed: a new declarable type lands here as a KeyError until someone
 # gives it an operand and classifies its row, which is the whole point of a
-# registry-derived matrix (the ledger used to claim this while the list was a
-# literal, which is the "measuring the wall against itself" trap).
+# registry-derived matrix (a ledger claiming this over a hand-listed literal
+# would be the "measuring the wall against itself" trap).
 _OPERAND_FOR = {
     "Boolean": "flag",
     "Integer": "n",
@@ -502,12 +500,14 @@ _COMPARABLE |= {
 def test_equality_operand_matrix(left: str, right: str) -> None:
     """The full cross-product of the scalar type registry under `is`.
 
-    Before the sweep this wall only fired when one side was an enum, so an entire
-    row was dark: `flag is hearts`, `flag is 1`, `flag is "x"`, `n is "x"`, `who is
-    "x"` were all accepted — comparisons that are ALWAYS FALSE. The hole surfaced
-    when the round-state pronoun got real types (stdlib/round_state.py) and
-    `state.trick_terminated_early` became a Boolean. Per decisions.md "Closed-domain
-    completeness" the fix swept the class, and this matrix is what keeps it swept."""
+    Were this wall to fire only when one side is an enum, an entire row would go
+    dark: `flag is hearts`, `flag is 1`, `flag is "x"`, `n is "x"`, `who is "x"`
+    would all be accepted — comparisons that are ALWAYS FALSE. Boolean is the
+    easy one to miss: a typed round-state pronoun makes
+    `state.trick_terminated_early` a Boolean, so a Boolean-vs-enum comparison is
+    a spelling a designer reaches for. Per decisions.md "Closed-domain
+    completeness" the wall sweeps the whole class, and this matrix is what keeps
+    it swept."""
     pred = f"{_OPERANDS[left]} is {_OPERANDS[right]}"
     src = _EQ_GAME.format(pred=pred)
     if frozenset({left, right}) in _COMPARABLE:

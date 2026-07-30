@@ -11,12 +11,14 @@ is a pure function of ``seed``."""
 from __future__ import annotations
 
 import random
+from collections.abc import Callable
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
-from typing import Any, Callable, cast
+from typing import Any, cast
 
 from cardlang.ast import nodes as n
+from cardlang.domains import Role, role_of
 from cardlang.openspiel.encoding import ActionSpace
 from cardlang.pipeline import check_source
 from cardlang.runtime.driver import GameResult, play_game
@@ -24,7 +26,7 @@ from cardlang.runtime.observe import render
 from cardlang.runtime.state import ChooserAbort, RuntimeState
 
 
-@lru_cache(maxsize=None)
+@cache
 def load(path_str: str) -> tuple[n.Game, ActionSpace]:
     """Parse + check a game and derive its action space (cached per path)."""
     game = check_source(Path(path_str))
@@ -98,6 +100,80 @@ class ReplayChooser:
 RANK_DIR_TO_SIGN: dict[str, float] = {"highest": 1.0, "lowest": -1.0}
 
 
+# The index roles the seat -> score-key mapping below knows how to invert.
+# Reconciled against `domains.ZONE_INDEX_ROLES` by
+# tests/test_openspiel_returns_keying.py, so a new seat-anchored role has to be
+# handled here rather than silently read as player keying.
+_RETURNS_KEYED_ROLES: frozenset[str] = frozenset({"player", "team"})
+
+
+def _winner_target_index(game: n.Game) -> str | None:
+    """The `winner:` target's declared index role (`score[team]` -> `"team"`),
+    or None when it is unindexed or names no declaration.
+
+    The walk covers everywhere state may be declared (`nodes.state_blocks`): a
+    winner target may be declared in a nested phase block, not only at game
+    level."""
+    assert game.winner is not None  # callers check; keeps mypy and intent aligned
+    target = game.winner.target
+    for block in n.state_blocks(game):
+        for decl in block.decls:
+            if decl.name == target:
+                return decl.index
+    return None
+
+
+def _score_key_by_seat(game: n.Game, n_players: int) -> list[int]:
+    """Seat -> the key that seat's score lives under in `result.scores`.
+
+    `driver` builds that dict from the `winner:` target (`rs.get(target)`), so
+    the variable's DECLARED index is the keying. It is never inferred from the
+    shape of the dict, which cannot distinguish the two: a game whose team count
+    equals its player count has team keys (`{0, 1}`) indistinguishable from
+    player keys, so a key-set test read team scores as player scores and paid the
+    wrong seats — silently, nothing about `partnerships: [[1], [0]]` on two seats
+    being malformed.
+
+    Dispatched over the role and LOUD for one it does not handle, the same
+    contract as `domains.zone_observer_key`. `ZONE_INDEX_ROLES` is DERIVED from
+    the domain registry (a row with a `zone_key_of`), so the day a new
+    seat-anchored role is added, resolve and the zone store accept and key it —
+    and reading it here as player-keyed would silently pay the wrong seats again.
+    That is precisely the per-consumer role drift `zone_key_of` was introduced to
+    end (domains.py), so an unhandled role raises instead of defaulting."""
+    name = _winner_target_index(game)
+    # UNINDEXED is answered before classification, and the two must not be
+    # folded together: `role_of` returns None both for "no index" and for "a
+    # name the registry does not know", so a single `role is None` arm would
+    # send an unrecognized index down the player branch — silently reading
+    # those seats' returns as player-keyed, which is the exact failure the
+    # raise below exists to prevent.
+    if name is None:
+        # A scalar target never reaches here at all (`driver` fails building a
+        # dict from an int first; issue #153), so this is the unindexed case:
+        # the seat IS its own key.
+        return list(range(n_players))
+    role = role_of(name)
+    # An ALLOW-LIST: the arms below enumerate what this mapping inverts, the
+    # fallback RAISES for anything else, and `_RETURNS_KEYED_ROLES` is
+    # reconciled against ZONE_INDEX_ROLES by
+    # tests/test_openspiel_returns_keying.py. Adding a role reddens that pin.
+    if role is Role.PLAYER:
+        return list(range(n_players))
+    if role is Role.TEAM:  # the second arm of the same allow-list
+        team_of = {
+            p: ti for ti, members in enumerate(game.partnerships) for p in members
+        }
+        return [team_of[p] for p in range(n_players)]
+    raise AssertionError(
+        f"returns_for: the `winner:` target is indexed by '{name}', which this "
+        f"mapping does not invert (it handles {sorted(_RETURNS_KEYED_ROLES)}) — "
+        f"those seats' returns would be silently read as player-keyed. Add the "
+        f"role here, mapping a seat to its key as that domain's `zone_key_of` "
+        f"does (cardlang/domains.py)"
+    )
+
+
 def returns_for(game: n.Game, result: GameResult) -> list[float]:
     """General-sum returns from the game's own result (SP1 spec, component 6):
     true scores, sign-adjusted so higher is better (negated for `lowest`
@@ -120,15 +196,10 @@ def returns_for(game: n.Game, result: GameResult) -> list[float]:
         )
     sign = RANK_DIR_TO_SIGN[game.winner.rank_dir]
     scores = result.scores
-    if set(scores) == set(range(n_players)):
-        return [sign * scores[p] for p in range(n_players)]
-    # Team-keyed scores (Bridge, Spades): scores are keyed by team index, not
-    # player. The player-keyed branch above already handled every player-keyed
-    # game (including 2-player Cribbage); a game reaches here only when its
-    # team-key set differs from its player-key set — true for the corpus's team
-    # games, which all have 4 players and 2 teams.
-    team_of = {p: ti for ti, members in enumerate(game.partnerships) for p in members}
-    return [sign * scores[team_of[p]] for p in range(n_players)]
+    # One score per KEY of the target's index domain — its own seat for a
+    # player-indexed score, its team's for a team-indexed one (Bridge, Spades),
+    # so every member of a team receives that team's score.
+    return [sign * scores[key] for key in _score_key_by_seat(game, n_players)]
 
 
 def run(

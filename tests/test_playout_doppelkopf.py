@@ -84,7 +84,7 @@ def _trick_winner(played: list[tuple[Player, Card]]) -> Player:
         if _is_trump(c):
             if not _is_trump(best_c) or _strength(c) > _strength(best_c):
                 best_p, best_c = p, c
-        elif not _is_trump(best_c) and not led_trump and c.suit == led.suit:
+        elif not _is_trump(best_c) and not led_trump and c.suit == led.suit:  # noqa: SIM102 -- the nesting IS the trick-winner rule, kept diffable against doppelkopf.md
             if _strength(c) > _strength(best_c):
                 best_p, best_c = p, c
     return best_p

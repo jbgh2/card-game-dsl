@@ -244,16 +244,6 @@
           "outcome_cases": [],
           "items": [
             {
-              "kind": "active_rules",
-              "refs": [
-                {
-                  "kind": "rule_ref",
-                  "name": "PassExactlyThreeCards",
-                  "op": "plain"
-                }
-              ]
-            },
-            {
               "kind": "legal_moves",
               "names": [
                 "transfer_between_hands"
@@ -924,34 +914,6 @@
         "name": "hand",
         "ref": "zone"
       }
-    },
-    {
-      "kind": "rule",
-      "name": "PassExactlyThreeCards",
-      "constrains": "transfer_between_hands",
-      "applies_when": null,
-      "demands": {
-        "kind": "demands",
-        "form": "actions",
-        "expr": {
-          "kind": "binop",
-          "op": "==",
-          "left": {
-            "kind": "member",
-            "obj": {
-              "kind": "name",
-              "name": "action",
-              "ref": "pronoun"
-            },
-            "field": "card_count"
-          },
-          "right": {
-            "kind": "int",
-            "value": 3
-          }
-        }
-      },
-      "if_impossible": null
     },
     {
       "kind": "rule",

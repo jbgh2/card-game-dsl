@@ -8,7 +8,7 @@ game StructLiteralMissingField {
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
-  state { score[player] : Integer = 0  deal : Contract = none }
+  state { score[player] : Integer = 0  deal : Contract? = none }
   phase play {
     deal := Contract { level: 1 }
   }

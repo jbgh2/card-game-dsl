@@ -1,0 +1,1 @@
+board_collides_with_positions.cardlang:8:3: error: the board mints a position domain named 'cell', which collides with the declared `positions { cell : ... }` — rename the declared domain (a board already provides 'cell')

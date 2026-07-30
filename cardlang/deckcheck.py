@@ -19,7 +19,7 @@ adds nothing. Specifically it SKIPS
 - deals inside a `repeat until` (the iteration count is a runtime value),
 - draws inside a MOVE effect (`offer`/rounds run moves, and a move can fire
   arbitrarily many times per hand — not statically boundable; the gate's
-  domain is the scripted deals in phase bodies, recorded in roadmap.md),
+  domain is the scripted deals in phase bodies, recorded in issue #135),
 
 and counts the bounded forms at their worst case: an `if` contributes the larger
 of its branches (a guarded deal is *taken*), and a `for each player` /
@@ -42,8 +42,8 @@ from __future__ import annotations
 from typing import assert_never
 
 from cardlang.ast import nodes as n
-from cardlang.domains import DomainSources, ITERABLE_ROLES, role_static_members
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError
+from cardlang.domains import ITERABLE_ROLES, DomainSources, role_static_members
 from cardlang.stdlib.values import deck_ranks, deck_size, deck_suits
 
 # (peak usage reached, deck usage carried out) for a walked fragment, given the
@@ -62,11 +62,12 @@ def check_capacity(game: n.Game) -> n.Game:
         return game
     players = game.players.high if game.players.high is not None else game.players.low
     # How many times each `for each <role>` body runs, read from the quantifiable-
-    # domain registry rather than assumed. The old rule was "players, or once", so a
-    # loop over a VALUE domain (`for each suit s: deal 15 cards …`) counted as one
-    # iteration: it demanded four times what this gate checked, passed, and died
-    # mid-deal on a bare ValueError — the exact failure currency the gate exists to
-    # replace. A new domain row now arrives here already counted.
+    # domain registry rather than assumed. A hand-written rule like "players, or
+    # once" would count a loop over a VALUE domain (`for each suit s: deal 15 cards
+    # …`) as one iteration: it would demand four times what this gate checked, pass,
+    # and fail mid-deal, where the executor requires a source to hold at least the
+    # cards a deal asks for — the exact failure currency the gate exists to replace.
+    # A new domain row arrives here already counted.
     sources = DomainSources(
         suits=sorted(deck_suits(game.deck)),
         ranks=list(game.ranking) or sorted(deck_ranks(game.deck)),
@@ -74,7 +75,8 @@ def check_capacity(game: n.Game) -> n.Game:
         teams=game.partnerships,
     )
     counts = {
-        role: len(role_static_members(role, sources)) for role in ITERABLE_ROLES
+        role.value: len(role_static_members(role.value, sources))
+        for role in ITERABLE_ROLES
     }
 
     bag = DiagnosticBag()
@@ -131,8 +133,8 @@ def _window_usage(
             case _:
                 # The residue of PhaseItem is exactly Stmt — mypy checks that on
                 # this call, so a new phase-item block kind fails here loudly
-                # instead of being silently skipped as the old `else: continue`
-                # would have done.
+                # instead of being silently skipped as a catch-all
+                # `else: continue` would.
                 p, carry = _stmt_usage(item, carry, players, counts, deck_zones)
         peak = max(peak, p)
     return peak, carry
@@ -207,22 +209,24 @@ def _stmt_usage(
         case n.Block():
             # A block (what `expand` turns a `run` into) is an UNCONDITIONAL
             # sequence: thread it exactly as if its statements were written
-            # here, which is the whole point of the construct. The old silent
-            # default was wrong in BOTH directions here: falling through
-            # returned `carry, carry`, blinding the gate to every deal inside a
-            # procedure body (undercount), while the earlier `if true { … }`
-            # encoding routed it through the IfStmt arm, whose max-of-branches
-            # carry treats the body as skippable — a refill inside a procedure
-            # didn't reset the running total, and the same program was accepted
-            # written inline but rejected written as a `run` (overcount).
+            # here, which is the whole point of the construct. A silent default
+            # would be wrong in BOTH directions here: falling through would
+            # return `carry, carry`, blinding the gate to every deal inside a
+            # procedure body (undercount), while encoding the block as
+            # `if true { … }` would route it through the IfStmt arm, whose
+            # max-of-branches carry treats the body as skippable — a refill
+            # inside a procedure would not reset the running total, and the same
+            # program would be accepted written inline but rejected written as a
+            # `run` (overcount).
             return _seq_usage(stmt.body, carry, players, counts, deck_zones)
         case n.Produces():
             # Exactly one arm runs (typecheck enforces arm exhaustiveness over
             # the variant's cases), so this is an if with one branch per arm:
-            # worst case over arms, for both peak and carry. This kind used to
-            # fall to the silent default, making the gate blind to every deal
-            # written inside a `produces:` arm — the same hole the Block arm
-            # closes, one construct over.
+            # worst case over arms, for both peak and carry. The arm is
+            # mandatory rather than optional: `_stmt_usage` ends in
+            # `assert_never`, so omitting it is a mypy error before it is
+            # anything else — the gate cannot go quietly blind to deals
+            # written inside a `produces:` arm.
             if not stmt.arms:
                 return carry, carry
             usages = [
@@ -255,7 +259,7 @@ def _stmt_usage(
             # are outside this gate's domain entirely (it walks phase bodies,
             # and a move can be offered arbitrarily many times, so its draws
             # are not statically boundable — same currency as repeat-until).
-            # Recorded as a domain limit in the module docstring and roadmap.md.
+            # Recorded as a domain limit in the module docstring and issue #135.
             return carry, carry
         case (
             n.EpistemicOp() | n.RotateStmt() | n.LetStmt() | n.AssignStmt()

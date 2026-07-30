@@ -5,14 +5,13 @@ write-target wall, one grammar position over.
 
 The grammar already keeps literals out of these positions, so each is
 name-rooted and its root has a classification. Most classifications cannot be
-a zone, and each used to sail through the checker: `deal 1 cards from turn to
-each hand` and `shuffle turn` (with `turn : Integer = 0`) checked clean and
-died mid-playout on a bare AssertionError inside the executor — a statically
-nameable error, in the wrong currency, at the wrong time. Found by the
-runtime-assert census (`execute._move` / `execute._epistemic`'s Zone asserts
-had no wall in front of them); the epistemic member of the class was found by
-review after the movement member shipped alone — the class is the CONSUMERS of
-the executor's Zone asserts, not "movement statements".
+a zone, and without this wall each would sail through the checker: `deal 1
+cards from turn to each hand` and `shuffle turn` (with `turn : Integer = 0`)
+would check clean and die mid-playout on the executor's non-zone guard — a
+statically nameable error surfacing at play time instead of check time. The
+class here is the CONSUMERS of the executor's zone guards (`execute._movement`
+and `execute._epistemic` alike), not "movement statements": scoping it to
+movement alone leaves the epistemic member unwalled.
 
 property:   a zone-position whose root name classifies as anything that
             cannot hold a zone is rejected at resolve, with the
@@ -124,18 +123,18 @@ def test_a_non_zone_endpoint_is_rejected_at_resolve(body: str, expected: str) ->
     [
         (
             "deal 1 cards from deck to each pile",
-            "`to each pile` deals one parcel per player, but 'pile' is a "
-            "singleton zone",
+            ("`to each pile` deals one parcel per player, but 'pile' is a "
+             "singleton zone"),
         ),
         (
             "deal 1 cards from deck to each captured",
-            "`to each captured` deals one parcel per player, but 'captured' "
-            "is a family keyed by team",
+            ("`to each captured` deals one parcel per player, but 'captured' "
+             "is a family keyed by team"),
         ),
         (
             # The non-NameRef cell of the same wall: a subscripted destination
-            # under `each` used to slip past (the wall guarded only bare
-            # names) and die on the executor's NameRef assert.
+            # under `each` would slip past a wall guarding only bare names
+            # and die on the executor's NameRef assert.
             "deal 1 cards from deck to each hand[0]",
             "`to each` deals into a player-indexed family named bare",
         ),
@@ -143,10 +142,10 @@ def test_a_non_zone_endpoint_is_rejected_at_resolve(body: str, expected: str) ->
 )
 def test_to_each_requires_a_player_indexed_family(body: str, expected: str) -> None:
     """The arity axis of the zone-position domain. `to each X` deals one
-    parcel per PLAYER (the executor iterates seats and keys X[player]), so a
-    singleton used to die on a raw KeyError, and a TEAM family silently dealt
-    into team slots AS IF team ids were seats before crashing — player keying
-    was assumed at the executor, never checked at the surface."""
+    parcel per PLAYER (the executor iterates seats and keys X[player]), so
+    without this wall a singleton and a TEAM family alike would reach the zone
+    store, which serves only keys its family actually covers — player keying is
+    assumed at the executor, and this wall is what checks it at the surface."""
     with pytest.raises(DiagnosticError) as excinfo:
         check_dsl(_game(body), "probe.cardlang")
     assert expected in str(excinfo.value)
@@ -169,8 +168,7 @@ def test_a_zone_valued_local_is_accepted_and_a_non_zone_one_is_not() -> None:
     # Both halves of the rule at the `local` root. Resolve's classification
     # wall lets any binder through (a binder MAY hold a zone); the type half
     # (`_check_movement`, now that lets are typed) decides by what the binder
-    # actually holds. `let h = 3` used to be this file's recorded residual —
-    # accepted at check time, dying on the executor's backstop.
+    # actually holds.
     check_dsl(
         _game("let h = hand[0]\n    move all cards from h to deck"),
         "probe.cardlang",

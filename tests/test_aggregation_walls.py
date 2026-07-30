@@ -31,10 +31,9 @@ covered:   Quantifier.body (Boolean-checked, both roles reachable via
            `player` sampled); PlayerQuery.pred (Boolean-checked);
            CardQuery.source (the shared `_check_card_source` wall, probed
            on a wrong-element collection AND on a non-collection bare-Card
-           source — the latter cell was a hole until the Codex review of
-           PR #48: a card-typed non-collection unified with TCard and
-           passed, then crashed at runtime iteration; reused by
-           Comprehension);
+           source — the latter cell is the easy one to miss: without it a
+           card-typed non-collection would unify with TCard and pass, then
+           crash at runtime iteration; reused by Comprehension);
            CardQuery.pred (Boolean-checked); Comprehension.source (shared
            wall, reused); Comprehension.filter (Boolean-checked);
            Comprehension.body (Integer-checked for all three `agg` values;
@@ -46,14 +45,13 @@ covered:   Quantifier.body (Boolean-checked, both roles reachable via
            Comprehension.default (the Boolean-misparse diagnostic — THE
            headline probe — and the generic body/default type-mismatch
            fallback when the default isn't Boolean). Note on the headline
-           probe: the brief's exact sentence (`where card.suit is hearts or
-           card.suit is spades`) is, as of this change, caught one layer
-           earlier — resolve.py's concurrently-landed scoping fix evaluates
-           `Comprehension.default` OUTSIDE the `card` binder's scope (the
-           grammar's own reading: a default is a fallback value, not a
-           per-card predicate), so a misparsed default that references
-           `card` is now an "unresolved name" at resolve time, a stronger
-           diagnosis of the identical bug. This typecheck-level wall's real,
+           probe: that exact sentence (`where card.suit is hearts or
+           card.suit is spades`) is caught one layer earlier — resolve
+           evaluates `Comprehension.default` OUTSIDE the `card` binder's
+           scope (the grammar's own reading: a default is a fallback value,
+           not a per-card predicate), so a misparsed default that references
+           `card` surfaces as an "unresolved name" at resolve time, a
+           stronger diagnosis of the identical bug. This typecheck-level wall's real,
            non-redundant domain is a misparsed default that does NOT
            reference the binder — any Boolean expression valid in the outer
            scope (a plain state var, a function call) — which resolves
@@ -70,15 +68,15 @@ sampled:   Quantifier's four roles (`player`/`team`/`suit`/`rank`) all route
 residual:  same let-bound-locals residual as test_operator_walls.py (a
            `let`-derived aggregation source/body/filter/default stays
            `TAny` and passes every wall here vacuously) — not re-derived,
-           see that module's ledger and roadmap.md, "Let-bound local typing
-           across statements". No new residual is introduced by this
+           see that module's ledger, which owns it. No new residual is
+           introduced by this
            module: the Boolean-default misparse wall is deliberately
            over-broad by design (a `where`-clause-adjacent Boolean default
            is flagged even in the vanishingly unlikely case that a
            Boolean-body aggregation genuinely intends a Boolean default —
-           no corpus game does this, and the brief specifies exactly this
-           trade-off: "almost always" the misparse, not "always"), so it is
-           not tracked as a coverage gap.
+           no corpus game does this, and the wall is deliberately scoped to
+           this trade-off: "almost always" the misparse, not "always"), so
+           it is not tracked as a coverage gap.
 """
 
 from __future__ import annotations
@@ -127,20 +125,17 @@ _FLAGS = "flag_a : Boolean = false  flag_b : Boolean = true"
 
 
 def test_the_headline_misparse_is_rejected() -> None:
-    # THE PROBE named in the brief, exactly as given (`card.suit is hearts or
-    # card.suit is spades`). Whether this exact sentence is caught by THIS
-    # module's wall or by resolve.py's independently in-flight scoping fix
-    # depends on the state of a file this module does not own (resolve.py,
-    # under concurrent edit — see the module docstring): as of this change,
-    # resolve.py evaluates `Comprehension.default` OUTSIDE the `card`
-    # binder's scope (the grammar's own reading — a default is a fallback
-    # value, not a per-card predicate), so `card` in the default is an
-    # unresolved name one layer before typecheck runs at all. Either
-    # outcome is a correct diagnosis of the identical bug, so the assertion
-    # here is deliberately layer-agnostic (rejected, full stop) rather than
-    # pinned to one message — pinning it to resolve's message would make
-    # this test fail if that file's WIP is reverted or reshaped, for a
-    # reason having nothing to do with this module's wall.
+    # The headline probe (`card.suit is hearts or card.suit is spades`).
+    # Two layers can each catch this sentence: THIS module's wall, or
+    # resolve's binder scoping — resolve evaluates `Comprehension.default`
+    # OUTSIDE the `card` binder's scope (the grammar's own reading: a default
+    # is a fallback value, not a per-card predicate), so `card` in the default
+    # is an unresolved name one layer before typecheck runs at all. Either
+    # layer is a correct diagnosis of the identical bug, so the assertion is
+    # deliberately layer-agnostic (rejected, full stop) rather than pinned to
+    # one message: pinning it to resolve's message would make this test fail
+    # whenever that scoping is reshaped, for a reason having nothing to do
+    # with this module's wall.
     with pytest.raises(DiagnosticError):
         check_dsl(
             _game(
@@ -216,8 +211,8 @@ def test_pinochle_shape_stays_accepted() -> None:
 
 
 def test_aggregation_source_rejects_a_non_card_collection() -> None:
-    # THE PROBE named in the brief (generalized: `cumulative_score`-shaped —
-    # an indexed Integer state var, itself a `Collection<Integer>`).
+    # The headline probe, generalized: `cumulative_score`-shaped — an
+    # indexed Integer state var, itself a `Collection<Integer>`.
     _rejects(
         _game("let probe = sum of 1 over cards in score"),
         "'cards in ...' expects a zone or collection of cards, got "
@@ -234,9 +229,9 @@ def test_card_query_source_rejects_a_non_card_collection() -> None:
 
 
 def test_card_query_source_rejects_a_bare_card() -> None:
-    # A card-TYPED source is still not a collection: before this wall it
-    # unified with TCard, passed, and `list(elements(card))` crashed at
-    # runtime (Codex review, PR #48).
+    # A card-TYPED source is still not a collection: without this wall it
+    # would unify with TCard, pass, and `list(elements(card))` would crash at
+    # runtime.
     _rejects(
         _game(
             "let probe = number of cards in lead",

@@ -11,11 +11,11 @@ from dataclasses import replace
 from typing import Any, assert_never
 
 from cardlang.ast import nodes as n
-from cardlang.domains import role_members
-from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
+from cardlang.domains import role_members, require_role
 from cardlang.runtime import observe, stdlib
 from cardlang.runtime.state import Ctx, Move, StructValue, elements
 from cardlang.runtime.values import Card
+from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
 
 
 def evaluate(e: n.Expr, ctx: Ctx) -> Any:
@@ -61,6 +61,8 @@ def evaluate(e: n.Expr, ctx: Ctx) -> Any:
             return _player_query(e, ctx)
         case n.CardQuery():
             return _card_query(e, ctx)
+        case n.DomainQuery():
+            return _domain_query(e, ctx)
         case n.Choose():
             return _choose(e, ctx)
         case _ as unreachable:
@@ -213,12 +215,18 @@ def _member_eval(e: n.Member, ctx: Ctx) -> Any:
         for k, v in obj.fields.items():
             dctx = dctx.with_local(k, v)
         return evaluate(derived.value, dctx)
+    if isinstance(obj, Card):
+        # A content item's axis field -> its `Card` attribute: identity for a
+        # card deck ("suit"->"suit"), the piece set's map for a piece
+        # ("side"->"suit", "kind"->"rank"). One source (rs.axis_attr, set by the
+        # driver) so member access matches the flavor-keyed field table.
+        return getattr(obj, ctx.rs.axis_attr.get(e.field, e.field))
     return _member(obj, e.field)
 
 
 def _member(obj: Any, field: str) -> Any:
-    if isinstance(obj, Card):
-        return getattr(obj, field)
+    # `Card` is handled in `_member_eval` (it needs the flavor axis map); this
+    # sees Move / StructValue / dict / the deliberately-loose fallbacks.
     if isinstance(obj, Move):
         return getattr(obj, field)
     if isinstance(obj, StructValue):
@@ -332,7 +340,7 @@ def _quantifier(e: n.Quantifier, ctx: Ctx) -> bool:
     # never rebinds the actor (the `binds_actor` column is `for each`'s
     # concern) — `any player where …` asks a question about each seat, it does
     # not make a decision as that seat.
-    domain = role_members(e.role, ctx)
+    domain = role_members(require_role(e.role, "quantifier role"), ctx)
     results = (evaluate(e.body, ctx.with_local(e.binder, x)) for x in domain)
     return any(results) if e.kind == "any" else all(results)
 
@@ -388,6 +396,31 @@ def _card_query(e: n.CardQuery, ctx: Ctx) -> Any:
             return sum(results)
         case _:
             raise AssertionError(f"unknown card-query kind '{e.kind}'")
+
+
+def _domain_query(e: n.DomainQuery, ctx: Ctx) -> Any:
+    """The positional quantifier register (decisions.md "Boards and cells").
+    A BARE form (`source is None`) enumerates a declared position domain in
+    its ordered members (`rs.position_domains[binder]` -- the board's cells,
+    an integer domain's range); a COLLECTION form iterates the evaluated
+    `line`/`cell` collection. `any`/`all` fold Boolean, short-circuiting like
+    the card queries; `count` returns how many members satisfy the predicate.
+    Resolve/typecheck have already validated the noun and the source kind, so
+    this arm reads uniformly over both member kinds."""
+    if e.source is None:
+        members: Any = ctx.rs.position_domains[e.binder]
+    else:
+        members = elements(evaluate(e.source, ctx))
+    results = (evaluate(e.pred, ctx.with_local(e.binder, m)) for m in members)
+    match e.kind:
+        case "any":
+            return any(results)
+        case "all":
+            return all(results)
+        case "count":
+            return sum(1 for ok in results if ok)
+        case _:
+            raise AssertionError(f"unknown domain-query kind '{e.kind}'")
 
 
 def _if_expr(e: n.IfExpr, ctx: Ctx) -> Any:

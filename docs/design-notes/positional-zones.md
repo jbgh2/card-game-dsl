@@ -110,7 +110,7 @@ position domains and keeps movement closed.
 (Games whose piles are not rank-monotone runs — Spider's same-suit
 removal is close but still monotone — would force a positional slice
 ("from card X up") as real surface. That is recorded as deferred in
-[roadmap.md](../roadmap.md), behind the existing movement-filter wall: a
+issue #111, behind the existing movement-filter wall: a
 non-denotable selection simply has no sentence that expresses it.)
 
 ## Adjacency
@@ -121,9 +121,15 @@ to" column 4 in any rule). So position domains deliberately carry **no
 successor/neighbour algebra**: a position value is an opaque integer key
 usable in `[...]` subscripts and comparable with the ordinary integer
 operators (FreeCell's lowest-empty-cell convention, were a game to want
-it, is expressible as a guard over `<`). A game that genuinely needs
-spatial adjacency (a tableau where builds cross columns) would force a
-`neighbours`/offset construct; deferred with a roadmap record.
+it, is expressible as a guard over `<`). Spatial adjacency (a tableau
+where builds cross columns, or a board where a piece's moves depend on
+neighbouring cells) is deliberately not a `neighbours`/offset algebra
+over bare `positions {}` integers: it arrives on **board-minted**
+position domains as declared entry data. That mechanism landed for
+boards ([decisions.md](../decisions.md) "Boards and cells") — the
+`lines(k)` register is its first form; richer relations (neighbours,
+regions) arrive as further board-entry data with their witnesses
+([board-topology.md](board-topology.md)).
 
 ## Alternatives rejected
 

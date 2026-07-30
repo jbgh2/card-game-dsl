@@ -46,8 +46,7 @@ sampled:    the canonical gather over a position family (order-preserving
             per the canonical zone-collection rule; no corpus game gathers
             one — decisions.md states the interaction explicitly).
 residual:   `for each <position>` and position-indexed state stores are
-            walled with diagnostics (roadmap.md, "Positional zones —
-            walled residuals"); `top_of`/`bottom_of` in a move GUARD over
+            walled with diagnostics (issue #111); `top_of`/`bottom_of` in a move GUARD over
             a non-identity zone is policed per game by the openspiel_ready
             legal-action-agreement proofs, not statically (same roadmap
             entry).
@@ -134,7 +133,7 @@ def test_every_builtin_domain_id_and_type_spelling_is_a_rejected_position_name()
     and every KNOWN_TYPE_NAMES member must be rejected as a position name —
     the two definition sites can never disagree about a spelling."""
     spellings = (
-        {d.id for d in DOMAINS}
+        {d.id.value for d in DOMAINS}
         | {d.type_name for d in DOMAINS}
         | set(KNOWN_TYPE_NAMES)
     )
@@ -146,6 +145,29 @@ def test_every_builtin_domain_id_and_type_spelling_is_a_rejected_position_name()
                       zones=f"pile[{name}] : Cascade<{name}>"),
                 "t",
             )
+
+
+def test_a_declared_type_name_is_a_rejected_position_name() -> None:
+    """The third source of names a position may not reuse: the game's own
+    `type` declarations.
+
+    Name resolution answers positions BEFORE declared types, so a shared
+    spelling does not merely tie — the position wins and the struct becomes
+    unreachable. `function f(x : R) = x.a` then fails with "cannot read field
+    'a' of Integer", a message about a type the author never wrote. The
+    collision is rejected at the declaration, so neither name is silently
+    reinterpreted at its uses.
+
+    red under: drop `{t.name for t in game.types}` from `_resolve_positions`'s
+    `taken` set.
+    """
+    with pytest.raises(DiagnosticError, match="collides with a built-in"):
+        check_dsl(
+            _game(positions="positions { R : 1..3 }",
+                  zones="pile[R] : Cascade<R>")
+            + "\ntype R = { a : Integer }\n",
+            "t",
+        )
 
 
 # --- enumeration agreement (runtime = static) --------------------------------
@@ -310,10 +332,10 @@ def test_role_indexed_family_may_not_take_a_position_owner_arg() -> None:
 def test_position_move_param_types_as_integer_not_any() -> None:
     # A move parameter may be a position domain (`build(src : column)`); the
     # move-binder env must carry the game's positions so the param types as the
-    # integer member it binds. Before this, that env was a fresh TypeEnv() with
-    # no positions, so the param typed TAny and a wrong-domain use like `src is
-    # hearts` passed typecheck — accepted-but-ignored. Now caught; the valid
-    # integer uses (family subscript, integer comparison) still check.
+    # integer member it binds. Were that env a fresh TypeEnv() with no
+    # positions, the param would type TAny and a wrong-domain use like `src is
+    # hearts` would pass typecheck — accepted-but-ignored. The valid integer
+    # uses (family subscript, integer comparison) still check.
     with pytest.raises(DiagnosticError, match="comparing Suit with Integer"):
         check_dsl(
             _game(

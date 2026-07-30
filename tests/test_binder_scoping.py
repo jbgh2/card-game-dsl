@@ -1,9 +1,9 @@
 """Lexical binder scoping in the resolve pass (`cardlang/resolve.py`).
 
-Binders used to be collected into one flat game-wide `locals` set: a stray
-`card` anywhere in the file resolved as `local` and only failed at runtime
+Collected into one flat game-wide `locals` set, binders would let a stray
+`card` anywhere in the file resolve as `local` and fail only at runtime
 with a KeyError (wrong failure currency), and a name bound by a `let` in one
-phase resolved everywhere. Now `_rewrite` scopes every binder to exactly the
+phase would resolve everywhere. `_rewrite` scopes every binder to exactly the
 sub-fields its construct binds it in (`_BINDER_SCOPE_FIELDS`, driven by the
 `_introduced_binders` registry), and `let` names fold sequentially through
 their statement tuple — matching the runtime, where `run_body`/`run_stmts`
@@ -419,8 +419,8 @@ move_type m {
 
 def test_rotate_of_a_let_bound_local_is_rejected() -> None:
     # The runtime's `_rotate` reads/writes `ctx.rs` (persistent state) only;
-    # a let-bound target could never work and previously slipped through the
-    # flat classifier to fail at playout.
+    # a let-bound target could never work, and without this wall it would
+    # slip through the classifier to fail at playout.
     _rejects(
         """
   phase p {

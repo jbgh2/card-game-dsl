@@ -85,6 +85,18 @@ criterion** — alongside "does it run" and "is it byte-identical":
   `Contract` block of its module docstring — read the owning pass's contract
   before placing a check.
 
+**Execution finds what enumeration cannot.** Every silent-wrong-answer
+and wrong-semantics defect this project has found came from an execution
+oracle — building a game, a differential against a native implementation,
+a metamorphic transform, an instrumented run — and none from inspection,
+the audits included. Enumeration proves the domain is covered; only
+execution can show the domain was the wrong one, or an assumption inside
+a total enumeration was false. So when a choice exists between building
+enforcement machinery and building a witness — a game, a differential, a
+playout policy that reaches unexercised branches — build the witness.
+Implemented-but-never-executed code is where the next silent defect is
+already sitting.
+
 ## What's here
 
 ```
@@ -93,7 +105,7 @@ docs/
   model.md               Primitives + phase/state/move-type/rule relationship
   library.md             The Trick mechanic + standard library catalogue
   decisions.md           Settled design decisions (the load-bearing spec)
-  roadmap.md             Explicitly deferred work + suggested next steps
+  roadmap.md             Out-of-scope list + the checker's walls ledger
   implementation.md      Plan for building the parser + static checker (tooling)
   building.md            Front-end execution blueprint (pipeline, triage, gates)
   kernel-migration.md    Stage plan: remove per-game Python mechanics → DSL kernel
@@ -115,9 +127,10 @@ docs/
 - **"How is game Y described in the DSL?"** → `docs/games/Y.md`
 - **"How do we keep info sets derivable / hit the OpenSpiel target?"** → the load-bearing section above, then `docs/design-notes/kernel-extensibility.md`
 - **"How do the engine's domains fit together / where does new work dock?"** → `docs/design-notes/domain-map.md`
+- **"How do I start a new piece of work?"** → the `cardlang-planning` skill (`.claude/skills/`) — the ordered planning gates; run it before exploring or entering plan mode
 - **"How complete must a new construct be?"** → `docs/decisions.md`, "Surface totality" (grammar surface) and "Closed-domain completeness" (the machinery beneath it); the mechanized gate is the `surface-totality-audit` skill (`.claude/skills/`)
 - **"What's still being decided?"** → `docs/open-questions/_index.md` then the named file
-- **"What should we build next?" / "In what order?"** → `docs/roadmap.md`, "Suggested next steps, in order" — the authority on cross-cutting task sequence. `docs/open-questions/_index.md` owns question *priority*; `docs/games/_candidates.md` holds the full game pipeline.
+- **"What should we build next?" / "In what order?"** → the GitHub tracker: [issue #143](https://github.com/jbgh2/card-game-dsl/issues/143), the pinned ordering issue, is the authority on cross-cutting task sequence. `docs/open-questions/_index.md` owns question *priority*; `docs/games/_candidates.md` holds the full game pipeline.
 - **"How do we build the tooling (parser/checker)?"** → `docs/implementation.md`, `docs/building.md`
 - **"How do we remove the per-game Python mechanics?"** → `docs/kernel-migration.md`
 - **"Which game uses which state variable?"** → `docs/appendix.md` (corpus catalogue)
@@ -143,19 +156,113 @@ Run them as written. In particular:
 - Run the **full** `pytest -q`, not a subset — the corpus harness and golden/
   characterization tests catch regressions a narrow run misses. Some exact-score
   tests pin `PYTHONHASHSEED=0`; don't assume a passing subset means a green suite.
+- **The evidence must be able to fail.** A piped run (`pytest -q | tail -3`)
+  reports the pipe's exit status, not the suite's — a killed run surfaces as a
+  clean exit. Run the checks bare or under `set -o pipefail`, and treat the
+  suite's own summary line (`N passed`) as the evidence, never a wrapper's
+  exit code. CI runs the commands bare and is the authority.
 
 **These two checks are regression gates, not completeness gates.** A change
 that adds or extends grammar surface, a checker wall or diagnostic, a stdlib
-registry, or any closed-domain mechanism additionally passes the
+registry, or any closed-domain mechanism — **including a change answering a
+review finding on one**, where the finding is a sample of a class and never
+the spec for the fix — additionally passes the
 **surface-totality audit** — run the `surface-totality-audit` skill
 (`.claude/skills/`), the mechanized form of decisions.md "Surface totality"
-and "Closed-domain completeness". Its two artifacts are mandatory in the
-change: misuse-probe **rejection tests** (the most plausible wrong sentences,
-each proven loud in the right layer's currency) and the **completeness
-ledger** (property / domain / registry / covered / sampled / residual — no
-residual cell without both a wall and a roadmap.md record). A green suite
-must never stand in for this gate: the suite proves nothing about cells no
-test names.
+and "Closed-domain completeness". Its artifacts are mandatory in the change:
+the **grid** (the crossed coverage domain as an executable parametrized
+test — axes derived in code, expected outcomes authored red BEFORE the
+implementation exists), misuse-probe **rejection tests** (the most plausible
+wrong sentences, each proven loud in the right layer's currency), and the
+**completeness ledger** (judgment columns in the grid module's docstring —
+`covered` IS the grid; no residual cell without both a wall and a record —
+a tracker issue cited as `issue #N`, or the ledger row alone for an R4
+auditor-only cell guarding nothing rigor-critical (`docs/decisions.md`,
+"Reachability ranks the work"); born-green pins name their reddening
+mutation). A green suite must never stand in for this gate: the suite proves
+nothing about cells no test names.
+
+## The tracker
+
+Deferred **work** lives in GitHub issues
+(<https://github.com/jbgh2/card-game-dsl/issues>), not in `docs/`.
+Two sections stay behind, and neither is work: `docs/roadmap.md`, "Out of
+scope", and `docs/roadmap.md`, "Grammar surface deferred by the checker".
+When you defer a cell, file an issue and cite it as `issue #N` in the
+completeness ledger — a residual with no record does not land. R4
+auditor-only residuals guarding nothing rigor-critical are the exception
+(`docs/decisions.md`, "Reachability ranks the work"): like the carve-out
+below, they record in the owning ledger and need no issue.
+
+One carve-out, because it is what the repo actually does: a residual that is
+**not work** — a recorded constraint or trap, deliberately not-to-be-fixed
+(`hand[0]` coercing, `action`'s move-type-specific fields staying `TAny`) —
+records in its own ledger and needs no issue. The ledger must then SAY it owns
+the record, so "no issue" reads as a decision rather than an omission. If the
+cell is something anyone might one day build, it is work: file the issue.
+
+Keep the label set minimal. The whole vocabulary is five **kinds** — `bug`,
+`enhancement`, `documentation`, `tech-debt`, `epic` — two **modifiers**,
+`blocked:needs-witness` and `needs-triage`, and the four **reachability**
+labels, `reachability:R1`–`R4` (below). Area labels
+(checker/runtime/testing) were rejected deliberately — semantic issue search
+covers retrieval, so wait for the problem before adding a label.
+
+**Every issue carries at least one KIND.** A modifier never stands in for one:
+`blocked:needs-witness` says *when* an issue can be worked, not *what it is*,
+so an issue carrying only that label is still unclassified. File the kind with
+the issue; if you genuinely cannot pick one yet, add `needs-triage` and say why
+in the body.
+
+Every issue carries its reachability as a **label** — `reachability:R1`
+… `reachability:R4` (`docs/decisions.md`, "Reachability ranks the work") —
+with the one-line why in the body ("R2 — a designer writing X meets it").
+`epic` issues are exempt: a container aggregates items of different
+reachabilities. The tracker exists to order work; an issue that does not
+say who can trigger the defect cannot be ordered. The reachability sweep
+is the kind sweep's sibling — absence of the label, asked for by superset:
+
+```bash
+gh issue list --repo jbgh2/card-game-dsl --state open --limit 200 \
+  --json number,title,labels --jq '.[] | select(([.labels[].name] | any(startswith("reachability:")) or any(. == "epic")) | not) | "\(.number) \(.title)"'
+```
+
+An issue's title and Summary speak impact currency; its Detail speaks
+mechanism. The title states what a designer or the engine experiences, not
+where the fix goes ("a partnership typo plays to completion", not
+"validate partnerships at resolve time"). The Summary answers, in a few
+sentences: who hits it, what they see, what changes when it's fixed — with
+the reachability why doing double duty ("R2 — a plausible one-character
+typo"). An issue with no designer or info-set consequence says "internal
+only" and names the guarantee it protects and what that guarantee's
+failure would look like — even R4 machinery has that sentence. Everything
+the implementing agent needs stays in Detail, untouched by this rule.
+
+The sweep is a **derived query**, not a promise to remember the label — an
+issue filed with no labels at all is exactly the case a `needs-triage`
+convention cannot catch, so the sweep asks for the absence of a kind rather
+than the presence of a marker (completeness by superset, never by judgment):
+
+```bash
+gh issue list --repo jbgh2/card-game-dsl --state open --limit 200 \
+  --json number,title,labels --jq '.[] | select([.labels[].name] | any(. == "bug" or . == "enhancement" or . == "documentation" or . == "tech-debt" or . == "epic") | not) | "\(.number) \(.title)"'
+```
+
+Empty output is the clean state. Run it when sweeping the tracker; it needs no
+discipline upstream to be correct, which is the point.
+
+- **`blocked:needs-witness`** requires the body to NAME the game or data
+  point that unblocks it. A witness-gated issue with no named witness is the
+  corpus-first rule stated without its evidence, so the label does not apply.
+- **`needs-triage`** means "filed fast, kind not yet decided" — a deliberate,
+  visible state, not a resting place. It comes off when a kind goes on.
+- **`epic`** issues are checklist containers for multi-stage workstreams;
+  they hold sub-items, not work of their own.
+- Every migrated issue carries a `## Provenance` line naming its source.
+  Keep that habit for new issues that split off an existing one.
+
+[Issue #143](https://github.com/jbgh2/card-game-dsl/issues/143) is the pinned
+ordering issue and the authority on cross-cutting task sequence.
 
 ## Operating rules (load-bearing)
 
@@ -207,7 +314,7 @@ cold and play a hand. That's the acceptance test for clarity.
 
 When you need to look up a game's rules — to check a detail of a game
 already in `docs/games/`, or to size up a candidate game from
-`docs/roadmap.md` — **Pagat.com (https://www.pagat.com/) is the
+`docs/games/_candidates.md` — **Pagat.com (https://www.pagat.com/) is the
 authoritative source**. Fetch the page live rather than reconstructing
 rules from memory; trick-taking variants drift in small ways that matter
 to the DSL (lead order, exact scoring, partnership choice). Don't mirror
@@ -215,6 +322,6 @@ or scrape the site — use it on demand, like any other reference.
 
 ## Out of scope (current phase)
 
-CCG-style card effects (Magic, Yu-Gi-Oh!), deck-builders, and solitaire
-positional layouts are deferred. See `docs/roadmap.md` for the full list of
-explicitly deferred work and the ordered next steps.
+CCG-style card effects (Magic, Yu-Gi-Oh!) and deck-builders are deferred.
+See `docs/roadmap.md` for the full list of what is out of scope and which
+grammar surface the checker defers; the tracker holds the deferred *work*.

@@ -374,8 +374,7 @@ the `turns` form's `again` axis ([decisions.md](../decisions.md) "The
 `turns` form") plus a position-typed chain-anchor state variable
 (public, as all state is) expresses "same piece continues" —
 position-typed `state` is currently **rejected surface** (a recorded
-walled residual, [roadmap.md](../roadmap.md) "Positional zones —
-walled residuals"); the wall lifts at stage 5, whose Barrage shuttle
+walled residual, issue #111); the wall lifts at stage 5, whose Barrage shuttle
 rule is its first forcing witness, and the chain anchor reuses the
 lift. Mandatory capture is a reusable declarative rule — and that is
 a commitment about where rules are *going*, not a description of
@@ -417,8 +416,8 @@ only declared topology data and zone contents:
   in … where` — one spelling per concept, lifted to positions. This
   is a deliberate **wall-lift**: quantifiers and iteration over
   position domains are currently rejected surface with recorded
-  residuals ([roadmap.md](../roadmap.md) "Positional zones — walled
-  residuals" — no solitaire addressed columns by loop or quantifier);
+  residuals (issue #111 — no solitaire addressed columns by loop
+  or quantifier);
   board win predicates ("any line…", "board full") and fixed setup
   arrays (breakthrough's 16 pieces on two rows) are the witnesses
   those records were waiting for, so the lifts land here with the
@@ -669,10 +668,11 @@ not re-litigated:
 
 Each stage is one PR-train: its registries and pins land together
 (closed-domain completeness — registry, static pin, runtime wall, on
-day one), its surface passes the totality audit (misuse-probe
-rejection tests + completeness ledger), and its witness's proof module
-+ differential check close it. Later-stage names are rejected loudly
-from the first stage that could parse them.
+day one), its surface passes the totality audit (the grid authored red
+before the implementation + misuse-probe rejection tests + completeness
+ledger), and its witness's proof module + differential check close it.
+Later-stage names are rejected loudly from the first stage that could
+parse them.
 
 - **Stage 1 — structure.** Grammar: `board:` and `pieces:` as
   `game_item` alternatives (docking at the existing skeleton-clause
@@ -686,8 +686,11 @@ from the first stage that could parse them.
   landed declared-domain machinery (same collision wall; deliberately
   no new row in the built-in domains registry, per the alternative
   positional-zones.md already rejected); capacity as a typed
-  zone-type property on the existing `Cell` row plus the new `Point`
-  row, with probe rows.
+  zone-type property on the existing `Cell` row (`Cell` = 1, every
+  other row unbounded), enforced as a loud movement wall. The `Point`
+  row (an unbounded stack) and the `HiddenCell` probe row are deferred
+  to their witnesses (backgammon at stage 3, battleship at stage 4),
+  not bundled here.
 - **Stage 2 — decisions, movement, classes 1–4.** Board domains ride
   the landed position-parameter enumeration (ids from the declared
   domain, no new action-space block kind) plus the small direction
@@ -748,16 +751,16 @@ the corpus one.
 Ratifying this note means opening (or updating) exactly these
 questions, not silently deciding them:
 
-- **The board/piece surface details**: the content-kind direction is
-  §2.3's commitment (`Card ⊂ Piece`), but its surface residue is open —
-  how a component-set entry declares its axis names, how
-  noun/content agreement is enforced (resolver vs typechecker), the
-  board-declaration argument forms, and cell-constant lexing (`a1` as
-  a minted constant vs a name). One-spelling-per-concept is the
-  criterion throughout.
+- **The board/piece surface details** are specified in
+  [decisions.md](../decisions.md) "Boards and cells" and "Component sets:
+  cards and pieces": a component set's two axes bind positionally (axis 1
+  = the suit slot, axis 2 = the rank slot); noun/content agreement is a
+  typecheck wall; the board declaration is `board: <family>(<args>)`
+  selecting a `BOARDS` family; and a bare `a1` stays a name, not a minted
+  cell constant (cell literals are a recorded residual,
+  issue #111). One-spelling-per-concept held throughout.
 - **Position-typed state**: currently rejected surface with a
-  recorded residual ([roadmap.md](../roadmap.md) "Positional zones —
-  walled residuals"); stage 5 lifts it against its first witness
+  recorded residual (issue #111); stage 5 lifts it against its first witness
   (Barrage's two-square tracking), and the draughts chain anchor
   reuses it — public like all state, with the state-type set growing
   by declared position domains.
@@ -775,8 +778,7 @@ questions, not silently deciding them:
   iteration at stage 2, position-typed state at stage 5). The others
   stay walled on their own witnesses — the positional slice movement
   on Spider, the position-family gather on a first gathering layout
-  ([roadmap.md](../roadmap.md) "Positional zones — walled
-  residuals") — and nothing here re-sequences them.
+  (issue #111) — and nothing here re-sequences them.
 
 The ladder's candidates entries are in
 [games/_candidates.md](../games/_candidates.md); per corpus-first

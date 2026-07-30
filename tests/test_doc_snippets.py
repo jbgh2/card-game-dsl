@@ -58,14 +58,10 @@ property:   every fenced block in docs/{decisions,library,model}.md carries
             its tag, and not merely "rejected" as an artifact of not being
             a whole game or of the pipeline crashing.
 domain:     the fenced blocks `cardlang.extract.extract_blocks` finds in
-            docs/decisions.md, docs/library.md, docs/model.md — 44 + 10 + 4
-            = 58 blocks as of this change. (An earlier plan for this task
-            cited 88/10/8, i.e. `grep -c '^```'` — fence *lines*, not
-            blocks: 88 = 44*2, 8 = 4*2; library.md's "10" underequal already
-            counted blocks because five of its ten blocks are indented
-            inside list items and a column-anchored grep misses them.
-            `extract_blocks` is the authority; block counts, not fence-line
-            counts, are what this module classifies.)
+            docs/decisions.md, docs/library.md, docs/model.md. The per-doc
+            and total counts are asserted, not stated, by
+            test_the_block_domain_is_the_size_the_ledger_claims — a count in
+            prose drifts silently as the docs grow.
 registry:   KNOWN_TAGS (below) is the closed tag vocabulary — six tags:
             cardlang, cardlang-fragment, cardlang-bad, cardlang-bad-
             fragment, text, ebnf. The three docs are the block source.
@@ -79,10 +75,10 @@ registry:   KNOWN_TAGS (below) is the closed tag vocabulary — six tags:
             of benign fillers keyed by the same label, paired 1:1 with
             cardlang-bad-fragment blocks, each proven to PASS through that
             block's wrapper before the block's own (bad) text is checked.
-covered:    all 58 blocks carry a recognized tag
+covered:    every block in the domain carries a recognized tag
             (test_every_block_is_classified, parametrized over every
-            block). All 8 `cardlang-fragment` blocks execute through their
-            registered wrapper and are proven to pass
+            block). Every `cardlang-fragment` block executes through its
+            registered WRAPPER_RECIPES entry and is proven to pass
             (test_fragment_blocks_pass_when_wrapped). The
             classify/cardlang/cardlang-bad/fragment/bad-fragment code paths
             are each independently proven with synthetic fixtures
@@ -103,7 +99,7 @@ residual:   fragment KINDS with no cheap wrapping harness. These are never
             in the docs (they are `text` instead, so
             `test_every_block_is_classified` still covers them as a tag,
             just not as an execution) — each kind is listed here and
-            recorded in roadmap.md "Explicitly deferred":
+            recorded here, in this ledger, which owns them:
               - phase-outcome pattern matches (`<phase> produces:` /
                 `continue to <phase>`) — need a sibling phase declaring a
                 matching `-> outcome {...}` variant set plus the variant's
@@ -118,14 +114,15 @@ residual:   fragment KINDS with no cheap wrapping harness. These are never
               - the `override` rule-delta (`active_rules: [override X]`)
                 — grammatically accepted, rejected at resolve time
                 (cardlang/resolve.py, `_resolve_phase_item`) as "not yet
-                supported by the runtime"; roadmap.md already records it.
+                supported by the runtime"; roadmap.md, "Grammar surface
+                deferred by the checker", already records it.
               - `legal_moves:` with `+`/`-`/`override` deltas — the
                 `legal_moves` grammar production takes a bare NAME list
                 only; those operators exist solely on `rule_ref`
                 (`active_rules:`).
               - `scoring_component` / `apply_components` — decisions.md's
                 own "Scoring composition" section discloses "designed, not
-                yet built"; roadmap.md already records it.
+                yet built"; issue #115 already records it.
               - user-facing `Zone<ContentType> { composition: ... }`
                 declarations — no such production exists; per-observer
                 projection is a closed Python registry
@@ -142,11 +139,10 @@ residual:   fragment KINDS with no cheap wrapping harness. These are never
                 form — superseded by the `round offering [...]` kernel
                 construct and plain function calls (`team_of(outcome)`);
                 no corpus game uses either retired form today.
-              - the old `move_type X { source: ... destination: ...
+              - the retired `move_type X { source: ... destination: ...
                 emits: ... }` shape — superseded by `when:` / `effect {}`.
             Each kind above is `text`-tagged at every site it appears in
-            the three docs today (see the per-block classification in the
-            commit that introduced this module).
+            the three docs today.
 """
 
 from __future__ import annotations
@@ -160,6 +156,7 @@ from lark.exceptions import VisitError
 from cardlang.diagnostics import DiagnosticError
 from cardlang.extract import FencedBlock, extract_blocks
 from cardlang.pipeline import check_dsl
+from tests.empty_axis import may_be_empty
 
 DOCS_DIR = Path(__file__).resolve().parent.parent / "docs"
 DOC_NAMES = ("decisions.md", "library.md", "model.md")
@@ -244,7 +241,7 @@ def _wrap_active_rules_shadowing(frag: str) -> str:
     # (no +/-/override). The rule names are the doc's own illustrative
     # letters, given a trivial always-true body against the stdlib move type.
     rules = "\n".join(
-        f"rule {name} {{ constrains: play_to_trick applies_when: always }}"
+        f"rule {name} {{ constrains: play_to_trick applies_when: always demands: cards in hand where card.suit is hearts if_impossible: hand }}"
         for name in ("A", "B", "C", "X", "Y")
     )
     return _game(f"{frag}\n  winner: highest score", top_level=rules)
@@ -253,7 +250,7 @@ def _wrap_active_rules_shadowing(frag: str) -> str:
 def _wrap_first_trick_phase(frag: str) -> str:
     rule = (
         "rule MustLeadAceOfSpadesOnFirstPlay "
-        "{ constrains: play_to_trick applies_when: always }"
+        "{ constrains: play_to_trick applies_when: always demands: cards in hand where card.suit is hearts if_impossible: hand }"
     )
     return _game(f"{frag}\n  winner: highest score", top_level=rule)
 
@@ -308,13 +305,42 @@ game Skeleton {{
 
 
 def _wrap_passing_phase(frag: str) -> str:
-    # `transfer_between_hands` is a stdlib move type (cardlang/stdlib/moves.py);
-    # PassExactlyThreeCards is given a trivial always-true body against it.
-    rule = (
-        "rule PassExactlyThreeCards "
-        "{ constrains: transfer_between_hands applies_when: always }"
-    )
-    return _game(f"{frag}\n  winner: highest score", top_level=rule)
+    # No rule shim: the passing phase's "exactly three" law is the movement's
+    # `chosen 3`, not a rule. A rule constraining `transfer_between_hands`
+    # reaches no decision site and is rejected
+    # (tests/test_rule_surface_reachability.py).
+    return _game(f"{frag}\n  winner: highest score")
+
+
+def _wrap_actor_alias(frag: str) -> str:
+    # decisions.md "Naming the acting player twice": the hoist that keeps a
+    # comparison against the acting player legal inside a loop that rebinds
+    # them. It has to sit where an acting player exists AND where the hoisted
+    # `let` is outside the loop — a move effect, which is where the corpus
+    # writes it (docs/games/tic-tac-toe.cardlang). Wrapping it anywhere the
+    # `let` fell inside the loop would make this block prove the opposite of
+    # what the section claims.
+    return f"""
+game Skeleton {{
+  players: 2
+  max_length: 1000
+  cards: standard52
+  zones {{ deck : Deck  hand[player] : Hand<player> }}
+  state {{ result[player] : Integer = 0 }}
+  phase main {{
+    deal 2 cards from deck to each hand
+    as 0 {{ offer to 0 one of [decide] }}
+  }}
+  winner: highest result
+}}
+
+move_type decide {{
+  when: true
+  effect {{
+{frag}
+  }}
+}}
+"""
 
 
 def _wrap_as_taker(frag: str) -> str:
@@ -405,6 +431,7 @@ game Skeleton {{
 # carries a unique label and every non-fragment block carries none;
 # `test_no_orphan_recipes` pins that every label here is claimed by a block.
 WRAPPER_RECIPES: dict[str, Callable[[str], str]] = {
+    "actor_alias": _wrap_actor_alias,
     "active_rules_shadowing": _wrap_active_rules_shadowing,
     "first_trick_phase": _wrap_first_trick_phase,
     "play_phase": _wrap_play_phase,
@@ -446,13 +473,28 @@ def _load_blocks() -> list[FencedBlock]:
 _BLOCKS: list[FencedBlock] = _load_blocks()
 
 
+def test_the_block_domain_is_the_size_the_ledger_claims() -> None:
+    """The `domain:` cell above, as an assertion rather than a sentence.
+    A count stated in prose drifts silently as the docs grow; stated here it
+    fails the day it does, and whoever adds a block updates the ledger in the
+    same change. (Counting fences with `grep -c '^```'` gives a different,
+    wrong answer — it counts fence LINES, and misses blocks indented inside
+    list items. `extract_blocks` is the authority.)"""
+    per_doc = {
+        name: len(extract_blocks((DOCS_DIR / name).read_text(), name))
+        for name in DOC_NAMES
+    }
+    assert per_doc == {"decisions.md": 54, "library.md": 13, "model.md": 4}
+    assert len(_BLOCKS) == 71
+
+
 def _block_id(block: FencedBlock) -> str:
     return f"{block.source_name}:{block.start_line}"
 
 
 # A fence info string is `<tag>` or, for the fragment tags, `<tag> <label>`.
 # The tag classifies the block; the label (a stable name) keys its wrapper
-# recipe, so the registry no longer depends on the block's line number.
+# recipe, so the registry does not depend on the block's line number.
 _FRAGMENT_TAGS = frozenset({"cardlang-fragment", "cardlang-bad-fragment"})
 
 
@@ -591,14 +633,28 @@ _BAD_FRAGMENT_BLOCKS = [b for b in _BLOCKS if _tag(b) == "cardlang-bad-fragment"
 
 
 @pytest.mark.parametrize(
-    "block", _CARDLANG_BLOCKS, ids=[_block_id(b) for b in _CARDLANG_BLOCKS]
+    "block",
+    may_be_empty(
+        _CARDLANG_BLOCKS,
+        reason="the live docs carry no `cardlang` block today; the pass path is "
+        "proven by test_self_cardlang_block_passes",
+    ),
+    ids=[_block_id(b) for b in _CARDLANG_BLOCKS],
 )
 def test_cardlang_blocks_are_full_valid_games(block: FencedBlock) -> None:
     err = _run_pipeline(block.text, _block_id(block))
     assert err is None, f"{_block_id(block)}: tagged `cardlang` but rejected: {err}"
 
 
-@pytest.mark.parametrize("block", _BAD_BLOCKS, ids=[_block_id(b) for b in _BAD_BLOCKS])
+@pytest.mark.parametrize(
+    "block",
+    may_be_empty(
+        _BAD_BLOCKS,
+        reason="the live docs carry no `cardlang-bad` block today; the rejection "
+        "path is proven by test_self_cardlang_bad_block_is_rejected",
+    ),
+    ids=[_block_id(b) for b in _BAD_BLOCKS],
+)
 def test_cardlang_bad_blocks_are_rejected(block: FencedBlock) -> None:
     # `cardlang-bad` is the whole-game counterpart of `cardlang-bad-fragment`
     # (below), just as `cardlang` is the whole-game counterpart of
@@ -636,7 +692,14 @@ def test_fragment_blocks_pass_when_wrapped(block: FencedBlock) -> None:
 
 
 @pytest.mark.parametrize(
-    "block", _BAD_FRAGMENT_BLOCKS, ids=[_block_id(b) for b in _BAD_FRAGMENT_BLOCKS]
+    "block",
+    may_be_empty(
+        _BAD_FRAGMENT_BLOCKS,
+        reason="the live docs carry no `cardlang-bad-fragment` block today; the "
+        "wrapped-rejection path is proven by the test_self_cardlang_bad_fragment_* "
+        "fixtures",
+    ),
+    ids=[_block_id(b) for b in _BAD_FRAGMENT_BLOCKS],
 )
 def test_bad_fragment_blocks_are_rejected_when_wrapped(block: FencedBlock) -> None:
     label = _label(block)

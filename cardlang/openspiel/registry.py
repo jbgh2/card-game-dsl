@@ -7,8 +7,7 @@ filename. It is DERIVED from the directory rather than hand-listed: the corpus
 name is mechanical — `cardlang_` + the file stem with `-` turned to `_`
 (`go-fish.cardlang` -> `cardlang_go_fish`). A new game needs only its file;
 there is no second list to keep in sync, and no numeric count for two branches
-to bump into the same silent merge (the failure mode the old hand-listed pin
-existed to catch).
+to bump into the same silent merge.
 
 Because the map is derived from the directory, the derivation refuses to
 produce a silently-broken registry: `_derive_games` raises if the directory
@@ -23,8 +22,8 @@ here where importing it cannot fail on a core install. The derivation reads the
 directory but imports nothing third-party, so that property still holds — in a
 checkout, where `docs/games/` is present. A packaged (wheel) install ships only
 `cardlang*` + grammar/stdlib data, not `docs/games/`, so the corpus is absent
-and the registry cannot be built; that is the standing "Packaging the corpus
-for distribution" residual (docs/roadmap.md), and the empty-directory raise
+and the registry cannot be built; that is the standing corpus-packaging
+residual (issue #97), and the empty-directory raise
 below turns it from a silent no-op into a loud, self-explaining error.
 """
 
@@ -51,7 +50,7 @@ def _derive_games(games_dir: Path) -> dict[str, str]:
       would drop a game from the map — a `dict` keeps the last silently.
     - an EMPTY result means the corpus directory is missing or unpopulated. In
       a checkout the path is wrong; in a packaged install `docs/games/` was not
-      shipped (docs/roadmap.md, "Packaging the corpus for distribution").
+      shipped (issue #97).
       Registering zero games silently is the failure this check exists to catch
       quickly, at adapter import.
     """
@@ -70,8 +69,7 @@ def _derive_games(games_dir: Path) -> dict[str, str]:
             f"no .cardlang games found under {games_dir} — the OpenSpiel "
             f"registry derives from that directory and would otherwise register "
             f"nothing. In a checkout the path is wrong; in a packaged install "
-            f"docs/games/ was not shipped (docs/roadmap.md, 'Packaging the "
-            f"corpus for distribution')."
+            f"docs/games/ was not shipped — see issue #97."
         )
     return games
 

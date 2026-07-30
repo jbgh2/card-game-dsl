@@ -26,6 +26,13 @@ class TestReadiness(ReadinessProofs):
         "french-tarot.cardlang",
         depth=3,
         conformance_steps=120,
+        conformance_verbs_unreached=(
+            ("bid_garde", ("the auction's higher levels are legal only over a "
+                          "standing lower bid, which the seed-7 line never "
+                          "produces; the 40-seed sweep in "
+                          "tests/test_playout_french_tarot.py bids the ladder")),
+            ("bid_garde_sans", "as bid_garde"),
+        ),
         adapter_terminal_steps=200,  # greedy line measured at 144 steps
     )
 
@@ -44,7 +51,7 @@ def test_discard_derives_hidden_observations() -> None:
     event's *shape*, per the Pinochle/Stud precedent).
     """
     path = str(GAMES_DIR / "french-tarot.cardlang")
-    game, space = load(path)
+    _game, space = load(path)
     seed = 0
 
     history: list[int] = []

@@ -17,9 +17,10 @@ from cardlang.runtime.values import deck_suits as _runtime_deck_suits
 DIRECTION_VALUES: frozenset[str] = frozenset({"left", "right", "across", "hold"})
 
 
-# deck name -> total card count. Irregular decks (copies in pinochle48/coup15,
-# explicit lists in tarot78/tichu56) make a suits×ranks formula wrong, so the size
-# is an explicit table — pinned to `len(runtime.build_deck(name))` by a drift test.
+# component set name -> total item count. Irregular decks (copies in
+# pinochle48/coup15, explicit lists in tarot78/tichu56) make a suits x ranks
+# formula wrong, so the size is an explicit table — pinned to
+# `len(runtime.build_deck(name))` by a drift test.
 _DECK_SIZE: dict[str, int] = {
     "standard52": 52,
     "schnapsen20": 20,
@@ -31,6 +32,10 @@ _DECK_SIZE: dict[str, int] = {
     "five_hundred43": 43,
     "coup15": 15,
     "canasta108": 108,
+    "kuhn3": 3,
+    "leduc6": 6,
+    "xo_marks": 9,
+    "breakthrough_men": 32,
 }
 
 

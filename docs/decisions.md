@@ -225,45 +225,48 @@ game's rulebook introduces the change. Rulebooks describe what
 
 ## Rule demand forms
 
-A rule's `demands:` clause takes one of two forms, distinguished by
-what it constrains:
+A rule's `demands:` clause names **a candidate-card set** — an expression
+returning the cards a legal move may use, filtering a zone. `MustFollowSuit`'s
+`demands: cards in hand where card.suit is state.led_suit` and Hearts'
+`demands: cards in hand where card.suit is not hearts` are this form. The legal
+move set is the intersection of every active rule's candidate set. Because that
+intersection can empty — a void player cannot follow suit — a card-set
+`demands` **must** declare an `if_impossible:` fallback: `hand` to play any
+card, or `error(...)` to reject the move. There is no silent default (see "No
+implicit actions"); a card-set rule without `if_impossible` is rejected at
+resolve time.
 
-- **A candidate-card set** — an expression returning the cards a legal
-  move may use, filtering a zone. `MustFollowSuit`'s `demands:
-  cards in hand where card.suit is state.led_suit` and Hearts' `demands:
-  cards in hand where card.suit is not hearts` are this form. The legal move set
-  is the intersection of every active rule's candidate set. Because that
-  intersection can empty — a void player cannot follow suit — a card-set
-  `demands` **must** declare an `if_impossible:` fallback: `hand` to play any
-  card, or `error(...)` to reject the move. There is no silent default (see "No
-  implicit actions"); a card-set rule without `if_impossible` is rejected at
-  resolve time.
+**A rule binds at exactly one decision site: the trick round's card
+decision.** Rules are consulted where card legality is computed
+(`rules.legal_cards`) and nowhere else, so a rule is accepted only if it can
+fire there — it must `constrains: play_to_trick`, and it must carry a
+card-set `demands:` or an `exempts:`. The checker rejects the rest rather
+than accepting surface it would silently drop ("Surface totality"):
 
-- **A predicate on the move** — `demands: actions where <predicate>`,
-  constraining the shape of the move itself rather than which cards it
-  draws from a zone. Hearts' `PassExactlyThreeCards` is `demands: actions
-  where action.card_count is 3`; Stud's `BringInMandatory` is `demands:
-  actions where action.amount is bring_in_amount`. Cribbage's two-card
-  discard and Tichu's one-card-per-opponent push are the same form.
+- a `constrains:` naming any other move type, or omitted entirely;
+- `demands: actions where <predicate>` — a predicate on the move's *shape*
+  rather than on which cards it draws. There is no site that consults it;
+- a rule with neither `demands:` nor `exempts:`, which cannot change what is
+  legal however its `applies_when:` reads.
 
-The two are not interchangeable: the first names *which cards*, the
-second *how the move is shaped*. A move is legal when it satisfies
-every active rule's demand, of either form.
+**State the constraint where the move is made instead.** A movement's
+`chosen N` binds a count (Hearts' pass is `transfer chosen 3 cards` — the
+`3` *is* the "pass exactly three" law); a move type's `when:` guard binds
+its parameters (Stud's bring-in amount). These are the enforcing forms
+today, which is why no corpus game loses a constraint to the walls above.
 
-> **Enforcement status.** Card-set demands are enforced where the trick form
-> computes card legality (`rules.legal_cards`, the trick round's decision
-> site). The `actions where` form, and rules constraining move types other
-> than `play_to_trick`, are resolved, type-checked, and emitted to IR but
-> **not yet enforced at runtime** — rule application today runs at the trick
-> form's card-decision site only. Hearts' `PassExactlyThreeCards` documents
-> the game's law while the pass movement's `chosen 3` enforces the count.
-> Widening rule application beyond trick play is an open question
-> ([open-questions/rule-scope-beyond-trick-play.md](open-questions/rule-scope-beyond-trick-play.md)).
+Where rules *should* eventually bind is open — english draughts' mandatory
+capture and nine men's morris's in-mill removal restriction are the
+witnesses that would force a wider answer
+([open-questions/rule-scope-beyond-trick-play.md](open-questions/rule-scope-beyond-trick-play.md)).
+Until then the surface is deferred, not deleted (roadmap.md, "Grammar
+surface deferred by the checker"): when enforcement widens, the walls
+retire and the forms return with an implementation behind them.
 
 **The move under inspection is bound as `action`.** A predicate over a
-player's move — `demands: actions where …` here, and the `when <move-type>
-where …` triggers of sub-phase transitions (see "Sub-phase entry and exit")
-and triggered scoring components — binds that move as `action`, and its
+player's move — the `when <move-type> where …` triggers of sub-phase
+transitions (see "Sub-phase entry and exit") and triggered scoring
+components — binds that move as `action`, and its
 fields expose the move's data: `action.card` (the card played),
 `action.cards`, `action.card_count`, `action.actor`, `action.amount`. The
 subject is always reached through `action`; there are no bare field names,
@@ -580,7 +583,9 @@ the parameter. (Minting per-card vocabulary ids instead would give one card
 play two representations.) This is also why at most one Card-parameterized
 move may appear per vocabulary: the card id alone must name the move.
 
-**The integer `choose` domain.** `choose integer in <lo> .. <hi>` is the
+### The integer `choose` domain
+
+`choose integer in <lo> .. <hi>` is the
 numeric decision form (a bid — Spades' `0 .. 13`, Oh Hell's `0 .. hand_size`).
 Its domain is a bounded integer interval, and it satisfies the same
 closed-contract-plus-mask rule as the fixed domains above: the OpenSpiel action
@@ -642,7 +647,17 @@ tricks always play out writes `until false` and ends the hand in the surrounding
 the engine may mark a play `ends_trick` (Tichu's Dog), and the form then closes
 the trick with **zero follower draws**. The last player to play is
 the `outcome`; the surrounding body routes the pile and the next lead, exactly as
-for a trick. Like the trick form, the climbing form exposes its terminal state to
+for a trick.
+
+**The named leader need not be a participant.** `from` and `over` are
+independent expressions, so in a game where going out does not end the hand
+(President, Tichu) the trick winner can shed their last card on the winning
+play and still be named as the next leader. That is a normal state: the ring
+starts at the first participant at or after them in turn order, exactly as the
+trick, auction, and `turns` forms treat the same clause pair. A game therefore
+writes the natural `leader := outcome` and needs no hand-authored "skip to the
+next player still holding cards" fallback. Only an **empty** `over` set is an
+error — there is then no one to lead and no one to follow. Like the trick form, the climbing form exposes its terminal state to
 the body (`mech_state` → `last_round_state`, read as `state.x`):
 `state.lead_ended_trick`, and `state.shed_first` / `state.shed_second` — the
 first two players who played their last cards this trick, in play order, from
@@ -795,14 +810,17 @@ each` stays correct — and stays in the language — for genuine per-player wor
 a scoring pass or a deal to everyone):
 
 - **It captures `actor`.** `for each player p:` rebinds the acting player for its
-  body, and `actor` *reads* the acting player, so `if p is actor { … }` is true for
-  **every** `p`. `as` evaluates its player *before* the rebind, so `as actor { … }`
-  is idempotent and `as challenger { … }` reads the state variable — neither can be
-  captured.
+  body, and `actor` *reads* the acting player, so `if p is actor { … }` would be
+  true for **every** `p` — which is why the comparison is refused outright (see
+  "Naming the acting player twice", below). `as` evaluates its player *before* the
+  rebind, so `as actor { … }` is idempotent and `as challenger { … }` reads the
+  state variable — neither can be captured.
 - **It re-reads its guard mid-pass.** When the body mutates the guard variable, a
   later player in the same pass re-matches and takes a second turn — an
   order-dependent double-execution. `as` runs its body once, so one written turn is
-  one turn.
+  one turn. This one no wall can catch — whether the body writes the guard is a
+  question about paths, not names — so it remains the reason to reach for `as`
+  even where the comparison would be legal.
 
 `as` uses the same actor-binding runtime path the loop reached indirectly, so it
 emits no new observations. Its gain for the OpenSpiel target is that the decision
@@ -812,6 +830,55 @@ parameter inside an `as` block is safe for the same reason it is inside any
 actor-rebinding body: arguments are evaluated once in the caller's context
 ([Named procedures](#named-procedures)), so Coup's `lose_influence(victim)` runs
 `as victim { … }` with no capture.
+
+## Naming the acting player twice
+
+A construct that binds a seat *and* makes that seat the acting player gives the
+same player two names: its own binder, and the `actor` pronoun. Inside such a
+body the two are interchangeable, so an equality comparison between them is a
+constant — `p is actor` always true, `p is not actor` guarding a body that never
+runs. **Both operands naming the acting player is refused at resolve time.**
+
+The rule is about *provable identity*, not about the `for each` spelling, so it
+covers every construct that binds the acting player to a name — `for each` over a
+seat role (the `binds_actor` column of the domain registry), `turns`, `each …
+simultaneously`, and `as <name>` — and the transitive `let me = actor`, which
+merely adds a third name for the same seat. Both equality operators and both
+operand orders are refused alike, since the degeneracy is in the operands rather
+than in the spelling.
+
+Binding is the only thing that grants a name, and it is also the only thing that
+takes one away: a name rebound by an inner construct — a query binder, a
+`produces:` arm's payload, a `let` assigning it something else — stops denoting
+the acting player from that point, and comparing it becomes ordinary again. A
+binding's right-hand side is read *before* it takes effect, as everywhere else
+in the language, so `let p = p` re-binds `p` to the player it already named and
+keeps the comparison refused.
+
+The **innermost** binding is the one that counts, and that is what keeps the
+useful idioms legal:
+
+```cardlang-fragment actor_alias
+let w = actor
+for each player p:
+  if p is w { result[p] := 1 } else { result[p] := -1 }
+```
+
+Capturing the acting player *above* the loop is the way to compare against them
+*inside* it: `w` is bound before the rebind, so it still names the player who
+acted while `p` walks the seats. Written inside the loop the same `let` would
+name whichever seat the loop had just bound, and the comparison would be refused
+along with the direct one. Symmetrically, a nested rebind frees the outer
+binder — inside `for each player p: as <someone> { … }`, `actor` is that someone,
+so `p is actor` is an ordinary contingent test again.
+
+Two boundaries are deliberate. A **state variable** is never treated as provably
+the actor, even directly inside `as taker { … }`: the body may reassign it, so
+the comparison can genuinely differ, and the wall refuses only what it can prove.
+And a merely **redundant** read is not an error — `hand[actor]` where `hand[p]`
+would do is accepted, because it does exactly what it says. The defect being
+walled is a comparison whose answer is fixed before the game runs, not a
+roundabout way of writing a correct one.
 
 ## State scoping (lexical)
 
@@ -838,6 +905,46 @@ declared in its enclosing scope (Bridge's `scoring` writes
 live in `rubber`). A phase may *not* write to a variable declared in
 a sibling or descendant scope, because that variable's owning phase
 may not be active. This is statically checkable.
+
+**A default reads only what is already declared.** The free-reads rule
+above is about a body running inside the phase, when the whole block
+exists. A `= <default>` is evaluated earlier than that — while its own
+block is still being declared, top to bottom — so it sees the enclosing
+scopes and the declarations *above it in its own block*, and nothing
+else. A default naming a variable from later in its block, from itself,
+from a sibling phase, or from a phase nested inside its own reaches a
+variable that does not exist yet, and is refused
+(`resolve._check_state_default_scope`). Without the rule these all
+passed every front-end pass and died at playout on a bare `KeyError` out
+of `runtime/state.py`.
+
+A default may not **call**, either. A call's state reads live in the
+callee's body, so admitting one would mean chasing the declare-time
+reachability of every function a default can reach. Refusing the call
+outright costs nothing measured — across the whole corpus and every
+library, defaults hold integer and enum literals, and not one reads a
+state variable — and it keeps the surface total rather than leaving a
+check that silently stops at the call boundary. Compute the value in
+the phase that needs it.
+
+Nor may a default **`choose`**. A default is evaluated outside any
+player's turn, so there is no one to make the decision; the runtime
+raised "a `choose` with no acting player" at declare time, and for the
+OpenSpiel target a decision with no actor has no information set to
+attach to. This is the same rule as the two above and not a separate
+one: what a default may do is bounded by how little of the game exists
+when it runs.
+
+**A default must fit its declared type.** `v : Integer = "s"` is refused,
+not silently stored: the default's inferred type must be assignable to the
+variable's declared type — the same `assignable` relation an ordinary
+assignment uses (`typecheck._check_state_default_type`, the initial-value
+twin of `_check_assign`). For an indexed variable the default is checked
+against the element type, since `score[player] : Integer = 0` broadcasts
+one value to every key. The check is as sharp as the inferencer and no
+sharper: a default whose type the inferencer leaves as the permissive top
+is accepted whatever the declaration, which is the type system's design
+rather than a hole here — no corpus default is untyped.
 
 **Example: Bridge state declarations.**
 
@@ -1258,7 +1365,7 @@ rewrites to underlying forms.
   `any/all card(s) in … where`, `sum of … over cards in …`,
   `highest/lowest … over cards in … or <default>`, and the emptiness
   checks `is empty` / `is not empty`. Resource queries are unbuilt
-  ([roadmap.md](roadmap.md)).
+  ([roadmap.md](roadmap.md), "Grammar surface deferred by the checker").
 - Phase outcomes — tagged-union values; pattern-matched, not
   dot-accessed.
 
@@ -1326,15 +1433,15 @@ not share a single rank list: French Tarot's 78 (four 14-card suits, a
 21-card trump suit, and the Excuse) and Tichu's 56 (the standard 52
 plus the four special cards Mahjong, Dog, Phoenix, Dragon). Those
 compositions live in the registry, not in per-game syntax;
-[library.md](library.md) "Stdlib decks" catalogues them, and adding a
-deck is a stdlib registry addition. Tichu's non-(suit, rank) specials
+[library.md](library.md) "Stdlib component sets" catalogues them
+(decks are its card-flavored entries), and adding a deck is a stdlib
+registry addition. Tichu's non-(suit, rank) specials
 are a separate question from the registry itself; see
 [open-questions/special-cards-declaration.md](open-questions/special-cards-declaration.md).
 
 Per-card mutable attributes (tapping, counters, status effects) are
 not part of the surface — the oriented- and CCG-style card state they
-would serve is deferred ([roadmap.md](roadmap.md), out of scope for
-the current phase).
+would serve is deferred ([roadmap.md](roadmap.md), "Out of scope").
 
 **Convenience sugar (rewrites that compile away):**
 
@@ -1371,6 +1478,80 @@ than needing `dealer.left.partner.hand`-style chains, so no
 complex-receiver dot form exists. Koenigrufen's runtime-chosen
 called king is the named reopener if a future game's relational
 subject resists this flattening.
+
+## The permissive top and the lookup-miss walls
+
+`Any` is the type checker's top: it is compatible with every type in
+both directions, and every operand wall short-circuits on it. That is
+correct for a value whose type genuinely cannot be narrowed, and it is
+the mechanism that keeps typing *gradual* — an unrefined corner of the
+object model must not manufacture errors in expressions that touch it.
+
+The same permissiveness is a defect when it stands for "the checker
+failed to look this up". A value that satisfies every constraint
+silently exempts everything below it from every wall, so a single
+missed lookup turns a whole subtree's type checking off and the checker
+still reports success. This is the "accepted-but-ignored" class
+(see "Surface totality") in its most damaging form, because it is
+invisible: nothing in the program looks wrong.
+
+**The two roles are separated at the producers, not in the type.** There
+is one `Any`, and it means the top. A lookup whose domain is closed does not
+fall back to it:
+
+- **A closed-registry lookup raises.** Binder roles, stdlib call
+  signatures, zone content types, struct types, operator result types,
+  and `ref_kind` dispatch each have a registry that an earlier pass
+  validates against. A miss is a divergence between two registries —
+  a compiler bug, not a program error — so it fails in compiler
+  currency (an `AssertionError` naming the wall or builder that
+  guarantees it), exactly as the runtime's `role_members` and
+  `zone_observer_key` already did.
+- **An environment lookup raises.** A name resolve classified but the
+  type environment does not bind means the environment was built
+  incompletely — most often a binder a statement walk failed to
+  thread. The fix is always to thread the binding in the pass that owns
+  the scope; binding `Any` at the failing site to quiet it restores the
+  hole.
+- **A declared type name is validated where it is declared.** Every
+  position that declares a type is checked by the resolver, at the
+  declaration rather than at some use. There are nine, and they are
+  derived from the grammar rather than listed by hand — the productions
+  referencing `type_name` or `payload_type`, plus the struct literal's
+  head — because a hand-listed enumeration of them was twice found
+  incomplete: state variables, struct fields, move parameters, procedure
+  parameters, rule-template parameters, function parameters, `define`
+  payloads, phase-outcome payloads, and struct literals. The grid that
+  crosses them against every source a name can come from is
+  `tests/test_type_name_positions.py`. Otherwise a mere typo maps to the top and *widens* what
+  the checker accepts: the misspelled program passes where the
+  correctly-spelled one is rejected. Exactly one wall owns each
+  position, and it is the tightest one that applies — a move parameter
+  answers to the enumerable-domain gate (which subsumes name validity,
+  since an unknown name is not an enumerable domain), a procedure
+  parameter to its own domain set, and the remaining positions to a
+  plain name check. Each position's allowed set mirrors exactly what
+  its type builder can resolve, so a name the wall admits is never one
+  the builder still maps to the top, and no defect is reported twice in
+  two currencies.
+
+  A gate belongs to the DECLARATION, not to the uses that reach it: a
+  gate run from the vocabulary sites that name a move would leave a move
+  type nothing offers ungated entirely, and would report one named twice
+  as two defects. Declaring a construct is what makes its parts real.
+
+**What stays permissive is a small audited set**, enumerated and pinned by a
+test so a new permissive site must be classified rather than added:
+values with no better type (a diverging `error()`, context-dependent
+stdlib returns the signature model cannot express, deferred pronoun
+shapes, a forward struct reference), and propagation downstream of a
+wall that already fired. Gradual typing is preserved — the top still flows
+and still suppresses errors where it is deliberate.
+
+The general rule this instantiates: **a fallback is only legitimate
+when no better answer exists.** A fallback standing in for an answer
+the program *does* have is a silent wrong answer, and belongs upstream
+as a wall (see "Closed-domain completeness", write-time triage).
 
 ## Resource amount syntax
 
@@ -1450,8 +1631,8 @@ item noun is `cards`/`card` today; the noun stays open in the grammar so a
 resource transfer (coins, chips) can one day be the *same* construct as a
 card deal rather than separate syntax — but resource movements and the
 grammar's per-movement `visibility =` override are deferred surface, rejected
-by the checker ([roadmap.md](roadmap.md)) rather than left for the runtime to
-silently ignore.
+by the checker ([roadmap.md](roadmap.md), "Grammar surface deferred by the checker")
+rather than left for the runtime to silently ignore.
 
 A `to each` deal distributes the stated amount to every recipient. When the
 amount is `all` and the deck does not divide evenly, `as-equally-as-possible`
@@ -1466,7 +1647,7 @@ round-robin); `deal all … to each` *without* it is rejected as a trap (the
 first recipient would drain the source); a gather (`move all cards to
 <zone>`, no `from`) collects everything into a single zone — counted,
 selected, or `to each` gathers are rejected; and the `in <zone>` form is
-deferred ([roadmap.md](roadmap.md)).
+deferred ([roadmap.md](roadmap.md), "Grammar surface deferred by the checker").
 
 **Movement `where` filter.** The `from` form of a movement (any destination
 shape) takes an optional `where <lambda>` clause, narrowing the *source pool*
@@ -1548,7 +1729,8 @@ walled at evaluation: a negative amount is a typed runtime error everywhere
 `chosen` amount is a vacuous decision node, also refused.) `jointly`
 requires `chosen` — the selection is a player decision over subsets; a
 dealt joint selection has no decider and a `random` one has no corpus user
-(both rejected loudly, recorded in [roadmap.md](roadmap.md)) — `some`
+(both rejected loudly, recorded in
+[roadmap.md](roadmap.md), "Grammar surface deferred by the checker") — `some`
 requires `jointly`, and `to each` is rejected under `jointly` (it would
 silently make every destination seat its own subset decider; recorded).
 Enumeration is deterministic (sizes ascending, combinations in source
@@ -1604,7 +1786,8 @@ machinery, and two rummy-family games prove the two halves:
 - **Joint formation legality** is either a joint selection ("Joint-predicate
   selection" above — Gin's one-shot arrangements) or, where the action
   space cannot carry subset ids (a duplicate-card deck's multisets —
-  [roadmap.md](roadmap.md)), an announce-then-stage decomposition whose
+  [roadmap.md](roadmap.md), "Grammar surface deferred by the checker"),
+  an announce-then-stage decomposition whose
   per-card guards keep a legal completion reachable from every offered
   state (Canasta's `stage_card`/`close_meld`, the arrange-guard totality
   trick per card).
@@ -1819,7 +2002,7 @@ domain is rejected. A procedure may not run another procedure, hold a `round`
 (which binds its own `outcome`), or contain non-local control flow (`produce`,
 `continue to`, `skip to next hand`), and one that is never run is an error, since
 its body would be spliced nowhere and checked by nothing. Every one of those is a
-loud wall with a recorded deferral ([roadmap.md](roadmap.md)); none is silently
+loud wall with a recorded deferral (issue #134); none is silently
 accepted.
 
 ## Knowledge, visibility, and the projection model
@@ -1895,7 +2078,7 @@ Six projections, ordered by informativeness:
 These form a lattice ordered by informativeness:
 
 ```text
-identity ⊐ identity_set ⊐ count_by_type ⊐ count_only ⊐ existence_only ⊐ trivial
+identity > identity_set > count_by_type > count_only > existence_only > trivial
 ```
 
 Each step down "forgets" some structure of the full contents.
@@ -2063,7 +2246,7 @@ information states. It works by re-simulation — the OpenSpiel state is
 protocol. This makes the state trivially cloneable (the property OpenSpiel
 exercises most) and confirms the finite-action-space anchor end to end. The
 adapter is per-game and proof-scoped; the general, all-corpus path remains the
-eventual compilation pass (see [roadmap.md](roadmap.md)).
+eventual compilation pass (see issue #139).
 
 Info-set derivation is uniform across the corpus: every game's decisions run
 on kernel sites that emit observation events, no Python mechanic exists (the
@@ -2108,7 +2291,9 @@ declaration error, not an action-space explosion). A declared name may
 not collide with a built-in domain id or type name (`player`, `suit`,
 `Rank`, `Card`, `Integer`, …) — the built-in registry and the declared
 block are reconciled by rejection, so the two sources can never disagree
-about a name.
+about a name. A `board:` clause mints a **named-member** domain (`cell`,
+string members) on this same substrate — same collision wall, same cap,
+same two surface slots — detailed in "Boards and cells" below.
 
 **Positions are unowned.** No observer *is* a column, so a
 position-indexed family has no owner: every observer receives the zone
@@ -2119,14 +2304,19 @@ rejects it, because its owner projection would be silently unreachable.
 Uniform-projection types (`Cascade`, `HiddenStack`, `Foundation`,
 `Cell`, `PlayerPile`, …) may.
 
-**Everything else rejects loudly.** A position domain is not a seat and
-not an iteration role: `for each column c`, `each column simultaneously`,
-a position-indexed `state` variable, and a position-typed `state`
-declaration are all rejected with diagnostics (deferred, recorded in
-[roadmap.md](roadmap.md)); quantifiers (`any column where …`) are
-grammatically inexpressible. A position-indexed family must always be
-subscripted — the bare-family actor sugar (`hand` = the acting player's
-hand) is meaningless for an unowned family and is rejected.
+**Iteration and state-indexing reject loudly; quantification is admitted.**
+A position domain is not a seat and not an iteration role: `for each
+column c`, `each column simultaneously`, a position-indexed `state`
+variable, and a position-typed `state` declaration are all rejected with
+diagnostics (deferred, recorded in issue #111). Quantifiers
+range over a position domain's members like any other quantifiable
+domain — `any column where …`, `all columns where …`, `number of columns
+where …`; for a board's `cell` domain the register adds two collection
+forms over lines and cells, detailed with `lines(k)` in "Boards and
+cells" below (tests/test_cell_queries.py). A position-indexed family
+must always be subscripted — the bare-family
+actor sugar (`hand` = the acting player's hand) is meaningless for an
+unowned family and is rejected.
 
 **Mixed-facing piles are two zones.** Per-position visibility inside one
 physical pile (Klondike's columns: face-down below, face-up above) is
@@ -2159,6 +2349,269 @@ first — `Z is not empty`). Their use in a move *guard* is subject to the
 same discipline as every guard expression: legality must not read
 information the decider is not entitled to, which the per-game
 legal-action-agreement proofs police (`tests/openspiel_ready/`).
+
+## Component sets: cards and pieces
+
+A game's individuated zone content is declared with exactly one head
+clause — `cards: <deck>` (a card deck) or `pieces: <set>` (a piece set)
+— naming one entry of the closed component-set registry
+([library.md](library.md), "Stdlib component sets"). The two are
+mutually exclusive and one is required; a game declaring both, or
+neither, is rejected (no game has witnessed needing both).
+
+The individuated content kind is the **Piece**: an identity of two
+enumerable axes (with per-set declared names) times multiplicities, plus
+the per-game attributes and optional facing of the typed object model
+("Typed object model"; "Knowledge, visibility, and the projection
+model"). A **Card is the deck specialization of a Piece** — a component
+set whose two axes are named `suit` and `rank` and which carries the
+card-only conventions (`ranking:`, the follow/trump rule family,
+hand-order enumeration, the `Card` move-parameter domain). A piece set
+names its own two axes and carries none of them; `xo_marks`
+(tic-tac-toe's marks) names them `side` (`x`/`o`) and `kind` (`mark`).
+
+The axes bind positionally: a piece's first axis occupies the slot a
+card's `suit` occupies, its second the `rank` slot. Field access types
+against the game's declared axis names — `card.suit`/`card.rank` in a
+card game, `piece.side`/`piece.kind` in a piece game — each axis a
+distinct enum, so a cross-axis comparison (`piece.side is mark`) is
+rejected exactly as `card.rank is spades` is. The axis values (`x`, `o`,
+`mark`) enter the enum-value namespace exactly as a deck's suits and
+ranks do.
+
+**Noun/content agreement is a typecheck wall.** Every surface that
+spells card-content vocabulary demands the deck flavor and, in a piece
+game, is rejected with a diagnostic naming the game's declared kind
+("this game declares pieces ('xo_marks')") — and symmetrically the
+`piece`/`pieces` noun is rejected in a card game. The walled surfaces
+are the movement/reveal item noun, the filter binder, `.suit`/`.rank`
+field access, the card-query and aggregation forms, the `ranking:` and
+`trump:` clauses, the `suit`/`rank` quantifier and iteration roles, the
+`Card`/`Suit`/`Suit?`/`Rank` move-parameter domains, the deck-reading
+stdlib calls, and card literals. Each rejection sits at the layer that
+owns the operand-kind class (the typechecker), naming the kind rather
+than parsing the construct and silently giving it card meaning — the
+"accepted-but-ignored" failure this wall exists to prevent.
+
+```text
+pieces: xo_marks                        // axes: side = [x, o], kind = [mark]; 5 x + 4 o
+move all pieces from box where piece.side is x to reserve[0]
+```
+
+**Seeding reuses the Deck-typed-zone rule** — the one existing "initial
+contents" concept, one spelling per concept. A game's `Deck`-typed zone
+is seeded with its component set at game start; tic-tac-toe names that
+zone `box` and drains it in setup. A piece game with no `shuffle`
+consumes no randomness — every seed yields the identical game.
+
+The acceptance property for `Card`-as-a-specialization-of-`Piece` is
+that **the card corpus cannot tell**: every card game keeps `cards:`,
+its card queries, and byte-identical behavior. Piece twins of the
+card-query and aggregation forms are deliberately absent from the
+grammar (a piece game counts and aggregates through the generic
+collection surfaces a card game shares); the deferred declaration-site
+and rule-system walls are recorded in issue #114.
+
+## Zone capacity
+
+Each library zone type carries a **capacity** — a column of the
+zone-type registry ([library.md](library.md), "Library zone types"),
+total over every row. `Cell` (the one-card holding space) has capacity
+1; every other library zone type is unbounded.
+
+A movement whose destination would exceed its type's finite capacity
+fails loudly at runtime with a typed error naming the zone, its type,
+the capacity, and the guard to write:
+
+```text
+zone 'slot[0]' is a Cell (capacity 1) and already holds 1 — the move
+would overfill it; guard the move (`slot[0] is empty`)
+```
+
+The wall **backstops** the game's own guards; the registry owns the
+capacity class, so the check lives at the single movement-executor
+append rather than being re-derived per move type. An honest game guards
+its placements (FreeCell's `cells[slot] is empty`, tic-tac-toe's
+`square[at] is empty`), so the wall never fires on a correct game — it
+converts a rules bug into a loud failure at the overfilling move, not a
+silently dropped card. The `Point` row (an unbounded stack) is deferred
+to its witness; see issue #118.
+
+## Boards and cells
+
+A game with a spatial board declares it with a `board: <family>(<args>)`
+clause: it selects a family from the closed `BOARDS` registry
+([library.md](library.md), "Stdlib boards") and gives its integer
+arguments.
+
+```text
+board: grid(3, 3)
+```
+
+The `grid` family builds a rectangular board; unknown family, wrong
+arity, or out-of-bounds arguments are resolve diagnostics (the registry
+declares each family's arity and bounds). A `board:` clause **requires
+`pieces:`** — a board holds pieces, not cards — so `board:` in a card
+game is rejected, and the board-plus-`cards:` combination waits on a
+witnessed need.
+
+**The board mints one named-member position domain, `cell`.** It rides
+the same substrate declared position domains do ("Position domains and
+positional zones"): the minted domain is injected alongside any
+`positions { }` block and flows through every surface an integer
+position domain flows through — zone-family index, move-parameter
+domain, the unowned projection, the action space, the IR — under the
+same collision wall, the same 256-member cap, and the same
+"always subscripted" rule. What differs is the member kind: a board's
+members are **string cell names** (`a1`, `b1`, …, row-major from `a1`;
+the file letter is the column from the left, the number the row from the
+bottom — `grid(3, 3)`'s nine cells are `a1 b1 c1 a2 b2 c2 a3 b3 c3`),
+not an integer range. The names and their order are the board entry's,
+fixed in the registry.
+
+```text
+zones {
+  square[cell]    : Cell<cell>          // nine one-card cells, keyed a1..c3
+  reserve[player] : PlayerPile<player>
+}
+move_type place(at : cell) { when: square[at] is empty  effect { … } }
+```
+
+**Cells type as `TCell`, distinct from `TInteger`.** A parameter, `let`
+binder, or subscript key over the `cell` domain carries `TCell`; a zone
+family indexed by a named-member domain (`square[cell] : Cell<cell>`)
+subscripts only with `TCell`-typed expressions (`square[at]`, never
+`square[7]`), while an integer-keyed family keeps the `TInteger` rule
+(`cascade[3]`) — one mechanism, both member kinds, each rejecting the
+other's key. Two cells compare by equality (`at is at2`); a cell against
+an integer (`at is 3`), cell ordering (`at < at2`), and cell arithmetic
+(`at + 1`) are type errors — a cell name is an opaque member, with no
+order, successor, or arithmetic (adjacency, where a game needs it,
+arrives as declared board data, not an algebra on cell names —
+[design-notes/positional-zones.md](design-notes/positional-zones.md),
+"Adjacency"). `place(at : cell)` enumerates one placement action per
+cell, in member order, exactly as an integer position parameter
+enumerates its range.
+
+**The cell/line query register.** The bare quantifier forms range a
+binder over any declared position domain ("Position domains and
+positional zones"); the board adds two collection forms and the
+`lines(k)` call that feeds them. A bare form's noun is the domain name,
+validated against the game's declared domains (a board's `cell`, an
+integer `positions { }` name), with `any` taking the singular noun and
+`all`/`number of` the plural:
+
+```text
+any cell where square[cell] is empty
+all cells where square[cell] is not empty
+number of cells where <pred>
+```
+
+An unknown noun is a diagnostic naming the declared domains; a
+boardless, positionless game naming `cell` is guided to the collection
+escape instead. Where a collection value exists, two collection forms
+iterate it: `any line in <lines> where <pred>` walks a collection of
+lines (binder `line`, type `TLine`), and `all cells in <line> where
+<pred>` walks the cells of one line (binder `cell`, type `TCell`).
+`lines(k)` is the stdlib call the board's declared length-`k` lines are
+read through — every straight run of `k` cells along a row, column, or
+diagonal — returning a collection of `TLine`, each an ordered tuple of
+cells; `grid(3, 3)`'s `lines(3)` is the eight tic-tac-toe lines. A
+literal `k` outside the board's span is a resolve error; `lines(…)` in a
+boardless game is rejected naming `board:`.
+
+```text
+any line in lines(3) where all cells in line where square[cell] is not empty
+```
+
+Tic-tac-toe is the corpus witness
+([games/tic-tac-toe.md](games/tic-tac-toe.md)): `board: grid(3, 3)`,
+`pieces: xo_marks`, the nine `square[cell]` cells, `place(at : cell)`,
+and the win test `any line in lines(3) where all cells in line where …`.
+
+### Movement: directions, frames, and the class-1 verbs
+
+Where tic-tac-toe only *places* pieces, a game whose pieces *move*
+declares a move parameterized by a **movement direction** as well as a
+cell. A grid mints a second named-member domain, `dir`, whose members
+are the seat-relative forward directions `ahead`, `ahead_left`,
+`ahead_right`:
+
+```text
+move_type step(from : cell, along : dir) { when: … effect { … } }
+```
+
+`dir` is a **move-parameter domain only** — a separate source from the
+`positions { }` union, so it never reaches the zone-index, quantifier, or
+`for each` surfaces (a direction is not a position). It types as `TDir`,
+distinct from `TCell`: `along is a1` (direction against cell), `along is
+3`, `along < along2`, and `along[…]` are all type errors, and a direction
+member is not expression-nameable — naming `ahead` in an expression is an
+unknown name, exactly as a cell name is (the meaning of a direction is
+read through the verbs below, never a literal). `step(from : cell, along
+: dir)` enumerates one action per (cell, direction) pair, in member
+order.
+
+**Per-player frames.** A grid's directions are seat-relative: `ahead` is
+one player's forward and the other's backward, because the second seat's
+frame is the 180-degree rotation of the first's — one shared board, a
+declared per-player transform, never a second board. The transform is
+folded into the class-1 verbs, which take the acting player and resolve
+the direction in that player's frame. Five closed stdlib verbs read the
+board entry (rejected in a boardless game naming `board:`, the `lines(k)`
+twins):
+
+- `neighbor(from, along, player)` — the cell one step along `along` in
+  `player`'s frame, a `TCell`. It is **total**: an off-board step is a
+  guarded contract, not a return value, so a guard demands `has_step`
+  before reading `neighbor` (`and` short-circuits, so `neighbor` is never
+  evaluated off the board).
+- `has_step(from, along, player)` — whether that step stays on the board.
+- `is_diagonal(along)` — whether a step along `along` changes file (the
+  capturing directions on a grid, where straight steps do not capture).
+- `home(player)` and `far_row(player)` — a player's back-two-ranks setup
+  region and the opposite edge (its reach-to-win goal), each a
+  `Collection<Cell>` the cell membership and quantifier forms consume.
+
+**`for each cell` and cell membership.** Setup that fills a region
+iterates it: `for each cell c: <stmt>` runs the body once per board cell,
+binding `c` as a `TCell`, and a membership guard narrows it to a region.
+This lifts the `for each <position>` residual for a board's named-member
+domain only — an integer `positions { }` domain (`for each column`) stays
+walled, the split being named-member versus integer:
+
+```text
+for each cell c: if c in home(0) { move one piece from reserve[0] to square[c] }
+```
+
+**Displacement capture and reach.** Capture is two ordinary kernel
+movements — the captured piece to a `captured[player]` pile, then the
+mover — so it emits through the existing observation sites with no new
+machinery. A reach-to-win test reads the just-moved piece's destination
+against `far_row(actor)`; a wipe-out win reads the opponent's piece
+count. **The opponent of the actor is a game `function`, e.g.
+`function opponent_of(p : Player) = if p is 0 then 1 else 0`, not a `for
+each player p: if p is not actor` guard: inside a `for each player` body
+the acting player IS the bound seat `p`, so `p is not actor` compares the
+actor against a second name for the actor** — refused at resolve as an
+always-false comparison ("Naming the acting player twice"), which is why a
+"the other seats" idiom names a seat directly (`opponent_of`) or captures
+the actor first (`let w = actor`, tic-tac-toe's spelling). Breakthrough is the corpus witness
+([games/breakthrough.md](games/breakthrough.md)): 8x8, sixteen pieces a
+side, `step` with diagonal-only capture, and the two termini its oracle
+names.
+
+**Walls stated as behavior.** A bare cell name in an expression (`a1`),
+and now a direction name (`ahead`), is an unknown name, not a literal —
+named only through a parameter or a quantifier binder; naming a specific
+cell in a setup or rule waits on its witness (issue #111).
+A position domain is still not a declarable `state` type or a state
+index, and an integer position domain is still not a `for each` role.
+The remaining board-topology surface — the `HiddenCell` and `Point`
+zone-type rows, double-indexed families, `roll` chance, probes,
+`reachable`, in-file boards — is walled per rung of the board-topology
+ladder ([design-notes/board-topology.md](design-notes/board-topology.md);
+issue #124).
 
 ## Game result: `winner:` and `loser:`
 
@@ -2260,7 +2713,7 @@ contribute to a single applied write.
 partnership because the game-win threshold cares specifically about
 below-the-line accumulation. Stud has a different shape: a list of
 pots with per-pot eligibility, length data-dependent on all-in
-history. The four games whose score is a single integer per player
+history. The games whose score is a single integer per player
 — Cribbage, Skat, Oh Hell, Pinochle (final team score) — don't have
 a "structure" at all; the structure lives in the *computation*
 (Skat's `base × multiplier`, Cribbage's pegging stream + show), not
@@ -2397,7 +2850,7 @@ game's scoring code rather than shared via a mechanic parameter.
 | Oh Hell | inline per-player, dealer-hook constraint | per-player exact-tricks target (= bid succeeds) |
 | Bridge | structured contract bidding (level + suit + doubling) | structured Contract value, not an Integer |
 
-The four games don't share a common bid type or interpretation.
+The games above don't share a common bid type or interpretation.
 Bridge's contract is a structured value rather than an integer;
 Oh Hell's bid is per-player; Spades and Pinochle differ on
 threshold vs total-points. A `bid_meaning:` parameter on Auction
@@ -2617,7 +3070,6 @@ the commit step; the choice of whether to commit is elsewhere.
 
 ```cardlang-fragment passing_phase
 phase passing when pass_direction is not hold {
-  active_rules: [PassExactlyThreeCards]
   legal_moves:  [transfer_between_hands]
 
   each player simultaneously:
@@ -2866,7 +3318,7 @@ participant-filter axis is built — the ring is re-evaluated each turn, so it
 shrinks as players drop out (Pinochle's passed bidders and standing high bidder,
 Tarot's seats dropping after one bid). The remaining work (the challenge /
 block vocabulary; promoting the shared `auction` definition
-at its third instance) is the in-flight build (see [roadmap.md](roadmap.md) and
+at its third instance) is the in-flight build (see issue #140 and
 [kernel-migration.md](kernel-migration.md)).
 
 ## Surface totality
@@ -2885,8 +3337,8 @@ each cell in exactly one of three states:
 1. **Implemented** — defined semantics, with a test.
 2. **Statically rejected** — resolve/typecheck refuses the combination with a
    clear message, with a test asserting the rejection. The rejected combination
-   is recorded in [roadmap.md](roadmap.md) so a future game can lift it when it
-   needs the cell.
+   gets a tracker record — a GitHub issue, cited in the ledger as
+   `issue #N` — so a future game can lift it when it needs the cell.
 3. **Grammatically inexpressible** — the grammar itself cannot produce the
    combination.
 
@@ -2978,33 +3430,123 @@ clause. A check cited as a guarantee states its quantifier (exhaustive over
 what; sampled how); where it cannot cover its domain, it records the gap
 (the coverage-record obligation in
 [open-questions/structural-infoset-proofs.md](open-questions/structural-infoset-proofs.md))
-rather than reading as if it did. The crime is never incompleteness; it is
-*silent* incompleteness.
+rather than reading as if it did. A check born green — a pin over behavior
+already correct when the pin was written — additionally records and
+demonstrates the one-line mutation that turns it red (`red under: <the
+edit>` in its docstring), the mutation planting the fault in the code
+under guard — never in the pin's own assertions or expected values; a
+guarantee whose author cannot name a reddening edit, or can name only an
+edit to the pin itself, is this defect class wearing a test's name. The crime is never
+incompleteness; it is *silent* incompleteness.
 
 Acceptance for changes to rigor-critical machinery — anything the
 information-set guarantees, the encodings, or the invariants rest on — is
-therefore a stated completeness argument, not a green suite. The argument
-has a fixed shape, the **completeness ledger**, shipped in the change itself
-(the commit message, or the covering test module's docstring — somewhere a
-reviewer sees without asking):
+therefore a stated completeness argument, not a green suite. For an
+enumerable domain the argument's canonical form is the **grid**: the
+domain's axes derived in code from their defining registries — an axis with
+no defining site gets its derivation built as the change's first
+deliverable, because a hand-listed axis is complete only by luck and goes
+stale silently when a parallel change extends the surface — crossed into a
+parametrized test whose expected-outcome column is authored **before the
+implementation exists** and run red first. Every cell is a design decision
+(accept, or reject with a named diagnostic), so a cell that flips
+uncommanded is a regression caught at write time, and a commanded cell that
+stays green means the test does not reach the behavior. A cell whose
+correct outcome is not yet decided is never guessed into the grid — a
+guess pinned by a passing row carries the authority of a decision nobody
+made; it goes to residual with its wall and its record. The grid pins
+decisions that have been made; it is not a device for making them.
+`covered` means an executed grid row; prose describes only what the grid
+does not run.
+
+**Unsure is a legal state everywhere in this process; the silent guess is
+not.** Every mandate above names its uncertainty exit: an undecided cell
+goes to residual, an open design question to its open-questions/ file, a
+guard that cannot be classified does not land until it can, a review
+claim rests at PLAUSIBLE without executed evidence. The imperatives here
+prohibit manufactured certainty, never hesitation — a stated "not
+decided" with a wall is the process working; a guessed answer wearing a
+green row is the defect. The tie-breaker runs the same way: when unsure
+whether a gate applies, it applies — the superset is cheap, the guess is
+not. The
+judgment columns ship as the **completeness ledger** in the grid module's
+docstring:
 
 ```text
 property:   <the guarantee, one line>
 domain:     <what is quantified over>
-registry:   <where that domain is defined in code>
-covered:    <cells exhaustively handled, and by which layer>
+registry:   <where each axis is derived in code — the grid reads these>
+covered:    <the grid: module + parametrization, not a prose cell list>
 sampled:    <cells covered by example only, and why that suffices>
-residual:   <cells NOT covered — each with its wall and its roadmap.md line>
+residual:   <cells NOT in the grid, uncovered or not-yet-decided — each with
+             its wall, its reachability (R1–R4, "Reachability ranks the
+             work"), and its tracker record (issue #N; R4 records here and
+             needs no issue unless the guarantee is rigor-critical)>
 ```
 
-A residual row without both a wall and a record fails the gate; "no corpus
-witness" is never by itself a reason to leave a residual cell silent, because
-corpus-first governs which mechanisms exist, not how completely a mechanism
-covers its own domain. A wall guards its whole class at the layer that owns
-the class: an operand-compatibility rule lives in the type layer consulted by
-every comparison-shaped context, not at the first site that motivated it.
-The `surface-totality-audit` skill (`.claude/skills/`) operationalizes this
-section and "Surface totality" as a pre-commit gate.
+The gate is symmetric: a residual row without both a wall and a record
+fails it, and a `covered` claim without an executed grid row fails it
+equally. "No corpus witness" is never by itself a reason to leave a
+residual cell silent, because corpus-first governs which mechanisms exist,
+not how completely a mechanism covers its own domain — and when the
+construct itself has no corpus witness, the change ships a minimal witness
+fixture (a complete game exercising the construct end to end): a corpus
+hole is an integration blind spot, not an exemption. A wall guards its
+whole class at the layer that owns the class: an operand-compatibility rule
+lives in the type layer consulted by every comparison-shaped context, not
+at the first site that motivated it. The `surface-totality-audit` skill
+(`.claude/skills/`) operationalizes this section and "Surface totality" as
+a pre-commit gate, including the red-first order (axes -> framing check ->
+expected column -> red -> implement -> green) and the
+`xfail(strict=True, raises=...)` mechanism — each mark constrained to the
+cell's designed failure, so a harness crash cannot impersonate the red
+run — that keeps the pre-push checks green while the red-to-green
+transition stays visible in the diff.
+
+**Prose names the registry, never the cardinality.** A ledger row — or any
+spec sentence — states what it quantifies over, not how many members that
+set holds today. "Every registry with a signature table" stays true as
+registries are added; "the four registries" is false the moment one is,
+and a stale tally is indistinguishable from a fresh one, so it rots in
+silence where a broken path or a failing pin would announce itself. That
+silence is what makes it the same defect as an overclaiming `covered`,
+one layer out: the count is a second statement of a fact the code already
+holds, and the two drift (`decisions.md` is not exempt from
+[maintaining.md](maintaining.md)'s cross-reference-don't-duplicate rule).
+Where the set is worth naming, name the registry that defines it — the
+prose-only game twins are `PROSE_ONLY_TWINS`, not "six twins" — so a
+reader can count it and a change that grows it cannot leave the sentence
+behind. Identifiers in prose carry the same hazard for the same reason:
+nothing checks that a backticked name still resolves, so one naming a
+deleted registry reads as authoritative forever. Numbers that are facts
+about the *domain* rather than the repo — four suits, thirteen ranks, a
+two-card trick — are not tallies and are unaffected.
+
+**The test is whether the count can go stale in silence.** A sentence
+counting the language's own designed surface — a sub-phase's three exit
+forms, the two shapes of a `demands:` clause, the four suits — is safe,
+and this rule does not touch it: adding a fourth exit form *is* a spec
+edit, so the sentence is revisited by the very change that would falsify
+it. What rots is a count of a set that accumulates through routine work —
+registry entries, corpus games, deferred cells, review findings — because
+nothing about adding one prompts anyone to revisit the prose, and the
+count and the set drift apart unwitnessed. Count a designed surface
+freely; never count an accumulating one. Read the other way, this rule
+applied bluntly would strip the spec of sentences that state the design,
+which is the opposite of what it is for.
+
+**Scope is the tense, not the document.** The rule binds any doc making a
+present-tense claim about the repo — `docs/`, design notes, and module
+docstrings alike — because a reader acts on the present tense wherever it
+appears, and a proposal's supporting evidence misleads exactly as a spec
+sentence does once it stops being true. The exemption is therefore not a
+document class but an explicit date: a measurement framed as a snapshot
+(the mutation sweep's operator and seed counts, now carried by issue #109)
+is a historical record and stays as written,
+because it claims only what was true when it ran. A live claim that would
+be correct if dated should be dated, not deleted — the figures are
+evidence, and deleting them to satisfy this rule would cost the argument
+its support.
 
 A wall must also speak its **layer's failure currency**: the compile
 stages fail as diagnostics (`DiagnosticBag`, with a span and a
@@ -3044,4 +3586,634 @@ and close or wall the whole class in one change. A lone patch converts a
 class defect into a recurring one — the corpus's duplicate-name
 shadowing sat for months as exactly this: the duplicate-move-parameter
 instance was fixed while duplicate zones, state variables, move types,
-and struct types kept shadowing silently until the class was swept.
+and struct types kept shadowing silently until the class was swept. The
+sweep binds at find time, not fix time: a *report* of one cell of a
+crossable product is an incomplete report — cross the product and report
+the pattern, whoever holds the finding.
+
+**The sweep is hardest, and most often skipped, when someone else holds
+the finding.** Self-found gaps get swept because finding one already
+required asking what the domain was. A finding that ARRIVES — from a
+reviewer, a bot, a bug report — arrives pre-scoped, and its scope is the
+thing most likely to be wrong about it: it names a line, so the line reads
+as the job; it lands while the work is closing a loop rather than opening a
+problem; and its specificity reads as a specification, so "at minimum
+handle X and Y" gets answered with exactly X and Y. This rule was read and
+violated three times in a single branch on exactly that path — each fix
+correct about the instance named, silent about the class, and each reopened
+by the next reviewer.
+
+Prose did not prevent that, so the rule carries an artifact. A change
+answering a finding on a closed-domain mechanism writes a **class ledger**
+before the fix — `finding` / `class` / `members` / `covered` / `residual`,
+with `members` DERIVED from the registry that defines them (the
+`surface-totality-audit` skill owns the form). It cannot be satisfied by
+intending to sweep: a `members` line narrower than its own `class` line is
+visibly wrong on the page, which is the one thing the exhortation could
+never be. State `class` as the position or property — "every way a role id
+is consulted" — never as the syntax the finding happened to use, because
+the narrow spelling is how the next member escapes. A class of exactly one
+member is a legitimate answer; an unexamined class is not.
+
+**A check's comment names the downstream contract, never the downstream
+exception type.** A wall is most naturally justified by what goes wrong
+without it, and the temptation is to name the crash: "without this wall,
+`to each hand[0]` would die on the executor's `NameRef` assert". That
+couples the comment to another module's current implementation — the one
+detail a reader editing *this* file never sees, and the one most likely to
+move. Failure currency is deliberately mobile here: a bare `KeyError`
+becomes a typed `RuntimeError`, a backstop assert becomes a wall one layer
+up. Every comment naming the old type is then confidently wrong while still
+reading as precise, which is worse than vague. Name instead what the
+downstream layer *requires* — the thing that actually justifies the wall:
+"without this wall, it would reach the executor, which requires a zone in
+this position and refuses anything else at play time". The warning survives
+a change of currency; the coupling does not. The exception type is
+load-bearing in exactly one place: an argument *about* failure currency
+("a typed error, not a bare `KeyError`"), where the type is the subject
+rather than incidental colour.
+
+State the consequence in the subjunctive — "would check clean and die" —
+not as a past event ("checked clean and died") and not as a present claim
+("checks clean and dies"). The past tense is unfalsifiable: it stays
+literally true after the behaviour it describes is gone, so it rots into a
+misleading implication that nothing can catch. The subjunctive says
+something about the code as it stands, which means a reader can check it
+and the claim can be found wrong — the same reason walls beat prose
+everywhere else in this document.
+
+### Allow-list, never deny-list
+
+A consumer of a closed domain enumerates the members it **handles** and
+makes everything else fail loudly. It never enumerates the members it
+treats specially and lets the rest fall through to a default. The first is
+an allow-list; the second is a deny-list, and a deny-list over a closed
+domain is prohibited.
+
+The reason is an asymmetry in what happens when the registry grows, which
+is the only moment either shape is tested:
+
+- Under an **allow-list**, a new member breaks every consumer that has not
+  been extended, by name, at build time. The cost is a loud failure in
+  code someone is already editing.
+- Under a **deny-list**, a new member silently acquires the default's
+  behaviour at every consumer at once. Nothing fails; the game runs; the
+  answer is wrong. The author of the registry change never learns which
+  consumers assumed something about the members that existed when they
+  were written.
+
+This is not a preference between equally valid styles. A deny-list encodes
+"every member I did not name behaves like this one" — a claim about
+members that do not exist yet, which no author is in a position to make.
+
+**Enforcement follows the domain's visibility to the type checker.** Where
+a closed domain is a Python union, the allow-list is a type error: every
+consumer dispatches with a structural `match` ending in
+`typing.assert_never`, so under `mypy --strict` adding a node without
+handling it everywhere fails to compile (docs/building.md, "Typed-AST
+discipline"). Where the domain is a registry of strings — the stdlib
+registries — the type checker cannot see it, so a pin substitutes for it:
+`tests/test_operand_choke_point.py` requires every operand coercion to
+route through one check, deriving its axes from the registry it guards so
+it widens with that registry rather than going stale. Visibility is
+itself a choice, not a fact of nature: a string domain the checker cannot
+see can usually be promoted to one it can (see "Prefer the wall you
+cannot need"), and the pin is the right mechanism only where that
+promotion is genuinely priced and declined. The domain table's role ids
+are the worked example of the promotion: they are `domains.Role`, a plain
+`Enum` every consumer dispatches over, so comparing a role against a
+string literal is a type error and the marker scrape that used to ask for
+a reason is gone. What `tests/test_role_comparison_pin.py` still holds is
+the residue the type cannot see — strings that merely SPELL a role
+(`player` as an unresolved name, `suit` as a component-set axis) — walled
+per module so a new one must be looked at. A closed
+domain with neither an `assert_never` nor a pin is unenforced, whatever
+its consumers currently do.
+
+### Pin the derivation, not just the instance
+
+Deriving a fact from a registry is half the rule. The other half is that
+the derivation must be **pinned**, because a registry only prevents drift
+in the consumers that actually consult it, and nothing stops the next
+consumer from re-spelling the fact locally.
+
+The evidence is this repo's own history. `domains.zone_key_of` was
+introduced to replace an `== "team"` re-spelling at five consumer sites,
+"each of which silently defaulted every non-team role to player keying".
+That cleanup fixed five instances and left no guard — so the class
+regenerated: a per-site enumeration of Player positions with no pin (the
+positions the enumeration missed went unchecked), an empty team domain read
+as an unknown bound (the check skipped itself), and a sixth `== "team"` in
+a new consumer (every future role read as player-keyed). Three findings,
+one shape — the deny-list above, three times. Five separate files carry
+comments narrating earlier rounds of the same cleanup, which is what a
+convention without a mechanism looks like.
+
+So a closed domain gets both halves:
+
+- **Derive** the fact from the registry wherever a consumer can.
+- **Pin** it where a consumer cannot. A consumer that legitimately
+  implements one row reconciles itself against the registry beside the
+  branch, so widening the table fails *there*, by name —
+  `runtime/execute.py` pins its player-only simultaneous executor against
+  `SIMULTANEOUS_ROLES`; `resolve` pins its empty-domain walls against
+  `ZONE_INDEX_ROLES`; `openspiel/replay` pins its returns keying against
+  the same set and raises for a role it cannot invert, exactly as
+  `domains.zone_observer_key` does rather than guessing player keying.
+
+**The boundary is closed versus open, and it is load-bearing.** Everything
+above applies to a domain whose membership is enumerable — a union, a
+registry, a table. Over an OPEN domain the same shape is a defect in the
+other direction: an allow-list there would refuse values the language is
+deliberately permissive about, and a wall that manufactures an error is
+exactly what the gradual-typing promise forbids (see "The permissive top
+and the lookup-miss walls", which owns that case — `TAny` passes, and a
+*lookup miss* against a table the program does have raises rather than
+falling back). The two rules meet at the same principle: a fallback
+standing in for an answer the program could have looked up is a silent
+wrong answer. Deciding which side a domain sits on is therefore the first
+question, not an afterthought — and "unsure" resolves to closed, because
+an unnecessary loud failure is cheap and a silent default is not.
+
+### Prefer the wall you cannot need
+
+Enforcement has a ladder, and each rung down costs more to hold:
+
+1. **Unrepresentable** — the illegal state cannot be written: a union the
+   type checker dispatches over, a grammar that cannot produce the
+   combination, a fact derived from one defining site so a second copy
+   cannot exist.
+2. **Derived and pinned** — the fact has one source; consumers derive from
+   it, and a pin catches the consumer that re-spells it.
+3. **A born-green pin with its witness** — behavior already correct,
+   guarded by a check that names its reddening mutation.
+4. **Review-enforced prose** — an authoring rule, held by whoever happens
+   to read it.
+
+Every claim on a lower rung is machinery that must itself be kept honest —
+markers need reasons, reasons need vocabularies, scrapes need manifests —
+and that maintenance is where enforcement findings breed. So a proposed
+pin carries one more line in its ledger: **why the fact cannot live a rung
+higher.** "The domain is strings the checker cannot see" is an answer only
+after asking whether the strings should be a union the checker can see —
+a registry of role ids is a closed domain by definition, which is exactly
+the shape an enum holds for free. A pin whose fact could have been a type
+is built on the wrong rung, and the findings it later generates are the
+interest on that choice.
+
+The rung is a design decision and gets recorded like one: when rung 3 or 4
+is chosen over an available rung 1 or 2, the ledger says why (a subtype
+relation the type system deliberately lacks, a migration priced and
+deferred with its tracker record) — so the next reader finds a decision,
+not a default.
+
+### The machinery is guarded once
+
+These rules bind the shipping surface — grammar, checker, registries,
+runtime, the adapter — and the rigor-critical machinery the
+information-set guarantee rests on: the proof harness, the projections,
+the encodings, the invariants. For those, completeness is measured against
+the domain, as this whole section says.
+
+Enforcement *scaffolding* — the pins, scrapes, hygiene tests, and audit
+tooling built to hold the rules above — is a different case, and the
+difference is load-bearing: every layer of guarding is itself a closed
+domain, so applying this section to its own machinery recurses without a
+base case, and each layer added is new surface for the next audit to find
+wanting. The base case is: **scaffolding carries exactly one level of
+guarding** — a grid's red run, a pin's `red under:` witness — and receives
+no preemptive machinery of its own. A defect *in* scaffolding is fixed
+when it bites (a finding it should have caught and did not), or in a named
+integrity sweep with its own scope, and is filed with its reachability
+stated — never as routine finding fodder. This is corpus-first applied to
+the machine: the witness for meta-machinery is a failure, and waiting for
+it is cheap because the shipping surface underneath is still guarded.
+
+The test for which side something is on: if it fails silently, is a wrong
+game trusted, or a wrong *audit* trusted? The first is rigor-critical.
+The second is scaffolding.
+
+The cap prices the process as well as the artifacts. A change wholly on
+the scaffolding side of that test — no refusal, no runtime step, no proof
+obligation changes — still ships its grid, but takes one review round and
+no standalone adversarial claim-audit. The full cadence is reserved for
+deltas a designer, the corpus, or a proof can meet. Scaffolding misjudged
+is caught the way scaffolding is guarded: when it bites.
+
+### Reachability ranks the work
+
+Severity says what kind of defect; reachability says who can meet it.
+Every finding, residual cell, and tracker issue states one:
+
+- **R1 — corpus-reachable.** A game in `docs/games/` (or anything trained
+  or proven against one) meets it today.
+- **R2 — designer-reachable.** A checker-green sentence a designer could
+  plausibly write meets it. The design-tool promise binds here: R2 silence
+  is how a designer ships a wrong game.
+- **R3 — witness-gated.** Reaching it requires surface the language does
+  not yet accept — a cell deferred behind a wall, lifted only when its
+  named witness lands. A construct that is accepted today but unused by
+  the corpus is R2, not R3: the corpus gates which mechanisms exist, not
+  what a designer may write.
+- **R4 — auditor-only.** Reaching it requires planting a mutation,
+  widening a registry, or editing the machinery itself.
+
+The tags are exclusive by precedence: assign the lowest-numbered tag
+whose condition holds — reachability names the *closest* party who can
+meet the defect, never the typical one.
+
+The tag names who can TRIGGER the defect, never who ultimately suffers
+it. Every defect in a design tool eventually reaches a designer, so
+transitive harm raises no tag — reasoned transitively, everything is R2
+and the axis orders nothing. And the tag ranks reach, not worth: a
+bitten R4 can sit at the top of the ordering while a speculative R2
+waits, so R4 is a fact about who can meet the cell, never a demotion of
+the work that closes it.
+
+Disposition follows the tag: R1 is fixed now; R2 is fixed or filed with a
+kind; R3 is a residual with its wall and its record, per the symmetric
+gate; R4 is recorded in the owning ledger and files an issue only when the
+guarded guarantee is rigor-critical. And effort follows it the same way:
+a fix whose size is out of proportion to its reachability routes to
+record-and-file, not to fix-now — the proportionality call is made in
+planning, out loud, not discovered in review.
+
+## Family libraries
+
+A **library** is the import tier between game-local definitions and the stdlib.
+It holds exactly the definition forms a game already holds — move_types, rules,
+functions, procedures, types, defines — plus the two state clauses `state` and
+`requires`, and it lives in
+`docs/libraries/<name>.cardlang`, beside the corpus and maintained with it. The
+stdlib is the part maintained with the *language*; that boundary is the one
+[design-notes/primitive-sidecars.md](design-notes/primitive-sidecars.md) exists
+to defend, and the tier exists so a family of related games need neither paste
+shared machinery per game nor promote domain knowledge into the stdlib.
+
+A game names one whole library at a time:
+
+```text
+game SevenCardStud {
+  uses poker_betting
+  ...
+}
+```
+
+Whole-library, never a named-definitions manifest: the line stands in for the
+rulebook sentence it replaces ("betting proceeds as in standard poker" is
+Pagat's own practice), and that is what keeps the read-cold acceptance test
+intact — the readable unit becomes the game file plus its *named* libraries. A
+game may `uses` several libraries; repeating one is an error, because the
+repeat imports nothing further.
+
+Resolution is flat and two-level: game, then the named libraries, then the
+stdlib. There is no library-imports-library. Imports are pure name resolution —
+`resolve` splices each named library's definitions into the game before any
+other name check runs, so what flows on is one flat game and no later pass knows
+imports exist. That is what makes an import carry no runtime and no
+information-set implication, and the splice is the whole of the reason: nothing
+is added, and the game's own declarations are what run. In particular it is NOT
+because a library cannot name a zone. A contract can name one, and a zone type
+fixes the per-observer projection, so a library CAN say what its definitions
+were written against — `HiddenPile` rather than `PublicHand`. That constrains
+which games may import it; it changes nothing about the game that does.
+
+**`uses` imports; it does not inherit.** A game-local definition under an
+imported name is an error, not an override, and so is the same name from two
+libraries. Import-with-override would make the tier inheritance, and would put a
+game's meaning at the mercy of a silent redefinition — the accepted-but-ignored
+defect class at file granularity. Nor is there a second, override-shaped
+mechanism waiting behind it: there is no variant-delta construct and will not be
+one ([principles.md](principles.md), "Composition over inheritance"). Variants
+are sibling games over a shared core, which is this tier — so `uses` is not one
+of two ways to relate games, it is the way, and the no-override rule is
+unconditional rather than provisional.
+
+That decision sets the open question for this tier: **what may a library
+contain?** Siblings can only share what a library can hold, so anything two
+variants have in common and a library cannot express comes back as duplication.
+Today a library holds definitions (move types, rules, functions, procedures,
+types, defines) and state, and no other game structure. Poker forced state; a
+pair of variants sharing a phase tree would force phases. Grow it corpus-first,
+one forcing game at a time — but do not describe a library as "a vocabulary, not
+a game", because that framing assumed a delta mechanism would cover the rest, and
+none is coming.
+
+**State reaches a library two ways, and the difference is ownership.** A library
+`requires` state the including GAME owns, and `state`s the state the LIBRARY
+owns. Both are checked at the `uses` line, so an unmet contract or a collision
+lands in the game's currency rather than as an undeclared name inside spliced
+library text the author never typed.
+
+```text
+requires {
+  stack[player] : Integer   // the game declares it, sets it, writes it
+  raise_cap     : Integer
+}
+
+state {
+  acted[player] : Boolean = false   // the library's own; the game may read it
+  limit         : Integer = 0
+}
+```
+
+`requires` is deliberately a `state_decl` minus the `= <default>`: the initial
+value is the game's to choose, and a library that could set one would be
+configuring the game rather than contracting with it. Provided `state` carries
+its default for the mirror-image reason — the library owns the variable, so it
+owns the value the variable starts at.
+
+**Provided state is read-only to the game.** It splices into the game's own
+`state { }` and the game may read it, but an assignment from game text is an
+error, reported in the GAME (the game's author wrote the assignment) and naming
+both the variable and the library that owns it. The rule is what makes
+"provided" mean anything: a variable the library maintains and the game may also
+write is not owned by either, and the library's invariants over it would hold
+only by the game's good manners. It is enforced across every write form the
+language has — `:=`/`+=`/`-=`, `rotate`, and a `turns … again <flag>`, whose flag
+the runtime clears at each turn boundary — because a rule that covered only the
+obvious one would be two thirds of a guarantee.
+
+**A provided default may not read the contract.** Provided state splices in
+front of the game's own, so a `requires` name — which only the game can declare
+— is never in scope where a provided default runs. This is the declare-order
+rule of "State scoping (lexical)" landing on the tier, and the general wall
+would catch it after the splice; it is refused before the splice as well,
+against the library alone, because the splice destroys the distinction the
+author needs. Post-splice a required name is just a variable declared later,
+and "declare it earlier" is advice a library author cannot take. Give the
+provided variable a literal default and set it from the contract in a phase.
+
+**A contract names state or zones, and the type says which.** A `requires`
+entry's type is read against two registries — the state types, and the stdlib
+zone types — and they are disjoint, so which of the game's declaring blocks
+answers an entry is derived rather than declared:
+
+```text
+requires {
+  hand[player]      : Hand<player>        // answered from the game's `zones { }`
+  shipment[player]  : HiddenPile<player>
+  merchant          : Player              // answered from its `state { }`
+  raise_cap         : Integer
+}
+```
+
+The two spellings do not cross. A zone type carries the `<owner>` argument and
+never a `?`; a state type carries the `?` and never an argument. Both crosses
+are refused against the LIBRARY ALONE, before any game is consulted, because
+they name a shape no `zones { }` or `state { }` line could answer — as are an
+owner argument disagreeing with the index, an owned zone type with no index, and
+an index that is a position domain rather than a seat or team. A library
+declares no `positions { }` and cannot name one, so a position-indexed zone
+family cannot be contracted at all.
+
+That the derivation IS a derivation rests on a wall: a declared `type` and a
+per-game `positions { }` name may not take a stdlib zone type's spelling. Without
+it `type Hand = { … }` would make `requires { x : Hand }` mean two things, and
+the classification would silently pick one.
+
+A contracted zone is the game's zone. The game declares it, writes it, and owns
+its projection; the contract only says which shape the library's definitions were
+written against. That is the reverse of provided state, and deliberately so —
+there are no library-owned zones, because every zone a family shares is written
+by game text somewhere (a deal, a settlement, a game-local move), and a variable
+the library owns and the game may also write is owned by neither.
+
+**There is no visibility system beyond this, and that is a decision, not a
+gap.** No `private`/`public` marker on a definition, no export list, no scoped
+namespace. Two surveys over the two multi-member families in hand measured what
+sharing actually needs (recorded under "The evidence" below), and read-only
+provided state plus ordinary procedures covered every case: the variables no
+game reads become the library's, the boundary writes that remain become a
+procedure the game runs. Nothing in either family wanted a definition hidden
+from its importer. Adding a marker system now would be designing against
+imagined pressure, and this paragraph exists so the question is not silently
+reopened — reopen it when a family produces a case these two mechanisms cannot
+express, and name that case.
+
+A requirement's own index is checked first, and in the LIBRARY's currency:
+`requires { seen[rank] : Integer }` is refused where the library wrote it,
+because an index must be a role a state variable can be keyed by
+(player/team) and no game could answer such a requirement. That is the
+library twin of the state-index wall, and the difference in currency is
+who can fix it — an unmet contract is a fact about the importing game, a
+malformed index is wrong in the library's own text. A mismatch between a
+well-formed requirement and the game's declaration names both roles
+(`per-team` against `per-player`), never the presence or absence of an
+index.
+
+What the `requires` contract checks is that **exactly one**
+declaration of the name exists somewhere in the game, at the library's arity and
+type. Which `state { }` block holds it is not checked: a phase's block is the
+natural home for state that resets on phase re-entry, which is what per-hand
+betting state is, and Seven-Card Stud declares all seven of `poker_betting`'s
+requirements inside `phase play`. That is weaker than "the library's definitions
+can read it where they run" — a declaration in a phase the library never runs in
+satisfies the contract and then fails at play time — and the shortfall is not the
+import tier's to close: a plain game with no library reproduces it, one phase
+declaring what another reads. It is recorded as a residual in
+issue #138.
+
+Cross-block shadowing is legal for game-private state and refused for a
+`requires`d name: the two shadowed declarations answer different questions, and
+no fixed tie-break picks correctly, since a shadow in the phase where the
+library's definitions run and a shadow in some other phase want opposite winners.
+Because the spelling is the interface, a `requires`d name is not game-private:
+the metamorphic rename transform excludes it for the same reason.
+
+**The contract is meant to be sufficient, not advisory.** A library's
+definitions may reach only its `requires` contract, its own definitions, the
+stdlib, and the pronouns and binders any body has anyway — checked against the
+library alone, before any game is consulted. Without that the contract would be
+a suggestion: a body reading past it resolves against a game that happens to
+declare the extra name and fails against a game meeting the contract in full,
+reporting an unresolved-name error inside library text the game's author never
+wrote. That is the currency failure `requires` exists to prevent, arriving by
+the back door, and it is why the check reports in the LIBRARY's currency — the
+library author is the only one who can fix it. The same rule makes a library
+deck-agnostic: it names no rank, no suit and no card, because those exist only
+once an including game names a deck, and a family's members do not share one
+(Kuhn's holds three cards).
+
+The check enforces this for every name the resolver classifies **and** for every
+name a construct holds as a bare string instead — a `turns … again <var>`, a
+`round`'s source and play zones, a struct type name, `state.<var>`. The second
+half runs off the **reference-slot registry**: one table classifying every
+string-typed field of every AST node as a declaration, a binder, a reference
+into a named namespace, a keyword, opaque text, a classified name, or pass
+metadata. The table's key set is derived from the AST and pinned to it, so a
+field added to a node is classified or the build fails; what each slot MEANS is
+authored, because no annotation carries it.
+
+The registry is what makes the boundary statable. A namespace a library can
+reach is either swept against what the library itself has, or carries a written
+reason why reaching it is not a channel — a closed stdlib or domain registry
+identical either side, or a name owned by a declaration that IS swept. There is
+no third state, and no consumer keeps a list of the slots it remembered.
+
+**Name collisions on state are walled the same way collisions on definitions
+are.** A library may not both provide and require one name — the two clauses
+point opposite ways, so no reading satisfies both. Two libraries may not provide
+one name, because resolution is flat and picking by `uses` order would make a
+game's meaning depend on the order of its import lines. A game may not declare
+what a library provides: that is the state face of "`uses` imports, it does not
+inherit". And a requirement is answered by the game's own declaration, never by
+another library's provision, which would couple two libraries through a name
+neither mentions the other in. Two libraries requiring the same name is fine —
+one game declaration answers both contracts.
+
+**A library may not inject a name the game already uses for anything — in any
+namespace, not just the same kind.** The collision walls above catch a library
+definition landing on a game definition of the SAME kind (function over
+function) and a provided name landing on the game's own state. The remaining
+cases are the silent ones: a provided name, or a library definition, coinciding
+with the game's zone, a suit or rank or direction value of its deck, a position
+domain, or a definition of a DIFFERENT kind. Each is a trap because a `uses`
+import adds names without overriding and the game's author never opens the
+library file — so a bare `hearts` the author writes meaning the suit resolves to
+the library's variable instead, or a `pile` they declared as a zone is shadowed
+by a provided one they cannot see. This is where the tier parts company with the
+base language, which lets a GAME reuse one name across its own namespaces: there
+the author wrote and can see both declarations, and the precedence that resolves
+the reference is theirs to know. The refusal is deliberately conservative — a
+coincidence is refused even where precedence would make it harmless — because the
+rule a designer must hold is "a library may not bring in a name you already use",
+not a table of safe pairs. It is reported naming the library, since that is the
+half the author cannot see. The game-level face of the same clash is left to
+the author deliberately, and is not deferred work: `state { pile }` beside
+`zones { pile }`, a state variable spelled like a suit, or a function named
+after a rank all resolve by `_classify`'s precedence (state variable over
+zone over deck value over function), which makes the loser unreachable by
+that spelling with no diagnostic. That is the ordinary block shadowing every
+language allows, and a game-level uniqueness rule would be a far larger,
+higher-risk change than the corpus has forced. The library wall turns on
+INVISIBILITY — a name the author cannot see — so it would be wrong to apply
+to names they wrote; if a designer is ever surprised by their own
+cross-namespace shadow, the fix is to lift the same sweep to the game's own
+declarations and measure the corpus cost.
+
+**What a library holds, and what stays game-local.** A library holds definitions
+and the state its definitions own — but no zones and no phases — because that is
+as far as the corpus has forced it, not because a library is a lesser kind of
+thing than a game. The boundary moves as sibling games need to share more.
+Within today's boundary the corpus forced a sharper line, and the line is about
+VARIATION rather than about zones: **the move that differs across the family
+stays game-local; the library holds what every member holds identically.**
+
+`poker_betting` holds check, bet, call, raise and the `can_act`/`owes`/`pending`
+ring predicates — all of which move chips and nothing else — and omits `fold`,
+the one betting move that touches cards. Which cards a fold disposes of, and
+where they go, is a property of the game: Stud sends the folder's upcards to the
+muck the instant they fold, and opponents' information sets carry that
+observation. Each game defines its own `fold` and offers it alongside the
+imported four in one vocabulary list.
+
+`smuggling` draws the same line one family over, and the measurement is what
+draws it. Across the twelve smuggling files `commit_shipment` and `wave` are
+byte-identical and both move cards, so both are in the library; `inspect` has ten
+distinct bodies and is game-local. Those ten decompose into three orthogonal
+deltas — the fine (a per-game constant), the contraband predicate (a card
+predicate), and the bounty (an added statement) — and only the first is
+something a declaration could carry. So "touches a zone" was never the criterion:
+a move touching a CONTRACTED zone belongs in the library, and a move that varies
+does not, however zone-free it is.
+
+**Parameterization rides on state and on procedure arguments, not on the
+import.** Family members differ by constants, and where the constant lives
+follows what it is a property of. A per-GAME constant is required state the game
+declares: Stud allows three raises per street and Leduc two, so `raise_cap` is
+`requires`d. A per-OCCASION constant belongs to the occasion, so it is a
+procedure argument: a poker bet size is a property of a street, not of a game
+(Stud runs 5/5/10/10/10), so `limit` is provided state that the library's
+`open_street(bet_size)` sets, and each street names its own size where the street
+is written. Neither difference reaches the import surface, which stays a bare
+name.
+
+The test for which of the two a constant is: could one declaration in the game
+carry it? `raise_cap` yes, `limit` no. A value that varies within a game was
+never a declaration's to hold, and making it one is how `limit := 5` came to be
+repeated at five sites that were otherwise identical.
+
+**A second family was measured against this rule and did not break it, but it
+did narrow what the rule is about.** The smuggling family's members differ in
+three ways, and only one is parameterization at all: a fine (a per-game
+constant, which required state carries), a contraband predicate, and an added
+statement. The last two are not constants of any kind, so no clause on the
+import would carry them either — a `with` clause is not what that family wants.
+What it wants, if anything, is a contract over DEFINITIONS: a required function
+would let the varying predicate be the game's while the move stayed shared, and
+a required move type would let the family share the offer step that is already
+byte-identical in every member. That is issue #189, and it is a different
+question from #178's — a definition is a NAME, in a namespace `requires` does
+not reach, where #178 asks whether a contract can express a capability at all.
+Recorded here so the next reader does not re-derive a `with` clause from the
+same evidence.
+
+**A member offers a subset of the family vocabulary, at no cost.** Importing a
+library is not a commitment to use all of it: Kuhn's `offering` list is
+`[check, bet, call, fold]`, so the imported `raise` is never offered — standard
+Kuhn has no raise. That costs nothing at the OpenSpiel target, because the
+action space is derived from the `offering` / `offer` lists, never from the
+game's move-type table, so an imported-but-unoffered move type mints no action
+id and cannot widen `num_distinct_actions`. This is what makes whole-library
+import affordable for a small family member, and it is pinned rather than
+assumed (`tests/openspiel_ready/test_kuhn_poker.py`). It is not a licence to
+leave a move type dead by accident: a game's own definitions are still subject
+to the ordinary totality rule above — the exemption is for *imported* text the
+author did not write, whose unused parts are the price of naming a family
+rather than a manifest.
+
+**The evidence.** Two surveys sized what a library must hold, and they are
+recorded here because the shape of this tier is an empirical claim rather than a
+deduction.
+
+*Survey 1, over the three poker games.* Every game write to `poker_betting`'s
+state is at a street boundary, with one exception: `folded`, written mid-street
+by each game's own `fold`. Four of the nine required variables — `acted`,
+`raises`, `limit`, `raise_cap` — were never READ by any of the three games. (Nine is what the
+contract held then; it holds seven now, which is what the survey bought.) And
+all five street-reset sites (one in Leduc, four in Stud) were one shape differing
+in a single integer. That is what forced provided state and `open_street`: writes
+that cluster at boundaries are absorbable by a procedure, and a variable no game
+reads or writes has no business in a contract. Only two of the four moved,
+though, and the two that did not are as informative as the two that did —
+`raise_cap` is a per-game constant so no single provided default fits it, and
+Stud's bring-in genuinely writes `raises`, a boundary write no *shared* procedure
+absorbs because only one game in the family has a bring-in.
+
+*Survey 2, over the smuggling family* (`experiments/green-lane/`, an experiment
+rather than corpus). Run as a survey first and then EXECUTED, and the two
+answers differ, which is why the executed one is what stands.
+
+The survey said the shared material a library could not hold was irreducibly
+zones plus state declarations. Building the library found the first half was a
+missing mechanism rather than a boundary — hence zone contracts — and the second
+half stands: state declarations are shared by being contracted, never by being
+held, so each member still writes its own.
+
+What the build measured, over all twelve files: `zones { }`, `commit_shipment`
+and `wave` are byte-identical everywhere; `state { }` varies in one default and
+one added variable; `phase play` varies in two lines; `phase scoring` in four;
+and `inspect` has ten bodies. The library ends up holding the commit, the wave
+and a four-entry contract — about an eighth of each file. The family shares
+roughly nine tenths of its text, so **most of what these siblings have in common
+is material this tier cannot hold at all**: zones (contracted, not shared),
+state declarations (likewise), the phase tree, and the varying move.
+
+Phases were NOT forced, and for a reason worth keeping: the shared phase material
+reduced to statements a procedure covers. A separate constraint capped how far
+that goes — a procedure may not invoke another (expansion is a single splice,
+not a call graph) — so shared material reachable only from inside a game's own
+procedure has to be lifted to a phase to be shareable at all.
+
+The second survey carries a caveat that bounds how far it generalizes. Green
+Lane's variants are a **delta lattice** — v4 is v1 composed with v3, and each
+delta edits disjoint rule text — so the family shares a great deal by
+construction. A family whose members are siblings rather than deltas may share a
+different *shape* of material. Read Survey 2 as "phases were not forced by this
+family", not as "phases are settled".
+
+The tier's completeness gate is `tests/test_family_libraries.py`, whose ledger
+records the one deliberate non-cell: stdlib move types and a game's `move_type`
+definitions are disjoint consult paths that never share a namespace, so there is
+no collision there to wall.

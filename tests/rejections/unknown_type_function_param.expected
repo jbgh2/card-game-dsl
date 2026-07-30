@@ -1,0 +1,1 @@
+unknown_type_function_param.cardlang:18:1: error: unknown type 'Integar' in parameter 'x' of function 'f'

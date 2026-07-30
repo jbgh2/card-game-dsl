@@ -11,6 +11,47 @@ start: top_item+
 // (cardlang/stdlib/rules.cardlang): rule definitions with no enclosing game.
 library_rules: rule_def+
 
+// Alternate start for a family-library file (docs/libraries/<name>.cardlang):
+// the definition forms a game already holds, plus the two state clauses, with no
+// enclosing game (decisions.md "Family libraries"). It holds definitions and the
+// state its own definitions own, but no other game structure — no zones, no
+// phases — as far as the corpus has forced, not as a permanent boundary. State
+// reaches a library two ways: `state` PROVIDES it (the library owns the variable
+// and its initial value; the game may read it and may not write it) and
+// `requires` CONTRACTS for it (the game declares it, picks its initial value,
+// and writes it). A move touching a game-specific zone stays game-local, which
+// is why neither clause names a zone.
+library: "library" NAME "{" library_item* "}"
+
+?library_item: requires_block
+             | state_block
+             | rule_def
+             | move_type_def
+             | type_def
+             | define_def
+             | function_def
+             | procedure_def
+
+// What the including game must declare, checked at its `uses` line so the
+// error lands in the game's currency rather than inside spliced library text.
+// Deliberately `state_decl` minus the `= <default>`: a required variable's
+// initial value is the GAME's to choose (Stud's raise cap is 3, Leduc's is 2),
+// and a library that could set one would be configuring the game rather than
+// contracting with it. The library's OWN state carries defaults, and reuses
+// `state_block` unchanged to say so — a provided variable's initial value is
+// the library's precisely because the variable is.
+//
+// An entry names a thing from EITHER of the two blocks a game declares keyed
+// names in, and its type says which: a `state { }` type or a `zones { }` one.
+// That is why the type slot carries both spellings the two blocks use — the
+// `<owner>` argument a zone type takes, and the `?` a state type takes. Neither
+// is legal on the other side, and both crosses are refused at resolve rather
+// than here: the grammar cannot see which registry a NAME came from, and a
+// syntax error would report a shape question as a spelling one.
+requires_block: "requires" "{" require_decl* "}"
+require_decl: NAME [index] ":" NAME [type_args]     -> require_plain
+            | NAME [index] ":" NAME [type_args] "?" -> require_optional
+
 ?top_item: game
          | rule_def
          | move_type_def
@@ -25,9 +66,12 @@ library_rules: rule_def+
 
 game: "game" NAME "{" game_item* "}"
 
-?game_item: players
+?game_item: uses_decl
+          | players
           | direction
           | cards
+          | pieces
+          | board
           | ranking
           | trump
           | partnerships
@@ -39,12 +83,24 @@ game: "game" NAME "{" game_item* "}"
           | winner
           | loser
 
+// `uses <library>` — a family-library import, the tier between game-local and
+// stdlib (decisions.md "Family libraries"). Unlike every other game clause this
+// one may repeat: a game uses as many libraries as it draws on, and the line is
+// meant to read like the rulebook sentence it stands in for ("betting proceeds
+// as in standard poker"). Whole-library, never a named-definitions manifest.
+uses_decl: "uses" NAME
+
 players: "players" ":" players_spec
 players_spec: INT ".." INT   -> players_range
             | INT            -> players_fixed
 
 direction: "direction" ":" NAME
+
+// Content clauses: each names a COMPONENT_SETS entry of its flavor (`cards:`
+// a card deck, `pieces:` a piece set). Exactly one per game — both/neither
+// are parse walls (parse.py `game()`); a cross-flavor name is a resolve wall.
 cards: "cards" ":" NAME
+pieces: "pieces" ":" NAME
 
 // A per-game bound on decision/loop iterations (docs/decisions.md, "Game
 // length as a declared contract"): the runtime's non-termination backstop
@@ -81,6 +137,13 @@ team_spec: "[" INT ("," INT)* "]"
 positions: "positions" "{" position_decl* "}"
 position_decl: NAME ":" INT ".." INT
 
+// A board selects a family from the BOARDS registry (cardlang/stdlib/boards.py)
+// with integer arguments (decisions.md "Boards and cells"): `board: grid(3, 3)`.
+// It mints one named-member position domain (`cell`) whose members are the
+// board's cells. Unknown family / wrong arity / out-of-bounds args are resolve
+// diagnostics (via `board_entry`); `board:` requires `pieces:`.
+board: "board" ":" NAME ["(" INT ("," INT)* ")"]
+
 zones: "zones" "{" zone_decl* "}"
 zone_decl: NAME [index] ":" type_ref
 index: "[" NAME "]"
@@ -94,7 +157,10 @@ type_name: NAME "?"   -> optional_type
          | NAME       -> plain_type
 
 // User-defined struct type: named fields plus optional computed `derived` fields.
-type_def: "type" NAME "=" "{" struct_field* "}" [derived_block]
+// The name is `STRUCT_TYPE_NAME`, not `NAME`, so declaration and use agree on
+// which names a struct type may take: a type `struct_lit` cannot spell would be
+// declarable but unusable, which is accepted-but-ignored one step removed.
+type_def: "type" STRUCT_TYPE_NAME "=" "{" struct_field* "}" [derived_block]
 struct_field: NAME ":" type_name
 derived_block: "derived" "{" derived_field* "}"
 derived_field: NAME "=" expr
@@ -422,6 +488,20 @@ card_query: "cards" "in" zone_expr "where" expr                  -> cq_set
 // Boolean quantifiers, binder implicit (`player`/`team`/`suit`/`rank` is
 // bound per candidate, like `player` in the player queries). Card
 // quantification is the card_query `any card in … where` form above.
+//
+// The `q_*_domain`/`q_*_in` forms are the positional twin (decisions.md
+// "Boards and cells"): the BARE forms range a binder over a declared
+// position domain (a board's `cell`, an integer `positions {}` name), the
+// COLLECTION forms iterate an evaluated `line`/`cell` collection. Their noun
+// is the QNOUN terminal, which EXCLUDES the keyword-form nouns
+// (player/team/suit/rank) and the card-query nouns (card) with their plurals
+// — so `any player where` can only be `q_any_player` and `any card in … where`
+// only `cq_any`, never a generic capture (proven at zero ambiguity over the
+// corpus in tests/test_grammar_ambiguity.py; the precedence is pinned in
+// tests/test_cell_queries.py). Resolve validates the noun against the game's
+// declared domains (bare) or the admitted `{line, cell}` set (collection);
+// the plural convention (`any` singular, `all`/`number of` plural) is a
+// resolve wall, not a grammar one.
 quantifier: "any" "player" "where" expr  -> q_any_player
           | "all" "players" "where" expr -> q_all_player
           | "any" "team" "where" expr    -> q_any_team
@@ -430,6 +510,11 @@ quantifier: "any" "player" "where" expr  -> q_any_player
           | "all" "suits" "where" expr   -> q_all_suit
           | "any" "rank" "where" expr    -> q_any_rank
           | "all" "ranks" "where" expr   -> q_all_rank
+          | "any" QNOUN "where" expr           -> q_any_domain
+          | "all" QNOUN "where" expr           -> q_all_domain
+          | "number" "of" QNOUN "where" expr   -> q_count_domain
+          | "any" QNOUN "in" expr "where" expr -> q_any_in
+          | "all" QNOUN "in" expr "where" expr -> q_all_in
 
 
 // Aggregations in the English register, binder implicitly `card`. The order
@@ -499,15 +584,46 @@ list_lit: "[" expr ("," expr)* "]"
 // `TypeName { field: expr, … }` — constructs a user-defined struct value. At
 // least one field is required, keeping it distinct from a statement block in
 // expression-before-`{` positions (if/repeat/phase).
-struct_lit: NAME "{" field_init ("," field_init)* "}"
+//
+// A struct type may not be spelled with a clause keyword. `NAME "{" NAME ":"
+// expr "}"` is token-identical to a single-entry brace clause (`zones { stock :
+// Deck }`, `requires { y : Integer }`), so an expression slot left EMPTY —
+// `loser:` with no expression, `function f() =` with no body — otherwise reads
+// the clause below it as a struct literal, completes, and drops that clause
+// with no error and no `_ambig` node for the ambiguity budget to see. Refusing
+// the keyword closes every expression slot in the grammar at once, which is why
+// this is at the absorbed end rather than at each absorbing one.
+//
+// The exclusion is in two parts, pinned separately in
+// tests/test_game_clause_walls.py:
+//
+//   1. NAME's OWN lookahead, repeated verbatim. A position-specific terminal
+//      may only ever remove spellings: admitting a word NAME refuses would make
+//      a type declarable and constructible here but unusable in every type
+//      ANNOTATION slot, which is plain NAME
+//      (`test_struct_type_name_stays_a_subset_of_name`).
+//   2. Every keyword opening a `kw "{" <entry>* "}"` block whose ENTRY begins
+//      with NAME — the shape that makes a clause absorbable, wherever in the
+//      grammar it is reachable from
+//      (`test_struct_type_name_excludes_every_absorbable_clause`). The
+//      `?game_item`/`?library_item` keywords beyond that shape are kept as
+//      belt-and-braces, not as the completeness argument.
+struct_lit: STRUCT_TYPE_NAME "{" field_init ("," field_init)* "}"
 field_init: NAME ":" expr
+STRUCT_TYPE_NAME: /(?!(?:always|all|one|some|jointly|not|is|number|derived|uses|players|direction|cards|pieces|board|ranking|trump|partnerships|max_length|positions|zones|state|phase|winner|loser|requires|move_type|rule|type|define|function|procedure)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
 card_literal: card_rank "of" NAME
 // Ranks and suits are values a game's deck defines, not language keywords: a
 // rank is any name or number (A, Q, 10, 2 — or Duke, Mahjong in custom decks),
 // checked by the resolver against the deck's Rank enum. Do NOT reserve face
 // letters as terminals; that would globally steal A/K/Q/J from every game.
-card_rank: NAME | INT
+// A rank may not be a game-clause keyword: `card_rank+` is unbounded, so a
+// clause spelled as two bare names (`uses <library>`) is otherwise absorbed into
+// the enumeration and vanishes silently. Excluded here rather than from NAME so
+// `state { uses : Integer }` keeps working. Pinned against `?game_item` by
+// tests/test_game_clause_walls.py::test_card_rank_excludes_every_clause_keyword.
+card_rank: CARD_RANK_NAME | INT
+CARD_RANK_NAME: /(?!(?:always|all|one|some|jointly|not|is|number|uses|players|direction|cards|pieces|board|ranking|trump|partnerships|max_length|positions|zones|state|phase|winner|loser)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
 all_players: "all" "players"
 call: NAME "(" [arg_list] ")"
@@ -584,6 +700,18 @@ _ONE_AMT_KW: "one" /(?![A-Za-z0-9_])/
 // real second parse (`some` as amt_count's expr; `jointly (x) >= 3` as a
 // call to a function named jointly under the per-card where). Neither ever
 // names a value. The `\b` anchor keeps `some_var`/`jointly_valid` whole.
+// The position-domain / collection quantifier noun (`any <QNOUN> where`, `any
+// <QNOUN> in …`). A NAME that additionally excludes the nouns of the fixed
+// quantifier forms (player/team/suit/rank) and the card queries (card), with
+// their plurals: without the exclusion, `any player where` derives BOTH
+// `q_any_player` and `q_any_domain` (a real Earley ambiguity the corpus
+// exercises), and `any card in …` both `cq_any` and `q_any_in`. Excluded from
+// this terminal, those spellings can only match their own dedicated
+// productions. It carries the same base reserved-word exclusion as NAME (a
+// position domain can never be named `all`/`number`/… — those cannot be
+// declared) and the same identifier shape, so anywhere the grammar expects a
+// plain NAME the QNOUN token is simply not an accepted terminal.
+QNOUN: /(?!(?:always|all|one|some|jointly|not|is|number|players?|teams?|suits?|ranks?|cards?)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 NAME: /(?!(?:always|all|one|some|jointly|not|is|number)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 STRING: /"[^"]*"/
 

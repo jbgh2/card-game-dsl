@@ -12,7 +12,7 @@ Completeness ledger (docs/decisions.md "Surface totality" /
                 so a new corpus game is covered automatically, with no list to
                 keep in sync (the same pattern as the corpus-count pin
                 described in kernel-migration.md).
-    covered:    all 18 corpus games, each parsed independently and asserted
+    covered:    every corpus game, each parsed independently and asserted
                 at 0 ambiguity sites; a failure names the file and the count.
     sampled:    the `is`/`not`/`number` reserved-word narrowing that produced
                 this budget is additionally probed off-corpus in
@@ -78,7 +78,7 @@ _PARSER = _explicit_parser()
 def test_corpus_game_parses_with_zero_ambiguity(path: Path) -> None:
     # The grammar is still Earley (LALR-tightening is later), but it is
     # deterministic on the corpus today; this guards against a change
-    # reintroducing ambiguity anywhere in the 18 games, not only Hearts.
+    # reintroducing ambiguity anywhere in the corpus, not only Hearts.
     tree = _PARSER.parse(path.read_text())
     assert isinstance(tree, Tree)
     ambig = _count_ambig(tree)
@@ -89,4 +89,6 @@ def test_corpus_glob_is_nonempty() -> None:
     # A silently-empty glob would make every parametrized case above vacuous
     # — pytest collects zero tests and the suite stays green. Pin the corpus
     # size independently so a broken glob path fails loud instead.
-    assert len(GAMES) >= 18, f"expected at least 18 corpus games, found {len(GAMES)}"
+    # Corpus SIZE is owned by test_optional_pyspiel.py's glob<->registry
+    # equality; this pin only has to catch the glob resolving to nothing.
+    assert GAMES, f"the corpus glob matched nothing under {GAMES_DIR}"

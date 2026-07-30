@@ -45,10 +45,112 @@ Contract:
 
 from __future__ import annotations
 
+import dataclasses
+from collections.abc import Mapping
+from collections.abc import Mapping as _Mapping
+from collections.abc import Sequence as _Sequence
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass, field
-from typing import Any
+from enum import Enum
+from types import MappingProxyType
+from typing import Any, cast
 
 from cardlang.runtime.state import RuntimeState, Zone
+from cardlang.runtime.values import Card
+
+# Atomic leaves: immutable, never descended. `str`/`bytes` are sequences (of
+# chars/ints) but must NOT be shredded; `bytearray` is deliberately ABSENT —
+# it is a MUTABLE sequence and gets converted, not passed through.
+_ATOMIC: tuple[type, ...] = (str, bytes, bool, int, float, type(None), Enum)
+
+
+def deep_freeze(value: Any) -> Any:
+    """A structurally-immutable SNAPSHOT of `value`, recursively, to any depth.
+
+    The bundles a primitive receives must expose nothing it can mutate: not
+    just the outer container, but every mapping, sequence, set — and the
+    mutable internals of any value WRAPPER — nested inside it, to the bottom.
+    A shallow freeze is a false guarantee: an indexed state variable is a live
+    `{player: value}` dict, a round-state frame nests a `played` list, and a
+    `StructValue`'s `.fields` is a live dict behind a frozen dataclass, so
+    `gr.state["coins"][p] = 0`, `facts.round_state["played"].append(...)` and
+    `gr.state["contract"].fields[k] = ...` would each reach straight through
+    and corrupt engine state.
+
+    Every mutable level is REBUILT, so the result is a snapshot rather than a
+    chain of read-only views over live objects. Mappings become
+    `MappingProxyType`, sequences tuples, sets frozensets, `bytearray` bytes;
+    a frozen+SLOTTED dataclass is rebuilt (never returned by identity) with
+    each field frozen — `StructValue.fields` is where the field recursion
+    bites, and the rebuild itself matters because `object.__setattr__` bypasses
+    `frozen`, so returning the live `Card`/`Play` would let a primitive mutate
+    the engine's value through that back door; a `replace` copy takes the hit
+    on the copy instead. A dataclass that is NOT frozen, or is frozen but NOT
+    slotted (so its `__dict__` stays writable and `obj.__dict__[f] = …`
+    bypasses frozen), is refused. Anything that is neither a container nor a
+    frozen+slotted dataclass must be a known atomic, or `deep_freeze` refuses
+    it rather than passing a possibly-mutable object through as a false leaf.
+    (Copying costs an allocation per value; the module-granular bundles make
+    that a per-bind cost that stage 3's per-primitive `reads` will shrink.)"""
+    if isinstance(value, _ATOMIC):
+        return value
+    if isinstance(value, _Mapping):
+        # Keys are frozen too, not just values: a mapping keyed by a
+        # mutable-but-hashable object (a dataclass with `unsafe_hash=True`)
+        # would otherwise hand the live key back through iteration. A frozen
+        # key (int/str/tuple/frozen dataclass) comes back equal with the same
+        # hash, so lookups are unaffected; a mutable one is refused.
+        return MappingProxyType(
+            {deep_freeze(k): deep_freeze(v) for k, v in value.items()}
+        )
+    if isinstance(value, AbstractSet):
+        return frozenset(deep_freeze(v) for v in value)
+    if isinstance(value, bytearray):
+        return bytes(value)  # a mutable builtin sequence -> immutable snapshot
+    if isinstance(value, _Sequence):
+        items = [deep_freeze(v) for v in value]
+        if isinstance(value, tuple) and all(a is b for a, b in zip(items, value)):
+            return value  # already an immutable tuple, unchanged: keep identity
+        return tuple(items)
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        if not getattr(value, "__dataclass_params__").frozen:
+            # A non-frozen dataclass cannot be snapshotted: even a field-frozen
+            # `replace` copy stays writable (`box.value = …`), and the identity
+            # fast path below would hand back the live object outright. Refuse,
+            # same as a non-dataclass mutable leaf — the corpus value types are
+            # all frozen, so this only fires on a NEW mutable one.
+            raise TypeError(
+                f"deep_freeze cannot snapshot the non-frozen dataclass "
+                f"{type(value).__name__} — its attributes stay reassignable. "
+                f"Make it frozen, or add a case."
+            )
+        if hasattr(value, "__dict__"):
+            # `frozen=True` WITHOUT `slots=True` leaves a writable instance
+            # `__dict__`: `obj.__setattr__` is blocked, but `obj.__dict__[f] =
+            # …` bypasses it. Refuse rather than snapshot — the corpus value
+            # types are all frozen+slots, so this only fires on a new one.
+            raise TypeError(
+                f"deep_freeze cannot treat {type(value).__name__} as immutable: "
+                f"it is a frozen dataclass WITHOUT slots, so its __dict__ stays "
+                f"writable (obj.__dict__[...] = ... bypasses frozen). Add "
+                f"slots=True to the type."
+            )
+        # ALWAYS rebuild, never return by identity: `frozen=True, slots=True`
+        # blocks `obj.field = …` but NOT `object.__setattr__(obj, field, …)`,
+        # so returning the live object would let a primitive mutate the value
+        # in engine state through that back door. A `replace` copy is a
+        # distinct object — the same back door then hits the primitive's copy,
+        # not `rs.mech_state`. (Python cannot fully sandbox a primitive, which
+        # could `import` engine state or use `gc`; this closes the reachable-
+        # through-a-handed-value channel, the one deep_freeze owns.)
+        return dataclasses.replace(
+            value, **{f.name: deep_freeze(getattr(value, f.name)) for f in dataclasses.fields(value)}
+        )
+    raise TypeError(
+        f"deep_freeze cannot prove {type(value).__name__} immutable — it is "
+        f"neither a known atomic, a container, nor a dataclass, so passing it "
+        f"through as a leaf could expose mutable engine state. Add a case."
+    )
 
 _REGISTRY_NAME = "PRIMITIVE_READS (cardlang/runtime/reads.py)"
 
@@ -180,7 +282,7 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         module="cardlang/runtime/tichu.py",
         game_file="tichu.cardlang",
         state_vars=_fs("out_first", "out_second"),
-        zone_families=_fs("hand", "captured"),
+        zone_families=_fs("hand"),
     ),
     # stdlib.py's per-game functions: the auction outcomes and cribbage's
     # pegging-scorer call sites. One row per game served.
@@ -259,7 +361,7 @@ def state(rs: RuntimeState, r: PrimitiveReads, name: str) -> Any:
         raise _missing(r, "state variable", name) from None
 
 
-def family(rs: RuntimeState, r: PrimitiveReads, name: str) -> dict[int, Zone]:
+def family(rs: RuntimeState, r: PrimitiveReads, name: str) -> dict[int | str, Zone]:
     """A declared zone-family read (the accessor form of `zones.families[...]`)."""
     if name not in r.zone_families:
         raise _undeclared(r, "zone family", name, r.zone_families)
@@ -279,7 +381,7 @@ def single(rs: RuntimeState, r: PrimitiveReads, name: str) -> Zone:
     return z
 
 
-def instance(rs: RuntimeState, r: PrimitiveReads, name: str, key: int) -> Zone:
+def instance(rs: RuntimeState, r: PrimitiveReads, name: str, key: int | str) -> Zone:
     """A declared read of one instance of a zone family (the accessor form
     of `zones.instance`). The instance KEY is engine data (a seat or team id
     from `rs.seating`/`rs.teams`), not part of the declared coupling, but a
@@ -296,6 +398,50 @@ def instance(rs: RuntimeState, r: PrimitiveReads, name: str, key: int) -> Zone:
         ) from None
 
 
+@dataclass(frozen=True, slots=True)
+class GameReads:
+    """One module's declared reads, materialized as plain immutable values.
+
+    The bundle a narrowed primitive receives in place of `Ctx`. Its contents
+    are bounded by the module's `PRIMITIVE_READS` row — an undeclared name is
+    ABSENT, not merely unfetched — and every value is `deep_freeze`d, so a
+    primitive can write back through nothing: not a `Zone.cards` list, not an
+    indexed state variable's `{player: value}` dict, not anything nested
+    inside them. That is the narrowing: what used to be a convention enforced
+    by review ("primitives are pure reads") is now a property of what the
+    value can express."""
+
+    state: Mapping[str, Any]
+    families: Mapping[str, Mapping[int, tuple[Card, ...]]]
+    singles: Mapping[str, tuple[Card, ...]]
+
+
+def game_reads(rs: RuntimeState, r: PrimitiveReads) -> GameReads:
+    """Materialize `r`'s whole declared row from live state.
+
+    Built here rather than in the binder because this is the sanctioned
+    raw-access site: the row's names are data, so the accessor calls below
+    are non-literal, which `tests/test_primitive_reads.py` refuses in every
+    other module precisely so a name-keyed read cannot escape the static pin.
+    The pin still holds — the names come FROM the row, so the bundle is the
+    declaration by construction. Every materialized value is `deep_freeze`d,
+    so an indexed state variable's `{player: value}` dict — and anything
+    nested inside a state value — is a snapshot the primitive cannot mutate,
+    not the live engine object."""
+    return GameReads(
+        state=deep_freeze({n: state(rs, r, n) for n in sorted(r.state_vars)}),
+        families=deep_freeze(
+            {
+                n: {k: list(z.cards) for k, z in family(rs, r, n).items()}
+                for n in sorted(r.zone_families)
+            }
+        ),
+        singles=deep_freeze(
+            {n: list(single(rs, r, n).cards) for n in sorted(r.single_zones)}
+        ),
+    )
+
+
 def magic_hand(rs: RuntimeState) -> dict[int, Zone]:
     """The one game-INDEPENDENT zone read a general stdlib function makes:
     `player_holding` scans `hand[player]`, the language-wide magic name
@@ -304,7 +450,14 @@ def magic_hand(rs: RuntimeState) -> dict[int, Zone]:
     the same failure currency: a game that declares no `hand[player]` family
     gets a typed error naming the rule, not a `KeyError`. (resolve's magic-
     name wall only covers games with `Card`-typed move parameters, so this
-    backstop is reachable.)"""
+    backstop is reachable.)
+
+    Returns player-keyed instances: `hand` is a `hand[player]` family by the
+    magic-name rule, so its keys are seats even though the generic zone store
+    types every family's keys as `int | str` (a board's cell family is keyed by
+    name — a different family). The cast localizes that invariant here, where
+    the rule is known, so `player_holding` returns a `Player` without a
+    per-caller narrowing."""
     fam = rs.zones.families.get("hand")
     if fam is None:
         raise PrimitiveReadError(
@@ -312,4 +465,4 @@ def magic_hand(rs: RuntimeState) -> dict[int, Zone]:
             "— `hand` is the language-wide magic name (decisions.md "
             '"Declared parameter domains") this stdlib function reads'
         )
-    return fam
+    return cast("dict[int, Zone]", fam)

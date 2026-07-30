@@ -23,6 +23,7 @@ invariants are exercised where they could actually break.
 
 from __future__ import annotations
 
+import itertools
 import random
 from pathlib import Path
 from typing import Any
@@ -58,7 +59,7 @@ def _check_invariants(rs: RuntimeState) -> None:
         total += len(up) + len(down)
         if not up:
             assert not down, f"flip invariant broken at column {c}: {len(down)} face-down under an empty run"
-        for a, b in zip(up, up[1:]):
+        for a, b in itertools.pairwise(up):
             assert _RANKV[b.rank] == _RANKV[a.rank] - 1, f"run not descending at column {c}: {up}"
             assert (a.suit in _RED) != (b.suit in _RED), f"run not alternating at column {c}: {up}"
     for f in range(1, 5):

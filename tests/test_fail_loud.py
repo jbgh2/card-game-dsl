@@ -2,7 +2,7 @@
 
 These pin the "no implicit actions" contract (decisions.md "No implicit actions"):
 a decision with no legal move is a malformed game, reported as an error — never a
-silent skip or an implicit default. A regression that restored the old silent
+silent skip or an implicit default. A regression that reintroduced a silent
 no-op would make one of these tests fail.
 """
 
@@ -357,23 +357,24 @@ game G {
 
 def test_suit_of_a_non_card_raises_a_typed_error() -> None:
     # suit_of's argument is TAny (deliberately polymorphic: card or zone), so a
-    # wrong-typed value is user-reachable and must get a typed error, not the
-    # bare assert that used to sit here.
+    # wrong-typed value is user-reachable and must get a typed error, not a
+    # bare assert.
     with pytest.raises(RuntimeError, match="expects a card or a zone"):
         _run(SUIT_OF_A_NON_CARD)
 
 
-CLIMB_LEADER_NOT_A_PARTICIPANT = """
+CLIMB_WITH_NO_PARTICIPANTS = """
 game G {
   players: 3
   max_length: 1000
   cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player>  trick_pile : TrickPile }
   state { x[player] : Integer = 0 }
   phase play {
     deal 5 cards from deck to each hand
     round climb play_combination from 2
-          over players where player is not 2
+          over players where x[player] < 0
           source hand into trick_pile
           combinations president_lead_options follows president_follows
           until false
@@ -383,11 +384,14 @@ game G {
 """
 
 
-def test_climb_round_with_leader_outside_participants_raises() -> None:
-    # `from` and `over` are game expressions; a game can compute a leader who
-    # already shed out. The construct requires the leader to lead.
-    with pytest.raises(RuntimeError, match="round climb: leader"):
-        _run(CLIMB_LEADER_NOT_A_PARTICIPANT)
+def test_climb_round_with_no_participants_raises() -> None:
+    # Nobody satisfies `over`, so there is no one to lead and no one to
+    # follow — a decision point with no actor, which must be loud. A leader
+    # who is merely absent from a NON-empty participant set is a different
+    # matter and is NOT an error: the ring starts at the first participant
+    # after them (tests/test_round_leader_participants.py).
+    with pytest.raises(RuntimeError, match="no participant to lead"):
+        _run(CLIMB_WITH_NO_PARTICIPANTS)
 
 
 BARE_FAMILY_WITHOUT_AN_ACTOR = """
@@ -405,13 +409,17 @@ game G {
 
 def test_bare_family_read_without_an_actor_raises() -> None:
     # `hand` bare is the acting player's hand — sugar with no referent in a
-    # phase body, where nobody is acting. It used to be a bare AssertionError;
-    # the static wall needs statement-position context resolve does not thread
-    # yet, so the runtime error carries the fix instead.
+    # phase body, where nobody is acting. The static wall needs
+    # statement-position context resolve does not thread yet, so the runtime
+    # error carries the fix instead.
     with pytest.raises(RuntimeError, match="no acting player"):
         _run(BARE_FAMILY_WITHOUT_AN_ACTOR)
 
 
+# The index is COMPUTED (`0 + 9`), not a literal `9`: an out-of-range player
+# LITERAL is caught statically now (typecheck `_check_role_literal`,
+# tests/test_player_literal_range.py), so reaching this runtime wall from a
+# checked game needs a key the literal wall does not see -- a computed one.
 PHANTOM_KEY_WRITE = """
 game G {
   players: 4
@@ -419,17 +427,18 @@ game G {
   cards: standard52
   zones { deck : Deck  hand[player] : Hand<player> }
   state { n[player] : Integer = 0 }
-  phase play { n[9] := 1 }
+  phase play { n[0 + 9] := 1 }
   winner: highest n
 }
 """
 
 
 def test_a_write_outside_the_declared_key_set_raises() -> None:
-    # `n[9] := 1` in a 4-player game used to mint a phantom seat silently —
-    # and `winner: highest n` then crowned player 9. The store's key set is
-    # the index domain's member set; a write outside it is a runtime error at
-    # the write.
+    # Without this wall, `n[0 + 9] := 1` in a 4-player game would mint a phantom
+    # seat silently — and `winner: highest n` would crown player 9. The
+    # store's key set is the index domain's member set; a write outside it is
+    # a runtime error at the write. A LITERAL seat 9 is rejected earlier (the
+    # static player-literal wall); this is the backstop for the computed key.
     with pytest.raises(RuntimeError, match="outside the variable's declared domain"):
         _run(PHANTOM_KEY_WRITE)
 
@@ -440,8 +449,8 @@ def test_a_non_zone_value_at_a_movement_endpoint_raises_a_typed_error() -> None:
     # typed), so reaching this branch from a checked program needs a value
     # the checker deliberately leaves loose (`outcome`, an unregistered
     # action field) — hence a constructed statement: the backstop is not a
-    # dead branch, and it must answer in the runtime's currency, not the
-    # bare assert that used to sit here.
+    # dead branch, and it must answer in the runtime's currency, not with a
+    # bare assert.
     import random
 
     from cardlang.runtime.execute import execute
@@ -464,21 +473,29 @@ def test_a_non_zone_value_at_a_movement_endpoint_raises_a_typed_error() -> None:
         execute(stmt, ctx)
 
 
+# The selection is UNREFINED (a mixed `if` whose branches disagree, so `infer`
+# gives `TAny`), not a literal `"oops"`: a statically-typed non-player loser is
+# rejected at check time now (the operand choke point types `loser:` as a
+# Player, tests/test_player_literal_range.py), so reaching this runtime backstop
+# from a checked game needs a selection the type wall cannot see through -- the
+# permissive top. The `else` branch is taken at runtime (no player has `x == 1`).
 LOSER_NOT_A_PLAYER = """
 game G {
   players: 2
   max_length: 1000
   cards: standard52
   zones { deck : Deck  hand[player] : Hand<player> }
+  state { x[player] : Integer = 0 }
   phase play { shuffle deck }
-  loser: "oops"
+  loser: if (any player where x[player] is 1) then (the player where x[player] is 1) else "oops"
 }
 """
 
 
 def test_a_non_player_loser_selection_raises_a_typed_error() -> None:
-    # `loser:` takes any expression and the checker leaves its type open, so
-    # the player-ness of the selected value is checked at the driver, in the
-    # runtime's currency — this used to be a bare assert.
+    # The runtime backstop behind the static `loser:` type wall. A non-player
+    # selection the checker CAN type (`loser: "oops"`) is rejected statically; a
+    # selection typed `TAny` slips past, and the driver checks the value's
+    # player-ness in the runtime's currency.
     with pytest.raises(RuntimeError, match="not a player"):
         _run(LOSER_NOT_A_PLAYER)

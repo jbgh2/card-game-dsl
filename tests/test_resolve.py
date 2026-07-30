@@ -51,9 +51,9 @@ def test_missing_max_length_is_a_diagnostic() -> None:
 
 
 def test_missing_winner_and_loser_is_a_diagnostic() -> None:
-    # Before this wall a game with neither compiled clean and died on a
+    # Without this wall a game with neither would compile clean and die on a
     # driver assert before its first decision (write-time triage: the assert
-    # is now the wall's recorded backstop).
+    # is the wall's recorded backstop).
     dsl = (
         "game G {\n"
         "  players: 2\n"

@@ -1,0 +1,1 @@
+is_diagonal_boardless.cardlang:23:13: error: `is_diagonal` reads the board, but the game declares no `board:`

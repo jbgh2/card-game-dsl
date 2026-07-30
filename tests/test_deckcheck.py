@@ -30,8 +30,7 @@ sampled:    the inert group (let/assign/rotate/offer/round/produce/jumps) is
             asserted inert by the match arms' own comments; no per-kind probe,
             since inertness is "no Movement reachable", a structural fact
 residual:   draws inside MOVE effects (via `offer`/rounds) are outside the
-            gate's domain — not statically boundable; recorded in roadmap.md
-            ("The deck-capacity gate does not see move-driven draws")
+            gate's domain — not statically boundable; recorded in issue #135
 """
 
 from __future__ import annotations
@@ -192,9 +191,9 @@ def test_if_branches_bound_by_max_not_sum() -> None:
 
 def test_for_each_over_a_value_domain_multiplies_iterations() -> None:
     # The module docstring's own cautionary example: `for each suit` runs its
-    # body once per SUIT (4), not once — 4 x 15 = 60 > 52. The old rule was
-    # "players, or once", which counted this as one iteration and let it
-    # through to a mid-deal ValueError.
+    # body once per SUIT (4), not once — 4 x 15 = 60 > 52. A "players, or
+    # once" rule would count this as one iteration and let it through to a
+    # mid-deal ValueError.
     body = "for each suit s: move 15 cards from deck to hand[0]"
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(_game("4", body), "suits.cardlang")

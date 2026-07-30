@@ -17,15 +17,40 @@ Assumes:      raw DSL text (Markdown extraction already applied).
 Establishes:  a syntactically valid frozen AST; every node carries a
               :class:`Span`. No semantic claims — names are unclassified
               (``NameRef.ref_kind`` is ``None``) and nothing is typed.
-Now illegal:  ill-formed syntax; it cannot reach any later pass.
+Now illegal:  ill-formed syntax; it cannot reach any later pass. Also
+              MUTATING A RETURNED AST: ``parse_text`` is memoized, so two
+              callers parsing the same ``(text, source_name, line_offset)``
+              receive the SAME object, and one writer would be visible to
+              every other holder. A pass that wants to change a node builds a
+              new one with ``dataclasses.replace``.
+
+              Four walls hold that, each closing a different route, all
+              enumerated in tests/test_node_registry.py: ``frozen=True``
+              refuses every ordinary ``setattr`` (CPython's frozen
+              ``__setattr__`` raises for ANY name on a direct instance, not
+              only declared fields); ``slots=True`` additionally refuses
+              ``object.__setattr__`` of a NEW name and ``__dict__``/``vars()``
+              writes, which a frozen non-slots node would accept; a scrape
+              refuses ``object.__setattr__`` of a DECLARED field, the one
+              route neither of the others can — it is the same call frozen's
+              own ``__init__`` uses, so it is walled by not appearing at all;
+              and a field-type check refuses mutable containers, since a
+              ``list`` field would be writable THROUGH the node with no
+              ``setattr`` for the other three to catch.
+
+              Sharing itself is not new — ``openspiel/replay.py``'s ``load()``
+              has been cached since 2026-06-07. Memoizing here makes it the
+              default rather than opt-in, which is what turns those four from
+              properties the code happens to have into walls.
 Verified by:  the grammar-ambiguity check (tests/test_grammar_ambiguity.py)
-              and the per-construct parse tests.
+              and the per-construct parse tests; the memo's own liveness and
+              key correctness by tests/test_parse.py's caching pins.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from functools import lru_cache
+from functools import cache, lru_cache
 from importlib import resources
 
 from lark import Lark, Token, Tree
@@ -43,12 +68,17 @@ from cardlang.diagnostics import (
 )
 from cardlang.extract import FencedBlock
 
-
 # --- private intermediate markers (never leave this module) ---
 
 
 @dataclass(frozen=True, slots=True)
 class _Deck:
+    name: str
+    span: Span
+
+
+@dataclass(frozen=True, slots=True)
+class _Pieces:
     name: str
     span: Span
 
@@ -89,6 +119,12 @@ class _MaxLength:
 @dataclass(frozen=True, slots=True)
 class _Zones:
     zones: tuple[n.ZoneDecl, ...]
+    span: Span
+
+
+@dataclass(frozen=True, slots=True)
+class _Requires:
+    decls: tuple[n.RequireDecl, ...]
     span: Span
 
 
@@ -199,8 +235,9 @@ def _parser() -> Lark:
         propagate_positions=True,
         maybe_placeholders=True,
         # `start` is a game file; `library_rules` is the stdlib rules fragment
-        # (rule definitions with no enclosing game).
-        start=["start", "library_rules"],
+        # (rule definitions with no enclosing game); `library` is a family
+        # library (decisions.md "Family libraries").
+        start=["start", "library_rules", "library"],
     )
 
 
@@ -249,6 +286,9 @@ class _Builder(Transformer[Token, n.Game]):
 
     def cards(self, meta: Meta, c: list[Token]) -> _Deck:
         return _Deck(str(c[0]), span=self._span(meta))
+
+    def pieces(self, meta: Meta, c: list[Token]) -> _Pieces:
+        return _Pieces(str(c[0]), span=self._span(meta))
 
     def ranking(self, meta: Meta, c: list[object]) -> _Ranking:
         # The convention forms: `ace-ten` arrives as the RANK_CONV terminal
@@ -334,6 +374,22 @@ class _Builder(Transformer[Token, n.Game]):
     def positions(self, meta: Meta, c: list[n.PositionDecl]) -> _Positions:
         return _Positions(tuple(c), span=self._span(meta))
 
+    # --- board ---
+
+    def board(self, meta: Meta, c: list[Token]) -> n.BoardDecl:
+        # `c[0]` is the family NAME; the parenthesized INT args (if any)
+        # follow (the "(", ",", ")" literals are filtered by lark). An omitted
+        # arg list arrives as one None placeholder (`maybe_placeholders`) --
+        # filtered here, so `board: grid` reaches resolve as zero args and
+        # `board_entry`'s arity diagnostic, not an int(None) crash. Family/arg
+        # validity is a resolve diagnostic via `board_entry` -- parse only
+        # shapes the declaration.
+        return n.BoardDecl(
+            family=str(c[0]),
+            args=tuple(int(x) for x in c[1:] if x is not None),
+            span=self._span(meta),
+        )
+
     # --- state ---
 
     def optional_type(self, meta: Meta, c: list[Token]) -> _TypeName:
@@ -358,6 +414,117 @@ class _Builder(Transformer[Token, n.Game]):
 
     def state_block(self, meta: Meta, c: list[n.StateDecl]) -> n.StateBlock:
         return n.StateBlock(decls=tuple(c), span=self._span(meta))
+
+    # --- family libraries ---
+
+    def uses_decl(self, meta: Meta, c: list[Token]) -> n.UsesDecl:
+        return n.UsesDecl(name=str(c[0]), span=self._span(meta))
+
+    def _require_decl(
+        self, meta: Meta, c: list[object], *, optional: bool
+    ) -> n.RequireDecl:
+        index = c[1]
+        assert index is None or isinstance(index, str)
+        args: tuple[n.TypeArg, ...] = ()
+        if len(c) > 3 and c[3] is not None:
+            assert isinstance(c[3], tuple)
+            args = c[3]
+        return n.RequireDecl(
+            name=str(c[0]),
+            index=index,
+            type_name=str(c[2]),
+            type_args=args,
+            optional=optional,
+            span=self._span(meta),
+        )
+
+    def require_plain(self, meta: Meta, c: list[object]) -> n.RequireDecl:
+        return self._require_decl(meta, c, optional=False)
+
+    def require_optional(self, meta: Meta, c: list[object]) -> n.RequireDecl:
+        return self._require_decl(meta, c, optional=True)
+
+    def requires_block(self, meta: Meta, c: list[n.RequireDecl]) -> _Requires:
+        return _Requires(tuple(c), span=self._span(meta))
+
+    def library(self, meta: Meta, c: list[object]) -> n.Library:
+        # ONE dispatch over the children, not a filter per field: independent
+        # filters have no residue, so an item no filter matches is dropped
+        # without a word — the accepted-but-ignored defect class, at the
+        # granularity of a whole clause. `game()` below is the sibling this
+        # mirrors, down to the `else` arm's currency.
+        requires: tuple[n.RequireDecl, ...] = ()
+        seen_requires = False
+        state: n.StateBlock | None = None
+        rules: list[n.RuleDef] = []
+        move_types: list[n.MoveTypeDef] = []
+        types: list[n.TypeDef] = []
+        defines: list[n.DefineDef] = []
+        functions: list[n.FunctionDef] = []
+        procedures: list[n.ProcedureDef] = []
+        for item in c[1:]:
+            if isinstance(item, _Requires):
+                # `library_item*` accepts repeats of the single-valued `requires`
+                # block the same way `game_item*` does for the scalar game
+                # clauses; keeping the last would silently discard the first
+                # (decisions.md "Surface totality").
+                if seen_requires:
+                    raise DiagnosticError(
+                        Diagnostic(
+                            Severity.ERROR,
+                            "a library declares one `requires` block — merge the "
+                            "declarations into it",
+                            item.span,
+                        )
+                    )
+                seen_requires = True
+                requires = item.decls
+            elif isinstance(item, n.StateBlock):
+                # Single-valued for the same reason `requires` is, and for the
+                # same reason a GAME declares one `state { }`: keeping the last
+                # would silently discard the first.
+                if state is not None:
+                    raise DiagnosticError(
+                        Diagnostic(
+                            Severity.ERROR,
+                            "a library declares one `state` block — merge the "
+                            "declarations into it",
+                            item.span,
+                        )
+                    )
+                state = item
+            elif isinstance(item, n.RuleDef):
+                rules.append(item)
+            elif isinstance(item, n.MoveTypeDef):
+                move_types.append(item)
+            elif isinstance(item, n.TypeDef):
+                types.append(item)
+            elif isinstance(item, n.DefineDef):
+                defines.append(item)
+            elif isinstance(item, n.FunctionDef):
+                functions.append(item)
+            elif isinstance(item, n.ProcedureDef):
+                procedures.append(item)
+            else:
+                # An `?library_item` alternative with no arm above. Compiler-bug
+                # currency, exactly as in `game()`: a grammar alternative nobody
+                # taught the builder about is a defect in this package, not a
+                # sentence the designer got wrong, so it may not be reported as
+                # an author-facing diagnostic. Pinned by
+                # tests/test_family_libraries.py::test_an_unhandled_library_item_is_loud.
+                raise AssertionError(f"unexpected library item: {item!r}")
+        return n.Library(
+            name=str(c[0]),
+            requires=requires,
+            state=state,
+            rules=tuple(rules),
+            move_types=tuple(move_types),
+            types=tuple(types),
+            defines=tuple(defines),
+            functions=tuple(functions),
+            procedures=tuple(procedures),
+            span=self._span(meta),
+        )
 
     # --- user-defined types ---
 
@@ -814,6 +981,42 @@ class _Builder(Transformer[Token, n.Game]):
     def q_all_rank(self, meta: Meta, c: list[object]) -> n.Quantifier:
         return self._implicit_quantifier("all", "rank", meta, c)
 
+    def _domain_query(
+        self, kind: str, meta: Meta, noun: object, source: object, pred: object
+    ) -> n.DomainQuery:
+        # The plural convention is fixed by kind: `any` takes the singular
+        # noun, `all`/`number of` the plural. The binder (the scoped name, and
+        # for a bare form the domain to enumerate) is the singular, derived by
+        # stripping a trailing `s` from a plural spelling; `spelled` keeps the
+        # raw noun so resolve can quote it in the plural-mismatch diagnostic.
+        # Whether the plural was actually well-formed is resolve's wall — this
+        # only recovers the intended singular so the body's binder resolves.
+        spelled = str(noun)
+        binder = spelled[:-1] if kind != "any" and spelled.endswith("s") else spelled
+        return n.DomainQuery(
+            kind=kind,
+            binder=binder,
+            spelled=spelled,
+            source=_as_expr(source) if source is not None else None,
+            pred=_as_expr(pred),
+            span=self._span(meta),
+        )
+
+    def q_any_domain(self, meta: Meta, c: list[object]) -> n.DomainQuery:
+        return self._domain_query("any", meta, c[0], None, c[1])
+
+    def q_all_domain(self, meta: Meta, c: list[object]) -> n.DomainQuery:
+        return self._domain_query("all", meta, c[0], None, c[1])
+
+    def q_count_domain(self, meta: Meta, c: list[object]) -> n.DomainQuery:
+        return self._domain_query("count", meta, c[0], None, c[1])
+
+    def q_any_in(self, meta: Meta, c: list[object]) -> n.DomainQuery:
+        return self._domain_query("any", meta, c[0], c[1], c[2])
+
+    def q_all_in(self, meta: Meta, c: list[object]) -> n.DomainQuery:
+        return self._domain_query("all", meta, c[0], c[1], c[2])
+
     def cq_set(self, meta: Meta, c: list[object]) -> n.CardQuery:
         return n.CardQuery(
             kind="set", source=_as_expr(c[0]), pred=_as_expr(c[1]), span=self._span(meta)
@@ -1033,7 +1236,8 @@ class _Builder(Transformer[Token, n.Game]):
     def game(self, meta: Meta, c: list[object]) -> n.Game:
         name = str(c[0])
         players: n.PlayersSpec | None = None
-        deck: str | None = None
+        deck: _Deck | None = None
+        pieces: _Pieces | None = None
         direction: str | None = None
         ranking: tuple[str, ...] = ()
         ranking_convention: str | None = None
@@ -1041,9 +1245,11 @@ class _Builder(Transformer[Token, n.Game]):
         partnerships: tuple[tuple[int, ...], ...] = ()
         max_length: int | None = None
         positions: tuple[n.PositionDecl, ...] = ()
+        board: n.BoardDecl | None = None
         zones: tuple[n.ZoneDecl, ...] = ()
         state: n.StateBlock | None = None
         phases: list[n.Phase] = []
+        uses: list[n.UsesDecl] = []
         winner: n.Winner | None = None
         loser: n.Loser | None = None
 
@@ -1081,7 +1287,10 @@ class _Builder(Transformer[Token, n.Game]):
                 players = item
             elif isinstance(item, _Deck):
                 once("cards:", item.span)
-                deck = item.name
+                deck = item
+            elif isinstance(item, _Pieces):
+                once("pieces:", item.span)
+                pieces = item
             elif isinstance(item, _Direction):
                 once("direction:", item.span)
                 direction = item.value
@@ -1101,12 +1310,20 @@ class _Builder(Transformer[Token, n.Game]):
             elif isinstance(item, _Positions):
                 once("positions { }", item.span, merge_hint=True)
                 positions = item.positions
+            elif isinstance(item, n.BoardDecl):
+                once("board:", item.span)
+                board = item
             elif isinstance(item, _Zones):
                 once("zones { }", item.span, merge_hint=True)
                 zones = item.zones
             elif isinstance(item, n.StateBlock):
                 once("state { }", item.span, merge_hint=True)
                 state = item
+            elif isinstance(item, n.UsesDecl):
+                # No `once`: a game uses as many libraries as it draws on. A
+                # REPEATED name is still a defect (the second import is a no-op),
+                # and is walled in resolve, where the library names are known.
+                uses.append(item)
             elif isinstance(item, n.Phase):
                 phases.append(item)
             elif isinstance(item, n.Winner):
@@ -1118,13 +1335,13 @@ class _Builder(Transformer[Token, n.Game]):
             else:
                 raise AssertionError(f"unexpected game item: {item!r}")
 
-        # `players:` and `cards:` are the two clauses the AST itself makes
-        # mandatory (`Game.players` / `Game.deck` are non-optional), so this
-        # builder is the last layer where their absence exists to report —
-        # the optionally-representable mandatory clauses (`max_length:`,
-        # `winner:`/`loser:`) are walled in resolve instead. Bag-first so a
-        # game missing both hears about both at once (resolve's
-        # `_raise_if_errors` idiom).
+        # `players:` and a content clause (`cards:`/`pieces:`) are the
+        # clauses the AST itself makes mandatory (`Game.players` /
+        # `Game.deck` are non-optional), so this builder is the last layer
+        # where their absence exists to report — the optionally-representable
+        # mandatory clauses (`max_length:`, `winner:`/`loser:`) are walled in
+        # resolve instead. Bag-first so a game missing both hears about both
+        # at once (resolve's `_raise_if_errors` idiom).
         bag = DiagnosticBag()
         game_span = self._span(meta)
         if players is None:
@@ -1134,10 +1351,19 @@ class _Builder(Transformer[Token, n.Game]):
                 f"zone and the turn ring",
                 game_span,
             )
-        if deck is None:
+        if deck is not None and pieces is not None:
+            # Span on whichever clause appears later, as `once()` points at
+            # the repeat.
             bag.error(
-                f"game '{name}' must declare `cards: <deck>` — the deck it "
-                f"is played with (e.g. `cards: standard52`)",
+                "a game declares `cards:` or `pieces:`, not both — no game "
+                "has witnessed needing both",
+                pieces.span if pieces.span.start > deck.span.start else deck.span,
+            )
+        elif deck is None and pieces is None:
+            bag.error(
+                f"game '{name}' must declare `cards: <deck>` or `pieces: "
+                f"<set>` — the components it is played with (e.g. `cards: "
+                f"standard52`)",
                 game_span,
             )
         if bag.has_errors:
@@ -1145,12 +1371,16 @@ class _Builder(Transformer[Token, n.Game]):
             if len(bag.items) > 1:
                 error.add_note(bag.format())
             raise error
-        # Backstop for mypy narrowing only: the bag raise above is the wall.
-        assert players is not None and deck is not None
+        # Backstop for mypy narrowing only: the bag raise above is the wall
+        # (players present, and exactly one content clause).
+        assert players is not None
+        content: _Deck | _Pieces | None = deck if deck is not None else pieces
+        assert content is not None
         return n.Game(
             name=name,
             players=players,
-            deck=deck,
+            deck=content.name,
+            content_flavor="card" if isinstance(content, _Deck) else "piece",
             zones=zones,
             direction=direction,
             ranking=ranking,
@@ -1158,12 +1388,14 @@ class _Builder(Transformer[Token, n.Game]):
             trump=trump,
             partnerships=partnerships,
             positions=positions,
+            board=board,
             max_length=max_length,
             state=state,
             phases=tuple(phases),
             winner=winner,
             loser=loser,
             rules=(),
+            uses=tuple(uses),
             span=self._span(meta),
         )
 
@@ -1287,9 +1519,10 @@ class _Builder(Transformer[Token, n.Game]):
 
     def start(self, meta: Meta, c: list[object]) -> n.Game:
         # `start: top_item+` accepts any mix of definitions, so game-count
-        # errors are reachable from source: zero games used to escape as a
-        # raw StopIteration, and a second game would be silently discarded
-        # (decisions.md "Surface totality"). One game per source.
+        # errors are reachable from source: without these walls a source with
+        # no game would fail as an index error rather than a diagnostic, and a
+        # second game would be silently discarded (decisions.md "Surface
+        # totality"). One game per source.
         games = [x for x in c if isinstance(x, n.Game)]
         if not games:
             raise DiagnosticError(
@@ -1380,12 +1613,39 @@ def parse_library_rules(text: str, source_name: str) -> tuple[n.RuleDef, ...]:
     return result
 
 
-def parse_text(text: str, source_name: str, line_offset: int = 0) -> n.Game:
-    """Parse DSL ``text`` into a :class:`~cardlang.ast.nodes.Game` AST."""
+def parse_library(text: str, source_name: str) -> n.Library:
+    """Parse a family-library file (`library <name> { ... }`, no enclosing game)
+    into a Library node, spans mapped to ``source_name`` — so a diagnostic raised
+    inside library text names the library file, not the game that used it."""
+    tree = parse_to_tree(text, source_name, start="library")
+    result = _transform(_Builder(source_name, 0), tree)
+    assert isinstance(result, n.Library)
+    return result
+
+
+@cache
+def _parse_text_cached(text: str, source_name: str, line_offset: int) -> n.Game:
+    """The memoized body of :func:`parse_text`. Takes ``line_offset``
+    positionally and without a default so one call site cannot miss another's
+    entry over an argument spelling (``lru_cache`` keys on the call shape).
+
+    Unbounded deliberately: a corpus game is re-parsed dozens of times across
+    a suite run, interleaved with far more one-shot snippets from the
+    rejection and typecheck-error tests, so any small bound would let that
+    churn evict exactly the entries worth keeping. That trade suits every
+    caller this has today — suite, CLI, harnesses — because all are
+    short-lived. It would NOT suit a long-lived one: a caller that re-parses
+    edited text (an editor session, a watch mode) mints a fresh entry per
+    edit and never reuses it, so it must bound or clear this cache."""
     tree = parse_to_tree(text, source_name, line_offset)
     result = _transform(_Builder(source_name, line_offset), tree)
     assert isinstance(result, n.Game)
     return result
+
+
+def parse_text(text: str, source_name: str, line_offset: int = 0) -> n.Game:
+    """Parse DSL ``text`` into a :class:`~cardlang.ast.nodes.Game` AST."""
+    return _parse_text_cached(text, source_name, line_offset)
 
 
 def parse_block(block: FencedBlock) -> n.Game:

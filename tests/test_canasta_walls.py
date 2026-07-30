@@ -30,8 +30,8 @@ sampled:    deckcheck capacity at 108 — exercised by the corpus game's own
             deal plan (tests/test_playout_canasta.py)
 residual:   joint selections on ANY duplicate-card deck (the combo block's
             frozenset canonicalization collapses copies) — walled loudly at
-            ActionSpace.for_game (probed below) and recorded in roadmap.md
-            ("Deferred (recorded during implementation)")
+            ActionSpace.for_game (probed below) and recorded in
+            roadmap.md, "Grammar surface deferred by the checker"
 """
 
 from __future__ import annotations
@@ -72,7 +72,8 @@ def test_joint_selection_walled_on_a_duplicate_card_deck() -> None:
     # canasta108 holds two copies of every standard card: the combo block's
     # frozenset canonicalization would collide {K♠,K♠} with {K♠}, so a
     # `where jointly` selection on such a deck is refused loudly at action-
-    # space construction — the audit's residual, walled (roadmap.md).
+    # space construction — the audit's residual, walled
+    # (roadmap.md, "Grammar surface deferred by the checker").
     from cardlang.openspiel.encoding import ActionSpace
 
     dsl = _game(

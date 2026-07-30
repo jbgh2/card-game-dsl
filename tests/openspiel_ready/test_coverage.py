@@ -1,6 +1,6 @@
-"""Completeness guard for the per-game split: the old single-file harness
-parametrized its proofs over the adapter's registry, so a newly registered
-game was covered automatically. With one module per game, that guarantee
+"""Completeness guard for the per-game split: a single-file harness that
+parametrized its proofs over the adapter's registry would cover a newly
+registered game automatically. With one module per game, that guarantee
 must be enforced instead: every registered game has a proof module whose
 `TestReadiness` runs the shared proofs against the right spec, and no proof
 module targets an unregistered game."""
@@ -32,7 +32,12 @@ def test_every_registered_game_has_a_proof_module(short_name: str, filename: str
 
 def test_no_proof_module_without_a_registered_game() -> None:
     here = Path(__file__).resolve().parent
-    modules = {p.stem for p in here.glob("test_*.py")} - {"test_coverage"}
+    # The two package-wide modules, which target the registry itself rather
+    # than any one game: this completeness guard, and the bound-coverage grid.
+    modules = {p.stem for p in here.glob("test_*.py")} - {
+        "test_coverage",
+        "test_conformance_bounds",
+    }
     expected = {_module_for(short) for short, _ in REGISTERED_GAMES}
     assert modules == expected, (
         "proof modules and the adapter registry disagree: "

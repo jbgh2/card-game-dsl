@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from typing import TypeAlias
 
 from cardlang.diagnostics import Span
+from cardlang.types import Flavor
 
 # ---------------------------------------------------------------------------
 # Expressions
@@ -28,8 +29,8 @@ class NameRef:
     """A bare identifier. ``ref_kind`` is filled by the resolver, classifying
     the name as one of: ``local`` (a binder/let), ``state_var``, ``zone``,
     ``enum_value``, ``function``, ``null`` (the absence literal `none`), or a
-    ``pronoun`` (`state`/`action`/`outcome`/`active_rules`). ``None`` until
-    resolved."""
+    ``pronoun`` (``resolve._PRONOUNS`` — the context namespaces, `actor` among
+    them). ``None`` until resolved."""
 
     name: str
     span: Span | None = None
@@ -219,6 +220,43 @@ class CardQuery:
 
 
 @dataclass(frozen=True, slots=True)
+class DomainQuery:
+    """The generic position-domain / collection quantifier register
+    (decisions.md "Boards and cells"), the positional twin of the fixed
+    `Quantifier` forms. Five surface spellings, one node:
+
+    - BARE, over a declared position domain (`source is None`):
+      `any <domain> where <pred>`      (kind "any")
+      `all <domain>s where <pred>`     (kind "all")
+      `number of <domain>s where <pred>` (kind "count")
+      -- `binder` is the singular domain noun, bound per member of the
+      domain's ordered members (`cell` for a board, an integer `positions {}`
+      name like `column`).
+
+    - COLLECTION, over an evaluated collection (`source` present):
+      `any line in <source> where <pred>`  (noun `line`, binds each line)
+      `all cells in <source> where <pred>` (noun `cell`, binds each cell)
+      -- `binder` is the singular noun (`line` / `cell`), fixed at rung 1.
+
+    `spelled` is the noun exactly as written (plural for `all`/`count`),
+    kept only so resolve's plural-mismatch diagnostic can quote it; `binder`
+    is the derived singular (the scoped name and, for bare forms, the domain
+    to enumerate)."""
+
+    kind: str  # "any" | "all" | "count"
+    binder: str  # the singular noun: binder name + (bare) domain to enumerate
+    spelled: str  # the noun as written (for the plural diagnostic)
+    source: Expr | None  # None for bare forms; the iterated collection for `in`
+    pred: Expr
+    span: Span | None = None
+
+
+# The keyword phrase each DomainQuery kind spells in a diagnostic. Owned here
+# beside the node so resolve and typecheck read one table, not two.
+DOMAIN_QUERY_KIND_PHRASE: dict[str, str] = {"any": "any", "all": "all", "count": "number of"}
+
+
+@dataclass(frozen=True, slots=True)
 class Choose:
     """`choose integer in <lo> .. <hi> [up to <ceiling>]` — a decision that
     resolves to a value via the chooser (e.g. a bid). ``domain`` names the
@@ -238,7 +276,7 @@ class Choose:
     span: Span | None = None
 
 
-def simultaneous_body_error(body: "Stmt") -> str | None:
+def simultaneous_body_error(body: Stmt) -> str | None:
     """Why `body` cannot be the body of `each <role> simultaneously:`, or None if it
     can. THE single statement of that requirement.
 
@@ -271,7 +309,7 @@ def simultaneous_body_error(body: "Stmt") -> str | None:
     return None
 
 
-def static_ceiling(choose: "Choose") -> int | None:
+def static_ceiling(choose: Choose) -> int | None:
     """The choose's static upper bound: its declared ``up to N`` ceiling if
     present, else the value of a literal ``hi``. ``None`` when neither yields a
     static integer — a choose the resolver rejects (surface totality) and that
@@ -318,6 +356,7 @@ Expr = (
     | Choose
     | PlayerQuery
     | CardQuery
+    | DomainQuery
 )
 
 
@@ -470,17 +509,17 @@ class AssignStmt:
     `target` is a `NameRef`, not a bare string, and that is load-bearing. A name in
     this language can denote a lexical binder, a state variable, a zone, a deck
     value, a pronoun or a function, and `resolve._classify` decides which — by a
-    fixed precedence, binders first. Every READ goes through that. A write target
-    used to be a bare `str`, so it went through NOTHING: it was invisible to name
+    fixed precedence, binders first. Every READ goes through that. Were a write
+    target a bare `str`, it would go through NOTHING: invisible to name
     classification, to validation, and to `substitute`.
 
-    Three defects followed, and all three dissolve once the target is an ordinary
-    name. A typo (`totaly_score := 1`) reached the runtime as a bare `KeyError`,
-    because nothing ever checked the name existed. A binder shadowing a state
-    variable made one name mean two things — a read of `x` found the binder while `x
-    := 1` wrote the state variable, silently. And procedure expansion, which rewrites
-    `NameRef`s, rewrote every read of a parameter and left the write pointing at a
-    global of the same name.
+    Three defects would follow, and all three dissolve once the target is an ordinary
+    name. A typo (`totaly_score := 1`) would reach the runtime, which requires every
+    name it writes to have been declared, because nothing ever checked it existed. A binder shadowing a state
+    variable would make one name mean two things — a read of `x` finding the binder
+    while `x := 1` went to the state variable, silently. And procedure expansion, which
+    rewrites `NameRef`s, would rewrite every read of a parameter and leave the write
+    pointing at a global of the same name.
 
     With a `NameRef` the target is classified like any other name, so "you cannot
     assign to a binder" is one uniform rule instead of three bespoke walls, and
@@ -627,7 +666,7 @@ class Block:
     running total, and the very same program was accepted written inline and rejected
     written as a `run`. That is the one property the construct exists to guarantee."""
 
-    body: tuple["Stmt", ...]
+    body: tuple[Stmt, ...]
     span: Span | None = None
 
 
@@ -702,16 +741,44 @@ class PositionDecl:
     domain `<name> : <lo>..<hi>` (decisions.md "Position domains and
     positional zones"). Members are the inclusive integer range; the name is
     usable as a zone-family index and a move-parameter domain, and nowhere
-    else (resolve walls the rest of the role/type surface)."""
+    else (resolve walls the rest of the role/type surface).
+
+    A `board:` clause mints a NAMED-member domain by setting `members_named`
+    (decisions.md "Boards and cells"): the members are then the given cell
+    names (strings) rather than an integer range, and `lo`/`hi` are unread.
+    Resolve is the only site that constructs the named form (from a validated
+    `board_entry`); the `positions { }` grammar produces the integer form
+    exclusively."""
 
     name: str
     lo: int
     hi: int
+    members_named: tuple[str, ...] | None = None
     span: Span | None = None
 
     @property
-    def members(self) -> tuple[int, ...]:
+    def members(self) -> tuple[int, ...] | tuple[str, ...]:
+        if self.members_named is not None:
+            return self.members_named
         return tuple(range(self.lo, self.hi + 1))
+
+
+@dataclass(frozen=True, slots=True)
+class BoardDecl:
+    """The `board: <family>(<args>)` clause (decisions.md "Boards and cells").
+
+    Records only the selection — the family name and its integer arguments.
+    Resolve validates them against `BOARD_FAMILIES` (via `board_entry`) and
+    mints the `cell` position domain, injecting a named-member `PositionDecl`
+    into `Game.positions`; this node is retained on the resolved `Game` so the
+    runtime can rebuild the `BoardEntry` (`rs.board`) for the cell/line query
+    verbs. Not emitted to the IR: the board's IR representation is its minted
+    `cell` position domain (the members), as `span`/`procedures` are likewise
+    non-serialized."""
+
+    family: str
+    args: tuple[int, ...]
+    span: Span | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -831,12 +898,22 @@ class AppliesWhen:
     span: Span | None = None
 
 
+# The `demands:` clause's two forms, one per `demand_value` grammar
+# alternative. A REGISTRY, not a comment: the enforcement wall is written as
+# the complement of the enforced kind (`kind != DEMAND_KIND_CARDS`), so a third
+# form added here is rejected on arrival rather than silently ignored — and the
+# rule grid derives its axis from this set instead of hand-listing it.
+DEMAND_KIND_CARDS = "cards"
+DEMAND_KIND_ACTIONS = "actions"
+DEMAND_KINDS: frozenset[str] = frozenset({DEMAND_KIND_CARDS, DEMAND_KIND_ACTIONS})
+
+
 @dataclass(frozen=True, slots=True)
 class Demands:
-    """`demands:` — a candidate-card set (kind="cards") or a move predicate
-    (kind="actions", an `actions where …` clause)."""
+    """`demands:` — a candidate-card set (kind=`DEMAND_KIND_CARDS`) or a move
+    predicate (kind=`DEMAND_KIND_ACTIONS`, an `actions where …` clause)."""
 
-    kind: str  # "cards" | "actions"
+    kind: str  # a member of DEMAND_KINDS
     expr: Expr
     span: Span | None = None
 
@@ -1008,13 +1085,76 @@ class Loser:
 
 
 @dataclass(frozen=True, slots=True)
+class UsesDecl:
+    """`uses <library>` — one family-library import. Carries its own span so the
+    requires-contract failure lands on the line the author wrote, not inside the
+    library text they did not write."""
+
+    name: str
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RequireDecl:
+    """One entry of a library's `requires` block: the thing the including game
+    must declare, with the shape the library's bodies read it at. A `StateDecl`
+    minus the default, which the game owns — plus the zone types' `<owner>`
+    argument, because an entry may name a `zones { }` declaration as well as a
+    `state { }` one.
+
+    The two shapes are exclusive and `resolve` enforces it: `type_args` is a
+    zone spelling and `optional` a state one, so an entry carrying both names
+    nothing a game can declare."""
+
+    name: str
+    index: str | None
+    type_name: str
+    type_args: tuple[TypeArg, ...]
+    optional: bool
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Library:
+    """A family library: the definition forms of a game, minus the game. Held
+    only between parse and resolve — `resolve` splices each used library's
+    definitions into the including `Game` and no `Library` survives into the IR,
+    which is what makes imports pure name resolution with no runtime or
+    information-set implication.
+
+    ``state`` and ``requires`` are the two halves of a library's state surface
+    and are not interchangeable. ``state`` is state the library OWNS: it carries
+    defaults, splices into the game's own ``state { }``, and the including game
+    may read it but not write it. ``requires`` is state the library CONTRACTS
+    for: the game declares it, chooses its initial value, and writes it. A name
+    may appear in one or the other, never both (``resolve._check_state_claims``).
+    """
+
+    name: str
+    requires: tuple[RequireDecl, ...] = ()
+    state: StateBlock | None = None
+    rules: tuple[RuleDef, ...] = ()
+    move_types: tuple[MoveTypeDef, ...] = ()
+    types: tuple[TypeDef, ...] = ()
+    defines: tuple[DefineDef, ...] = ()
+    functions: tuple[FunctionDef, ...] = ()
+    procedures: tuple[ProcedureDef, ...] = ()
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Game:
     """A whole game plus the rules defined alongside it."""
 
     name: str
     players: PlayersSpec
+    # The selected component-set name, for both content flavors.
     deck: str
     zones: tuple[ZoneDecl, ...]
+    # Which clause selected `deck` — "card" (`cards:`) or "piece" (`pieces:`),
+    # stamped at parse; resolve walls a cross-flavor name, so post-resolve
+    # `component_set(deck).flavor == content_flavor`.
+    content_flavor: Flavor = "card"
     direction: str | None = None
     ranking: tuple[str, ...] = ()
     # The convention keyword `ranking:` was written with (`"aces high"` etc.,
@@ -1029,7 +1169,14 @@ class Game:
     # Declared position domains (`positions { column : 1..7 }`) — per-game
     # integer index/parameter domains (decisions.md "Position domains and
     # positional zones"). Empty for every game with no positional layout.
+    # Resolve APPENDS the board-minted `cell` domain (a named-member
+    # `PositionDecl`) here, so a post-resolve game's positions are the union of
+    # the declared integer domains and the board's cells.
     positions: tuple[PositionDecl, ...] = ()
+    # The `board:` clause (decisions.md "Boards and cells"), or None. Retained
+    # through resolve for `rs.board`; the minted `cell` domain lives in
+    # `positions`, so this field is not itself emitted to the IR.
+    board: BoardDecl | None = None
     max_length: int | None = None
     state: StateBlock | None = None
     phases: tuple[Phase, ...] = ()
@@ -1047,6 +1194,12 @@ class Game:
     # decision sites a second time, on top of the copies spliced at the call
     # sites, and size the action space wrong.
     procedures: tuple[ProcedureDef, ...] = ()
+    # Emptied by `resolve`, which splices each named library's definitions in:
+    # like `procedures`, a surviving entry downstream would mean the import was
+    # parsed and ignored. Order is source order, and resolution is flat and
+    # two-level (game -> named libraries -> stdlib) with no library-imports-
+    # library — see decisions.md "Family libraries".
+    uses: tuple[UsesDecl, ...] = ()
     span: Span | None = None
 
 
@@ -1057,6 +1210,9 @@ class Game:
 # nothing noticed, because the only consumer was a docstring).
 Node = (
     Game
+    | Library
+    | UsesDecl
+    | RequireDecl
     | PlayersSpec
     | Winner
     | Loser
@@ -1074,6 +1230,7 @@ Node = (
     | StateBlock
     | StateDecl
     | PositionDecl
+    | BoardDecl
     | Phase
     | PhaseQualifier
     | BeforeEach
@@ -1128,4 +1285,31 @@ Node = (
     | Choose
     | PlayerQuery
     | CardQuery
+    | DomainQuery
 )
+
+
+def state_blocks(game: Game) -> list[StateBlock]:
+    """Every state block a game declares: the game-level one and every phase's,
+    nested phases included.
+
+    One walk, because "where can state be declared" is one fact: the typechecker
+    builds its state-variable table from this, and `openspiel/replay` reads a
+    `winner:` target's declaration through it to learn whether the target is
+    keyed by team. A second copy of the walk would drift the day state becomes
+    declarable somewhere new, and the two readers would disagree about what a
+    game declares."""
+    blocks: list[StateBlock] = []
+    if game.state is not None:
+        blocks.append(game.state)
+
+    def rec(phase: Phase) -> None:
+        for item in phase.items:
+            if isinstance(item, StateBlock):
+                blocks.append(item)
+            elif isinstance(item, Phase):
+                rec(item)
+
+    for phase in game.phases:
+        rec(phase)
+    return blocks

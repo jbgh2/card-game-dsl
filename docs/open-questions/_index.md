@@ -16,26 +16,9 @@ folder, and remove the entry from this index. See
 
 ## Tier 1 — High impact, enough data to commit now
 
-- [family-libraries](family-libraries.md) — an import tier between
-  game-local and stdlib (`uses <library>`), so game families share
-  move_types, rules, procedures, and primitives without pasting them per
-  game or promoting them to the stdlib. The definition forms it
-  presupposes all exist, the front end holds a working single instance of
-  each mechanism imports generalize (fragment parsing, library-fallback
-  resolution with a shadowing wall, by-value expansion), and two families
-  supply the data: the poker anchors OpenSpiel guarantees, and the
-  smuggling family whose five sibling rulesets measured the copy-drift and
-  parameterization cost end to end.
-
-- [permissive-any-type](permissive-any-type.md) — `TAny` is the checker's top
-  type and satisfies every constraint, but it doubles as the fallback for a
-  lookup that failed to resolve, so an incompletely-built type environment
-  silently accepts bad code (the repo's worst class). Two PR-review findings in
-  one cycle were this shape. Split it: a non-permissive `TUnresolved` sentinel
-  for the miss sites (loud at the use) plus a small named set of legitimate ⊤
-  uses (`error()`, dynamic stdlib returns, unknown-element collections). Not
-  "delete `TAny`" — full removal needs a divergence type and polymorphic sigs
-  the corpus does not force; the permissiveness is the harm, not the type.
+*None open. The two that sat here are settled: family libraries (the `uses`
+import tier) and the permissive-`TAny` split are both now in
+[decisions.md](../decisions.md).*
 
 ## Tier 2 — High impact, blocked on a data point
 
@@ -120,8 +103,23 @@ or when a game forces the issue.
 - [round-state-in-information-states](round-state-in-information-states.md) —
   active `round` state (`state.x` mid-round) appears in no information state;
   harmless while round state stays derivable from the observation log, but
-  nothing enforces that. Data point: the first round state written from
-  hidden contents.
+  nothing enforces that. Carries a sibling axis on the checker's side: a
+  `state.` read is validated against the UNION of every form's published
+  fields, because a rule is not statically attached to a form, so
+  `state.shed_first` inside a trick phase type-checks (loud at runtime, not
+  silent). Data point: the first round state written from hidden contents.
+- [melding-combination-model](melding-combination-model.md) — melding is a
+  game-local primitive per game (Pinochle's flat tally, Canasta's zone
+  censuses), with the one real category overlap resolved by hand. Should the
+  language own a combination model whose *conflict resolution* is declared?
+  Data point: a third melding game whose categories overlap in a way a
+  hand-picked subtraction does not cover (a Rummy-family scorer).
+- [variant-delta-syntax](variant-delta-syntax.md) — "X is Y but with deltas"
+  is how the literature and designers describe variants; the design supports
+  it implicitly (a variant adds/removes rules and phases) but has no syntax,
+  and `uses` shares material rather than expressing overrides. Data point: the
+  smuggling family (`experiments/green-lane/`), a genuine delta lattice, once
+  the family-library tier is measured against it.
 - [special-cards-declaration](special-cards-declaration.md) — `specials:`
   block and contextual-rank cards (Tichu's Mahjong, Dog, Phoenix, Dragon).
 - [out-of-turn-moves](out-of-turn-moves.md) — `out_of_turn_legal`

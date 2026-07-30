@@ -17,11 +17,11 @@ from typing import Any, Protocol
 
 from cardlang.ast import nodes as n
 from cardlang.domains import DomainSources, enumerate_domain
-from cardlang.runtime import observe, phases, rules
+from cardlang.runtime import observe, phases, reads, rules, sidecar
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, Move
 from cardlang.runtime.values import Player
-
+from cardlang.stdlib.moves import RULE_ENFORCED_MOVE_TYPE
 
 # ---------------------------------------------------------------------------
 # The parameterized decision interpreter
@@ -157,7 +157,9 @@ class TrickForm:
         return None  # turn order ran out: every participant has played
 
     def candidates(self, actor: Player, state: State, ctx: Ctx) -> list[Any]:
-        candidates = rules.legal_cards(actor, "play_to_trick", self.trick_ctx)
+        candidates = rules.legal_cards(
+            actor, RULE_ENFORCED_MOVE_TYPE, self.trick_ctx
+        )
         if not candidates:
             # No implicit pass: a player on turn must have a legal play. An empty
             # set means a rule filtered every card with no `if_impossible` fallback,
@@ -187,8 +189,15 @@ class TrickForm:
         ctx.trace(
             "trick_end", {"early": state["trick_terminated_early"], "trump": self.trump}
         )
+        # The outcome callback (a game-local trick winner, or an engine-core
+        # `highest_*`) reads its plays and rank strengths as arguments, not
+        # through a bundle, so the live `played` list and `rank_index` dict are
+        # frozen here — the direct-call-site analogue of `_coerce_args`.
         outcome = self.outcome_fn(
-            state["played"], state["led_suit"], self.trump, ctx.rs.rank_index
+            reads.deep_freeze(state["played"]),
+            state["led_suit"],
+            self.trump,
+            reads.deep_freeze(ctx.rs.rank_index),
         )
         # every function in the stdlib trick-outcome registry returns a seat
         assert isinstance(outcome, int)
@@ -199,7 +208,7 @@ class TrickForm:
         return outcome
 
 
-def param_domain(p: "n.MoveParam", actor: Player, ctx: Ctx) -> list[Any]:
+def param_domain(p: n.MoveParam, actor: Player, ctx: Ctx) -> list[Any]:
     """One parameter's value-domain for the acting player. `Card` is the actor's
     live hand, in hand order — the state-dependent outlier, handled here ahead of
     the domain table (cardlang/domains.py) rather than as a row in it. Every
@@ -233,11 +242,12 @@ def param_domain(p: "n.MoveParam", actor: Player, ctx: Ctx) -> list[Any]:
             ranks=list(ctx.rs.rank_index),
             players=list(ctx.rs.seating.players),
             positions=ctx.rs.position_domains,
+            directions=ctx.rs.direction_domains,
         ),
     )
 
 
-def _pack(combo: "tuple[Any, ...]") -> Any:
+def _pack(combo: tuple[Any, ...]) -> Any:
     """A candidate's value: None (nullary), the bare value (arity 1), or the
     tuple (arity >= 2). Arity 1 stays bare so existing vocab keys are unchanged."""
     if not combo:
@@ -245,7 +255,7 @@ def _pack(combo: "tuple[Any, ...]") -> Any:
     return combo[0] if len(combo) == 1 else combo
 
 
-def bind_params(ctx: Ctx, params: "tuple[n.MoveParam, ...]", value: Any) -> Ctx:
+def bind_params(ctx: Ctx, params: tuple[n.MoveParam, ...], value: Any) -> Ctx:
     """Bind a candidate's value(s) as locals for the guard/effect that reads
     them. Arity comes from `params`, never guessed from `value`: a `Suit?`
     domain's `None` (no-trump) is a legitimate arity-1 VALUE, distinct from a
@@ -261,7 +271,7 @@ def bind_params(ctx: Ctx, params: "tuple[n.MoveParam, ...]", value: Any) -> Ctx:
     return ctx
 
 
-def concrete_moves(mt: "n.MoveTypeDef", actor: Player, ctx: Ctx) -> list[tuple[str, Any]]:
+def concrete_moves(mt: n.MoveTypeDef, actor: Player, ctx: Ctx) -> list[tuple[str, Any]]:
     """The guard-filtered candidate list for one move type: the cross-product of
     its parameters' domains, in declaration order, each combo guard-checked with
     all parameters bound. Nullary is the empty-product case (one empty combo).
@@ -432,7 +442,10 @@ class ClimbForm:
     of plays, and a play exposes the cards it moves as a `.cards` tuple — plus,
     optionally, an `ends_trick` marker (Tichu's Dog): a lead so marked ends the
     trick at once, its followers drawing nothing. Players
-    already shed out (Tichu) are skipped with no chooser draw; Big Two ends the
+    already shed out (Tichu) are skipped with no chooser draw — INCLUDING the
+    named leader, who in a continue-after-going-out game may have shed their
+    last card on the play that won them the lead; the lead then falls to the
+    first participant at or after them in turn order. Big Two ends the
     trick the instant a player sheds, so its participants all hold cards throughout.
 
     Like the trick form, the climbing form exposes its state to the surrounding
@@ -459,25 +472,37 @@ class ClimbForm:
         self.leader: Player = evaluate(stmt.leader, ctx)
         self.lead_query = stdlib.climb_lead_function(stmt.combos_fn)
         self.follow_query = stdlib.climb_follow_function(stmt.follows_fn)
+        self.climb_row = stdlib.climb_row(stmt.combos_fn)
         self.hands = ctx.rs.zones.families[stmt.source_zone]
         self.pile = ctx.rs.zones.single(stmt.play_zone)
         self.source_name: str = stmt.source_zone
         self.pile_name: str = stmt.play_zone
-        # The participant ring in seating order from the leader.
+        # The participant ring in seating order from the leader. `from` and
+        # `over` are independent game expressions, so the leader need not be a
+        # participant: in a game where going out does NOT end the hand, the
+        # trick winner can shed their last card on the winning play and still
+        # be the named leader. That is a normal state, not a malformed game —
+        # the ring simply starts at the first participant at or after them,
+        # which is what the trick, auction and `turns` paths already do with
+        # the same clause pair.
         participants = set(evaluate(stmt.participants, ctx))
         self.ring: list[Player] = [
             p for p in ctx.rs.seating.turn_order_from(self.leader) if p in participants
         ]
-        if not self.ring or self.ring[0] != self.leader:
-            # Runtime DATA, not a compiler invariant: `from <leader>` and
-            # `over <participants>` are game expressions, and a game can
-            # compute a leader who is not among the participants (a player
-            # who has already shed out). The construct requires the leader to
-            # lead; tell the author so in the runtime's failure currency.
+        if not self.ring:
+            # Runtime DATA, not a compiler invariant: nobody satisfies `over`,
+            # so there is no one to lead and no one to follow. Report it in
+            # the participants' currency — the leader is not the problem.
             raise RuntimeError(
-                f"round climb: leader {self.leader} is not among the "
-                f"participants — the `from` player must be in `over`"
+                f"round climb: no participant to lead — the `over` set is "
+                f"empty, so the round has no actor (leader was "
+                f"{self.leader}); make `until` cover this state"
             )
+        # Lead from the first surviving seat. Rebinding `leader` (rather than
+        # only the ring) keeps `init`'s `state["last"]` — the lap-completion
+        # sentinel `next_actor` compares against — pointing at a player who is
+        # actually in the ring.
+        self.leader = self.ring[0]
 
     def init(self, state: State, ctx: Ctx) -> State:
         state["current"] = None  # the standing play; None until the leader leads
@@ -516,9 +541,20 @@ class ClimbForm:
             return turn
 
     def candidates(self, actor: Player, state: State, ctx: Ctx) -> list[Any]:
+        # The climb engines are game-local, so they get the same value
+        # bundles every other primitive does rather than the live ctx — and
+        # their hand argument is deep_frozen for the same reason `call()`
+        # freezes collection args: it is `self.hands[actor].cards`, a live
+        # zone list a query could otherwise mutate.
+        facts, gr = sidecar.bind(ctx.rs, ctx.current_player, self.climb_row)
+        hand = reads.deep_freeze(self.hands[actor].cards)
         if state["current"] is None:  # the leader must lead
-            return self.lead_query(self.hands[actor].cards, ctx)
-        return [*self.follow_query(self.hands[actor].cards, state["current"], ctx), "pass"]
+            return self.lead_query(facts, gr, hand)
+        # `state["current"]` is the live standing `Play` in the round
+        # accumulator; freeze it too, or a follow query could object.__setattr__
+        # its key/kind/cards and corrupt the engine's standing play.
+        standing = reads.deep_freeze(state["current"])
+        return [*self.follow_query(facts, gr, hand, standing), "pass"]
 
     def apply(self, actor: Player, choice: Any, state: State, ctx: Ctx) -> State:
         if choice == "pass":

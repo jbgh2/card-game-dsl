@@ -1,0 +1,1 @@
+has_step_boardless.cardlang:23:13: error: `has_step` reads the board, but the game declares no `board:`

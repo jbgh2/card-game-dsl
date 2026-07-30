@@ -132,7 +132,7 @@ def test_unfiltered_movement_is_unaffected() -> None:
 # --- The filter on a round-robin (`as-equally-as-possible to each`) deal. The
 # round-robin path (`_deal_round_robin`) is separate from `_select`, so it must
 # honor the filter too — otherwise a filtered round-robin deal silently deals the
-# whole source (the P2 latent bug Codex flagged). ---
+# whole source. ---
 
 SPADES_3 = Card("3", "spades")
 

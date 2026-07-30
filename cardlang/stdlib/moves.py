@@ -37,3 +37,13 @@ LIBRARY_MOVE_TYPES: frozenset[str] = frozenset(
         # migrated scope, not moves.
     }
 )
+
+# The ONE move type rule enforcement runs for. `rules.legal_cards` has a single
+# caller (the trick form's card decision), which passes this; every other
+# decision site computes its candidates without consulting rules at all. Named
+# here, and read by BOTH the caller and the resolver's reachability wall, so
+# the wall cannot drift from the consumer it describes: widening enforcement to
+# another decision site is one edit here plus the site, and the wall follows.
+# Which sites should eventually enforce rules is
+# docs/open-questions/rule-scope-beyond-trick-play.md.
+RULE_ENFORCED_MOVE_TYPE: str = "play_to_trick"

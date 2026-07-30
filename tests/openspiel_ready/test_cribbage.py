@@ -49,10 +49,10 @@ def test_discard_and_pegging_derive_observations() -> None:
     The crib's contents are never revealed even at the show (only the score
     delta signals it, matching the deleted monolith, which never moved the
     crib either) — a faithful table reveal is deferred fidelity work, not
-    this migration (docs/roadmap.md).
+    this migration.
     """
     path = str(GAMES_DIR / "cribbage.cardlang")
-    game, space = load(path)
+    _game, _space = load(path)
     seed = 5
 
     history: list[int] = []
@@ -98,7 +98,7 @@ def test_discard_and_pegging_derive_observations() -> None:
     assert r.player == 0, "player 0 (the non-dealer) leads pegging"
 
     # The starter cut: identity to all (a genuinely public reveal).
-    for p, log in r.obs_logs.items():
+    for log in r.obs_logs.values():
         starter_cut = next(
             e for e in log if e[0] == "move" and e[1] == "deck" and e[3] == "starter"
         )

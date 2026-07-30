@@ -1,8 +1,8 @@
 """Combination validity of the movement production (decisions.md, "Surface
 totality"): every combination the grammar accepts is either implemented by the
 executor or rejected at check time with a clear message. These pin the
-rejections — each cell here used to parse and then be silently misread (a
-dropped clause, a wrong-layer assert) at runtime.
+rejections — without them each cell here would parse and then be silently
+misread (a dropped clause, a wrong-layer assert) at runtime.
 """
 
 from __future__ import annotations
@@ -90,7 +90,8 @@ def test_rejects_gather_to_each() -> None:
 
 
 # --- deferred surface: the `in <zone>` form, visibility overrides, and
-# resource nouns are rejected until built (roadmap.md) ---
+# resource nouns are rejected until built
+# (roadmap.md, "Grammar surface deferred by the checker") ---
 
 
 def test_rejects_the_in_zone_form() -> None:
