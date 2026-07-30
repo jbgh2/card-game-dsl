@@ -70,7 +70,9 @@ These don't block other work but resolving them improves specific corners
 of the language.
 
 - [move-level-visibility](move-level-visibility.md) — override-replace vs
-  override-merge.
+  override-merge. No longer game-gated: Texas Hold'em is in the corpus carrying
+  the "show one, show all" showdown rule (deliberately unmodelled), and the
+  question file names the two corpus movements the chosen semantics would bind.
 - [rule-scope-beyond-trick-play](rule-scope-beyond-trick-play.md) — rules apply
   only at the trick form's card-decision site; `actions where` demands and
   rules constraining non-trick move types are validated but unenforced. Where

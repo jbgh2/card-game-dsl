@@ -70,6 +70,12 @@ CALL_SIGS: dict[str, Sig] = {
     "bring_in_seat": Sig((), TPlayer()),  # Stud: lowest-door seat (no args; reads upcards)
     "first_to_act_seat": Sig((), TPlayer()),  # Stud: highest-upcards live seat
     "pot_share": Sig((TPlayer(),), TInteger()),  # Stud: showdown chips for a player
+    # Hold'em: the seat-ring skip past busted seats (button/blind resolution) and
+    # the showdown side-pot share. `holdem_next_entrant` reads only `in_hand` and
+    # the seating ring — no card content — which is why it classifies GENERIC
+    # where `holdem_pot_share`, which ranks cards, is deck-only.
+    "holdem_next_entrant": Sig((TPlayer(),), TPlayer()),
+    "holdem_pot_share": Sig((TPlayer(),), TInteger()),
     "bigtwo_first_leader": Sig((), TPlayer()),  # Big Two: the 3♦ holder (leads hand 1)
     "rank_value": Sig((TCard(),), TInteger()),  # a card's rank strength (higher = stronger)
     "card_value": Sig((TCard(),), TInteger()),  # a card's deck-declared card-point value

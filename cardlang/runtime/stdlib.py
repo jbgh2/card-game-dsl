@@ -115,6 +115,14 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.stud import ROW, pot_share
 
             return pot_share(*_bind(ctx, ROW), args[0])
+        case "holdem_next_entrant":
+            from cardlang.runtime.holdem import ROW, holdem_next_entrant
+
+            return holdem_next_entrant(*_bind(ctx, ROW), args[0])
+        case "holdem_pot_share":
+            from cardlang.runtime.holdem import ROW, holdem_pot_share
+
+            return holdem_pot_share(*_bind(ctx, ROW), args[0])
         case "bigtwo_first_leader":
             from cardlang.runtime.bigtwo import ROW, first_leader_seat
 

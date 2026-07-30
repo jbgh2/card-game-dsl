@@ -38,6 +38,33 @@ residual:   Three exclusion categories, each on its own `RenamePlan` field,
                 a nonempty safe set (`test_every_game_renames_something`),
                 so no game is entirely excluded from the property this
                 suite checks.
+
+            A FOURTH residual, on the interaction between (3) and the
+            gather rather than on any one field. `move all cards to <zone>`
+            collects its sources in sorted ZONE-NAME order (decisions.md,
+            the gather paragraph), and this transform renames only the
+            names outside the exclusion sets — so when a game reaches a
+            gather with cards in BOTH an excluded zone and a renamed one,
+            the rename reorders the collection, the deck stacks
+            differently, and the next shuffle diverges. The property fails
+            on a game that is correct: a FALSE POSITIVE, not a missed
+            defect.
+            Hold'em surfaced this empirically (its `board` is
+            primitive-coupled, so it is excluded, and it held the five
+            community cards at the hand-end gather while `burn`/`muck` were
+            renamed; `_mt_` sorts before every real name, so `board` moved
+            from first to last). Hold'em no longer triggers it — it mucks
+            the spent board, as Stud mucks its spent hands, which is the
+            right modelling independently of this suite — and no corpus game
+            triggers it today. The hazard that remains is for a FUTURE game:
+            the failure names a diverging event, not a naming artifact, so
+            the tempting repair is to distort the game until the transform
+            is happy. Read this note first instead. Closing it properly
+            means either renaming the coupled names too (they are excluded
+            because a primitive module spells them, which the
+            `primitives { }` block of design-notes/primitive-sidecars.md
+            would make renamable) or making the gather order independent of
+            spelling.
 """
 
 from __future__ import annotations
