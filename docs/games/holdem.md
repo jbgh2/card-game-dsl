@@ -149,7 +149,9 @@ game Holdem {
       bet_to_match := 5   raises := 1
 
       deal 1 card from deck to burn
-      for each player p: if in_hand[p] { deal 2 cards from deck to hole[p] }
+      // Two passes of one card: the deal goes round the table one at a time.
+      for each player p: if in_hand[p] { deal 1 card from deck to hole[p] }
+      for each player p: if in_hand[p] { deal 1 card from deck to hole[p] }
 
       // Pre-flop, from the big blind's left. The guard is the round's own
       // `until` terminator negated — a plain "two can act" test would deal the

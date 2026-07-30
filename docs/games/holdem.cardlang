@@ -125,9 +125,13 @@ game Holdem {
       // until each player has two cards." Removing this burn shifts every
       // fixed-seed holding, so it is a rules choice rather than a tidy-up.
       deal 1 card from deck to burn
-      for each player p: if in_hand[p] {
-        deal 2 cards from deck to hole[p]
-      }
+      // Two passes of one card, not one pass of two: the cards go round the
+      // table "one at a time" (the same Pagat sentence quoted above), so seat 0
+      // takes the 1st and 4th cards off the deck rather than the 1st and 2nd.
+      // The two orders are equally fair on a shuffled deck but they are not the
+      // same deal, and this one is the rulebook's.
+      for each player p: if in_hand[p] { deal 1 card from deck to hole[p] }
+      for each player p: if in_hand[p] { deal 1 card from deck to hole[p] }
 
       // Pre-flop. Action begins with the first entrant left of the big blind —
       // heads-up that is the button, which is the small blind, so the button
