@@ -71,6 +71,12 @@ game Holdem {
         bet_to_match      : Integer = 0       // the street's standing bet
         raises            : Integer = 0       // aggressive actions so far this street
         raise_cap         : Integer = 4       // one bet plus three raises
+        // Pagat lifts the cap entirely on a street that opens with only two
+        // active players. Not modelled, and measured rather than assumed: at
+        // 100-chip stacks with 5/10 limits the STACKS bind first, so across 8
+        // seeds under a maximally aggressive policy no raise was ever offered
+        // past the fourth aggression. Lifting the cap here would add a branch
+        // nothing can execute.
 
         // The button and the big blind, resolved to seats that actually entered
         // this hand. Public information: which seats hold the blinds is visible

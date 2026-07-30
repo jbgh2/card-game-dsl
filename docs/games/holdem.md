@@ -81,7 +81,12 @@ derived from the visible cards. Both fit `open_street(<size>)` followed by a
 forced post — the pattern Stud's bring-in established — so the library needed no
 change to take a fourth consumer of a new shape.
 
-**Simplifications.** The deal starts at seat 0 rather than left of the button.
+**Simplifications.** The raise cap stays at four aggressions even on a street that
+opens two-handed, where the rules lift it entirely. That one is measured rather than
+waved through: at these stacks (100) and limits (5/10) the stacks bind before the cap
+does, so across eight seeds of maximally aggressive play no raise was ever offered
+past the fourth — lifting the cap would add a branch nothing can reach. The deal
+starts at seat 0 rather than left of the button.
 Hold'em deals clockwise from the dealer's left, and since the button rotates every
 hand, that is a different seat each time; the language has no way to anchor a deal
 to a seat (issue #196), and Seven-Card Stud deals seat-0-first for the same reason.
