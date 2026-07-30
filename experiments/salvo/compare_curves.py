@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import sys
+from typing import Any
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -25,16 +26,23 @@ CANONICAL = [
 ]
 
 
-def label_of(name: str, data: dict) -> str:
-    base = data.get("curve", "full")
+def label_of(name: str, data: dict[str, Any]) -> str:
+    base = str(data.get("curve", "full"))
     hb = data.get("tuning", {}).get("hold_below")
     stem = name.removeprefix("results_triage").removesuffix(".json").strip("_") or "full"
     if "hb" in stem.rsplit("_", 1)[-1]:
         return f"{base} hb={hb:g}"
-    return {"full": "round1", "zc": "zero-centered", "cap": "capacity", "recon": "cap+recon", "base": "base (tuned)"}.get(base, base)
+    names = {
+        "full": "round1",
+        "zc": "zero-centered",
+        "cap": "capacity",
+        "recon": "cap+recon",
+        "base": "base (tuned)",
+    }
+    return names.get(base, base)
 
 
-def fmt_cell(p: dict | None) -> str:
+def fmt_cell(p: dict[str, Any] | None) -> str:
     if p is None:
         return f"{'—':>21}"
     a, b = p["pairing"].split(" vs ")
@@ -46,16 +54,16 @@ def fmt_cell(p: dict | None) -> str:
 
 def main() -> None:
     names = sys.argv[1:] or [n for n in CANONICAL if (HERE / n).exists()]
-    tables: list[tuple[str, dict[str, dict]]] = []
+    tables: list[tuple[str, dict[str, dict[str, Any]]]] = []
     for n in names:
         data = json.loads((HERE / n).read_text())
         tables.append((label_of(n, data), {p["pairing"]: p for p in data["pairings"]}))
 
     all_pairings: list[str] = []
     for _, t in tables:
-        for p in t:
-            if p not in all_pairings:
-                all_pairings.append(p)
+        for key in t:
+            if key not in all_pairings:
+                all_pairings.append(key)
 
     header = f"{'pairing':<28}" + "".join(f" {lab:>21}" for lab, _ in tables)
     print(header)

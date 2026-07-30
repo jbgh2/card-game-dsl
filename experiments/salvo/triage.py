@@ -152,7 +152,7 @@ def sorted_cards(cards: list[Card], ridx: dict[str, int]) -> list[Card]:
 
 
 def random_policy(kind: str, pause: Any, space: Any, ctx: Ctx, lv: Any, ridx: Any, rng: random.Random, tun: dict[str, Any] | None = None) -> int:
-    return rng.choice(sorted(pause.legal))
+    return int(rng.choice(sorted(pause.legal)))
 
 
 def _best_pairs(hand: list[Card], locs: dict[str, Card], lv: Any, ridx: dict[str, int]) -> list[tuple[int, str, Card]]:
@@ -199,7 +199,7 @@ def blind_policy(kind: str, pause: Any, space: Any, ctx: Ctx, lv: Any, ridx: dic
     for c in ranked:
         aid = space.encode(c)
         if aid in pause.legal:
-            return aid
+            return int(aid)
     raise AssertionError("no hand card encodable among legal picks")
 
 
@@ -217,7 +217,7 @@ def _status(pause: Any, me: int, l: str, lv: Any, locs: dict[str, Card], t: dict
     mine += sum(lv(c, target) for c in zone_cards(pause.rs, f"staged_{l}", me))
     theirs = sum(lv(c, target) for c in zone_cards(pause.rs, f"army_{l}", opp))
     theirs += t["opp_staged_est"] * len(zone_cards(pause.rs, f"staged_{l}", opp))
-    return mine - theirs
+    return float(mine - theirs)
 
 
 def _round_no(pause: Any) -> int:
@@ -272,7 +272,7 @@ def sighted_policy(kind: str, pause: Any, space: Any, ctx: Ctx, lv: Any, ridx: d
     for c in ranked:
         aid = space.encode(c)
         if aid in pause.legal:
-            return aid
+            return int(aid)
     raise AssertionError("no hand card encodable among legal picks")
 
 

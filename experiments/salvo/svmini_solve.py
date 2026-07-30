@@ -94,7 +94,7 @@ def census(game: pyspiel.Game, node_cap: int) -> dict[str, int]:
 def expected_value(game: pyspiel.Game, policy: Any) -> float:
     def walk(state: Any, prob: float) -> float:
         if state.is_terminal():
-            return prob * state.returns()[0]
+            return float(prob * state.returns()[0])
         if state.is_chance_node():
             return sum(walk(state.child(a), prob * p) for a, p in state.chance_outcomes())
         ap = policy.action_probabilities(state)
@@ -222,6 +222,9 @@ def scan(n: int) -> None:
     mid = (pool_idx[0] + pool_idx[-1]) / 2
     for seed in range(n):
         r = replay.run(path, seed, ())
+        # The locations are dealt before any decision, so seeding pauses rather
+        # than terminating; a Terminal carries no runtime state to read them from.
+        assert isinstance(r, replay.Pause), "expected a paused world after the deal"
         locs = []
         for l in ("a", "b"):
             zone = r.rs.zones.singles[f"location_{l}"]

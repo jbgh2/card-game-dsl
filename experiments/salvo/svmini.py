@@ -62,7 +62,7 @@ class _State(CardlangState):
 
 
 def register(short_name: str, seeds: Sequence[int]) -> str:
-    replay.run = _run_dispatch  # type: ignore[assignment]
+    replay.run = _run_dispatch
     seeds_t = tuple(seeds)
     path = str(HERE / FILENAME)
     game_ast, space = replay.load(path)
@@ -93,7 +93,8 @@ def register(short_name: str, seeds: Sequence[int]) -> str:
         max_game_length=game_ast.max_length or 60,
     )
 
-    class _Game(pyspiel.Game):
+    # pyspiel ships no stubs, so its `Game` is `Any` (see glcommon.py).
+    class _Game(pyspiel.Game):  # type: ignore[misc]
         def __init__(self, params: Any = None) -> None:
             super().__init__(game_type, game_info, params or dict())
 
