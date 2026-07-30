@@ -3351,7 +3351,87 @@
           "op": "and",
           "left": {
             "kind": "binop",
+            "op": "and",
+            "left": {
+              "kind": "binop",
+              "op": ">",
+              "left": {
+                "kind": "name",
+                "name": "bet_to_match",
+                "ref": "state_var"
+              },
+              "right": {
+                "kind": "subscript",
+                "obj": {
+                  "kind": "name",
+                  "name": "bet_by",
+                  "ref": "state_var"
+                },
+                "index": {
+                  "kind": "name",
+                  "name": "actor",
+                  "ref": "pronoun"
+                }
+              }
+            },
+            "right": {
+              "kind": "binop",
+              "op": "<",
+              "left": {
+                "kind": "name",
+                "name": "raises",
+                "ref": "state_var"
+              },
+              "right": {
+                "kind": "name",
+                "name": "raise_cap",
+                "ref": "state_var"
+              }
+            }
+          },
+          "right": {
+            "kind": "binop",
             "op": ">",
+            "left": {
+              "kind": "player_query",
+              "query": "count",
+              "pred": {
+                "kind": "call",
+                "func": "can_act",
+                "args": [
+                  {
+                    "kind": "name",
+                    "name": "player",
+                    "ref": "local"
+                  }
+                ]
+              }
+            },
+            "right": {
+              "kind": "int",
+              "value": 1
+            }
+          }
+        },
+        "right": {
+          "kind": "binop",
+          "op": ">",
+          "left": {
+            "kind": "subscript",
+            "obj": {
+              "kind": "name",
+              "name": "stack",
+              "ref": "state_var"
+            },
+            "index": {
+              "kind": "name",
+              "name": "actor",
+              "ref": "pronoun"
+            }
+          },
+          "right": {
+            "kind": "binop",
+            "op": "-",
             "left": {
               "kind": "name",
               "name": "bet_to_match",
@@ -3370,43 +3450,6 @@
                 "ref": "pronoun"
               }
             }
-          },
-          "right": {
-            "kind": "binop",
-            "op": "<",
-            "left": {
-              "kind": "name",
-              "name": "raises",
-              "ref": "state_var"
-            },
-            "right": {
-              "kind": "name",
-              "name": "raise_cap",
-              "ref": "state_var"
-            }
-          }
-        },
-        "right": {
-          "kind": "binop",
-          "op": ">",
-          "left": {
-            "kind": "player_query",
-            "query": "count",
-            "pred": {
-              "kind": "call",
-              "func": "can_act",
-              "args": [
-                {
-                  "kind": "name",
-                  "name": "player",
-                  "ref": "local"
-                }
-              ]
-            }
-          },
-          "right": {
-            "kind": "int",
-            "value": 1
           }
         }
       },

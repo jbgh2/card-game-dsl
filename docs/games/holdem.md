@@ -70,9 +70,11 @@ ring predicates — from the family library shared with Kuhn, Leduc and Stud
 [decisions.md](../decisions.md) "Family libraries"). Hold'em's own contribution
 is `fold`, which mucks the folder's hole cards unseen — as in Kuhn and Leduc, and
 unlike Stud, whose fold mucks upcards opponents were already watching — and the
-`raise_cap` of 4 it declares as required state, where Stud declares 3 and Leduc
-2. `raise_cap` counts aggressive actions *including* the opening bet, so 4 is
-Pagat's "one bet plus three raises".
+`raise_cap` it declares as required state, where Stud declares 3 and Leduc 2.
+`raise_cap` counts aggressive actions *including* the opening bet, so 4 is Pagat's
+"one bet plus three raises" — and Hold'em sets it **per street** rather than once,
+because Pagat caps a street only when it opens with more than two active players
+and lifts the cap entirely on one that opens two-handed.
 
 Hold'em is the family library's first consumer whose street shape **differs**
 from Stud's. Stud opens every street with no standing bet; Hold'em opens pre-flop
@@ -81,12 +83,12 @@ derived from the visible cards. Both fit `open_street(<size>)` followed by a
 forced post — the pattern Stud's bring-in established — so the library needed no
 change to take a fourth consumer of a new shape.
 
-**Simplifications.** The raise cap stays at four aggressions even on a street that
-opens two-handed, where the rules lift it entirely. That one is measured rather than
-waved through: at these stacks (100) and limits (5/10) the stacks bind before the cap
-does, so across eight seeds of maximally aggressive play no raise was ever offered
-past the fourth — lifting the cap would add a branch nothing can reach. The deal
-starts at seat 0 rather than left of the button.
+**Simplifications.** After a bet or raise, the next player asked is the earliest
+owing seat from the street's opener rather than the player clockwise of the
+aggressor, so on a re-opened street the seats are asked in the wrong order. That
+is the kernel's `order priority` and it affects every poker game in the corpus
+(issue #198); it changes what a player has seen when they choose, and nothing but
+the information states can see it. The deal starts at seat 0 rather than left of the button.
 Hold'em deals clockwise from the dealer's left, and since the button rotates every
 hand, that is a different seat each time; the language has no way to anchor a deal
 to a seat (issue #196), and Seven-Card Stud deals seat-0-first for the same reason.
@@ -134,7 +136,7 @@ game Holdem {
         in_hand[player] : Boolean = false   committed[player] : Integer = 0
         folded[player]  : Boolean = false   bet_by[player]    : Integer = 0
         bet_to_match : Integer = 0          raises : Integer = 0
-        raise_cap : Integer = 4            // one bet plus three raises
+        raise_cap : Integer = 4            // set per street, below
         button : Player = 0                 big_blind : Player = 0
       }
 
@@ -156,6 +158,9 @@ game Holdem {
       // The blinds post AFTER the street is opened, so opening does not clear
       // them; the big blind stands as the street's opening bet.
       run open_street(5)
+      // Four aggressions when the street opens with more than two active
+      // players; opening two-handed, Pagat lifts the cap entirely.
+      raise_cap := if (number of players where can_act(player)) > 2 then 4 else 99
       // ... post 2 from small_blind and 5 from big_blind (partial when short) ...
       bet_to_match := 5   raises := 1
 

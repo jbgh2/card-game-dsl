@@ -355,6 +355,48 @@ def test_no_raise_is_offered_when_no_opponent_can_act() -> None:
     )
 
 
+def test_no_raise_is_offered_to_a_stack_that_cannot_exceed_the_call() -> None:
+    """A raise must be able to RAISE. A stack that cannot cover more than the
+    call pays what it has and leaves `bet_to_match` where it was — so offering
+    `raise` there bumps `raises` and clears everyone's `acted`, reopening action
+    nobody reopened. A short all-in is a call.
+
+    Sibling of `test_no_raise_is_offered_when_no_opponent_can_act`: same guard,
+    same invisibility. The chips are right either way, so only the action space
+    and the reopened betting show it.
+
+    red under: dropping `and stack[actor] > bet_to_match - bet_by[actor]` from
+    `poker_betting`'s `raise` guard — verified by hand, which took this count
+    from 0 to 41, then reverted.
+    """
+    # Driven like its sibling, but inline rather than through `_drive_random`:
+    # this check is per-ACTOR (`stack`/`bet_by` are read at the acting seat), and
+    # the chooser's `player` argument is the only place that seat is available.
+    offered = 0
+    game = check_source(HOLDEM)
+    for seed in range(15):
+        box: list[Any] = []
+        rng = random.Random(1000 + seed)
+
+        def on_first_decision(rs: Any) -> None:
+            box.append(rs)  # noqa: B023
+
+        def chooser(player: int, candidates: list[Any], k: int) -> list[Any]:
+            nonlocal offered
+            if box:  # noqa: B023
+                rs = box[0]  # noqa: B023
+                owed = rs.get("bet_to_match") - rs.get("bet_by")[player]
+                if any(c[0] == "raise" for c in candidates) and rs.get("stack")[player] <= owed:
+                    offered += 1
+            return [rng.choice(candidates)] if k == 1 else list(candidates[:k])  # noqa: B023
+
+        play_game(game, random.Random(seed), None, chooser, None, on_first_decision)
+
+    assert offered == 0, (
+        f"{offered} decisions offered a raise to a stack that cannot exceed the call"
+    )
+
+
 def test_a_street_opening_two_handed_lifts_the_raise_cap() -> None:
     """Pagat caps a street at one bet plus three raises only when it opens with
     MORE than two active players; opening two-handed there is no cap.
