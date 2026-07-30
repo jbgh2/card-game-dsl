@@ -126,10 +126,16 @@ game Holdem {
       // fixed-seed holding, so it is a rules choice rather than a tidy-up.
       deal 1 card from deck to burn
       // Two passes of one card, not one pass of two: the cards go round the
-      // table "one at a time" (the same Pagat sentence quoted above), so seat 0
-      // takes the 1st and 4th cards off the deck rather than the 1st and 2nd.
-      // The two orders are equally fair on a shuffled deck but they are not the
-      // same deal, and this one is the rulebook's.
+      // table "one at a time" (the same Pagat sentence quoted above). The two
+      // orders are equally fair on a shuffled deck but they are not the same
+      // deal, and this one is the rulebook's.
+      //
+      // Each pass still starts at SEAT 0, where the rules start it left of the
+      // button. That half is not expressible: `for each player` walks the seat
+      // domain in registry order and no movement form takes a starting seat, so
+      // the `round`'s `from <seat>` has no counterpart here. Issue #196; Stud
+      // deals seat-0-first for the same reason. Distributionally identical on a
+      // shuffled deck, so nothing but the rulebook can tell.
       for each player p: if in_hand[p] { deal 1 card from deck to hole[p] }
       for each player p: if in_hand[p] { deal 1 card from deck to hole[p] }
 

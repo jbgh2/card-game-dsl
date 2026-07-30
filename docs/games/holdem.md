@@ -81,7 +81,13 @@ derived from the visible cards. Both fit `open_street(<size>)` followed by a
 forced post — the pattern Stud's bring-in established — so the library needed no
 change to take a fourth consumer of a new shape.
 
-**Simplifications.** No-limit and pot-limit betting are out (fixed limit only —
+**Simplifications.** The deal starts at seat 0 rather than left of the button.
+Hold'em deals clockwise from the dealer's left, and since the button rotates every
+hand, that is a different seat each time; the language has no way to anchor a deal
+to a seat (issue #196), and Seven-Card Stud deals seat-0-first for the same reason.
+On a shuffled deck the two deals are distributionally identical, so this changes
+which cards a fixed seed produces and nothing else. No-limit and pot-limit betting
+are out (fixed limit only —
 that is a parameterization of the betting round, not a structural change). The
 "show one, show all" showdown rule is not modelled: every contender's hole cards
 are revealed at a contested showdown. That rule is a per-observer move-level
