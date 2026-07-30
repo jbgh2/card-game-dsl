@@ -46,9 +46,12 @@ game Hearts {
     }
 
     phase passing when pass_direction is not hold {
-      active_rules: [PassExactlyThreeCards]
       legal_moves:  [transfer_between_hands]
 
+      // Exactly three cards, and the movement below is what binds that: the
+      // `chosen 3` count IS the law. A `rule` cannot state it — rules are
+      // consulted only at the trick round's card decision, never here
+      // (open-questions/rule-scope-beyond-trick-play.md).
       each player simultaneously:
         transfer chosen 3 cards
           from hand[player]
@@ -129,11 +132,6 @@ rule NoPenaltyCardsOnFirstTrick {
   applies_when: always   // already scoped to the first_trick sub-phase
   demands: cards in hand where card.suit is not hearts and card is not Q of spades
   if_impossible: hand   // only penalty cards in hand: play one
-}
-
-rule PassExactlyThreeCards {
-  constrains: transfer_between_hands
-  demands: actions where action.card_count is 3
 }
 
 // MustFollowSuit and NoLeadingSuitUntilBroken(hearts) are standard-library

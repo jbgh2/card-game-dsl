@@ -15,8 +15,8 @@ from typing import Any
 
 import pytest
 
-from experiments.llm_eval import layout
-from experiments.llm_eval.run_eval import main
+from .. import layout
+from ..run_eval import main
 
 pytest.importorskip("pyspiel", reason="the OpenSpiel adapter needs the `openspiel` extra")
 
@@ -160,7 +160,7 @@ def test_resume_into_the_original_run_directory_works(tmp_path: Path) -> None:
     first = _config_file(tmp_path, n=1)
     assert main(["--config", str(first), "--run-dir", str(target)]) == 0
 
-    from experiments.llm_eval.metrics import iter_jsonl
+    from ..metrics import iter_jsonl
 
     resumed = _config_file(tmp_path, n=2, resume_from=1)
     assert main(["--config", str(resumed), "--run-dir", str(target)]) == 0
@@ -174,13 +174,13 @@ def test_resume_into_the_original_run_directory_works(tmp_path: Path) -> None:
 def test_resolve_dir_defaults_to_the_curated_archive() -> None:
     """The documented audit command must keep covering the PUBLISHED evidence,
     not whichever run finished last."""
-    from experiments.llm_eval.verify import DEFAULT_RESULTS, resolve_dir
+    from ..verify import DEFAULT_RESULTS, resolve_dir
 
     assert resolve_dir(None, None) == DEFAULT_RESULTS / layout.ARCHIVE
 
 
 def test_resolve_dir_honours_an_explicit_directory() -> None:
-    from experiments.llm_eval.verify import resolve_dir
+    from ..verify import resolve_dir
 
     assert resolve_dir("/tmp/somewhere", None) == Path("/tmp/somewhere")
 
@@ -188,14 +188,14 @@ def test_resolve_dir_honours_an_explicit_directory() -> None:
 def test_resolve_dir_refuses_both_at_once() -> None:
     """Not a precedence question: honouring one silently would report a
     different body of data under a heading naming what was asked for."""
-    from experiments.llm_eval.verify import resolve_dir
+    from ..verify import resolve_dir
 
     with pytest.raises(SystemExit, match="not both"):
         resolve_dir("/tmp/x", "latest")
 
 
 def test_resolve_dir_names_the_available_runs_when_one_is_missing() -> None:
-    from experiments.llm_eval.verify import resolve_dir
+    from ..verify import resolve_dir
 
     with pytest.raises(SystemExit, match="no run named 'nope'"):
         resolve_dir(None, "nope")
@@ -209,7 +209,7 @@ def test_study_summary_covers_every_archived_matchup(tmp_path: Path) -> None:
     claims to summarize. The old top-level summary was a side effect of whichever
     invocation ran last, which after a partial 2-game run said the whole study
     was two games."""
-    from experiments.llm_eval.study import study_summary
+    from ..study import study_summary
 
     archive = tmp_path / layout.ARCHIVE
     archive.mkdir(parents=True)
@@ -229,7 +229,7 @@ def test_study_summary_covers_every_archived_matchup(tmp_path: Path) -> None:
 def test_study_summary_refuses_an_empty_archive(tmp_path: Path) -> None:
     """Writing an empty summary would report a study with no data as a study
     that measured nothing, which reads the same as a clean result."""
-    from experiments.llm_eval.study import study_summary
+    from ..study import study_summary
 
     archive = tmp_path / layout.ARCHIVE
     archive.mkdir(parents=True)
@@ -240,7 +240,7 @@ def test_study_summary_refuses_an_empty_archive(tmp_path: Path) -> None:
 def test_study_summary_ignores_a_run_summary(tmp_path: Path) -> None:
     """A run directory sitting beside the archive must not leak into the study
     summary — the two tiers answer different questions."""
-    from experiments.llm_eval.study import study_summary
+    from ..study import study_summary
 
     archive = tmp_path / layout.ARCHIVE
     archive.mkdir(parents=True)
@@ -363,7 +363,7 @@ def test_resume_accepts_an_unchanged_treatment(tmp_path: Path) -> None:
     spec["matchups"][0]["resume_from"] = 1
     path.write_text(yaml.safe_dump(spec), encoding="utf-8")
     assert main(["--config", str(path), "--run-dir", str(target)]) == 0
-    from experiments.llm_eval.metrics import iter_jsonl
+    from ..metrics import iter_jsonl
 
     records = list(iter_jsonl(str(target / "transcripts" / "offline.jsonl")))
     assert [r["seed"] for r in records] == [0, 1]
@@ -374,7 +374,7 @@ def test_a_treatment_record_is_written_beside_every_transcript(
 ) -> None:
     """Written before the first game, so the record of what produced a transcript
     survives a run that dies on game one."""
-    from experiments.llm_eval.run_eval import read_treatment
+    from ..run_eval import read_treatment
 
     target = tmp_path / "run-a"
     assert main(["--config", str(_config_file(tmp_path, n=1)), "--run-dir", str(target)]) == 0

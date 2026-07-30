@@ -17,11 +17,11 @@ from typing import get_type_hints
 
 import pytest
 
-from experiments.llm_eval import agents as agents_mod
-from experiments.llm_eval import prompts as prompts_mod
-from experiments.llm_eval.agents import DecisionView, LLMAgent
-from experiments.llm_eval.prompts import RULES_RAW, RULES_TEXT, build_prompt
-from experiments.llm_eval.providers import FakeProvider
+from .. import agents as agents_mod
+from .. import prompts as prompts_mod
+from ..agents import DecisionView, LLMAgent
+from ..prompts import RULES_RAW, RULES_TEXT, build_prompt
+from ..providers import FakeProvider
 
 INFO_A = (
     "P1|deck=#0;flipped=[];pile=#0;played=#1;hand[0]=#12;"

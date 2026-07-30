@@ -898,12 +898,22 @@ class AppliesWhen:
     span: Span | None = None
 
 
+# The `demands:` clause's two forms, one per `demand_value` grammar
+# alternative. A REGISTRY, not a comment: the enforcement wall is written as
+# the complement of the enforced kind (`kind != DEMAND_KIND_CARDS`), so a third
+# form added here is rejected on arrival rather than silently ignored — and the
+# rule grid derives its axis from this set instead of hand-listing it.
+DEMAND_KIND_CARDS = "cards"
+DEMAND_KIND_ACTIONS = "actions"
+DEMAND_KINDS: frozenset[str] = frozenset({DEMAND_KIND_CARDS, DEMAND_KIND_ACTIONS})
+
+
 @dataclass(frozen=True, slots=True)
 class Demands:
-    """`demands:` — a candidate-card set (kind="cards") or a move predicate
-    (kind="actions", an `actions where …` clause)."""
+    """`demands:` — a candidate-card set (kind=`DEMAND_KIND_CARDS`) or a move
+    predicate (kind=`DEMAND_KIND_ACTIONS`, an `actions where …` clause)."""
 
-    kind: str  # "cards" | "actions"
+    kind: str  # a member of DEMAND_KINDS
     expr: Expr
     span: Span | None = None
 
@@ -1086,13 +1096,20 @@ class UsesDecl:
 
 @dataclass(frozen=True, slots=True)
 class RequireDecl:
-    """One entry of a library's `requires` block: the state variable the
-    including game must declare, with the type the library's bodies read it at.
-    A `StateDecl` minus the default, which the game owns."""
+    """One entry of a library's `requires` block: the thing the including game
+    must declare, with the shape the library's bodies read it at. A `StateDecl`
+    minus the default, which the game owns — plus the zone types' `<owner>`
+    argument, because an entry may name a `zones { }` declaration as well as a
+    `state { }` one.
+
+    The two shapes are exclusive and `resolve` enforces it: `type_args` is a
+    zone spelling and `optional` a state one, so an entry carrying both names
+    nothing a game can declare."""
 
     name: str
     index: str | None
     type_name: str
+    type_args: tuple[TypeArg, ...]
     optional: bool
     span: Span | None = None
 

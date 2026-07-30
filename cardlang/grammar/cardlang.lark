@@ -32,7 +32,7 @@ library: "library" NAME "{" library_item* "}"
              | function_def
              | procedure_def
 
-// The state the including game must declare, checked at its `uses` line so the
+// What the including game must declare, checked at its `uses` line so the
 // error lands in the game's currency rather than inside spliced library text.
 // Deliberately `state_decl` minus the `= <default>`: a required variable's
 // initial value is the GAME's to choose (Stud's raise cap is 3, Leduc's is 2),
@@ -40,8 +40,17 @@ library: "library" NAME "{" library_item* "}"
 // contracting with it. The library's OWN state carries defaults, and reuses
 // `state_block` unchanged to say so — a provided variable's initial value is
 // the library's precisely because the variable is.
+//
+// An entry names a thing from EITHER of the two blocks a game declares keyed
+// names in, and its type says which: a `state { }` type or a `zones { }` one.
+// That is why the type slot carries both spellings the two blocks use — the
+// `<owner>` argument a zone type takes, and the `?` a state type takes. Neither
+// is legal on the other side, and both crosses are refused at resolve rather
+// than here: the grammar cannot see which registry a NAME came from, and a
+// syntax error would report a shape question as a spelling one.
 requires_block: "requires" "{" require_decl* "}"
-require_decl: NAME [index] ":" type_name
+require_decl: NAME [index] ":" NAME [type_args]     -> require_plain
+            | NAME [index] ":" NAME [type_args] "?" -> require_optional
 
 ?top_item: game
          | rule_def

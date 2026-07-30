@@ -15,6 +15,8 @@
 
 game GreenLaneV1ImpoundMini {
 
+  uses smuggling
+
   players: 2
   direction: clockwise
   max_length: 200
@@ -57,10 +59,12 @@ game GreenLaneV1ImpoundMini {
     repeat until hand[0] is empty and hand[1] is empty {
       merchant := 0
       inspector := 1
-      run smuggle_round()
+      run commit_shipment()
+      run respond()
       merchant := 1
       inspector := 0
-      run smuggle_round()
+      run commit_shipment()
+      run respond()
     }
   }
 
@@ -84,25 +88,12 @@ game GreenLaneV1ImpoundMini {
   winner: highest score
 }
 
-// One smuggling round for the current `merchant` / `inspector` — identical
-// to the baseline's (see ../green-lane.cardlang for the commentary).
-procedure smuggle_round() {
-  if (number of cards in hand[merchant]) is 1 {
-    move one card from hand[merchant] to shipment[merchant]
-  } else {
-    as merchant {
-      move chosen 1 card from hand[merchant] to shipment[merchant]
-    }
-  }
+// The inspector's half of a smuggling round; the commit is the imported
+// `commit_shipment` (docs/libraries/smuggling.cardlang).
+procedure respond() {
   if tokens[inspector] > 0 {
     offer to inspector one of [inspect, wave]
   } else {
-    move all cards from shipment[merchant] to warehouse[merchant]
-  }
-}
-
-move_type wave {
-  effect {
     move all cards from shipment[merchant] to warehouse[merchant]
   }
 }
@@ -111,7 +102,7 @@ move_type wave {
 // the inspector; legal goods are impounded in `cleared` (scoring nobody)
 // and the inspector pays the 5-point fine.
 move_type inspect {
-  when: tokens[actor] > 0   // backstop: the offer site in smuggle_round gates on tokens
+  when: tokens[actor] > 0   // backstop: the offer site in respond() gates on tokens
   effect {
     tokens[actor] -= 1
     reveal one card from shipment[merchant]

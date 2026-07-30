@@ -12,10 +12,16 @@ import pytest
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
 
+# A rule that REACHES a reader, so the tests below fail on the construct each
+# one names rather than on rule reachability. `constrains: transfer_between_hands`
+# with an `actions where` demand — the shape this fixture used to carry — is
+# itself rejected now (tests/test_rule_surface_reachability.py), and would mask
+# the `override` diagnostic this fixture exists to provoke.
 _RULE = """
   rule PassRule {
-    constrains: transfer_between_hands
-    demands: actions where action.card_count is 3
+    constrains: play_to_trick
+    demands: cards in hand where card.suit is hearts
+    if_impossible: hand
   }
 """
 

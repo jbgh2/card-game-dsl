@@ -12,7 +12,15 @@ from collections.abc import Callable
 from typing import Any, assert_never
 
 from cardlang.ast import nodes as n
-from cardlang.domains import SIMULTANEOUS_ROLES, binds_actor, role_members
+from cardlang.domains import (
+    SIMULTANEOUS_ROLES,
+    Role,
+    binds_actor,
+    role_members,
+    role_names,
+    role_of,
+    require_role,
+)
 from cardlang.runtime import mechanics, observe
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import (
@@ -536,8 +544,12 @@ def _for_each(stmt: n.ForEach, ctx: Ctx) -> None:
         for position in ctx.rs.position_domains[stmt.role]:
             execute(stmt.body, ctx.with_local(stmt.binder, position))
         return
-    actor_bound = binds_actor(stmt.role)  # resolve rejects roles outside the registry
-    for member in role_members(stmt.role, ctx):
+    # Past the position arm, the role must be a registry row -- resolve walls
+    # `for each` against the iteration column plus this game's named-member
+    # position domains, and the position half was taken above.
+    role = require_role(stmt.role, "`for each` role")
+    actor_bound = binds_actor(role)
+    for member in role_members(role, ctx):
         body_ctx = ctx.with_local(stmt.binder, member)
         if actor_bound:
             body_ctx = body_ctx.acting_as(member)
@@ -727,11 +739,9 @@ def _each_simultaneous(stmt: n.EachSimultaneous, ctx: Ctx) -> None:
     # to that fact: widening SIMULTANEOUS_ROLES in the domain table without
     # extending this loop must fail here by name, not silently iterate players
     # for some other role.
-    # role-compare-ok: this IS the registry reconciliation — the branch
-    # pins itself against SIMULTANEOUS_ROLES so widening the table fails here.
-    assert SIMULTANEOUS_ROLES == {"player"} and stmt.role == "player", (
+    assert SIMULTANEOUS_ROLES == {Role.PLAYER} and role_of(stmt.role) is Role.PLAYER, (
         f"_each_simultaneous implements the player row only; SIMULTANEOUS_ROLES "
-        f"is {sorted(SIMULTANEOUS_ROLES)} and this block names '{stmt.role}' — "
+        f"is {role_names(SIMULTANEOUS_ROLES)} and this block names '{stmt.role}' — "
         f"extend the executor before widening the registry"
     )
     # Snapshot every player's chosen cards against pre-block hands, then apply.

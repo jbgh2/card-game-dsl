@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from experiments.llm_eval.metrics import aggregate, reconstruct_plays
+from ..metrics import aggregate, reconstruct_plays
 
 
 def _announce(step: int, player: int, rank: str, count: int, truthful: int) -> dict[str, Any]:

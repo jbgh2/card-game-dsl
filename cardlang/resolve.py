@@ -73,7 +73,11 @@ from cardlang.domains import (
     PARAM_DOMAIN_ORDER,
     SIMULTANEOUS_ROLES,
     ZONE_INDEX_ROLES,
+    Role,
     binds_actor,
+    index_phrase,
+    role_names,
+    role_of,
 )
 from cardlang.domains import ITERABLE_ROLES as _ITERATION_ROLES
 from cardlang.domains import PARAM_DOMAINS as _FIXED_DOMAINS
@@ -91,7 +95,7 @@ from cardlang.stdlib.functions import (
     STDLIB_TRICK_OUTCOMES,
     STDLIB_VALUE_NAMES,
 )
-from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
+from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES, RULE_ENFORCED_MOVE_TYPE
 from cardlang.stdlib.rules import library_rules
 from cardlang.stdlib.signatures import CALL_SIGS
 from cardlang.stdlib.values import DIRECTION_VALUES, deck_ranks, deck_suits, enum_values
@@ -124,11 +128,12 @@ _KNOWN_ROLES = ZONE_INDEX_ROLES
 # this, adding a zone-indexable role whose domain can also be empty would slip
 # past those walls silently, which is the drift the domain table exists to end
 # (domains.py, `zone_key_of`).
-# role-compare-ok: this IS the registry reconciliation — the assert exists so a
-# new zone-indexable role fails here by name rather than escaping the walls below.
-assert ZONE_INDEX_ROLES == {"player", "team"}, (
+# This IS the registry reconciliation: the assert exists so a new
+# zone-indexable role fails here BY NAME rather than escaping the walls
+# below, which implement the `team` row only.
+assert ZONE_INDEX_ROLES == {Role.PLAYER, Role.TEAM}, (
     f"resolve's empty-domain walls implement the `team` row only; "
-    f"ZONE_INDEX_ROLES is {sorted(ZONE_INDEX_ROLES)} — decide whether the new "
+    f"ZONE_INDEX_ROLES is {role_names(ZONE_INDEX_ROLES)} — decide whether the new "
     f"role's domain can be empty, and extend those walls, before widening the "
     f"domain table"
 )
@@ -140,7 +145,7 @@ assert ZONE_INDEX_ROLES == {"player", "team"}, (
 # players, then `x[hearts]` key-errors; a team read silently lands on a seat).
 # Derived from the iteration-role column, minus the domain the form actually
 # ranges over.
-_MISLEADING_LET_INDEXES = _ITERATION_ROLES - {"player"}
+_MISLEADING_LET_INDEXES = role_names(_ITERATION_ROLES - {Role.PLAYER})
 
 # The three domain-registry views this module gates on, all derived from the one
 # table in `cardlang.domains` (which also owns typecheck's binder typing and the
@@ -255,6 +260,315 @@ def _written_state_name(node: object) -> str | None:
     return None
 
 
+# ---------------------------------------------------------------------------
+# The reference-slot registry
+# ---------------------------------------------------------------------------
+#
+# Every `str`-typed field of every `n.Node`, classified by what the string IS.
+# Most name-carrying slots hold a `NameRef`, which `_rewrite` classifies and
+# every consumer then reads off `ref_kind`; the slots below hold their name as a
+# plain string instead, so a pass built on `NameRef` is structurally blind to
+# them. That blindness is not a property of the design — it is a property of
+# whichever consumer forgot the slot exists, which is exactly the by-luck hand
+# list this table replaces (issue #138).
+#
+# The table is AUTHORED; only its key set is derived. What a slot MEANS cannot
+# be read off an annotation — `str` is `str` — so the semantic column is written
+# here and the KEY set is pinned against the module's actual fields by
+# `tests/test_reference_slots.py`, which fails when a `str` field is added,
+# renamed, or removed. That split is the whole completeness argument: no slot can
+# exist unclassified, and no classification can name a slot that does not.
+#
+# The seven kinds are exhaustive over the key set, and pairwise disjoint:
+#
+#   declaration — the field IS the binding site of a name in some namespace.
+#   binder      — introduces a lexical binder (`_introduced_binders` owns which
+#                 names are in scope where; this only records that the slot is
+#                 one).
+#   reference   — names something declared elsewhere, as a bare string.
+#   keyword     — a closed grammar vocabulary word, not a name: no namespace can
+#                 supply it and nothing can shadow it.
+#   opaque      — arbitrary author text (a string literal, an echoed spelling).
+#   classified  — a `NameRef`'s own name, owned by `_rewrite`. Distinct from
+#                 `reference`, not a duplicate of it: these are the slots that
+#                 ARE classified, and the reason the rest read as an omission.
+#   metadata    — stamped by a pass; holds no name at all.
+
+# declaration slot -> the namespace the name is declared into.
+_DECLARATION_SLOTS: dict[tuple[type, str], str] = {
+    (n.Game, "name"): "game",
+    (n.Library, "name"): "library",
+    (n.Phase, "name"): "phase",
+    (n.ZoneDecl, "name"): "zone",
+    (n.PositionDecl, "name"): "position",
+    (n.PositionDecl, "members_named"): "position_member",
+    (n.StateDecl, "name"): "state",
+    (n.RequireDecl, "name"): "state",
+    (n.RuleDef, "name"): "rule",
+    (n.MoveTypeDef, "name"): "move_type",
+    (n.FunctionDef, "name"): "function",
+    (n.ProcedureDef, "name"): "procedure",
+    (n.DefineDef, "name"): "define",
+    (n.TypeDef, "name"): "type",
+    (n.StructField, "name"): "field",
+    (n.DerivedField, "name"): "field",
+    (n.MoveParam, "name"): "param",
+    (n.VariantCase, "tag"): "variant_tag",
+    # `let` declares a name and scopes it to the statements after it, so it is
+    # both — filed as the declaration, since that is the half a name registry
+    # asks about. Its INDEX is the binder (`let x[i] = …` binds `i` per player).
+    (n.LetStmt, "name"): "local",
+}
+
+# Slots that introduce a lexical binder. `_introduced_binders` remains the
+# authority on which names a node brings into scope and over which fields; this
+# records only that the slot's string is a binder rather than a reference, which
+# is what a name sweep needs to know to leave it alone.
+_BINDER_SLOTS: frozenset[tuple[type, str]] = frozenset(
+    {
+        (n.Comprehension, "binder"),
+        (n.Quantifier, "binder"),
+        (n.DomainQuery, "binder"),
+        (n.ForEach, "binder"),
+        (n.Turns, "binder"),
+        (n.ProduceArm, "binders"),
+        (n.LetStmt, "index"),
+    }
+)
+
+# reference slot -> the namespace the name is drawn from. THIS is the table the
+# residual in issue #138 is about: every one of these is a name held as a plain
+# string, invisible to any pass built on `NameRef`.
+_REFERENCE_SLOTS: dict[tuple[type, str], str] = {
+    # State, reached without a `NameRef` in sight. `Turns.again` is the reachable
+    # one — a library body may write it — and `Winner.target` is the game-level
+    # twin `resolve`'s own comment has documented since before this table.
+    (n.Turns, "again"): "state",
+    (n.Winner, "target"): "state",
+    # Zones. The `round` form names both of its zones as bare strings.
+    (n.Round, "source_zone"): "zone",
+    (n.Round, "play_zone"): "zone",
+    # Phases.
+    (n.ContinueTo, "target"): "phase",
+    (n.TransitionTo, "target"): "phase",
+    # Types, in every position a type name can be written.
+    (n.StateDecl, "type_name"): "type",
+    (n.RequireDecl, "type_name"): "type",
+    (n.MoveParam, "type_name"): "type",
+    (n.StructField, "type_name"): "type",
+    (n.StructLit, "type_name"): "type",
+    (n.VariantCase, "payload_types"): "type",
+    # Definitions, by kind. The move-type slots split across two namespaces and
+    # the split is load-bearing, not a nicety: a VOCABULARY names move types the
+    # game defines (`_check_vocabulary_moves` against `defined_move_types`),
+    # while `constrains:`, `legal_moves:`, a transition event and a trick/climb
+    # round's move type name the STDLIB registry (`LIBRARY_MOVE_TYPES`). Only
+    # the first pair is a channel an importing game can feed.
+    (n.Offer, "move_types"): "move_type",
+    (n.Round, "move_types"): "move_type",
+    (n.Round, "move_type"): "stdlib_move_type",
+    (n.LegalMoves, "names"): "stdlib_move_type",
+    (n.MoveEvent, "move_type"): "stdlib_move_type",
+    (n.RuleDef, "constrains"): "stdlib_move_type",
+    (n.RuleRef, "name"): "rule",
+    (n.Produces, "define"): "define",
+    (n.RunStmt, "name"): "procedure",
+    (n.Call, "func"): "function",
+    # The stdlib query registries a `round` selects from. A closed stdlib table
+    # in every direction — the same names for a library as for a game — which is
+    # why they are references and yet not a channel a game can feed.
+    (n.Round, "outcome_fn"): "stdlib_query",
+    (n.Round, "early_termination"): "stdlib_query",
+    (n.Round, "combos_fn"): "stdlib_query",
+    (n.Round, "follows_fn"): "stdlib_query",
+    # Deck-derived values, held as strings rather than classified names.
+    (n.CardLiteral, "rank"): "deck_rank",
+    (n.CardLiteral, "suit"): "deck_suit",
+    (n.Game, "ranking"): "deck_rank",
+    (n.Game, "trump"): "deck_suit",
+    (n.Game, "direction"): "enum_value",
+    (n.RotateStmt, "values"): "enum_value",
+    (n.Game, "deck"): "component_set",
+    (n.BoardDecl, "family"): "board_family",
+    (n.UsesDecl, "name"): "library",
+    # Roles and the index domains, drawn from the domain registry
+    # (`cardlang.domains`) plus a game's declared `positions { }`.
+    (n.ForEach, "role"): "role",
+    (n.Quantifier, "role"): "role",
+    (n.EachSimultaneous, "role"): "role",
+    (n.ZoneDecl, "index"): "index_domain",
+    (n.StateDecl, "index"): "index_domain",
+    (n.RequireDecl, "index"): "index_domain",
+    # Zone types and their arguments (`Hand<player>`): the stdlib zone-type
+    # registry, and a role or type name in parameter position.
+    (n.TypeRef, "name"): "zone_type",
+    (n.TypeArg, "name"): "zone_type_arg",
+    # Names owned by a declaration reached elsewhere: a struct's fields belong to
+    # the type its literal names, a named argument's to the callee's parameter
+    # list, a produced tag to the define's variant cases. Each is a reference,
+    # and none is an independent channel — the owning name is a slot above.
+    (n.Member, "field"): "field",
+    (n.FieldInit, "name"): "field",
+    (n.NamedArg, "name"): "param",
+    (n.Produce, "tag"): "variant_tag",
+    (n.ProduceArm, "tag"): "variant_tag",
+    # The item noun a movement moves (`cards`, `coins`): drawn from the game's
+    # CONTENT FLAVOR, which is the component set's, so it is a game-fed slot the
+    # way a suit is. Not swept for a library — see `_LIBRARY_UNSWEPT`.
+    (n.Movement, "item"): "content_kind",
+}
+
+# Closed grammar vocabulary: a word the parser puts there from a fixed set of
+# productions. Not a name, so no namespace supplies it and nothing shadows it.
+_KEYWORD_SLOTS: frozenset[tuple[type, str]] = frozenset(
+    {
+        (n.AssignStmt, "op"),
+        (n.BinOp, "op"),
+        (n.RuleRef, "op"),
+        (n.EpistemicOp, "op"),
+        (n.IsCheck, "kind"),
+        (n.CardQuery, "kind"),
+        (n.PlayerQuery, "kind"),
+        (n.DomainQuery, "kind"),
+        (n.Quantifier, "kind"),
+        (n.PhaseQualifier, "kind"),
+        (n.Demands, "kind"),
+        (n.Comprehension, "agg"),
+        (n.Choose, "domain"),
+        (n.Movement, "verb"),
+        (n.Movement, "mode"),
+        (n.Movement, "amount"),
+        (n.Movement, "distribution"),
+        (n.Round, "order_mode"),
+        (n.Winner, "rank_dir"),
+        (n.Game, "ranking_convention"),
+        # Annotated `Flavor` (a `Literal`), not `str` — which is exactly why it
+        # was the one field the registry's first domain predicate missed. It
+        # holds a string like any other keyword slot: the clause that selected
+        # the component set, stamped at parse.
+        (n.Game, "content_flavor"),
+    }
+)
+
+# Author text that is not a name in any namespace.
+_OPAQUE_SLOTS: frozenset[tuple[type, str]] = frozenset(
+    {
+        (n.StrLit, "value"),
+        # The domain noun exactly as written, kept only so the plural-mismatch
+        # diagnostic can quote it; `binder` is the derived singular that means
+        # something.
+        (n.DomainQuery, "spelled"),
+    }
+)
+
+# The two slots this pass owns itself.
+_CLASSIFIED_SLOTS: frozenset[tuple[type, str]] = frozenset({(n.NameRef, "name")})
+_METADATA_SLOTS: frozenset[tuple[type, str]] = frozenset({(n.NameRef, "ref_kind")})
+
+
+# The registry as one view: slot -> kind. Derived from the seven tables above so
+# a slot can carry exactly one kind, and the pin can ask a single question.
+STRING_SLOT_KINDS: dict[tuple[type, str], str] = {
+    **{slot: "declaration" for slot in _DECLARATION_SLOTS},
+    **{slot: "binder" for slot in _BINDER_SLOTS},
+    **{slot: "reference" for slot in _REFERENCE_SLOTS},
+    **{slot: "keyword" for slot in _KEYWORD_SLOTS},
+    **{slot: "opaque" for slot in _OPAQUE_SLOTS},
+    **{slot: "classified" for slot in _CLASSIFIED_SLOTS},
+    **{slot: "metadata" for slot in _METADATA_SLOTS},
+}
+
+
+def _member_namespace(node: object) -> str | None:
+    """`x.field` reads a field of whatever `x` is, so the namespace depends on
+    the object: `state.foo` names a STATE variable, while every other object's
+    fields belong to the type that object has — a namespace reached through the
+    declaration that named the type, not through this slot."""
+    obj = cast(n.Member, node).obj
+    if isinstance(obj, n.NameRef) and obj.name == "state":
+        return "state"
+    return "field"
+
+
+def _domain_query_namespace(node: object) -> str | None:
+    """A bare `any <domain> where …` names a declared position domain and binds
+    a member of it; the collection form (`all cells in <expr>`) binds a fixed
+    noun and names nothing. Only the bare form is a reference."""
+    return "position" if cast(n.DomainQuery, node).source is None else None
+
+
+@dataclass(frozen=True)
+class _ContextualSlot:
+    """A slot whose namespace depends on the NODE rather than on the field
+    alone. `namespaces` declares every namespace `read` can return, so a
+    consumer sweeping "the slots that can reach X" derives the answer from the
+    table instead of naming these two by hand — the hand-list, one level up."""
+
+    namespaces: frozenset[str]
+    read: Callable[[object], str | None]
+
+
+# One table, because "it depends" is exactly the shape that otherwise becomes a
+# special case inside each consumer — and the second consumer's copy is where
+# the two readings drift. A BINDER slot may appear here: `DomainQuery.binder`
+# always binds, and additionally names a domain in the bare form.
+#
+# A row here SUPERSEDES the slot's static row: `slot_namespace` asks this table
+# first and returns whatever it says. `Member.field` therefore has both, and
+# they agree by construction — the static row records `field`, which is exactly
+# what the contextual read falls through to for every object but the `state`
+# pronoun.
+_CONTEXTUAL_SLOTS: dict[tuple[type, str], _ContextualSlot] = {
+    (n.Member, "field"): _ContextualSlot(frozenset({"state", "field"}), _member_namespace),
+    (n.DomainQuery, "binder"): _ContextualSlot(
+        frozenset({"position"}), _domain_query_namespace
+    ),
+}
+
+
+def _naming_slots_by_type() -> dict[type, tuple[str, ...]]:
+    """The registry inverted: node type -> the fields on it that may name
+    something. Derived from BOTH naming tables, so a row added to either reaches
+    every sweep — which is the point of there being a registry rather than a
+    match statement per consumer."""
+    by_type: dict[type, list[str]] = {}
+    for cls, field_name in (*_REFERENCE_SLOTS, *_CONTEXTUAL_SLOTS):
+        by_type.setdefault(cls, []).append(field_name)
+    return {cls: tuple(dict.fromkeys(names)) for cls, names in by_type.items()}
+
+
+_NAMING_SLOTS_BY_TYPE: dict[type, tuple[str, ...]] = _naming_slots_by_type()
+
+
+def slot_namespace(node: object, field_name: str) -> str | None:
+    """The namespace a slot draws its name from, or None if the slot names
+    nothing (a keyword, a binder, a declaration, opaque text). THE reader of the
+    reference registry — consumers ask this rather than matching node kinds, so
+    a slot added to the registry reaches every sweep at once."""
+    contextual = _CONTEXTUAL_SLOTS.get((type(node), field_name))
+    if contextual is not None:
+        return contextual.read(node)
+    return _REFERENCE_SLOTS.get((type(node), field_name))
+
+
+def slot_strings(node: object, field_name: str) -> tuple[str, ...]:
+    """The strings a slot holds — one for a `str` field, zero for an unset
+    optional, and the whole tuple for a `tuple[str, ...]` field.
+
+    Uniform over the three shapes the annotations take, so a consumer never has
+    to know which shape a slot is. `Movement.amount` is the one slot whose
+    string is optional in a different way (it is `str | Expr`), and it is a
+    keyword, so no reference consumer reaches it."""
+    value = getattr(node, field_name)
+    if value is None:
+        return ()
+    if isinstance(value, str):
+        return (value,)
+    if isinstance(value, tuple):
+        return tuple(v for v in value if isinstance(v, str))
+    return ()
+
+
 @dataclass(frozen=True)
 class _StateClaims:
     """The outcome of resolving who claims which state name across a game and
@@ -315,6 +629,8 @@ def _apply_uses(game: n.Game, bag: DiagnosticBag) -> n.Game:
     skip = claims.contested | frozenset(claims.provided)
     for use, library in libraries:
         _check_library_encapsulation(library, bag)
+        _check_contract_shapes(library, bag)
+        _check_require_indexes(library, bag)
         _check_requires(game, use, library, bag, skip)
 
     # Imported definitions come FIRST, in `uses` order, then the game's own: the
@@ -681,17 +997,205 @@ def _check_provided_readonly(
 
 
 @dataclass(frozen=True)
+class _SlotLeak:
+    """One bare-string reference in a library that names something the library
+    does not have — the slot registry's finding, in the currency the
+    encapsulation wall reports."""
+
+    node: object
+    field: str
+    name: str
+    namespace: str
+
+
+# What a LIBRARY may legally write in a bare-string slot of each namespace. The
+# empty sets are the design, not an omission: a library declares no zones and no
+# phases and names no deck (decisions.md "Family libraries"), so there is no
+# spelling of a zone, a phase or a suit it may write at all.
+#
+# A namespace absent from this table is NOT swept. That is a claim, so it is
+# recorded rather than implied — `_LIBRARY_UNSWEPT` below carries one reason per
+# absence, and `tests/test_family_libraries.py` pins the two together against
+# every reference namespace reachable from a library's own clauses, so a slot
+# whose namespace nobody classified fails a static test instead of quietly
+# joining the blind spot this registry exists to end.
+def is_zone_contract(want: n.RequireDecl) -> bool:
+    """Whether a `requires` entry names a `zones { }` declaration rather than a
+    `state { }` one.
+
+    Read off the type registries, which is a DERIVATION rather than an authored
+    rule only because no name reaches two of them: `KNOWN_TYPE_NAMES` and
+    `LIBRARY_ZONE_TYPES` are disjoint, and the two author-chosen namespaces that
+    could have collided with either — a game's `positions { }` and a library's
+    own `type`s — are refused the zone spellings where they are DECLARED
+    (`_reserved_domain_names`, `_check_zone_type_names_are_not_taken`). Without
+    those walls this function would be picking one meaning of an ambiguous name
+    with nowhere to record the choice."""
+    return want.type_name in LIBRARY_ZONE_TYPES
+
+
+def _library_slot_names(library: n.Library) -> dict[str, frozenset[str]]:
+    provided = library.state.decls if library.state is not None else ()
+    return {
+        "state": frozenset(
+            r.name for r in library.requires if not is_zone_contract(r)
+        )
+        | frozenset(d.name for d in provided),
+        # A contract's type slot may name either registry, so the sweep admits
+        # both — the entry's own leg then refuses the crossed shapes (a `?` on a
+        # zone type, an `<owner>` on a state type), which is a shape question
+        # rather than a spelling one.
+        "type": frozenset(t.name for t in library.types)
+        | KNOWN_TYPE_NAMES
+        | frozenset(LIBRARY_ZONE_TYPES),
+        "move_type": frozenset(m.name for m in library.move_types),
+        "define": frozenset(d.name for d in library.defines),
+        "procedure": frozenset(p.name for p in library.procedures),
+        "function": frozenset(f.name for f in library.functions) | frozenset(STDLIB_CALL_FUNCS),
+        "enum_value": DIRECTION_VALUES,
+        # No longer empty: a library reaches exactly the zones it contracts for,
+        # and nothing else. This is the set every zone-naming slot is swept
+        # against — `Movement.source`/`dest` as ordinary expressions, and
+        # `Round.source_zone`/`play_zone` as bare strings.
+        "zone": frozenset(r.name for r in library.requires if is_zone_contract(r)),
+        # A zone type's `<owner>` argument. A library has no `positions { }` and
+        # cannot declare one, so the roles are all it may name — which is also
+        # why a position-indexed zone family cannot be contracted at all. The
+        # sibling slot, an index, is NOT swept here: `_check_require_indexes`
+        # owns that class and says more than a leak message can.
+        "zone_type_arg": frozenset(role_names(ZONE_INDEX_ROLES)),
+        "phase": frozenset(),
+        "position": frozenset(),
+        "deck_rank": frozenset(),
+        "deck_suit": frozenset(),
+    }
+
+
+# Why each REACHABLE reference namespace is not swept here. Rows exist only for
+# namespaces a library's own text can actually name: an excuse for something
+# unreachable excuses nothing, and a table holding those cannot be pinned in the
+# deleting direction — `test_every_reachable_reference_namespace_is_swept_or_
+# excused` would stay green with the row gone, which makes the row read as a
+# guarantee it never was. (The unreachable namespaces are `rule`, `game`,
+# `library`, `component_set`, `board_family`, `zone_type` and `zone_type_arg`,
+# each because its clause — `active_rules:`, `zones { }`, `cards:`, `board:`,
+# `uses` — is a GAME clause the library grammar has no production for.)
+#
+# Three shapes of reason, and they are not interchangeable. CLOSED: the
+# namespace is the same for a library as for a game, so no importing game can
+# feed it. WALLED ELSEWHERE: the name IS game-fed, and another pass refuses it —
+# the row must then say WHICH pass, because "something catches it" is how a
+# reason becomes untrue without anyone noticing. DESIGNED: nothing checks the
+# name anywhere, by a recorded decision.
+#
+# Every reason below was PROBED, not reasoned. The three that are not simply
+# closed were all wrong on first writing — each said the classified pass refused
+# the case, and each case in fact resolves clean and is refused a stage later.
+_LIBRARY_UNSWEPT: dict[str, str] = {
+    "stdlib_move_type": "closed: `LIBRARY_MOVE_TYPES`, identical for a library and a game",
+    "stdlib_query": "closed: the stdlib round-query registries, identical either side",
+    "index_domain": (
+        "walled elsewhere, and NOT closed — the row's earlier reading claimed the "
+        "namespace was closed because a game may not declare a non-role index "
+        "either. Zone contracts falsified that: a game DOES declare "
+        "position-indexed zone families (Klondike's `tableau_down[column]`), so a "
+        "contract could name a position domain the importing game alone declares. "
+        "`_check_require_indexes` refuses it, in the library's currency, for a "
+        "requirement and for a provided variable alike"
+    ),
+    "role": (
+        "walled elsewhere, and NOT closed — the row's first reading was wrong. The role "
+        "NAMES are the domain registry's, but `suit`/`rank` admissibility follows the "
+        "importing game's component set: `for each suit` is accepted by a card game and "
+        "refused by a piece game. So this is deck-agnosticism escaping through a role, "
+        "the same property `deck_rank`/`deck_suit` are swept for. It is not silent — "
+        "typecheck's flavor wall refuses it in the LIBRARY's currency — but the "
+        "library-alone property is weaker here than the sweep provides (issue #183)"
+    ),
+    "content_kind": (
+        "walled elsewhere: typecheck compares the item noun against the game's content "
+        "flavor and reports in the library's currency. NOT, as this row first claimed, "
+        "because a movement always names a zone the classified pass refuses — that "
+        "premise is now doubly false, since a movement may also name a CONTRACTED "
+        "zone; re-probed with an unknown noun and with a flavor-wrong one, both "
+        "refused in the library's currency (issue #170)"
+    ),
+    "variant_tag": (
+        "walled elsewhere: a `produce` outside a define or outcome-phase body is "
+        "refused outright, and a tag naming no declared variant is refused against the "
+        "variant registry — both in the library's currency (probed via the full "
+        "pipeline; `resolve` alone accepts them, which is what made the first reading "
+        "of this row say the tags were merely `owned` by a swept name)"
+    ),
+    "param": (
+        "walled elsewhere: `NamedArg` is refused outright — named call arguments are "
+        "not supported, so the parameter name never reaches a namespace"
+    ),
+    "field": (
+        "designed: `x.field` on anything but the `state` pronoun is a field of that "
+        "object's type, and the pronoun namespaces' fields are `TAny` by decision "
+        "(decisions.md, the `action` trap) — so there is nothing to check rather than "
+        "something owned elsewhere"
+    ),
+}
+
+
+def _slot_leaks(
+    library: n.Library,
+) -> tuple[tuple[_SlotLeak, ...], frozenset[str], frozenset[str]]:
+    """Every bare-string reference in `library` that names something outside it,
+    and the state names its bare-string slots successfully READ.
+
+    The second half is not a by-product: `state_reads` feeds the contract's
+    MINIMALITY check, and before this sweep existed it accumulated from
+    `NameRef`s alone — so `turns … again <var>` had no correct spelling at all.
+    Naming the variable in `requires` made the entry look dead and the check
+    called the contract non-minimal; leaving it out was the leak. One sweep
+    answers both, which is why they are computed together rather than in two
+    passes that could disagree about what a slot reaches."""
+    legal = _library_slot_names(library)
+    leaks: list[_SlotLeak] = []
+    reads: set[str] = set()
+    zone_reads: set[str] = set()
+    for node in _walk(library):
+        for field_name in _NAMING_SLOTS_BY_TYPE.get(type(node), ()):
+            namespace = slot_namespace(node, field_name)
+            if namespace is None:
+                continue
+            allowed = legal.get(namespace)
+            if allowed is None:
+                continue
+            for name in slot_strings(node, field_name):
+                # A type name carries its nullability with it (`Suit?`), exactly
+                # as `_check_declared_type_names` reads it.
+                bare = name.removesuffix("?") if namespace == "type" else name
+                if bare not in allowed:
+                    leaks.append(_SlotLeak(node, field_name, name, namespace))
+                elif namespace == "state":
+                    reads.add(bare)
+                elif namespace == "zone":
+                    # `Round.source_zone` / `play_zone` name a zone as a bare
+                    # string, so the minimality check needs them for the same
+                    # reason it needs `turns … again <var>`: a contract entry
+                    # reached only through a bare-string slot would look dead.
+                    zone_reads.add(bare)
+    return tuple(leaks), frozenset(reads), frozenset(zone_reads)
+
+
+@dataclass(frozen=True)
 class _LibraryReach:
     """What a library's definitions reach for, classified against the library's
     OWN namespaces — the input to both directions of the `requires` contract:
     nothing may be reached that the contract does not cover (`unresolved`,
-    `unknown_calls`), and nothing may be in the contract that is never reached
-    (`state_reads`, which the tier's ledger test reads)."""
+    `unknown_calls`, `slot_leaks`), and nothing may be in the contract that is
+    never reached (`state_reads`, which the tier's ledger test reads)."""
 
     unresolved: tuple[n.NameRef, ...]
     unknown_calls: tuple[n.Call, ...]
     card_literals: tuple[n.CardLiteral, ...]
+    slot_leaks: tuple[_SlotLeak, ...]
     state_reads: frozenset[str]
+    zone_reads: frozenset[str]
 
 
 def _library_reach(library: n.Library) -> _LibraryReach:
@@ -711,14 +1215,12 @@ def _library_reach(library: n.Library) -> _LibraryReach:
     `_Categories` is frozen with every field required, so a namespace added to
     it is a mypy error here rather than a silently permissive hole.
 
-    What this DOES NOT see: a name held on a node as a plain `str` rather than a
-    `NameRef`. `_rewrite` classifies `NameRef`s, so a bare-string slot is
-    structurally invisible to it, and `n.CardLiteral` above is the one such slot
-    closed by hand. The rest — `Turns.again` (a state variable),
-    `Round.source_zone`/`play_zone` (zones), `StructLit.type_name` and friends
-    (types), `RuleDef.constrains`/`RunStmt.name`/`Produces.define`/
-    `Offer.move_types`/`Round.move_types` (definitions) — are a recorded
-    residual, not a covered case: issue #138."""
+    A name held on a node as a plain `str` is invisible to that classification —
+    `_rewrite` classifies `NameRef`s, and nothing else. Those slots are swept
+    SEPARATELY and from the registry (`_slot_leaks`), never by a hand-list
+    beside it: `card_literals` and `unknown_calls` below are derived from that
+    sweep rather than collected alongside it, because a table that lands next to
+    the list it replaces leaves the drift exactly where it was."""
     provided_state = library.state.decls if library.state is not None else ()
     cats = _Categories(
         locals=frozenset(),
@@ -726,9 +1228,15 @@ def _library_reach(library: n.Library) -> _LibraryReach:
         # what it owns. A definition may reach either — the contract is
         # sufficient for the library's own variables trivially, since it declares
         # them itself.
-        state_vars=frozenset(r.name for r in library.requires)
+        state_vars=frozenset(
+            r.name for r in library.requires if not is_zone_contract(r)
+        )
         | frozenset(d.name for d in provided_state),
-        zones=frozenset(),
+        # The OTHER of the two name sets a library is checked against. It is
+        # computed here and in `_library_slot_names` from different inputs, so a
+        # zone contract fed to one and not the other would leave half the sweep
+        # blind — which is the shape of the defect the slot registry exists for.
+        zones=frozenset(r.name for r in library.requires if is_zone_contract(r)),
         enums=DIRECTION_VALUES,
         functions=STDLIB_VALUE_NAMES,
         ranks=frozenset(),
@@ -756,38 +1264,121 @@ def _library_reach(library: n.Library) -> _LibraryReach:
     # contract into the game exactly as a move-type effect would.
     classified.append(_rewrite_value(provided_state, cats, discarded))
 
-    known_calls = {f.name for f in library.functions} | set(STDLIB_CALL_FUNCS)
     unresolved: list[n.NameRef] = []
-    unknown_calls: list[n.Call] = []
-    card_literals: list[n.CardLiteral] = []
     state_reads: set[str] = set()
+    zone_reads: set[str] = set()
     for node in _child_nodes(tuple(classified)):
         if isinstance(node, n.NameRef):
             if node.ref_kind is None:
                 unresolved.append(node)
             elif node.ref_kind == "state_var":
                 state_reads.add(node.name)
-        elif isinstance(node, n.Call) and node.func not in known_calls:
-            unknown_calls.append(node)
-        elif isinstance(node, n.CardLiteral):
-            # Every one of them: a card literal's rank and suit are plain
-            # strings on the node, never `NameRef`s, so the classification above
-            # cannot see them — and `cats.ranks`/`cats.suits` are empty for a
-            # library anyway, so any card named here is out of contract by
-            # construction. The deck-agnostic rule with no exception to carve.
-            card_literals.append(node)
+            elif node.ref_kind == "zone":
+                zone_reads.add(node.name)
+
+    # The bare-string half, over the WHOLE library rather than the classified
+    # definitions: `requires` has no expression to classify but its type names
+    # are references like any other, so a contract can name a type only the
+    # importing game defines.
+    leaks, slot_reads, slot_zone_reads = _slot_leaks(library)
+    # Two namespaces keep a message of their own, so they are lifted out of the
+    # generic list rather than reported twice: a card literal says why a family
+    # library is deck-agnostic, and an unknown call says a library may not reach
+    # into the game that imports it. Both are now FOUND by the registry — only
+    # their wording is special.
+    cards = tuple(
+        dict.fromkeys(
+            leak.node
+            for leak in leaks
+            if isinstance(leak.node, n.CardLiteral)
+        )
+    )
+    calls = tuple(
+        leak.node for leak in leaks if isinstance(leak.node, n.Call) and leak.namespace == "function"
+    )
+    rest = tuple(leak for leak in leaks if leak.node not in cards and leak.node not in calls)
     return _LibraryReach(
         unresolved=tuple(unresolved),
-        unknown_calls=tuple(unknown_calls),
-        card_literals=tuple(card_literals),
-        state_reads=frozenset(state_reads),
+        unknown_calls=calls,
+        card_literals=cards,
+        slot_leaks=rest,
+        state_reads=frozenset(state_reads) | slot_reads,
+        zone_reads=frozenset(zone_reads) | slot_zone_reads,
     )
 
 
+_NAMESPACE_NOUN: dict[str, str] = {
+    "state": "state variable",
+    "zone": "zone",
+    "phase": "phase",
+    "type": "type",
+    "move_type": "move type",
+    "define": "define",
+    "procedure": "procedure",
+    "position": "position domain",
+    "enum_value": "direction value",
+    "zone_type_arg": "zone owner",
+    "index_domain": "index domain",
+}
+
+# What a library may hold of each namespace, said in the second person, for the
+# advice half of the diagnostic. The three empty namespaces get the design's
+# reason rather than "define one": a library CANNOT declare a zone, a phase or a
+# position domain, so "declare it here" would be advice its author cannot take.
+_NAMESPACE_ADVICE: dict[str, str] = {
+    "state": "name it in the `requires` contract and let the including game declare it",
+    # A library reaches exactly the zones its contract names — the same shape as
+    # state, and for the same reason: the game owns the declaration, the library
+    # names what it needs.
+    "zone": (
+        "name it in the `requires` contract and let the including game declare "
+        "it in `zones { }`"
+    ),
+    "phase": (
+        "a library holds no phases, and the phase sequence is the including game's — "
+        "keep the definition that needs it in the game"
+    ),
+    "type": (
+        "declare the type in the library, or keep this definition in the game "
+        "(a `requires` entry's type is a state type or a stdlib zone type)"
+    ),
+    "move_type": "define the move type in the library, or keep this definition in the game",
+    "define": "define it in the library, or keep this definition in the game",
+    "procedure": "define the procedure in the library, or keep this definition in the game",
+    "position": (
+        "a library declares no position domains — keep the definition that needs it "
+        "in the game"
+    ),
+    # The `<owner>` of a zone contract. A position domain is the game's alone, so
+    # a position-indexed zone family cannot be contracted at all — the advice
+    # says which owners ARE nameable rather than sending the author to declare
+    # something a library has no clause for.
+    "zone_type_arg": (
+        "a zone contract's owner may only be a seat or a team ('player', "
+        "'team') — a position domain is declared by the game and a library "
+        "cannot name one, so keep the definition that needs it in the game"
+    ),
+    # Same reason, one slot over: the index of anything a library declares or
+    # contracts for. A position domain exists only once a game declares it.
+    "index_domain": (
+        "a library indexes by a seat or a team ('player', 'team') — a position "
+        "domain is declared by the game and a library cannot name one, so keep "
+        "the definition that needs it in the game"
+    ),
+    # Likewise: `rotate … through [ … ]` takes a list of literal names, not
+    # expressions, so a parameter can never stand in one of those slots.
+    "enum_value": (
+        "a family library is deck-agnostic, so only the direction values mean anything "
+        "here — and `rotate` takes literal names rather than expressions, so a "
+        "parameter cannot stand in for one: keep the definition that needs it in the game"
+    ),
+}
+
+
 def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None:
-    """Every name a library's definitions reach THROUGH THE CLASSIFIER must be
-    in its `requires` contract, its own definitions, the stdlib, or the pronouns
-    and binders any body has anyway.
+    """Every name a library's definitions reach must be in its `requires`
+    contract, its own definitions, the stdlib, or the pronouns and binders any
+    body has anyway.
 
     This is what makes the contract sufficient rather than advisory for that
     class of reference, and it is a property of the library alone — so it is
@@ -798,10 +1389,11 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
     text the game's author never wrote. That is the exact currency failure
     `_check_requires` exists to prevent, arriving through the back door.
 
-    The class is bounded, and the boundary is not the design's — it is this
-    implementation's: a name held on a node as a plain `str` is invisible here.
-    `_library_reach`'s docstring lists the slots that escape and issue #138
-    records the shape of the fix. Do not read this wall as proving the whole property.
+    The class is bounded by the reference-slot registry rather than by which
+    slots anyone remembered: a name reaching a namespace `_library_slot_names`
+    covers is refused, and every remaining namespace carries its reason in
+    `_LIBRARY_UNSWEPT`. That is the property this wall can be read as proving —
+    it is no longer "everything the classifier happens to see".
 
     Reported in the LIBRARY's currency: the span is in the library file, because
     the library author is the only one who can fix it. The importing game's one
@@ -830,6 +1422,15 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
             f"do not share a deck, and Kuhn's holds three cards. Take the card "
             f"as a parameter, or keep the definition that needs it in the game",
             card.span,
+        )
+    for leak in reach.slot_leaks:
+        bag.error(
+            f"library '{library.name}' names the "
+            f"{_NAMESPACE_NOUN[leak.namespace]} '{leak.name}', which the library "
+            f"does not have — it would resolve against whichever game imports "
+            f"this, so the library is not self-contained: "
+            f"{_NAMESPACE_ADVICE[leak.namespace]}",
+            getattr(leak.node, "span", None),
         )
     # A PROVIDED default reaching the contract is in scope for the general
     # declare-order wall too (`_check_state_default_scope`), which would refuse
@@ -860,6 +1461,217 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                 )
 
 
+def _spelled_contract(want: n.RequireDecl) -> str:
+    """A `requires` entry as its author wrote it, for a diagnostic to quote."""
+    index = f"[{want.index}]" if want.index else ""
+    args = f"<{', '.join(a.name for a in want.type_args)}>" if want.type_args else ""
+    return f"{want.name}{index} : {want.type_name}{args}{'?' if want.optional else ''}"
+
+
+def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
+    """Every `requires` entry names a shape SOME game could declare — checked
+    against the library alone, before any game is consulted.
+
+    Without this the crossed spellings would surface as "your game does not
+    declare it", which is advice no game can take: `x : Hand` names an owned
+    zone type with no owner, and no `zones { }` line the author could write
+    would answer it. A contract that cannot be met is the library author's bug,
+    so it is reported in the library's currency, like every other
+    library-alone property (decisions.md "Family libraries").
+
+    The zone SHAPE rules are `_resolve_zone`'s, which owns that class for the
+    game's own declarations. This is a SECOND implementation of them, not a call
+    into the first, and deliberately: the two report in different currencies (a
+    library's own file, against the library alone; a game's declaration, while
+    resolving it) and run at different times, so sharing a body would mean
+    threading a currency through it. The copy is a backstop naming the wall it
+    shadows (decisions.md "Closed-domain completeness", write-time triage), and
+    the two are pinned EQUAL over the whole registry by
+    `tests/test_family_libraries.py`'s
+    `test_a_contract_shape_is_refused_exactly_when_the_declaration_would_be` —
+    a contract admitting a shape a `zones { }` line refuses would be a contract
+    no game could meet.
+
+    One asymmetry, by exclusion: `_resolve_zone` also refuses a position-indexed
+    family whose type has distinct owner/others projections. A contract cannot
+    be position-indexed at all (`index_domain` is swept to the roles), so the
+    case does not arise here."""
+    for want in library.requires:
+        spelled = _spelled_contract(want)
+        if not is_zone_contract(want):
+            if want.type_args:
+                bag.error(
+                    f"library '{library.name}' requires `{spelled}`, but "
+                    f"'{want.type_name}' is a state type and takes no type "
+                    f"argument — the `<…>` form belongs to zone types",
+                    want.span,
+                )
+            continue
+        if want.optional:
+            bag.error(
+                f"library '{library.name}' requires `{spelled}`, but "
+                f"'{want.type_name}' is a zone type and a zone has no nullable "
+                f"form — drop the `?`",
+                want.span,
+            )
+        takes_owner = LIBRARY_ZONE_TYPES[want.type_name]
+        if takes_owner and len(want.type_args) != 1:
+            bag.error(
+                f"library '{library.name}' requires `{spelled}`, but zone type "
+                f"'{want.type_name}' takes one owner argument, got "
+                f"{len(want.type_args)}",
+                want.span,
+            )
+        elif not takes_owner and want.type_args:
+            bag.error(
+                f"library '{library.name}' requires `{spelled}`, but zone type "
+                f"'{want.type_name}' takes no type arguments",
+                want.span,
+            )
+        for arg in want.type_args:
+            if want.index is None:
+                bag.error(
+                    f"library '{library.name}' requires `{spelled}`, an owned "
+                    f"zone type with no index — the runtime keys a zone family "
+                    f"by its index, so the owner would be silently ignored; "
+                    f"write `{want.name}[{arg.name}] : {want.type_name}"
+                    f"<{arg.name}>`",
+                    want.span,
+                )
+            elif arg.name != want.index:
+                bag.error(
+                    f"library '{library.name}' requires `{spelled}`, whose "
+                    f"owner argument names a different domain than its index — "
+                    f"write `{want.type_name}<{want.index}>`",
+                    want.span,
+                )
+
+
+def _check_zone_requirement(
+    game: n.Game,
+    use: n.UsesDecl,
+    library: n.Library,
+    want: n.RequireDecl,
+    zoned: dict[str, list[n.ZoneDecl]],
+    bag: DiagnosticBag,
+) -> None:
+    """The zone leg of the contract: the game declares this zone, in its
+    `zones { }` block, at the library's index and type.
+
+    The same "exactly one declaration" rule as the state leg, and for a weaker
+    reason: `zones { }` is a game-level block with no phase-local form, so a
+    second declaration is already a duplicate (`_check_duplicate_names`). The
+    count is still checked here so the contract's guarantee does not depend on
+    another wall's coverage.
+
+    Reported on the game's `uses` line, in the game's currency — the shape
+    questions the LIBRARY could get wrong are `_check_contract_shapes`', and
+    ran before any game was consulted."""
+    spelled = _spelled_contract(want)
+    found = zoned.get(want.name, [])
+    if not found:
+        # The near-miss worth naming: a game that declared the name as STATE has
+        # not simply forgotten it, and telling it to add a zone without saying
+        # why would read as the checker missing the declaration in front of it.
+        as_state = any(
+            decl.name == want.name
+            for node in _walk(game)
+            if isinstance(node, n.StateBlock)
+            for decl in node.decls
+        )
+        if as_state:
+            bag.error(
+                f"library '{library.name}' requires zone `{spelled}`, which "
+                f"game '{game.name}' declares as state — '{want.type_name}' is "
+                f"a zone type, so the declaration belongs in `zones {{ }}`",
+                use.span,
+            )
+        else:
+            bag.error(
+                f"library '{library.name}' requires zone `{spelled}`, which "
+                f"game '{game.name}' does not declare — add it to the game's "
+                f"`zones {{ }}` block",
+                use.span,
+            )
+        return
+    if len(found) > 1:
+        bag.error(
+            f"library '{library.name}' requires zone `{spelled}`, which game "
+            f"'{game.name}' declares {len(found)} times — a requirement must "
+            f"name ONE declaration",
+            use.span,
+        )
+        return
+    have = found[0]
+    if have.index != want.index:
+        shown_index = f"'{have.index}'" if have.index else "nothing"
+        bag.error(
+            f"library '{library.name}' requires zone `{spelled}`, but game "
+            f"'{game.name}' declares it indexed by {shown_index}",
+            use.span,
+        )
+    wanted_args = tuple(a.name for a in want.type_args)
+    have_args = tuple(a.name for a in have.type_ref.args)
+    if (have.type_ref.name, have_args) != (want.type_name, wanted_args):
+        shown = have.type_ref.name + (
+            f"<{', '.join(have_args)}>" if have_args else ""
+        )
+        bag.error(
+            f"library '{library.name}' requires zone `{spelled}`, but game "
+            f"'{game.name}' declares it as `{shown}` — a zone type fixes the "
+            f"per-observer projection, so the contract names the type the "
+            f"library's definitions were written against",
+            use.span,
+        )
+
+
+def _check_require_indexes(library: n.Library, bag: DiagnosticBag) -> None:
+    """The index of any state a library WRITES — required or provided — must be a
+    role a state variable can be indexed by.
+
+    Provided state is here for the same reason a requirement is, and the class is
+    "a declaration a library authored", not "a requirement": a provided
+    `flag[hearts]` splices into the game and is refused post-splice at a span in
+    the library's file, which reads as the library being blamed by a pass that
+    never saw it. Caught here instead, before any game is consulted.
+
+    Reported in the LIBRARY's currency, unlike every other `requires` failure,
+    and the difference is who can fix it: an unmet contract is a fact about the
+    importing GAME (it did not declare what the library asked for), while an
+    index naming no indexable role is wrong in the library's own text, and no
+    game can answer it.
+
+    Without this the name was never checked at all. `requires { q[hearts] :
+    Integer }` reached `_check_requires`, which compares the requirement's
+    index against the declaration's and reports a SHAPE mismatch — so the
+    library's typo was echoed back as though `hearts` were a role the game had
+    failed to use, in a sentence whose two halves both read "per-player". The
+    game side of the same class was walled (a `state { x[hearts] }` is
+    refused); this is its library twin.
+
+    Does NOT honour `_check_requires`'s `skip` set, deliberately. `skip`
+    suppresses a SECOND report of one defect — a name already ruled on as
+    provided or contested would otherwise also be reported as undeclared,
+    advice pointing away from the real mistake. A malformed index is an
+    independent defect in a different file: the collision is the game's to
+    resolve, the index is the library's, and silencing one because of the
+    other would leave the library author with nothing to act on."""
+    provided = library.state.decls if library.state is not None else ()
+    for decl, verb in [(w, "requires") for w in library.requires] + [
+        (d, "provides") for d in provided
+    ]:
+        if decl.index is None or role_of(decl.index) in ZONE_INDEX_ROLES:
+            continue
+        roles = ", ".join(role_names(ZONE_INDEX_ROLES))
+        bag.error(
+            f"library '{library.name}' {verb} state '{decl.name}' indexed by "
+            f"'{decl.index}', which is not an indexable role ({roles}) — a "
+            f"library indexes by a seat or a team, and a game may not declare "
+            f"that index either",
+            decl.span,
+        )
+
+
 def _check_requires(
     game: n.Game,
     use: n.UsesDecl,
@@ -867,7 +1679,10 @@ def _check_requires(
     bag: DiagnosticBag,
     skip: frozenset[str] = frozenset(),
 ) -> None:
-    """Check a library's `requires` contract against the game's declared state.
+    """Check a library's `requires` contract against the game's declarations.
+
+    An entry names state or a zone, and its type says which (`is_zone_contract`).
+    The zone leg is `_check_zone_requirement`; what follows is the state one.
 
     `skip` names the state `_check_state_claims` has already ruled on — provided
     names and contested ones. Without it a name claimed both ways would fail
@@ -882,8 +1697,10 @@ def _check_requires(
     in the game, at the library's arity and type. Which `state { }` block holds
     it is not checked, and deliberately so: a phase's state block is the natural
     home for state that resets on phase re-entry, which is exactly what per-hand
-    betting state is, and Stud declares all nine of `poker_betting`'s
-    requirements inside `phase play`.
+    betting state is, and Stud declares all seven of `poker_betting`'s
+    requirements inside `phase play`. A ZONE requirement has no such freedom to
+    misuse: `zones { }` is game-level only, so `_check_zone_requirement` looks in
+    exactly one place.
 
     That is weaker than "the library's definitions can read it where they run",
     and the gap is real rather than theoretical: move Kuhn's `limit` into `phase
@@ -913,7 +1730,44 @@ def _check_requires(
         if isinstance(node, n.StateBlock):
             for decl in node.decls:
                 declared.setdefault(decl.name, []).append(decl)
+    zoned: dict[str, list[n.ZoneDecl]] = {}
+    for zone in game.zones:
+        zoned.setdefault(zone.name, []).append(zone)
+    # Requirements already reported as malformed in the LIBRARY's own text.
+    # Comparing one against the game's declaration derives a second error that
+    # is worse than useless: it renders the malformation as a MISMATCH, so a
+    # non-role index prints as "a scalar" and an unresolvable type prints as
+    # the game's type being wrong — blaming the game author for a defect in a
+    # file they did not write, and, when the name is undeclared, advising them
+    # to add a declaration the language would refuse.
+    #
+    # Matched by SPAN rather than by re-deriving which requirements are
+    # well-formed. That is what makes this complete over the class rather than
+    # over the two members known today: a requirement is malformed exactly when
+    # some wall has already reported against its own span, so a future wall on
+    # a new `RequireDecl` field is covered the day it lands, with nothing to
+    # remember here. Both malformation walls run before this pass, in
+    # `_apply_uses`'s loop, and report at the requirement's span
+    # (`_check_require_indexes` for the index, `_check_library_encapsulation`
+    # for the type name).
+    #
+    # This is the opposite direction from `skip`, which suppresses a downstream
+    # report about a name the GAME's own claims already ruled on.
+    malformed = {d.span for d in bag.items if d.span is not None}
     for want in library.requires:
+        # Span-keyed, so it speaks about BOTH legs and is hoisted above the
+        # split: a malformed zone contract would otherwise get its shape error
+        # in the library AND a mismatch pinned on the game, which is the second
+        # report this suppression exists to prevent.
+        if want.span is not None and want.span in malformed:
+            continue
+        if is_zone_contract(want):
+            # `skip` is the STATE-claim set (`_check_state_claims`), so it never
+            # speaks about a zone name — reading it here would silently drop a
+            # zone contract whenever the game happened to declare a state
+            # variable of the same name.
+            _check_zone_requirement(game, use, library, want, zoned, bag)
+            continue
         if want.name in skip:
             continue
         found = declared.get(want.name, [])
@@ -939,8 +1793,16 @@ def _check_requires(
             continue
         have = found[0]
         if have.index != want.index:
-            got = "per-player" if have.index else "a scalar"
-            need = "per-player" if want.index else "a scalar"
+            # Rendered from the ROLE, not from the truthiness of the field: the
+            # index is a member of a closed domain, and collapsing it to a
+            # boolean printed "to be per-player, but … declares it as
+            # per-player" for a `[team]`-against-`[player]` mismatch — the two
+            # roles Bridge and Belote both use (issue #144). Both sides are
+            # classified rather than assumed: `_check_require_indexes` has
+            # already refused a requirement whose index names no role, and
+            # resolve's state-index wall the declaration's.
+            got = index_phrase(role_of(have.index) if have.index else None)
+            need = index_phrase(role_of(want.index) if want.index else None)
             bag.error(
                 f"library '{library.name}' requires state `{spelled}` to be "
                 f"{need}, but game '{game.name}' declares it as {got}",
@@ -970,6 +1832,7 @@ def resolve(game: n.Game) -> n.Game:
     game = _expand_ranking(game, bag)
     _resolve_ranking(game, bag)
     _check_duplicate_names(game, bag)
+    _check_zone_type_names_are_not_taken(game, bag)
     _check_reserved_params(game, bag)
     _check_reserved_binders(game, bag)
     _resolve_max_length(game, bag)
@@ -1745,11 +2608,15 @@ def _sweep_aliases(
         # wrong here, where it would replace the located diagnostic the author
         # needs with an assert and suppress every other diagnostic in the file.
         # Backstop, not a wall: the role's legality is decided above.
-        case n.ForEach() if node.role in _ITERATION_ROLES and binds_actor(node.role):
+        case n.ForEach() if (
+            (role := role_of(node.role)) is not None
+            and role in _ITERATION_ROLES
+            and binds_actor(role)
+        ):
             # A SEAT role: the body's acting player IS the binder.
             _sweep_aliases(node.body, _rebound(node.binder, f"`for each {node.role} {node.binder}`"), flavor, bag)
             return
-        case n.EachSimultaneous() if node.role in SIMULTANEOUS_ROLES:
+        case n.EachSimultaneous() if role_of(node.role) in SIMULTANEOUS_ROLES:
             # Binds the role noun itself as the local (`runtime/execute`).
             _sweep_aliases(node.body, _rebound(node.role, f"`each {node.role} simultaneously`"), flavor, bag)
             return
@@ -1920,6 +2787,34 @@ def _resolve_max_length(game: n.Game, bag: DiagnosticBag) -> None:
 _POSITION_MEMBER_CEILING = 256
 
 
+def _check_zone_type_names_are_not_taken(game: n.Game, bag: DiagnosticBag) -> None:
+    """A declared `type` may not take a stdlib zone type's spelling.
+
+    `Hand` already means a zone type. A `type Hand = { … }` beside it would make
+    one name mean two things in the one position that reads BOTH registries — a
+    library's `requires` entry, whose type slot says whether the entry names a
+    `state { }` or a `zones { }` declaration. Refused where the name is
+    DECLARED, so the ambiguity cannot be built, rather than disambiguated at
+    each use by a precedence nobody wrote down.
+
+    The mirror for position domains is `_reserved_domain_names`, which reserves
+    the same set: the two declaration sites that could take a zone-type
+    spelling, refused against one registry.
+
+    Free against the corpus — no game declares a struct type, and every position
+    domain is lowercase — so this reserves a name space nobody is using rather
+    than reclaiming one."""
+    for declared in game.types:
+        if declared.name in LIBRARY_ZONE_TYPES:
+            bag.error(
+                f"type '{declared.name}' takes the name of a zone type, which a "
+                f"library's `requires` entry reads to tell a state contract from "
+                f"a zone one — a name may not mean two things there; rename the "
+                f"type",
+                declared.span,
+            )
+
+
 def _reserved_domain_names(game: n.Game) -> frozenset[str]:
     """Built-in spellings a per-game position domain (declared or board-minted)
     may not reuse: the domain ids (`player`, `suit`, …), their declared-type
@@ -1936,10 +2831,9 @@ def _reserved_domain_names(game: n.Game) -> frozenset[str]:
     position's Integer -- a name may not mean two things; the collision is
     rejected where it is declared rather than disambiguated at each use."""
     return (
-        _ITERATION_ROLES
-        | SIMULTANEOUS_ROLES
-        | ZONE_INDEX_ROLES
+        frozenset(role_names(_ITERATION_ROLES | SIMULTANEOUS_ROLES | ZONE_INDEX_ROLES))
         | KNOWN_TYPE_NAMES
+        | frozenset(LIBRARY_ZONE_TYPES)
         | {t.name for t in game.types}
     )
 
@@ -1973,8 +2867,8 @@ def _resolve_positions(game: n.Game, bag: DiagnosticBag) -> frozenset[str]:
             )
         if p.name in taken:
             bag.error(
-                f"position domain '{p.name}' collides with a built-in domain "
-                f"or a declared type name — pick another name",
+                f"position domain '{p.name}' collides with a built-in domain, "
+                f"a zone type, or a declared type name — pick another name",
                 p.span,
             )
     return frozenset(p.name for p in game.positions)
@@ -2091,7 +2985,11 @@ def _resolve_board(
 def _resolve_zone(
     zone: n.ZoneDecl, bag: DiagnosticBag, positions: frozenset[str]
 ) -> None:
-    index_known = zone.index is None or zone.index in _KNOWN_ROLES or zone.index in positions
+    index_known = (
+        zone.index is None
+        or role_of(zone.index) in _KNOWN_ROLES
+        or zone.index in positions
+    )
     if not index_known:
         bag.error(f"unknown index role '{zone.index}'", zone.span)
 
@@ -2108,7 +3006,7 @@ def _resolve_zone(
     if not takes_owner and ref.args:
         bag.error(f"zone type '{ref.name}' takes no type arguments", ref.span)
     for arg in ref.args:
-        if arg.name not in _KNOWN_ROLES and arg.name not in positions:
+        if role_of(arg.name) not in _KNOWN_ROLES and arg.name not in positions:
             bag.error(f"unknown owner '{arg.name}'", arg.span)
         elif takes_owner and zone.index is None:
             # An owned zone type has no index to key its owner by. The runtime
@@ -2189,12 +3087,77 @@ def _check_position_family_refs(
             )
 
 
+def _check_rule_reaches_a_reader(rule: n.RuleDef, bag: DiagnosticBag) -> None:
+    """Reject rule surface no decision site can consult (decisions.md "Surface
+    totality"): accepted-but-ignored is the worst failure mode for a designer
+    tool, so a clause that enforces nothing is refused rather than parsed and
+    dropped. Every test is the COMPLEMENT of what `rules.legal_cards` actually
+    reads, never a list of the dead spellings — `LIBRARY_MOVE_TYPES` grows as
+    games land and `DEMAND_KINDS` could too, and an enumeration of the dead
+    would silently re-open this hole for the new member.
+
+    Runs after `_instantiate_rules`, so spliced library rules and instantiated
+    templates are walled on the same path as hand-written ones.
+
+    Widening enforcement (draughts' mandatory capture, morris's removal
+    restriction) retires these walls — the surface returns with an
+    implementation behind it. Until then it is deferred, not deleted:
+    docs/roadmap.md "Grammar surface deferred by the checker",
+    docs/open-questions/rule-scope-beyond-trick-play.md.
+    """
+    where = "docs/open-questions/rule-scope-beyond-trick-play.md"
+    if rule.constrains is not None and rule.constrains not in LIBRARY_MOVE_TYPES:
+        return  # already reported as an unknown move type; one error, not two
+    if rule.constrains != RULE_ENFORCED_MOVE_TYPE:
+        named = (
+            f"'{rule.constrains}'"
+            if rule.constrains is not None
+            else "no move type (the `constrains:` clause is absent)"
+        )
+        bag.error(
+            f"rule '{rule.name}' constrains {named}, which no decision site "
+            f"consults: rules are applied at exactly one place — the trick "
+            f"round's card decision, which asks about "
+            f"`{RULE_ENFORCED_MOVE_TYPE}` — so this rule would never fire. "
+            f"Constrain `{RULE_ENFORCED_MOVE_TYPE}`, or enforce the "
+            f"constraint where the move is made (a movement's `chosen N`, a "
+            f"move type's `when:` guard). Widening rule scope is an open "
+            f"question ({where}).",
+            rule.span,
+        )
+        return  # the clause walls below would pile onto the same broken rule
+    if rule.demands is not None and rule.demands.kind != n.DEMAND_KIND_CARDS:
+        bag.error(
+            f"rule '{rule.name}' has a `demands: actions where …` move-shape "
+            f"predicate, which is never enforced: the legal-move engine "
+            f"consults card-set demands only, and no other site consults "
+            f"rules at all. Enforce the move's shape where the move is made "
+            f"(a movement's `chosen N` binds the count, a move type's "
+            f"`when:` guard binds its parameters), or state the constraint "
+            f"as a card set. Binding move-shape predicates is an open "
+            f"question ({where}).",
+            rule.demands.span or rule.span,
+        )
+        return
+    if rule.demands is None and rule.exempts is None:
+        bag.error(
+            f"rule '{rule.name}' enforces nothing: it declares neither a "
+            f"`demands:` card set nor an `exempts:` set, so activating it "
+            f"cannot change which cards are legal. Give it a `demands:` (with "
+            f"its `if_impossible:` fallback) or an `exempts:`, or delete it — "
+            f"`applies_when:` alone selects when a rule fires, not what it "
+            f"does.",
+            rule.span,
+        )
+
+
 def _resolve_rule(rule: n.RuleDef, bag: DiagnosticBag) -> None:
     if rule.constrains is not None and rule.constrains not in LIBRARY_MOVE_TYPES:
         bag.error(
             f"rule '{rule.name}' constrains unknown move type '{rule.constrains}'",
             rule.span,
         )
+    _check_rule_reaches_a_reader(rule, bag)
     # A card-set `demands` can filter the legal set to empty; the rule must say
     # what happens then (`if_impossible`) rather than relying on a silent default.
     # `actions where` demands never narrow the card set — they have no runtime
@@ -2822,8 +3785,9 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
                     else "a movement's `where` filter"
                 )
                 hint = f" (`{noun}` is bound only inside {where})"
-            # role-compare-ok: not a role dispatch — `player` is the
-            # unresolved NAME this hint is about.
+            # Not a role dispatch: `player` is the unresolved NAME this hint
+            # is about, so it stays a string (walled as a coincidence in
+            # tests/test_role_comparison_pin.py).
             elif node.name == "player":
                 hint = " (`player` is bound only inside a player query or quantifier)"
             bag.error(f"unresolved name '{node.name}'{hint}", node.span)
@@ -3547,9 +4511,10 @@ def _check_card_vocabulary(
             span,
         )
     if card_param_moves and not any(
-        # role-compare-ok: intrinsic — a Card parameter enumerates the
-        # ACTOR's hand, which is player-keyed by definition.
-        z.name == "hand" and z.index == "player" for z in game.zones
+        # Intrinsic: a Card parameter enumerates the ACTOR's hand, which is
+        # player-keyed by definition.
+        z.name == "hand" and z.index is not None and role_of(z.index) is Role.PLAYER
+        for z in game.zones
     ):
         bag.error(
             f"vocabulary move '{card_param_moves[0]}' takes a Card parameter, "
@@ -3784,13 +4749,13 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         f"'{nd.name}'",
                         nd.span,
                     )
-                if nd.index is not None and nd.index not in ZONE_INDEX_ROLES:
+                if nd.index is not None and role_of(nd.index) not in ZONE_INDEX_ROLES:
                     # Same wall as a zone's index role, same registry. Before
                     # it existed, `state { x[suit] : Integer = 0 }` checked
                     # clean and the runtime silently keyed it BY PLAYERS (the
                     # driver's key-set dispatch defaulted every non-team role
                     # to seats) — the declared index was accepted and ignored.
-                    roles = ", ".join(sorted(ZONE_INDEX_ROLES))
+                    roles = ", ".join(role_names(ZONE_INDEX_ROLES))
                     bag.error(
                         f"state variable '{nd.name}' is indexed by "
                         f"'{nd.index}', which is not an indexable role "
@@ -3798,9 +4763,11 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         f"(roadmap.md records the extension)",
                         nd.span,
                     )
-                # role-compare-ok: the `team` row of the empty-domain wall, pinned
-                # against ZONE_INDEX_ROLES at module level.
-                elif nd.index == "team" and not game.partnerships:
+                elif (
+                    nd.index is not None
+                    and role_of(nd.index) is Role.TEAM
+                    and not game.partnerships
+                ):
                     # A team-indexed store in a game with no partnerships has
                     # an EMPTY key set: it declares fine, holds nothing, and
                     # every later `x[…] := …` hits the runtime key wall far
@@ -3811,9 +4778,11 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         f"teams to key it by",
                         nd.span,
                     )
-            # role-compare-ok: the zone twin of the same `team` row, pinned
-            # against ZONE_INDEX_ROLES at module level.
-            case n.ZoneDecl() if nd.index == "team" and not game.partnerships:
+            case n.ZoneDecl() if (
+                nd.index is not None
+                and role_of(nd.index) is Role.TEAM
+                and not game.partnerships
+            ):
                 bag.error(
                     f"zone '{nd.name}' is indexed by 'team' but the game "
                     f"declares no `partnerships:` — there are no teams to key "
@@ -3856,15 +4825,16 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     nd.span,
                 )
             case n.ForEach() if (
-                nd.role not in _ITERATION_ROLES and nd.role not in iterable_positions
+                role_of(nd.role) not in _ITERATION_ROLES
+                and nd.role not in iterable_positions
             ):
                 bag.error(
                     f"unknown `for each` role '{nd.role}' (expected one of "
-                    f"{', '.join(sorted(_ITERATION_ROLES | iterable_positions))})",
+                    f"{', '.join(sorted(role_names(_ITERATION_ROLES) + sorted(iterable_positions)))})",
                     nd.span,
                 )
             case (n.ForEach() | n.Quantifier()) if (
-                game.content_flavor == "piece" and nd.role in CARD_AXIS_ROLES
+                game.content_flavor == "piece" and role_of(nd.role) in CARD_AXIS_ROLES
             ):
                 # `for each suit` / `any rank where` enumerate the deck's axes;
                 # a piece set has no role surface for its own axes (side/kind),
@@ -3876,7 +4846,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"a piece set has none of",
                     nd.span,
                 )
-            case n.EachSimultaneous() if nd.role not in SIMULTANEOUS_ROLES:
+            case n.EachSimultaneous() if role_of(nd.role) not in SIMULTANEOUS_ROLES:
                 # The registry's `simultaneous` column, not a bare `!= "player"`:
                 # the roles that admit a simultaneous block are exactly the seat
                 # domains (a value domain has no actor to move simultaneously),
@@ -3884,7 +4854,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 bag.error(
                     f"`each {nd.role} simultaneously` is not runnable — "
                     f"simultaneous moves are per "
-                    f"{' or '.join(sorted(SIMULTANEOUS_ROLES))}",
+                    f"{' or '.join(role_names(SIMULTANEOUS_ROLES))}",
                     nd.span,
                 )
             case n.EachSimultaneous() if n.simultaneous_body_error(nd.body) is not None:
@@ -4017,10 +4987,12 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     # — player keying was assumed, not checked, the same class
                     # as the `== "team"` defaults the domain table replaced.
                     idx = zone_index.get(nd.dest.name)
-                    # role-compare-ok: intrinsic — `to each` deals one
-                    # share per PLAYER, so the destination family must be
-                    # player-keyed whatever else the table gains.
-                    if nd.dest.ref_kind == "zone" and idx != "player":
+                    # Intrinsic: `to each` deals one share per PLAYER, so the
+                    # destination family must be player-keyed whatever else the
+                    # table gains.
+                    if nd.dest.ref_kind == "zone" and (
+                        idx is None or role_of(idx) is not Role.PLAYER
+                    ):
                         what_z = (
                             "a singleton zone"
                             if idx is None

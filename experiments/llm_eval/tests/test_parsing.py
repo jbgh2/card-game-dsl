@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import pytest
 
-from experiments.llm_eval.agents import DecisionView, LLMAgent
-from experiments.llm_eval.prompts import parse_response
-from experiments.llm_eval.providers import FakeProvider
+from ..agents import DecisionView, LLMAgent
+from ..prompts import parse_response
+from ..providers import FakeProvider
 
 VIEW = DecisionView(
     player=1,

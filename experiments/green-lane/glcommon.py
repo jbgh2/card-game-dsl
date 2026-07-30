@@ -58,7 +58,7 @@ def _run_dispatch(
 
 
 def install_replay_memo() -> None:
-    replay.run = _run_dispatch  # type: ignore[assignment]
+    replay.run = _run_dispatch
 
 
 def replay_memo_info() -> Any:
@@ -89,7 +89,7 @@ def install_infostate_memo() -> None:
                 cache[key] = hit
         return hit
 
-    CardlangState.information_state_string = memoized  # type: ignore[method-assign,assignment]
+    CardlangState.information_state_string = memoized  # type: ignore[method-assign]
 
 
 # --- registration ----------------------------------------------------------
@@ -149,7 +149,10 @@ def register(
         max_game_length=game_ast.max_length,
     )
 
-    class _Game(pyspiel.Game):
+    # pyspiel ships no stubs, so its `Game` is `Any` (the same exemption
+    # `cardlang.openspiel.game` carries in pyproject; local here because a
+    # script is not a package module an override can name).
+    class _Game(pyspiel.Game):  # type: ignore[misc]
         def __init__(self, params: Any = None) -> None:
             super().__init__(game_type, game_info, params or {})
 

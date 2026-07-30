@@ -1,0 +1,77 @@
+// The smuggling family — the shared core of Green Lane and its variant lattice
+// (`experiments/green-lane/`). "The merchant commits a shipment; the inspector
+// waves or opens it" is the sentence a member's `uses smuggling` line stands in
+// for, and this file is that sentence written out.
+//
+// WHY A LIBRARY FOR A NON-CORPUS FAMILY LIVES BESIDE THE CORPUS. Green Lane is
+// deliberately an experiment, not a corpus game (`experiments/green-lane/
+// DESIGN.md`). `docs/libraries/` is nonetheless where this belongs, because it
+// is the only path a `uses` line resolves through (`cardlang/libraries.py`) and
+// the tier already wants one loader fewer rather than one more (issue #180). It
+// is maintained with the family it serves, and `tests/test_smuggling_library.py`
+// binds it against every member so it cannot rot unnoticed.
+//
+// WHAT IS HERE is what all twelve family files hold byte-identically: the
+// commit — the merchant's concealed choice of shipment, forced when one card
+// remains — and the wave. Both name only zones the contract below asks the game
+// to declare.
+//
+// WHAT IS DELIBERATELY NOT HERE is `inspect`, and the reason is measured rather
+// than chosen. Across the twelve files `inspect` has ten distinct bodies, from
+// three orthogonal deltas: the fine (4 / 5 / 2), the contraband predicate
+// (`rank_value >= 11` / `>= 12` / `is 5 or is 12`), and the bounty (nothing /
+// `tokens[merchant] += 1` / `pending[merchant] += 1`). Only the first is a
+// per-game constant and could ride on required state. The second is a card
+// predicate and the third an added STATEMENT — neither is a parameterization
+// problem, so no clause on the import would carry them. `inspect` is game-local
+// for exactly the reason `poker_betting` omits `fold`: the move that varies
+// stays with the game, and the library holds the part that is genuinely the
+// same. Each member defines its own `inspect` and offers it beside the imported
+// `wave` in one vocabulary list.
+//
+// The respond half — the offer, and the automatic wave when the inspector holds
+// no token — is identical in all twelve files and is game-local anyway, because
+// it names `inspect`. A library reaches only its own definitions, so a body
+// offering a game's move type would be reaching past its contract.
+
+library smuggling {
+
+  // What the including game must declare. The three zones are the ones these
+  // definitions move cards between; `merchant` is the role pronoun they act
+  // for. `inspector` and `tokens` are deliberately absent — nothing here reads
+  // them, and a contract entry no definition reaches is dead contract.
+  //
+  // A zone type fixes the per-observer projection, so contracting for
+  // `HiddenPile` rather than `PublicHand` is this library saying what its
+  // definitions were written against: a waved shipment slides into the
+  // warehouse UNSEEN, and a member that declared those piles public would be a
+  // different game wearing the same import.
+  requires {
+    hand[player]      : Hand<player>
+    shipment[player]  : HiddenPile<player>
+    warehouse[player] : HiddenPile<player>
+    merchant          : Player
+  }
+
+  // The merchant commits one card face down. With one card left the shipment is
+  // forced, so no decision is offered and no information is created; otherwise
+  // the `as` block makes the merchant the chooser, and the choice is the game's
+  // only source of hidden information.
+  procedure commit_shipment() {
+    if (number of cards in hand[merchant]) is 1 {
+      move one card from hand[merchant] to shipment[merchant]
+    } else {
+      as merchant {
+        move chosen 1 card from hand[merchant] to shipment[merchant]
+      }
+    }
+  }
+
+  // Wave the shipment through: it lands in the warehouse still face down — the
+  // inspector never learns what it was.
+  move_type wave {
+    effect {
+      move all cards from shipment[merchant] to warehouse[merchant]
+    }
+  }
+}

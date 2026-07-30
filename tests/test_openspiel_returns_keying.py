@@ -72,7 +72,7 @@ import dataclasses
 
 import pytest
 
-from cardlang.domains import ZONE_INDEX_ROLES
+from cardlang.domains import ZONE_INDEX_ROLES, role_names
 from cardlang.openspiel.replay import (
     _RETURNS_KEYED_ROLES,
     RANK_DIR_TO_SIGN,
@@ -219,7 +219,7 @@ def test_the_mapping_covers_every_zone_index_role() -> None:
     red under: drop `"team"` from `replay._RETURNS_KEYED_ROLES`, or add a
     `Domain(..., zone_key_of=...)` row to `domains.DOMAINS` — either way the
     sets diverge and this reddens."""
-    assert set(_RETURNS_KEYED_ROLES) == set(ZONE_INDEX_ROLES)
+    assert set(_RETURNS_KEYED_ROLES) == set(role_names(ZONE_INDEX_ROLES))
 
 
 def test_an_unhandled_index_role_raises_rather_than_defaulting() -> None:

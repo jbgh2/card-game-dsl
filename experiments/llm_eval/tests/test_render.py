@@ -19,17 +19,17 @@ from typing import Any
 
 import pytest
 
-from experiments.llm_eval import infostate as istate
-from experiments.llm_eval.agents import DecisionView, LLMAgent, RandomAgent, RuleAgent
-from experiments.llm_eval.prompts import (
+from .. import infostate as istate
+from ..agents import DecisionView, LLMAgent, RandomAgent, RuleAgent
+from ..prompts import (
     RESPONSE_ARMS,
     RESPONSE_TEXT,
     RULES_RAW,
     RULES_RENDERED,
     build_prompt,
 )
-from experiments.llm_eval.providers import FakeProvider
-from experiments.llm_eval.render import RANK_PLURAL, recover, render_state
+from ..providers import FakeProvider
+from ..render import RANK_PLURAL, recover, render_state
 
 pytest.importorskip("pyspiel", reason="the OpenSpiel adapter needs the `openspiel` extra")
 
@@ -38,7 +38,7 @@ pytest.importorskip("pyspiel", reason="the OpenSpiel adapter needs the `openspie
 def states() -> list[str]:
     """Information states from real games — every decision shape, both window
     states, early and late logs."""
-    from experiments.llm_eval.referee import load_game, play_game, replay_views
+    from ..referee import load_game, play_game, replay_views
 
     game = load_game("cardlang_cheat")
     out: list[str] = []
@@ -378,7 +378,7 @@ def test_reason_first_is_invisible_to_the_parser() -> None:
     passes, a behavioural comparison between the two arms is unfalsifiable
     without the raw-text check.
     """
-    from experiments.llm_eval.prompts import parse_response
+    from ..prompts import parse_response
 
     last = parse_response('{"action": 1, "reasoning": "because"}', num_actions=2)
     first = parse_response('{"reasoning": "because", "action": 1}', num_actions=2)
@@ -388,7 +388,7 @@ def test_reason_first_is_invisible_to_the_parser() -> None:
 def test_a_reply_without_reasoning_parses_and_is_not_a_fallback() -> None:
     """The neutral arm's replies carry no `reasoning` key; that is the expected
     shape, not a malformed response, and must not inflate the fallback rate."""
-    from experiments.llm_eval.prompts import parse_response
+    from ..prompts import parse_response
 
     result = parse_response('{"action": 1}', num_actions=2)
     assert result.ok and result.index == 1 and result.reasoning == ""

@@ -10,10 +10,10 @@ from __future__ import annotations
 
 import pytest
 
-from experiments.llm_eval.agents import DecisionView, RandomAgent, RuleAgent, build_agent
-from experiments.llm_eval.metrics import aggregate, reconstruct_plays
-from experiments.llm_eval.providers import FakeProvider
-from experiments.llm_eval.referee import load_game, play_game, replay_views
+from ..agents import DecisionView, RandomAgent, RuleAgent, build_agent
+from ..metrics import aggregate, reconstruct_plays
+from ..providers import FakeProvider
+from ..referee import load_game, play_game, replay_views
 
 pytest.importorskip("pyspiel", reason="the OpenSpiel adapter needs the `openspiel` extra")
 
@@ -100,7 +100,7 @@ def test_claim_cycle_order_matches_the_game(game: object) -> None:
     `next_rank` function in `docs/games/cheat.cardlang` — rather than restated,
     so the two cannot drift.
     """
-    from experiments.llm_eval.infostate import RANKS
+    from ..infostate import RANKS
 
     record = play_game(
         game, _seats("random"), seed=6, matchup="t", game_index=0, max_decisions=400  # type: ignore[arg-type]
@@ -204,7 +204,7 @@ def test_bluff_prob_defaults_to_the_truthful_policy(game: object) -> None:
 def test_bluff_prob_produces_elective_lies(game: object) -> None:
     """The knob's whole purpose: turn a truthful-when-possible opponent into a
     tunable source of detectable lies. Off => zero elective lies; on => many."""
-    from experiments.llm_eval.metrics import aggregate
+    from ..metrics import aggregate
 
     def measure(bluff: float) -> float:
         seats = {i: RuleAgent(seed=i, challenge_prob=0.1, bluff_prob=bluff) for i in range(4)}

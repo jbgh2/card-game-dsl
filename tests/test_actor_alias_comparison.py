@@ -122,7 +122,7 @@ import pytest
 
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticError
-from cardlang.domains import binds_actor
+from cardlang.domains import Role, binds_actor
 from cardlang.pipeline import check_dsl
 from cardlang.resolve import _BINDER_SCOPE_FIELDS, _PRONOUNS, _introduced_binders
 from cardlang.runtime.driver import play_game
@@ -232,8 +232,10 @@ def test_only_a_seat_role_binder_aliases_the_actor() -> None:
     `s` itself never aliases.
 
     red under: return `True` unconditionally from `domains.binds_actor`."""
-    assert binds_actor("player")
-    assert not any(binds_actor(role) for role in ("team", "suit", "rank"))
+    assert binds_actor(Role.PLAYER)
+    assert not any(
+        binds_actor(role) for role in (Role.TEAM, Role.SUIT, Role.RANK)
+    )
 
 
 def test_a_binder_kind_can_be_absent_from_the_scope_field_table() -> None:

@@ -14,8 +14,9 @@ from typing import Any
 
 import pytest
 
-from experiments.llm_eval.metrics import iter_jsonl
-from experiments.llm_eval.run_eval import (
+from .. import run_eval as run_eval_mod
+from ..metrics import iter_jsonl
+from ..run_eval import (
     Budget,
     ensure_provider,
     main,
@@ -49,7 +50,7 @@ def _run_dir(results_dir: Path) -> Path:
     Asserts there is exactly one: a test that silently read the newest of several
     would pass while the runner leaked extra directories.
     """
-    from experiments.llm_eval import layout
+    from .. import layout
 
     runs = layout.list_runs(results_dir)
     assert len(runs) == 1, f"expected one run directory, found {[p.name for p in runs]}"
@@ -134,7 +135,7 @@ def test_summary_records_the_full_request_params(tmp_path: Path) -> None:
 def test_anthropic_provider_keeps_max_tokens_in_reported_params() -> None:
     """Constructed without a network call; only `__init__` runs."""
     pytest.importorskip("anthropic")
-    from experiments.llm_eval.providers import AnthropicProvider
+    from ..providers import AnthropicProvider
 
     provider = AnthropicProvider(
         "claude-haiku-4-5", {"max_tokens": 256, "temperature": 0, "max_retries": 3}
@@ -145,7 +146,7 @@ def test_anthropic_provider_keeps_max_tokens_in_reported_params() -> None:
 def test_unpriced_model_is_refused() -> None:
     """A typo would otherwise be costed at $0.00 in the summary."""
     pytest.importorskip("anthropic")
-    from experiments.llm_eval.providers import AnthropicProvider
+    from ..providers import AnthropicProvider
 
     with pytest.raises(ValueError, match="no published price"):
         AnthropicProvider("claude-opus-9000")
@@ -235,7 +236,7 @@ def test_budget_boundaries(
 
 def _registry(spend: dict[str, dict[str, int]]) -> dict[str, Any]:
     """A provider registry carrying the given usage, keyed by model id."""
-    from experiments.llm_eval.providers import FakeProvider, Usage
+    from ..providers import FakeProvider, Usage
 
     registry: dict[str, Any] = {}
     for model, usage_kwargs in spend.items():
@@ -333,7 +334,12 @@ def test_bare_command_does_not_construct_providers_before_running(
     def refuse(spec: dict[str, Any]) -> Any:
         raise RuntimeError("provider constructed")
 
-    monkeypatch.setattr("experiments.llm_eval.run_eval.make_provider", refuse)
+    # Patched on the MODULE OBJECT, not by dotted string. A string target is
+    # re-imported by name, and this package is reachable as both `llm_eval.*`
+    # and `experiments.llm_eval.*`; the two resolve to distinct module objects,
+    # so a string could patch one while the run under test used the other — and
+    # the test would pass by never patching anything.
+    monkeypatch.setattr(run_eval_mod, "make_provider", refuse)
     _, config_path = _two_matchup_config(tmp_path)
 
     with pytest.raises(RuntimeError, match="provider constructed"):
@@ -378,7 +384,7 @@ def test_preflight_validates_matchups_it_will_not_construct(tmp_path: Path) -> N
 def test_per_game_token_usage_is_recorded_and_aggregated(tmp_path: Path) -> None:
     """Spec §5 asks for tokens per game, not only per run. The transcript
     carries each game's own tally and `aggregate` divides by games played."""
-    from experiments.llm_eval.metrics import aggregate
+    from ..metrics import aggregate
 
     config = _config()
     matchup = _matchup(2, llm=True)
@@ -439,7 +445,7 @@ class ExplodingProvider:
     API usage limits` partway through a multi-hour run."""
 
     def __init__(self, ok_calls: int, message: str = "usage limit reached") -> None:
-        from experiments.llm_eval.providers import Usage
+        from ..providers import Usage
 
         self.model = "fake"
         self.params: dict[str, Any] = {}
@@ -448,7 +454,7 @@ class ExplodingProvider:
         self._message = message
 
     def complete(self, prompt: str) -> Any:
-        from experiments.llm_eval.providers import Reply
+        from ..providers import Reply
 
         if self.usage.calls >= self._ok:
             raise RuntimeError(self._message)
@@ -540,8 +546,7 @@ def test_abort_writes_the_summary_and_skips_later_matchups(
     config_path.write_text(json.dumps(config), encoding="utf-8")
     ok = _calls_in_first_game(tmp_path) + 20
     monkeypatch.setattr(
-        "experiments.llm_eval.run_eval.make_provider",
-        lambda spec: ExplodingProvider(ok_calls=ok),
+        run_eval_mod, "make_provider", lambda spec: ExplodingProvider(ok_calls=ok)
     )
 
     assert main(["--config", str(config_path)]) == 1, "an aborted run must exit non-zero"
@@ -620,7 +625,7 @@ def test_transcripts_read_identically_from_gzip(tmp_path: Path) -> None:
     import gzip
     import shutil
 
-    from experiments.llm_eval.verify import _load, _transcripts, _stem
+    from ..verify import _load, _transcripts, _stem
 
     run_matchup(_config(), _matchup(2, llm=False), tmp_path, {})
     plain = tmp_path / "transcripts" / "t.jsonl"
@@ -645,8 +650,8 @@ def test_verify_agrees_with_aggregate_for_multi_seat_agents(tmp_path: Path) -> N
     wins — quietly, and only for the multi-seat agents, which is exactly where
     nobody would look.
     """
-    from experiments.llm_eval.metrics import aggregate
-    from experiments.llm_eval.verify import tally
+    from ..metrics import aggregate
+    from ..verify import tally
 
     run_matchup(_config(), _matchup(3, llm=False), tmp_path, {})
     records = list(iter_jsonl(str(tmp_path / "transcripts" / "t.jsonl")))
@@ -693,7 +698,7 @@ def test_shipped_config_names_only_registered_arms() -> None:
     """
     import yaml
 
-    from experiments.llm_eval.prompts import RESPONSE_ARMS
+    from ..prompts import RESPONSE_ARMS
 
     config = yaml.safe_load(
         Path("experiments/llm_eval/config.yaml").read_text(encoding="utf-8")

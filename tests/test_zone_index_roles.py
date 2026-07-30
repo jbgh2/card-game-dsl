@@ -63,7 +63,7 @@ from __future__ import annotations
 import pytest
 
 from cardlang.diagnostics import DiagnosticError
-from cardlang.domains import DOMAINS, ZONE_INDEX_ROLES
+from cardlang.domains import DOMAINS, ZONE_INDEX_ROLES, Role, role_names
 from cardlang.pipeline import check_dsl
 
 
@@ -92,11 +92,11 @@ def test_the_registry_is_the_zone_key_of_column() -> None:
     # resolve's wall, typecheck's key typing, both runtime key sets, and the
     # ownership projection. If this set changed on purpose, update the corpus
     # claims in this file's ledger.
-    assert ZONE_INDEX_ROLES == frozenset({"player", "team"})
+    assert ZONE_INDEX_ROLES == frozenset({Role.PLAYER, Role.TEAM})
 
 
 _NON_INDEX_ROLES = sorted(
-    d.id for d in DOMAINS if d.zone_key_of is None
+    d.id.value for d in DOMAINS if d.zone_key_of is None
 ) + ["croupier"]  # every non-indexable table row, plus an unknown name
 
 
@@ -152,7 +152,7 @@ def test_a_state_variable_may_not_be_indexed_by_a_value_domain(role: str) -> Non
     assert f"indexed by '{role}'" in str(exc.value)
 
 
-@pytest.mark.parametrize("role", sorted(ZONE_INDEX_ROLES))
+@pytest.mark.parametrize("role", role_names(ZONE_INDEX_ROLES))
 def test_every_indexable_role_is_accepted_at_all_three_sites(role: str) -> None:
     # The positive half of the matrix, per registry row (the corpus proves the
     # runtime semantics: bridge keys zones and state by team every hand).
@@ -183,7 +183,7 @@ def test_team_indexing_needs_partnerships() -> None:
 
 
 _LET_INDEX_NOUNS = sorted(
-    d.id for d in DOMAINS if d.iterable and d.id != "player"
+    d.id.value for d in DOMAINS if d.iterable and d.id is not Role.PLAYER
 )
 
 

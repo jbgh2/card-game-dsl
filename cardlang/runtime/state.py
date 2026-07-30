@@ -15,7 +15,12 @@ from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
 from cardlang.ast import nodes as n
-from cardlang.domains import ZONE_INDEX_ROLES, DomainSources, role_static_members
+from cardlang.domains import (
+    ZONE_INDEX_ROLES,
+    DomainSources,
+    role_of,
+    role_static_members,
+)
 from cardlang.runtime.values import Card, Player, Seating
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -149,7 +154,10 @@ class ZoneStore:
                 # missing key, far from the declaration that caused it.
                 # Resolve walls these declarations; reaching this raise means
                 # a construction path bypassed it.
-                if decl.index not in ZONE_INDEX_ROLES and decl.index not in positions:
+                if (
+                    role_of(decl.index) not in ZONE_INDEX_ROLES
+                    and decl.index not in positions
+                ):
                     raise AssertionError(
                         f"zone family '{decl.name}' is indexed by "
                         f"'{decl.index}', which is not a zone-index role or a "

@@ -27,7 +27,7 @@ domain:     every top-construction site in `cardlang/` (27 today, counted by
             `_count_top_constructions` under any spelling of the type's name),
             partitioned into: lookup-miss producers (raise), declared-type-name
             positions (walled at resolve), and audited top.
-registry:   the five role sets (`domains.BY_ID` vs the parser's quantifier
+registry:   the five role sets (`domains.Role` vs the parser's quantifier
             spellings, `_ITERATION_ROLES`, `SIMULTANEOUS_ROLES`,
             `ZONE_INDEX_ROLES`, `_KNOWN_ROLES`); `CALL_SIGS` vs
             `STDLIB_CALL_FUNCS`; `ZONE_CONTENT` vs `LIBRARY_ZONE_TYPES`;
@@ -36,8 +36,12 @@ registry:   the five role sets (`domains.BY_ID` vs the parser's quantifier
 covered:    the registry-closure pins below (each proves the corresponding
             raise is unreachable for a well-formed program, so the raise is a
             wall over a closed domain rather than a live failure mode); the
-            five `BY_ID` lookups, exercised directly as one class
-            (`test_every_by_id_lookup_raises_on_an_unknown_role`); the three
+            three NAME-taking registry lookups, exercised directly as one
+            class (`test_every_name_taking_registry_lookup_raises_on_an_
+            unknown_role`) — the other two of the former five now take a
+            `domains.Role`, so their miss branches are unreachable BY TYPE
+            and the residue is the every-Role-has-a-row pin beside them
+            (`test_every_role_carries_a_row`); the three
             declared-type-name walls, as rendered-diagnostic goldens in
             tests/rejections/unknown_type_{function_param,move_param,
             variant_payload}.cardlang; and the position x name-source grid in
@@ -180,7 +184,9 @@ def test_every_role_set_is_a_subset_of_the_domain_registry() -> None:
     # `getattr` rather than a direct import: mypy strict's
     # `--no-implicit-reexport` refuses the private names (same workaround as
     # tests/test_role_registry.py).
-    parser_quantifier_roles = frozenset({"player", "team", "suit", "rank"})
+    parser_quantifier_roles = frozenset(
+        {domains.Role.PLAYER, domains.Role.TEAM, domains.Role.SUIT, domains.Role.RANK}
+    )
     for label, roles in (
         ("parser quantifier spellings", parser_quantifier_roles),
         ("_ITERATION_ROLES", getattr(resolve_mod, "_ITERATION_ROLES")),
@@ -191,20 +197,26 @@ def test_every_role_set_is_a_subset_of_the_domain_registry() -> None:
         assert set(roles) <= set(BY_ID), f"{label} escapes the domain registry"
 
 
-def test_every_by_id_lookup_raises_on_an_unknown_role() -> None:
-    """The five `BY_ID` consumers answer a registry divergence the same way.
+def test_every_name_taking_registry_lookup_raises_on_an_unknown_role() -> None:
+    """The registry lookups that still take a NAME answer a divergence the same
+    way: in compiler currency, never by defaulting.
 
-    Each has the same contract — resolve has already walled the role, so a miss
-    is a compiler bug, not a program error — so each must fail in compiler
-    currency. `binds_actor` alone used to answer `False`, which is not an
-    absence but a CLAIM: "this is a value domain", i.e. run the loop without
-    rebinding the actor. A seat domain missing from the registry would have
-    iterated with the wrong actor rather than failing.
+    Only three still can. `role_type`, `binds_actor` and `role_members` take a
+    `domains.Role`, so an unknown role is unwritable at every call site and
+    their miss branches are gone — that closure moved from these raises to the
+    type, with `test_every_role_carries_a_row` below as the one residue. The
+    three here take a name because their domain genuinely is open (the registry
+    plus the calling game's declared position domains), so classifying the name
+    is part of their answer and the raise is the wall over what is left.
 
-    red under: restore `return row is not None and row.binds_actor` in
-    `cardlang.domains.binds_actor`.
+    `binds_actor` is why the contract is "raise", not "return a default": it
+    alone used to answer `False`, which is not an absence but a CLAIM — "this
+    is a value domain", i.e. run the loop without rebinding the actor. A seat
+    domain missing from the registry would have iterated with the wrong actor
+    rather than failing.
+
+    red under: return `None` instead of raising from `domains.require_role`.
     """
-    ctx = object()
     sources = domains.DomainSources(positions={}, suits=(), ranks=(), players=(), teams=())
 
     class _Rs:
@@ -213,9 +225,7 @@ def test_every_by_id_lookup_raises_on_an_unknown_role() -> None:
         position_domains: dict[str, object] = {}  # noqa: RUF012 -- one inline instance of a throwaway RuntimeState stub, never mutated
 
     lookups: dict[str, Callable[[], object]] = {
-        "role_type": lambda: role_type("nonrole"),
-        "binds_actor": lambda: domains.binds_actor("nonrole"),
-        "role_members": lambda: domains.role_members("nonrole", ctx),  # type: ignore[arg-type]
+        "require_role": lambda: domains.require_role("nonrole", "binder role"),
         "role_static_members": lambda: domains.role_static_members("nonrole", sources),
         "zone_observer_key": lambda: domains.zone_observer_key(
             "nonrole", _Rs(), 0  # type: ignore[arg-type]
@@ -225,6 +235,19 @@ def test_every_by_id_lookup_raises_on_an_unknown_role() -> None:
         with pytest.raises(AssertionError, match="nonrole"):
             call()
         assert "nonrole" not in str(BY_ID), f"{label}: probe name leaked into the registry"
+
+
+def test_every_role_carries_a_row() -> None:
+    """The residue of the three closures the `Role` parameter absorbed.
+
+    `role_type`/`binds_actor`/`role_members` index `BY_ID` with no miss branch.
+    That is total exactly while every `Role` member has a row — a four-element
+    obligation replacing three raises no caller can now reach.
+
+    red under: add a member to `domains.Role` without a `Domain(...)` row (the
+    module-level assert in `cardlang/domains.py` fires at import, so the whole
+    suite reddens, not just this test — which is the point)."""
+    assert set(BY_ID) == set(domains.Role)
 
 
 @pytest.mark.parametrize("wrapper", ["bare", "optional", "collection"])
@@ -346,8 +369,11 @@ def re_findall_case_literals(src: str) -> list[str]:
 
 
 def test_unknown_role_raises_rather_than_typing_as_top() -> None:
+    # `typecheck._role_type` is the producer this guards: it is where a parsed
+    # role name is classified before the registry sees it, and it used to
+    # return the permissive top for a name no row defines.
     with pytest.raises(AssertionError) as ei:
-        role_type("nonesuch")
+        getattr(typecheck, "_role_type")("nonesuch")
     assert "binder role" in str(ei.value)
 
 

@@ -54,6 +54,24 @@ phase with no iteration, transition events other than `play_to_trick`, a
 trick round naming a move type its form cannot run, duplicate
 `state { }` blocks, and named call arguments (`f(x = 1)` — rejected until
 a game needs the surface; positional arguments are the implemented form).
+Rules bind at one decision site — the trick round's card decision — so the
+rule surface that cannot fire there is rejected with it: a `constrains:`
+naming another move type or omitted entirely, the `demands: actions where
+<pred>` move-shape predicate, and a rule carrying neither `demands:` nor
+`exempts:` (it cannot change what is legal). Counts and move shapes are
+stated where the move is made instead — a movement's `chosen N`, a move
+type's `when:` guard. These lift together when rule application widens
+beyond trick play, which is
+[open-questions/rule-scope-beyond-trick-play.md](open-questions/rule-scope-beyond-trick-play.md)
+— the same cliff as the already-deferred non-`play_to_trick` transition
+events above. One consequence is recorded here because it was a real
+narrowing: a family library could not declare a rule, because an
+enforceable rule must name a zone and a `requires { }` contract named
+state only. **The contract now names zones too**, so that particular
+blockage is gone; whether a library rule is useful end to end is
+untested, because no library declares one. The standard library's rules
+are spliced by a separate path that has no contract to violate — which
+is epic #181.
 Counting is the card-query form (`number of cards in … [where <pred>]`);
 the retired `count over` comprehension (whose body was silently
 discarded) does not parse.
@@ -64,11 +82,14 @@ set player/team/suit/rank; `each … simultaneously` is player-only.
 Value-domain-indexed state (`state { seen[rank] : Integer = 0 }` as a
 per-rank tally) is rejected: a zone or state index must be a
 `zone_key_of` domain (player/team — `cardlang/domains.py`), because the
-runtime keys those stores by an observer-anchored member set. A per-value
-tally is expressible today as per-player state plus a query; lift the wall
-when a game genuinely wants the store (the runtime's key-set plumbing
-already reads the domain table, so the extension is a table row plus an
-observation-encoding decision, not a rewrite).
+runtime keys those stores by an observer-anchored member set. A family
+library's `requires { seen[rank] : Integer }` is rejected on the same
+grounds and in the library's own currency, since a requirement names
+state the including game declares and no game may declare that index. A
+per-value tally is expressible today as per-player state plus a query;
+lift the wall when a game genuinely wants the store (the runtime's
+key-set plumbing already reads the domain table, so the extension is a
+table row plus an observation-encoding decision, not a rewrite).
 The `turns` form has no `direction` override clause (rotation follows the
 game's declared direction; not grammar until a game needs a mid-game or
 per-loop override). Joint-predicate selection: `jointly` under a `random`

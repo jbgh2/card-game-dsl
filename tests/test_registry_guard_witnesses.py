@@ -142,6 +142,7 @@ from dataclasses import replace
 import pytest
 
 from cardlang.ast import nodes as n
+from cardlang.domains import Role
 from cardlang.pipeline import check_dsl
 from cardlang.runtime import execute
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
@@ -354,17 +355,17 @@ _WITNESSES: dict[tuple[str, str, str], str] = {
     (
         "resolve.py",
         "<module>",
-        "ZONE_INDEX_ROLES == {'player', 'team'}",
+        "ZONE_INDEX_ROLES == {Role.PLAYER, Role.TEAM}",
     ): "test_widening_zone_index_roles_fails_resolve_at_import",
     (
         "runtime/execute.py",
         "_each_simultaneous",
-        "SIMULTANEOUS_ROLES == {'player'}",
+        "SIMULTANEOUS_ROLES == {Role.PLAYER}",
     ): "test_widening_simultaneous_roles_fails_the_executor",
     (
         "runtime/execute.py",
         "_each_simultaneous",
-        "stmt.role == 'player'",
+        "role_of(stmt.role) is Role.PLAYER",
     ): "test_a_non_player_simultaneous_block_fails_the_executor",
 }
 
@@ -478,7 +479,7 @@ def test_widening_simultaneous_roles_fails_the_executor(
     straight into the player loop."""
     stmt, ctx = _simultaneous_stmt_and_ctx()
     monkeypatch.setattr(
-        execute, "SIMULTANEOUS_ROLES", frozenset({"player", "team"})
+        execute, "SIMULTANEOUS_ROLES", frozenset({Role.PLAYER, Role.TEAM})
     )
     with pytest.raises(AssertionError) as excinfo:
         execute._each_simultaneous(stmt, ctx)
@@ -521,7 +522,7 @@ def test_widening_zone_index_roles_fails_resolve_at_import() -> None:
     which implement the `team` row only."""
     script = (
         "import cardlang.domains as d\n"
-        "d.ZONE_INDEX_ROLES = frozenset({'player', 'team', 'strain'})\n"
+        "d.ZONE_INDEX_ROLES = frozenset({d.Role.PLAYER, d.Role.TEAM, d.Role.SUIT})\n"
         "try:\n"
         "    import cardlang.resolve  # noqa: F401\n"
         "except AssertionError as exc:\n"
@@ -551,6 +552,13 @@ def test_widening_zone_index_roles_fails_resolve_at_import() -> None:
 # is a proxy: a reconciliation written without a literal collection lands here,
 # and must be looked at rather than pass unnoticed.
 _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
+    # Not a hard-coded row pinned against a registry — it reconciles two
+    # readings of ONE registry (every `Role` has a `Domain`), which is what
+    # makes the three `BY_ID` lookups total by construction. Nothing to widen
+    # against, so there is no witness of this module's shape; its reddening
+    # mutation is run in
+    # tests/test_permissive_top.py::test_every_role_carries_a_row.
+    "domains.py": ["set(BY_ID) == set(Role)"],
     "libraries.py": ["not _LIBRARIES_DIR.is_dir()"],
     "openspiel/encoding.py": ["not 0 <= action < NUM_DISTINCT_ACTIONS"],
     "openspiel/replay.py": ["game.winner.rank_dir not in RANK_DIR_TO_SIGN"],
@@ -564,7 +572,7 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     "runtime/mechanics.py": ["self.stmt.order_mode == n.ROUND_ORDER_PRIORITY"],
     "runtime/reads.py": ["len(_BY_KEY) == len(PRIMITIVE_READS)"],
     "runtime/state.py": [
-        "decl.index not in ZONE_INDEX_ROLES and decl.index not in positions"
+        "role_of(decl.index) not in ZONE_INDEX_ROLES and decl.index not in positions"
     ],
     "runtime/tichu.py": ["index < _BASE_PAIRSEQ"],
     "stdlib/boards.py": ["set(_GRID_DIRECTION_OFFSETS) != set(dirs)"],

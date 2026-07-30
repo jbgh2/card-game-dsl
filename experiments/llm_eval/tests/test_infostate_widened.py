@@ -19,10 +19,10 @@ from typing import Any
 
 import pytest
 
-from experiments.llm_eval import infostate as istate
-from experiments.llm_eval.agents import RandomAgent, RuleAgent
-from experiments.llm_eval.metrics import reconstruct_plays
-from experiments.llm_eval.referee import load_game, play_game
+from .. import infostate as istate
+from ..agents import RandomAgent, RuleAgent
+from ..metrics import reconstruct_plays
+from ..referee import load_game, play_game
 
 pytest.importorskip("pyspiel", reason="the OpenSpiel adapter needs the `openspiel` extra")
 
@@ -100,7 +100,7 @@ def test_flip_knowledge_is_discarded_when_the_claimant_collects(games: list[Any]
     collects an unseen pile could hold anything, so flip-derived exclusions must
     be dropped. Checked by finding a real line where a pickup shrinks the
     exclusion set."""
-    from experiments.llm_eval.referee import load_game, replay_views
+    from ..referee import load_game, replay_views
 
     game = load_game("cardlang_cheat")
     shrank = False
@@ -169,7 +169,7 @@ def test_widened_criterion_uses_the_flip_evidence() -> None:
 
 
 def test_parse_events_round_trips_a_real_log(games: list[Any]) -> None:
-    from experiments.llm_eval.referee import load_game, replay_views
+    from ..referee import load_game, replay_views
 
     game = load_game("cardlang_cheat")
     record = games[0]

@@ -225,45 +225,48 @@ game's rulebook introduces the change. Rulebooks describe what
 
 ## Rule demand forms
 
-A rule's `demands:` clause takes one of two forms, distinguished by
-what it constrains:
+A rule's `demands:` clause names **a candidate-card set** — an expression
+returning the cards a legal move may use, filtering a zone. `MustFollowSuit`'s
+`demands: cards in hand where card.suit is state.led_suit` and Hearts'
+`demands: cards in hand where card.suit is not hearts` are this form. The legal
+move set is the intersection of every active rule's candidate set. Because that
+intersection can empty — a void player cannot follow suit — a card-set
+`demands` **must** declare an `if_impossible:` fallback: `hand` to play any
+card, or `error(...)` to reject the move. There is no silent default (see "No
+implicit actions"); a card-set rule without `if_impossible` is rejected at
+resolve time.
 
-- **A candidate-card set** — an expression returning the cards a legal
-  move may use, filtering a zone. `MustFollowSuit`'s `demands:
-  cards in hand where card.suit is state.led_suit` and Hearts' `demands:
-  cards in hand where card.suit is not hearts` are this form. The legal move set
-  is the intersection of every active rule's candidate set. Because that
-  intersection can empty — a void player cannot follow suit — a card-set
-  `demands` **must** declare an `if_impossible:` fallback: `hand` to play any
-  card, or `error(...)` to reject the move. There is no silent default (see "No
-  implicit actions"); a card-set rule without `if_impossible` is rejected at
-  resolve time.
+**A rule binds at exactly one decision site: the trick round's card
+decision.** Rules are consulted where card legality is computed
+(`rules.legal_cards`) and nowhere else, so a rule is accepted only if it can
+fire there — it must `constrains: play_to_trick`, and it must carry a
+card-set `demands:` or an `exempts:`. The checker rejects the rest rather
+than accepting surface it would silently drop ("Surface totality"):
 
-- **A predicate on the move** — `demands: actions where <predicate>`,
-  constraining the shape of the move itself rather than which cards it
-  draws from a zone. Hearts' `PassExactlyThreeCards` is `demands: actions
-  where action.card_count is 3`; Stud's `BringInMandatory` is `demands:
-  actions where action.amount is bring_in_amount`. Cribbage's two-card
-  discard and Tichu's one-card-per-opponent push are the same form.
+- a `constrains:` naming any other move type, or omitted entirely;
+- `demands: actions where <predicate>` — a predicate on the move's *shape*
+  rather than on which cards it draws. There is no site that consults it;
+- a rule with neither `demands:` nor `exempts:`, which cannot change what is
+  legal however its `applies_when:` reads.
 
-The two are not interchangeable: the first names *which cards*, the
-second *how the move is shaped*. A move is legal when it satisfies
-every active rule's demand, of either form.
+**State the constraint where the move is made instead.** A movement's
+`chosen N` binds a count (Hearts' pass is `transfer chosen 3 cards` — the
+`3` *is* the "pass exactly three" law); a move type's `when:` guard binds
+its parameters (Stud's bring-in amount). These are the enforcing forms
+today, which is why no corpus game loses a constraint to the walls above.
 
-> **Enforcement status.** Card-set demands are enforced where the trick form
-> computes card legality (`rules.legal_cards`, the trick round's decision
-> site). The `actions where` form, and rules constraining move types other
-> than `play_to_trick`, are resolved, type-checked, and emitted to IR but
-> **not yet enforced at runtime** — rule application today runs at the trick
-> form's card-decision site only. Hearts' `PassExactlyThreeCards` documents
-> the game's law while the pass movement's `chosen 3` enforces the count.
-> Widening rule application beyond trick play is an open question
-> ([open-questions/rule-scope-beyond-trick-play.md](open-questions/rule-scope-beyond-trick-play.md)).
+Where rules *should* eventually bind is open — english draughts' mandatory
+capture and nine men's morris's in-mill removal restriction are the
+witnesses that would force a wider answer
+([open-questions/rule-scope-beyond-trick-play.md](open-questions/rule-scope-beyond-trick-play.md)).
+Until then the surface is deferred, not deleted (roadmap.md, "Grammar
+surface deferred by the checker"): when enforcement widens, the walls
+retire and the forms return with an implementation behind them.
 
 **The move under inspection is bound as `action`.** A predicate over a
-player's move — `demands: actions where …` here, and the `when <move-type>
-where …` triggers of sub-phase transitions (see "Sub-phase entry and exit")
-and triggered scoring components — binds that move as `action`, and its
+player's move — the `when <move-type> where …` triggers of sub-phase
+transitions (see "Sub-phase entry and exit") and triggered scoring
+components — binds that move as `action`, and its
 fields expose the move's data: `action.card` (the card played),
 `action.cards`, `action.card_count`, `action.actor`, `action.amount`. The
 subject is always reached through `action`; there are no bare field names,
@@ -3067,7 +3070,6 @@ the commit step; the choice of whether to commit is elsewhere.
 
 ```cardlang-fragment passing_phase
 phase passing when pass_direction is not hold {
-  active_rules: [PassExactlyThreeCards]
   legal_moves:  [transfer_between_hands]
 
   each player simultaneously:
@@ -3669,17 +3671,22 @@ a closed domain is a Python union, the allow-list is a type error: every
 consumer dispatches with a structural `match` ending in
 `typing.assert_never`, so under `mypy --strict` adding a node without
 handling it everywhere fails to compile (docs/building.md, "Typed-AST
-discipline"). Where the domain is a registry of strings — the domain
-table's role ids, the stdlib registries — the type checker cannot see it,
-so a pin substitutes for it: `tests/test_role_comparison_pin.py` requires
-every role-id comparison outside the table to carry a marker naming why it
-is not drift, and `tests/test_operand_choke_point.py` requires every
-operand coercion to route through one check. Both derive their own axes
-from the registry they guard, so they widen with it rather than going
-stale. Visibility is itself a choice, not a fact of nature: a string
-domain the checker cannot see can usually be promoted to one it can (see
-"Prefer the wall you cannot need"), and the pin is the right mechanism
-only where that promotion is genuinely priced and declined. A closed
+discipline"). Where the domain is a registry of strings — the stdlib
+registries — the type checker cannot see it, so a pin substitutes for it:
+`tests/test_operand_choke_point.py` requires every operand coercion to
+route through one check, deriving its axes from the registry it guards so
+it widens with that registry rather than going stale. Visibility is
+itself a choice, not a fact of nature: a string domain the checker cannot
+see can usually be promoted to one it can (see "Prefer the wall you
+cannot need"), and the pin is the right mechanism only where that
+promotion is genuinely priced and declined. The domain table's role ids
+are the worked example of the promotion: they are `domains.Role`, a plain
+`Enum` every consumer dispatches over, so comparing a role against a
+string literal is a type error and the marker scrape that used to ask for
+a reason is gone. What `tests/test_role_comparison_pin.py` still holds is
+the residue the type cannot see — strings that merely SPELL a role
+(`player` as an unresolved name, `suit` as a component-set axis) — walled
+per module so a new one must be looked at. A closed
 domain with neither an `assert_never` nor a pin is unenforced, whatever
 its consumers currently do.
 
@@ -3786,6 +3793,13 @@ The test for which side something is on: if it fails silently, is a wrong
 game trusted, or a wrong *audit* trusted? The first is rigor-critical.
 The second is scaffolding.
 
+The cap prices the process as well as the artifacts. A change wholly on
+the scaffolding side of that test — no refusal, no runtime step, no proof
+obligation changes — still ships its grid, but takes one review round and
+no standalone adversarial claim-audit. The full cadence is reserved for
+deltas a designer, the corpus, or a proof can meet. Scaffolding misjudged
+is caught the way scaffolding is guarded: when it bites.
+
 ### Reachability ranks the work
 
 Severity says what kind of defect; reachability says who can meet it.
@@ -3857,7 +3871,12 @@ stdlib. There is no library-imports-library. Imports are pure name resolution �
 `resolve` splices each named library's definitions into the game before any
 other name check runs, so what flows on is one flat game and no later pass knows
 imports exist. That is what makes an import carry no runtime and no
-information-set implication.
+information-set implication, and the splice is the whole of the reason: nothing
+is added, and the game's own declarations are what run. In particular it is NOT
+because a library cannot name a zone. A contract can name one, and a zone type
+fixes the per-observer projection, so a library CAN say what its definitions
+were written against — `HiddenPile` rather than `PublicHand`. That constrains
+which games may import it; it changes nothing about the game that does.
 
 **`uses` imports; it does not inherit.** A game-local definition under an
 imported name is an error, not an override, and so is the same name from two
@@ -3925,6 +3944,41 @@ author needs. Post-splice a required name is just a variable declared later,
 and "declare it earlier" is advice a library author cannot take. Give the
 provided variable a literal default and set it from the contract in a phase.
 
+**A contract names state or zones, and the type says which.** A `requires`
+entry's type is read against two registries — the state types, and the stdlib
+zone types — and they are disjoint, so which of the game's declaring blocks
+answers an entry is derived rather than declared:
+
+```text
+requires {
+  hand[player]      : Hand<player>        // answered from the game's `zones { }`
+  shipment[player]  : HiddenPile<player>
+  merchant          : Player              // answered from its `state { }`
+  raise_cap         : Integer
+}
+```
+
+The two spellings do not cross. A zone type carries the `<owner>` argument and
+never a `?`; a state type carries the `?` and never an argument. Both crosses
+are refused against the LIBRARY ALONE, before any game is consulted, because
+they name a shape no `zones { }` or `state { }` line could answer — as are an
+owner argument disagreeing with the index, an owned zone type with no index, and
+an index that is a position domain rather than a seat or team. A library
+declares no `positions { }` and cannot name one, so a position-indexed zone
+family cannot be contracted at all.
+
+That the derivation IS a derivation rests on a wall: a declared `type` and a
+per-game `positions { }` name may not take a stdlib zone type's spelling. Without
+it `type Hand = { … }` would make `requires { x : Hand }` mean two things, and
+the classification would silently pick one.
+
+A contracted zone is the game's zone. The game declares it, writes it, and owns
+its projection; the contract only says which shape the library's definitions were
+written against. That is the reverse of provided state, and deliberately so —
+there are no library-owned zones, because every zone a family shares is written
+by game text somewhere (a deal, a settlement, a game-local move), and a variable
+the library owns and the game may also write is owned by neither.
+
 **There is no visibility system beyond this, and that is a decision, not a
 gap.** No `private`/`public` marker on a definition, no export list, no scoped
 namespace. Two surveys over the two multi-member families in hand measured what
@@ -3936,6 +3990,17 @@ from its importer. Adding a marker system now would be designing against
 imagined pressure, and this paragraph exists so the question is not silently
 reopened — reopen it when a family produces a case these two mechanisms cannot
 express, and name that case.
+
+A requirement's own index is checked first, and in the LIBRARY's currency:
+`requires { seen[rank] : Integer }` is refused where the library wrote it,
+because an index must be a role a state variable can be keyed by
+(player/team) and no game could answer such a requirement. That is the
+library twin of the state-index wall, and the difference in currency is
+who can fix it — an unmet contract is a fact about the importing game, a
+malformed index is wrong in the library's own text. A mismatch between a
+well-formed requirement and the game's declaration names both roles
+(`per-team` against `per-player`), never the presence or absence of an
+index.
 
 What the `requires` contract checks is that **exactly one**
 declaration of the name exists somewhere in the game, at the library's arity and
@@ -3970,11 +4035,21 @@ deck-agnostic: it names no rank, no suit and no card, because those exist only
 once an including game names a deck, and a family's members do not share one
 (Kuhn's holds three cards).
 
-The check enforces this for every name the resolver classifies. It does not yet
-reach a name a construct holds as a bare string rather than as a reference — a
-`turns … again <var>`, a `round`'s source and play zones, a struct type name —
-so for those slots the rule above is the design's intent rather than a
-guarantee. The gap and the shape of its fix are in issue #138.
+The check enforces this for every name the resolver classifies **and** for every
+name a construct holds as a bare string instead — a `turns … again <var>`, a
+`round`'s source and play zones, a struct type name, `state.<var>`. The second
+half runs off the **reference-slot registry**: one table classifying every
+string-typed field of every AST node as a declaration, a binder, a reference
+into a named namespace, a keyword, opaque text, a classified name, or pass
+metadata. The table's key set is derived from the AST and pinned to it, so a
+field added to a node is classified or the build fails; what each slot MEANS is
+authored, because no annotation carries it.
+
+The registry is what makes the boundary statable. A namespace a library can
+reach is either swept against what the library itself has, or carries a written
+reason why reaching it is not a channel — a closed stdlib or domain registry
+identical either side, or a name owned by a declaration that IS swept. There is
+no third state, and no consumer keeps a list of the slots it remembered.
 
 **Name collisions on state are walled the same way collisions on definitions
 are.** A library may not both provide and require one name — the two clauses
@@ -4021,16 +4096,27 @@ declarations and measure the corpus cost.
 and the state its definitions own — but no zones and no phases — because that is
 as far as the corpus has forced it, not because a library is a lesser kind of
 thing than a game. The boundary moves as sibling games need to share more.
-Within today's boundary the corpus forced a sharper line: **a move that touches a
-game-specific zone stays game-local; the library holds the zone-agnostic core.**
+Within today's boundary the corpus forced a sharper line, and the line is about
+VARIATION rather than about zones: **the move that differs across the family
+stays game-local; the library holds what every member holds identically.**
+
 `poker_betting` holds check, bet, call, raise and the `can_act`/`owes`/`pending`
 ring predicates — all of which move chips and nothing else — and omits `fold`,
 the one betting move that touches cards. Which cards a fold disposes of, and
 where they go, is a property of the game: Stud sends the folder's upcards to the
 muck the instant they fold, and opponents' information sets carry that
 observation. Each game defines its own `fold` and offers it alongside the
-imported four in one vocabulary list. The signal that this factoring is natural
-rather than forced is that `poker_betting`'s contract requires no zones at all.
+imported four in one vocabulary list.
+
+`smuggling` draws the same line one family over, and the measurement is what
+draws it. Across the twelve smuggling files `commit_shipment` and `wave` are
+byte-identical and both move cards, so both are in the library; `inspect` has ten
+distinct bodies and is game-local. Those ten decompose into three orthogonal
+deltas — the fine (a per-game constant), the contraband predicate (a card
+predicate), and the bounty (an added statement) — and only the first is
+something a declaration could carry. So "touches a zone" was never the criterion:
+a move touching a CONTRACTED zone belongs in the library, and a move that varies
+does not, however zone-free it is.
 
 **Parameterization rides on state and on procedure arguments, not on the
 import.** Family members differ by constants, and where the constant lives
@@ -4047,6 +4133,21 @@ The test for which of the two a constant is: could one declaration in the game
 carry it? `raise_cap` yes, `limit` no. A value that varies within a game was
 never a declaration's to hold, and making it one is how `limit := 5` came to be
 repeated at five sites that were otherwise identical.
+
+**A second family was measured against this rule and did not break it, but it
+did narrow what the rule is about.** The smuggling family's members differ in
+three ways, and only one is parameterization at all: a fine (a per-game
+constant, which required state carries), a contraband predicate, and an added
+statement. The last two are not constants of any kind, so no clause on the
+import would carry them either — a `with` clause is not what that family wants.
+What it wants, if anything, is a contract over DEFINITIONS: a required function
+would let the varying predicate be the game's while the move stayed shared, and
+a required move type would let the family share the offer step that is already
+byte-identical in every member. That is issue #189, and it is a different
+question from #178's — a definition is a NAME, in a namespace `requires` does
+not reach, where #178 asks whether a contract can express a capability at all.
+Recorded here so the next reader does not re-derive a `with` clause from the
+same evidence.
 
 **A member offers a subset of the family vocabulary, at no cost.** Importing a
 library is not a commitment to use all of it: Kuhn's `offering` list is
@@ -4081,17 +4182,36 @@ Stud's bring-in genuinely writes `raises`, a boundary write no *shared* procedur
 absorbs because only one game in the family has a bring-in.
 
 *Survey 2, over the smuggling family* (`experiments/green-lane/`, an experiment
-rather than corpus). The shared material a library could not hold was
-irreducibly zones plus state declarations. Phases were NOT forced: the family's
-shared phase material reduced to statements a parameterized procedure covers.
+rather than corpus). Run as a survey first and then EXECUTED, and the two
+answers differ, which is why the executed one is what stands.
+
+The survey said the shared material a library could not hold was irreducibly
+zones plus state declarations. Building the library found the first half was a
+missing mechanism rather than a boundary — hence zone contracts — and the second
+half stands: state declarations are shared by being contracted, never by being
+held, so each member still writes its own.
+
+What the build measured, over all twelve files: `zones { }`, `commit_shipment`
+and `wave` are byte-identical everywhere; `state { }` varies in one default and
+one added variable; `phase play` varies in two lines; `phase scoring` in four;
+and `inspect` has ten bodies. The library ends up holding the commit, the wave
+and a four-entry contract — about an eighth of each file. The family shares
+roughly nine tenths of its text, so **most of what these siblings have in common
+is material this tier cannot hold at all**: zones (contracted, not shared),
+state declarations (likewise), the phase tree, and the varying move.
+
+Phases were NOT forced, and for a reason worth keeping: the shared phase material
+reduced to statements a procedure covers. A separate constraint capped how far
+that goes — a procedure may not invoke another (expansion is a single splice,
+not a call graph) — so shared material reachable only from inside a game's own
+procedure has to be lifted to a phase to be shareable at all.
 
 The second survey carries a caveat that bounds how far it generalizes. Green
 Lane's variants are a **delta lattice** — v4 is v1 composed with v3, and each
 delta edits disjoint rule text — so the family shares a great deal by
 construction. A family whose members are siblings rather than deltas may share a
-different *shape* of material, and in particular may not reproduce the
-zones-and-state signal at all. Read Survey 2 as "phases were not forced by this
-family", not as "phases are settled". The roadmap entry says the same.
+different *shape* of material. Read Survey 2 as "phases were not forced by this
+family", not as "phases are settled".
 
 The tier's completeness gate is `tests/test_family_libraries.py`, whose ledger
 records the one deliberate non-cell: stdlib move types and a game's `move_type`

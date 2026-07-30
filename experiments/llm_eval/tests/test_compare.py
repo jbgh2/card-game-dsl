@@ -16,7 +16,7 @@ from typing import Any
 
 import pytest
 
-from experiments.llm_eval.compare import DERIVED, enrich, fisher_exact, main, wald_ci
+from ..compare import DERIVED, enrich, fisher_exact, main, wald_ci
 
 # Every 2x2 table with each cell in 0..MAX. Closed and enumerable, so the
 # differential covers the domain rather than sampling it.
@@ -185,8 +185,8 @@ def test_compare_refuses_a_missing_matchup(tmp_path: Path) -> None:
 def test_the_primary_endpoint_is_one_of_the_reported_rates() -> None:
     """A `PRIMARY_ENDPOINT` naming a rate that is never computed would silently
     demote every rate to exploratory, and the `*` would never appear."""
-    from experiments.llm_eval.compare import PRIMARY_ENDPOINT
-    from experiments.llm_eval.verify import RATES
+    from ..compare import PRIMARY_ENDPOINT
+    from ..verify import RATES
 
     assert PRIMARY_ENDPOINT in {name for name, _, _ in RATES}
 
@@ -219,8 +219,8 @@ def test_the_exploratory_threshold_is_bonferroni_over_the_reported_rates() -> No
     """Derived from `RATES`, not written as a literal: adding a rate must tighten
     the threshold automatically, or the correction silently decays as the report
     grows."""
-    from experiments.llm_eval.compare import ALPHA_EXPL
-    from experiments.llm_eval.verify import RATES
+    from ..compare import ALPHA_EXPL
+    from ..verify import RATES
 
     assert ALPHA_EXPL == pytest.approx(0.05 / len(RATES))
     assert ALPHA_EXPL < 0.05, "the correction is not correcting anything"
@@ -232,7 +232,7 @@ def test_a_small_run_warns_that_pooled_p_values_are_optimistic(
     """A `*` on a one-game row and a `*` on a ten-game row look identical, and the
     p-values behind them are not comparable: decisions within a game share a hand,
     a pile and a claim cycle, so the effective N is the game count."""
-    from experiments.llm_eval.compare import CLUSTER_WARN_GAMES
+    from ..compare import CLUSTER_WARN_GAMES
 
     few = CLUSTER_WARN_GAMES - 1
     _write(tmp_path, "ctl", [_seat_record(s, "llm_x") for s in range(few)])
@@ -246,7 +246,7 @@ def test_a_small_run_warns_that_pooled_p_values_are_optimistic(
 def test_a_large_enough_run_does_not_warn(tmp_path: Path, capsys: Any) -> None:
     """Non-vacuity: the warning must be capable of staying silent, or it is
     decoration rather than a signal."""
-    from experiments.llm_eval.compare import CLUSTER_WARN_GAMES
+    from ..compare import CLUSTER_WARN_GAMES
 
     enough = CLUSTER_WARN_GAMES
     _write(tmp_path, "ctl", [_seat_record(s, "llm_x") for s in range(enough)])

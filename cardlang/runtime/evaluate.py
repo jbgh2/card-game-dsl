@@ -11,7 +11,7 @@ from dataclasses import replace
 from typing import Any, assert_never
 
 from cardlang.ast import nodes as n
-from cardlang.domains import role_members
+from cardlang.domains import role_members, require_role
 from cardlang.runtime import observe, stdlib
 from cardlang.runtime.state import Ctx, Move, StructValue, elements
 from cardlang.runtime.values import Card
@@ -340,7 +340,7 @@ def _quantifier(e: n.Quantifier, ctx: Ctx) -> bool:
     # never rebinds the actor (the `binds_actor` column is `for each`'s
     # concern) — `any player where …` asks a question about each seat, it does
     # not make a decision as that seat.
-    domain = role_members(e.role, ctx)
+    domain = role_members(require_role(e.role, "quantifier role"), ctx)
     results = (evaluate(e.body, ctx.with_local(e.binder, x)) for x in domain)
     return any(results) if e.kind == "any" else all(results)
 

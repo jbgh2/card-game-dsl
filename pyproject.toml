@@ -19,6 +19,11 @@ dev = [
     # IS the version's default, so a range would silently change what the lint
     # means from one install to the next.
     "ruff==0.16.0",
+    # PyYAML is read by an experiment rig's config loader, and mypy now covers
+    # `experiments`. Its stubs rather than an `ignore_missing_imports` override,
+    # because silencing the import is what makes `yaml.safe_load` return `Any` —
+    # the unchecked value the decision to cover experiments exists to prevent.
+    "types-PyYAML",
 ]
 # The OpenSpiel adapter (cardlang/openspiel). Kept out of `dev` so a local
 # core install stays light; the adapter tests skip when pyspiel is absent.
@@ -89,29 +94,22 @@ empty_parameter_set_mark = "fail_at_collect"
 [tool.mypy]
 python_version = "3.11"
 strict = true
-files = ["cardlang", "tests"]
-# `experiments/` is checked by its OWN config, never by this gate:
-#
-#     mypy --config-file experiments/llm_eval/mypy.ini experiments/llm_eval
-#
-# The bar there is the same `--strict`; the invocation is separate so the
-# language's gate never depends on `anthropic`, `pyyaml` or `matplotlib` being
-# installed. That separation used to hold only because `files` above happens not
-# to name `experiments` — which is not a guarantee. A newer mypy (CI resolves the
-# unpinned `mypy>=1.8`, and moved 2.1 -> 2.3) reached the tree anyway and failed
-# collection: `experiments/` has no `__init__.py` while `experiments/llm_eval/`
-# does, so the same file is nameable as both `llm_eval.compare` and
-# `experiments.llm_eval.compare`. Stating the exclusion makes the intent
-# enforced rather than incidental.
-exclude = ["^experiments/"]
+# `experiments` is held to the same strict bar as the front end and the tests.
+# The experiments are where a design loop's evidence comes from — a solver rig
+# that silently returns `Any` produces numbers a design decision then rests on,
+# so "it is only an experiment" is the reason to check it, not to exempt it.
+files = ["cardlang", "tests", "experiments"]
 # Lark ships partial types; keep the front end itself strict.
 [[tool.mypy.overrides]]
 module = ["lark.*"]
 ignore_missing_imports = true
 # pyspiel (open_spiel) ships no type stubs; the adapter subclasses its untyped
-# Game/State, so relax the subclassing-Any check for that package only.
+# Game/State, so relax the subclassing-Any check for that package only. The
+# `open_spiel.*` half is the Python-side algorithm library (CFR, exploitability)
+# the experiment rigs drive their solves through — same missing stubs, same
+# package, reached by a different import path.
 [[tool.mypy.overrides]]
-module = ["pyspiel", "pyspiel.*"]
+module = ["pyspiel", "pyspiel.*", "open_spiel.*"]
 ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = ["cardlang.openspiel.game"]

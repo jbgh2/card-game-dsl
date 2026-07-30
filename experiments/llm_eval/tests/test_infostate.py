@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from experiments.llm_eval import infostate as istate
+from .. import infostate as istate
 
 REAL = (
     "P1|deck=#0;flipped=[];pile=#0;played=#1;hand[0]=#12;"
