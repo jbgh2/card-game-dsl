@@ -73,7 +73,7 @@ def joint_value(
 
     def walk(state: pyspiel.State, prob: float) -> float:
         if state.is_terminal():
-            return prob * state.returns()[0]
+            return float(prob * state.returns()[0])
         total = 0.0
         if state.is_chance_node():
             for action, p in state.chance_outcomes():

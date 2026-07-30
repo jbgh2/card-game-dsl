@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import random
+from typing import Any
 import sys
 
 import fast_sim
@@ -20,7 +21,7 @@ from analyze_undertow import tricks_from_log
 from cardlang.openspiel import replay
 
 
-def export_trace(path: str, seed: int, rng: random.Random) -> dict:
+def export_trace(path: str, seed: int, rng: random.Random) -> dict[str, Any]:
     history: list[int] = []
     steps = []
     space = replay.load(path)[1]
@@ -29,13 +30,20 @@ def export_trace(path: str, seed: int, rng: random.Random) -> dict:
         if isinstance(r, replay.Terminal):
             returns = r.returns
             break
+        # A decision node always names its actor; only a chance node does not,
+        # and `replay.run` does not pause on one.
+        actor = r.player
+        assert actor is not None, "a paused decision node has an actor"
         legal_labels = [space.to_string(a) for a in r.legal]
         a = rng.choice(r.legal)
         steps.append(
-            {"actor": r.player, "legal": legal_labels, "chosen": space.to_string(a)}
+            {"actor": actor, "legal": legal_labels, "chosen": space.to_string(a)}
         )
         history.append(a)
     pause = replay.run(path, seed, tuple(history[:-1]))
+    # One action short of the end, so the replay pauses rather than terminating;
+    # a Terminal carries no observation logs to read tricks out of.
+    assert isinstance(pause, replay.Pause), "expected a paused world one ply short"
     tricks = tricks_from_log(pause.obs_logs[0])
     return {
         "seed": seed,
@@ -49,14 +57,14 @@ def export_trace(path: str, seed: int, rng: random.Random) -> dict:
     }
 
 
-def hands_from_steps(steps: list[dict]) -> list[list[int]]:
+def hands_from_steps(steps: list[dict[str, Any]]) -> list[list[int]]:
     hands: list[list[int]] = [[], [], [], []]
     for s in steps:
         hands[s["actor"]].append(fast_sim.parse_label(s["chosen"]))
     return hands
 
 
-def replay_in_sim(trace: dict) -> None:
+def replay_in_sim(trace: dict[str, Any]) -> None:
     hands = hands_from_steps(trace["steps"])
     sim = fast_sim.Sim(hands, leader=trace["steps"][0]["actor"])
     trick_idx = 0
@@ -71,8 +79,13 @@ def replay_in_sim(trace: dict) -> None:
         if after > before and trick_idx < len(trace["tricks"]):
             t = trace["tricks"][trick_idx]
             assert sim.leader == t["winner"], f"trick {trick_idx}: winner {sim.leader} != {t['winner']}"
-            assert fast_sim.SUITS[sim.trump] == t["tide"][-1], (
-                f"trick {trick_idx}: tide suit {fast_sim.SUITS[sim.trump]} != {t['tide']}"
+            # A resolved trick always names the trump — the undertow sets it as
+            # the trick resolves (`fast_sim.Sim.apply`), so `None` here would
+            # mean the trick count advanced without one resolving.
+            trump = sim.trump
+            assert trump is not None, f"trick {trick_idx} resolved without a trump"
+            assert fast_sim.SUITS[trump] == t["tide"][-1], (
+                f"trick {trick_idx}: tide suit {fast_sim.SUITS[trump]} != {t['tide']}"
             )
             trick_idx += 1
     assert sim.terminal()

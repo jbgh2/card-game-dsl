@@ -89,15 +89,22 @@ empty_parameter_set_mark = "fail_at_collect"
 [tool.mypy]
 python_version = "3.11"
 strict = true
-files = ["cardlang", "tests"]
+# `experiments` is held to the same strict bar as the front end and the tests.
+# The experiments are where a design loop's evidence comes from — a solver rig
+# that silently returns `Any` produces numbers a design decision then rests on,
+# so "it is only an experiment" is the reason to check it, not to exempt it.
+files = ["cardlang", "tests", "experiments"]
 # Lark ships partial types; keep the front end itself strict.
 [[tool.mypy.overrides]]
 module = ["lark.*"]
 ignore_missing_imports = true
 # pyspiel (open_spiel) ships no type stubs; the adapter subclasses its untyped
-# Game/State, so relax the subclassing-Any check for that package only.
+# Game/State, so relax the subclassing-Any check for that package only. The
+# `open_spiel.*` half is the Python-side algorithm library (CFR, exploitability)
+# the experiment rigs drive their solves through — same missing stubs, same
+# package, reached by a different import path.
 [[tool.mypy.overrides]]
-module = ["pyspiel", "pyspiel.*"]
+module = ["pyspiel", "pyspiel.*", "open_spiel.*"]
 ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = ["cardlang.openspiel.game"]

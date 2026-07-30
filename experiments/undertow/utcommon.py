@@ -52,7 +52,7 @@ class _State(CardlangState):
 
 
 def register(num_seeds: int = 2048) -> str:
-    replay.run = _run_dispatch  # type: ignore[assignment]
+    replay.run = _run_dispatch
     path = str(HERE / FILENAME)
     game_ast, space = replay.load(path)
     num_players = game_ast.players.low
@@ -82,7 +82,10 @@ def register(num_seeds: int = 2048) -> str:
         max_game_length=game_ast.max_length or 800,
     )
 
-    class _Game(pyspiel.Game):
+    # pyspiel ships no stubs, so its `Game` is `Any` (the same exemption
+    # `cardlang.openspiel.game` carries in pyproject; local here because a
+    # script is not a package module an override can name).
+    class _Game(pyspiel.Game):  # type: ignore[misc]
         def __init__(self, params: Any = None) -> None:
             super().__init__(game_type, game_info, params or {})
 

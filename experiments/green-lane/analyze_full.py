@@ -15,6 +15,8 @@ import sys
 import time
 from collections import defaultdict
 
+from typing import TypedDict
+
 import glcommon
 import pyspiel
 from open_spiel.python.algorithms import outcome_sampling_mccfr
@@ -29,11 +31,11 @@ def sample_action(
     state: pyspiel.State, pol: object | None, rng: random.Random
 ) -> int:
     if pol is None:
-        return rng.choice(state.legal_actions())
+        return int(rng.choice(state.legal_actions()))
     probs = pol.action_probabilities(state)  # type: ignore[attr-defined]
     actions = list(probs.keys())
     weights = [probs[a] for a in actions]
-    return rng.choices(actions, weights=weights, k=1)[0]
+    return int(rng.choices(actions, weights=weights, k=1)[0])
 
 
 def head_to_head(
@@ -67,9 +69,27 @@ def entropy(probs: list[float]) -> float:
     return -sum(p * math.log2(p) for p in probs if p > 0)
 
 
+class Evidence(TypedDict):
+    """What `mixture_evidence` reports — a fixed record, serialized to JSON."""
+
+    infosets_visited: int
+    share_of_decisions_at_mixed_infosets: float
+    mean_entropy_bits: float
+    top_decisions: list[VisitRow]
+
+
+class VisitRow(TypedDict):
+    """One frequently-visited decision under self-play."""
+
+    visits: int
+    player: int
+    ply: int
+    strategy: dict[str, float]
+
+
 def mixture_evidence(
     game: pyspiel.Game, pol: object, rng: random.Random, n_games: int = 1500
-) -> dict[str, object]:
+) -> Evidence:
     """Self-play under the average policy; per visited infoset, record visit
     counts and the strategy, then summarize how mixed play actually is at the
     decisions the game reaches."""
@@ -105,7 +125,7 @@ def mixture_evidence(
         for k in rows
         if sum(1 for p in strategy[k].values() if p > 0.05) > 1
     )
-    top = [
+    top: list[VisitRow] = [
         {
             "visits": visits[k],
             "player": owner[k],
@@ -127,10 +147,10 @@ def mixture_evidence(
     }
 
 
-def describe(row: dict[str, object]) -> str:
+def describe(row: VisitRow) -> str:
     strat = ", ".join(
         f"{a}:{p:.3f}"
-        for a, p in sorted(row["strategy"].items(), key=lambda kv: -kv[1])  # type: ignore[union-attr]
+        for a, p in sorted(row["strategy"].items(), key=lambda kv: -kv[1])
         if p > 0.005
     )
     return f"visits={row['visits']:5d} P{row['player']} ply={row['ply']:2d}  [{strat}]"
@@ -184,19 +204,18 @@ def main() -> None:
     )
     print(f"  mean strategy entropy: {evidence['mean_entropy_bits']:.2f} bits")
     print("  most visited decisions:")
-    for row in evidence["top_decisions"]:  # type: ignore[union-attr]
+    for row in evidence["top_decisions"]:
         print("    " + describe(row))
 
     out = {
         "iterations": iterations,
         "head_to_head": {k: {"mean": v[0], "stderr": v[1]} for k, v in results.items()},
         "mixture": {
-            k: evidence[k]
-            for k in (
-                "infosets_visited",
-                "share_of_decisions_at_mixed_infosets",
-                "mean_entropy_bits",
-            )
+            "infosets_visited": evidence["infosets_visited"],
+            "share_of_decisions_at_mixed_infosets": evidence[
+                "share_of_decisions_at_mixed_infosets"
+            ],
+            "mean_entropy_bits": evidence["mean_entropy_bits"],
         },
         "top_decisions": evidence["top_decisions"],
     }
