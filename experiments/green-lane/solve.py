@@ -55,7 +55,7 @@ def solve(path: Path, iterations: int) -> dict[str, object]:
     mixed = [
         r
         for r in rows
-        if sum(1 for p in r["strategy"].values() if p > 0.02) > 1  # type: ignore[union-attr]
+        if sum(1 for p in r["strategy"].values() if p > 0.02) > 1
     ]
 
     grid = []
@@ -89,7 +89,12 @@ def solve(path: Path, iterations: int) -> dict[str, object]:
         "best_naive_rule": best_naive,
         "naive_grid": grid,
         "top_decisions": [
-            {k: row[k] for k in ("reach", "player", "depth", "strategy")}
+            {
+                "reach": row["reach"],
+                "player": row["player"],
+                "depth": row["depth"],
+                "strategy": row["strategy"],
+            }
             for row in rows[:14]
         ],
     }
