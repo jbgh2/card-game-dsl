@@ -90,6 +90,20 @@ empty_parameter_set_mark = "fail_at_collect"
 python_version = "3.11"
 strict = true
 files = ["cardlang", "tests"]
+# `experiments/` is checked by its OWN config, never by this gate:
+#
+#     mypy --config-file experiments/llm_eval/mypy.ini experiments/llm_eval
+#
+# The bar there is the same `--strict`; the invocation is separate so the
+# language's gate never depends on `anthropic`, `pyyaml` or `matplotlib` being
+# installed. That separation used to hold only because `files` above happens not
+# to name `experiments` — which is not a guarantee. A newer mypy (CI resolves the
+# unpinned `mypy>=1.8`, and moved 2.1 -> 2.3) reached the tree anyway and failed
+# collection: `experiments/` has no `__init__.py` while `experiments/llm_eval/`
+# does, so the same file is nameable as both `llm_eval.compare` and
+# `experiments.llm_eval.compare`. Stating the exclusion makes the intent
+# enforced rather than incidental.
+exclude = ["^experiments/"]
 # Lark ships partial types; keep the front end itself strict.
 [[tool.mypy.overrides]]
 module = ["lark.*"]
