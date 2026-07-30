@@ -12,7 +12,9 @@ Each hand:
    **small blind** (2), the next the **big blind** (5) — these are forced bets,
    not decisions. **Heads-up the blinds reverse**: the button posts the small
    blind.
-2. Burn one card, then deal each player two face-down **hole cards**.
+2. Burn one card, then deal each player two face-down **hole cards**. (Pagat
+   burns here as well as before each community stage — four burns a hand,
+   where common casino practice burns only three.)
 3. **Pre-flop** betting, begun by the player to the big blind's left. A player
    may check, bet, call, raise (capped), or fold.
 4. **The flop** — burn one, deal three face-up **community cards** — then a

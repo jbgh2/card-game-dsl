@@ -117,7 +117,13 @@ game Holdem {
       bet_to_match := 5
       raises := 1
 
-      // Burn, then two hole cards each (Pagat burns before the initial deal).
+      // Burn, then two hole cards each — FOUR burns per hand, not three.
+      // Deliberate, and against common casino practice, which burns only before
+      // the flop, turn and river. Pagat is this corpus's rule source (CLAUDE.md)
+      // and it burns here too, verbatim: "The cards are shuffled and cut, the
+      // dealer 'burns' one card and then deals the cards one at a time face down
+      // until each player has two cards." Removing this burn shifts every
+      // fixed-seed holding, so it is a rules choice rather than a tidy-up.
       deal 1 card from deck to burn
       for each player p: if in_hand[p] {
         deal 2 cards from deck to hole[p]
