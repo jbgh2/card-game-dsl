@@ -19,11 +19,23 @@ dev = [
     # IS the version's default, so a range would silently change what the lint
     # means from one install to the next.
     "ruff==0.16.0",
-    # PyYAML is read by an experiment rig's config loader, and mypy now covers
-    # `experiments`. Its stubs rather than an `ignore_missing_imports` override,
-    # because silencing the import is what makes `yaml.safe_load` return `Any` —
-    # the unchecked value the decision to cover experiments exists to prevent.
+    # The experiment rigs' own imports. mypy's `files` covers `experiments`, so
+    # the gate cannot type-check a rig whose libraries are absent — an
+    # undeclared import fails as `import-not-found` rather than being checked.
+    #
+    # Declared rather than silenced with `ignore_missing_imports`. All three ship
+    # `py.typed`, so an override would throw away real types and hand back `Any`
+    # at exactly the boundary where a rig talks to the outside world — the
+    # unchecked value that putting `experiments` in `files` exists to prevent.
+    # (`open_spiel` keeps its override: it is installed, and genuinely untyped.)
+    #
+    # `pyyaml` is a DIRECT import of the eval rig's config loader. It resolved in
+    # CI only as a transitive dependency of `ml-collections`, which is a coincidence
+    # of the OpenSpiel extra, not a guarantee.
+    "pyyaml",
     "types-PyYAML",
+    "anthropic",
+    "matplotlib",
 ]
 # The OpenSpiel adapter (cardlang/openspiel). Kept out of `dev` so a local
 # core install stays light; the adapter tests skip when pyspiel is absent.

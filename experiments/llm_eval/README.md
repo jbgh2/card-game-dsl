@@ -45,7 +45,7 @@ scrape proving `agents.py` and `prompts.py` import neither `cardlang` nor
 ## Quickstart
 
 ```bash
-pip install -e ".[dev,openspiel]" anthropic pyyaml matplotlib
+pip install -e ".[dev,openspiel]"
 ```
 
 **Offline end-to-end run** (no API key, ~2 minutes for N=100):
@@ -60,17 +60,24 @@ python -m experiments.llm_eval.run_eval --config experiments/llm_eval/config.yam
 pytest experiments/llm_eval/tests -q
 ```
 
-**Type check** (`--strict`, same bar as the front end):
+**Type check** — the repo's own gate covers this tree, so run it bare:
 
 ```bash
-mypy --config-file experiments/llm_eval/mypy.ini experiments/llm_eval
+mypy
 ```
 
-These tests are deliberately outside `tests/`: `pyproject.toml` sets
+`pyproject.toml` puts `experiments` in mypy's `files`: a rig that silently
+returns `Any` produces numbers a design decision then rests on, so "it is only an
+experiment" is the reason to check it, not to exempt it. The rigs' libraries
+(`anthropic`, `matplotlib`, `pyyaml`) are therefore declared in the `dev` extra —
+mypy cannot check a call into a library it cannot import, and all three ship
+`py.typed`, so declaring them buys real checking where an
+`ignore_missing_imports` override would hand back `Any`.
+
+The TESTS are still deliberately outside `tests/`: `pyproject.toml` sets
 `testpaths = ["tests"]`, so a bare `pytest` — what CI runs — does not collect
-them and this experiment cannot redden the language's own gates. The mypy config
-is separate for the same reason: adding `experiments/llm_eval` to the repo's
-`files` list would make CI depend on `anthropic`, `pyyaml` and `matplotlib`.
+them, and a run needing an API key cannot redden the language's own gate. Run
+them explicitly with the command above.
 
 ---
 
@@ -708,6 +715,5 @@ compare.py    Two matchups side by side, with the pre-registered endpoint
 study.py      Rebuild the study summary + figure from the archive
 figure.py     The one matplotlib figure
 config.yaml   Matchups, N, seeds, models, token caps
-mypy.ini      --strict, kept out of the repo's CI gate
 tests/        Offline unit tests (fake provider only, no network)
 ```
