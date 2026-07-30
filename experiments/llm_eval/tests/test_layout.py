@@ -270,3 +270,117 @@ def _bare_record(seed: int) -> dict[str, Any]:
         "num_decisions": 0,
         "wall_seconds": 0.0,
     }
+
+
+# --- continuing a run must not destroy what it already holds -----------------
+
+
+def test_a_non_resuming_matchup_refuses_to_overwrite_a_transcript(
+    tmp_path: Path,
+) -> None:
+    """The data-destroying case, and the README's own resume command was the
+    trigger: it omits `--matchup`, so the default selection would re-run every
+    matchup into the named run directory, opening each transcript with `w`.
+    Transcripts hold real model responses and are NOT regenerable.
+    """
+    target = tmp_path / "run-a"
+    config_path = _config_file(tmp_path, n=1)
+    assert main(["--config", str(config_path), "--run-dir", str(target)]) == 0
+    transcript = target / "transcripts" / "offline.jsonl"
+    before = transcript.read_text(encoding="utf-8")
+    assert before.strip(), "the first run wrote nothing — the test proves nothing"
+
+    with pytest.raises(ValueError, match="would be\n?\\s*overwritten"):
+        main(["--config", str(config_path), "--run-dir", str(target)])
+    assert transcript.read_text(encoding="utf-8") == before, "the data was destroyed"
+
+
+def test_resuming_carries_forward_earlier_matchup_blocks_and_spend(
+    tmp_path: Path,
+) -> None:
+    """`summaries` holds only this invocation, so writing it verbatim would drop
+    every block the earlier invocation completed and report `run_totals` as the
+    fresh providers' counters — a resumed run understating its own spend."""
+    import yaml
+
+    target = tmp_path / "run-a"
+    spec = yaml.safe_load(_config_file(tmp_path, n=1).read_text(encoding="utf-8"))
+    # Two matchups; the first is completed and never touched again.
+    other = {**spec["matchups"][0], "name": "other"}
+    spec["matchups"] = [other, spec["matchups"][0]]
+    path = tmp_path / "two.yaml"
+    path.write_text(yaml.safe_dump(spec), encoding="utf-8")
+    assert main(["--config", str(path), "--run-dir", str(target)]) == 0
+    first = json.loads((target / "summary.json").read_text(encoding="utf-8"))
+    assert {m["matchup"] for m in first["matchups"]} == {"other", "offline"}
+
+    # Now resume ONLY `offline`, correctly scoped with --matchup.
+    spec["matchups"][1] = {**spec["matchups"][1], "n": 2, "resume_from": 1}
+    path.write_text(yaml.safe_dump(spec), encoding="utf-8")
+    assert main(
+        ["--config", str(path), "--run-dir", str(target), "--matchup", "offline"]
+    ) == 0
+    after = json.loads((target / "summary.json").read_text(encoding="utf-8"))
+    names = {m["matchup"] for m in after["matchups"]}
+    assert names == {"other", "offline"}, f"a prior block was lost: {names}"
+    resumed = next(m for m in after["matchups"] if m["matchup"] == "offline")
+    assert resumed["n_completed"] == 2
+
+
+def test_resume_refuses_a_changed_treatment(tmp_path: Path) -> None:
+    """Seeds agreeing is not the experiment agreeing. Change the arm, the model or
+    an opponent's `bluff_prob` and the same seed sequence still passes the prefix
+    check, after which two treatments are aggregated as one matchup."""
+    import yaml
+
+    target = tmp_path / "run-a"
+    spec = yaml.safe_load(_config_file(tmp_path, n=1).read_text(encoding="utf-8"))
+    path = tmp_path / "c.yaml"
+    path.write_text(yaml.safe_dump(spec), encoding="utf-8")
+    assert main(["--config", str(path), "--run-dir", str(target)]) == 0
+
+    # Same seeds, different opponents.
+    spec["matchups"][0]["n"] = 2
+    spec["matchups"][0]["resume_from"] = 1
+    spec["matchups"][0]["agents"][1] = {"kind": "rule", "bluff_prob": 0.4}
+    path.write_text(yaml.safe_dump(spec), encoding="utf-8")
+    with pytest.raises(ValueError, match="the configuration changed"):
+        main(["--config", str(path), "--run-dir", str(target)])
+
+
+def test_resume_accepts_an_unchanged_treatment(tmp_path: Path) -> None:
+    """Non-vacuity: the fingerprint must not reject a legitimate resume. `n` and
+    `resume_from` change on every resume by definition, so neither may be in it."""
+    import yaml
+
+    target = tmp_path / "run-a"
+    spec = yaml.safe_load(_config_file(tmp_path, n=1).read_text(encoding="utf-8"))
+    path = tmp_path / "c.yaml"
+    path.write_text(yaml.safe_dump(spec), encoding="utf-8")
+    assert main(["--config", str(path), "--run-dir", str(target)]) == 0
+
+    spec["matchups"][0]["n"] = 2
+    spec["matchups"][0]["resume_from"] = 1
+    path.write_text(yaml.safe_dump(spec), encoding="utf-8")
+    assert main(["--config", str(path), "--run-dir", str(target)]) == 0
+    from experiments.llm_eval.metrics import iter_jsonl
+
+    records = list(iter_jsonl(str(target / "transcripts" / "offline.jsonl")))
+    assert [r["seed"] for r in records] == [0, 1]
+
+
+def test_a_treatment_record_is_written_beside_every_transcript(
+    tmp_path: Path,
+) -> None:
+    """Written before the first game, so the record of what produced a transcript
+    survives a run that dies on game one."""
+    from experiments.llm_eval.run_eval import read_treatment
+
+    target = tmp_path / "run-a"
+    assert main(["--config", str(_config_file(tmp_path, n=1)), "--run-dir", str(target)]) == 0
+    recorded = read_treatment(target / "transcripts" / "offline.treatment.json")
+    assert recorded is not None
+    assert recorded["game"] == "cardlang_cheat"
+    assert recorded["agents"][0]["kind"] == "rule"
+    # `n` and `resume_from` must NOT be pinned; they change on every resume.
+    assert "n" not in recorded and "resume_from" not in recorded

@@ -51,13 +51,27 @@ class Budget:
     max_output_tokens: int = 0
     max_cost_usd: float = 0.0
 
-    def exceeded(self, usage: Usage, model: str) -> str | None:
-        """The name of the first cap crossed, or None."""
-        if self.max_input_tokens and usage.input_tokens >= self.max_input_tokens:
+    def exceeded(self, registry: dict[str, Provider]) -> str | None:
+        """The name of the first cap crossed by the run's COMBINED usage, or None.
+
+        Summed across every provider in the registry, not checked per model. Per
+        model, a config naming three models had an effective ceiling of three
+        times what its author wrote down: the frontier provider could reach the
+        cap, and the run would carry on into a matchup using the cheap provider
+        whose own counter started at zero. `max_cost_usd` is dollars, which add
+        across models; the token caps are counts, which do too.
+        """
+        totals = Usage()
+        cost = 0.0
+        for provider in registry.values():
+            totals.input_tokens += provider.usage.input_tokens
+            totals.output_tokens += provider.usage.output_tokens
+            cost += provider.usage.cost(provider.model)
+        if self.max_input_tokens and totals.input_tokens >= self.max_input_tokens:
             return "max_input_tokens"
-        if self.max_output_tokens and usage.output_tokens >= self.max_output_tokens:
+        if self.max_output_tokens and totals.output_tokens >= self.max_output_tokens:
             return "max_output_tokens"
-        if self.max_cost_usd and usage.cost(model) >= self.max_cost_usd:
+        if self.max_cost_usd and cost >= self.max_cost_usd:
             return "max_cost_usd"
         return None
 
@@ -131,12 +145,43 @@ def ensure_provider(
     return registry[name]
 
 
+def treatment(config: dict[str, Any], matchup: dict[str, Any]) -> dict[str, Any]:
+    """Everything that must not change between the games of one matchup.
+
+    The roster verbatim (arm, render flag, model reference, `bluff_prob`,
+    `challenge_prob`), the model definitions those references resolve to, and the
+    knobs that shape an episode. Recorded beside the transcript so a resume can
+    prove it is continuing the same experiment rather than appending a second one.
+
+    Deliberately NOT the whole config: `n`, `resume_from` and `results_dir` change
+    legitimately between invocations of the same experiment, and including them
+    would make every resume fail.
+    """
+    used = sorted({spec["model"] for spec in matchup["agents"] if spec.get("model")})
+    return {
+        "game": config.get("game", "cardlang_cheat"),
+        "agents": matchup["agents"],
+        "rotate": bool(matchup.get("rotate", True)),
+        "max_decisions": int(config.get("max_decisions", 0)),
+        "seed_start": int(config.get("seeds", {}).get("start", 0)),
+        "models": {m: config["models"][m] for m in used},
+    }
+
+
+def read_treatment(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    loaded: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    return loaded
+
+
 def run_matchup(
     config: dict[str, Any],
     matchup: dict[str, Any],
     out_dir: Path,
     registry: dict[str, Provider],
     limit: int | None = None,
+    allow_overwrite: bool = False,
 ) -> dict[str, Any]:
     """Run one matchup end to end and return its summary block.
 
@@ -179,6 +224,7 @@ def run_matchup(
     transcripts = out_dir / "transcripts"
     transcripts.mkdir(parents=True, exist_ok=True)
     path = transcripts / f"{name}.jsonl"
+    treatment_path = transcripts / f"{name}.treatment.json"
 
     existing: list[dict[str, Any]] = []
     if resume:
@@ -208,19 +254,65 @@ def run_matchup(
                 f"{got}, expected exactly {want}. Delete it to start over, or "
                 f"set resume_from to {len(existing)}."
             )
+        # Seeds agreeing is not the same as the EXPERIMENT agreeing. Change the
+        # arm, the model, the rendering flag or a rule agent's `bluff_prob`
+        # between invocations and the same seed sequence still passes the check
+        # above, after which `aggregate(existing + records)` reports two
+        # different treatments as one matchup — a silently mixed arm, which is
+        # the worst outcome this harness has, because the number still looks fine.
+        want_treat = treatment(config, matchup)
+        got_treat = read_treatment(treatment_path)
+        if got_treat is None:
+            raise ValueError(
+                f"cannot resume {name!r}: {treatment_path.name} is missing, so "
+                f"there is no record of what treatment the existing games ran "
+                f"under and no way to confirm this invocation matches. Start a "
+                f"fresh run rather than appending blind."
+            )
+        if got_treat != want_treat:
+            differing = sorted(
+                k
+                for k in set(got_treat) | set(want_treat)
+                if got_treat.get(k) != want_treat.get(k)
+            )
+            raise ValueError(
+                f"cannot resume {name!r}: the configuration changed since the "
+                f"existing games were played. Differing: {differing}\n"
+                f"  recorded: { {k: got_treat.get(k) for k in differing} }\n"
+                f"  now:      { {k: want_treat.get(k) for k in differing} }\n"
+                f"Appending would mix two treatments into one matchup."
+            )
+    elif path.exists() and path.stat().st_size and not allow_overwrite:
+        # `w` would truncate it. Reachable only via `--run-dir` naming an existing
+        # run, and the README's own resume command omits `--matchup` — so the
+        # default selection would have silently destroyed every earlier
+        # non-resuming transcript in that directory before reaching the one being
+        # resumed. Transcripts hold real model responses and are NOT regenerable.
+        raise ValueError(
+            f"{path} already holds {sum(1 for _ in path.open(encoding='utf-8'))} "
+            f"game(s) and this matchup is not resuming, so it would be "
+            f"overwritten. Transcripts are not regenerable — they hold real "
+            f"model responses. Use a fresh run directory (omit --run-dir), set "
+            f"`resume_from`, or move the file aside deliberately."
+        )
+
+    # Written before the first game, so the record of what treatment produced a
+    # transcript exists even if the run dies on game one.
+    treatment_path.write_text(
+        json.dumps(treatment(config, matchup), indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
 
     records: list[dict[str, Any]] = []
     stopped: str | None = None
     aborted: str | None = None
     with path.open("a" if resume else "w", encoding="utf-8") as handle:
         for i in range(resume, n):
-            for model_name in used:
-                provider = providers[model_name]
-                reason = budget.exceeded(provider.usage, provider.model)
-                if reason is not None:
-                    stopped = f"{reason} reached on model {model_name!r}"
-                    break
-            if stopped:
+            # Against the WHOLE registry: the cap is a ceiling for the run, so it
+            # cannot be evaluated one provider at a time.
+            reason = budget.exceeded(registry)
+            if reason is not None:
+                stopped = f"{reason} reached across the run's models"
                 break
 
             seed = seed_start + i
@@ -340,7 +432,12 @@ def estimate(
     """Cost recon (spec §6): run a few games and extrapolate before committing
     to a full frontier run."""
     results_dir = Path(config.get("results_dir", "experiments/llm_eval/results")) / "estimate"
-    summary = run_matchup(config, matchup, results_dir, registry, limit=games)
+    # The only caller allowed to overwrite: cost recon is disposable scratch
+    # (`results/.gitignore` ignores `estimate/`) and is expected to be re-run in
+    # place, unlike a measurement transcript which is not regenerable.
+    summary = run_matchup(
+        config, matchup, results_dir, registry, limit=games, allow_overwrite=True
+    )
     played = summary["n_completed"]
     print(f"\n=== cost estimate from {played} game(s) of {matchup['name']} ===")
     for model_name, usage in summary["usage"].items():
@@ -489,7 +586,37 @@ def main(argv: list[str] | None = None) -> int:
     summary_path = out_dir / "summary.json"
     print(f"run directory: {out_dir}")
 
+    # Continuing a run must not erase what it already recorded. `summaries` holds
+    # only THIS invocation, so writing it verbatim would drop every matchup block
+    # the earlier invocation completed and report `run_totals` as the fresh
+    # providers' counters — i.e. a resumed run would understate its own spend and
+    # lose the matchups it is resuming alongside.
+    prior: dict[str, Any] = {}
+    if summary_path.exists():
+        prior = json.loads(summary_path.read_text(encoding="utf-8"))
+        kept = [m["matchup"] for m in prior.get("matchups", [])]
+        print(f"continuing run {out_dir.name}: carrying forward {len(kept)} matchup "
+              f"block(s) {kept} and their spend")
+
     def write_summary(done: list[dict[str, Any]]) -> None:
+        # This invocation's block wins for a matchup it re-ran; every other prior
+        # block is carried through untouched.
+        blocks: dict[str, dict[str, Any]] = {
+            m["matchup"]: m for m in prior.get("matchups", [])
+        }
+        for block in done:
+            blocks[block["matchup"]] = block
+        totals: dict[str, dict[str, Any]] = {
+            name: dict(block) for name, block in prior.get("run_totals", {}).items()
+        }
+        for name, p in registry.items():
+            fresh = p.usage.as_dict(p.model) | {"model": p.model}
+            if name in totals:
+                # Dollars and counts both add; the prior entry covers earlier
+                # invocations into this directory, `fresh` covers this one.
+                for key in ("calls", "input_tokens", "output_tokens", "cost_usd"):
+                    fresh[key] = totals[name].get(key, 0) + fresh.get(key, 0)
+            totals[name] = fresh
         payload = {
             "config": str(Path(args.config).resolve()),
             "game": config.get("game", "cardlang_cheat"),
@@ -497,13 +624,10 @@ def main(argv: list[str] | None = None) -> int:
             # says which run it belongs to.
             "run": out_dir.name,
             "run_dir": str(out_dir),
-            "matchups": done,
+            "matchups": list(blocks.values()),
             # The run's whole spend, so a proposal figure is quoted from one
             # number rather than summed by hand across matchup blocks.
-            "run_totals": {
-                name: p.usage.as_dict(p.model) | {"model": p.model}
-                for name, p in registry.items()
-            },
+            "run_totals": totals,
         }
         summary_path.write_text(
             json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"

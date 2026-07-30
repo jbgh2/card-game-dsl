@@ -160,11 +160,23 @@ multi-hour sequential run that is the difference between losing an hour and
 losing the day.
 
 Resuming needs `--run-dir`, since `resume_from` appends to a transcript an
-earlier invocation wrote and therefore continues *that* run:
+earlier invocation wrote and therefore continues *that* run. **Scope it with
+`--matchup`** — without one, the default selection is every matchup in the
+config:
 
 ```bash
-python -m experiments.llm_eval.run_eval --run-dir experiments/llm_eval/results/runs/2026-07-29T15-40-12Z
+python -m experiments.llm_eval.run_eval \
+  --run-dir experiments/llm_eval/results/runs/2026-07-29T15-40-12Z \
+  --matchup llm_cheap_reason_first_bluffer
 ```
+
+The runner refuses to open a non-empty transcript for a matchup that is not
+resuming, so an unscoped resume now fails loudly instead of truncating every
+other transcript in that directory. It also refuses to append when the
+**treatment** changed — the arm, the model, the rendering flag, an opponent's
+`bluff_prob` — because matching seeds are not the same thing as the same
+experiment, and appending across a change would aggregate two treatments into one
+matchup.
 
 **Committed transcripts are gzipped.** They compress 12-21x, so the full record
 of every run in this session is under 1 MB rather than 16 MB. `metrics.iter_jsonl`

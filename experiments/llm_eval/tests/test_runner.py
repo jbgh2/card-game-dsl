@@ -230,9 +230,55 @@ def test_budget_boundaries(
 ) -> None:
     """Each cap fires at its own boundary and not before. `claude-haiku-4-5` is
     $1/MTok in, so 10**6 input tokens is exactly $1.00."""
-    from experiments.llm_eval.providers import Usage
+    assert Budget(**cap).exceeded(_registry({"claude-haiku-4-5": usage_kwargs})) == expected
 
-    assert Budget(**cap).exceeded(Usage(**usage_kwargs), "claude-haiku-4-5") == expected
+
+def _registry(spend: dict[str, dict[str, int]]) -> dict[str, Any]:
+    """A provider registry carrying the given usage, keyed by model id."""
+    from experiments.llm_eval.providers import FakeProvider, Usage
+
+    registry: dict[str, Any] = {}
+    for model, usage_kwargs in spend.items():
+        provider = FakeProvider(replies=["{}"])
+        provider.model = model
+        provider.usage = Usage(**usage_kwargs)
+        registry[model] = provider
+    return registry
+
+
+def test_budget_sums_across_every_model_in_the_registry() -> None:
+    """The cap is a ceiling for the RUN, so it cannot be evaluated one provider at
+    a time.
+
+    Per model, a config naming three models had an effective ceiling of three
+    times what its author wrote down: the frontier provider could reach the cap
+    and the run would carry on into a matchup using the cheap provider, whose own
+    counter started at zero. Here NEITHER model is over $1 alone; together they
+    are $1.20.
+    """
+    registry = _registry(
+        {"claude-haiku-4-5": {"input_tokens": 600_000},   # $0.60
+         "claude-sonnet-5": {"input_tokens": 200_000}}    # $0.60
+    )
+    assert Budget(max_cost_usd=1.0).exceeded(registry) == "max_cost_usd"
+    # Non-vacuity: the same registry is under a ceiling that genuinely clears it.
+    assert Budget(max_cost_usd=2.0).exceeded(registry) is None
+
+
+def test_budget_sums_token_caps_across_models_too() -> None:
+    """Tokens are counts and add the same way dollars do."""
+    registry = _registry(
+        {"claude-haiku-4-5": {"input_tokens": 60, "output_tokens": 6},
+         "claude-sonnet-5": {"input_tokens": 60, "output_tokens": 6}}
+    )
+    assert Budget(max_input_tokens=100).exceeded(registry) == "max_input_tokens"
+    assert Budget(max_output_tokens=10).exceeded(registry) == "max_output_tokens"
+    assert Budget(max_input_tokens=200, max_output_tokens=20).exceeded(registry) is None
+
+
+def test_budget_on_an_empty_registry_is_unlimited() -> None:
+    """An offline matchup builds no provider; a cap must not fire on zero spend."""
+    assert Budget(max_cost_usd=0.01).exceeded({}) is None
 
 
 def _two_matchup_config(tmp_path: Path) -> tuple[dict[str, Any], Path]:
