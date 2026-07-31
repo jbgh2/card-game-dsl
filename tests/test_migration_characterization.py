@@ -29,6 +29,28 @@ see issue #83).
 hash-dependent order — the per-seed scores vary with `PYTHONHASHSEED`. We capture
 in a `PYTHONHASHSEED=0` subprocess so the goldens are reproducible.
 
+A THIRD sanctioned regeneration covers `seven-card-stud_hands.json` (25 of its 50
+seeds moved): `poker_betting`'s `raise` gained the clause requiring an opponent
+who can still act, so a player facing none is now offered only call and fold
+(issue #197). The same clause moves `seven-card-stud.ir.json`, which is this
+module's sibling pin in tests/test_seven_card_stud_ir.py and regenerates through
+its own `UPDATE_GOLDEN=1` path; that diff is the guard expression gaining its
+`and`, and is meant to be read rather than trusted. Stud's pre-kernel implementation shared the defect, so
+correcting it necessarily diverges from it — and that is the cost this
+regeneration pays: for the seeds that moved, this vector no longer attests
+"the kernel migration reproduced the monolith" but "the migrated game plus one
+deliberate rule correction". The migration claim survives on the 25 unchanged
+seeds; a future divergence in those is still a real one, which is what keeps the
+pin worth having. The rule was corrected rather than kept because the extra
+decision node is an ACTION-SPACE defect, invisible to every chip-conservation
+check the family relies on (the side-pot layering returns an uncalled excess to
+its sole contributor), and the OpenSpiel target is what this corpus exists for.
+
+Regenerate at the golden's OWN width, never at `seeds_for(...)`: the sweep count
+is a sampling dial below the pinned count, so capturing at the dial and writing
+the result silently discards the rest — and `assert_golden_seeds` compares a
+slice, so the suite stays green while the coverage shrinks.
+
 A second SANCTIONED regeneration covers every gather-using golden here
 (schnapsen/french-tarot/skat scores; stud/tichu/cribbage/schnapsen/skat hand
 vectors; tichu scores): the gather (`move all cards to <zone>`) was

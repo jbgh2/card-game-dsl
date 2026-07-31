@@ -33,7 +33,7 @@ executable tiebreaker where one exists.
 | Open question | Needs | Top candidates |
 |---|---|---|
 | [special-cards-declaration](../open-questions/special-cards-declaration.md) (contextual rank) | 2nd play-time *relative*-rank card beyond Tichu's Phoenix | **[euchre](#euchre)** (bowers: rank *and effective suit* remap, in the base rules, keyed to a runtime-chosen trump), [president](#president) single-joker variant ("one higher than the card below it") |
-| [move-level-visibility](../open-questions/move-level-visibility.md) | per-observer move-level override (forces replace-vs-merge) | **poker "show one, show all"** — a Stud or [holdem](#holdem) variant, exercisable in the *existing* poker corpus |
+| [move-level-visibility](../open-questions/move-level-visibility.md) | per-observer move-level override (forces replace-vs-merge) | **poker "show one, show all"** — no longer game-gated: Texas Hold'em is [in the corpus](holdem.md) with the rule deliberately not modelled, and Stud's showdown would take the same override. See the question file |
 | [memory-event-syntax](../open-questions/memory-event-syntax.md) | an event composition can't express | **[hanabi](#hanabi)** (partial-identity hint over an inverted hand — forces it; _dedicated deck, out of scope_), [cabo](#cabo) (composable from existing ops) |
 | [knowledge-events](../open-questions/knowledge-events.md) | phase outcome observed unequally | **[mascarade](#mascarade)**, [love-letter](#love-letter) (both _dedicated deck, out of scope_); Belote (now in the corpus) supplies the in-play announce-and-show data point — see the question file |
 | [structural-infoset-proofs](../open-questions/structural-infoset-proofs.md) | board-shaped instances of the compound hidden-function probe, extending the Cheat-anchored constructive world generator to spatial hiding | **[battleship](#battleship)** (shot result = public predicate of a hidden board), [stratego-barrage](#stratego-barrage) (combat double-reveal) |
@@ -347,50 +347,23 @@ the inference-game corner of the design space.
 
 ## Staking & resource games
 
-### holdem
-
-2–10 players, standard 52, community-card poker with two hole cards
-and five public cards, four betting rounds.
-
-**Why interesting.** Second resource-using game after Stud, with one
-critical difference: *shared community cards* are observed by all
-and used by every player in hand evaluation. Tests whether
-the settled access discipline and
-the existing visibility model handle a zone owned by no one but
-used in every player's hand evaluation. Also a third resource-using
-game (after Stud and Coup), confirming the resource-transfer decisions
-now in decisions.md ("Resource amount syntax", "Resource transfer
-failure"). And the verified home for
-[move-level-visibility](../open-questions/move-level-visibility.md): the
-"show one, show all" showdown rule (Robert's Rules §6) is a per-observer
-move-level override that names *some* observers and *some* cards while the
-rest stay at the zone default — "if only a portion of the hand has been
-shown, there is no requirement to show the unseen cards" — which forces
-the replace-vs-merge sub-question directly. This is exercisable in the
-existing poker corpus (Stud already in), so move-level-visibility may not
-need a new game at all.
-
-**Notes.** Texas Hold'em is the canonical variant. No-limit vs fixed-limit is a
-parameterization of the **betting form of `round`** (`order priority`), not a
-structural change. Stud's betting is the template — the per-street `round
-offering [check, bet, call, fold, raise]` plus the Stud-local `settle` for side
-pots — and Hold'em would be the **second side-pot instance** that justifies
-promoting a shared `betting`/pot definition (Coup, the other resource game, has a
-coin/treasury economy with no pot, so it does not).
-
 ### omaha-hi-lo
 
-2–10 players, standard 52, community-card poker like Hold'em but
-with four hole cards (use exactly two) and split pots: best high
-hand and best qualifying low hand each take half.
+2–10 players, standard 52, community-card poker like
+[Hold'em](holdem.md) but with four hole cards (use exactly two)
+and split pots: best high hand and best qualifying low hand each
+take half.
 
 **Why interesting.** Split-pot scoring: each pot resolves to *two
 winners by different criteria* (high hand and best qualifying low
 hand take half each), with the low half requiring five unpaired
-cards each ≤ 8. The shape extends Stud's pot-with-eligibility
-pattern with a per-pot split — a per-game shape that fits the
-"each game declares its own scoring structure" decision in
-decisions.md "Scoring composition".
+cards each ≤ 8. With Hold'em now in the corpus the community board
+and the side-pot layering are both already carried, so what Omaha
+newly forces is exactly the per-pot SPLIT — a per-game shape that
+fits the "each game declares its own scoring structure" decision in
+decisions.md "Scoring composition". The use-exactly-two constraint
+is a second pressure: Hold'em's evaluator takes the best five of
+seven unconstrained, which Omaha cannot.
 
 **Notes.** "Eight or better" is the standard low-half qualifier;
 "Omaha 8" is a common shorthand.

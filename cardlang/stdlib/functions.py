@@ -91,6 +91,8 @@ STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
         "bring_in_seat",  # Stud: the lowest-door seat that posts the bring-in
         "first_to_act_seat",  # Stud: the highest-upcards seat that acts first on a street
         "pot_share",  # Stud: the chips a player collects at showdown (side-pot layering)
+        "holdem_next_entrant",  # Hold'em: the seat, or the next entrant clockwise (busted seats skipped)
+        "holdem_pot_share",  # Hold'em: the chips a player collects at showdown (side-pot layering)
         "bigtwo_first_leader",  # Big Two: the holder of the 3♦, who leads the first hand
         "rank_value",  # a card's rank strength under the game's `ranking:` (higher = stronger)
         "card_value",  # a card's deck-declared card-point value (point-trick counters)
@@ -208,6 +210,7 @@ GENERIC_CALL_FUNCS: frozenset[str] = frozenset(
         "coup_players_in",
         "error",
         "five_hundred_bid_level",
+        "holdem_next_entrant",
         "peg_origin_of",
         "player_holding",
         "skat_effective_loss",
@@ -279,6 +282,7 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "gin_lay_ok_c",
         "gin_shown_points",
         "gin_valid_meld",
+        "holdem_pot_share",
         "peg_pair_points",
         "peg_run_points",
         "peg_value",

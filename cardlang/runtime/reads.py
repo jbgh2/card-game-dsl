@@ -237,6 +237,13 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         zone_families=_fs("upcards", "hole"),
     ),
     PrimitiveReads(
+        module="cardlang/runtime/holdem.py",
+        game_file="holdem.cardlang",
+        state_vars=_fs("in_hand", "committed", "folded"),
+        zone_families=_fs("hole", "shown"),
+        single_zones=_fs("board"),
+    ),
+    PrimitiveReads(
         module="cardlang/runtime/tarot.py",
         game_file="french-tarot.cardlang",
         state_vars=_fs("taker", "bid_level"),

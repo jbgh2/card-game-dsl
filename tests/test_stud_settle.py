@@ -9,7 +9,8 @@ landing in a pot others win.
 
 from __future__ import annotations
 
-from cardlang.runtime.stud import _payouts
+from cardlang.runtime.poker import side_pot_payouts
+from cardlang.runtime.stud import showdown_hands
 from cardlang.runtime.values import Card
 
 _SUIT = {"C": "clubs", "D": "diamonds", "H": "hearts", "S": "spades"}
@@ -38,7 +39,11 @@ def _settle_deltas(
 ) -> dict[int, int]:
     hole = {p: hands[p] for p in in_hand}
     upcards: dict[int, tuple[Card, ...]] = {p: () for p in in_hand}
-    return _payouts(in_hand, committed, folded, hole, upcards)
+    # Through Stud's own hand assembly, so this pins the composition the runtime
+    # uses (hole + upcards) and not just the family-wide layering.
+    return side_pot_payouts(
+        in_hand, committed, folded, showdown_hands(in_hand, hole, upcards)
+    )
 
 
 def test_short_all_in_wins_only_main_pot() -> None:

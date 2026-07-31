@@ -320,6 +320,13 @@ _PRE_MIGRATION: dict[str, tuple[str, str, tuple[str, ...]]] = {
     # games' declared `aces high` would still parse.
     "kuhn-poker": ("aces high", "kuhn3", ("K", "Q", "J")),
     "leduc-poker": ("aces high", "leduc6", ("K", "Q", "J")),
+    # Hold'em post-dates the migration and is convention-BORN. Its row freezes
+    # the expansion it was built against, which matters more here than for most
+    # games: `poker.py`'s evaluator ranks against its OWN fixed ace-high scale
+    # rather than the game's `ranking:`, so a template edit that reordered this
+    # expansion would NOT change what beats what — it would silently desync the
+    # declared order from the one the showdown actually compares through.
+    "holdem": ("aces high", "standard52", ("A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2")),
 }
 
 

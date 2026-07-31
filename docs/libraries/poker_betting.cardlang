@@ -110,8 +110,22 @@ library poker_betting {
 
   // Aggression re-opens the action: every other player's `acted` is cleared, so
   // seats that already acted this street owe a response again.
+  //
+  // A raise needs someone able to ANSWER it. Facing opponents who are all-in,
+  // the only legal actions are call and fold — raising into a field that cannot
+  // respond is not a poker decision, and offering it puts a node in the game
+  // tree the rules do not have. The chips still come out right either way (the
+  // side-pot layering returns an uncalled excess to its sole contributor), so
+  // no conservation check can see this clause: it is about the ACTION SPACE.
+  // A raise must also be able to RAISE. A stack that cannot cover more than the
+  // call pays what it has and leaves `bet_to_match` where it was — so offering
+  // `raise` there would bump `raises` and clear everyone's `acted`, reopening
+  // action that nobody reopened. A short all-in is a call, and `call` already
+  // pays it correctly.
   move_type raise {
     when: bet_to_match > bet_by[actor] and raises < raise_cap
+          and (number of players where can_act(player)) > 1
+          and stack[actor] > bet_to_match - bet_by[actor]
     effect {
       let owed = bet_to_match - bet_by[actor]
       let want = owed + limit

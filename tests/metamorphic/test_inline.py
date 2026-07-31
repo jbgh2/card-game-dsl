@@ -157,13 +157,17 @@ def test_the_library_procedure_games_are_pinned_as_uncovered() -> None:
     unchecked for them, and this test is where that is said out loud.
 
     Pinned in both directions: a game leaving this list (because it stopped
-    importing a library procedure) or joining it (a fourth) is a change to what
-    the suite does NOT cover, and a coverage claim that can shrink silently is
-    the vacuity this ledger exists to prevent.
+    importing a library procedure) or joining it is a change to what the suite
+    does NOT cover, and a coverage claim that can shrink silently is the vacuity
+    this ledger exists to prevent. Every poker-family game is here, which is the
+    shape of the gap rather than a coincidence: `uses poker_betting` brings
+    `open_street` with it, so each new consumer of that library joins this list
+    on arrival (Hold'em did).
 
     red under: delete `run open_street(1)` from docs/games/kuhn-poker.cardlang."""
     names = sorted(p.name for p in LIBRARY_PROCEDURE_GAMES)
     assert names == [
+        "holdem.cardlang",
         "kuhn-poker.cardlang",
         "leduc-poker.cardlang",
         "seven-card-stud.cardlang",

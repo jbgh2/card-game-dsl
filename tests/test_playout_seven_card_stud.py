@@ -16,7 +16,7 @@ from typing import Any
 
 from cardlang.pipeline import check_source
 from cardlang.runtime.driver import play_game
-from cardlang.runtime.stud import hand_rank
+from cardlang.runtime.poker import hand_rank
 from cardlang.runtime.values import Card
 
 STUD = Path(__file__).parent.parent / "docs" / "games" / "seven-card-stud.cardlang"
