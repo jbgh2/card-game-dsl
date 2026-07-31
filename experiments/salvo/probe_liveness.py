@@ -116,6 +116,11 @@ def drive(space: Any, policy: str, seed: int, lv: Any, ridx: dict[str, int]) -> 
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--seeds", type=int, default=1000)
+    ap.add_argument(
+        "--seed-start", type=int, default=0,
+        help="first deal; the sighted policy here carries the tuned knobs, so a "
+             "headline run starts past the tuning sweep's range",
+    )
     args = ap.parse_args()
 
     triage.TUN = dict(triage.CURVES["base"])
@@ -124,13 +129,13 @@ def main() -> None:
     ridx = triage.rank_index_map(game_ast)
     lv = triage.make_loc_value(ridx, triage.CURVES["base"]["base"])
 
-    out: dict[str, Any] = {"seeds": args.seeds, "policies": {}}
+    out: dict[str, Any] = {"seeds": args.seeds, "seed_start": args.seed_start, "policies": {}}
     for policy in ("sighted", "blind", "random"):
         per_bin: dict[str, dict[str, Any]] = {
             name: {"n": 0, "cards": [], "dists": [], "aff_cards": 0, "tot_cards": 0, "margins": [], "ties": 0, "least": 0}
             for name, _, _ in BINS
         }
-        for seed in range(args.seeds):
+        for seed in range(args.seed_start, args.seed_start + args.seeds):
             recs = drive(space, policy, seed, lv, ridx)
             least_n = min(r["n_cards"] for r in recs)
             for r in recs:

@@ -280,18 +280,18 @@ outright — won/lost 8 scores 0.09-0.11, the weights fire constantly
 and strangle commitment — while the wide originals were near-optimal;
 the urgency boost was mildly harmful; the real gains were the hold
 threshold and respecting unseen staged cards). Tuned-vs-old-knobs:
-58.8/41.0.
+58.8/40.6.
 
 **The adopted game's scoreboard** (`results_triage_base.json`, tuned
 knobs, 1000 games/pairing):
 
 | pairing | win rate | reading |
 |---|---|---|
-| sighted vs blind | **64.1 / 35.9** | full skill vs commit-max |
-| sighted vs sighted_nohold | **60.8 / 39.2** | holding, given sight |
-| sighted vs blind_hold | 55.0 / 45.0 | sight, given holding |
-| blind_hold vs blind | 58.4 / 41.2 | holding, blind |
-| sighted_nohold vs blind | 50.8 / 49.2 | sight alone, no holding |
+| sighted vs blind | **64.1 / 35.8** | full skill vs commit-max |
+| sighted vs sighted_nohold | **60.8 / 39.1** | holding, given sight |
+| sighted vs blind_hold | 55.0 / 44.5 | sight, given holding |
+| blind_hold vs blind | 58.4 / 41.1 | holding, blind |
+| sighted_nohold vs blind | 50.8 / 48.8 | sight alone, no holding |
 
 Two axes, both load-bearing, and a profile shift worth naming: in
 round 1 the entire skill was WHERE (redirection 69/31, holding nil);
@@ -324,7 +324,9 @@ measured at 1-2 points, and read only the adopted scoreboard as clean.
 ## 10. Location liveness by target extremity (evaluation question 3)
 
 Instrument: `probe_liveness.py` — 1000 mirror playouts per policy on
-the adopted base game, each location binned by its target's distance
+the adopted base game, over seeds 200-1199 (the sighted policy carries
+the tuned knobs, so the probe starts past the sweep's range for the same
+reason §9 does; `seed_start` is recorded in the artifact), each location binned by its target's distance
 from rank 7 (mid: targets 6-8, near: 4-5/9-10, edge: A-3/J-K; the
 bins naturally appear in 21/31/47% of location slots). Data:
 `results_liveness.json`.
@@ -333,9 +335,9 @@ Under tuned sighted play:
 
 | bin | cards | card-distance | affinity | margin | unclaimed | least-contested (vs share) |
 |---|---|---|---|---|---|---|
-| mid | 6.09 | 1.84 | 48.5% | 14.7 | 4.2% | 16.3% (21.4%) |
-| near | 5.94 | 1.76 | 47.1% | 15.2 | 4.5% | 27.3% (31.2%) |
-| edge | 5.40 | 1.92 | 40.4% | 16.9 | 2.5% | 56.4% (47.4%) |
+| mid | 6.11 | 1.84 | 48.5% | 14.5 | 5.0% | 16.6% (22.0%) |
+| near | 5.91 | 1.77 | 47.1% | 15.0 | 4.4% | 28.0% (31.1%) |
+| edge | 5.44 | 1.92 | 39.9% | 16.6 | 2.5% | 55.4% (47.0%) |
 
 **The designed personalities are real.** Edge targets are precision
 fights: skilled play commits FEWER cards there but keeps them just as
@@ -343,13 +345,13 @@ close to the target (distance ~1.9 — against random's 5.3, the
 repricing does enormous selective work), with affinity mattering
 less. Mid targets are volume wars: more cards, more affinity rescue.
 The gradient is modest but consistent, margins stay flat-ish across
-bins (14.7-16.9), and unclaimed ties are low everywhere.
+bins (14.5-16.6), and unclaimed ties are low everywhere.
 
 **The Blotto abandonment watch comes back healthy.** Edge locations
 are the game's thinnest battlefield somewhat more often than chance
-(56.4% least-contested against a 47.4% appearance share, ratio 1.19)
+(55.4% least-contested against a 47.0% appearance share, ratio 1.18)
 — a lean, not a script. Instructively, BLIND play is scriptier
-(71.5%, ratio 1.51): opponent-awareness softens abandonment rather
+(71.0%, ratio 1.51): opponent-awareness softens abandonment rather
 than amplifying it, because sighted players contest an edge the
 opponent under-commits to. No concede-the-edge degenerate pattern
 under any policy. Question 3 closes positive.
