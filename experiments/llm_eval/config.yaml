@@ -1,0 +1,313 @@
+# Preliminary LLM evaluation harness — run configuration.
+#
+# Run:   python -m experiments.llm_eval.run_eval --config experiments/llm_eval/config.yaml
+# Recon: python -m experiments.llm_eval.run_eval --matchup llm_cheap_vs_rule --estimate 5
+#
+# `rule_vs_random` needs no API key and is the end-to-end smoke test.
+
+game: cardlang_cheat
+results_dir: experiments/llm_eval/results
+
+seeds:
+  start: 0            # game i uses seed start+i; the adapter addresses 4096 deals
+
+# Left uncapped, a single game is a material fraction of a frontier budget. A
+# truncated game is reported as truncated and excluded from win rates — never
+# silently scored.
+#
+# 1200 is measured, not guessed. Episode length depends heavily on whether any
+# seat sheds decisively (40 seeds, uncapped):
+#
+#   4 x random         p50 775, p90 1586, max 2864  -> 1200 truncates 20%
+#   1 x rule + 3 random  p50 262, p90 545,  max 665  -> 1200 truncates 0%
+#
+# Every matchup here has at least one competent seat, so the expected truncation
+# rate is ~0. The residual risk is a model that plays near-randomly, which drags
+# the distribution toward the all-random row. That matters because truncation is
+# NOT missing-at-random: games run long exactly when nobody is shedding, so
+# excluding them biases win rates UPWARD for whoever was ahead. Read
+# `games_truncated` in summary.json before quoting a win rate; if it is not ~0,
+# raise this cap and re-run rather than reporting the biased number.
+max_decisions: 1200
+
+# The prompt is exactly build_prompt(RULES_TEXT, infostate, legal_strings), and
+# the infostate is recoverable from (seed, history) via referee.replay_views —
+# so a transcript is fully auditable without storing either. Turn these on for
+# a small run when you want the bytes in the file itself.
+store_prompts: false
+store_infostates: false
+
+# Hard ceiling for the WHOLE run (one provider registry is shared across every
+# matchup). The runner stops cleanly between games once any cap is reached and
+# records the partial N plus the reason in summary.json.
+#
+# Sizing, from measured episode lengths — read this before raising N. One LLM
+# seat makes ~210 calls in a median game, and the information-state string grows
+# with the observation log, so the average prompt is ~5k tokens:
+#
+#     ~1.05M input tokens/game  ->  ~$1.10/game on Haiku 4.5
+#                               ->  ~$5.60/game on Opus 5
+#
+# The three LLM matchups below at N=20 are ~$22 + ~$112 + ~$112 = ~$246, so the
+# $60 ceiling WILL stop them partway and report a partial N. That is the cap
+# doing its job, not a misconfiguration — raise it deliberately once
+# `--estimate 5` has confirmed the per-game figure on your own account, and
+# lower N if the budget is fixed.
+#
+# Wall clock is the tighter constraint in practice: ~210 sequential API calls
+# per game is 7-15 minutes, so N=20 is 2.5-5 hours per matchup.
+token_budget:
+  max_input_tokens: 40000000
+  max_output_tokens: 800000
+  max_cost_usd: 60.0
+
+models:
+  frontier:
+    kind: anthropic
+    model: claude-opus-5
+    params:
+      max_tokens: 512
+      # Claude Opus 5 rejects `temperature` outright and runs adaptive thinking
+      # unless told otherwise. Thinking is disabled here because the harness
+      # makes hundreds of calls per game and each one is a short, well-specified
+      # classification; disabling is legal at effort `high` or below.
+      thinking: {type: disabled}
+      output_config: {effort: low}
+
+  # Mid-tier, configured to match `frontier` exactly so the only difference
+  # between the two runs is the model. Claude Sonnet 5 rejects a non-default
+  # `temperature` outright, so it is omitted rather than set to 0.
+  mid:
+    kind: anthropic
+    model: claude-sonnet-5
+    params:
+      max_tokens: 512
+      thinking: {type: disabled}
+      output_config: {effort: low}
+
+  cheap:
+    kind: anthropic
+    model: claude-haiku-4-5
+    params:
+      max_tokens: 512
+      temperature: 0
+
+matchups:
+  # 4. Baseline separation. No API key needed; this is acceptance criterion 1.
+  - name: rule_vs_random
+    n: 100
+    rotate: true
+    agents:
+      - {kind: rule, challenge_prob: 0.1}
+      - {kind: random}
+      - {kind: random}
+      - {kind: random}
+
+  # 1. Floor sanity.
+  - name: llm_frontier_vs_random
+    n: 20
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_frontier, model: frontier}
+      - {kind: random}
+      - {kind: random}
+      - {kind: random}
+
+  # 2. The headline number.
+  - name: llm_frontier_vs_rule
+    n: 20
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_frontier, model: frontier}
+      - {kind: rule, challenge_prob: 0.1}
+      - {kind: rule, challenge_prob: 0.1}
+      - {kind: rule, challenge_prob: 0.1}
+
+  # 3. Capability gradient — two data points, not one.
+  - name: llm_cheap_vs_rule
+    n: 20
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_cheap, model: cheap}
+      - {kind: rule, challenge_prob: 0.1}
+      - {kind: rule, challenge_prob: 0.1}
+      - {kind: rule, challenge_prob: 0.1}
+
+  # Mid-tier rung of the capability gradient.
+  - name: llm_mid_vs_rule
+    n: 20
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_mid, model: mid}
+      - {kind: rule, challenge_prob: 0.1}
+      - {kind: rule, challenge_prob: 0.1}
+      - {kind: rule, challenge_prob: 0.1}
+
+  # --- experimental methodology: BLUFFING opponents ---------------------------
+  # `bluff_prob: 0.4` puts the lie base rate near 0.5, where challenge precision
+  # has its widest dynamic range, while roughly doubling provable-lie events over
+  # a truthful table. Measured alternatives (15 games, provable-per-game / lie
+  # base rate): truthful 2.3/0.26, bluff 0.3 4.0/0.46, bluff 0.7 6.2/0.72,
+  # all-random 9.6/0.98 — the last ceilings out precision and is why these use a
+  # competent bluffer rather than random opponents.
+  - name: llm_cheap_vs_bluffer
+    n: 10
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_cheap, model: cheap}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+
+  - name: llm_mid_vs_bluffer
+    n: 10
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_mid, model: mid}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+
+  # --- Q2: the RENDERED arm ---------------------------------------------------
+  # Identical to the *_vs_rule matchups above in every respect except `render`,
+  # so the only variable between the arms is whether the information state
+  # reaches the model raw or as English. Both are pure functions of the same
+  # string, so both inherit the indistinguishability guarantee.
+  - name: llm_cheap_rendered
+    n: 10
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_cheap, model: cheap, render: true}
+      - {kind: rule, challenge_prob: 0.1}
+      - {kind: rule, challenge_prob: 0.1}
+      - {kind: rule, challenge_prob: 0.1}
+
+  - name: llm_mid_rendered
+    n: 10
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_mid, model: mid, render: true}
+      - {kind: rule, challenge_prob: 0.1}
+      - {kind: rule, challenge_prob: 0.1}
+      - {kind: rule, challenge_prob: 0.1}
+
+  - name: llm_frontier_rendered
+    n: 10
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_frontier, model: frontier, render: true}
+      - {kind: rule, challenge_prob: 0.1}
+      - {kind: rule, challenge_prob: 0.1}
+      - {kind: rule, challenge_prob: 0.1}
+
+  # --- the measurement run: RENDERED arm + BLUFFING opponents -----------------
+  # Purpose is the DECEPTION metrics, not the Q2 comparison. Q2 was answered on
+  # the N=1 arm test above (Haiku skip-truthful 35.7% -> 4.5%, p=0.0009); these
+  # runs exist because comprehension is now good enough that lying and
+  # challenging rates mean something. Opponents bluff at 0.4 so the lie base
+  # rate sits near 0.5, where challenge precision discriminates.
+  - name: llm_cheap_rendered_bluffer
+    n: 10
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_cheap, model: cheap, render: true}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+
+  - name: llm_mid_rendered_bluffer
+    n: 10
+    # This matchup was completed in two invocations (an API spending cap stopped
+    # it at game 8), using `resume_from: 8`. That key is deliberately NOT left
+    # here: it is an operational marker for one invocation, not configuration.
+    # A committed `resume_from` fails on any fresh checkout, because the
+    # uncompressed prefix it resumes from is gitignored — and in an
+    # all-matchup run it would fail only AFTER the expensive matchups had run.
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_mid, model: mid, render: true}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+
+  # --- response-format arms ---------------------------------------------------
+  # Every block below is a verbatim copy of `*_rendered_bluffer` with ONE key
+  # changed: `arm`. Same seeds, same opponents, same rendered state, same models
+  # and params — so `llm_cheap_rendered_bluffer` / `llm_mid_rendered_bluffer`
+  # (the `reasoning` arm, N=10, already run) are the control, and any delta is
+  # attributable to the response format alone.
+  #
+  # The shared hypothesis. Both models over-accused badly — challenging ~half of
+  # all opportunities at sub-50% precision, five times the baseline's rate of
+  # costly wrong calls (Sonnet 12.8 bad calls/game vs 2.5). The default arm asks
+  # for `{"action": i, "reasoning": s}`, and since JSON is emitted in order, the
+  # model commits to the action BEFORE writing a word of justification. These
+  # arms ask whether that arrangement is manufacturing part of the eagerness the
+  # harness then measures.
+  #
+  # --- the NEUTRAL arm: no justification at all.
+  # RUN AND UNUSABLE — kept as configuration because the negative result is
+  # reproducible from it, not because it should be re-run. Removing the field did
+  # not remove the reasoning: the model wrote its analysis as prose instead, and
+  # the 512-token cap truncated it before any JSON arrived. Haiku, 7 games: 22%
+  # fallback (11x the ~2% publication gate), 1.85 calls/decision, 4x the output
+  # tokens and 2x the cost per game of the control. The bounded `reasoning`
+  # string had been acting as a length cap on deliberation.
+  #
+  # Two confounds, both recorded rather than fixed: the retry note asked for the
+  # `reasoning` field this arm exists to remove (fixed in `prompts.py` since, but
+  # the run predates it), and the truncation means the fallback decisions are not
+  # missing at random. Its transcript answers "what does removing the field do to
+  # response format", not "what does it do to challenge rate".
+  - name: llm_cheap_neutral_bluffer
+    n: 10
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_cheap, model: cheap, render: true, arm: neutral}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+
+  - name: llm_mid_neutral_bluffer
+    n: 10
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_mid, model: mid, render: true, arm: neutral}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+
+  # --- NEXT EXPERIMENT: the REASON-FIRST arm.
+  # The same two fields as the control, in the other order, so the tokens that
+  # explain the choice are generated BEFORE the choice rather than after it. This
+  # is the arm the neutral one should have been: deliberation still happens inside
+  # a length-bounded JSON string, so it cannot expand into the unbounded prose
+  # that broke the parser.
+  #
+  # GATE BEFORE N=10. Run at n=1 first and check three things with
+  # `verify.py --order`, because two of them make the arm null rather than merely
+  # noisy: (a) `reasoning_before_action` near 1.0 — `json.loads` discards key
+  # order, so if the model does not honour it, nothing was manipulated;
+  # (b) `truncated_at_max_tokens` near 0 — reasoning-first means an overrun costs
+  # the ACTION, which is exactly how the neutral arm died; (c) fallback rate under
+  # ~2%. The control's token profile does not transfer, because the ordering
+  # change is the thing that alters it.
+  #
+  # ~$13 and ~70 min for both at N=10, at the rates the control measured.
+  - name: llm_cheap_reason_first_bluffer
+    n: 10
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_cheap, model: cheap, render: true, arm: reason_first}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+
+  - name: llm_mid_reason_first_bluffer
+    n: 10
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_mid, model: mid, render: true, arm: reason_first}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
