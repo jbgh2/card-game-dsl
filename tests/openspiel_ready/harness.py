@@ -9,7 +9,8 @@ by `test_coverage.py`):
    `GameSpec.conformance_steps`).
 2. INDISTINGUISHABILITY: two worlds differing only in cards hidden from P
    yield byte-identical information states for P — and offer P identical
-   legal actions (legal-action agreement).
+   legal actions, rendering to identical text (legal-action agreement).
+   Run over the `SWAP_SEEDS` manifest, several replaying pairs per seed.
 3. Soundness converse: perturbing what P CAN see changes P's state — the
    replay-level own-hand probe plus the per-visible-fact matrix enumerated
    from the zone declarations (partition.check_visible_facts).
@@ -19,8 +20,9 @@ by `test_coverage.py`):
    (a structural pin — it bites only if rendering ever couples to the
    generator or to hidden-stock order).
 6. Adapter agreement: the registered pyspiel game renders the same partition
-   the DSL-level proofs certify; games whose greedy line terminates walk to
-   the end and assert the terminal returns agree too.
+   the DSL-level proofs certify — current player, legal actions, their
+   rendered text, and every information state; games whose greedy line
+   terminates walk to the end and assert the terminal returns agree too.
 
 Passing runs record their coverage (partition.RECORDS; see conftest.py);
 failing checks report their witness — the perturbed fact and the
@@ -69,6 +71,57 @@ GAMES_DIR = Path(__file__).resolve().parent.parent.parent / "docs" / "games"
 # (short_name, filename), deterministic order — the registry the per-game
 # modules must cover (test_coverage.py).
 REGISTERED_GAMES = sorted(ogame.GAMES.items())
+
+
+# The swap proof's COVERAGE MANIFEST: the seeds every game's indistinguishability
+# check runs at. Five rather than one because a single seed fixes one deal, one
+# greedy line and one pause player, and none of those is the property — a leak
+# that only opens when a particular seat holds a particular shape would sit
+# under a one-seed proof indefinitely.
+#
+# Uniform across the corpus, and that is a measured claim, not an assumption:
+# the swap geometry has hard preconditions (a 2-player game needs its depth
+# pause to coincide with the first decider; every game needs a swappable pair
+# that replays legally), and most seeds fail one of them for some game. These
+# five are the first that clear EVERY game running this proof, and seeds 3 and 5
+# additionally clear Cheat's constructive certificate, which uses the same
+# manifest. A per-game override was the alternative and was rejected: it would
+# let one game quietly degrade to a single seed while the coverage record still
+# read "five".
+SWAP_SEEDS: tuple[int, ...] = (3, 5, 14, 15, 18)
+
+# How many legally-replaying swap pairs to check per (game, seed). The first
+# pair alone was the previous coverage, and "the first pair that happens to
+# replay" is a sample of one from sets that run past 250 candidates. Bounded
+# rather than exhaustive because the cost is one full replay per pair; the
+# number checked and the number available both go into the coverage record, so
+# the cap is visible rather than implied.
+SWAP_PAIRS_PER_SEED = 3
+
+# What a DECLARED one-seed proof runs (`test_coverage.ONE_SEED_SWAP_PROOFS`):
+# the manifest's head. A prefix rather than a separate number, so an exemption
+# cannot drift onto a seed the manifest no longer contains — and the proof still
+# takes `seed` as a parameter, so the exemption is visible in the signature and
+# in the test id instead of being an argument silently missing.
+ONE_SEED = SWAP_SEEDS[:1]
+
+
+def action_strings(space: Any, actions: list[int]) -> list[str]:
+    """The rendered action text for `actions` — the bytes a prompt shows.
+
+    BACKSTOP HELPER. Its wall is `test_action_strings.py`, which pins that
+    `CardlangState._action_to_string` reads nothing of the world: given that,
+    equal ids give equal strings, so the world-pair assertions calling this
+    cannot fail on their own — measured, under that module's named mutation.
+    They state the composition at the point where the partition claim is made,
+    so a reader of the swap proof can see that the ids agreeing is not the
+    whole claim about what an observer is shown.
+
+    The one CALLER that is not a backstop is the adapter-agreement proof, which
+    compares this against `state.action_to_string` — two implementations, so it
+    discriminates.
+    """
+    return [space.to_string(a) for a in actions]
 
 
 @dataclass(frozen=True)
@@ -406,10 +459,11 @@ class ReadinessProofs:
             f"walk:\n  " + "\n  ".join(walk.violations)
         )
 
-    def test_indistinguishability_under_hidden_swap(self) -> None:
+    @pytest.mark.parametrize("seed", SWAP_SEEDS)
+    def test_indistinguishability_under_hidden_swap(self, seed: int) -> None:
         spec = self.spec
         path = spec.path
-        seed = 5
+        _, space = load(path)
         hz = spec.hidden_zone
         history, pause_a = _advance(path, seed, spec.depth)
         p = pause_a.player
@@ -450,8 +504,12 @@ class ReadinessProofs:
         assert candidates, "no swap pair available; lower the spec's depth for this game"
 
         info_a = information_state(p, pause_a.rs, pause_a.obs_logs[p])
+        strings_a = action_strings(space, pause_a.legal)
         last_err: ValueError | None = None
+        proved: list[str] = []
         for x, y in candidates:
+            if len(proved) >= SWAP_PAIRS_PER_SEED:
+                break
             try:
                 pause_b = run(path, seed, tuple(history), on_first_decision=_swap_fn(side1, side2, x, y))
             except ValueError as e:
@@ -482,19 +540,30 @@ class ReadinessProofs:
                 f"only-in-A={sorted(set(pause_a.legal) - set(pause_b.legal))} "
                 f"only-in-B={sorted(set(pause_b.legal) - set(pause_a.legal))}"
             )
-            record(
-                spec.short_name,
-                "swap",
-                seed=seed,
-                depth=len(history),
-                axis=spec.swap_axis,
-                pair=f"{x}<->{y}",
-                pairs_skipped=candidates.index((x, y)),
-                candidates=len(candidates),
-                legal_agreement=True,
+            # ...and the same offer must READ the same. Backstop; the wall is
+            # `test_action_strings.py` (see `action_strings`).
+            assert action_strings(space, pause_b.legal) == strings_a, (
+                f"{spec.short_name}: same legal actions, different rendered text "
+                f"for P{p} — the action strings the prompt shows are a leak channel"
             )
-            return  # one successful controlled swap proves the property
-        pytest.fail(f"{spec.short_name}: no swap pair produced a legal replay; last replay error: {last_err!r}")
+            proved.append(f"{x}<->{y}")
+        assert proved, (
+            f"{spec.short_name}: no swap pair produced a legal replay at seed "
+            f"{seed}; last replay error: {last_err!r}"
+        )
+        record(
+            spec.short_name,
+            "swap",
+            seed=seed,
+            depth=len(history),
+            axis=spec.swap_axis,
+            pairs=";".join(proved),
+            pairs_proved=len(proved),
+            pairs_cap=SWAP_PAIRS_PER_SEED,
+            candidates=len(candidates),
+            legal_agreement=True,
+            string_agreement=True,
+        )
 
     def test_soundness_own_view_changes_the_state(self) -> None:
         spec = self.spec
@@ -631,6 +700,7 @@ class ReadinessProofs:
         spec = self.spec
         seed = 5
         game = pyspiel.load_game(spec.short_name)
+        _, space = load(spec.path)
         state = game.new_initial_state()
         assert state.is_chance_node()
         state.apply_action(seed)
@@ -646,6 +716,19 @@ class ReadinessProofs:
             )
             assert state.legal_actions() == r.legal, (
                 f"{spec.short_name}: step {steps}: adapter legal actions disagree"
+            )
+            # The prompt-facing bytes, from the two implementations. Unlike the
+            # world-pair sites this one is discriminating: `action_to_string`
+            # goes through the pyspiel state — the call
+            # `experiments/llm_eval/referee.py` makes — while `to_string` goes
+            # through the DSL-level action space, so an adapter that decorated
+            # or localized its rendering would diverge here and nowhere else.
+            assert [state.action_to_string(r.player, a) for a in state.legal_actions()] == (
+                action_strings(space, r.legal)
+            ), (
+                f"{spec.short_name}: step {steps}: adapter and DSL action "
+                f"renderings disagree — the strings a prompt shows are not the "
+                f"strings the DSL-level proofs reason about"
             )
             for q in range(len(r.obs_logs)):
                 expected = information_state(q, r.rs, r.obs_logs[q])
@@ -693,4 +776,5 @@ class ReadinessProofs:
             )
         record(spec.short_name, "adapter", seed=seed, steps=steps,
                terminal=dsl_returns is not None,
-               returns_compared=dsl_returns is not None)
+               returns_compared=dsl_returns is not None,
+               action_strings_compared=True)

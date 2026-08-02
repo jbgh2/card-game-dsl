@@ -27,7 +27,7 @@ Harness configuration rationale:
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import Pause, load, run
 
-from .harness import GAMES_DIR, GameSpec, ReadinessProofs
+from .harness import GAMES_DIR, GameSpec, ReadinessProofs, action_strings
 
 PATH = str(GAMES_DIR / "gops.cardlang")
 
@@ -77,6 +77,10 @@ def test_sealed_bid_derivation_before_and_after_the_reveal() -> None:
     ), "P1's information state depends on P0's sealed commit"
     assert r1.legal == r1_alt.legal, (
         "P1's legal actions depend on P0's sealed commit"
+    )
+    # ...and read the same. Backstop; the wall is `test_action_strings.py`.
+    assert action_strings(space, r1.legal) == action_strings(space, r1_alt.legal), (
+        "P1's rendered action text depends on P0's sealed commit"
     )
 
     # (2) The bid-zone projection, at the paused world. The kernel holds the

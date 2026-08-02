@@ -134,22 +134,45 @@ checklist for resolving this question.
   game by the adapter-agreement proof, whose two independent replays of the
   same line must render byte-identically.
 - **Indistinguishability — no leak.** Perturbing only hidden content leaves
-  the observer's information state byte-identical. *Covered, weakly
-  sampled:* one seed, one depth, the first legally-replaying swap pair, the
-  greedy `legal[0]` line — plus the accreting exceptions above. *Covered
-  constructively for Cheat only* (`tests/openspiel_ready/worlds.py` +
+  the observer's information state byte-identical. *Covered, sampled:* the
+  five-seed manifest `harness.SWAP_SEEDS`, one depth per game, up to
+  `SWAP_PAIRS_PER_SEED` legally-replaying swap pairs at each seed, the
+  greedy `legal[0]` line — plus the accreting exceptions above. The seed
+  set is uniform across the corpus rather than per game, and that is a
+  measured choice: the swap geometry has preconditions (a 2-player game
+  needs its depth pause to coincide with the first decider; every game
+  needs a swappable pair that replays legally) which most seeds fail for
+  some game, and a per-game override would let one game degrade to a single
+  seed while the coverage record still read "five". What is still sampled:
+  one depth per game, a bounded pair count out of candidate sets that run
+  past 250, and the greedy line — a leak reachable only off that line, or
+  only at another depth, is outside today's coverage. The remaining shared
+  proofs (own-view soundness, the per-visible-fact matrix, the rng pin,
+  adapter agreement) still run at seed 5 alone. Three games run one seed,
+  declared with their reasons in `test_coverage.ONE_SEED_SWAP_PROOFS` and
+  pinned tight in both directions: Breakthrough, FreeCell and Tic-Tac-Toe
+  are perfect-information games whose proof is a DEGENERACY argument over
+  the zone declarations (no populated zone projects below identity, so no
+  hidden pair exists to swap), which no second deal can vary. Klondike also
+  overrides the shared proof — a 1-player analogue swapping a face-down
+  tableau card against the undrawn stock — and runs the full manifest.
+  *Covered constructively for Cheat only* (`tests/openspiel_ready/worlds.py` +
   `test_cheat.py`): the pinned set is derived from the line itself (cards
   named by the history's decisions, cards named in the observer's log,
   cards in the observer's identity projections) and the **entire remaining
   hidden set** is permuted across the other hands' deal-time contents —
-  per observer, on a challenge-exercising line, with legal-action agreement
+  per observer, over the same five-seed manifest, on a challenge-exercising
+  line (each seed's line is distinct, with its own flip and pickup pattern
+  and its own derived pin set), with legal-action agreement
   when the observer is to move, and one discriminating probe per pin class
   (a decode-pin violation trips the replay wall; a log-pin violation
   replays legally but visibly differs, the world the axis heuristic could
   never rule out). Paired-history probes pin the channel itself: two lines
   one hidden played card apart are byte-identical to every non-claimant
   until a challenge flips the play, distinguishable to everyone after, and
-  identical forever if no one calls.
+  identical forever if no one calls; those probes stay at seed 5, whose
+  exact deal (A♠ against 3♥ under an Aces claim) is what lets them name the
+  channel's identity and routing rather than only its agreement.
 - **Soundness, generalized — nothing over-hidden.** Perturbing any
   *declared-visible* fact must change the observer's information state.
   The general obligation is one perturbation per visible fact — every zone
@@ -193,6 +216,20 @@ checklist for resolving this question.
   moves are themselves a leak channel, one OpenSpiel does not police.
   *Covered:* the swap proof asserts the paired worlds pause on the same
   player and offer identical legal actions.
+- **Action renderings are not a channel.** What a consumer shows an agent is
+  `action_to_string`, not the action id, so an id-level guarantee plus a
+  world-sensitive renderer would be a leak with every proof above still
+  green. *Covered structurally:* `tests/openspiel_ready/test_action_strings.py`
+  pins that `CardlangState._action_to_string` — the sole renderer, for every
+  registered game — reads nothing off the state but the game path, by `ast`
+  scrape and by a differential that re-renders fixed ids along a walk. The
+  world-pair proofs additionally assert rendered-text agreement wherever they
+  assert id agreement; on today's renderer those assertions cannot fail
+  (equal ids, pure renderer), so they are regression pins stating the
+  composition where it is claimed, not discriminating probes — the same
+  register as the seed/rng pin above. The one discriminating comparison is
+  adapter agreement, which renders the same ids through the pyspiel state and
+  through the DSL-level action space and requires the bytes to match.
 - **Public means public.** A public observation (an announce, an
   identity-projection move) appears identically in every player's log and
   information state. *Partial:* unit-pinned (`test_announce_reaches_everyone`)

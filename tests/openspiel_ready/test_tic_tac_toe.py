@@ -78,10 +78,12 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import Pause, run
 
-from .harness import GAMES_DIR, GameSpec, ReadinessProofs, _advance
+from .harness import ONE_SEED, GAMES_DIR, GameSpec, ReadinessProofs, _advance
 from .partition import first_divergence, projection_for, record, zone_instances
 
 PATH = str(GAMES_DIR / "tic-tac-toe.cardlang")
@@ -106,7 +108,8 @@ class TestReadiness(ReadinessProofs):
         adapter_terminal_steps=9,  # greedy legal[0] line wins in 7 (measured, deterministic); +2 slack
     )
 
-    def test_indistinguishability_under_hidden_swap(self) -> None:
+    @pytest.mark.parametrize("seed", ONE_SEED)
+    def test_indistinguishability_under_hidden_swap(self, seed: int) -> None:
         """Perfect information, two observers: prove the DEGENERACY directly
         rather than vacuously skip. At a replayed pause, for EACH player: no
         populated zone projects below identity (so no hidden pair exists for the
@@ -114,7 +117,7 @@ class TestReadiness(ReadinessProofs):
         every mark identity appears in the rendered information state. Both
         observers render the identical board — common knowledge — the hallmark
         of a singleton partition under perfect information."""
-        _, pause = _advance(PATH, 5, self.spec.depth)
+        _, pause = _advance(PATH, seed, self.spec.depth)
         assert isinstance(pause, Pause)
         renders: list[str] = []
         for p in range(len(pause.obs_logs)):

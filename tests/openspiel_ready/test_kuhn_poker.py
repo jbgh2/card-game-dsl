@@ -48,7 +48,7 @@ from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import Pause, ReplayChooser, load, run
 from cardlang.runtime.driver import play_game
 
-from .harness import GAMES_DIR, GameSpec, ReadinessProofs
+from .harness import GAMES_DIR, GameSpec, ReadinessProofs, action_strings
 
 pyspiel = pytest.importorskip("pyspiel")
 
@@ -93,6 +93,7 @@ def test_adapter_agrees_over_the_whole_kuhn_tree() -> None:
     depth-0 walk (see the module docstring) and, because the pyspiel state
     re-simulates independently of these `run` calls, doubles as a
     whole-tree determinism check."""
+    _, space = load(PATH)
     game = pyspiel.load_game(SHORT_NAME)
     nodes = 0
     terminals = 0
@@ -117,6 +118,11 @@ def test_adapter_agrees_over_the_whole_kuhn_tree() -> None:
         assert not state.is_terminal()
         assert state.current_player() == r.player
         assert state.legal_actions() == r.legal
+        # ...and the rendered text agrees too. Backstop; the wall is
+        # `test_action_strings.py` (see `harness.action_strings`).
+        assert [state.action_to_string(r.player, a) for a in state.legal_actions()] == (
+            action_strings(space, r.legal)
+        ), f"seed={seed} history={history}: adapter action renderings disagree"
         for q in range(2):
             assert state.information_state_string(q) == information_state(
                 q, r.rs, r.obs_logs[q]

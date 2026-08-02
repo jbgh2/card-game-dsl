@@ -31,10 +31,12 @@ returns agree — the 1-player returns surface, proven end to end.
 
 from __future__ import annotations
 
+import pytest
+
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import Pause, run
 
-from .harness import GAMES_DIR, GameSpec, ReadinessProofs, _swap_fn
+from .harness import ONE_SEED, GAMES_DIR, GameSpec, ReadinessProofs, _swap_fn
 from .partition import first_divergence, projection_for, record, zone_instances
 
 PATH = str(GAMES_DIR / "freecell.cardlang")
@@ -50,14 +52,15 @@ class TestReadiness(ReadinessProofs):
         adapter_terminal_steps=4,  # greedy = resign: Terminal on the first action
     )
 
-    def test_indistinguishability_under_hidden_swap(self) -> None:
+    @pytest.mark.parametrize("seed", ONE_SEED)
+    def test_indistinguishability_under_hidden_swap(self, seed: int) -> None:
         """Perfect information: prove the DEGENERACY rather than vacuously
         skip. At the first decision, (a) no populated zone projects less than
         identity to the sole player, so there exists no hidden pair for the
         base proof to swap — every information set is a singleton; (b) every
         one of the 52 card identities appears in the derived information
         state. Legal-action agreement is trivial (a singleton set)."""
-        r = run(PATH, 5, ())
+        r = run(PATH, seed, ())
         assert isinstance(r, Pause)
         p = r.player
         assert p == 0
