@@ -6,17 +6,20 @@ property:   every name the checker registers as a native call dispatches from
             `runtime/primitives.py` (Primitives: sanctioned game-local
             Python) -- with nothing in both and nothing in neither, and every
             name-keyed dispatcher lives in the home its kind belongs to
-domain:     STDLIB_CALL_FUNCS (the whole registry) x {builtins, primitives};
+domain:     CALL_FUNCS (the whole registry) x {builtins, primitives};
             every name-keyed dispatcher in either home x its home; the
             retired `runtime/stdlib.py` x {exists, imported}
-registry:   `cardlang/stdlib/functions.py :: STDLIB_CALL_FUNCS` for the name
-            axis; each home module's OWN `call` match AST for the home axis
-            (scraped from the source, never hand-listed); each home module's
-            module-level `match name:` functions for the dispatcher axis
+registry:   `cardlang/builtins/functions.py` for BOTH name axes --
+            `BUILTIN_CALL_FUNCS` / `PRIMITIVE_CALL_FUNCS` give the expected
+            home and `CALL_FUNCS` their derived union; each home module's OWN
+            `call` match AST for the actual home (scraped from the source,
+            never hand-listed); each home module's module-level `match name:`
+            functions for the dispatcher axis
 covered:    the grid -- `test_call_arm_home[<name>]`, one row per registry
             member, crossed against the scraped home;
-            `test_homes_partition_the_call_registry` (union == registry,
-            intersection == empty, Builtins == the ruling's list);
+            `test_homes_partition_the_call_registry` (scraped union ==
+            CALL_FUNCS, scraped intersection == empty, and each scraped home
+            == its declared set both ways);
             `test_dispatcher_home[<dispatcher>]`, one row per scraped
             dispatcher, plus `test_every_scraped_dispatcher_is_accounted_for`
             so a NEW dispatcher cannot land unplaced;
@@ -25,19 +28,21 @@ covered:    the grid -- `test_call_arm_home[<name>]`, one row per registry
 sampled:    that each arm still computes the right answer is not this grid's
             property -- the full suite and byte-identical goldens carry it.
             This grid pins WHERE a name dispatches, not WHAT it returns.
-residual:   the expected-home column for Builtins is the hand-listed
-            `BUILTIN_CALL_ARMS` below, because that list IS the ruling
-            (issue #200: of the call registry only these are generic) and a
-            decision has no registry to derive from. Primitives is then the
-            complement, which is not a guess but the ruling's other half. A
-            NEWLY registered generic call lands expected-primitives and, once
-            implemented in `builtins.py`, fails its row by name -- the grid
-            demands the decision be recorded here rather than defaulting it.
-            The `climb_universe_function` / `climb_codec_function` /
-            `joint_codec_function` key sets are not registries (they exist
-            only in their own match) so they carry a home row but no
-            membership row; their coverage of STDLIB_CLIMB_LEADS is
-            tests/test_signatures.py's property, not this grid's.
+residual:   the `climb_universe_function` / `climb_codec_function` /
+            `joint_codec_function` key sets are not registries -- they exist
+            only inside their own match -- so each carries a home row but no
+            membership row. Their joint coverage of PRIMITIVE_CLIMB_LEADS is
+            tests/test_signatures.py's property, not this grid's. R4, and
+            this ledger owns the record: the two codec dispatchers return
+            None on a miss by design, and the absence is walled loudly where
+            it matters (`ActionSpace.for_game`).
+
+            Not a residual, recorded because it was one until issue #202:
+            the expected-home column is now DERIVED from the declaration
+            side, so this grid crosses two independent statements of where a
+            name lives instead of checking the implementation against a copy
+            of itself. A name declared in neither half is not in CALL_FUNCS
+            and resolve refuses it.
 """
 
 from __future__ import annotations
@@ -48,35 +53,16 @@ from pathlib import Path
 import pytest
 
 import cardlang
-from cardlang.stdlib.functions import STDLIB_CALL_FUNCS
+from cardlang.builtins.functions import (
+    BUILTIN_CALL_FUNCS,
+    CALL_FUNCS,
+    PRIMITIVE_CALL_FUNCS,
+)
 
 _PACKAGE = Path(cardlang.__file__).parent
 _BUILTINS = _PACKAGE / "runtime" / "builtins.py"
 _PRIMITIVES = _PACKAGE / "runtime" / "primitives.py"
 _RETIRED = _PACKAGE / "runtime" / "stdlib.py"
-
-# The ruling's Builtins half (issue #200): the generic native functions, the
-# ones whose meaning is the language's rather than one game's. Everything else
-# the registry holds is game-local and dispatches from Primitives.
-BUILTIN_CALL_ARMS: frozenset[str] = frozenset(
-    {
-        "lines",
-        "neighbor",
-        "has_step",
-        "is_diagonal",
-        "home",
-        "far_row",
-        "player_holding",
-        "team_of",
-        "suit_of",
-        "strain_index",
-        "error",
-        "rank_value",
-        "card_value",
-        "top_of",
-        "bottom_of",
-    }
-)
 
 # The name-keyed dispatchers and the home each belongs to. `call` is the only
 # one with a Builtins half: every other dispatcher keys a game-local callback
@@ -147,7 +133,10 @@ def _call_arms(path: Path) -> frozenset[str]:
 
 
 def _expected_home(name: str) -> str:
-    return "builtins" if name in BUILTIN_CALL_ARMS else "primitives"
+    """From the DECLARATION side, so this grid crosses two independent
+    statements of the same fact rather than checking the implementation
+    against a copy of itself."""
+    return "builtins" if name in BUILTIN_CALL_FUNCS else "primitives"
 
 
 def _actual_homes(name: str) -> list[str]:
@@ -159,7 +148,7 @@ def _actual_homes(name: str) -> list[str]:
     return homes
 
 
-@pytest.mark.parametrize("name", sorted(STDLIB_CALL_FUNCS))
+@pytest.mark.parametrize("name", sorted(CALL_FUNCS))
 def test_call_arm_home(name: str) -> None:
     """Each registered call dispatches from exactly the home its kind says."""
     assert _actual_homes(name) == [_expected_home(name)], (
@@ -173,14 +162,15 @@ def test_homes_partition_the_call_registry() -> None:
     sets rather than by subtraction, so an arm in neither home (or in both)
     fails here by name rather than being absorbed into a complement."""
     builtins_arms, primitives_arms = _call_arms(_BUILTINS), _call_arms(_PRIMITIVES)
-    assert builtins_arms | primitives_arms == STDLIB_CALL_FUNCS, (
-        f"unhomed: {sorted(STDLIB_CALL_FUNCS - builtins_arms - primitives_arms)}; "
-        f"unregistered: {sorted((builtins_arms | primitives_arms) - STDLIB_CALL_FUNCS)}"
+    assert builtins_arms | primitives_arms == CALL_FUNCS, (
+        f"unhomed: {sorted(CALL_FUNCS - builtins_arms - primitives_arms)}; "
+        f"unregistered: {sorted((builtins_arms | primitives_arms) - CALL_FUNCS)}"
     )
     assert builtins_arms.isdisjoint(primitives_arms), (
         f"dispatched from both homes: {sorted(builtins_arms & primitives_arms)}"
     )
-    assert builtins_arms == BUILTIN_CALL_ARMS
+    assert builtins_arms == BUILTIN_CALL_FUNCS
+    assert primitives_arms == PRIMITIVE_CALL_FUNCS
 
 
 @pytest.mark.parametrize("dispatcher", sorted(DISPATCHER_HOMES))

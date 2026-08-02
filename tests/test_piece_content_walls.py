@@ -37,11 +37,11 @@ domain:     {the card-content surface positions -- enumerated below} x
                 plus `Card`, the card-content domains (Suit/Suit?/Rank/Card) vs
                 Player;
               - deck-reading stdlib calls -- `DECK_ONLY_CALL_FUNCS` (itself the
-                audited subset of `STDLIB_CALL_FUNCS`), vs a generic member
+                audited subset of `CALL_FUNCS`), vs a generic member
                 (top_of);
               - axis values -- the piece set's `deck_suits`/`deck_ranks`.
 registry:   cardlang.domains.DOMAINS / CARD_AXIS_ROLES / PARAM_DOMAIN_ORDER;
-            cardlang.stdlib.functions.STDLIB_CALL_FUNCS / DECK_ONLY_CALL_FUNCS;
+            cardlang.builtins.functions.CALL_FUNCS / DECK_ONLY_CALL_FUNCS;
             cardlang.runtime.values.COMPONENT_SETS (the piece set xo_marks) and
             content_kind_clause (the one diagnostic prefix every wall opens
             with, asserted here so the walls cannot drift from the grid).
@@ -117,17 +117,17 @@ from collections.abc import Callable
 
 import pytest
 
+from cardlang.builtins.functions import (
+    BOARD_ONLY_CALL_FUNCS,
+    CALL_FUNCS,
+    DECK_ONLY_CALL_FUNCS,
+    ANY_FLAVOR_CALL_FUNCS,
+)
 from cardlang.diagnostics import DiagnosticError
 from cardlang.domains import CARD_AXIS_ROLES, PARAM_DOMAIN_ORDER, role_of
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.values import content_kind_clause
-from cardlang.stdlib.functions import (
-    BOARD_ONLY_CALL_FUNCS,
-    DECK_ONLY_CALL_FUNCS,
-    GENERIC_CALL_FUNCS,
-    STDLIB_CALL_FUNCS,
-)
 
 # The two flavor prefixes every piece/card mismatch diagnostic opens with, from
 # the one runtime helper the walls themselves call -- so a wall whose wording
@@ -472,23 +472,23 @@ def test_stdlib_call_funcs_totally_classified() -> None:
     # them so, not derived by subtraction), so a call in NONE (a newly
     # registered function nobody classified) makes the union fall short and this
     # names it; a call in two breaks disjointness. The wall's domain is exactly
-    # STDLIB_CALL_FUNCS, partitioned into deck-only / board-only / generic.
+    # CALL_FUNCS, partitioned into deck-only / board-only / generic.
     #
-    # red under: add a name to STDLIB_CALL_FUNCS (or drop one from a
+    # red under: add a name to CALL_FUNCS (or drop one from a
     # classification set) without classifying it -- the union assertion below
-    # then falls short of STDLIB_CALL_FUNCS. Demonstrated by the merge itself:
-    # coup_note_reveal/tichu_hand_summary evicted from STDLIB_CALL_FUNCS left
+    # then falls short of CALL_FUNCS. Demonstrated by the merge itself:
+    # coup_note_reveal/tichu_hand_summary evicted from CALL_FUNCS left
     # DECK_ONLY as a strict superset until they were dropped from it here.
-    assert GENERIC_CALL_FUNCS <= STDLIB_CALL_FUNCS
-    assert DECK_ONLY_CALL_FUNCS <= STDLIB_CALL_FUNCS
-    assert BOARD_ONLY_CALL_FUNCS <= STDLIB_CALL_FUNCS
+    assert ANY_FLAVOR_CALL_FUNCS <= CALL_FUNCS
+    assert DECK_ONLY_CALL_FUNCS <= CALL_FUNCS
+    assert BOARD_ONLY_CALL_FUNCS <= CALL_FUNCS
     assert (
-        DECK_ONLY_CALL_FUNCS | BOARD_ONLY_CALL_FUNCS | GENERIC_CALL_FUNCS
-        == STDLIB_CALL_FUNCS
+        DECK_ONLY_CALL_FUNCS | BOARD_ONLY_CALL_FUNCS | ANY_FLAVOR_CALL_FUNCS
+        == CALL_FUNCS
     )
-    assert DECK_ONLY_CALL_FUNCS.isdisjoint(GENERIC_CALL_FUNCS)
+    assert DECK_ONLY_CALL_FUNCS.isdisjoint(ANY_FLAVOR_CALL_FUNCS)
     assert BOARD_ONLY_CALL_FUNCS.isdisjoint(DECK_ONLY_CALL_FUNCS)
-    assert BOARD_ONLY_CALL_FUNCS.isdisjoint(GENERIC_CALL_FUNCS)
+    assert BOARD_ONLY_CALL_FUNCS.isdisjoint(ANY_FLAVOR_CALL_FUNCS)
 
 
 @pytest.mark.parametrize("fn", sorted(DECK_ONLY_CALL_FUNCS))

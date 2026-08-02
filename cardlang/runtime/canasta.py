@@ -320,7 +320,7 @@ def _live_attempt(facts: EngineFacts, gr: reads.GameReads, p: Player) -> _Attemp
     return _attempt(facts, gr, p, str(rank), _stage(gr, p), _hand(gr, p), taking)
 
 
-# --- bundle adapters (DSL-visible; signatures in stdlib/signatures.py) -------
+# --- bundle adapters (DSL-visible; signatures in builtins/signatures.py) -------
 
 
 def canasta_is_red3(facts: EngineFacts, gr: reads.GameReads, card: Card) -> bool:

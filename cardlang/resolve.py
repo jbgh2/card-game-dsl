@@ -66,6 +66,18 @@ from typing import assert_never, cast, get_args
 
 from cardlang.ast import nodes as n
 from cardlang.board_domains import BOARD_DOMAIN, DIRECTION_DOMAIN, directions_of
+from cardlang.builtins.functions import (
+    BOARD_ONLY_CALL_FUNCS,
+    CALL_FUNCS,
+    DECK_ONLY_CALL_FUNCS,
+    PRIMITIVE_AUCTION_OUTCOMES,
+    PRIMITIVE_CLIMB_FOLLOWS,
+    PRIMITIVE_CLIMB_LEADS,
+    PRIMITIVE_EARLY_PREDICATES,
+    PRIMITIVE_TRICK_OUTCOMES,
+    PRIMITIVE_VALUE_NAMES,
+)
+from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
 from cardlang.domains import (
     CARD_AXIS_ROLES,
@@ -90,20 +102,8 @@ from cardlang.stdlib.enums import (
     rank_names,
     suit_names,
 )
-from cardlang.stdlib.functions import (
-    BOARD_ONLY_CALL_FUNCS,
-    DECK_ONLY_CALL_FUNCS,
-    STDLIB_AUCTION_OUTCOMES,
-    STDLIB_CALL_FUNCS,
-    STDLIB_CLIMB_FOLLOWS,
-    STDLIB_CLIMB_LEADS,
-    STDLIB_EARLY_PREDICATES,
-    STDLIB_TRICK_OUTCOMES,
-    STDLIB_VALUE_NAMES,
-)
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES, RULE_ENFORCED_MOVE_TYPE
 from cardlang.stdlib.rules import stdlib_rules
-from cardlang.stdlib.signatures import CALL_SIGS
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES, ZONE_PROJECTIONS
 from cardlang.typecheck import KNOWN_TYPE_NAMES
 from cardlang.types import Flavor, TPlayer
@@ -727,7 +727,7 @@ def _check_library_collisions(
                     rule.span,
                 )
         for fn in library.functions:
-            if fn.name in STDLIB_CALL_FUNCS:
+            if fn.name in CALL_FUNCS:
                 bag.error(
                     f"library '{library.name}' defines function '{fn.name}', "
                     f"which shadows the stdlib function of the same name; rename "
@@ -796,7 +796,7 @@ def _game_bindings(game: n.Game) -> dict[str, tuple[str, Span | None]]:
     # precedence, added last, so a real game binding keeps the reported noun.
     # `test_game_bindings_covers_every_resolvable_value_bucket` pins this against
     # `_categories` so a value bucket added there cannot slip past uncovered.
-    for value_fn in STDLIB_VALUE_NAMES:
+    for value_fn in PRIMITIVE_VALUE_NAMES:
         bindings.setdefault(value_fn, ("standard-library value", None))
     return bindings
 
@@ -1056,7 +1056,7 @@ def _library_slot_names(library: n.Library) -> dict[str, frozenset[str]]:
         "move_type": frozenset(m.name for m in library.move_types),
         "define": frozenset(d.name for d in library.defines),
         "procedure": frozenset(p.name for p in library.procedures),
-        "function": frozenset(f.name for f in library.functions) | frozenset(STDLIB_CALL_FUNCS),
+        "function": frozenset(f.name for f in library.functions) | frozenset(CALL_FUNCS),
         "enum_value": SEAT_DIRECTION_VALUES,
         # No longer empty: a library reaches exactly the zones it contracts for,
         # and nothing else. This is the set every zone-naming slot is swept
@@ -1243,7 +1243,7 @@ def _library_reach(library: n.Library) -> _LibraryReach:
         # blind — which is the shape of the defect the slot registry exists for.
         zones=frozenset(r.name for r in library.requires if is_zone_contract(r)),
         enums=SEAT_DIRECTION_VALUES,
-        functions=STDLIB_VALUE_NAMES,
+        functions=PRIMITIVE_VALUE_NAMES,
         ranks=frozenset(),
         suits=frozenset(),
     )
@@ -3325,7 +3325,7 @@ def _categories(game: n.Game) -> _Categories:
         state_vars=frozenset(state_vars),
         zones=frozenset(z.name for z in game.zones),
         enums=enum_values(game.deck) if _component_known(game.deck) else SEAT_DIRECTION_VALUES,
-        functions=STDLIB_VALUE_NAMES,
+        functions=PRIMITIVE_VALUE_NAMES,
         # Card-literal validation asks "does this card EXIST in the deck",
         # so ranks derive from the deck like `suits` below — never from
         # `ranking:`, which is an ORDERING (optional, and legitimately
@@ -3955,7 +3955,7 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
         for f in game.functions
     }
     for fn in game.functions:
-        if fn.name in STDLIB_CALL_FUNCS:
+        if fn.name in CALL_FUNCS:
             bag.error(
                 f"function '{fn.name}' shadows the stdlib function of the same name; "
                 f"rename it (a call would type-check against the stdlib signature but "
@@ -4705,7 +4705,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     for nd in _walk(game):
         match nd:
             case n.Call() if (
-                nd.func not in STDLIB_CALL_FUNCS and nd.func not in defined_functions
+                nd.func not in CALL_FUNCS and nd.func not in defined_functions
             ):
                 bag.error(f"call to unknown function '{nd.func}'", nd.span)
             case n.Call() if (
@@ -5096,7 +5096,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 _check_card_vocabulary(nd.move_types, move_type_defs, game, bag, nd.span)
                 # The betting form omits `outcome` (it mutates state directly and
                 # produces no variant); only an auction's outcome fn is validated.
-                if nd.outcome_fn is not None and nd.outcome_fn not in STDLIB_AUCTION_OUTCOMES:
+                if nd.outcome_fn is not None and nd.outcome_fn not in PRIMITIVE_AUCTION_OUTCOMES:
                     bag.error(
                         f"auction round outcome '{nd.outcome_fn}' is not an auction "
                         f"outcome function",
@@ -5120,13 +5120,13 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bag.error(f"climb round play zone '{nd.play_zone}' is unknown", nd.span)
                 if nd.move_type not in LIBRARY_MOVE_TYPES:
                     bag.error(f"climb round move type '{nd.move_type}' is unknown", nd.span)
-                if nd.combos_fn not in STDLIB_CLIMB_LEADS:
+                if nd.combos_fn not in PRIMITIVE_CLIMB_LEADS:
                     bag.error(
                         f"climb round `combinations` query '{nd.combos_fn}' is not a "
                         f"combination lead query",
                         nd.span,
                     )
-                if nd.follows_fn not in STDLIB_CLIMB_FOLLOWS:
+                if nd.follows_fn not in PRIMITIVE_CLIMB_FOLLOWS:
                     bag.error(
                         f"climb round `follows` query '{nd.follows_fn}' is not a "
                         f"combination follows query",
@@ -5138,7 +5138,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bag.error(f"round source zone '{nd.source_zone}' is unknown", nd.span)
                 if nd.play_zone not in zone_names:
                     bag.error(f"round play zone '{nd.play_zone}' is unknown", nd.span)
-                if nd.outcome_fn not in STDLIB_TRICK_OUTCOMES:
+                if nd.outcome_fn not in PRIMITIVE_TRICK_OUTCOMES:
                     bag.error(
                         f"trick round outcome '{nd.outcome_fn}' is not a trick "
                         f"outcome function",
@@ -5157,7 +5157,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     )
                 if (
                     nd.early_termination is not None
-                    and nd.early_termination not in STDLIB_EARLY_PREDICATES
+                    and nd.early_termination not in PRIMITIVE_EARLY_PREDICATES
                 ):
                     bag.error(
                         f"round early-termination predicate "

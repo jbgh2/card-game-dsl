@@ -43,12 +43,12 @@ from typing import assert_never
 from cardlang.ast import nodes as n
 from cardlang.ast.nodes import Game
 from cardlang.board_domains import directions_of
+from cardlang.builtins.signatures import CALL_SIGS, ZONE_CONTENT, Sig
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
 from cardlang.domains import require_role, role_type
 from cardlang.runtime.values import component_set, content_kind_clause, content_noun
-from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
-from cardlang.stdlib.signatures import CALL_SIGS, ZONE_CONTENT, Sig
 from cardlang.stdlib.enums import SEAT_DIRECTION_VALUES, rank_names, suit_names
+from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
 from cardlang.types import (
     Flavor,
     TAny,
@@ -72,6 +72,7 @@ from cardlang.types import (
     subscriptable,
     unify,
 )
+
 
 # Declared scalar type names → their Type. Enum names (`Suit`/`Rank`/`Direction`)
 # and unknown names (user-defined types, deferred) are handled separately.
@@ -626,7 +627,7 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
         case n.Call():
             sig = CALL_SIGS.get(e.func) or env.functions.get(e.func)
             if sig is None:
-                # `CALL_SIGS` covers `STDLIB_CALL_FUNCS` exactly (pinned by
+                # `CALL_SIGS` covers `CALL_FUNCS` exactly (pinned by
                 # tests/test_permissive_top.py), and resolve rejects a call to
                 # any name that is neither a stdlib function nor a declared
                 # one — so a missing signature is a registry divergence.

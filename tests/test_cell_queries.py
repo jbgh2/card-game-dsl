@@ -42,7 +42,7 @@ registry:   cardlang/resolve.py::_COLLECTION_NOUNS (the closed {cell, line}
             test_collection_noun_registries_agree (one domain, two sites);
             game.positions (the bare-form universe: declared
             `positions {}` unioned with the board-minted `cell`, Task 6);
-            cardlang/stdlib/functions.py::BOARD_ONLY_CALL_FUNCS (the `lines`
+            cardlang/builtins/functions.py::BOARD_ONLY_CALL_FUNCS (the `lines`
             row); cardlang/stdlib/boards.py::BoardEntry.lines (the k bound
             resolve and the runtime both read, so they cannot disagree).
 covered:    grammar precedence — every fixed keyword form (any player/all

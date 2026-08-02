@@ -25,7 +25,7 @@ Completeness ledger
                Zone).
     domain:    {functions in CALL_SIGS} x declared param type
                {TCollection, TAny, scalar} x {Zone, list} argument shapes.
-    registry:  cardlang/stdlib/signatures.py CALL_SIGS (the param types);
+    registry:  cardlang/builtins/signatures.py CALL_SIGS (the param types);
                the shape axis is the evaluator's value universe
                (cardlang/runtime/state.py `elements` names it).
     covered:   TCollection axis — gin_valid_meld, gin_arrange_ok x Zone:
@@ -56,9 +56,9 @@ import random
 
 import pytest
 
+from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
-from cardlang.stdlib.signatures import CALL_SIGS
 from cardlang.types import TAny, TCollection
 
 
