@@ -20,6 +20,9 @@ Every design question in this repo has a home. Before proposing anything,
 locate it:
 
 - settled -> decisions.md (search the section titles first)
+- named -> docs/glossary.md (every concept's one spelling; the preamble's
+  usage rules bind new names — a plan that needs a word the glossary
+  lacks mints the entry as a plan step)
 - open -> docs/open-questions/_index.md, then the named file (cite by slug)
 - sequenced -> the GitHub tracker; issue #143 orders the cross-cutting work
 - sketched -> docs/design-notes/ (proposals, not settled spec)

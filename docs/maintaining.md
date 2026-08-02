@@ -56,6 +56,21 @@ applies:
 The test: does the historical note prevent re-litigation, or
 does it just document the journey? If the latter, cut it.
 
+## Names come from the glossary
+
+[glossary.md](glossary.md) is the naming authority: one entry per
+concept, one spelling per concept. Prose in these docs — and comments,
+docstrings, diagnostics, and issues — uses the glossary's term, in full
+and in Title Case (the usage rules in its preamble). A word in its
+reserved table (§6) never appears unqualified. When a change needs a
+word the glossary lacks, mint the entry in the same change; when a
+change renames or retires a spelling, the glossary entry updates in the
+same change. Where current code diverges from the glossary,
+[design-notes/glossary-findings.md](design-notes/glossary-findings.md)
+records it with evidence — renames are tracker work (epic #204),
+when-touched unless an issue rules otherwise; the docs never wait for
+code to catch up.
+
 ## Open questions vs settled design
 
 When an open question gets resolved, **move its content from
