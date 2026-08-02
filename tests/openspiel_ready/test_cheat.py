@@ -61,7 +61,14 @@ from cardlang.openspiel.replay import Pause, load, run
 from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.values import Card, build_deck
 
-from .harness import SWAP_SEEDS, GAMES_DIR, GameSpec, ReadinessProofs, action_strings
+from .harness import (
+    SWAP_SEEDS,
+    GAMES_DIR,
+    GameSpec,
+    ReadinessProofs,
+    action_strings,
+    manifest,
+)
 from .partition import first_divergence, record
 from .worlds import permuted_replay, plan_worlds
 
@@ -213,7 +220,7 @@ def _challenge_rich_line(seed: int) -> tuple[int, ...]:
     return tuple(history)
 
 
-@pytest.mark.parametrize("seed", CONSTRUCTIVE_SEEDS)
+@pytest.mark.parametrize("seed", manifest(CONSTRUCTIVE_SEEDS))
 def test_constructive_worlds_are_indistinguishable(seed: int) -> None:
     """The generator's certificate, per observer: derive the pinned set from
     the line (decode + log + projection pins), permute EVERY remaining hidden

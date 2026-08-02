@@ -106,6 +106,22 @@ SWAP_PAIRS_PER_SEED = 3
 ONE_SEED = SWAP_SEEDS[:1]
 
 
+def manifest(seeds: tuple[int, ...] = SWAP_SEEDS) -> list[Any]:
+    """The manifest as parametrization, with everything past the head marked
+    `slow` — the fast development pass, without a second definition of what the
+    manifest is.
+
+    The default stays the COMPLETE run. `pytest -q` selects every seed, which is
+    what CI runs and what CLAUDE.md's verification rule names; the short pass is
+    `pytest -q -m "not slow"` and covers one seed per proof, which is exactly the
+    coverage that existed before the manifest. Inverting that — fast by default,
+    complete behind a flag — is the arrangement to avoid: the rule "run the full
+    `pytest -q`" would quietly stop being true, and a partial green is the kind
+    of evidence this package exists to refuse.
+    """
+    return [seeds[0], *(pytest.param(s, marks=pytest.mark.slow) for s in seeds[1:])]
+
+
 def action_strings(space: Any, actions: list[int]) -> list[str]:
     """The rendered action text for `actions` — the bytes a prompt shows.
 
@@ -185,7 +201,12 @@ class GameSpec:
     swap_axis: Literal["suit", "rank", "any"] = "suit"
 
     # Total greedy (legal[0]) steps within which this game's line reaches
-    # Terminal — measured, with headroom. Set it and the adapter-agreement
+    # Terminal — measured across EVERY seed in `SWAP_SEEDS`, with headroom.
+    # Across the whole manifest because line length varies with the deal, and
+    # by a lot: Schnapsen's runs 64-188 over the five seeds, so a cap read off
+    # one deal under-covers the others.
+    #
+    # Set it and the adapter-agreement
     # proof walks the line to the end and ASSERTS the DSL and pyspiel terminal
     # returns agree (it fails loudly if the line stops terminating, rather
     # than silently skipping). None = the greedy line does not terminate in
@@ -459,7 +480,7 @@ class ReadinessProofs:
             f"walk:\n  " + "\n  ".join(walk.violations)
         )
 
-    @pytest.mark.parametrize("seed", SWAP_SEEDS)
+    @pytest.mark.parametrize("seed", manifest())
     def test_indistinguishability_under_hidden_swap(self, seed: int) -> None:
         spec = self.spec
         path = spec.path
@@ -565,32 +586,52 @@ class ReadinessProofs:
             string_agreement=True,
         )
 
-    def test_soundness_own_view_changes_the_state(self) -> None:
+    @pytest.mark.parametrize("seed", manifest())
+    def test_soundness_own_view_changes_the_state(self, seed: int) -> None:
+        """The observer's own hand is theirs to see: move a card out of it and
+        their information state MUST change.
+
+        The pair does not have to preserve indistinguishability — this proof
+        wants the opposite, a perturbation the observer CAN see — so the
+        spec's swap axis is a preference here, not a requirement. It is tried
+        first (so a game's declared axis still describes the probe wherever it
+        applies), and any distinct pair serves when it yields none: Go Fish
+        pairs same-rank only, and at some deals the two hands share no rank,
+        which would block a proof that never needed the constraint. Which one
+        was used goes into the coverage record rather than being absorbed
+        silently.
+        """
         spec = self.spec
         path = spec.path
         hz = spec.hidden_zone
-        r0 = run(path, 5, ())
+        r0 = run(path, seed, ())
         assert isinstance(r0, Pause)
         p = r0.player
         opp = next(q for q in range(len(r0.obs_logs)) if q != p)
         own = r0.rs.zones.instance(hz, p).cards
         theirs = r0.rs.zones.instance(hz, opp).cards
         pairs = spec.swap_pairs(own, theirs)
+        axis: str = spec.swap_axis
+        if not pairs:
+            pairs = [(a, b) for a in own for b in theirs if a != b]
+            axis = f"any (the {spec.swap_axis} axis yields no pair at this deal)"
         assert pairs, (
-            f"{spec.short_name}: no swap pair for soundness at this seed/depth — "
-            f"adjust the spec"
+            f"{spec.short_name}: the two hands hold no distinct pair at seed "
+            f"{seed} — nothing can perturb the observer's own view"
         )
         x, y = pairs[0]
         info_a = information_state(p, r0.rs, r0.obs_logs[p])
-        r1 = run(path, 5, (), on_first_decision=_swap_fn((hz, p), (hz, opp), x, y))
+        r1 = run(path, seed, (), on_first_decision=_swap_fn((hz, p), (hz, opp), x, y))
         assert isinstance(r1, Pause)
         info_b = information_state(r1.player, r1.rs, r1.obs_logs[r1.player])
         # The pause player is the same (no actions replayed); their own hand changed.
         assert r1.player == p and info_a != info_b, (
             f"{spec.short_name}: the info-state is insensitive to the player's own hand"
         )
+        record(spec.short_name, "own_view", seed=seed, axis=axis, pair=f"{x}<->{y}")
 
-    def test_soundness_every_visible_fact_is_in_the_state(self) -> None:
+    @pytest.mark.parametrize("seed", manifest())
+    def test_soundness_every_visible_fact_is_in_the_state(self, seed: int) -> None:
         """Soundness, generalized (structural-infoset-proofs, 'nothing
         over-hidden'): one perturbation per visible fact, for EVERY observer,
         enumerated from the zone declarations — every zone projection the
@@ -603,7 +644,7 @@ class ReadinessProofs:
         legality constraints apply; the replay-level soundness probe above
         stays as the end-to-end complement."""
         spec = self.spec
-        _, pause = _advance(spec.path, 5, spec.depth)
+        _, pause = _advance(spec.path, seed, spec.depth)
         totals = {"zone_identity": 0, "zone_count_only": 0, "zone_trivial": 0,
                   "state_vars": 0, "obs_events": 0}
         for observer in range(len(pause.obs_logs)):
@@ -616,10 +657,11 @@ class ReadinessProofs:
             )
             for k, v in counts.items():
                 totals[k] += v
-        record(spec.short_name, "facts", observers=len(pause.obs_logs),
+        record(spec.short_name, "facts", seed=seed, observers=len(pause.obs_logs),
                depth=spec.depth, **totals)
 
-    def test_seed_and_undrawn_randomness_are_not_observable(self) -> None:
+    @pytest.mark.parametrize("seed", manifest())
+    def test_seed_and_undrawn_randomness_are_not_observable(self, seed: int) -> None:
         """No information state may be sensitive to the root chance seed
         beyond what dealt-and-observed cards already reveal, nor to rng draws
         not yet made — including the rules-level rng gates carrying the
@@ -631,7 +673,7 @@ class ReadinessProofs:
         draw order). Every player's information state must be byte-identical
         under both."""
         spec = self.spec
-        _, pause = _advance(spec.path, 5, spec.depth)
+        _, pause = _advance(spec.path, seed, spec.depth)
         players = range(len(pause.obs_logs))
         before = {
             q: information_state(q, pause.rs, pause.obs_logs[q]) for q in players
@@ -654,16 +696,17 @@ class ReadinessProofs:
         record(
             spec.short_name,
             "rng",
+            seed=seed,
             depth=spec.depth,
             reseeded=True,
             stocks_reversed=len(stocks),
             vacuous_stock=(len(stocks) == 0),
         )
 
-    def test_perfect_recall_logs_are_append_only(self) -> None:
+    @pytest.mark.parametrize("seed", manifest())
+    def test_perfect_recall_logs_are_append_only(self, seed: int) -> None:
         spec = self.spec
         path = spec.path
-        seed = 9
         history: list[int] = []
         r = run(path, seed, ())
         prev: dict[int, list[tuple[Any, ...]]] = {}
@@ -679,7 +722,8 @@ class ReadinessProofs:
             r = run(path, seed, tuple(history))
             steps += 1
 
-    def test_adapter_agrees_with_the_dsl_information_state(self) -> None:
+    @pytest.mark.parametrize("seed", manifest())
+    def test_adapter_agrees_with_the_dsl_information_state(self, seed: int) -> None:
         """The readiness proofs run at the DSL level; the partition OpenSpiel
         algorithms actually consume is the registered game's. Walk one line
         and assert the two renderings agree at every step — current player,
@@ -698,7 +742,6 @@ class ReadinessProofs:
         cap) record `terminal=False` in the coverage record — their returns
         surface is exercised only by the conformance sim."""
         spec = self.spec
-        seed = 5
         game = pyspiel.load_game(spec.short_name)
         _, space = load(spec.path)
         state = game.new_initial_state()

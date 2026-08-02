@@ -24,7 +24,7 @@ class TestReadiness(ReadinessProofs):
         "schnapsen.cardlang",
         depth=6,
         stock_zone="talon",
-        adapter_terminal_steps=170,  # greedy line measured at 124 steps
+        adapter_terminal_steps=250,  # greedy line 64-188 steps over the manifest
     )
 
 

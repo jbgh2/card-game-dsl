@@ -146,9 +146,11 @@ checklist for resolving this question.
   seed while the coverage record still read "five". What is still sampled:
   one depth per game, a bounded pair count out of candidate sets that run
   past 250, and the greedy line — a leak reachable only off that line, or
-  only at another depth, is outside today's coverage. The remaining shared
-  proofs (own-view soundness, the per-visible-fact matrix, the rng pin,
-  adapter agreement) still run at seed 5 alone. Three games run one seed,
+  only at another depth, is outside today's coverage. Every shared proof runs
+  the manifest, not the swap proof alone: own-view soundness, the
+  per-visible-fact matrix, the rng pin, perfect recall and adapter agreement
+  too — so the terminal-returns comparison in particular now lands on five
+  distinct game outcomes per game rather than one. Three games run one seed,
   declared with their reasons in `test_coverage.ONE_SEED_SWAP_PROOFS` and
   pinned tight in both directions: Breakthrough, FreeCell and Tic-Tac-Toe
   are perfect-information games whose proof is a DEGENERACY argument over

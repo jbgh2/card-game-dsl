@@ -84,6 +84,9 @@ ignore = ["B009", "B010", "PLC0206", "PLC0414", "TRY004"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "slow: a seed beyond the coverage manifest's head. Bare `pytest -q` runs these\nand is the gate; `pytest -q -m \"not slow\"` is the short development pass.",
+]
 # A recorded gap is an `xfail`, and an `xfail` that starts passing FAILS the
 # build (decisions.md "Closed-domain completeness"): closing a gap must force
 # the ledger that records it to be updated in the same change. Without this,

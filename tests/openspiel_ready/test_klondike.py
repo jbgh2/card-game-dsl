@@ -52,6 +52,7 @@ from .harness import (
     ReadinessProofs,
     _swap_fn,
     action_strings,
+    manifest,
 )
 from .partition import first_divergence, record
 
@@ -69,7 +70,7 @@ class TestReadiness(ReadinessProofs):
         adapter_terminal_steps=None,  # greedy line cycles draw_stock/redeal forever
     )
 
-    @pytest.mark.parametrize("seed", SWAP_SEEDS)
+    @pytest.mark.parametrize("seed", manifest())
     def test_indistinguishability_under_hidden_swap(self, seed: int) -> None:
         """1-player analogue of the base proof (which requires an opponent
         hand): swap a face-down tableau card with an undrawn stock card —
@@ -141,11 +142,12 @@ class TestReadiness(ReadinessProofs):
             string_agreement=True,
         )
 
-    def test_soundness_own_view_changes_the_state(self) -> None:
+    @pytest.mark.parametrize("seed", manifest())
+    def test_soundness_own_view_changes_the_state(self, seed: int) -> None:
         """1-player analogue: the sole player's own view is the face-up
         layout, so swapping a VISIBLE cascade top for a hidden stock card
         must change their information state."""
-        r0 = run(PATH, 5, ())
+        r0 = run(PATH, seed, ())
         assert isinstance(r0, Pause)
         p = r0.player
         up = r0.rs.zones.instance("tableau_up", 1).cards
@@ -154,7 +156,7 @@ class TestReadiness(ReadinessProofs):
         x, y = up[0], stock[-1]
         info_a = information_state(p, r0.rs, r0.obs_logs[p])
         r1 = run(
-            PATH, 5, (), on_first_decision=_swap_fn(("tableau_up", 1), ("deck", None), x, y)
+            PATH, seed, (), on_first_decision=_swap_fn(("tableau_up", 1), ("deck", None), x, y)
         )
         assert isinstance(r1, Pause)
         info_b = information_state(r1.player, r1.rs, r1.obs_logs[r1.player])

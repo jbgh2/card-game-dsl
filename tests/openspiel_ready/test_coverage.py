@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -52,6 +53,18 @@ def _module_for(short_name: str) -> str:
     return "test_" + short_name.removeprefix("cardlang_")
 
 
+def _seed_values(argvalues: Any) -> tuple[int, ...]:
+    """The seeds a `parametrize` declares, whether its entries are bare ints or
+    `pytest.param(...)` wrappers — `harness.manifest` marks its tail `slow`, and
+    reading `mark.args[1]` raw would compare seeds against ParameterSets and
+    report every game as running the wrong manifest."""
+    out: list[int] = []
+    for value in argvalues:
+        wrapped = getattr(value, "values", None)
+        out.append(int(wrapped[0]) if wrapped is not None else int(value))
+    return tuple(out)
+
+
 @pytest.mark.parametrize(("short_name", "filename"), REGISTERED_GAMES)
 def test_every_registered_game_has_a_proof_module(short_name: str, filename: str) -> None:
     mod = importlib.import_module(f".{_module_for(short_name)}", package=__package__)
@@ -71,7 +84,7 @@ def test_every_swap_proof_runs_the_seed_manifest(short_name: str, filename: str)
     mod = importlib.import_module(f".{_module_for(short_name)}", package=__package__)
     method = mod.TestReadiness.test_indistinguishability_under_hidden_swap
     seeds = {
-        tuple(mark.args[1])
+        _seed_values(mark.args[1])
         for mark in getattr(method, "pytestmark", [])
         if mark.name == "parametrize" and mark.args[0] == "seed"
     }

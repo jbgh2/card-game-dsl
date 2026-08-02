@@ -36,7 +36,7 @@ import pytest
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import Pause, run
 
-from .harness import ONE_SEED, GAMES_DIR, GameSpec, ReadinessProofs, _swap_fn
+from .harness import manifest, SWAP_SEEDS, ONE_SEED, GAMES_DIR, GameSpec, ReadinessProofs, _swap_fn
 from .partition import first_divergence, projection_for, record, zone_instances
 
 PATH = str(GAMES_DIR / "freecell.cardlang")
@@ -91,10 +91,11 @@ class TestReadiness(ReadinessProofs):
             cards_in_state=52,
         )
 
-    def test_soundness_own_view_changes_the_state(self) -> None:
+    @pytest.mark.parametrize("seed", manifest())
+    def test_soundness_own_view_changes_the_state(self, seed: int) -> None:
         """Everything is the sole player's own view: swapping two visible
         cascade cards must change the information state."""
-        r0 = run(PATH, 5, ())
+        r0 = run(PATH, seed, ())
         assert isinstance(r0, Pause)
         p = r0.player
         c1 = r0.rs.zones.instance("cascade", 1).cards
@@ -103,7 +104,7 @@ class TestReadiness(ReadinessProofs):
         x, y = c1[-1], c2[-1]
         info_a = information_state(p, r0.rs, r0.obs_logs[p])
         r1 = run(
-            PATH, 5, (), on_first_decision=_swap_fn(("cascade", 1), ("cascade", 2), x, y)
+            PATH, seed, (), on_first_decision=_swap_fn(("cascade", 1), ("cascade", 2), x, y)
         )
         assert isinstance(r1, Pause)
         info_b = information_state(r1.player, r1.rs, r1.obs_logs[r1.player])

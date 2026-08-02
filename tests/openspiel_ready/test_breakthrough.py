@@ -206,7 +206,8 @@ class TestReadiness(ReadinessProofs):
             legal_agreement="trivial (singleton); adapter proof cross-checks vs pyspiel re-sim",
         )
 
-    def test_soundness_own_view_changes_the_state(self) -> None:
+    @pytest.mark.parametrize("seed", ONE_SEED)
+    def test_soundness_own_view_changes_the_state(self, seed: int) -> None:
         """Everything is own view under perfect information. Perturb the two
         kinds of visible man this rung has — one standing on a square, one
         already taken into a captured pile — by swapping each against a man of
@@ -218,7 +219,7 @@ class TestReadiness(ReadinessProofs):
         projection to ``count_only`` makes a light-for-dark swap
         count-preserving, so P0's state stops moving and the square swap
         fails."""
-        _, pause = _advance(PATH, 5, self.spec.depth)
+        _, pause = _advance(PATH, seed, self.spec.depth)
         assert isinstance(pause, Pause)
         squares = [z for name, _, z in zone_instances(pause.rs) if name == "square" and z.cards]
         piles = [z for name, _, z in zone_instances(pause.rs) if name == "captured" and z.cards]

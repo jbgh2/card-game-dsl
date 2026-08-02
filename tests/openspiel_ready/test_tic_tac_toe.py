@@ -163,12 +163,13 @@ class TestReadiness(ReadinessProofs):
             legal_agreement="trivial (singleton); adapter proof cross-checks vs pyspiel re-sim",
         )
 
-    def test_soundness_own_view_changes_the_state(self) -> None:
+    @pytest.mark.parametrize("seed", ONE_SEED)
+    def test_soundness_own_view_changes_the_state(self, seed: int) -> None:
         """Everything is own view under perfect information. Swap a placed mark
         against a reserve mark of the OTHER side (guaranteed distinct
         renderings, x vs o) at a mid-game pause; BOTH observers' information
         states must move, since every zone is identity-projected to both."""
-        _, pause = _advance(PATH, 5, self.spec.depth)
+        _, pause = _advance(PATH, seed, self.spec.depth)
         assert isinstance(pause, Pause)
         square = next(
             (z for name, _, z in zone_instances(pause.rs) if name == "square" and z.cards),
