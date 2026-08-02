@@ -433,7 +433,7 @@ without corrupting the experiment — see the neutral arm's confound below.
 |---|---|---|
 | `reasoning` | `{"action": i, "reasoning": s}` | the **control**; every published number uses it |
 | `neutral` | `{"action": i}` | run, **unusable** — see below |
-| `reason_first` | `{"reasoning": s, "action": i}` | gate passed; **N=2 of 10** (API cap), hypothesis **falsified** |
+| `reason_first` | `{"reasoning": s, "action": i}` | **N=10, hypothesis falsified** — 10/10 paired seeds, sign test p=0.00098 |
 
 Every arm matchup is a verbatim copy of `*_rendered_bluffer` with only `arm:`
 changed — same seeds, same opponents, same rendered state, same models and
@@ -482,13 +482,15 @@ fix.) And the truncation means its fallback decisions are not missing at random.
 Its transcript answers "what does removing the field do to response format", not
 "what does it do to challenge rate".
 
-### `reason_first` — the next experiment
+### `reason_first` — run at N=10
 
 ```bash
-python -m experiments.llm_eval.run_eval \
-  --matchup llm_cheap_reason_first_bluffer \
-  --matchup llm_mid_reason_first_bluffer --limit 1
+python -m experiments.llm_eval.run_eval --matchup llm_cheap_reason_first_bluffer
 ```
+
+The gate procedure below was run first, at `--limit 1`, and is kept because it is
+the recipe for any future response-format arm — not because this arm still needs
+it.
 
 The same two fields as the control, in the other order, so the tokens that
 explain the choice are generated **before** the choice. This is the arm the
@@ -530,80 +532,82 @@ string held, which is the thing the neutral arm proved cannot be assumed.
 Deliberation moved *inside* the envelope rather than escaping it: 114 tokens per
 call against the neutral arm's 399.
 
-**The manipulation is clean.** Over the paired games, the control put `reasoning`
-before `action` in **0 of 302** replies and the arm in **292 of 292**. The two
-arms differ in generation order on every single reply, and in nothing else.
+**The manipulation is clean, at full N.** Across all ten games in each arm, the
+control put `reasoning` before `action` in **0 of 1235** replies and the arm in
+**1572 of 1572**. The two arms differ in generation order on every single reply,
+and in nothing else.
 
 ### Result: the hypothesis is falsified, on the pre-registered endpoint
 
-Haiku, seeds 0-1 (the games both arms played), compared with:
+Haiku, all ten seeds in both arms, compared with:
 
 ```bash
-python -m experiments.llm_eval.compare --common-seeds \
+python -m experiments.llm_eval.compare \
   --control llm_cheap_rendered_bluffer --arm llm_cheap_reason_first_bluffer
 ```
 
 | | control | reason-first | delta |
 |---|---|---|---|
-| **`challenge_rate`** (endpoint) | 52/98 = 0.531 | 99/122 = **0.811** | **+0.281** |
-| `challenge_precision` | 28/52 = 0.538 | 54/99 = 0.545 | +0.007 |
-| wrong accusations per game | 12.0 | **22.5** | +10.5 |
-| `lying_rate` (own lies) | 36/45 = 0.800 | 21/50 = 0.420 | -0.380 |
-| `provable_lie_detection` | 16/30 = 0.533 | 46/55 = 0.836 | +0.303 |
-| `improbable_lie_detection` | 12/23 = 0.522 | 8/16 = 0.500 | -0.022 |
+| **`challenge_rate`** (endpoint) | 220/468 = 0.470 | 514/644 = **0.798** | **+0.328** |
+| `challenge_precision` | 117/220 = 0.532 | 263/514 = 0.512 | -0.020 |
+| wrong accusations per game | 10.3 | **25.1** | +14.8 |
+| `lying_rate` (own lies) | 128/197 = 0.650 | 113/272 = 0.415 | -0.234 |
+| `provable_lie_detection` | 74/129 = 0.574 | 170/196 = 0.867 | +0.294 |
+| `improbable_lie_detection` | 43/135 = 0.319 | 93/146 = 0.637 | +0.318 |
 
 **Reasoning before acting made the model act MORE, not less** — the opposite of
 the prediction. The justification-bias theory said a model asked to write a reason
 would reach for something to write about, and that removing or reordering the
-demand would calm it down. Reordering roughly doubled the wrong accusations
-instead: precision is flat, so every extra challenge was no better targeted than
-the ones before it.
+demand would calm it down. Reordering multiplied the wrong accusations instead:
+precision is flat (it fell slightly), so every extra challenge was no better
+targeted than the ones before it.
 
-**This data cannot carry a p-value, and the honest statement is the paired one.**
-The pooled p-values above treat challenge windows as independent Bernoulli trials,
-and they are not — windows within a game share a hand, a pile and a claim cycle,
-so the effective sample is nearer 2 than 122 and the pooled p is optimistic. The
-right frame is the paired one, because deal identity dominates the rate (the
-control's per-game rate ranges 0.152 to 0.606 across its ten seeds):
+**The quotable statistic is the paired one.** The pooled p-values the tool prints
+treat challenge windows as independent Bernoulli trials, and they are not — windows
+within a game share a hand, a pile and a claim cycle, so the effective sample is
+the game count, not the window count, and the pooled p (4.5e-30 on the endpoint) is
+optimistic by a wide margin. Deal identity dominates the rate, so the right frame
+is the paired one:
 
 | seed | control | reason-first | delta |
 |---|---|---|---|
 | 0 | 40/66 = 0.606 | 68/79 = 0.861 | +0.255 |
 | 1 | 12/32 = 0.375 | 31/43 = 0.721 | +0.346 |
+| 2 | 11/27 = 0.407 | 56/62 = 0.903 | +0.496 |
+| 3 | 5/33 = 0.152 | 58/81 = 0.716 | +0.565 |
+| 4 | 17/30 = 0.567 | 36/56 = 0.643 | +0.076 |
+| 5 | 6/34 = 0.176 | 19/29 = 0.655 | +0.479 |
+| 6 | 37/63 = 0.587 | 70/81 = 0.864 | +0.277 |
+| 7 | 17/50 = 0.340 | 65/87 = 0.747 | +0.407 |
+| 8 | 32/57 = 0.561 | 53/62 = 0.855 | +0.293 |
+| 9 | 43/76 = 0.566 | 58/64 = 0.906 | +0.340 |
 
-Two paired deals, both up, by +0.26 and +0.35 with precision flat. A paired sign
-test on n=2 gives **p = 0.25 one-sided** — which is to say N=2 of 10 supports a
-direction and a magnitude, not significance. The confirmatory run is the claim,
-and it is pending the API reset.
+**Ten paired deals, all ten up. Exact one-sided sign test: p = 0.00098.** No
+independence assumption, no distributional assumption — only that the two arms
+played the same deals, which they did (identical seeds, identical seat rotation,
+identical opponents). Wrong accusations per game are likewise higher in 10/10
+seeds. This is the confirmatory run the N=2 pilot was waiting on, and it confirms
+the pilot's direction and magnitude.
 
-Do **not** reach for the wider comparison "both arm games exceed the control's
-maximum across all ten games". It is true and it is not a test: the arm played
-seeds 0 and 1, and control seed 0 is itself the control's maximum, so eight of
-those ten deals are deals the arm never played. Had the budget reached seeds 3 and
-5 instead (control 0.152 and 0.176), a *larger* relative effect would not have
-been "top two of twelve" at all. A statistic whose answer depends on which seeds
-the budget happened to reach is measuring the budget, not the manipulation.
+**Run quality.** Zero games truncated (max 839 decisions against the 1200 cap),
+all ten terminal. The manipulation held on every reply: `reasoning_before_action`
+1572/1572 = 1.0000, fallback rate 4/1576 = 0.0025 against the ~2% publication
+gate, `max_tokens` truncation 5/1606 = 0.0031.
 
-**What is NOT established.** N=2 of a planned 10 — the account's API usage limit
-was exhausted mid-run (access returns 2026-08-01), so the run stopped at game 3 of
-10. Haiku only; Sonnet has one gate game and no comparison. Every rate other than
-`challenge_rate` is exploratory (`~`), including the detection and lying figures
-above, which are the interesting ones and therefore the easiest to over-read.
+**What is NOT established.** Haiku only — Sonnet has one gate game, which moved the
+same direction (0.603 -> 0.831 on its single shared seed) and is worth reporting as
+consistent-with, not as a second result. Every rate other than `challenge_rate` is
+exploratory (`~`), including the detection and lying figures above, which are the
+interesting ones and therefore the easiest to over-read.
 
-One of them is confounded in a way the `~` flag does not describe.
-`provable_faced` went 30 -> 55, but that is **not an independent measurement**:
+Two of them are confounded in a way the `~` flag does not describe. `provable_faced`
+went 12.9 -> 19.6 per game, but that is **not an independent measurement**:
 challenging more turns more cards face up, which changes the pile, the hands and
 what the deterministic opponents do next. The arm partly manufactured its own
-provable-lie opportunities, so its denominators are not the control's
-denominators. The same caveat applies to `challenge_recall` and both detection
-rates — an arm that changes the game changes what there was to detect.
-
-**Format watch-items for the rerun.** `truncated_at_max_tokens` was exactly 0 at
-the gate and 1/299 over the paired games; the fallback rate is 1/293 = 0.0034
-against the control's 1/303 = 0.0033. Both are far inside the gate, but the
-truncation counter is the leading indicator of the failure that killed the neutral
-arm, so the rerun should compare against these figures rather than rediscover
-them.
+provable-lie opportunities, so its denominators are not the control's. The same
+caveat applies to `challenge_recall` and both detection rates — an arm that changes
+the game changes what there was to detect. The arm's episodes also ran ~1.6x longer
+than the control's, which is downstream of the same mechanism.
 
 **Where this leaves the over-accusation question.** Both attempts to reduce it by
 changing the response format have now failed, in opposite ways: removing the
@@ -651,10 +655,12 @@ uninformative feature looks like from the inside.
 **A candidate mechanism for the arm's direction**, stated as a hypothesis: each
 challenge flips cards face up and writes a "caught lying" event into the
 observation log, which strengthens the liar-prior, which motivates more
-challenges. Challenges by any seat went 129 to 148 between the arms on the same
-two deals. If the loop is real, reasoning first accelerates it, because more of
-the reply is spent reading a log the model's own challenges filled. Testing it
-needs the confirmatory run plus a condition that withholds the flip history.
+challenges. If the loop is real, reasoning first accelerates it, because more of
+the reply is spent reading a log the model's own challenges filled. The N=10 run
+is consistent with it — the arm's episodes ran ~1.6x longer than the control's,
+which is what more challenges and more pile transfers look like — but consistency
+is not a test. Distinguishing the loop from a simple shift in challenge threshold
+needs a condition that withholds the flip history, which no run so far has.
 
 **The caveat that a reviewer will reach for first.** These opponents are
 memoryless *by construction*, so lying history is uninformative *here*. Against

@@ -11,7 +11,7 @@ behind a checker that shares its code. Both paths agree to the last digit.
 reading experiments/llm_eval/results/transcripts
 MANIFEST
   llm_cheap_neutral_bluffer.jsonl.gz      486,754 bytes  sha256:e5b8f0eda8c1f50f
-  llm_cheap_reason_first_bluffer.jsonl.gz     54,306 bytes  sha256:dc535669d2a9c5e4
+  llm_cheap_reason_first_bluffer.jsonl.gz    290,037 bytes  sha256:7d4183818d948b47
   llm_cheap_rendered.jsonl.gz              20,060 bytes  sha256:39854073f477330d
   llm_cheap_rendered_bluffer.jsonl.gz     202,766 bytes  sha256:4b3d6253b83581d9
   llm_cheap_vs_bluffer.jsonl.gz            18,832 bytes  sha256:d8811eaa2dea2045
@@ -103,80 +103,80 @@ MANIFEST
 
 [replaying llm_cheap_reason_first_bluffer — recomputing every fact from (seed, history)]
 
-=== llm_cheap_reason_first_bluffer :: llm_cheap  (N=2 DEEP) ===
+=== llm_cheap_reason_first_bluffer :: llm_cheap  (N=10 DEEP) ===
   RAW COUNTS                            
-    card_picks                         121
-    challenges_correct                 54
-    challenges_made                    99
-    decisions                          293
-    elective_lies                      18
-    fallbacks                          1
-    false_caught                       54
-    false_faced                        71
-    forced_lies                        3
-    games                              2
-    improbable_caught                  8
-    improbable_faced                   16
-    input_tokens                       2616263
-    lies                               21
-    llm_calls                          299
-    output_tokens                      36319
-    plays                              50
-    plays_with_truthful_option         47
-    provable_caught                    46
-    provable_faced                     55
-    skipped_truthful                   19
-    terminal_games                     2
-    windows                            122
+    card_picks                         660
+    challenges_correct                 263
+    challenges_made                    514
+    decisions                          1576
+    elective_lies                      87
+    fallbacks                          4
+    false_caught                       263
+    false_faced                        342
+    forced_lies                        26
+    games                              10
+    improbable_caught                  93
+    improbable_faced                   146
+    input_tokens                       14908257
+    lies                               113
+    llm_calls                          1606
+    output_tokens                      192532
+    plays                              272
+    plays_with_truthful_option         246
+    provable_caught                    170
+    provable_faced                     196
+    skipped_truthful                   94
+    terminal_games                     10
+    windows                            644
     wins                               0
   RATE                                         = num / den
-    win_rate                              0 / 2      = 0.0000
-    fallback_rate                         1 / 293    = 0.0034
-    skip_truthful_rate                   19 / 121    = 0.1570
-    lying_rate                           21 / 50     = 0.4200
-    elective_lie_rate                    18 / 47     = 0.3830
-    challenge_rate                       99 / 122    = 0.8115
-    challenge_precision                  54 / 99     = 0.5455
-    challenge_recall                     54 / 71     = 0.7606
-    provable_lie_detection               46 / 55     = 0.8364
-    improbable_lie_detection              8 / 16     = 0.5000
+    win_rate                              0 / 10     = 0.0000
+    fallback_rate                         4 / 1576   = 0.0025
+    skip_truthful_rate                   94 / 660    = 0.1424
+    lying_rate                          113 / 272    = 0.4154
+    elective_lie_rate                    87 / 246    = 0.3537
+    challenge_rate                      514 / 644    = 0.7981
+    challenge_precision                 263 / 514    = 0.5117
+    challenge_recall                    263 / 342    = 0.7690
+    provable_lie_detection              170 / 196    = 0.8673
+    improbable_lie_detection             93 / 146    = 0.6370
 
-=== llm_cheap_reason_first_bluffer :: rule  (N=6 DEEP) ===
+=== llm_cheap_reason_first_bluffer :: rule  (N=30 DEEP) ===
   RAW COUNTS                            
-    card_picks                         249
-    challenges_correct                 41
-    challenges_made                    49
-    decisions                          693
-    elective_lies                      31
+    card_picks                         1477
+    challenges_correct                 218
+    challenges_made                    290
+    decisions                          3885
+    elective_lies                      151
     fallbacks                          0
-    false_caught                       41
-    false_faced                        141
-    forced_lies                        64
-    games                              6
-    improbable_caught                  14
-    improbable_faced                   114
+    false_caught                       218
+    false_faced                        752
+    forced_lies                        333
+    games                              30
+    improbable_caught                  59
+    improbable_faced                   593
     input_tokens                       0
-    lies                               95
+    lies                               484
     llm_calls                          0
     output_tokens                      0
-    plays                              150
-    plays_with_truthful_option         86
-    provable_caught                    27
-    provable_faced                     27
-    terminal_games                     6
-    windows                            294
-    wins                               2
+    plays                              822
+    plays_with_truthful_option         489
+    provable_caught                    159
+    provable_faced                     159
+    terminal_games                     30
+    windows                            1586
+    wins                               10
   RATE                                         = num / den
-    win_rate                              2 / 6      = 0.3333
-    fallback_rate                         0 / 693    = 0.0000
-    skip_truthful_rate                    0 / 249    = 0.0000
-    lying_rate                           95 / 150    = 0.6333
-    elective_lie_rate                    31 / 86     = 0.3605
-    challenge_rate                       49 / 294    = 0.1667
-    challenge_precision                  41 / 49     = 0.8367
-    challenge_recall                     41 / 141    = 0.2908
-    provable_lie_detection               27 / 27     = 1.0000
-    improbable_lie_detection             14 / 114    = 0.1228
+    win_rate                             10 / 30     = 0.3333
+    fallback_rate                         0 / 3885   = 0.0000
+    skip_truthful_rate                    0 / 1477   = 0.0000
+    lying_rate                          484 / 822    = 0.5888
+    elective_lie_rate                   151 / 489    = 0.3088
+    challenge_rate                      290 / 1586   = 0.1828
+    challenge_precision                 218 / 290    = 0.7517
+    challenge_recall                    218 / 752    = 0.2899
+    provable_lie_detection              159 / 159    = 1.0000
+    improbable_lie_detection             59 / 593    = 0.0995
 
 [replaying llm_cheap_rendered — recomputing every fact from (seed, history)]
 
@@ -1024,7 +1024,7 @@ key order), so this is the only check that it manipulated anything.
 reading experiments/llm_eval/results/transcripts
 MANIFEST
   llm_cheap_neutral_bluffer.jsonl.gz      486,754 bytes  sha256:e5b8f0eda8c1f50f
-  llm_cheap_reason_first_bluffer.jsonl.gz     54,306 bytes  sha256:dc535669d2a9c5e4
+  llm_cheap_reason_first_bluffer.jsonl.gz    290,037 bytes  sha256:7d4183818d948b47
   llm_cheap_rendered.jsonl.gz              20,060 bytes  sha256:39854073f477330d
   llm_cheap_rendered_bluffer.jsonl.gz     202,766 bytes  sha256:4b3d6253b83581d9
   llm_cheap_vs_bluffer.jsonl.gz            18,832 bytes  sha256:d8811eaa2dea2045
@@ -1054,23 +1054,23 @@ MANIFEST
     fallback_rate                       178 / 800    = 0.2225
     calls_per_decision                      1.8513
 
-=== llm_cheap_reason_first_bluffer :: llm_cheap  ARM AUDIT (N=2) ===
-    arm:reason_first                   293
-    calls                              299
-    decisions                          293
-    fallbacks                          1
-    ordered_pairs                      292
-    output_tokens                      36319
-    parse_errors                       7
-    reasoning_first                    292
-    stop_max_tokens                    1
+=== llm_cheap_reason_first_bluffer :: llm_cheap  ARM AUDIT (N=10) ===
+    arm:reason_first                   1576
+    calls                              1606
+    decisions                          1576
+    fallbacks                          4
+    ordered_pairs                      1572
+    output_tokens                      192532
+    parse_errors                       34
+    reasoning_first                    1572
+    stop_max_tokens                    5
   RATE                                         = num / den
-    reasoning_before_action             292 / 292    = 1.0000
-    truncated_at_max_tokens               1 / 299    = 0.0033
-    parse_error_rate                      7 / 299    = 0.0234
-    output_tokens_per_call                   121.5
-    fallback_rate                         1 / 293    = 0.0034
-    calls_per_decision                      1.0205
+    reasoning_before_action            1572 / 1572   = 1.0000
+    truncated_at_max_tokens               5 / 1606   = 0.0031
+    parse_error_rate                     34 / 1606   = 0.0212
+    output_tokens_per_call                   119.9
+    fallback_rate                         4 / 1576   = 0.0025
+    calls_per_decision                      1.0190
 
 === llm_cheap_rendered :: llm_cheap  ARM AUDIT (N=1) ===
     calls                              116
@@ -1230,87 +1230,83 @@ MANIFEST
     calls_per_decision                      1.0000
 
 ================================================================
-ARM DELTA — reason_first vs its control, paired on the shared seeds.
-N=2 of a planned 10; see README 'Response-format arms' for why this
-supports a direction and a magnitude but not a p-value.
+ARM DELTA — reason_first vs its control, on the same 10 seeds.
+The quotable statistic is the PAIRED one: 10/10 seeds moved the same
+direction, exact one-sided sign test p = 0.00098. The pooled p-values
+below treat decisions as independent; they are clustered within a game.
 ================================================================
 reading experiments/llm_eval/results/transcripts
---common-seeds: restricted to the 2 seed(s) both arms played; dropped 8 game(s).
 agent      llm_cheap
-control    llm_cheap_rendered_bluffer             N=2   seeds=[0, 1]
-arm        llm_cheap_reason_first_bluffer         N=2   seeds=[0, 1]
+control    llm_cheap_rendered_bluffer             N=10  seeds=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+arm        llm_cheap_reason_first_bluffer         N=10  seeds=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
 rate                                      control                arm      delta         p
 ------------------------------------------------------------------------------------------
-win_rate                                0/2=0.000          0/2=0.000     +0.000       1.0
+win_rate                               0/10=0.000         0/10=0.000     +0.000       1.0
                                     [0.000,0.000]      [0.000,0.000]
-fallback_rate                         1/303=0.003        1/293=0.003     +0.000       1.0
-                                    [0.000,0.010]      [0.000,0.010]
-skip_truthful_rate                   24/160=0.150       19/121=0.157     +0.007      0.87
-                                    [0.095,0.205]      [0.092,0.222]
-lying_rate                            36/45=0.800        21/50=0.420     -0.380   0.00017 ~
-                                    [0.683,0.917]      [0.283,0.557]
-elective_lie_rate                     28/37=0.757        18/47=0.383     -0.374   0.00087 ~
-                                    [0.619,0.895]      [0.244,0.522]
-challenge_rate                        52/98=0.531       99/122=0.811     +0.281     1e-05 *
-                                    [0.432,0.629]      [0.742,0.881]
-challenge_precision                   28/52=0.538        54/99=0.545     +0.007       1.0
-                                    [0.403,0.674]      [0.447,0.644]
-challenge_recall                      28/53=0.528        54/71=0.761     +0.232    0.0079
-                                    [0.394,0.663]      [0.661,0.860]
-provable_lie_detection                16/30=0.533        46/55=0.836     +0.303    0.0045 ~
-                                    [0.355,0.712]      [0.739,0.934]
-improbable_lie_detection              12/23=0.522         8/16=0.500     -0.022       1.0
-                                    [0.318,0.726]      [0.255,0.745]
+fallback_rate                        1/1236=0.001       4/1576=0.003     +0.002      0.39
+                                    [0.000,0.002]      [0.000,0.005]
+skip_truthful_rate                   62/571=0.109       94/660=0.142     +0.034     0.086
+                                    [0.083,0.134]      [0.116,0.169]
+lying_rate                          128/197=0.650      113/272=0.415     -0.234   6.4e-07 ~
+                                    [0.583,0.716]      [0.357,0.474]
+elective_lie_rate                    96/165=0.582       87/246=0.354     -0.228   7.6e-06 ~
+                                    [0.507,0.657]      [0.294,0.413]
+challenge_rate                      220/468=0.470      514/644=0.798     +0.328   4.5e-30 *
+                                    [0.425,0.515]      [0.767,0.829]
+challenge_precision                 117/220=0.532      263/514=0.512     -0.020      0.63
+                                    [0.466,0.598]      [0.468,0.555]
+challenge_recall                    117/264=0.443      263/342=0.769     +0.326     2e-16 ~
+                                    [0.383,0.503]      [0.724,0.814]
+provable_lie_detection               74/129=0.574      170/196=0.867     +0.294   3.8e-09 ~
+                                    [0.488,0.659]      [0.820,0.915]
+improbable_lie_detection             43/135=0.319       93/146=0.637     +0.318   1.2e-07 ~
+                                    [0.240,0.397]      [0.559,0.715]
 
   * = the pre-registered endpoint (challenge_rate), p < 0.05
   ~ = exploratory, p < 0.005 (Bonferroni over 10 rates) — a hypothesis, not a result
-
-  ** POOLED p-VALUES ARE OPTIMISTIC HERE. Games: control 2, arm 2. Every p above treats
-     decisions as independent trials; they are clustered within a game, so the effective
-     N is the GAME count. Quote the per-seed deltas and their magnitudes, not these p-values. **
-    3 exploratory rate(s) flagged. Testing 10 rates at 0.05 gives a ~40% chance of at least one false positive, which is why
+    5 exploratory rate(s) flagged. Testing 10 rates at 0.05 gives a ~40% chance of at least one false positive, which is why
     they are not marked `*`. Quote them only after a confirmatory run.
 
 per game                                  control                arm      delta
 ------------------------------------------------------------------------------------------
-wrong_accusations_per_game             24/2=12.00         45/2=22.50     +10.50
-challenges_per_game                    52/2=26.00         99/2=49.50     +23.50
-provable_faced_per_game                30/2=15.00         55/2=27.50     +12.50
+wrong_accusations_per_game           103/10=10.30       251/10=25.10     +14.80
+challenges_per_game                  220/10=22.00       514/10=51.40     +29.40
+provable_faced_per_game              129/10=12.90       196/10=19.60      +6.70
 
-=== llm_cheap_rendered_bluffer :: llm_cheap  ARM AUDIT (N=2) ===
-    calls                              311
-    decisions                          303
+=== llm_cheap_rendered_bluffer :: llm_cheap  ARM AUDIT (N=10) ===
+    calls                              1258
+    decisions                          1236
     fallbacks                          1
-    ordered_pairs                      302
-    output_tokens                      30839
-    parse_errors                       9
+    ordered_pairs                      1235
+    output_tokens                      120542
+    parse_errors                       23
     reasoning_first                    0
   RATE                                         = num / den
-    reasoning_before_action               0 / 302    = 0.0000
-    truncated_at_max_tokens               0 / 311    = 0.0000
-    parse_error_rate                      9 / 311    = 0.0289
-    output_tokens_per_call                    99.2
-    fallback_rate                         1 / 303    = 0.0033
-    calls_per_decision                      1.0264
+    reasoning_before_action               0 / 1235   = 0.0000
+    truncated_at_max_tokens               0 / 1258   = 0.0000
+    parse_error_rate                     23 / 1258   = 0.0183
+    output_tokens_per_call                    95.8
+    fallback_rate                         1 / 1236   = 0.0008
+    calls_per_decision                      1.0178
 
-=== llm_cheap_reason_first_bluffer :: llm_cheap  ARM AUDIT (N=2) ===
-    arm:reason_first                   293
-    calls                              299
-    decisions                          293
-    fallbacks                          1
-    ordered_pairs                      292
-    output_tokens                      36319
-    parse_errors                       7
-    reasoning_first                    292
-    stop_max_tokens                    1
+=== llm_cheap_reason_first_bluffer :: llm_cheap  ARM AUDIT (N=10) ===
+    arm:reason_first                   1576
+    calls                              1606
+    decisions                          1576
+    fallbacks                          4
+    ordered_pairs                      1572
+    output_tokens                      192532
+    parse_errors                       34
+    reasoning_first                    1572
+    stop_max_tokens                    5
   RATE                                         = num / den
-    reasoning_before_action             292 / 292    = 1.0000
-    truncated_at_max_tokens               1 / 299    = 0.0033
-    parse_error_rate                      7 / 299    = 0.0234
-    output_tokens_per_call                   121.5
-    fallback_rate                         1 / 293    = 0.0034
-    calls_per_decision                      1.0205
+    reasoning_before_action            1572 / 1572   = 1.0000
+    truncated_at_max_tokens               5 / 1606   = 0.0031
+    parse_error_rate                     34 / 1606   = 0.0212
+    output_tokens_per_call                   119.9
+    fallback_rate                         4 / 1576   = 0.0025
+    calls_per_decision                      1.0190
 reading experiments/llm_eval/results/transcripts
 --common-seeds: restricted to the 1 seed(s) both arms played; dropped 9 game(s).
 agent      llm_mid
