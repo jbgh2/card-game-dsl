@@ -1847,7 +1847,7 @@ _SLOT_LEAK: dict[str, tuple[str, str, str | None]] = {
         "GameType",
         "LibType",
     ),
-    "VariantCase.payload_types": (
+    "OutcomeCase.payload_types": (
         "define d -> {{ a({read}) | b }} {{ produce b }}",
         "GameType",
         "Integer",

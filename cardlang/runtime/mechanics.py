@@ -64,7 +64,7 @@ class DecisionForm(Protocol):
 
     def outcome(self, state: State, ctx: Ctx) -> Outcome:
         """The round's result: a winning `Player`, a typed `(tag, payloads)`
-        variant, or `None` (a betting round mutated shared state and just closes)."""
+        outcome, or `None` (a betting round mutated shared state and just closes)."""
 
 
 def run_decision_round(form: DecisionForm, state: State, ctx: Ctx) -> Outcome:
@@ -303,7 +303,7 @@ class AuctionForm:
     Two axes vary, both as *values* on the hooks rather than new slots:
 
     - **outcome (optional).** An auction supplies `outcome <fn>` and `outcome`
-      produces the phase's typed variant `(tag, payloads)` from the bid history when
+      produces the phase's typed outcome `(tag, payloads)` from the bid history when
       the ring closes. A betting round omits it (`outcome` returns `None`): the move
       effects have already mutated the shared chip/fold state, so the ring just
       closes and the surrounding body deals the next street or settles.

@@ -221,7 +221,7 @@ def _stmt_usage(
             return _seq_usage(stmt.body, carry, players, counts, deck_zones)
         case n.Produces():
             # Exactly one arm runs (typecheck enforces arm exhaustiveness over
-            # the variant's cases), so this is an if with one branch per arm:
+            # the outcome's cases), so this is an if with one branch per arm:
             # worst case over arms, for both peak and carry. The arm is
             # mandatory rather than optional: `_stmt_usage` ends in
             # `assert_never`, so omitting it is a mypy error before it is

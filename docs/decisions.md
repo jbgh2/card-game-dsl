@@ -465,10 +465,10 @@ round offering [<move_type>, …] from <seat> over <ring>
 - **Outcome (optional).** A named function over the threaded **bid history** plus
   the terminal state — the same status as a trick's `outcome` callback (a
   runtime-primitive, no decisions of its own) — that produces the phase's typed
-  variant. Bridge's `bridge_auction_outcome` finds the declarer (the first player
+  outcome. Bridge's `bridge_auction_outcome` finds the declarer (the first player
   of the high side to have named the final strain) and produces
   `contract_finalized(declarer, level, strain, doubling) | all_pass`. The `outcome`
-  clause is **omitted** when the ring produces no variant: a betting round mutates
+  clause is **omitted** when the ring produces no outcome: a betting round mutates
   shared chip/fold state directly through its move effects, so when the ring closes
   it simply returns and the surrounding body deals the next street or settles — no
   typed outcome, no `produces:` arm.

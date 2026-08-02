@@ -274,7 +274,7 @@
           "qualifier": null,
           "outcome_cases": [
             {
-              "kind": "variant_case",
+              "kind": "outcome_case",
               "tag": "taken",
               "payload_types": [
                 "Player",
@@ -282,7 +282,7 @@
               ]
             },
             {
-              "kind": "variant_case",
+              "kind": "outcome_case",
               "tag": "thrown_in",
               "payload_types": []
             }

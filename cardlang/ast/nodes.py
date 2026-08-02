@@ -534,7 +534,7 @@ class AssignStmt:
 
 @dataclass(frozen=True, slots=True)
 class Produce:
-    """`produce TAG[(expr, …)]` — terminal in a define body; sets the variant
+    """`produce TAG[(expr, …)]` — terminal in a define body; sets the outcome
     result and unwinds the body."""
 
     tag: str
@@ -554,7 +554,7 @@ class ProduceArm:
 
 @dataclass(frozen=True, slots=True)
 class Produces:
-    """`NAME produces: <arm>+` — invoke a define and match its variant result."""
+    """`NAME produces: <arm>+` — invoke a define and match its outcome result."""
 
     define: str
     arms: tuple[ProduceArm, ...]
@@ -603,7 +603,7 @@ class Round:
     <participants> until <pred> [outcome <fn>]`: a continuous ring over a
     heterogeneous move vocabulary (bids/passes/bets), looping until the
     termination predicate holds. The `outcome_fn` is optional: an auction supplies
-    one and the function produces the typed variant when the ring closes; a betting
+    one and the function produces the typed outcome when the ring closes; a betting
     round omits it (`outcome_fn is None`) — each action mutates shared chip/fold
     state directly, so the closed ring returns and play moves to the next street.
     The trick-specific fields (`move_type`, `source_zone`, `play_zone`) are absent;
@@ -871,9 +871,9 @@ class Phase:
     name: str
     qualifier: PhaseQualifier | None
     items: tuple[PhaseItem, ...]
-    # A phase that resolves more than one way declares its variant cases here
+    # A phase that resolves more than one way declares its outcome cases here
     # (`phase NAME -> outcome { ... }`); empty for the usual single-outcome phase.
-    outcome_cases: tuple[VariantCase, ...] = ()
+    outcome_cases: tuple[OutcomeCase, ...] = ()
     span: Span | None = None
 
 
@@ -1000,8 +1000,8 @@ class ProcedureDef:
 
 
 @dataclass(frozen=True, slots=True)
-class VariantCase:
-    """One case of a variant outcome: a tag with zero or more typed payloads."""
+class OutcomeCase:
+    """One case of a outcome outcome: a tag with zero or more typed payloads."""
 
     tag: str
     payload_types: tuple[str, ...]
@@ -1011,10 +1011,10 @@ class VariantCase:
 @dataclass(frozen=True, slots=True)
 class DefineDef:
     """`define NAME -> { case(T) | … } { <stmt>* }` — a param-light definition
-    that produces one variant. Runs with the enclosing context bound."""
+    that produces one outcome. Runs with the enclosing context bound."""
 
     name: str
-    cases: tuple[VariantCase, ...]
+    cases: tuple[OutcomeCase, ...]
     body: tuple[Stmt, ...]
     span: Span | None = None
 
@@ -1218,7 +1218,7 @@ Node = (
     | Loser
     | MoveTypeDef
     | MoveParam
-    | VariantCase
+    | OutcomeCase
     | DefineDef
     | FunctionDef
     | StructField

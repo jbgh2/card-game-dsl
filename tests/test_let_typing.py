@@ -374,7 +374,7 @@ def test_a_produce_payload_is_typed_through_a_let() -> None:
                 "define d -> { Won(Player) } { let z = hearts\n  produce Won(z) }"
             ),
         ),
-        "variant 'Won' expects Player, got Suit",
+        "outcome case 'Won' expects Player, got Suit",
     )
     _rejects(
         _game(
@@ -384,7 +384,7 @@ def test_a_produce_payload_is_typed_through_a_let() -> None:
             "    }\n"
             "    q produces:\n      Won(w) { n[w] := 1 }"
         ),
-        "variant 'Won' expects Player, got Suit",
+        "outcome case 'Won' expects Player, got Suit",
     )
 
 
