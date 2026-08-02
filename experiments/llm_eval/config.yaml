@@ -30,10 +30,13 @@ seeds:
 # raise this cap and re-run rather than reporting the biased number.
 max_decisions: 1200
 
-# The prompt is exactly build_prompt(RULES_TEXT, infostate, legal_strings), and
-# the infostate is recoverable from (seed, history) via referee.replay_views —
-# so a transcript is fully auditable without storing either. Turn these on for
-# a small run when you want the bytes in the file itself.
+# The prompt is exactly build_prompt(rules, state, legal_strings, instruction),
+# where `rules` is the arm's own constant (RULES_RAW, or RULES_RENDERED when
+# `render` is set), `state` is the infostate or its rendering, and `instruction`
+# comes from the named response arm — and the infostate is recoverable from
+# (seed, history) via referee.replay_views, so a transcript is fully auditable
+# without storing either. Turn these on for a small run when you want the bytes
+# in the file itself.
 store_prompts: false
 store_infostates: false
 

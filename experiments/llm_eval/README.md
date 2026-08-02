@@ -14,31 +14,49 @@ The agent layer sits at the OpenSpiel seam, outside the language.
 The prompt shown to the model for the acting player is a pure function of
 exactly four inputs: static rules text, the engine's information-state string
 for that player at that state, the string renderings of that player's legal
-actions, and static response-format boilerplate. This is enforced by signature,
-not by convention — `prompts.build_prompt(rules: str, infostate: str,
-legal_actions: list[str]) -> str` takes strings, and every agent receives a
-`DecisionView` carrying only those strings, so there is no game state in scope
-from which hidden information could leak. Because the engine's information state
-is itself *derived* — per-observer observations emitted from the kernel's
-decision and movement sites through declared zone-type projections, never
-hand-authored per game — and because
-`tests/openspiel_ready/test_cheat.py` proves for Cheat that two worlds differing
-only in hidden content produce byte-identical information states for every
-uninvolved observer (including under a constructive generator that permutes the
-entire free hidden set across hands), two states the acting player cannot
-distinguish necessarily produce byte-identical prompts. The measured result
-therefore inherits that indistinguishability guarantee by construction: any
-advantage the model shows is an advantage over information it is entitled to,
-not over information the harness leaked. The same holds for the baselines, which
+actions, and the arm's static response instruction. This is enforced by
+signature, not by convention — `prompts.build_prompt(rules: str, infostate:
+str, legal_actions: list[str], response: str) -> str` takes strings, and the
+two of those four that vary with the game reach it through a `DecisionView`
+carrying only the acting player's information-state string, their legal actions
+with the engine's renderings of them, and their own seat number (the rules text
+and the response instruction are module constants). So there is no game state in
+scope from which hidden information could leak.
+
+The engine's information state is itself *derived* — per-observer observations
+emitted from the kernel's decision and movement sites through declared
+zone-type projections, never hand-authored per game. For Cheat,
+`tests/openspiel_ready/test_cheat.py` **certifies, on recorded lines and seeds,
+with the coverage manifest in the proof module**, that two worlds differing only
+in hidden content produce byte-identical information states for every observer,
+and identical legal actions for the observer to move. The strongest of those
+lines is constructive rather than sampled: the pinned card set is derived from
+the line itself, the *entire* remaining hidden set is permuted across the other
+hands, and the line is asserted to have actually fired Cheat's hidden-content
+channel (cards flipped, pile picked up) before the certificate counts. That is
+a per-line constructive certificate over a recorded seed set — not a proof over
+all worlds, and not a claim about seeds nobody ran. Every passing run records
+what it covered (`CARDLANG_PARTITION_REPORT`), and the standing coverage caveats
+are in `docs/open-questions/structural-infoset-proofs.md`.
+
+On those lines, two states the acting player cannot distinguish therefore
+produce byte-identical prompts: the information states agree, the legal action
+ids agree, and their string renderings are a function of the action id and the
+game alone (`tests/openspiel_ready/test_action_strings.py`). So any advantage
+the model shows there is an advantage over information it is entitled to, not
+over information the harness leaked. The same holds for the baselines, which
 decide from the same `DecisionView` — so the head-to-head comparison is between
 policies, not between access levels.
 
 Pinned by `tests/test_prompt_purity.py`: prompt determinism, distinguishability
 (a constant function would pass determinism alone), the signature, verbatim
-pass-through of the raw state string, an `ast` scrape proving `LLMAgent.choose`
-reads no attribute of its view outside `DecisionView`'s fields, and an import
-scrape proving `agents.py` and `prompts.py` import neither `cardlang` nor
-`pyspiel`.
+pass-through of the raw state string, byte-exact agreement between what the
+provider actually receives and `build_prompt`'s output on **both** arms, an
+`ast` scrape proving `LLMAgent.choose` reads no attribute of its view outside
+`DecisionView`'s fields, and an import scrape over the transitive closure of
+what a decision executes — every module reachable from `agents.py` and
+`prompts.py` by intra-package import, `render.py` included — proving that none
+of them imports `cardlang` or `pyspiel`.
 
 ---
 
