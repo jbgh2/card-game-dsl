@@ -7,6 +7,12 @@ interface, against non-LLM baselines, measured with deception-relevant metrics.
 Nothing here touches `cardlang/`, `tests/`, the grammar, or any closed registry.
 The agent layer sits at the OpenSpiel seam, outside the language.
 
+> **Reviewing this rather than building on it? Read [`REVIEWER.md`](REVIEWER.md).**
+> It states the two findings, the limits, and the exact commands to recompute
+> every number from the committed transcripts — no API key, no install. This file
+> is the full build log: every decision, every defect found, and why each choice
+> was made.
+
 ---
 
 ## Leak-freeness (the paragraph to lift into the proposal)
