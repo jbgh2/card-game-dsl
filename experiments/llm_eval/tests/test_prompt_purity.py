@@ -248,6 +248,20 @@ def _imports_of(source: Path, module: str) -> set[str]:
     return out
 
 
+def _package_prefixes(module: str) -> set[str]:
+    """Every package whose `__init__.py` Python executes on the way to `module`.
+
+    Importing `pkg.sub.leaf` runs `pkg/__init__.py`, then `pkg/sub/__init__.py`,
+    then `leaf.py` — all three are on the decision path. This replaces a special
+    case that added only the TOP-level package, which left every intermediate
+    initializer unwalked. An initializer is exactly where a convenience
+    re-export lands, so that is a hole pointed at the likeliest place to fall
+    into it.
+    """
+    parts = module.split(".")
+    return {".".join(parts[:i]) for i in range(1, len(parts))}
+
+
 def _closure() -> tuple[dict[str, str | None], list[tuple[str, str]]]:
     """Breadth-first over intra-package import edges from the entry modules to
     fixpoint. Returns the reached modules (each mapped to its importer, so a
@@ -261,9 +275,9 @@ def _closure() -> tuple[dict[str, str | None], list[tuple[str, str]]]:
         source = _source_of(module)
         if source is None:
             continue
-        # Importing any submodule executes the package body first, so
-        # `__init__.py` is on the decision path however it is reached.
-        edges = _imports_of(source, module) | ({PACKAGE} if module != PACKAGE else set())
+        # Importing any submodule executes every enclosing package body first,
+        # so those initializers are on the decision path however it is reached.
+        edges = _imports_of(source, module) | _package_prefixes(module)
         for imported in sorted(edges):
             if imported.split(".")[0] in ENGINE_ROOTS:
                 offenders.append((imported, module))
@@ -299,6 +313,27 @@ def test_the_decision_path_never_imports_the_engine() -> None:
         "the walk followed no intra-package edge — it has stopped checking "
         "anything the per-module scrapes did not already check"
     )
+
+
+def test_the_closure_walks_every_enclosing_package_initializer() -> None:
+    """Importing a nested module runs each enclosing `__init__.py`, so each is on
+    the decision path and each must be walked.
+
+    Pinned on the prefix derivation rather than by shipping a nested subpackage
+    the harness does not otherwise need: the package is flat today, so the hole
+    this closes is latent, and a pin that needed a real subpackage to exist
+    would have to invent one — and would then quietly stop testing anything if
+    that subpackage were ever removed.
+    """
+    assert _package_prefixes(f"{PACKAGE}.helpers.render") == {PACKAGE, f"{PACKAGE}.helpers"}
+    assert _package_prefixes(f"{PACKAGE}.agents") == {PACKAGE}
+    assert _package_prefixes(PACKAGE) == set(), "a package has no prefix above itself"
+    # And the derivation is actually wired into the walk: every module the
+    # closure reached brought its enclosing packages with it.
+    reached, _ = _closure()
+    for module in reached:
+        missing = {p for p in _package_prefixes(module) if _source_of(p) is not None} - set(reached)
+        assert not missing, f"{module} is in the closure but {sorted(missing)} is not"
 
 
 def test_the_import_closure_is_a_filter_not_a_tautology() -> None:
