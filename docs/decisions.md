@@ -2805,9 +2805,8 @@ clause on the enclosing loop fires immediately upon the
 triggered-component delta being applied. See "Loop termination
 semantics" above.
 
-**Corpus usage.** The corpus presently has three triggered
-components across two games — Bridge (GameBonus, RubberBonus) and
-Spades (BagOverflow). All fit the shape above.
+**Corpus usage.** The corpus's triggered components are Bridge's
+GameBonus and RubberBonus and Spades' BagOverflow. All fit the shape above.
 
 ## `choose` as expression
 
