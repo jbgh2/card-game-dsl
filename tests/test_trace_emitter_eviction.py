@@ -26,7 +26,7 @@ domain:     evicted name {coup_note_reveal, tichu_hand_summary} x
 registry:   cardlang/stdlib/functions.py (all seven name-sets, imported
             below — a new namespace joins OTHER_NAMESPACES or the import
             fails); cardlang/stdlib/signatures.py CALL_SIGS;
-            cardlang/runtime/stdlib.py source (the dispatch's literal
+            cardlang/runtime/primitives.py source (the dispatch's literal
             `case` arms); the docs globs.
 covered:    the parametrized cells below. Cross-table sync (functions <->
             signatures <-> dispatch, set equality both ways) is the
@@ -123,8 +123,11 @@ def test_not_in_signature_table(name: str) -> None:
 
 @pytest.mark.parametrize("name", _NAMES)
 def test_no_dispatch_arm(name: str) -> None:
-    dispatch_src = (REPO / "cardlang" / "runtime" / "stdlib.py").read_text()
-    assert f'case "{name}"' not in dispatch_src
+    # Both dispatch homes (issue #201): an evicted name reappearing in the
+    # half this pin stopped reading would be evicted only on paper.
+    for home in ("builtins.py", "primitives.py"):
+        src = (REPO / "cardlang" / "runtime" / home).read_text()
+        assert f'case "{name}"' not in src, f"{name} has a dispatch arm in {home}"
 
 
 @pytest.mark.parametrize(("name", "module"), EVICTED)

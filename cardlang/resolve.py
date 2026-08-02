@@ -84,6 +84,12 @@ from cardlang.domains import PARAM_DOMAINS as _FIXED_DOMAINS
 from cardlang.libraries import library_names, load_library
 from cardlang.runtime.values import content_kind_clause, content_noun
 from cardlang.stdlib.boards import board_entry
+from cardlang.stdlib.enums import (
+    SEAT_DIRECTION_VALUES,
+    enum_values,
+    rank_names,
+    suit_names,
+)
 from cardlang.stdlib.functions import (
     BOARD_ONLY_CALL_FUNCS,
     DECK_ONLY_CALL_FUNCS,
@@ -96,9 +102,8 @@ from cardlang.stdlib.functions import (
     STDLIB_VALUE_NAMES,
 )
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES, RULE_ENFORCED_MOVE_TYPE
-from cardlang.stdlib.rules import library_rules
+from cardlang.stdlib.rules import stdlib_rules
 from cardlang.stdlib.signatures import CALL_SIGS
-from cardlang.stdlib.values import DIRECTION_VALUES, deck_ranks, deck_suits, enum_values
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES, ZONE_PROJECTIONS
 from cardlang.typecheck import KNOWN_TYPE_NAMES
 from cardlang.types import Flavor, TPlayer
@@ -710,10 +715,10 @@ def _check_library_collisions(
                 else:
                     from_libraries[definition.name] = library.name
 
-    stdlib_rules = library_rules()
+    stdlib_rule_index = stdlib_rules()
     for _, library in libraries:
         for rule in library.rules:
-            if rule.name in stdlib_rules:
+            if rule.name in stdlib_rule_index:
                 bag.error(
                     f"library '{library.name}' defines rule '{rule.name}', which "
                     f"shadows the standard-library rule of the same name — "
@@ -771,11 +776,11 @@ def _game_bindings(game: n.Game) -> dict[str, tuple[str, Span | None]]:
         bindings.setdefault(zone.name, ("zone", zone.span))
     deck = game.deck
     if _deck_known(deck):
-        for suit in deck_suits(deck):
+        for suit in suit_names(deck):
             bindings.setdefault(suit, ("suit value", None))
-        for rank in deck_ranks(deck):
+        for rank in rank_names(deck):
             bindings.setdefault(rank, ("rank value", None))
-    for direction in DIRECTION_VALUES:
+    for direction in SEAT_DIRECTION_VALUES:
         bindings.setdefault(direction, ("direction value", None))
     for pos in game.positions:
         bindings.setdefault(pos.name, ("position domain", pos.span))
@@ -1052,7 +1057,7 @@ def _library_slot_names(library: n.Library) -> dict[str, frozenset[str]]:
         "define": frozenset(d.name for d in library.defines),
         "procedure": frozenset(p.name for p in library.procedures),
         "function": frozenset(f.name for f in library.functions) | frozenset(STDLIB_CALL_FUNCS),
-        "enum_value": DIRECTION_VALUES,
+        "enum_value": SEAT_DIRECTION_VALUES,
         # No longer empty: a library reaches exactly the zones it contracts for,
         # and nothing else. This is the set every zone-naming slot is swept
         # against — `Movement.source`/`dest` as ordinary expressions, and
@@ -1237,7 +1242,7 @@ def _library_reach(library: n.Library) -> _LibraryReach:
         # zone contract fed to one and not the other would leave half the sweep
         # blind — which is the shape of the defect the slot registry exists for.
         zones=frozenset(r.name for r in library.requires if is_zone_contract(r)),
-        enums=DIRECTION_VALUES,
+        enums=SEAT_DIRECTION_VALUES,
         functions=STDLIB_VALUE_NAMES,
         ranks=frozenset(),
         suits=frozenset(),
@@ -1856,7 +1861,7 @@ def resolve(game: n.Game) -> n.Game:
     # instantiation attempt hit some OTHER, already-separately-reported
     # mismatch (arity, missing arguments, …) — that conflation would pile a
     # spurious "undefined rule" note onto every such mismatch.
-    known_rule_names = {r.name for r in game.rules} | set(library_rules())
+    known_rule_names = {r.name for r in game.rules} | set(stdlib_rules())
 
     # Library-rule splice and template instantiation: after this, every rule in
     # `game.rules` is a concrete (parameter-free) definition the runtime can
@@ -2170,7 +2175,7 @@ def _instantiate_rules(game: n.Game, bag: DiagnosticBag) -> n.Game:
     `_resolve_phase_item` — this loop skips it so that is the only diagnostic
     a game ever sees for it, not a second, unsatisfiable "pass arguments"
     alongside "not yet supported"."""
-    lib = library_rules()
+    lib = stdlib_rules()
     local = {r.name: r for r in game.rules}
     for r in game.rules:
         if r.name in lib:
@@ -2180,7 +2185,7 @@ def _instantiate_rules(game: n.Game, bag: DiagnosticBag) -> n.Game:
                 f"from the library), or rename it if the body genuinely differs",
                 r.span,
             )
-    suits = deck_suits(game.deck) if _deck_known(game.deck) else None
+    suits = suit_names(game.deck) if _deck_known(game.deck) else None
     # rule name -> (argument key, concrete instance)
     instances: dict[str, tuple[tuple[str, ...], n.RuleDef]] = {}
     lib_order: list[str] = []
@@ -3319,7 +3324,7 @@ def _categories(game: n.Game) -> _Categories:
         locals=frozenset(),
         state_vars=frozenset(state_vars),
         zones=frozenset(z.name for z in game.zones),
-        enums=enum_values(game.deck) if _component_known(game.deck) else DIRECTION_VALUES,
+        enums=enum_values(game.deck) if _component_known(game.deck) else SEAT_DIRECTION_VALUES,
         functions=STDLIB_VALUE_NAMES,
         # Card-literal validation asks "does this card EXIST in the deck",
         # so ranks derive from the deck like `suits` below — never from
@@ -3327,8 +3332,8 @@ def _categories(game: n.Game) -> _Categories:
         # partial: it narrows the Rank move-param domain, not which cards
         # can be named). Deck-vs-ranking is the same two-source divergence
         # `_resolve_ranking` walls from the other side.
-        ranks=deck_ranks(game.deck) if _component_known(game.deck) else frozenset(),
-        suits=deck_suits(game.deck) if _component_known(game.deck) else frozenset(),
+        ranks=rank_names(game.deck) if _component_known(game.deck) else frozenset(),
+        suits=suit_names(game.deck) if _component_known(game.deck) else frozenset(),
         flavor=game.content_flavor,
     )
 
@@ -3643,7 +3648,7 @@ def _resolve_ranking(game: n.Game, bag: DiagnosticBag) -> None:
         return
     if not game.ranking or not _deck_known(game.deck):
         return
-    known = deck_ranks(game.deck)
+    known = rank_names(game.deck)
     seen: dict[str, None] = {}
     for rank in game.ranking:
         if rank in seen:

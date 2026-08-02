@@ -44,7 +44,7 @@ from typing import assert_never
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError
 from cardlang.domains import ITERABLE_ROLES, DomainSources, role_static_members
-from cardlang.stdlib.values import deck_ranks, deck_size, deck_suits
+from cardlang.stdlib.enums import deck_size, rank_names, suit_names
 
 # (peak usage reached, deck usage carried out) for a walked fragment, given the
 # usage carried in. "Usage" is cards drawn from the deck since its last refill.
@@ -69,8 +69,8 @@ def check_capacity(game: n.Game) -> n.Game:
     # cards a deal asks for — the exact failure currency the gate exists to replace.
     # A new domain row arrives here already counted.
     sources = DomainSources(
-        suits=sorted(deck_suits(game.deck)),
-        ranks=list(game.ranking) or sorted(deck_ranks(game.deck)),
+        suits=sorted(suit_names(game.deck)),
+        ranks=list(game.ranking) or sorted(rank_names(game.deck)),
         players=range(players),
         teams=game.partnerships,
     )

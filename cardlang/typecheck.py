@@ -48,7 +48,7 @@ from cardlang.domains import require_role, role_type
 from cardlang.runtime.values import component_set, content_kind_clause, content_noun
 from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
 from cardlang.stdlib.signatures import CALL_SIGS, ZONE_CONTENT, Sig
-from cardlang.stdlib.values import DIRECTION_VALUES, deck_ranks, deck_suits
+from cardlang.stdlib.enums import SEAT_DIRECTION_VALUES, rank_names, suit_names
 from cardlang.types import (
     Flavor,
     TAny,
@@ -97,7 +97,7 @@ _SCALAR_TYPES: dict[str, type] = {
     "Team": TTeam,
     "Card": TCard,
 }
-_ENUM_TYPES = frozenset({"Suit", "Rank", "Direction"})
+_ENUM_TYPES = frozenset({"Suit", "Rank", "SeatDirection"})
 
 # The closed set of built-in declared-type names (scalars + enums). resolve
 # validates every declaration's type_name against this set plus the game's
@@ -148,7 +148,7 @@ def item_field_table(game: Game) -> dict[str, Type]:
 ACTION_FIELDS: dict[str, Type] = {"card": TCard(), "actor": TPlayer()}
 
 # stdlib functions whose result depends on a declared `ranking:` (they index
-# `ctx.rs.rank_index`, empty when the game declares none — runtime/stdlib.py
+# `ctx.rs.rank_index`, empty when the game declares none — runtime/builtins.py
 # `rank_value` requires every rank it is asked for to be present in that
 # index, and has nothing to fall back on). resolve.py already
 # gates a bare `Rank` move-parameter domain on the same `has_ranking`
@@ -206,23 +206,24 @@ def type_from_name(
 def value_enum_map(game: Game) -> dict[str, TEnum]:
     """Map each deck/stdlib enum *value* to its enum type.
 
-    `resolve` collapses suits, ranks, and directions into one `enum_value`
-    ref_kind; the type checker re-derives which enum each value belongs to so a
-    `Suit` is not confused with an `Integer` or a `Direction`.
+    `resolve` collapses suits, ranks, and seat directions into one
+    `enum_value` ref_kind; the type checker re-derives which enum each value
+    belongs to so a `Suit` is not confused with an `Integer` or a
+    `SeatDirection`.
     """
     m: dict[str, TEnum] = {}
     suit_enum, rank_enum = _axis_enum_names(game)
-    for suit in deck_suits(game.deck):
+    for suit in suit_names(game.deck):
         m[suit] = TEnum(suit_enum)
     # Membership comes from the deck alone (Coup/Tarot declare no
     # `ranking:`). resolve's `_resolve_ranking` guarantees ranking is a subset of deck
     # ranks (an unknown rank is a resolve-time error), and resolve always
     # runs before typecheck (cardlang/pipeline.py's `_check`), so unioning
     # `game.ranking` in here would add nothing beyond order.
-    for rank in deck_ranks(game.deck):
+    for rank in rank_names(game.deck):
         m[rank] = TEnum(rank_enum)
-    for direction in DIRECTION_VALUES:
-        m[direction] = TEnum("Direction")
+    for direction in SEAT_DIRECTION_VALUES:
+        m[direction] = TEnum("SeatDirection")
     return m
 
 
@@ -1674,9 +1675,10 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
 
 
 def _check_offset_by_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
-    """`offset_by`: rotates a Player around the seating ring by a Direction
-    (`runtime.values.Seating.offset_by`) — the left operand must be a Player,
-    the right a Direction-enum value (`hand[player offset_by pass_direction]`
+    """`offset_by`: rotates a Player around the seating ring by a
+    SeatDirection (`runtime.values.Seating.offset_by`) — the left operand must
+    be a Player, the right a SeatDirection-enum value
+    (`hand[player offset_by pass_direction]`
     in hearts.cardlang reads the direction off a declared `Direction` state
     var, not only a bare `left`/`right`/`across`/`hold` literal, so this
     checks the *type*, not the ref-kind)."""
@@ -1690,9 +1692,9 @@ def _check_offset_by_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> N
     rbare = _bare(infer(e.right, env))
     if isinstance(rbare, TAny):
         return
-    if not (isinstance(rbare, TEnum) and rbare.name == "Direction"):
+    if not (isinstance(rbare, TEnum) and rbare.name == "SeatDirection"):
         bag.error(
-            "'offset_by' expects a Direction (left/right/across/hold) on "
+            "'offset_by' expects a SeatDirection (left/right/across/hold) on "
             f"the right, got {_type_name(rbare)}",
             e.right.span,
         )

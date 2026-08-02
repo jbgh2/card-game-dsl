@@ -14,7 +14,7 @@ typecheck, runtime, and stdlib surfaces are `cardlang/grammar/cardlang.lark`
 `cardlang/resolve.py` (`_check_domain_query`, `_check_board_call`),
 `cardlang/typecheck.py` (`_domain_query_binder_type`), `cardlang/runtime/
 evaluate.py` (`_domain_query`), and `cardlang/stdlib/{functions,signatures}.py`
-+ `cardlang/runtime/stdlib.py` (`lines`, `BOARD_ONLY_CALL_FUNCS`).
++ `cardlang/runtime/primitives.py` (`lines`, `BOARD_ONLY_CALL_FUNCS`).
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 -----------------------------------------------------------------
@@ -152,10 +152,10 @@ from cardlang.diagnostics import DiagnosticError
 from cardlang.ir import emit
 from cardlang.pipeline import check_dsl
 from cardlang.resolve import _COLLECTION_NOUNS
+from cardlang.runtime.builtins import _lines
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
-from cardlang.runtime.stdlib import _lines
 from cardlang.runtime.values import Card, Seating, axis_attributes
 from cardlang.stdlib.boards import board_entry
 from cardlang.typecheck import _COLLECTION_BINDER_TYPES

@@ -108,7 +108,7 @@ amount is refused as a vacuous decision (`_check_count`), while a zero
 dealt/`random` amount stays an accepted no-op (a computed "deal what
 remains" may legitimately be zero). On the
 OpenSpiel side, a joint predicate must root in a call with a registered
-subset codec (`cardlang/runtime/stdlib.py`, `joint_codec_function` — the
+subset codec (`cardlang/runtime/primitives.py`, `joint_codec_function` — the
 climb-codec pattern); an inline or unregistered predicate, a game mixing
 climb and joint selections, or two joint predicates wanting different
 codecs are each a loud `NotImplementedError` at action-space

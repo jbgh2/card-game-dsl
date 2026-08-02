@@ -80,7 +80,7 @@ class TCell:
 class TDir:
     """A movement direction -- one member of the named-member `dir` domain a
     `board:` clause mints (decisions.md "Boards and cells", rung-2 movement).
-    Distinct from ``TCell`` and from ``TEnum("Direction")`` (the turn-order
+    Distinct from ``TCell`` and from ``TEnum("SeatDirection")`` (the seat
     ring direction) so a direction move parameter, binder or comparison rejects
     a cell (`along is a1`), an integer (`along is 3`), an ordering
     (`along < along2`), a subscript, and an `offset_by` operand -- riding only

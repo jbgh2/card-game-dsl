@@ -186,19 +186,11 @@ is (rank, suit) — opposite orders connected only by prose (values.py:53 vs :38
   another form's residue (`last_round_state = None`, :339).
 - `GameResult.scores: dict[Player, int]` / `winner: Player` may be team-keyed —
   known as issue #154; `Player = int` makes the type unable to say so.
-- Stale scope claims: `runtime/__init__.py` "(Hearts vertical slice)", `stdlib.py:1`
-  "the stdlib functions Hearts names" (929 lines, ~15 games), `state.py:256` points
-  at `run_trick`, which no longer exists.
+- Stale scope claims: `runtime/__init__.py` "(Hearts vertical slice)",
+  `state.py:256` points at `run_trick`, which no longer exists.
 
 **F-18 · Module-name collisions.**
-- **[verified]** `stdlib` is two importable things, and `mechanics.py` uses both in
-  one file: `from cardlang.stdlib.moves import …` at module level, plus a
-  function-local `from cardlang.runtime import stdlib` in three methods (:104, :425,
-  :461) — the bare token `stdlib` means different modules at different scopes.
-- `values` ×3 (`runtime/values.py` value objects, `stdlib/values.py` name
-  namespaces, `types.py` the type model); the same function name `deck_suits`
-  returns an order-bearing tuple in one and a frozenset in the other, hidden behind
-  an import alias (`_runtime_deck_suits`, stdlib/values.py:11).
+- `values` ×2 (`runtime/values.py` value objects, `types.py` the type model).
 - `rules` ×3 (legal-move engine / parsed stdlib rules / the DSL source); neither
   rules module owns `RULE_ENFORCED_MOVE_TYPE` — it lives in `stdlib/moves.py:49`.
 - `run_body` ×2 in one package: driver.py runs phase items, execute.py runs
@@ -242,11 +234,6 @@ actually *mutates* (mints and appends a `PositionDecl`) while its neighbors vali
 **F-23 ·** "currency" is coined, load-bearing, and used in four incompatible senses
 with no definition site (whose file a span points at; diagnostic-vs-assert; message
 vocabulary; compile-vs-runtime). The glossary fixes one sense.
-
-**F-24 ·** `library_rules` (grammar:12) parses no `library` keyword — the stdlib rules
-fragment and the family library are unrelated things sharing the name; `cardlang/
-stdlib/` vs `runtime/stdlib.py` split one registry three ways (names / types /
-implementations) held in sync by tests and prose.
 
 ## E. Already known or deliberate — not re-litigated
 

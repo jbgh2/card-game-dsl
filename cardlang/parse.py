@@ -234,10 +234,10 @@ def _parser() -> Lark:
         parser="earley",
         propagate_positions=True,
         maybe_placeholders=True,
-        # `start` is a game file; `library_rules` is the stdlib rules fragment
+        # `start` is a game file; `stdlib_rules` is the stdlib rules fragment
         # (rule definitions with no enclosing game); `library` is a family
         # library (decisions.md "Family libraries").
-        start=["start", "library_rules", "library"],
+        start=["start", "stdlib_rules", "library"],
     )
 
 
@@ -948,7 +948,7 @@ class _Builder(Transformer[Token, n.Game]):
             span=self._span(meta),
         )
 
-    def library_rules(self, meta: Meta, c: list[object]) -> tuple[n.RuleDef, ...]:
+    def stdlib_rules(self, meta: Meta, c: list[object]) -> tuple[n.RuleDef, ...]:
         return tuple(x for x in c if isinstance(x, n.RuleDef))
 
     # --- expressions ---
@@ -1603,10 +1603,10 @@ def _transform(builder: _Builder, tree: Tree[Token]) -> object:
         raise
 
 
-def parse_library_rules(text: str, source_name: str) -> tuple[n.RuleDef, ...]:
+def parse_stdlib_rules(text: str, source_name: str) -> tuple[n.RuleDef, ...]:
     """Parse a standard-library rules fragment (rule definitions with no
     enclosing game) into RuleDef nodes, spans mapped to ``source_name``."""
-    tree = parse_to_tree(text, source_name, start="library_rules")
+    tree = parse_to_tree(text, source_name, start="stdlib_rules")
     result = _transform(_Builder(source_name, 0), tree)
     assert isinstance(result, tuple)
     assert all(isinstance(r, n.RuleDef) for r in result)
