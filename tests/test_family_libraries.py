@@ -55,8 +55,8 @@ registry: the ITEM axis from the grammar's `?library_item`, scraped by
           the `optional` row came to exist;
           the COLLISION-SOURCE axis from the three namespaces a library name can
           land in — the game (`n.Game`'s same-named fields), another library, and
-          the stdlib registries (`stdlib_rules()`, `STDLIB_CALL_FUNCS`,
-          `LIBRARY_MOVE_TYPES`), read through `_stdlib_member`;
+          the engine's own name registries (`stdlib_rules()`, `CALL_FUNCS`,
+          `LIBRARY_MOVE_TYPES`), read through `_engine_registry_member`;
           the WRITE-SITE axis from the RUNTIME — `_state_write_node_kinds()`
           scrapes every `ctx.rs.set()` call in `cardlang/runtime/execute.py` and
           reads its handler's first-parameter annotation, because
@@ -169,7 +169,7 @@ covered:  the parse grid — item x neighbour, all 49 truncated cells executed b
           `test_library_definition_against_the_stdlib_namespace` (6, of which
           the 3 kinds with no stdlib registry skip with that reason named).
           Every cell's expected outcome is a commanded decision: the stdlib row
-          is `_STDLIB_REJECTS`, where `False` is as deliberate as `True`.
+          is `_ENGINE_REGISTRY_REJECTS`, where `False` is as deliberate as `True`.
           Born-green cells carry their reddening edit as `red under:` in the
           test docstring; the move-type accept was demonstrated red by extending
           `_check_library_collisions`'s stdlib leg to move_types.
@@ -283,6 +283,7 @@ from lark import Tree
 from lark.exceptions import VisitError
 
 from cardlang.ast import nodes as n
+from cardlang.builtins.functions import CALL_FUNCS, PRIMITIVE_VALUE_NAMES
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError
 from cardlang.libraries import library_names, load_library
 from cardlang.parse import (
@@ -294,20 +295,19 @@ from cardlang.parse import (
 )
 from cardlang.resolve import (
     _CONTEXTUAL_SLOTS,
-    _check_contract_shapes,
-    _resolve_zone,
     _LIBRARY_DEF_KINDS,
     _LIBRARY_UNSWEPT,
     _PARAM_BEARING,
     _REFERENCE_SLOTS,
     _STATE_WRITE_SITES,
     _Categories,
+    _check_contract_shapes,
     _library_reach,
     _library_slot_names,
+    _resolve_zone,
     resolve,
 )
 from cardlang.runtime.driver import play_game
-from cardlang.stdlib.functions import STDLIB_CALL_FUNCS, STDLIB_VALUE_NAMES
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
 from cardlang.stdlib.rules import stdlib_rules
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
@@ -729,14 +729,14 @@ def test_two_libraries_may_not_define_the_same_name(
 #             TARGET = every namespace a bare name can resolve against, read off
 #               `resolve._classify`'s precedence chain — state / zone / deck value
 #               (suit|rank|direction) / the `function` bucket, which is
-#               `STDLIB_VALUE_NAMES`, NOT the game's own functions (those resolve
+#               `PRIMITIVE_VALUE_NAMES`, NOT the game's own functions (those resolve
 #               as `Call`s, never bare) — plus the def kinds and position domains
 #               that own a name without going through `_classify`.
 # registry:   `_INJECT` is derived from `{"state"} | _LIBRARY_DEF_KINDS`. The
 #               TARGET buckets are pinned two ways: `_game_bindings` is checked to
 #               cover every value bucket `_categories` exposes
 #               (`test_game_bindings_covers_every_resolvable_value_bucket` — the
-#               pin that would have caught the `function`=STDLIB_VALUE_NAMES hole
+#               pin that would have caught the `function`=PRIMITIVE_VALUE_NAMES hole
 #               by construction), and the grid's `_TARGET_NAME` is checked against
 #               those buckets plus def kinds and positions
 #               (`test_target_axis_names_every_resolvable_bucket`). Neither axis is
@@ -819,9 +819,9 @@ game G {{
 
 
 # TARGET axis: namespace -> the NAME to collide on. Most reuse one spelling;
-# the deck-value and stdlib-value targets must use a real member of the bucket
+# the deck-value and primitive-value targets must use a real member of the bucket
 # they probe, so the name is drawn from the registry, not invented.
-_STDLIB_VALUE_NAME = min(STDLIB_VALUE_NAMES)
+_PRIMITIVE_VALUE_NAME = min(PRIMITIVE_VALUE_NAMES)
 _TARGET_NAME: dict[str, str] = {
     "state": "collide",
     "zone": "collide",
@@ -835,7 +835,7 @@ _TARGET_NAME: dict[str, str] = {
     "suit": "hearts",
     "rank": "Q",  # standard52 ranks are single glyphs (2..10, J, Q, K, A)
     "direction": "left",
-    "stdlib_value": _STDLIB_VALUE_NAME,  # `_classify`'s `function` bucket
+    "stdlib_value": _PRIMITIVE_VALUE_NAME,  # `_classify`'s `function` bucket
 }
 
 
@@ -873,10 +873,10 @@ def test_game_bindings_covers_every_resolvable_value_bucket() -> None:
     resolves for a game must appear in `_game_bindings`, so a value bucket added
     to `_categories` (a new deck-derived namespace, another stdlib table wired
     into `functions`) cannot slip past the shadow wall uncovered. This is the
-    check that would have caught the `functions`-bucket = `STDLIB_VALUE_NAMES`
+    check that would have caught the `functions`-bucket = `PRIMITIVE_VALUE_NAMES`
     hole by construction, rather than by an audit noticing a hand-list lied.
 
-    red under: delete the `STDLIB_VALUE_NAMES` loop from `_game_bindings` (drops
+    red under: delete the `PRIMITIVE_VALUE_NAMES` loop from `_game_bindings` (drops
     the stdlib-value bucket), or a deck-value loop (drops ranks/suits)."""
     from cardlang.resolve import _categories, _game_bindings
 
@@ -945,16 +945,18 @@ def test_a_library_may_not_inject_a_name_the_game_already_uses(
     _rejects(parse_text(_target_game(target, name), "probe.cardlang"), "library 'lib'")
 
 
-def _stdlib_member(field: str) -> str | None:
-    """A real member of the stdlib registry that shares a namespace with this
-    definition kind, drawn FROM the registry, or None when no stdlib registry
-    exists for the kind. Derived rather than spelled: a hand-written probe name
-    can silently not be a member of the registry it claims to probe, which is
-    exactly how this file's first stdlib-move-type cell shipped vacuous (it
-    probed `play_card`, which `stdlib/moves.py` documents as game-defined)."""
+def _engine_registry_member(field: str) -> str | None:
+    """A real member of one of the engine's own name registries that shares a
+    namespace with this definition kind, drawn FROM the registry, or None when
+    no registry exists for the kind. Only one of the three is the Stdlib (the
+    parsed rules fragment); the others are the native call declarations and a
+    kernel table. Derived rather than spelled: a hand-written probe name can
+    silently not be a member of the registry it claims to probe, which is
+    exactly how this file's first move-type cell shipped vacuous (it probed
+    `play_card`, which `stdlib/moves.py` documents as game-defined)."""
     registry: dict[str, frozenset[str] | set[str]] = {
         "rules": frozenset(stdlib_rules()),
-        "functions": frozenset(STDLIB_CALL_FUNCS),
+        "functions": frozenset(CALL_FUNCS),
         "move_types": frozenset(LIBRARY_MOVE_TYPES),
     }
     members = registry.get(field)
@@ -966,7 +968,7 @@ def _stdlib_member(field: str) -> str | None:
 # `False` is as much a commanded decision as `True` — move_types are a
 # deliberate non-collision (two disjoint consult paths), and the three kinds
 # with no stdlib registry cannot collide at all.
-_STDLIB_REJECTS: dict[str, bool] = {
+_ENGINE_REGISTRY_REJECTS: dict[str, bool] = {
     "rules": True,
     "functions": True,
     "move_types": False,
@@ -980,11 +982,11 @@ def test_stdlib_grid_covers_every_definition_kind() -> None:
     """Both axes of the stdlib leg are derived, so the grid below cannot silently
     stop covering a kind.
 
-    red under: drop any key from `_STDLIB_REJECTS`."""
-    assert set(_STDLIB_REJECTS) == {field for field, _ in _LIBRARY_DEF_KINDS}
+    red under: drop any key from `_ENGINE_REGISTRY_REJECTS`."""
+    assert set(_ENGINE_REGISTRY_REJECTS) == {field for field, _ in _LIBRARY_DEF_KINDS}
     # A kind commanded to reject must have a registry to collide with, and a
     # kind commanded to accept because no registry exists must really have none.
-    assert {f for f in _STDLIB_REJECTS if _stdlib_member(f)} == {
+    assert {f for f in _ENGINE_REGISTRY_REJECTS if _engine_registry_member(f)} == {
         "rules",
         "functions",
         "move_types",
@@ -1005,7 +1007,7 @@ def test_library_definition_against_the_stdlib_namespace(
 
     red under: extend `_check_library_collisions`'s stdlib leg to move_types, or
     delete its `stdlib_rules()` leg."""
-    name = _stdlib_member(field)
+    name = _engine_registry_member(field)
     if name is None:
         pytest.skip(f"no stdlib registry shares a namespace with {noun}s")
     source = _DEF_SOURCE[field].replace("collide", name)
@@ -1014,7 +1016,7 @@ def test_library_definition_against_the_stdlib_namespace(
         {"probe_lib": parse_library(f"library probe_lib {{ {source} }}", "pl.cardlang")},
     )
     game = _game(uses="uses probe_lib")
-    if _STDLIB_REJECTS[field]:
+    if _ENGINE_REGISTRY_REJECTS[field]:
         _rejects(game, f"library 'probe_lib' defines {noun} '{name}'", "shadows the")
     else:
         resolve(game)

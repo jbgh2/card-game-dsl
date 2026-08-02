@@ -1,7 +1,7 @@
 # The primitive ledger: every line of game-specific Python, and what would eliminate it
 
 2026-08-01. Three parallel readers covered all fifteen `runtime/` game modules plus the
-dispatch side (the call arms, `stdlib/functions.py`'s partition,
+dispatch side (the call arms, `builtins/functions.py`'s partition,
 `reads.py`'s 19 registry rows, `sidecar.py`'s EngineFacts). Every function received an
 expressibility verdict: **(a)** expressible in today's DSL · **(b)** needs
 combination/multiset patterns · **(c)** needs contextual ranking · **(d)** needs an
@@ -13,7 +13,8 @@ primitive-elimination roadmap (see "How this changes the plan" at the end).
 ## Headline numbers
 
 ~3,480 lines of game-specific Python across 15 modules. 83 of the 99 `call()` arms
-(84%) are game-specific; canasta + gin alone are 30 of them. But the composition is
+(84%) are game-specific; canasta + gin alone are 30 of them. (Both call-arm figures
+are as surveyed; §A6 carries the re-measurement.) But the composition is
 the story:
 
 - **Zero mutations, zero RNG, zero direct decisions across all fifteen modules.**
@@ -316,13 +317,16 @@ help); "current winner of the in-progress trick" + actor in `applies_when`
 the split (issue #201): **100 named + default**, the two added arms being Hold'em's
 `holdem_next_entrant` / `holdem_pot_share`. The generic/game-specific line is
 unchanged and is now structural — the generic arms are `runtime/builtins.py`, the
-game-specific ones `runtime/primitives.py`, and `tests/test_native_dispatch_split.py`
-derives both counts from the source rather than restating them here. Generic 15: board `lines`, `neighbor`,
+game-specific ones `runtime/primitives.py`, and
+`tests/test_native_dispatch_split.py` derives both counts from the source rather
+than restating them here.
+
+Generic 15: board `lines`, `neighbor`,
 `has_step`, `is_diagonal`, `home`, `far_row`; non-board `player_holding`, `team_of`,
 `suit_of`, `strain_index`, `error`, `rank_value`, `card_value`, `top_of`,
 `bottom_of`. Game-specific 83: canasta 17, gin 13, belote 10, tichu 9, cribbage 6,
 five_hundred 6, skat 5, tarot 5, coup 4, stud 3, pinochle 1, bigtwo 1, schnapsen 1,
-doko 1, president 1. The `stdlib/functions.py` partition (GENERIC 20 / DECK_ONLY 72 /
+doko 1, president 1. The `builtins/functions.py` partition (GENERIC 20 / DECK_ONLY 72 /
 BOARD_ONLY 6, pinned by tests, never derived by subtraction) classifies by
 **flavor, not game**: 15 of the 20 "GENERIC" names are game-named but content-blind.
 Other dispatchers, all in `runtime/primitives.py`: `value_function` (5 arms: 2

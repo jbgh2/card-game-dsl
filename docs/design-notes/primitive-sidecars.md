@@ -22,7 +22,7 @@ than the original one:
 
 1. **The language package contains game knowledge.** Game modules sit in
    `cardlang/runtime/` beside the engine core, and the large majority of
-   `STDLIB_CALL_FUNCS` (`cardlang/stdlib/functions.py`) is game-prefixed —
+   `CALL_FUNCS` (`cardlang/builtins/functions.py`) is game-prefixed —
    a cluster per corpus game that needs primitives (`tichu_*`, `canasta_*`,
    `skat_*`, `gin_*`, ...), against a remainder of genuinely general names.
    That split is a proportion, not a tally, on purpose: the stages below

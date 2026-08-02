@@ -11,12 +11,12 @@ from dataclasses import replace
 from typing import Any, assert_never
 
 from cardlang.ast import nodes as n
-from cardlang.domains import role_members, require_role
+from cardlang.builtins.signatures import CALL_SIGS
+from cardlang.domains import require_role, role_members
 from cardlang.runtime import builtins, observe, primitives, reads
 from cardlang.runtime.state import Ctx, Move, StructValue, elements
 from cardlang.runtime.values import Card
 from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
-from cardlang.stdlib.signatures import CALL_SIGS
 
 
 def native_call(name: str, args: list[Any], ctx: Ctx) -> Any:

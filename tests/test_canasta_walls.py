@@ -14,7 +14,7 @@ domain:     deck consumers keyed by deck name (size table, build_deck,
             duplicate-cards x joint-selection interaction; the three-table
             primitive namespace
 registry:   DECKS (cardlang/runtime/values.py) / _DECK_SIZE
-            (cardlang/stdlib/enums.py); STDLIB_CALL_FUNCS / CALL_SIGS /
+            (cardlang/stdlib/enums.py); CALL_FUNCS / CALL_SIGS /
             the runtime dispatch; PRIMITIVE_READS
 covered:    size pin: tests/test_deckcheck.py::test_deck_size_matches_runtime
             (parametrized over sorted(DECKS) — the new entry enters

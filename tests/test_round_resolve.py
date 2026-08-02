@@ -35,11 +35,11 @@ def test_round_outcome_fn_rejected_as_early_predicate() -> None:
 def test_early_predicate_rejected_as_outcome_fn() -> None:
     """The converse direction: an early predicate ((card, led_suit) -> Boolean)
     is not a valid trick outcome. Both directions of the partition are walled,
-    which is why the `early` set sits deliberately outside STDLIB_VALUE_NAMES
+    which is why the `early` set sits deliberately outside PRIMITIVE_VALUE_NAMES
     even though the runtime dispatches both through `value_function`.
 
-    red under: add `on_play_of_tochoo` to STDLIB_TRICK_OUTCOMES
-    (cardlang/stdlib/functions.py) — the tempting but wrong resolution of the
+    red under: add `on_play_of_tochoo` to PRIMITIVE_TRICK_OUTCOMES
+    (cardlang/builtins/functions.py) — the tempting but wrong resolution of the
     early/outcome asymmetry, which would also make it a legal bare NameRef.
     """
     bad = EARLY_SRC.replace("outcome highest_of_led_suit", "outcome on_play_of_tochoo")

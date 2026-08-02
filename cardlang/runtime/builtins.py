@@ -2,8 +2,8 @@
 
 A Builtin's meaning belongs to the language, not to one game — a board step,
 a card's rank strength under the declared ranking, the seat holding a card.
-The checker declares them (`cardlang/stdlib/functions.py`,
-`cardlang/stdlib/signatures.py`); this module implements them.
+The checker declares them (`cardlang/builtins/functions.py`,
+`cardlang/builtins/signatures.py`); this module implements them.
 
 Its two siblings are deliberately separate words: **Primitives** are sanctioned
 game-local Python (`cardlang/runtime/primitives.py`), and the **Stdlib** is the
@@ -12,7 +12,7 @@ functions become expressible and migrate into the Stdlib.
 
 Contract
 --------
-Assumes: `name` reached resolve's call registry (`STDLIB_CALL_FUNCS`) and its
+Assumes: `name` reached resolve's call registry (`CALL_FUNCS`) and its
 arguments were coerced by the caller (`reads.coerce_args`) — this module never
 freezes an argument itself.
 Establishes: a value for every generic call, or `NOT_A_BUILTIN` when the name

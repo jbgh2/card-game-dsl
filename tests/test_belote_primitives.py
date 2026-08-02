@@ -7,12 +7,12 @@ Completeness ledger (surface-totality-audit)
 property:   every Belote primitive computes its documented value over the
             32-card pack, and every plausible misuse of the new stdlib
             names fails loud in the owning layer's currency
-domain:     Belote's 10 STDLIB_CALL_FUNCS rows + 1 STDLIB_TRICK_OUTCOMES
+domain:     Belote's 10 CALL_FUNCS rows + 1 PRIMITIVE_TRICK_OUTCOMES
             row x {name, arity, param types, dispatch arm,
             reads row} + the primitives' own value domains (32 ranks x
             4 suits, the decomposition's combination classes, the guard's
             class argument)
-registry:   cardlang/stdlib/functions.py / signatures.py (names + types;
+registry:   cardlang/builtins/functions.py / signatures.py (names + types;
             reconciled against the dispatch by tests/test_signatures.py),
             cardlang/runtime/reads.py (the declared-reads row, pinned both
             ways by tests/test_primitive_reads.py), the openspiel registry
