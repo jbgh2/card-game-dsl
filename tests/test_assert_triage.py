@@ -21,7 +21,7 @@ that ``if`` header — one of:
 
 * a **fallthrough marker** — ``unknown …`` / ``no declared …`` — the message
   convention of an exhaustive-dispatch default arm (``_apply``'s "unknown
-  assignment operator", the stdlib registries' "unknown stdlib function");
+  assignment operator", the native dispatch's "unknown …" fallthroughs);
   ``assert_never`` sites need no marker: mypy owns their unreachability and
   they are not assert statements, so they are outside the scraped domain; or
 * a **guarantor word** naming the upstream wall the site backstops —
@@ -208,7 +208,10 @@ def test_the_scrape_sees_the_census_modules() -> None:
     as universal compliance. If a refactor genuinely removes every assert
     from one of these, updating this pin is the intended friction."""
     by_module: set[str] = {s.module for s in _runtime_sites()}
-    for module in ("execute.py", "evaluate.py", "mechanics.py", "stdlib.py"):
+    # `builtins.py` is deliberately absent: the Builtins half of the dispatch
+    # (issue #201) states its backstops as typed `RuntimeError`s, which are
+    # outside this scrape's domain, so it contributes no site to floor.
+    for module in ("execute.py", "evaluate.py", "mechanics.py", "primitives.py"):
         assert module in by_module, f"scrape found no sites in {module}"
 
 

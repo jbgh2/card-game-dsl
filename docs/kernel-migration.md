@@ -104,7 +104,7 @@ participant plus an `outcome` function. Everything below composes on a
 - **accumulator** — a value threaded across steps (high bid, bet-to-match,
   running total, led combination)
 - **termination** — a predicate over the accumulator/state
-- **typed outcome** — reusing the Stage 1–3 variant/outcome machinery
+- **typed outcome** — reusing the Stage 1–3 outcome machinery
 - **move vocabulary** — not only card plays: non-material `move_type`s (bids,
   passes, actions) chosen via `offer`
 
@@ -122,7 +122,7 @@ standard library immediately on the third.
 
 Build an `auction` definition over `round`: `ring` participants, accumulator =
 current high bid + pass state, termination = all-but-one passed (or N
-consecutive passes), typed outcome = a contract variant. Then per game, supplying
+consecutive passes), typed outcome = a contract outcome. Then per game, supplying
 *values along the axes*:
 
 - **Bridge** — *done.* A two-dimensional bid space (level × strain) plus
@@ -132,7 +132,7 @@ consecutive passes), typed outcome = a contract variant. Then per game, supplyin
 - **Pinochle** — *done — fully kernel.* The ascending bid runs on the auction
   form of `round` over a **shrinking participants ring** (`over players where
   not passed[player] and (lead_bidder is none or player is not lead_bidder)`), the
-  nullary `submit_bid`/`pass` vocabulary, and the single-variant
+  nullary `submit_bid`/`pass` vocabulary, and the single-case
   `bid_won(declarer, bid)` outcome (opener-at-50 fallback when all pass). Trump
   declaration is a second, one-draw round on the same form (`round offering
   [declare_trump_suit] from high_bidder over players where player is
@@ -156,7 +156,7 @@ consecutive passes), typed outcome = a contract variant. Then per game, supplyin
   Garde < Garde sans < Garde contre) runs on the auction form of `round`: a
   **counterclockwise single-pass ring** (each seat drops out of the
   participants ring after acting, one bid each), five nullary level moves
-  guarded by the standing bid, and a two-variant `taken(taker, level) |
+  guarded by the standing bid, and a two-case `taken(taker, level) |
   thrown_in` outcome (an all-pass hand is thrown in via `skip to next hand`).
   Exposed and fixed the kernel's clockwise-only `turn_order_from` (now honours
   `direction`). The whole post-auction hand then followed onto the kernel too:
@@ -376,7 +376,7 @@ The design the construct settled:
   assignment are 208.8M of it, and the engine's Mahjong-as-rank-1 quirk adds
   a Phoenix+Mahjong pair and Mahjong-filled phoenix fullhouses), so
   enumeration is infeasible: its ids come from an arithmetic codec
-  (`runtime/tichu.py::TichuComboCodec` via `stdlib.climb_codec_function`) —
+  (`runtime/tichu.py::TichuComboCodec` via `primitives.climb_codec_function`) —
   pure card-set ↔ index functions over a fixed per-kind block layout, so ids
   stay stable across determinized worlds with no table. Pinned by exact-size,
   spot-id, engine-emission and per-block roundtrip tests

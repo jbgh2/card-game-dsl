@@ -30,7 +30,7 @@ domain:     every top-construction site in `cardlang/` (27 today, counted by
 registry:   the five role sets (`domains.Role` vs the parser's quantifier
             spellings, `_ITERATION_ROLES`, `SIMULTANEOUS_ROLES`,
             `ZONE_INDEX_ROLES`, `_KNOWN_ROLES`); `CALL_SIGS` vs
-            `STDLIB_CALL_FUNCS`; `ZONE_CONTENT` vs `LIBRARY_ZONE_TYPES`;
+            `CALL_FUNCS`; `ZONE_CONTENT` vs `LIBRARY_ZONE_TYPES`;
             `NameRef.ref_kind` vs `_name_type`'s arms; `OP_CLASSES` vs
             `infer`'s BinOp arm (pinned in tests/test_operator_walls.py).
 covered:    the registry-closure pins below (each proves the corresponding
@@ -130,11 +130,11 @@ import pytest
 
 from cardlang import domains, typecheck
 from cardlang.ast import nodes as n
+from cardlang.builtins.functions import CALL_FUNCS
+from cardlang.builtins.signatures import CALL_SIGS, ZONE_CONTENT
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError
 from cardlang.domains import BY_ID, SIMULTANEOUS_ROLES, ZONE_INDEX_ROLES, role_type
 from cardlang.pipeline import check_dsl
-from cardlang.stdlib.functions import STDLIB_CALL_FUNCS
-from cardlang.stdlib.signatures import CALL_SIGS, ZONE_CONTENT
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 from cardlang.typecheck import TypeEnv, infer
 from cardlang.types import (
@@ -319,7 +319,7 @@ def test_quantifier_role_spellings_are_still_hard_coded_in_the_parser() -> None:
 def test_call_signature_registry_covers_every_stdlib_call_function() -> None:
     """`infer`'s Call arm raises when a call has no signature; resolve rejects
     a call to an unknown name, so the two stdlib registries must agree."""
-    assert set(STDLIB_CALL_FUNCS) == set(CALL_SIGS)
+    assert set(CALL_FUNCS) == set(CALL_SIGS)
 
 
 def test_zone_content_registry_covers_every_library_zone_type() -> None:
@@ -914,7 +914,7 @@ def test_a_forward_struct_reference_types_the_same_in_either_order() -> None:
 # types.py (2)
 #   `unify`'s top absorption, and the sticky-key merge — both ARE the top
 #   semantics, not lookups.
-# stdlib/signatures.py (11)
+# builtins/signatures.py (11)
 #   the audited dynamic-signature set: `suit_of`'s polymorphic argument,
 #   `error()`'s return (it diverges, so it must type in any context), the
 #   trick-winner and auction-outcome callbacks whose real type the `Sig` model
@@ -922,7 +922,7 @@ def test_a_forward_struct_reference_types_the_same_in_either_order() -> None:
 AUDITED_TOP_SITES: dict[str, int] = {
     "typecheck.py": 16,
     "types.py": 2,
-    "stdlib/signatures.py": 11,
+    "builtins/signatures.py": 11,
 }
 
 

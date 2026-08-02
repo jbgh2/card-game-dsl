@@ -1,7 +1,7 @@
 """The agents. Every one of them decides from a `DecisionView` of strings.
 
 `DecisionView` is the enforcement mechanism for the leak-freeness invariant
-(README): it carries the acting player's information-state string and the
+(BUILDLOG, "Leak-freeness"): it carries the acting player's information-state string and the
 rendered legal actions, and nothing else. No agent — LLM or baseline — holds a
 reference to a `pyspiel.State` or a `RuntimeState`, so none of them *can* read
 hidden information, whatever their policy does.
@@ -113,7 +113,7 @@ class RuleAgent:
     # Probability of ELECTING to over-claim when a truthful play was available.
     # 0.0 (the default) is the truthful-when-possible policy the baseline shipped
     # with. Raising it makes the opponent a tunable source of detectable lies:
-    # see `README.md`, "Choosing an opponent", for why neither an all-truthful
+    # see `BUILDLOG.md`, "Choosing an opponent", for why neither an all-truthful
     # nor an all-random table lets challenge precision and provable-lie volume
     # be measured at the same time.
     bluff_prob: float = 0.0
@@ -193,7 +193,7 @@ class LLMAgent:
     name: str = "llm"
     # The experimental arm. False: the engine's raw information-state string.
     # True: `render.render_state` of it — still a pure function of the same
-    # string, so the leak-freeness argument is unchanged (README, "Leak-
+    # string, so the leak-freeness argument is unchanged (BUILDLOG, "Leak-
     # freeness"), with a correspondingly shorter format guide.
     render: bool = False
     # The RESPONSE-FORMAT arm, by name from `prompts.RESPONSE_ARMS`. Selects the

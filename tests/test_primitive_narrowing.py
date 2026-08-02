@@ -14,7 +14,7 @@ property:   a game-local primitive sees VALUES, never an engine handle. Its
             decision, or observe an undeclared name" is structural, not a
             property of review.
 domain:     every game-local primitive (derived: the dispatch tables in
-            `cardlang/runtime/stdlib.py`, mapped name -> implementing
+            `cardlang/runtime/primitives.py`, mapped name -> implementing
             module by AST, restricted to modules outside the engine core)
             x every forbidden engine handle (derived: `Ctx`'s own field set
             plus the engine types, NOT the handles modules happen to use
@@ -26,7 +26,8 @@ registry:   `_ENGINE_CORE` (the module axis's only hand-authored half, and
             everything the dispatch routes; `_STILL_REACHES` (the
             per-cell work list, now EMPTY — stage 2 is complete);
             `EMITS_TRACE` (primitives returning events alongside a value);
-            `STDLIB_*` in `cardlang/stdlib/functions.py` (the name axis).
+            `BUILTIN_*` / `PRIMITIVE_*` in `cardlang/builtins/functions.py`
+            (the name axis).
 covered:    (a) per-implementation-SITE: the site's signature names no
             forbidden handle — exhaustive over the derived site set (one
             cell per `module::func`, NOT per primitive: the dispatch routes
@@ -101,7 +102,7 @@ sampled:    behavioral identity rides the byte-identical goldens and the
             moved golden means the refactor changed behavior.
 residual:   (1) the three auction outcomes (`bridge_`/`pinochle_`/
             `tarot_auction_outcome`) are implemented INSIDE
-            `cardlang/runtime/stdlib.py`, which is engine core, so the
+            `cardlang/runtime/primitives.py`, which is engine core, so the
             game-module wall does not reach them; they are game knowledge
             in the language package and stage 4 (co-location) owns their
             move. Wall: `test_engine_core_game_knowledge_is_named`, which
@@ -155,18 +156,18 @@ from typing import Any
 import pytest
 
 from cardlang.ast import nodes as n
+from cardlang.builtins.functions import (
+    CALL_FUNCS,
+    PRIMITIVE_AUCTION_OUTCOMES,
+    PRIMITIVE_CLIMB_FOLLOWS,
+    PRIMITIVE_CLIMB_LEADS,
+    PRIMITIVE_EARLY_PREDICATES,
+    PRIMITIVE_TRICK_OUTCOMES,
+)
 from cardlang.runtime import reads as reads_mod
 from cardlang.runtime.reads import PRIMITIVE_READS
 from cardlang.runtime.state import RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating
-from cardlang.stdlib.functions import (
-    STDLIB_AUCTION_OUTCOMES,
-    STDLIB_CALL_FUNCS,
-    STDLIB_CLIMB_FOLLOWS,
-    STDLIB_CLIMB_LEADS,
-    STDLIB_EARLY_PREDICATES,
-    STDLIB_TRICK_OUTCOMES,
-)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RUNTIME_DIR = REPO_ROOT / "cardlang" / "runtime"
@@ -190,7 +191,8 @@ _ENGINE_CORE: dict[str, str] = {
     "rules.py": "engine core — rule application",
     "sidecar.py": "the binder — it BUILDS the bundles, so it holds the handle",
     "state.py": "engine core — defines RuntimeState and Ctx",
-    "stdlib.py": "engine core — the dispatch layer that BUILDS the bundles",
+    "builtins.py": "engine core — the generic native functions",
+    "primitives.py": "engine core — the dispatch layer that BUILDS the bundles",
     "values.py": "engine core — the value types",
 }
 
@@ -239,7 +241,16 @@ def _implementations() -> tuple[Impl, ...]:
     arms. Derived, not listed: a primitive added to the dispatch enters this
     grid automatically, which is what stops the coverage domain from being
     whatever someone remembered to type."""
-    tree = ast.parse((RUNTIME_DIR / "stdlib.py").read_text(encoding="utf-8"))
+    found: list[Impl] = []
+    # BOTH dispatch homes: a generic arm that lazily imported a game module
+    # would otherwise escape this grid by living in the half nobody parsed.
+    for home in ("builtins.py", "primitives.py"):
+        found.extend(_impls_in(RUNTIME_DIR / home))
+    return tuple(sorted(found, key=lambda i: (i.primitive, i.module, i.func)))
+
+
+def _impls_in(path: Path) -> list[Impl]:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
     found: list[Impl] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Match):
@@ -255,16 +266,16 @@ def _implementations() -> tuple[Impl, ...]:
             name = pat.value.value
             for mod, func in _dispatch_imports(case.body):
                 found.append(Impl(primitive=name, module=mod, func=func))
-    return tuple(sorted(found, key=lambda i: (i.primitive, i.module, i.func)))
+    return found
 
 
 _ALL_REGISTERED: frozenset[str] = (
-    STDLIB_CALL_FUNCS
-    | STDLIB_TRICK_OUTCOMES
-    | STDLIB_AUCTION_OUTCOMES
-    | STDLIB_EARLY_PREDICATES
-    | STDLIB_CLIMB_LEADS
-    | STDLIB_CLIMB_FOLLOWS
+    CALL_FUNCS
+    | PRIMITIVE_TRICK_OUTCOMES
+    | PRIMITIVE_AUCTION_OUTCOMES
+    | PRIMITIVE_EARLY_PREDICATES
+    | PRIMITIVE_CLIMB_LEADS
+    | PRIMITIVE_CLIMB_FOLLOWS
 )
 
 _GAME_IMPLS: tuple[Impl, ...] = tuple(
@@ -1236,16 +1247,17 @@ def test_deep_freeze_freezes_mapping_keys_not_just_values() -> None:
 def test_collection_args_are_frozen_at_the_call_boundary() -> None:
     """The positional-argument channel, not just the bundles: a collection
     argument from a zone reaches a primitive as the zone's LIVE `.cards` list
-    (`elements()` returns it by reference), so `call()` freezes it. Without
-    this a primitive could `cards.clear()` the argument and empty the zone."""
-    from cardlang.runtime import stdlib
+    (`elements()` returns it by reference), so the native-call boundary freezes
+    it. Without this a primitive could `cards.clear()` the argument and empty
+    the zone."""
+    from cardlang.builtins.signatures import CALL_SIGS
+    from cardlang.runtime.reads import coerce_args
     from cardlang.runtime.state import Zone
-    from cardlang.stdlib.signatures import CALL_SIGS
 
     sig = CALL_SIGS["gin_valid_meld"]  # its one parameter is a TCollection
     z = Zone()
     z.cards.extend([Card("7", "clubs"), Card("8", "clubs")])
-    coerced = stdlib._coerce_args(sig, [z])[0]
+    coerced = coerce_args(sig, [z])[0]
     assert coerced is not z.cards, "the argument is still the live zone list"
     assert isinstance(coerced, tuple)  # an immutable snapshot
     assert list(coerced) == [Card("7", "clubs"), Card("8", "clubs")]  # same contents
@@ -1255,20 +1267,20 @@ def test_collection_args_are_frozen_at_the_call_boundary() -> None:
 def test_scalar_card_args_are_copied_at_the_call_boundary() -> None:
     """A scalar `Card` argument (a `TCard` param) is the same leak as a
     collection: a frozen+slots Card is mutable via `object.__setattr__`, so
-    `_coerce_args` copies it rather than passing the engine's live card.
+    `coerce_args` copies it rather than passing the engine's live card.
     Immutable scalars (`Player`, ...) pass through unchanged."""
-    from cardlang.runtime import stdlib
-    from cardlang.stdlib.signatures import CALL_SIGS
+    from cardlang.builtins.signatures import CALL_SIGS
+    from cardlang.runtime.reads import coerce_args
 
     card = Card("3", "hearts")  # a red three
-    (coerced,) = stdlib._coerce_args(CALL_SIGS["canasta_is_red3"], [card])
+    (coerced,) = coerce_args(CALL_SIGS["canasta_is_red3"], [card])
     assert coerced == card and coerced is not card, "the live engine Card leaked"
     object.__setattr__(coerced, "rank", "K")  # back door, on the copy
     assert card.rank == "3", "mutating the copy reached the engine's Card"
 
     # An immutable scalar (a TPlayer int) is a no-op, not refused.
     p_sig = CALL_SIGS["president_is_top_rank"]  # [TPlayer, TCard]
-    assert stdlib._coerce_args(p_sig, [1, card])[0] == 1
+    assert coerce_args(p_sig, [1, card])[0] == 1
 
 
 def test_climb_follow_freezes_the_standing_play() -> None:
@@ -1306,7 +1318,8 @@ def test_peg_direct_arm_args_are_frozen(monkeypatch: Any) -> None:
     """The two cribbage peg arms read live engine state directly (not through
     a bundle), so `call()` freezes their collection args at the site. Capture
     what the primitive actually receives and prove it is immutable."""
-    from cardlang.runtime import cribbage, stdlib
+    from cardlang.runtime import cribbage
+    from cardlang.runtime import primitives as stdlib
     from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
 
     decls = (n.ZoneDecl(name="play_pile", index=None, type_ref=n.TypeRef(name="Pile")),)
@@ -1435,17 +1448,17 @@ _ENGINE_CORE_GAME_KNOWLEDGE: frozenset[str] = frozenset(
 
 def test_engine_core_game_knowledge_is_named() -> None:
     """The residual, pinned so it cannot grow quietly. These primitives are
-    implemented inside stdlib.py — engine core — so the game-module wall
-    does not reach them; stage 4 (co-location) owns their move. A NEW
-    per-game function added to stdlib.py fails here."""
-    rows = {r.game_file for r in PRIMITIVE_READS if r.module == "cardlang/runtime/stdlib.py"}
+    implemented inside primitives.py — engine core — so the game-module
+    wall does not reach them; stage 4 (co-location) owns their move. A NEW
+    per-game function added to primitives.py fails here."""
+    rows = {r.game_file for r in PRIMITIVE_READS if r.module == "cardlang/runtime/primitives.py"}
     assert rows == {
         "bridge.cardlang",
         "cribbage.cardlang",
         "pinochle.cardlang",
         "french-tarot.cardlang",
     }, (
-        f"stdlib.py's per-game declared-reads rows changed to {sorted(rows)} — "
+        f"primitives.py's per-game declared-reads rows changed to {sorted(rows)} — "
         f"engine core is holding game knowledge for a different set of games "
         f"than this ledger's residual (1) records"
     )

@@ -234,10 +234,10 @@ def _parser() -> Lark:
         parser="earley",
         propagate_positions=True,
         maybe_placeholders=True,
-        # `start` is a game file; `library_rules` is the stdlib rules fragment
+        # `start` is a game file; `stdlib_rules` is the stdlib rules fragment
         # (rule definitions with no enclosing game); `library` is a family
         # library (decisions.md "Family libraries").
-        start=["start", "library_rules", "library"],
+        start=["start", "stdlib_rules", "library"],
     )
 
 
@@ -563,8 +563,8 @@ class _Builder(Transformer[Token, n.Game]):
     def phase_when(self, meta: Meta, c: list[object]) -> n.PhaseQualifier:
         return n.PhaseQualifier("when", _as_expr(c[0]), span=self._span(meta))
 
-    def phase_outcome(self, meta: Meta, c: list[object]) -> tuple[n.VariantCase, ...]:
-        # `-> outcome { ... }`: unwrap to the variant_set tuple.
+    def phase_outcome(self, meta: Meta, c: list[object]) -> tuple[n.OutcomeCase, ...]:
+        # `-> outcome { ... }`: unwrap to the outcome_set tuple.
         return next(x for x in c if isinstance(x, tuple))
 
     def phase(self, meta: Meta, c: list[object]) -> n.Phase:
@@ -948,7 +948,7 @@ class _Builder(Transformer[Token, n.Game]):
             span=self._span(meta),
         )
 
-    def library_rules(self, meta: Meta, c: list[object]) -> tuple[n.RuleDef, ...]:
+    def stdlib_rules(self, meta: Meta, c: list[object]) -> tuple[n.RuleDef, ...]:
         return tuple(x for x in c if isinstance(x, n.RuleDef))
 
     # --- expressions ---
@@ -1419,15 +1419,15 @@ class _Builder(Transformer[Token, n.Game]):
         # registry strips it and resolves the inner type as optional.
         return str(c[0]) + "?"
 
-    def variant_case(self, meta: Meta, c: list[object]) -> n.VariantCase:
+    def outcome_case(self, meta: Meta, c: list[object]) -> n.OutcomeCase:
         # c: NAME(tag), then 0+ payload-type strings (a None placeholder stands in
         # for the absent optional group — filter to the real payload strings).
         payloads = tuple(x for x in c[1:] if isinstance(x, str) and not isinstance(x, Token))
-        return n.VariantCase(tag=str(c[0]), payload_types=payloads, span=self._span(meta))
+        return n.OutcomeCase(tag=str(c[0]), payload_types=payloads, span=self._span(meta))
 
-    def variant_set(
-        self, meta: Meta, c: list[n.VariantCase]
-    ) -> tuple[n.VariantCase, ...]:
+    def outcome_set(
+        self, meta: Meta, c: list[n.OutcomeCase]
+    ) -> tuple[n.OutcomeCase, ...]:
         return tuple(c)
 
     def define_def(self, meta: Meta, c: list[object]) -> n.DefineDef:
@@ -1603,10 +1603,10 @@ def _transform(builder: _Builder, tree: Tree[Token]) -> object:
         raise
 
 
-def parse_library_rules(text: str, source_name: str) -> tuple[n.RuleDef, ...]:
+def parse_stdlib_rules(text: str, source_name: str) -> tuple[n.RuleDef, ...]:
     """Parse a standard-library rules fragment (rule definitions with no
     enclosing game) into RuleDef nodes, spans mapped to ``source_name``."""
-    tree = parse_to_tree(text, source_name, start="library_rules")
+    tree = parse_to_tree(text, source_name, start="stdlib_rules")
     result = _transform(_Builder(source_name, 0), tree)
     assert isinstance(result, tuple)
     assert all(isinstance(r, n.RuleDef) for r in result)

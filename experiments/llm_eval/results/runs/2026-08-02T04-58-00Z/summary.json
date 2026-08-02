@@ -1,0 +1,133 @@
+{
+  "config": "/private/tmp/claude-501/-Users-benh-Projects-Card-game-DSL--claude-worktrees-lucid-feistel-950e5f/c4c4d240-b2d7-4613-a192-9c2c183f416c/scratchpad/resume.yaml",
+  "game": "cardlang_cheat",
+  "run": "2026-08-02T04-58-00Z",
+  "run_dir": "experiments/llm_eval/results/runs/2026-08-02T04-58-00Z",
+  "matchups": [
+    {
+      "games": 10,
+      "games_truncated": 0,
+      "decisions": 5461,
+      "agents": {
+        "llm_cheap": {
+          "agent": "llm_cheap",
+          "games": 10,
+          "games_scored": 10,
+          "wins": 0,
+          "decisions": 1576,
+          "fallbacks": 4,
+          "llm_calls": 1606,
+          "input_tokens": 14908257,
+          "output_tokens": 192532,
+          "plays": 272,
+          "lies": 113,
+          "forced_lies": 26,
+          "elective_lies": 87,
+          "plays_with_truthful_option": 246,
+          "challenge_opportunities": 644,
+          "challenges_made": 514,
+          "challenges_correct": 263,
+          "false_claims_faced": 342,
+          "false_claims_caught": 263,
+          "provable_opportunities": 196,
+          "provable_caught": 170,
+          "improbable_opportunities": 146,
+          "improbable_caught": 93,
+          "provable_hand_only_opportunities": 134,
+          "provable_hand_only_caught": 118,
+          "input_tokens_per_game": 1490825.7,
+          "output_tokens_per_game": 19253.2,
+          "llm_calls_per_game": 160.6,
+          "win_rate": 0.0,
+          "fallback_rate": 0.0025380710659898475,
+          "lying_rate": 0.41544117647058826,
+          "forced_lie_rate": 0.09558823529411764,
+          "elective_lie_rate": 0.35365853658536583,
+          "challenge_rate": 0.7981366459627329,
+          "challenge_precision": 0.5116731517509727,
+          "challenge_recall": 0.7690058479532164,
+          "provable_lie_detection": 0.8673469387755102,
+          "improbable_lie_detection": 0.636986301369863,
+          "provable_lie_detection_hand_only": 0.8805970149253731
+        },
+        "rule": {
+          "agent": "rule",
+          "games": 30,
+          "games_scored": 30,
+          "wins": 10,
+          "decisions": 3885,
+          "fallbacks": 0,
+          "llm_calls": 0,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "plays": 822,
+          "lies": 484,
+          "forced_lies": 333,
+          "elective_lies": 151,
+          "plays_with_truthful_option": 489,
+          "challenge_opportunities": 1586,
+          "challenges_made": 290,
+          "challenges_correct": 218,
+          "false_claims_faced": 752,
+          "false_claims_caught": 218,
+          "provable_opportunities": 159,
+          "provable_caught": 159,
+          "improbable_opportunities": 593,
+          "improbable_caught": 59,
+          "provable_hand_only_opportunities": 92,
+          "provable_hand_only_caught": 92,
+          "input_tokens_per_game": 0.0,
+          "output_tokens_per_game": 0.0,
+          "llm_calls_per_game": 0.0,
+          "win_rate": 0.3333333333333333,
+          "fallback_rate": 0.0,
+          "lying_rate": 0.5888077858880778,
+          "forced_lie_rate": 0.4051094890510949,
+          "elective_lie_rate": 0.30879345603271985,
+          "challenge_rate": 0.1828499369482976,
+          "challenge_precision": 0.7517241379310344,
+          "challenge_recall": 0.2898936170212766,
+          "provable_lie_detection": 1.0,
+          "improbable_lie_detection": 0.09949409780775717,
+          "provable_lie_detection_hand_only": 1.0
+        }
+      },
+      "matchup": "llm_cheap_reason_first_bluffer",
+      "n_requested": 10,
+      "n_completed": 10,
+      "resumed_from": 2,
+      "games_this_invocation": 8,
+      "stopped_early": null,
+      "aborted": null,
+      "transcript": "experiments/llm_eval/results/runs/2026-08-02T04-58-00Z/transcripts/llm_cheap_reason_first_bluffer.jsonl",
+      "usage": {
+        "cheap": {
+          "input_tokens": 12291994,
+          "output_tokens": 156213,
+          "cost_usd": 13.0731,
+          "model": "claude-haiku-4-5",
+          "params": {
+            "max_tokens": 512,
+            "temperature": 0
+          },
+          "run_total": {
+            "calls": 1307,
+            "input_tokens": 12291994,
+            "output_tokens": 156213,
+            "cost_usd": 13.0731
+          },
+          "cost_usd_per_game": 1.6341
+        }
+      }
+    }
+  ],
+  "run_totals": {
+    "cheap": {
+      "calls": 1307,
+      "input_tokens": 12291994,
+      "output_tokens": 156213,
+      "cost_usd": 13.0731,
+      "model": "claude-haiku-4-5"
+    }
+  }
+}

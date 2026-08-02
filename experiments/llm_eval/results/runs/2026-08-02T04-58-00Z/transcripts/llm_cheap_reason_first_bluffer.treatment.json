@@ -1,0 +1,40 @@
+{
+  "game": "cardlang_cheat",
+  "agents": [
+    {
+      "kind": "llm",
+      "name": "llm_cheap",
+      "model": "cheap",
+      "render": true,
+      "arm": "reason_first"
+    },
+    {
+      "kind": "rule",
+      "challenge_prob": 0.1,
+      "bluff_prob": 0.4
+    },
+    {
+      "kind": "rule",
+      "challenge_prob": 0.1,
+      "bluff_prob": 0.4
+    },
+    {
+      "kind": "rule",
+      "challenge_prob": 0.1,
+      "bluff_prob": 0.4
+    }
+  ],
+  "rotate": true,
+  "max_decisions": 1200,
+  "seed_start": 0,
+  "models": {
+    "cheap": {
+      "kind": "anthropic",
+      "model": "claude-haiku-4-5",
+      "params": {
+        "max_tokens": 512,
+        "temperature": 0
+      }
+    }
+  }
+}

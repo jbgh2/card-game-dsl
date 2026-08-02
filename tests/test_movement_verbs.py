@@ -7,11 +7,11 @@ the destination cell one step along a direction in a player's frame,
 `has_step` the guard that gates it, `is_diagonal` whether the step captures,
 and `home`/`far_row` the setup and reach-goal cell regions. Each wraps a
 `BoardEntry` method (cardlang/stdlib/boards.py); each is classified BOARD_ONLY
-(cardlang/stdlib/functions.py::BOARD_ONLY_CALL_FUNCS) so a boardless game
+(cardlang/builtins/functions.py::BOARD_ONLY_CALL_FUNCS) so a boardless game
 rejects the call at resolve, exactly as `lines` does. The surfaces are
-`cardlang/stdlib/signatures.py` (CALL_SIGS), `cardlang/runtime/stdlib.py`
+`cardlang/builtins/signatures.py` (CALL_SIGS), `cardlang/runtime/primitives.py`
 (the `call` dispatch + the `_board_of`/`_neighbor`/... impls), and
-`cardlang/stdlib/functions.py` (STDLIB_CALL_FUNCS + BOARD_ONLY_CALL_FUNCS).
+`cardlang/builtins/functions.py` (CALL_FUNCS + BOARD_ONLY_CALL_FUNCS).
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 -----------------------------------------------------------------
@@ -31,9 +31,9 @@ domain:     {the five verbs} x {board game: typecheck + evaluate; boardless:
             board-only}; PLUS the pairwise interactions of the two new value
             shapes (`Collection<Cell>`, a call-return `TCell`) against every
             existing collection/cell consumer (the framing-check b-table).
-registry:   the verb set -- cardlang.stdlib.functions.STDLIB_CALL_FUNCS +
+registry:   the verb set -- cardlang.builtins.functions.CALL_FUNCS +
             BOARD_ONLY_CALL_FUNCS; the signatures -- cardlang.stdlib.
-            signatures.CALL_SIGS; the runtime -- cardlang.runtime.stdlib.call
+            signatures.CALL_SIGS; the runtime -- cardlang.runtime.evaluate.native_call
             (the five arms + _board_of/_neighbor/... helpers) over cardlang.
             stdlib.boards.BoardEntry (geometry exhaustively pinned by Task 2's
             tests/test_boards_registry.py); the resolve wall -- cardlang.
@@ -45,8 +45,8 @@ registry:   the verb set -- cardlang.stdlib.functions.STDLIB_CALL_FUNCS +
             the movement-source grammar.
 covered:    the grid below, each a running row --
             classification: test_the_five_verbs_are_board_only (the five in
-            BOARD_ONLY ∩ STDLIB_CALL_FUNCS); the TOTAL partition (every
-            STDLIB_CALL_FUNCS member classified generic/deck-only/board-only,
+            BOARD_ONLY ∩ CALL_FUNCS); the TOTAL partition (every
+            CALL_FUNCS member classified generic/deck-only/board-only,
             none unclassified) is pinned ONCE at tests/test_signatures.py::
             test_deck_only_classification_partitions_call_funcs and tests/
             test_piece_content_walls.py -- cited, not re-copied (CLAUDE.md
@@ -136,9 +136,9 @@ residual:   FIELD ACCESS on a position/board type is a SILENT permissive
 red under (the born-green classification pin): test_the_five_verbs_are_board_
 only is a membership assertion over two frozensets, born green once the verbs
 register. Its reddening witness: dropping any of the five from
-BOARD_ONLY_CALL_FUNCS while leaving it in STDLIB_CALL_FUNCS reddens the TOTAL
+BOARD_ONLY_CALL_FUNCS while leaving it in CALL_FUNCS reddens the TOTAL
 partition pin at tests/test_signatures.py::test_deck_only_classification_
-partitions_call_funcs (union != STDLIB_CALL_FUNCS); dropping it here reddens
+partitions_call_funcs (union != CALL_FUNCS); dropping it here reddens
 this focused assertion directly. Every other grid row was born RED (the verbs
 did not exist -- "call to unknown function"), its pre-implementation red run
 the witness.
@@ -152,16 +152,16 @@ from typing import Any
 import pytest
 
 from cardlang.board_domains import position_domains_of
+from cardlang.builtins.functions import (
+    BOARD_ONLY_CALL_FUNCS,
+    CALL_FUNCS,
+)
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
+from cardlang.runtime.evaluate import native_call as call
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
-from cardlang.runtime.stdlib import call
 from cardlang.runtime.values import Seating, axis_attributes
 from cardlang.stdlib.boards import board_entry
-from cardlang.stdlib.functions import (
-    BOARD_ONLY_CALL_FUNCS,
-    STDLIB_CALL_FUNCS,
-)
 
 # The five verbs this ledger adds, in the fixed order the grid parametrizes.
 MOVEMENT_VERBS = ("neighbor", "has_step", "is_diagonal", "home", "far_row")
@@ -475,9 +475,9 @@ def test_frame_call_funcs_is_the_player_taking_board_verbs() -> None:
     # board-only calls whose Sig takes a player. A new player-taking board verb
     # joins _FRAME_CALL_FUNCS -- and the two-seat wall -- by construction; a new
     # player-free one (a second `lines`/`is_diagonal`) does not.
+    from cardlang.builtins.functions import BOARD_ONLY_CALL_FUNCS
+    from cardlang.builtins.signatures import CALL_SIGS
     from cardlang.resolve import _FRAME_CALL_FUNCS
-    from cardlang.stdlib.functions import BOARD_ONLY_CALL_FUNCS
-    from cardlang.stdlib.signatures import CALL_SIGS
     from cardlang.types import TPlayer
 
     assert _FRAME_CALL_FUNCS == {"neighbor", "has_step", "home", "far_row"}
@@ -616,7 +616,7 @@ def test_along_dir_for_player_is_rejected() -> None:
 
 # =============================================================================
 # CLASSIFICATION: the five verbs are BOARD_ONLY. The TOTAL partition (every
-# STDLIB_CALL_FUNCS member classified generic/deck-only/board-only, none
+# CALL_FUNCS member classified generic/deck-only/board-only, none
 # unclassified) is pinned once at tests/test_signatures.py::
 # test_deck_only_classification_partitions_call_funcs and
 # tests/test_piece_content_walls.py -- NOT re-copied here (CLAUDE.md rule 4).
@@ -624,15 +624,15 @@ def test_along_dir_for_player_is_rejected() -> None:
 # BOARD_ONLY reddens with a message about THESE verbs.
 #
 # red under (the born-green partition pin, cited): dropping any of these five
-# from BOARD_ONLY_CALL_FUNCS while leaving it in STDLIB_CALL_FUNCS reddens the
-# partition assertion in test_signatures.py (union != STDLIB_CALL_FUNCS);
+# from BOARD_ONLY_CALL_FUNCS while leaving it in CALL_FUNCS reddens the
+# partition assertion in test_signatures.py (union != CALL_FUNCS);
 # dropping it here reddens this focused assertion directly.
 # =============================================================================
 
 
 def test_the_five_verbs_are_board_only() -> None:
     assert set(MOVEMENT_VERBS) <= BOARD_ONLY_CALL_FUNCS
-    assert set(MOVEMENT_VERBS) <= STDLIB_CALL_FUNCS
+    assert set(MOVEMENT_VERBS) <= CALL_FUNCS
 
 
 # =============================================================================

@@ -13,10 +13,10 @@ from __future__ import annotations
 import pytest
 
 from cardlang.diagnostics import DiagnosticError
-from cardlang.parse import parse_library_rules
+from cardlang.parse import parse_stdlib_rules
 from cardlang.pipeline import check_dsl
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
-from cardlang.stdlib.rules import library_rules
+from cardlang.stdlib.rules import stdlib_rules
 
 
 def _game(active: str, rules: str = "") -> str:
@@ -49,8 +49,8 @@ def _rejects(src: str, needle: str) -> None:
 # --- the library registry itself stays well-formed ---
 
 
-def test_library_rules_parse_and_constrain_known_move_types() -> None:
-    lib = library_rules()
+def test_stdlib_rules_parse_and_constrain_known_move_types() -> None:
+    lib = stdlib_rules()
     assert {"MustFollowSuit", "NoLeadingSuitUntilBroken"} <= set(lib)
     for rule in lib.values():
         assert rule.constrains in LIBRARY_MOVE_TYPES
@@ -62,7 +62,7 @@ def test_library_rules_parse_and_constrain_known_move_types() -> None:
             assert p.type_name == "Suit"  # the one supported template domain
 
 
-def test_parse_library_rules_surfaces_a_builder_diagnostic_not_a_visit_error() -> None:
+def test_parse_stdlib_rules_surfaces_a_builder_diagnostic_not_a_visit_error() -> None:
     # A rules fragment is transformed by the same _Builder as a full game; a
     # builder-raised diagnostic (here, the `==`-rejection) must surface as a
     # located DiagnosticError, not leak as lark's opaque VisitError wrapper.
@@ -75,7 +75,7 @@ rule BadRule {
 }
 """
     with pytest.raises(DiagnosticError) as ei:
-        parse_library_rules(src, "frag.cardlang")
+        parse_stdlib_rules(src, "frag.cardlang")
     message = str(ei.value)
     assert "write `is`" in message
     diag = ei.value.diagnostic

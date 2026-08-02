@@ -11,11 +11,33 @@ from dataclasses import replace
 from typing import Any, assert_never
 
 from cardlang.ast import nodes as n
-from cardlang.domains import role_members, require_role
-from cardlang.runtime import observe, stdlib
+from cardlang.builtins.signatures import CALL_SIGS
+from cardlang.domains import require_role, role_members
+from cardlang.runtime import builtins, observe, primitives, reads
 from cardlang.runtime.state import Ctx, Move, StructValue, elements
 from cardlang.runtime.values import Card
 from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
+
+
+def native_call(name: str, args: list[Any], ctx: Ctx) -> Any:
+    """Dispatch `name` into native code: the Builtins half first (generic
+    functions the language ships), the Primitives half second (sanctioned
+    game-local Python), and a loud refusal from the second if neither claims
+    it.
+
+    The chain lives here rather than in either half so that neither half
+    depends on the other — `builtins.py`'s and `primitives.py`'s arm counts
+    are then independently readable, which is what makes the Primitive count
+    usable as the elimination metric. Arguments are coerced ONCE, before the
+    chain, because `deep_freeze` dominates playout cost.
+    """
+    sig = CALL_SIGS.get(name)
+    if sig is not None:
+        args = reads.coerce_args(sig, args)
+    result = builtins.call(name, args, ctx)
+    if result is builtins.NOT_A_BUILTIN:
+        return primitives.call(name, args, ctx)
+    return result
 
 
 def evaluate(e: n.Expr, ctx: Ctx) -> Any:
@@ -44,7 +66,7 @@ def evaluate(e: n.Expr, ctx: Ctx) -> Any:
             fn = ctx.rs.function_index.get(e.func)
             if fn is not None:
                 return _user_function(fn, e.args, ctx)
-            return stdlib.call(e.func, [evaluate(_pos(a), ctx) for a in e.args], ctx)
+            return native_call(e.func, [evaluate(_pos(a), ctx) for a in e.args], ctx)
         case n.BinOp():
             return _binop(e, ctx)
         case n.Not():
@@ -168,7 +190,7 @@ def _name(e: n.NameRef, ctx: Ctx) -> Any:
         case "pronoun":
             return _pronoun(e.name, ctx)
         case "function":
-            return stdlib.value_function(e.name)
+            return primitives.value_function(e.name)
         case _:
             raise AssertionError(f"name '{e.name}' was not resolved (ref_kind=None)")
 

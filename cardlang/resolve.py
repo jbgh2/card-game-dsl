@@ -66,6 +66,18 @@ from typing import assert_never, cast, get_args
 
 from cardlang.ast import nodes as n
 from cardlang.board_domains import BOARD_DOMAIN, DIRECTION_DOMAIN, directions_of
+from cardlang.builtins.functions import (
+    BOARD_ONLY_CALL_FUNCS,
+    CALL_FUNCS,
+    DECK_ONLY_CALL_FUNCS,
+    PRIMITIVE_AUCTION_OUTCOMES,
+    PRIMITIVE_CLIMB_FOLLOWS,
+    PRIMITIVE_CLIMB_LEADS,
+    PRIMITIVE_EARLY_PREDICATES,
+    PRIMITIVE_TRICK_OUTCOMES,
+    PRIMITIVE_VALUE_NAMES,
+)
+from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
 from cardlang.domains import (
     CARD_AXIS_ROLES,
@@ -84,21 +96,14 @@ from cardlang.domains import PARAM_DOMAINS as _FIXED_DOMAINS
 from cardlang.libraries import library_names, load_library
 from cardlang.runtime.values import content_kind_clause, content_noun
 from cardlang.stdlib.boards import board_entry
-from cardlang.stdlib.functions import (
-    BOARD_ONLY_CALL_FUNCS,
-    DECK_ONLY_CALL_FUNCS,
-    STDLIB_AUCTION_OUTCOMES,
-    STDLIB_CALL_FUNCS,
-    STDLIB_CLIMB_FOLLOWS,
-    STDLIB_CLIMB_LEADS,
-    STDLIB_EARLY_PREDICATES,
-    STDLIB_TRICK_OUTCOMES,
-    STDLIB_VALUE_NAMES,
+from cardlang.stdlib.enums import (
+    SEAT_DIRECTION_VALUES,
+    enum_values,
+    rank_names,
+    suit_names,
 )
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES, RULE_ENFORCED_MOVE_TYPE
-from cardlang.stdlib.rules import library_rules
-from cardlang.stdlib.signatures import CALL_SIGS
-from cardlang.stdlib.values import DIRECTION_VALUES, deck_ranks, deck_suits, enum_values
+from cardlang.stdlib.rules import stdlib_rules
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES, ZONE_PROJECTIONS
 from cardlang.typecheck import KNOWN_TYPE_NAMES
 from cardlang.types import Flavor, TPlayer
@@ -313,7 +318,7 @@ _DECLARATION_SLOTS: dict[tuple[type, str], str] = {
     (n.StructField, "name"): "field",
     (n.DerivedField, "name"): "field",
     (n.MoveParam, "name"): "param",
-    (n.VariantCase, "tag"): "variant_tag",
+    (n.OutcomeCase, "tag"): "outcome_tag",
     # `let` declares a name and scopes it to the statements after it, so it is
     # both — filed as the declaration, since that is the half a name registry
     # asks about. Its INDEX is the binder (`let x[i] = …` binds `i` per player).
@@ -357,7 +362,7 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     (n.MoveParam, "type_name"): "type",
     (n.StructField, "type_name"): "type",
     (n.StructLit, "type_name"): "type",
-    (n.VariantCase, "payload_types"): "type",
+    (n.OutcomeCase, "payload_types"): "type",
     # Definitions, by kind. The move-type slots split across two namespaces and
     # the split is load-bearing, not a nicety: a VOCABULARY names move types the
     # game defines (`_check_vocabulary_moves` against `defined_move_types`),
@@ -405,13 +410,13 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     (n.TypeArg, "name"): "zone_type_arg",
     # Names owned by a declaration reached elsewhere: a struct's fields belong to
     # the type its literal names, a named argument's to the callee's parameter
-    # list, a produced tag to the define's variant cases. Each is a reference,
+    # list, a produced tag to the define's outcome cases. Each is a reference,
     # and none is an independent channel — the owning name is a slot above.
     (n.Member, "field"): "field",
     (n.FieldInit, "name"): "field",
     (n.NamedArg, "name"): "param",
-    (n.Produce, "tag"): "variant_tag",
-    (n.ProduceArm, "tag"): "variant_tag",
+    (n.Produce, "tag"): "outcome_tag",
+    (n.ProduceArm, "tag"): "outcome_tag",
     # The item noun a movement moves (`cards`, `coins`): drawn from the game's
     # CONTENT FLAVOR, which is the component set's, so it is a game-fed slot the
     # way a suit is. Not swept for a library — see `_LIBRARY_UNSWEPT`.
@@ -710,10 +715,10 @@ def _check_library_collisions(
                 else:
                     from_libraries[definition.name] = library.name
 
-    stdlib_rules = library_rules()
+    stdlib_rule_index = stdlib_rules()
     for _, library in libraries:
         for rule in library.rules:
-            if rule.name in stdlib_rules:
+            if rule.name in stdlib_rule_index:
                 bag.error(
                     f"library '{library.name}' defines rule '{rule.name}', which "
                     f"shadows the standard-library rule of the same name — "
@@ -722,7 +727,7 @@ def _check_library_collisions(
                     rule.span,
                 )
         for fn in library.functions:
-            if fn.name in STDLIB_CALL_FUNCS:
+            if fn.name in CALL_FUNCS:
                 bag.error(
                     f"library '{library.name}' defines function '{fn.name}', "
                     f"which shadows the stdlib function of the same name; rename "
@@ -771,11 +776,11 @@ def _game_bindings(game: n.Game) -> dict[str, tuple[str, Span | None]]:
         bindings.setdefault(zone.name, ("zone", zone.span))
     deck = game.deck
     if _deck_known(deck):
-        for suit in deck_suits(deck):
+        for suit in suit_names(deck):
             bindings.setdefault(suit, ("suit value", None))
-        for rank in deck_ranks(deck):
+        for rank in rank_names(deck):
             bindings.setdefault(rank, ("rank value", None))
-    for direction in DIRECTION_VALUES:
+    for direction in SEAT_DIRECTION_VALUES:
         bindings.setdefault(direction, ("direction value", None))
     for pos in game.positions:
         bindings.setdefault(pos.name, ("position domain", pos.span))
@@ -791,7 +796,7 @@ def _game_bindings(game: n.Game) -> dict[str, tuple[str, Span | None]]:
     # precedence, added last, so a real game binding keeps the reported noun.
     # `test_game_bindings_covers_every_resolvable_value_bucket` pins this against
     # `_categories` so a value bucket added there cannot slip past uncovered.
-    for value_fn in STDLIB_VALUE_NAMES:
+    for value_fn in PRIMITIVE_VALUE_NAMES:
         bindings.setdefault(value_fn, ("standard-library value", None))
     return bindings
 
@@ -1051,8 +1056,8 @@ def _library_slot_names(library: n.Library) -> dict[str, frozenset[str]]:
         "move_type": frozenset(m.name for m in library.move_types),
         "define": frozenset(d.name for d in library.defines),
         "procedure": frozenset(p.name for p in library.procedures),
-        "function": frozenset(f.name for f in library.functions) | frozenset(STDLIB_CALL_FUNCS),
-        "enum_value": DIRECTION_VALUES,
+        "function": frozenset(f.name for f in library.functions) | frozenset(CALL_FUNCS),
+        "enum_value": SEAT_DIRECTION_VALUES,
         # No longer empty: a library reaches exactly the zones it contracts for,
         # and nothing else. This is the set every zone-naming slot is swept
         # against — `Movement.source`/`dest` as ordinary expressions, and
@@ -1120,10 +1125,10 @@ _LIBRARY_UNSWEPT: dict[str, str] = {
         "zone; re-probed with an unknown noun and with a flavor-wrong one, both "
         "refused in the library's currency (issue #170)"
     ),
-    "variant_tag": (
+    "outcome_tag": (
         "walled elsewhere: a `produce` outside a define or outcome-phase body is "
-        "refused outright, and a tag naming no declared variant is refused against the "
-        "variant registry — both in the library's currency (probed via the full "
+        "refused outright, and a tag naming no declared outcome is refused against the "
+        "outcome registry — both in the library's currency (probed via the full "
         "pipeline; `resolve` alone accepts them, which is what made the first reading "
         "of this row say the tags were merely `owned` by a swept name)"
     ),
@@ -1237,8 +1242,8 @@ def _library_reach(library: n.Library) -> _LibraryReach:
         # zone contract fed to one and not the other would leave half the sweep
         # blind — which is the shape of the defect the slot registry exists for.
         zones=frozenset(r.name for r in library.requires if is_zone_contract(r)),
-        enums=DIRECTION_VALUES,
-        functions=STDLIB_VALUE_NAMES,
+        enums=SEAT_DIRECTION_VALUES,
+        functions=PRIMITIVE_VALUE_NAMES,
         ranks=frozenset(),
         suits=frozenset(),
     )
@@ -1856,7 +1861,7 @@ def resolve(game: n.Game) -> n.Game:
     # instantiation attempt hit some OTHER, already-separately-reported
     # mismatch (arity, missing arguments, …) — that conflation would pile a
     # spurious "undefined rule" note onto every such mismatch.
-    known_rule_names = {r.name for r in game.rules} | set(library_rules())
+    known_rule_names = {r.name for r in game.rules} | set(stdlib_rules())
 
     # Library-rule splice and template instantiation: after this, every rule in
     # `game.rules` is a concrete (parameter-free) definition the runtime can
@@ -2006,7 +2011,7 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
             | n.MoveTypeDef() | n.MoveParam() | n.RuleDef() | n.RuleRef()
             | n.AppliesWhen() | n.Demands()
             | n.DefineDef() | n.FunctionDef() | n.ProcedureDef()
-            | n.VariantCase() | n.StructField() | n.DerivedField()
+            | n.OutcomeCase() | n.StructField() | n.DerivedField()
             | n.ZoneDecl() | n.TypeRef() | n.TypeArg()
             | n.StateBlock() | n.StateDecl() | n.PositionDecl() | n.BoardDecl()
             | n.Phase() | n.PhaseQualifier() | n.BeforeEach() | n.AfterEach()
@@ -2170,7 +2175,7 @@ def _instantiate_rules(game: n.Game, bag: DiagnosticBag) -> n.Game:
     `_resolve_phase_item` — this loop skips it so that is the only diagnostic
     a game ever sees for it, not a second, unsatisfiable "pass arguments"
     alongside "not yet supported"."""
-    lib = library_rules()
+    lib = stdlib_rules()
     local = {r.name: r for r in game.rules}
     for r in game.rules:
         if r.name in lib:
@@ -2180,7 +2185,7 @@ def _instantiate_rules(game: n.Game, bag: DiagnosticBag) -> n.Game:
                 f"from the library), or rename it if the body genuinely differs",
                 r.span,
             )
-    suits = deck_suits(game.deck) if _deck_known(game.deck) else None
+    suits = suit_names(game.deck) if _deck_known(game.deck) else None
     # rule name -> (argument key, concrete instance)
     instances: dict[str, tuple[tuple[str, ...], n.RuleDef]] = {}
     lib_order: list[str] = []
@@ -3319,16 +3324,16 @@ def _categories(game: n.Game) -> _Categories:
         locals=frozenset(),
         state_vars=frozenset(state_vars),
         zones=frozenset(z.name for z in game.zones),
-        enums=enum_values(game.deck) if _component_known(game.deck) else DIRECTION_VALUES,
-        functions=STDLIB_VALUE_NAMES,
+        enums=enum_values(game.deck) if _component_known(game.deck) else SEAT_DIRECTION_VALUES,
+        functions=PRIMITIVE_VALUE_NAMES,
         # Card-literal validation asks "does this card EXIST in the deck",
         # so ranks derive from the deck like `suits` below — never from
         # `ranking:`, which is an ORDERING (optional, and legitimately
         # partial: it narrows the Rank move-param domain, not which cards
         # can be named). Deck-vs-ranking is the same two-source divergence
         # `_resolve_ranking` walls from the other side.
-        ranks=deck_ranks(game.deck) if _component_known(game.deck) else frozenset(),
-        suits=deck_suits(game.deck) if _component_known(game.deck) else frozenset(),
+        ranks=rank_names(game.deck) if _component_known(game.deck) else frozenset(),
+        suits=suit_names(game.deck) if _component_known(game.deck) else frozenset(),
         flavor=game.content_flavor,
     )
 
@@ -3643,7 +3648,7 @@ def _resolve_ranking(game: n.Game, bag: DiagnosticBag) -> None:
         return
     if not game.ranking or not _deck_known(game.deck):
         return
-    known = deck_ranks(game.deck)
+    known = rank_names(game.deck)
     seen: dict[str, None] = {}
     for rank in game.ranking:
         if rank in seen:
@@ -3950,7 +3955,7 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
         for f in game.functions
     }
     for fn in game.functions:
-        if fn.name in STDLIB_CALL_FUNCS:
+        if fn.name in CALL_FUNCS:
             bag.error(
                 f"function '{fn.name}' shadows the stdlib function of the same name; "
                 f"rename it (a call would type-check against the stdlib signature but "
@@ -3984,13 +3989,13 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
 
 
 def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
-    """A function parameter's and a variant payload's declared type name names
+    """A function parameter's and a outcome payload's declared type name names
     a real type.
 
     Validating a declared type name is resolve's job, and it was being done in
     only some of the positions that declare one: `StateDecl` and `StructField`
     were walled and move parameters had their own domain gate, while function
-    parameters and variant payloads were not checked at all.
+    parameters and outcome payloads were not checked at all.
     `typecheck.type_from_name` maps an unknown name to the permissive `TAny`,
     so a mere TYPO exempted the annotated value from every downstream wall —
     `function f(x : Integar) = x is hearts` was accepted while the
@@ -4700,7 +4705,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     for nd in _walk(game):
         match nd:
             case n.Call() if (
-                nd.func not in STDLIB_CALL_FUNCS and nd.func not in defined_functions
+                nd.func not in CALL_FUNCS and nd.func not in defined_functions
             ):
                 bag.error(f"call to unknown function '{nd.func}'", nd.span)
             case n.Call() if (
@@ -4810,7 +4815,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # struct field types via scalars/enums/structs only; a position
                 # domain is deliberately NOT admitted here (main's type-name
                 # grid, tests/test_type_name_positions.py P2). Function-param
-                # and variant-payload type names are the sibling slots, but
+                # and outcome-payload type names are the sibling slots, but
                 # those are owned by `_check_declared_type_names`, which admits
                 # position domains — so they are not re-checked here.
                 bag.error(
@@ -5090,8 +5095,8 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 )
                 _check_card_vocabulary(nd.move_types, move_type_defs, game, bag, nd.span)
                 # The betting form omits `outcome` (it mutates state directly and
-                # produces no variant); only an auction's outcome fn is validated.
-                if nd.outcome_fn is not None and nd.outcome_fn not in STDLIB_AUCTION_OUTCOMES:
+                # produces no outcome); only an auction's outcome fn is validated.
+                if nd.outcome_fn is not None and nd.outcome_fn not in PRIMITIVE_AUCTION_OUTCOMES:
                     bag.error(
                         f"auction round outcome '{nd.outcome_fn}' is not an auction "
                         f"outcome function",
@@ -5115,13 +5120,13 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bag.error(f"climb round play zone '{nd.play_zone}' is unknown", nd.span)
                 if nd.move_type not in LIBRARY_MOVE_TYPES:
                     bag.error(f"climb round move type '{nd.move_type}' is unknown", nd.span)
-                if nd.combos_fn not in STDLIB_CLIMB_LEADS:
+                if nd.combos_fn not in PRIMITIVE_CLIMB_LEADS:
                     bag.error(
                         f"climb round `combinations` query '{nd.combos_fn}' is not a "
                         f"combination lead query",
                         nd.span,
                     )
-                if nd.follows_fn not in STDLIB_CLIMB_FOLLOWS:
+                if nd.follows_fn not in PRIMITIVE_CLIMB_FOLLOWS:
                     bag.error(
                         f"climb round `follows` query '{nd.follows_fn}' is not a "
                         f"combination follows query",
@@ -5133,7 +5138,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bag.error(f"round source zone '{nd.source_zone}' is unknown", nd.span)
                 if nd.play_zone not in zone_names:
                     bag.error(f"round play zone '{nd.play_zone}' is unknown", nd.span)
-                if nd.outcome_fn not in STDLIB_TRICK_OUTCOMES:
+                if nd.outcome_fn not in PRIMITIVE_TRICK_OUTCOMES:
                     bag.error(
                         f"trick round outcome '{nd.outcome_fn}' is not a trick "
                         f"outcome function",
@@ -5152,7 +5157,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     )
                 if (
                     nd.early_termination is not None
-                    and nd.early_termination not in STDLIB_EARLY_PREDICATES
+                    and nd.early_termination not in PRIMITIVE_EARLY_PREDICATES
                 ):
                     bag.error(
                         f"round early-termination predicate "

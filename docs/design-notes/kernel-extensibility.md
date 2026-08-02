@@ -3,14 +3,14 @@
 *Status: design analysis / proposal — not a settled decision. The committed spec is in [decisions.md](../decisions.md); this note argues a direction and a sequenced, byte-identical plan.*
 
 *Implementation status: §9 steps 1–4 are done and delivered for the whole
-corpus (the projection substrate + general adapter cover all fifteen games;
+corpus (the projection substrate + general adapter cover every corpus game;
 no `instantiate` game remains — the construct is deleted). The runtime is the single
 `run_decision_round` interpreter with the trick, auction/betting, and climb forms
 as six-slot hook bundles (`TrickForm` / `AuctionForm` / `ClimbForm` in
 `cardlang/runtime/mechanics.py`), selected by `build_form` and dispatched once in
 `execute.py`. §§1–8 are the rationale that produced it — where they speak of "the
 three `run_*` loops," read the discovery basis, not the current structure. The
-info-set leak (§6, §9 step 4) is closed for all fifteen games
+info-set leak (§6, §9 step 4) is closed for every corpus game
 (Seven-Card Stud joined when its showdown left `instantiate`; Pinochle when its
 trump declaration, meld, and trick play did; French Tarot when its chien
 handling, tricks, and scoring did — the last also needing a movement `where`

@@ -135,7 +135,7 @@
               "kind": "state_decl",
               "name": "pass_direction",
               "index": null,
-              "type": "Direction",
+              "type": "SeatDirection",
               "optional": false,
               "default": {
                 "kind": "name",

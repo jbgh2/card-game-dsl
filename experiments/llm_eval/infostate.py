@@ -4,7 +4,7 @@ Everything the rule-based baseline decides and everything the metrics layer
 measures is derived HERE — from the same bytes the LLM sees — rather than from
 the live `RuntimeState`. That is deliberate: a fact this module can compute is
 a fact the acting player is entitled to, so a baseline built on it inherits the
-same leak-freeness argument the LLM agent does (README, "Leak-freeness").
+same leak-freeness argument the LLM agent does (BUILDLOG, "Leak-freeness").
 
 The format is `cardlang/openspiel/infostate.py`'s `information_state`:
 

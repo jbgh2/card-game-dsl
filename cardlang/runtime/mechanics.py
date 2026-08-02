@@ -64,7 +64,7 @@ class DecisionForm(Protocol):
 
     def outcome(self, state: State, ctx: Ctx) -> Outcome:
         """The round's result: a winning `Player`, a typed `(tag, payloads)`
-        variant, or `None` (a betting round mutated shared state and just closes)."""
+        outcome, or `None` (a betting round mutated shared state and just closes)."""
 
 
 def run_decision_round(form: DecisionForm, state: State, ctx: Ctx) -> Outcome:
@@ -101,7 +101,7 @@ class TrickForm:
     and `outcome` pops it into `last_round_state` as the winner is returned."""
 
     def __init__(self, stmt: n.Round, ctx: Ctx) -> None:
-        from cardlang.runtime import stdlib
+        from cardlang.runtime import primitives
 
         # `outcome_fn` / `early_termination` are bare stdlib value-function names on
         # the Round node (validated at resolve time). Only the betting form omits
@@ -116,9 +116,9 @@ class TrickForm:
         self.leader: Player = evaluate(stmt.leader, ctx)
         self.source_family = stmt.source_zone
         self.play_zone = stmt.play_zone
-        self.outcome_fn = stdlib.value_function(stmt.outcome_fn)
+        self.outcome_fn = primitives.value_function(stmt.outcome_fn)
         self.early_term = (
-            stdlib.value_function(stmt.early_termination)
+            primitives.value_function(stmt.early_termination)
             if stmt.early_termination is not None
             else None
         )
@@ -192,7 +192,7 @@ class TrickForm:
         # The outcome callback (a game-local trick winner, or an engine-core
         # `highest_*`) reads its plays and rank strengths as arguments, not
         # through a bundle, so the live `played` list and `rank_index` dict are
-        # frozen here — the direct-call-site analogue of `_coerce_args`.
+        # frozen here — the direct-call-site analogue of `reads.coerce_args`.
         outcome = self.outcome_fn(
             reads.deep_freeze(state["played"]),
             state["led_suit"],
@@ -303,7 +303,7 @@ class AuctionForm:
     Two axes vary, both as *values* on the hooks rather than new slots:
 
     - **outcome (optional).** An auction supplies `outcome <fn>` and `outcome`
-      produces the phase's typed variant `(tag, payloads)` from the bid history when
+      produces the phase's typed outcome `(tag, payloads)` from the bid history when
       the ring closes. A betting round omits it (`outcome` returns `None`): the move
       effects have already mutated the shared chip/fold state, so the ring just
       closes and the surrounding body deals the next street or settles.
@@ -422,9 +422,9 @@ class AuctionForm:
     def outcome(self, state: State, ctx: Ctx) -> Outcome:
         if self.stmt.outcome_fn is None:
             return None  # betting: the shared chip/fold state is already settled
-        from cardlang.runtime import stdlib
+        from cardlang.runtime import primitives
 
-        return stdlib.auction_outcome_function(self.stmt.outcome_fn)(
+        return primitives.auction_outcome_function(self.stmt.outcome_fn)(
             state["history"], ctx
         )
 
@@ -458,7 +458,7 @@ class ClimbForm:
     """
 
     def __init__(self, stmt: n.Round, ctx: Ctx) -> None:
-        from cardlang.runtime import stdlib
+        from cardlang.runtime import primitives
 
         # the grammar's climb production makes every one of these clauses mandatory
         assert (
@@ -470,9 +470,9 @@ class ClimbForm:
         ), "the climbing form of `round` carries combination queries and card zones"
         self.termination: n.Expr = stmt.termination
         self.leader: Player = evaluate(stmt.leader, ctx)
-        self.lead_query = stdlib.climb_lead_function(stmt.combos_fn)
-        self.follow_query = stdlib.climb_follow_function(stmt.follows_fn)
-        self.climb_row = stdlib.climb_row(stmt.combos_fn)
+        self.lead_query = primitives.climb_lead_function(stmt.combos_fn)
+        self.follow_query = primitives.climb_follow_function(stmt.follows_fn)
+        self.climb_row = primitives.climb_row(stmt.combos_fn)
         self.hands = ctx.rs.zones.families[stmt.source_zone]
         self.pile = ctx.rs.zones.single(stmt.play_zone)
         self.source_name: str = stmt.source_zone

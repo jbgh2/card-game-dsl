@@ -22,7 +22,7 @@ than the original one:
 
 1. **The language package contains game knowledge.** Game modules sit in
    `cardlang/runtime/` beside the engine core, and the large majority of
-   `STDLIB_CALL_FUNCS` (`cardlang/stdlib/functions.py`) is game-prefixed —
+   `CALL_FUNCS` (`cardlang/builtins/functions.py`) is game-prefixed —
    a cluster per corpus game that needs primitives (`tichu_*`, `canasta_*`,
    `skat_*`, `gin_*`, ...), against a remainder of genuinely general names.
    That split is a proportion, not a tally, on purpose: the stages below
@@ -32,7 +32,7 @@ than the original one:
    Adding a corpus game
    means editing three language-package files: the name registry,
    `signatures.py`, and a hand-written `match` arm in
-   `cardlang/runtime/stdlib.py` — a hand-enumerated dispatch over what
+   `cardlang/runtime/primitives.py` — a hand-enumerated dispatch over what
    should be a registry-derived one, the shape
    [decisions.md](../decisions.md) "Closed-domain completeness" warns
    against.

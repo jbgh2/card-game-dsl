@@ -1,4 +1,4 @@
-"""Standard-library function and value-callback names.
+"""Native function and value-callback names, by the home that implements each.
 
 The name resolver checks bare-name references (a `round`'s `outcome` / `early`
 function, a climbing round's `combinations` / `follows` query) and `f(...)`
@@ -6,19 +6,23 @@ calls against these sets, so the IR can mark them as functions and unknown
 names are caught. There is no zone-method namespace here: the expression layer
 has no method register (decisions.md "The expression register"). Seeded for the
 formalized corpus; extended corpus-first.
+
+`BUILTIN_*` names a generic function the language ships; `PRIMITIVE_*` names
+sanctioned game-local Python (glossary; issue #200). Nothing here is the
+**Stdlib**, which is the layer written in the language (`cardlang/stdlib/`).
 """
 
 from __future__ import annotations
 
-# Stdlib values referenced by bare name (a `round`'s `outcome` callback). The two
+# Primitive value callbacks referenced by bare name (a `round`'s `outcome` callback). The two
 # round forms have different outcome signatures and are validated against separate
 # namespaces (a trick outcome named on an auction round, or vice versa, is rejected
 # at resolve time, not left to crash the dispatcher at runtime):
 #
 # - a *trick* outcome  : (played, led_suit, trump, rank_index) -> Player
 # - an *auction* outcome (the auction form): (history, ctx) -> (tag, payloads),
-#   producing the phase's typed variant.
-STDLIB_TRICK_OUTCOMES: frozenset[str] = frozenset(
+#   producing the phase's typed outcome.
+PRIMITIVE_TRICK_OUTCOMES: frozenset[str] = frozenset(
     {
         "highest_of_led_suit",
         "highest_trump_or_led_suit",  # trick winner with a trump suit in play
@@ -26,7 +30,7 @@ STDLIB_TRICK_OUTCOMES: frozenset[str] = frozenset(
         "belote_trick_winner",  # Belote: highest trump under the J-9 trump order, else led suit
     }
 )
-STDLIB_AUCTION_OUTCOMES: frozenset[str] = frozenset(
+PRIMITIVE_AUCTION_OUTCOMES: frozenset[str] = frozenset(
     {
         "bridge_auction_outcome",  # Bridge auction -> contract_finalized | all_pass
         "pinochle_auction_outcome",  # Pinochle ascending auction -> bid_won
@@ -35,16 +39,16 @@ STDLIB_AUCTION_OUTCOMES: frozenset[str] = frozenset(
 )
 # The union is the bare-name function namespace (for NameRef classification) and
 # the surface the signature tables must cover.
-STDLIB_VALUE_NAMES: frozenset[str] = STDLIB_TRICK_OUTCOMES | STDLIB_AUCTION_OUTCOMES
+PRIMITIVE_VALUE_NAMES: frozenset[str] = PRIMITIVE_TRICK_OUTCOMES | PRIMITIVE_AUCTION_OUTCOMES
 
 # Early-termination predicates a `round`'s `early` clause may name. Distinct from
 # outcome callbacks above — a different signature, (card, led_suit) -> Boolean —
 # so they validate against their own set, not the outcome-function namespace.
-# Slot-only, deliberately outside STDLIB_VALUE_NAMES: an early predicate is
+# Slot-only, deliberately outside PRIMITIVE_VALUE_NAMES: an early predicate is
 # unreachable as a bare NameRef and rejected in an `outcome` slot, even though
 # the runtime dispatches both through `value_function`. Sharing the dispatcher
 # is an implementation detail of the runtime, not a shared namespace.
-STDLIB_EARLY_PREDICATES: frozenset[str] = frozenset(
+PRIMITIVE_EARLY_PREDICATES: frozenset[str] = frozenset(
     {
         "on_play_of_tochoo",  # Getaway: a tochoo (off-suit play when void) ends the trick
     }
@@ -59,14 +63,14 @@ STDLIB_EARLY_PREDICATES: frozenset[str] = frozenset(
 #
 # The engines are game-local (Big Two's and Tichu's combination rules differ), so
 # these grow corpus-first, one pair per climbing game.
-STDLIB_CLIMB_LEADS: frozenset[str] = frozenset(
+PRIMITIVE_CLIMB_LEADS: frozenset[str] = frozenset(
     {
         "bigtwo_lead_options",  # Big Two: every combination (3♦-filtered on the opening lead)
         "tichu_lead_options",  # Tichu: every combination + the special-card lead singles
         "president_lead_options",  # President: every equal-rank set of 1-4 cards
     }
 )
-STDLIB_CLIMB_FOLLOWS: frozenset[str] = frozenset(
+PRIMITIVE_CLIMB_FOLLOWS: frozenset[str] = frozenset(
     {
         "bigtwo_follows",  # Big Two: combinations that beat the standing play (same size)
         "tichu_follows",  # Tichu: same kind/length and higher, any bomb, Dragon/Phoenix answers
@@ -74,8 +78,17 @@ STDLIB_CLIMB_FOLLOWS: frozenset[str] = frozenset(
     }
 )
 
-# Stdlib functions invoked with arguments: `f(...)`.
-STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
+# Native functions invoked with arguments: `f(...)`, declared in two sets by
+# the home that implements each (issue #200's ruling; the implementation split
+# is `runtime/builtins.py` vs `runtime/primitives.py`). Stated as two sets
+# rather than one union plus a hand-listed half, so the declaration side can
+# SAY which home a name belongs to: the arm-home grid
+# (tests/test_native_dispatch_split.py) reads its expected column from here
+# rather than restating it, and a new call landing in neither set is a name
+# resolve refuses rather than a name that quietly defaults to game-local.
+
+# BUILTINS — generic: the meaning is the language's, not one game's.
+BUILTIN_CALL_FUNCS: frozenset[str] = frozenset(
     {
         "lines",  # the board's length-k lines (cell-name tuples); reads the `board:`
         "neighbor",  # rung-2 movement: the cell one step along a dir in a player's frame
@@ -88,16 +101,24 @@ STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
         "suit_of",  # the suit of a card, or of a single-card zone (trump indicator)
         "strain_index",  # bidding rank of a strain: C<D<H<S<NT (none = no-trump, highest)
         "error",  # the if_impossible fallback that rejects the move
+        "rank_value",  # a card's rank strength under the game's `ranking:` (higher = stronger)
+        "card_value",  # a card's deck-declared card-point value (point-trick counters)
+        "top_of",  # the top card of an ordered zone/collection (the sequence end)
+        "bottom_of",  # the bottom card of an ordered zone/collection (the sequence front)
+    }
+)
+
+# PRIMITIVES — game-local: sanctioned Python whose meaning belongs to one game.
+# This set is the elimination metric's declaration side; it shrinks as
+# `design-notes/primitive-inventory.md`'s constructs land in the language.
+PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
+    {
         "bring_in_seat",  # Stud: the lowest-door seat that posts the bring-in
         "first_to_act_seat",  # Stud: the highest-upcards seat that acts first on a street
         "pot_share",  # Stud: the chips a player collects at showdown (side-pot layering)
         "holdem_next_entrant",  # Hold'em: the seat, or the next entrant clockwise (busted seats skipped)
         "holdem_pot_share",  # Hold'em: the chips a player collects at showdown (side-pot layering)
         "bigtwo_first_leader",  # Big Two: the holder of the 3♦, who leads the first hand
-        "rank_value",  # a card's rank strength under the game's `ranking:` (higher = stronger)
-        "card_value",  # a card's deck-declared card-point value (point-trick counters)
-        "top_of",  # the top card of an ordered zone/collection (the sequence end)
-        "bottom_of",  # the bottom card of an ordered zone/collection (the sequence front)
         "pinochle_meld_value",  # Pinochle: a player's hand's meld points under the declared trump
         "tarot_led_suit",  # French Tarot: the effective led suit (first non-Excuse card) in play
         "tarot_trump_height",  # French Tarot: an atout's rank strength (0 for a non-atout)
@@ -180,14 +201,25 @@ STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
     }
 )
 
-# The classification of every STDLIB_CALL_FUNCS member by the game feature its
+# The whole call namespace: what resolve accepts as a known `f(...)` name, and
+# the surface CALL_SIGS must cover. DERIVED from the two homes, so a name can
+# never be in the namespace without a home having claimed it.
+CALL_FUNCS: frozenset[str] = BUILTIN_CALL_FUNCS | PRIMITIVE_CALL_FUNCS
+
+
+# The classification of every CALL_FUNCS member by the game feature its
 # semantics READ. A call that reads a card's suit or rank, the ranking order,
 # card-point values, or follow/trump/lead machinery cannot mean anything in a
 # piece game (no suit/rank/points), so it is a resolve-time FLAVOR wall
 # (DECK_ONLY_CALL_FUNCS); a call that reads the `board:` entry cannot mean
 # anything in a boardless game, so it is a resolve-time BOARD wall
 # (BOARD_ONLY_CALL_FUNCS -- the deck-only classification's board twin, keyed on
-# `game.board is None` rather than the flavor); GENERIC_CALL_FUNCS -- functions
+# `game.board is None` rather than the flavor); ANY_FLAVOR_CALL_FUNCS -- functions
+# This partition is ORTHOGONAL to the Builtin/Primitive split above and does not
+# refine it: it asks which game FLAVORS a call can mean anything in, not whose
+# meaning it carries. Most of ANY_FLAVOR_CALL_FUNCS is game-named but
+# content-blind (`canasta_discard_ok` never reads its card), so it is a
+# Primitive that is nonetheless legal in a piece game.
 # that touch only players/teams/seats/zone counts or ordered-collection POSITION
 # (top_of/bottom_of), never a card's content or a board -- stay legal
 # everywhere. The three sets partition the registry, pinned by
@@ -200,7 +232,7 @@ STDLIB_CALL_FUNCS: frozenset[str] = frozenset(
 # card argument is unread); privileging a SPECIFIC rank/suit -- by `.rank`/
 # `.suit`, `rs.rank_index`, `rs.card_values`, a point table, or an internal
 # card literal (`bigtwo_first_leader` builds the 3 of diamonds) -- is deck-only.
-GENERIC_CALL_FUNCS: frozenset[str] = frozenset(
+ANY_FLAVOR_CALL_FUNCS: frozenset[str] = frozenset(
     {
         "bottom_of",
         "canasta_discard_ok",
@@ -226,7 +258,7 @@ GENERIC_CALL_FUNCS: frozenset[str] = frozenset(
     }
 )
 
-# The complement, listed explicitly (not `STDLIB_CALL_FUNCS - GENERIC...`) so
+# The complement, listed explicitly (not `CALL_FUNCS - GENERIC...`) so
 # the partition test can FAIL: a newly registered call absent from both sets is
 # unclassified, and the test names it rather than silently defaulting it here.
 DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(

@@ -142,7 +142,7 @@ game P {{
   max_length: 30
   cards: standard52
   zones {{ deck : Deck  hand[player] : Hand<player>  pile : Discard }}
-  state {{ score[player] : Integer = 0  turn : Player = 0  pass_dir : Direction = left }}
+  state {{ score[player] : Integer = 0  turn : Player = 0  pass_dir : SeatDirection = left }}
   phase p {{
     deal 3 cards from deck to each hand
 {body}

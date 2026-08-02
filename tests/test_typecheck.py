@@ -23,7 +23,7 @@ def test_type_from_name_scalars_and_enums() -> None:
     assert type_from_name("Boolean", optional=False) == TBoolean()
     assert type_from_name("Player", optional=False) == TPlayer()
     assert type_from_name("Suit", optional=False) == TEnum("Suit")
-    assert type_from_name("Direction", optional=False) == TEnum("Direction")
+    assert type_from_name("SeatDirection", optional=False) == TEnum("SeatDirection")
 
 
 def test_type_from_name_optional_wraps() -> None:
@@ -40,4 +40,4 @@ def test_value_enum_map_classifies_suits_ranks_directions() -> None:
     m = value_enum_map(game)
     assert m["hearts"] == TEnum("Suit")  # a standard52 suit
     assert m["A"] == TEnum("Rank")  # a rank from `ranking:`
-    assert m["left"] == TEnum("Direction")  # a stdlib direction
+    assert m["left"] == TEnum("SeatDirection")  # a stdlib seat direction

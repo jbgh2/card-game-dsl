@@ -18,15 +18,15 @@ property:   the two evicted names are complete non-members of every
 domain:     evicted name {coup_note_reveal, tichu_hand_summary} x
             consulting site. The site axis was frozen by a fresh-context
             framing sweep of the whole cardlang/ package (the audit's
-            Step 1): the seven name registries in stdlib/functions.py,
+            Step 1): the seven name registries in builtins/functions.py,
             CALL_SIGS, the runtime dispatch arms, the implementing module
             namespaces, resolve's unknown-call and shadow walls, the
             PRIMITIVE_READS inventory, plus the lockstep docs surface
             (docs/games/*.{cardlang,md}, docs/library.md).
-registry:   cardlang/stdlib/functions.py (all seven name-sets, imported
+registry:   cardlang/builtins/functions.py (all seven name-sets, imported
             below — a new namespace joins OTHER_NAMESPACES or the import
-            fails); cardlang/stdlib/signatures.py CALL_SIGS;
-            cardlang/runtime/stdlib.py source (the dispatch's literal
+            fails); cardlang/builtins/signatures.py CALL_SIGS;
+            cardlang/runtime/primitives.py source (the dispatch's literal
             `case` arms); the docs globs.
 covered:    the parametrized cells below. Cross-table sync (functions <->
             signatures <-> dispatch, set equality both ways) is the
@@ -56,7 +56,7 @@ residual:   `coup_game_summary` — a third dead-`let` trace emitter by call
 
 red under (born-green cells):
 - test_never_in_other_namespaces: adding "coup_note_reveal" to
-  STDLIB_TRICK_OUTCOMES reddens its cell (demonstrated and reverted).
+  PRIMITIVE_TRICK_OUTCOMES reddens its cell (demonstrated and reverted).
 - test_shadow_wall_still_guards_registered_names is itself the freedom
   cells' red-for-the-right-reason guard: the grid commit's probe placed
   the function inside the game block and its red was a syntax error
@@ -75,18 +75,18 @@ from pathlib import Path
 
 import pytest
 
+from cardlang.builtins.functions import (
+    CALL_FUNCS,
+    PRIMITIVE_AUCTION_OUTCOMES,
+    PRIMITIVE_CLIMB_FOLLOWS,
+    PRIMITIVE_CLIMB_LEADS,
+    PRIMITIVE_EARLY_PREDICATES,
+    PRIMITIVE_TRICK_OUTCOMES,
+    PRIMITIVE_VALUE_NAMES,
+)
+from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
-from cardlang.stdlib.functions import (
-    STDLIB_AUCTION_OUTCOMES,
-    STDLIB_CALL_FUNCS,
-    STDLIB_CLIMB_FOLLOWS,
-    STDLIB_CLIMB_LEADS,
-    STDLIB_EARLY_PREDICATES,
-    STDLIB_TRICK_OUTCOMES,
-    STDLIB_VALUE_NAMES,
-)
-from cardlang.stdlib.signatures import CALL_SIGS
 
 REPO = Path(__file__).parent.parent
 GAMES = REPO / "docs" / "games"
@@ -102,18 +102,18 @@ _NAMES = [name for name, _ in EVICTED]
 # The six namespaces the evicted names never belonged to: the domain's
 # boundary, pinned so "which namespace held them" stays a checked fact.
 OTHER_NAMESPACES: dict[str, frozenset[str]] = {
-    "STDLIB_TRICK_OUTCOMES": STDLIB_TRICK_OUTCOMES,
-    "STDLIB_AUCTION_OUTCOMES": STDLIB_AUCTION_OUTCOMES,
-    "STDLIB_VALUE_NAMES": STDLIB_VALUE_NAMES,
-    "STDLIB_EARLY_PREDICATES": STDLIB_EARLY_PREDICATES,
-    "STDLIB_CLIMB_LEADS": STDLIB_CLIMB_LEADS,
-    "STDLIB_CLIMB_FOLLOWS": STDLIB_CLIMB_FOLLOWS,
+    "PRIMITIVE_TRICK_OUTCOMES": PRIMITIVE_TRICK_OUTCOMES,
+    "PRIMITIVE_AUCTION_OUTCOMES": PRIMITIVE_AUCTION_OUTCOMES,
+    "PRIMITIVE_VALUE_NAMES": PRIMITIVE_VALUE_NAMES,
+    "PRIMITIVE_EARLY_PREDICATES": PRIMITIVE_EARLY_PREDICATES,
+    "PRIMITIVE_CLIMB_LEADS": PRIMITIVE_CLIMB_LEADS,
+    "PRIMITIVE_CLIMB_FOLLOWS": PRIMITIVE_CLIMB_FOLLOWS,
 }
 
 
 @pytest.mark.parametrize("name", _NAMES)
 def test_not_in_call_registry(name: str) -> None:
-    assert name not in STDLIB_CALL_FUNCS
+    assert name not in CALL_FUNCS
 
 
 @pytest.mark.parametrize("name", _NAMES)
@@ -123,8 +123,11 @@ def test_not_in_signature_table(name: str) -> None:
 
 @pytest.mark.parametrize("name", _NAMES)
 def test_no_dispatch_arm(name: str) -> None:
-    dispatch_src = (REPO / "cardlang" / "runtime" / "stdlib.py").read_text()
-    assert f'case "{name}"' not in dispatch_src
+    # Both dispatch homes (issue #201): an evicted name reappearing in the
+    # half this pin stopped reading would be evicted only on paper.
+    for home in ("builtins.py", "primitives.py"):
+        src = (REPO / "cardlang" / "runtime" / home).read_text()
+        assert f'case "{name}"' not in src, f"{name} has a dispatch arm in {home}"
 
 
 @pytest.mark.parametrize(("name", "module"), EVICTED)

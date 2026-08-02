@@ -465,10 +465,10 @@ round offering [<move_type>, …] from <seat> over <ring>
 - **Outcome (optional).** A named function over the threaded **bid history** plus
   the terminal state — the same status as a trick's `outcome` callback (a
   runtime-primitive, no decisions of its own) — that produces the phase's typed
-  variant. Bridge's `bridge_auction_outcome` finds the declarer (the first player
+  outcome. Bridge's `bridge_auction_outcome` finds the declarer (the first player
   of the high side to have named the final strain) and produces
   `contract_finalized(declarer, level, strain, doubling) | all_pass`. The `outcome`
-  clause is **omitted** when the ring produces no variant: a betting round mutates
+  clause is **omitted** when the ring produces no outcome: a betting round mutates
   shared chip/fold state directly through its move effects, so when the ring closes
   it simply returns and the surrounding body deals the next street or settles — no
   typed outcome, no `produces:` arm.
@@ -1409,7 +1409,7 @@ absence literal, used by every optional (`leader : Player? = none`, `contract :
 Contract? = none`, `state.led_suit is none`) — it is not a member of any enum.
 Where a game needs a value that reads like "nothing happens" but is a real
 domain choice — Hearts' no-pass hand — it gets its *own* enum value
-(`Direction = {left, right, across, hold}`), never `none`. This keeps `none`
+(`SeatDirection = {left, right, across, hold}`), never `none`. This keeps `none`
 unambiguously "no value": a `Player` that is `none` is unset, not the string
 `"none"`.
 
@@ -2805,9 +2805,8 @@ clause on the enclosing loop fires immediately upon the
 triggered-component delta being applied. See "Loop termination
 semantics" above.
 
-**Corpus usage.** The corpus presently has three triggered
-components across two games — Bridge (GameBonus, RubberBonus) and
-Spades (BagOverflow). All fit the shape above.
+**Corpus usage.** The corpus's triggered components are Bridge's
+GameBonus and RubberBonus and Spades' BagOverflow. All fit the shape above.
 
 ## `choose` as expression
 

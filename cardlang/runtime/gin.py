@@ -177,7 +177,7 @@ class _GinMeldCodec:
 GIN_MELD_CODEC = _GinMeldCodec()
 
 
-# --- ctx-adapters (the DSL-visible signatures live in stdlib/signatures.py) ---
+# --- ctx-adapters (the DSL-visible signatures live in builtins/signatures.py) ---
 
 
 def _hand(gr: reads.GameReads, player: Player) -> list[Card]:

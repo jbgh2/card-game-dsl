@@ -8,7 +8,7 @@ import random
 from pathlib import Path
 
 from cardlang.runtime.bigtwo import _combos, bigtwo_universe
-from cardlang.runtime.stdlib import climb_universe_function
+from cardlang.runtime.primitives import climb_universe_function
 from cardlang.runtime.values import RANKS, SUITS, Card
 
 GOLDEN = Path(__file__).resolve().parent / "golden" / "bigtwo_universe_count.json"

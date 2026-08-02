@@ -12,8 +12,8 @@ domain:    the operator registry — `infer`'s BinOp arm, `cardlang/
            offset_by`) — classified into 6 operand-shape families
            (`OP_CLASSES`) — crossed with the operand-type registry
            (`cardlang/types.py`'s closed `Type` union: TInteger, TBoolean,
-           TString, TPlayer, TTeam, TCard, TEnum{Suit,Rank,Direction},
-           TOptional, TCollection, TNull, TAny, TStruct, TVariant).
+           TString, TPlayer, TTeam, TCard, TEnum{Suit,Rank,SeatDirection},
+           TOptional, TCollection, TNull, TAny, TStruct, TOutcome).
 registry:  `OP_CLASSES` (operator -> class) pinned against `infer`'s BinOp
            arm by `test_op_classes_is_exactly_infers_binop_registry` below
            (scraped from `infer`'s own source, not hand-copied — a new
@@ -46,8 +46,8 @@ covered:   (class, operand-type) cells with an executed probe in this
                           the valid-literal accept and the invalid-literal
                           reject — the retained per-element path,
                           `card.rank in [A, "10"]`)
-             offset_by   x TPlayer/Direction (accept), non-Player left
-                          (reject), non-Direction right (reject), TAny on
+             offset_by   x TPlayer/SeatDirection (accept), non-Player left
+                          (reject), non-SeatDirection right (reject), TAny on
                           either side (accept, gradual)
 sampled:   every class's "everything else concrete rejects" branch is one
            `isinstance` check against a fixed accept-set (`{TAny, TInteger}`
@@ -60,8 +60,8 @@ sampled:   every class's "everything else concrete rejects" branch is one
            class via a `Player?`/`Suit?`-shaped operand (`offset_by`'s
            corpus probe already routes through a nullable-adjacent binder);
            the unwrap itself is `types.py`'s own domain (not re-litigated
-           here). `TVariant` is excluded from the operand-type domain
-           entirely: this checker never infers a concrete `TVariant` for an
+           here). `TOutcome` is excluded from the operand-type domain
+           entirely: this checker never infers a concrete `TOutcome` for an
            expression reachable from a BinOp/aggregation/IsCheck position
            (the `outcome` pronoun — the only place a variant value flows —
            stays `TAny`; `_check_produce_stmt`/`_check_define_outcomes` type
@@ -164,7 +164,7 @@ def test_an_unclassified_operator_fails_loud_not_silent() -> None:
 def test_equality_cross_enum_still_rejected_through_the_dispatcher() -> None:
     _rejects(
         _game("let probe = hearts is left"),
-        "comparing Suit with Direction can never be equal",
+        "comparing Suit with SeatDirection can never be equal",
     )
 
 
@@ -389,11 +389,11 @@ def test_offset_by_accepts_player_and_direction() -> None:
 
 def test_offset_by_accepts_a_declared_direction_state_var() -> None:
     # hearts.cardlang's real shape: `hand[player offset_by pass_direction]`,
-    # a *declared* `Direction` state var on the right, not a bare literal.
+    # a *declared* `SeatDirection` state var on the right, not a bare literal.
     _accepts(
         _game(
             "for each player p: let probe = (p offset_by pass_direction is p)",
-            extra_state="pass_direction : Direction = hold",
+            extra_state="pass_direction : SeatDirection = hold",
         )
     )
 
@@ -408,7 +408,7 @@ def test_offset_by_rejects_a_non_player_left_operand() -> None:
 def test_offset_by_rejects_a_non_direction_right_operand() -> None:
     _rejects(
         _game("for each player p: let probe = (p offset_by hearts is p)"),
-        "'offset_by' expects a Direction",
+        "'offset_by' expects a SeatDirection",
     )
 
 
@@ -449,7 +449,7 @@ game G {{
     who   : Player  = 0
     s     : String  = ""
     rk    : Rank    = A
-    d     : Direction = left
+    d     : SeatDirection = left
   }}
   phase p {{
     deal 2 cards from deck to each hand
@@ -474,7 +474,7 @@ _OPERAND_FOR = {
     "Rank": "rk",
     "Team": "team_of(who)",
     "Card": "(2 of clubs)",  # a card literal — NOT a `let`, which would type TAny
-    "Direction": "left",     # the stdlib constant enum (left/right/across/hold)
+    "SeatDirection": "left",  # the stdlib seat-ring enum (left/right/across/hold)
 }
 
 assert set(_OPERAND_FOR) == KNOWN_TYPE_NAMES, (

@@ -45,7 +45,7 @@ from cardlang.runtime.values import (
     build_deck,
     component_set,
 )
-from cardlang.stdlib.values import deck_size
+from cardlang.stdlib.enums import deck_size
 
 
 def test_decks_is_the_card_flavored_projection() -> None:

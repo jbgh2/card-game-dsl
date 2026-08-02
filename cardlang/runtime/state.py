@@ -32,7 +32,7 @@ class IllegalMove(Exception):
 
 
 class _ProduceSignal(Exception):
-    """Carries a `produce`d variant (tag + payloads) up to the define runner or
+    """Carries a `produce`d outcome (tag + payloads) up to the define runner or
     the enclosing outcome-declaring phase."""
 
     def __init__(self, tag: str, payloads: list[Any]) -> None:

@@ -485,7 +485,7 @@ def test_action_space_walls_two_distinct_joint_codecs(monkeypatch: Any) -> None:
     # registry is monkeypatched because today's only registered codecs (both
     # gin roots) deliberately share one singleton.
     from cardlang.openspiel.encoding import ActionSpace
-    from cardlang.runtime import stdlib as runtime_stdlib
+    from cardlang.runtime import primitives as runtime_stdlib
 
     class _StubCodec:
         size = 1

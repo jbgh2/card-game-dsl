@@ -212,7 +212,7 @@ _SHARED_STATE = """\
     score[player]      : Integer   = 0
     leader              : Player?  = none
     eliminated[player] : Boolean   = false
-    pass_direction     : Direction = hold
+    pass_direction     : SeatDirection = hold
 """
 
 

@@ -37,7 +37,7 @@ language's value-position surface, never from a wall's own coverage:
   * GRID 3 -- minting and collision: the `dir` source is minted with `cell` by
     the board; a declared `positions { dir : ... }` collides; a boardless `dir`
     parameter is unsupported; the movement `dir` domain is orthogonal to the
-    turn-order `direction:` clause (`DIRECTION_VALUES` / `GAME_DIRECTIONS`).
+    turn-order `direction:` clause (`SEAT_DIRECTION_VALUES` / `GAME_DIRECTIONS`).
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
@@ -75,7 +75,7 @@ covered:    GRID 1 -- each cell a run probe below --
               offset_by  `actor offset_by along`     -> reject (wants Direction)
                                                 (the dir vs turn-order Direction
                                                 disambiguation -- TDir is not
-                                                TEnum("Direction"))
+                                                TEnum("SeatDirection"))
             GRID 2 -- use-position of the name `dir` (`dir` is move-param-only) --
               move parameter `along : dir`           -> accept (the ONE slot)
               zone index `sq[dir] : Cell<dir>`       -> reject (resolve, free)
@@ -413,9 +413,9 @@ def test_dir_membership_is_rejected() -> None:
 def test_dir_as_an_offset_by_operand_is_rejected() -> None:
     # `actor offset_by along` -- offset_by rotates a Player by the TURN-ORDER
     # Direction enum (left/right/across/hold). A movement `dir` (TDir) is a
-    # DISTINCT type from TEnum("Direction"), so it rejects here -- the pin that
+    # DISTINCT type from TEnum("SeatDirection"), so it rejects here -- the pin that
     # the two direction namespaces do not interact.
-    assert "expects a Direction" in _reject(_pick_guard("(actor offset_by along) is actor"))
+    assert "expects a SeatDirection" in _reject(_pick_guard("(actor offset_by along) is actor"))
 
 
 # --- GRID 2: dir is move-parameter-only (non-move-param declared slots reject) -
@@ -544,7 +544,7 @@ def test_direction_domain_name_is_dir_not_direction() -> None:
     # The domain is `dir`, never `direction` (a reserved clause keyword, and the
     # turn-order enum's tag). This pins the orthogonality with the turn-order
     # `direction:` clause. Reddening mutation: rename DIRECTION_DOMAIN to
-    # "direction" -> collides with the reserved keyword / TEnum("Direction").
+    # "direction" -> collides with the reserved keyword / TEnum("SeatDirection").
     assert DIRECTION_DOMAIN == "dir"
 
 

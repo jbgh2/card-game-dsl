@@ -8,5 +8,5 @@ and nothing here is imported by `cardlang/` or `tests/`.
 The load-bearing property is stated and enforced in `prompts.py`: the prompt
 shown to a model is a pure function of (static rules text, the engine's
 information-state string, the legal action strings, static boilerplate). See
-`README.md` for the leak-freeness argument.
+`REVIEWER.md` for the leak-freeness argument.
 """

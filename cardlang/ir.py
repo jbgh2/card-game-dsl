@@ -37,6 +37,9 @@ from typing import TypeAlias, assert_never
 from cardlang.ast import nodes as n
 from cardlang.board_domains import directions_of
 
+# Not bumped for schema changes while nothing consumes serialized IR: the repo
+# holds no reader, and the package is unpublished. It starts moving when there
+# is something to protect (operator ruling, 2026-08-02).
 IR_VERSION = 1
 
 IRValue: TypeAlias = "dict[str, IRValue] | list[IRValue] | str | int | bool | None"
@@ -167,7 +170,7 @@ def _define(d: n.DefineDef) -> IRDict:
         "name": d.name,
         "cases": [
             {
-                "kind": "variant_case",
+                "kind": "outcome_case",
                 "tag": c.tag,
                 "payload_types": list(c.payload_types),
             }
@@ -215,7 +218,7 @@ def _phase(p: n.Phase) -> IRDict:
         "qualifier": _qualifier(p.qualifier) if p.qualifier else None,
         "outcome_cases": [
             {
-                "kind": "variant_case",
+                "kind": "outcome_case",
                 "tag": c.tag,
                 "payload_types": list(c.payload_types),
             }

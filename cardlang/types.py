@@ -10,9 +10,9 @@ Collections and zone contents are typed loosely (`TCollection`, often of
 `TCard`); `TAny` is the permissive top that propagates through every operation
 without error, used for the deferred parts of the typed object model (the full
 `ZoneContents` query API, `Resource` generics, card attributes/facing).
-`TStruct` types a declared `type`, and `TVariant` a `define`'s or an outcome
+`TStruct` types a declared `type`, and `TOutcome` a `define`'s or an outcome
 phase's cases; both are constructed (`typecheck.py`), but only `TStruct` is
-reachable as an expression's inferred type -- a variant is a registry entry
+reachable as an expression's inferred type -- a outcome is a registry entry
 consulted when checking `produce` / `produces:`, never returned by `infer`.
 
 Adding a member here is not local: every consumer that dispatches over `Type`
@@ -80,7 +80,7 @@ class TCell:
 class TDir:
     """A movement direction -- one member of the named-member `dir` domain a
     `board:` clause mints (decisions.md "Boards and cells", rung-2 movement).
-    Distinct from ``TCell`` and from ``TEnum("Direction")`` (the turn-order
+    Distinct from ``TCell`` and from ``TEnum("SeatDirection")`` (the seat
     ring direction) so a direction move parameter, binder or comparison rejects
     a cell (`along is a1`), an integer (`along is 3`), an ordering
     (`along < along2`), a subscript, and an `offset_by` operand -- riding only
@@ -173,7 +173,7 @@ class TStruct:
 
 
 @dataclass(frozen=True, slots=True)
-class TVariant:
+class TOutcome:
     """A tagged-union / phase-outcome type (Stage 2/3: `{ a(T) | b }`)."""
 
     name: str
@@ -196,7 +196,7 @@ Type: TypeAlias = (
     | TNull
     | TAny
     | TStruct
-    | TVariant
+    | TOutcome
 )
 
 

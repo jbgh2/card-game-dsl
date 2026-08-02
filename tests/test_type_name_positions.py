@@ -142,7 +142,7 @@ POSITIONS: dict[str, tuple[str, object]] = {
         rules=" active_rules: [Rl(hearts)]",
         extra=f"rule Rl(x : {d}) {{ demands: true }}")),
     "P6 func_param": ("func_param", lambda d: _prog(extra=f"function f(x : {d}) = 1")),
-    "P7 define_payload": ("variant_case", lambda d: _prog(
+    "P7 define_payload": ("outcome_case", lambda d: _prog(
         extra=f"define dd -> {{ won({d}) | lost }} {{ produce lost }}")),
     "P8 outcome_payload": ("phase_outcome", lambda d: _prog(
         outcome=f" -> outcome {{ won({d}) | lost }}")),
@@ -157,7 +157,7 @@ UNKNOWN_NAME = "Bogus"       # the negative control
 
 NAMES = [
     "Integer", "Boolean", "Player", "Card", "Team", "Suit", "Rank",
-    "Rank?", "Suit?", "Direction", POSITION_DOMAIN, USER_STRUCT, UNKNOWN_NAME,
+    "Rank?", "Suit?", "SeatDirection", POSITION_DOMAIN, USER_STRUCT, UNKNOWN_NAME,
 ]
 
 DECLARED = frozenset(KNOWN_TYPE_NAMES) | {USER_STRUCT}
@@ -254,6 +254,29 @@ def test_the_type_name_grid(cell: tuple[str, str]) -> None:
             f"{position} must not admit {name!r} — no registry backing it, so "
             f"admitting it maps the name to the permissive top"
         )
+
+
+@pytest.mark.parametrize("position", sorted(POSITIONS))
+def test_a_retired_type_name_is_loud_in_every_position(position: str) -> None:
+    """`Direction` was the stdlib seat-ring enum's declared name until issue
+    #201 renamed it `SeatDirection`, and Hearts declared one. A retired
+    spelling is the sharpest case of this module's property, because it is the
+    one an author has in muscle memory and in an in-flight game file: a
+    silently-`TAny` `pass_direction` would keep typechecking and exempt itself
+    from the `offset_by` operand wall. The grid above covers the CLASS (an
+    unrecognized name, via `UNKNOWN_NAME`); this covers the retired member of
+    it by name, in all nine positions.
+
+    The diagnostic names the offending spelling but does not suggest the
+    replacement: a retired-spelling hint table is its own closed domain
+    spanning every rename in the glossary epic, and belongs to that epic
+    (issue #204), not to a one-entry table minted here.
+    """
+    _production, build = POSITIONS[position]
+    assert _outcome(build("Direction")) != "admit", (  # type: ignore[operator]
+        f"{position} still admits the retired spelling 'Direction' — it now "
+        f"maps to the permissive top instead of naming the rename"
+    )
 
 
 def test_an_admitted_name_never_resolves_to_the_permissive_top() -> None:

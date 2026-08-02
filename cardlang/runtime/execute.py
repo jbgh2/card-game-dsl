@@ -78,7 +78,7 @@ def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
         case n.Round():
             # One interpreter over the form selected by field-presence, dispatched
             # on the returned Outcome union: a winning Player (trick/climb) binds
-            # `outcome`; a typed `(tag, payloads)` variant (auction) raises a
+            # `outcome`; a typed `(tag, payloads)` outcome (auction) raises a
             # produce signal, caught by the enclosing outcome-declaring phase;
             # `None` (betting) mutated the shared chip/fold state and just closes.
             outcome = mechanics.run_decision_round(
@@ -693,14 +693,14 @@ def _produces(stmt: n.Produces, ctx: Ctx) -> None:
         )
     arm = next((a for a in stmt.arms if a.tag == tag), None)
     if arm is None:
-        # typecheck requires the arms to be exhaustive over the variant
-        # registry and every `produce` to name a declared variant.
+        # typecheck requires the arms to be exhaustive over the outcome
+        # registry and every `produce` to name a declared outcome.
         raise AssertionError(
             f"'{stmt.define}' produced '{tag}', which no produces: arm matches"
         )
     # The arm's binders and the produced payloads must match in arity — `zip`
     # would otherwise silently drop extra payloads (or leave binders unbound).
-    # typecheck checks both arities against the variant registry.
+    # typecheck checks both arities against the outcome registry.
     if len(arm.binders) != len(payloads):
         raise AssertionError(
             f"'{stmt.define}' produced '{tag}' with {len(payloads)} payload(s), but "
@@ -713,7 +713,7 @@ def _produces(stmt: n.Produces, ctx: Ctx) -> None:
 
 
 def _run_define(name: str, ctx: Ctx) -> tuple[str, list[Any]]:
-    """Run a param-light define's body and capture the variant it produces."""
+    """Run a param-light define's body and capture the outcome it produces."""
     define = ctx.rs.define_index[name]
     try:
         run_body(define.body, ctx)
