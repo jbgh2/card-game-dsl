@@ -1,0 +1,238 @@
+"""The native-call dispatch has two homes, and the two homes partition it.
+
+property:   every name the checker registers as a native call dispatches from
+            exactly one runtime home -- `runtime/builtins.py` (Builtins:
+            generic native functions the language ships) or
+            `runtime/primitives.py` (Primitives: sanctioned game-local
+            Python) -- with nothing in both and nothing in neither, and every
+            name-keyed dispatcher lives in the home its kind belongs to
+domain:     STDLIB_CALL_FUNCS (the whole registry) x {builtins, primitives};
+            every name-keyed dispatcher in either home x its home; the
+            retired `runtime/stdlib.py` x {exists, imported}
+registry:   `cardlang/stdlib/functions.py :: STDLIB_CALL_FUNCS` for the name
+            axis; each home module's OWN `call` match AST for the home axis
+            (scraped from the source, never hand-listed); each home module's
+            module-level `match name:` functions for the dispatcher axis
+covered:    the grid -- `test_call_arm_home[<name>]`, one row per registry
+            member, crossed against the scraped home;
+            `test_homes_partition_the_call_registry` (union == registry,
+            intersection == empty, Builtins == the ruling's list);
+            `test_dispatcher_home[<dispatcher>]`, one row per scraped
+            dispatcher, plus `test_every_scraped_dispatcher_is_accounted_for`
+            so a NEW dispatcher cannot land unplaced;
+            `test_retired_module_is_gone`;
+            `test_nothing_imports_the_retired_module`
+sampled:    that each arm still computes the right answer is not this grid's
+            property -- the full suite and byte-identical goldens carry it.
+            This grid pins WHERE a name dispatches, not WHAT it returns.
+residual:   the expected-home column for Builtins is the hand-listed
+            `BUILTIN_CALL_ARMS` below, because that list IS the ruling
+            (issue #200: of the call registry only these are generic) and a
+            decision has no registry to derive from. Primitives is then the
+            complement, which is not a guess but the ruling's other half. A
+            NEWLY registered generic call lands expected-primitives and, once
+            implemented in `builtins.py`, fails its row by name -- the grid
+            demands the decision be recorded here rather than defaulting it.
+            The `climb_universe_function` / `climb_codec_function` /
+            `joint_codec_function` key sets are not registries (they exist
+            only in their own match) so they carry a home row but no
+            membership row; their coverage of STDLIB_CLIMB_LEADS is
+            tests/test_signatures.py's property, not this grid's.
+"""
+
+from __future__ import annotations
+
+import ast
+from pathlib import Path
+
+import pytest
+
+import cardlang
+from cardlang.stdlib.functions import STDLIB_CALL_FUNCS
+
+_PACKAGE = Path(cardlang.__file__).parent
+_BUILTINS = _PACKAGE / "runtime" / "builtins.py"
+_PRIMITIVES = _PACKAGE / "runtime" / "primitives.py"
+_RETIRED = _PACKAGE / "runtime" / "stdlib.py"
+
+# The ruling's Builtins half (issue #200): the generic native functions, the
+# ones whose meaning is the language's rather than one game's. Everything else
+# the registry holds is game-local and dispatches from Primitives.
+BUILTIN_CALL_ARMS: frozenset[str] = frozenset(
+    {
+        "lines",
+        "neighbor",
+        "has_step",
+        "is_diagonal",
+        "home",
+        "far_row",
+        "player_holding",
+        "team_of",
+        "suit_of",
+        "strain_index",
+        "error",
+        "rank_value",
+        "card_value",
+        "top_of",
+        "bottom_of",
+    }
+)
+
+# The name-keyed dispatchers and the home each belongs to. `call` is the only
+# one with a Builtins half: every other dispatcher keys a game-local callback
+# (a winner function, a climb query, an auction outcome, a codec).
+DISPATCHER_HOMES: dict[str, str] = {
+    "call": "both",
+    "value_function": "primitives",
+    "climb_row": "primitives",
+    "climb_lead_function": "primitives",
+    "climb_follow_function": "primitives",
+    "climb_universe_function": "primitives",
+    "joint_codec_function": "primitives",
+    "climb_codec_function": "primitives",
+    "auction_outcome_function": "primitives",
+}
+
+
+def _module_ast(path: Path) -> ast.Module | None:
+    """The module's AST, or None when the file does not exist yet. A missing
+    home is reported by the row's own assertion (an absent name), never by an
+    ImportError escaping the grid -- a harness crash is not design-red."""
+    if not path.exists():
+        return None
+    return ast.parse(path.read_text())
+
+
+def _name_dispatchers(path: Path) -> dict[str, frozenset[str]]:
+    """Every module-level function in `path` that dispatches on a `name`
+    parameter, mapped to its literal case keys. Derived from the source, so a
+    dispatcher moved between homes shows up here without anyone updating a
+    list."""
+    tree = _module_ast(path)
+    if tree is None:
+        return {}
+    found: dict[str, frozenset[str]] = {}
+    for node in tree.body:
+        if not isinstance(node, ast.FunctionDef):
+            continue
+        match_stmt = next(
+            (
+                s
+                for s in node.body
+                if isinstance(s, ast.Match)
+                and isinstance(s.subject, ast.Name)
+                and s.subject.id == "name"
+            ),
+            None,
+        )
+        if match_stmt is None:
+            continue
+        keys: set[str] = set()
+        for case in match_stmt.cases:
+            for pattern in (
+                case.pattern.patterns
+                if isinstance(case.pattern, ast.MatchOr)
+                else [case.pattern]
+            ):
+                if isinstance(pattern, ast.MatchValue) and isinstance(
+                    pattern.value, ast.Constant
+                ):
+                    keys.add(str(pattern.value.value))
+        found[node.name] = frozenset(keys)
+    return found
+
+
+def _call_arms(path: Path) -> frozenset[str]:
+    return _name_dispatchers(path).get("call", frozenset())
+
+
+def _expected_home(name: str) -> str:
+    return "builtins" if name in BUILTIN_CALL_ARMS else "primitives"
+
+
+def _actual_homes(name: str) -> list[str]:
+    homes = []
+    if name in _call_arms(_BUILTINS):
+        homes.append("builtins")
+    if name in _call_arms(_PRIMITIVES):
+        homes.append("primitives")
+    return homes
+
+
+@pytest.mark.parametrize("name", sorted(STDLIB_CALL_FUNCS))
+def test_call_arm_home(name: str) -> None:
+    """Each registered call dispatches from exactly the home its kind says."""
+    assert _actual_homes(name) == [_expected_home(name)], (
+        f"{name!r} should dispatch from {_expected_home(name)}.py, but its "
+        f"`call` arm was found in {_actual_homes(name) or 'neither home'}"
+    )
+
+
+def test_homes_partition_the_call_registry() -> None:
+    """The two homes cover the registry exactly. Stated over the SCRAPED arm
+    sets rather than by subtraction, so an arm in neither home (or in both)
+    fails here by name rather than being absorbed into a complement."""
+    builtins_arms, primitives_arms = _call_arms(_BUILTINS), _call_arms(_PRIMITIVES)
+    assert builtins_arms | primitives_arms == STDLIB_CALL_FUNCS, (
+        f"unhomed: {sorted(STDLIB_CALL_FUNCS - builtins_arms - primitives_arms)}; "
+        f"unregistered: {sorted((builtins_arms | primitives_arms) - STDLIB_CALL_FUNCS)}"
+    )
+    assert builtins_arms.isdisjoint(primitives_arms), (
+        f"dispatched from both homes: {sorted(builtins_arms & primitives_arms)}"
+    )
+    assert builtins_arms == BUILTIN_CALL_ARMS
+
+
+@pytest.mark.parametrize("dispatcher", sorted(DISPATCHER_HOMES))
+def test_dispatcher_home(dispatcher: str) -> None:
+    """Every name-keyed dispatcher lives in the home its kind belongs to. Only
+    `call` has a Builtins half; a game-local callback dispatcher appearing in
+    `builtins.py` would put game knowledge in the generic layer."""
+    in_builtins = dispatcher in _name_dispatchers(_BUILTINS)
+    in_primitives = dispatcher in _name_dispatchers(_PRIMITIVES)
+    expected = DISPATCHER_HOMES[dispatcher]
+    assert (in_builtins, in_primitives) == (expected in ("builtins", "both"), True), (
+        f"{dispatcher} should live in {expected}, found "
+        f"builtins={in_builtins} primitives={in_primitives}"
+    )
+
+
+def test_every_scraped_dispatcher_is_accounted_for() -> None:
+    """The dispatcher axis is derived, so a NEW dispatcher added to either home
+    fails here until this grid records which home it belongs to."""
+    scraped = set(_name_dispatchers(_BUILTINS)) | set(_name_dispatchers(_PRIMITIVES))
+    assert scraped == set(DISPATCHER_HOMES), (
+        f"unrecorded dispatchers: {sorted(scraped - set(DISPATCHER_HOMES))}; "
+        f"recorded but absent: {sorted(set(DISPATCHER_HOMES) - scraped)}"
+    )
+
+
+def test_retired_module_is_gone() -> None:
+    """`runtime/stdlib.py` was the game-primitive dispatch layer wearing the
+    stdlib's name; the stdlib is the layer written in the language, and its
+    package is `cardlang/stdlib/`."""
+    assert not _RETIRED.exists(), (
+        f"{_RETIRED} still exists -- the runtime's native dispatch lives in "
+        f"builtins.py and primitives.py"
+    )
+
+
+def test_nothing_imports_the_retired_module() -> None:
+    """Scraped over the whole package, so a leftover importer anywhere fails
+    here rather than at whatever playout first reaches it."""
+    retired = "cardlang.runtime.stdlib"
+    offenders = []
+    for path in sorted(_PACKAGE.rglob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.ImportFrom):
+                hit = node.module == retired or (
+                    node.module == "cardlang.runtime"
+                    and any(a.name == "stdlib" for a in node.names)
+                )
+            elif isinstance(node, ast.Import):
+                hit = any(a.name == retired for a in node.names)
+            else:
+                continue
+            if hit:
+                offenders.append(f"{path.relative_to(_PACKAGE)}:{node.lineno}")
+    assert offenders == [], f"still importing the retired module: {offenders}"

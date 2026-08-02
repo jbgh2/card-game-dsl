@@ -55,7 +55,7 @@ registry: the ITEM axis from the grammar's `?library_item`, scraped by
           the `optional` row came to exist;
           the COLLISION-SOURCE axis from the three namespaces a library name can
           land in — the game (`n.Game`'s same-named fields), another library, and
-          the stdlib registries (`library_rules()`, `STDLIB_CALL_FUNCS`,
+          the stdlib registries (`stdlib_rules()`, `STDLIB_CALL_FUNCS`,
           `LIBRARY_MOVE_TYPES`), read through `_stdlib_member`;
           the WRITE-SITE axis from the RUNTIME — `_state_write_node_kinds()`
           scrapes every `ctx.rs.set()` call in `cardlang/runtime/execute.py` and
@@ -309,7 +309,7 @@ from cardlang.resolve import (
 from cardlang.runtime.driver import play_game
 from cardlang.stdlib.functions import STDLIB_CALL_FUNCS, STDLIB_VALUE_NAMES
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
-from cardlang.stdlib.rules import library_rules
+from cardlang.stdlib.rules import stdlib_rules
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 from cardlang.typecheck import KNOWN_TYPE_NAMES
 from tests.test_game_clause_walls import library_item_alternatives
@@ -953,7 +953,7 @@ def _stdlib_member(field: str) -> str | None:
     exactly how this file's first stdlib-move-type cell shipped vacuous (it
     probed `play_card`, which `stdlib/moves.py` documents as game-defined)."""
     registry: dict[str, frozenset[str] | set[str]] = {
-        "rules": frozenset(library_rules()),
+        "rules": frozenset(stdlib_rules()),
         "functions": frozenset(STDLIB_CALL_FUNCS),
         "move_types": frozenset(LIBRARY_MOVE_TYPES),
     }
@@ -1004,7 +1004,7 @@ def test_library_definition_against_the_stdlib_namespace(
     error: six corpus games depend on that (see `_stdlib_move_type_games`).
 
     red under: extend `_check_library_collisions`'s stdlib leg to move_types, or
-    delete its `library_rules()` leg."""
+    delete its `stdlib_rules()` leg."""
     name = _stdlib_member(field)
     if name is None:
         pytest.skip(f"no stdlib registry shares a namespace with {noun}s")
@@ -1884,7 +1884,7 @@ _SLOT_LEAK: dict[str, tuple[str, str, str | None]] = {
 
 _SLOT_CONTRACT = (
     "requires {{ declared_thing : Integer  declared_flag : Boolean "
-    "declared_dir : Direction  {wanted} : {wanted_type}? }} "
+    "declared_dir : SeatDirection  {wanted} : {wanted_type}? }} "
 )
 
 # A game that meets `leaky`'s contract AND happens to hold every namespace the
@@ -1903,7 +1903,7 @@ game SlotHost {
   state {
     declared_thing   : Integer     = 0
     declared_flag    : Boolean     = false
-    declared_dir     : Direction   = hold
+    declared_dir     : SeatDirection   = hold
     undeclared_thing : Integer     = 0
     keyed[player]    : Integer     = 0
     wanted_game      : GameType?   = none
@@ -2249,12 +2249,12 @@ _CLAIM_LIBRARY = """
 library {name} {{
   requires {{
     req_int  : Integer
-    req_dir  : Direction
+    req_dir  : SeatDirection
     req_flag : Boolean
   }}
   state {{
     prov_int  : Integer   = 0
-    prov_dir  : Direction = left
+    prov_dir  : SeatDirection = left
     prov_flag : Boolean   = false
     prov      : Integer   = 0
     provp[player] : Integer = 0
@@ -2272,7 +2272,7 @@ game Writer {
   state {
     score    : Integer   = 0
     req_int  : Integer   = 0
-    req_dir  : Direction = left
+    req_dir  : SeatDirection = left
     req_flag : Boolean   = false
   }
   phase play {

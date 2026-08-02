@@ -13,14 +13,14 @@ from functools import lru_cache
 from importlib import resources
 
 from cardlang.ast import nodes as n
-from cardlang.parse import parse_library_rules
+from cardlang.parse import parse_stdlib_rules
 
 _SOURCE_NAME = "cardlang/stdlib/rules.cardlang"
 
 
 @lru_cache(maxsize=1)
-def library_rules() -> dict[str, n.RuleDef]:
+def stdlib_rules() -> dict[str, n.RuleDef]:
     """Rule name -> parsed definition (templates keep their ``params``)."""
     text = resources.files("cardlang.stdlib").joinpath("rules.cardlang").read_text()
-    rules = parse_library_rules(text, _SOURCE_NAME)
+    rules = parse_stdlib_rules(text, _SOURCE_NAME)
     return {r.name: r for r in rules}

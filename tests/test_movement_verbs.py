@@ -9,7 +9,7 @@ and `home`/`far_row` the setup and reach-goal cell regions. Each wraps a
 `BoardEntry` method (cardlang/stdlib/boards.py); each is classified BOARD_ONLY
 (cardlang/stdlib/functions.py::BOARD_ONLY_CALL_FUNCS) so a boardless game
 rejects the call at resolve, exactly as `lines` does. The surfaces are
-`cardlang/stdlib/signatures.py` (CALL_SIGS), `cardlang/runtime/stdlib.py`
+`cardlang/stdlib/signatures.py` (CALL_SIGS), `cardlang/runtime/primitives.py`
 (the `call` dispatch + the `_board_of`/`_neighbor`/... impls), and
 `cardlang/stdlib/functions.py` (STDLIB_CALL_FUNCS + BOARD_ONLY_CALL_FUNCS).
 
@@ -33,7 +33,7 @@ domain:     {the five verbs} x {board game: typecheck + evaluate; boardless:
             existing collection/cell consumer (the framing-check b-table).
 registry:   the verb set -- cardlang.stdlib.functions.STDLIB_CALL_FUNCS +
             BOARD_ONLY_CALL_FUNCS; the signatures -- cardlang.stdlib.
-            signatures.CALL_SIGS; the runtime -- cardlang.runtime.stdlib.call
+            signatures.CALL_SIGS; the runtime -- cardlang.runtime.evaluate.native_call
             (the five arms + _board_of/_neighbor/... helpers) over cardlang.
             stdlib.boards.BoardEntry (geometry exhaustively pinned by Task 2's
             tests/test_boards_registry.py); the resolve wall -- cardlang.
@@ -154,8 +154,8 @@ import pytest
 from cardlang.board_domains import position_domains_of
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
+from cardlang.runtime.evaluate import native_call as call
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
-from cardlang.runtime.stdlib import call
 from cardlang.runtime.values import Seating, axis_attributes
 from cardlang.stdlib.boards import board_entry
 from cardlang.stdlib.functions import (

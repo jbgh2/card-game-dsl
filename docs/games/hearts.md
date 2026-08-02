@@ -26,7 +26,7 @@ game Hearts {
     state {
       // Loop state: persists across hands; before_each rotates it each hand,
       // so starting at `hold` makes hand 1 pass left.
-      pass_direction : Direction = hold
+      pass_direction : SeatDirection = hold
       // The trick leader, threaded from first_trick into play by lexical
       // scope: first_trick seeds it (2 of clubs holder) and updates it to the
       // winner; play continues from there.

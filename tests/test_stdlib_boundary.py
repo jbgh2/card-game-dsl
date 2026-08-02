@@ -6,9 +6,10 @@ comprehension, a ``[...]`` literal, the joint-selection ``cards`` binder).
 Every raw-Python consumer of such a value must handle both; the
 evaluator's own sites (query/comprehension sources, ``in``, rule
 fallbacks, ``turns`` participants) apply the canonical Zone-to-elements
-coercion (``cardlang.runtime.state.elements``).  ``stdlib.call`` is the
-one boundary where user-expression values leave the evaluator for bare
-Python adapters, and it coerces SIGNATURE-DRIVEN at its entry: an
+coercion (``cardlang.runtime.state.elements``).  ``evaluate.native_call``
+is the one boundary where user-expression values leave the evaluator for
+bare Python adapters, and it coerces SIGNATURE-DRIVEN at its entry (via
+``reads.coerce_args``, once, ahead of both dispatch homes): an
 argument is stripped to its elements iff its declared param type is
 ``TCollection``.  A ``TAny`` param passes raw — polymorphic adapters
 (``suit_of``: "a card or a single-card zone") dispatch on the shape
@@ -161,7 +162,7 @@ def test_every_collection_param_function_has_a_zone_probe() -> None:
 def test_no_stdlib_param_demands_a_zone() -> None:
     """The boundary coerces Zone -> elements for every argument, so no
     CALL_SIGS param may claim it wants the Zone handle itself; a zone=True
-    param must revisit the coercion in cardlang/runtime/stdlib.py `call`."""
+    param must revisit `coerce_args` in cardlang/runtime/reads.py."""
     offenders = [
         name
         for name, sig in CALL_SIGS.items()

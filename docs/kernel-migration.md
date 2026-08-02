@@ -376,7 +376,7 @@ The design the construct settled:
   assignment are 208.8M of it, and the engine's Mahjong-as-rank-1 quirk adds
   a Phoenix+Mahjong pair and Mahjong-filled phoenix fullhouses), so
   enumeration is infeasible: its ids come from an arithmetic codec
-  (`runtime/tichu.py::TichuComboCodec` via `stdlib.climb_codec_function`) —
+  (`runtime/tichu.py::TichuComboCodec` via `primitives.climb_codec_function`) —
   pure card-set ↔ index functions over a fixed per-kind block layout, so ids
   stay stable across determinized worlds with no table. Pinned by exact-size,
   spot-id, engine-emission and per-block roundtrip tests

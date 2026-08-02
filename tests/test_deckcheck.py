@@ -42,7 +42,7 @@ import pytest
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl, check_source
 from cardlang.runtime.values import DECKS, build_deck
-from cardlang.stdlib.values import deck_size
+from cardlang.stdlib.enums import deck_size
 
 GAMES = Path(__file__).parent.parent / "docs" / "games"
 STUD = GAMES / "seven-card-stud.cardlang"

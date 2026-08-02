@@ -1409,7 +1409,7 @@ absence literal, used by every optional (`leader : Player? = none`, `contract :
 Contract? = none`, `state.led_suit is none`) — it is not a member of any enum.
 Where a game needs a value that reads like "nothing happens" but is a real
 domain choice — Hearts' no-pass hand — it gets its *own* enum value
-(`Direction = {left, right, across, hold}`), never `none`. This keeps `none`
+(`SeatDirection = {left, right, across, hold}`), never `none`. This keeps `none`
 unambiguously "no value": a `Player` that is `none` is unset, not the string
 `"none"`.
 

@@ -163,7 +163,7 @@ class ActionSpace:
         self._int_ceiling = int_ceiling
         self._combos = combos
         # An arithmetic codec serves the combo block when the engine's universe
-        # is too large to enumerate (`stdlib.climb_codec_function`): ids are
+        # is too large to enumerate (`primitives.climb_codec_function`): ids are
         # computed from the card-set, never tabled. Exactly one of
         # (combos, combo_codec) is populated.
         self._combo_codec = combo_codec
@@ -183,7 +183,7 @@ class ActionSpace:
 
     @staticmethod
     def for_game(game: n.Game) -> ActionSpace:
-        from cardlang.runtime import stdlib
+        from cardlang.runtime import primitives
 
         names: list[str] = []
         vocab: list[tuple[str, Any]] = []
@@ -273,9 +273,9 @@ class ActionSpace:
             assert len(climb_engines) == 1, "one climb engine per game for now"
             if "pass" not in names:
                 names.append("pass")
-            combo_codec = stdlib.climb_codec_function(climb_engines[0])
+            combo_codec = primitives.climb_codec_function(climb_engines[0])
             if combo_codec is None:
-                universe = stdlib.climb_universe_function(climb_engines[0])()
+                universe = primitives.climb_universe_function(climb_engines[0])()
                 combos = sorted(
                     universe,
                     key=lambda p: (p.size, p.kind, sorted(card_to_action(c) for c in p.cards)),
@@ -311,13 +311,13 @@ class ActionSpace:
                     "registered call (the climb-engine pattern) — an inline "
                     "predicate has no registered codec; recorded in roadmap.md"
                 )
-            codecs = {f: stdlib.joint_codec_function(f) for f in fns}
+            codecs = {f: primitives.joint_codec_function(f) for f in fns}
             missing = sorted(f for f, c in codecs.items() if c is None)
             if missing:
                 raise NotImplementedError(
                     f"no subset codec registered for joint predicate root(s) "
                     f"{missing} — register one in "
-                    f"cardlang.runtime.stdlib.joint_codec_function"
+                    f"cardlang.runtime.primitives.joint_codec_function"
                 )
             distinct = {id(c) for c in codecs.values()}
             if len(distinct) > 1:

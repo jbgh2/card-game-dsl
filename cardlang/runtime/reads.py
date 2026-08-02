@@ -55,13 +55,55 @@ from enum import Enum
 from types import MappingProxyType
 from typing import Any, cast
 
-from cardlang.runtime.state import RuntimeState, Zone
+from cardlang.runtime.state import RuntimeState, Zone, elements
 from cardlang.runtime.values import Card
+from cardlang.types import TAny, TCollection
 
 # Atomic leaves: immutable, never descended. `str`/`bytes` are sequences (of
 # chars/ints) but must NOT be shredded; `bytearray` is deliberately ABSENT —
 # it is a MUTABLE sequence and gets converted, not passed through.
 _ATOMIC: tuple[type, ...] = (str, bytes, bool, int, float, type(None), Enum)
+
+
+def coerce_args(sig: Any, args: list[Any]) -> list[Any]:
+    """Freeze the argument list of one native call, before it crosses into
+    Builtin or Primitive code.
+
+    A collection-typed expression evaluates to either a Zone or a plain list
+    (the zone facet is not part of assignability, so `gin_valid_meld(hand[p])`
+    typechecks), and the adapters are bare Python that iterates — a
+    TCollection param receives elements, never a Zone handle. `elements()`
+    yields the Zone's LIVE `.cards` list, so the coercion additionally
+    `deep_freeze`s it: the positional args are the second channel a primitive
+    can touch (the bundles are the first), and `cards.clear()` on a live zone
+    list would corrupt engine state exactly as a bundle write would.
+    A SCALAR `Card` argument (a `TCard` param — `canasta_stage_ok(p, card)`,
+    `president_is_top_rank(p, c)`) is frozen too: evaluation preserves the
+    engine's `Card` by identity, and a frozen+slots `Card` is still mutable
+    via `object.__setattr__`, so an unfrozen scalar card is the same leak as
+    an unfrozen collection. The freeze is SIGNATURE-DRIVEN, not blanket: a
+    TAny param passes RAW, because its adapter dispatches on the shape itself
+    (`suit_of`: a card or a single-card zone — blanket coercion broke the
+    schnapsen trump indicator, and `deep_freeze` would refuse a Zone). Every
+    other param is `deep_freeze`d: a copy for a `Card`, a no-op for the
+    immutable scalars (`Player`, `Integer`, `Rank`, ...). The registry side is
+    pinned by tests/test_stdlib_boundary.py (every TCollection param probed
+    with a Zone, the TAny set pinned, no param zone=True).
+
+    It lives here, with `deep_freeze`, rather than with either dispatch half:
+    the two halves must not depend on each other, and one shared coercion is
+    also the only affordable one — `deep_freeze` dominates playout cost, so
+    coercing per half would double it for every Primitive call.
+    """
+    coerced: list[Any] = []
+    for p, a in zip(sig.params, args):
+        if isinstance(p, TCollection):
+            coerced.append(deep_freeze(elements(a)))
+        elif isinstance(p, TAny):
+            coerced.append(a)  # raw: the adapter dispatches on the shape
+        else:
+            coerced.append(deep_freeze(a))  # copies a Card, no-ops scalars
+    return coerced + args[len(sig.params) :]
 
 
 def deep_freeze(value: Any) -> Any:
@@ -291,25 +333,25 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         state_vars=_fs("out_first", "out_second"),
         zone_families=_fs("hand"),
     ),
-    # stdlib.py's per-game functions: the auction outcomes and cribbage's
+    # primitives.py's per-game functions: the auction outcomes and cribbage's
     # pegging-scorer call sites. One row per game served.
     PrimitiveReads(
-        module="cardlang/runtime/stdlib.py",
+        module="cardlang/runtime/primitives.py",
         game_file="bridge.cardlang",
         state_vars=_fs("made_bid", "high_bidder", "cur_strain", "cur_level", "doubled"),
     ),
     PrimitiveReads(
-        module="cardlang/runtime/stdlib.py",
+        module="cardlang/runtime/primitives.py",
         game_file="cribbage.cardlang",
         single_zones=_fs("play_pile"),
     ),
     PrimitiveReads(
-        module="cardlang/runtime/stdlib.py",
+        module="cardlang/runtime/primitives.py",
         game_file="pinochle.cardlang",
         state_vars=_fs("lead_bidder", "opener", "working_bid"),
     ),
     PrimitiveReads(
-        module="cardlang/runtime/stdlib.py",
+        module="cardlang/runtime/primitives.py",
         game_file="french-tarot.cardlang",
         state_vars=_fs("lead_taker", "current_level"),
     ),

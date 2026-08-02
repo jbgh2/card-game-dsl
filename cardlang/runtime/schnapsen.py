@@ -14,8 +14,8 @@ playout-invariant harness checks winners against those
 from __future__ import annotations
 
 from cardlang.runtime import reads
+from cardlang.runtime.primitives import highest_trump_or_led_suit
 from cardlang.runtime.sidecar import EngineFacts, TraceEvent
-from cardlang.runtime.stdlib import highest_trump_or_led_suit
 from cardlang.runtime.values import Player
 
 ROW = reads.row("cardlang/runtime/schnapsen.py", "schnapsen.cardlang")

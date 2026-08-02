@@ -13,10 +13,10 @@ after it down by one, last-wins, with no error.
 Property: every `ranking:` entry names a rank of the declared deck, and no
 entry repeats.
 
-Domain: `game.ranking: tuple[str, ...]` x `deck_ranks(game.deck)` membership,
+Domain: `game.ranking: tuple[str, ...]` x `rank_names(game.deck)` membership,
 for every deck in `cardlang.runtime.values.DECKS`.
 
-Registry: `cardlang.stdlib.values.deck_ranks` (the same source
+Registry: `cardlang.stdlib.enums.rank_names` (the same source
 `driver.py`'s `rs.rank_index` and `mechanics.py`'s Rank-parameter
 enumeration read at runtime — one source of truth by construction).
 
@@ -52,7 +52,7 @@ check.
 
 Adjacent cell closed here (same two-source domain, opposite direction):
 card-LITERAL rank validation (`resolve._categories.ranks`, consumed by the
-`CardLiteral` arm of `_validate_refs`) derives from `deck_ranks(deck)` —
+`CardLiteral` arm of `_validate_refs`) derives from `rank_names(deck)` —
 never from `ranking:` — because a literal asks "does this card exist",
 not "where does it sort". Probed: no-`ranking:` literal accepts, a
 partial-ranking-excluded literal accepts, a non-deck rank still rejects.
@@ -68,7 +68,7 @@ import pytest
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl, check_source
 from cardlang.runtime.driver import play_game
-from cardlang.stdlib.values import deck_ranks
+from cardlang.stdlib.enums import rank_names
 
 GAMES = Path(__file__).parent.parent / "docs" / "games"
 
@@ -198,9 +198,9 @@ def test_every_declared_corpus_ranking_is_a_permutation_and_partials_are_pinned(
             continue
         checked_any = True
         assert len(ranking) == len(set(ranking)), path
-        omitted = set(deck_ranks(game.deck)) - set(ranking)
+        omitted = set(rank_names(game.deck)) - set(ranking)
         expected = _DELIBERATE_PARTIAL_OMISSIONS.get(path.stem, frozenset())
-        assert set(ranking) <= set(deck_ranks(game.deck)), path
+        assert set(ranking) <= set(rank_names(game.deck)), path
         assert omitted == expected, (
             f"{path}: ranking omits {sorted(omitted)} but the pinned "
             f"deliberate omission is {sorted(expected)} — an accidental "

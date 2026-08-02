@@ -373,7 +373,7 @@ def test_top_is_the_sequence_end_and_bottom_the_front() -> None:
     (decisions.md, sequence orientation): arrivals append at the end, so
     `top_of` reads the last arrival and `bottom_of` the first; an empty
     collection and a non-card element each fail typed at the cause."""
-    from cardlang.runtime import stdlib
+    from cardlang.runtime.evaluate import native_call
     from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
     from cardlang.runtime.values import Card, Seating
 
@@ -386,9 +386,9 @@ def test_top_is_the_sequence_end_and_bottom_the_front() -> None:
     pile.add(Card("A", "spades"))
     ctx = Ctx(rs=rs, chooser=lambda p, c, k: c[:k])
 
-    assert stdlib.call("top_of", [pile], ctx) == Card("A", "spades")
-    assert stdlib.call("bottom_of", [pile], ctx) == Card("2", "spades")
+    assert native_call("top_of", [pile], ctx) == Card("A", "spades")
+    assert native_call("bottom_of", [pile], ctx) == Card("2", "spades")
     with pytest.raises(RuntimeError, match="the collection is empty"):
-        stdlib.call("top_of", [zones.single("deck")], ctx)
+        native_call("top_of", [zones.single("deck")], ctx)
     with pytest.raises(RuntimeError, match="expects a collection of cards"):
-        stdlib.call("top_of", [[1, 2]], ctx)
+        native_call("top_of", [[1, 2]], ctx)

@@ -32,7 +32,7 @@ than the original one:
    Adding a corpus game
    means editing three language-package files: the name registry,
    `signatures.py`, and a hand-written `match` arm in
-   `cardlang/runtime/stdlib.py` — a hand-enumerated dispatch over what
+   `cardlang/runtime/primitives.py` — a hand-enumerated dispatch over what
    should be a registry-derived one, the shape
    [decisions.md](../decisions.md) "Closed-domain completeness" warns
    against.
