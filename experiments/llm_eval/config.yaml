@@ -277,23 +277,29 @@ matchups:
       - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
       - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
 
-  # --- NEXT EXPERIMENT: the REASON-FIRST arm.
-  # The same two fields as the control, in the other order, so the tokens that
-  # explain the choice are generated BEFORE the choice rather than after it. This
-  # is the arm the neutral one should have been: deliberation still happens inside
-  # a length-bounded JSON string, so it cannot expand into the unbounded prose
-  # that broke the parser.
+  # --- the REASON-FIRST arm. RUN AT N=10; the result is in BUILDLOG, "Result: the
+  # hypothesis is falsified". The same two fields as the control, in the other
+  # order, so the tokens that explain the choice are generated BEFORE the choice
+  # rather than after it. This is the arm the neutral one should have been:
+  # deliberation still happens inside a length-bounded JSON string, so it cannot
+  # expand into the unbounded prose that broke the parser.
   #
-  # GATE BEFORE N=10. Run at n=1 first and check three things with
-  # `verify.py --order`, because two of them make the arm null rather than merely
-  # noisy: (a) `reasoning_before_action` near 1.0 — `json.loads` discards key
-  # order, so if the model does not honour it, nothing was manipulated;
-  # (b) `truncated_at_max_tokens` near 0 — reasoning-first means an overrun costs
-  # the ACTION, which is exactly how the neutral arm died; (c) fallback rate under
-  # ~2%. The control's token profile does not transfer, because the ordering
-  # change is the thing that alters it.
+  # Reasoning first made the model challenge MORE, not less: 10/10 paired seeds
+  # moved the same direction, exact TWO-sided sign test p = 0.00195, with
+  # precision flat. Two-sided because the registered direction was DOWN and the
+  # effect went up; the 8 seeds unseen at registration are 8/8, one-sided 0.00391.
   #
-  # ~$13 and ~70 min for both at N=10, at the rates the control measured.
+  # THE GATE, kept as the recipe for any future response-format arm. Run at n=1
+  # first and check three things with `verify.py --order`, because two of them
+  # make an arm null rather than merely noisy: (a) `reasoning_before_action` near
+  # 1.0 — `json.loads` discards key order, so if the model does not honour it,
+  # nothing was manipulated; (b) `truncated_at_max_tokens` near 0 —
+  # reasoning-first means an overrun costs the ACTION, which is exactly how the
+  # neutral arm died; (c) fallback rate under ~2%. The control's token profile
+  # does not transfer, because the ordering change is the thing that alters it.
+  #
+  # Measured cost for Haiku at N=10: $1.63/game (the arm's episodes run ~1.6x
+  # longer than the control's, and input tokens dominate).
   - name: llm_cheap_reason_first_bluffer
     n: 10
     rotate: true
