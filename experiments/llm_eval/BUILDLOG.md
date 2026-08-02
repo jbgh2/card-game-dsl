@@ -96,9 +96,11 @@ mypy cannot check a call into a library it cannot import, and all three ship
 `ignore_missing_imports` override would hand back `Any`.
 
 The TESTS are still deliberately outside `tests/`: `pyproject.toml` sets
-`testpaths = ["tests"]`, so a bare `pytest` — what CI runs — does not collect
-them, and a run needing an API key cannot redden the language's own gate. Run
-them explicitly with the command above.
+`testpaths = ["tests"]`, so a bare `pytest` does not collect them, and a rig
+needing an API key cannot redden the language's own gate. That kept the gate
+clean and left these run by nobody — the leak-freeness pins included — so CI
+runs them as their own step (`.github/workflows/ci.yml`). Both properties, one
+extra line; run them locally with the command above.
 
 ---
 

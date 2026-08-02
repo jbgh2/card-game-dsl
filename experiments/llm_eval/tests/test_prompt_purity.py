@@ -112,6 +112,15 @@ def test_llm_agent_reads_only_entitled_fields() -> None:
         for node in cls.body
         if isinstance(node, ast.FunctionDef) and node.name == "choose"
     )
+    allowed = set(DecisionView.__dataclass_fields__)
+    entitled = {
+        id(node.value)
+        for node in ast.walk(method)
+        if isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "view"
+        and node.attr in allowed
+    }
     read = {
         node.attr
         for node in ast.walk(method)
@@ -119,9 +128,23 @@ def test_llm_agent_reads_only_entitled_fields() -> None:
         and isinstance(node.value, ast.Name)
         and node.value.id == "view"
     }
+    # Bare `view` escapes the field check entirely: `helper(view)` reads no
+    # attribute here, so a scrape over attribute names alone passes it while the
+    # callee holds the whole view. `DecisionView` carries only strings today, so
+    # this is a narrower leak than the renderer's — but the check is claimed over
+    # what `choose` may reach, and a callee reaches everything it is handed.
+    escapes = [
+        node
+        for node in ast.walk(method)
+        if isinstance(node, ast.Name) and node.id == "view" and id(node) not in entitled
+    ]
     assert read, "the scrape found no `view.*` reads — it has stopped checking anything"
-    allowed = set(DecisionView.__dataclass_fields__)
     assert read <= allowed, f"LLMAgent.choose reads non-entitled fields: {read - allowed}"
+    assert not escapes, (
+        f"LLMAgent.choose passes bare `view` at line(s) "
+        f"{sorted({n.lineno for n in escapes})} — the callee then holds fields "
+        f"this scrape is claimed to police. Pass the entitled fields instead."
+    )
 
 
 def test_decision_view_carries_no_state_object() -> None:
@@ -176,6 +199,24 @@ def _source_of(module: str) -> Path | None:
     return None
 
 
+def _anchor(module: str, source: Path, level: int) -> str:
+    """The package a level-`level` relative import resolves against.
+
+    Python anchors a relative import at `__package__`, which for a module is its
+    parent but for a PACKAGE's `__init__.py` is the package itself. Stripping
+    `level` components off the name unconditionally gets the second case wrong —
+    inside `experiments/llm_eval/__init__.py`, `from . import render` would
+    resolve to `experiments.render`, which names no file, so `_source_of`
+    discards it and the edge vanishes from the closure. Since `_closure`
+    deliberately walks `__init__.py`, that is a silent hole in exactly the file
+    a future import is most likely to be added to.
+    """
+    parts = module.split(".")
+    if source.name != "__init__.py":
+        parts = parts[:-1]
+    return ".".join(parts[: len(parts) - (level - 1)])
+
+
 def _imports_of(source: Path, module: str) -> set[str]:
     """Every module name `module` imports, relative imports resolved to absolute.
 
@@ -196,8 +237,7 @@ def _imports_of(source: Path, module: str) -> set[str]:
             out.update(alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom):
             if node.level:
-                parts = module.split(".")
-                anchor = ".".join(parts[: len(parts) - node.level])
+                anchor = _anchor(module, source, node.level)
                 base = f"{anchor}.{node.module}" if node.module else anchor
             elif node.module:
                 base = node.module

@@ -33,8 +33,12 @@ Completeness (decisions.md, "Closed-domain completeness")
   It is the whole domain because the adapter is general: no game overrides it.
   That the domain is closed is pinned below rather than argued
   (`test_no_game_overrides_the_renderer`).
-- **Coverage.** The scrape is total over the function's `self` reads. The
-  differential runs over every registered game (derived from
+- **Coverage.** The scrape is total over the function's USES of `self` — every
+  occurrence must be an attribute read on the entitled list, so a delegation
+  like `helper(self, action)` is rejected rather than passed. It was written
+  total over attribute *reads* only, which let exactly that delegation through
+  while reporting a clean wall; the distinction is the wall, not a detail of
+  it. The differential runs over every registered game (derived from
   `REGISTERED_GAMES`, not listed), rendering each state's full legal set plus a
   fixed spread across the action space, at every step of a short greedy walk.
 - **Residual.** The differential walks a bounded prefix, so a renderer that
@@ -45,7 +49,15 @@ Completeness (decisions.md, "Closed-domain completeness")
   node has no acting player. This ledger owns that record: it is a domain fact
   about the root deal node, not deferred work.
 
-red under: make `_action_to_string` return
+red under (the escape): keep the entitled `self._path` read and delegate —
+`return _sneak(self, space, action)` with the helper reading
+`state._history_ids`. RUN result: the bare-`self` assertion fires naming the
+line, and the differential fails on every registered game. A plant that drops
+the attribute read instead trips the non-vacuity guard first, which is a
+different assertion and does not exercise this one — worth stating, because
+that was the first plant tried and it looked like a pass.
+
+red under (the world read): make `_action_to_string` return
 `space.to_string(action) + ('!' if len(self._history_ids) % 2 else '')`. RUN
 result, not a prediction — the scrape reddens naming `_history_ids`, the
 differential reddens on every registered game, and the adapter-agreement
@@ -87,26 +99,53 @@ def _renderer() -> ast.FunctionDef:
 
 
 def test_the_renderer_reads_nothing_of_the_world() -> None:
-    """The wall. Every attribute `_action_to_string` reads off `self` must be
-    entitled — the game, and nothing that varies within one.
+    """The wall. Every use of `self` in `_action_to_string` must be an entitled
+    attribute read — the game, and nothing that varies within one.
 
     An `ast` scrape rather than a behavioural check, for the reason the purity
     scrapes in the LLM harness give: a run only proves the branches it took,
     while the scrape proves no branch exists that could read the world.
+
+    Stated over USES of `self`, not over attribute reads. Those are different
+    checks and the difference is the whole wall: `helper(self, action)` performs
+    no attribute read at all, so an attribute-only scrape passes it while the
+    helper receives the entire world — seed, history, replayed state. A rendering
+    that reaches the world through a callee is exactly as much of a leak channel
+    as one that reaches it directly.
     """
+    fn = _renderer()
+    entitled_reads = {
+        id(node.value)
+        for node in ast.walk(fn)
+        if isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "self"
+        and node.attr in ENTITLED_SELF_READS
+    }
     reads = {
         node.attr
-        for node in ast.walk(_renderer())
+        for node in ast.walk(fn)
         if isinstance(node, ast.Attribute)
         and isinstance(node.value, ast.Name)
         and node.value.id == "self"
     }
+    escapes = [
+        node
+        for node in ast.walk(fn)
+        if isinstance(node, ast.Name) and node.id == "self" and id(node) not in entitled_reads
+    ]
     assert reads, "the scrape found no `self.*` reads — it has stopped checking anything"
     assert reads <= ENTITLED_SELF_READS, (
         f"CardlangState._action_to_string reads {sorted(reads - ENTITLED_SELF_READS)} "
         f"off the state. An action rendering that varies with the world is a leak "
         f"channel the id-level indistinguishability proofs cannot see, because "
         f"they compare ids and the prompt shows strings."
+    )
+    assert not escapes, (
+        f"CardlangState._action_to_string uses bare `self` at line(s) "
+        f"{sorted({n.lineno for n in escapes})} — passing the state to a callee "
+        f"hands over seed, history and replayed state whatever this scrape says "
+        f"about attribute reads. Read the entitled attribute and pass that."
     )
 
 
