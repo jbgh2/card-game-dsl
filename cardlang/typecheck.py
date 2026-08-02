@@ -9,8 +9,8 @@ rejects real type errors.
 
 Pragmatic by design: unrefined positions (pronoun member access, lambda values,
 the `Resource`/`ChipStack` query API) infer the permissive `TAny`, which
-propagates without error. Deferred to later stages: variant outcome types and
-exhaustiveness (`TVariant`), user-defined `type` declarations (`TStruct`), full
+propagates without error. Deferred to later stages: outcome outcome types and
+exhaustiveness (`TOutcome`), user-defined `type` declarations (`TStruct`), full
 `ZoneContents`/`Resource` typing, and payload-type narrowing.
 
 A pure validator: the (unchanged) :class:`Game` flows on, and the IR stays at
@@ -66,7 +66,7 @@ from cardlang.types import (
     TString,
     TStruct,
     TTeam,
-    TVariant,
+    TOutcome,
     Type,
     assignable,
     subscriptable,
@@ -344,8 +344,8 @@ def _type_key(t: Type) -> object:
     """
     if isinstance(t, TStruct):
         return ("struct", t.name)
-    if isinstance(t, TVariant):
-        return ("variant", t.name)
+    if isinstance(t, TOutcome):
+        return ("outcome", t.name)
     if isinstance(t, TOptional):
         return ("optional", _type_key(t.inner))
     if isinstance(t, TCollection):
@@ -432,7 +432,7 @@ def _payload_type(
     structs: Mapping[str, TStruct],
     positions: Mapping[str, Type] | None = None,
 ) -> Type:
-    """Resolve a variant payload type name; a trailing `?` marks it nullable.
+    """Resolve a outcome payload type name; a trailing `?` marks it nullable.
 
     `positions` is threaded because resolve admits a declared position domain
     here: without it the name resolves to the top, and the `produces:` arm
@@ -446,8 +446,8 @@ def _payload_type(
     return type_from_name(name, False, structs, positions)
 
 
-def _variant_cases(
-    cases: tuple[n.VariantCase, ...],
+def _outcome_cases(
+    cases: tuple[n.OutcomeCase, ...],
     structs: Mapping[str, TStruct],
     positions: Mapping[str, Type] | None = None,
 ) -> dict[str, tuple[Type, ...]]:
@@ -457,25 +457,25 @@ def _variant_cases(
     }
 
 
-def variant_registry(
+def outcome_registry(
     game: Game,
     structs: Mapping[str, TStruct],
     positions: Mapping[str, Type] | None = None,
-) -> dict[str, TVariant]:
-    """Build the variant-outcome type of each `define` and each outcome-declaring
+) -> dict[str, TOutcome]:
+    """Build the outcome-outcome type of each `define` and each outcome-declaring
     `phase`: its case tags mapped to their declared payload types."""
-    variants: dict[str, TVariant] = {}
+    outcomes: dict[str, TOutcome] = {}
     for d in game.defines:
-        variants[d.name] = TVariant(
-            name=d.name, cases=_variant_cases(d.cases, structs, positions)
+        outcomes[d.name] = TOutcome(
+            name=d.name, cases=_outcome_cases(d.cases, structs, positions)
         )
     for phase in _all_phases(game):
         if phase.outcome_cases:
-            variants[phase.name] = TVariant(
+            outcomes[phase.name] = TOutcome(
                 name=phase.name,
-                cases=_variant_cases(phase.outcome_cases, structs, positions),
+                cases=_outcome_cases(phase.outcome_cases, structs, positions),
             )
-    return variants
+    return outcomes
 
 
 @dataclass(frozen=True)
@@ -864,7 +864,7 @@ def _type_name(t: Type) -> str:
         return f"Collection<{_type_name(t.element)}>"
     if isinstance(t, TEnum):
         return t.name
-    if isinstance(t, (TStruct, TVariant)):
+    if isinstance(t, (TStruct, TOutcome)):
         # These carry their declared name. Before the general disjointness rule
         # below, no wall ever printed one, so both rendered as the bare kind — which
         # made "comparing Struct with Struct can never be equal" read as nonsense.
@@ -1085,7 +1085,7 @@ def _stmt_tree_scoped(
         case n.Produces():
             # A deliberate leaf, not an oversight: arm bodies bind the arm's
             # payload binders, which this walk cannot know (they come from the
-            # variant registry). `_check_produces` runs the scoped sub-walk over
+            # outcome registry). `_check_produces` runs the scoped sub-walk over
             # each arm body with those binders typed, and the outcome-plumbing
             # walks (`_produces_in`, `_control_flow_nodes`) descend arms
             # themselves.
@@ -1854,7 +1854,7 @@ _COLLECTION_BINDER_TYPES: Mapping[str, Type] = {"line": TLine(), "cell": TCell()
 # Adding a type means classifying it here -- or, if it genuinely carries fields,
 # giving it its own arm beside `TStruct`/`TCard` and recording it there.
 _INDEXABLE_RECEIVERS = (TPlayer, TTeam, TInteger, TBoolean)
-_FIELDLESS_RECEIVERS = (TCell, TDir, TLine, TEnum, TString, TNull, TVariant)
+_FIELDLESS_RECEIVERS = (TCell, TDir, TLine, TEnum, TString, TNull, TOutcome)
 
 
 def _domain_query_binder_type(
@@ -1922,7 +1922,7 @@ def _check_role_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: Diagno
         # team literal (even `0`) is rejected as naming a team the game has none
         # of (`0 <= k < 0` is always false). A team-KEYED zone/state already
         # requires partnerships at resolve, but a Team-TYPED operand -- a `state`
-        # default, a Team call arg, a struct field, a variant payload -- does
+        # default, a Team call arg, a struct field, a outcome payload -- does
         # not, and reaches here.
         bound, noun, label = env.max_teams, "team", "team"
     else:
@@ -2212,15 +2212,15 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         elif isinstance(bare, _FIELDLESS_RECEIVERS):
             # The fieldless value types: a position (TCell), a movement
             # direction (TDir), a line/region (TLine), an enum value, a string,
-            # none, or a variant outcome. None has user-accessible fields, so a
+            # none, or a outcome outcome. None has user-accessible fields, so a
             # dot form on one would otherwise reach no arm and infer TAny with
             # no diagnostic -- the permissive-top gap a `cell`/`dir` binder or a
             # movement verb's TCell return could slip through. The whole
             # fieldless class is walled here, at the layer that owns operand
             # kinds, not per producer (decisions.md "Closed-domain
-            # completeness"). TNull and TVariant are classified rather than
+            # completeness"). TNull and TOutcome are classified rather than
             # probed: `none` is a comparison-only operand and no `infer` arm
-            # returns a variant (it is a registry entry for `produce` /
+            # returns a outcome (it is a registry entry for `produce` /
             # `produces:` checking), so neither is reachable from a receiver
             # position today -- they are walled ahead of the reach, so a later
             # arm that does return one cannot reopen the gap.
@@ -2729,17 +2729,17 @@ def _check_movement(stmt: n.Movement, env: TypeEnv, bag: DiagnosticBag) -> None:
 
 
 def _check_produce_stmt(
-    sub: n.Produce, variant: TVariant, owner: str, env: TypeEnv, bag: DiagnosticBag
+    sub: n.Produce, outcome: TOutcome, owner: str, env: TypeEnv, bag: DiagnosticBag
 ) -> None:
-    """One `produce` names a declared variant and supplies payloads of the
+    """One `produce` names a declared outcome and supplies payloads of the
     declared arity and types."""
-    if sub.tag not in variant.cases:
-        bag.error(f"{owner} produces unknown variant '{sub.tag}'", sub.span)
+    if sub.tag not in outcome.cases:
+        bag.error(f"{owner} produces unknown outcome case '{sub.tag}'", sub.span)
         return
-    payload_types = variant.cases[sub.tag]
+    payload_types = outcome.cases[sub.tag]
     if len(sub.payloads) != len(payload_types):
         bag.error(
-            f"variant '{sub.tag}' takes {len(payload_types)} payload(s), "
+            f"outcome case '{sub.tag}' takes {len(payload_types)} payload(s), "
             f"got {len(sub.payloads)}",
             sub.span,
         )
@@ -2748,16 +2748,16 @@ def _check_produce_stmt(
         got = infer(expr, env)
         _check_operand(
             expr, got, expected, env, bag,
-            f"variant '{sub.tag}' expects {_type_name(expected)}, "
+            f"outcome case '{sub.tag}' expects {_type_name(expected)}, "
             f"got {_type_name(got)}",
             sub.span,
         )
 
 
 def _check_define_outcomes(
-    define: n.DefineDef, variant: TVariant, env: TypeEnv, bag: DiagnosticBag
+    define: n.DefineDef, outcome: TOutcome, env: TypeEnv, bag: DiagnosticBag
 ) -> None:
-    """Every `produce` in a define's body names a declared variant and supplies
+    """Every `produce` in a define's body names a declared outcome and supplies
     payloads of the declared arity and types — checked in the SCOPED
     environment, so a payload routed through a `let` types like its inline
     twin (without it, `let z = hearts / produce Won(z)` would pass a `Player`
@@ -2765,23 +2765,23 @@ def _check_define_outcomes(
     for sub, binders in _seq_tree_scoped(define.body, ()):
         if isinstance(sub, n.Produce):
             _check_produce_stmt(
-                sub, variant, f"define '{define.name}'", _scoped_env(env, binders), bag
+                sub, outcome, f"define '{define.name}'", _scoped_env(env, binders), bag
             )
 
 
 def _check_misplaced_produce(
-    game: Game, variants: Mapping[str, TVariant], env: TypeEnv, bag: DiagnosticBag
+    game: Game, outcomes: Mapping[str, TOutcome], env: TypeEnv, bag: DiagnosticBag
 ) -> None:
     """`produce` is legal only inside a `define` body (checked elsewhere) or the
     body of an outcome-declaring phase. Flag it anywhere else, and type-check the
-    legal phase produces against the enclosing phase's variant."""
+    legal phase produces against the enclosing phase's outcome."""
     for move_type in game.move_types:
         for s in move_type.effect:
             for sub in _stmt_tree(s):
                 if isinstance(sub, n.Produce):
                     bag.error("'produce' may only appear in a define or outcome-phase body", sub.span)
     for phase in game.phases:
-        _check_phase_produces(phase, None, variants, env, bag)
+        _check_phase_produces(phase, None, outcomes, env, bag)
 
 
 def _produces_in(stmt: n.Stmt) -> Iterator[n.Produces]:
@@ -3140,7 +3140,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
 def _check_phase_produces(
     phase: n.Phase,
     enclosing: n.Phase | None,
-    variants: Mapping[str, TVariant],
+    outcomes: Mapping[str, TOutcome],
     env: TypeEnv,
     bag: DiagnosticBag,
     binders: _Binders = (),
@@ -3152,7 +3152,7 @@ def _check_phase_produces(
     current = binders
     for item in phase.items:
         if isinstance(item, n.Phase):
-            _check_phase_produces(item, owner, variants, env, bag, current)
+            _check_phase_produces(item, owner, outcomes, env, bag, current)
         elif isinstance(item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.TransitionTo)):
             pass
         elif isinstance(item, (n.BeforeEach, n.AfterEach)):
@@ -3169,7 +3169,7 @@ def _check_phase_produces(
                 else:
                     _check_produce_stmt(
                         sub,
-                        variants[owner.name],
+                        outcomes[owner.name],
                         f"phase '{owner.name}'",
                         _scoped_env(env, sub_binders),
                         bag,
@@ -3180,30 +3180,30 @@ def _check_phase_produces(
 
 def _check_produces(
     stmt: n.Produces,
-    variants: Mapping[str, TVariant],
+    outcomes: Mapping[str, TOutcome],
     env: TypeEnv,
     bag: DiagnosticBag,
 ) -> None:
-    """A `produces:` consumer: arms name declared variants, are exhaustive and
+    """A `produces:` consumer: arms name declared outcomes, are exhaustive and
     non-duplicated, bind the right payload arity, and have their bodies checked
     with the payload binders typed (a scoped sub-walk, since the flat walk treats
     `Produces` as a leaf). A consumer nested in an arm is checked recursively with
     the enclosing arm binders in scope."""
-    variant = variants.get(stmt.define)
-    if variant is None:
+    outcome = outcomes.get(stmt.define)
+    if outcome is None:
         return
     seen: set[str] = set()
     for arm in stmt.arms:
-        if arm.tag not in variant.cases:
+        if arm.tag not in outcome.cases:
             bag.error(
-                f"produces names unknown variant '{arm.tag}' of '{stmt.define}'",
+                f"produces names unknown outcome case '{arm.tag}' of '{stmt.define}'",
                 arm.span,
             )
             continue
         if arm.tag in seen:
             bag.error(f"duplicate arm '{arm.tag}' in produces", arm.span)
         seen.add(arm.tag)
-        payload_types = variant.cases[arm.tag]
+        payload_types = outcome.cases[arm.tag]
         if len(arm.binders) != len(payload_types):
             bag.error(
                 f"arm '{arm.tag}' binds {len(arm.binders)} value(s), "
@@ -3224,10 +3224,10 @@ def _check_produces(
             if isinstance(sub, n.Produces):
                 # Nested consumer: check it with the enclosing arm binders in
                 # scope (so outer payload binders are typed, not TAny).
-                _check_produces(sub, variants, sub_env, bag)
+                _check_produces(sub, outcomes, sub_env, bag)
             _check_stmt_exprs(sub, sub_env, bag)
             _check_stmt_semantics(sub, sub_env, bag)
-    missing = sorted(set(variant.cases) - seen)
+    missing = sorted(set(outcome.cases) - seen)
     if missing:
         bag.error(
             f"produces on '{stmt.define}' is not exhaustive: missing "
@@ -3253,21 +3253,21 @@ def typecheck(game: Game) -> Game:
     structs, functions = struct_and_function_registries(game, bag)
     env = replace(env_from_game(game, structs), functions=functions)
     env = replace(env, procedures=_procedure_sigs(game))
-    variants = variant_registry(game, env.structs, env.positions)
+    outcomes = outcome_registry(game, env.structs, env.positions)
     for stmt, binders in _all_statements_scoped(game):
         senv = _scoped_env(env, binders)
         _check_stmt_exprs(stmt, senv, bag)
         if isinstance(stmt, n.Produces):
             # `_check_produces` recurses into arm-nested consumers itself, carrying
             # the arm binders into their environment.
-            _check_produces(stmt, variants, senv, bag)
+            _check_produces(stmt, outcomes, senv, bag)
         else:
             _check_stmt_semantics(stmt, senv, bag)
     for define in game.defines:
-        variant = variants.get(define.name)
-        if variant is not None:
-            _check_define_outcomes(define, variant, env, bag)
-    _check_misplaced_produce(game, variants, env, bag)
+        outcome = outcomes.get(define.name)
+        if outcome is not None:
+            _check_define_outcomes(define, outcome, env, bag)
+    _check_misplaced_produce(game, outcomes, env, bag)
     _check_outcome_scope(game, bag)
     _check_outcome_name_collisions(game, bag)
     _check_single_outcome_consumer(game, bag)

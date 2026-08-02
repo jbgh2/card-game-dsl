@@ -21,7 +21,7 @@ from __future__ import annotations
 #
 # - a *trick* outcome  : (played, led_suit, trump, rank_index) -> Player
 # - an *auction* outcome (the auction form): (history, ctx) -> (tag, payloads),
-#   producing the phase's typed variant.
+#   producing the phase's typed outcome.
 PRIMITIVE_TRICK_OUTCOMES: frozenset[str] = frozenset(
     {
         "highest_of_led_suit",

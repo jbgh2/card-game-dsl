@@ -318,7 +318,7 @@ _DECLARATION_SLOTS: dict[tuple[type, str], str] = {
     (n.StructField, "name"): "field",
     (n.DerivedField, "name"): "field",
     (n.MoveParam, "name"): "param",
-    (n.VariantCase, "tag"): "variant_tag",
+    (n.OutcomeCase, "tag"): "outcome_tag",
     # `let` declares a name and scopes it to the statements after it, so it is
     # both — filed as the declaration, since that is the half a name registry
     # asks about. Its INDEX is the binder (`let x[i] = …` binds `i` per player).
@@ -362,7 +362,7 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     (n.MoveParam, "type_name"): "type",
     (n.StructField, "type_name"): "type",
     (n.StructLit, "type_name"): "type",
-    (n.VariantCase, "payload_types"): "type",
+    (n.OutcomeCase, "payload_types"): "type",
     # Definitions, by kind. The move-type slots split across two namespaces and
     # the split is load-bearing, not a nicety: a VOCABULARY names move types the
     # game defines (`_check_vocabulary_moves` against `defined_move_types`),
@@ -410,13 +410,13 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     (n.TypeArg, "name"): "zone_type_arg",
     # Names owned by a declaration reached elsewhere: a struct's fields belong to
     # the type its literal names, a named argument's to the callee's parameter
-    # list, a produced tag to the define's variant cases. Each is a reference,
+    # list, a produced tag to the define's outcome cases. Each is a reference,
     # and none is an independent channel — the owning name is a slot above.
     (n.Member, "field"): "field",
     (n.FieldInit, "name"): "field",
     (n.NamedArg, "name"): "param",
-    (n.Produce, "tag"): "variant_tag",
-    (n.ProduceArm, "tag"): "variant_tag",
+    (n.Produce, "tag"): "outcome_tag",
+    (n.ProduceArm, "tag"): "outcome_tag",
     # The item noun a movement moves (`cards`, `coins`): drawn from the game's
     # CONTENT FLAVOR, which is the component set's, so it is a game-fed slot the
     # way a suit is. Not swept for a library — see `_LIBRARY_UNSWEPT`.
@@ -1125,10 +1125,10 @@ _LIBRARY_UNSWEPT: dict[str, str] = {
         "zone; re-probed with an unknown noun and with a flavor-wrong one, both "
         "refused in the library's currency (issue #170)"
     ),
-    "variant_tag": (
+    "outcome_tag": (
         "walled elsewhere: a `produce` outside a define or outcome-phase body is "
-        "refused outright, and a tag naming no declared variant is refused against the "
-        "variant registry — both in the library's currency (probed via the full "
+        "refused outright, and a tag naming no declared outcome is refused against the "
+        "outcome registry — both in the library's currency (probed via the full "
         "pipeline; `resolve` alone accepts them, which is what made the first reading "
         "of this row say the tags were merely `owned` by a swept name)"
     ),
@@ -2011,7 +2011,7 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
             | n.MoveTypeDef() | n.MoveParam() | n.RuleDef() | n.RuleRef()
             | n.AppliesWhen() | n.Demands()
             | n.DefineDef() | n.FunctionDef() | n.ProcedureDef()
-            | n.VariantCase() | n.StructField() | n.DerivedField()
+            | n.OutcomeCase() | n.StructField() | n.DerivedField()
             | n.ZoneDecl() | n.TypeRef() | n.TypeArg()
             | n.StateBlock() | n.StateDecl() | n.PositionDecl() | n.BoardDecl()
             | n.Phase() | n.PhaseQualifier() | n.BeforeEach() | n.AfterEach()
@@ -3989,13 +3989,13 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
 
 
 def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
-    """A function parameter's and a variant payload's declared type name names
+    """A function parameter's and a outcome payload's declared type name names
     a real type.
 
     Validating a declared type name is resolve's job, and it was being done in
     only some of the positions that declare one: `StateDecl` and `StructField`
     were walled and move parameters had their own domain gate, while function
-    parameters and variant payloads were not checked at all.
+    parameters and outcome payloads were not checked at all.
     `typecheck.type_from_name` maps an unknown name to the permissive `TAny`,
     so a mere TYPO exempted the annotated value from every downstream wall —
     `function f(x : Integar) = x is hearts` was accepted while the
@@ -4815,7 +4815,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # struct field types via scalars/enums/structs only; a position
                 # domain is deliberately NOT admitted here (main's type-name
                 # grid, tests/test_type_name_positions.py P2). Function-param
-                # and variant-payload type names are the sibling slots, but
+                # and outcome-payload type names are the sibling slots, but
                 # those are owned by `_check_declared_type_names`, which admits
                 # position domains — so they are not re-checked here.
                 bag.error(
@@ -5095,7 +5095,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 )
                 _check_card_vocabulary(nd.move_types, move_type_defs, game, bag, nd.span)
                 # The betting form omits `outcome` (it mutates state directly and
-                # produces no variant); only an auction's outcome fn is validated.
+                # produces no outcome); only an auction's outcome fn is validated.
                 if nd.outcome_fn is not None and nd.outcome_fn not in PRIMITIVE_AUCTION_OUTCOMES:
                     bag.error(
                         f"auction round outcome '{nd.outcome_fn}' is not an auction "

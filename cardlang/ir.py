@@ -167,7 +167,7 @@ def _define(d: n.DefineDef) -> IRDict:
         "name": d.name,
         "cases": [
             {
-                "kind": "variant_case",
+                "kind": "outcome_case",
                 "tag": c.tag,
                 "payload_types": list(c.payload_types),
             }
@@ -215,7 +215,7 @@ def _phase(p: n.Phase) -> IRDict:
         "qualifier": _qualifier(p.qualifier) if p.qualifier else None,
         "outcome_cases": [
             {
-                "kind": "variant_case",
+                "kind": "outcome_case",
                 "tag": c.tag,
                 "payload_types": list(c.payload_types),
             }

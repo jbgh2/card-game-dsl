@@ -13,7 +13,7 @@ domain:    the operator registry — `infer`'s BinOp arm, `cardlang/
            (`OP_CLASSES`) — crossed with the operand-type registry
            (`cardlang/types.py`'s closed `Type` union: TInteger, TBoolean,
            TString, TPlayer, TTeam, TCard, TEnum{Suit,Rank,SeatDirection},
-           TOptional, TCollection, TNull, TAny, TStruct, TVariant).
+           TOptional, TCollection, TNull, TAny, TStruct, TOutcome).
 registry:  `OP_CLASSES` (operator -> class) pinned against `infer`'s BinOp
            arm by `test_op_classes_is_exactly_infers_binop_registry` below
            (scraped from `infer`'s own source, not hand-copied — a new
@@ -60,8 +60,8 @@ sampled:   every class's "everything else concrete rejects" branch is one
            class via a `Player?`/`Suit?`-shaped operand (`offset_by`'s
            corpus probe already routes through a nullable-adjacent binder);
            the unwrap itself is `types.py`'s own domain (not re-litigated
-           here). `TVariant` is excluded from the operand-type domain
-           entirely: this checker never infers a concrete `TVariant` for an
+           here). `TOutcome` is excluded from the operand-type domain
+           entirely: this checker never infers a concrete `TOutcome` for an
            expression reachable from a BinOp/aggregation/IsCheck position
            (the `outcome` pronoun — the only place a variant value flows —
            stays `TAny`; `_check_produce_stmt`/`_check_define_outcomes` type

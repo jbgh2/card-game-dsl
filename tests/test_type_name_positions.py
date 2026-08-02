@@ -142,7 +142,7 @@ POSITIONS: dict[str, tuple[str, object]] = {
         rules=" active_rules: [Rl(hearts)]",
         extra=f"rule Rl(x : {d}) {{ demands: true }}")),
     "P6 func_param": ("func_param", lambda d: _prog(extra=f"function f(x : {d}) = 1")),
-    "P7 define_payload": ("variant_case", lambda d: _prog(
+    "P7 define_payload": ("outcome_case", lambda d: _prog(
         extra=f"define dd -> {{ won({d}) | lost }} {{ produce lost }}")),
     "P8 outcome_payload": ("phase_outcome", lambda d: _prog(
         outcome=f" -> outcome {{ won({d}) | lost }}")),

@@ -366,7 +366,7 @@
           "qualifier": null,
           "outcome_cases": [
             {
-              "kind": "variant_case",
+              "kind": "outcome_case",
               "tag": "bid_won",
               "payload_types": [
                 "Player",

@@ -197,7 +197,7 @@ VALUE_SIGS: dict[str, Type] = {
     "highest_trump_or_led_suit": TAny(),
     "tarot_trick_winner": TAny(),  # trick winner; the Excuse never wins
     "belote_trick_winner": TAny(),  # trick winner under Belote's J-9 trump order
-    "bridge_auction_outcome": TAny(),  # auction form: produces the typed variant
+    "bridge_auction_outcome": TAny(),  # auction form: produces the typed outcome
     "pinochle_auction_outcome": TAny(),  # auction form: produces bid_won
     "tarot_auction_outcome": TAny(),  # auction form: produces taken | thrown_in
 }
