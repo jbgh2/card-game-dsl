@@ -272,7 +272,7 @@ RULES_RENDERED = RULES_TEXT + "\n" + FORMAT_TEXT_RENDERED
 # remove the reasoning, it relocates it OUTSIDE the JSON envelope, where the
 # 512-token cap truncates it before any action arrives (Haiku, 7 games: 22%
 # fallback, 4x the output tokens of the reasoning arm). The bounded `reasoning`
-# string was silently acting as a length cap on deliberation. See README,
+# string was silently acting as a length cap on deliberation. See BUILDLOG,
 # "Response-format arms".
 RESPONSE_NEUTRAL = """\
 HOW TO ANSWER

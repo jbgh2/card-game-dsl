@@ -1,7 +1,7 @@
 # For a reviewer: what was measured, and how to check it
 
-Start here. `README.md` is the full build log (740 lines); this is the short
-version, and every number it quotes can be recomputed on your machine in about a
+Start here. `README.md` says what the eval is and how to run it, and
+`BUILDLOG.md` is the full build log; this is the short version, and every number it quotes can be recomputed on your machine in about a
 minute with no API key, no credentials, and nothing installed.
 
 ---
@@ -166,7 +166,8 @@ import scrape proving the agent and prompt modules import neither the engine nor
 
 | | |
 |---|---|
-| Full build log, every decision and defect | `README.md` |
+| What it is and how to run it | `README.md` |
+| Full build log, every decision and defect | `BUILDLOG.md` |
 | Pre-computed audit + transcript manifest | `results/AUDIT.txt` |
 | Committed transcripts (gzipped) | `results/transcripts/*.jsonl.gz` |
 | Study-level summary, derived from the archive | `results/summary.json` |

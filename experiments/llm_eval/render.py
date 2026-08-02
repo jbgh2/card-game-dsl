@@ -4,7 +4,7 @@ This is the experimental arm against the raw-string arm. Both are pure functions
 of the engine's information-state string, so BOTH inherit the
 indistinguishability guarantee: two states the acting player cannot distinguish
 produce the same info-state string, hence the same rendering, hence the same
-prompt. Rawness was never what made the argument sound (README,
+prompt. Rawness was never what made the argument sound (BUILDLOG,
 "Leak-freeness"); it was purity.
 
 What keeps a *rendering* from becoming an *interpretation* is three pins, in

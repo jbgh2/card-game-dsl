@@ -277,7 +277,7 @@ matchups:
       - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
       - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
 
-  # --- the REASON-FIRST arm. RUN AT N=10; the result is in README, "Result: the
+  # --- the REASON-FIRST arm. RUN AT N=10; the result is in BUILDLOG, "Result: the
   # hypothesis is falsified". The same two fields as the control, in the other
   # order, so the tokens that explain the choice are generated BEFORE the choice
   # rather than after it. This is the arm the neutral one should have been:

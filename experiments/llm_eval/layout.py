@@ -12,7 +12,7 @@ twelve-invocation session had to be reconstructed by summing transcripts by hand
 ARCHIVE — `results/transcripts/*.jsonl.gz` is the curated, committed record
 behind the published result. Promotion into it is a deliberate act (gzip, commit)
 because it is a claim that the data backs a number someone will read, and it is
-what `AUDIT.txt` and the README's repro commands address. A run directory is
+what `AUDIT.txt` and `REVIEWER.md`'s verification commands address. A run directory is
 working output; the archive is evidence.
 
 The timestamp is UTC and filename-safe, and it is chosen so that lexicographic
