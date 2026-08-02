@@ -1232,8 +1232,10 @@ MANIFEST
 ================================================================
 ARM DELTA — reason_first vs its control, on the same 10 seeds.
 The quotable statistic is the PAIRED one: 10/10 seeds moved the same
-direction, exact one-sided sign test p = 0.00098. The pooled p-values
-below treat decisions as independent; they are clustered within a game.
+direction, exact TWO-sided sign test p = 0.00195 (two-sided because the
+registered direction was DOWN; the 8 seeds unseen at registration are
+8/8, one-sided p = 0.00391). The pooled p-values below treat decisions
+as independent; they are clustered within a game.
 ================================================================
 reading experiments/llm_eval/results/transcripts
 agent      llm_cheap

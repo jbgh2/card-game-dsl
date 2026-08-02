@@ -433,7 +433,7 @@ without corrupting the experiment — see the neutral arm's confound below.
 |---|---|---|
 | `reasoning` | `{"action": i, "reasoning": s}` | the **control**; every published number uses it |
 | `neutral` | `{"action": i}` | run, **unusable** — see below |
-| `reason_first` | `{"reasoning": s, "action": i}` | **N=10, hypothesis falsified** — 10/10 paired seeds, sign test p=0.00098 |
+| `reason_first` | `{"reasoning": s, "action": i}` | **N=10, hypothesis falsified** — 10/10 paired seeds, two-sided sign test p=0.00195 |
 
 Every arm matchup is a verbatim copy of `*_rendered_bluffer` with only `arm:`
 changed — same seeds, same opponents, same rendered state, same models and
@@ -582,12 +582,30 @@ is the paired one:
 | 8 | 32/57 = 0.561 | 53/62 = 0.855 | +0.293 |
 | 9 | 43/76 = 0.566 | 58/64 = 0.906 | +0.340 |
 
-**Ten paired deals, all ten up. Exact one-sided sign test: p = 0.00098.** No
-independence assumption, no distributional assumption — only that the two arms
-played the same deals, which they did (identical seeds, identical seat rotation,
-identical opponents). Wrong accusations per game are likewise higher in 10/10
-seeds. This is the confirmatory run the N=2 pilot was waiting on, and it confirms
-the pilot's direction and magnitude.
+**Ten paired deals, all ten up. Exact TWO-sided sign test: p = 0.00195.**
+
+Two-sided is the correct tail, and it is worth saying why, because the one-sided
+number is the tempting one. The registered prediction was that reasoning-first
+would *decrease* the challenge rate — that is what the justification-bias theory
+says. It went up. Taking the one-sided tail in the observed direction would mean
+choosing the direction after seeing the data, and choosing it from the two pilot
+seeds that are themselves among the ten. So the headline assumes no direction.
+
+As a check that the pilot seeds are not carrying the result, the **eight seeds
+that did not yet exist when the endpoint was registered** are also 8/8 in the same
+direction: one-sided p = 0.00391. Wrong accusations per game are likewise higher
+in 10/10 seeds. This is the confirmatory run the N=2 pilot was waiting on, and it
+confirms the pilot's direction and magnitude.
+
+**What the sign test does and does not assume.** It needs no *within-game*
+independence — that is the point of using it, since challenge windows inside one
+game share a hand, a pile and a claim cycle, which is exactly what makes the
+pooled p-values unusable. It does still require the ten paired signs to be
+mutually independent and, under the null, equally likely either way. That holds
+here by construction rather than by assumption: each game is a fresh deal from its
+own seed, the agents are re-seeded per game, and no state crosses a game boundary.
+Pairing removes the deal effect; it does not by itself remove the between-game
+requirement.
 
 **Run quality.** Zero games truncated (max 839 decisions against the 1200 cap),
 all ten terminal. The manipulation held on every reply: `reasoning_before_action`
