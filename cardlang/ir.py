@@ -37,6 +37,9 @@ from typing import TypeAlias, assert_never
 from cardlang.ast import nodes as n
 from cardlang.board_domains import directions_of
 
+# Not bumped for schema changes while nothing consumes serialized IR: the repo
+# holds no reader, and the package is unpublished. It starts moving when there
+# is something to protect (operator ruling, 2026-08-02).
 IR_VERSION = 1
 
 IRValue: TypeAlias = "dict[str, IRValue] | list[IRValue] | str | int | bool | None"
