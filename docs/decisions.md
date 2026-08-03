@@ -1820,6 +1820,18 @@ and the per-line verbosity cost would be the largest in the language. `is`,
 `not`, and `number` are reserved words — no state variable, zone, function,
 or binder may take one of these names.
 
+**Every keyword is a whole word.** A keyword never matches inside a longer
+run of word characters, in either direction: `letx = 3` is a syntax error
+rather than a declaration of `x`, and `1and`, `up to10` and `moveall` are
+refused for the same reason. Names that merely begin with a keyword stay
+ordinary names — `letter`, `is_re`, `assets`, `some_var`. The rule exists
+because the alternative is not an ambiguity a parser could report but a
+*misreading*: the fused spelling has exactly one parse, and it is not the
+one a reader takes from the page. A dropped space is therefore a diagnostic,
+never a silently different sentence. This is separate from, and larger than,
+the reserved-word question above: reservation says a word may not name a
+value, whole-word matching says no word may be cut in half.
+
 **Equality is `is` / `is not`** — plain equality, with no identity/equality
 split to trip over. `a is not b` is a single operator, never `a is (not b)`.
 The right-hand keywords `none` and `empty` are a closed set dispatching to

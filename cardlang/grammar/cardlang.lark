@@ -21,7 +21,7 @@ stdlib_rules: rule_def+
 // `requires` CONTRACTS for it (the game declares it, picks its initial value,
 // and writes it). A move touching a game-specific zone stays game-local, which
 // is why neither clause names a zone.
-library: "library" NAME "{" library_item* "}"
+library: _LIBRARY_KW NAME "{" library_item* "}"
 
 ?library_item: requires_block
              | state_block
@@ -48,7 +48,7 @@ library: "library" NAME "{" library_item* "}"
 // is legal on the other side, and both crosses are refused at resolve rather
 // than here: the grammar cannot see which registry a NAME came from, and a
 // syntax error would report a shape question as a spelling one.
-requires_block: "requires" "{" require_decl* "}"
+requires_block: _REQUIRES_KW "{" require_decl* "}"
 require_decl: NAME [index] ":" NAME [type_args]     -> require_plain
             | NAME [index] ":" NAME [type_args] "?" -> require_optional
 
@@ -64,7 +64,7 @@ require_decl: NAME [index] ":" NAME [type_args]     -> require_plain
 // Game structure
 // ----------------------------------------------------------------------------
 
-game: "game" NAME "{" game_item* "}"
+game: _GAME_KW NAME "{" game_item* "}"
 
 ?game_item: uses_decl
           | players
@@ -88,24 +88,24 @@ game: "game" NAME "{" game_item* "}"
 // one may repeat: a game uses as many libraries as it draws on, and the line is
 // meant to read like the rulebook sentence it stands in for ("betting proceeds
 // as in standard poker"). Whole-library, never a named-definitions manifest.
-uses_decl: "uses" NAME
+uses_decl: _USES_KW NAME
 
-players: "players" ":" players_spec
+players: _PLAYERS_KW ":" players_spec
 players_spec: INT ".." INT   -> players_range
             | INT            -> players_fixed
 
-direction: "direction" ":" NAME
+direction: _DIRECTION_KW ":" NAME
 
 // Content clauses: each names a COMPONENT_SETS entry of its flavor (`cards:`
 // a card deck, `pieces:` a piece set). Exactly one per game — both/neither
 // are parse walls (parse.py `game()`); a cross-flavor name is a resolve wall.
-cards: "cards" ":" NAME
-pieces: "pieces" ":" NAME
+cards: _CARDS_KW ":" NAME
+pieces: _PIECES_KW ":" NAME
 
 // A per-game bound on decision/loop iterations (docs/decisions.md, "Game
 // length as a declared contract"): the runtime's non-termination backstop
 // and the OpenSpiel adapter's `max_game_length` both read this one number.
-max_length: "max_length" ":" INT
+max_length: _MAX_LENGTH_KW ":" INT
 // Either an explicit strongest-first rank enumeration, or a ranking
 // convention the resolver expands against the declared deck (decisions.md,
 // "The `ranking:` declaration: enumeration or convention"). The space-form conventions
@@ -118,23 +118,23 @@ max_length: "max_length" ":" INT
 // position, pinned by tests/test_ranking_conventions.py. Only the
 // hyphenated `ace-ten` needs a terminal (a hyphen has no card_rank
 // derivation, so this arm is unambiguous), anchored like _AS_KW below.
-ranking: "ranking" ":" (RANK_CONV | card_rank+)
+ranking: _RANKING_KW ":" (RANK_CONV | card_rank+)
 RANK_CONV: /ace-ten(?![A-Za-z0-9_-])/
 
 // The suit (or rank-set) that beats all others in a trick. A single game-level
 // declaration the trump-aware outcome functions read; absent for no-trump games.
-trump: "trump" ":" NAME
+trump: _TRUMP_KW ":" NAME
 
 // Fixed teams, each a bracketed list of seat indices (0-based, clockwise).
 // `partnerships: [[0, 2], [1, 3]]` — partners sit across in a four-hand game.
-partnerships: "partnerships" ":" "[" team_spec ("," team_spec)* "]"
+partnerships: _PARTNERSHIPS_KW ":" "[" team_spec ("," team_spec)* "]"
 team_spec: "[" INT ("," INT)* "]"
 
 // Declared position domains (decisions.md "Position domains and positional
 // zones"): per-game integer index/parameter domains for positional layouts
 // (tableau columns, free cells). The bounds are integer literals — the
 // domain must be static, like the `choose` ceiling.
-positions: "positions" "{" position_decl* "}"
+positions: _POSITIONS_KW "{" position_decl* "}"
 position_decl: NAME ":" INT ".." INT
 
 // A board selects a family from the BOARDS registry (cardlang/stdlib/boards.py)
@@ -142,16 +142,16 @@ position_decl: NAME ":" INT ".." INT
 // It mints one named-member position domain (`cell`) whose members are the
 // board's cells. Unknown family / wrong arity / out-of-bounds args are resolve
 // diagnostics (via `board_entry`); `board:` requires `pieces:`.
-board: "board" ":" NAME ["(" INT ("," INT)* ")"]
+board: _BOARD_KW ":" NAME ["(" INT ("," INT)* ")"]
 
-zones: "zones" "{" zone_decl* "}"
+zones: _ZONES_KW "{" zone_decl* "}"
 zone_decl: NAME [index] ":" type_ref
 index: "[" NAME "]"
 type_ref: NAME [type_args]
 type_args: "<" type_arg ("," type_arg)* ">"
 type_arg: NAME
 
-state_block: "state" "{" state_decl* "}"
+state_block: _STATE_KW "{" state_decl* "}"
 state_decl: NAME [index] ":" type_name "=" expr
 type_name: NAME "?"   -> optional_type
          | NAME       -> plain_type
@@ -160,32 +160,32 @@ type_name: NAME "?"   -> optional_type
 // The name is `STRUCT_TYPE_NAME`, not `NAME`, so declaration and use agree on
 // which names a struct type may take: a type `struct_lit` cannot spell would be
 // declarable but unusable, which is accepted-but-ignored one step removed.
-type_def: "type" STRUCT_TYPE_NAME "=" "{" struct_field* "}" [derived_block]
+type_def: _TYPE_KW STRUCT_TYPE_NAME "=" "{" struct_field* "}" [derived_block]
 struct_field: NAME ":" type_name
-derived_block: "derived" "{" derived_field* "}"
+derived_block: _DERIVED_KW "{" derived_field* "}"
 derived_field: NAME "=" expr
 
-winner: "winner" ":" rank_dir NAME
+winner: _WINNER_KW ":" rank_dir NAME
 rank_dir: RANK_DIR
-RANK_DIR: "lowest" | "highest"
+RANK_DIR: /(?:lowest|highest)(?![A-Za-z0-9_])/
 
 // An elimination game ends with one player selected directly (the sole player
 // still holding cards), not by ranking a score — so `loser:` takes a
 // player-valued expression rather than `winner:`'s `rank_dir <var>`.
-loser: "loser" ":" expr
+loser: _LOSER_KW ":" expr
 
 // ----------------------------------------------------------------------------
 // Phases
 // ----------------------------------------------------------------------------
 
-phase: "phase" NAME [phase_outcome] [phase_qualifier] "{" phase_item* "}"
+phase: _PHASE_KW NAME [phase_outcome] [phase_qualifier] "{" phase_item* "}"
 // A phase that can resolve more than one way declares its outcome outcome type
 // here; the enclosing structure pattern-matches on it with `produces:`.
-phase_outcome: "->" "outcome" outcome_set
+phase_outcome: "->" _OUTCOME_KW outcome_set
 // One lexeme for iteration everywhere: the phase qualifier matches the
 // statement form (`repeat until`), not third-person `repeats`.
-phase_qualifier: "repeat" "until" expr    -> phase_repeats
-               | "when" expr              -> phase_when
+phase_qualifier: _REPEAT_KW _UNTIL_KW expr -> phase_repeats
+               | _WHEN_KW expr             -> phase_when
 
 ?phase_item: state_block
            | active_rules
@@ -199,27 +199,27 @@ phase_qualifier: "repeat" "until" expr    -> phase_repeats
 // Loop lifecycle hooks on a `repeat until` phase: before_each runs at the
 // start of every iteration, after_each at the end — guaranteed even when the
 // loop terminates mid-iteration (decisions.md "Loop lifecycle").
-before_each: "before_each" "{" statement* "}"
-after_each: "after_each" "{" statement* "}"
+before_each: _BEFORE_EACH_KW "{" statement* "}"
+after_each: _AFTER_EACH_KW "{" statement* "}"
 
-active_rules: "active_rules" ":" "[" [rule_ref ("," rule_ref)*] "]"
+active_rules: _ACTIVE_RULES_KW ":" "[" [rule_ref ("," rule_ref)*] "]"
 // A reference may pass arguments to a parameterized rule (library or local):
 // `NoLeadingSuitUntilBroken(hearts)`. The remove/override forms name a rule,
 // never instantiate one, so they take no argument list (grammatically
 // inexpressible rather than rejected).
-rule_ref: "+" NAME [rule_args]   -> rule_add
-        | "-" NAME               -> rule_remove
-        | "override" NAME        -> rule_override
-        | NAME [rule_args]       -> rule_plain
+rule_ref: "+" NAME [rule_args] -> rule_add
+        | "-" NAME             -> rule_remove
+        | _OVERRIDE_KW NAME    -> rule_override
+        | NAME [rule_args]     -> rule_plain
 rule_args: "(" expr ("," expr)* ")"
 
-legal_moves: "legal_moves" ":" "[" [NAME ("," NAME)*] "]"
+legal_moves: _LEGAL_MOVES_KW ":" "[" [NAME ("," NAME)*] "]"
 
-transition_to: "transition_to" ":" NAME "when" move_event
+transition_to: _TRANSITION_TO_KW ":" NAME _WHEN_KW move_event
 // A move-type event with an optional predicate on the move — the same
 // event-reference form triggered scoring components use (decisions.md,
 // "Triggered scoring components"). There are no ad-hoc event names.
-move_event: NAME ["where" expr]
+move_event: NAME [_WHERE_KW expr]
 
 // ----------------------------------------------------------------------------
 // Statements (phase / mechanic bodies)
@@ -250,20 +250,20 @@ move_event: NAME ["where" expr]
 // arguments substitute for the parameters (decisions.md "Named procedures").
 // A keyword leads, so statement-hood stays visible — the statement layer has
 // no expression-statement form, and that absence is worth preserving.
-run_stmt: "run" NAME "(" [expr ("," expr)*] ")"
+run_stmt: _RUN_KW NAME "(" [expr ("," expr)*] ")"
 
 // Imperative phase control flow, used in `produces:` arms (decisions.md "Typed
 // phase outcomes"): jump forward to a named sibling phase, or abort the rest of
 // this hand and continue the enclosing `repeat until` hand loop.
-continue_to: "continue" "to" NAME
-skip_stmt: "skip" "to" "next" "hand"
+continue_to: _CONTINUE_KW _TO_KW NAME
+skip_stmt: _SKIP_KW _TO_KW _NEXT_KW _HAND_KW
 
 // Terminal in a `define` body: sets the outcome result and unwinds the body.
-produce_stmt: "produce" NAME ["(" expr ("," expr)* ")"]
+produce_stmt: _PRODUCE_KW NAME ["(" expr ("," expr)* ")"]
 
 // Invoke a param-light `define` by name and dispatch on its outcome result.
 // Arm bodies use braces, matching if_stmt/repeat_until.
-produces_stmt: NAME "produces" ":" produce_arm+
+produces_stmt: NAME _PRODUCES_KW ":" produce_arm+
 produce_arm: NAME ["(" NAME ("," NAME)* ")"] "{" statement* "}"
 
 // The built-in operation vocabulary uses prose statement syntax — game actions
@@ -275,14 +275,17 @@ produce_arm: NAME ["(" NAME ("," NAME)* ")"] "{" statement* "}"
 // The verb is sugar over a single IR node; the amount is an expression and the
 // item noun covers cards and resources. The "in" form lets muck/burn imply
 // their destination.
-movement: MOVE_VERB selection "from" zone_expr [where_clause] [dist_clause] move_dest [vis_clause]  -> move_from
-        | MOVE_VERB selection "in" zone_expr [vis_clause]              -> move_in
-        | MOVE_VERB selection move_dest [vis_clause]                   -> move_gather
-MOVE_VERB: "deal" | "transfer" | "move" | "burn" | "muck" | "draw"
+movement: MOVE_VERB selection _FROM_KW zone_expr [where_clause] [dist_clause] move_dest [vis_clause] -> move_from
+        | MOVE_VERB selection _IN_KW zone_expr [vis_clause]                                          -> move_in
+        | MOVE_VERB selection move_dest [vis_clause]                                                 -> move_gather
+// A word set spelled as a named terminal rather than as inline literals, so it
+// carries its whole-word anchoring itself (`moveall …` must not read as `move
+// all …`); same for RANK_DIR above.
+MOVE_VERB: /(?:deal|transfer|move|burn|muck|draw)(?![A-Za-z0-9_])/
 // How a `to each` deal distributes: by default each destination takes the
 // stated amount; `as-equally-as-possible` deals the source round-robin so the
 // remainder is spread (Getaway deals the whole deck across 3–8 hands).
-dist_clause: "as-equally-as-possible"  -> dist_equally
+dist_clause: _AS_EQUALLY_AS_POSSIBLE_KW  -> dist_equally
 // Narrows the source pool to the cards matching a predicate before the
 // selection draws from it (an ordinary expr with `card` bound per candidate,
 // like the card query's `where` — the source-order subset, not a
@@ -291,22 +294,24 @@ dist_clause: "as-equally-as-possible"  -> dist_equally
 // selection is over the source's subsets satisfying the joint predicate
 // (decisions.md "Joint-predicate selection"); requires `chosen` (resolve
 // walls the rest of the matrix).
-where_clause: "where" _JOINTLY_KW expr  -> where_jointly
-            | "where" expr              -> where_each
+where_clause: _WHERE_KW _JOINTLY_KW expr -> where_jointly
+            | _WHERE_KW expr             -> where_each
 selection: [select_mode] amount NAME
-select_mode: "chosen" -> sel_chosen
-           | "random" -> sel_random
-// Every string alternative here is anchored: the expr alternative makes
-// this position genuinely ambiguous for an unanchored keyword (a fused typo
-// like `onecards` split as `one cards` with a REAL second parse — found for
-// `some`, swept to `all`/`one`).
-amount: _ALL_AMT_KW  -> amt_all
-      | _ONE_AMT_KW  -> amt_one
-      | _SOME_KW     -> amt_some
-      | expr         -> amt_count
-move_dest: "to" "each" zone_expr  -> dest_each
-         | "to" zone_expr         -> dest_one
-vis_clause: "," "visibility" "=" expr
+select_mode: _CHOSEN_KW -> sel_chosen
+           | _RANDOM_KW -> sel_random
+// The three quantity words share this position with `expr`, so here a fused
+// typo would be a REAL second parse rather than only a misreading (`onecards`
+// splitting as `one cards`) — the ambiguity that first forced anchoring, on
+// `some` and then swept to `all`/`one`. Every keyword in the grammar carries
+// the same anchoring now (see Terminals); this position is where its absence
+// showed up as an `_ambig` node rather than as a silent misread.
+amount: _ALL_KW                      -> amt_all
+      | _ONE_KW                      -> amt_one
+      | _SOME_KW                     -> amt_some
+      | expr                         -> amt_count
+move_dest: _TO_KW _EACH_KW zone_expr -> dest_each
+         | _TO_KW zone_expr          -> dest_one
+vis_clause: "," _VISIBILITY_KW "=" expr
 
 // Epistemic operations are prose statements like the rest of the operation
 // vocabulary. A closed family: one alternative per op, added corpus-first as a
@@ -314,21 +319,21 @@ vis_clause: "," "visibility" "=" expr
 // announce/expose_top/forget join here, in prose, as their games are
 // formalized. `reveal` publicly identifies one matching card without moving
 // it — the card stays in its zone; see cardlang/runtime/execute.py.
-epistemic_op: "shuffle" zone_expr                                    -> shuffle_op
-            | "reveal" "one" "card" "from" zone_expr ["where" expr]   -> reveal_op
+epistemic_op: _SHUFFLE_KW zone_expr                                           -> shuffle_op
+            | _REVEAL_KW _ONE_KW _CARD_KW _FROM_KW zone_expr [_WHERE_KW expr] -> reveal_op
 
-rotate_stmt: "rotate" NAME "through" "[" name_list "]"     // state-cycle (orthogonal)
+rotate_stmt: _ROTATE_KW NAME _THROUGH_KW "[" name_list "]"     // state-cycle (orthogonal)
 name_list: NAME ("," NAME)*
 
-each_simultaneous: "each" NAME "simultaneously" ":" statement
-for_each: "for" "each" NAME NAME ":" statement
-repeat_until: "repeat" "until" expr "{" statement* "}"
+each_simultaneous: _EACH_KW NAME _SIMULTANEOUSLY_KW ":" statement
+for_each: _FOR_KW _EACH_KW NAME NAME ":" statement
+repeat_until: _REPEAT_KW _UNTIL_KW expr "{" statement* "}"
 
 // A conditional *statement* (distinct from the `if … then … else …`
 // expression). Braced blocks like `repeat_until`, so multi-statement bodies
 // need no indentation and the `:` colon-body forms stay unambiguous.
-if_stmt: "if" expr "{" statement* "}" [else_block]
-else_block: "else" "{" statement* "}"
+if_stmt: _IF_KW expr "{" statement* "}" [else_block]
+else_block: _ELSE_KW "{" statement* "}"
 
 // Bind the acting player to one named player for a braced body (decisions.md
 // "Single-actor decisions: the `as` block"). The player expression is evaluated
@@ -348,15 +353,15 @@ as_block: _AS_KW expr "{" statement* "}"
 // halves): an unanchored inline keyword matches as a prefix under the
 // dynamic lexer, so `turnst from …` would silently parse as `turns t` and
 // `againgo` as `again go` — the fused-typo misparse class.
-turns_stmt: _TURNS_KW NAME "from" expr "over" expr "until" expr [_AGAIN_KW NAME] "{" statement* "}"
+turns_stmt: _TURNS_KW NAME _FROM_KW expr _OVER_KW expr _UNTIL_KW expr [_AGAIN_KW NAME] "{" statement* "}"
 
-offer: "offer" "to" expr "one" "of" "[" NAME ("," NAME)* "]"
+offer: _OFFER_KW _TO_KW expr _ONE_KW _OF_KW "[" NAME ("," NAME)* "]"
 // The trick form of `round`: one trick. The `winner` clause names the winner
 // function that picks the player the trick yields, bound as `winner` for the
 // statements after it. Distinct from the auction form's `outcome` clause below,
 // which names a function producing a tagged `(tag, payloads)` outcome — the two
 // senses the glossary keeps apart (docs/glossary.md, Outcome / Winner).
-round_stmt: "round" NAME "from" expr "over" expr "source" NAME "into" NAME "winner" NAME ["trump" expr] ["early" NAME]   -> round_stmt
+round_stmt: _ROUND_KW NAME _FROM_KW expr _OVER_KW expr _SOURCE_KW NAME _INTO_KW NAME _WINNER_KW NAME [_TRUMP_KW expr] [_EARLY_KW NAME]   -> round_stmt
 // The auction/betting form of `round`: a continuous ring over a move vocabulary
 // (`offering`) that loops until the termination predicate holds (`until`). The
 // `outcome` clause is optional: an auction supplies one and the function produces
@@ -370,8 +375,8 @@ round_stmt: "round" NAME "from" expr "over" expr "source" NAME "into" NAME "winn
 // absent / `order ring` is the continuous ring (each turn advances the pointer);
 // `order priority` re-scans the seat order from the leader each turn and offers the
 // first still-pending participant (betting, response windows).
-auction_stmt: "round" auction_moves "from" expr "over" expr ["order" NAME] "until" expr ["outcome" NAME]   -> auction_stmt
-auction_moves: "offering" "[" NAME ("," NAME)* "]"
+auction_stmt: _ROUND_KW auction_moves _FROM_KW expr _OVER_KW expr [_ORDER_KW NAME] _UNTIL_KW expr [_OUTCOME_KW NAME]   -> auction_stmt
+auction_moves: _OFFERING_KW "[" NAME ("," NAME)* "]"
 // The climbing form of `round`: one combination-climbing trick (Big Two, Tichu).
 // The leader leads a combination from the engine, then each participant in turn
 // beats the standing play or passes; the trick ends when action returns to the
@@ -383,12 +388,12 @@ auction_moves: "offering" "[" NAME ("," NAME)* "]"
 // there is no winner *function* — the winner is the loop's last player, not a
 // function of the cards. (decisions.md "Interactive decisions": the same `round`
 // kernel along the move-vocabulary / order / termination axes.)
-climb_stmt: "round" "climb" NAME "from" expr "over" expr "source" NAME "into" NAME "combinations" NAME "follows" NAME "until" expr   -> climb_stmt
+climb_stmt: _ROUND_KW _CLIMB_KW NAME _FROM_KW expr _OVER_KW expr _SOURCE_KW NAME _INTO_KW NAME _COMBINATIONS_KW NAME _FOLLOWS_KW NAME _UNTIL_KW expr   -> climb_stmt
 named_arg: NAME "=" arg_value
 ?arg_value: movement
           | expr
 
-let_stmt: "let" NAME [index] "=" expr
+let_stmt: _LET_KW NAME [index] "=" expr
 assign_stmt: lvalue assign_op expr
 assign_op: ASSIGN_OP
 ASSIGN_OP: ":=" | "+=" | "-="
@@ -398,7 +403,7 @@ lvalue: NAME [index_expr]
 // Rules (top-level)
 // ----------------------------------------------------------------------------
 
-move_type_def: "move_type" NAME ["(" move_param ("," move_param)* ")"] "{" [move_when] move_effect "}"
+move_type_def: _MOVE_TYPE_KW NAME ["(" move_param ("," move_param)* ")"] "{" [move_when] move_effect "}"
 // An optional, comma-separated parameter list; each parameter is drawn from an
 // enumerable domain (Suit/Suit?, Rank, Player) or the state-dependent Card
 // domain. Their value-domains flatten into one per-turn candidate list.
@@ -408,7 +413,7 @@ move_param: NAME ":" payload_type
 // appears, so a game can factor a predicate it would otherwise repeat. The body
 // is hermetic — it reads only its parameters and game/phase state, never the
 // caller's binders — and non-recursive.
-function_def: "function" NAME "(" [func_param ("," func_param)*] ")" "=" expr
+function_def: _FUNCTION_KW NAME "(" [func_param ("," func_param)*] ")" "=" expr
 func_param: NAME ":" payload_type
 
 // A named procedure: a parameterized *statement* block, the definition form the
@@ -417,14 +422,14 @@ func_param: NAME ":" payload_type
 // parameters — the expander splices it away before the runtime ever sees it, so
 // a procedure can never create an information-set gap. Parameter domains are the
 // enumerable payload types; the resolver gates which are supported.
-procedure_def: "procedure" NAME "(" [move_param ("," move_param)*] ")" "{" statement* "}"
-move_when: "when" ":" applies_pred
-move_effect: "effect" "{" statement* "}"
+procedure_def: _PROCEDURE_KW NAME "(" [move_param ("," move_param)*] ")" "{" statement* "}"
+move_when: _WHEN_KW ":" applies_pred
+move_effect: _EFFECT_KW "{" statement* "}"
 
 // A named param-light definition with a typed outcome outcome. Its body runs
 // with the enclosing context bound and `produce`s one outcome. Consumed by a
 // `produces:` block (see produces_stmt).
-define_def: "define" NAME "->" outcome_set "{" statement* "}"
+define_def: _DEFINE_KW NAME "->" outcome_set "{" statement* "}"
 outcome_set: "{" outcome_case ("|" outcome_case)* "}"
 outcome_case: NAME ["(" payload_type ("," payload_type)* ")"]
 // A payload type, optionally nullable (`Suit?` — Bridge's no-trump strain).
@@ -435,18 +440,18 @@ payload_type: NAME      -> payload_plain
 // making it a template: an `active_rules` reference instantiates it by
 // substituting the arguments into the body at resolve time. Parameter domains
 // are the enumerable payload types; the resolver gates which are supported.
-rule_def: "rule" NAME [rule_params] "{" rule_clause* "}"
+rule_def: _RULE_KW NAME [rule_params] "{" rule_clause* "}"
 rule_params: "(" move_param ("," move_param)* ")"
 ?rule_clause: constrains
             | applies_when
             | demands
             | if_impossible
             | exempts
-constrains: "constrains" ":" NAME
-applies_when: "applies_when" ":" applies_pred
-?applies_pred: "always"  -> always
+constrains: _CONSTRAINS_KW ":" NAME
+applies_when: _APPLIES_WHEN_KW ":" applies_pred
+?applies_pred: _ALWAYS_KW  -> always
              | expr
-demands: "demands" ":" demand_value
+demands: _DEMANDS_KW ":" demand_value
 ?demand_value: actions_where
              | expr
 // Cards exempt from this rule: never subject to its obligation, never able to
@@ -454,13 +459,13 @@ demands: "demands" ":" demand_value
 // AFTER every other legal card (rules.legal_cards), regardless of hand
 // position. Tarot's Excuse is the corpus's first instance (always playable,
 // never bound by follow-suit/trump obligations).
-exempts: "exempts" ":" expr
+exempts: _EXEMPTS_KW ":" expr
 // A predicate over the candidate player move, whose subject is `action`
 // (see decisions.md "Rule demand forms"). `action` is the move instance —
 // `action.card`, `action.card_count`, `action.amount` — never the zone-movement
 // verb `move`.
-actions_where: "actions" "where" expr
-if_impossible: "if_impossible" ":" expr
+actions_where: _ACTIONS_KW _WHERE_KW expr
+if_impossible: _IF_IMPOSSIBLE_KW ":" expr
 
 // ----------------------------------------------------------------------------
 // Expression sublanguage
@@ -477,17 +482,17 @@ if_impossible: "if_impossible" ":" expr
 // sit at the top of the expression grammar so the `where <pred>` body extends
 // as far right as possible (one canonical parse). The predicate is evaluated
 // per player with `player` bound to the candidate.
-player_query: "players" "where" expr              -> players_where
-            | "the" "player" "where" expr         -> the_player_where
-            | "number" "of" "players" "where" expr -> number_players_where
+player_query: _PLAYERS_KW _WHERE_KW expr                   -> players_where
+            | _THE_KW _PLAYER_KW _WHERE_KW expr            -> the_player_where
+            | _NUMBER_KW _OF_KW _PLAYERS_KW _WHERE_KW expr -> number_players_where
 
 // Queries over a card zone, the card mirror of the player queries: the
 // predicate is evaluated per card with `card` bound to the candidate. The
 // bare count form (`number of cards in <zone>`) is the zone-size idiom.
-card_query: "cards" "in" zone_expr "where" expr                  -> cq_set
-          | "number" "of" "cards" "in" zone_expr ["where" expr]  -> cq_count
-          | "any" "card" "in" zone_expr "where" expr             -> cq_any
-          | "all" "cards" "in" zone_expr "where" expr            -> cq_all
+card_query: _CARDS_KW _IN_KW zone_expr _WHERE_KW expr                     -> cq_set
+          | _NUMBER_KW _OF_KW _CARDS_KW _IN_KW zone_expr [_WHERE_KW expr] -> cq_count
+          | _ANY_KW _CARD_KW _IN_KW zone_expr _WHERE_KW expr              -> cq_any
+          | _ALL_KW _CARDS_KW _IN_KW zone_expr _WHERE_KW expr             -> cq_all
 
 
 // Boolean quantifiers, binder implicit (`player`/`team`/`suit`/`rank` is
@@ -507,19 +512,19 @@ card_query: "cards" "in" zone_expr "where" expr                  -> cq_set
 // declared domains (bare) or the admitted `{line, cell}` set (collection);
 // the plural convention (`any` singular, `all`/`number of` plural) is a
 // resolve wall, not a grammar one.
-quantifier: "any" "player" "where" expr  -> q_any_player
-          | "all" "players" "where" expr -> q_all_player
-          | "any" "team" "where" expr    -> q_any_team
-          | "all" "teams" "where" expr   -> q_all_team
-          | "any" "suit" "where" expr    -> q_any_suit
-          | "all" "suits" "where" expr   -> q_all_suit
-          | "any" "rank" "where" expr    -> q_any_rank
-          | "all" "ranks" "where" expr   -> q_all_rank
-          | "any" QNOUN "where" expr           -> q_any_domain
-          | "all" QNOUN "where" expr           -> q_all_domain
-          | "number" "of" QNOUN "where" expr   -> q_count_domain
-          | "any" QNOUN "in" expr "where" expr -> q_any_in
-          | "all" QNOUN "in" expr "where" expr -> q_all_in
+quantifier: _ANY_KW _PLAYER_KW _WHERE_KW expr        -> q_any_player
+          | _ALL_KW _PLAYERS_KW _WHERE_KW expr       -> q_all_player
+          | _ANY_KW _TEAM_KW _WHERE_KW expr          -> q_any_team
+          | _ALL_KW _TEAMS_KW _WHERE_KW expr         -> q_all_team
+          | _ANY_KW _SUIT_KW _WHERE_KW expr          -> q_any_suit
+          | _ALL_KW _SUITS_KW _WHERE_KW expr         -> q_all_suit
+          | _ANY_KW _RANK_KW _WHERE_KW expr          -> q_any_rank
+          | _ALL_KW _RANKS_KW _WHERE_KW expr         -> q_all_rank
+          | _ANY_KW QNOUN _WHERE_KW expr             -> q_any_domain
+          | _ALL_KW QNOUN _WHERE_KW expr             -> q_all_domain
+          | _NUMBER_KW _OF_KW QNOUN _WHERE_KW expr   -> q_count_domain
+          | _ANY_KW QNOUN _IN_KW expr _WHERE_KW expr -> q_any_in
+          | _ALL_KW QNOUN _IN_KW expr _WHERE_KW expr -> q_all_in
 
 
 // Aggregations in the English register, binder implicitly `card`. The order
@@ -527,15 +532,15 @@ quantifier: "any" "player" "where" expr  -> q_any_player
 // empty (or emptied-by-`where`) zone can never crash the aggregation; the
 // default sits below `or_expr` so the `or` unambiguously ends the predicate
 // (parenthesize a compound default).
-agg_query: "sum" "of" expr "over" "cards" "in" zone_expr ["where" expr]                 -> agg_sum
-         | RANK_DIR expr "over" "cards" "in" zone_expr ["where" expr] "or" and_expr     -> agg_order
+agg_query: _SUM_KW _OF_KW expr _OVER_KW _CARDS_KW _IN_KW zone_expr [_WHERE_KW expr]           -> agg_sum
+         | RANK_DIR expr _OVER_KW _CARDS_KW _IN_KW zone_expr [_WHERE_KW expr] _OR_KW and_expr -> agg_order
 
-if_expr: "if" expr "then" expr elif_clause* "else" expr
-elif_clause: "elif" expr "then" expr
+if_expr: _IF_KW expr _THEN_KW expr elif_clause* _ELSE_KW expr
+elif_clause: _ELIF_KW expr _THEN_KW expr
 
-?or_expr: or_expr "or" and_expr   -> or_op
+?or_expr: or_expr _OR_KW and_expr   -> or_op
         | and_expr
-?and_expr: and_expr "and" not_expr -> and_op
+?and_expr: and_expr _AND_KW not_expr -> and_op
          | not_expr
 ?not_expr: _NOT_KW not_expr  -> logical_not
          | comparison
@@ -546,10 +551,10 @@ elif_clause: "elif" expr "then" expr
 // the builder to the absence/emptiness checks; any other operand is plain
 // equality. `==`/`!=` are retired: the builder rejects them with the
 // replacement spelling.
-?comparison: sum _IS_KW _NOT_KW sum    -> compare_is_not
-           | sum _IS_KW sum           -> compare_is
+?comparison: sum _IS_KW _NOT_KW sum -> compare_is_not
+           | sum _IS_KW sum         -> compare_is
            | sum comp_op sum        -> compare
-           | sum "in" sum           -> membership
+           | sum _IN_KW sum         -> membership
            | sum
 comp_op: COMP_OP
 COMP_OP: "==" | "!=" | ">=" | "<=" | ">" | "<"
@@ -557,7 +562,7 @@ COMP_OP: "==" | "!=" | ">=" | "<=" | ">" | "<"
 ?sum: sum "+" term   -> add
     | sum "-" term   -> sub
     | term
-?term: term "offset_by" factor -> offset_by
+?term: term _OFFSET_BY_KW factor -> offset_by
      | factor
 
 ?factor: factor "*" postfix -> mul
@@ -617,7 +622,7 @@ struct_lit: STRUCT_TYPE_NAME "{" field_init ("," field_init)* "}"
 field_init: NAME ":" expr
 STRUCT_TYPE_NAME: /(?!(?:always|all|one|some|jointly|not|is|number|derived|uses|players|direction|cards|pieces|board|ranking|trump|partnerships|max_length|positions|zones|state|phase|winner|loser|requires|move_type|rule|type|define|function|procedure)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
-card_literal: card_rank "of" NAME
+card_literal: card_rank _OF_KW NAME
 // Ranks and suits are values a game's deck defines, not language keywords: a
 // rank is any name or number (A, Q, 10, 2 — or Duke, Mahjong in custom decks),
 // checked by the resolver against the deck's Rank enum. Do NOT reserve face
@@ -630,7 +635,7 @@ card_literal: card_rank "of" NAME
 card_rank: CARD_RANK_NAME | INT
 CARD_RANK_NAME: /(?!(?:always|all|one|some|jointly|not|is|number|uses|players|direction|cards|pieces|board|ranking|trump|partnerships|max_length|positions|zones|state|phase|winner|loser)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
-all_players: "all" "players"
+all_players: _ALL_KW _PLAYERS_KW
 call: NAME "(" [arg_list] ")"
 
 // A decision that yields a value (not a card play): pick one element of a
@@ -643,7 +648,7 @@ call: NAME "(" [arg_list] ")"
 // could never satisfy the static contract. When the upper bound is itself a
 // literal (Spades' `0 .. 13`), the ceiling derives from it and the clause is
 // omitted; the resolver requires it exactly when it cannot.
-choose_expr: "choose" "integer" "in" sum ".." sum ["up" "to" INT]  -> choose_integer
+choose_expr: _CHOOSE_KW _INTEGER_KW _IN_KW sum ".." sum [_UP_KW _TO_KW INT]  -> choose_integer
 
 index_expr: "[" expr "]"
 zone_expr: NAME [index_expr]
@@ -652,59 +657,165 @@ zone_expr: NAME [index_expr]
 // Terminals
 // ----------------------------------------------------------------------------
 
-// Keywords that sit where a NAME is also grammatical, and never name a value,
-// are excluded from NAME to keep them unambiguous: `always` (applies_when
-// wildcard), the quantity words `all` / `one`, and `not` / `is` / `number`
-// (the equality and card-query keywords below — without the exclusion, e.g.
-// `number of cards in <zone>` is also derivable as the card literal `number
-// of cards` followed by membership). `none`, by contrast, is a domain value
-// (the no-pass Direction, an optional's null) and stays an ordinary name_ref
-// the resolver interprets. Extend this guard only for keywords that never
-// name a value; statement-leading keywords (game, phase, …) need no guard.
+// EVERY keyword is a whole word. A keyword is written as an anchored `_*_KW`
+// terminal rather than a bare string literal in the productions above, because
+// the Earley parser runs a DYNAMIC lexer: it matches whichever terminal the
+// parser expects at each position, so a bare literal also matches as a PREFIX
+// of a longer word and the remainder is absorbed by whatever symbol follows.
+// `letx = 3` then parses as `let x = 3` — one parse, no ambiguity node, and a
+// reading no reader shares (`=` is not an assignment operator here, and there
+// is no expression-statement form, so `letx = 3` cannot mean what it looks
+// like). The trailing `(?![A-Za-z0-9_])` refuses that mid-word boundary while
+// leaving whole words that merely begin with a keyword — `is_re`, `not_yet`,
+// `assets`, `some_var`, `letter` — lexing as single NAMEs. The leading
+// underscore keeps Lark's auto-filtering of inline literals from the tree, so
+// naming a literal changes nothing else.
 //
-// `is` and `not` additionally get their own anchored terminals rather than
-// staying inline string literals in the productions above: an inline "is"
-// can also match as a prefix of a longer identifier (`is_re` lexing as `is`
-// + `_re`), which is ambiguous under Earley even with `is` excluded from
-// NAME. The negative lookahead `(?![A-Za-z0-9_])` pins the match to a whole
-// word, so `is_re` and `not_yet` still lex as single NAMEs. The leading
-// underscore keeps Lark's auto-filtering of inline literals from the tree.
-// Every inline occurrence of "not"/"is" in the productions above must use
-// these terminals, not the bare string literal — `compare_is_not`'s "not"
-// sits in exactly the same identifier-split trap (`sum is not_ready` was
-// ambiguous between `not` + name_ref `_ready` and a single name_ref
-// `not_ready`) even though it is a second word inside an existing keyword
-// pair, not a standalone token.
-_IS_KW: "is" /(?![A-Za-z0-9_])/
-_NOT_KW: "not" /(?![A-Za-z0-9_])/
-// `as` (the single-actor block, `as_block`) needs the same anchoring as `is`/`not`
-// so it does not lex as a prefix of a longer token. The lookahead additionally
-// excludes `-`, which the others need not: without it, the `as` in
-// `as-equally-as-possible` (dist_clause) would match this keyword. `as` is
-// statement-leading, so — unlike the value-position keywords — it stays out of
-// the NAME exclusion below; the anchoring alone keeps `assets := …` a NAME.
-_AS_KW: "as" /(?![A-Za-z0-9_-])/
-// `jointly` (the joint-predicate where form) and `some` (the any-size joint
-// amount) sit mid-movement where an identifier can follow, so they get the
-// same whole-word anchoring (`jointly_valid`/`some_var` must stay single
-// NAMEs). Both ALSO join the NAME exclusion below: each sits where an
-// expression is grammatical too, so a bare-NAME reading would be a real
-// second parse (`some` as a count expr; `jointly(…)` as a call).
-_JOINTLY_KW: "jointly" /(?![A-Za-z0-9_])/
-_SOME_KW: "some" /(?![A-Za-z0-9_])/
-_TURNS_KW: "turns" /(?![A-Za-z0-9_])/
+// The dynamic lexer is not the removable half of that: NAME, QNOUN,
+// CARD_RANK_NAME and STRUCT_TYPE_NAME all match the same strings and are
+// disambiguated by POSITION, so a context-free lexer — which would take the
+// longest match and end the class outright — cannot tokenize this grammar at
+// all. Anchoring is the fix that remains.
+//
+// The property is one line and covers the whole table: no terminal may match a
+// word-character-final string when a word character follows. It is pinned over
+// Lark's own compiled terminal list by tests/test_keyword_anchoring.py, so a
+// literal added to a new production is a red cell rather than a silent member.
+// Anchoring is a SEPARATE half from the NAME exclusion below: anchoring stops a
+// fused spelling from lexing, exclusion stops a keyword from also reading as a
+// value. A keyword needs the first always and the second only where a bare-NAME
+// reading would be a real second parse.
+_ACTIONS_KW: "actions" /(?![A-Za-z0-9_])/
+_ACTIVE_RULES_KW: "active_rules" /(?![A-Za-z0-9_])/
+_AFTER_EACH_KW: "after_each" /(?![A-Za-z0-9_])/
 _AGAIN_KW: "again" /(?![A-Za-z0-9_])/
-// The amount position's `all`/`one` (an expr is also grammatical there, so a
-// fused identifier is a real second parse). Their OTHER inline occurrences
-// (`all players`, `offer … one of`, `reveal one card`) are un-anchored
-// residual — recorded in roadmap.md.
-_ALL_AMT_KW: "all" /(?![A-Za-z0-9_])/
-_ONE_AMT_KW: "one" /(?![A-Za-z0-9_])/
-// `some` and `jointly` join the exclusion for the same reason as `all`/`one`:
-// both sit where an expression is also grammatical, so a NAME reading is a
-// real second parse (`some` as amt_count's expr; `jointly (x) >= 3` as a
-// call to a function named jointly under the per-card where). Neither ever
-// names a value. The `\b` anchor keeps `some_var`/`jointly_valid` whole.
+_ALL_KW: "all" /(?![A-Za-z0-9_])/
+_ALWAYS_KW: "always" /(?![A-Za-z0-9_])/
+_AND_KW: "and" /(?![A-Za-z0-9_])/
+_ANY_KW: "any" /(?![A-Za-z0-9_])/
+_APPLIES_WHEN_KW: "applies_when" /(?![A-Za-z0-9_])/
+// `as` excludes `-` as well, which no other keyword needs: without it the `as`
+// in `as-equally-as-possible` (dist_clause) matches this keyword. The pair is
+// derived rather than listed — tests/test_keyword_anchoring.py scrapes the
+// keyword set for a literal that is another's prefix at a hyphen boundary, and
+// asserts `as` is the only one.
+_AS_KW: "as" /(?![A-Za-z0-9_-])/
+_AS_EQUALLY_AS_POSSIBLE_KW: "as-equally-as-possible" /(?![A-Za-z0-9_])/
+_BEFORE_EACH_KW: "before_each" /(?![A-Za-z0-9_])/
+_BOARD_KW: "board" /(?![A-Za-z0-9_])/
+_CARD_KW: "card" /(?![A-Za-z0-9_])/
+_CARDS_KW: "cards" /(?![A-Za-z0-9_])/
+_CHOOSE_KW: "choose" /(?![A-Za-z0-9_])/
+_CHOSEN_KW: "chosen" /(?![A-Za-z0-9_])/
+_CLIMB_KW: "climb" /(?![A-Za-z0-9_])/
+_COMBINATIONS_KW: "combinations" /(?![A-Za-z0-9_])/
+_CONSTRAINS_KW: "constrains" /(?![A-Za-z0-9_])/
+_CONTINUE_KW: "continue" /(?![A-Za-z0-9_])/
+_DEFINE_KW: "define" /(?![A-Za-z0-9_])/
+_DEMANDS_KW: "demands" /(?![A-Za-z0-9_])/
+_DERIVED_KW: "derived" /(?![A-Za-z0-9_])/
+_DIRECTION_KW: "direction" /(?![A-Za-z0-9_])/
+_EACH_KW: "each" /(?![A-Za-z0-9_])/
+_EARLY_KW: "early" /(?![A-Za-z0-9_])/
+_EFFECT_KW: "effect" /(?![A-Za-z0-9_])/
+_ELIF_KW: "elif" /(?![A-Za-z0-9_])/
+_ELSE_KW: "else" /(?![A-Za-z0-9_])/
+_EXEMPTS_KW: "exempts" /(?![A-Za-z0-9_])/
+_FOLLOWS_KW: "follows" /(?![A-Za-z0-9_])/
+_FOR_KW: "for" /(?![A-Za-z0-9_])/
+_FROM_KW: "from" /(?![A-Za-z0-9_])/
+_FUNCTION_KW: "function" /(?![A-Za-z0-9_])/
+_GAME_KW: "game" /(?![A-Za-z0-9_])/
+_HAND_KW: "hand" /(?![A-Za-z0-9_])/
+_IF_KW: "if" /(?![A-Za-z0-9_])/
+_IF_IMPOSSIBLE_KW: "if_impossible" /(?![A-Za-z0-9_])/
+_IN_KW: "in" /(?![A-Za-z0-9_])/
+_INTEGER_KW: "integer" /(?![A-Za-z0-9_])/
+_INTO_KW: "into" /(?![A-Za-z0-9_])/
+// `is`/`not` were the first two anchored, found as `is_re` lexing as `is` +
+// `_re` and `sum is not_ready` as `is not` + `_ready` — the same trap, once as
+// a standalone keyword and once as the second word of a keyword pair.
+_IS_KW: "is" /(?![A-Za-z0-9_])/
+_JOINTLY_KW: "jointly" /(?![A-Za-z0-9_])/
+_LEGAL_MOVES_KW: "legal_moves" /(?![A-Za-z0-9_])/
+_LET_KW: "let" /(?![A-Za-z0-9_])/
+_LIBRARY_KW: "library" /(?![A-Za-z0-9_])/
+_LOSER_KW: "loser" /(?![A-Za-z0-9_])/
+_MAX_LENGTH_KW: "max_length" /(?![A-Za-z0-9_])/
+_MOVE_TYPE_KW: "move_type" /(?![A-Za-z0-9_])/
+_NEXT_KW: "next" /(?![A-Za-z0-9_])/
+_NOT_KW: "not" /(?![A-Za-z0-9_])/
+_NUMBER_KW: "number" /(?![A-Za-z0-9_])/
+_OF_KW: "of" /(?![A-Za-z0-9_])/
+_OFFER_KW: "offer" /(?![A-Za-z0-9_])/
+_OFFERING_KW: "offering" /(?![A-Za-z0-9_])/
+_OFFSET_BY_KW: "offset_by" /(?![A-Za-z0-9_])/
+_ONE_KW: "one" /(?![A-Za-z0-9_])/
+_OR_KW: "or" /(?![A-Za-z0-9_])/
+_ORDER_KW: "order" /(?![A-Za-z0-9_])/
+_OUTCOME_KW: "outcome" /(?![A-Za-z0-9_])/
+_OVER_KW: "over" /(?![A-Za-z0-9_])/
+_OVERRIDE_KW: "override" /(?![A-Za-z0-9_])/
+_PARTNERSHIPS_KW: "partnerships" /(?![A-Za-z0-9_])/
+_PHASE_KW: "phase" /(?![A-Za-z0-9_])/
+_PIECES_KW: "pieces" /(?![A-Za-z0-9_])/
+_PLAYER_KW: "player" /(?![A-Za-z0-9_])/
+_PLAYERS_KW: "players" /(?![A-Za-z0-9_])/
+_POSITIONS_KW: "positions" /(?![A-Za-z0-9_])/
+_PROCEDURE_KW: "procedure" /(?![A-Za-z0-9_])/
+_PRODUCE_KW: "produce" /(?![A-Za-z0-9_])/
+_PRODUCES_KW: "produces" /(?![A-Za-z0-9_])/
+_RANDOM_KW: "random" /(?![A-Za-z0-9_])/
+_RANK_KW: "rank" /(?![A-Za-z0-9_])/
+_RANKING_KW: "ranking" /(?![A-Za-z0-9_])/
+_RANKS_KW: "ranks" /(?![A-Za-z0-9_])/
+_REPEAT_KW: "repeat" /(?![A-Za-z0-9_])/
+_REQUIRES_KW: "requires" /(?![A-Za-z0-9_])/
+_REVEAL_KW: "reveal" /(?![A-Za-z0-9_])/
+_ROTATE_KW: "rotate" /(?![A-Za-z0-9_])/
+_ROUND_KW: "round" /(?![A-Za-z0-9_])/
+_RULE_KW: "rule" /(?![A-Za-z0-9_])/
+_RUN_KW: "run" /(?![A-Za-z0-9_])/
+_SHUFFLE_KW: "shuffle" /(?![A-Za-z0-9_])/
+_SIMULTANEOUSLY_KW: "simultaneously" /(?![A-Za-z0-9_])/
+_SKIP_KW: "skip" /(?![A-Za-z0-9_])/
+_SOME_KW: "some" /(?![A-Za-z0-9_])/
+_SOURCE_KW: "source" /(?![A-Za-z0-9_])/
+_STATE_KW: "state" /(?![A-Za-z0-9_])/
+_SUIT_KW: "suit" /(?![A-Za-z0-9_])/
+_SUITS_KW: "suits" /(?![A-Za-z0-9_])/
+_SUM_KW: "sum" /(?![A-Za-z0-9_])/
+_TEAM_KW: "team" /(?![A-Za-z0-9_])/
+_TEAMS_KW: "teams" /(?![A-Za-z0-9_])/
+_THE_KW: "the" /(?![A-Za-z0-9_])/
+_THEN_KW: "then" /(?![A-Za-z0-9_])/
+_THROUGH_KW: "through" /(?![A-Za-z0-9_])/
+_TO_KW: "to" /(?![A-Za-z0-9_])/
+_TRANSITION_TO_KW: "transition_to" /(?![A-Za-z0-9_])/
+_TRUMP_KW: "trump" /(?![A-Za-z0-9_])/
+_TURNS_KW: "turns" /(?![A-Za-z0-9_])/
+_TYPE_KW: "type" /(?![A-Za-z0-9_])/
+_UNTIL_KW: "until" /(?![A-Za-z0-9_])/
+_UP_KW: "up" /(?![A-Za-z0-9_])/
+_USES_KW: "uses" /(?![A-Za-z0-9_])/
+_VISIBILITY_KW: "visibility" /(?![A-Za-z0-9_])/
+_WHEN_KW: "when" /(?![A-Za-z0-9_])/
+_WHERE_KW: "where" /(?![A-Za-z0-9_])/
+_WINNER_KW: "winner" /(?![A-Za-z0-9_])/
+_ZONES_KW: "zones" /(?![A-Za-z0-9_])/
+
+// Keywords that sit where a NAME is also grammatical, and never name a value,
+// are ALSO excluded from NAME — the second half, and a smaller set than the
+// keywords above. `always` (the applies_when wildcard), the quantity words
+// `all` / `one` / `some`, `jointly`, and `not` / `is` / `number` (the equality
+// and card-query keywords): without the exclusion, `number of cards in <zone>`
+// is also derivable as the card literal `number of cards` followed by
+// membership, `some` as an amount expression, and `jointly (x) >= 3` as a call
+// to a function named `jointly`. `none`, by contrast, is a domain value (the
+// no-pass Direction, an optional's null) and stays an ordinary name_ref the
+// resolver interprets. Extend this guard only for keywords that never name a
+// value; statement-leading keywords (game, phase, …) need no guard — anchoring
+// alone keeps `assets := …` a NAME.
 // The position-domain / collection quantifier noun (`any <QNOUN> where`, `any
 // <QNOUN> in …`). A NAME that additionally excludes the nouns of the fixed
 // quantifier forms (player/team/suit/rank) and the card queries (card), with
@@ -720,9 +831,14 @@ QNOUN: /(?!(?:always|all|one|some|jointly|not|is|number|players?|teams?|suits?|r
 NAME: /(?!(?:always|all|one|some|jointly|not|is|number)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 STRING: /"[^"]*"/
 
+// The mirror of keyword anchoring, and the one member of the class a keyword's
+// own lookahead cannot reach: a digit run cannot absorb letters, so `1and`
+// lexes as `1` + `and` however well `and` is anchored. The anchor has to sit
+// here. Defined rather than imported from common for that lookahead.
+INT: /[0-9]+(?![A-Za-z0-9_])/
+
 LINE_COMMENT: /\/\/[^\n]*/
 
-%import common.INT
 %import common.WS
 %ignore WS
 %ignore LINE_COMMENT

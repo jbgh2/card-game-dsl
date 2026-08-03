@@ -16,6 +16,11 @@ match as a *prefix* of a longer identifier even once the identifier's exact
 text is excluded from NAME (`is_re` lexing as `is` + `_re`). This module pins
 both halves of that fix: the reserved bare words are rejected, and
 identifiers merely prefixed by a reserved word still parse as themselves.
+
+Anchoring is no longer these three words' own property — every keyword in the
+grammar carries it, stated as one rule over the whole terminal table in
+tests/test_keyword_anchoring.py. Reservation (exclusion from NAME) stays the
+smaller, separate set this module is about: a word that may not name a value.
 """
 
 from __future__ import annotations

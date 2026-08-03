@@ -22,13 +22,13 @@ Completeness ledger (docs/decisions.md "Surface totality" /
                 and closed while verifying this fix).
     residual:   ambiguity in productions or identifier shapes no corpus game
                 exercises is unmeasured by construction — a corpus pin proves
-                the corpus, not the grammar's full input space. In
-                particular, other inline keyword literals in the expression
-                grammar (`where`, `of`, `over`, `in`, …) are not swept for
-                the same identifier-split class the `is`/`not`/`number` fix
-                closed; nothing in the corpus currently exercises an
-                identifier shaped to trigger them (spot-probed by hand during
-                the investigation behind this test, not walled or pinned).
+                the corpus, not the grammar's full input space. The
+                identifier-split class the `is`/`not`/`number` fix closed is
+                no longer part of that residual: every keyword in the grammar
+                now carries whole-word anchoring, pinned over Lark's terminal
+                table by tests/test_keyword_anchoring.py, so a keyword cannot
+                match as a prefix of a longer word whether or not a corpus
+                game happens to spell one.
 """
 
 from __future__ import annotations
