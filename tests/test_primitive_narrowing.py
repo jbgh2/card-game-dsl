@@ -1368,7 +1368,9 @@ def test_trick_outcome_freezes_its_collection_args() -> None:
     form.trump = None
     rs = RuntimeState(Seating(2), ZoneStore((), (0, 1)), random.Random(0))
     rs.rank_index = {"7": 0}
-    rs.mech_state.append({"terminal": True})
+    # No `mech_state` frame is seeded: `outcome` reads only the accumulator it is
+    # handed. It needed one when the hook still popped the frame stack itself
+    # (tests/test_round_state_registry.py::test_outcome_hook_leaves_the_frame_stack_alone).
     ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]))
     state = {
         "trick_terminated_early": False,

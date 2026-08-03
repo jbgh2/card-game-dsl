@@ -72,8 +72,16 @@ def run_decision_round(form: DecisionForm, state: State, ctx: Ctx) -> Outcome:
     docs/design-notes/kernel-extensibility.md). `form` supplies the six slots; this
     skeleton is fixed. Exactly one `ctx.chooser` draw happens per step — the sole
     source of nondeterminism, and what the OpenSpiel one-node-per-turn compilation
-    rests on."""
+    rests on.
+
+    The round-state frame's lifetime is exactly this call. Whether there IS one is
+    the form's choice — `init` pushes it, and the auction form deliberately
+    publishes nothing — but ending it belongs here, so `outcome` computes a result
+    and does nothing else. Popping back to the depth `init` was handed keeps push
+    and pop symmetric without the protocol carrying a "do I publish?" slot."""
+    depth = len(ctx.rs.mech_state)
     state = form.init(state, ctx)
+    published = len(ctx.rs.mech_state) > depth
     while True:
         if form.terminated(state, ctx):  # until / early / shed-out
             break
@@ -89,7 +97,13 @@ def run_decision_round(form: DecisionForm, state: State, ctx: Ctx) -> Outcome:
         ctx.trace("decision", (actor, choice))  # the canonical decision event (§4)
         observe.choice(ctx, actor, choice)
         state = form.apply(actor, choice, state, ctx)
-    return form.outcome(state, ctx)
+    result = form.outcome(state, ctx)
+    # After `outcome`, never before: the winner function runs as a primitive, and
+    # `EngineFacts.round_state` hands it `mech_state[-1]` while a frame is live.
+    # Popping first would silently feed it `last_round_state` instead.
+    if published:
+        ctx.rs.last_round_state = ctx.rs.mech_state.pop()
+    return result
 
 
 class TrickForm:
@@ -98,7 +112,8 @@ class TrickForm:
     `None`) or an `early` predicate ends the pass; the winner function then picks
     the winner. Alone among the forms it exposes its `state` to the surrounding
     body — `init` pushes the accumulator onto `mech_state` (the `state.` pronoun),
-    and `outcome` pops it into `last_round_state` as the winner is returned."""
+    which `run_decision_round` pops into `last_round_state` once the round closes,
+    so the body can still read `state.trick_terminated_early` afterward."""
 
     def __init__(self, stmt: n.Round, ctx: Ctx) -> None:
         from cardlang.runtime import primitives
@@ -204,9 +219,6 @@ class TrickForm:
         # every function in the stdlib trick-winner registry returns a seat
         assert isinstance(winner, int)
         ctx.trace("trick", (winner, [c for _, c in state["played"]]))
-        # Stash the terminal state as we pop, so the surrounding body (which does
-        # the routing) can still read `state.trick_terminated_early` afterward.
-        ctx.rs.last_round_state = ctx.rs.mech_state.pop()
         return winner
 
 
@@ -451,8 +463,8 @@ class ClimbForm:
     trick the instant a player sheds, so its participants all hold cards throughout.
 
     Like the trick form, the climbing form exposes its state to the surrounding
-    body: `init` pushes the accumulator onto `mech_state` and `outcome` pops it
-    into `last_round_state`, so the body reads `state.lead_ended_trick` (did a
+    body: `init` pushes the accumulator onto `mech_state` and `run_decision_round`
+    pops it into `last_round_state`, so the body reads `state.lead_ended_trick` (did a
     trick-ending lead close it?) and `state.shed_first` / `state.shed_second`
     (the first two players who played their last cards this trick, in play
     order — finishing order is score-bearing in Tichu). Big Two reads none of
@@ -581,9 +593,6 @@ class ClimbForm:
 
     def outcome(self, state: State, ctx: Ctx) -> Outcome:
         last: Player = state["last"]
-        # Stash the terminal state as we pop (the trick form's pattern), so the
-        # body can read `state.lead_ended_trick` / `state.shed_*` afterward.
-        ctx.rs.last_round_state = ctx.rs.mech_state.pop()
         return last
 
 
