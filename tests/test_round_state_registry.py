@@ -242,6 +242,71 @@ def test_every_form_key_is_classified() -> None:
         )
 
 
+def test_outcome_hook_leaves_the_frame_stack_alone() -> None:
+    """Computing a round's result and ENDING its frame are two jobs, and only the
+    loop owns the second. `run_decision_round` pushes nothing itself — each form's
+    `init` decides whether it publishes — but the pop is the loop's, so `outcome`
+    is a pure function of the accumulator it is handed.
+
+    It mattered because the pop rode on a hook whose name says it computes a
+    value: calling `outcome` a second time popped a frame it did not own — a
+    parent round's, or off an empty stack — and nothing in the protocol said so.
+    `run_decision_round` happens to call it once, so the contract was unenforced
+    rather than violated, and the next caller was the one who would find out.
+
+    Measured through real rounds of both forms that publish (a trick in Hearts, a
+    climb in President), not by reading `outcome`'s source: the pop could move to
+    any callee and a source scrape would still be green. The observation count is
+    asserted non-zero so the pin cannot pass by watching nothing.
+
+    red under: this test was authored against the pre-fix tree, where both
+    `TrickForm.outcome` and `ClimbForm.outcome` ended with
+    `ctx.rs.last_round_state = ctx.rs.mech_state.pop()`, and it failed on the
+    first observed round of each form.
+    """
+    import random
+    from collections.abc import Callable
+    from pathlib import Path
+    from typing import Any
+
+    from cardlang.pipeline import check_source
+    from cardlang.runtime import mechanics
+    from cardlang.runtime.driver import play_game
+
+    depths: list[tuple[int, int]] = []
+    original: Callable[..., Any] = mechanics.run_decision_round
+
+    def watched(form_obj: Any, state: Any, ctx: Any) -> Any:
+        inner = form_obj.outcome
+
+        def recording(st: Any, c: Any) -> Any:
+            before = len(c.rs.mech_state)
+            result = inner(st, c)
+            depths.append((before, len(c.rs.mech_state)))
+            return result
+
+        form_obj.outcome = recording
+        return original(form_obj, state, ctx)
+
+    root = Path(__file__).parent.parent / "docs" / "games"
+    for form, game_name in (("trick", "hearts"), ("climb", "president")):
+        depths.clear()
+        game = check_source(root / f"{game_name}.cardlang")
+        setattr(mechanics, "run_decision_round", watched)
+        try:
+            play_game(game, random.Random(0), None)
+        finally:
+            setattr(mechanics, "run_decision_round", original)
+
+        assert depths, f"no {form} round ran in {game_name}"
+        moved = [(b, a) for b, a in depths if b != a]
+        assert not moved, (
+            f"the {form} form's `outcome` changed the frame-stack depth "
+            f"{len(moved)} time(s) (before, after): {moved[:3]} — ending the "
+            f"frame is `run_decision_round`'s job, not the hook's"
+        )
+
+
 def test_auction_does_not_leave_a_stale_trick_frame() -> None:
     """The frame axis, walled as far as it can be. Without this, a `state.` read
     during or after an auction would find `mech_state` empty, fall through to the
