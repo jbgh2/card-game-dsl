@@ -146,10 +146,10 @@ def test_concrete_moves_nullary_is_the_empty_product() -> None:
     game = check_dsl(GAME, "g.cardlang")
     ctx = _build_ctx(game, actor=0)
 
-    unguarded = n.MoveTypeDef(name="always", guard=None, effect=())
+    unguarded = n.MoveTypeDef(name="always", when=None, effect=())
     assert concrete_moves(unguarded, actor=0, ctx=ctx) == [("always", None)]
 
-    always_false = n.MoveTypeDef(name="never", guard=n.NameRef("false", ref_kind="bool"), effect=())
+    always_false = n.MoveTypeDef(name="never", when=n.NameRef("false", ref_kind="bool"), effect=())
     assert concrete_moves(always_false, actor=0, ctx=ctx) == []
 
 

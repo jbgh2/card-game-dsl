@@ -1586,7 +1586,7 @@
       "kind": "move_type",
       "name": "pass",
       "params": [],
-      "guard": null,
+      "when": null,
       "effect": [
         {
           "kind": "assign",
@@ -1609,7 +1609,7 @@
       "kind": "move_type",
       "name": "bid_petite",
       "params": [],
-      "guard": {
+      "when": {
         "kind": "binop",
         "op": "<",
         "left": {
@@ -1665,7 +1665,7 @@
       "kind": "move_type",
       "name": "bid_garde",
       "params": [],
-      "guard": {
+      "when": {
         "kind": "binop",
         "op": "<",
         "left": {
@@ -1721,7 +1721,7 @@
       "kind": "move_type",
       "name": "bid_garde_sans",
       "params": [],
-      "guard": {
+      "when": {
         "kind": "binop",
         "op": "<",
         "left": {
@@ -1777,7 +1777,7 @@
       "kind": "move_type",
       "name": "bid_garde_contre",
       "params": [],
-      "guard": {
+      "when": {
         "kind": "binop",
         "op": "<",
         "left": {

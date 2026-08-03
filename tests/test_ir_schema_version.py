@@ -79,7 +79,7 @@ PINNED_SCHEMA: frozenset[str] = frozenset(
         'key:early_termination', 'key:effect', 'key:elements', 'key:elifs',
         'key:else', 'key:event', 'key:expr', 'key:field', 'key:fields',
         'key:follows_fn', 'key:form', 'key:func', 'key:functions',
-        'key:guard', 'key:hi', 'key:high', 'key:if_impossible', 'key:index',
+        'key:when', 'key:hi', 'key:high', 'key:if_impossible', 'key:index',
         'key:item', 'key:items', 'key:kind', 'key:leader', 'key:left',
         'key:lo', 'key:loser', 'key:low', 'key:max_length', 'key:members',
         'key:mode', 'key:move_type', 'key:move_types', 'key:name',

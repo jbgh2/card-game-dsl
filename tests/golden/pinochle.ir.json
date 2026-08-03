@@ -1517,7 +1517,7 @@
       "kind": "move_type",
       "name": "submit_bid",
       "params": [],
-      "guard": null,
+      "when": null,
       "effect": [
         {
           "kind": "assign",
@@ -1595,7 +1595,7 @@
       "kind": "move_type",
       "name": "pass",
       "params": [],
-      "guard": null,
+      "when": null,
       "effect": [
         {
           "kind": "assign",
@@ -1623,7 +1623,7 @@
           "type_name": "Suit"
         }
       ],
-      "guard": {
+      "when": {
         "kind": "call",
         "func": "has_marriage",
         "args": [

@@ -2854,7 +2854,7 @@
       "kind": "move_type",
       "name": "check",
       "params": [],
-      "guard": {
+      "when": {
         "kind": "binop",
         "op": "<=",
         "left": {
@@ -2898,7 +2898,7 @@
       "kind": "move_type",
       "name": "bet",
       "params": [],
-      "guard": {
+      "when": {
         "kind": "binop",
         "op": "==",
         "left": {
@@ -3127,7 +3127,7 @@
       "kind": "move_type",
       "name": "call",
       "params": [],
-      "guard": {
+      "when": {
         "kind": "binop",
         "op": ">",
         "left": {
@@ -3343,7 +3343,7 @@
       "kind": "move_type",
       "name": "raise",
       "params": [],
-      "guard": {
+      "when": {
         "kind": "binop",
         "op": "and",
         "left": {
@@ -3755,7 +3755,7 @@
       "kind": "move_type",
       "name": "fold",
       "params": [],
-      "guard": {
+      "when": {
         "kind": "binop",
         "op": ">",
         "left": {
