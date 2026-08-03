@@ -19,6 +19,13 @@ dev = [
     # IS the version's default, so a range would silently change what the lint
     # means from one install to the next.
     "ruff==0.16.0",
+    # The import graph behind `import-linter`. The leak-freeness check asks it
+    # whether any chain of imports reaches the engine from a decision; a
+    # hand-rolled walk of the same graph collected five resolution defects
+    # before this replaced it. Only the graph is borrowed — the check adds the
+    # parent-package edges Python implies and `grimp` (like `import-linter`)
+    # does not model, then lets `grimp` do the traversal.
+    "grimp>=3.15",
     # The experiment rigs' own imports. mypy's `files` covers `experiments`, so
     # the gate cannot type-check a rig whose libraries are absent — an
     # undeclared import fails as `import-not-found` rather than being checked.

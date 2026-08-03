@@ -1,39 +1,36 @@
 """The leak-freeness pins.
 
-Three layers, because the claim has three halves and no one technique covers
-them:
+Three layers, in descending order of how much they carry:
 
-1. **`build_prompt` is a pure function of its arguments** — same inputs,
-   identical bytes; different inputs, different bytes. Behavioural, and enough,
-   because the function has no other inputs to vary.
-2. **The agent reaches the game only through the entitled accessors** — a
-   property of the SOURCE, not of any single run. A scrape, because a run only
-   proves the branches it took, and the leaking branch is exactly the one a
-   test might not exercise.
-3. **Nothing a decision executes imports the engine** — measured by importing
-   the entry points in a clean subprocess and reading `sys.modules`, so the
-   interpreter resolves the graph and there is no resolution of ours to get
-   wrong. Paired with a scrape for imports deferred inside function bodies,
-   which execution structurally cannot see.
+1. **The agent cannot be HANDED a game state.** `DecisionView`'s fields are
+   `int`, `str` and lists of those (`test_decision_view_carries_no_state_object`).
+   One assertion, total, and the guarantee the README's claim actually rests on.
+2. **The agent reads nothing outside those fields** — a property of the SOURCE,
+   not of any run, so an `ast` scrape: a run only proves the branches it took,
+   and the leaking branch is the one a test might not exercise.
+3. **No import chain reaches the engine from a decision** — defence-in-depth
+   against an agent CONSTRUCTING access rather than being given it. Delegated
+   to `grimp`, the import-graph library behind `import-linter`, because a
+   hand-rolled walk of the import graph accreted five distinct resolution
+   defects here (non-transitivity, invisible relative imports, a wrong anchor
+   inside `__init__.py`, skipped intermediate package initializers, and a reach
+   that depended on the test runner's import alias). Every one was a way Python
+   resolves imports that the reimplementation got wrong, which is a library's
+   job and not this file's.
 
-Layers 2 and 3 are the same claim approached from opposite directions, and each
-is blind where the other sees: execution knows exactly what was loaded but not
-what a function would load if called; the scrape reads every branch but has to
-resolve names itself. Neither alone is the check.
+`build_prompt`'s purity sits alongside them: same inputs, identical bytes;
+different inputs, different bytes. Behavioural, and enough, because the
+function has no other inputs to vary.
 """
-
 from __future__ import annotations
 
 import ast
 import inspect
-import json
-import os
-import subprocess
-import sys
 from functools import cache
 from pathlib import Path
-from typing import get_type_hints
+from typing import Any, get_type_hints
 
+import grimp
 import pytest
 
 from .. import agents as agents_mod
@@ -217,128 +214,101 @@ PACKAGE_DIR = Path(inspect.getsourcefile(agents_mod) or "").parent
 REPO_ROOT = PACKAGE_DIR.parent.parent
 
 
-def _engine_roots(node: ast.AST) -> set[str]:
-    """The engine packages an import statement names, or empty for any other
-    node. One definition, because both the deferred-import scrape and the
-    not-a-tautology check ask the same question and two spellings would drift.
+def _canonical(module: object) -> str:
+    """A module's name as PRODUCTION imports it — derived from its path under
+    the repo root, not from `__name__`.
 
-    A relative import (`node.level > 0`) can never name an engine package: it
-    resolves inside this package by construction.
+    `pytest experiments/llm_eval/tests` imports these as `llm_eval.agents`,
+    while `python -m experiments.llm_eval.run_eval` imports
+    `experiments.llm_eval.agents`. Probing whatever alias the test runner
+    happened to produce measures a graph nobody ships; if import behaviour ever
+    branches on `__name__` or `__package__`, the alias graph could stay
+    engine-free while the production one does not.
     """
-    if isinstance(node, ast.Import):
-        return {alias.name.split(".")[0] for alias in node.names} & ENGINE_ROOTS
-    if isinstance(node, ast.ImportFrom) and node.module and not node.level:
-        return {node.module.split(".")[0]} & ENGINE_ROOTS
-    return set()
+    path = Path(inspect.getsourcefile(module) or "").resolve()  # type: ignore[arg-type]
+    rel = path.relative_to(REPO_ROOT.resolve()).with_suffix("")
+    return ".".join(rel.parts)
 
 
 @cache
-def _executed_modules() -> dict[str, str]:
-    """`{module name: source file}` for everything importing the entry points
-    executes, from a clean interpreter.
+def _graph() -> Any:
+    """The package's import graph, from `grimp`, plus the edges Python implies.
 
-    A SUBPROCESS, not this one: pytest has already imported half the repo, so
-    `sys.modules` here proves nothing about what a decision alone pulls in.
+    `grimp` builds the graph from import STATEMENTS, and gets right everything
+    this check previously hand-rolled: transitive edges, relative imports,
+    imports deferred inside function bodies, nested packages. Each was verified
+    against it before adopting it — a hand-rolled walker accreted five distinct
+    resolution defects here, and none of that class is ours to own now.
+
+    One edge is not a statement, so `grimp` does not have it: importing
+    `pkg.sub.leaf` also EXECUTES `pkg/__init__.py` and `pkg/sub/__init__.py`. An
+    engine import in a package initializer is reachable in Python and
+    unreachable in the raw graph — verified, and the reason this adds the parent
+    edges itself rather than handing the contract to `import-linter`, which
+    reports it KEPT. Traversal stays `grimp`'s; only the edge set is ours.
     """
-    names = ", ".join(repr(m.__name__) for m in ENTRY_MODULES)
-    probe = (
-        "import importlib, json, sys\n"
-        f"for n in ({names},):\n"
-        "    importlib.import_module(n)\n"
-        "print(json.dumps({n: getattr(m, '__file__', '') or ''"
-        " for n, m in sys.modules.items()}))"
-    )
-    proc = subprocess.run(
-        [sys.executable, "-c", probe],
-        capture_output=True, text=True, cwd=REPO_ROOT,
-        env={**os.environ, "PYTHONPATH": str(REPO_ROOT / "experiments")},
-    )
-    assert proc.returncode == 0, (
-        f"importing the decision path failed, so the check proves nothing:\n{proc.stderr}"
-    )
-    loaded: dict[str, str] = json.loads(proc.stdout)
-    for entry in ENTRY_MODULES:
-        assert entry.__name__ in loaded, (
-            f"the probe did not import {entry.__name__} — it is measuring the "
-            f"wrong thing"
-        )
-    return loaded
+    graph = grimp.build_graph(_package(), include_external_packages=True)
+    for module in sorted(graph.modules):
+        parent = module.rpartition(".")[0]
+        if parent and parent in graph.modules:
+            graph.add_import(importer=module, imported=parent)
+    return graph
+
+
+def _package() -> str:
+    return _canonical(agents_mod).rpartition(".")[0]
 
 
 def test_the_decision_path_never_imports_the_engine() -> None:
-    """Nothing a decision executes may import `cardlang` or `pyspiel`.
+    """No chain of imports leads from a decision to `cardlang` or `pyspiel`.
 
     The import list is the coarsest possible proof that no agent can reach the
-    state, and the only one that holds for branches no run took. Taken over what
-    the interpreter actually loads, so transitive edges, relative imports,
-    package initializers and absolute self-imports are all covered by
-    construction rather than by a resolver of mine.
+    state, and the only one that holds for branches no run took. It is
+    defence-in-depth rather than the guarantee itself: `DecisionView` carries
+    only strings and ints (`test_decision_view_carries_no_state_object`), so an
+    agent cannot be HANDED a game state. This is what stops one being built.
     """
-    loaded = _executed_modules()
-    offenders = sorted(n for n in loaded if n.split(".")[0] in ENGINE_ROOTS)
-    assert not offenders, (
-        "importing the decision path loads the engine: "
-        + ", ".join(offenders)
-        + " — an agent could reach hidden state through it"
-    )
-
-
-def test_no_module_on_the_decision_path_defers_an_engine_import() -> None:
-    """...and none of them hides one inside a function.
-
-    `sys.modules` cannot see a deferred import: `def choose(): import pyspiel`
-    leaves the check above green while putting the engine one call away. This is
-    the half execution cannot do, so it is a scrape — over the files execution
-    proved are on the path, at any depth, function bodies included.
-    """
-    own = {
-        name: Path(path)
-        for name, path in _executed_modules().items()
-        if path and Path(path).is_relative_to(PACKAGE_DIR)
-    }
-    assert own, "no package module was executed — the check has stopped checking"
-    deferred = [
-        f"{name}:{node.lineno} imports {root}"
-        for name, path in sorted(own.items())
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
-        if isinstance(node, (ast.Import, ast.ImportFrom))
-        for root in sorted(_engine_roots(node))
-    ]
-    assert not deferred, (
-        "a module on the decision path imports the engine:\n  " + "\n  ".join(deferred)
-    )
+    graph = _graph()
+    entries = [_canonical(m) for m in ENTRY_MODULES]
+    for entry in entries:
+        assert entry in graph.modules, (
+            f"{entry} is absent from the import graph — the check is reading the "
+            f"wrong package and would pass whatever the code did"
+        )
+    for entry in entries:
+        for engine in sorted(ENGINE_ROOTS):
+            if engine not in graph.modules:
+                continue  # nothing in the tree imports it at all
+            chain = graph.find_shortest_chain(importer=entry, imported=engine)
+            assert chain is None, (
+                f"a decision can reach the engine: {' -> '.join(chain)}"
+            )
 
 
 def test_the_engine_check_is_a_filter_not_a_tautology() -> None:
-    """The checks above are only worth their name if this package HAS
-    engine-facing modules they exclude.
+    """The check above is only worth its name if this package HAS modules that
+    reach the engine and are excluded.
 
     `referee.py` drives a `pyspiel.State`; it imports `agents`, not the other
-    way round, so it never executes on the decision path — and the day
-    something there reaches for it, both checks turn red. Without this, a
-    package whose every module was engine-free would pass while proving nothing.
+    way round, so no decision reaches it — and the day one does, the check turns
+    red. Without this, a package whose every module was engine-free would pass
+    while proving nothing about the filter.
     """
-    engine_facing = {
-        path.name
-        for path in sorted(PACKAGE_DIR.glob("*.py"))
-        if any(
-            _engine_roots(node)
-            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+    graph = _graph()
+    prefix = _package() + "."
+    engine_facing = sorted(
+        m
+        for m in graph.modules
+        if m.startswith(prefix)
+        and any(
+            e in graph.modules
+            and graph.find_shortest_chain(importer=m, imported=e) is not None
+            for e in ENGINE_ROOTS
         )
-    }
-    assert engine_facing, (
-        "no module in this package imports the engine, so the checks above "
-        "cannot distinguish a real filter from a vacuous one"
     )
-    executed = {
-        Path(path).name for path in _executed_modules().values()
-        if path and Path(path).is_relative_to(PACKAGE_DIR)
-    }
-    assert executed, "nothing executed — the comparison is empty on both sides"
-    inside = sorted(engine_facing & executed)
-    assert not inside, (
-        f"engine-facing modules are on the decision path: {inside} — the checks "
-        f"above are now reporting a real violation, fix that first"
+    assert engine_facing, (
+        "no module in this package reaches the engine, so the check above "
+        "cannot distinguish a real filter from a vacuous one"
     )
 
 
