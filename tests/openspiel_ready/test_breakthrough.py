@@ -92,10 +92,12 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import Pause, run
 
-from .harness import GAMES_DIR, GameSpec, ReadinessProofs, _advance
+from .harness import ONE_SEED, GAMES_DIR, GameSpec, ReadinessProofs, _advance
 from .partition import first_divergence, projection_for, record, zone_instances
 
 PATH = str(GAMES_DIR / "breakthrough.cardlang")
@@ -134,7 +136,8 @@ class TestReadiness(ReadinessProofs):
         adapter_terminal_steps=34,  # greedy legal[0] line wins in 30 (measured, deterministic); +4 slack
     )
 
-    def test_indistinguishability_under_hidden_swap(self) -> None:
+    @pytest.mark.parametrize("seed", ONE_SEED)
+    def test_indistinguishability_under_hidden_swap(self, seed: int) -> None:
         """Perfect information, two observers: prove the DEGENERACY directly
         rather than vacuously skip. At a replayed pause, for EACH player: no
         populated zone projects below identity (so no hidden pair exists for
@@ -149,7 +152,7 @@ class TestReadiness(ReadinessProofs):
         projection to ``count_only`` leaves thirty men in non-identity zones
         and the perfect-information assertion fails — the degeneracy is a
         measured fact, not a definition."""
-        _, pause = _advance(PATH, 5, self.spec.depth)
+        _, pause = _advance(PATH, seed, self.spec.depth)
         assert isinstance(pause, Pause)
         captured = sum(
             len(z.cards) for name, _, z in zone_instances(pause.rs) if name == "captured"
@@ -203,7 +206,8 @@ class TestReadiness(ReadinessProofs):
             legal_agreement="trivial (singleton); adapter proof cross-checks vs pyspiel re-sim",
         )
 
-    def test_soundness_own_view_changes_the_state(self) -> None:
+    @pytest.mark.parametrize("seed", ONE_SEED)
+    def test_soundness_own_view_changes_the_state(self, seed: int) -> None:
         """Everything is own view under perfect information. Perturb the two
         kinds of visible man this rung has — one standing on a square, one
         already taken into a captured pile — by swapping each against a man of
@@ -215,7 +219,7 @@ class TestReadiness(ReadinessProofs):
         projection to ``count_only`` makes a light-for-dark swap
         count-preserving, so P0's state stops moving and the square swap
         fails."""
-        _, pause = _advance(PATH, 5, self.spec.depth)
+        _, pause = _advance(PATH, seed, self.spec.depth)
         assert isinstance(pause, Pause)
         squares = [z for name, _, z in zone_instances(pause.rs) if name == "square" and z.cards]
         piles = [z for name, _, z in zone_instances(pause.rs) if name == "captured" and z.cards]

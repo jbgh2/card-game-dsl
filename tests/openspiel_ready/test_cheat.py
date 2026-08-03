@@ -27,6 +27,15 @@ proofs:
   "legally-replayed but distinguishable" world the swap harness could not
   rule out).
 
+Coverage manifest. The constructive certificate runs at every seed in
+`CONSTRUCTIVE_SEEDS` (= `harness.SWAP_SEEDS`), four observers and two rotations
+each; the shared swap proof runs the same manifest. The paired-history probes
+below are pinned to seed 5 deliberately: each names the exact cards of that
+deal (A♠ against 3♥ under an Aces claim), which is what lets them assert the
+channel's identity and routing rather than only its agreement — the deal is
+part of the probe, not a sample of it. What generalizes across seeds is the
+constructive certificate, and that is what got parametrized.
+
 Shared-proof configuration: `hidden_zone="hand"`; depth 13 pauses the greedy
 line (which never challenges: `allow` sorts below `call_cheat`) on player 2's
 window decision over seat 1's play, with `d0=0`, so the swap probes pair
@@ -52,11 +61,27 @@ from cardlang.openspiel.replay import Pause, load, run
 from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.values import Card, build_deck
 
-from .harness import GAMES_DIR, GameSpec, ReadinessProofs
+from .harness import (
+    SWAP_SEEDS,
+    GAMES_DIR,
+    GameSpec,
+    ReadinessProofs,
+    action_strings,
+    manifest,
+)
 from .partition import first_divergence, record
 from .worlds import permuted_replay, plan_worlds
 
 PATH = str(GAMES_DIR / "cheat.cardlang")
+
+# The constructive certificate's COVERAGE MANIFEST. The same seeds the shared
+# swap proof runs (`harness.SWAP_SEEDS`), because both were chosen against both
+# proofs' preconditions at once and one manifest is one thing to keep true. Each
+# seed deals different hands and drives a different challenge-rich line, so the
+# five certificates cover five distinct flip/pickup patterns — the point of more
+# than one seed here, since the pins this generator derives (which cards a line
+# names, which the observer's log names) are exactly what changes with the line.
+CONSTRUCTIVE_SEEDS = SWAP_SEEDS
 
 
 class TestReadiness(ReadinessProofs):
@@ -95,11 +120,13 @@ def test_face_down_play_is_uninformative_until_flipped() -> None:
     provably made under uncertainty (same information state AND same legal
     actions), while the claimant's own state differs (they chose the card)."""
     play_one, _, _, ace, three = _ids()
+    _, space = load(PATH)
     ra = run(PATH, 5, (play_one, ace))
     rb = run(PATH, 5, (play_one, three))
     assert isinstance(ra, Pause) and isinstance(rb, Pause)
     assert ra.player == rb.player == 1  # the claimant's left neighbour responds first
     assert ra.legal == rb.legal
+    assert action_strings(space, ra.legal) == action_strings(space, rb.legal)
     for q in (1, 2, 3):
         info_a = information_state(q, ra.rs, ra.obs_logs[q])
         info_b = information_state(q, rb.rs, rb.obs_logs[q])
@@ -152,11 +179,13 @@ def test_unchallenged_play_leaks_nothing() -> None:
     the merge and into the next turn — nothing beyond the declared function
     of hidden content ever leaks, because the function was never evaluated."""
     play_one, _, allow, ace, three = _ids()
+    _, space = load(PATH)
     ra = run(PATH, 5, (play_one, ace, allow, allow, allow))
     rb = run(PATH, 5, (play_one, three, allow, allow, allow))
     assert isinstance(ra, Pause) and isinstance(rb, Pause)
     assert ra.player == rb.player == 1  # the next turn's play offer
     assert ra.legal == rb.legal
+    assert action_strings(space, ra.legal) == action_strings(space, rb.legal)
     for q in (1, 2, 3):
         info_a = information_state(q, ra.rs, ra.obs_logs[q])
         info_b = information_state(q, rb.rs, rb.obs_logs[q])
@@ -191,19 +220,23 @@ def _challenge_rich_line(seed: int) -> tuple[int, ...]:
     return tuple(history)
 
 
-def test_constructive_worlds_are_indistinguishable() -> None:
+@pytest.mark.parametrize("seed", manifest(CONSTRUCTIVE_SEEDS))
+def test_constructive_worlds_are_indistinguishable(seed: int) -> None:
     """The generator's certificate, per observer: derive the pinned set from
     the line (decode + log + projection pins), permute EVERY remaining hidden
     card across the other players' deal-time hands, replay the same 60+ step
     challenge-rich line, and require a byte-identical information state, the
     same paused player, and — when the observer is the one to move — the same
-    legal actions. Two rotations per observer: two maximally-distant worlds,
-    not one lucky pair. The line is asserted channel-active first (flips and
-    pile pickups occurred), so the certificate covers a line where the public
-    Boolean of hidden content actually fired — the case the sampled swap
-    harness structurally avoids (a swap only replays if it dodges the
-    channel)."""
-    seed = 5
+    legal actions and the same rendered action text. Two rotations per
+    observer: two maximally-distant worlds, not one lucky pair. The line is
+    asserted channel-active first (flips and pile pickups occurred), so the
+    certificate covers a line where the public Boolean of hidden content
+    actually fired — the case the sampled swap harness structurally avoids (a
+    swap only replays if it dodges the channel).
+
+    Run over `CONSTRUCTIVE_SEEDS`, the module's coverage manifest: each seed
+    deals a different hand and drives a different challenge-rich line, so five
+    of them exercise five distinct flip/pickup patterns rather than one."""
     hist = _challenge_rich_line(seed)
     probe = run(PATH, seed, hist)
     assert isinstance(probe, Pause)
@@ -216,6 +249,7 @@ def test_constructive_worlds_are_indistinguishable() -> None:
     assert len(flips) >= 2, "the line never exercised the flip channel"
     assert pickups, "the line never exercised a pile pickup"
 
+    _, space = load(PATH)
     total_free = 0
     for observer in range(4):
         pause_a, plan = plan_worlds(PATH, seed, hist, observer, "hand")
@@ -244,6 +278,15 @@ def test_constructive_worlds_are_indistinguishable() -> None:
                     f"observer {observer}: same information set, different "
                     f"legal actions under the constructed world"
                 )
+                # ...and the same offer must READ the same. Backstop; the wall
+                # is `test_action_strings.py` (see `harness.action_strings`).
+                assert action_strings(space, pause_b.legal) == action_strings(
+                    space, pause_a.legal
+                ), (
+                    f"observer {observer}: same legal actions, different "
+                    f"rendered text under the constructed world — the strings "
+                    f"a prompt shows are a leak channel"
+                )
     record(
         "cardlang_cheat",
         "constructive",
@@ -254,6 +297,8 @@ def test_constructive_worlds_are_indistinguishable() -> None:
         flips_on_line=len(flips),
         pile_pickups_on_line=len(pickups),
         free_cards_total=total_free,
+        legal_agreement=True,
+        string_agreement=True,
     )
 
 

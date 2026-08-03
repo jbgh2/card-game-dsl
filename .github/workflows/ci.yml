@@ -29,3 +29,12 @@ jobs:
         run: mypy
       - name: Tests (corpus harness + units)
         run: pytest -q
+      # `testpaths = ["tests"]` deliberately keeps the experiment rigs out of the
+      # language's own gate, so a bare `pytest -q` does not collect these. That
+      # left them run by nobody: the leak-freeness pins REVIEWER.md cites — the
+      # transitive engine-import scrape above all — could go red while CI stayed
+      # green. Run them as their own step rather than by widening `testpaths`,
+      # which keeps both properties. They are offline (the fake provider is the
+      # default) and need no API key.
+      - name: Tests (experiment rigs — the leak-freeness pins)
+        run: pytest experiments/llm_eval/tests -q

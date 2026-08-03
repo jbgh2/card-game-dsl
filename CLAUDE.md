@@ -139,15 +139,22 @@ docs/
 
 ## Verifying changes — MANDATORY before every `git push`
 
-CI (`.github/workflows/ci.yml`) runs exactly two checks. **Before any `git push`,
-run both locally from the repo root and confirm both pass. Do not push until they
-do.** This is non-negotiable — pushing on a partial check wastes a CI round-trip
-and a PR review cycle.
+CI (`.github/workflows/ci.yml`) runs three checks. **Before any `git push`, run
+all three locally from the repo root and confirm they pass. Do not push until
+they do.** This is non-negotiable — pushing on a partial check wastes a CI
+round-trip and a PR review cycle.
 
 ```
-mypy        # strict; covers BOTH cardlang/ AND tests/ (pyproject `files`)
-pytest -q
+mypy                                  # strict; covers cardlang/, tests/ AND experiments/
+pytest -q                             # the language's own gate
+pytest experiments/llm_eval/tests -q  # the rigs; NOT collected by the above
 ```
+
+The third exists because `testpaths = ["tests"]` keeps the experiment rigs out
+of the language's gate, which is deliberate — but left them run by nobody, so
+the leak-freeness pins the LLM harness advertises could go red while CI stayed
+green. Keep them a separate step rather than widening `testpaths`: both
+properties are wanted.
 
 Run them as written. In particular:
 
@@ -158,6 +165,12 @@ Run them as written. In particular:
 - Run the **full** `pytest -q`, not a subset — the corpus harness and golden/
   characterization tests catch regressions a narrow run misses. Some exact-score
   tests pin `PYTHONHASHSEED=0`; don't assume a passing subset means a green suite.
+- There is a shorter **development** pass, `pytest -q -m "not slow"`, which
+  drops every coverage-manifest seed past the first (`tests/openspiel_ready`,
+  ~140s against ~440s). It is a loop for iterating, **never** the evidence:
+  bare `pytest -q` selects the `slow` cases and is what CI runs and what this
+  section means. Quoting a `-m "not slow"` run as a green suite is the
+  silent-cap defect wearing a command line.
 - **The evidence must be able to fail.** A piped run (`pytest -q | tail -3`)
   reports the pipe's exit status, not the suite's — a killed run surfaces as a
   clean exit. Run the checks bare or under `set -o pipefail`, and treat the

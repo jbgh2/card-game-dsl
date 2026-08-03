@@ -202,15 +202,18 @@ class LLMAgent:
     # (one removes the reasoning field, the other moves it), and as two booleans
     # their both-true combination would be accepted and silently resolved.
     arm: str = "reasoning"
-    rules: str | None = None
+    # DERIVED from `render`, not a constructor parameter: the two arms' rules
+    # texts differ only in their format guide, so a caller-supplied third text
+    # would make the two arms' numbers incomparable — and no config path ever
+    # supplied one.
+    rules: str = field(init=False)
     _rng: random.Random = field(init=False)
     _arm: ResponseArm = field(init=False)
     _trace: dict[str, Any] = field(default_factory=dict, init=False)
 
     def __post_init__(self) -> None:
         self._rng = random.Random(self.seed)
-        if self.rules is None:
-            self.rules = RULES_RENDERED if self.render else RULES_RAW
+        self.rules = RULES_RENDERED if self.render else RULES_RAW
         # Resolve at construction, not at the first decision: an unknown arm
         # name must fail before a run starts spending, not on move one of game
         # one after the roster and providers are already up.
@@ -218,7 +221,6 @@ class LLMAgent:
 
     def choose(self, view: DecisionView) -> int:
         state = render_state(view.infostate) if self.render else view.infostate
-        assert self.rules is not None  # set in __post_init__
         prompt = build_prompt(
             self.rules, state, view.legal_strings, self._arm.instruction
         )

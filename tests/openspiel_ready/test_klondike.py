@@ -39,10 +39,21 @@ from the information state while every exposed card is present.
 
 from __future__ import annotations
 
-from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import Pause, run
+import pytest
 
-from .harness import GAMES_DIR, GameSpec, ReadinessProofs, _swap_fn
+from cardlang.openspiel.infostate import information_state
+from cardlang.openspiel.replay import Pause, load, run
+
+from .harness import (
+    SWAP_PAIRS_PER_SEED,
+    SWAP_SEEDS,
+    GAMES_DIR,
+    GameSpec,
+    ReadinessProofs,
+    _swap_fn,
+    action_strings,
+    manifest,
+)
 from .partition import first_divergence, record
 
 PATH = str(GAMES_DIR / "klondike.cardlang")
@@ -59,14 +70,20 @@ class TestReadiness(ReadinessProofs):
         adapter_terminal_steps=None,  # greedy line cycles draw_stock/redeal forever
     )
 
-    def test_indistinguishability_under_hidden_swap(self) -> None:
+    @pytest.mark.parametrize("seed", manifest())
+    def test_indistinguishability_under_hidden_swap(self, seed: int) -> None:
         """1-player analogue of the base proof (which requires an opponent
         hand): swap a face-down tableau card with an undrawn stock card —
         both chance-hidden from the sole player throughout the replayed
         prefix — and require byte-identical information states and identical
-        legal actions."""
+        legal actions.
+
+        Overriding the shared proof replaces its decorator too, so the
+        manifest is re-applied here explicitly: the seeds and the pair cap are
+        `harness`'s, not this module's, and a game whose analogue silently
+        stayed at one seed while the manifest grew is exactly the reading the
+        coverage record must not permit."""
         spec = self.spec
-        seed = 5
         history, pause_a = _advance_greedy(seed, spec.depth)
         p = pause_a.player
         assert p == 0  # the sole player
@@ -80,42 +97,57 @@ class TestReadiness(ReadinessProofs):
         candidates = [(x, y) for x in down for y in stock if x != y]
         assert candidates, "no hidden swap pair available; adjust the depth"
 
+        _, space = load(PATH)
         info_a = information_state(p, pause_a.rs, pause_a.obs_logs[p])
-        x, y = candidates[0]
-        pause_b = run(
-            PATH,
-            seed,
-            tuple(history),
-            on_first_decision=_swap_fn(("tableau_down", 7), ("deck", None), x, y),
-        )
-        assert isinstance(pause_b, Pause)
-        info_b = information_state(p, pause_b.rs, pause_b.obs_logs[p])
-        assert info_a == info_b, (
-            f"cardlang_klondike: swapping chance-hidden {x}<->{y} CHANGED the "
-            f"player's information state — the info-set leaks.\n"
-            f"witness: {first_divergence(info_a, info_b)}"
-        )
-        assert pause_b.player == p
-        assert pause_b.legal == pause_a.legal, (
-            "same information set, different legal actions — the offer leaks "
-            "chance-hidden content"
-        )
+        proved: list[str] = []
+        for x, y in candidates[:SWAP_PAIRS_PER_SEED]:
+            pause_b = run(
+                PATH,
+                seed,
+                tuple(history),
+                on_first_decision=_swap_fn(("tableau_down", 7), ("deck", None), x, y),
+            )
+            assert isinstance(pause_b, Pause)
+            info_b = information_state(p, pause_b.rs, pause_b.obs_logs[p])
+            assert info_a == info_b, (
+                f"cardlang_klondike: swapping chance-hidden {x}<->{y} CHANGED the "
+                f"player's information state — the info-set leaks.\n"
+                f"witness: {first_divergence(info_a, info_b)}"
+            )
+            assert pause_b.player == p
+            assert pause_b.legal == pause_a.legal, (
+                "same information set, different legal actions — the offer leaks "
+                "chance-hidden content"
+            )
+            # ...and the same offer must READ the same. Backstop; the wall is
+            # `test_action_strings.py` (see `harness.action_strings`).
+            assert action_strings(space, pause_b.legal) == action_strings(
+                space, pause_a.legal
+            ), (
+                "same legal actions, different rendered text — the action strings "
+                "the prompt shows are a leak channel"
+            )
+            proved.append(f"{x}<->{y}")
         record(
             spec.short_name,
             "swap",
             seed=seed,
             depth=len(history),
             axis="chance-hidden (tableau_down[7] <-> undrawn stock)",
-            pair=f"{x}<->{y}",
+            pairs=";".join(proved),
+            pairs_proved=len(proved),
+            pairs_cap=SWAP_PAIRS_PER_SEED,
             candidates=len(candidates),
             legal_agreement=True,
+            string_agreement=True,
         )
 
-    def test_soundness_own_view_changes_the_state(self) -> None:
+    @pytest.mark.parametrize("seed", manifest())
+    def test_soundness_own_view_changes_the_state(self, seed: int) -> None:
         """1-player analogue: the sole player's own view is the face-up
         layout, so swapping a VISIBLE cascade top for a hidden stock card
         must change their information state."""
-        r0 = run(PATH, 5, ())
+        r0 = run(PATH, seed, ())
         assert isinstance(r0, Pause)
         p = r0.player
         up = r0.rs.zones.instance("tableau_up", 1).cards
@@ -124,7 +156,7 @@ class TestReadiness(ReadinessProofs):
         x, y = up[0], stock[-1]
         info_a = information_state(p, r0.rs, r0.obs_logs[p])
         r1 = run(
-            PATH, 5, (), on_first_decision=_swap_fn(("tableau_up", 1), ("deck", None), x, y)
+            PATH, seed, (), on_first_decision=_swap_fn(("tableau_up", 1), ("deck", None), x, y)
         )
         assert isinstance(r1, Pause)
         info_b = information_state(r1.player, r1.rs, r1.obs_logs[r1.player])

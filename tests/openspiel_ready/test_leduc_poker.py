@@ -35,7 +35,7 @@ from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import Pause, ReplayChooser, load, run
 from cardlang.runtime.driver import play_game
 
-from .harness import GAMES_DIR, GameSpec, ReadinessProofs
+from .harness import GAMES_DIR, GameSpec, ReadinessProofs, action_strings
 
 pyspiel = pytest.importorskip("pyspiel")
 
@@ -218,6 +218,7 @@ def test_adapter_agrees_over_two_whole_leduc_deals() -> None:
         _seed_for(lambda d: d[0][0] == d[2][0]),
         _seed_for(lambda d: d[0][0] != d[2][0] and d[1][0] != d[2][0]),
     ]
+    _, space = load(PATH)
     nodes = 0
     terminals = 0
 
@@ -241,6 +242,11 @@ def test_adapter_agrees_over_two_whole_leduc_deals() -> None:
         assert not state.is_terminal()
         assert state.current_player() == r.player
         assert state.legal_actions() == r.legal
+        # ...and the rendered text agrees too. Backstop; the wall is
+        # `test_action_strings.py` (see `harness.action_strings`).
+        assert [state.action_to_string(r.player, a) for a in state.legal_actions()] == (
+            action_strings(space, r.legal)
+        ), f"seed={seed} history={history}: adapter action renderings disagree"
         for q in range(2):
             assert state.information_state_string(q) == information_state(
                 q, r.rs, r.obs_logs[q]

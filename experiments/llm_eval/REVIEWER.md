@@ -114,26 +114,44 @@ $90 and needs an API key; `README.md` has the commands and the budget controls.
 
 The prompt shown to the model is a pure function of exactly four inputs: static
 rules text, the engine's information-state string for that seat at that state,
-the string renderings of that seat's legal actions, and static response-format
-boilerplate. This is enforced by signature, not convention —
+the string renderings of that seat's legal actions, and the arm's static
+response instruction. This is enforced by signature, not convention —
 `build_prompt(rules: str, infostate: str, legal_actions: list[str], response: str)`
-takes strings, and every agent receives a `DecisionView` carrying only those
-strings, so there is no game state in scope from which hidden information could
-leak.
+takes strings, and the two of those four that vary with the game reach it
+through a `DecisionView` carrying only the acting seat's information-state
+string, its legal actions with the engine's renderings of them, and its own seat
+number (the rules text and the response instruction are module constants). So
+there is no game state in scope from which hidden information could leak.
 
-Because the information state is itself derived, and because
-`tests/openspiel_ready/test_cheat.py` proves for Cheat that two worlds differing
-only in hidden content produce byte-identical information states for every
-uninvolved observer, **two states the acting player cannot distinguish
-necessarily produce byte-identical prompts**. Any advantage the model shows is an
-advantage over information it is entitled to. The same holds for the baselines,
-which decide from the same `DecisionView` — so the head-to-head is between
-policies, not access levels.
+The information state is itself derived, and for Cheat
+`tests/openspiel_ready/test_cheat.py` **certifies, on recorded lines and seeds,
+with the coverage manifest in the proof module**, that two worlds differing only
+in hidden content produce byte-identical information states for every observer,
+and identical legal actions for the observer to move. The strongest of those
+lines is constructive rather than sampled: the pinned card set is derived from
+the line itself, the *entire* remaining hidden set is permuted across the other
+hands, and the line is asserted to have actually fired Cheat's hidden-content
+channel before the certificate counts. That is a per-line constructive
+certificate over a recorded seed set — **not** a proof over all worlds, and not
+a claim about seeds nobody ran. Every passing run records what it covered
+(`CARDLANG_PARTITION_REPORT`); the standing caveats are in
+`docs/open-questions/structural-infoset-proofs.md`.
 
-Pinned by `tests/test_prompt_purity.py`, including an `ast` scrape proving
-`LLMAgent.choose` reads no attribute outside `DecisionView`'s fields, and an
-import scrape proving the agent and prompt modules import neither the engine nor
-`pyspiel`.
+On those lines, two states the acting player cannot distinguish therefore
+produce byte-identical prompts: the information states agree, the legal action
+ids agree, and their string renderings are a function of the action id and the
+game alone (`tests/openspiel_ready/test_action_strings.py`). Any advantage the
+model shows there is an advantage over information it is entitled to. The same
+holds for the baselines, which decide from the same `DecisionView` — so the
+head-to-head is between policies, not access levels.
+
+Pinned by `tests/test_prompt_purity.py`, including byte-exact agreement between
+what the provider receives and `build_prompt`'s output on both arms, an `ast`
+scrape proving `LLMAgent.choose` reads no attribute outside `DecisionView`'s
+fields, and an import scrape over the transitive closure of what a decision
+executes — every module reachable from `agents.py` and `prompts.py` by
+intra-package import, `render.py` included — proving that none of them imports
+the engine or `pyspiel`.
 
 ---
 

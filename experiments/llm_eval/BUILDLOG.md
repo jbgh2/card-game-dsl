@@ -23,36 +23,43 @@ The agent layer sits at the OpenSpiel seam, outside the language.
 
 ---
 
-## Leak-freeness (the paragraph to lift into the proposal)
+## Leak-freeness — what it claims, and what broke
 
-The prompt shown to the model for the acting player is a pure function of
-exactly four inputs: static rules text, the engine's information-state string
-for that player at that state, the string renderings of that player's legal
-actions, and static response-format boilerplate. This is enforced by signature,
-not by convention — `prompts.build_prompt(rules: str, infostate: str,
-legal_actions: list[str]) -> str` takes strings, and every agent receives a
-`DecisionView` carrying only those strings, so there is no game state in scope
-from which hidden information could leak. Because the engine's information state
-is itself *derived* — per-observer observations emitted from the kernel's
-decision and movement sites through declared zone-type projections, never
-hand-authored per game — and because
-`tests/openspiel_ready/test_cheat.py` proves for Cheat that two worlds differing
-only in hidden content produce byte-identical information states for every
-uninvolved observer (including under a constructive generator that permutes the
-entire free hidden set across hands), two states the acting player cannot
-distinguish necessarily produce byte-identical prompts. The measured result
-therefore inherits that indistinguishability guarantee by construction: any
-advantage the model shows is an advantage over information it is entitled to,
-not over information the harness leaked. The same holds for the baselines, which
-decide from the same `DecisionView` — so the head-to-head comparison is between
-policies, not between access levels.
+The claim lives in [`REVIEWER.md`](REVIEWER.md), "Why the measurement is
+trustworthy", and only there. It used to be restated here in full; the two
+copies drifted within one change of each other — this one kept a
+three-parameter `build_prompt` after the fourth input landed — which is the
+`maintaining.md` rule earning its keep rather than a slip worth patching. The
+pins themselves enumerate in `tests/test_prompt_purity.py`, one test per
+property, which is the list that cannot go stale.
 
-Pinned by `tests/test_prompt_purity.py`: prompt determinism, distinguishability
-(a constant function would pass determinism alone), the signature, verbatim
-pass-through of the raw state string, an `ast` scrape proving `LLMAgent.choose`
-reads no attribute of its view outside `DecisionView`'s fields, and an import
-scrape proving `agents.py` and `prompts.py` import neither `cardlang` nor
-`pyspiel`.
+What belongs here is the record of what the claim got wrong, because each was
+a claim outrunning its evidence rather than a leak:
+
+- **The import scrape read two modules and the decision path executes five.**
+  It scanned `agents.py` and `prompts.py`, but `agents.py` imports `.render`,
+  `.infostate` and `.providers`, and the rendered arm calls `render_state` on
+  every decision. An engine import one edge away would have sat under a green
+  purity suite. It walks the transitive closure now.
+- **Both scrapes were blind to relative imports** — one filtered
+  `node.level == 0`, the other keyed on `node.module`, which is `None` for
+  `from . import x`. That is *every* intra-package edge: the exact set that
+  mattered. And `ast.Import` checked only `node.names[0]`, so `import os,
+  pyspiel` would have passed.
+- **"Proves" was the wrong verb.** `tests/openspiel_ready/test_cheat.py` is a
+  per-line constructive certificate over a recorded seed manifest, and
+  `docs/open-questions/structural-infoset-proofs.md` always said so. The
+  paragraph written to be lifted into a proposal said something stronger than
+  the artifact it cited.
+- **The engine proofs certified action ids; the prompt shows action strings.**
+  Nothing asserted the rendering was world-independent, so an id-level
+  guarantee plus a world-sensitive renderer would have leaked with every proof
+  green. `tests/openspiel_ready/test_action_strings.py` closes it, and its
+  docstring records which of the new assertions can actually fail — the
+  inline ones cannot, and saying so is the point.
+
+None of these leaked anything on any model-facing path. All four are the same
+species: a check or a sentence that described more than it did.
 
 ---
 
@@ -89,9 +96,11 @@ mypy cannot check a call into a library it cannot import, and all three ship
 `ignore_missing_imports` override would hand back `Any`.
 
 The TESTS are still deliberately outside `tests/`: `pyproject.toml` sets
-`testpaths = ["tests"]`, so a bare `pytest` — what CI runs — does not collect
-them, and a run needing an API key cannot redden the language's own gate. Run
-them explicitly with the command above.
+`testpaths = ["tests"]`, so a bare `pytest` does not collect them, and a rig
+needing an API key cannot redden the language's own gate. That kept the gate
+clean and left these run by nobody — the leak-freeness pins included — so CI
+runs them as their own step (`.github/workflows/ci.yml`). Both properties, one
+extra line; run them locally with the command above.
 
 ---
 

@@ -8,8 +8,10 @@ often it accuses wrongly.
 
 The model sees only what the rules entitle its seat to see. That is enforced by
 signature rather than convention: `build_prompt` takes strings, and every agent
-receives a `DecisionView` carrying the information-state string and the legal
-actions and nothing else, so no game state is in scope to leak from.
+receives a `DecisionView` carrying the information-state string, the legal
+actions with their renderings, and its own seat number — and nothing else, so no
+game state is in scope to leak from. What that does and does not establish is
+[`REVIEWER.md`](REVIEWER.md), "Why the measurement is trustworthy".
 
 Nothing here touches `cardlang/`, `tests/`, the grammar, or any closed registry.
 The agent layer sits at the OpenSpiel seam, outside the language.

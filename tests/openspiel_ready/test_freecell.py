@@ -31,10 +31,12 @@ returns agree — the 1-player returns surface, proven end to end.
 
 from __future__ import annotations
 
+import pytest
+
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import Pause, run
 
-from .harness import GAMES_DIR, GameSpec, ReadinessProofs, _swap_fn
+from .harness import manifest, SWAP_SEEDS, ONE_SEED, GAMES_DIR, GameSpec, ReadinessProofs, _swap_fn
 from .partition import first_divergence, projection_for, record, zone_instances
 
 PATH = str(GAMES_DIR / "freecell.cardlang")
@@ -50,14 +52,15 @@ class TestReadiness(ReadinessProofs):
         adapter_terminal_steps=4,  # greedy = resign: Terminal on the first action
     )
 
-    def test_indistinguishability_under_hidden_swap(self) -> None:
+    @pytest.mark.parametrize("seed", ONE_SEED)
+    def test_indistinguishability_under_hidden_swap(self, seed: int) -> None:
         """Perfect information: prove the DEGENERACY rather than vacuously
         skip. At the first decision, (a) no populated zone projects less than
         identity to the sole player, so there exists no hidden pair for the
         base proof to swap — every information set is a singleton; (b) every
         one of the 52 card identities appears in the derived information
         state. Legal-action agreement is trivial (a singleton set)."""
-        r = run(PATH, 5, ())
+        r = run(PATH, seed, ())
         assert isinstance(r, Pause)
         p = r.player
         assert p == 0
@@ -88,10 +91,11 @@ class TestReadiness(ReadinessProofs):
             cards_in_state=52,
         )
 
-    def test_soundness_own_view_changes_the_state(self) -> None:
+    @pytest.mark.parametrize("seed", manifest())
+    def test_soundness_own_view_changes_the_state(self, seed: int) -> None:
         """Everything is the sole player's own view: swapping two visible
         cascade cards must change the information state."""
-        r0 = run(PATH, 5, ())
+        r0 = run(PATH, seed, ())
         assert isinstance(r0, Pause)
         p = r0.player
         c1 = r0.rs.zones.instance("cascade", 1).cards
@@ -100,7 +104,7 @@ class TestReadiness(ReadinessProofs):
         x, y = c1[-1], c2[-1]
         info_a = information_state(p, r0.rs, r0.obs_logs[p])
         r1 = run(
-            PATH, 5, (), on_first_decision=_swap_fn(("cascade", 1), ("cascade", 2), x, y)
+            PATH, seed, (), on_first_decision=_swap_fn(("cascade", 1), ("cascade", 2), x, y)
         )
         assert isinstance(r1, Pause)
         info_b = information_state(r1.player, r1.rs, r1.obs_logs[r1.player])
