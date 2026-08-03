@@ -705,7 +705,7 @@
                       "args": [
                         {
                           "kind": "name",
-                          "name": "outcome",
+                          "name": "winner",
                           "ref": "pronoun"
                         }
                       ]
@@ -724,7 +724,7 @@
                     "args": [
                       {
                         "kind": "name",
-                        "name": "outcome",
+                        "name": "winner",
                         "ref": "pronoun"
                       }
                     ]
@@ -742,7 +742,7 @@
                   "op": ":=",
                   "value": {
                     "kind": "name",
-                    "name": "outcome",
+                    "name": "winner",
                     "ref": "pronoun"
                   }
                 }

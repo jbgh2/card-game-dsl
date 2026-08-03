@@ -394,7 +394,7 @@
                 },
                 "index": {
                   "kind": "name",
-                  "name": "outcome",
+                  "name": "winner",
                   "ref": "pronoun"
                 }
               },
@@ -409,7 +409,7 @@
               "op": ":=",
               "value": {
                 "kind": "name",
-                "name": "outcome",
+                "name": "winner",
                 "ref": "pronoun"
               }
             }
@@ -567,7 +567,7 @@
                     },
                     "index": {
                       "kind": "name",
-                      "name": "outcome",
+                      "name": "winner",
                       "ref": "pronoun"
                     }
                   },
@@ -582,7 +582,7 @@
                   "op": ":=",
                   "value": {
                     "kind": "name",
-                    "name": "outcome",
+                    "name": "winner",
                     "ref": "pronoun"
                   }
                 }

@@ -198,10 +198,10 @@ game G {
     legal_moves: [play_to_trick]
     repeat until (all players where hand[player] is empty) {
       round play_to_trick from leader over all players source hand into trick_pile
-            outcome highest_of_led_suit
-      tricks[outcome] += 1
+            winner highest_of_led_suit
+      tricks[winner] += 1
       move all cards from trick_pile to waste
-      leader := outcome
+      leader := winner
     }
   }
   winner: highest tricks

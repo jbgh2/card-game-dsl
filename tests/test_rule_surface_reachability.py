@@ -178,7 +178,7 @@ game G {{
     active_rules: [R]
     deal 5 cards from deck to each hand
     round play_to_trick from 0 over all players
-          source hand into trick_pile outcome highest_of_led_suit
+          source hand into trick_pile winner highest_of_led_suit
     move all cards from trick_pile to waste
   }}
   winner: highest x

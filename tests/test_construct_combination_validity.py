@@ -123,7 +123,7 @@ def test_rejects_a_transition_on_a_non_trick_event() -> None:
 def test_rejects_a_trick_round_naming_another_move_type() -> None:
     body = (
         "round transfer_between_hands from ldr over all players "
-        "source hand into pile outcome highest_of_led_suit"
+        "source hand into pile winner highest_of_led_suit"
     )
     _rejects(_game(body), "is not runnable on it")
 

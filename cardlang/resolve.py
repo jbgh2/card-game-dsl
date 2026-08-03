@@ -74,7 +74,7 @@ from cardlang.builtins.functions import (
     PRIMITIVE_CLIMB_FOLLOWS,
     PRIMITIVE_CLIMB_LEADS,
     PRIMITIVE_EARLY_PREDICATES,
-    PRIMITIVE_TRICK_OUTCOMES,
+    PRIMITIVE_TRICK_WINNERS,
     PRIMITIVE_VALUE_NAMES,
 )
 from cardlang.builtins.signatures import CALL_SIGS
@@ -167,13 +167,24 @@ _MISLEADING_LET_INDEXES = role_names(_ITERATION_ROLES - {Role.PLAYER})
 #   for the membership gate and as a sequence for the diagnostic that lists them.
 
 # The magic namespaces a bare name may resolve to.
-_PRONOUNS = frozenset({"state", "action", "outcome", "active_rules", "actor"})
+_PRONOUNS = frozenset({"state", "action", "winner", "active_rules", "actor"})
 
 # Pronouns that name call-site context (`_user_function` clears them before a
 # function body runs). A hermetic body may not read them — it would see None;
 # pass the value in as a parameter instead. `state`/`active_rules` are game/phase
 # context and remain readable.
-_CALL_SITE_PRONOUNS = frozenset({"actor", "action", "outcome"})
+_CALL_SITE_PRONOUNS = frozenset({"actor", "action", "winner"})
+
+# Reserved because the language spells them as CLAUSE KEYWORDS, not because a
+# pronoun namespace claims them. `outcome` is the only member: it opens a phase's
+# `-> outcome { }` and names an auction's outcome function, but nothing binds it
+# as a value (an auction's tagged result reaches its consumer through the produce
+# path — `execute.py`'s `_ProduceSignal` — never a context slot). Keeping it
+# reserved is what makes the pre-#205 spelling of a trick winner (`leader :=
+# outcome`) fail loudly rather than bind to whatever state variable a game
+# happens to declare. Un-reserving it would widen the accepted surface, so it
+# waits for its own change.
+_KEYWORD_RESERVED = frozenset({"outcome"})
 
 # Value-words a DECLARATION may never take, because a bare NameRef spelling
 # the same word can never mean "the declaration" — some other fixed reading
@@ -189,7 +200,11 @@ _CALL_SITE_PRONOUNS = frozenset({"actor", "action", "outcome"})
 # narrower than a same-named outer declaration — see `_BINDER_SCOPE_FIELDS`),
 # which is the intended shadowing `_check_duplicate_names`'s docstring already
 # carves out, not a defect this reservation needs to close.
-RESERVED_VALUE_NAMES: frozenset[str] = frozenset({"none", "empty", "true", "false"}) | _PRONOUNS
+# The third arm, `_KEYWORD_RESERVED`, has its own mechanism (above): the word is
+# a clause keyword rather than a namespace.
+RESERVED_VALUE_NAMES: frozenset[str] = (
+    frozenset({"none", "empty", "true", "false"}) | _PRONOUNS | _KEYWORD_RESERVED
+)
 
 _RESERVED_WHY: dict[str, str] = {
     "none": "`x is none` always reads it as the null check",
@@ -198,7 +213,8 @@ _RESERVED_WHY: dict[str, str] = {
     "false": "it is the boolean literal",
     "state": "it is the phase/game state pronoun (`state.foo`)",
     "action": "it is the call-site action pronoun",
-    "outcome": "it is the call-site outcome pronoun",
+    "winner": "it is the call-site winner pronoun",
+    "outcome": "it is a clause keyword (a phase's `-> outcome`, an auction's `outcome`)",
     "active_rules": "it is the active-rules pronoun",
     "actor": "it is the call-site actor pronoun",
 }
@@ -3432,7 +3448,7 @@ def _check_reserved_params(game: n.Game, bag: DiagnosticBag) -> None:
     `x is empty` as a state variable of the same name would be.
 
     Function parameters are the ONE exception to `RESERVED_VALUE_NAMES` in
-    full: `_CALL_SITE_PRONOUNS` (`actor`/`action`/`outcome`) is exactly the
+    full: `_CALL_SITE_PRONOUNS` (`actor`/`action`/`winner`) is exactly the
     set a function body is already forbidden from READING (the runtime
     clears them before a hermetic call — `_check_functions`'s "pass the
     value in as a parameter instead"), so naming a parameter after one is
@@ -3441,9 +3457,11 @@ def _check_reserved_params(game: n.Game, bag: DiagnosticBag) -> None:
     (`function lead(actor : Player) = score[actor]`). `state`/`active_rules`
     stay reserved for function parameters too: those two remain READABLE
     inside a function body, so a same-named parameter would still shadow
-    them. Move-type/rule bodies are not hermetic — they read
-    `actor`/`action`/`outcome` directly as live pronouns — so all five stay
-    reserved for their parameters."""
+    them. `outcome` is reserved for them as well, for the separate reason
+    `_KEYWORD_RESERVED` records — it is a clause keyword, not a pronoun a
+    hermetic call clears. Move-type/rule bodies are not hermetic — they read
+    `actor`/`action`/`winner` directly as live pronouns — so every reserved
+    word stays reserved for their parameters."""
     for attr, kind, reserved in _PARAM_BEARING.values():
         for decl in getattr(game, attr):
             for p in decl.params:
@@ -4124,7 +4142,7 @@ _PROCEDURE_PARAM_DOMAINS = frozenset({"Player", "Rank", "Rank?", "Integer"})
 # A `produces:` over a DEFINE is not in the class: a define is invoked fresh at each
 # site and has no ordering or uniqueness rule, which is why it stays allowed.
 _NON_LOCAL_STMTS = (n.Produce, n.ContinueTo, n.SkipToNextHand)
-_OUTCOME_BINDING_STMTS = (n.Round,)
+_WINNER_BINDING_STMTS = (n.Round,)
 
 
 # What a write target may be. `:=`, `+=`, `-=` and `rotate` all write persistent
@@ -4283,12 +4301,12 @@ def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
                         f"control flow",
                         nd.span,
                     )
-                elif isinstance(nd, _OUTCOME_BINDING_STMTS):
+                elif isinstance(nd, _WINNER_BINDING_STMTS):
                     bag.error(
                         f"procedure '{proc.name}' contains a `round`, which binds "
-                        f"its own `outcome` for the statements after it; a "
+                        f"its own `winner` for the statements after it; a "
                         f"procedure body may not yet hold one, because the body's "
-                        f"`outcome` wall cannot distinguish a round-local binding "
+                        f"`winner` wall cannot distinguish a round-local binding "
                         f"from the caller's call-site pronoun (procedures.md)",
                         nd.span,
                     )
@@ -5138,10 +5156,14 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bag.error(f"round source zone '{nd.source_zone}' is unknown", nd.span)
                 if nd.play_zone not in zone_names:
                     bag.error(f"round play zone '{nd.play_zone}' is unknown", nd.span)
-                if nd.outcome_fn not in PRIMITIVE_TRICK_OUTCOMES:
+                # The diagnostic speaks the surface's currency — `winner` — while the
+                # field stays `outcome_fn`: `n.Round` is shared with the auction form,
+                # where that name is correct, and splits with the node (issue #210).
+                # Do not "correct" this message back to match the field.
+                if nd.outcome_fn not in PRIMITIVE_TRICK_WINNERS:
                     bag.error(
-                        f"trick round outcome '{nd.outcome_fn}' is not a trick "
-                        f"outcome function",
+                        f"trick round winner '{nd.outcome_fn}' is not a trick "
+                        f"winner function",
                         nd.span,
                     )
                 if nd.move_type not in LIBRARY_MOVE_TYPES:

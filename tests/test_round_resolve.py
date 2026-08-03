@@ -22,8 +22,8 @@ def test_round_unknown_early_predicate_errors() -> None:
     assert "nope_predicate" in str(ei.value)
 
 
-def test_round_outcome_fn_rejected_as_early_predicate() -> None:
-    # An outcome callback (signature (played, led_suit, trump, rank) -> Player) is
+def test_round_winner_fn_rejected_as_early_predicate() -> None:
+    # A winner function (signature (played, led_suit, trump, rank) -> Player) is
     # not a valid early predicate ((card, led_suit) -> Boolean). The namespaces are
     # separate, so misusing one for the other is caught at resolve, not at runtime.
     bad = EARLY_SRC.replace("early on_play_of_tochoo", "early highest_of_led_suit")
@@ -32,17 +32,17 @@ def test_round_outcome_fn_rejected_as_early_predicate() -> None:
     assert "highest_of_led_suit" in str(ei.value)
 
 
-def test_early_predicate_rejected_as_outcome_fn() -> None:
+def test_early_predicate_rejected_as_winner_fn() -> None:
     """The converse direction: an early predicate ((card, led_suit) -> Boolean)
-    is not a valid trick outcome. Both directions of the partition are walled,
+    is not a valid trick winner function. Both directions of the partition are walled,
     which is why the `early` set sits deliberately outside PRIMITIVE_VALUE_NAMES
     even though the runtime dispatches both through `value_function`.
 
-    red under: add `on_play_of_tochoo` to PRIMITIVE_TRICK_OUTCOMES
+    red under: add `on_play_of_tochoo` to PRIMITIVE_TRICK_WINNERS
     (cardlang/builtins/functions.py) — the tempting but wrong resolution of the
-    early/outcome asymmetry, which would also make it a legal bare NameRef.
+    early/winner asymmetry, which would also make it a legal bare NameRef.
     """
-    bad = EARLY_SRC.replace("outcome highest_of_led_suit", "outcome on_play_of_tochoo")
+    bad = EARLY_SRC.replace("winner highest_of_led_suit", "winner on_play_of_tochoo")
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(bad, "g.cardlang")
     assert "on_play_of_tochoo" in str(ei.value)

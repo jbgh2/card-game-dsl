@@ -49,18 +49,18 @@ game Undertow {
     leader := player_holding(2 of clubs)
     repeat until (all players where hand[player] is empty) {
       round play_to_trick from leader over all players source hand into trick_pile
-            outcome highest_trump_or_led_suit trump trump_suit
+            winner highest_trump_or_led_suit trump trump_suit
 
       // The undertow: pull the trick's lowest card (first played among ties)
       // onto the marker, read the next trump off it, then gather everything.
       let low_val = lowest rank_value(card) over cards in trick_pile or 0
       move one card from trick_pile where rank_value(card) is low_val to tide_marker
       trump_suit := suit_of(tide_marker)
-      move all cards from tide_marker to captured[outcome]
-      move all cards from trick_pile to captured[outcome]
+      move all cards from tide_marker to captured[winner]
+      move all cards from trick_pile to captured[winner]
 
-      tricks_won[outcome] += 1
-      leader := outcome
+      tricks_won[winner] += 1
+      leader := winner
     }
   }
 

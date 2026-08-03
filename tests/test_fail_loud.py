@@ -105,7 +105,7 @@ game G {
   phase play {
     leader := 0
     round play_to_trick from leader over all players source hand into trick_pile
-          outcome bridge_auction_outcome
+          winner bridge_auction_outcome
   }
   winner: highest leader
 }
@@ -130,10 +130,10 @@ move_type pass { effect { passes += 1 } }
 
 
 def test_trick_round_rejects_an_auction_outcome() -> None:
-    # A trick round whose outcome names an auction-form callback resolves to the
-    # wrong dispatcher at runtime — reject it at compile time, by form-specific
-    # outcome namespace, not with a late AssertionError.
-    with pytest.raises(DiagnosticError, match="not a trick outcome function"):
+    # A trick round whose `winner` clause names an auction-form callback resolves
+    # to the wrong dispatcher at runtime — reject it at compile time, by
+    # form-specific namespace, not with a late AssertionError.
+    with pytest.raises(DiagnosticError, match="not a trick winner function"):
         check_dsl(TRICK_ROUND_WITH_AUCTION_OUTCOME, "t.cardlang")
 
 

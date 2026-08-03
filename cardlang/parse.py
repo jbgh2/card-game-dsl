@@ -802,8 +802,11 @@ class _Builder(Transformer[Token, n.Game]):
 
     def round_stmt(self, meta: Meta, c: list[object]) -> n.Round:
         # c: [NAME(move_type), expr(leader), expr(participants), NAME(source),
-        #     NAME(into), NAME(outcome), expr(trump)?, NAME(early)?]
+        #     NAME(into), NAME(winner), expr(trump)?, NAME(early)?]
         # With maybe_placeholders=True, len(c)==8 always; c[6]/c[7] are None when absent.
+        # `outcome_fn` carries the trick form's WINNER function: the field is shared
+        # with the auction form, where the name is correct, and splits with the node
+        # (issue #210 — AuctionRound keeps `outcome_fn`).
         trump = _as_expr(c[6]) if c[6] is not None else None
         early = str(c[7]) if c[7] is not None else None
         return n.Round(
@@ -846,7 +849,7 @@ class _Builder(Transformer[Token, n.Game]):
         # c: [NAME(move_type), expr(leader), expr(participants), NAME(source),
         #     NAME(into), NAME(combinations), NAME(follows), expr(termination)].
         # The climbing form keeps the trick zones (source/into) but names the
-        # combination-engine queries instead of an outcome function; the winner is
+        # combination-engine queries instead of a winner function; the winner is
         # the loop's last player. `combos_fn is not None` marks the form.
         return n.Round(
             move_type=str(c[0]),

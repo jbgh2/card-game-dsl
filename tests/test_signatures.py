@@ -53,7 +53,7 @@ from cardlang.builtins.functions import (
     ANY_FLAVOR_CALL_FUNCS,
     PRIMITIVE_AUCTION_OUTCOMES,
     PRIMITIVE_EARLY_PREDICATES,
-    PRIMITIVE_TRICK_OUTCOMES,
+    PRIMITIVE_TRICK_WINNERS,
     PRIMITIVE_VALUE_NAMES,
 )
 from cardlang.builtins.signatures import (
@@ -77,8 +77,8 @@ def test_tables_reconcile_with_name_sets() -> None:
     assert set(ZONE_CONTENT) == set(LIBRARY_ZONE_TYPES)
     # The two outcome namespaces partition the value-name set (the resolver
     # validates each round form against its own; the union is the bare-name space).
-    assert PRIMITIVE_TRICK_OUTCOMES | PRIMITIVE_AUCTION_OUTCOMES == PRIMITIVE_VALUE_NAMES
-    assert PRIMITIVE_TRICK_OUTCOMES.isdisjoint(PRIMITIVE_AUCTION_OUTCOMES)
+    assert PRIMITIVE_TRICK_WINNERS | PRIMITIVE_AUCTION_OUTCOMES == PRIMITIVE_VALUE_NAMES
+    assert PRIMITIVE_TRICK_WINNERS.isdisjoint(PRIMITIVE_AUCTION_OUTCOMES)
 
 
 def test_outcome_names_are_dispatchable() -> None:
@@ -87,7 +87,7 @@ def test_outcome_names_are_dispatchable() -> None:
     # (else a name passes resolve and then Assertion-fails mid-playout).
     from cardlang.runtime.primitives import auction_outcome_function, value_function
 
-    for name in PRIMITIVE_TRICK_OUTCOMES:
+    for name in PRIMITIVE_TRICK_WINNERS:
         assert callable(value_function(name))
     for name in PRIMITIVE_AUCTION_OUTCOMES:
         assert callable(auction_outcome_function(name))

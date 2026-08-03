@@ -85,9 +85,9 @@ game H {{
   phase p {{
     deal 13 cards from deck to each hand
     round play_to_trick from leader over all players source hand into trick_pile
-          outcome highest_of_led_suit
-    if {pred} {{ taken[outcome] += 1 }}
-    leader := outcome
+          winner highest_of_led_suit
+    if {pred} {{ taken[winner] += 1 }}
+    leader := winner
   }}
   winner: highest taken
 }}

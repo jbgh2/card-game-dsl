@@ -43,9 +43,9 @@ game Getaway {
 
     leader := player_holding(A of spades)
     round play_to_trick from leader over all players source hand into trick_pile
-          outcome highest_of_led_suit early on_play_of_tochoo
+          winner highest_of_led_suit early on_play_of_tochoo
     move all cards from trick_pile to waste
-    leader := outcome
+    leader := winner
   }
 
   phase play {
@@ -55,12 +55,12 @@ game Getaway {
     // Loop tricks until at most one player still holds cards.
     repeat until (number of players where has_cards(player)) <= 1 {
       round play_to_trick from leader over players where not eliminated[player]
-            source hand into trick_pile outcome highest_of_led_suit early on_play_of_tochoo
+            source hand into trick_pile winner highest_of_led_suit early on_play_of_tochoo
       // On a tochoo the highest led-suit card picks up the pile; otherwise the
       // followed cards are discarded.
-      if state.trick_terminated_early { move all cards from trick_pile to hand[outcome] }
+      if state.trick_terminated_early { move all cards from trick_pile to hand[winner] }
       else { move all cards from trick_pile to waste }
-      leader := outcome
+      leader := winner
       for each player p: if hand[p] is empty { eliminated[p] := true }
     }
   }

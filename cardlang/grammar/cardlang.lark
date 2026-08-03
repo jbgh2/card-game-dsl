@@ -351,7 +351,12 @@ as_block: _AS_KW expr "{" statement* "}"
 turns_stmt: _TURNS_KW NAME "from" expr "over" expr "until" expr [_AGAIN_KW NAME] "{" statement* "}"
 
 offer: "offer" "to" expr "one" "of" "[" NAME ("," NAME)* "]"
-round_stmt: "round" NAME "from" expr "over" expr "source" NAME "into" NAME "outcome" NAME ["trump" expr] ["early" NAME]   -> round_stmt
+// The trick form of `round`: one trick. The `winner` clause names the winner
+// function that picks the player the trick yields, bound as `winner` for the
+// statements after it. Distinct from the auction form's `outcome` clause below,
+// which names a function producing a tagged `(tag, payloads)` outcome — the two
+// senses the glossary keeps apart (docs/glossary.md, Outcome / Winner).
+round_stmt: "round" NAME "from" expr "over" expr "source" NAME "into" NAME "winner" NAME ["trump" expr] ["early" NAME]   -> round_stmt
 // The auction/betting form of `round`: a continuous ring over a move vocabulary
 // (`offering`) that loops until the termination predicate holds (`until`). The
 // `outcome` clause is optional: an auction supplies one and the function produces
@@ -374,8 +379,8 @@ auction_moves: "offering" "[" NAME ("," NAME)* "]"
 // The engine is named by `combinations` (the lead-options query) and `follows`
 // (the legal-follows query) — game-local stdlib queries, since the combination
 // rules differ across games. The winning player (the last to play) is bound as
-// `outcome` for the surrounding body, which routes the pile and the next lead;
-// there is no `outcome` *function* — the winner is the loop's last player, not a
+// `winner` for the surrounding body, which routes the pile and the next lead;
+// there is no winner *function* — the winner is the loop's last player, not a
 // function of the cards. (decisions.md "Interactive decisions": the same `round`
 // kernel along the move-vocabulary / order / termination axes.)
 climb_stmt: "round" "climb" NAME "from" expr "over" expr "source" NAME "into" NAME "combinations" NAME "follows" NAME "until" expr   -> climb_stmt

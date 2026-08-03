@@ -56,7 +56,7 @@ residual:   `coup_game_summary` — a third dead-`let` trace emitter by call
 
 red under (born-green cells):
 - test_never_in_other_namespaces: adding "coup_note_reveal" to
-  PRIMITIVE_TRICK_OUTCOMES reddens its cell (demonstrated and reverted).
+  PRIMITIVE_TRICK_WINNERS reddens its cell (demonstrated and reverted).
 - test_shadow_wall_still_guards_registered_names is itself the freedom
   cells' red-for-the-right-reason guard: the grid commit's probe placed
   the function inside the game block and its red was a syntax error
@@ -81,7 +81,7 @@ from cardlang.builtins.functions import (
     PRIMITIVE_CLIMB_FOLLOWS,
     PRIMITIVE_CLIMB_LEADS,
     PRIMITIVE_EARLY_PREDICATES,
-    PRIMITIVE_TRICK_OUTCOMES,
+    PRIMITIVE_TRICK_WINNERS,
     PRIMITIVE_VALUE_NAMES,
 )
 from cardlang.builtins.signatures import CALL_SIGS
@@ -102,7 +102,7 @@ _NAMES = [name for name, _ in EVICTED]
 # The six namespaces the evicted names never belonged to: the domain's
 # boundary, pinned so "which namespace held them" stays a checked fact.
 OTHER_NAMESPACES: dict[str, frozenset[str]] = {
-    "PRIMITIVE_TRICK_OUTCOMES": PRIMITIVE_TRICK_OUTCOMES,
+    "PRIMITIVE_TRICK_WINNERS": PRIMITIVE_TRICK_WINNERS,
     "PRIMITIVE_AUCTION_OUTCOMES": PRIMITIVE_AUCTION_OUTCOMES,
     "PRIMITIVE_VALUE_NAMES": PRIMITIVE_VALUE_NAMES,
     "PRIMITIVE_EARLY_PREDICATES": PRIMITIVE_EARLY_PREDICATES,

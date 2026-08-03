@@ -7,7 +7,7 @@ Completeness ledger (surface-totality-audit)
 property:   every Belote primitive computes its documented value over the
             32-card pack, and every plausible misuse of the new stdlib
             names fails loud in the owning layer's currency
-domain:     Belote's 10 CALL_FUNCS rows + 1 PRIMITIVE_TRICK_OUTCOMES
+domain:     Belote's 10 CALL_FUNCS rows + 1 PRIMITIVE_TRICK_WINNERS
             row x {name, arity, param types, dispatch arm,
             reads row} + the primitives' own value domains (32 ranks x
             4 suits, the decomposition's combination classes, the guard's
@@ -204,7 +204,7 @@ def test_probe_wrong_param_type_is_a_typecheck_error() -> None:
     _expect_rejected(text, r"belote_decl_size\(\) expects Player, got Suit\?")
 
 
-def test_probe_trick_outcome_on_an_auction_round_is_rejected() -> None:
+def test_probe_trick_winner_fn_on_an_auction_round_is_rejected() -> None:
     src = BELOTE.read_text()
     anchor = "until (number of players where not decl_acted[player]) is 0"
     text = src.replace(
@@ -219,10 +219,10 @@ def test_probe_trick_outcome_on_an_auction_round_is_rejected() -> None:
 def test_probe_auction_outcome_on_the_trick_round_is_rejected() -> None:
     src = BELOTE.read_text()
     text = src.replace(
-        "outcome belote_trick_winner trump trump_suit",
-        "outcome tarot_auction_outcome trump trump_suit",
+        "winner belote_trick_winner trump trump_suit",
+        "winner tarot_auction_outcome trump trump_suit",
     )
     assert text != src
     _expect_rejected(
-        text, "trick round outcome 'tarot_auction_outcome' is not a trick outcome"
+        text, "trick round winner 'tarot_auction_outcome' is not a trick winner function"
     )

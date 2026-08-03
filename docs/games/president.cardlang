@@ -105,7 +105,7 @@ game President {
           else { if out_second is none { out_second := state.shed_second } }
         }
         move all cards from trick_pile to discard
-        leader := outcome
+        leader := winner
       }
 
       // --- Scoring: first out is President (+2), second Vice-President (+1),

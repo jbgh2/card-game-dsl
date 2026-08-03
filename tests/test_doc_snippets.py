@@ -137,7 +137,7 @@ residual:   fragment KINDS with no cheap wrapping harness. These are never
               - the retired `choose <Type> with <constraint>` statement
                 form and the `<actor> chooses <description>` expression
                 form — superseded by the `round offering [...]` kernel
-                construct and plain function calls (`team_of(outcome)`);
+                construct and plain function calls (`team_of(winner)`);
                 no corpus game uses either retired form today.
               - the retired `move_type X { source: ... destination: ...
                 emits: ... }` shape — superseded by `when:` / `effect {}`.

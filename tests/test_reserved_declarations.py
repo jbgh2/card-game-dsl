@@ -19,14 +19,19 @@ run clean against the pre-fix resolver):
        `true` before it ever reaches `cats.state_vars`: the declaration is
        unreachable by any bare reference, by construction.
 
-Property: no DECLARATION may take a name in `RESERVED_VALUE_NAMES` — every
-name a bare `NameRef` can never mean "this declaration", because some other
-fixed reading always wins first (a parser-level keyword dispatch for
+Property: no DECLARATION may take a name in `RESERVED_VALUE_NAMES`. For the
+first two arms these are names a bare `NameRef` can never mean, because some
+other fixed reading always wins first (a parser-level keyword dispatch for
 `none`/`empty`, `_classify`'s literal short-circuit for `true`/`false`, or a
-pronoun's fixed dot-access namespace for `_PRONOUNS`).
+pronoun's fixed dot-access namespace for `_PRONOUNS`). `_KEYWORD_RESERVED`'s
+`outcome` is reserved for a different reason: no reading claims it, but it is
+a clause keyword in three productions, and the reservation is what keeps a
+stale round-body `outcome` failing loudly instead of silently binding to a
+state variable a game happens to declare.
 
-Domain: `RESERVED_VALUE_NAMES` (`none`, `empty`, `true`, `false`, and the
-five `_PRONOUNS`: `state`, `action`, `outcome`, `active_rules`, `actor`) x
+Domain: `RESERVED_VALUE_NAMES` (`none`, `empty`, `true`, `false`, the five
+`_PRONOUNS` — `state`, `action`, `winner`, `active_rules`, `actor` — and
+`_KEYWORD_RESERVED`'s `outcome`) x
 every declaration kind whose name is reachable as a bare `NameRef` in
 general expression position: state variables (game-level and phase-local),
 zones, functions, function/move-type/rule parameters, `let` names and
@@ -50,7 +55,7 @@ test would only re-exercise `RESERVED_VALUE_NAMES` membership, already
 covered by the acceptance/rejection pins directly on that constant).
 
 One cell is a deliberate NARROWING, not an oversight: a FUNCTION parameter
-may be named `actor`/`action`/`outcome` (`_CALL_SITE_PRONOUNS`) — a
+may be named `actor`/`action`/`winner` (`_CALL_SITE_PRONOUNS`) — a
 function body is already forbidden from READING those (hermeticity, the
 runtime clears them before a call), so a parameter of the same name is not
 a hijack, it is the error message's own prescribed repair ("pass the value
@@ -58,9 +63,11 @@ in as a parameter instead"). `tests/test_functions.py`'s pre-existing
 `function lead(actor : Player) = score[actor]` pins exactly this shape and
 was the first-draft version of this wall's regression: a too-broad
 reservation rejected it. `state`/`active_rules` stay reserved for function
-parameters (both remain READABLE inside a function body); all five stay
-reserved for move-type/rule parameters (neither body is hermetic — both
-read `actor`/`action`/`outcome` directly as live pronouns).
+parameters (both remain READABLE inside a function body), and so does
+`outcome` — its reservation is keyword-shaped, not pronoun-shaped, so
+hermeticity says nothing about it. Every reserved word stays reserved for
+move-type/rule parameters (neither body is hermetic — both read
+`actor`/`action`/`winner` directly as live pronouns).
 
 Residual: `card`/`player` are deliberately EXCLUDED from
 `RESERVED_VALUE_NAMES` — both are established, corpus-wide LEXICAL shadow
@@ -98,7 +105,21 @@ def _rejects(src: str, needle: str) -> None:
 
 def test_reserved_value_names_registry_is_exactly_the_documented_set() -> None:
     assert RESERVED_VALUE_NAMES == frozenset(
-        {"none", "empty", "true", "false", "state", "action", "outcome", "active_rules", "actor"}
+        {
+            "none",
+            "empty",
+            "true",
+            "false",
+            "state",
+            "action",
+            "winner",
+            "active_rules",
+            "actor",
+            # Not a pronoun — reserved because it is a clause keyword, and because
+            # the reservation is what makes the pre-#205 spelling of a trick winner
+            # fail loudly instead of binding to a state variable (`_KEYWORD_RESERVED`).
+            "outcome",
+        }
     )
 
 
@@ -220,15 +241,17 @@ function f(state: Integer) = state
     )
 
 
-def test_function_parameter_named_actor_action_outcome_stays_legal() -> None:
+def test_function_parameter_named_actor_action_winner_stays_legal() -> None:
     # The one exception to `RESERVED_VALUE_NAMES` (module docstring, and
     # `_check_reserved_params`'s docstring in resolve.py): a function body is
-    # already forbidden from READING `actor`/`action`/`outcome` (the runtime
+    # already forbidden from READING `actor`/`action`/`winner` (the runtime
     # clears them before a hermetic call), so naming a parameter after one of
     # them is not a hijack — it is the prescribed fix for that hermeticity
     # error ("pass the value in as a parameter instead"). Regression pin:
     # without the exception the rule would reject `tests/test_functions.py`'s
-    # `function lead(actor : Player) = score[actor]`.
+    # `function lead(actor : Player) = score[actor]`. `outcome` is NOT in the
+    # carve-out: it is reserved as a clause keyword, not as a pronoun a
+    # hermetic call clears, so nothing makes a parameter of that name safe.
     game = check_dsl(
         """
 game Mini {
@@ -240,12 +263,33 @@ game Mini {
   phase play { let x = f(1, 1, 1) }
   winner: highest score
 }
-function f(actor: Integer, action: Integer, outcome: Integer) = actor + action + outcome
+function f(actor: Integer, action: Integer, winner: Integer) = actor + action + winner
 """,
         "mini.cardlang",
     )
     fn = next(f for f in game.functions if f.name == "f")
-    assert [p.name for p in fn.params] == ["actor", "action", "outcome"]
+    assert [p.name for p in fn.params] == ["actor", "action", "winner"]
+
+
+def test_function_parameter_named_outcome_is_rejected() -> None:
+    # The complement of the carve-out above: `outcome` is reserved by
+    # `_KEYWORD_RESERVED`, which `_check_reserved_params` does not except, so a
+    # parameter of that name is refused where `winner` is allowed.
+    _rejects(
+        """
+game Mini {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  zones { hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase play { let x = f(1) }
+  winner: highest score
+}
+function f(outcome: Integer) = outcome
+""",
+        "function parameter 'outcome' is a reserved word",
+    )
 
 
 def test_move_type_parameter_named_actor_rejected() -> None:
@@ -280,7 +324,7 @@ game Mini {
     legal_moves: [play_to_trick]
     leader := 0
     round play_to_trick from leader over all players source hand into trick_pile
-          outcome highest_of_led_suit
+          winner highest_of_led_suit
   }
   winner: highest score
 }
@@ -305,7 +349,7 @@ game Mini {
   state { score[player] : Integer = 0 }
   phase play {
     let outcome = 1
-    score[0] := outcome
+    score[0] := winner
   }
   winner: highest score
 }

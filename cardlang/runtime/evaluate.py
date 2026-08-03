@@ -130,9 +130,9 @@ def _pos(arg: n.Arg) -> n.Expr:
 def _user_function(fn: n.FunctionDef, args: tuple[n.Arg, ...], ctx: Ctx) -> Any:
     """Evaluate a user function hermetically: the arguments evaluate in the caller's
     context, then the body runs in a fresh scope holding only the parameters, over
-    the shared game/phase state. Hermeticity for `actor`/`action`/`outcome` is
+    the shared game/phase state. Hermeticity for `actor`/`action`/`winner` is
     enforced at compile time (resolve rejects those pronouns in a body), so the
-    `outcome`/`action` clears here are belt-and-suspenders. `current_player` is
+    `winner`/`action` clears here are belt-and-suspenders. `current_player` is
     *inherited*, not cleared: a body may read a bare per-player zone (e.g.
     `cards in hand where card.suit is spades`), whose family instance resolves
     through the acting player the caller set."""
@@ -140,7 +140,7 @@ def _user_function(fn: n.FunctionDef, args: tuple[n.Arg, ...], ctx: Ctx) -> Any:
     body_ctx = replace(
         ctx,
         locals={p.name: v for p, v in zip(fn.params, values)},
-        outcome=None,
+        winner=None,
         action=None,
     )
     return evaluate(fn.body, body_ctx)
@@ -213,8 +213,8 @@ def _pronoun(name: str, ctx: Ctx) -> Any:
                     "after one returns"
                 )
             return ctx.rs.last_round_state
-        case "outcome":
-            return ctx.outcome
+        case "winner":
+            return ctx.winner
         case "action":
             return ctx.action
         case "active_rules":

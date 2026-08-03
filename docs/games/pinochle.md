@@ -121,10 +121,10 @@ game Pinochle {
         leader := high_bidder
         repeat until (all players where hand[player] is empty) {
           round play_to_trick from leader over all players source hand into trick_pile
-                outcome highest_trump_or_led_suit trump trump_suit
-          trick_score[team_of(outcome)] += sum of card_value(card) over cards in trick_pile
-          move all cards from trick_pile to captured[team_of(outcome)]
-          leader := outcome
+                winner highest_trump_or_led_suit trump trump_suit
+          trick_score[team_of(winner)] += sum of card_value(card) over cards in trick_pile
+          move all cards from trick_pile to captured[team_of(winner)]
+          leader := winner
         }
         trick_score[team_of(leader)] += 10   // ten for the last trick
       } else {

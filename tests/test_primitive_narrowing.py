@@ -162,7 +162,7 @@ from cardlang.builtins.functions import (
     PRIMITIVE_CLIMB_FOLLOWS,
     PRIMITIVE_CLIMB_LEADS,
     PRIMITIVE_EARLY_PREDICATES,
-    PRIMITIVE_TRICK_OUTCOMES,
+    PRIMITIVE_TRICK_WINNERS,
 )
 from cardlang.runtime import reads as reads_mod
 from cardlang.runtime.reads import PRIMITIVE_READS
@@ -271,7 +271,7 @@ def _impls_in(path: Path) -> list[Impl]:
 
 _ALL_REGISTERED: frozenset[str] = (
     CALL_FUNCS
-    | PRIMITIVE_TRICK_OUTCOMES
+    | PRIMITIVE_TRICK_WINNERS
     | PRIMITIVE_AUCTION_OUTCOMES
     | PRIMITIVE_EARLY_PREDICATES
     | PRIMITIVE_CLIMB_LEADS
@@ -1361,10 +1361,10 @@ def test_trick_outcome_freezes_its_collection_args() -> None:
 
     def capture(played: Any, led_suit: Any, trump: Any, rank_index: Any) -> int:
         seen["played"], seen["rank_index"] = played, rank_index
-        return 0  # a seat, satisfying the `isinstance(outcome, int)` assert
+        return 0  # a seat, satisfying the `isinstance(winner, int)` assert
 
     form = object.__new__(TrickForm)
-    form.outcome_fn = capture
+    form.winner_fn = capture
     form.trump = None
     rs = RuntimeState(Seating(2), ZoneStore((), (0, 1)), random.Random(0))
     rs.rank_index = {"7": 0}

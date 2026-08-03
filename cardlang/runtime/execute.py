@@ -78,18 +78,20 @@ def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
         case n.Round():
             # One interpreter over the form selected by field-presence, dispatched
             # on the returned Outcome union: a winning Player (trick/climb) binds
-            # `outcome`; a typed `(tag, payloads)` outcome (auction) raises a
+            # `winner`; a typed `(tag, payloads)` outcome (auction) raises a
             # produce signal, caught by the enclosing outcome-declaring phase;
             # `None` (betting) mutated the shared chip/fold state and just closes.
-            outcome = mechanics.run_decision_round(
+            # The tagged arm never reaches the pronoun — which is why `winner` is
+            # the only value a round binds.
+            result = mechanics.run_decision_round(
                 mechanics.build_form(stmt, ctx), {}, ctx
             )
-            if outcome is None:
+            if result is None:
                 return ctx
-            if isinstance(outcome, tuple):
-                tag, payloads = outcome
+            if isinstance(result, tuple):
+                tag, payloads = result
                 raise _ProduceSignal(tag, payloads)
-            return ctx.with_outcome(outcome)
+            return ctx.with_winner(result)
         case n.Produce():
             raise _ProduceSignal(stmt.tag, [evaluate(p, ctx) for p in stmt.payloads])
         case n.Produces():
@@ -155,7 +157,7 @@ def _movement(stmt: n.Movement, ctx: Ctx) -> None:
     source = evaluate(stmt.source, ctx)
     if not isinstance(source, Zone):
         # User-reachable through the endpoint rule's recorded residual: a
-        # value the checker deliberately leaves loose (`outcome`, an
+        # value the checker deliberately leaves loose (`winner`, an
         # unregistered action field) reaches the runtime as TAny. Typed
         # error, not assert.
         raise RuntimeError(

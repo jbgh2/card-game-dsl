@@ -468,8 +468,8 @@ game H {
 move_type play_to_trick { effect { } }
 procedure one_trick(lead : Player) {
   round play_to_trick from lead over all players source hand into trick_pile
-        outcome highest_of_led_suit
-  taken[outcome] += 1
+        winner highest_of_led_suit
+  taken[winner] += 1
 }
 """
     with pytest.raises(DiagnosticError) as excinfo:

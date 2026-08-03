@@ -99,10 +99,10 @@ game Bridge {
       leader := declarer offset_by left          // declarer's left-hand opponent leads
       repeat until (all players where hand[player] is empty) {
         round play_to_trick from leader over all players source hand into trick_pile
-              outcome highest_trump_or_led_suit trump trump_suit
-        move all cards from trick_pile to captured[team_of(outcome)]
-        tricks_taken[team_of(outcome)] += 1
-        leader := outcome
+              winner highest_trump_or_led_suit trump trump_suit
+        move all cards from trick_pile to captured[team_of(winner)]
+        tricks_taken[team_of(winner)] += 1
+        leader := winner
       }
     }
 

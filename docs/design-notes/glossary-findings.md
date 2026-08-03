@@ -20,16 +20,15 @@ Section D lists what is already known or deliberate; nothing there is re-litigat
 
 ## A. Overloads — one word, several meanings
 
-**F-1 · `outcome` means five things.** (1) A phase's variant type (`-> outcome {A|B}`,
-grammar:184); (2) the trick-winner function slot (`round … outcome highest_of_led_suit`,
-grammar:354); (3) the auction result function (grammar:368); (4) the pronoun bound to
-the trick winner in the surrounding body (`captured[outcome]`, hearts:72) — and in the
-climb form it is bound with no `outcome` clause at all (grammar:377); (5) the
-`DecisionForm.outcome` hook (mechanics.py:65), which additionally pops the mechanic
-stack as a side effect (mechanics.py:207). Runtime keeps both `Ctx.outcome: Player`
-(state.py:361) and `rs.phase_outcomes: dict[str, (tag, payloads)]` (state.py:268) —
-the same word for a player and for a variant. This is the single most overloaded
-designer-facing word.
+**F-1 · `outcome` means five things.** The designer-facing senses are split: the
+trick-winner function slot is `winner <fn>`, and the pronoun bound to the trick or
+climb winner is `winner`. What remains is internal — (a) `Round.outcome_fn`, which
+carries the trick form's WINNER function because the node is shared with the auction
+form, and (b) the `DecisionForm.outcome` hook (mechanics.py), which additionally pops
+the mechanic stack as a side effect. Both wait on the Round node split (issue #210);
+the side effect is issue #205's slice 3. The surviving legitimate senses are a phase's
+outcome type (`-> outcome {A|B}`), the auction result function, and
+`rs.phase_outcomes` — all the tagged `(tag, payloads)` reading.
 
 **F-2 · `round` is three constructs and "trick" has no name.** One keyword, three
 grammar rules (`round_stmt`:354, `auction_stmt`:368, `climb_stmt`:381), one AST node

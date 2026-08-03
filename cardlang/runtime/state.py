@@ -358,7 +358,7 @@ class Ctx:
     locals: dict[str, Any] = field(default_factory=dict)
     current_player: Player | None = None
     current_phase: n.Phase | None = None
-    outcome: Player | None = None
+    winner: Player | None = None
     action: Move | None = None
     active_rules: tuple[n.RuleDef, ...] = ()
     observer: Callable[[Player, tuple[Any, ...]], None] | None = None
@@ -381,7 +381,7 @@ class Ctx:
         `as <expr>` and `offer to <expr>` evaluate an arbitrary expression here,
         and a player expression is runtime data: an off-by-one at a ring's edge,
         or a non-player value the checker leaves deliberately loose (`TAny` —
-        `as active_rules`, `as outcome` before a round has produced one, `as 5`
+        `as active_rules`, `as winner` before a round has produced one, `as 5`
         in a two-player game), would otherwise reach the chooser as a phantom
         decider and silently corrupt the decision node's information set. This is
         the acting-player analogue of the phantom-key write wall in
@@ -415,8 +415,8 @@ class Ctx:
     def in_phase(self, phase: n.Phase) -> Ctx:
         return replace(self, current_phase=phase)
 
-    def with_outcome(self, player: Player) -> Ctx:
-        return replace(self, outcome=player)
+    def with_winner(self, player: Player) -> Ctx:
+        return replace(self, winner=player)
 
     def with_action(self, action: Move) -> Ctx:
         return replace(self, action=action)

@@ -135,7 +135,7 @@ game Tichu {
           // records no shed on this path (its finishing order skips a player
           // who sheds by playing the Dog), so shed processing is skipped too.
           move all cards from trick_pile to discard
-          leader := tichu_partner(outcome)
+          leader := tichu_partner(winner)
         } else {
           // Fold this trick's sheds (play order) into the finishing order.
           if state.shed_first is not none {
@@ -152,12 +152,12 @@ game Tichu {
           // history, exactly as at the table. Otherwise the winner's team
           // captures the pile.
           if tichu_dragon_won() {
-            offer to outcome one of [dragon_to_left, dragon_to_right]
-            move all cards from trick_pile to captured[tichu_opponent_team(outcome)]
+            offer to winner one of [dragon_to_left, dragon_to_right]
+            move all cards from trick_pile to captured[tichu_opponent_team(winner)]
           } else {
-            move all cards from trick_pile to captured[team_of(outcome)]
+            move all cards from trick_pile to captured[team_of(winner)]
           }
-          leader := outcome
+          leader := winner
         }
         leader := tichu_next_holder(leader)
       }

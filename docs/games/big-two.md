@@ -104,7 +104,7 @@ game BigTwo {
               until (any player where hand[player] is empty)
         opened := true
         move all cards from trick_pile to discard
-        leader := outcome
+        leader := winner
       }
     }
 
