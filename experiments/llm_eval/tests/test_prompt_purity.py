@@ -1,17 +1,36 @@
 """The leak-freeness pins.
 
-Two layers, because the claim has two halves. The first is that `build_prompt`
-is a pure function of its arguments — same inputs, identical bytes; different
-inputs, different bytes. The second is that the LLM agent reaches the game only
-through the three entitled accessors, which is a property of the SOURCE, not of
-any single run: an `ast` scrape is the only check that cannot be satisfied by a
-test that happens not to exercise the leaking branch.
+Three layers, because the claim has three halves and no one technique covers
+them:
+
+1. **`build_prompt` is a pure function of its arguments** — same inputs,
+   identical bytes; different inputs, different bytes. Behavioural, and enough,
+   because the function has no other inputs to vary.
+2. **The agent reaches the game only through the entitled accessors** — a
+   property of the SOURCE, not of any single run. A scrape, because a run only
+   proves the branches it took, and the leaking branch is exactly the one a
+   test might not exercise.
+3. **Nothing a decision executes imports the engine** — measured by importing
+   the entry points in a clean subprocess and reading `sys.modules`, so the
+   interpreter resolves the graph and there is no resolution of ours to get
+   wrong. Paired with a scrape for imports deferred inside function bodies,
+   which execution structurally cannot see.
+
+Layers 2 and 3 are the same claim approached from opposite directions, and each
+is blind where the other sees: execution knows exactly what was loaded but not
+what a function would load if called; the scrape reads every branch but has to
+resolve names itself. Neither alone is the check.
 """
 
 from __future__ import annotations
 
 import ast
 import inspect
+import json
+import os
+import subprocess
+import sys
+from functools import cache
 from pathlib import Path
 from typing import get_type_hints
 
@@ -158,248 +177,168 @@ def test_decision_view_carries_no_state_object() -> None:
     }
 
 
-# --- the import closure ----------------------------------------------------
+# --- the engine is off the decision path ------------------------------------
 #
-# The decision path is not one module. `agents.py` imports `.render`,
+# The decision path is not one module: `agents.py` imports `.render`,
 # `.infostate` and `.providers`, and the rendered arm calls `render_state` on
-# every decision — so a per-module scrape of `agents.py` and `prompts.py` reads
-# green while an engine import sits one edge away, in code that runs on every
-# prompt. What has to be engine-free is the TRANSITIVE CLOSURE of what a
-# decision executes, and the closure is derived here rather than listed: a new
-# import edge is covered the day it appears, which a hard-coded module list is
-# exactly what fails to do.
+# every decision — so a per-module scrape reads green while an engine import
+# sits one edge away, in code that runs on every prompt. What has to be
+# engine-free is everything a decision EXECUTES.
+#
+# Two checks, because neither is sufficient and each covers the other's blind
+# spot:
+#
+# - IMPORT AND LOOK (`test_the_decision_path_never_imports_the_engine`). Import
+#   the entry points in a clean subprocess and read `sys.modules`. The
+#   interpreter resolves the graph, so there is no resolution left to get wrong.
+#   This replaced a hand-rolled AST walk over the import graph, which accreted
+#   five distinct defects — non-transitivity, invisible relative imports, a
+#   wrong anchor inside `__init__.py`, skipped intermediate package
+#   initializers, and a reach that depended on pytest's import alias. Every one
+#   was a way Python resolves imports that the reimplementation got wrong;
+#   asking Python removes the whole class rather than the five instances.
+# - READ THE SOURCE (`test_no_module_on_the_decision_path_defers_an_engine_import`).
+#   Execution only shows what the import DID. A `def choose(): import pyspiel`
+#   never runs at import time, so `sys.modules` stays clean while the engine is
+#   one call away — exactly the branch-a-run-did-not-take case the scrape exists
+#   for. Grep the executed files' ASTs for engine imports anywhere, including
+#   inside function bodies.
+#
+# The module set the second check reads comes from the first, so it covers what
+# actually executes rather than what a walk guessed would.
 
 ENGINE_ROOTS = frozenset({"cardlang", "pyspiel"})
 
-# The decision path's entry points, as module objects — `LLMAgent.choose` lives
-# in the first and calls into the second.
+# The decision path's entry points — `LLMAgent.choose` lives in the first and
+# calls into the second.
 ENTRY_MODULES = (agents_mod, prompts_mod)
 PACKAGE = agents_mod.__package__ or ""
 PACKAGE_DIR = Path(inspect.getsourcefile(agents_mod) or "").parent
-# The package's identity ON DISK, which no import alias can vary. `PACKAGE` is
-# whatever spelling the invoking command produced and is used only where a name
-# has to be built; membership is decided against this.
-PACKAGE_NAME = PACKAGE_DIR.name
+REPO_ROOT = PACKAGE_DIR.parent.parent
 
 
-def _source_of(module: str) -> Path | None:
-    """The file `module` would execute, or None if it names nothing this package
-    defines.
+def _engine_roots(node: ast.AST) -> set[str]:
+    """The engine packages an import statement names, or empty for any other
+    node. One definition, because both the deferred-import scrape and the
+    not-a-tautology check ask the same question and two spellings would drift.
 
-    Membership is decided by the FILESYSTEM, not by a prefix test against the
-    live import alias. That alias depends on how pytest was invoked — collecting
-    `experiments/llm_eval/tests` makes `__package__` `llm_eval`, while loading
-    the package canonically makes it `experiments.llm_eval` — and CI runs it one
-    way while `pytest -q` from the repo root would run it the other. A prefix
-    test against whichever alias happens to be live silently drops an absolute
-    self-import spelled the other way, so the closure's reach would depend on
-    the command that ran it.
-
-    Resolved against the directory rather than through `importlib`, so an
-    attribute mistaken for a submodule (`...prompts.RULES_RAW`, which
-    `from .prompts import RULES_RAW` cannot be distinguished from an import of a
-    submodule by syntax alone) simply misses instead of raising.
+    A relative import (`node.level > 0`) can never name an engine package: it
+    resolves inside this package by construction.
     """
-    parts = module.split(".")
-    if PACKAGE_NAME not in parts:
-        return None
-    rel = parts[parts.index(PACKAGE_NAME) + 1 :]
-    if not rel:
-        return PACKAGE_DIR / "__init__.py"
-    for candidate in (
-        PACKAGE_DIR.joinpath(*rel).with_suffix(".py"),
-        PACKAGE_DIR.joinpath(*rel) / "__init__.py",
-    ):
-        if candidate.exists():
-            return candidate
-    return None
+    if isinstance(node, ast.Import):
+        return {alias.name.split(".")[0] for alias in node.names} & ENGINE_ROOTS
+    if isinstance(node, ast.ImportFrom) and node.module and not node.level:
+        return {node.module.split(".")[0]} & ENGINE_ROOTS
+    return set()
 
 
-def _anchor(module: str, source: Path, level: int) -> str:
-    """The package a level-`level` relative import resolves against.
+@cache
+def _executed_modules() -> dict[str, str]:
+    """`{module name: source file}` for everything importing the entry points
+    executes, from a clean interpreter.
 
-    Python anchors a relative import at `__package__`, which for a module is its
-    parent but for a PACKAGE's `__init__.py` is the package itself. Stripping
-    `level` components off the name unconditionally gets the second case wrong —
-    inside `experiments/llm_eval/__init__.py`, `from . import render` would
-    resolve to `experiments.render`, which names no file, so `_source_of`
-    discards it and the edge vanishes from the closure. Since `_closure`
-    deliberately walks `__init__.py`, that is a silent hole in exactly the file
-    a future import is most likely to be added to.
+    A SUBPROCESS, not this one: pytest has already imported half the repo, so
+    `sys.modules` here proves nothing about what a decision alone pulls in.
     """
-    parts = module.split(".")
-    if source.name != "__init__.py":
-        parts = parts[:-1]
-    return ".".join(parts[: len(parts) - (level - 1)])
-
-
-def _imports_of(source: Path, module: str) -> set[str]:
-    """Every module name `module` imports, relative imports resolved to absolute.
-
-    Two things the per-module scrapes this replaced could not see. `import a, b`
-    binds EVERY alias, not just the first. And a relative import carries its
-    target in `node.level` plus `node.names`, not in `node.module` — `from .
-    import infostate` has `node.module is None`, so a scrape keyed on
-    `node.module` skips the whole intra-package edge set, which is the edge set
-    that matters here.
-
-    `from X import Y` is ambiguous by syntax: `Y` may be a submodule or an
-    attribute. Both readings are emitted; `_source_of` discards the one that
-    names no file.
-    """
-    out: set[str] = set()
-    for node in ast.walk(ast.parse(source.read_text(encoding="utf-8"))):
-        if isinstance(node, ast.Import):
-            out.update(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom):
-            if node.level:
-                anchor = _anchor(module, source, node.level)
-                base = f"{anchor}.{node.module}" if node.module else anchor
-            elif node.module:
-                base = node.module
-            else:
-                continue
-            out.add(base)
-            out.update(f"{base}.{alias.name}" for alias in node.names)
-    return out
-
-
-def _package_prefixes(module: str) -> set[str]:
-    """Every package whose `__init__.py` Python executes on the way to `module`.
-
-    Importing `pkg.sub.leaf` runs `pkg/__init__.py`, then `pkg/sub/__init__.py`,
-    then `leaf.py` — all three are on the decision path. This replaces a special
-    case that added only the TOP-level package, which left every intermediate
-    initializer unwalked. An initializer is exactly where a convenience
-    re-export lands, so that is a hole pointed at the likeliest place to fall
-    into it.
-    """
-    parts = module.split(".")
-    return {".".join(parts[:i]) for i in range(1, len(parts))}
-
-
-def _closure() -> tuple[dict[str, str | None], list[tuple[str, str]]]:
-    """Breadth-first over intra-package import edges from the entry modules to
-    fixpoint. Returns the reached modules (each mapped to its importer, so a
-    failure can print the edge path) and every (engine module, importer) pair
-    found anywhere in the closure."""
-    reached: dict[str, str | None] = {m.__name__: None for m in ENTRY_MODULES}
-    frontier = list(reached)
-    offenders: list[tuple[str, str]] = []
-    while frontier:
-        module = frontier.pop(0)
-        source = _source_of(module)
-        if source is None:
-            continue
-        # Importing any submodule executes every enclosing package body first,
-        # so those initializers are on the decision path however it is reached.
-        edges = _imports_of(source, module) | _package_prefixes(module)
-        for imported in sorted(edges):
-            if imported.split(".")[0] in ENGINE_ROOTS:
-                offenders.append((imported, module))
-            if imported not in reached and _source_of(imported) is not None:
-                reached[imported] = module
-                frontier.append(imported)
-    return reached, offenders
-
-
-def _path_to(reached: dict[str, str | None], module: str) -> str:
-    chain = [module]
-    while reached.get(chain[-1]) is not None:
-        chain.append(str(reached[chain[-1]]))
-    return " -> ".join(reversed(chain))
+    names = ", ".join(repr(m.__name__) for m in ENTRY_MODULES)
+    probe = (
+        "import importlib, json, sys\n"
+        f"for n in ({names},):\n"
+        "    importlib.import_module(n)\n"
+        "print(json.dumps({n: getattr(m, '__file__', '') or ''"
+        " for n, m in sys.modules.items()}))"
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", probe],
+        capture_output=True, text=True, cwd=REPO_ROOT,
+        env={**os.environ, "PYTHONPATH": str(REPO_ROOT / "experiments")},
+    )
+    assert proc.returncode == 0, (
+        f"importing the decision path failed, so the check proves nothing:\n{proc.stderr}"
+    )
+    loaded: dict[str, str] = json.loads(proc.stdout)
+    for entry in ENTRY_MODULES:
+        assert entry.__name__ in loaded, (
+            f"the probe did not import {entry.__name__} — it is measuring the "
+            f"wrong thing"
+        )
+    return loaded
 
 
 def test_the_decision_path_never_imports_the_engine() -> None:
-    """No module the decision path executes — transitively — may import
-    `cardlang` or `pyspiel`.
+    """Nothing a decision executes may import `cardlang` or `pyspiel`.
 
     The import list is the coarsest possible proof that no agent can reach the
-    state, and the only one that holds for branches no run took. Taken over the
-    closure rather than per module, because `LLMAgent.choose` runs `render.py`
-    on every rendered-arm decision: an engine import there is an engine import
-    on the decision path.
+    state, and the only one that holds for branches no run took. Taken over what
+    the interpreter actually loads, so transitive edges, relative imports,
+    package initializers and absolute self-imports are all covered by
+    construction rather than by a resolver of mine.
     """
-    reached, offenders = _closure()
-    assert not offenders, "the decision path imports the engine:\n" + "\n".join(
-        f"  {imported}  via  {_path_to(reached, importer)}"
-        for imported, importer in sorted(offenders)
-    )
-    assert set(reached) > {m.__name__ for m in ENTRY_MODULES}, (
-        "the walk followed no intra-package edge — it has stopped checking "
-        "anything the per-module scrapes did not already check"
+    loaded = _executed_modules()
+    offenders = sorted(n for n in loaded if n.split(".")[0] in ENGINE_ROOTS)
+    assert not offenders, (
+        "importing the decision path loads the engine: "
+        + ", ".join(offenders)
+        + " — an agent could reach hidden state through it"
     )
 
 
-def test_the_closure_does_not_depend_on_the_packages_import_alias() -> None:
-    """The same module resolves whichever spelling names it.
+def test_no_module_on_the_decision_path_defers_an_engine_import() -> None:
+    """...and none of them hides one inside a function.
 
-    `pytest experiments/llm_eval/tests -q` — the CI command — imports this
-    package as `llm_eval`; loaded canonically it is `experiments.llm_eval`. An
-    absolute self-import is legal either way, so a closure that decided
-    membership by prefix-matching the live alias would follow the edge under one
-    command and silently drop it under the other. A leak scrape whose reach
-    depends on how it was invoked is not a scrape.
+    `sys.modules` cannot see a deferred import: `def choose(): import pyspiel`
+    leaves the check above green while putting the engine one call away. This is
+    the half execution cannot do, so it is a scrape — over the files execution
+    proved are on the path, at any depth, function bodies included.
     """
-    canonical = _source_of(f"{PACKAGE_NAME}.render")
-    assert canonical is not None and canonical.name == "render.py"
-    for alias in (f"experiments.{PACKAGE_NAME}.render", f"somewrapper.{PACKAGE_NAME}.render"):
-        assert _source_of(alias) == canonical, (
-            f"{alias!r} resolves differently from {PACKAGE_NAME}.render — the "
-            f"closure's reach depends on the package's import alias"
-        )
-    assert _source_of("cardlang.runtime.values") is None, "membership must not over-match"
-    assert _source_of("pyspiel") is None
+    own = {
+        name: Path(path)
+        for name, path in _executed_modules().items()
+        if path and Path(path).is_relative_to(PACKAGE_DIR)
+    }
+    assert own, "no package module was executed — the check has stopped checking"
+    deferred = [
+        f"{name}:{node.lineno} imports {root}"
+        for name, path in sorted(own.items())
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+        if isinstance(node, (ast.Import, ast.ImportFrom))
+        for root in sorted(_engine_roots(node))
+    ]
+    assert not deferred, (
+        "a module on the decision path imports the engine:\n  " + "\n  ".join(deferred)
+    )
 
 
-def test_the_closure_walks_every_enclosing_package_initializer() -> None:
-    """Importing a nested module runs each enclosing `__init__.py`, so each is on
-    the decision path and each must be walked.
-
-    Pinned on the prefix derivation rather than by shipping a nested subpackage
-    the harness does not otherwise need: the package is flat today, so the hole
-    this closes is latent, and a pin that needed a real subpackage to exist
-    would have to invent one — and would then quietly stop testing anything if
-    that subpackage were ever removed.
-    """
-    assert _package_prefixes(f"{PACKAGE}.helpers.render") == {PACKAGE, f"{PACKAGE}.helpers"}
-    assert _package_prefixes(f"{PACKAGE}.agents") == {PACKAGE}
-    assert _package_prefixes(PACKAGE) == set(), "a package has no prefix above itself"
-    # And the derivation is actually wired into the walk: every module the
-    # closure reached brought its enclosing packages with it.
-    reached, _ = _closure()
-    for module in reached:
-        missing = {p for p in _package_prefixes(module) if _source_of(p) is not None} - set(reached)
-        assert not missing, f"{module} is in the closure but {sorted(missing)} is not"
-
-
-def test_the_import_closure_is_a_filter_not_a_tautology() -> None:
-    """The closure test above is only worth its name if this package HAS
-    engine-facing modules that the closure excludes.
+def test_the_engine_check_is_a_filter_not_a_tautology() -> None:
+    """The checks above are only worth their name if this package HAS
+    engine-facing modules they exclude.
 
     `referee.py` drives a `pyspiel.State`; it imports `agents`, not the other
-    way round, so it sits outside the closure — and the day something on the
-    decision path reaches for it, the test above turns red. Without this check,
-    a package whose every module was engine-free would pass the closure test
-    while proving nothing about the closure.
+    way round, so it never executes on the decision path — and the day
+    something there reaches for it, both checks turn red. Without this, a
+    package whose every module was engine-free would pass while proving nothing.
     """
-    reached, _ = _closure()
     engine_facing = {
-        path.stem
+        path.name
         for path in sorted(PACKAGE_DIR.glob("*.py"))
         if any(
-            name.split(".")[0] in ENGINE_ROOTS
-            for name in _imports_of(path, f"{PACKAGE}.{path.stem}")
+            _engine_roots(node)
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
         )
     }
     assert engine_facing, (
-        "no module in this package imports the engine, so the closure test "
+        "no module in this package imports the engine, so the checks above "
         "cannot distinguish a real filter from a vacuous one"
     )
-    inside = sorted({f"{PACKAGE}.{stem}" for stem in engine_facing} & set(reached))
+    executed = {
+        Path(path).name for path in _executed_modules().values()
+        if path and Path(path).is_relative_to(PACKAGE_DIR)
+    }
+    assert executed, "nothing executed — the comparison is empty on both sides"
+    inside = sorted(engine_facing & executed)
     assert not inside, (
-        f"engine-facing modules are on the decision path: {inside} — the "
-        f"closure test above is now reporting a real violation, fix that first"
+        f"engine-facing modules are on the decision path: {inside} — the checks "
+        f"above are now reporting a real violation, fix that first"
     )
 
 
