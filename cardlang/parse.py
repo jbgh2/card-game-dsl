@@ -1473,17 +1473,17 @@ class _Builder(Transformer[Token, n.Game]):
 
     def move_type_def(self, meta: Meta, c: list[object]) -> n.MoveTypeDef:
         name = str(c[0])
-        guard: object | None = None
+        when_pred: object | None = None
         effect: tuple[object, ...] = ()
         for item in c[1:]:
             if isinstance(item, _MoveWhen):
-                guard = None if isinstance(item.pred, _Always) else _as_expr(item.pred)
+                when_pred = None if isinstance(item.pred, _Always) else _as_expr(item.pred)
             elif isinstance(item, _MoveEffect):
                 effect = item.body
         params = tuple(x for x in c if isinstance(x, n.MoveParam))
         return n.MoveTypeDef(
             name=name,
-            guard=guard,  # type: ignore[arg-type]
+            when=when_pred,  # type: ignore[arg-type]
             effect=effect,  # type: ignore[arg-type]
             params=params,
             span=self._span(meta),

@@ -957,13 +957,14 @@ class MoveParam:
 @dataclass(frozen=True, slots=True)
 class MoveTypeDef:
     """`move_type NAME [(<param> : <type>, …)] { when: <pred> effect { <stmt>* } }` —
-    a named, guarded action. ``guard`` is None when the move is always legal;
+    a named action, legal only where its predicate holds. ``when`` is None when the
+    move is always legal — the field is named for the clause the designer writes;
     ``params`` is empty for a nullary move (the trick/offer form). Parameters
     enumerate in declaration order (leftmost outermost); see decisions.md
     "Declared parameter domains"."""
 
     name: str
-    guard: Expr | None
+    when: Expr | None
     effect: tuple[Stmt, ...]
     params: tuple[MoveParam, ...] = ()
     span: Span | None = None

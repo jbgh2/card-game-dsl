@@ -299,7 +299,7 @@ def concrete_moves(mt: n.MoveTypeDef, actor: Player, ctx: Ctx) -> list[tuple[str
     for combo in itertools.product(*domains):
         value = _pack(combo)
         vctx = bind_params(ctx, mt.params, value)
-        if mt.guard is None or bool(evaluate(mt.guard, vctx)):
+        if mt.when is None or bool(evaluate(mt.when, vctx)):
             out.append((mt.name, value))
     return out
 

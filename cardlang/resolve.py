@@ -3833,11 +3833,11 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
             if node.params
             else cats
         )
-        guard = _rewrite_value(node.guard, scoped, bag) if node.guard is not None else None
+        when_pred = _rewrite_value(node.when, scoped, bag) if node.when is not None else None
         # `_rewrite_value` (not a bare per-item `_rewrite` map): a `let` in a
         # move's effect scopes to the statements after it, like everywhere else.
         effect = _rewrite_value(node.effect, scoped, bag)
-        return replace(node, guard=guard, effect=effect)  # type: ignore[arg-type]
+        return replace(node, when=when_pred, effect=effect)  # type: ignore[arg-type]
     if isinstance(node, n.RuleDef) and node.params:
         # A template's parameters bind in its clauses, exactly as a move type's do
         # in its guard and effect. The GAME path never reaches this arm — a

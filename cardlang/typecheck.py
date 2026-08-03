@@ -3340,9 +3340,9 @@ def typecheck(game: Game) -> Game:
     # bodies): move guards, rule predicates, state defaults, transition predicates,
     # and derived type-field bodies.
     for move_type in game.move_types:
-        if move_type.guard is not None:
+        if move_type.when is not None:
             _check_expr(
-                move_type.guard,
+                move_type.when,
                 _scoped_env(
                     env, _move_param_binders(move_type, env.positions, env.directions)
                 ),

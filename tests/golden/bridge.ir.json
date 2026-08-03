@@ -1630,7 +1630,7 @@
       "kind": "move_type",
       "name": "pass",
       "params": [],
-      "guard": null,
+      "when": null,
       "effect": [
         {
           "kind": "assign",
@@ -1653,7 +1653,7 @@
           "type_name": "Suit?"
         }
       ],
-      "guard": {
+      "when": {
         "kind": "binop",
         "op": "<=",
         "left": {
@@ -1749,7 +1749,7 @@
       "kind": "move_type",
       "name": "double",
       "params": [],
-      "guard": {
+      "when": {
         "kind": "binop",
         "op": "and",
         "left": {
@@ -1828,7 +1828,7 @@
       "kind": "move_type",
       "name": "redouble",
       "params": [],
-      "guard": {
+      "when": {
         "kind": "binop",
         "op": "and",
         "left": {
