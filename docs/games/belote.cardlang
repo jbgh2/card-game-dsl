@@ -146,7 +146,7 @@ game Belote {
       repeat until (all players where hand[player] is empty) {
         trick_no += 1
         round play_to_trick from leader over all players source hand into trick_pile
-              outcome belote_trick_winner trump trump_suit
+              winner belote_trick_winner trump trump_suit
 
         // Belote-Rebelote window: fires once, at the close of the trick
         // where the first trump K/Q was played — a PUBLIC gate (the play was
@@ -166,9 +166,9 @@ game Belote {
           }
         }
 
-        tricks_won[team_of(outcome)] += 1
-        last_winner := outcome
-        move all cards from trick_pile to captured[team_of(outcome)]
+        tricks_won[team_of(winner)] += 1
+        last_winner := winner
+        move all cards from trick_pile to captured[team_of(winner)]
 
         // Declarations: announced at the close of the first trick, in play
         // order from its leader (belote.md, "Declarations" — the reference

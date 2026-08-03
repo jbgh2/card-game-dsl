@@ -142,7 +142,7 @@ Check against the typed object model ([decisions.md](decisions.md),
 parameters, the visibility-projection enum on each zone, rule clause
 types (`applies_when` is a state predicate; `demands` returns a set of
 candidate moves; `if_impossible` is a fallback), the `round`'s
-`outcome` and `early`-predicate function signatures, scoring components producing
+`winner` and `early`-predicate function signatures, scoring components producing
 `ScoreDelta`, and exhaustiveness of pattern matches on typed phase
 outcomes ([decisions.md](decisions.md), "Typed phase outcomes").
 
@@ -152,7 +152,7 @@ type-parameter position, a deliberate deviation noted in
 [principles.md](principles.md). The checker needs a specific rule for it.
 
 *Forcing function:* this is where most hand-waving dies — a `demands`
-clause referencing a field that doesn't exist, an outcome function
+clause referencing a field that doesn't exist, a winner function
 returning the wrong type, a non-exhaustive outcome match.
 
 ### D. Placeholder and completeness audit
@@ -205,7 +205,7 @@ work — is the OpenSpiel milestone, not the runtime net.
   for spec churn while the grammar stabilizes.
 - The `<>` value-parameter deviation needs its own checker rule (see C);
   it is not ordinary generics.
-- `demands`, `outcome`, and `routing` are functions. v1 type-checks their
+- `demands`, `winner`, and `routing` are functions. v1 type-checks their
   signatures but cannot validate their behavior — that is a runtime-net
   concern. Don't over-invest in statically proving runtime properties.
 - Mechanic-internal state being in scope for rules via lexical nesting

@@ -62,9 +62,9 @@ called, and what each name may mean.
 | **Offering** | The declared menu of moves a construct presents to a decider: `round offering [ ]`, an `offer` statement's list. Replaces every code use of "vocabulary" — the ActionSpace's vocab block is the **offering block** (spec: issue #206). Distinct from a phase's `legal_moves:`, which is availability, not presentation. | `n.Round`, `n.Offer` |
 | **Vocabulary** | The word-stock the DSL gives designers — "the vocabulary IS the syntax" (`principles.md`). One sense, the seniormost claim. The project's term catalog is this **glossary**; the encoding's old sense is an **offering**. | `principles.md` |
 | **Rule** | A named constraint on a move type (`constrains` / `applies_when` / `demands` / `exempts` / `if_impossible`). A **rule template** is a parameterized rule; instantiation substitutes arguments. | `n.RuleDef` |
-| **Outcome** | The tagged result a decision construct yields: a phase's `-> outcome { }`, a `define`'s case set, an auction's result. Declared as an **outcome type** of **outcome cases**; carried as a `(tag, payloads)` value. This is the word's only meaning. The player a trick/climb yields is the **winner** (still spelled `outcome` in round bodies pending migration; spec: issue #205). | `n.Phase`, `n.DefineDef` |
+| **Outcome** | The tagged result a decision construct yields: a phase's `-> outcome { }`, a `define`'s case set, an auction's result. Declared as an **outcome type** of **outcome cases**; carried as a `(tag, payloads)` value. This is the word's only meaning. The player a trick/climb yields is the **winner**. | `n.Phase`, `n.DefineDef` |
 | **Variant** | A rules variant of a game: a sibling game composed from a shared core (`principles.md`), and the future Variant/meta context. Never the tagged union — that is an **outcome type**. Retired spellings for the old sense: `VariantCase`, `TVariant`, `variant_registry`. | docs |
-| **Winner** | The player a decision yields, at either scope: the game-level `winner:` clause (argmax over a state variable), and the player a trick or climb round yields — the value bound in round bodies, and the function that computes it (**winner function**). Replaces `outcome` in those positions (spec: issue #205). | `n.Winner`, `mechanics.py` |
+| **Winner** | The player a decision yields, at either scope: the game-level `winner:` clause (argmax over a state variable), and the player a trick or climb round yields — the trick form's `winner <fn>` clause, the value bound in round bodies, and the function that computes it (**winner function**). The winner function is still carried in `Round.outcome_fn`, the field shared with the auction form, until the node splits (issue #210). | `n.Winner`, `mechanics.py` |
 | **Loser** | The game-level `loser:` clause — a player expression. Asymmetric with `winner:` by design. | `n.Loser` |
 
 ## 2. The compiler
@@ -76,7 +76,7 @@ called, and what each name may mean.
 | **Namespace** | One of the closed set of name pools a bare name resolves against (state, zone, phase, function, …). Prefer over "category" / "bucket". | `resolve.py` |
 | **ref_kind** | The classification resolve stamps on a `NameRef` (`local`, `state_var`, `zone`, `enum_value`, `pronoun`, `function`, `null`, `bool`). | `n.NameRef` |
 | **Binder** | A name introduced by a construct (`let`, loop variables, parameters, quantifier nouns). Resolve's `ref_kind` for one is `local`; prefer "binder" in prose. | `resolve.py` |
-| **Pronoun** | A magic contextual name: `actor`, `action`, `outcome`, `state`, `active_rules`. | `resolve.py` |
+| **Pronoun** | A magic contextual name: `actor`, `action`, `winner`, `state`, `active_rules`. | `resolve.py` |
 | **Domain** (registry sense) | A quantifiable domain: a row of `domains.DOMAINS` (player/team/suit/rank), plus position domains. Every other use of "domain" must be qualified: *parameter domain*, *position domain*, *choose range* (reserved word, §6; → F-4). | `domains.py` |
 | **Splice** | Bringing a library's or template's definitions into a game. Prefer over "inject"/"provide"; **mint** stays for `board:` creating a domain no one declared. | `resolve.py` |
 | **Parameter** | The named, typed slot of a declaration — one shared node across move types, functions, procedures, and rules (spec: issue #209; code still `MoveParam` pending migration). Per-construct admissible-type constraints live in each construct's Owner Guard, not the node. Tripwire: splits only if the four uses ever need different fields. Full word, not "Param" — new names follow the full-word pattern; the abbreviation keeps (`Ctx`, `Expr`, `Stmt`) are grandfathered, not precedent. | `n.Parameter` |
@@ -147,7 +147,7 @@ docs, and diagnostics, always qualify them:
 | Word | Approved compounds |
 |---|---|
 | **state** | state variable · round state · world (`rs`) · info-state string · `state { }` block |
-| **outcome** | one meaning only: the tagged result. Old senses migrate to **winner** / **winner function**; until the migration lands, qualify legacy code sites |
+| **outcome** | one meaning only: the tagged result. The player sense is **winner** / **winner function**. Reserved as a declaration name even though no pronoun claims it (`resolve._KEYWORD_RESERVED`); `Round.outcome_fn` is a legacy code site, qualified, until the node splits (issue #210) |
 | **domain** | quantifiable domain · parameter domain · position domain · choose range |
 | **hand** | hand zone · hand loop / one hand |
 | **round** | the round statement/forms · (a "round of the game" is a *hand*) |

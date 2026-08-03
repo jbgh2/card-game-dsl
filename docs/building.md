@@ -46,7 +46,7 @@ raw DSL text ──parse──▶ typed AST ──resolve──▶ resolved AST 
   `Player` in type-parameter position — its own rule, not ordinary generics),
   visibility-projection enums, rule-clause types (`applies_when` is a predicate,
   `demands` returns candidate moves, `if_impossible` is a fallback), mechanic
-  `outcome`/`routing` signatures, scoring components producing `ScoreDelta`, and
+  `winner`/`routing` signatures, scoring components producing `ScoreDelta`, and
   exhaustiveness of matches on typed phase/mechanic outcomes.
 - **expand** — procedure expansion: every `run` site is spliced by value into a
   hygienic `Block` and `Game.procedures` is emptied, so no later stage ever sees
@@ -91,7 +91,7 @@ The front end stops at this seam.
 ## The expression sublanguage
 
 A distinct grammar module, reused everywhere an expression appears: `applies_when`
-predicates, the `demands`/`routing`/`outcome` functions, `let` bindings,
+predicates, the `demands`/`routing`/`winner` functions, `let` bindings,
 comprehensions (`sum of (if … then … elif … else …) over cards in captured[p]`), choice
 expressions (`<actor> chooses <description>`), and zone-query chains
 (`cards in hand where card.suit is state.led_suit`). This is the hard
@@ -191,12 +191,12 @@ construct.
 | shoot-the-moon (`if p shot the moon: 0 else 26`) | needs-formalizing | explicit: shooter (`base[p] is 26`) scores 0, others 26 |
 | `the move must consist of exactly 3 cards` | decision: demand-clause-shape | `demands: actions where action.card_count is 3` — `demands` has two forms: a card-set filter, or `actions where <move-predicate>`. Recurs in Stud/Cribbage/Tichu; promote to decisions.md |
 | `player_holding(2 of clubs)` | runtime-primitive | `player_holding(Card) -> Player` (stdlib query) |
-| `highest_of_led_suit` (round outcome) | runtime-primitive | `(played, state) -> Player` named outcome function |
+| `highest_of_led_suit` (round winner) | runtime-primitive | `(played, state) -> Player` named winner function |
 | `hand.where(c => …)`, `hand.cards_of_suit(s)` | runtime-primitive | the card queries: `cards in hand where <pred>` (binds `card`) |
 | `move.card_count` | runtime-primitive | `Move.card_count -> Integer` |
 | `play_to_trick`, `transfer_between_hands` | runtime-primitive | move types (library.md); the trick itself is the formal `round` construct |
 | `transition_to: … when any heart_played event fires` | decision (existing) | no ad-hoc events: `transition_to: hearts_broken when play_to_trick where action.card.suit is hearts` — the move-event + `where` form already used by `triggered_by:` (decisions.md, "Triggered scoring components"; "Event-driven sub-phase transitions") |
-| `outcome of last trick from first_trick` | decision: hoist-to-scope | construct removed; `leader` lives in the enclosing phase state, seeded by `first_trick` and read by `play` via lexical scope. Bare `outcome` (the just-run mechanic) stays. Affects Bridge/Getaway too |
+| `outcome of last trick from first_trick` | decision: hoist-to-scope | construct removed; `leader` lives in the enclosing phase state, seeded by `first_trick` and read by `play` via lexical scope. Bare `winner` (the just-run round's player) stays. Affects Bridge/Getaway too |
 
 ## Disciplined workflow
 

@@ -104,7 +104,7 @@ game Mini {{
     {nested}
     leader := 0
     round play_to_trick from leader over all players source hand into trick_pile
-          outcome highest_of_led_suit
+          winner highest_of_led_suit
   }}
   {second_phase}
   winner: highest score
@@ -330,13 +330,13 @@ game Mini {
     legal_moves: [play_to_trick]
     leader := 0
     round play_to_trick from leader over all players source hand into trick_pile
-          outcome highest_of_led_suit
+          winner highest_of_led_suit
   }
   phase phaseb {
     active_rules: [Capture(hearts)]
     legal_moves: [play_to_trick]
     round play_to_trick from leader over all players source hand into trick_pile
-          outcome highest_of_led_suit
+          winner highest_of_led_suit
   }
   winner: highest score
 }

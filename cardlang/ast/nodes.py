@@ -593,11 +593,13 @@ class Round:
     """The kernel decision round, in one of two forms.
 
     *Trick form* — `round <move_type> from <leader> over <participants> source
-    <zone> into <zone> outcome <fn> [trump <expr>] [early <predicate>]`: a single
+    <zone> into <zone> winner <fn> [trump <expr>] [early <predicate>]`: a single
     turn-order pass where each participant makes one card play (filtered by the
-    active rules), then the outcome function picks the winner, bound as `outcome`.
+    active rules), then the winner function picks the winner, bound as `winner`.
     Routing is left to the surrounding body; an optional `early` predicate ends
-    the pass before every participant has played (Getaway's tochoo).
+    the pass before every participant has played (Getaway's tochoo). The winner
+    function is carried in `outcome_fn`, the field shared with the auction form
+    below — where the name is correct; the field splits with the node (issue #210).
 
     *Auction/betting form* — `round offering [<move_type>, …] from <leader> over
     <participants> until <pred> [outcome <fn>]`: a continuous ring over a
@@ -617,8 +619,8 @@ class Round:
     trick ends when action returns to the last player who played, or `termination`
     holds (a player has shed out). `combos_fn` / `follows_fn` name the game-local
     combination-engine queries (the engines differ across games, so the construct
-    depends only on their interface). The last player to play is bound as `outcome`;
-    there is no outcome *function*. Distinguished by `combos_fn is not None`.
+    depends only on their interface). The last player to play is bound as `winner`;
+    there is no winner *function*. Distinguished by `combos_fn is not None`.
     """
 
     move_type: str | None

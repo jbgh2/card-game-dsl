@@ -829,7 +829,7 @@ def _name_type(e: n.NameRef, env: TypeEnv) -> Type:
             # `actor` is universally the acting player at runtime
             # (evaluate._pronoun -> ctx.current_player, and the `Move`
             # payload's own `actor` field is a bare `Player`, never
-            # optional) — the other pronouns (`action`, `outcome`,
+            # optional) — the other pronouns (`action`, `winner`,
             # `state`, `active_rules`) stay TAny; their shape is
             # move-type/mechanic-specific (see ACTION_FIELDS for the
             # sound subset of `action` typed via Member access).

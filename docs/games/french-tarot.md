@@ -142,23 +142,23 @@ game FrenchTarot {
       leader := dealer offset_by right
       repeat until (all players where hand[player] is empty) {
         round play_to_trick from leader over all players source hand into trick_pile
-              outcome tarot_trick_winner
+              winner tarot_trick_winner
         petit_in_last := any card in trick_pile
                            where card.suit is atouts and card.rank is "1"
         let xp = tarot_excuse_player()
-        if xp is not none and ((xp is taker) is not (outcome is taker)) {
+        if xp is not none and ((xp is taker) is not (winner is taker)) {
           // The Excuse stays with its own side; the winner takes the rest and is
           // repaid the first captured low card, when one is available.
           move all cards from trick_pile where card.suit is excuse to captured[xp]
-          move all cards from trick_pile to captured[outcome]
+          move all cards from trick_pile to captured[winner]
           if any card in captured[xp] where tarot_card_points(card) is 1 {
             move one card from captured[xp] where tarot_card_points(card) is 1
-                 to captured[outcome]
+                 to captured[winner]
           }
         } else {
-          move all cards from trick_pile to captured[outcome]
+          move all cards from trick_pile to captured[winner]
         }
-        leader := outcome
+        leader := winner
       }
 
       // Scoring: per-opponent amount (bouts threshold, petit-au-bout, bid

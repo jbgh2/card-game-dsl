@@ -32,7 +32,7 @@ game Mini {{
     legal_moves: [play_to_trick]
     leader := 0
     round play_to_trick from leader over all players source hand into trick_pile
-          outcome highest_of_led_suit
+          winner highest_of_led_suit
   }}
   winner: highest score
 }}

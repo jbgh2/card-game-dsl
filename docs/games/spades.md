@@ -87,10 +87,10 @@ game Spades {
 
       repeat until (all players where hand[player] is empty) {
         round play_to_trick from leader over all players source hand into trick_pile
-              outcome highest_trump_or_led_suit
-        move all cards from trick_pile to captured[team_of(outcome)]
-        tricks_won[outcome] += 1
-        leader := outcome
+              winner highest_trump_or_led_suit
+        move all cards from trick_pile to captured[team_of(winner)]
+        tricks_won[winner] += 1
+        leader := winner
       }
     }
 

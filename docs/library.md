@@ -9,24 +9,26 @@ write only in this layer; the primitives in [model.md](model.md) are for the
 A trick is the kernel `round` construct ([model.md](model.md)), not a built-in
 mechanic. Each participant in turn order from the leader plays one card; the
 lead sets the led suit; an optional early-termination predicate may end the pass
-before everyone has played; then an outcome function selects a player, bound as
-`outcome` for the surrounding body, which does the routing.
+before everyone has played; then a winner function selects a player, bound as
+`winner` for the surrounding body, which does the routing.
 
 ```text
 round <move_type> from <leader> over <participants>
-      source <zone> into <zone> outcome <fn> [trump <expr>] [early <predicate>]
+      source <zone> into <zone> winner <fn> [trump <expr>] [early <predicate>]
 ```
 
 Key design notes:
 
-- **`outcome`, not `winner`.** The round computes which player the play selects;
-  whether that is a "winner" or a "loser" is a routing concern. In Hearts the
-  outcome is the winner (cards go to their captured pile); in Getaway the outcome
-  picks up the pile only when the trick terminated early.
+- **`winner` names the player, not the routing.** The round computes which player
+  the play selects; what happens to the cards is a routing concern. In Hearts the
+  winner takes the cards into their captured pile; in Getaway the winner picks up
+  the pile only when the trick terminated early. The word is reserved for this
+  player sense — a tagged `(tag, payloads)` result is an **outcome**
+  ([glossary.md](glossary.md)).
 
 - **Routing is the surrounding body, not a parameter.** After the round returns,
   the body relocates the played cards: Hearts routes unconditionally
-  (`move all cards from trick_pile to captured[outcome]`); Getaway branches on
+  (`move all cards from trick_pile to captured[winner]`); Getaway branches on
   the round's terminal state (`if state.trick_terminated_early { … } else { … }`).
   A finished round's terminal state stays readable as `state.x` until the next
   round runs.
@@ -44,7 +46,7 @@ Key design notes:
   difference is zone visibility.
 
 - **The next leader is the body's choice.** The round does not assume
-  "winner-leads-next"; the surrounding phase sets `leader := outcome` (or not).
+  "winner-leads-next"; the surrounding phase sets `leader := winner` (or not).
 
 ## The climb: a `round` configuration
 
@@ -57,7 +59,7 @@ last player who played (everyone else passed one full lap), when the `until`
 predicate holds (a player has shed out), or at once when the lead itself ends
 the trick (the engine marks the play `ends_trick` — Tichu's Dog — and the
 followers draw nothing). The last player to play is bound as
-`outcome` for the surrounding body, which routes the pile and the next lead.
+`winner` for the surrounding body, which routes the pile and the next lead.
 
 ```text
 round climb <move_type> from <leader> over <participants>
@@ -77,9 +79,9 @@ Key design notes:
   stay per-game until a third instance. The construct depends only on their
   interface — a list of plays, each exposing the cards it moves as `.cards`.
 
-- **No `outcome` function.** Unlike the trick form, the winner is not a function of
+- **No winner function.** Unlike the trick form, the winner is not a function of
   the cards — it is the loop's last player to play, returned directly and bound as
-  `outcome`. A combination play moves a *computed card-set*, which the movement
+  `winner`. A combination play moves a *computed card-set*, which the movement
   grammar (cards by count) cannot name, so the construct performs the movement
   itself ([decisions.md](decisions.md) "The climbing form of `round`").
 
@@ -100,8 +102,8 @@ Key design notes:
 
 - **Routing is the surrounding body, not a parameter** (as for the trick). Big Two
   routes the spent pile to the discard (`move all cards from trick_pile to discard`)
-  and passes the lead to the winner (`leader := outcome`); Tichu routes to a team
-  pile (`captured[team_of(outcome)]`) — or to a random opponent's on a Dragon
+  and passes the lead to the winner (`leader := winner`); Tichu routes to a team
+  pile (`captured[team_of(winner)]`) — or to a random opponent's on a Dragon
   win, or to the discard with the lead passing to the partner on the Dog.
 
 ## The turn loop: the `turns` form
@@ -246,10 +248,10 @@ when the Excuse is led, the next player faces "void in the led suit" (since
 `tarot_led_suit()` is still "excuse", which nobody's non-Excuse cards can
 match) and so must trump if able, a quirk the split preserves precisely.
 
-## Outcome functions
+## Winner functions
 
-- `highest_of_led_suit` — no-trump outcome
-- `TrumpedHighestOfLedSuit(trump_suit)` — with-trump outcome
+- `highest_of_led_suit` — no-trump winner
+- `TrumpedHighestOfLedSuit(trump_suit)` — with-trump winner
 - `tarot_trick_winner` — French Tarot: highest atout, else highest of the
   effective led suit (`tarot_led_suit()`); the Excuse never wins
 - `belote_trick_winner` — Belote: highest trump under the J-9 trump order,
@@ -933,8 +935,8 @@ primitives, all reading `cardlang/runtime/tarot.py`:
   been played — distinct from the kernel's own `state.led_suit` (the literal
   first card, "excuse" included), which gates the rules' `applies_when`
   instead of naming the follow-suit demand (see the Rules section above).
-- `tarot_trick_winner` — a **trick outcome function** (named on `round …
-  outcome tarot_trick_winner`, not called with parens): highest atout if any
+- `tarot_trick_winner` — a **winner function** (named on `round …
+  winner tarot_trick_winner`, not called with parens): highest atout if any
   was played, else highest of the effective led suit; the Excuse never wins.
 - `tarot_excuse_player() → Player?` — which player (if any) played the Excuse
   in the trick that just completed, read off the round's exposed terminal
@@ -955,8 +957,8 @@ and its declaration combinations need ten game-local primitives, all reading
 - `belote_trump_height(card: Card) → Integer` — a rank's strength within
   the trump suit (1..8), the over-trump comparison's currency (the demand
   filters on `card.suit is trump_suit` itself).
-- `belote_trick_winner` — a **trick outcome function** (named on `round …
-  outcome belote_trick_winner`): highest trump under the J-9 trump order if
+- `belote_trick_winner` — a **winner function** (named on `round …
+  winner belote_trick_winner`): highest trump under the J-9 trump order if
   any was played, else highest of the led suit under the ace-ten
   `rank_index`.
 - `belote_opp_winning() → Boolean` — is the live, partial trick's current

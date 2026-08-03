@@ -68,9 +68,9 @@ game Hearts {
 
       leader := player_holding(2 of clubs)
       round play_to_trick from leader over all players source hand into trick_pile
-            outcome highest_of_led_suit
-      move all cards from trick_pile to captured[outcome]
-      leader := outcome
+            winner highest_of_led_suit
+      move all cards from trick_pile to captured[winner]
+      leader := winner
     }
 
     phase play {
@@ -91,9 +91,9 @@ game Hearts {
       // Body: loop tricks until hands empty.
       repeat until (all players where hand[player] is empty) {
         round play_to_trick from leader over all players source hand into trick_pile
-              outcome highest_of_led_suit
-        move all cards from trick_pile to captured[outcome]
-        leader := outcome
+              winner highest_of_led_suit
+        move all cards from trick_pile to captured[winner]
+        leader := winner
       }
     }
 

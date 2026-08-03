@@ -17,7 +17,7 @@ import pytest
 from cardlang import ast as a
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
-from cardlang.resolve import _walk
+from cardlang.resolve import _CALL_SITE_PRONOUNS, _walk
 from cardlang.runtime.driver import play_game
 
 # `ready(player)` factors a predicate used in both `over` and `until`; `busy`
@@ -118,7 +118,7 @@ def test_function_param_does_not_leak_into_pronoun_sites() -> None:
 
 
 def test_function_reading_a_call_site_pronoun_is_rejected() -> None:
-    # A hermetic body may not read `actor`/`action`/`outcome` — the runtime clears
+    # A hermetic body may not read a call-site pronoun — the runtime clears
     # them, so the body would read None. Reject at compile time, not at run time.
     src = SRC.replace(
         "function busy(p : Player)  = score[p] >= 5",
@@ -126,6 +126,30 @@ def test_function_reading_a_call_site_pronoun_is_rejected() -> None:
     )
     with pytest.raises(DiagnosticError):
         check_dsl(src, "pronoun-capture.cardlang")
+
+
+def test_hermeticity_diagnostic_names_every_call_site_pronoun() -> None:
+    """The repair this diagnostic prescribes is "pass the value in as a parameter",
+    which is only actionable if the words it lists are the words that actually
+    fail. A hand-written enumeration goes stale the moment the pronoun set moves —
+    it did, when `outcome` became `winner`, and the message kept naming `outcome`,
+    a word that is no longer a call-site pronoun at all.
+
+    Derived from `_CALL_SITE_PRONOUNS` on both sides, so it cannot drift again.
+
+    red under: drop a member from the rendered list in `_check_functions`
+    (cardlang/resolve.py) — e.g. hard-code "actor/action" — and this fails on the
+    missing word. Verified by making that edit.
+    """
+    src = SRC.replace(
+        "function busy(p : Player)  = score[p] >= 5",
+        "function busy(p : Player)  = score[actor] >= 5",
+    )
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "pronoun-capture.cardlang")
+    message = str(ei.value)
+    missing = [p for p in _CALL_SITE_PRONOUNS if p not in message]
+    assert not missing, f"diagnostic omits {missing}: {message}"
 
 
 def test_function_shadowing_a_stdlib_call_is_rejected() -> None:
@@ -198,10 +222,10 @@ game G {
     legal_moves: [play_to_trick]
     repeat until (all players where hand[player] is empty) {
       round play_to_trick from leader over all players source hand into trick_pile
-            outcome highest_of_led_suit
-      tricks[outcome] += 1
+            winner highest_of_led_suit
+      tricks[winner] += 1
       move all cards from trick_pile to waste
-      leader := outcome
+      leader := winner
     }
   }
   winner: highest tricks

@@ -12,8 +12,8 @@ game G {
   phase play {
     active_rules: [MustFollowSuit]
     legal_moves: [play_to_trick]
-    round play_to_trick from leader over all players source hand into trick_pile outcome highest_trump_or_led_suit trump trump_suit
-    leader := outcome
+    round play_to_trick from leader over all players source hand into trick_pile winner highest_trump_or_led_suit trump trump_suit
+    leader := winner
   }
   winner: highest leader
 }
@@ -21,8 +21,8 @@ game G {
 
 
 EARLY_SRC = SRC.replace(
-    "outcome highest_trump_or_led_suit trump trump_suit",
-    "outcome highest_of_led_suit early on_play_of_tochoo",
+    "winner highest_trump_or_led_suit trump trump_suit",
+    "winner highest_of_led_suit early on_play_of_tochoo",
 )
 
 

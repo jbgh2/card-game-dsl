@@ -1795,13 +1795,13 @@ _SLOT_LEAK: dict[str, tuple[str, str, str | None]] = {
     ),
     "Round.source_zone": (
         "move_type m {{ effect {{ round play_to_trick from actor over all players "
-        "source {read} into pile outcome highest_of_led_suit }} }}",
+        "source {read} into pile winner highest_of_led_suit }} }}",
         "hand",
         None,
     ),
     "Round.play_zone": (
         "move_type m {{ effect {{ round play_to_trick from actor over all players "
-        "source pile into {read} outcome highest_of_led_suit }} }}",
+        "source pile into {read} winner highest_of_led_suit }} }}",
         "hand",
         None,
     ),

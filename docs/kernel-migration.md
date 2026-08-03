@@ -96,7 +96,7 @@ below (accumulator, order, move vocabulary) land with the workstreams that first
 need them — see issue #140.*
 
 The `Round` node (`cardlang/ast/nodes.py`) is trick-shaped: one card play per
-participant plus an `outcome` function. Everything below composes on a
+participant plus a `winner` function. Everything below composes on a
 `round` grown to the closed axes from [decisions.md](decisions.md):
 
 - **participants** — actor / others / ring / list
@@ -351,8 +351,8 @@ The design the construct settled:
   game-local (beside the promote-at-the-third-instance rule — Pinochle melds would
   be a further instance), each named as a `combinations` / `follows` query
   pair on the `round climb`. The divergent *routing* lives in the DSL body, not the
-  construct (the trick-form discipline): the climb form's `outcome` returns the
-  winner (the last player to play, bound as `outcome`), and the body routes the pile
+  construct (the trick-form discipline): the climb form's `outcome` hook returns the
+  winner (the last player to play, bound as `winner`), and the body routes the pile
   and the next lead — Big Two: `move trick_pile to discard`, the winner leads.
 - **The special-card flows are engine-interface values plus terminal
   round-state, not grammar.** Tichu's Dog is a *trick-ending lead*: the

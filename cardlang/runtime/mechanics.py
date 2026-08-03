@@ -3,7 +3,7 @@
 `run_decision_round` is the one parameterized per-step decision loop behind every
 kernel `round` form (§4 of docs/design-notes/kernel-extensibility.md). The three
 sequential forms are hook bundles over it — `TrickForm` (one turn-order pass, each
-participant plays a legal card, an outcome function picks the winner), `AuctionForm`
+participant plays a legal card, a winner function picks the winner), `AuctionForm`
 (a continuous ring/priority vocabulary over a threaded bid history, serving *both*
 the auction and betting forms), and `ClimbForm` (one combination-climbing trick over
 game-local engine queries). `build_form` selects the bundle by field-presence and
@@ -95,7 +95,7 @@ def run_decision_round(form: DecisionForm, state: State, ctx: Ctx) -> Outcome:
 class TrickForm:
     """The trick form: one turn-order pass from the leader, each participant
     playing one legal card, until every participant has played (`next_actor` ⇒
-    `None`) or an `early` predicate ends the pass; the outcome function then picks
+    `None`) or an `early` predicate ends the pass; the winner function then picks
     the winner. Alone among the forms it exposes its `state` to the surrounding
     body — `init` pushes the accumulator onto `mech_state` (the `state.` pronoun),
     and `outcome` pops it into `last_round_state` as the winner is returned."""
@@ -105,8 +105,10 @@ class TrickForm:
 
         # `outcome_fn` / `early_termination` are bare stdlib value-function names on
         # the Round node (validated at resolve time). Only the betting form omits
-        # `outcome_fn`, and it never selects this bundle.
-        assert stmt.outcome_fn is not None, "the trick form requires an outcome function"
+        # `outcome_fn`, and it never selects this bundle. On this form the field
+        # carries the WINNER function — the name is the shared node's, and splits
+        # with it (issue #210).
+        assert stmt.outcome_fn is not None, "the trick form requires a winner function"
         # The grammar's trick production makes the card zones mandatory; the
         # auction form has none.
         assert (
@@ -116,7 +118,7 @@ class TrickForm:
         self.leader: Player = evaluate(stmt.leader, ctx)
         self.source_family = stmt.source_zone
         self.play_zone = stmt.play_zone
-        self.outcome_fn = primitives.value_function(stmt.outcome_fn)
+        self.winner_fn = primitives.value_function(stmt.outcome_fn)
         self.early_term = (
             primitives.value_function(stmt.early_termination)
             if stmt.early_termination is not None
@@ -180,7 +182,7 @@ class TrickForm:
             state["led_suit"] = choice.suit
         _fire_transitions(self.transitions, Move(choice, actor), self.trick_ctx)
         # A tochoo (off-suit play, only possible when void) ends the trick: the
-        # highest led-suit card so far becomes the outcome and picks up the pile.
+        # highest led-suit card so far becomes the winner and picks up the pile.
         if self.early_term is not None and self.early_term(choice, state["led_suit"]):
             state["trick_terminated_early"] = True
         return state
@@ -189,23 +191,23 @@ class TrickForm:
         ctx.trace(
             "trick_end", {"early": state["trick_terminated_early"], "trump": self.trump}
         )
-        # The outcome callback (a game-local trick winner, or an engine-core
+        # The winner callback (a game-local trick winner, or an engine-core
         # `highest_*`) reads its plays and rank strengths as arguments, not
         # through a bundle, so the live `played` list and `rank_index` dict are
         # frozen here — the direct-call-site analogue of `reads.coerce_args`.
-        outcome = self.outcome_fn(
+        winner = self.winner_fn(
             reads.deep_freeze(state["played"]),
             state["led_suit"],
             self.trump,
             reads.deep_freeze(ctx.rs.rank_index),
         )
-        # every function in the stdlib trick-outcome registry returns a seat
-        assert isinstance(outcome, int)
-        ctx.trace("trick", (outcome, [c for _, c in state["played"]]))
+        # every function in the stdlib trick-winner registry returns a seat
+        assert isinstance(winner, int)
+        ctx.trace("trick", (winner, [c for _, c in state["played"]]))
         # Stash the terminal state as we pop, so the surrounding body (which does
         # the routing) can still read `state.trick_terminated_early` afterward.
         ctx.rs.last_round_state = ctx.rs.mech_state.pop()
-        return outcome
+        return winner
 
 
 def param_domain(p: n.MoveParam, actor: Player, ctx: Ctx) -> list[Any]:
@@ -436,7 +438,7 @@ class ClimbForm:
     player — the trick ends when action returns to the last player who played
     (everyone else passed one full lap, `next_actor` ⇒ `None`), or when the `until`
     predicate holds (a player has shed out, ending the hand mid-trick). The last
-    player to play is the outcome, bound as `outcome` for the surrounding body,
+    player to play is the winner, bound as `winner` for the surrounding body,
     which routes the pile and sets the next lead. The combination engine is
     game-local, so this depends only on the queries' interface: each returns a list
     of plays, and a play exposes the cards it moves as a `.cards` tuple — plus,

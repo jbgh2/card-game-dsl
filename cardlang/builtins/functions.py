@@ -1,7 +1,7 @@
 """Native function and value-callback names, by the home that implements each.
 
-The name resolver checks bare-name references (a `round`'s `outcome` / `early`
-function, a climbing round's `combinations` / `follows` query) and `f(...)`
+The name resolver checks bare-name references (a `round`'s `winner` / `outcome` /
+`early` function, a climbing round's `combinations` / `follows` query) and `f(...)`
 calls against these sets, so the IR can mark them as functions and unknown
 names are caught. There is no zone-method namespace here: the expression layer
 has no method register (decisions.md "The expression register"). Seeded for the
@@ -14,15 +14,16 @@ sanctioned game-local Python (glossary; issue #200). Nothing here is the
 
 from __future__ import annotations
 
-# Primitive value callbacks referenced by bare name (a `round`'s `outcome` callback). The two
-# round forms have different outcome signatures and are validated against separate
-# namespaces (a trick outcome named on an auction round, or vice versa, is rejected
-# at resolve time, not left to crash the dispatcher at runtime):
+# Primitive value callbacks referenced by bare name (a `round`'s `winner` or
+# `outcome` callback). The two round forms yield different things and are validated
+# against separate namespaces (a trick winner function named on an auction round, or
+# vice versa, is rejected at resolve time, not left to crash the dispatcher at
+# runtime):
 #
-# - a *trick* outcome  : (played, led_suit, trump, rank_index) -> Player
-# - an *auction* outcome (the auction form): (history, ctx) -> (tag, payloads),
-#   producing the phase's typed outcome.
-PRIMITIVE_TRICK_OUTCOMES: frozenset[str] = frozenset(
+# - a *trick* winner function : (played, led_suit, trump, rank_index) -> Player
+# - an *auction* outcome function: (history, ctx) -> (tag, payloads), producing the
+#   phase's typed outcome.
+PRIMITIVE_TRICK_WINNERS: frozenset[str] = frozenset(
     {
         "highest_of_led_suit",
         "highest_trump_or_led_suit",  # trick winner with a trump suit in play
@@ -39,13 +40,13 @@ PRIMITIVE_AUCTION_OUTCOMES: frozenset[str] = frozenset(
 )
 # The union is the bare-name function namespace (for NameRef classification) and
 # the surface the signature tables must cover.
-PRIMITIVE_VALUE_NAMES: frozenset[str] = PRIMITIVE_TRICK_OUTCOMES | PRIMITIVE_AUCTION_OUTCOMES
+PRIMITIVE_VALUE_NAMES: frozenset[str] = PRIMITIVE_TRICK_WINNERS | PRIMITIVE_AUCTION_OUTCOMES
 
 # Early-termination predicates a `round`'s `early` clause may name. Distinct from
-# outcome callbacks above — a different signature, (card, led_suit) -> Boolean —
-# so they validate against their own set, not the outcome-function namespace.
+# the callbacks above — a different signature, (card, led_suit) -> Boolean —
+# so they validate against their own set, not the winner/outcome namespaces.
 # Slot-only, deliberately outside PRIMITIVE_VALUE_NAMES: an early predicate is
-# unreachable as a bare NameRef and rejected in an `outcome` slot, even though
+# unreachable as a bare NameRef and rejected in a `winner` slot, even though
 # the runtime dispatches both through `value_function`. Sharing the dispatcher
 # is an implementation detail of the runtime, not a shared namespace.
 PRIMITIVE_EARLY_PREDICATES: frozenset[str] = frozenset(

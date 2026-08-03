@@ -45,7 +45,7 @@ that resolves to a tagged value names an `outcome` callback over its bid
 history: Bridge's auction produces
 `contract_finalized(declarer, level, strain, doubling) | all_pass`,
 Pinochle's produces `bid_won(declarer, bid)`, Tarot's
-`taken(taker, level) | thrown_in`; the trick `round`'s `outcome` function
+`taken(taker, level) | thrown_in`; the trick `round`'s `winner` function
 produces a Player. (An auction with nothing to tag — Skat's Reizen, a
 betting round — omits the callback and threads phase state instead.) The
 enclosing structure pattern-matches on the produced value the same way it
@@ -60,11 +60,11 @@ bidding produces:
   all_pass { skip to next hand }
 ```
 
-A round's result is also available as the bare `outcome` pronoun
-in the enclosing body, immediately after the `round`: Hearts
-follows its trick `round` with `leader := outcome`, reading the trick's selected
-player. This is the same value a `produces:` block would match; the bare
-`outcome` is the shorthand for a single-payload result that needs no tag.
+A trick or climb round's selected player is also available as the bare
+`winner` pronoun in the enclosing body, immediately after the `round`: Hearts
+follows its trick `round` with `leader := winner`. The two paths are
+disjoint — a tagged result reaches its consumer through `produces:`, never
+through the pronoun, and `winner` is the only value a `round` binds.
 
 Mechanics and phases are *not* further unified at the construct
 level. The distinction stays:
@@ -314,7 +314,7 @@ all) still sees their whole hand in its ordinary, unreordered position.
 ## Round configuration vs rules
 
 Some phase-level configuration is *not* a rule even though it looks like one. A
-trick `round` carries an `outcome` function and optional `trump` / `early`
+trick `round` carries a `winner` function and optional `trump` / `early`
 clauses, and the surrounding body does the routing. These shape *what happens
 after a play* (who is selected, when the pass ends early, where the cards go);
 rules shape *which plays are legal*.
@@ -323,7 +323,7 @@ The categories don't unify:
 
 - **Rules** are filters on the candidate-move set. They attach to phases via
   `active_rules:` and are consulted before each move.
-- **Round configuration** (`outcome`, `early`, `trump`) and the post-round body
+- **Round configuration** (`winner`, `early`, `trump`) and the post-round body
   routing run once per trick (or per play) and produce the trick's effect.
 
 Getaway's first-trick-to-waste behaviour is the canonical mistake: written as a
@@ -334,12 +334,12 @@ effect is *where the cards go*, an ordinary body movement after the round:
 phase first_trick {
   active_rules: [MustLeadAceOfSpadesOnFirstPlay]
   round play_to_trick from leader over all players source hand into trick_pile
-        outcome highest_of_led_suit
+        winner highest_of_led_suit
   move all cards from trick_pile to waste
 }
 ```
 
-Hearts' `highest_of_led_suit` is the round's `outcome` function, not a rule. The
+Hearts' `highest_of_led_suit` is the round's `winner` function, not a rule. The
 clean test: if the configuration's effect is "filter legal moves before play,"
 it is a rule; if its effect is "shape the trick's resolution after play," it is
 round configuration or body routing.
@@ -353,13 +353,13 @@ but to the waste otherwise — it is an `if` over the round's terminal state:
 ```cardlang-fragment play_phase
 phase play {
   round play_to_trick from leader over players where not eliminated[player]
-        source hand into trick_pile outcome highest_of_led_suit early on_play_of_tochoo
-  if state.trick_terminated_early { move all cards from trick_pile to hand[outcome] }
+        source hand into trick_pile winner highest_of_led_suit early on_play_of_tochoo
+  if state.trick_terminated_early { move all cards from trick_pile to hand[winner] }
   else { move all cards from trick_pile to waste }
 }
 ```
 
-The body reads the round's `outcome` (the selected player) and its terminal
+The body reads the round's `winner` (the selected player) and its terminal
 `state` (e.g. `state.trick_terminated_early`): a finished round's state stays
 readable as `state.x` until the next round runs. Routing is just body
 statements — there is no separate routing construct.
@@ -372,7 +372,7 @@ The pattern: a per-game `same_suit_class(c1, c2)` predicate that
 the standard `MustFollowSuit` rule consults instead of comparing
 `c1.suit is c2.suit` directly. Most games keep the default
 (printed-suit equality); games with contextual suits override.
-Same shape as a `round`'s `outcome` or `early` function — a per-game or
+Same shape as a `round`'s `winner` or `early` function — a per-game or
 stdlib function referenced by name, not a new language construct.
 
 ## The auction form of `round`
@@ -463,7 +463,7 @@ round offering [<move_type>, …] from <seat> over <ring>
 - **Termination (`until`).** A predicate over that state, checked each time around
   the ring (Bridge: three passes after a bid, four with no bid).
 - **Outcome (optional).** A named function over the threaded **bid history** plus
-  the terminal state — the same status as a trick's `outcome` callback (a
+  the terminal state — the same status as a trick's `winner` callback (a
   runtime-primitive, no decisions of its own) — that produces the phase's typed
   outcome. Bridge's `bridge_auction_outcome` finds the declarer (the first player
   of the high side to have named the final strain) and produces
@@ -655,7 +655,7 @@ independent expressions, so in a game where going out does not end the hand
 play and still be named as the next leader. That is a normal state: the ring
 starts at the first participant at or after them in turn order, exactly as the
 trick, auction, and `turns` forms treat the same clause pair. A game therefore
-writes the natural `leader := outcome` and needs no hand-authored "skip to the
+writes the natural `leader := winner` and needs no hand-authored "skip to the
 next player still holding cards" fallback. Only an **empty** `over` set is an
 error — there is then no one to lead and no one to follow. Like the trick form, the climbing form exposes its terminal state to
 the body (`mech_state` → `last_round_state`, read as `state.x`):
@@ -1452,7 +1452,7 @@ Sugar is documented; the underlying form is what the compiler
 manipulates.
 
 **Access discipline.** The bracket form is the only indexed
-access: `hand[player]`, `captured[team_of(outcome)]`,
+access: `hand[player]`, `captured[team_of(winner)]`,
 `hand[player offset_by pass_direction]`, `score[team]`. The dot
 form is **object-member access and nothing else** — fields of a
 `Card` (`card.suit`, `card.rank`, attribute sugar), fields of a

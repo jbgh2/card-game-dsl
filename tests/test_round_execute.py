@@ -21,10 +21,10 @@ game G {
     active_rules: [MustFollowSuit]
     legal_moves: [play_to_trick]
     repeat until (all players where hand[player] is empty) {
-      round play_to_trick from leader over all players source hand into trick_pile outcome highest_trump_or_led_suit
-      move all cards from trick_pile to captured[outcome]
-      tricks_won[outcome] += 1
-      leader := outcome
+      round play_to_trick from leader over all players source hand into trick_pile winner highest_trump_or_led_suit
+      move all cards from trick_pile to captured[winner]
+      tricks_won[winner] += 1
+      leader := winner
     }
   }
   winner: highest tricks_won
@@ -48,10 +48,10 @@ game G {
     // A tochoo ends the trick, so hands deplete unevenly; only non-empty hands
     // play, and we stop once at most one player still holds cards.
     repeat until (number of players where hand[player] is not empty) <= 1 {
-      round play_to_trick from leader over players where hand[player] is not empty source hand into trick_pile outcome highest_of_led_suit early on_play_of_tochoo
+      round play_to_trick from leader over players where hand[player] is not empty source hand into trick_pile winner highest_of_led_suit early on_play_of_tochoo
       move all cards from trick_pile to waste
-      tricks_won[outcome] += 1
-      leader := outcome
+      tricks_won[winner] += 1
+      leader := winner
     }
   }
   winner: highest tricks_won
@@ -143,11 +143,11 @@ game G {
     active_rules: [MustFollowSuit]
     legal_moves: [play_to_trick]
     repeat until (number of players where hand[player] is not empty) <= 1 {
-      round play_to_trick from leader over players where hand[player] is not empty source hand into trick_pile outcome highest_of_led_suit early on_play_of_tochoo
+      round play_to_trick from leader over players where hand[player] is not empty source hand into trick_pile winner highest_of_led_suit early on_play_of_tochoo
       // Read the just-finished round's terminal state in the surrounding body.
-      if state.trick_terminated_early { tricks_won[outcome] += 1 }
+      if state.trick_terminated_early { tricks_won[winner] += 1 }
       move all cards from trick_pile to waste
-      leader := outcome
+      leader := winner
     }
   }
   winner: highest tricks_won
