@@ -70,16 +70,20 @@ covered:    every terminal x every derived sample that ends on a word
             it is the golden and characterization suites that carry it, not
             this module: parsing is not meaning, and a row that says so would
             be claiming coverage it does not run.
-sampled:    the corpus is swept off-line rather than here — every whitespace
-            run between two word characters in every `docs/games/*.cardlang`
-            (comment bodies and string literals masked, since `%ignore
-            LINE_COMMENT` makes a comment-internal deletion identical by
-            construction) deleted one at a time and re-parsed. That sweep is
-            ~7.8k Earley parses of whole games, far too slow for the suite; it
-            is the derivation evidence for this module and is re-run when the
-            grammar's lexical layer changes, not on every commit. Before this
-            change 4761 of those 7776 deletions parsed to an IDENTICAL tree,
-            over 84 keywords and 43 integer literals; after it, none do.
+sampled:    the corpus is swept by `tests/keyword_fusion_sweep.py` — every
+            whitespace run between two word characters in every
+            `docs/games/*.cardlang` deleted one at a time and re-parsed — rather
+            than here. That sweep is ~7.8k Earley parses of whole games, far too
+            slow for the suite, so it is a hand-run tool
+            (`python -m tests.keyword_fusion_sweep`, exits non-zero if any
+            deletion still parses identically) re-run when the grammar's lexical
+            layer changes, not on every commit. It is the derivation evidence
+            for this module, and it is the check that would catch a fusion this
+            module CANNOT see: the grid quantifies over the terminal table, so a
+            new production shape or a changed lexer setting is invisible to it
+            and visible to the sweep. Before this change 4761 of those 7776
+            deletions parsed to an IDENTICAL tree, over 84 keywords and 43
+            integer literals; after it, none do.
             The audit's framing check (surface-totality-audit, Step 1) ran in
             THIS context rather than in a fresh subagent, which the session
             forbade — a weaker form, recorded rather than skipped. What it
