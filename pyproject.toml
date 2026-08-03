@@ -91,6 +91,12 @@ ignore = ["B009", "B010", "PLC0206", "PLC0414", "TRY004"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# The repo root, so `experiments` is importable however pytest was invoked.
+# `python -m pytest` puts the cwd on `sys.path` and a bare `pytest` does not,
+# which is exactly the difference between how these tests were being run
+# locally and how CI runs them: the import-graph check resolves the package
+# by its canonical name and could only find it under the first form.
+pythonpath = ["."]
 markers = [
     "slow: a seed beyond the coverage manifest's head. Bare `pytest -q` runs these\nand is the gate; `pytest -q -m \"not slow\"` is the short development pass.",
 ]
