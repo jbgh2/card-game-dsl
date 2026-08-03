@@ -182,27 +182,24 @@ def test_decision_view_carries_no_state_object() -> None:
 # sits one edge away, in code that runs on every prompt. What has to be
 # engine-free is everything a decision EXECUTES.
 #
-# Two checks, because neither is sufficient and each covers the other's blind
-# spot:
+# ONE check, and its scope stated exactly, because the previous wording outlived
+# two rewrites and described evidence that no longer existed.
 #
-# - IMPORT AND LOOK (`test_the_decision_path_never_imports_the_engine`). Import
-#   the entry points in a clean subprocess and read `sys.modules`. The
-#   interpreter resolves the graph, so there is no resolution left to get wrong.
-#   This replaced a hand-rolled AST walk over the import graph, which accreted
-#   five distinct defects — non-transitivity, invisible relative imports, a
-#   wrong anchor inside `__init__.py`, skipped intermediate package
-#   initializers, and a reach that depended on pytest's import alias. Every one
-#   was a way Python resolves imports that the reimplementation got wrong;
-#   asking Python removes the whole class rather than the five instances.
-# - READ THE SOURCE (`test_no_module_on_the_decision_path_defers_an_engine_import`).
-#   Execution only shows what the import DID. A `def choose(): import pyspiel`
-#   never runs at import time, so `sys.modules` stays clean while the engine is
-#   one call away — exactly the branch-a-run-did-not-take case the scrape exists
-#   for. Grep the executed files' ASTs for engine imports anywhere, including
-#   inside function bodies.
+# `grimp` builds the import graph from import STATEMENTS across the package, and
+# a decision must have no chain to `cardlang` or `pyspiel`. It covers what a
+# hand-rolled walk here kept getting wrong — transitive edges, relative imports,
+# nested packages, and imports deferred inside function bodies, all verified
+# against it before adoption.
 #
-# The module set the second check reads comes from the first, so it covers what
-# actually executes rather than what a walk guessed would.
+# What it does NOT cover, stated because a subprocess probe in the intervening
+# commit did and this is a real reduction, not a wash: an import performed
+# DYNAMICALLY, `importlib.import_module("pyspiel")` or `__import__`. A static
+# graph cannot see a name computed at runtime; the probe saw it because the
+# import had actually happened. The trade was deliberate — the probe cost five
+# resolution defects and could only evaluate a tree where every module imports
+# cleanly — but the residual is real. It is bounded by review: a dynamic engine
+# import in six small modules is not a thing that arrives unnoticed, and the
+# guarantee this backs is defence-in-depth behind `DecisionView`'s type.
 
 ENGINE_ROOTS = frozenset({"cardlang", "pyspiel"})
 
@@ -247,7 +244,7 @@ def _graph() -> Any:
     edges itself rather than handing the contract to `import-linter`, which
     reports it KEPT. Traversal stays `grimp`'s; only the edge set is ours.
     """
-    graph = grimp.build_graph(_package(), include_external_packages=True)
+    graph = grimp.build_graph(_graph_root(), include_external_packages=True)
     for module in sorted(graph.modules):
         parent = module.rpartition(".")[0]
         if parent and parent in graph.modules:
@@ -257,6 +254,24 @@ def _graph() -> Any:
 
 def _package() -> str:
     return _canonical(agents_mod).rpartition(".")[0]
+
+
+def _graph_root() -> str:
+    """The package to root the graph at: the HIGHEST ancestor that is a regular
+    package, i.e. the highest `__init__.py` that runs on the way in.
+
+    Rooting at the package itself leaves anything above it outside the graph, so
+    the parent edges added below cannot reach it — `experiments/__init__.py`
+    could import the engine and execute before `agents` while every chain stayed
+    clean. `experiments/` is a namespace package today, so this resolves to the
+    package itself and nothing changes; the day a real one appears above, the
+    root rises to meet it instead of the check quietly going blind.
+    """
+    parts = _package().split(".")
+    for i in range(len(parts)):
+        if (REPO_ROOT.joinpath(*parts[: i + 1]) / "__init__.py").exists():
+            return ".".join(parts[: i + 1])
+    return _package()
 
 
 def test_the_decision_path_never_imports_the_engine() -> None:
@@ -283,6 +298,26 @@ def test_the_decision_path_never_imports_the_engine() -> None:
             assert chain is None, (
                 f"a decision can reach the engine: {' -> '.join(chain)}"
             )
+
+
+def test_nothing_executable_sits_above_the_graph_root() -> None:
+    """Every `__init__.py` on the way into the package is inside the graph.
+
+    A package initializer above the root would execute on the way to a decision
+    and be unreachable in a graph that does not contain it. `_graph_root` raises
+    the root to cover one; this asserts the result, so the derivation is checked
+    rather than trusted.
+    """
+    root_parts = _graph_root().split(".")
+    for i in range(len(root_parts)):
+        above = REPO_ROOT.joinpath(*root_parts[: i + 1])
+        if above.name == root_parts[-1]:
+            break
+        assert not (above / "__init__.py").exists(), (
+            f"{above}/__init__.py executes on the way to a decision but sits "
+            f"above the graph root {_graph_root()!r} — raise the root"
+        )
+    assert _graph_root() in _graph().modules
 
 
 def test_the_engine_check_is_a_filter_not_a_tautology() -> None:
