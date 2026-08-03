@@ -175,14 +175,31 @@ def library_item_alternatives() -> set[str]:
     return _item_alternatives("library_item")
 
 
-def _clause_keyword(rule_name: str) -> str:
-    """The literal keyword a clause production opens with, read from the grammar
-    rather than mapped by hand: `uses_decl: "uses" NAME` -> `uses`, and
-    `state_block: "state" "{" ...` -> `state`, neither of which matches its rule
-    name."""
-    match = re.search(rf'^{rule_name}:\s*"([a-z_]+)"', GRAMMAR, re.MULTILINE)
-    assert match is not None, f"clause `{rule_name}` opens with no literal keyword"
+# A production spells its keyword as an anchored terminal, never as a bare
+# string literal — every keyword is a whole word (decisions.md "The expression
+# register"), and a bare literal would mint an unanchored terminal that
+# tests/test_keyword_anchoring.py fails on. So the scrapes below read the
+# `_<WORD>_KW` form and follow it to the terminal for the word itself; there is
+# no bare-literal branch to keep in step, because there can be no bare literal.
+KEYWORD_REF = r"(_[A-Z0-9_]+_KW)"
+
+
+def _keyword_word(terminal: str) -> str:
+    """The word an anchored keyword terminal matches, from its own definition:
+    `_USES_KW: "uses" /(?![A-Za-z0-9_])/` -> `uses`."""
+    match = re.search(rf'^{terminal}:\s*"([a-z_-]+)"', GRAMMAR, re.MULTILINE)
+    assert match is not None, f"grammar lost its `{terminal}` terminal"
     return match.group(1)
+
+
+def _clause_keyword(rule_name: str) -> str:
+    """The keyword a clause production opens with, read from the grammar rather
+    than mapped by hand: `uses_decl: _USES_KW NAME` -> `uses`, and
+    `state_block: _STATE_KW "{" ...` -> `state`, neither of which matches its
+    rule name."""
+    match = re.search(rf"^{rule_name}:\s*{KEYWORD_REF}", GRAMMAR, re.MULTILINE)
+    assert match is not None, f"clause `{rule_name}` opens with no keyword terminal"
+    return _keyword_word(match.group(1))
 
 
 def _terminal_excluded(terminal: str) -> set[str]:
@@ -322,10 +339,10 @@ def _absorbable_clause_keywords() -> set[str]:
     `struct_lit`'s own field list is comma-separated."""
     required = set()
     for keyword, entry in re.findall(
-        r'^\w+:\s*"([a-z_]+)"\s*"\{"\s*(\w+)\*\s*"\}"', GRAMMAR, re.MULTILINE
+        rf'^\w+:\s*{KEYWORD_REF}\s*"\{{"\s*(\w+)\*\s*"\}}"', GRAMMAR, re.MULTILINE
     ):
         if re.search(rf"^{entry}:\s*NAME\b", GRAMMAR, re.MULTILINE):
-            required.add(keyword)
+            required.add(_keyword_word(keyword))
     assert required, "scrape found no brace-clause productions at all"
     return required
 
@@ -339,7 +356,9 @@ def test_every_brace_clause_uses_the_star_form() -> None:
 
     red under: rewrite any `kw "{" X* "}"` production in the comma form."""
     comma_form = re.findall(
-        r'^(\w+):\s*"[a-z_]+"\s*"\{"\s*\w+\s*\("," ?\s*\w+\)\*', GRAMMAR, re.MULTILINE
+        r'^(\w+):\s*_[A-Z0-9_]+_KW\s*"\{"\s*\w+\s*\("," ?\s*\w+\)\*',
+        GRAMMAR,
+        re.MULTILINE,
     )
     assert not comma_form, (
         f"brace clause(s) {comma_form} use the comma form, which "

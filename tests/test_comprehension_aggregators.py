@@ -74,11 +74,19 @@ def test_rank_dir_set_is_pinned() -> None:
     the grammar terminal — a new direction token arrives with its mapping in
     every place and arm tests, or not at all (closed-domain completeness,
     decisions.md)."""
-    from importlib import resources
+    import re
 
-    grammar = resources.files("cardlang.grammar").joinpath("cardlang.lark").read_text()
-    (line,) = [ln for ln in grammar.splitlines() if ln.strip().startswith("RANK_DIR:")]
-    in_grammar = {tok.strip().strip('"') for tok in line.split(":", 1)[1].split("|")}
+    from cardlang.parse import _parser
+
+    # Read the token set out of the compiled terminal rather than off the
+    # grammar line: RANK_DIR carries whole-word anchoring like every other
+    # keyword (tests/test_keyword_anchoring.py), so its source is one regex
+    # rather than a `"a" | "b"` alternation of literals.
+    (term,) = [t for t in _parser().terminals if t.name == "RANK_DIR"]
+    regexp = term.pattern.to_regexp()
+    match = re.match(r"\(\?:([a-z|]+)\)", regexp)
+    assert match is not None, f"RANK_DIR is no longer a word alternation: {regexp}"
+    in_grammar = set(match.group(1).split("|"))
     assert in_grammar == set(RANK_DIR_TO_AGG)
     assert in_grammar == set(RANK_DIR_TO_PICK)
     assert in_grammar == set(RANK_DIR_TO_SIGN)
