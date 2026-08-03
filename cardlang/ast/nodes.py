@@ -288,8 +288,8 @@ def simultaneous_body_error(body: Stmt) -> str | None:
 
     This exists as one function, and not as a check in the resolver mirroring a set of
     asserts in the executor, because the mirroring is exactly what went wrong: the
-    resolver's wall was written by hand against the FIRST of the executor's five
-    requirements, so `move chosen one card …` (a keyword amount, not a countable
+    resolver's Owner Guard was written by hand against the FIRST of the executor's
+    five requirements, so `move chosen one card …` (a keyword amount, not a countable
     expression) passed the checker and then hit a bare assert at play time. One
     predicate cannot drift from itself — `runtime/execute.py`'s `_pass_selection`
     asserts against this, and `resolve` rejects with it."""
@@ -522,7 +522,7 @@ class AssignStmt:
     pointing at a global of the same name.
 
     With a `NameRef` the target is classified like any other name, so "you cannot
-    assign to a binder" is one uniform rule instead of three bespoke walls, and
+    assign to a binder" is one uniform rule instead of three bespoke guards, and
     substitution can see write positions."""
 
     target: NameRef
@@ -677,8 +677,9 @@ class RunStmt:
     """`run NAME(<arg>, …)` — invoke a named procedure. A resolve-time construct
     only: `expand` splices the procedure's body in at this site (arguments
     substituted for parameters) and drops the node, so no `RunStmt` ever reaches
-    the IR or the runtime. The consumers below it therefore carry loud walls, not
-    silent passes — a `RunStmt` surviving expansion is a compiler bug."""
+    the IR or the runtime. The consumers below it therefore carry loud
+    Shadow Guards, not silent passes — a `RunStmt` surviving expansion is a
+    compiler bug."""
 
     name: str
     args: tuple[Expr, ...]
@@ -743,7 +744,7 @@ class PositionDecl:
     domain `<name> : <lo>..<hi>` (decisions.md "Position domains and
     positional zones"). Members are the inclusive integer range; the name is
     usable as a zone-family index and a move-parameter domain, and nowhere
-    else (resolve walls the rest of the role/type surface).
+    else (resolve rejects the rest of the role/type surface).
 
     A `board:` clause mints a NAMED-member domain by setting `members_named`
     (decisions.md "Boards and cells"): the members are then the given cell
@@ -901,10 +902,11 @@ class AppliesWhen:
 
 
 # The `demands:` clause's two forms, one per `demand_value` grammar
-# alternative. A REGISTRY, not a comment: the enforcement wall is written as
-# the complement of the enforced kind (`kind != DEMAND_KIND_CARDS`), so a third
-# form added here is rejected on arrival rather than silently ignored — and the
-# rule grid derives its axis from this set instead of hand-listing it.
+# alternative. A REGISTRY, not a comment: the enforcement Owner Guard is
+# written as the complement of the enforced kind (`kind != DEMAND_KIND_CARDS`),
+# so a third form added here is rejected on arrival rather than silently
+# ignored — and the rule grid derives its axis from this set instead of
+# hand-listing it.
 DEMAND_KIND_CARDS = "cards"
 DEMAND_KIND_ACTIONS = "actions"
 DEMAND_KINDS: frozenset[str] = frozenset({DEMAND_KIND_CARDS, DEMAND_KIND_ACTIONS})
@@ -1155,7 +1157,7 @@ class Game:
     deck: str
     zones: tuple[ZoneDecl, ...]
     # Which clause selected `deck` — "card" (`cards:`) or "piece" (`pieces:`),
-    # stamped at parse; resolve walls a cross-flavor name, so post-resolve
+    # stamped at parse; resolve rejects a cross-flavor name, so post-resolve
     # `component_set(deck).flavor == content_flavor`.
     content_flavor: Flavor = "card"
     direction: str | None = None

@@ -51,8 +51,8 @@ declaration-time domain) are separate columns *on purpose*, and `rank` is why:
   `ranking:` if there is one, else deck order. Always non-empty.
 - a `Rank` *move parameter* enumerates the declared `ranking:` only
   (`rs.rank_index` at runtime, `game.ranking` in the action space), which is
-  empty when the game declares none — hence resolve's `has_ranking` wall on
-  Rank-parameterized moves.
+  empty when the game declares none — hence resolve's `has_ranking`
+  Owner Guard on Rank-parameterized moves.
 
 A game with `for each rank` and no `ranking:` is legal and iterates deck order;
 a `Rank` parameter in that same game is a compile error. Folding the two
@@ -91,8 +91,8 @@ class Role(enum.Enum):
     cannot disagree — there is no second list to keep in step. Widening the
     registry means adding a member here, and every exhaustive `match` over
     `Role` then fails to compile until it answers for the new row, which is
-    what makes this a rung-1 wall (decisions.md "Prefer the wall you cannot
-    need") rather than a scrape that has to be maintained.
+    what makes this a rung-1 Owner Guard (decisions.md "Prefer the wall you
+    cannot need") rather than a scrape that has to be maintained.
 
     Deliberately NOT a `str` subclass. A `StrEnum` would compare equal to its
     own spelling, so `role == "team"` would keep type-checking and keep
@@ -261,10 +261,10 @@ BY_ID: dict[Role, Domain] = {d.id: d for d in DOMAINS}
 # `None` is not "invalid" — a role slot's domain is the registry PLUS a game's
 # declared position domains (decisions.md "Position domains and positional
 # zones"), which the registry cannot know about. So the caller decides what a
-# miss means: resolve's `for each` wall consults its game's positions and only
-# then refuses, while `role_type` treats a miss as a registry divergence and
-# raises. Returning `None` rather than raising is what lets both readings exist
-# without a second lookup.
+# miss means: resolve's `for each` Owner Guard consults its game's positions
+# and only then refuses, while `role_type` treats a miss as a registry
+# divergence and raises. Returning `None` rather than raising is what lets
+# both readings exist without a second lookup.
 _BY_NAME: dict[str, Role] = {r.value: r for r in Role}
 
 
@@ -275,17 +275,17 @@ def role_of(name: str) -> Role | None:
 
 
 def require_role(name: str, what: str) -> Role:
-    """`role_of` for a position resolve has ALREADY walled against a subset of
+    """`role_of` for a position resolve has ALREADY checked against a subset of
     the registry — a quantifier's four grammar productions, a `for each` role
     after the iteration-role check, a state variable's index.
 
     Those callers hold a name that must classify, so a miss is a registry
     divergence (a compiler bug) rather than an author error, and it raises in
     compiler currency naming the position. Distinct from `role_of`, which the
-    WALLS themselves call: a wall must be able to see a miss and report it as a
-    diagnostic, which is why the two readings are two functions rather than one
-    with a flag. `what` names the position, so the crash says which pass's wall
-    was supposed to have run."""
+    Owner Guards themselves call: an Owner Guard must be able to see a miss
+    and report it as a diagnostic, which is why the two readings are two
+    functions rather than one with a flag. `what` names the position, so the
+    crash says which pass's Owner Guard was supposed to have run."""
     role = role_of(name)
     if role is None:
         raise AssertionError(
@@ -312,7 +312,7 @@ SIMULTANEOUS_ROLES: frozenset[Role] = frozenset(d.id for d in DOMAINS if d.simul
 # Roles that enumerate deck content (`rs.suits`/`rs.ranks`) rather than seats —
 # the ones whose parameter domain is a card axis (`Suit`/`Suit?`/`Rank`). A
 # piece game has no role surface for its own axes (side/kind), so the flavor
-# walls reject these roles there; derived here so a new card-axis domain joins
+# guards reject these roles there; derived here so a new card-axis domain joins
 # the set rather than a hand-kept `{suit, rank}`.
 CARD_AXIS_ROLES: frozenset[Role] = frozenset(
     d.id for d in DOMAINS if any(pd.rstrip("?") in ("Suit", "Rank") for pd in d.param_domains)
@@ -320,9 +320,9 @@ CARD_AXIS_ROLES: frozenset[Role] = frozenset(
 
 # Roles a zone family may be indexed by / a zone type owned by (`hand[player]`,
 # `Hand<player>`, `captured[team]`): exactly the domains in which an observer
-# has a key of their own. Resolve's wall, typecheck's subscript typing, the
-# zone store's key sets, and the observation layer's ownership test all read
-# this table rather than re-spelling {player, team}.
+# has a key of their own. Resolve's Owner Guard, typecheck's subscript typing,
+# the zone store's key sets, and the observation layer's ownership test all
+# read this table rather than re-spelling {player, team}.
 ZONE_INDEX_ROLES: frozenset[Role] = frozenset(
     d.id for d in DOMAINS if d.zone_key_of is not None
 )
@@ -388,14 +388,15 @@ CARD_PARAM_DOMAINS: frozenset[str] = frozenset(
 
 # Every `Role` has a row, which is what makes the three lookups below total by
 # construction — `BY_ID[role]`, no miss branch. Each of them used to take a
-# `str` and raise on an unknown one, and that raise was the wall: it proved the
-# lookup could not degrade to a silent default (`binds_actor` answering `False`
-# for a missing seat domain would have run the loop with the wrong actor). The
-# `Role` parameter now makes an unknown role unwritable, so the only way the
-# lookup could still miss is a member declared here without a row — which is
-# this one assert, over a four-element domain, instead of three raises no
-# caller can reach (decisions.md "Prefer the wall you cannot need": the fact
-# moved from rung 2 to rung 1, and this is the residue that has to stay).
+# `str` and raise on an unknown one, and that raise was the guard: it proved
+# the lookup could not degrade to a silent default (`binds_actor` answering
+# `False` for a missing seat domain would have run the loop with the wrong
+# actor). The `Role` parameter now makes an unknown role unwritable, so the
+# only way the lookup could still miss is a member declared here without a row
+# — which is this one assert, over a four-element domain, instead of three
+# raises no caller can reach (decisions.md "Prefer the wall you cannot need":
+# the fact moved from rung 2 to rung 1, and this is the residue that has to
+# stay).
 assert set(BY_ID) == set(Role), (
     f"every Role must carry a row: {sorted(r.value for r in set(Role) - set(BY_ID))} "
     f"declared with no row in DOMAINS"
@@ -407,11 +408,11 @@ def role_type(role: Role) -> Type:
 
     Every role-bearing surface draws from this registry: quantifier roles are
     fixed by the parser (four hard-coded spellings), and `for each` /
-    simultaneous / zone-index / state-index roles are each walled by resolve
+    simultaneous / zone-index / state-index roles are each guarded by resolve
     against a subset of the registry (`tests/test_permissive_top.py` pins all
     five role sets as subsets). It used to return the permissive `TAny` for an
     unknown role, which types the binder as the top and silently exempts every
-    use of it from every type wall."""
+    use of it from every type check."""
     return BY_ID[role].binder_type
 
 
@@ -448,8 +449,8 @@ def role_static_members(role: str, sources: DomainSources) -> list[Any]:
     and for the same reason as `zone_observer_key`: the domain really is the
     registry plus this game's declared positions, so classifying the name is
     part of the answer. The raise below is therefore still live — it is the
-    wall over what is left after the position branch, not a lookup a `Role`
-    parameter could have made total."""
+    Shadow Guard over what is left after the position branch, not a lookup a
+    `Role` parameter could have made total."""
     if role in sources.positions:
         return list(sources.positions[role])
     id_ = role_of(role)
@@ -474,10 +475,11 @@ def enumerate_domain(type_name: str, sources: DomainSources) -> list[Any]:
     reaches it, and loud over what should not.
 
     A declared position domain (`src : column`) enumerates its declared
-    members, checked ahead of the table — resolve's collision wall guarantees
-    a declared name never shadows a built-in spelling. A board-minted direction
-    domain (`along : dir`) is the SIBLING branch: a separate source, checked
-    the same way, so it enumerates its members without riding `positions`."""
+    members, checked ahead of the table — resolve's collision Owner Guard
+    guarantees a declared name never shadows a built-in spelling. A
+    board-minted direction domain (`along : dir`) is the SIBLING branch: a
+    separate source, checked the same way, so it enumerates its members
+    without riding `positions`."""
     if type_name in sources.positions:
         return list(sources.positions[type_name])
     if type_name in sources.directions:

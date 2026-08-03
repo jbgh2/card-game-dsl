@@ -17,8 +17,9 @@ quietly widening the language.
 
 Typing the fields is the second half of the win. Untyped, `state.led_suit` would
 infer `TAny`, which is contagious: `card.suit is state.idx` would compare a Suit
-to an Integer and slip past the enum-comparison wall because the right-hand side
-is untyped. With a declared type, every existing wall works there.
+to an Integer and slip past the enum-comparison Owner Guard because the
+right-hand side is untyped. With a declared type, every existing guard works
+there.
 """
 
 from __future__ import annotations

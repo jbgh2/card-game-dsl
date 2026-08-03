@@ -46,7 +46,7 @@ def legal_cards(player: Player, move_type: str, ctx: Ctx) -> list[Card]:
     # decides what happens: an explicit `error(...)` rejects the move (raises
     # IllegalMove), and a card-set fallback (e.g. `hand`) replaces the empty set.
     # A card-set demand with no `if_impossible` is a malformed game — rejected at
-    # resolve time, so reaching it here is a backstop error, never a silent drop.
+    # resolve time, so reaching it here fires a Shadow Guard, never a silent drop.
     result = set(working)
     for rule in ctx.active_rules:
         if rule.constrains != move_type or not _applies(rule, pctx):

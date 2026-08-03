@@ -154,8 +154,8 @@ def _name(e: n.NameRef, ctx: Ctx) -> Any:
             return ctx.rs.get(e.name)
         case "zone":
             if ctx.rs.zones.is_family(e.name):
-                # Backstop shadowing resolve's `_check_position_family_refs`
-                # wall: a bare position-family read has no per-player
+                # Shadow Guard behind resolve's `_check_position_family_refs`
+                # Owner Guard: a bare position-family read has no per-player
                 # instance to sugar to, and `instance(name, seat)` would
                 # key-error far from the cause.
                 if ctx.rs.zones.zone_index[e.name] in ctx.rs.position_domains:
@@ -170,9 +170,9 @@ def _name(e: n.NameRef, ctx: Ctx) -> Any:
                     # body has no actor. User-reachable (`shuffle hand` in a
                     # phase body checks clean today), so it fails in the
                     # runtime's currency with the fix named, not a bare
-                    # assert. A static wall needs statement-position context
-                    # (which construct encloses this read) that no pass
-                    # threads today.
+                    # assert. A static Owner Guard needs statement-position
+                    # context (which construct encloses this read) that no
+                    # pass threads today.
                     raise RuntimeError(
                         f"'{e.name}' is a per-player zone family read with no "
                         f"acting player — subscript it (`{e.name}[p]`) or use "

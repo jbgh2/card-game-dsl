@@ -22,14 +22,14 @@ Assumes:      a resolved AST (every ``NameRef`` classified, declarations
               unique, rule templates instantiated).
 Establishes:  type validity only. The inferred :class:`~cardlang.types.Type`
               values are ephemeral — they are NOT written onto nodes.
-              Downstream may assume every type wall held, but may not read
-              types off the tree; a downstream consumer that needs a type is
-              a signal to materialize it in this pass, never to re-infer it
+              Downstream may assume every type Owner Guard held, but may not
+              read types off the tree; a downstream consumer that needs a type
+              is a signal to materialize it in this pass, never to re-infer it
               there.
-Now illegal:  a type-invalid program, per the walls above and their
+Now illegal:  a type-invalid program, per the Owner Guards above and their
               completeness ledgers. Recorded residuals live in the tracker
-              (issue #143 orders them) and in each wall module's ledger.
-Verified by:  the wall test modules (operator, aggregation, context,
+              (issue #143 orders them) and in each Owner Guard module's ledger.
+Verified by:  the Owner Guard test modules (operator, aggregation, context,
               ranking, rule-ref) and their ledgers.
 """
 
@@ -82,11 +82,11 @@ def _role_type(name: str) -> Type:
     The one conversion site in this pass. Every caller here holds a role as it
     was written in the source — a `ForEach.role`, a `StateDecl.index` — and the
     registry takes a `Role`, so the string is classified once, here. A miss
-    raises rather than falling back: resolve has already walled each of these
+    raises rather than falling back: resolve has already checked each of these
     positions against a subset of the registry, so an unclassifiable name means
     the two registries diverged, and the permissive `TAny` this used to return
     types the binder as the top and exempts every use of it from every type
-    wall."""
+    Owner Guard."""
     return role_type(require_role(name, "binder role"))
 
 
@@ -119,7 +119,7 @@ def _axis_enum_names(game: Game) -> tuple[str, str]:
     diagnostics and IR stay byte-stable; a piece set names its enums after its
     own axes (`side`/`kind`), which is also how its axis VALUES type in
     `value_enum_map` -- so a same-axis compare unifies and a cross-axis one
-    (`piece.side is mark`) hits the existing cross-enum wall."""
+    (`piece.side is mark`) hits the existing cross-enum Owner Guard."""
     cs = component_set(game.deck)
     if game.content_flavor == "card" or cs is None:
         return ("Suit", "Rank")
@@ -131,9 +131,9 @@ def item_field_table(game: Game) -> dict[str, Type]:
     types to. A card game reproduces CARD_FIELDS exactly (`rank`/`suit` ->
     `Rank`/`Suit`); a piece set's axes ARE its fields (`side`/`kind`), each
     typed to its own enum. One source for `infer`'s field typing and
-    `_check_expr`'s unknown-field wall, keyed off the game's flavor."""
+    `_check_expr`'s unknown-field Owner Guard, keyed off the game's flavor."""
     cs = component_set(game.deck)
-    if cs is None:  # unknown set -- unreachable past resolve's component wall
+    if cs is None:  # unknown set -- unreachable past resolve's component Owner Guard
         return dict(CARD_FIELDS)
     e0, e1 = _axis_enum_names(game)
     return {cs.axes[0]: TEnum(e0), cs.axes[1]: TEnum(e1)}
@@ -180,7 +180,7 @@ def type_from_name(
     ``directions`` here rather than branching on it locally: the rule belongs to
     name resolution, and a caller that resolved the name without it would admit
     `slot`/`dir` at resolve and then map it to the top — the leak this module
-    walls.
+    closes.
     """
     base: Type
     if positions is not None and name in positions:
@@ -273,8 +273,8 @@ def struct_registry(
         # round (most precise). Declared field types read the SAME map as
         # derived bodies: resolving them against the partial map would let
         # declaration ORDER decide a field's type, so a container declared
-        # above its member typed to the permissive top and every wall on that
-        # field went dark.
+        # above its member typed to the permissive top and every Owner Guard on
+        # that field went dark.
         known = {**seed, **ambient.structs, **structs}
         fields: dict[str, Type] = {}
         for f in tdef.fields:
@@ -382,14 +382,14 @@ def struct_and_function_registries(
 
     Getting this wrong is not a precision nicety, it is the accepted-but-ignored
     class: a derived field left at the permissive top silently exempts every
-    expression that reads it from every wall. The version of this function that
-    ran a fixed three passes accepted `score[p] := s.flag` — a Boolean into an
+    expression that reads it from every Owner Guard. The version of this function
+    that ran a fixed three passes accepted `score[p] := s.flag` — a Boolean into an
     Integer-declared state variable — because `s.flag`'s type was frozen at the
     top from the draft round.
 
     Each round is monotone in precision (a field only moves from the top toward
     a concrete type as the signatures feeding it sharpen), so the iteration
-    settles; the bound below is a backstop, and exceeding it is a checker bug
+    settles; the bound below is an Owner Guard, and exceeding it is a checker bug
     rather than a program error. Intermediate rounds report into a SCRATCH bag:
     their diagnostics are recomputed by the final round, and reporting them per
     round would multiply every function-body diagnostic by the round count.
@@ -436,7 +436,7 @@ def _payload_type(
 
     `positions` is threaded because resolve admits a declared position domain
     here: without it the name resolves to the top, and the `produces:` arm
-    binder carrying that payload exempts its whole body from every type wall.
+    binder carrying that payload exempts its whole body from every type Owner Guard.
     The board-minted `dir` domain is deliberately NOT admitted here: `dir` is a
     move-parameter domain only, so resolve rejects a `dir` payload (`unknown
     type 'dir'`) before this pass -- the reason `directions` is not threaded.
@@ -520,11 +520,11 @@ class TypeEnv:
     # let binder or payload carries: `TDir`. A SEPARATE map from `positions`
     # (the `dir` domain is deliberately absent from `game.positions`), so a
     # direction is admitted only at a move parameter / payload and the position
-    # walls never see it. Membership (`name in env.directions`) answers "is this
+    # Owner Guards never see it. Membership (`name in env.directions`) answers "is this
     # a direction domain?".
     directions: Mapping[str, Type] = field(default_factory=dict)
     # `Game.content_flavor` and `Game.deck` — the dispatch key and set name for
-    # the flavor-aware walls (decisions.md, "Component sets: cards and pieces");
+    # the flavor-aware Owner Guards (decisions.md, "Component sets: cards and pieces");
     # `deck` names the kind in a piece game's card-vocabulary diagnostics.
     flavor: Flavor = "card"
     deck: str = ""
@@ -569,7 +569,7 @@ def _untyped_operator(op: str) -> AssertionError:
     operator registry (tests/test_operator_walls.py reconciles it against
     `OP_CLASSES`), so a message with quoted text inside it would read as
     operators. The old blanket `TAny` here meant a NEW operator typed as the
-    permissive top and passed every operand wall silently — the inference-side
+    permissive top and passed every operand Owner Guard silently — the inference-side
     twin of `_op_class`'s refusal on the checking side.
     """
     return AssertionError(
@@ -585,7 +585,7 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
 
     A LOOKUP that cannot legitimately miss raises instead of returning the top
     (`_env_miss`, `_untyped_operator`): the top satisfies every constraint, so
-    missed lookup would silently switch off every wall below it rather than
+    missed lookup would silently switch off every Owner Guard below it rather than
     merely losing precision. See decisions.md, "The permissive top and the
     lookup-miss walls"; the audited top sites are pinned by
     tests/test_permissive_top.py."""
@@ -714,7 +714,7 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                 # The round's published state, typed off the registry rather than
                 # left `TAny`. `TAny` would be contagious here: `card.suit is
                 # state.idx` would compare a Suit to an Integer and slip past the
-                # enum wall on an untyped right side. An unpublished field never
+                # enum Owner Guard on an untyped right side. An unpublished field never
                 # reaches this branch — `_check_expr` rejects it.
                 return ROUND_STATE_FIELDS[e.field]
             obj = infer(e.obj, env)
@@ -725,7 +725,7 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                 # form — each embedded copy is one round staler than the last —
                 # so reading snapshots made `r.copy.flag` correct,
                 # `r.copy.copy.flag` correct, and `r.copy.copy.copy.flag` the
-                # permissive top: a wall that decayed with traversal depth.
+                # permissive top: an Owner Guard that decayed with traversal depth.
                 # Struct types are nominal, so the registry entry IS the type
                 # and is never staler.
                 #
@@ -769,7 +769,7 @@ def _env_miss(kind: str, name: str, env_field: str, builder: str) -> AssertionEr
     "Closed-domain completeness"; the resolution recorded in decisions.md, "The
     permissive top and the lookup-miss walls"). A miss here used to return the
     permissive top, and `TAny` satisfies EVERY constraint — so one unthreaded
-    binder silently exempted every expression below it from every type wall,
+    binder silently exempted every expression below it from every type Owner Guard,
     and the checker reported success. Both bugs the split was motivated by had
     exactly this shape: a move parameter whose position domain was not threaded
     into the binder env typed `TAny`, so `src is hearts` passed.
@@ -846,7 +846,7 @@ def _name_type(e: n.NameRef, env: TypeEnv) -> Type:
             # unknown kind here is a resolver/checker divergence, not a program
             # error. Loud, per the same rule as `_env_miss`: the old blanket
             # `TAny` made a whole new ref kind type as the permissive top and
-            # sail through every wall.
+            # sail through every Owner Guard.
             raise AssertionError(
                 f"name '{e.name}' has ref_kind {e.ref_kind!r}, which this pass "
                 f"does not type — resolve classifies every name (and rejects "
@@ -866,8 +866,9 @@ def _type_name(t: Type) -> str:
         return t.name
     if isinstance(t, (TStruct, TOutcome)):
         # These carry their declared name. Before the general disjointness rule
-        # below, no wall ever printed one, so both rendered as the bare kind — which
-        # made "comparing Struct with Struct can never be equal" read as nonsense.
+        # below, no Owner Guard ever printed one, so both rendered as the bare
+        # kind — which made "comparing Struct with Struct can never be equal"
+        # read as nonsense.
         return t.name
     return type(t).__name__[1:]  # TInteger -> "Integer", TPlayer -> "Player", …
 
@@ -921,7 +922,7 @@ def env_from_game(
 
     That branch also keeps the SIGNATURES the builder solved on the way, and
     fills in the procedure signatures. Both are free here, and an env missing
-    either silently disables a wall rather than losing precision: an empty
+    either silently disables an Owner Guard rather than losing precision: an empty
     `functions` made `infer` raise on any call to a user function, and an empty
     `procedures` made the `run`-site arity and argument-type check skip — the
     only place a procedure's parameter annotations bite at all.
@@ -954,7 +955,7 @@ def env_from_game(
     # tests/test_permissive_top.py) and resolve rejects an unknown zone type
     # before this pass runs, so every declared zone has a content type. The old
     # permissive fallback here would have typed an unknown zone's contents as
-    # the top, sending every downstream Card/endpoint wall dark for that zone.
+    # the top, sending every downstream Card/endpoint Owner Guard dark for that zone.
     def zone_content(z: n.ZoneDecl) -> Type:
         content = ZONE_CONTENT.get(z.type_ref.name)
         if content is None:
@@ -1019,7 +1020,7 @@ def _scoped_env(env: TypeEnv, binders: _Binders) -> TypeEnv:
     guarantees that is exactly the let's own scope). The indexed form
     (`let base[p] = E`) is a per-player map: `p` types as Player inside E
     only, and `base` as a collection of E's type. This closes the let-TAny gap:
-    without it, a `let`-bound name would infer `TAny` everywhere, so every wall
+    without it, a `let`-bound name would infer `TAny` everywhere, so every Owner Guard
     would go dark one binding away (`hearts is 3` rejected; `let z = hearts`
     then `z is 3` accepted)."""
     for name, bound in binders:
@@ -1050,7 +1051,7 @@ def _stmt_tree_scoped(
     scope at that point — the single traversal every statement walk views.
 
     Exhaustive over `Stmt`: a compound statement whose body this walk missed
-    would leave that whole body unchecked (no expression walls, no semantic
+    would leave that whole body unchecked (no expression Owner Guards, no semantic
     checks — accepted-but-ignored at subtree scale), so "descends nothing" is
     a decision each leaf kind states by name, never a default."""
     yield s, binders
@@ -1069,7 +1070,7 @@ def _stmt_tree_scoped(
         case n.AsBlock():
             # Rebinds the acting player, not a loop binder — its body sees the
             # same binders as the block, and its player expression is an
-            # expression (walled by `_check_stmt_exprs`, typed to Player in
+            # expression (checked by `_check_stmt_exprs`, typed to Player in
             # `_check_stmt`), so nothing new enters scope here.
             yield from _seq_tree_scoped(s.body, binders)
         case n.Turns():
@@ -1216,7 +1217,7 @@ def _child_exprs(e: n.Expr) -> list[n.Expr]:
     """Every expression's direct sub-expressions — exhaustive over `Expr`, so a
     new expression kind must declare its children (or its leafhood) here before
     anything compiles. A missed kind wouldn't crash anything; its children
-    would simply never be walked, and every wall inside them would go dark."""
+    would simply never be walked, and every Owner Guard inside them would go dark."""
     match e:
         case n.Member():
             return [e.obj]
@@ -1284,7 +1285,7 @@ def _function_sigs(game: Game, env: TypeEnv, bag: DiagnosticBag) -> dict[str, Si
         # The one parameter-typing rule, shared with every other parameter
         # position. Kept as a call rather than a second copy: a local copy
         # that missed `env.positions` would type a position-domain parameter
-        # as the permissive top, which is the hole this module walls.
+        # as the permissive top, which is the hole this module closes.
         return _param_type(p, env)
 
     def visit(name: str, on_stack: frozenset[str]) -> None:
@@ -1338,7 +1339,7 @@ def _enum_domain(env: TypeEnv, enum_name: str) -> frozenset[str]:
 def _check_enum_operand(
     enum: TEnum, other: n.Expr, other_bare: Type, env: TypeEnv, bag: DiagnosticBag
 ) -> None:
-    """The enum-comparison wall: an equality (or membership element) against a
+    """The enum-comparison Owner Guard: an equality (or membership element) against a
     known enum-typed operand must be able to be true. Cross-enum comparisons,
     Integer operands (a bare `10` is an Integer, never the rank "10"), and
     string literals outside the enum's value set are all silently-false traps
@@ -1347,7 +1348,7 @@ def _check_enum_operand(
     per concept). Non-literal String expressions stay unchecked (gradual);
     every OTHER concrete type (Card, Player, Boolean, a collection, …) is
     rejected by the default arm — an enum value equals only a value of its
-    own enum, so the wall is total over the operand-type axis, not just the
+    own enum, so the Owner Guard is total over the operand-type axis, not just the
     three shapes that motivated it."""
     if isinstance(other_bare, TEnum):
         if other_bare.name != enum.name:
@@ -1392,7 +1393,7 @@ def _check_enum_operand(
         # not a feature; it is a silently-false comparison with a carve-out around
         # it, and the cure is to give the variable its real type
         # (`block_claim : Rank?`), which Coup has. No corpus game declares a String
-        # at all. So String is walled like any other disjoint type, and a string
+        # at all. So String is rejected like any other disjoint type, and a string
         # LITERAL is still checked against the deck's values by the branch above
         # (`card.rank is "10"`, the numeric-rank spelling).
         return
@@ -1409,7 +1410,7 @@ def _check_enum_operand(
     )
 
 
-# --- BinOp operand walls: one dispatcher over the operator-class registry ---
+# --- BinOp operand Owner Guards: one dispatcher over the operator-class registry ---
 #
 # `infer`'s BinOp arm (above) is the operator registry: every op string a
 # `BinOp` node can carry. `OP_CLASSES` classifies each into the operand-shape
@@ -1419,7 +1420,7 @@ def _check_enum_operand(
 # operand legality), so `tests/test_operator_walls.py` pins the two against
 # each other: a new operator landing in `infer` without a matching
 # `OP_CLASSES` entry fails that test instead of silently reaching runtime
-# unwalled.
+# unchecked.
 
 
 class OpClass(Enum):
@@ -1452,7 +1453,7 @@ def _op_class(op: str) -> OpClass:
     cls = OP_CLASSES.get(op)
     if cls is None:
         # A future operator reached `infer`'s BinOp arm without an entry
-        # here — loud, not a silent unwalled pass-through.
+        # here — loud, not a silent unchecked pass-through.
         raise AssertionError(
             f"operator '{op}' has no entry in OP_CLASSES — every BinOp "
             "operator the parser builds must be classified (surface "
@@ -1464,7 +1465,7 @@ def _op_class(op: str) -> OpClass:
 def _bare(t: Type) -> Type:
     """Unwrap a `T?` to `T` for operand-shape checks — an optional operand
     rejects/accepts exactly like its payload (sweep-the-class: every operand
-    wall in this module applies to the optional wrapper of its rejection
+    Owner Guard in this module applies to the optional wrapper of its rejection
     domain, not just the bare form)."""
     return t.inner if isinstance(t, TOptional) else t
 
@@ -1491,19 +1492,20 @@ def _check_binop(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
 def _check_equality_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
     """`==`/`!=` (surface `is`/`is not`): two operands can only be equal if one's
     type is assignable to the other's. Anything else is a comparison that is
-    *always false* — the silently-wrong shape this wall exists to catch.
+    *always false* — the silently-wrong shape this Owner Guard exists to catch.
 
     The enum rows come first and keep their own nuanced diagnostics
     (`_check_enum_operand`: the name-form-vs-string spelling, the not-a-value-of-
     this-deck message, the Rank-vs-Integer hint). Every other pair falls to the
     general disjointness rule below.
 
-    That general rule closes a hole an enum-centric wall leaves wide: such a wall
-    fires only when one side is a `TEnum`, so `Boolean` would have no row at all
-    (`flag is hearts`, `flag is 1`, `flag is "x"` all passing), and neither would
-    `Integer is "x"` or `Player is "x"`. It was found by typing the round-state
-    pronoun (stdlib/round_state.py): `state.trick_terminated_early` became a real
-    `Boolean` and immediately exposed that comparing one to a suit was accepted.
+    That general rule closes a hole an enum-centric Owner Guard leaves wide:
+    such a guard fires only when one side is a `TEnum`, so `Boolean` would have
+    no row at all (`flag is hearts`, `flag is 1`, `flag is "x"` all passing),
+    and neither would `Integer is "x"` or `Player is "x"`. It was found by
+    typing the round-state pronoun (stdlib/round_state.py):
+    `state.trick_terminated_early` became a real `Boolean` and immediately
+    exposed that comparing one to a suit was accepted.
     Per decisions.md "Closed-domain completeness", the fix sweeps the class rather
     than patching the instance — the class being "equality between disjoint
     concrete types", and the layer that owns it being the type layer every
@@ -1528,11 +1530,11 @@ def _check_equality_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> No
         # `unify` as well as `assignable`, because `assignable` honours `TAny` only at
         # the TOP level: a deliberately-unrefined element type (a chip stack is
         # `Collection<Any>` precisely because that part of the object model is
-        # unrefined) would be judged disjoint from `Collection<Card>`, and this wall
-        # would MANUFACTURE an error — the exact thing its own gradual-typing promise
-        # forbids. `assignable` alone is also not enough in the other direction, so
-        # both are consulted: `Player`/`Integer` must stay comparable (a player IS an
-        # integer seat), and only `assignable` says so.
+        # unrefined) would be judged disjoint from `Collection<Card>`, and this
+        # Owner Guard would MANUFACTURE an error — the exact thing its own
+        # gradual-typing promise forbids. `assignable` alone is also not enough in
+        # the other direction, so both are consulted: `Player`/`Integer` must stay
+        # comparable (a player IS an integer seat), and only `assignable` says so.
         or unify(lbare, rbare) is not None
     )
     if not compatible:
@@ -1604,7 +1606,7 @@ def _check_arithmetic_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
 
 
 def _check_logical_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
-    """`and or`: both operands must be Boolean. This walls the operator's own
+    """`and or`: both operands must be Boolean. This checks the operator's own
     operands, independent of `_check_bool` on whatever *contains* the
     expression — `if (a and 3) { … }` is Boolean overall (`and`'s `infer()`
     arm is a fixed `TBoolean`, regardless of its operands), so a top-level
@@ -1620,12 +1622,12 @@ def _check_logical_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> Non
 
 
 def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
-    """`in`: the right-hand side must be a collection (unchanged wall); the
+    """`in`: the right-hand side must be a collection (unchanged Owner Guard); the
     left operand must be a plausible element of it. A `[...]` literal against
     a known enum-typed left operand keeps the existing per-element literal
     validation (`card.rank in [A, "10"]` — doppelkopf), since that catches
     misspelled/mistyped *literals* `unify` cannot see (a bad numeral, a
-    cross-enum literal). Every other combination is walled generally: when
+    cross-enum literal). Every other combination is checked generally: when
     both the left type and the collection's element type are concrete and
     `unify` finds them incompatible, the membership can never be true."""
     right_t = infer(e.right, env)
@@ -1704,8 +1706,8 @@ def _check_offset_by_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> N
 def _check_card_source(source: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
     """Both `cards in <source>` (CardQuery) and `over cards in <source>` (an
     aggregation) expect a zone or a collection of cards — the shared source
-    wall, since a wrong source degrades every downstream Card wall to `TAny`
-    (the `card` binder types off this same inference — the zone-family
+    Owner Guard, since a wrong source degrades every downstream Card Owner Guard
+    to `TAny` (the `card` binder types off this same inference — the zone-family
     subscript-typing case in tests/test_zone_family_typing.py covers exactly
     this failure mode). A non-collection source and a collection of the wrong
     element type both fail the same way: `unify` against `TCard` finds nothing
@@ -1780,7 +1782,7 @@ def _check_agg_default(
 ) -> None:
     """The order aggregators' mandatory `or <default>` clause shares its
     leading `or` with a compound `where` predicate — `where A or B` reads as
-    filter=A, default=B, the headline misparse this wall exists to catch. A
+    filter=A, default=B, the headline misparse this Owner Guard exists to catch. A
     Boolean default is the tell (a real default is body-shaped, e.g. an
     Integer for a `rank_value(card)` body; a leftover predicate is not) —
     flagged whenever there IS a `where` clause for the `or` to have been
@@ -1850,7 +1852,7 @@ _COLLECTION_BINDER_TYPES: Mapping[str, Type] = {"line": TLine(), "cell": TCell()
 # tests/test_typecheck_errors.py cross-checks them against `get_args(Type)`:
 # every member of the `Type` union must be classified by exactly one arm, so a
 # newly declared type fails that pin instead of silently reaching no arm and
-# inferring `TAny` (the permissive-top gap this class of wall exists to close).
+# inferring `TAny` (the permissive-top gap this class of Owner Guard exists to close).
 # Adding a type means classifying it here -- or, if it genuinely carries fields,
 # giving it its own arm beside `TStruct`/`TCard` and recording it there.
 _INDEXABLE_RECEIVERS = (TPlayer, TTeam, TInteger, TBoolean)
@@ -1861,7 +1863,7 @@ def _domain_query_binder_type(
     e: n.DomainQuery, env: TypeEnv, bag: DiagnosticBag
 ) -> Type:
     """The type a DomainQuery binds its element to, plus (for collection forms)
-    the source-shape wall. A BARE form binds the position domain's member type
+    the source-shape Owner Guard. A BARE form binds the position domain's member type
     (`TCell` for a board's `cell`, `TInteger` for an integer domain -- resolve
     validated the noun, so a lookup miss falls back to the permissive top). A
     COLLECTION form's noun fixes BOTH the binder type and the required source
@@ -1950,7 +1952,7 @@ def _check_operand(
     literal reaches a Player (or Team), not at a hand-picked subset. Two things
     happen here and nowhere else:
 
-      1. the assignability wall -- if `got` cannot stand where `expected` is
+      1. the assignability Owner Guard -- if `got` cannot stand where `expected` is
          wanted, the site's own `msg` is reported at `span`; and
       2. the role-literal range check -- an out-of-range integer literal
          (`hand[5]` on a two-seat game) is rejected, a non-role `expected` making
@@ -2156,7 +2158,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
             and e.field not in ROUND_STATE_FIELDS
         ):
             # `state.` names a round's PUBLISHED state, and that is a closed set.
-            # Without this wall the receiver inferred `TAny`, every arm below
+            # Without this Owner Guard the receiver inferred `TAny`, every arm below
             # missed, and the read went through: a typo (`state.lead_suit`)
             # failed only at play time, where the running round refuses a field
             # it does not publish, and — far worse — a form's
@@ -2190,7 +2192,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         elif isinstance(bare, TCollection):
             # A zone-family subscript (`hand[p]`) is typed as the zone's
             # content collection rather than a single Card, so a dot-form
-            # access on it (`hand[p].rank`) needs its own wall — without it
+            # access on it (`hand[p].rank`) needs its own Owner Guard — without it
             # this would silently read as TAny and only fail at play time,
             # where field access is not defined over a zone's contents.
             bag.error(
@@ -2216,13 +2218,13 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
             # dot form on one would otherwise reach no arm and infer TAny with
             # no diagnostic -- the permissive-top gap a `cell`/`dir` binder or a
             # movement verb's TCell return could slip through. The whole
-            # fieldless class is walled here, at the layer that owns operand
+            # fieldless class has its Owner Guard here, at the layer that owns operand
             # kinds, not per producer (decisions.md "Closed-domain
             # completeness"). TNull and TOutcome are classified rather than
             # probed: `none` is a comparison-only operand and no `infer` arm
             # returns a outcome (it is a registry entry for `produce` /
             # `produces:` checking), so neither is reachable from a receiver
-            # position today -- they are walled ahead of the reach, so a later
+            # position today -- they are rejected ahead of the reach, so a later
             # arm that does return one cannot reopen the gap.
             bag.error(
                 f"cannot read field '{e.field}' of {_type_name(obj)}: the dot "
@@ -2342,7 +2344,7 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
     expressions in the ambient environment, no binder). Without this, both
     filters would run through the flat, unbound `env`, so `card.<field>` inside
     a `deal`/`move`/`reveal` filter would type as `TAny` (Member on an untyped
-    `card` local) and every Card wall — the closed CARD_FIELDS pair among
+    `card` local) and every Card Owner Guard — the closed CARD_FIELDS pair among
     them — would be dark there. The filter must also itself be Boolean; the
     other direct expressions on these two node kinds (source/dest/amount/
     visibility, target) carry no binder and stay in the ambient `env`."""
@@ -2383,7 +2385,7 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
             # lookups in `_name_type`. Guarding leniently on an invariant you
             # have just asserted is how the check goes dark: an env built
             # without procedures silently skipped this arity and argument-type
-            # wall rather than failing, and it is the ONLY place a procedure's
+            # Owner Guard rather than failing, and it is the ONLY place a procedure's
             # parameter annotations bite (after expansion the call site is
             # gone). See decisions.md, "The permissive top and the lookup-miss
             # walls" — a fallback standing in for an answer the program has is
@@ -2403,7 +2405,7 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
                 # Procedure expansion runs AFTER typechecking, so an out-of-range
                 # seat literal in a Player param becomes an unchecked
                 # `score[5] := 1` in the spliced body -- the same coercion the
-                # call-arg and subscript sites wall, reached one construct later.
+                # call-arg and subscript sites check, reached one construct later.
                 _check_operand(
                     arg, got, param, env, bag,
                     f"procedure '{s.name}' expects {_type_name(param)}, got "
@@ -2437,7 +2439,7 @@ def _check_assign(stmt: n.AssignStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
         if target.key is not None:
             # The write twin of the subscript key check: `n[hearts] := 1` on a
             # player-keyed store is a check-time error here; the runtime's
-            # domain wall (execute._assign) stays behind it for computed keys.
+            # domain Owner Guard (execute._assign) stays behind it for computed keys.
             idx_t = infer(stmt.index, env)
             _check_operand(
                 stmt.index, idx_t, target.key, env, bag,
@@ -2550,7 +2552,7 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
             # is the first player, `over` the participants (a player
             # collection, re-evaluated per advance), `until` the turn-boundary
             # termination. `again`, when present, is a declared Boolean state
-            # var (resolve walls the declaration; the TYPE is checked here).
+            # var (resolve checks the declaration; the TYPE is checked here).
             lt = infer(stmt.leader, env)
             _check_operand(
                 stmt.leader, lt, TPlayer(), env, bag,
@@ -2591,7 +2593,7 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
             | n.LetStmt() | n.Produce() | n.Produces()
             | n.ContinueTo() | n.SkipToNextHand() | n.RunStmt() | n.Block()
         ):
-            # No statement-level semantics beyond what resolve walls (write
+            # No statement-level semantics beyond what resolve checks (write
             # targets, rotate enum values, simultaneous bodies, run arity is
             # `_check_stmt_exprs`'s RunStmt arm) and the expression walk covers.
             pass
@@ -2602,7 +2604,7 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
 def _is_zone_type(t: Type) -> bool:
     """Whether a value of this type IS a zone at runtime: the `zone` marker
     (`ZONE_CONTENT`, a zone-family subscript), or TAny (a deliberately-loose
-    value the runtime backstop owns). The marker matters twice over: `all
+    value the runtime Owner Guard owns). The marker matters twice over: `all
     players` is a collection of the wrong element, and a card QUERY is a
     collection of the RIGHT element that still evaluates to a plain list —
     only the marker separates `hand[0]` from `cards in hand[0] where …`."""
@@ -2639,7 +2641,7 @@ def _check_movement(stmt: n.Movement, env: TypeEnv, bag: DiagnosticBag) -> None:
     # lets are typed, the type says whether this one does. A zone value
     # types as a CARD collection (ZONE_CONTENT), and the element matters:
     # `let z = all players` is a collection too, and waving it through on the
-    # container shape alone would send it to the runtime's backstop with a
+    # container shape alone would send it to the runtime's Owner Guard with a
     # message claiming the checker couldn't know — when it knows
     # Collection<Player> exactly.
     for endpoint, what, filterable in (
@@ -2668,7 +2670,7 @@ def _check_movement(stmt: n.Movement, env: TypeEnv, bag: DiagnosticBag) -> None:
             stmt.span,
         )
     elif stmt.item not in own:
-        # A truly unknown noun (`chips`, `coins`): the deferred-resource wall,
+        # A truly unknown noun (`chips`, `coins`): the deferred-resource Owner Guard,
         # unchanged (card games are byte-identical -- own is card/cards there).
         bag.error(
             f"movements move cards; '{stmt.item}' is not a supported item noun "

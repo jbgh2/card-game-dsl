@@ -134,8 +134,9 @@ def _deposit(ctx: Ctx, dest: Zone, cards: list[Card]) -> None:
     """The one choke point every destination append (movement, gather, deal,
     simultaneous pass) routes through, so a finite-capacity zone type can
     never be silently overfilled. The zone-type registry (cardlang/stdlib/
-    zones.py ZONE_CAPACITY) owns which types are bounded; this backstops a
-    game's own guards (`cells[slot] is empty`) rather than replacing them."""
+    zones.py ZONE_CAPACITY) owns which types are bounded; this is the Owner
+    Guard for overfill, and it does not replace a game's own guards
+    (`cells[slot] is empty`)."""
     name, key = ctx.rs.zones.locate(dest)
     label = name if key is None else f"{name}[{key}]"
     ztype = ctx.rs.zones.zone_type[name]
@@ -165,7 +166,8 @@ def _movement(stmt: n.Movement, ctx: Ctx) -> None:
             f"the checker leaves this value's type open, so it is checked here"
         )
     if stmt.dest_each:
-        assert isinstance(stmt.dest, n.NameRef)  # resolve's `to each` wall admits only a bare family name
+        # resolve's `to each` Owner Guard admits only a bare family name
+        assert isinstance(stmt.dest, n.NameRef)
         if stmt.distribution == "as_equally_as_possible":
             _deal_round_robin(source, stmt.dest.name, ctx, stmt)
         else:
@@ -237,7 +239,7 @@ def _deal_round_robin(
 def _gather(stmt: n.Movement, ctx: Ctx) -> None:
     """`move all cards to <zone>`: collect every card from all other zones."""
     # typecheck admits no other source-less movement combination, and
-    # resolve's `to each` wall keeps a gather destination a bare name.
+    # resolve's `to each` Owner Guard keeps a gather destination a bare name.
     assert stmt.amount == "all" and isinstance(stmt.dest, n.NameRef)
     dest = evaluate(stmt.dest, ctx)
     if not isinstance(dest, Zone):
@@ -268,7 +270,7 @@ def _gather(stmt: n.Movement, ctx: Ctx) -> None:
 
 
 def _check_count(count: int, mode: str | None) -> int:
-    """The amount-expression domain wall: an amount is runtime data (a
+    """The amount-expression domain Owner Guard: an amount is runtime data (a
     computed expression can go negative at a ring's edge), and Python's
     negative slice would SILENTLY move len+count cards — the worst class.
     Negative is never meaningful; zero under `chosen` is a vacuous decision
@@ -305,8 +307,8 @@ def _select(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> list[Ca
     if amount == "one":
         count = 1
     else:
-        # Backstop shadowing the resolve wall: parse admits "all" | "one" |
-        # "some" | Expr; the literals are handled above, and "some" cannot
+        # Shadow Guard behind the resolve Owner Guard: parse admits "all" |
+        # "one" | "some" | Expr; the literals are handled above, and "some" cannot
         # reach here — resolve rejects `some` without `jointly`, and every
         # joint movement took the joint branch before this.
         assert not isinstance(amount, str)
@@ -363,8 +365,8 @@ def _select_joint(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> l
     elif amount == "one":
         sizes = range(1, 2)
     else:
-        # Backstop: parse admits "all" | "one" | "some" | Expr, and the three
-        # string literals are handled above.
+        # Shadow Guard: parse admits "all" | "one" | "some" | Expr, and the
+        # three string literals are handled above.
         assert not isinstance(amount, str)
         k = _check_count(int(evaluate(amount, ctx)), stmt.mode)
         sizes = range(k, k + 1)
@@ -400,7 +402,7 @@ def _select_filtered(
     like the unfiltered form does from the whole source; the default (dealt)
     form takes the pool's first `count` — first match in source order, not
     top-of-source, since the pool has already skipped non-matching cards."""
-    assert stmt.filter is not None  # backstop of _select's dispatch: only the filtered branch lands here
+    assert stmt.filter is not None  # Shadow Guard of _select's dispatch: only the filtered branch lands here
     pred = _card_pred(stmt.filter, ctx)
     pool = [c for c in source.cards if pred(c)]
     amount = stmt.amount
@@ -411,9 +413,10 @@ def _select_filtered(
     if amount == "one":
         count = 1
     else:
-        # Backstop: parse admits "all" | "one" | "some" | Expr; the first two
-        # are handled above and "some" never reaches the per-card filter path —
-        # resolve walls `some` to `jointly`, which routes to `_select_joint`.
+        # Shadow Guard: parse admits "all" | "one" | "some" | Expr; the first
+        # two are handled above and "some" never reaches the per-card filter
+        # path — resolve's Owner Guard confines `some` to `jointly`, which
+        # routes to `_select_joint`.
         assert not isinstance(amount, str)
         count = _check_count(int(evaluate(amount, ctx)), stmt.mode)
     if stmt.mode == "chosen":
@@ -509,7 +512,8 @@ def _assign(stmt: n.AssignStmt, ctx: Ctx) -> None:
             # to mint a phantom key silently: `n[9] := 1` in a 4-player game
             # ran clean and `winner: highest n` crowned player 9. An index
             # expression is runtime data (an off-by-one at the ring's edge
-            # lands here), so the wall is a typed runtime error at the write.
+            # lands here), so the Owner Guard is a typed runtime error at the
+            # write.
             raise RuntimeError(
                 f"'{stmt.target.name}[{key!r}]' is outside the variable's "
                 f"declared domain (keys: {sorted(target)}) — the index "
@@ -546,9 +550,10 @@ def _for_each(stmt: n.ForEach, ctx: Ctx) -> None:
         for position in ctx.rs.position_domains[stmt.role]:
             execute(stmt.body, ctx.with_local(stmt.binder, position))
         return
-    # Past the position arm, the role must be a registry row -- resolve walls
-    # `for each` against the iteration column plus this game's named-member
-    # position domains, and the position half was taken above.
+    # Past the position arm, the role must be a registry row -- resolve's
+    # Owner Guard checks `for each` against the iteration column plus this
+    # game's named-member position domains, and the position half was taken
+    # above.
     role = require_role(stmt.role, "`for each` role")
     actor_bound = binds_actor(role)
     for member in role_members(role, ctx):
@@ -584,7 +589,7 @@ def _turns(stmt: n.Turns, ctx: Ctx) -> None:
     the body. The leader expression is read once, at the first turn, and
     must name a real seat — a non-seat value (an out-of-range Integer, a
     TAny pronoun) is a typed error HERE, before any rotation arithmetic,
-    the same seat wall `acting_as` gives `as`/`offer` (a bogus leader
+    the same seat Owner Guard `acting_as` gives `as`/`offer` (a bogus leader
     would otherwise crash `order.index` as a bare ValueError). A lap with
     no eligible participant is a malformed game (whose turn is it?) —
     loud, like `offer`'s no-legal-move rule, never a silent skip or an
@@ -594,7 +599,7 @@ def _turns(stmt: n.Turns, ctx: Ctx) -> None:
     current: Player | None = None
     guard = 0
     while not bool(evaluate(stmt.termination, ctx)):
-        # The same non-termination backstop as `_repeat_until` (one loop
+        # The same non-termination Owner Guard as `_repeat_until` (one loop
         # class, one guard): a body that makes no decisions is invisible to
         # the max_length DECISION counter, so the turn count itself is
         # bounded too.
@@ -687,8 +692,8 @@ def _produces(stmt: n.Produces, ctx: Ctx) -> None:
     else:
         # Whether the producing phase actually produced is runtime DATA
         # (resolve's outcome-scope rule orders producer before consumer, but a
-        # conditional body can still complete without producing), so the wall
-        # is a typed error in the runtime's failure currency.
+        # conditional body can still complete without producing), so the Owner
+        # Guard is a typed error in the runtime's failure currency.
         raise RuntimeError(
             f"phase '{stmt.define}' did not produce an outcome before its "
             f"consumer — every path through an outcome phase must `produce`"
@@ -757,9 +762,10 @@ def _each_simultaneous(stmt: n.EachSimultaneous, ctx: Ctx) -> None:
 
 
 def _pass_selection(body: n.Stmt, ctx: Ctx) -> list[Card]:
-    # One backstop against the SAME predicate resolve rejects with, rather than a
-    # hand-written set of asserts that the checker then has to mirror — the mirroring
-    # is what let `move chosen one card …` through the wall and into a bare assert.
+    # One Shadow Guard against the SAME predicate resolve rejects with, rather
+    # than a hand-written set of asserts that the checker then has to mirror —
+    # the mirroring is what let `move chosen one card …` through the Owner
+    # Guard and into a bare assert.
     assert n.simultaneous_body_error(body) is None, (
         f"`each … simultaneously` reached the executor with an illegal body: "
         f"{n.simultaneous_body_error(body)} (resolve should have rejected this)"

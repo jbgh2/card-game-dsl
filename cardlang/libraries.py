@@ -7,8 +7,8 @@ one with ``uses <library>`` and resolution is flat and two-level: game, then the
 named libraries, then the stdlib. See decisions.md "Family libraries".
 
 This module owns only *finding and parsing* library files. The splice, the
-collision walls, and the requires check live in ``resolve`` — they are name
-resolution, and that is the pass whose contract owns names.
+collision Owner Guards, and the requires check live in ``resolve`` — they are
+name resolution, and that is the pass whose contract owns names.
 
 Where library files live
 ------------------------

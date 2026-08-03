@@ -96,7 +96,7 @@ EXCLUDED_DIRS = (
 # repo treats as the defect.
 WHOLE_FILE_POINTERS: tuple[tuple[str, str], ...] = (
     # The orientation map names every file in docs/ by its subject.
-    ("CLAUDE.md", "Out-of-scope list + the checker's walls ledger"),
+    ("CLAUDE.md", "Out-of-scope list + the checker's guards ledger"),
     # "Out of scope" points at the whole out-of-scope list, not one entry.
     ("CLAUDE.md", "for the full list of"),
 )

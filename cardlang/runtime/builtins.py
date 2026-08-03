@@ -93,9 +93,10 @@ def _lines(ctx: Ctx, k: int) -> tuple[tuple[str, ...], ...]:
     geometry."""
     board = ctx.rs.board
     if board is None:
-        # Resolve walls `lines()` in a boardless game (BOARD_ONLY_CALL_FUNCS);
-        # this backstops that wall in the runtime's own currency, should the
-        # call ever reach here without a board.
+        # Resolve's Owner Guard rejects `lines()` in a boardless game
+        # (BOARD_ONLY_CALL_FUNCS); this Shadow Guard stands behind it in the
+        # runtime's own currency, should the call ever reach here without a
+        # board.
         raise RuntimeError(
             "lines() reads the board's lines, but the game declares no `board:`"
         )
@@ -111,10 +112,10 @@ def _lines(ctx: Ctx, k: int) -> tuple[tuple[str, ...], ...]:
 
 def _board_of(ctx: Ctx, fn: str) -> BoardEntry:
     """The instantiated `board:` entry the class-1 movement/region verbs read
-    (the `_lines` twin). Resolve walls a board-only call in a boardless game
-    (BOARD_ONLY_CALL_FUNCS); this backstops that resolve wall in the runtime's
-    own currency, naming the missing `board:`, should such a call ever reach
-    here without a board."""
+    (the `_lines` twin). Resolve's Owner Guard rejects a board-only call in a
+    boardless game (BOARD_ONLY_CALL_FUNCS); this Shadow Guard stands behind it
+    in the runtime's own currency, naming the missing `board:`, should such a
+    call ever reach here without a board."""
     board = ctx.rs.board
     if board is None:
         raise RuntimeError(
@@ -125,12 +126,12 @@ def _board_of(ctx: Ctx, fn: str) -> BoardEntry:
 
 def _seat(ctx: Ctx, fn: str, player: int) -> int:
     """A frame verb's player argument must be a seat of this game. The resolve
-    wall (typecheck `_check_role_literal`) rejects a LITERAL out-of-range seat
-    statically, and the frame verbs are two-player-only (resolve), so a bad seat
-    is unreachable from a well-formed game -- this backstops the COMPUTED case
-    in the runtime's currency (a typed, game-facing rejection) in place of the
-    frame's internal `_player_sign` `ValueError`, which reads as a registry bug
-    rather than a game one."""
+    Owner Guard (typecheck `_check_role_literal`) rejects a LITERAL out-of-range
+    seat statically, and the frame verbs are two-player-only (resolve), so a bad
+    seat is unreachable from a well-formed game -- this Shadow Guard covers the
+    COMPUTED case in the runtime's currency (a typed, game-facing rejection) in
+    place of the frame's internal `_player_sign` `ValueError`, which reads as a
+    registry bug rather than a game one."""
     if player not in ctx.rs.seating.players:
         raise RuntimeError(
             f"`{fn}` reads seat {player!r}, not a seat of this "
@@ -145,8 +146,8 @@ def _neighbor(ctx: Ctx, cell: str, direction: str, player: int) -> str:
     call site is `has_step`-gated (the guard short-circuits before any off-board
     `neighbor` runs; the effect runs only after that guard passed), so an
     off-board result is unreachable from a game. The None-return raise is a
-    backstop of that `has_step` guard, in the runtime's currency -- not a
-    game-reachable error."""
+    Shadow Guard behind that `has_step` guard, in the runtime's currency -- not
+    a game-reachable error."""
     dest = _board_of(ctx, "neighbor").neighbor(cell, direction, _seat(ctx, "neighbor", player))
     if dest is None:
         raise RuntimeError(

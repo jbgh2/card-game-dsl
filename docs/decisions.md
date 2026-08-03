@@ -253,14 +253,14 @@ than accepting surface it would silently drop ("Surface totality"):
 `chosen N` binds a count (Hearts' pass is `transfer chosen 3 cards` — the
 `3` *is* the "pass exactly three" law); a move type's `when:` guard binds
 its parameters (Stud's bring-in amount). These are the enforcing forms
-today, which is why no corpus game loses a constraint to the walls above.
+today, which is why no corpus game loses a constraint to the guards above.
 
 Where rules *should* eventually bind is open — english draughts' mandatory
 capture and nine men's morris's in-mill removal restriction are the
 witnesses that would force a wider answer
 ([open-questions/rule-scope-beyond-trick-play.md](open-questions/rule-scope-beyond-trick-play.md)).
 Until then the surface is deferred, not deleted (roadmap.md, "Grammar
-surface deferred by the checker"): when enforcement widens, the walls
+surface deferred by the checker"): when enforcement widens, the guards
 retire and the forms return with an implementation behind them.
 
 **The move under inspection is bound as `action`.** A predicate over a
@@ -735,10 +735,10 @@ reads it at the boundary, so a stale write buys at most one repeat and can
 never silently monopolize the loop — only a write during the turn keeps the
 turn). The leader expression is read once, at the first turn, and must name a
 real seat — a non-seat value (an out-of-range Integer, a loose pronoun) is a
-typed runtime error at the bind, the same seat wall `as` and `offer` carry. A
+typed runtime error at the bind, the same seat guard `as` and `offer` carry. A
 full lap finding no eligible participant is a loud runtime error, the `offer`
 no-legal-move rule one construct up; a decisionless body that never
-terminates hits the same iteration backstop as `repeat until`.
+terminates hits the same iteration guard as `repeat until`.
 
 ```cardlang-fragment turns_form
 turns t from 0 over players where not eliminated[player]
@@ -818,7 +818,7 @@ a scoring pass or a deal to everyone):
 - **It re-reads its guard mid-pass.** When the body mutates the guard variable, a
   later player in the same pass re-matches and takes a second turn — an
   order-dependent double-execution. `as` runs its body once, so one written turn is
-  one turn. This one no wall can catch — whether the body writes the guard is a
+  one turn. This one no Owner Guard can catch — whether the body writes the guard is a
   question about paths, not names — so it remains the reason to reach for `as`
   even where the comparison would be legal.
 
@@ -874,10 +874,10 @@ so `p is actor` is an ordinary contingent test again.
 
 Two boundaries are deliberate. A **state variable** is never treated as provably
 the actor, even directly inside `as taker { … }`: the body may reassign it, so
-the comparison can genuinely differ, and the wall refuses only what it can prove.
+the comparison can genuinely differ, and the guard refuses only what it can prove.
 And a merely **redundant** read is not an error — `hand[actor]` where `hand[p]`
 would do is accepted, because it does exactly what it says. The defect being
-walled is a comparison whose answer is fixed before the game runs, not a
+refused is a comparison whose answer is fixed before the game runs, not a
 roundabout way of writing a correct one.
 
 ## State scoping (lexical)
@@ -1012,10 +1012,10 @@ the auction and betting forms publish **nothing** (their accumulator is ordinary
 phase state, above — and that empty row is load-bearing, not an omission: it is
 what makes "the auction form has no `state.`" a checkable fact). Naming anything
 else — a misspelling, or one of the form's internals — is a compile error that
-lists what *is* published. The wall is what keeps a form's working memory out of
+lists what *is* published. The guard is what keeps a form's working memory out of
 the language: without it, a round's private ring cursor is nameable, type-checks,
 runs, and silently changes the game. The declared types carry the same weight — an
-untyped `state.x` is contagiously `Any`, and every comparison wall is dark behind
+untyped `state.x` is contagiously `Any`, and every comparison guard is dark behind
 it.
 
 **Rules consulted from within a round see the round's state.**
@@ -1060,7 +1060,7 @@ its name for the rest of the statement tuple it appears in — the same
 sequential fold at all three layers: the resolver scopes the name, the
 checker types it, the runtime binds the value. The binder's static type
 is its initializer's inferred type in the environment at that point, so
-every wall answers the same for the bound name as for the inline
+every guard answers the same for the bound name as for the inline
 expression (`let z = hearts` followed by `z is 3` is rejected exactly
 as `hearts is 3` is). In a phase body the fold runs across the items:
 a preceding `let` scopes over later statements and nested phases (their
@@ -1482,14 +1482,14 @@ subject resists this flattening.
 ## The permissive top and the lookup-miss walls
 
 `Any` is the type checker's top: it is compatible with every type in
-both directions, and every operand wall short-circuits on it. That is
+both directions, and every operand guard short-circuits on it. That is
 correct for a value whose type genuinely cannot be narrowed, and it is
 the mechanism that keeps typing *gradual* — an unrefined corner of the
 object model must not manufacture errors in expressions that touch it.
 
 The same permissiveness is a defect when it stands for "the checker
 failed to look this up". A value that satisfies every constraint
-silently exempts everything below it from every wall, so a single
+silently exempts everything below it from every guard, so a single
 missed lookup turns a whole subtree's type checking off and the checker
 still reports success. This is the "accepted-but-ignored" class
 (see "Surface totality") in its most damaging form, because it is
@@ -1504,7 +1504,7 @@ fall back to it:
   and `ref_kind` dispatch each have a registry that an earlier pass
   validates against. A miss is a divergence between two registries —
   a compiler bug, not a program error — so it fails in compiler
-  currency (an `AssertionError` naming the wall or builder that
+  currency (an `AssertionError` naming the guard or builder that
   guarantees it), exactly as the runtime's `role_members` and
   `zone_observer_key` already did.
 - **An environment lookup raises.** A name resolve classified but the
@@ -1525,13 +1525,13 @@ fall back to it:
   crosses them against every source a name can come from is
   `tests/test_type_name_positions.py`. Otherwise a mere typo maps to the top and *widens* what
   the checker accepts: the misspelled program passes where the
-  correctly-spelled one is rejected. Exactly one wall owns each
+  correctly-spelled one is rejected. Exactly one Owner Guard owns each
   position, and it is the tightest one that applies — a move parameter
   answers to the enumerable-domain gate (which subsumes name validity,
   since an unknown name is not an enumerable domain), a procedure
   parameter to its own domain set, and the remaining positions to a
   plain name check. Each position's allowed set mirrors exactly what
-  its type builder can resolve, so a name the wall admits is never one
+  its type builder can resolve, so a name the guard admits is never one
   the builder still maps to the top, and no defect is reported twice in
   two currencies.
 
@@ -1545,13 +1545,13 @@ test so a new permissive site must be classified rather than added:
 values with no better type (a diverging `error()`, context-dependent
 stdlib returns the signature model cannot express, deferred pronoun
 shapes, a forward struct reference), and propagation downstream of a
-wall that already fired. Gradual typing is preserved — the top still flows
+guard that already fired. Gradual typing is preserved — the top still flows
 and still suppresses errors where it is deliberate.
 
 The general rule this instantiates: **a fallback is only legitimate
 when no better answer exists.** A fallback standing in for an answer
 the program *does* have is a silent wrong answer, and belongs upstream
-as a wall (see "Closed-domain completeness", write-time triage).
+as an Owner Guard (see "Closed-domain completeness", write-time triage).
 
 ## Resource amount syntax
 
@@ -1724,7 +1724,7 @@ the degenerate `one`/`all` (size 1 / the whole source). Subset sizes are
 always at least one — a zero-card "choice" is not a decision — so a
 non-positive count, and `all` over an empty source, fall to the same loud
 no-satisfying-subset error `some` gives. (Movement amounts generally are
-walled at evaluation: a negative amount is a typed runtime error everywhere
+guarded at evaluation: a negative amount is a typed runtime error everywhere
 — a Python slice would otherwise silently move the rest — and a zero
 `chosen` amount is a vacuous decision node, also refused.) `jointly`
 requires `chosen` — the selection is a player decision over subsets; a
@@ -1743,7 +1743,7 @@ block's currency, exactly like climb combination plays — and the subset
 universe comes from a **registered per-predicate codec**
 (`joint_codec_function`, the climb-engine codec pattern: the predicate's
 root call names it, `gin_arrange_ok` → the 329-meld universe of
-standard52). A joint predicate with no registered codec is walled loudly at
+standard52). A joint predicate with no registered codec is refused loudly at
 action-space construction, never silently absent from the space.
 
 Gin Rummy's showdown arrangements are the anchor: the knocker declares
@@ -1991,8 +1991,8 @@ paste: without it, a body that binds `target` would silently capture a caller's 
 `target`, read *after* the `run` site.
 
 Together these mean the caller cannot corrupt the body and the body cannot corrupt
-the caller, *by construction* — so there is no capture wall to remember, and none
-to get wrong. One wall does remain, because expansion cannot fix it: a body binder
+the caller, *by construction* — so there is no capture guard to remember, and none
+to get wrong. One guard does remain, because expansion cannot fix it: a body binder
 sharing a **parameter's name** is ambiguous at classification time (both are local
 binders), so substitution cannot tell them apart. That is rejected.
 
@@ -2014,7 +2014,7 @@ domain is rejected. A procedure may not run another procedure, hold a `round`
 (which binds its own `outcome`), or contain non-local control flow (`produce`,
 `continue to`, `skip to next hand`), and one that is never run is an error, since
 its body would be spliced nowhere and checked by nothing. Every one of those is a
-loud wall with a recorded deferral (issue #134); none is silently
+loud guard with a recorded deferral (issue #134); none is silently
 accepted.
 
 ## Knowledge, visibility, and the projection model
@@ -2304,7 +2304,7 @@ not collide with a built-in domain id or type name (`player`, `suit`,
 `Rank`, `Card`, `Integer`, …) — the built-in registry and the declared
 block are reconciled by rejection, so the two sources can never disagree
 about a name. A `board:` clause mints a **named-member** domain (`cell`,
-string members) on this same substrate — same collision wall, same cap,
+string members) on this same substrate — same collision guard, same cap,
 same two surface slots — detailed in "Boards and cells" below.
 
 **Positions are unowned.** No observer *is* a column, so a
@@ -2391,11 +2391,11 @@ rejected exactly as `card.rank is spades` is. The axis values (`x`, `o`,
 `mark`) enter the enum-value namespace exactly as a deck's suits and
 ranks do.
 
-**Noun/content agreement is a typecheck wall.** Every surface that
+**Noun/content agreement is a typecheck Owner Guard.** Every surface that
 spells card-content vocabulary demands the deck flavor and, in a piece
 game, is rejected with a diagnostic naming the game's declared kind
 ("this game declares pieces ('xo_marks')") — and symmetrically the
-`piece`/`pieces` noun is rejected in a card game. The walled surfaces
+`piece`/`pieces` noun is rejected in a card game. The guarded surfaces
 are the movement/reveal item noun, the filter binder, `.suit`/`.rank`
 field access, the card-query and aggregation forms, the `ranking:` and
 `trump:` clauses, the `suit`/`rank` quantifier and iteration roles, the
@@ -2403,7 +2403,7 @@ field access, the card-query and aggregation forms, the `ranking:` and
 stdlib calls, and card literals. Each rejection sits at the layer that
 owns the operand-kind class (the typechecker), naming the kind rather
 than parsing the construct and silently giving it card meaning — the
-"accepted-but-ignored" failure this wall exists to prevent.
+"accepted-but-ignored" failure this guard exists to prevent.
 
 ```text
 pieces: xo_marks                        // axes: side = [x, o], kind = [mark]; 5 x + 4 o
@@ -2422,7 +2422,7 @@ its card queries, and byte-identical behavior. Piece twins of the
 card-query and aggregation forms are deliberately absent from the
 grammar (a piece game counts and aggregates through the generic
 collection surfaces a card game shares); the deferred declaration-site
-and rule-system walls are recorded in issue #114.
+and rule-system guards are recorded in issue #114.
 
 ## Zone capacity
 
@@ -2440,11 +2440,11 @@ zone 'slot[0]' is a Cell (capacity 1) and already holds 1 — the move
 would overfill it; guard the move (`slot[0] is empty`)
 ```
 
-The wall **backstops** the game's own guards; the registry owns the
+The Owner Guard **stands behind** the game's own guards; the registry owns the
 capacity class, so the check lives at the single movement-executor
 append rather than being re-derived per move type. An honest game guards
 its placements (FreeCell's `cells[slot] is empty`, tic-tac-toe's
-`square[at] is empty`), so the wall never fires on a correct game — it
+`square[at] is empty`), so the Owner Guard never fires on a correct game — it
 converts a rules bug into a loud failure at the overfilling move, not a
 silently dropped card. The `Point` row (an unbounded stack) is deferred
 to its witness; see issue #118.
@@ -2473,7 +2473,7 @@ positional zones"): the minted domain is injected alongside any
 `positions { }` block and flows through every surface an integer
 position domain flows through — zone-family index, move-parameter
 domain, the unowned projection, the action space, the IR — under the
-same collision wall, the same 256-member cap, and the same
+same collision guard, the same 256-member cap, and the same
 "always subscripted" rule. What differs is the member kind: a board's
 members are **string cell names** (`a1`, `b1`, …, row-major from `a1`;
 the file letter is the column from the left, the number the row from the
@@ -2590,7 +2590,7 @@ iterates it: `for each cell c: <stmt>` runs the body once per board cell,
 binding `c` as a `TCell`, and a membership guard narrows it to a region.
 This lifts the `for each <position>` residual for a board's named-member
 domain only — an integer `positions { }` domain (`for each column`) stays
-walled, the split being named-member versus integer:
+guarded, the split being named-member versus integer:
 
 ```text
 for each cell c: if c in home(0) { move one piece from reserve[0] to square[c] }
@@ -2613,7 +2613,7 @@ the actor first (`let w = actor`, tic-tac-toe's spelling). Breakthrough is the c
 side, `step` with diagonal-only capture, and the two termini its oracle
 names.
 
-**Walls stated as behavior.** A bare cell name in an expression (`a1`),
+**Guards stated as behavior.** A bare cell name in an expression (`a1`),
 and now a direction name (`ahead`), is an unknown name, not a literal —
 named only through a parameter or a quantifier binder; naming a specific
 cell in a setup or rule waits on its witness (issue #111).
@@ -2621,7 +2621,7 @@ A position domain is still not a declarable `state` type or a state
 index, and an integer position domain is still not a `for each` role.
 The remaining board-topology surface — the `HiddenCell` and `Point`
 zone-type rows, double-indexed families, `roll` chance, probes,
-`reachable`, in-file boards — is walled per rung of the board-topology
+`reachable`, in-file boards — is guarded per rung of the board-topology
 ladder ([design-notes/board-topology.md](design-notes/board-topology.md);
 issue #124).
 
@@ -3415,7 +3415,7 @@ lazy:
   order, extension), both directions of a biconditional, the arms of a
   dispatch over a registry — is covered *exhaustively*, derived from the
   registry that defines it, pinned complete against that registry by a
-  static test, and backstopped by a runtime refusal on anything left over.
+  static test, and backed by a runtime refusal on anything left over.
   Hand-enumerating cases where a registry already defines the universe is
   the tell that this rule is being violated: find the registry, derive from
   it, refuse on the remainder. The worked example is the soundness matrix's
@@ -3427,8 +3427,8 @@ lazy:
 - An **open design space** — which round axes exist, the meld model, the
   constructive world generator — stays corpus-first: generalizing from zero
   or one instance produces speculative abstractions, and waiting is cheap.
-  But every deferral must be a **loud wall** (a static rejection or a
-  runtime refusal, with a test), never a silent gap. Deferred-and-walled is
+  But every deferral must be a **loud guard** (a static rejection or a
+  runtime refusal, with a test), never a silent gap. Deferred-and-guarded is
   corpus-first done right; deferred-and-silent is a defect.
 
 **"Vacuously green" is a defect class of equal rank to
@@ -3465,7 +3465,7 @@ uncommanded is a regression caught at write time, and a commanded cell that
 stays green means the test does not reach the behavior. A cell whose
 correct outcome is not yet decided is never guessed into the grid — a
 guess pinned by a passing row carries the authority of a decision nobody
-made; it goes to residual with its wall and its record. The grid pins
+made; it goes to residual with its guard and its record. The grid pins
 decisions that have been made; it is not a device for making them.
 `covered` means an executed grid row; prose describes only what the grid
 does not run.
@@ -3476,7 +3476,7 @@ goes to residual, an open design question to its open-questions/ file, a
 guard that cannot be classified does not land until it can, a review
 claim rests at PLAUSIBLE without executed evidence. The imperatives here
 prohibit manufactured certainty, never hesitation — a stated "not
-decided" with a wall is the process working; a guessed answer wearing a
+decided" with a guard is the process working; a guessed answer wearing a
 green row is the defect. The tie-breaker runs the same way: when unsure
 whether a gate applies, it applies — the superset is cheap, the guess is
 not. The
@@ -3490,19 +3490,19 @@ registry:   <where each axis is derived in code — the grid reads these>
 covered:    <the grid: module + parametrization, not a prose cell list>
 sampled:    <cells covered by example only, and why that suffices>
 residual:   <cells NOT in the grid, uncovered or not-yet-decided — each with
-             its wall, its reachability (R1–R4, "Reachability ranks the
+             its guard, its reachability (R1–R4, "Reachability ranks the
              work"), and its tracker record (issue #N; R4 records here and
              needs no issue unless the guarantee is rigor-critical)>
 ```
 
-The gate is symmetric: a residual row without both a wall and a record
+The gate is symmetric: a residual row without both a guard and a record
 fails it, and a `covered` claim without an executed grid row fails it
 equally. "No corpus witness" is never by itself a reason to leave a
 residual cell silent, because corpus-first governs which mechanisms exist,
 not how completely a mechanism covers its own domain — and when the
 construct itself has no corpus witness, the change ships a minimal witness
 fixture (a complete game exercising the construct end to end): a corpus
-hole is an integration blind spot, not an exemption. A wall guards its
+hole is an integration blind spot, not an exemption. A guard guards its
 whole class at the layer that owns the class: an operand-compatibility rule
 lives in the type layer consulted by every comparison-shaped context, not
 at the first site that motivated it. The `surface-totality-audit` skill
@@ -3559,7 +3559,7 @@ be correct if dated should be dated, not deleted — the figures are
 evidence, and deleting them to satisfy this rule would cost the argument
 its support.
 
-A wall must also speak its **layer's failure currency**: the compile
+An Owner Guard must also speak its **layer's failure currency**: the compile
 stages fail as diagnostics (`DiagnosticBag`, with a span and a
 designer-readable message — a raw registry raise mid-resolve is loud in
 the wrong currency and suppresses every other diagnostic in the file);
@@ -3573,12 +3573,12 @@ a name instead of reading the `ref_kind` the resolver stamped, re-inferring
 a type the checker validated, re-computing visibility the zone-type table
 declares), and *guarding* a condition that is already checked somewhere
 else. Either tell stops the edit — the fix is upstream, not local. Before
-it lands, the check is classified as exactly one of three things: a
-**wall** (it moves to the layer that owns the class, in that layer's
-currency, with a test), a **backstop** (it stays, and its comment names
-the wall it shadows — and the recorded residual that makes it reachable,
-if one exists), or a **missing wall** (the wall is built at the owning
-layer, and the local site becomes a backstop citing it). A guard that
+it lands, the check is classified as exactly one of three things: an
+**Owner Guard** (it moves to the layer that owns the class, in that layer's
+currency, with a test), a **Shadow Guard** (it stays, and its comment names
+the Owner Guard it shadows — and the recorded residual that makes it reachable,
+if one exists), or a **missing Owner Guard** (the Owner Guard is built at the owning
+layer, and the local site becomes a Shadow Guard citing it). A guard that
 cannot say which of the three it is does not land. Each pass states its
 contract — what it assumes, what it establishes, and what becomes illegal
 after it — in a `Contract` block in its module docstring
@@ -3587,13 +3587,13 @@ decides where a check belongs. For the runtime packages the triage is
 mechanized: `tests/test_assert_triage.py` scrapes every assert-currency
 site in `cardlang/runtime/` and `cardlang/stdlib/` and fails the build on
 any site whose attached text names neither a dispatch fallthrough nor the
-wall it backstops.
+Owner Guard it shadows.
 
-**When a wall fails or a gap is found, sweep the class before patching
+**When an Owner Guard fails or a gap is found, sweep the class before patching
 the instance.** A found defect names a class: identify the closed domain
 the instance belongs to, probe every other member (the other projection
 levels, the other declaration namespaces, the other malformed inputs),
-and close or wall the whole class in one change. A lone patch converts a
+and close or guard the whole class in one change. A lone patch converts a
 class defect into a recurring one — the corpus's duplicate-name
 shadowing sat for months as exactly this: the duplicate-move-parameter
 instance was fixed while duplicate zones, state variables, move types,
@@ -3627,17 +3627,17 @@ the narrow spelling is how the next member escapes. A class of exactly one
 member is a legitimate answer; an unexamined class is not.
 
 **A check's comment names the downstream contract, never the downstream
-exception type.** A wall is most naturally justified by what goes wrong
-without it, and the temptation is to name the crash: "without this wall,
+exception type.** A guard is most naturally justified by what goes wrong
+without it, and the temptation is to name the crash: "without this guard,
 `to each hand[0]` would die on the executor's `NameRef` assert". That
 couples the comment to another module's current implementation — the one
 detail a reader editing *this* file never sees, and the one most likely to
 move. Failure currency is deliberately mobile here: a bare `KeyError`
-becomes a typed `RuntimeError`, a backstop assert becomes a wall one layer
+becomes a typed `RuntimeError`, a Shadow Guard assert becomes an Owner Guard one layer
 up. Every comment naming the old type is then confidently wrong while still
 reading as precise, which is worse than vague. Name instead what the
-downstream layer *requires* — the thing that actually justifies the wall:
-"without this wall, it would reach the executor, which requires a zone in
+downstream layer *requires* — the thing that actually justifies the guard:
+"without this guard, it would reach the executor, which requires a zone in
 this position and refuses anything else at play time". The warning survives
 a change of currency; the coupling does not. The exception type is
 load-bearing in exactly one place: an argument *about* failure currency
@@ -3650,7 +3650,7 @@ not as a past event ("checked clean and died") and not as a present claim
 literally true after the behaviour it describes is gone, so it rots into a
 misleading implication that nothing can catch. The subjunctive says
 something about the code as it stands, which means a reader can check it
-and the claim can be found wrong — the same reason walls beat prose
+and the claim can be found wrong — the same reason guards beat prose
 everywhere else in this document.
 
 ### Allow-list, never deny-list
@@ -3696,7 +3696,7 @@ are the worked example of the promotion: they are `domains.Role`, a plain
 string literal is a type error and the marker scrape that used to ask for
 a reason is gone. What `tests/test_role_comparison_pin.py` still holds is
 the residue the type cannot see — strings that merely SPELL a role
-(`player` as an unresolved name, `suit` as a component-set axis) — walled
+(`player` as an unresolved name, `suit` as a component-set axis) — guarded
 per module so a new one must be looked at. A closed
 domain with neither an `assert_never` nor a pin is unenforced, whatever
 its consumers currently do.
@@ -3727,7 +3727,7 @@ So a closed domain gets both halves:
   implements one row reconciles itself against the registry beside the
   branch, so widening the table fails *there*, by name —
   `runtime/execute.py` pins its player-only simultaneous executor against
-  `SIMULTANEOUS_ROLES`; `resolve` pins its empty-domain walls against
+  `SIMULTANEOUS_ROLES`; `resolve` pins its empty-domain guards against
   `ZONE_INDEX_ROLES`; `openspiel/replay` pins its returns keying against
   the same set and raises for a role it cannot invert, exactly as
   `domains.zone_observer_key` does rather than guessing player keying.
@@ -3736,7 +3736,7 @@ So a closed domain gets both halves:
 above applies to a domain whose membership is enumerable — a union, a
 registry, a table. Over an OPEN domain the same shape is a defect in the
 other direction: an allow-list there would refuse values the language is
-deliberately permissive about, and a wall that manufactures an error is
+deliberately permissive about, and a guard that manufactures an error is
 exactly what the gradual-typing promise forbids (see "The permissive top
 and the lookup-miss walls", which owns that case — `TAny` passes, and a
 *lookup miss* against a table the program does have raises rather than
@@ -3822,7 +3822,7 @@ Every finding, residual cell, and tracker issue states one:
   plausibly write meets it. The design-tool promise binds here: R2 silence
   is how a designer ships a wrong game.
 - **R3 — witness-gated.** Reaching it requires surface the language does
-  not yet accept — a cell deferred behind a wall, lifted only when its
+  not yet accept — a cell deferred behind a guard, lifted only when its
   named witness lands. A construct that is accepted today but unused by
   the corpus is R2, not R3: the corpus gates which mechanisms exist, not
   what a designer may write.
@@ -3842,7 +3842,7 @@ waits, so R4 is a fact about who can meet the cell, never a demotion of
 the work that closes it.
 
 Disposition follows the tag: R1 is fixed now; R2 is fixed or filed with a
-kind; R3 is a residual with its wall and its record, per the symmetric
+kind; R3 is a residual with its guard and its record, per the symmetric
 gate; R4 is recorded in the owning ledger and files an issue only when the
 guarded guarantee is rigor-critical. And effort follows it the same way:
 a fix whose size is out of proportion to its reachability routes to
@@ -3948,7 +3948,7 @@ obvious one would be two thirds of a guarantee.
 **A provided default may not read the contract.** Provided state splices in
 front of the game's own, so a `requires` name — which only the game can declare
 — is never in scope where a provided default runs. This is the declare-order
-rule of "State scoping (lexical)" landing on the tier, and the general wall
+rule of "State scoping (lexical)" landing on the tier, and the general guard
 would catch it after the splice; it is refused before the splice as well,
 against the library alone, because the splice destroys the distinction the
 author needs. Post-splice a required name is just a variable declared later,
@@ -3978,7 +3978,7 @@ an index that is a position domain rather than a seat or team. A library
 declares no `positions { }` and cannot name one, so a position-indexed zone
 family cannot be contracted at all.
 
-That the derivation IS a derivation rests on a wall: a declared `type` and a
+That the derivation IS a derivation rests on a guard: a declared `type` and a
 per-game `positions { }` name may not take a stdlib zone type's spelling. Without
 it `type Hand = { … }` would make `requires { x : Hand }` mean two things, and
 the classification would silently pick one.
@@ -4006,7 +4006,7 @@ A requirement's own index is checked first, and in the LIBRARY's currency:
 `requires { seen[rank] : Integer }` is refused where the library wrote it,
 because an index must be a role a state variable can be keyed by
 (player/team) and no game could answer such a requirement. That is the
-library twin of the state-index wall, and the difference in currency is
+library twin of the state-index guard, and the difference in currency is
 who can fix it — an unmet contract is a fact about the importing game, a
 malformed index is wrong in the library's own text. A mismatch between a
 well-formed requirement and the game's declaration names both roles
@@ -4062,7 +4062,7 @@ reason why reaching it is not a channel — a closed stdlib or domain registry
 identical either side, or a name owned by a declaration that IS swept. There is
 no third state, and no consumer keeps a list of the slots it remembered.
 
-**Name collisions on state are walled the same way collisions on definitions
+**Name collisions on state are guarded the same way collisions on definitions
 are.** A library may not both provide and require one name — the two clauses
 point opposite ways, so no reading satisfies both. Two libraries may not provide
 one name, because resolution is flat and picking by `uses` order would make a
@@ -4074,7 +4074,7 @@ neither mentions the other in. Two libraries requiring the same name is fine —
 one game declaration answers both contracts.
 
 **A library may not inject a name the game already uses for anything — in any
-namespace, not just the same kind.** The collision walls above catch a library
+namespace, not just the same kind.** The collision guards above catch a library
 definition landing on a game definition of the SAME kind (function over
 function) and a provided name landing on the game's own state. The remaining
 cases are the silent ones: a provided name, or a library definition, coinciding
@@ -4097,7 +4097,7 @@ after a rank all resolve by `_classify`'s precedence (state variable over
 zone over deck value over function), which makes the loser unreachable by
 that spelling with no diagnostic. That is the ordinary block shadowing every
 language allows, and a game-level uniqueness rule would be a far larger,
-higher-risk change than the corpus has forced. The library wall turns on
+higher-risk change than the corpus has forced. The library guard turns on
 INVISIBILITY — a name the author cannot see — so it would be wrong to apply
 to names they wrote; if a designer is ever surprised by their own
 cross-namespace shadow, the fix is to lift the same sweep to the game's own
@@ -4227,4 +4227,4 @@ family", not as "phases are settled".
 The tier's completeness gate is `tests/test_family_libraries.py`, whose ledger
 records the one deliberate non-cell: stdlib move types and a game's `move_type`
 definitions are disjoint consult paths that never share a namespace, so there is
-no collision there to wall.
+no collision there to guard against.

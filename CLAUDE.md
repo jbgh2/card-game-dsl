@@ -64,7 +64,7 @@ criterion** — alongside "does it run" and "is it byte-identical":
   against **its own domain**, never against the corpus — closed enumerable
   domains get exhaustive coverage derived from their defining registry,
   pinned by a static test and a runtime refusal; open design spaces stay
-  corpus-first but every deferral is a loud wall. "Vacuously green" — a
+  corpus-first but every deferral is a loud guard. "Vacuously green" — a
   check presented as a guarantee that cannot fail — is a defect class of
   equal rank to "accepted-but-ignored". Changes to rigor-critical machinery
   ship with their completeness argument (property, domain, coverage,
@@ -77,9 +77,10 @@ criterion** — alongside "does it run" and "is it byte-identical":
   validated, a projection `ZONE_PROJECTIONS` declares), or (b) you are adding
   a guard for a condition already checked in another file. On either tell,
   STOP — the fix is upstream, never the local edit. Triage the check as
-  **wall / backstop / missing wall** before it lands, per `docs/decisions.md`,
-  "Closed-domain completeness" (write-time triage): a wall moves to the layer
-  that owns the class; a backstop's comment names the wall it shadows; a
+  **Owner Guard / Shadow Guard / missing Owner Guard** before it lands, per
+  `docs/decisions.md`, "Closed-domain completeness" (write-time triage): an
+  Owner Guard moves to the layer that owns the class; a Shadow Guard's comment
+  names the Owner Guard it shadows; a
   guard that can't say which it is doesn't land. Every pass states what it
   assumes, what it establishes, and what becomes illegal after it in the
   `Contract` block of its module docstring — read the owning pass's contract
@@ -106,7 +107,7 @@ docs/
   library.md             The Trick mechanic + standard library catalogue
   decisions.md           Settled design decisions (the load-bearing spec)
   glossary.md            The shared language: what each thing is called, what each name may mean
-  roadmap.md             Out-of-scope list + the checker's walls ledger
+  roadmap.md             Out-of-scope list + the checker's guards ledger
   implementation.md      Plan for building the parser + static checker (tooling)
   building.md            Front-end execution blueprint (pipeline, triage, gates)
   kernel-migration.md    Stage plan: remove per-game Python mechanics → DSL kernel
@@ -178,7 +179,7 @@ Run them as written. In particular:
   exit code. CI runs the commands bare and is the authority.
 
 **These two checks are regression gates, not completeness gates.** A change
-that adds or extends grammar surface, a checker wall or diagnostic, a stdlib
+that adds or extends grammar surface, a checker Owner Guard or diagnostic, a stdlib
 registry, or any closed-domain mechanism — **including a change answering a
 review finding on one**, where the finding is a sample of a class and never
 the spec for the fix — additionally passes the
@@ -190,7 +191,7 @@ test — axes derived in code, expected outcomes authored red BEFORE the
 implementation exists), misuse-probe **rejection tests** (the most plausible
 wrong sentences, each proven loud in the right layer's currency), and the
 **completeness ledger** (judgment columns in the grid module's docstring —
-`covered` IS the grid; no residual cell without both a wall and a record —
+`covered` IS the grid; no residual cell without both a guard and a record —
 a tracker issue cited as `issue #N`, or the ledger row alone for an R4
 auditor-only cell guarding nothing rigor-critical (`docs/decisions.md`,
 "Reachability ranks the work"); born-green pins name their reddening

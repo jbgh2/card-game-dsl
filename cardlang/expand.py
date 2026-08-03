@@ -55,9 +55,9 @@ movements still persist, of course; only the `let` bindings are scoped, which is
 exactly the difference between a procedure and a paste.
 
 Together these mean the caller cannot corrupt the body and the body cannot corrupt
-the caller. The one hygiene wall that remains is in resolve, and it must: a body
-binder sharing a *parameter's* name is ambiguous at classification time (both are
-`local`), so substitution cannot tell them apart. Resolve rejects that outright.
+the caller. The one hygiene Owner Guard that remains is in resolve, and it must: a
+body binder sharing a *parameter's* name is ambiguous at classification time (both
+are `local`), so substitution cannot tell them apart. Resolve rejects that outright.
 
 The temporary's name (`@f.p`) is deliberately unspellable — `@` and `.` are not in
 the NAME terminal — so it can never collide with a user's binder, and two runs of
@@ -82,7 +82,7 @@ enumerated rather than trusted:
   `Phase`), never on statement kinds. A `Block` is a `Stmt` and cannot appear there.
 - `runtime/execute.py::_pass_selection` — asserts its body is a chosen movement. A
   `Block` cannot reach it: resolve now rejects any other body for `each <role>
-  simultaneously`, so that assert is a backstop rather than a user-reachable path.
+  simultaneously`, so that assert is a Shadow Guard rather than a user-reachable path.
 - `typecheck`, `resolve`, `parse` — all run BEFORE this pass and can never see a
   block. (`typecheck._stmt_tree_scoped` carries an arm anyway, because it falls
   through silently and a future pass ordering would otherwise skip a whole body.)
@@ -98,8 +98,8 @@ Establishes:  a procedure-free tree: no `RunStmt`, no `ProcedureDef`;
               `Game.procedures` is empty. Expansion is total — there is
               nothing left to reject here.
 Now illegal:  a `RunStmt` reaching any later stage; the IR emitter
-              hard-fails on one (cardlang/ir.py) as its backstop.
-Verified by:  tests/test_procedures.py; the emitter backstop above.
+              hard-fails on one (cardlang/ir.py) as its Shadow Guard.
+Verified by:  tests/test_procedures.py; the emitter Shadow Guard above.
 """
 
 from dataclasses import fields, is_dataclass, replace

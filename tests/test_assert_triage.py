@@ -81,7 +81,12 @@ import cardlang.stdlib
 
 FALLTHROUGH_MARKERS = ("unknown ", "no declared ")
 GUARANTOR_WORDS = (
-    "backstop",
+    # The role names first: a site that stands behind another guard IS a Shadow
+    # Guard, and naming the Owner Guard it shadows is the tag. `backstop` is
+    # retired (docs/glossary.md section 5), so it is deliberately absent —
+    # this tuple is what makes the retirement enforceable rather than advisory.
+    "shadow guard",
+    "owner guard",
     "grammar",
     "parse",
     "resolve",
@@ -190,15 +195,16 @@ def test_every_runtime_assert_site_is_triaged() -> None:
         f"{len(untagged)} untriaged assert-currency site(s) in the runtime "
         f"packages:\n{listing}\n"
         "Write-time triage (decisions.md 'Closed-domain completeness'): a "
-        "check lands as a wall at the owning layer, in that layer's currency, "
-        "or as a backstop whose comment/message names the wall it shadows. "
-        "Tag each site above — in its message, a comment directly above it, "
-        "or a trailing comment — with the guarantor it backstops "
-        f"({', '.join(GUARANTOR_WORDS)}), or mark an exhaustive-dispatch "
-        "fallthrough with an 'unknown …' / 'no declared …' message. If the "
-        "condition is reachable from a game description, it is a MISSING "
-        "wall: raise a typed RuntimeError (the runtime's failure currency) "
-        "or build the wall upstream — do not tag it."
+        "check lands as an Owner Guard at the owning layer, in that layer's "
+        "currency, or as a Shadow Guard whose comment/message names the Owner "
+        "Guard it shadows. Tag each site above — in its message, a comment "
+        "directly above it, or a trailing comment — with the guarantor it "
+        f"shadows ({', '.join(GUARANTOR_WORDS)}), or mark an "
+        "exhaustive-dispatch fallthrough with an 'unknown …' / 'no declared "
+        "…' message. If the condition is reachable from a game description, "
+        "it is a MISSING Owner Guard: raise a typed RuntimeError (the "
+        "runtime's failure currency) or build the Owner Guard upstream — do "
+        "not tag it."
     )
 
 
@@ -209,7 +215,7 @@ def test_the_scrape_sees_the_census_modules() -> None:
     from one of these, updating this pin is the intended friction."""
     by_module: set[str] = {s.module for s in _runtime_sites()}
     # `builtins.py` is deliberately absent: the Builtins half of the dispatch
-    # (issue #201) states its backstops as typed `RuntimeError`s, which are
+    # (issue #201) states its Shadow Guards as typed `RuntimeError`s, which are
     # outside this scrape's domain, so it contributes no site to floor.
     for module in ("execute.py", "evaluate.py", "mechanics.py", "primitives.py"):
         assert module in by_module, f"scrape found no sites in {module}"
@@ -247,7 +253,7 @@ def test_probe_message_tag_is_accepted() -> None:
 
 
 def test_probe_comment_above_is_accepted() -> None:
-    src = "def f(x):\n    # Backstop of the endpoint wall.\n    assert x\n"
+    src = "def f(x):\n    # Shadow Guard of the endpoint Owner Guard.\n    assert x\n"
     assert _classify(src) == [True]
 
 
@@ -269,10 +275,10 @@ def test_probe_multiline_message_tag_is_accepted() -> None:
 def test_probe_comment_above_enclosing_if_is_accepted() -> None:
     src = (
         "def f(x):\n"
-        "    # Resolve walls these declarations; reaching this raise means a\n"
+        "    # Resolve refuses these declarations; reaching this raise means a\n"
         "    # construction path bypassed it.\n"
         "    if x not in ROLES:\n"
-        '        raise AssertionError("bypassed the wall")\n'
+        '        raise AssertionError("bypassed the Owner Guard")\n'
     )
     assert _classify(src) == [True]
 

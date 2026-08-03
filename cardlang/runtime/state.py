@@ -146,14 +146,14 @@ class ZoneStore:
                 # domains — decisions.md "Position domains and positional
                 # zones"). A `teams if index == "team" else players` rule
                 # would silently key ANY other role by players. The gate
-                # below is what makes the backstop REAL: an unknown role
+                # below is what makes the Shadow Guard REAL: an unknown role
                 # raises inside `role_static_members`, but a known
                 # non-indexable row (suit/rank) would quietly enumerate the
                 # deliberately-empty () sources and build a zero-instance
                 # family — every later access would then be refused for a
                 # missing key, far from the declaration that caused it.
-                # Resolve walls these declarations; reaching this raise means
-                # a construction path bypassed it.
+                # Resolve's Owner Guard rejects these declarations; reaching
+                # this raise means a construction path bypassed it.
                 if (
                     role_of(decl.index) not in ZONE_INDEX_ROLES
                     and decl.index not in positions
@@ -194,8 +194,8 @@ class ZoneStore:
         #
         # Names arriving here are engine-core's: read off the resolved AST,
         # or the language-wide magic `hand` that `mechanics.py`/`rules.py`
-        # spell literally (walled by resolve's Card-vocabulary hand-family
-        # rule, not by an AST provenance). Game-local primitives do not reach
+        # spell literally (resolve's Card-vocabulary hand-family rule is the
+        # Owner Guard, not an AST provenance). Game-local primitives do not reach
         # here at all — cardlang/runtime/reads.py is their sanctioned path,
         # holding both lookups to this same currency against its
         # declared-reads registry.
@@ -204,10 +204,10 @@ class ZoneStore:
         # index is checked with `types.assignable`, which admits a bare
         # Integer literal, so `hand[9]` in a 4-player game type-checks and
         # arrives here (the ledger in tests/test_zone_family_typing.py
-        # records the deferred re-audit). That deferral is what makes this wall reachable rather
-        # than a backstop, and why the key branch owes a typed error. A
-        # board-minted family keys by a cell name (str), so the key is
-        # `int | str`.
+        # records the deferred re-audit). That deferral is what makes this an
+        # Owner Guard rather than a Shadow Guard, and why the key branch owes
+        # a typed error. A board-minted family keys by a cell name (str), so
+        # the key is `int | str`.
         if name not in self.families:
             raise RuntimeError(
                 f"no zone family '{name}' in this game — this asks for a "
@@ -290,7 +290,7 @@ class RuntimeState:
         # boardless game; the driver builds it from `game.board`. The cell/line
         # query verbs read it (decisions.md "Boards and cells").
         self.board: BoardEntry | None = None
-        self.max_length: int = 0  # the game's declared non-termination backstop
+        self.max_length: int = 0  # the game's declared non-termination bound
         self.decisions_made: int = 0  # every chooser pick, checked against max_length
         # Content flavor ("card"/"piece") and the axis->Card-attribute map for a
         # piece set (identity for a card deck): the driver sets both from the
@@ -384,7 +384,7 @@ class Ctx:
         `as active_rules`, `as winner` before a round has produced one, `as 5`
         in a two-player game), would otherwise reach the chooser as a phantom
         decider and silently corrupt the decision node's information set. This is
-        the acting-player analogue of the phantom-key write wall in
+        the acting-player analogue of the phantom-key write Owner Guard in
         `RuntimeState.set`, and it is what keeps `as` from being *more* dangerous
         than the guarded loop it replaces (a `for each player p: if p is <who>`
         guard never matches a non-seat, so it drops the decision; `as` binds

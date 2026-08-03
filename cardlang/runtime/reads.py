@@ -498,8 +498,8 @@ def magic_hand(rs: RuntimeState) -> dict[int, Zone]:
     coupling is to the language rule, not to any one game file — but held to
     the same failure currency: a game that declares no `hand[player]` family
     gets a typed error naming the rule, not a `KeyError`. (resolve's magic-
-    name wall only covers games with `Card`-typed move parameters, so this
-    backstop is reachable.)
+    name check only covers games with `Card`-typed move parameters, so this
+    is an Owner Guard, not a Shadow Guard.)
 
     Returns player-keyed instances: `hand` is a `hand[player]` family by the
     magic-name rule, so its keys are seats even though the generic zone store
