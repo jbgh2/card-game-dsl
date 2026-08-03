@@ -3963,7 +3963,7 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
     """Functions are hermetic and non-recursive: a body may reference only its own
     parameters, binders it introduces (`number of players where …`), and game/phase
     state — not a name the flat classifier tagged `local` from some unrelated binder,
-    and not the call-site pronouns `actor`/`action`/`outcome` (the runtime clears
+    and not the call-site pronouns (`_CALL_SITE_PRONOUNS` — the runtime clears
     them); and the call graph must be acyclic (a cycle would loop forever at runtime).
     A function may not reuse a stdlib call name: a call would type-check against the
     stdlib signature but dispatch to the user function at run time."""
@@ -3993,9 +3993,14 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
                     nd.span,
                 )
             elif nd.ref_kind == "pronoun" and nd.name in _CALL_SITE_PRONOUNS:
+                # The list is RENDERED from the registry, not spelled out: a
+                # hand-written enumeration goes stale the next time the pronoun set
+                # moves, and a diagnostic that names the wrong words misdirects the
+                # designer it is meant to repair.
                 bag.error(
                     f"function '{fn.name}' reads the call-site pronoun '{nd.name}'; a "
-                    f"function is hermetic and may not read actor/action/outcome — "
+                    f"function is hermetic and may not read "
+                    f"{'/'.join(sorted(_CALL_SITE_PRONOUNS))} — "
                     f"pass the value in as a parameter",
                     nd.span,
                 )
