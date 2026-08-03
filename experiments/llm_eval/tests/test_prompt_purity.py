@@ -176,23 +176,39 @@ ENGINE_ROOTS = frozenset({"cardlang", "pyspiel"})
 ENTRY_MODULES = (agents_mod, prompts_mod)
 PACKAGE = agents_mod.__package__ or ""
 PACKAGE_DIR = Path(inspect.getsourcefile(agents_mod) or "").parent
+# The package's identity ON DISK, which no import alias can vary. `PACKAGE` is
+# whatever spelling the invoking command produced and is used only where a name
+# has to be built; membership is decided against this.
+PACKAGE_NAME = PACKAGE_DIR.name
 
 
 def _source_of(module: str) -> Path | None:
     """The file `module` would execute, or None if it names nothing this package
-    defines. Resolved against the directory rather than through `importlib`, so
-    an attribute mistaken for a submodule (`...prompts.RULES_RAW`, which
+    defines.
+
+    Membership is decided by the FILESYSTEM, not by a prefix test against the
+    live import alias. That alias depends on how pytest was invoked — collecting
+    `experiments/llm_eval/tests` makes `__package__` `llm_eval`, while loading
+    the package canonically makes it `experiments.llm_eval` — and CI runs it one
+    way while `pytest -q` from the repo root would run it the other. A prefix
+    test against whichever alias happens to be live silently drops an absolute
+    self-import spelled the other way, so the closure's reach would depend on
+    the command that ran it.
+
+    Resolved against the directory rather than through `importlib`, so an
+    attribute mistaken for a submodule (`...prompts.RULES_RAW`, which
     `from .prompts import RULES_RAW` cannot be distinguished from an import of a
-    submodule by syntax alone) simply misses instead of raising."""
-    if module != PACKAGE and not module.startswith(PACKAGE + "."):
+    submodule by syntax alone) simply misses instead of raising.
+    """
+    parts = module.split(".")
+    if PACKAGE_NAME not in parts:
         return None
-    rel = module[len(PACKAGE) :].lstrip(".")
+    rel = parts[parts.index(PACKAGE_NAME) + 1 :]
     if not rel:
         return PACKAGE_DIR / "__init__.py"
-    parts = rel.split(".")
     for candidate in (
-        PACKAGE_DIR.joinpath(*parts).with_suffix(".py"),
-        PACKAGE_DIR.joinpath(*parts) / "__init__.py",
+        PACKAGE_DIR.joinpath(*rel).with_suffix(".py"),
+        PACKAGE_DIR.joinpath(*rel) / "__init__.py",
     ):
         if candidate.exists():
             return candidate
@@ -313,6 +329,27 @@ def test_the_decision_path_never_imports_the_engine() -> None:
         "the walk followed no intra-package edge — it has stopped checking "
         "anything the per-module scrapes did not already check"
     )
+
+
+def test_the_closure_does_not_depend_on_the_packages_import_alias() -> None:
+    """The same module resolves whichever spelling names it.
+
+    `pytest experiments/llm_eval/tests -q` — the CI command — imports this
+    package as `llm_eval`; loaded canonically it is `experiments.llm_eval`. An
+    absolute self-import is legal either way, so a closure that decided
+    membership by prefix-matching the live alias would follow the edge under one
+    command and silently drop it under the other. A leak scrape whose reach
+    depends on how it was invoked is not a scrape.
+    """
+    canonical = _source_of(f"{PACKAGE_NAME}.render")
+    assert canonical is not None and canonical.name == "render.py"
+    for alias in (f"experiments.{PACKAGE_NAME}.render", f"somewrapper.{PACKAGE_NAME}.render"):
+        assert _source_of(alias) == canonical, (
+            f"{alias!r} resolves differently from {PACKAGE_NAME}.render — the "
+            f"closure's reach depends on the package's import alias"
+        )
+    assert _source_of("cardlang.runtime.values") is None, "membership must not over-match"
+    assert _source_of("pyspiel") is None
 
 
 def test_the_closure_walks_every_enclosing_package_initializer() -> None:
