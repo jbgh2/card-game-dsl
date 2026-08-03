@@ -1,10 +1,10 @@
 """Every assert-currency site in the runtime packages is write-time-triaged.
 
 decisions.md "Closed-domain completeness" (write-time triage): a check lands
-only after naming its owner — a **wall** (moved to the owning layer, in that
-layer's currency), a **backstop** (it stays, and its comment names the wall it
-shadows), or a **missing wall** (the wall is built upstream and the site
-becomes a backstop citing it). The runtime's failure currency for anything a
+only after naming its owner — an **Owner Guard** (moved to the owning layer,
+in that layer's currency), a **Shadow Guard** (it stays, and its comment names
+the Owner Guard it shadows), or a **missing Owner Guard** (the Owner Guard is
+built upstream and the site becomes a Shadow Guard citing it). The runtime's failure currency for anything a
 game description can cause is the typed ``RuntimeError``; an ``assert`` /
 ``raise AssertionError`` is compiler-bug currency only. The runtime-assert
 census (tests/test_movement_endpoints.py's origin story) applied that triage
@@ -24,20 +24,20 @@ that ``if`` header — one of:
   assignment operator", the native dispatch's "unknown …" fallthroughs);
   ``assert_never`` sites need no marker: mypy owns their unreachability and
   they are not assert statements, so they are outside the scraped domain; or
-* a **guarantor word** naming the upstream wall the site backstops —
-  ``backstop`` itself, or the owning pass/registry: ``grammar``, ``parse``,
+* a **guarantor word** naming the upstream Owner Guard the site shadows —
+  ``shadow guard`` itself, or the owning pass/registry: ``grammar``, ``parse``,
   ``resolve``, ``typecheck``, ``expand``, ``deckcheck``, ``registry`` (the
   existing style: "(resolve should have rejected this)", "resolve() must
   reject a missing max_length", "grammar makes `or <default>` mandatory").
 
-The classifier checks that a site *names* its owner; whether the named wall
+The classifier checks that a site *names* its owner; whether the named guard
 truly guards it is the reviewer's judgment, exactly as for any comment. A
 site with neither tag fails the build with the triage instructions.
 
 Completeness ledger (decisions.md "Closed-domain completeness"):
 
 property:  every assert-currency site in the runtime packages names its triage
-           class (dispatch fallthrough, or backstop naming its wall) in
+           class (dispatch fallthrough, or Shadow Guard naming its Owner Guard) in
            machine-checkable form.
 domain:    ``ast.Assert`` nodes and ``ast.Raise`` nodes whose exception is
            ``AssertionError`` (call or bare name), in every module of the
@@ -55,13 +55,13 @@ covered:   all modules of both packages; all site shapes (bare assert, assert
            so the classifier itself cannot rot vacuously green.
 sampled:   the guarantor vocabulary is a closed word list (this module's
            ``GUARANTOR_WORDS``); a future pass must be added to it when it
-           becomes a wall owner. Substring matching means an unrelated comment
+           becomes a guard owner. Substring matching means an unrelated comment
            containing e.g. "parse" would satisfy the classifier — accepted:
            the gate enforces that triage is *stated*, review enforces that it
            is *true*.
 residual:  compile-pass modules (cardlang/parse.py … ir.py, openspiel/) are
            outside the domain — their failure currency for internal
-           invariants is the assert, walled per-pass by the ``Contract``
+           invariants is the assert, guarded per-pass by the ``Contract``
            blocks in their module docstrings and the assert_never dispatch
            pins, so a blanket scrape would mis-rank their sites. Extending the
            gate there needs its own convention (which comment tags mark a pass
@@ -81,12 +81,17 @@ import cardlang.stdlib
 
 FALLTHROUGH_MARKERS = ("unknown ", "no declared ")
 GUARANTOR_WORDS = (
-    # The role names first: a site that stands behind another guard IS a Shadow
-    # Guard, and naming the Owner Guard it shadows is the tag. `backstop` is
-    # retired (docs/glossary.md section 5), so it is deliberately absent —
-    # this tuple is what makes the retirement enforceable rather than advisory.
+    # A site that stands behind another guard IS a Shadow Guard, so that is the
+    # self-tag; everything else names the owning pass. `backstop` is retired
+    # (docs/glossary.md section 5) and deliberately absent — this tuple is what
+    # makes the retirement enforceable rather than advisory.
+    #
+    # `owner guard` is deliberately NOT here. An assert is compiler-bug currency,
+    # so an assert site can never BE the Owner Guard: a condition a game can
+    # reach is a MISSING Owner Guard and must raise a typed error instead. As a
+    # tag it would name no upstream guarantor and, because matching is by
+    # substring, would let a bare `# Owner Guard` pass this gate.
     "shadow guard",
-    "owner guard",
     "grammar",
     "parse",
     "resolve",
@@ -146,7 +151,7 @@ def _sites_in_source(source: str, module: str) -> list[Site]:
 
     # Parent links, so a raise that is the first statement of an `if` body can
     # claim the comment block above the `if` header (state.py's zone-index
-    # wall-bypass raise is the motivating shape).
+    # Owner-Guard-bypass raise is the motivating shape).
     first_stmt_of_if: dict[int, ast.If] = {}  # id(child) -> enclosing If
     for parent in ast.walk(tree):
         if isinstance(parent, ast.If) and parent.body:
@@ -239,6 +244,24 @@ def test_probe_unrelated_comment_is_flagged() -> None:
 
 def test_probe_untagged_raise_is_flagged() -> None:
     src = 'def f(x):\n    raise AssertionError(f"unexpected value {x}")\n'
+    assert _classify(src) == [False]
+
+
+def test_probe_bare_owner_guard_label_is_flagged() -> None:
+    """`Owner Guard` is not a guarantor word, and this is where that is enforced.
+
+    The tag's job is to NAME the upstream guard a site stands behind. An assert
+    is compiler-bug currency, so an assert site can never be the Owner Guard
+    itself — a condition a game can reach is a MISSING Owner Guard and must
+    raise a typed error instead. Admitting the phrase would therefore let a site
+    self-label with a word that identifies no guarantor, and since matching is
+    by substring, a bare `# Owner Guard` would satisfy the gate while naming
+    nothing.
+
+    red under: add `"owner guard"` to `GUARANTOR_WORDS` — this flips to
+    accepted. Verified by making that edit.
+    """
+    src = "def f(x):\n    # Owner Guard.\n    assert x\n"
     assert _classify(src) == [False]
 
 
