@@ -143,7 +143,7 @@ def skat_trick_winner(
     cards = gr.singles["trick_pile"]
     if len(cards) != 3:
         # The pile's live size is the hosting game's runtime data, so a wrong
-        # call site is the description's error, in the runtime's currency.
+        # call site is the description's error, so this raise is its Owner Guard.
         raise OwnerGuardError(
             f"skat_trick_winner: trick pile holds {len(cards)} cards, expected "
             f"a completed 3-card trick"

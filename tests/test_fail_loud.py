@@ -273,7 +273,7 @@ def test_offer_of_parameterized_move_is_accepted() -> None:
     _run(OFFER_OF_PARAMETERIZED_MOVE)
 
 
-# --- runtime DATA conditions fail in the runtime's currency --------------------
+# --- runtime DATA conditions fail as Owner Guards ------------------------------
 #
 # The runtime-assert census (walls-at-the-right-level) converted these from bare
 # asserts / silent absences into typed RuntimeErrors: each is a condition only
@@ -450,7 +450,7 @@ def test_a_non_zone_value_at_a_movement_endpoint_raises_a_typed_error() -> None:
     # typed), so reaching this branch from a checked program needs a value
     # the checker deliberately leaves loose (`outcome`, an unregistered
     # action field) — hence a constructed statement: the backstop is not a
-    # dead branch, and it must answer in the runtime's currency, not with a
+    # dead branch, and it must answer as an Owner Guard, not with a
     # bare assert.
     import random
 
@@ -497,6 +497,6 @@ def test_a_non_player_loser_selection_raises_a_typed_error() -> None:
     # The runtime backstop behind the static `loser:` type wall. A non-player
     # selection the checker CAN type (`loser: "oops"`) is rejected statically; a
     # selection typed `TAny` slips past, and the driver checks the value's
-    # player-ness in the runtime's currency.
+    # player-ness as an Owner Guard.
     with pytest.raises(OwnerGuardError, match="not a player"):
         _run(LOSER_NOT_A_PLAYER)

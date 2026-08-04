@@ -66,7 +66,7 @@ def pinochle_meld_value(
     trump = gr.state["trump_suit"]
     if not isinstance(trump, str):
         # Whether trump has been declared yet is live game state, so scoring
-        # meld before it is the description's error, in the runtime's currency.
+        # meld before it is the description's error, so this raise is its Owner Guard.
         raise OwnerGuardError(
             "pinochle_meld_value: meld is scored only after `trump_suit` is "
             "declared"

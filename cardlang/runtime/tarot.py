@@ -120,8 +120,8 @@ def tarot_excuse_player(
     state = facts.round_state
     if state is None:
         # Same contract as the `state` pronoun: whether a round has run is
-        # live game flow, so a premature call is the description's error, in
-        # the runtime's currency.
+        # live game flow, so a premature call is the description's error, and
+        # this raise is its Owner Guard.
         raise OwnerGuardError(
             "tarot_excuse_player() called with no active or just-completed "
             "round"

@@ -118,7 +118,7 @@ def _round_state(facts: EngineFacts, caller: str) -> Mapping[str, object]:
     """The live round accumulator, or the just-completed round's terminal
     state — exactly the `state` pronoun's view (`mech_state[-1]` while a round
     runs, else `last_round_state`). Whether a round is live is game flow, so a
-    premature call is the description's error, in the runtime's currency."""
+    premature call is the description's error, so this raise is its Owner Guard."""
     state = facts.round_state
     if state is None:
         raise OwnerGuardError(

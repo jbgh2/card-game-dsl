@@ -31,7 +31,7 @@ def schnapsen_trick_winner(
     cards = gr.singles["trick_pile"]
     if len(cards) != 2:
         # The pile's live size is the hosting game's runtime data, so a wrong
-        # call site is the description's error, in the runtime's currency.
+        # call site is the description's error, so this raise is its Owner Guard.
         raise OwnerGuardError(
             f"schnapsen_trick_winner: trick pile holds {len(cards)} cards, "
             f"expected a completed 2-card trick"

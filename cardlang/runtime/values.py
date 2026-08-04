@@ -444,8 +444,8 @@ class Seating:
         out-of-range seat (`9` in a 4-player game becomes seat 1) and run the
         round with the wrong leader. `from` is a game expression and the
         static seat-range check only recognizes a direct literal, so `from
-        4 + 5` reaches here unchallenged — runtime DATA, reported in the
-        runtime's currency. The membership test also catches a non-`Player`
+        4 + 5` reaches here unchallenged — runtime DATA, so this is
+        its Owner Guard. The membership test also catches a non-`Player`
         value (a `none`-valued `Player?`, an unrefined pronoun), which would
         otherwise die on a bare `TypeError` inside the comprehension."""
         if leader not in self.players:

@@ -206,7 +206,7 @@ def play_game(
         if not isinstance(selected, int):
             # `loser:` takes any expression and the checker leaves its type
             # open, so the player-ness of the result is checked here — a
-            # game-description error in the runtime's currency.
+            # game-description error, refused by its Owner Guard.
             raise OwnerGuardError(
                 f"`loser:` selected {selected!r} ({type(selected).__name__}), "
                 f"not a player"

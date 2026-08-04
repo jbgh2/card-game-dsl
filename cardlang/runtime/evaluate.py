@@ -170,9 +170,8 @@ def _name(e: n.NameRef, ctx: Ctx) -> Any:
                     # The bare-family actor sugar (`hand` = the acting
                     # player's hand) read outside any acting context — a phase
                     # body has no actor. User-reachable (`shuffle hand` in a
-                    # phase body checks clean today), so it fails in the
-                    # runtime's currency with the fix named, not a bare
-                    # assert. A static Owner Guard needs statement-position
+                    # phase body checks clean today), so it fails as an
+                    # Owner Guard with the fix named, not a bare assert. A static Owner Guard needs statement-position
                     # context (which construct encloses this read) that no
                     # pass threads today.
                     raise OwnerGuardError(
@@ -205,7 +204,7 @@ def _pronoun(name: str, ctx: Ctx) -> Any:
             # Reading `state` with neither active — a body that reads `state.x`
             # before any round has run — is a game-description error (the
             # checker validates the field, not the read's position in time),
-            # so it fails in the runtime's currency, not a stale/empty frame.
+            # so it fails as an Owner Guard, not a stale/empty frame.
             if ctx.rs.mech_state:
                 return ctx.rs.mech_state[-1]
             if ctx.rs.last_round_state is None:
@@ -279,7 +278,7 @@ def _member(obj: Any, field: str) -> Any:
         return obj[field]
     # Reachable when a value the checker deliberately leaves loose (an
     # `outcome` payload, an unregistered action field — TAny) is dereferenced
-    # at play time: a game-description error in the runtime's currency.
+    # at play time: a game-description error, refused by its Owner Guard.
     raise OwnerGuardError(
         f"cannot read field '{field}' of {obj!r} — the checker leaves this "
         f"value's type open, so the read is checked here"

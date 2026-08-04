@@ -77,7 +77,7 @@ def five_hundred_bid_value(rank: int) -> int:
     """The score value of a contract ordinal: the Pagat table (6♠=40, +20 per
     strain, +100 per level, 10NT=520), misère 250, open misère 500. Any other
     integer is no contract — the ladder above is the whole domain, so a stray
-    value is the description's error, in the runtime's currency."""
+    value is the description's error, so this raise is its Owner Guard."""
     if rank == _MISERE_ORD:
         return 250
     if rank == _OPEN_MISERE_ORD:
@@ -255,7 +255,7 @@ def five_hundred_trick_winner(
         order = [q for q in order if q != dead]
     if len(cards) != len(order):
         # The pile's live size is the hosting game's runtime data, so a wrong
-        # call site is the description's error, in the runtime's currency.
+        # call site is the description's error, so this raise is its Owner Guard.
         raise OwnerGuardError(
             f"five_hundred_trick_winner: trick pile holds {len(cards)} cards, "
             f"expected a completed {len(order)}-card trick"

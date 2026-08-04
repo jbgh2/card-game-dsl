@@ -174,7 +174,7 @@ game G {
 """
     game = check_dsl(src, "g.cardlang")
     # A conditional non-production is the description's error, so the raise is
-    # a typed RuntimeError — the runtime's currency — not an assert.
+    # an Owner Guard — the game author must act — not an assert.
     with pytest.raises(OwnerGuardError, match="did not produce"):
         play_game(game, random.Random(0))
 

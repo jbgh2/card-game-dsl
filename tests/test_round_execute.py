@@ -124,7 +124,7 @@ game G {
 def test_round_state_read_without_a_round_fails_loudly() -> None:
     # A premature `state.` read is the game description's error (the checker
     # validates the field, not the read's position in game flow), so the loud
-    # failure is a typed RuntimeError — the runtime's currency — not an assert.
+    # failure is an Owner Guard — the game author must act — not an assert.
     game = check_dsl(NO_ROUND_SRC, "g.cardlang")
     with pytest.raises(OwnerGuardError, match="no active or just-completed round"):
         play_game(game, random.Random(0))

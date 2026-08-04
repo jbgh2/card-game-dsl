@@ -696,7 +696,7 @@ def _produces(stmt: n.Produces, ctx: Ctx) -> None:
         # Whether the producing phase actually produced is runtime DATA
         # (resolve's outcome-scope rule orders producer before consumer, but a
         # conditional body can still complete without producing), so the Owner
-        # Guard is a typed error in the runtime's failure currency.
+        # Guard is an Owner Guard, addressed to the game author.
         raise OwnerGuardError(
             f"phase '{stmt.define}' did not produce an outcome before its "
             f"consumer — every path through an outcome phase must `produce`"
@@ -731,7 +731,7 @@ def _run_define(name: str, ctx: Ctx) -> tuple[str, list[Any]]:
         return produced.tag, produced.payloads
     # Which path a define's body takes is runtime data — a conditional body
     # can complete without reaching a `produce` — so this is the game
-    # author's error in the runtime's failure currency, not an assert.
+    # author's error, raised as an Owner Guard, not an assert.
     raise OwnerGuardError(
         f"define '{name}' completed without producing — every path through "
         f"a define body must reach a `produce`"
