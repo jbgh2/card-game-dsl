@@ -1505,8 +1505,11 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
     into the first, and deliberately: the two report in different currencies (a
     library's own file, against the library alone; a game's declaration, while
     resolving it) and run at different times, so sharing a body would mean
-    threading a currency through it. The copy is a backstop naming the wall it
-    shadows (decisions.md "Closed-domain completeness", write-time triage), and
+    threading a currency through it. This copy is the Owner Guard of its own
+    class, not a Shadow Guard of `_resolve_zone`'s: a library author can write
+    `x : Hand` with no game in sight, `_resolve_zone` never runs on that path,
+    and so nothing else can decide the case (decisions.md "Closed-domain
+    completeness", write-time triage). Duplication is not a shadow relation —
     the two are pinned EQUAL over the whole registry by
     `tests/test_family_libraries.py`'s
     `test_a_contract_shape_is_refused_exactly_when_the_declaration_would_be` —
