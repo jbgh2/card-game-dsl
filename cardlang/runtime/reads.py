@@ -285,6 +285,18 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         zone_families=_fs("hole", "shown"),
         single_zones=_fs("board"),
     ),
+    # The same declarations, for the heads-up variant. Deliberately a second
+    # row rather than a second game on the row above: a module binds one row at
+    # import, so the two games' showdowns cannot share one without the row
+    # naming a game it does not serve (issue #232, and the module docstring of
+    # cardlang/runtime/holdem_heads_up.py).
+    PrimitiveReads(
+        module="cardlang/runtime/holdem_heads_up.py",
+        game_file="holdem-heads-up.cardlang",
+        state_vars=_fs("in_hand", "committed", "folded"),
+        zone_families=_fs("hole", "shown"),
+        single_zones=_fs("board"),
+    ),
     PrimitiveReads(
         module="cardlang/runtime/tarot.py",
         game_file="french-tarot.cardlang",

@@ -119,6 +119,7 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "pot_share",  # Stud: the chips a player collects at showdown (side-pot layering)
         "holdem_next_entrant",  # Hold'em: the seat, or the next entrant clockwise (busted seats skipped)
         "holdem_pot_share",  # Hold'em: the chips a player collects at showdown (side-pot layering)
+        "holdem_heads_up_pot_share",  # Heads-up Hold'em: the same query, against its own declared-reads row
         "bigtwo_first_leader",  # Big Two: the holder of the 3♦, who leads the first hand
         "pinochle_meld_value",  # Pinochle: a player's hand's meld points under the declared trump
         "tarot_led_suit",  # French Tarot: the effective led suit (first non-Excuse card) in play
@@ -315,6 +316,7 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "gin_lay_ok_c",
         "gin_shown_points",
         "gin_valid_meld",
+        "holdem_heads_up_pot_share",
         "holdem_pot_share",
         "peg_pair_points",
         "peg_run_points",

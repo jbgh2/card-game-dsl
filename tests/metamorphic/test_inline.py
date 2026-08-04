@@ -167,6 +167,7 @@ def test_the_library_procedure_games_are_pinned_as_uncovered() -> None:
     red under: delete `run open_street(1)` from docs/games/kuhn-poker.cardlang."""
     names = sorted(p.name for p in LIBRARY_PROCEDURE_GAMES)
     assert names == [
+        "holdem-heads-up.cardlang",
         "holdem.cardlang",
         "kuhn-poker.cardlang",
         "leduc-poker.cardlang",

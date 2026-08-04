@@ -1,0 +1,245 @@
+// Heads-up fixed-limit Texas Hold'em (2 players, ONE hand) — formalized DSL
+// (parser/checker/runtime target).
+//
+// Companion to holdem-heads-up.md. The corpus's third poker-family rung after
+// Kuhn and Leduc, and the SECOND Hold'em variant: `holdem.cardlang` is the
+// three-handed cash game played to a single chip winner; this is the two-handed
+// benchmark hand.
+//
+// EXACT VARIANT. Two players. Fixed limit. Blinds 1 (small) / 2 (big), with the
+// heads-up reversal: the BUTTON posts the small blind, so it acts first
+// pre-flop and last on every later street (Pagat). Bet sizes 2, 2, 4, 4 — the
+// limit doubles from the turn on. FOUR aggressive actions per street on every
+// street (see the bets-per-street table below). One hand, then the game ends;
+// the score is the hand's chip delta.
+//
+// Source: Pagat, https://www.pagat.com/poker/variants/texasholdem.html.
+// ONE DELIBERATE DEVIATION from it, and it is the reason this file exists
+// separately rather than as a player-count of `holdem.cardlang`: Pagat says
+// "if a betting round begins with only two active players, there is no limit on
+// the number of raises", and `holdem.cardlang` implements exactly that (its
+// `raise_cap := ... else 99`). This variant CAPS every street at four, which is
+// the ruleset of the standard heads-up-limit benchmark (the ACPC / Cepheus
+// configuration) and what makes the game a bounded, comparable unit. A capped
+// heads-up game and an uncapped one are different games; this file is the
+// capped one and says so rather than inheriting an ambiguity.
+//
+// BETS PER STREET, spelled out because the number 4 alone is ambiguous.
+// `raise_cap` in `poker_betting` counts AGGRESSIONS INCLUDING THE OPENING BET
+// (`bet` sets `raises := 1`; `raise` gates on `raises < raise_cap`), so
+// `raise_cap : 4` means four aggressive actions, not four raises on top of a
+// bet:
+//
+//   pre-flop  the big blind is the opening aggression (`raises := 1`), so the
+//             street allows THREE further raises — four bets, capping
+//             `bet_to_match` at 8 (2 + 2 + 2 + 2)
+//   flop      no forced post: one bet plus THREE raises — four bets, capping
+//             `bet_to_match` at 8
+//   turn      the same four bets at the doubled size — cap 16
+//   river     the same — cap 16
+//
+// tests/test_playout_holdem_heads_up.py drives a street to the cap and asserts
+// `raise` has left the legal set, so the table above is pinned rather than
+// asserted in prose.
+//
+// NO PLAYER IS EVER ALL-IN, and that is arithmetic, not luck: the four caps
+// above sum to 8 + 8 + 16 + 16 = 48, so a hand cannot take more than 48 chips
+// off a 100-chip stack. `can_act`'s `stack[p] > 0` therefore never gates, no
+// side pot can form, and the blinds are never partial posts — which is why they
+// are written as flat subtractions here where `holdem.cardlang`, whose seats do
+// bust, guards every post with a short-stack conditional. The bound is pinned
+// by a playout invariant, not left to the reader.
+//
+// Betting proceeds as in standard fixed-limit poker: check/bet/call/raise and
+// the can_act/owes/pending ring predicates come from the family library shared
+// with Kuhn, Leduc, Seven-Card Stud and three-handed Hold'em
+// (docs/libraries/poker_betting.cardlang). `fold` is this game's own — the
+// folded hand mucks unseen, as in Kuhn, Leduc and three-handed Hold'em.
+//
+// Chips are plain integers (the Stud/Leduc convention). `net[player]` is the
+// terminal score — the hand's chip delta against the starting stack, exactly as
+// Leduc scores, and exactly OpenSpiel's `money_[player] - kStartingMoney`.
+
+game HoldemHeadsUp {
+
+  uses poker_betting
+
+  players: 2
+  direction: clockwise
+  max_length: 200
+
+  cards: standard52
+  ranking: aces high
+
+  zones {
+    deck          : Deck
+    hole[player]  : Hand<player>           // the two private cards
+    board         : Discard                // the community cards (flop, turn, river)
+    shown[player] : PublicHand<player>     // the showdown reveal
+    muck          : Muck                   // folded / spent cards
+    burn          : Burn                   // one burned card before each deal
+  }
+
+  state {
+    // Ample by the 48-chip bound argued in the header: no seat can be short.
+    stack[player]     : Integer = 100
+    net[player]       : Integer = 0        // terminal score: chips won or lost
+
+    // The showdown primitive's declared reads (cardlang/runtime/reads.py).
+    // Both seats always enter — there is exactly one hand and neither can bust
+    // before it — so `in_hand` is constant here where three-handed Hold'em
+    // recomputes it per hand.
+    in_hand[player]   : Boolean = true
+
+    // The library's contract (poker_betting `requires`). `acted` and `limit`
+    // are absent because the library provides them; the bet sizes are named at
+    // the streets that use them.
+    committed[player] : Integer = 0
+    bet_by[player]    : Integer = 0
+    folded[player]    : Boolean = false
+    bet_to_match      : Integer = 0
+    raises            : Integer = 0
+    raise_cap         : Integer = 4        // four aggressions per street, every street
+
+    // Heads-up positions, fixed for the single hand. The button posts the
+    // small blind and acts first pre-flop; the big blind opens every later
+    // street. Both are public — which seat holds which blind is visible to
+    // everyone at the table — so they are state, not a hidden binding.
+    button            : Player = 0
+    big_blind         : Player = 1
+  }
+
+  phase deal {
+    shuffle deck
+
+    // The blinds are forced posts (no decision), so they go in AFTER the street
+    // is opened — opening clears `bet_by`, and the big blind stands as the
+    // street's opening bet, taking the first of the four aggressions the cap
+    // allows. Neither post can be partial (the 48-chip bound), so neither needs
+    // the short-stack conditional three-handed Hold'em carries.
+    run open_street(2)
+    bet_by[button] := 1
+    stack[button] := stack[button] - 1
+    committed[button] := committed[button] + 1
+    bet_by[big_blind] := 2
+    stack[big_blind] := stack[big_blind] - 2
+    committed[big_blind] := committed[big_blind] + 2
+    bet_to_match := 2
+    raises := 1
+
+    // Burn, then two hole cards each — FOUR burns per hand, not three.
+    // Deliberate, and against common casino practice, which burns only before
+    // the flop, turn and river. Pagat is this corpus's rule source (CLAUDE.md)
+    // and it burns here too, and three-handed Hold'em burns here for the same
+    // reason. Removing this burn shifts every fixed-seed holding, so it is a
+    // rules choice rather than a tidy-up.
+    deal 1 card from deck to burn
+    // Two passes of one card, not one pass of two: the cards go round the table
+    // "one at a time". Each pass starts at SEAT 0, where the rules start it left
+    // of the button; that half is not expressible (issue #196), and it is
+    // distributionally identical on a shuffled deck.
+    for each player p: deal 1 card from deck to hole[p]
+    for each player p: deal 1 card from deck to hole[p]
+  }
+
+  // Pre-flop, opened by the button — heads-up the button is the small blind, so
+  // it acts first here and last on every later street.
+  //
+  // No entry guard, unlike three-handed Hold'em's. That guard exists because a
+  // big blind all-in for its whole post leaves a lone live player who still
+  // owes; here nobody can be all-in, so both seats are `pending` the moment the
+  // street opens and the round always has work to do.
+  phase preflop {
+    round offering [check, bet, call, fold, raise] from button
+          over players where pending(player)
+          order priority
+          until (number of players where pending(player)) is 0
+             or ((number of players where can_act(player)) <= 1
+                 and (number of players where can_act(player) and owes(player)) is 0)
+  }
+
+  // Flop, turn and river: burn, deal, then a betting round opened by the big
+  // blind. Each runs only while both players are still in — a fold ends the
+  // hand, and `folded` only ever grows, so the flat guards short-circuit
+  // exactly as nesting would. The limit doubles from the turn on (Pagat).
+
+  phase flop {
+    if (number of players where not folded[player]) > 1 {
+      deal 1 card from deck to burn
+      deal 3 cards from deck to board
+      run open_street(2)
+      round offering [check, bet, call, fold, raise] from big_blind
+            over players where pending(player)
+            order priority
+            until (number of players where pending(player)) is 0
+               or ((number of players where can_act(player)) <= 1
+                   and (number of players where can_act(player) and owes(player)) is 0)
+    }
+  }
+
+  phase turn {
+    if (number of players where not folded[player]) > 1 {
+      deal 1 card from deck to burn
+      deal 1 card from deck to board
+      run open_street(4)
+      round offering [check, bet, call, fold, raise] from big_blind
+            over players where pending(player)
+            order priority
+            until (number of players where pending(player)) is 0
+               or ((number of players where can_act(player)) <= 1
+                   and (number of players where can_act(player) and owes(player)) is 0)
+    }
+  }
+
+  phase river {
+    if (number of players where not folded[player]) > 1 {
+      deal 1 card from deck to burn
+      deal 1 card from deck to board
+      run open_street(4)
+      round offering [check, bet, call, fold, raise] from big_blind
+            over players where pending(player)
+            order priority
+            until (number of players where pending(player)) is 0
+               or ((number of players where can_act(player)) <= 1
+                   and (number of players where can_act(player) and owes(player)) is 0)
+    }
+  }
+
+  // Showdown — RNG-free, decision-free. A contested hand reveals both players'
+  // hole cards into a public hand (the movement event carries both identities —
+  // the derived reveal); a hand that ended in a fold reveals nothing, which is
+  // what keeps a folded holding unknowable even in hindsight.
+  phase showdown {
+    if (number of players where not folded[player]) > 1 {
+      for each player p: if not folded[p] {
+        move all cards from hole[p] to shown[p]
+      }
+    }
+    for each player p: stack[p] := stack[p] + holdem_heads_up_pot_share(p)
+    for each player p: move all cards from hole[p] to muck
+    for each player p: move all cards from shown[p] to muck
+    // The community cards are spent when the hand is. A no-op on a hand that
+    // ended before the flop.
+    move all cards from board to muck
+    for each player p: net[p] := stack[p] - 100
+  }
+
+  winner: highest net
+}
+
+// This game's own betting move. check/bet/call/raise and the can_act/owes/
+// pending ring predicates come from `uses poker_betting` above; `fold` stays
+// here because it touches this game's zones. The folded hand goes to the Muck —
+// trivial to every observer, the owner included — so a fold reveals nothing,
+// matching the rule that a folded hand is never shown. All five are offered
+// together in `offering [check, bet, call, fold, raise]` order; the `when:`
+// guards filter to the exact option list per decision: free-to-act ->
+// [check(, bet)], facing a bet -> [call, fold(, raise)].
+
+move_type fold {
+  when: bet_to_match > bet_by[actor]
+  effect {
+    folded[actor] := true
+    move all cards from hole[actor] to muck
+  }
+}
