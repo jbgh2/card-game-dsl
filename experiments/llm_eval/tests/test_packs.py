@@ -56,6 +56,10 @@ def test_every_corpus_game_is_packed_or_named_unpacked() -> None:
 def test_an_unpacked_game_is_refused_rather_than_defaulted() -> None:
     """The refusal, and that it names the way out. `SystemExit` rather than a
     silent Cheat pack is the whole point of the registry."""
+    # An empty `UNPACKED` is a legitimate future state — every corpus game
+    # gaining a pack — and the slice below would then probe nothing while still
+    # passing, retiring this module's headline property in silence.
+    assert UNPACKED, "no unpacked game left to probe the refusal with"
     for short_name in sorted(UNPACKED)[:3]:
         with pytest.raises(SystemExit) as caught:
             pack_for(short_name)
@@ -89,6 +93,13 @@ def test_a_pack_declaring_action_verbs_offers_them_in_the_game() -> None:
     pyspiel = pytest.importorskip("pyspiel")
     from cardlang.openspiel import game as _adapter  # noqa: F401  (registration)
 
+    # A floor, because the loop SKIPS a pack declaring no verbs and Cheat
+    # declares none: emptying the only packed game's `action_verbs` — exactly
+    # the regression that silences every action-rate metric this test protects —
+    # would otherwise leave it passing having checked nothing.
+    assert any(p.action_verbs for p in PACKS.values()), (
+        "no pack declares action verbs, so this test checks nothing"
+    )
     for pack in PACKS.values():
         if not pack.action_verbs:
             continue

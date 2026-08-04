@@ -129,18 +129,31 @@ def test_decision_facts_record_what_was_on_offer() -> None:
 
 
 def test_the_baseline_only_ever_returns_a_legal_action() -> None:
-    """Including the awkward tail: at the raise cap, facing a bet, a strong
-    holding wants to raise and cannot."""
-    agent = HoldemRuleAgent(seed=0)
-    for legal in (
-        ["check", "bet"],
-        ["call", "fold", "raise"],
-        ["call", "fold"],  # the cap has closed the street
-        ["check"],
+    """Including the awkward tail: at the raise cap, facing a bet, a STRONG
+    holding wants to raise and cannot, so none of its preferred verbs is on
+    offer and the conservative fallback is the only path left.
+
+    The infostate is varied deliberately. `PREFLOP` holds 4♥ 8♦, which the
+    policy reads as weak, so `fold` is preferred and available in every case —
+    the tail is never entered. Replacing the whole tail with an illegal action
+    id leaves this test green if the strong fixture is dropped; that was
+    measured, not assumed.
+    """
+    strong = PREFLOP.replace("hole[0]=[4♥,8♦]", "hole[0]=[A♠,A♥]")
+    for infostate, legal in (
+        (PREFLOP, ["check", "bet"]),
+        (PREFLOP, ["call", "fold", "raise"]),
+        (PREFLOP, ["call", "fold"]),
+        (PREFLOP, ["check"]),
+        # The tail: a pocket pair reads STRONG, wants raise/bet/call/check, and
+        # the capped street offers only call and fold.
+        (strong, ["call", "fold"]),
+        (strong, ["fold"]),  # the degenerate case: nothing preferred at all
     ):
+        agent = HoldemRuleAgent(seed=0)
         view = DecisionView(
             player=0,
-            infostate=PREFLOP,
+            infostate=infostate,
             legal_actions=list(range(10, 10 + len(legal))),
             legal_strings=legal,
         )

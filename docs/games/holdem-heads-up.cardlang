@@ -14,7 +14,7 @@
 // the score is the hand's chip delta.
 //
 // Source: Pagat, https://www.pagat.com/poker/variants/texasholdem.html.
-// ONE DELIBERATE DEVIATION from it, and it is the reason this file exists
+// TWO DEVIATIONS from it. The first is deliberate and is the reason this file exists
 // separately rather than as a player-count of `holdem.cardlang`: Pagat says
 // "if a betting round begins with only two active players, there is no limit on
 // the number of raises", and `holdem.cardlang` implements exactly that (its
@@ -23,6 +23,17 @@
 // configuration) and what makes the game a bounded, comparable unit. A capped
 // heads-up game and an uncapped one are different games; this file is the
 // capped one and says so rather than inheriting an ambiguity.
+//
+// The second deviation is NOT deliberate and is recorded here rather than left
+// for a reader to discover: the big blind is never offered its option to raise
+// a limped pot. Pagat grants it ("The big blind player acts last and is allowed
+// to raise, even if the other active players have all called"); the family
+// library gates `raise` on owing a bet, and the big blind's forced post has
+// already matched it. The hand is otherwise correct — the bets-per-street table
+// below still holds, since the cap is reachable through small-blind-raise ->
+// big-blind-raise -> small-blind-raise — but the game tree is missing a real
+// decision node, so this file is NOT the ACPC configuration until issue #237
+// lands. Three-handed Hold'em has the same hole.
 //
 // BETS PER STREET, spelled out because the number 4 alone is ambiguous.
 // `raise_cap` in `poker_betting` counts AGGRESSIONS INCLUDING THE OPENING BET

@@ -37,18 +37,31 @@ Then the game ends. The score is `net`, the hand's chip delta against the
 100-chip starting stack — exactly Leduc's scoring, and exactly OpenSpiel's
 `money_[player] - kStartingMoney`.
 
-## The raise cap — and the one deviation from Pagat
+## Two deviations from Pagat — one chosen, one not
 
-Pagat caps a fixed-limit betting round at "one bet plus three (sometimes four)
-raises", and then says: *if a round begins with only two active players, there
-is no limit on the number of raises.* [holdem.md](holdem.md) implements exactly
-that — three-handed, a street that narrows to two goes uncapped.
+**The raise cap, deliberately.** Pagat caps a fixed-limit betting round at "one
+bet plus three (sometimes four) raises", and then says: *if a round begins with
+only two active players, there is no limit on the number of raises.*
+[holdem.md](holdem.md) implements exactly that — three-handed, a street that
+narrows to two goes uncapped.
 
 **This game caps every street at four aggressive actions instead.** That is the
-ruleset of the standard heads-up-limit benchmark (the ACPC / Cepheus
-configuration), and it is what makes the hand a bounded, comparable unit. A
-capped heads-up game and an uncapped one are different games; this file is the
-capped one and pins it rather than inheriting the ambiguity.
+cap the standard heads-up-limit benchmark (the ACPC / Cepheus configuration)
+uses, and it is what makes the hand a bounded, comparable unit. A capped
+heads-up game and an uncapped one are different games; this file is the capped
+one and pins it rather than inheriting the ambiguity.
+
+**The big blind's option, not deliberately.** Pagat grants it — *"The big blind
+player acts last and is allowed to raise, even if the other active players have
+all called"* — and this game does not: after the small blind completes, the big
+blind is offered `check` and nothing else. The family library gates `raise` on
+owing a bet, and the big blind's forced post has already matched it, so the
+option falls out for every game in the corpus that posts blinds; three-handed
+Hold'em has the same hole. The hand is otherwise correct — chips conserve and
+the table below still holds, because the cap stays reachable through
+small-blind-raise → big-blind-raise → small-blind-raise — but a real decision
+node is missing, so **this file is not yet the ACPC configuration**. Issue #237
+tracks it.
 
 "Four" alone is ambiguous, so here is the table it means. `raise_cap` counts
 **aggressions including the opening bet**, so `raise_cap : 4` is four bets on

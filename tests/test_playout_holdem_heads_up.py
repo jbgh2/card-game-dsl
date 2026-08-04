@@ -138,9 +138,14 @@ def test_no_seat_is_ever_all_in() -> None:
     for seed in range(20):
         _drive(seed, watch, policy=_always_aggressive)
 
-    # The bound has to BITE, or the test passes on a game nobody bets in.
-    assert worst <= _STARTING_STACK - _BIG_BLIND, (
-        f"no seat ever went below {worst} chips — the raising policy is not "
+    # The bound has to BITE, or the test passes on a game nobody bets in. The
+    # threshold is the FULL commitment, not one blind: the big blind's forced
+    # post puts a seat at 98 before anyone acts voluntarily, so a `worst <= 98`
+    # guard is satisfied by the deal alone and passes over a purely passive
+    # game — measured, 98 under check/call against 52 under the raising policy.
+    assert worst <= _STARTING_STACK - _MAX_COMMITMENT, (
+        f"no seat ever went below {worst} chips, but a hand that reaches every "
+        f"street's cap costs {_MAX_COMMITMENT} — the raising policy is not "
         f"reaching the caps and this test proves nothing"
     )
 
@@ -165,9 +170,12 @@ def test_four_aggressions_per_street_is_the_cap() -> None:
     remains.
 
     red under: change the game file's `raise_cap : Integer = 4` to `5`. RUN, not
-    predicted: this test fails naming a street that reached 5 aggressions, and
-    two others fall with it (`test_no_seat_is_ever_all_in`, because a fifth
-    aggression per street breaks the 48-chip commitment bound, and
+    predicted: this test fails on the `raise not in offered` assertion —
+    `pre-flop still offers 'raise' at 4 aggressions: ['call', 'fold', 'raise']`
+    — which fires before `raises <= _AGGRESSION_CAP` ever can, since the fifth
+    aggression is offered before it is taken. Two others fall with it
+    (`test_no_seat_is_ever_all_in`, because a fifth aggression per street breaks
+    the 48-chip commitment bound, and
     `test_the_street_caps_are_the_documented_numbers`, because the extra bet
     lifts every street's peak).
     """

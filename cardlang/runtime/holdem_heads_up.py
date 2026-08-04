@@ -15,7 +15,9 @@ row that does not name it, and `tests/test_primitive_reads.py` pins each row
 against its own game's declarations — so a later edit to `holdem.cardlang`'s
 zone names would silently break a game no pin was watching. Selecting the row
 from the running game instead of from a module constant is the general fix and
-is out of scope here; it is issue #232.
+is out of scope here; it is issue #232. That the CURRENT arrangement has no
+pin — a game can call another game's primitive and the suite stays green — is
+issue #238.
 
 The duplication that would matter — two copies of side-pot arithmetic, which
 drift while both still conserve chips — does not occur: there is one copy, in

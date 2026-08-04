@@ -69,6 +69,38 @@ def _transcripts(root: Path) -> list[Path]:
 
 DEFAULT_RESULTS = Path("experiments/llm_eval/results")
 
+# The one game whose archive predates the per-record `game` field, and the only
+# one `--deep` can replay. Named rather than repeated, so the flag's default and
+# the guards that test against it cannot drift apart.
+DEFAULT_GAME = "cardlang_cheat"
+
+
+def game_of(path: Path, records: list[dict[str, Any]]) -> str | None:
+    """The game a transcript is OF, read from the transcript itself.
+
+    Two sources, both written by the run that produced the data: the per-record
+    `game` field, and the `<matchup>.treatment.json` sidecar beside it. Either
+    is enough; `None` means neither exists, which is true only of archives
+    written before the field did — the published Cheat archive is that case.
+
+    This exists because `--game` alone is a PROXY: it validates that a name is
+    known, never that it matches the data. The documented audit command run
+    against another game's archive therefore produced a full Cheat-shaped
+    report and exited 0 — a real win rate beside `0 / 0 = None` for every
+    deception rate, which is exactly the "reads like a clean audit" failure the
+    flag was added to prevent.
+    """
+    for record in records:
+        named = record.get("game")
+        if named:
+            return str(named)
+    sidecar = path.parent / f"{_stem(path)}.treatment.json"
+    if sidecar.is_file():
+        declared = json.loads(sidecar.read_text()).get("game")
+        if declared:
+            return str(declared)
+    return None
+
 
 def resolve_dir(explicit: str | None, run: str | None) -> Path:
     """Which transcripts directory to read, from the two mutually-exclusive ways
@@ -431,7 +463,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--matchup", action="append", help="restrict to these (repeatable)")
     ap.add_argument(
         "--game",
-        default="cardlang_cheat",
+        default=DEFAULT_GAME,
         choices=sorted(AUDITS),
         help="which game's recomputation to run. Defaults to Cheat so the "
         "documented audit command keeps covering the published evidence; a "
@@ -463,12 +495,32 @@ def main(argv: list[str] | None = None) -> int:
         records = _load(f)
         if not records:
             continue
+        # Identity from the DATA beats the flag. When a transcript knows what it
+        # is, an explicit `--game` that disagrees is a contradiction rather than
+        # a precedence question; when it does not — the Cheat archive predates
+        # the field — the flag stands.
+        recorded = game_of(f, records)
+        game_name = recorded or args.game
+        if recorded and args.game != DEFAULT_GAME and args.game != recorded:
+            raise SystemExit(
+                f"{f.name} is a transcript of {recorded!r} but --game says "
+                f"{args.game!r} — one game's rate table over another game's "
+                f"data prints `0 / 0 = None` for every rate and reads like a "
+                f"clean audit. Drop the flag; it is read from the transcript."
+            )
+        if game_name not in AUDITS:
+            raise SystemExit(
+                f"{f.name} is a transcript of {game_name!r}, which has no "
+                f"recomputation here. Add one to AUDITS; auditing it with "
+                f"another game's rate table reports nothing and looks clean. "
+                f"Known: {sorted(AUDITS)}"
+            )
         if args.deep:
-            if args.game != "cardlang_cheat":
+            if game_name != DEFAULT_GAME:
                 raise SystemExit(
                     f"--deep replays through `deep_facts`, which reconstructs "
                     f"CHEAT's per-decision facts; it has no counterpart for "
-                    f"{args.game}. Drop --deep: the level-1 recomputation below "
+                    f"{game_name}. Drop --deep: the level-1 recomputation below "
                     f"already reads the referee's own `legal`/`action` record "
                     f"rather than the pack's facts, so it does not trust the "
                     f"layer it audits."
@@ -482,7 +534,7 @@ def main(argv: list[str] | None = None) -> int:
                 if c["decisions"]:
                     report_arm(f"{_stem(f)} :: {who}  ARM AUDIT (N={len(records)})", c)
                 continue
-            audit, rates = AUDITS[args.game]
+            audit, rates = AUDITS[game_name]
             c = audit(records, who)
             report(
                 f"{_stem(f)} :: {who}  (N={c['games']}{' DEEP' if args.deep else ''})",

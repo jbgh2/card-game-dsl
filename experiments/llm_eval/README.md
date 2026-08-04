@@ -273,6 +273,29 @@ pure check/call posture. Sonnet's is much more balanced (56% check, 53% bet).
 failed to parse twice, at either model, on the first version of the rules text —
 so nothing here is a comprehension artifact, and the prompt needed no iteration.
 
+**The seating confound (issue #233) was measured here, not assumed away.**
+`_build_seats` ties seat parity to seed parity, so where the deal dominates the
+outcome one roster position can be dealt systematically better cards — which is
+what it did on Kuhn. A single Hold'em hand *is* deal-dominated, so this game is
+the at-risk shape, not the safe one. Three probes, all null:
+
+| probe | result |
+|---|---|
+| focus seat wins the showdown on a pure check-down (N=400) | 0.4817 (−0.72 SE) |
+| identically-policied random vs random, rotation on (N=800) | −0.415 ± 0.470 |
+| identically-policied rule vs rule, rotation on (N=800) | +0.276 ± 0.654 |
+
+The two agent probes point in **opposite** directions and neither reaches 2 SE
+— noise, not bias. And with even N and rotation each roster position takes each
+seat exactly N/2 times, so the button/small-blind asymmetry cancels by
+construction; only the card imbalance could survive, and it does not measurably.
+Re-running the free baseline under **balanced seating** (every deal played in
+both seatings) gives **+1.14 ± 0.54, t = 4.12** against the published
+**+1.35 ± 0.80, t = 3.31** — same conclusion, tighter interval, point estimate
+inside both. So the residual is bounded by these probes' power rather than shown
+to be zero; balanced seating would sharpen these numbers, not overturn them, and
+this config should adopt it when #233's fix lands.
+
 ### What the second game cost
 
 The point of the exercise. Split by what a *third* game would and would not pay
