@@ -719,6 +719,102 @@ def test_balanced_seating_covers_each_deal_in_every_seating() -> None:
     ]
 
 
+def test_an_unreachable_infoset_cannot_move_exploitability() -> None:
+    """The reason partial coverage does not always invalidate the number.
+
+    An information set the agent never visited BECAUSE its own earlier choices
+    never lead there is unreachable for a best responder too, so whatever is
+    filled in there contributes zero. A policy that always bets its King never
+    reaches "checked with a King and got bet at" — and the two fills must
+    therefore agree exactly, which is what `exploitability_fill_sensitivity`
+    reports.
+
+    Contrast with a MIXING policy, where the unvisited set is genuinely
+    reachable and the fill moves the number a lot. Both halves are asserted, so
+    the metric cannot degenerate into always reporting zero.
+    """
+    def build(opening: dict[str, str], responses: dict[str, str]) -> K.KuhnStats:
+        stats = K.KuhnStats(agent="a")
+        for card, action in opening.items():
+            for _ in range(20):
+                stats.observe(K.decision_facts(0, _fake_infostate(0, card, ()), action))
+        for card, action in responses.items():
+            for _ in range(20):
+                stats.observe(
+                    K.decision_facts(
+                        0, _fake_infostate(0, card, ("check", "bet")), action
+                    )
+                )
+        return stats
+
+    # Always bets the King, so P0|K|check-bet is the ONE unvisited set and it is
+    # unreachable: no line of play puts this policy there.
+    deterministic = build(
+        {"J": "check", "Q": "check", "K": "bet"}, {"J": "fold", "Q": "call"}
+    )
+    unreachable = K.infoset(0, "K", ("check", "bet"))
+    assert not deterministic.visits.get(unreachable)
+    coverage = deterministic.infoset_coverage()
+    assert coverage is not None and coverage == pytest.approx(5 / 6)
+    assert deterministic.rates()["exploitability_fill_sensitivity"] == pytest.approx(0.0)
+
+    # Same unvisited set, but this policy sometimes CHECKS its King — so the set
+    # is genuinely reachable, and what happens there is load-bearing.
+    mixing = build({"J": "check", "Q": "check"}, {"J": "fold", "Q": "call"})
+    for _ in range(10):
+        mixing.observe(K.decision_facts(0, _fake_infostate(0, "K", ()), "check"))
+        mixing.observe(K.decision_facts(0, _fake_infostate(0, "K", ()), "bet"))
+    assert not mixing.visits.get(unreachable)
+    assert mixing.infoset_coverage() == pytest.approx(5 / 6)
+    sensitivity = mixing.rates()["exploitability_fill_sensitivity"]
+    assert sensitivity is not None and sensitivity > 0.0, (
+        "a reachable unvisited information set must show the fill mattering, or "
+        "the sensitivity metric reports zero for everything and means nothing"
+    )
+
+
+def test_kuhn_has_no_pure_equilibrium_and_the_bound_says_what_that_costs() -> None:
+    """The benchmark a deterministic player must be read against.
+
+    Every Kuhn optimum bluffs a Jack and calls a Queen at a frequency strictly
+    between 0 and 1, so no pure strategy is unexploitable. `best_pure_
+    exploitability` is the exact floor on that, and it must be strictly positive
+    — if it were zero the whole "determinism is what costs them" reading would
+    be unsupported.
+    """
+    for seat in (0, 1):
+        bound = K.best_pure_exploitability(seat)
+        assert bound > 0.0, "a pure strategy reached equilibrium — no it did not"
+        # And it really is a MINIMUM over the pure strategies, not one of them.
+        keys = K.infoset_keys(seat)
+        for choices in itertools.product(*(K.offered(k) for k in keys)):
+            policy = {
+                k: {a: (1.0 if a == c else 0.0) for a in K.offered(k)}
+                for k, c in zip(keys, choices, strict=True)
+            }
+            assert K.exploitability(policy, seat) >= bound - 1e-12
+    assert K.best_pure_exploitability(0) == pytest.approx(1 / 9)
+    assert K.best_pure_exploitability(1) == pytest.approx(2 / 9)
+    # A mixed policy CAN do better — otherwise the bound would not be a bound on
+    # determinism specifically, just on play.
+    assert K.exploitability(K.nash_policy(), 0) < K.best_pure_exploitability(0)
+
+
+def test_purity_is_judged_on_visited_infosets_only() -> None:
+    """An unvisited information set carries the uniform fill, which is mixed.
+    Counting it would report every partially-covered agent as randomising when
+    the property being claimed is about decisions it actually made."""
+    stats = K.KuhnStats(agent="a")
+    for _ in range(5):
+        stats.observe(K.decision_facts(0, _fake_infostate(0, "K", ()), "bet"))
+    assert stats.infoset_coverage() == pytest.approx(1 / 6)
+    assert stats.rates()["policy_is_pure"] is True
+
+    stats.observe(K.decision_facts(0, _fake_infostate(0, "J", ()), "bet"))
+    stats.observe(K.decision_facts(0, _fake_infostate(0, "J", ()), "check"))
+    assert stats.rates()["policy_is_pure"] is False
+
+
 def test_the_deal_space_is_the_six_kuhn_deals() -> None:
     assert len(K.DEALS) == 6
     assert all(a != b for a, b in K.DEALS)

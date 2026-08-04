@@ -1,0 +1,67 @@
+# recomputed independently of kuhn.aggregate, from experiments/llm_eval/results_kuhn
+
+== llm_cheap_control_nash.jsonl.gz  (300 games)
+   deals: {'JK': 48, 'JQ': 42, 'KJ': 48, 'KQ': 52, 'QJ': 48, 'QK': 62}
+   solver agrees with the engine's returns on every game
+   llm_cheap  chips/hand=-0.1667 expl=+0.3265 floor=+0.1108 cov=+0.8333 dominated=+0.2105 (8/38) bluff=+0.4706 fallback=+0.0000
+   nash       chips/hand=+0.1667 expl=+0.0400 floor=+0.0534 cov=+0.9167 dominated=+0.0000 (0/130) bluff=+0.2000 fallback=+0.0000
+
+== llm_cheap_reason_first_nash.jsonl.gz  (300 games)
+   deals: {'JK': 48, 'JQ': 42, 'KJ': 48, 'KQ': 52, 'QJ': 48, 'QK': 62}
+   solver agrees with the engine's returns on every game
+   llm_cheap  chips/hand=-0.1133 expl=+0.3145 floor=+0.1804 cov=+0.7500 dominated=+0.0000 (0/14) bluff=+1.0000 fallback=+0.0000
+   nash       chips/hand=+0.1133 expl=+0.1241 floor=+0.1313 cov=+0.7500 dominated=+0.0000 (0/161) bluff=+0.2000 fallback=+0.0000
+
+== llm_cheap_rendered_nash.jsonl.gz  (300 games)
+   deals: {'JK': 48, 'JQ': 42, 'KJ': 48, 'KQ': 52, 'QJ': 48, 'QK': 62}
+   solver agrees with the engine's returns on every game
+   llm_cheap  chips/hand=-0.0733 expl=+0.1667 floor=+0.1108 cov=+0.8333 dominated=+0.0000 (0/38) bluff=+0.0000 fallback=+0.0000
+   nash       chips/hand=+0.0733 expl=+0.0413 floor=+0.0517 cov=+0.9167 dominated=+0.0000 (0/128) bluff=+0.2000 fallback=+0.0000
+
+== llm_mid_vs_nash.jsonl.gz  (300 games)
+   deals: {'JK': 48, 'JQ': 42, 'KJ': 48, 'KQ': 52, 'QJ': 48, 'QK': 62}
+   solver agrees with the engine's returns on every game
+   llm_mid    chips/hand=-0.0267 expl=+0.1667 floor=+0.1102 cov=+0.9167 dominated=+0.0000 (0/38) bluff=+0.0000 fallback=+0.0000
+   nash       chips/hand=+0.0267 expl=+0.2272 floor=+0.2384 cov=+0.9167 dominated=+0.0000 (0/57) bluff=+0.2319 fallback=+0.0000
+
+== nash_vs_nash.jsonl.gz  (600 games)
+   deals: {'JK': 114, 'JQ': 86, 'KJ': 94, 'KQ': 96, 'QJ': 96, 'QK': 114}
+   solver agrees with the engine's returns on every game
+   nash       chips/hand=+0.0000 expl=+0.0332 floor=+0.0178 cov=+1.0000 dominated=+0.0000 (0/174) bluff=+0.2586 fallback=+0.0000
+
+== nash_vs_random.jsonl.gz  (600 games)
+   deals: {'JK': 114, 'JQ': 86, 'KJ': 94, 'KQ': 96, 'QJ': 96, 'QK': 114}
+   solver agrees with the engine's returns on every game
+   nash       chips/hand=+0.1600 expl=+0.0318 floor=+0.0283 cov=+1.0000 dominated=+0.0000 (0/166) bluff=+0.2313 fallback=+0.0000
+   random     chips/hand=-0.1600 expl=+0.4799 floor=+0.0270 cov=+1.0000 dominated=+0.5224 (35/67) bluff=+0.5000 fallback=+0.0000
+
+== the pre-registered A/B (PREREGISTRATION_KUHN.md)
+{
+  "endpoint": "dominated_action_rate",
+  "seeds_shared": 150,
+  "seeds_with_an_opportunity_in_both": 14,
+  "control": {
+    "taken": 8,
+    "offered": 14,
+    "rate": 0.5714285714285714
+  },
+  "arm": {
+    "taken": 0,
+    "offered": 14,
+    "rate": 0.0
+  },
+  "paired_sign_test": {
+    "up": 0,
+    "down": 8,
+    "tied": 6,
+    "p_two_sided": 0.0078125
+  }
+}
+
+OK
+c7052d2de6e555b31df524677113d42809d737a7689daa0aef5cdd07ce0a3974  transcripts/llm_cheap_control_nash.jsonl.gz
+68c036a7a0d7d098d8d36c533ede3242da0e09c868cc964e8a69e6d83a98bd01  transcripts/llm_cheap_reason_first_nash.jsonl.gz
+a71c5c58a036730a3a39d0e950d436e531b11eb085edcfbed86e87f6b141d69e  transcripts/llm_cheap_rendered_nash.jsonl.gz
+ae70e4e896dedd618d70084270ed1dc468a56788bfd7a7d3e3716c2ec61f2550  transcripts/llm_mid_vs_nash.jsonl.gz
+07823daa6bda0baca5a3188b88314af7e865cc5825e5ace00feb1a9b1d53b454  transcripts/nash_vs_nash.jsonl.gz
+89f3012057295a0c09c50f244fbf8ccf0aba14e97d6f5f82823eae8c59b098b0  transcripts/nash_vs_random.jsonl.gz

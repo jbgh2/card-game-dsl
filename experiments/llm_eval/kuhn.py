@@ -37,6 +37,7 @@ from __future__ import annotations
 import ast
 import itertools
 import re
+from functools import lru_cache
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from typing import Any
@@ -236,6 +237,37 @@ def best_response(policy: Policy, seat: int) -> tuple[float, Policy]:
         if value > best_value:
             best_value, best_policy = value, candidate
     return best_value, best_policy
+
+
+def is_pure(policy: Policy) -> bool:
+    """Whether a policy randomises anywhere. A pure policy carries no estimation
+    error — the measured frequencies ARE the policy — which changes which
+    benchmark its exploitability should be read against."""
+    return all(
+        all(p in (0.0, 1.0) for p in dist.values()) for dist in policy.values()
+    )
+
+
+@lru_cache(maxsize=None)
+def best_pure_exploitability(seat: int) -> float:
+    """The least a DETERMINISTIC policy can concede at `seat`, in chips per hand.
+
+    Kuhn has no pure-strategy equilibrium: every optimum bluffs a Jack and calls
+    a Queen at a frequency strictly between 0 and 1. So a player that never
+    randomises is exploitable however well it plays otherwise, and this is the
+    exact floor on that — computed by exhausting all 2^6 pure strategies rather
+    than asserted.
+
+    It is the benchmark a pure policy should be read against. `noise_floor`
+    answers "what would an equilibrium player measure at these visit counts",
+    which is the wrong question for a player that is not estimating anything: a
+    pure policy measured over any number of hands is exact, not noisy.
+    """
+    keys = infoset_keys(seat)
+    return min(
+        exploitability(_pure(keys, choices), seat)
+        for choices in itertools.product(*(offered(k) for k in keys))
+    )
 
 
 def noise_floor(
@@ -674,6 +706,31 @@ class KuhnStats:
             sum(p for _, p in pairs) / len(pairs),
         )
 
+    def _purity(self) -> bool | None:
+        """Whether the agent randomised anywhere it was actually asked.
+
+        Judged on VISITED information sets only — an unvisited one carries the
+        fill, and calling a policy mixed because its fill is uniform would be
+        reporting a property of the fill.
+        """
+        seats = self._seats_played()
+        if not seats:
+            return None
+        return all(
+            is_pure({key: dist})
+            for seat in seats
+            for key, dist in self.policy(seat, uniform_policy(seat)).items()
+            if self.visits.get(key)
+        )
+
+    def _pure_bound(self) -> float | None:
+        """The least a deterministic policy could concede over the seats this
+        agent occupied."""
+        seats = self._seats_played()
+        if not seats:
+            return None
+        return sum(best_pure_exploitability(seat) for seat in seats) / len(seats)
+
     def infoset_coverage(self) -> float | None:
         """The fraction of the information sets this agent could have been asked
         about that it actually visited. An exploitability number over low
@@ -702,12 +759,39 @@ class KuhnStats:
             # the claim; the raw number on its own is not.
             "exploitability": self.exploitability(fill_with_nash=False),
             "exploitability_nash_fill": self.exploitability(fill_with_nash=True),
+            # How much of the number the FILL is responsible for: the gap between
+            # filling unvisited information sets uniformly and filling them with
+            # equilibrium play. Zero discharges the coverage caveat entirely, and
+            # zero is the common case for a near-deterministic policy — an
+            # information set left unvisited BECAUSE the agent's own earlier
+            # choices never lead there is unreachable for a best responder too,
+            # so what would have happened in it cannot affect the value. Non-zero
+            # means coverage is doing real work and the number is partly a
+            # statement about the fill rather than about the player.
+            "exploitability_fill_sensitivity": (
+                None
+                if measured is None
+                else abs(measured - (self.exploitability(fill_with_nash=True) or 0.0))
+            ),
             "exploitability_noise_floor": floor[0] if floor else None,
             "exploitability_noise_floor_p95": floor[1] if floor else None,
             "exploitability_above_floor": (
                 None
                 if floor is None or measured is None
                 else measured - floor[0]
+            ),
+            # Whether the agent randomises at all, and what its determinism costs
+            # if it does not. Kuhn has NO pure-strategy equilibrium, so a player
+            # that never mixes concedes at least `best_pure_exploitability`
+            # however well it plays otherwise. For a pure policy that bound — not
+            # the sampling floor — is the benchmark: a pure policy is measured
+            # exactly, so none of its exploitability is estimation error.
+            "policy_is_pure": self._purity(),
+            "best_pure_exploitability": self._pure_bound(),
+            "exploitability_above_pure_bound": (
+                None
+                if measured is None or self._pure_bound() is None
+                else measured - (self._pure_bound() or 0.0)
             ),
             "infoset_coverage": self.infoset_coverage(),
             # The error rate that needs no equilibrium to interpret.

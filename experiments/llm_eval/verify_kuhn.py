@@ -304,11 +304,18 @@ def main() -> int:
     parser.add_argument("--arm", default="llm_cheap_reason_first_nash")
     args = parser.parse_args()
 
-    run_dir = args.dir or max(
-        glob.glob("experiments/llm_eval/results_kuhn/runs/*"), default=""
+    # The committed ARCHIVE is the default, not the latest run directory: a
+    # reviewer who has just cloned the repo has no run directories, and the
+    # archive is the record a published number rests on. `--dir` overrides for
+    # looking at a run in progress.
+    archive = "experiments/llm_eval/results_kuhn"
+    run_dir = args.dir or (
+        archive
+        if glob.glob(os.path.join(archive, "transcripts", "*.jsonl.gz"))
+        else max(glob.glob(os.path.join(archive, "runs", "*")), default="")
     )
     if not run_dir:
-        print("no run directory found")
+        print("no transcripts found — run a matchup first, or pass --dir")
         return 1
     transcripts = sorted(glob.glob(os.path.join(run_dir, "transcripts", "*.jsonl*")))
     if not transcripts:
@@ -344,9 +351,18 @@ def main() -> int:
             )
         print()
 
-    control_path = os.path.join(run_dir, "transcripts", f"{args.control}.jsonl")
-    arm_path = os.path.join(run_dir, "transcripts", f"{args.arm}.jsonl")
-    if os.path.exists(control_path) and os.path.exists(arm_path):
+    def _find(matchup: str) -> str:
+        """The transcript for a matchup, gzipped or not — the archive holds one
+        and a live run directory the other."""
+        for suffix in (".jsonl", ".jsonl.gz"):
+            candidate = os.path.join(run_dir, "transcripts", matchup + suffix)
+            if os.path.exists(candidate):
+                return candidate
+        return ""
+
+    control_path = _find(args.control)
+    arm_path = _find(args.arm)
+    if control_path and arm_path:
         print("== the pre-registered A/B (PREREGISTRATION_KUHN.md)")
         print(json.dumps(compare_arms(control_path, arm_path), indent=2))
     else:
